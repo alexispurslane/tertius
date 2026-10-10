@@ -4,8 +4,8 @@ namespace Tertius.Simulation;
 
 /// <summary>
 /// A read-only view of the front snapshot: the state at the end of the previous tick. During a tick, any thread may
-/// read it. Lookups with a stale or null handle throw <see cref="InvalidOperationException"/>. The <c>Try</c> methods
-/// return false instead.
+/// read it. Lookups with a stale or null handle throw <see cref="StaleEntityException"/>, an
+/// <see cref="InvalidOperationException"/>. The <c>Try</c> methods return false instead.
 /// </summary>
 public readonly struct Snapshot
 {
@@ -23,22 +23,22 @@ public readonly struct Snapshot
     public bool IsAlive(Entity entity) => world.IsAlive(entity);
 
     /// <summary>The frame the entity is in. Null for the owner of a root frame.</summary>
-    public FrameHandle FrameOf(Entity entity) => world.FrontRow(entity).Frame;
+    public FrameHandle FrameOf(Entity entity) => world.Entities.FrontRow(entity).Frame;
 
     /// <summary>The entity's pose in its frame.</summary>
-    public DPose PoseOf(Entity entity) => world.FrontRow(entity).Pose;
+    public DPose PoseOf(Entity entity) => world.Entities.FrontRow(entity).Pose;
 
     /// <summary>Linear velocity in frame axes.</summary>
-    public Vector3 VelocityOf(Entity entity) => world.FrontRow(entity).LinearVelocity;
+    public Vector3 VelocityOf(Entity entity) => world.Entities.FrontRow(entity).LinearVelocity;
 
     /// <summary>Angular velocity in frame axes.</summary>
-    public Vector3 AngularVelocityOf(Entity entity) => world.FrontRow(entity).AngularVelocity;
+    public Vector3 AngularVelocityOf(Entity entity) => world.Entities.FrontRow(entity).AngularVelocity;
 
     /// <summary>The entity's render row.</summary>
-    public RenderData RenderOf(Entity entity) => world.FrontRender(entity);
+    public RenderData RenderOf(Entity entity) => world.Entities.FrontRender(entity);
 
     /// <summary>True if the entity has a physics body.</summary>
-    public bool HasBody(Entity entity) => world.HasBody(entity);
+    public bool HasBody(Entity entity) => world.Entities.Body(entity) != null;
 
     /// <summary>The entity's frame and pose in it. False for a stale handle.</summary>
     public bool TryGetPose(Entity entity, out FrameHandle frame, out DPose pose)
@@ -49,7 +49,7 @@ public readonly struct Snapshot
             pose = default;
             return false;
         }
-        ref readonly TransformRow row = ref world.FrontRow(entity);
+        ref readonly TransformRow row = ref world.Entities.FrontRow(entity);
         frame = row.Frame;
         pose = row.Pose;
         return true;
@@ -61,7 +61,7 @@ public readonly struct Snapshot
         pose = default;
         if (!world.IsAlive(entity) || !world.Frames.IsAlive(frame))
             return false;
-        ref readonly TransformRow row = ref world.FrontRow(entity);
+        ref readonly TransformRow row = ref world.Entities.FrontRow(entity);
         if (row.Frame == frame)
         {
             pose = row.Pose;

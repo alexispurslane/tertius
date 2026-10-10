@@ -12,7 +12,11 @@ public sealed class WorldOptions
     /// <summary>The most gameplay workers that run at once. -1 means no limit. 1 runs every chunk on the ticking thread.</summary>
     public int MaxDegreeOfParallelism { get; set; } = -1;
 
-    /// <summary>Enables extra consistency checks at the sync point. Violations go to <see cref="World.Errors"/>.</summary>
+    /// <summary>
+    /// Runs the invariant checks of every subsystem at the end of every sync point, and the entity table's checks at
+    /// step 3 as well. They cost O(capacity) per tick, so leave them off for large worlds. A broken invariant is a bug in
+    /// the engine, and throws <see cref="ContractException"/> out of <see cref="World.Tick"/>.
+    /// </summary>
     public bool DebugChecks { get; set; }
 
     /// <summary>

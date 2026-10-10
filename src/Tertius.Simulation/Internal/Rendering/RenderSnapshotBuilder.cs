@@ -1,24 +1,56 @@
-using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace Tertius.Simulation;
 
-public sealed partial class World
+/// <summary>What a render snapshot shows, apart from the entities: the tick, the camera and the lights of the scene.</summary>
+internal readonly record struct RenderView(
+    long Tick,
+    double Time,
+    Entity Camera,
+    float VerticalFov,
+    FrameHandle SunFrame,
+    Vector3 SunColor,
+    float SunIntensity,
+    AmbientLight Ambient);
+
+/// <summary>
+/// Builds render snapshots from the front tables. Every frame's pose relative to the camera's frame is computed in
+/// doubles along the frame tree, so an object far away in a sibling frame is as exact as the float result allows, and
+/// one near the camera is exact. Instances, lights and occluders are then written relative to the render origin, the
+/// camera position at this tick.
+/// </summary>
+/// <remarks>
+/// The builder remembers the frame and entity poses of the previous build, so that each instance also carries its
+/// previous transform relative to the same origin. It interpolates only between consecutive builds of the same camera
+/// in the same frame. Runs at the sync point, or on the ticking thread outside a tick; large builds fan out over the
+/// thread pool, one slice of the entity table per worker, and join in slot order.
+/// <para>
+/// Invariants, checked by <see cref="AssertInvariants"/>:
+/// <list type="bullet">
+/// <item>An entity's remembered pose comes from a build that has happened, and names the frame it was relative
+/// to.</item>
+/// <item>The memory is a column of the entity table, so a released entity's memory is cleared, and a new entity in a
+/// reused slot never interpolates from the old one.</item>
+/// </list>
+/// </para>
+/// </remarks>
+internal sealed class RenderSnapshotBuilder
 {
     private const int RenderChunkSlots = 1024;
     private const int ParallelRenderThreshold = 8192;
     private static readonly Double3 LightForward = new(0, 0, -1);
 
+    private readonly EntityTable entities;
+    private readonly FrameTree frames;
+    private readonly ParallelOptions parallelOptions;
+    private readonly bool parallel;
     private readonly Action<int> renderChunk;
 
     // Frame data by dense index, rebuilt at every build.
     private DPose[] relCurrent = new DPose[16];
     private DPose[] relPrevious = new DPose[16];
-    private DPose[] localCurrent = new DPose[16];
     private DPose[] localPrevious = new DPose[16];
-    private int[] parentDense = new int[16];
-    private byte[] onPath = new byte[16];
     private FrameHandle[] denseFrames = new FrameHandle[16];
 
     // Frame data by frame index.
@@ -30,11 +62,16 @@ public sealed partial class World
     private FrameHandle[] lastFrameParent = new FrameHandle[16];
     private long[] lastFrameStamp = new long[16];
 
-    // Entity data by slot: the pose that the previous build used.
-    private DPose[] lastEntityPose = [];
-    private FrameHandle[] lastEntityFrame = [];
-    private uint[] lastEntityGen = [];
-    private long[] lastEntityStamp = [];
+    /// <summary>The pose of one entity at the last build that placed it, relative to its frame then.</summary>
+    private struct PoseMemory
+    {
+        public DPose Pose;
+        public FrameHandle Frame;
+        /// <summary>The build that wrote it, or 0 for none.</summary>
+        public long Stamp;
+    }
+
+    private readonly EntityTable.Column<PoseMemory> lastEntityPose;
 
     private long buildStamp;
     private Entity lastCamera;
@@ -49,87 +86,86 @@ public sealed partial class World
     private RefList<RenderInstance>[] instanceChunks = [];
     private RefList<RenderLight>[] lightChunks = [];
 
-    /// <summary>
-    /// Builds a render snapshot of the current state and publishes it. The sync point does this every tick; call it
-    /// yourself to show the world before the first tick. Outside a tick only.
-    /// </summary>
-    public void PublishRenderSnapshot()
+    public RenderSnapshotBuilder(EntityTable entities, FrameTree frames, ParallelOptions parallelOptions)
     {
-        ThrowIfInTick(nameof(PublishRenderSnapshot));
-        BuildRenderSnapshot();
+        this.entities = entities;
+        this.frames = frames;
+        this.parallelOptions = parallelOptions;
+        parallel = parallelOptions.MaxDegreeOfParallelism != 1;
+        renderChunk = BuildChunk;
+        lastEntityPose = entities.AddColumn<PoseMemory>();
     }
 
     /// <summary>
-    /// Writes every visible entity, light, occluder and the camera relative to the render origin: the camera position
-    /// in the camera's frame. Frame poses relative to that frame are computed in doubles along the tree, so an object
-    /// far away in a sibling frame is as exact as the float result allows, and one near the camera is exact.
+    /// Fills <paramref name="snapshot"/> with the current state. Without a live camera, the snapshot has the view
+    /// settings but nothing in it, and the next build does not interpolate.
     /// </summary>
-    private void BuildRenderSnapshot()
+    public void Build(RenderSnapshot snapshot, in RenderView view)
     {
         long stamp = ++buildStamp;
-        RenderSnapshot snapshot = RenderSnapshots.WriteBuffer;
         snapshot.Clear();
-        snapshot.Tick = TickNumber;
-        snapshot.Time = Time;
-        snapshot.Ambient = Ambient;
-        snapshot.Camera = new RenderCamera { Rotation = Quaternion.Identity, PreviousRotation = Quaternion.Identity, VerticalFov = VerticalFov };
-        snapshot.Sun = new RenderSun { Direction = Vector3.UnitY, Color = SunColor, Intensity = SunIntensity };
+        snapshot.Tick = view.Tick;
+        snapshot.Time = view.Time;
+        snapshot.Ambient = view.Ambient;
+        snapshot.Camera = new RenderCamera { Rotation = Quaternion.Identity, PreviousRotation = Quaternion.Identity, VerticalFov = view.VerticalFov };
+        snapshot.Sun = new RenderSun { Direction = Vector3.UnitY, Color = view.SunColor, Intensity = view.SunIntensity };
+        snapshot.OriginInFrame = Double3.Zero;
+        snapshot.OriginFrameId = 0;
 
-        if (TryGetCameraPose(out FrameHandle cameraFrame, out DPose cameraPose))
-        {
-            // Interpolate only when the same camera is in the same frame as at the previous build.
-            bool interpolate = lastCamera == Camera && lastCameraFrame == cameraFrame && lastCameraStamp == stamp - 1;
-            int frameCount = PrepareFramePoses(cameraFrame, stamp, interpolate);
-            renderInterpolate = interpolate;
-            renderOrigin = cameraPose.Position;
-
-            DPose previousCamera = interpolate ? lastCameraPose : cameraPose;
-            snapshot.Camera = new RenderCamera
-            {
-                Position = Vector3.Zero,
-                Rotation = cameraPose.Rotation.ToQuaternion(),
-                PreviousPosition = (previousCamera.Position - renderOrigin).ToVector3(),
-                PreviousRotation = previousCamera.Rotation.ToQuaternion(),
-                VerticalFov = VerticalFov,
-            };
-
-            BuildInstances(snapshot);
-            BuildSun(snapshot);
-            BuildOccluders(snapshot, frameCount);
-
-            lastCamera = Camera;
-            lastCameraFrame = cameraFrame;
-            lastCameraPose = cameraPose;
-            lastCameraStamp = stamp;
-        }
-        else
+        if (!TryGetCameraPose(view.Camera, out FrameHandle cameraFrame, out DPose cameraPose))
         {
             lastCamera = Entity.Null;
+            return;
         }
 
-        snapshot.PublishedAt = Stopwatch.GetTimestamp();
-        RenderSnapshots.Publish();
+        // Interpolate only when the same camera is in the same frame as at the previous build.
+        bool interpolate = lastCamera == view.Camera && lastCameraFrame == cameraFrame && lastCameraStamp == stamp - 1;
+        int frameCount = PrepareFramePoses(cameraFrame, stamp, interpolate);
+        renderInterpolate = interpolate;
+        renderOrigin = cameraPose.Position;
+
+        DPose previousCamera = interpolate ? lastCameraPose : cameraPose;
+        snapshot.Camera = new RenderCamera
+        {
+            Position = Vector3.Zero,
+            Rotation = cameraPose.Rotation.ToQuaternion(),
+            PreviousPosition = (previousCamera.Position - renderOrigin).ToVector3(),
+            PreviousRotation = previousCamera.Rotation.ToQuaternion(),
+            VerticalFov = view.VerticalFov,
+        };
+        snapshot.OriginInFrame = renderOrigin;
+        // Stable for the life of the frame, and new when a frame reuses the index: the generation changes.
+        snapshot.OriginFrameId = ((long)cameraFrame.Generation << 32) | (uint)cameraFrame.Index;
+
+        BuildInstances(snapshot);
+        BuildSun(snapshot, view);
+        BuildOccluders(snapshot, frameCount);
+
+        lastCamera = view.Camera;
+        lastCameraFrame = cameraFrame;
+        lastCameraPose = cameraPose;
+        lastCameraStamp = stamp;
     }
 
-    private bool TryGetCameraPose(out FrameHandle frame, out DPose pose)
+    /// <summary>The camera's frame, and its eye pose in that frame: the entity pose composed with its view offset.</summary>
+    private bool TryGetCameraPose(Entity camera, out FrameHandle frame, out DPose pose)
     {
-        Entity camera = Camera;
         frame = default;
         pose = default;
-        if (!IsAlive(camera))
+        if (!entities.IsAlive(camera))
             return false;
-        ref readonly TransformRow row = ref frontTransform[camera.Index];
+        ref readonly TransformRow row = ref entities.FrontRow(camera);
         frame = row.Frame;
         DPose entityPose = row.Pose;
         if (frame.IsNull)
         {
             // The owner of a root frame looks out from its own frame's origin.
-            frame = records[camera.Index].OwnedFrame;
+            frame = entities.OwnedFrame(camera);
             entityPose = DPose.Identity;
             if (frame.IsNull)
                 return false;
         }
-        pose = DPose.Compose(entityPose, SafePose(frontRender[camera.Index].ViewOffset).ToDPose());
+        pose = DPose.Compose(entityPose, Poses.Safe(entities.FrontRender(camera).ViewOffset).ToDPose());
         return true;
     }
 
@@ -139,13 +175,13 @@ public sealed partial class World
     /// </summary>
     private int PrepareFramePoses(FrameHandle cameraFrame, long stamp, bool interpolate)
     {
-        int n = Frames.Count;
+        int n = frames.Count;
         EnsureDenseFrameArrays(n);
-        Frames.ComputeRelativeTo(cameraFrame, relCurrent.AsSpan(0, n));
+        frames.ComputeRelativeTo(cameraFrame, relCurrent.AsSpan(0, n));
 
         for (int i = 0; i < n; i++)
         {
-            FrameHandle frame = Frames.AtDense(i);
+            FrameHandle frame = frames.AtDense(i);
             EnsureFrameIndexArrays(frame.Index);
             denseFrames[i] = frame;
             denseOfFrame[frame.Index] = i;
@@ -153,18 +189,17 @@ public sealed partial class World
             frameSeen[frame.Index] = stamp;
         }
 
+        ReadOnlySpan<DPose> locals = frames.LocalPosesDense;
         bool anyMoved = false;
         for (int i = 0; i < n; i++)
         {
             FrameHandle frame = denseFrames[i];
-            FrameHandle parent = Frames.Parent(frame);
-            parentDense[i] = parent.IsNull ? -1 : denseOfFrame[parent.Index];
-            DPose local = Frames.LocalPose(frame);
-            localCurrent[i] = local;
+            FrameHandle parent = frames.Parent(frame);
+            DPose local = locals[i];
             // A frame that is new, or that changed parent, has no usable previous local pose.
             bool known = lastFrameStamp[frame.Index] == stamp - 1 && lastFrameHandle[frame.Index] == frame && lastFrameParent[frame.Index] == parent;
             localPrevious[i] = known ? lastFrameLocal[frame.Index] : local;
-            anyMoved |= !BitEquals(localPrevious[i], local);
+            anyMoved |= !Poses.BitEquals(localPrevious[i], local);
 
             lastFrameLocal[frame.Index] = local;
             lastFrameHandle[frame.Index] = frame;
@@ -172,46 +207,18 @@ public sealed partial class World
             lastFrameStamp[frame.Index] = stamp;
         }
 
+        // The previous poses use this build's tree with last build's local poses: a frame that moved between the builds
+        // carries its contents along, and equal local poses give bit-identical results.
         if (interpolate && anyMoved)
-            ComputeRelative(denseOfFrame[cameraFrame.Index], localPrevious, relPrevious, n);
+            frames.ComputeRelativeTo(cameraFrame, localPrevious.AsSpan(0, n), relPrevious.AsSpan(0, n));
         else
             relCurrent.AsSpan(0, n).CopyTo(relPrevious);
         return n;
     }
 
-    /// <summary>
-    /// The pose of every frame relative to frame <paramref name="reference"/>, from the given local poses. This is the
-    /// same computation, in the same order, as <see cref="PoseTree{TPose}.ComputeRelativeTo"/>, so equal local poses
-    /// give bit-identical results.
-    /// </summary>
-    private void ComputeRelative(int reference, ReadOnlySpan<DPose> local, Span<DPose> result, int n)
-    {
-        Span<byte> path = onPath.AsSpan(0, n);
-        path.Clear();
-        result[reference] = DPose.Identity;
-        path[reference] = 1;
-        int x = reference;
-        while (parentDense[x] >= 0)
-        {
-            int p = parentDense[x];
-            result[p] = DPose.Compose(result[x], local[x].Inverse());
-            path[p] = 1;
-            x = p;
-        }
-        DPose virtualRoot = DPose.Compose(result[x], local[x].Inverse());
-        for (int i = 0; i < n; i++)
-        {
-            if (path[i] != 0)
-                continue;
-            int p = parentDense[i];
-            result[i] = p < 0 ? DPose.Compose(virtualRoot, local[i]) : DPose.Compose(result[p], local[i]);
-        }
-    }
-
     private void BuildInstances(RenderSnapshot snapshot)
     {
-        renderSlotCount = Math.Min(slotCount, capacity);
-        EnsureRenderSlotArrays(capacity);
+        renderSlotCount = entities.SlotCount;
         int chunkCount = (renderSlotCount + RenderChunkSlots - 1) / RenderChunkSlots;
         if (instanceChunks.Length < chunkCount)
         {
@@ -225,11 +232,11 @@ public sealed partial class World
             }
         }
 
-        if (renderSlotCount >= ParallelRenderThreshold && options.MaxDegreeOfParallelism != 1)
+        if (renderSlotCount >= ParallelRenderThreshold && parallel)
             Parallel.For(0, chunkCount, parallelOptions, renderChunk);
         else
             for (int c = 0; c < chunkCount; c++)
-                BuildRenderChunk(c);
+                BuildChunk(c);
 
         // Join the chunks in order, so that the instance order does not depend on threads.
         int instances = 0, lights = 0;
@@ -253,45 +260,44 @@ public sealed partial class World
         }
     }
 
-    private void BuildRenderChunk(int chunk)
+    private void BuildChunk(int chunk)
     {
         RefList<RenderInstance> instances = instanceChunks[chunk];
         RefList<RenderLight> lights = lightChunks[chunk];
         int start = chunk * RenderChunkSlots;
         int end = Math.Min(start + RenderChunkSlots, renderSlotCount);
         Double3 origin = renderOrigin;
-        for (int slot = start; slot < end; slot++)
+        foreach (Entity entity in entities.LiveEntitiesIn(start, end - start))
         {
-            if (slotState[slot] != SlotState.Live)
-                continue;
-            ref RenderData render = ref frontRender[slot];
+            ref readonly RenderData render = ref entities.FrontRender(entity);
+            // A default mesh is none, so a render row that never set a mesh draws nothing even with Visible set.
             bool visible = (render.Flags & RenderFlags.Visible) != 0 && !render.Mesh.IsNone;
             if (!visible && !render.Light.Enabled)
                 continue;
-            if (!TryGetRenderPoses(slot, out DPose current, out DPose previous))
+            if (!TryGetRenderPoses(entity, out DPose current, out DPose previous))
                 continue;
 
             if (visible)
             {
+                // One render row per entity today, so every instance is part 0.
                 ref RenderInstance instance = ref instances.AddRef();
-                instance = new RenderInstance
-                {
-                    EntityIndex = (uint)slot,
-                    Mesh = render.Mesh,
-                    Material = render.Material,
-                    Flags = render.Flags,
-                    Position = (current.Position - origin).ToVector3(),
-                    Rotation = current.Rotation.ToQuaternion(),
-                    Scale = render.Scale,
-                    PreviousPosition = (previous.Position - origin).ToVector3(),
-                    PreviousRotation = previous.Rotation.ToQuaternion(),
-                    BoundingRadius = render.BoundingRadius,
-                };
+                instance = RenderInstance.Create(
+                    render.Mesh,
+                    render.Material,
+                    (current.Position - origin).ToVector3(),
+                    current.Rotation.ToQuaternion(),
+                    render.Scale,
+                    render.BoundingRadius,
+                    render.Flags,
+                    entityIndex: entity.Index,
+                    part: 0);
+                instance.PreviousPosition = (previous.Position - origin).ToVector3();
+                instance.PreviousRotation = previous.Rotation.ToQuaternion();
             }
             if (render.Light.Enabled)
             {
                 ref readonly LightData light = ref render.Light;
-                DPose pose = DPose.Compose(current, SafePose(light.Offset).ToDPose());
+                DPose pose = DPose.Compose(current, Poses.Safe(light.Offset).ToDPose());
                 ref RenderLight output = ref lights.AddRef();
                 output = new RenderLight
                 {
@@ -311,11 +317,12 @@ public sealed partial class World
     /// <summary>
     /// The entity's pose relative to the camera frame now and at the previous build. A frame owner uses its frame's
     /// pose. Any other entity composes its frame's pose with its own; its previous pose uses the frame it was in then,
-    /// so a hand-off interpolates smoothly.
+    /// so a hand-off interpolates smoothly. False for an entity whose frame this build did not place. After a sync point
+    /// every live entity is in a live frame, so that only guards against a broken table.
     /// </summary>
-    private bool TryGetRenderPoses(int slot, out DPose current, out DPose previous)
+    private bool TryGetRenderPoses(Entity entity, out DPose current, out DPose previous)
     {
-        FrameHandle own = records[slot].OwnedFrame;
+        FrameHandle own = entities.OwnedFrame(entity);
         if (!own.IsNull)
         {
             if (!FrameSeen(own))
@@ -329,7 +336,7 @@ public sealed partial class World
             return true;
         }
 
-        ref readonly TransformRow row = ref frontTransform[slot];
+        ref readonly TransformRow row = ref entities.FrontRow(entity);
         if (!FrameSeen(row.Frame))
         {
             current = previous = default;
@@ -337,17 +344,10 @@ public sealed partial class World
         }
         current = DPose.Compose(relCurrent[denseOfFrame[row.Frame.Index]], row.Pose);
         previous = current;
-        uint gen = generation[slot];
-        if (renderInterpolate && lastEntityStamp[slot] == buildStamp - 1 && lastEntityGen[slot] == gen)
-        {
-            FrameHandle lastFrame = lastEntityFrame[slot];
-            if (FrameSeen(lastFrame))
-                previous = DPose.Compose(relPrevious[denseOfFrame[lastFrame.Index]], lastEntityPose[slot]);
-        }
-        lastEntityPose[slot] = row.Pose;
-        lastEntityFrame[slot] = row.Frame;
-        lastEntityGen[slot] = gen;
-        lastEntityStamp[slot] = buildStamp;
+        ref PoseMemory last = ref lastEntityPose[entity];
+        if (renderInterpolate && last.Stamp == buildStamp - 1 && FrameSeen(last.Frame))
+            previous = DPose.Compose(relPrevious[denseOfFrame[last.Frame.Index]], last.Pose);
+        last = new PoseMemory { Pose = row.Pose, Frame = row.Frame, Stamp = buildStamp };
         return true;
     }
 
@@ -355,16 +355,16 @@ public sealed partial class World
     private bool FrameSeen(FrameHandle frame) =>
         !frame.IsNull && (uint)frame.Index < (uint)frameSeen.Length && frameSeen[frame.Index] == buildStamp && genOfFrame[frame.Index] == frame.Generation;
 
-    private void BuildSun(RenderSnapshot snapshot)
+    private void BuildSun(RenderSnapshot snapshot, in RenderView view)
     {
-        FrameHandle sun = SunFrame;
-        if (!Frames.IsAlive(sun) || !FrameSeen(sun))
+        FrameHandle sun = view.SunFrame;
+        if (!frames.IsAlive(sun) || !FrameSeen(sun))
             return;
         Double3 toSun = relCurrent[denseOfFrame[sun.Index]].Position - renderOrigin;
         double distance = toSun.Length;
         if (!(distance > 0))
             return;
-        float radius = IsAlive(sun.Entity) ? frontRender[sun.Entity.Index].BoundingRadius : 0;
+        float radius = entities.IsAlive(sun.Entity) ? entities.FrontRender(sun.Entity).BoundingRadius : 0;
         snapshot.Sun.Direction = (toSun / distance).ToVector3();
         snapshot.Sun.AngularRadius = radius > 0 ? (float)Math.Atan(radius / distance) : 0;
     }
@@ -375,9 +375,9 @@ public sealed partial class World
         for (int i = 0; i < frameCount; i++)
         {
             FrameHandle frame = denseFrames[i];
-            if (Frames.Gravity(frame).Kind != GravityKind.Point || !IsAlive(frame.Entity))
+            if (frames.Gravity(frame).Kind != GravityKind.Point || !entities.IsAlive(frame.Entity))
                 continue;
-            float radius = frontRender[frame.Entity.Index].BoundingRadius;
+            float radius = entities.FrontRender(frame.Entity).BoundingRadius;
             if (radius <= 0)
                 continue;
             snapshot.Occluders.Add(new RenderOccluder { Center = (relCurrent[i].Position - renderOrigin).ToVector3(), Radius = radius });
@@ -391,10 +391,7 @@ public sealed partial class World
         int size = Math.Max(n, relCurrent.Length * 2);
         Array.Resize(ref relCurrent, size);
         Array.Resize(ref relPrevious, size);
-        Array.Resize(ref localCurrent, size);
         Array.Resize(ref localPrevious, size);
-        Array.Resize(ref parentDense, size);
-        Array.Resize(ref onPath, size);
         Array.Resize(ref denseFrames, size);
     }
 
@@ -412,13 +409,10 @@ public sealed partial class World
         Array.Resize(ref lastFrameStamp, size);
     }
 
-    private void EnsureRenderSlotArrays(int size)
+    /// <summary>Checks the invariant in the class comment. O(capacity): a pass over the whole memory column.</summary>
+    internal void AssertInvariants()
     {
-        if (lastEntityPose.Length >= size)
-            return;
-        Array.Resize(ref lastEntityPose, size);
-        Array.Resize(ref lastEntityFrame, size);
-        Array.Resize(ref lastEntityGen, size);
-        Array.Resize(ref lastEntityStamp, size);
+        foreach (ref readonly PoseMemory last in lastEntityPose.AsSpan())
+            Contract.Invariant(last.Stamp >= 0 && last.Stamp <= buildStamp && (last.Stamp == 0 || !last.Frame.IsNull));
     }
 }

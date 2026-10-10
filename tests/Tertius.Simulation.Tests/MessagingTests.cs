@@ -238,6 +238,72 @@ public class MessagingTests
     }
 
     [Fact]
+    public void AMessageToADeadFrameNeverReachesTheFrameThatReusesItsIndex()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        var log = new List<string>();
+        world.Log += log.Add;
+        FrameHandle old = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
+        Topic stale = old.Topic;
+        world.Destroy(old.Entity);
+        FrameHandle reused = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
+        Assert.Equal(old.Index, reused.Index);
+        Assert.NotEqual(old.Generation, reused.Generation);
+
+        var inside = new Recorder();
+        var watcher = new Recorder();
+        world.SpawnWith(reused, inside);
+        Entity outside = world.SpawnWith(root, watcher);
+        world.Subscribe(outside, stale);
+        Assert.Contains(log, l => l.Contains("cannot subscribe"));
+        // An entity that kept the old topic sends to it during a tick; the host posts to it from outside.
+        world.SpawnWith(root, Sender(t => t == 0 ? [(stale, 1), (reused.Topic, 2)] : []));
+        world.Post(Event.Create(stale, Entity.Null, new Ping { Value = 3 }));
+
+        world.Run(2);
+
+        Assert.Equal([2], inside.PingValues());
+        Assert.Empty(watcher.Seen);
+    }
+
+    [Fact]
+    public void TopicsQueriesAndDrawingWorkInEachOfManyFrames()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        var frames = new List<FrameHandle>();
+        var recorders = new List<Recorder>();
+        for (int i = 0; i < 40; i++)
+        {
+            FrameHandle frame = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(i * 1000), AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static) }));
+            var recorder = new Recorder();
+            world.Spawn(new SpawnDesc
+            {
+                Frame = frame,
+                Pose = TestWorld.At(1, 2, 3),
+                Components = [recorder],
+                Render = new RenderData { Mesh = new MeshId(i), Flags = RenderFlags.Visible },
+            });
+            frames.Add(frame);
+            recorders.Add(recorder);
+        }
+        world.Camera = world.SpawnWith(root);
+        world.SpawnWith(root, Sender(t => t == 0 ? [.. frames.Select((f, i) => ((Target)f.Topic, i))] : []));
+
+        world.Run(2);
+
+        Assert.True(frames[^1].Index >= 32, frames[^1].ToString());
+        for (int i = 0; i < frames.Count; i++)
+            Assert.Equal([i], recorders[i].PingValues());
+        var found = new List<Entity>();
+        world.Snapshot.QueryRadius(frames[^1], new Double3(1, 2, 3), 0.5, found);
+        Assert.Single(found);
+        Assert.True(world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot));
+        Assert.Equal(40, snapshot.Instances.Count);
+        RenderInstance last = snapshot.Instances.Single(i => i.Mesh == new MeshId(39));
+        Assert.Equal(new System.Numerics.Vector3(39_001, 2, 3), last.Position);
+    }
+
+    [Fact]
     public void ASlotReusedOutsideATickDoesNotInheritTheOldInbox()
     {
         using World world = TestWorld.Create(out FrameHandle root);
@@ -256,6 +322,84 @@ public class MessagingTests
 
         Assert.Empty(oldLog.Seen);
         Assert.Equal([2], newLog.PingValues());
+    }
+
+    [Fact]
+    public void AnEntityThatReusesASlotHearsNoneOfItsPredecessorsTopics()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        Topic topic = Topics.Get("tests.messaging.inherited");
+        FrameHandle bay = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
+        Entity old = world.Spawn(new SpawnDesc { Frame = bay, Components = [new Recorder()], Subscriptions = [topic, root.Topic] });
+        world.Destroy(old);
+        var heir = new Recorder();
+        Entity reused = world.SpawnWith(root, heir);
+        Assert.Equal(old.Index, reused.Index);
+
+        world.Post(Event.Create(topic, Entity.Null, new Ping { Value = 1 }));
+        world.Post(Event.Create(bay.Topic, Entity.Null, new Ping { Value = 2 }));
+        world.Post(Event.Create(root.Topic, Entity.Null, new Ping { Value = 3 }));
+        world.Run(2);
+
+        // Only the root topic, as a member of the root frame, and only once.
+        Assert.Equal([3], heir.PingValues());
+    }
+
+    [Fact]
+    public void AnEntityThatReusesASlotCanSubscribeToItsPredecessorsTopic()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        Topic topic = Topics.Get("tests.messaging.handed-down");
+        Entity old = world.Spawn(new SpawnDesc { Frame = root, Components = [new Recorder()], Subscriptions = [topic] });
+        world.Destroy(old);
+        var heir = new Recorder();
+        Entity reused = world.Spawn(new SpawnDesc { Frame = root, Components = [heir], Subscriptions = [topic] });
+        Assert.Equal(old.Index, reused.Index);
+
+        world.Post(Event.Create(topic, Entity.Null, new Ping { Value = 1 }));
+        world.Run(2);
+
+        Assert.Equal([1], heir.PingValues());
+    }
+
+    [Fact]
+    public void SubscribingTwiceIsHarmlessAndUnsubscribingKeepsTheOtherTopics()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        var log = new List<string>();
+        world.Log += log.Add;
+        Topic first = Topics.Get("tests.messaging.first");
+        Topic second = Topics.Get("tests.messaging.second");
+        var inbox = new Recorder();
+        Entity e = world.Spawn(new SpawnDesc { Frame = root, Components = [inbox], Subscriptions = [first, first] });
+        world.Subscribe(e, first);
+        world.Subscribe(e, second);
+        world.Unsubscribe(e, first);
+        world.Unsubscribe(e, first);
+
+        world.Post(Event.Create(first, Entity.Null, new Ping { Value = 1 }));
+        world.Post(Event.Create(second, Entity.Null, new Ping { Value = 2 }));
+        world.Run(2);
+
+        Assert.Equal([2], inbox.PingValues());
+        Assert.Empty(log);
+    }
+
+    [Fact]
+    public void ATimerBucketIsReusedWithoutReplayingItsOldMessages()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        var inbox = new Recorder();
+        Entity target = world.SpawnWith(root, inbox);
+        world.SpawnWith(root, new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+        {
+            if (self.Tick is 0 or 2 or 4)
+                outbox.SendAfter(1, target, new Ping { Value = (int)self.Tick });
+        }));
+
+        world.Run(7);
+
+        Assert.Equal([(2L, 0), (4L, 2), (6L, 4)], inbox.Pings());
     }
 
     [Fact]

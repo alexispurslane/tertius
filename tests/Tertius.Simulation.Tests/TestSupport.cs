@@ -153,7 +153,9 @@ public sealed class FakePhysics : IPhysicsBackend
             body.Velocity += intent.Force / mass * dt + intent.Impulse / mass;
             if ((intent.Flags & IntentFlags.SetVelocity) != 0)
                 body.Velocity = intent.Velocity;
-            if ((intent.Flags & (IntentFlags.Teleport | IntentFlags.KinematicTarget)) != 0)
+            if ((intent.Flags & IntentFlags.Teleport) != 0)
+                body.Pose = intent.TeleportPose;
+            if ((intent.Flags & IntentFlags.KinematicTarget) != 0)
                 body.Pose = intent.Target;
         }
         if (Integrate)

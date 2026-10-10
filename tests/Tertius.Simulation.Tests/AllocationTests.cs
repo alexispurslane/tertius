@@ -27,6 +27,44 @@ public class AllocationTests
         }
     }
 
+    /// <summary>Subscribes to a topic on even ticks and unsubscribes on odd ticks.</summary>
+    private sealed class Churn(Topic topic) : IComponent
+    {
+        public int Priority => 0;
+        public EventMask Wants => EventMask.Of<Tick>().And<Ping>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if ((self.Tick & 1) == 0)
+                self.Subscribe(topic);
+            else
+                self.Unsubscribe(topic);
+            outbox.Send(topic, new Ping { Value = 1 });
+        }
+    }
+
+    [Fact]
+    public void SubscriptionChurnDoesNotAllocateInTheSteadyState()
+    {
+        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
+        Topic topic = Topics.Get("tests.allocation.churn");
+        for (int i = 0; i < 200; i++)
+            world.SpawnAt(root, new Double3(i, 0, 0), new Churn(topic));
+
+        world.Run(60);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        world.Run(200);
+        long perTick = (GC.GetAllocatedBytesForCurrentThread() - before) / 200;
+
+        Assert.True(perTick == 0, $"{perTick} bytes allocated per tick");
+        // The last measured tick unsubscribed everyone; on the next one, everyone subscribes again and hears every send.
+        Assert.Equal(0, world.Stats.Deliveries);
+        world.Tick();
+        Assert.Equal(200 * 200, world.Stats.Deliveries);
+        Assert.Empty(world.Errors);
+    }
+
     [Fact]
     public void ASteadyStateTickDoesNotAllocateOnTheTickingThread()
     {

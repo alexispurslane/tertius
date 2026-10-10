@@ -181,6 +181,48 @@ public class PipelineTests
     }
 
     [Fact]
+    public void AnAddedComponentTakesItsPlaceByPriorityAfterEqualOnes()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        var order = new List<string>();
+        Lambda Named(string name, int priority) =>
+            new(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) => order.Add(name), priority);
+        Entity e = world.SpawnWith(root, Named("a0", 0), Named("b10", 10));
+
+        world.AddComponent(e, Named("c5", 5));
+        world.AddComponent(e, Named("d-1", -1));
+        world.AddComponent(e, Named("e5", 5));
+        world.Tick();
+
+        Assert.Equal(["d-1", "a0", "c5", "e5", "b10"], order);
+        Assert.Equal([-1, 0, 5, 5, 10], world.GetComponents(e).Select(c => c.Priority));
+    }
+
+    [Fact]
+    public void ComponentChangesThatFailDuringATickAreReported()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        var log = new List<string>();
+        world.Log += log.Add;
+        var stranger = new Recorder();
+        Lambda? self = null;
+        self = new Lambda(EventMask.Of<Tick>(), (Self s, scoped ref EventList events, scoped ref Outbox outbox) =>
+        {
+            if (s.Tick != 0)
+                return;
+            s.AddComponent(self!);
+            s.RemoveComponent(stranger);
+        });
+        Entity e = world.SpawnWith(root, self);
+
+        world.Tick();
+
+        Assert.Contains("AddComponent", Assert.Single(world.Errors));
+        Assert.Contains(log, l => l.Contains("RemoveComponent: the entity has no such Recorder"));
+        Assert.Single(world.GetComponents(e));
+    }
+
+    [Fact]
     public void WorldAddComponentOutsideATick()
     {
         using World world = TestWorld.Create(out FrameHandle root);

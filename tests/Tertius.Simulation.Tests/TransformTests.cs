@@ -200,7 +200,9 @@ public class PhysicsSeamTests
         Assert.Equal(new Vector3(0, 0, 4), intent.AngularImpulse);
         Assert.Equal(new Vector3(7, 0, 0), intent.Velocity);
         Assert.Equal(new Vector3(0, 1, 0), intent.AngularVelocity);
-        Assert.Equal(100, intent.Target.Position.X);
+        // A teleport and a kinematic target are separate fields, so neither overwrites the other.
+        Assert.Equal(50, intent.Target.Position.X);
+        Assert.Equal(100, intent.TeleportPose.Position.X);
         Assert.Equal(new Vector3(0, 0, 2), intent.CharacterVelocity);
         Assert.Equal(4, intent.JumpSpeed);
         Assert.Equal(IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity | IntentFlags.KinematicTarget | IntentFlags.Teleport | IntentFlags.CharacterMove | IntentFlags.Jump, intent.Flags);
@@ -346,6 +348,124 @@ public class PhysicsSeamTests
         Assert.Equal(fighter, world.GetFrame(pilot));
         Assert.True(world.Snapshot.TryGetPoseIn(pilot, root, out DPose pilotInRoot));
         Assert.True(TestWorld.RoughlyEqual(new Double3(1100, 1, 0), pilotInRoot.Position));
+    }
+
+    [Fact]
+    public void AFrameStateIsRelativeToTheParentAfterTheFramesHandOff()
+    {
+        var physics = new FakePhysics { Integrate = false };
+        using World world = TestWorld.Create(out FrameHandle root, physics: physics);
+        FrameHandle carrier = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(1000), AsFrame = new FrameSpec(FrameBounds.Sphere(500), MotionDriver.Static) }));
+        Entity fighterOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = root,
+            Pose = TestWorld.At(1100),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+        });
+        FrameHandle fighter = world.GetOwnedFrame(fighterOwner);
+        physics.OnStep = (context, output) =>
+        {
+            if (context.Tick != 0)
+                return;
+            output.HandOffs.Add(new HandOff(fighterOwner, root, carrier, TestWorld.At(100), default, default));
+            output.Frames.Add(new FrameState(fighter, TestWorld.At(102), new Double3(3, 0, 0), Vector3.Zero, Vector3.Zero));
+        };
+
+        world.Tick();
+
+        Assert.Equal(carrier, world.Frames.Parent(fighter));
+        Assert.Equal(new Double3(102, 0, 0), world.Frames.LocalPose(fighter).Position);
+        Assert.Equal(new Double3(3, 0, 0), world.Frames.LinearVelocity(fighter));
+        Assert.Equal(carrier, world.GetFrame(fighterOwner));
+        Assert.Equal(new Double3(102, 0, 0), world.GetPose(fighterOwner).Position);
+    }
+
+    [Fact]
+    public void AFrameStateLandsBeforeTheFramesParentDies()
+    {
+        var physics = new FakePhysics { Integrate = false };
+        using World world = TestWorld.Create(out FrameHandle root, physics: physics);
+        FrameHandle dock = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = root,
+            Pose = new DPose(new Double3(1000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(500), MotionDriver.Static),
+            Components = [new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.Destroy())],
+        }));
+        FrameHandle shuttle = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = dock, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics) }));
+        physics.OnStep = (context, output) =>
+        {
+            if (context.Tick == 0)
+                output.Frames.Add(new FrameState(shuttle, TestWorld.At(5), new Double3(2, 0, 0), Vector3.Zero, Vector3.Zero));
+        };
+
+        world.Tick();
+
+        // The state is relative to the dock, which dies at this sync point. The shuttle moves up to the root with the
+        // state converted through the dock's quarter turn, not with the state read as if it were relative to the root.
+        Assert.False(world.Frames.IsAlive(dock));
+        Assert.Equal(root, world.Frames.Parent(shuttle));
+        Assert.True(TestWorld.RoughlyEqual(new Double3(1000, 0, -5), world.Frames.LocalPose(shuttle).Position), world.Frames.LocalPose(shuttle).ToString());
+        Assert.True(TestWorld.RoughlyEqual(new Double3(0, 0, -2), world.Frames.LinearVelocity(shuttle)), world.Frames.LinearVelocity(shuttle).ToString());
+        Assert.Equal(root, world.GetFrame(shuttle.Entity));
+        Assert.Equal(world.Frames.LocalPose(shuttle), world.GetPose(shuttle.Entity));
+        Assert.Empty(world.Errors);
+    }
+
+    [Fact]
+    public void AHullThatTheDestroyBatchMovesStartsFromItsFramesNewState()
+    {
+        var physics = new FakePhysics { Integrate = false };
+        using World world = TestWorld.Create(out FrameHandle root, physics: physics);
+        FrameHandle dock = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = root,
+            Pose = new DPose(new Double3(1000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(500), MotionDriver.Static),
+            Components = [new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.Destroy())],
+        }));
+        Entity shuttleOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = dock,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+        });
+        FrameHandle shuttle = world.GetOwnedFrame(shuttleOwner);
+        // Physics reports only the frame's state, as the hull's own body state may not be in the output.
+        physics.OnStep = (context, output) =>
+        {
+            if (context.Tick == 0)
+                output.Frames.Add(new FrameState(shuttle, TestWorld.At(5), new Double3(2, 0, 0), Vector3.Zero, Vector3.Zero));
+        };
+
+        world.Tick();
+
+        // The dock died at this sync point, so the hull moved to the root's physics system. It starts from the pose and
+        // velocity after the step, converted through the dock's quarter turn, not from the pose before the step.
+        FakePhysics.Body hull = physics.Bodies[shuttleOwner];
+        Assert.Equal(root, hull.Frame);
+        Assert.True(TestWorld.RoughlyEqual(new Double3(1000, 0, -5), hull.Pose.Position), hull.Pose.ToString());
+        Assert.True(Vector3.Distance(new Vector3(0, 0, -2), hull.Velocity) < 1e-5f, hull.Velocity.ToString());
+        Assert.True(TestWorld.RoughlyEqual(world.GetPose(shuttleOwner).Position, hull.Pose.Position, 1e-9));
+        Assert.Empty(world.Errors);
+    }
+
+    [Fact]
+    public void AHandOffToAStaleFrameIsReportedAndIgnored()
+    {
+        var physics = new FakePhysics { Integrate = false };
+        using World world = TestWorld.Create(out FrameHandle root, physics: physics);
+        FrameHandle gone = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static) }));
+        world.Destroy(gone.Entity);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        physics.OnStep = (context, output) => output.HandOffs.Add(new HandOff(ball, root, gone, TestWorld.At(9), default, default));
+
+        world.Tick();
+
+        Assert.Contains("stale frame", Assert.Single(world.Errors));
+        Assert.Equal(root, world.GetFrame(ball));
+        Assert.Equal(3, world.GetPose(ball).Position.X);
     }
 
     [Fact]

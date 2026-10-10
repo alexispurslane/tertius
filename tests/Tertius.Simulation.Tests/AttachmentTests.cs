@@ -63,6 +63,19 @@ public class AttachmentTests
     }
 
     [Fact]
+    public void AnEntityThatIsNotAttachedCannotWriteAnOffset()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        Entity loner = world.SpawnWith(root, new Lambda(EventMask.Of<Tick>(),
+            (Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.AttachOffset = Pose.Identity));
+
+        world.Tick();
+
+        Assert.Contains("not attached", Assert.Single(world.Errors));
+        Assert.True(world.IsAlive(loner));
+    }
+
+    [Fact]
     public void ChildrenAreDestroyedWithTheirParent()
     {
         using World world = TestWorld.Create(out FrameHandle root);
@@ -192,6 +205,19 @@ public class SpatialQueryTests
         Assert.Contains(onEdge, results);
         Assert.Throws<InvalidOperationException>(() => world.Snapshot.QueryRadius(FrameHandle.Null, Double3.Zero, 1, results));
         Assert.Throws<ArgumentOutOfRangeException>(() => world.Snapshot.QueryRadius(root, Double3.Zero, -1, results));
+    }
+
+    [Fact]
+    public void AQueryInAFrameWithNothingInItFindsNothing()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        FrameHandle empty = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static) }));
+        world.SpawnAt(root, Double3.Zero);
+        var found = new List<Entity> { root.Entity };
+
+        world.Snapshot.QueryRadius(empty, Double3.Zero, 100, found);
+
+        Assert.Empty(found);
     }
 
     [Fact]

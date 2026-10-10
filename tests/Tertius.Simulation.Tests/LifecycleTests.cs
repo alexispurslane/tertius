@@ -136,18 +136,20 @@ public class LifecycleTests
         Assert.False(world.IsAlive(old));
         Assert.False(world.IsAlive(Entity.Null));
         Assert.False(world.IsAlive(new Entity(100_000, 1)));
-        Assert.Throws<InvalidOperationException>(() => world.GetPose(old));
-        Assert.Throws<InvalidOperationException>(() => world.GetFrame(old));
-        Assert.Throws<InvalidOperationException>(() => world.GetVelocity(old));
-        Assert.Throws<InvalidOperationException>(() => world.GetComponents(old));
-        Assert.Throws<InvalidOperationException>(() => world.GetComponent<Recorder>(old));
-        Assert.Throws<InvalidOperationException>(() => world.Destroy(old));
-        Assert.Throws<InvalidOperationException>(() => world.AddComponent(old, new Recorder()));
-        Assert.Throws<InvalidOperationException>(() => world.Subscribe(old, topic));
-        Assert.Throws<InvalidOperationException>(() => world.Snapshot.PoseOf(old));
-        Assert.Throws<InvalidOperationException>(() => world.Snapshot.FrameOf(old));
-        Assert.Throws<InvalidOperationException>(() => world.Snapshot.VelocityOf(old));
-        Assert.Throws<InvalidOperationException>(() => world.GetPose(Entity.Null));
+        Assert.Throws<StaleEntityException>(() => world.GetPose(old));
+        Assert.Throws<StaleEntityException>(() => world.GetFrame(old));
+        Assert.Throws<StaleEntityException>(() => world.GetVelocity(old));
+        Assert.Throws<StaleEntityException>(() => world.GetComponents(old));
+        Assert.Throws<StaleEntityException>(() => world.GetComponent<Recorder>(old));
+        Assert.Throws<StaleEntityException>(() => world.AddComponent(old, new Recorder()));
+        Assert.Throws<StaleEntityException>(() => world.Subscribe(old, topic));
+        Assert.Throws<StaleEntityException>(() => world.Snapshot.PoseOf(old));
+        Assert.Throws<StaleEntityException>(() => world.Snapshot.FrameOf(old));
+        Assert.Throws<StaleEntityException>(() => world.Snapshot.VelocityOf(old));
+        Assert.Throws<StaleEntityException>(() => world.GetPose(Entity.Null));
+        // Destroying a dead entity is not an error: its goal already holds.
+        Assert.False(world.Destroy(old));
+        Assert.True(world.IsAlive(reused));
         Assert.False(world.Snapshot.TryGetPose(old, out _, out _));
         Assert.False(world.Snapshot.TryGetPoseIn(old, root, out _));
         Assert.True(world.Snapshot.TryGetPose(reused, out FrameHandle frame, out _));
@@ -305,6 +307,93 @@ public class LifecycleTests
         Assert.True(world.IsAlive(x));
         Assert.Equal(root, world.GetFrame(x));
         Assert.True(TestWorld.RoughlyEqual(new Double3(111, 0, 0), world.GetPose(x).Position));
+        Assert.Empty(world.Errors);
+    }
+
+    [Fact]
+    public void ASurvivingChildFrameKeepsItsMotionWhenItsParentDies()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        Entity moonOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = root,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(7e6, 3.986004418e14, spinRate: 0.01)),
+        });
+        FrameHandle moon = world.GetOwnedFrame(moonOwner);
+        FrameHandle pod = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = moon,
+            Pose = TestWorld.At(100, 20, -30),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+        }));
+        Entity passenger = world.SpawnAt(pod, new Double3(1, 0, 0));
+        world.Run(3);
+        // The pod rides the orbiting, spinning moon: its origin moves at the moon's velocity plus the spin's lever arm.
+        Double3 velocity = world.Frames.ConvertVelocity(pod, root, Double3.Zero, Double3.Zero);
+        Double3 spin = world.Frames.AngularVelocityRelative(pod, root);
+        Assert.True(world.Snapshot.TryGetPoseIn(passenger, root, out DPose passengerBefore));
+
+        world.Destroy(moonOwner);
+
+        Assert.Equal(root, world.Frames.Parent(pod));
+        Assert.True(TestWorld.RoughlyEqual(velocity, world.Frames.LinearVelocity(pod), 1e-6), world.Frames.LinearVelocity(pod).ToString());
+        Assert.True(TestWorld.RoughlyEqual(spin, world.Frames.AngularVelocity(pod), 1e-8), world.Frames.AngularVelocity(pod).ToString());
+        Assert.True(velocity.Length > 7000);
+        // The owner's row mirrors the frame exactly, and the passenger stays in the pod, where it was.
+        Assert.Equal(root, world.GetFrame(pod.Entity));
+        Assert.Equal(world.Frames.LocalPose(pod), world.GetPose(pod.Entity));
+        Assert.Equal(world.Frames.LinearVelocity(pod).ToVector3(), world.GetVelocity(pod.Entity));
+        Assert.Equal(pod, world.GetFrame(passenger));
+        Assert.True(world.Snapshot.TryGetPoseIn(passenger, root, out DPose passengerAfter));
+        Assert.True(TestWorld.RoughlyEqual(passengerBefore.Position, passengerAfter.Position, 1e-6));
+        Assert.Empty(world.Errors);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AFrameInsideTwoDyingFramesMovesToTheNearestSurvivor(bool innerFreedFirst)
+    {
+        using World world = TestWorld.Create(out FrameHandle root, chunkSize: 1);
+        if (innerFreedFirst)
+        {
+            // Free two slots in reverse order, so that the inner frame's owner gets the lower slot and dies first.
+            Entity low = world.SpawnWith(root), high = world.SpawnWith(root);
+            world.Destroy(high);
+            world.Destroy(low);
+        }
+        DQuaternion quarterTurn = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
+        FrameHandle outer = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(100), AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
+        FrameHandle inner = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = outer, Pose = new DPose(new Double3(10, 0, 0), quarterTurn), AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static) }));
+        FrameHandle pod = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = inner, Pose = TestWorld.At(0, 0, 5), AsFrame = new FrameSpec(FrameBounds.Sphere(2), MotionDriver.Static) }));
+        Assert.Equal(innerFreedFirst, inner.Entity.Index < outer.Entity.Index);
+        var podLog = new Recorder(EventMask.Of<FrameChanged>());
+        world.AddComponent(pod.Entity, podLog);
+        Entity passenger = world.SpawnAt(pod, new Double3(1, 0, 0));
+        world.SpawnWith(root, new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+        {
+            if (self.Tick != 0)
+                return;
+            outbox.Send(outer.Entity, new Destroy());
+            outbox.Send(inner.Entity, new Destroy());
+        }));
+
+        world.Run(3);
+
+        Assert.False(world.Frames.IsAlive(outer));
+        Assert.False(world.Frames.IsAlive(inner));
+        Assert.Equal(root, world.Frames.Parent(pod));
+        Assert.Equal(root, world.GetFrame(pod.Entity));
+        Assert.Equal(world.Frames.LocalPose(pod), world.GetPose(pod.Entity));
+        // The inner frame's quarter turn maps the pod's local +Z offset to +X.
+        Assert.True(TestWorld.RoughlyEqual(new Double3(115, 0, 0), world.GetPose(pod.Entity).Position), world.GetPose(pod.Entity).ToString());
+        Assert.Equal(pod, world.GetFrame(passenger));
+        Assert.True(world.Snapshot.TryGetPoseIn(passenger, root, out DPose passengerInRoot));
+        Assert.True(TestWorld.RoughlyEqual(new Double3(115, 0, -1), passengerInRoot.Position), passengerInRoot.ToString());
+        // The pod's owner heard once that it moved, from the frame it was in straight to the survivor.
+        FrameChanged changed = Assert.Single(podLog.Seen).Event.As<FrameChanged>();
+        Assert.Equal(inner, changed.From);
+        Assert.Equal(root, changed.To);
         Assert.Empty(world.Errors);
     }
 

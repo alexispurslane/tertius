@@ -5,19 +5,19 @@ namespace Tertius.Simulation;
 /// <summary>
 /// The running entity, as its components see it. The scheduler passes it by value to <see cref="IComponent.Handle"/>.
 /// It is valid only during that call. Reads come from the front snapshot of the previous tick. Writes go to this
-/// entity's own back rows, or into the chunk's deferred lists, and take effect at the sync point.
+/// entity's own back rows, or into the chunk's deferred lists, and take effect at the sync point. It holds the entity's
+/// handle and goes through the same checked members as everything else; the running entity is live for the whole call,
+/// so the checks pass.
 /// </summary>
 public readonly ref struct Self
 {
     private readonly World world;
     private readonly ChunkState chunk;
-    private readonly int slot;
 
-    internal Self(World world, ChunkState chunk, int slot, Entity entity)
+    internal Self(World world, ChunkState chunk, Entity entity)
     {
         this.world = world;
         this.chunk = chunk;
-        this.slot = slot;
         Entity = entity;
     }
 
@@ -25,7 +25,7 @@ public readonly ref struct Self
     public Entity Entity { get; }
 
     /// <summary>The frame the entity is in. Null only for the owner of a root frame.</summary>
-    public FrameHandle Frame => world.FrontRow(slot).Frame;
+    public FrameHandle Frame => world.Entities.FrontRow(Entity).Frame;
 
     /// <summary>The number of the tick that is running.</summary>
     public long Tick => world.TickNumber;
@@ -37,48 +37,48 @@ public readonly ref struct Self
     public double Time => world.Time;
 
     /// <summary>This entity's pose in <see cref="Frame"/>, from the front snapshot (the end of the previous tick).</summary>
-    public DPose Pose => world.FrontRow(slot).Pose;
+    public DPose Pose => world.Entities.FrontRow(Entity).Pose;
 
     /// <summary>
     /// This entity's back transform row, for writing. The new pose takes effect at the sync point. Throws
     /// <see cref="InvalidOperationException"/> if physics or a frame driver owns the transform, or if the entity is
     /// attached to a parent.
     /// </summary>
-    public ref DPose Transform => ref world.WritableTransform(chunk, slot);
+    public ref DPose Transform => ref world.WritableTransform(Entity);
 
     /// <summary>Linear velocity in frame axes, from the front snapshot.</summary>
-    public Vector3 Velocity => world.FrontRow(slot).LinearVelocity;
+    public Vector3 Velocity => world.Entities.FrontRow(Entity).LinearVelocity;
 
     /// <summary>Angular velocity in frame axes, from the front snapshot.</summary>
-    public Vector3 AngularVelocity => world.FrontRow(slot).AngularVelocity;
+    public Vector3 AngularVelocity => world.Entities.FrontRow(Entity).AngularVelocity;
 
     /// <summary>A proxy over this entity's physics intent for this tick. Physics receives it in the next step.</summary>
-    public BodyHandle Body => new(world, chunk, slot);
+    public BodyHandle Body => new(world, Entity);
 
     /// <summary>This entity's own render row (back buffer). Changes reach the renderer after the sync point.</summary>
-    public ref RenderData Render => ref world.WritableRender(chunk, slot);
+    public ref RenderData Render => ref world.Entities.WritableRender(Entity);
 
     /// <summary>
     /// The offset from the attachment parent, for writing. The new offset takes effect at the sync point.
     /// Throws <see cref="InvalidOperationException"/> if the entity is not attached.
     /// </summary>
-    public ref Pose AttachOffset => ref world.WritableAttachOffset(slot);
+    public ref Pose AttachOffset => ref world.Attachments.WritableOffset(Entity);
 
     /// <summary>The attachment parent, or null.</summary>
-    public Entity AttachedTo => world.AttachParentOf(slot);
+    public Entity AttachedTo => world.Attachments.ParentOf(Entity);
 
     /// <summary>A read-only view of the front snapshot, for reading other entities.</summary>
     public Snapshot Snapshot => new(world);
 
     /// <summary>Creates an entity. The handle is final and valid at once. The entity becomes live at the sync point and runs from the next tick.</summary>
-    public Entity Spawn(SpawnDesc desc) => world.SpawnDuringTick(chunk, desc);
+    public Entity Spawn(SpawnDesc desc) => world.SpawnDuringTick(chunk, Entity, desc);
 
     /// <summary>Creates an entity from a blueprint. See <see cref="Spawn(SpawnDesc)"/>.</summary>
     public Entity Spawn(string blueprint, FrameHandle frame, in DPose pose) =>
-        world.SpawnDuringTick(chunk, world.Blueprints.CreateSpawnDesc(blueprint, frame, pose));
+        world.SpawnDuringTick(chunk, Entity, world.Blueprints.CreateSpawnDesc(blueprint, frame, pose));
 
     /// <summary>Destroys this entity at the sync point, together with its attached children.</summary>
-    public void Destroy() => world.RequestDestroy(chunk, slot);
+    public void Destroy() => world.RequestDestroy(chunk, Entity);
 
     /// <summary>
     /// Adds a component. It takes part from the entity's next run. The entity mask updates right after this run, so
@@ -87,24 +87,24 @@ public readonly ref struct Self
     public void AddComponent(IComponent component)
     {
         ArgumentNullException.ThrowIfNull(component);
-        chunk.ComponentChanges.Add(new ComponentChange((uint)slot, component, true));
+        chunk.ComponentChanges.Add(new ComponentChange(Entity, component, true));
     }
 
     /// <summary>Removes a component after this run.</summary>
     public void RemoveComponent(IComponent component)
     {
         ArgumentNullException.ThrowIfNull(component);
-        chunk.ComponentChanges.Add(new ComponentChange((uint)slot, component, false));
+        chunk.ComponentChanges.Add(new ComponentChange(Entity, component, false));
     }
 
     /// <summary>The first of this entity's components that is a <typeparamref name="T"/>, or null. Components added during this run are not visible yet.</summary>
-    public T? GetComponent<T>() where T : class, IComponent => World.FindComponent<T>(world.ComponentsOf(slot));
+    public T? GetComponent<T>() where T : class, IComponent => World.FindComponent<T>(world.Entities.Components(Entity));
 
     /// <summary>Subscribes to a topic at the sync point. Messages sent to the topic during this tick already reach the entity.</summary>
-    public void Subscribe(Topic topic) => chunk.SubscriptionChanges.Add(new SubscriptionChange((uint)slot, topic, true));
+    public void Subscribe(Topic topic) => chunk.SubscriptionChanges.Add(new SubscriptionChange(Entity, topic, true));
 
     /// <summary>Unsubscribes from a topic at the sync point. The automatic frame topic cannot be removed.</summary>
-    public void Unsubscribe(Topic topic) => chunk.SubscriptionChanges.Add(new SubscriptionChange((uint)slot, topic, false));
+    public void Unsubscribe(Topic topic) => chunk.SubscriptionChanges.Add(new SubscriptionChange(Entity, topic, false));
 
     /// <summary>Writes a message to <see cref="World.Log"/> at the sync point.</summary>
     public void Log(string message) => chunk.Messages.Add(new ChunkMessage($"tick {world.TickNumber}: {Entity}: {message}", false));
@@ -119,21 +119,19 @@ public readonly ref struct Self
 public readonly ref struct BodyHandle
 {
     private readonly World world;
-    private readonly ChunkState chunk;
-    private readonly int slot;
+    private readonly Entity entity;
 
-    internal BodyHandle(World world, ChunkState chunk, int slot)
+    internal BodyHandle(World world, Entity entity)
     {
         this.world = world;
-        this.chunk = chunk;
-        this.slot = slot;
+        this.entity = entity;
     }
 
     /// <summary>True if the entity has a physics body.</summary>
-    public bool Exists => world.HasBody(slot);
+    public bool Exists => world.Entities.Body(entity) != null;
 
     /// <summary>The intent written so far during this tick.</summary>
-    public PhysicsIntent Pending => world.PendingIntent(slot);
+    public PhysicsIntent Pending => world.Entities.PendingIntent(entity);
 
     /// <summary>Adds a force for the next step, in newtons.</summary>
     public void AddForce(Vector3 force) => Intent.Force += force;
@@ -171,11 +169,14 @@ public readonly ref struct BodyHandle
         intent.Flags |= IntentFlags.KinematicTarget;
     }
 
-    /// <summary>Puts the body at <paramref name="pose"/> before the next step, without sweeping.</summary>
+    /// <summary>
+    /// Puts the body at <paramref name="pose"/> before the next step, without sweeping. It is separate from
+    /// <see cref="MoveKinematic"/>, so a body can teleport and then move kinematically in the same step.
+    /// </summary>
     public void Teleport(in DPose pose)
     {
         ref PhysicsIntent intent = ref Intent;
-        intent.Target = pose;
+        intent.TeleportPose = pose;
         intent.Flags |= IntentFlags.Teleport;
     }
 
@@ -195,5 +196,5 @@ public readonly ref struct BodyHandle
         intent.Flags |= IntentFlags.Jump;
     }
 
-    private ref PhysicsIntent Intent => ref world.WritableIntent(chunk, slot);
+    private ref PhysicsIntent Intent => ref world.WritableIntent(entity);
 }

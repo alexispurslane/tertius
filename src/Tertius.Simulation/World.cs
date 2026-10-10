@@ -1,7 +1,5 @@
-using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics;
 using System.Numerics;
-using DestroyEvent = Tertius.Destroy;
 
 namespace Tertius.Simulation;
 
@@ -23,6 +21,19 @@ public readonly record struct WorldStats(int LiveEntities, int Capacity, int Fra
 /// Outside <see cref="Tick"/>, <see cref="Spawn(SpawnDesc)"/> and <see cref="Destroy"/> take effect at once.
 /// During a tick, components use <see cref="Self"/> instead, and their changes take effect at the sync point.
 /// The world does not dispose the physics backend unless <see cref="WorldOptions.DisposePhysics"/> is set.
+/// <para>
+/// The world is the orchestrator. The state lives in internal subsystems, each of which keeps its own invariants:
+/// <see cref="EntityTable"/> (slots, every per-slot table, the double-buffered rows), <see cref="Router"/> (outboxes
+/// to inboxes), <see cref="TopicSets"/> (who hears each topic), <see cref="Attachments"/>, <see cref="SpatialIndex"/>
+/// and <see cref="RenderSnapshotBuilder"/>. The world owns the public API, the tick, the order in which the sync point
+/// calls the subsystems, and the invariants that span them, which <see cref="AssertInvariants"/> lists.
+/// </para>
+/// <para>
+/// Every member that takes an <see cref="Entity"/> checks the handle on every call, in every build: the subsystems
+/// check every handle they are given. A member that reads or writes the entity throws
+/// <see cref="StaleEntityException"/> for a stale or null handle; <see cref="Destroy"/>, <see cref="RemoveComponent"/>
+/// and <see cref="Unsubscribe"/>, whose goal already holds for a dead entity, return false instead.
+/// </para>
 /// </remarks>
 public sealed partial class World : IDisposable
 {
@@ -31,35 +42,20 @@ public sealed partial class World : IDisposable
     private readonly PhysicsWorker? physicsWorker;
     private readonly PhysicsStepOutput stepOutput = new();
     private readonly PhysicsChanges physicsChanges = new();
-    private readonly int chunkSize;
     private readonly ParallelOptions parallelOptions;
     private readonly Action<int> runChunk;
-    private readonly ConcurrentQueue<Event> posted = new();
     private readonly List<string> errors = new();
     private readonly List<string> pendingLog = new();
     private bool inTick;
     private bool disposed;
     private long fallbackSpawnTotal;
 
-    // Slot bookkeeping. A slot is Free (in freeSlots), Reserved (handed out for a spawn, or held in a spawn pool) or
-    // Live. slotCount counts slots that were ever handed out. During a tick it grows only through the spawn fallback,
-    // atomically, and the tables catch up at the sync point.
-    private int capacity;
-    private int slotCount;
-    private int liveCount;
-    private uint[] generation = [];
-    private SlotState[] slotState = [];
-    private SlotFlags[] flags = [];
-    private readonly Queue<uint> freeSlots = new();
-
-    // Double-buffered tables. During a tick everyone reads the front rows, and each entity writes only its own back
-    // rows. The sync point copies dirty back rows forward, so front and back agree at the start of every tick.
-    private TransformRow[] frontTransform = [], backTransform = [];
-    private RenderData[] frontRender = [], backRender = [];
-    private PhysicsIntent[] frontIntent = [], backIntent = [];
-    private EventMask[] masks = [];
-    private EntityRecord[] records = [];
-    private ChunkState[] chunks = [];
+    private readonly EntityTable entities;
+    private readonly TopicSets topics;
+    private readonly Router router;
+    private readonly Attachments attachments;
+    private readonly SpatialIndex spatial;
+    private readonly RenderSnapshotBuilder renderBuilder;
 
     /// <summary>Creates an empty world. With no physics backend, bodies do not move and their intents are dropped.</summary>
     public World(WorldOptions? options = null, IPhysicsBackend? physics = null)
@@ -68,13 +64,19 @@ public sealed partial class World : IDisposable
         this.options.Validate();
         EngineEvents.Register();
         this.physics = physics;
-        chunkSize = this.options.ChunkSize;
         DeltaTime = 1f / this.options.TickRate;
         Time = this.options.StartTime;
         parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = this.options.MaxDegreeOfParallelism };
         runChunk = RunChunk;
-        renderChunk = BuildRenderChunk;
-        EnsureCapacity(this.options.InitialCapacity);
+
+        entities = new EntityTable(this.options.ChunkSize, this.options.InitialCapacity);
+        // The order of the subsystems is the order in which they let go of a released entity.
+        topics = new TopicSets(entities);
+        router = new Router(entities, topics);
+        attachments = new Attachments(entities);
+        spatial = new SpatialIndex(entities, Frames);
+        renderBuilder = new RenderSnapshotBuilder(entities, Frames, parallelOptions);
+        dyingMarks = entities.AddColumn<bool>();
         if (physics != null)
             physicsWorker = new PhysicsWorker(physics, stepOutput);
     }
@@ -131,58 +133,49 @@ public sealed partial class World : IDisposable
     public event Action<string>? Log;
 
     /// <summary>Counters of the last tick.</summary>
-    public WorldStats Stats => new(liveCount, capacity, Frames.Count, lastRoutedEvents, lastDeliveries, fallbackSpawnTotal);
+    public WorldStats Stats => new(entities.LiveCount, entities.Capacity, Frames.Count, router.RoutedCount, router.DeliveryCount, fallbackSpawnTotal);
 
     /// <summary>Forgets every entry of <see cref="Errors"/>.</summary>
     public void ClearErrors() => errors.Clear();
 
     /// <summary>True if the handle names a live entity: the slot is live and the generation matches.</summary>
-    public bool IsAlive(Entity entity) =>
-        entity.Generation != 0 && entity.Index < (uint)capacity &&
-        slotState[entity.Index] == SlotState.Live && generation[entity.Index] == entity.Generation;
+    public bool IsAlive(Entity entity) => entities.IsAlive(entity);
 
-    /// <summary>The entity's pose in its frame, from the front snapshot. Throws for a stale handle.</summary>
-    public DPose GetPose(Entity entity) => FrontRow(entity).Pose;
+    /// <summary>The entity's pose in its frame, from the front snapshot. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
+    public DPose GetPose(Entity entity) => entities.FrontRow(entity).Pose;
 
-    /// <summary>The frame the entity is in, from the front snapshot. Null for the owner of a root frame. Throws for a stale handle.</summary>
-    public FrameHandle GetFrame(Entity entity) => FrontRow(entity).Frame;
+    /// <summary>
+    /// The frame the entity is in, from the front snapshot. Null for the owner of a root frame. Throws
+    /// <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    public FrameHandle GetFrame(Entity entity) => entities.FrontRow(entity).Frame;
 
-    /// <summary>Linear velocity in frame axes, from the front snapshot.</summary>
-    public Vector3 GetVelocity(Entity entity) => FrontRow(entity).LinearVelocity;
+    /// <summary>Linear velocity in frame axes, from the front snapshot. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
+    public Vector3 GetVelocity(Entity entity) => entities.FrontRow(entity).LinearVelocity;
 
-    /// <summary>Angular velocity in frame axes, from the front snapshot.</summary>
-    public Vector3 GetAngularVelocity(Entity entity) => FrontRow(entity).AngularVelocity;
+    /// <summary>Angular velocity in frame axes, from the front snapshot. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
+    public Vector3 GetAngularVelocity(Entity entity) => entities.FrontRow(entity).AngularVelocity;
 
-    /// <summary>The render row, from the front snapshot.</summary>
-    public RenderData GetRender(Entity entity) => FrontRender(entity);
+    /// <summary>The render row, from the front snapshot. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
+    public RenderData GetRender(Entity entity) => entities.FrontRender(entity);
 
-    /// <summary>The frame that this entity is, or null.</summary>
-    public FrameHandle GetOwnedFrame(Entity entity)
-    {
-        ThrowIfStale(entity);
-        return records[entity.Index].OwnedFrame;
-    }
+    /// <summary>The frame that this entity is, or null. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
+    public FrameHandle GetOwnedFrame(Entity entity) => entities.OwnedFrame(entity);
 
-    /// <summary>A copy of the entity's components, in pipeline order.</summary>
-    public IReadOnlyList<IComponent> GetComponents(Entity entity)
-    {
-        ThrowIfStale(entity);
-        return (IComponent[])ComponentsOf((int)entity.Index).Clone();
-    }
+    /// <summary>A copy of the entity's components, in pipeline order. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
+    public IReadOnlyList<IComponent> GetComponents(Entity entity) => entities.Components(entity).ToArray();
 
-    /// <summary>The entity's first component that is a <typeparamref name="T"/>, or null.</summary>
-    public T? GetComponent<T>(Entity entity) where T : class, IComponent
-    {
-        ThrowIfStale(entity);
-        return FindComponent<T>(ComponentsOf((int)entity.Index));
-    }
+    /// <summary>
+    /// The entity's first component that is a <typeparamref name="T"/>, or null if it has none. Throws
+    /// <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    public T? GetComponent<T>(Entity entity) where T : class, IComponent => FindComponent<T>(entities.Components(entity));
 
     /// <summary>Adds every live entity to <paramref name="results"/>, in slot order.</summary>
     public void CopyLiveEntities(List<Entity> results)
     {
-        for (int slot = 0; slot < slotCount && slot < capacity; slot++)
-            if (slotState[slot] == SlotState.Live)
-                results.Add(new Entity((uint)slot, generation[slot]));
+        foreach (Entity entity in entities.LiveEntities)
+            results.Add(entity);
     }
 
     /// <summary>
@@ -193,7 +186,17 @@ public sealed partial class World : IDisposable
     {
         if (!e.Target.HasValue)
             throw new ArgumentException("The message target has no value.", nameof(e));
-        posted.Enqueue(e);
+        router.Post(e);
+    }
+
+    /// <summary>
+    /// Builds a render snapshot of the current state and publishes it. The sync point does this every tick; call it
+    /// yourself to show the world before the first tick. Outside a tick only.
+    /// </summary>
+    public void PublishRenderSnapshot()
+    {
+        ThrowIfInTick(nameof(PublishRenderSnapshot));
+        BuildRenderSnapshot();
     }
 
     /// <summary>Stops the physics thread. Disposes the backend only if <see cref="WorldOptions.DisposePhysics"/> is set.</summary>
@@ -207,7 +210,16 @@ public sealed partial class World : IDisposable
             physics?.Dispose();
     }
 
-    internal static T? FindComponent<T>(IComponent[] components) where T : class, IComponent
+    // ---- For Self, BodyHandle and Snapshot ---------------------------------------------------------------------------
+    // These views read and write the subsystems directly, through the same checked members that the world uses.
+
+    /// <summary>The entity table, for the views over it.</summary>
+    internal EntityTable Entities => entities;
+
+    /// <summary>The attachment chains, for the views over them.</summary>
+    internal Attachments Attachments => attachments;
+
+    internal static T? FindComponent<T>(ReadOnlySpan<IComponent> components) where T : class, IComponent
     {
         foreach (IComponent component in components)
             if (component is T match)
@@ -215,41 +227,66 @@ public sealed partial class World : IDisposable
         return null;
     }
 
-    internal IComponent[] ComponentsOf(int slot) => records[slot].Components ?? [];
+    internal void QueryRadius(FrameHandle frame, Double3 center, double radius, List<Entity> results) =>
+        spatial.QueryRadius(frame, center, radius, results);
 
-    internal ref readonly TransformRow FrontRow(int slot) => ref frontTransform[slot];
+    // ---- Invariants -----------------------------------------------------------------------------------------------
 
-    internal ref readonly TransformRow FrontRow(Entity entity)
+    /// <summary>
+    /// Checks the invariants of every subsystem, then the ones that span subsystems, which the world keeps by calling
+    /// them in the right order. O(capacity). Outside a tick, or at the end of a sync point; with
+    /// <see cref="WorldOptions.DebugChecks"/> set, the sync point runs it every tick.
+    /// <list type="bullet">
+    /// <item>No destroy batch is open.</item>
+    /// <item>Every live entity is in a live frame and is a member of exactly that frame's topic, except the owner of a
+    /// root frame, which is in no frame.</item>
+    /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state. Every live
+    /// frame's topic resolves.</item>
+    /// </list>
+    /// </summary>
+    internal void AssertInvariants()
     {
-        ThrowIfStale(entity);
-        return ref frontTransform[entity.Index];
+        entities.AssertInvariants();
+        topics.AssertInvariants();
+        router.AssertInvariants();
+        attachments.AssertInvariants();
+        spatial.AssertInvariants();
+        renderBuilder.AssertInvariants();
+
+        Contract.Invariant(dying.Count == 0);
+        foreach (Entity entity in entities.LiveEntities)
+        {
+            ref readonly TransformRow row = ref entities.BackRow(entity);
+            FrameHandle own = entities.OwnedFrame(entity);
+            if (row.Frame.IsNull)
+                Contract.Invariant(!own.IsNull && Frames.Parent(own).IsNull);
+            else
+                Contract.Invariant(Frames.IsAlive(row.Frame) && topics.MembersOf(row.Frame).BinarySearch(entity) >= 0);
+            if (!own.IsNull)
+            {
+                Contract.Invariant(Frames.IsAlive(own) && own.Entity == entity);
+                TransformRow mirror = FrameOwnerRow(own);
+                Contract.Invariant(row.Frame == mirror.Frame && Poses.BitEquals(row.Pose, mirror.Pose));
+                Contract.Invariant(row.LinearVelocity.Equals(mirror.LinearVelocity) && row.AngularVelocity.Equals(mirror.AngularVelocity));
+            }
+        }
+        for (int i = 0; i < Frames.Count; i++)
+        {
+            FrameHandle frame = Frames.AtDense(i);
+            Contract.Invariant(entities.IsAlive(frame.Entity) && entities.OwnedFrame(frame.Entity) == frame && topics.IsLive(frame));
+        }
     }
 
-    internal RenderData FrontRender(Entity entity)
+    // ---- Helpers --------------------------------------------------------------------------------------------------
+
+    /// <summary>Builds the render snapshot of the current front state into the write buffer and publishes it.</summary>
+    private void BuildRenderSnapshot()
     {
-        ThrowIfStale(entity);
-        return frontRender[entity.Index];
+        RenderSnapshot snapshot = RenderSnapshots.WriteBuffer;
+        renderBuilder.Build(snapshot, new RenderView(TickNumber, Time, Camera, VerticalFov, SunFrame, SunColor, SunIntensity, Ambient));
+        snapshot.PublishedAt = Stopwatch.GetTimestamp();
+        RenderSnapshots.Publish();
     }
-
-    internal bool HasBody(int slot) => records[slot].Body != null;
-
-    internal bool HasBody(Entity entity)
-    {
-        ThrowIfStale(entity);
-        return records[entity.Index].Body != null;
-    }
-
-    internal Entity EntityAt(int slot) => new((uint)slot, generation[slot]);
-
-    private void ThrowIfStale(Entity entity)
-    {
-        if (!IsAlive(entity))
-            ThrowStale(entity);
-    }
-
-    [DoesNotReturn]
-    private static void ThrowStale(Entity entity) =>
-        throw new InvalidOperationException($"{entity} is stale or null: the entity is not live.");
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(disposed, this);
 
@@ -258,46 +295,6 @@ public sealed partial class World : IDisposable
         ThrowIfDisposed();
         if (inTick)
             throw new InvalidOperationException($"World.{operation} cannot run during a tick. Components use Self instead.");
-    }
-
-    private int ChunkCountFor(int slots) => (slots + chunkSize - 1) / chunkSize;
-
-    /// <summary>Grows every per-slot table. Runs only outside a tick or at the sync point.</summary>
-    private void EnsureCapacity(int needed)
-    {
-        if (needed <= capacity)
-            return;
-        int size = Math.Max(needed, Math.Max(capacity * 2, 64));
-        Array.Resize(ref generation, size);
-        Array.Resize(ref slotState, size);
-        Array.Resize(ref flags, size);
-        Array.Resize(ref frontTransform, size);
-        Array.Resize(ref backTransform, size);
-        Array.Resize(ref frontRender, size);
-        Array.Resize(ref backRender, size);
-        Array.Resize(ref frontIntent, size);
-        Array.Resize(ref backIntent, size);
-        Array.Resize(ref masks, size);
-        Array.Resize(ref records, size);
-        Array.Resize(ref inboxStart, size + 1);
-        capacity = size;
-
-        int chunkCount = ChunkCountFor(size);
-        if (chunks.Length < chunkCount)
-        {
-            int old = chunks.Length;
-            Array.Resize(ref chunks, chunkCount);
-            for (int i = old; i < chunkCount; i++)
-                chunks[i] = new ChunkState(i);
-        }
-    }
-
-    private static EventMask MaskOf(EventMask[] wants)
-    {
-        EventMask mask = EventMask.Of<DestroyEvent>();
-        foreach (ref readonly EventMask w in wants.AsSpan())
-            mask.UnionWith(w);
-        return mask;
     }
 
     private void Report(string message, bool isError)

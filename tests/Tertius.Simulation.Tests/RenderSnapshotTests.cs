@@ -237,12 +237,78 @@ public class RenderSnapshotTests
         world.Camera = world.SpawnWith(root);
         world.Tick();
         Assert.Empty(Latest(world).Instances);
-        Assert.Equal(new MeshId(-1), world.Snapshot.RenderOf(e).Mesh);
+        Assert.Equal(MeshId.None, world.Snapshot.RenderOf(e).Mesh);
 
         world.Tick();
         RenderInstance instance = Assert.Single(Latest(world).Instances);
         Assert.Equal(new MeshId(9), instance.Mesh);
         Assert.Equal(new MeshId(9), world.GetRender(e).Mesh);
+    }
+
+    [Fact]
+    public void TheOriginIsTheCameraPositionInItsFrameAndTheFrameIdFollowsTheCamera()
+    {
+        var physics = new FakePhysics { Integrate = false };
+        using World world = TestWorld.Create(out FrameHandle root, physics: physics);
+        FrameHandle a = StaticFrame(world, root, TestWorld.At(0), 100);
+        FrameHandle b = StaticFrame(world, root, TestWorld.At(500), 100);
+        Entity camera = world.Spawn(new SpawnDesc
+        {
+            Frame = a,
+            Pose = TestWorld.At(1234567.25, 2, 3),
+            Body = TestWorld.Ball,
+            Render = new RenderData { ViewOffset = new Pose(new Vector3(0, 1.5f, 0), Quaternion.Identity) },
+        });
+        Show(world, a, TestWorld.At(4, 5, 6));
+        // A default render row has no mesh, so it draws nothing even when it is visible.
+        world.Spawn(new SpawnDesc { Frame = a, Render = default(RenderData) with { Flags = RenderFlags.Visible } });
+        world.Camera = camera;
+        long idOfA = ((long)a.Generation << 32) | (uint)a.Index;
+
+        world.PublishRenderSnapshot();
+        RenderSnapshot first = Latest(world);
+        Assert.True(TestWorld.RoughlyEqual(new Double3(1234567.25, 3.5, 3), first.OriginInFrame), first.OriginInFrame.ToString());
+        Assert.Equal(idOfA, first.OriginFrameId);
+        RenderInstance only = Assert.Single(first.Instances);
+        Assert.Equal(0, only.Part);
+        Assert.Equal(new MeshId(0), only.Mesh);
+
+        physics.OnStep = (context, output) =>
+        {
+            if (context.Tick == 1)
+                output.HandOffs.Add(new HandOff(camera, a, b, TestWorld.At(7, 8, 9), default, default));
+        };
+        world.Tick();
+        Assert.Equal(idOfA, Latest(world).OriginFrameId);
+        world.Tick();
+        RenderSnapshot moved = Latest(world);
+        Assert.Equal(((long)b.Generation << 32) | (uint)b.Index, moved.OriginFrameId);
+        Assert.True(TestWorld.RoughlyEqual(new Double3(7, 9.5, 9), moved.OriginInFrame), moved.OriginInFrame.ToString());
+
+        world.Camera = Entity.Null;
+        world.Tick();
+        RenderSnapshot none = Latest(world);
+        Assert.Equal(0, none.OriginFrameId);
+        Assert.Equal(Double3.Zero, none.OriginInFrame);
+        Assert.Empty(none.Instances);
+    }
+
+    [Fact]
+    public void TheOwnerOfARootFrameLooksOutFromTheFrameOrigin()
+    {
+        using World world = TestWorld.Create(out FrameHandle root);
+        Entity box = Show(world, root, TestWorld.At(3, 4, 5));
+        // A planet frame with no render radius casts no eclipse.
+        world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(0, 0, -1e7), AsFrame = new FrameSpec(FrameBounds.Sphere(1e8f), MotionDriver.Static, GravityField.Point(3.986004418e14)) });
+        world.Camera = root.Entity;
+
+        world.Tick();
+
+        RenderSnapshot snapshot = Latest(world);
+        Assert.Equal(new Vector3(3, 4, 5), InstanceOf(snapshot, box).Position);
+        Assert.Equal(Double3.Zero, snapshot.OriginInFrame);
+        Assert.Equal(((long)root.Generation << 32) | (uint)root.Index, snapshot.OriginFrameId);
+        Assert.Empty(snapshot.Occluders);
     }
 
     [Fact]

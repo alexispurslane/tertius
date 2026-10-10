@@ -5,13 +5,14 @@ namespace Tertius.Simulation;
 /// <summary>
 /// The render row of an entity. The snapshot builder draws an entity when <see cref="Flags"/> has
 /// <see cref="RenderFlags.Visible"/> and <see cref="Mesh"/> is not none. Use <c>new RenderData { ... }</c>: the
-/// parameterless constructor sets a unit scale, identity offsets and no mesh, while <c>default</c> zeroes everything.
+/// parameterless constructor sets a unit scale, identity offsets and no mesh. <c>default</c> also has no mesh and no
+/// material, because a default <see cref="MeshId"/> and <see cref="MaterialId"/> are none, but its scale is zero.
 /// </summary>
 public struct RenderData
 {
     /// <summary>The mesh to draw, or <see cref="MeshId.None"/>.</summary>
     public MeshId Mesh;
-    /// <summary>The material of the mesh.</summary>
+    /// <summary>The material of the mesh, or <see cref="MaterialId.None"/> for the renderer's default material.</summary>
     public MaterialId Material;
     /// <summary>Scale along the entity's local axes.</summary>
     public Vector3 Scale;
@@ -24,11 +25,9 @@ public struct RenderData
     /// <summary>A light that the entity carries.</summary>
     public LightData Light;
 
-    /// <summary>No mesh, unit scale, identity view offset and no light.</summary>
+    /// <summary>No mesh, no material, unit scale, identity view offset and no light.</summary>
     public RenderData()
     {
-        Mesh = MeshId.None;
-        Material = MaterialId.None;
         Scale = Vector3.One;
         ViewOffset = Pose.Identity;
         Light = new LightData();

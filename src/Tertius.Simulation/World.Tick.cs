@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using DestroyEvent = Tertius.Destroy;
 using TickEvent = Tertius.Tick;
 
@@ -6,15 +5,9 @@ namespace Tertius.Simulation;
 
 public sealed partial class World
 {
-    private const int MaxSpawnPool = 1024;
-
     // Each worker thread fills its own event list. A list never outlives one entity run.
     [ThreadStatic]
     private static EventBuffer? workerEvents;
-
-    // The slot count when the gameplay part of the tick started. Only these slots ran, so only their chunks hold results.
-    private int runSlotCount;
-    private readonly RefList<Entity> frontIntentEntities = new(64);
 
     /// <summary>
     /// Runs one tick. Physics steps on its own thread while the gameplay chunks run in parallel; both read only the
@@ -33,7 +26,7 @@ public sealed partial class World
             if (physicsWorker != null)
             {
                 stepOutput.Clear();
-                physicsWorker.Begin(new PhysicsStepContext(TickNumber, DeltaTime, Time, Frames, frontIntent, frontIntentEntities.AsMemory()));
+                physicsWorker.Begin(new PhysicsStepContext(TickNumber, DeltaTime, Time, Frames, entities.FrontIntents, entities.IntentEntities));
                 stepping = true;
             }
 
@@ -63,10 +56,10 @@ public sealed partial class World
         // Spawns and destroys made outside the tick reach physics before the step that may touch them.
         FlushPhysicsChanges();
         Frames.Update();
-        RefillSpawnPools();
-        runSlotCount = slotCount;
+        entities.BeginTick(options.SpawnPoolSize);
     }
 
+    /// <summary>Hands this batch of structural changes to physics, which applies destroys before creates.</summary>
     private void FlushPhysicsChanges()
     {
         PhysicsChanges changes = physicsChanges;
@@ -84,34 +77,9 @@ public sealed partial class World
         changes.Clear();
     }
 
-    /// <summary>
-    /// Reserves free slots for each chunk with live entities, in chunk order, so that spawns during the next tick get
-    /// the same handles in every run. A chunk with no live entities returns its pool.
-    /// </summary>
-    private void RefillSpawnPools()
-    {
-        int count = ChunkCountFor(slotCount);
-        for (int c = 0; c < count; c++)
-        {
-            ChunkState chunk = chunks[c];
-            if (chunk.LiveCount == 0 || options.SpawnPoolSize == 0)
-            {
-                while (chunk.SpawnPool.TryDequeue(out uint slot))
-                {
-                    slotState[slot] = SlotState.Free;
-                    freeSlots.Enqueue(slot);
-                }
-                continue;
-            }
-            int target = Math.Min(Math.Max(options.SpawnPoolSize, chunk.LastSpawnCount * 2), MaxSpawnPool);
-            while (chunk.SpawnPool.Count < target)
-                chunk.SpawnPool.Enqueue(AllocateSlot());
-        }
-    }
-
     private void RunGameplay()
     {
-        int count = ChunkCountFor(runSlotCount);
+        int count = entities.Chunks.Length;
         if (count == 0)
             return;
         if (options.MaxDegreeOfParallelism == 1 || count == 1)
@@ -125,56 +93,37 @@ public sealed partial class World
         }
     }
 
+    /// <summary>Runs every entity of one chunk that has mail, wants Tick, or is new and wants Spawned. On a worker.</summary>
     private void RunChunk(int chunkIndex)
     {
-        ChunkState chunk = chunks[chunkIndex];
-        if (chunk.LiveCount == 0)
-            return;
+        ChunkState chunk = entities.Chunks[chunkIndex];
         EventBuffer buffer = workerEvents ??= new EventBuffer(64);
         int tickType = EventType<TickEvent>.Id;
         int spawnedType = EventType<Spawned>.Id;
-        int start = chunkIndex * chunkSize;
-        int end = Math.Min(start + chunkSize, runSlotCount);
-        for (int slot = start; slot < end; slot++)
+        foreach (Entity entity in entities.LiveEntitiesOfChunk(chunkIndex))
         {
-            if (slotState[slot] != SlotState.Live)
+            bool first = entities.TakeFirstTick(entity);
+            bool wantsTick = entities.Accepts(entity, tickType);
+            bool wantsSpawned = first && entities.Accepts(entity, spawnedType);
+            if (router.InboxCount(entity) == 0 && !wantsTick && !wantsSpawned)
                 continue;
-            SlotFlags f = flags[slot];
-            bool first = (f & SlotFlags.FirstTick) != 0;
-            if (first)
-                flags[slot] = f & ~SlotFlags.FirstTick;
-
-            int inboxBegin = 0, inboxEnd = 0;
-            if (slot < routedSlotCount && (f & SlotFlags.InboxStale) == 0)
-            {
-                inboxBegin = inboxStart[slot];
-                inboxEnd = inboxStart[slot + 1];
-            }
-            ref EventMask mask = ref masks[slot];
-            bool wantsTick = mask.Contains(tickType);
-            bool wantsSpawned = first && mask.Contains(spawnedType);
-            if (inboxBegin == inboxEnd && !wantsTick && !wantsSpawned)
-                continue;
-            RunEntity(chunk, buffer, slot, inboxBegin, inboxEnd, wantsTick, wantsSpawned);
+            RunEntity(chunk, buffer, entity, wantsTick, wantsSpawned);
         }
     }
 
-    private void RunEntity(ChunkState chunk, EventBuffer buffer, int slot, int inboxBegin, int inboxEnd, bool wantsTick, bool wantsSpawned)
+    private void RunEntity(ChunkState chunk, EventBuffer buffer, Entity entity, bool wantsTick, bool wantsSpawned)
     {
-        var entity = new Entity((uint)slot, generation[slot]);
         EventList events = buffer.Begin(entity);
         if (wantsTick)
             events.Add(new TickEvent { Number = TickNumber, DeltaTime = DeltaTime });
         if (wantsSpawned)
             events.Add(new Spawned());
-        Event[] store = routed.Items;
-        for (int i = inboxBegin; i < inboxEnd; i++)
-            events.Add(in store[inboxEvents[i]]);
+        // The per-recipient copy runs here, on the worker, not at the serial sync point.
+        router.CopyInbox(entity, events);
 
-        ref EntityRecord rec = ref records[slot];
-        IComponent[] components = rec.Components ?? [];
-        EventMask[] wants = rec.Wants ?? [];
-        var self = new Self(this, chunk, slot, entity);
+        ReadOnlySpan<IComponent> components = entities.Components(entity);
+        ReadOnlySpan<EventMask> wants = entities.ComponentWants(entity);
+        var self = new Self(this, chunk, entity);
         var outbox = new Outbox(chunk, entity, TickNumber);
         for (int c = 0; c < components.Length; c++)
         {
@@ -184,7 +133,8 @@ public sealed partial class World
             {
                 components[c].Handle(self, ref events, ref outbox);
             }
-            catch (Exception ex)
+            // A broken contract is a bug in the engine, not in the component, so it is not survived like one.
+            catch (Exception ex) when (ex is not ContractException)
             {
                 chunk.Messages.Add(new ChunkMessage(
                     $"tick {TickNumber}: {entity} {components[c].GetType().FullName}: {ex.GetType().Name}: {ex.Message}", true));
@@ -193,53 +143,40 @@ public sealed partial class World
 
         // A Destroy that no component removed destroys the entity at the sync point.
         if (events.Contains<DestroyEvent>())
-            RequestDestroy(chunk, slot);
+            RequestDestroy(chunk, entity);
         if (chunk.ComponentChanges.Count > 0)
             ApplyComponentChanges(chunk);
     }
 
-    // ---- Writable rows for Self ----------------------------------------------------------------------------------
+    // ---- Writes for Self -------------------------------------------------------------------------------------------
+    // The rules for who may write a transform or an intent span the entity table, the attachments and the frame tree,
+    // so they live here. Every other write of Self goes straight to its subsystem.
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void MarkDirty(ChunkState chunk, int slot, SlotFlags bits)
+    /// <summary>
+    /// The running entity's back pose, for writing. Throws <see cref="InvalidOperationException"/> if physics, an
+    /// attachment parent or a frame driver owns the transform, and <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    internal ref DPose WritableTransform(Entity entity)
     {
-        SlotFlags f = flags[slot];
-        if ((f & (SlotFlags.TransformDirty | SlotFlags.RenderDirty)) == 0)
-            chunk.DirtySlots.Add((uint)slot);
-        flags[slot] = f | bits;
+        if (entities.Body(entity) != null)
+            throw new InvalidOperationException($"{entity} has a physics body, so physics owns its transform. Move it through Self.Body.");
+        Entity parent = attachments.ParentOf(entity);
+        if (!parent.IsNull)
+            throw new InvalidOperationException($"{entity} is attached to {parent}, so its transform follows the parent. Change Self.AttachOffset instead.");
+        FrameHandle own = entities.OwnedFrame(entity);
+        if (!own.IsNull && Frames.Driver(own) != MotionDriver.Static)
+            throw new InvalidOperationException($"{entity} owns a {Frames.Driver(own)} frame, so the frame's motion driver sets its pose.");
+        return ref entities.WritableTransform(entity);
     }
 
-    internal ref DPose WritableTransform(ChunkState chunk, int slot)
+    /// <summary>
+    /// The running entity's intent for the next physics step, for writing. Throws <see cref="InvalidOperationException"/>
+    /// if the entity has no body, and <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    internal ref PhysicsIntent WritableIntent(Entity entity)
     {
-        ref EntityRecord rec = ref records[slot];
-        if (rec.Body != null)
-            throw new InvalidOperationException($"{EntityAt(slot)} has a physics body, so physics owns its transform. Move it through Self.Body.");
-        if (!rec.AttachParent.IsNull)
-            throw new InvalidOperationException($"{EntityAt(slot)} is attached to {rec.AttachParent}, so its transform follows the parent. Change Self.AttachOffset instead.");
-        if (!rec.OwnedFrame.IsNull && Frames.Driver(rec.OwnedFrame) != MotionDriver.Static)
-            throw new InvalidOperationException($"{EntityAt(slot)} owns a {Frames.Driver(rec.OwnedFrame)} frame, so the frame's motion driver sets its pose.");
-        MarkDirty(chunk, slot, SlotFlags.TransformDirty | SlotFlags.GameplayWroteTransform);
-        return ref backTransform[slot].Pose;
+        if (entities.Body(entity) == null)
+            throw new InvalidOperationException($"{entity} has no physics body.");
+        return ref entities.WritableIntent(entity);
     }
-
-    internal ref RenderData WritableRender(ChunkState chunk, int slot)
-    {
-        MarkDirty(chunk, slot, SlotFlags.RenderDirty);
-        return ref backRender[slot];
-    }
-
-    internal ref PhysicsIntent WritableIntent(ChunkState chunk, int slot)
-    {
-        if (records[slot].Body == null)
-            throw new InvalidOperationException($"{EntityAt(slot)} has no physics body.");
-        SlotFlags f = flags[slot];
-        if ((f & SlotFlags.IntentRegistered) == 0)
-        {
-            flags[slot] = f | SlotFlags.IntentRegistered;
-            chunk.IntentSlots.Add((uint)slot);
-        }
-        return ref backIntent[slot];
-    }
-
-    internal PhysicsIntent PendingIntent(int slot) => backIntent[slot];
 }
