@@ -9,3 +9,8 @@ obj/
 /captures/
 BenchmarkDotNet.Artifacts/
 result
+/StrykerOutput/
+**/StrykerOutput/
+/TestResults/
+**/TestResults/
+/coverage/
