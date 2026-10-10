@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+*.user
+/native/build/
+/native/osx-arm64/*.dylib
+/native/linux-x64/*.so
+/artifacts/
+/captures/
+BenchmarkDotNet.Artifacts/
+result

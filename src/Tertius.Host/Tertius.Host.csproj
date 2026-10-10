@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <UsesJolt>true</UsesJolt>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Tertius.Core/Tertius.Core.csproj" />
+    <ProjectReference Include="../Tertius.Simulation/Tertius.Simulation.csproj" />
+    <ProjectReference Include="../Tertius.Physics/Tertius.Physics.csproj" />
+    <ProjectReference Include="../Tertius.Rendering/Tertius.Rendering.csproj" />
+    <PackageReference Include="Silk.NET.Windowing" />
+    <PackageReference Include="Silk.NET.Input" />
+  </ItemGroup>
+</Project>

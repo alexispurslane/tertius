@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <UsesJolt>true</UsesJolt>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Tertius.Core/Tertius.Core.csproj" />
+    <PackageReference Include="JoltPhysicsSharp" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Tertius.Physics.Tests" />
+  </ItemGroup>
+</Project>

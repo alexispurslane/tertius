@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="../Tertius.Core/Tertius.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Tertius.Simulation.Tests" />
+    <InternalsVisibleTo Include="Tertius.Benchmarks" />
+  </ItemGroup>
+</Project>

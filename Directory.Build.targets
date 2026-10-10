@@ -1,0 +1,11 @@
+<Project>
+  <!-- Projects that set UsesJolt=true get the double-precision Jolt library copied next to their output. -->
+  <ItemGroup Condition="'$(UsesJolt)' == 'true'">
+    <None Include="$(MSBuildThisFileDirectory)native/osx-arm64/libjoltc_double.dylib"
+          Condition="Exists('$(MSBuildThisFileDirectory)native/osx-arm64/libjoltc_double.dylib')"
+          Link="libjoltc_double.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(MSBuildThisFileDirectory)native/linux-x64/libjoltc_double.so"
+          Condition="Exists('$(MSBuildThisFileDirectory)native/linux-x64/libjoltc_double.so')"
+          Link="libjoltc_double.so" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+</Project>

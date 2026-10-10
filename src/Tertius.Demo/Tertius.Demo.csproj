@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UsesJolt>true</UsesJolt>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Tertius.Host/Tertius.Host.csproj" />
+  </ItemGroup>
+</Project>

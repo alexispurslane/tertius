@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Tertius.Core/Tertius.Core.csproj" />
+    <Project Path="src/Tertius.Simulation/Tertius.Simulation.csproj" />
+    <Project Path="src/Tertius.Physics/Tertius.Physics.csproj" />
+    <Project Path="src/Tertius.Rendering/Tertius.Rendering.csproj" />
+    <Project Path="src/Tertius.Host/Tertius.Host.csproj" />
+    <Project Path="src/Tertius.Demo/Tertius.Demo.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Tertius.Core.Tests/Tertius.Core.Tests.csproj" />
+    <Project Path="tests/Tertius.Simulation.Tests/Tertius.Simulation.Tests.csproj" />
+    <Project Path="tests/Tertius.Physics.Tests/Tertius.Physics.Tests.csproj" />
+    <Project Path="tests/Tertius.Rendering.Tests/Tertius.Rendering.Tests.csproj" />
+  </Folder>
+</Solution>
