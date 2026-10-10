@@ -99,6 +99,13 @@ public sealed partial class World
             Entity entity = state.Entity;
             if (!entities.IsAlive(entity) || entities.Body(entity) == null)
                 continue;
+            // The pose and velocities are relative to the reported frame, so a state in a frame that is gone is useless
+            // in any other frame. The entity keeps its frame and its row, as with a hand-off to a stale frame.
+            if (!state.Frame.IsNull && !Frames.IsAlive(state.Frame))
+            {
+                Report($"tick {TickNumber}: ignored the body state of {entity} in the stale frame {state.Frame}.", isError: true);
+                continue;
+            }
             entities.SetBackTransform(entity, new TransformRow
             {
                 Frame = state.Frame.IsNull ? entities.BackRow(entity).Frame : state.Frame,

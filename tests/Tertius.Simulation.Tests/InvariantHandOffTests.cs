@@ -109,7 +109,7 @@ public class InvariantHandOffTests
         scene.World.AssertInvariants();
     }
 
-    [Fact(Skip = "Bug: World.ApplyPhysicsOutput writes BodyState.Frame into the back row without checking that the frame is alive, so the body joins a dead frame's member set.")]
+    [Fact]
     public void ABodyStateInAFrameThatIsGoneDoesNotPutTheBodyInThatFrame()
     {
         FrameHandle gone = default;
@@ -126,5 +126,26 @@ public class InvariantHandOffTests
         tick.Should().NotThrow("the report names a frame that was destroyed, and a bad report must not break the world");
         world.GetFrame(body).Should().Be(test.Root);
         world.AssertInvariants();
+    }
+
+    [Fact]
+    public void ABodyStateInAFrameThatIsGoneIsReportedAndLeavesTheBodyWhereItWas()
+    {
+        FrameHandle gone = default;
+        Entity body = default;
+        using var test = new TestWorld(TestPhysics.Create((context, output) =>
+            output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), new Vector3(4, 5, 6), new Vector3(0, 1, 0)))));
+        World world = test.World;
+        gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
+        body = world.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), LinearVelocity = new Vector3(1, 2, 3), Body = TestWorld.Ball });
+        world.Destroy(gone.Entity).Should().BeTrue();
+
+        world.Tick();
+
+        // The pose and velocities are relative to the frame that is gone, so none of them can be used in the root frame.
+        world.Errors.Should().ContainSingle(error => error.Contains("stale frame"));
+        world.GetPose(body).Should().Be(TestWorld.At(7));
+        world.GetVelocity(body).Should().Be(new Vector3(1, 2, 3));
+        world.GetAngularVelocity(body).Should().Be(Vector3.Zero);
     }
 }
