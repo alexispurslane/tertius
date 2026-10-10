@@ -228,7 +228,7 @@ public class PhysicsHandOffTests
         test.World.GetFrame(fighterOwner).Should().Be(test.Root);
     }
 
-    [Fact(Skip = "Bug: a hand-off that the frame tree refuses still moves the owner's row and membership first, so the owner hears FrameChanged for a move that did not happen, and then for the move back.")]
+    [Fact]
     public void AHandOffThatTheFrameTreeRefusesSendsNoFrameChanged()
     {
         IPhysicsBackend physics = TestPhysics.Create();

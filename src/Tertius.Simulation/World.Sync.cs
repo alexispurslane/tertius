@@ -119,15 +119,8 @@ public sealed partial class World
                 continue;
             }
             Entity entity = handOff.Entity;
-            entities.SetBackTransform(entity, new TransformRow
-            {
-                Frame = handOff.To,
-                Pose = handOff.Pose,
-                LinearVelocity = handOff.LinearVelocity,
-                AngularVelocity = handOff.AngularVelocity,
-            });
-            physicsTouched.Add(entity);
-
+            // The frame tree may refuse to move an owned frame. It refuses before it changes anything, so the owner's
+            // row and membership are written only after it agreed: a refused hand-off changes nothing.
             FrameHandle own = entities.OwnedFrame(entity);
             if (!own.IsNull && Frames.Parent(own) != handOff.To)
             {
@@ -138,8 +131,17 @@ public sealed partial class World
                 catch (InvalidOperationException ex)
                 {
                     Report($"tick {TickNumber}: cannot move frame {own} under {handOff.To}: {ex.Message}", isError: true);
+                    continue;
                 }
             }
+            entities.SetBackTransform(entity, new TransformRow
+            {
+                Frame = handOff.To,
+                Pose = handOff.Pose,
+                LinearVelocity = handOff.LinearVelocity,
+                AngularVelocity = handOff.AngularVelocity,
+            });
+            physicsTouched.Add(entity);
         }
 
         // The hand-offs above already put each frame under the parent that its state is relative to. The owner's row
