@@ -58,12 +58,12 @@ One tick has two parts. During the parallel part, gameplay and physics run at th
 The sync point does these steps in this order:
 
 1. Wait for all gameplay chunks and for the physics step.
-2. Copy body poses and velocities from the physics output into the back transform table. Apply the hand-offs that physics reported.
+2. Copy body poses and velocities from the physics output into the back transform table. Apply the hand-offs that physics reported, and then the new states of physics-driven frames. A frame state is relative to the frame's parent after its hand-off, so it must come after the hand-offs and before any frame is destroyed.
 3. Make sure that no entity with a body wrote its own transform. This is a debug assertion.
 4. Swap the physics intent buffers, so that physics gets this tick's forces in the next step.
 5. Free dead entities. Increment the generation of each slot and return the slot to the free list. Tell physics to destroy their bodies.
 6. Make new entities live. If the tables are full, grow them. Tell physics to create the new bodies.
-7. Advance the frame tree: Kepler frames from time, physics frames from the physics output.
+7. Advance the Kepler frames to the end of the tick.
 8. Route the outboxes into inboxes.
 9. Swap the snapshot. The back tables become the front tables. Copy only dirty slots forward.
 10. Build the render snapshot and publish it to the render thread through a triple buffer.
