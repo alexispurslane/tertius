@@ -18,6 +18,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 - The user likes type-safe variants: C# 15 unions for closed sets such as message targets. A standard union boxes struct cases. To avoid that, use a custom `[Union]` struct with `TryGetValue` methods.
 - Prefer simple, honest mechanisms over clever ones. When a feature is not needed yet, leave it out and say so. Examples are read-only "public facts" on entities and automatic event propagation into containers.
 - Reflection is fine at load time (blueprints are lists of component types instantiated through reflection), as long as the hot path pays nothing for it.
+- The engine must be fast. It has to handle space-scale scenes and dense immersive-sim interactions at once. Measure the cost of every rendering feature, and keep expensive ones switchable.
 - Small, focused classes are better than one large class. The user approved splitting the `World` class into subsystems as soon as it grew too big.
 - The user values determinism and wants reasons for every ordering rule.
 
@@ -58,3 +59,8 @@ Follow the global contracts rule. In this repository, the helper is `Tertius.Con
 - Use red-green TDD. First write tests that define the core behavior, in the spirit of BDD but in xUnit. Then implement. Then use coverage and mutation testing (Stryker.NET with the MTP runner) to make sure that the tests are meaningful. Also add tests that lock in the decisions made along the way.
 - NSubstitute cannot substitute interfaces with ref struct parameters, such as `IComponent`. Use small hand-written test components for those.
 - Most tests run single-threaded, so that they are deterministic and fast under mutation testing. A separate test covers parallel determinism.
+- Renderer tests are snapshot tests plus CPU tests. A snapshot test renders a scene headlessly and compares it with an approved reference image through the FLIP perceptual metric. A failure writes the actual image and a FLIP heat map next to the reference. An environment variable re-approves on purpose.
+- A snapshot proves only that nothing changed. So the first approval of every reference image is a real review against the scene description.
+- Some agents add or re-approve a reference image, or see a snapshot failure. Each such agent must open the reference, the actual image and the heat map with the Read tool. Its report describes what it saw.
+- Deterministic rendering for tests (alpha 1, fixed seeds, impostor captures forced or off, no temporal effects) is one easy switch in `RendererOptions`.
+- Everything else in the renderer that is C#, such as batching, culling, cascade fitting and impostor decisions, gets ordinary CPU tests.
