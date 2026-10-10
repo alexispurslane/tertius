@@ -1,5 +1,14 @@
 <Project>
   <!--
+    Contract.Requires, Ensures and Assert are [Conditional("TERTIUS_CONTRACTS")], which is evaluated in the calling
+    project, so every project defines the symbol in Debug. This lives here and not in Directory.Build.props, because
+    the SDK sets the default Configuration only after Directory.Build.props is imported.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DefineConstants>$(DefineConstants);TERTIUS_CONTRACTS</DefineConstants>
+  </PropertyGroup>
+
+  <!--
     Projects that set UsesJolt=true get the double-precision Jolt library copied next to their output.
     The dev shell sets TERTIUS_JOLTC_DIR to the Nix-built library (native/joltc.nix). Without it, the build
     falls back to native/<rid>/, which native/build-joltc.sh fills. Nix store files are dated 1970, so the copy
