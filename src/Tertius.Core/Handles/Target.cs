@@ -16,7 +16,7 @@ public readonly struct Target : IEquatable<Target>
     private readonly byte kind;
 
     public Target(Entity entity) { kind = KindEntity; bits = entity.Raw; }
-    public Target(Topic topic) { kind = KindTopic; bits = (ulong)(uint)topic.Id; }
+    public Target(Topic topic) { kind = KindTopic; bits = ((ulong)topic.Generation << 32) | (uint)topic.Id; }
     public Target(Broadcast broadcast) { kind = KindBroadcast; bits = 0; }
 
     public static implicit operator Target(Entity entity) => new(entity);
@@ -34,7 +34,7 @@ public readonly struct Target : IEquatable<Target>
 
     public bool TryGetValue(out Topic topic)
     {
-        topic = new Topic((int)(uint)bits);
+        topic = new Topic((int)(uint)bits, (uint)(bits >> 32));
         return kind == KindTopic;
     }
 
@@ -47,7 +47,7 @@ public readonly struct Target : IEquatable<Target>
     public object? Value => kind switch
     {
         KindEntity => Entity.FromRaw(bits),
-        KindTopic => new Topic((int)(uint)bits),
+        KindTopic => new Topic((int)(uint)bits, (uint)(bits >> 32)),
         KindBroadcast => new Broadcast(),
         _ => null,
     };

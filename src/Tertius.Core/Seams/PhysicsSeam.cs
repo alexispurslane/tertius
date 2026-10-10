@@ -79,8 +79,10 @@ public struct PhysicsIntent
     public Vector3 AngularImpulse;
     public Vector3 Velocity;
     public Vector3 AngularVelocity;
-    /// <summary>The target pose for a kinematic body, or the new pose for a teleport, in frame coordinates.</summary>
+    /// <summary>The target pose for a kinematic body, in frame coordinates. Used with <see cref="IntentFlags.KinematicTarget"/>.</summary>
     public DPose Target;
+    /// <summary>The new pose for a teleport, in frame coordinates. Used with <see cref="IntentFlags.Teleport"/>.</summary>
+    public DPose TeleportPose;
     /// <summary>The desired movement velocity of a character.</summary>
     public Vector3 CharacterVelocity;
     public float JumpSpeed;
@@ -102,16 +104,22 @@ public readonly record struct BodyCreate(
     Vector3 LinearVelocity,
     Vector3 AngularVelocity);
 
-/// <summary>The structural changes of one sync point, in the order that physics must apply them.</summary>
+/// <summary>
+/// The structural changes of one sync point. Physics applies them in this order: <see cref="BodiesDestroyed"/>,
+/// <see cref="FramesDestroyed"/>, <see cref="BodiesCreated"/>. <see cref="FramesCreated"/> is informational: a
+/// frame's physics system can be created lazily with its first body. A body that moves between frames outside a
+/// hand-off appears in <see cref="BodiesDestroyed"/> and then in <see cref="BodiesCreated"/> in the same batch.
+/// </summary>
 public sealed class PhysicsChanges
 {
-    /// <summary>Frames created at this sync point. Each needs its own physics system.</summary>
-    public readonly List<FrameHandle> FramesCreated = new();
-    /// <summary>Bodies of entities that died. Physics removes them and any ghosts.</summary>
+    /// <summary>Bodies of entities that died or that move to another frame. Physics removes them and any ghosts.</summary>
     public readonly List<Entity> BodiesDestroyed = new();
     /// <summary>Frames destroyed at this sync point, after their bodies were destroyed or moved.</summary>
     public readonly List<FrameHandle> FramesDestroyed = new();
+    /// <summary>Bodies to create, with poses and velocities in their frames.</summary>
     public readonly List<BodyCreate> BodiesCreated = new();
+    /// <summary>Frames created at this sync point.</summary>
+    public readonly List<FrameHandle> FramesCreated = new();
 
     public void Clear()
     {
@@ -156,7 +164,10 @@ public readonly record struct HandOff(Entity Entity, FrameHandle From, FrameHand
 /// <summary>A contact that started during the step. Point and normal are in the frame of <see cref="A"/>.</summary>
 public readonly record struct ContactStarted(Entity A, Entity B, FrameHandle Frame, Double3 Point, Vector3 Normal, float Impulse);
 
-/// <summary>The new state of a physics-driven frame, relative to its parent.</summary>
+/// <summary>
+/// The new state of a physics-driven frame, relative to its parent after this step. If the step also handed the
+/// frame off, the parent is the hand-off's <see cref="HandOff.To"/>, so the sync point applies hand-offs first.
+/// </summary>
 public readonly record struct FrameState(FrameHandle Frame, DPose LocalPose, Double3 LinearVelocity, Vector3 AngularVelocity, Vector3 ProperAcceleration);
 
 /// <summary>Results of one step. The backend fills it on the physics thread. The sync point reads and clears it.</summary>

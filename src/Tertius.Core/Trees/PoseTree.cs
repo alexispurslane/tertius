@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Runtime.CompilerServices;
 
 namespace Tertius;
@@ -14,7 +15,9 @@ public readonly record struct PoseNode(int Id, uint Generation)
 /// children, so <see cref="UpdateWorld"/> computes every world pose in one linear pass. A reparent can break
 /// that order. The tree then marks itself dirty and restores the order at the next pass.
 /// Node handles are stable. Dense indices change when the tree adds, removes or reorders nodes.
-/// This class is not thread-safe. Mutate it only at the sync point.
+/// Mutate the tree from one thread only. Reads are safe from many threads at once only while nothing mutates the
+/// tree and the order is clean: every read calls EnsureOrder, which reorders a dirty tree. Call
+/// <see cref="UpdateWorld"/> after mutations to leave it clean.
 /// </summary>
 public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
 {
@@ -34,7 +37,6 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
     private int count;
     private bool orderDirty;
     private bool worldDirty;
-    private int[] scratch = [];
 
     public PoseTree(int capacity = 16)
     {
@@ -223,39 +225,60 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
 
     /// <summary>
     /// Writes the pose of every node relative to <paramref name="reference"/> into <paramref name="result"/>, by
-    /// dense index. Nodes in other trees are placed through a shared virtual root.
+    /// dense index. Nodes in other trees are placed through a shared virtual root. Safe to call from several
+    /// threads at once while the tree does not change.
     /// </summary>
     public void ComputeRelativeTo(PoseNode reference, Span<TPose> result)
     {
         EnsureOrder();
+        ComputeRelativeTo(reference, local.AsSpan(0, count), result);
+    }
+
+    /// <summary>
+    /// Like <see cref="ComputeRelativeTo(PoseNode, Span{TPose})"/>, but reads the local poses from
+    /// <paramref name="localPoses"/> (by dense index) instead of the tree. The tree supplies only the structure.
+    /// Use it to evaluate the tree at another time, such as the previous tick.
+    /// </summary>
+    public void ComputeRelativeTo(PoseNode reference, ReadOnlySpan<TPose> localPoses, Span<TPose> result)
+    {
+        EnsureOrder();
         if (result.Length < count)
             throw new ArgumentException("Result span is shorter than the node count.", nameof(result));
+        if (localPoses.Length < count)
+            throw new ArgumentException("Local pose span is shorter than the node count.", nameof(localPoses));
 
         int r = Dense(reference);
-        if (scratch.Length < count)
-            scratch = new int[parent.Length];
-        Span<int> onPath = scratch.AsSpan(0, count);
-        onPath.Clear();
-
-        // Walk up from the reference: rel(parent) = rel(child) ∘ inverse(local(child)).
-        result[r] = TPose.Identity;
-        onPath[r] = 1;
-        int x = r;
-        while (parent[x] >= 0)
+        int[]? rented = count > 256 ? ArrayPool<int>.Shared.Rent(count) : null;
+        Span<int> onPath = rented is null ? stackalloc int[count] : rented.AsSpan(0, count);
+        try
         {
-            int p = parent[x];
-            result[p] = TPose.Compose(result[x], local[x].Inverse());
-            onPath[p] = 1;
-            x = p;
+            onPath.Clear();
+
+            // Walk up from the reference: rel(parent) = rel(child) ∘ inverse(local(child)).
+            result[r] = TPose.Identity;
+            onPath[r] = 1;
+            int x = r;
+            while (parent[x] >= 0)
+            {
+                int p = parent[x];
+                result[p] = TPose.Compose(result[x], localPoses[x].Inverse());
+                onPath[p] = 1;
+                x = p;
+            }
+            TPose virtualRoot = TPose.Compose(result[x], localPoses[x].Inverse());
+
+            for (int i = 0; i < count; i++)
+            {
+                if (onPath[i] != 0)
+                    continue;
+                int p = parent[i];
+                result[i] = p < 0 ? TPose.Compose(virtualRoot, localPoses[i]) : TPose.Compose(result[p], localPoses[i]);
+            }
         }
-        TPose virtualRoot = TPose.Compose(result[x], local[x].Inverse());
-
-        for (int i = 0; i < count; i++)
+        finally
         {
-            if (onPath[i] != 0)
-                continue;
-            int p = parent[i];
-            result[i] = p < 0 ? TPose.Compose(virtualRoot, local[i]) : TPose.Compose(result[p], local[i]);
+            if (rented != null)
+                ArrayPool<int>.Shared.Return(rented);
         }
     }
 

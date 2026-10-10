@@ -41,10 +41,12 @@ public readonly record struct FrameHandle(Entity Entity, int Index, uint Generat
 
 /// <summary>
 /// A message topic. Non-negative ids are named topics from <see cref="Topics"/>. Negative ids are frame topics.
+/// A frame topic also carries the frame's generation, so a message to a destroyed frame never reaches a new frame
+/// that reuses its index. Named topics have generation 0.
 /// </summary>
-public readonly record struct Topic(int Id)
+public readonly record struct Topic(int Id, uint Generation = 0)
 {
-    public static Topic OfFrame(FrameHandle frame) => new(-1 - frame.Index);
+    public static Topic OfFrame(FrameHandle frame) => new(-1 - frame.Index, frame.Generation);
 
     public bool IsFrameTopic => Id < 0;
 

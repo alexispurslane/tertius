@@ -56,10 +56,16 @@ public sealed class FrameTree
         return handle;
     }
 
-    /// <summary>Destroys a frame. Its child frames move to its parent and keep their poses.</summary>
+    /// <summary>Destroys a frame. Its child frames move to its parent and keep their poses and velocities.</summary>
     public void Destroy(FrameHandle frame)
     {
         PoseNode node = Node(frame);
+        FrameHandle parent = Parent(frame);
+        var children = new List<FrameHandle>();
+        GetChildren(frame, children);
+        // Reparent converts each child's velocity into the new parent's axes. A child of a root frame becomes a root.
+        foreach (FrameHandle child in children)
+            Reparent(child, parent);
         byOwner.Remove(owner[node.Id]);
         owner[node.Id] = Entity.Null;
         poses.Remove(node);
@@ -76,13 +82,12 @@ public sealed class FrameTree
             return;
 
         // Carry the frame origin's velocity and the frame's spin from the old parent into the new parent.
-        if (!oldParent.IsNull && !newParent.IsNull)
-        {
-            DPose oldPose = poses.GetLocal(node);
-            Double3 w = angularVelocity[node.Id];
-            linearVelocity[node.Id] = ConvertVelocity(oldParent, newParent, oldPose.Position, linearVelocity[node.Id]);
-            angularVelocity[node.Id] = (Relative(oldParent, newParent).TransformDirection(w) + AngularVelocityRelative(oldParent, newParent)).ToVector3();
-        }
+        // A null parent is the virtual root above every root frame.
+        DPose oldPose = poses.GetLocal(node);
+        Double3 w = angularVelocity[node.Id];
+        DQuaternion oldToNew = RootPose(newParent).Rotation.Conjugate() * RootPose(oldParent).Rotation;
+        linearVelocity[node.Id] = ConvertVelocity(oldParent, newParent, oldPose.Position, linearVelocity[node.Id]);
+        angularVelocity[node.Id] = (oldToNew.Rotate(w) + AngularVelocityRelative(oldParent, newParent)).ToVector3();
         poses.Reparent(node, newParent.IsNull ? PoseNode.Null : Node(newParent), keepWorldPose: true);
     }
 
@@ -129,6 +134,16 @@ public sealed class FrameTree
 
     /// <summary>Writes every frame's pose relative to <paramref name="reference"/> into <paramref name="result"/>, by dense index.</summary>
     public void ComputeRelativeTo(FrameHandle reference, Span<DPose> result) => poses.ComputeRelativeTo(Node(reference), result);
+
+    /// <summary>
+    /// Like <see cref="ComputeRelativeTo(FrameHandle, Span{DPose})"/>, but with the local poses taken from
+    /// <paramref name="localPoses"/> by dense index, such as a copy of last tick's poses.
+    /// </summary>
+    public void ComputeRelativeTo(FrameHandle reference, ReadOnlySpan<DPose> localPoses, Span<DPose> result) =>
+        poses.ComputeRelativeTo(Node(reference), localPoses, result);
+
+    /// <summary>The local poses of all frames, by dense index. Copy it to keep a tick's poses.</summary>
+    public ReadOnlySpan<DPose> LocalPosesDense => poses.LocalPoses;
 
     public int DenseIndex(FrameHandle frame) => poses.DenseIndex(Node(frame));
 
@@ -185,16 +200,29 @@ public sealed class FrameTree
 
     private FrameHandle Handle(PoseNode node) => new(owner[node.Id], node.Id, node.Generation);
 
+    /// <summary>True when <paramref name="x"/> is an ancestor of <paramref name="frame"/>. Nothing is an ancestor of the virtual root.</summary>
+    private bool IsAncestorOrNull(FrameHandle x, FrameHandle frame) => !frame.IsNull && IsAncestorOf(x, frame);
+
+    /// <summary>The pose of a frame relative to the virtual root, composed along its path. Identity for the virtual root.</summary>
+    private DPose RootPose(FrameHandle frame)
+    {
+        DPose pose = DPose.Identity;
+        for (FrameHandle f = frame; !f.IsNull; f = Parent(f))
+            pose = DPose.Compose(LocalPose(f), pose);
+        return pose;
+    }
+
     /// <summary>
     /// The velocity, in <paramref name="to"/> axes, of a point at <paramref name="position"/> that moves with velocity
     /// <paramref name="v"/> in frame <paramref name="from"/>. Converts level by level through the common ancestor.
+    /// A null frame is the virtual root above every root frame.
     /// </summary>
     public Double3 ConvertVelocity(FrameHandle from, FrameHandle to, Double3 position, Double3 v)
     {
         // Walk up from 'from' to the root, converting at each level, then down to 'to' using the inverse rule.
         FrameHandle x = from;
         Double3 p = position, vel = v;
-        while (!x.IsNull && x != to && !IsAncestorOf(x, to))
+        while (!x.IsNull && x != to && !IsAncestorOrNull(x, to))
         {
             vel = VelocityToParent(x, p, vel);
             p = PointToParent(x, p);
@@ -215,13 +243,16 @@ public sealed class FrameTree
         return vel;
     }
 
-    /// <summary>The angular velocity of frame <paramref name="of"/> relative to frame <paramref name="to"/>, in <paramref name="to"/> axes.</summary>
+    /// <summary>
+    /// The angular velocity of frame <paramref name="of"/> relative to frame <paramref name="to"/>, in
+    /// <paramref name="to"/> axes. A null frame is the virtual root above every root frame.
+    /// </summary>
     public Double3 AngularVelocityRelative(FrameHandle of, FrameHandle to)
     {
         // Sum angular velocities up to the common ancestor in its axes, then subtract the path down to 'to'.
         FrameHandle x = of;
         Double3 omega = Double3.Zero;
-        while (!x.IsNull && x != to && !IsAncestorOf(x, to))
+        while (!x.IsNull && x != to && !IsAncestorOrNull(x, to))
         {
             FrameHandle parent = Parent(x);
             omega = LocalPose(x).TransformDirection(omega) + angularVelocity[Node(x).Id];
