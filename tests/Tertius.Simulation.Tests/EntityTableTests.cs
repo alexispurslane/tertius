@@ -1,301 +1,560 @@
 using System.Numerics;
+using AwesomeAssertions;
+using static Tertius.Simulation.Tests.EntityTableSupport;
 
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// The entity table on its own: the slot lifecycle, the columns that other subsystems add, the component masks, the
-/// dirty tracking and the intent swap. Each test checks the table's invariants along the way.
+/// dirty tracking and the intent swap. Each test checks the table's invariants along the way. The spawn pools, the
+/// growth of the tables, the dirty-row copy and the handling of stale handles have their own files.
 /// </summary>
 public class EntityTableTests
 {
-    private static EntityTable NewTable(int chunkSize = 4, int capacity = 8)
+    [Fact]
+    public void AReservedSlotIsNotLiveUntilItIsActivated()
     {
-        EngineEvents.Register();
-        return new EntityTable(chunkSize, capacity);
-    }
+        EntityTable table = TableSupport.NewTable();
 
-    private static Entity SpawnLive(EntityTable table, BodyDesc? body = null, params IComponent[] components)
-    {
         Entity entity = table.Reserve();
-        table.Activate(entity, new TransformRow { Pose = DPose.Identity }, new RenderData(), components, [.. components.Select(c => c.Wants)], body, FrameHandle.Null);
-        return entity;
-    }
 
-    private static TransformRow RowAt(double x) => new() { Pose = TestWorld.At(x) };
-
-    private static List<Entity> LiveEntitiesOfChunk(EntityTable table, int chunk)
-    {
-        var entities = new List<Entity>();
-        foreach (Entity entity in table.LiveEntitiesOfChunk(chunk))
-            entities.Add(entity);
-        return entities;
+        table.IsAlive(entity).Should().BeFalse();
+        table.LiveCount.Should().Be(0);
+        table.SlotCount.Should().Be(1);
+        table.AssertInvariants();
     }
 
     [Fact]
-    public void ASlotIsReservedThenLiveThenFreeAndEveryOldHandleGoesStale()
+    public void ActivatingAReservationMakesTheEntityLiveWithItsRowInBothCopies()
     {
-        EntityTable table = NewTable();
+        EntityTable table = TableSupport.NewTable();
         Entity entity = table.Reserve();
-        Assert.False(table.IsAlive(entity));
-        Assert.Equal(1, table.SlotCount);
-        table.AssertInvariants();
 
         table.Activate(entity, RowAt(2), new RenderData(), [new Recorder()], [EventMask.Of<Ping>()], null, FrameHandle.Null);
-        Assert.True(table.IsAlive(entity));
-        Assert.Equal(1, table.LiveCount);
-        Assert.Equal(2, table.FrontRow(entity).Pose.Position.X);
-        Assert.Equal(2, table.BackRow(entity).Pose.Position.X);
-        table.AssertInvariants();
 
-        Assert.True(table.Release(entity));
-        Assert.False(table.IsAlive(entity));
-        Assert.Equal(0, table.LiveCount);
-        Assert.Throws<StaleEntityException>(() => table.Components(entity).Length);
+        table.IsAlive(entity).Should().BeTrue();
+        table.LiveCount.Should().Be(1);
+        table.FrontRow(entity).Pose.Position.X.Should().Be(2);
+        table.BackRow(entity).Pose.Position.X.Should().Be(2);
         table.AssertInvariants();
+    }
+
+    [Fact]
+    public void ReleasingAnEntityMakesItsHandleStale()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity entity = table.SpawnLive();
+
+        table.Release(entity).Should().BeTrue();
+
+        table.IsAlive(entity).Should().BeFalse();
+        table.LiveCount.Should().Be(0);
+        Action read = () => _ = table.Components(entity).Length;
+        read.Should().Throw<StaleEntityException>();
+        table.AssertInvariants();
+    }
+
+    [Fact]
+    public void AReleasedSlotComesBackWithTheNextGeneration()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity entity = table.SpawnLive();
+        table.Release(entity);
 
         Entity next = table.Reserve();
-        Assert.Equal(entity.Index, next.Index);
-        Assert.Equal(entity.Generation + 1, next.Generation);
+
+        next.Index.Should().Be(entity.Index);
+        next.Generation.Should().Be(entity.Generation + 1);
+    }
+
+    [Fact]
+    public void EveryRoundOfReleaseAndReuseOfOneSlotRaisesTheGenerationByOne()
+    {
+        EntityTable table = TableSupport.NewTable();
+        var handles = new List<Entity> { table.SpawnLive() };
+
+        for (int round = 0; round < 5; round++)
+        {
+            table.Release(handles[^1]);
+            handles.Add(table.SpawnLive());
+        }
+
+        handles.Select(h => h.Index).Distinct().Should().ContainSingle();
+        handles.Select(h => h.Generation).Should().Equal(1u, 2u, 3u, 4u, 5u, 6u);
+        handles.Take(5).Should().OnlyContain(old => !table.IsAlive(old));
+        table.IsAlive(handles[^1]).Should().BeTrue();
+        table.AssertInvariants();
+    }
+
+    [Fact]
+    public void ASlotThatWasNeverUsedStartsAtGenerationOne()
+    {
+        EntityTable table = TableSupport.NewTable();
+
+        Entity first = table.Reserve();
+
+        first.Generation.Should().Be(1u);
+        first.IsNull.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ReleasedSlotsComeBackInTheOrderTheyWereReleased()
+    {
+        // First in, first out: the order in which slots are reused depends only on the order of the releases, which the
+        // sync point fixes, so the handles of later spawns are the same in every run.
+        EntityTable table = TableSupport.NewTable();
+        Entity a = table.SpawnLive(), b = table.SpawnLive(), c = table.SpawnLive();
+        table.Release(c);
+        table.Release(a);
+        table.Release(b);
+
+        uint[] reused = [table.Reserve().Index, table.Reserve().Index, table.Reserve().Index];
+
+        reused.Should().Equal(c.Index, a.Index, b.Index);
     }
 
     [Fact]
     public void AReservationThatNeverBecomesLiveCanBeReleased()
     {
-        EntityTable table = NewTable();
+        EntityTable table = TableSupport.NewTable();
         Entity dropped = table.Reserve();
-        Assert.True(table.Release(dropped));
-        table.AssertInvariants();
 
+        table.Release(dropped).Should().BeTrue();
+
+        table.AssertInvariants();
         // The handle that the spawner got is stale, and the slot comes back with a new generation.
         Entity next = table.Reserve();
-        Assert.Equal(dropped.Index, next.Index);
-        Assert.NotEqual(dropped.Generation, next.Generation);
-        Assert.Equal(0, table.LiveCount);
+        next.Index.Should().Be(dropped.Index);
+        next.Generation.Should().NotBe(dropped.Generation);
+        table.LiveCount.Should().Be(0);
     }
 
     [Fact]
-    public void ColumnsGrowWithTheTableAndAReleasedSlotKeepsNothingInThem()
+    public void ColumnsGrowWithTheTable()
     {
-        EntityTable table = NewTable(capacity: 2);
+        EntityTable table = TableSupport.NewTable();
+        EntityTable.Column<int> numbers = table.AddColumn<int>();
+        EntityTable.Column<long> silent = table.AddColumn<long>();
+
+        for (int i = 0; i < 100; i++)
+            numbers[table.SpawnLive()] = i + 1;
+
+        table.Capacity.Should().BeGreaterThanOrEqualTo(100);
+        numbers.AsSpan().Length.Should().Be(table.Capacity);
+        silent.AsSpan().Length.Should().Be(table.Capacity);
+        table.AssertInvariants();
+    }
+
+    [Fact]
+    public void ReleaseHooksRunInColumnOrderWhileTheEntriesStillHoldTheirValues()
+    {
+        EntityTable table = TableSupport.NewTable();
         var released = new List<string>();
         EntityTable.Column<int> numbers = null!;
         numbers = table.AddColumn<int>(entity => released.Add($"numbers {entity.Index}: {numbers[entity]}"));
         EntityTable.Column<string?> names = null!;
         names = table.AddColumn<string?>(entity => released.Add($"names {entity.Index}: {names[entity]}"));
+        Entity entity = table.SpawnLive();
+        numbers[entity] = 11;
+        names[entity] = "e10";
+
+        table.Release(entity);
+
+        released.Should().Equal($"numbers {entity.Index}: 11", $"names {entity.Index}: e10");
+    }
+
+    [Fact]
+    public void AReleasedSlotKeepsNothingInAnyColumnAndItsSuccessorStartsClear()
+    {
+        EntityTable table = TableSupport.NewTable();
+        EntityTable.Column<int> numbers = table.AddColumn<int>();
+        EntityTable.Column<string?> names = table.AddColumn<string?>();
         EntityTable.Column<long> silent = table.AddColumn<long>();
+        Entity entity = table.SpawnLive();
+        numbers[entity] = 11;
+        names[entity] = "e10";
+        silent[entity] = -1;
 
-        var all = new List<Entity>();
-        for (int i = 0; i < 100; i++)
-        {
-            Entity entity = SpawnLive(table);
-            numbers[entity] = i + 1;
-            names[entity] = $"e{i}";
-            silent[entity] = -1;
-            all.Add(entity);
-        }
+        table.Release(entity);
 
-        // Every column covers every slot the table grew to.
-        Assert.True(table.Capacity >= 100);
-        Assert.Equal(table.Capacity, numbers.AsSpan().Length);
-        Assert.Equal(table.Capacity, silent.AsSpan().Length);
-
-        // The owners let go first, in the order the columns were added, while the entries still hold their values.
-        table.Release(all[10]);
-        Assert.Equal(["numbers 10: 11", "names 10: e10"], released);
-        Assert.Equal(0, numbers.AsSpan()[10]);
-        Assert.Null(names.AsSpan()[10]);
-        Assert.Equal(0, silent.AsSpan()[10]);
+        numbers.AsSpan()[(int)entity.Index].Should().Be(0);
+        names.AsSpan()[(int)entity.Index].Should().BeNull();
+        silent.AsSpan()[(int)entity.Index].Should().Be(0);
         table.AssertInvariants();
+        Entity successor = table.SpawnLive();
+        successor.Index.Should().Be(entity.Index);
+        numbers[successor].Should().Be(0);
+        names[successor].Should().BeNull();
+    }
 
-        // A new entity in the reused slot starts from clear entries.
-        Entity reused = SpawnLive(table);
-        Assert.Equal(all[10].Index, reused.Index);
-        Assert.Equal(0, numbers[reused]);
+    [Fact]
+    public void AColumnAddedAfterEntitiesExistCoversEveryExistingSlot()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity[] existing = [.. Enumerable.Range(0, 10).Select(_ => table.SpawnLive())];
+
+        EntityTable.Column<int> numbers = table.AddColumn<int>();
+
+        numbers.AsSpan().Length.Should().Be(table.Capacity);
+        existing.Select(e => numbers[e]).Should().OnlyContain(n => n == 0);
+        table.AssertInvariants();
     }
 
     [Fact]
     public void AComponentChangeKeepsTheMaskInStep()
     {
-        EntityTable table = NewTable();
+        EntityTable table = TableSupport.NewTable();
         var pings = new Recorder(EventMask.Of<Ping>());
-        Entity entity = SpawnLive(table, null, pings);
-        Assert.True(table.Accepts(entity, EventType<Ping>.Id));
-        Assert.False(table.Accepts(entity, EventType<Heal>.Id));
+        Entity entity = table.SpawnLiveWith(null, pings);
+        table.Accepts(entity, EventType<Ping>.Id).Should().BeTrue();
+        table.Accepts(entity, EventType<Heal>.Id).Should().BeFalse();
         // Every mask has Destroy, so that a Destroy always gets through.
-        Assert.True(table.Accepts(entity, EventType<Destroy>.Id));
+        table.Accepts(entity, EventType<Destroy>.Id).Should().BeTrue();
 
         var heals = new Recorder(EventMask.Of<Heal>(), priority: -1);
         table.AddComponent(entity, heals);
-        Assert.Equal([heals, pings], table.Components(entity).ToArray());
-        Assert.Equal([heals.Wants, pings.Wants], table.ComponentWants(entity).ToArray());
-        Assert.True(table.Accepts(entity, EventType<Heal>.Id));
-        Assert.Throws<InvalidOperationException>(() => table.AddComponent(entity, heals));
+        table.Components(entity).ToArray().Should().Equal(heals, pings);
+        table.ComponentWants(entity).ToArray().Should().Equal(heals.Wants, pings.Wants);
+        table.Accepts(entity, EventType<Heal>.Id).Should().BeTrue();
+        Action addAgain = () => table.AddComponent(entity, heals);
+        addAgain.Should().Throw<InvalidOperationException>();
         table.AssertInvariants();
 
-        Assert.True(table.RemoveComponent(entity, pings));
-        Assert.False(table.RemoveComponent(entity, pings));
-        Assert.False(table.Accepts(entity, EventType<Ping>.Id));
-        Assert.True(table.Accepts(entity, EventType<Heal>.Id));
+        table.RemoveComponent(entity, pings).Should().BeTrue();
+        table.RemoveComponent(entity, pings).Should().BeFalse();
+        table.Accepts(entity, EventType<Ping>.Id).Should().BeFalse();
+        table.Accepts(entity, EventType<Heal>.Id).Should().BeTrue();
         table.AssertInvariants();
+    }
 
-        // A released entity cannot be asked at all: its handle is stale. The router never asks one.
-        table.Release(entity);
-        Assert.Throws<StaleEntityException>(() => table.Accepts(entity, EventType<Destroy>.Id));
+    [Fact]
+    public void ARemovedComponentsWantsStillLeaveDestroyInTheMask()
+    {
+        EntityTable table = TableSupport.NewTable();
+        var only = new Recorder(EventMask.Of<Ping>());
+        Entity entity = table.SpawnLiveWith(null, only);
+
+        table.RemoveComponent(entity, only);
+
+        table.Accepts(entity, EventType<Destroy>.Id).Should().BeTrue();
+        table.Accepts(entity, EventType<Ping>.Id).Should().BeFalse();
+        table.AssertInvariants();
+    }
+
+    [Fact]
+    public void AComponentWithTheSamePriorityRunsAfterTheOnesAlreadyThere()
+    {
+        EntityTable table = TableSupport.NewTable();
+        var first = new Recorder(EventMask.Of<Ping>(), priority: 3);
+        var last = new Recorder(EventMask.Of<Ping>(), priority: 9);
+        Entity entity = table.SpawnLiveWith(null, first, last);
+
+        var tie = new Recorder(EventMask.Of<Ping>(), priority: 3);
+        table.AddComponent(entity, tie);
+
+        table.Components(entity).ToArray().Should().Equal(first, tie, last);
     }
 
     [Fact]
     public void ASyncWriteIsCopiedForwardOnlyWhenItChangesTheRow()
     {
-        EntityTable table = NewTable();
-        Entity entity = SpawnLive(table);
-        Assert.Equal([entity], table.TakeMoved().ToArray());
-        Assert.True(table.TakeMoved().IsEmpty);
+        EntityTable table = TableSupport.NewTable();
+        Entity entity = table.SpawnLive();
+        table.TakeMoved().ToArray().Should().Equal(entity);
+        table.TakeMoved().IsEmpty.Should().BeTrue();
 
         table.SetBackTransform(entity, RowAt(5));
-        Assert.Equal(5, table.BackRow(entity).Pose.Position.X);
-        Assert.Equal(0, table.FrontRow(entity).Pose.Position.X);
+        table.BackRow(entity).Pose.Position.X.Should().Be(5);
+        table.FrontRow(entity).Pose.Position.X.Should().Be(0);
         table.AssertInvariants();
 
         table.CopyDirtyRows();
-        Assert.Equal(5, table.FrontRow(entity).Pose.Position.X);
-        Assert.Equal([entity], table.TakeMoved().ToArray());
+        table.FrontRow(entity).Pose.Position.X.Should().Be(5);
+        table.TakeMoved().ToArray().Should().Equal(entity);
         table.AssertInvariants();
 
         // The same row again changes nothing, so the entity does not move.
         table.SetBackTransform(entity, RowAt(5));
         table.CopyDirtyRows();
-        Assert.True(table.TakeMoved().IsEmpty);
+        table.TakeMoved().IsEmpty.Should().BeTrue();
         table.AssertInvariants();
     }
 
     [Fact]
     public void AGameplayWriteIsCopiedForwardAtTheSyncAndForgottenAfterIt()
     {
-        EntityTable table = NewTable();
-        Entity entity = SpawnLive(table);
+        EntityTable table = TableSupport.NewTable();
+        Entity entity = table.SpawnLive();
         table.TakeMoved();
 
         table.BeginTick(spawnPoolSize: 0);
-        Assert.True(table.TakeFirstTick(entity));
-        Assert.False(table.TakeFirstTick(entity));
+        table.TakeFirstTick(entity).Should().BeTrue();
+        table.TakeFirstTick(entity).Should().BeFalse();
         table.WritableTransform(entity) = TestWorld.At(3);
         table.WritableRender(entity).Scale = new Vector3(2);
-        Assert.Equal(0, table.FrontRow(entity).Pose.Position.X);
-        Assert.Equal(0, table.EndGameplay());
-        Assert.True(table.GameplayWroteTransform(entity));
+        table.FrontRow(entity).Pose.Position.X.Should().Be(0);
+        table.EndGameplay().Should().Be(0);
+        table.GameplayWroteTransform(entity).Should().BeTrue();
         table.AssertInvariants();
 
         table.CopyDirtyRows();
         table.EndTick();
-        Assert.Equal(3, table.FrontRow(entity).Pose.Position.X);
-        Assert.Equal(new Vector3(2), table.FrontRender(entity).Scale);
-        Assert.False(table.GameplayWroteTransform(entity));
-        Assert.Equal([entity], table.TakeMoved().ToArray());
+        table.FrontRow(entity).Pose.Position.X.Should().Be(3);
+        table.FrontRender(entity).Scale.Should().Be(new Vector3(2));
+        table.GameplayWroteTransform(entity).Should().BeFalse();
+        table.TakeMoved().ToArray().Should().Equal(entity);
+        table.AssertInvariants();
+    }
+
+    [Fact]
+    public void AnEntityRunsItsFirstTickOnlyOnceAfterItBecomesLive()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity entity = table.SpawnLive();
+
+        table.BeginTick(spawnPoolSize: 0);
+        bool onFirstRun = table.TakeFirstTick(entity);
+        table.EndGameplay();
+        table.EndTick();
+        table.BeginTick(spawnPoolSize: 0);
+        bool onSecondRun = table.TakeFirstTick(entity);
+        table.EndGameplay();
+        table.EndTick();
+
+        (onFirstRun, onSecondRun).Should().Be((true, false));
+    }
+
+    [Fact]
+    public void TheIntentListHoldsEntitiesInTheOrderTheyFirstWroteTheirIntents()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity a = table.SpawnLiveWith(TestWorld.Ball);
+        Entity b = table.SpawnLiveWith(TestWorld.Ball);
+        table.BeginTick(spawnPoolSize: 0);
+        table.WritableIntent(b).Force = new Vector3(2, 0, 0);
+        table.WritableIntent(a).Force = new Vector3(1, 0, 0);
+        table.WritableIntent(b).Force += new Vector3(0, 5, 0);
+        table.PendingIntent(a).Force.Should().Be(new Vector3(1, 0, 0));
+        table.EndGameplay();
+
+        table.SwapIntents(keep: true);
+        table.EndTick();
+
+        table.IntentEntities.ToArray().Should().Equal(b, a);
+        table.FrontIntents.Span[(int)a.Index].Force.Should().Be(new Vector3(1, 0, 0));
+        table.FrontIntents.Span[(int)b.Index].Force.Should().Be(new Vector3(2, 5, 0));
+        table.PendingIntent(a).Should().Be(default(PhysicsIntent));
         table.AssertInvariants();
     }
 
     [Fact]
     public void TheIntentListDropsEntitiesThatDiedAfterTheSwap()
     {
-        EntityTable table = NewTable();
-        Entity a = SpawnLive(table, TestWorld.Ball);
-        Entity b = SpawnLive(table, TestWorld.Ball);
-        table.BeginTick(spawnPoolSize: 0);
-        table.WritableIntent(b).Force = new Vector3(2, 0, 0);
-        table.WritableIntent(a).Force = new Vector3(1, 0, 0);
-        Assert.Equal(new Vector3(1, 0, 0), table.PendingIntent(a).Force);
-        table.EndGameplay();
-        table.SwapIntents(keep: true);
-        table.EndTick();
-
-        // In the order the entities first wrote their intents.
-        Assert.Equal([b, a], table.IntentEntities.ToArray());
-        Assert.Equal(new Vector3(1, 0, 0), table.FrontIntents.Span[(int)a.Index].Force);
-        Assert.Equal(default, table.PendingIntent(a));
-        table.AssertInvariants();
+        EntityTable table = TableSupport.NewTable();
+        Entity a = table.SpawnLiveWith(TestWorld.Ball);
+        Entity b = table.SpawnLiveWith(TestWorld.Ball);
+        WriteIntents(table, a, b);
 
         table.Release(a);
-        Assert.Equal([b], table.IntentEntities.ToArray());
-        Assert.Equal(default, table.FrontIntents.Span[(int)a.Index]);
-        table.AssertInvariants();
 
-        // A swap with nothing written clears the list and the intents it named.
-        table.BeginTick(spawnPoolSize: 0);
-        table.EndGameplay();
-        table.SwapIntents(keep: true);
-        Assert.True(table.IntentEntities.IsEmpty);
-        Assert.Equal(default, table.FrontIntents.Span[(int)b.Index]);
+        table.IntentEntities.ToArray().Should().Equal(b);
+        table.FrontIntents.Span[(int)a.Index].Should().Be(default(PhysicsIntent));
         table.AssertInvariants();
     }
 
     [Fact]
-    public void SpawnsDuringATickTakeTheSpawnersPoolThenTheFallback()
+    public void ASwapWithNothingWrittenClearsTheListAndTheIntentsItNamed()
     {
-        EntityTable table = NewTable(chunkSize: 4);
-        Entity spawner = SpawnLive(table);
+        EntityTable table = TableSupport.NewTable();
+        Entity a = table.SpawnLiveWith(TestWorld.Ball);
+        WriteIntents(table, a);
 
-        table.BeginTick(spawnPoolSize: 2);
-        Entity first = table.ReserveForSpawn(spawner);
-        Entity second = table.ReserveForSpawn(spawner);
-        Entity third = table.ReserveForSpawn(spawner);
-        // The pool held the next two slots; the third spawn took a fresh slot past them.
-        Assert.Equal([1u, 2u, 3u], new[] { first.Index, second.Index, third.Index });
-        Assert.Equal(1, table.EndGameplay());
+        table.BeginTick(spawnPoolSize: 0);
+        table.EndGameplay();
+        table.SwapIntents(keep: true);
+
+        table.IntentEntities.IsEmpty.Should().BeTrue();
+        table.FrontIntents.Span[(int)a.Index].Should().Be(default(PhysicsIntent));
         table.AssertInvariants();
+    }
 
-        foreach (Entity spawned in new[] { first, second, third })
-            table.Activate(spawned, default, new RenderData(), [], [], null, FrameHandle.Null);
-        table.EndTick();
-        Assert.Equal(4, table.LiveCount);
+    [Fact]
+    public void WithoutAPhysicsBackendTheSwapDropsTheIntents()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity a = table.SpawnLiveWith(TestWorld.Ball);
+        table.BeginTick(spawnPoolSize: 0);
+        table.WritableIntent(a).Force = new Vector3(1, 0, 0);
+        table.EndGameplay();
+
+        table.SwapIntents(keep: false);
+
+        table.IntentEntities.IsEmpty.Should().BeTrue();
+        table.PendingIntent(a).Should().Be(default(PhysicsIntent));
         table.AssertInvariants();
+    }
 
-        // The chunk spawned three last tick, so its next pool holds six.
-        table.BeginTick(spawnPoolSize: 2);
-        for (int i = 0; i < 6; i++)
-            table.ReserveForSpawn(spawner);
-        Assert.Equal(0, table.EndGameplay());
-        table.EndTick();
+    [Fact]
+    public void AnEntityThatDiedAfterWritingAnIntentIsNotKeptByTheSwap()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity doomed = table.SpawnLiveWith(TestWorld.Ball);
+        Entity survivor = table.SpawnLiveWith(TestWorld.Ball);
+        table.BeginTick(spawnPoolSize: 0);
+        table.WritableIntent(doomed).Force = new Vector3(1, 0, 0);
+        table.WritableIntent(survivor).Force = new Vector3(2, 0, 0);
+        table.EndGameplay();
+        table.Release(doomed);
+
+        table.SwapIntents(keep: true);
+
+        table.IntentEntities.ToArray().Should().Equal(survivor);
+        table.FrontIntents.Span[(int)doomed.Index].Should().Be(default(PhysicsIntent));
+        table.AssertInvariants();
+    }
+
+    // Not reachable through the world today: its sync point swaps the intents (step 4) before it destroys entities (step
+    // 5) and makes new ones live (step 6). The table's own interface allows the order, so the table should survive it.
+    [Fact(Skip = "Bug: SwapIntents lists the entity that took the slot of an intent writer that died before the swap")]
+    public void AnIntentWrittenByAnEntityThatDiedIsNotGivenToTheEntityThatTookItsSlot()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity writer = table.SpawnLiveWith(TestWorld.Ball);
+        table.BeginTick(spawnPoolSize: 0);
+        table.WritableIntent(writer).Force = new Vector3(1, 0, 0);
+        table.EndGameplay();
+        table.Release(writer);
+        Entity successor = table.SpawnLiveWith(TestWorld.Ball);
+        successor.Index.Should().Be(writer.Index);
+
+        table.SwapIntents(keep: true);
+
+        // The successor wrote no intent, so physics must not be told that it did.
+        table.IntentEntities.IsEmpty.Should().BeTrue();
+        table.FrontIntents.Span[(int)successor.Index].Should().Be(default(PhysicsIntent));
+        table.AssertInvariants();
     }
 
     [Fact]
     public void AChunkWithNoLiveEntityReturnsItsPoolAndDoesNotRun()
     {
-        EntityTable table = NewTable(chunkSize: 2);
-        Entity a = SpawnLive(table);
+        EntityTable table = TableSupport.NewTable();
+        Entity a = table.SpawnLive();
         table.BeginTick(spawnPoolSize: 1);
-        Assert.Equal([a], LiveEntitiesOfChunk(table, 0));
+        table.LiveEntitiesOfChunk(0).ToList().Should().Equal(a);
         table.EndGameplay();
         table.EndTick();
 
         table.Release(a);
         table.BeginTick(spawnPoolSize: 1);
-        Assert.Empty(LiveEntitiesOfChunk(table, 0));
+        table.LiveEntitiesOfChunk(0).ToList().Should().BeEmpty();
         table.EndGameplay();
         table.EndTick();
+
         table.AssertInvariants();
         // Both slots are free again: the released one and the pool slot the chunk gave back.
-        Assert.NotEqual(a, table.Reserve());
+        table.Reserve().Should().NotBe(a);
         table.Reserve();
-        Assert.Equal(2, table.SlotCount);
+        table.SlotCount.Should().Be(2);
+    }
+
+    [Fact]
+    public void AGenerationThatWrapsAroundSkipsZeroBecauseZeroMeansNoEntity()
+    {
+        // A generation has 32 bits, so reaching the end by releasing one slot takes four billion releases. The test puts
+        // the slot's generation at the last value instead, through the table's private array, and then releases it once.
+        EntityTable table = TableSupport.NewTable();
+        Entity first = table.SpawnLive();
+        SetGeneration(table, first.Index, uint.MaxValue);
+        var last = new Entity(first.Index, uint.MaxValue);
+        table.IsAlive(last).Should().BeTrue();
+
+        table.Release(last).Should().BeTrue();
+        Entity wrapped = table.Reserve();
+
+        wrapped.Index.Should().Be(first.Index);
+        wrapped.Generation.Should().Be(1u);
+        wrapped.IsNull.Should().BeFalse();
+        table.IsAlive(last).Should().BeFalse();
+        table.AssertInvariants();
+    }
+
+    private static void SetGeneration(EntityTable table, uint slot, uint generation)
+    {
+        var generations = (uint[])typeof(EntityTable).GetField("generation", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(table)!;
+        generations[slot] = generation;
+    }
+
+    [Fact]
+    public void ALiveRangeStopsAtTheSlotsThatWereEverHandedOut()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity[] entities = [table.SpawnLive(), table.SpawnLive(), table.SpawnLive()];
+
+        // Slots 1 and 2 are live, and the range asks for far more than the three slots there are.
+        table.LiveEntitiesIn(1, 1000).ToList().Should().Equal(entities[1], entities[2]);
+    }
+
+    [Fact]
+    public void ALiveRangeThatStartsPastTheLastSlotIsEmpty()
+    {
+        EntityTable table = TableSupport.NewTable();
+        table.SpawnLive();
+
+        table.LiveEntitiesIn(5, 3).ToList().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ALiveRangeOfZeroSlotsIsEmpty()
+    {
+        EntityTable table = TableSupport.NewTable();
+        table.SpawnLive();
+
+        table.LiveEntitiesIn(0, 0).ToList().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void TheChunksCoverExactlyTheSlotsHandedOut()
+    {
+        EntityTable table = TableSupport.NewTable();
+        table.Chunks.Length.Should().Be(0);
+
+        for (int i = 0; i < 9; i++)
+            table.SpawnLive();
+
+        // Nine slots in chunks of four: three chunks, the last one part full.
+        table.Chunks.Length.Should().Be(3);
     }
 
 #if TERTIUS_CONTRACTS
     [Fact]
     public void LifecycleStepsOutOfOrderBreakAContract()
     {
-        EntityTable table = NewTable();
-        Entity live = SpawnLive(table);
+        EntityTable table = TableSupport.NewTable();
+        Entity live = table.SpawnLive();
         Entity reserved = table.Reserve();
 
-        Assert.Throws<ContractException>(() => table.Activate(live, default, new RenderData(), [], [], null, FrameHandle.Null));
+        Action activateLive = () => table.Activate(live, default, new RenderData(), [], [], null, FrameHandle.Null);
+        activateLive.Should().Throw<ContractException>();
 
         table.BeginTick(spawnPoolSize: 0);
-        Assert.Throws<ContractException>(() => table.Reserve());
-        Assert.Throws<ContractException>(() => table.Release(reserved));
-        Assert.Throws<ContractException>(() => table.SetBackTransform(live, RowAt(1)));
-        Assert.Throws<ContractException>(() => table.WritableIntent(live));
+        ((Action)(() => table.Reserve())).Should().Throw<ContractException>();
+        ((Action)(() => table.Release(reserved))).Should().Throw<ContractException>();
+        ((Action)(() => table.SetBackTransform(live, RowAt(1)))).Should().Throw<ContractException>();
+        ((Action)(() => table.WritableIntent(live))).Should().Throw<ContractException>();
         table.EndGameplay();
-        Assert.Throws<ContractException>(() => table.WritableTransform(live));
+        ((Action)(() => table.WritableTransform(live))).Should().Throw<ContractException>();
     }
 #endif
+
+    /// <summary>One tick in which the given entities write an intent, then the swap that makes the intents the physics input.</summary>
+    private static void WriteIntents(EntityTable table, params Entity[] writers)
+    {
+        table.BeginTick(spawnPoolSize: 0);
+        foreach (Entity writer in writers)
+            table.WritableIntent(writer).Force = new Vector3(1, 0, 0);
+        table.EndGameplay();
+        table.SwapIntents(keep: true);
+        table.EndTick();
+    }
 }

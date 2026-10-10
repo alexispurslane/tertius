@@ -10,14 +10,6 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 internal static class StaleTables
 {
-    public static Entity SpawnLiveWith(this EntityTable table, BodyDesc? body, params IComponent[] components)
-    {
-        Entity entity = table.Reserve();
-        table.Activate(entity, new TransformRow { Pose = TestWorld.At(1) }, new RenderData(), components,
-            [.. components.Select(c => c.Wants)], body, FrameHandle.Null);
-        return entity;
-    }
-
     /// <summary>
     /// Releases a live entity and spawns <paramref name="successor"/>, which takes the released slot. Returns the
     /// released entity's handle, which is now stale.
@@ -27,13 +19,13 @@ internal static class StaleTables
         Entity stale = table.SpawnLiveWith(body);
         table.Release(stale);
         successor = table.SpawnLiveWith(body, components);
-        Assert.Equal(stale.Index, successor.Index);
+        successor.Index.Should().Be(stale.Index);
         return stale;
     }
 }
 
 /// <summary>What the entity table does with a stale handle, member by member.</summary>
-public class EntityTableStaleHandleTests
+public class StaleHandleTests
 {
     private static TransformRow RowAt(double x) => new() { Pose = TestWorld.At(x) };
 
@@ -201,26 +193,6 @@ public class EntityTableStaleHandleTests
         table.EndGameplay().Should().Be(0);
     }
 
-    [Theory]
-    [InlineData("null")]
-    [InlineData("never issued")]
-    [InlineData("reserved, not live yet")]
-    public void HandlesThatNeverNamedALiveEntityAreStale(string kind)
-    {
-        EntityTable table = TableSupport.NewTable();
-        table.SpawnLive();
-        Entity handle = kind switch
-        {
-            "null" => Entity.Null,
-            "never issued" => new Entity(100_000, 1),
-            _ => table.Reserve(),
-        };
-
-        table.IsAlive(handle).Should().BeFalse();
-        Action read = () => _ = table.FrontRow(handle).Pose;
-        read.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(handle);
-    }
-
     [Fact]
     public void TheStaleHandleErrorNamesTheHandle()
     {
@@ -293,344 +265,232 @@ public class EntityTableStaleHandleTests
         numbers[successor].Should().Be(0);
     }
 
+    // ---- Every kind of handle, every kind of member ---------------------------------------------------------------
+    // A handle names no live entity in six ways. The table has to give the documented answer to all of them, for every
+    // member that takes a handle: throw StaleEntityException where it reads or writes the entity's data, answer false where
+    // the goal already holds, and never list a dead entity in a query.
+
+    private static readonly string[] NamesNoLiveEntity =
+        ["null", "never issued", "from the future", "reserved, not live yet", "released", "released and reused"];
+
+    /// <summary>A table with one live entity in slot 0, and a handle of the named kind.</summary>
+    private static (EntityTable Table, Entity Handle) TableWithHandle(string kind)
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity bystander = table.SpawnLive();
+        Entity handle = kind switch
+        {
+            "null" => Entity.Null,
+            "never issued" => new Entity(100_000, 1),
+            // The slot is live, but its generation is lower than the handle's.
+            "from the future" => new Entity(bystander.Index, bystander.Generation + 5),
+            "reserved, not live yet" => table.Reserve(),
+            "released" => ReleasedHandle(table),
+            "released and reused" => table.ReuseSlot(out _),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+        };
+        return (table, handle);
+    }
+
+    private static Entity ReleasedHandle(EntityTable table)
+    {
+        Entity entity = table.SpawnLive();
+        table.Release(entity);
+        return entity;
+    }
+
+    /// <summary>The members that throw for a handle that names no live entity, and can be called outside a tick.</summary>
+    private static readonly Dictionary<string, Action<EntityTable, Entity>> ThrowOutsideATick = new()
+    {
+        [nameof(EntityTable.FrontRow)] = (table, entity) => _ = table.FrontRow(entity).Pose,
+        [nameof(EntityTable.BackRow)] = (table, entity) => _ = table.BackRow(entity).Pose,
+        [nameof(EntityTable.FrontRender)] = (table, entity) => _ = table.FrontRender(entity).Scale,
+        [nameof(EntityTable.Components)] = (table, entity) => _ = table.Components(entity).Length,
+        [nameof(EntityTable.ComponentWants)] = (table, entity) => _ = table.ComponentWants(entity).Length,
+        [nameof(EntityTable.Body)] = (table, entity) => _ = table.Body(entity),
+        [nameof(EntityTable.OwnedFrame)] = (table, entity) => _ = table.OwnedFrame(entity),
+        [nameof(EntityTable.Accepts)] = (table, entity) => _ = table.Accepts(entity, EventType<Destroy>.Id),
+        [nameof(EntityTable.PendingIntent)] = (table, entity) => _ = table.PendingIntent(entity),
+        [nameof(EntityTable.GameplayWroteTransform)] = (table, entity) => _ = table.GameplayWroteTransform(entity),
+        [nameof(EntityTable.TakeFirstTick)] = (table, entity) => _ = table.TakeFirstTick(entity),
+        [nameof(EntityTable.SetBackTransform)] = (table, entity) => table.SetBackTransform(entity, RowAt(5)),
+        [nameof(EntityTable.AddComponent)] = (table, entity) => table.AddComponent(entity, new Recorder()),
+        ["Column indexer"] = (table, entity) => _ = table.AddColumn<int>()[entity],
+    };
+
+    /// <summary>The members that throw for a handle that names no live entity, and can be called only during the gameplay part of a tick.</summary>
+    private static readonly Dictionary<string, Action<EntityTable, Entity>> ThrowDuringATick = new()
+    {
+        [nameof(EntityTable.WritableTransform)] = (table, entity) => table.WritableTransform(entity) = TestWorld.At(9),
+        [nameof(EntityTable.WritableRender)] = (table, entity) => table.WritableRender(entity).Scale = new Vector3(9),
+        [nameof(EntityTable.WritableIntent)] = (table, entity) => table.WritableIntent(entity).Force = new Vector3(9, 0, 0),
+        [nameof(EntityTable.ReserveForSpawn)] = (table, entity) => _ = table.ReserveForSpawn(entity),
+    };
+
+    private static TheoryData<string, string> Cross(IEnumerable<string> members, IEnumerable<string> kinds)
+    {
+        var data = new TheoryData<string, string>();
+        foreach (string member in members)
+            foreach (string kind in kinds)
+                data.Add(member, kind);
+        return data;
+    }
+
+    public static TheoryData<string, string> ThrowOutsideATickCases() => Cross(ThrowOutsideATick.Keys, NamesNoLiveEntity);
+
+    public static TheoryData<string, string> ThrowDuringATickCases() => Cross(ThrowDuringATick.Keys, NamesNoLiveEntity);
+
+    [Theory]
+    [MemberData(nameof(ThrowOutsideATickCases))]
+    public void AMemberThatReadsOrWritesAnEntityRefusesAHandleThatNamesNoLiveEntity(string member, string kind)
+    {
+        (EntityTable table, Entity handle) = TableWithHandle(kind);
+
+        Action call = () => ThrowOutsideATick[member](table, handle);
+
+        call.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(handle);
+        table.AssertInvariants();
+    }
+
+    [Theory]
+    [MemberData(nameof(ThrowDuringATickCases))]
+    public void AMemberThatWritesTheRunningEntityRefusesAHandleThatNamesNoLiveEntity(string member, string kind)
+    {
+        (EntityTable table, Entity handle) = TableWithHandle(kind);
+        table.BeginTick(spawnPoolSize: 1);
+
+        Action call = () => ThrowDuringATick[member](table, handle);
+
+        call.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(handle);
+        table.EndGameplay();
+        table.AssertInvariants();
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("never issued")]
+    [InlineData("from the future")]
+    [InlineData("released")]
+    [InlineData("released and reused")]
+    public void ActivatingAHandleThatIsNotACurrentReservationIsRefused(string kind)
+    {
+        (EntityTable table, Entity handle) = TableWithHandle(kind);
+
+        Action activate = () => table.Activate(handle, default, new RenderData(), [], [], null, FrameHandle.Null);
+
+        activate.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(handle);
+        table.AssertInvariants();
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("never issued")]
+    [InlineData("from the future")]
+    [InlineData("reserved, not live yet")]
+    [InlineData("released")]
+    [InlineData("released and reused")]
+    public void NoHandleThatNamesNoLiveEntityIsAlive(string kind)
+    {
+        (EntityTable table, Entity handle) = TableWithHandle(kind);
+
+        table.IsAlive(handle).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("never issued")]
+    [InlineData("from the future")]
+    [InlineData("released")]
+    [InlineData("released and reused")]
+    public void ReleasingAHandleThatNamesNothingToReleaseDoesNothing(string kind)
+    {
+        (EntityTable table, Entity handle) = TableWithHandle(kind);
+        int liveBefore = table.LiveCount;
+
+        bool released = table.Release(handle);
+
+        released.Should().BeFalse();
+        table.LiveCount.Should().Be(liveBefore);
+        // The invariants include "a free slot is in the free list once", so a slot that was freed twice would show here.
+        table.AssertInvariants();
+    }
+
+    [Theory]
+    [MemberData(nameof(NamesNoLiveEntityData))]
+    public void RemovingAComponentThroughAHandleThatNamesNoLiveEntityReturnsFalse(string kind)
+    {
+        (EntityTable table, Entity handle) = TableWithHandle(kind);
+
+        table.RemoveComponent(handle, new Recorder()).Should().BeFalse();
+    }
+
+    public static TheoryData<string> NamesNoLiveEntityData() => new(NamesNoLiveEntity);
+
+    [Fact]
+    public void AHandleFromTheFutureDoesNotReleaseTheLiveEntityInItsSlot()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity live = table.SpawnLive();
+        var future = new Entity(live.Index, live.Generation + 1);
+
+        table.Release(future).Should().BeFalse();
+
+        table.IsAlive(live).Should().BeTrue();
+    }
+
+    [Fact]
+    public void AColumnRefusesAHandleToAReleasedSlotThatNobodyReused()
+    {
+        EntityTable table = TableSupport.NewTable();
+        EntityTable.Column<int> numbers = table.AddColumn<int>();
+        Entity released = table.SpawnLive();
+        table.Release(released);
+
+        Action read = () => _ = numbers[released];
+
+        read.Should().Throw<StaleEntityException>();
+    }
+
+    [Fact]
+    public void AStaleHandleToAReleasedSlotIsStillStaleAfterTheSlotIsReservedAgain()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity first = table.SpawnLive();
+        table.Release(first);
+
+        Entity second = table.Reserve();
+
+        // The new reservation has the next generation, and neither handle is live until the reservation is activated.
+        second.Generation.Should().Be(first.Generation + 1);
+        table.IsAlive(first).Should().BeFalse();
+        table.IsAlive(second).Should().BeFalse();
+    }
+
+    [Fact]
+    public void ARefusedHandleLeavesEveryOtherEntitysDataUntouched()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity bystander = table.SpawnLive(x: 7);
+        Entity stale = table.ReuseSlot(out Entity successor);
+        table.TakeMoved();
+
+        Record.Exception(() => table.SetBackTransform(stale, RowAt(99)));
+        Record.Exception(() => table.AddComponent(stale, new Recorder()));
+        table.Release(stale);
+        table.CopyDirtyRows();
+
+        table.FrontRow(bystander).Pose.Position.X.Should().Be(7);
+        table.BackRow(successor).Pose.Position.X.Should().Be(0);
+        table.Components(successor).Length.Should().Be(0);
+        table.TakeMoved().IsEmpty.Should().BeTrue();
+        table.AssertInvariants();
+    }
+
     private static List<Entity> Live(EntityTable.LiveEntityEnumerator entities)
     {
         var list = new List<Entity>();
         foreach (Entity entity in entities)
             list.Add(entity);
         return list;
-    }
-}
-
-/// <summary>What the router does with a stale handle.</summary>
-public class RouterStaleHandleTests
-{
-    private static (EntityTable Table, Router Router, Entity Stale, Entity Successor) Routed()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var topics = new TopicSets(table);
-        var router = new Router(table, topics);
-        Entity stale = table.ReuseSlot(out Entity successor, components: new Recorder());
-        router.Post(Event.Create(successor, Entity.Null, new Ping { Value = 1 }));
-        router.Route(tick: 0);
-        return (table, router, stale, successor);
-    }
-
-    [Fact]
-    public void AStaleHandleHasNoInboxToCount()
-    {
-        (_, Router router, Entity stale, Entity successor) = Routed();
-
-        Action count = () => router.InboxCount(stale);
-
-        count.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
-        router.InboxCount(successor).Should().Be(1);
-    }
-
-    [Fact]
-    public void AStaleHandleCannotCopyTheInboxOfTheEntityThatReusedItsSlot()
-    {
-        (_, Router router, Entity stale, _) = Routed();
-
-        Action copy = () =>
-        {
-            var buffer = new EventBuffer();
-            router.CopyInbox(stale, buffer.Begin(stale));
-        };
-
-        copy.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
-    }
-}
-
-/// <summary>What the topic sets do with a stale handle.</summary>
-public class TopicSetsStaleHandleTests
-{
-    private static readonly Topic Squad = Topics.Get("tests.stale.squad");
-
-    private static List<Entity> Recipients(TopicSets topics, Topic topic)
-    {
-        var recipients = new List<Entity>();
-        foreach (Entity entity in topics.RecipientsOf(topic))
-            recipients.Add(entity);
-        return recipients;
-    }
-
-    [Fact]
-    public void TopicRecipientsNeverIncludeADeadEntity()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var topics = new TopicSets(table);
-        Entity doomed = table.SpawnLive(), listener = table.SpawnLive();
-        topics.Subscribe(doomed, Squad);
-        topics.Subscribe(listener, Squad);
-
-        table.Release(doomed);
-        Entity successor = table.SpawnLive();
-
-        successor.Index.Should().Be(doomed.Index);
-        Recipients(topics, Squad).Should().Equal(listener);
-    }
-
-    [Fact]
-    public void FrameMembersAreTheHandlesOfTheEntitiesInTheFrameNow()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var topics = new TopicSets(table);
-        var bay = new FrameHandle(new Entity(7, 1), 0, 1);
-        topics.AddFrame(bay);
-        Entity stale = table.ReuseSlot(out Entity successor);
-        topics.MoveMember(successor, bay, out _);
-
-        topics.MembersOf(bay).ToArray().Should().Equal(successor);
-        Recipients(topics, bay.Topic).Should().Equal(successor);
-        stale.Should().NotBe(successor);
-    }
-
-    [Fact]
-    public void AStaleHandleCannotSubscribe()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var topics = new TopicSets(table);
-        Entity stale = table.ReuseSlot(out _);
-
-        Action subscribe = () => topics.Subscribe(stale, Squad);
-
-        subscribe.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
-        Recipients(topics, Squad).Should().BeEmpty();
-    }
-
-    [Fact]
-    public void UnsubscribingAStaleHandleReturnsFalseAndKeepsTheSuccessorsSubscription()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var topics = new TopicSets(table);
-        Entity stale = table.ReuseSlot(out Entity successor);
-        topics.Subscribe(successor, Squad);
-
-        topics.Unsubscribe(stale, Squad).Should().BeFalse();
-
-        Recipients(topics, Squad).Should().Equal(successor);
-        topics.AssertInvariants();
-    }
-
-    [Fact]
-    public void UnsubscribingReturnsTrueOnlyWhenItEndsASubscription()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var topics = new TopicSets(table);
-        Entity entity = table.SpawnLive();
-        topics.Subscribe(entity, Squad);
-
-        topics.Unsubscribe(entity, Squad).Should().BeTrue();
-        topics.Unsubscribe(entity, Squad).Should().BeFalse();
-    }
-
-    [Fact]
-    public void AStaleHandleCannotMoveIntoAFrame()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var topics = new TopicSets(table);
-        var bay = new FrameHandle(new Entity(7, 1), 0, 1);
-        topics.AddFrame(bay);
-        Entity stale = table.ReuseSlot(out _);
-
-        Action move = () => topics.MoveMember(stale, bay, out _);
-
-        move.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
-        topics.MembersOf(bay).IsEmpty.Should().BeTrue();
-    }
-}
-
-/// <summary>What the attachment chains do with a stale handle.</summary>
-public class AttachmentsStaleHandleTests
-{
-    private static readonly Pose Offset = new(new Vector3(1, 0, 0), Quaternion.Identity);
-
-    [Fact]
-    public void AStaleHandleCannotBeAttached()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var attachments = new Attachments(table);
-        Entity parent = table.SpawnLive();
-        Entity stale = table.ReuseSlot(out Entity successor);
-
-        Action attach = () => attachments.Attach(stale, parent, Offset);
-
-        attach.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
-        attachments.ParentOf(successor).IsNull.Should().BeTrue();
-    }
-
-    [Fact]
-    public void NothingCanBeAttachedToAStaleParent()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var attachments = new Attachments(table);
-        Entity stale = table.ReuseSlot(out Entity successor);
-        Entity child = table.SpawnLive();
-
-        Action attach = () => attachments.Attach(child, stale, Offset);
-
-        attach.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
-        attachments.ChildrenOf(successor).IsEmpty.Should().BeTrue();
-    }
-
-    [Fact]
-    public void AStaleHandleHasNoAttachmentParentToRead()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var attachments = new Attachments(table);
-        Entity parent = table.SpawnLive();
-        Entity stale = table.ReuseSlot(out Entity successor);
-        attachments.Attach(successor, parent, Offset);
-
-        Action read = () => attachments.ParentOf(stale);
-
-        read.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
-        attachments.ParentOf(successor).Should().Be(parent);
-    }
-
-    [Fact]
-    public void AStaleHandleCannotWriteTheAttachOffsetOfTheEntityThatReusedItsSlot()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var attachments = new Attachments(table);
-        Entity parent = table.SpawnLive();
-        Entity stale = table.ReuseSlot(out Entity successor);
-        attachments.Attach(successor, parent, Offset);
-
-        Action write = () => attachments.WritableOffset(stale) = Pose.Identity;
-
-        write.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
-    }
-
-    [Fact]
-    public void AttachedChildrenAreTheHandlesOfLiveEntities()
-    {
-        EntityTable table = TableSupport.NewTable();
-        var attachments = new Attachments(table);
-        Entity parent = table.SpawnLive();
-        Entity first = table.SpawnLive(), second = table.SpawnLive();
-        attachments.Attach(second, parent, Offset);
-        attachments.Attach(first, parent, Offset);
-        table.Release(first);
-
-        attachments.ChildrenOf(parent).ToArray().Should().Equal(second);
-        attachments.Attached.ToArray().Should().Equal(second);
-        Action read = () => _ = attachments.ChildrenOf(first).Length;
-        read.Should().Throw<StaleEntityException>();
-    }
-}
-
-/// <summary>What the world's public members do with a stale handle.</summary>
-public class WorldStaleHandleTests
-{
-    private static readonly Topic Squad = Topics.Get("tests.stale.world");
-
-    /// <summary>A world in which <paramref name="stale"/> was destroyed and <paramref name="successor"/> took its slot.</summary>
-    private static World WithReusedSlot(out Entity stale, out Entity successor, out Recorder successorsRecorder)
-    {
-        World world = TestWorld.Create(out FrameHandle root);
-        stale = world.SpawnWith(root, new Recorder());
-        world.Destroy(stale);
-        successorsRecorder = new Recorder();
-        successor = world.Spawn(new SpawnDesc { Frame = root, Components = [successorsRecorder], Subscriptions = [Squad] });
-        Assert.Equal(stale.Index, successor.Index);
-        return world;
-    }
-
-    [Fact]
-    public void DestroyingADeadEntityReturnsFalseAndLeavesTheEntityThatReusedItsSlotAlive()
-    {
-        using World world = WithReusedSlot(out Entity stale, out Entity successor, out _);
-
-        world.Destroy(stale).Should().BeFalse();
-
-        world.IsAlive(successor).Should().BeTrue();
-        world.AssertInvariants();
-    }
-
-    [Fact]
-    public void DestroyingAnEntityTwiceReturnsFalseTheSecondTime()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        Entity entity = world.SpawnWith(root);
-
-        world.Destroy(entity).Should().BeTrue();
-        world.Destroy(entity).Should().BeFalse();
-    }
-
-    [Fact]
-    public void RemovingAComponentThroughAStaleHandleReturnsFalseAndLeavesTheSuccessorsComponent()
-    {
-        using World world = WithReusedSlot(out Entity stale, out Entity successor, out Recorder recorder);
-
-        world.RemoveComponent(stale, recorder).Should().BeFalse();
-
-        world.GetComponents(successor).Should().Equal(recorder);
-    }
-
-    [Fact]
-    public void UnsubscribingAStaleHandleReturnsFalseAndKeepsTheSuccessorsSubscription()
-    {
-        using World world = WithReusedSlot(out Entity stale, out Entity successor, out Recorder recorder);
-
-        world.Unsubscribe(stale, Squad).Should().BeFalse();
-
-        world.Post(Event.Create(Squad, Entity.Null, new Ping { Value = 4 }));
-        world.Run(2);
-        recorder.PingValues().Should().Equal(4);
-        world.Unsubscribe(successor, Squad).Should().BeTrue();
-    }
-
-    [Fact]
-    public void AHandleToAReusedSlotCannotReadTheNewEntitysComponents()
-    {
-        using World world = WithReusedSlot(out Entity stale, out _, out _);
-
-        Action all = () => world.GetComponents(stale);
-        Action one = () => world.GetComponent<Recorder>(stale);
-
-        all.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
-        one.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(stale);
-    }
-
-    [Fact]
-    public void AStaleHandleCannotGiveTheEntityThatReusedItsSlotAComponent()
-    {
-        using World world = WithReusedSlot(out Entity stale, out Entity successor, out Recorder recorder);
-
-        Action add = () => world.AddComponent(stale, new Recorder());
-
-        add.Should().Throw<StaleEntityException>();
-        world.GetComponents(successor).Should().Equal(recorder);
-    }
-
-    [Fact]
-    public void TheSnapshotCannotReadTheEntityThatReusedASlotThroughAStaleHandle()
-    {
-        using World world = WithReusedSlot(out Entity stale, out _, out _);
-        Snapshot snapshot = world.Snapshot;
-
-        ((Action)(() => snapshot.PoseOf(stale))).Should().Throw<StaleEntityException>();
-        ((Action)(() => snapshot.RenderOf(stale))).Should().Throw<StaleEntityException>();
-        ((Action)(() => snapshot.HasBody(stale))).Should().Throw<StaleEntityException>();
-    }
-
-    [Fact]
-    public void StaleHandleErrorsCanStillBeCaughtAsInvalidOperationExceptions()
-    {
-        using World world = WithReusedSlot(out Entity stale, out _, out _);
-        InvalidOperationException? caught = null;
-
-        try
-        {
-            world.GetPose(stale);
-        }
-        catch (InvalidOperationException ex)
-        {
-            caught = ex;
-        }
-
-        caught.Should().BeOfType<StaleEntityException>().Which.Message.Should().Contain(stale.ToString());
     }
 }
