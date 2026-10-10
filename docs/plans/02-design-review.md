@@ -19,6 +19,8 @@ Find the design problems in every module before more code builds on them. The re
 - Physics: when a hand-off is rejected, the parent override of the body stays in place. Drop it at reconcile.
 - Physics: JoltPhysicsSharp 2.23.0 corrupts the stack in its `ContactManifold` wrapper, and the backend works around it. Review the workaround. Do not report the bug upstream without the user's approval.
 - If plan 01 did not fix the slow Stryker runs, find the cause here.
+- `Blueprints.Coerce` converts field values with `Convert.ChangeType`. So a blueprint value of 1.5 for an integer field silently becomes 2. Reject a fractional value for an integer field instead.
+- `Attachments.Attach` would overwrite the node of an entity that already has attached children, and those children would lose their place in the tree. The public `World` API cannot do this today, because only new entities get attached. Add a contract if `Attach` gets another caller.
 
 ## Report
 

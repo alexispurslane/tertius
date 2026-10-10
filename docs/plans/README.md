@@ -21,8 +21,10 @@ ARCHITECTURE.md stays the binding design. When a plan is done, its decisions mov
 
 ## Running now
 
-- The workflow `wf_bfab1ac8-cfa` builds the Simulation test stack. One agent writes the shared test helpers first. Then four agents work in parallel, each in its own git worktree, on one test area each. The orchestrator merges their branches. The refactor before it is done and committed (`7e5ecd3`).
+- The workflow `wf_6fef3166-23c` fixes the four bugs that the Simulation test stage found, test-first, and a reviewer checks each fix.
 - The workflow `wf_5b5b785e-538` drafts plans 07 to 10.
+
+The Simulation test stage is done and merged: 1,225 tests, with 4 skipped until their bugs are fixed.
 
 ## Chores
 
