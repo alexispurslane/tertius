@@ -8,7 +8,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 - Build: `dotnet build Tertius.slnx`. Test one module: `dotnet test --project tests/Tertius.<Module>.Tests`.
 - The tests use xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions and NSubstitute.
 - The double-precision Jolt library comes from `native/joltc.nix`. Read the Jolt pitfalls in project memory before you touch Jolt interop.
-- Commit with git. Never push without the user's permission.
+- Commit with git. Never push without the user's permission. This project stays on git, not jj. The user confirmed this, and it overrides the jj rule in their other agent configuration.
 
 ## General architectural preferences
 
@@ -37,7 +37,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 | An n + 1 prefix array `inboxStart`, read as `[s]` and `[s + 1]` | One `InboxRange(Start, Count)` per slot | Explicit ranges are clearer than prefix sums. |
 | A chain of `TryGetValue` calls on the target union | A `switch` statement with pattern matching | Prefer pattern matching for variants. |
 | Copying each event per recipient at the serial sync point (the user's first idea) | The hybrid: store each event once, keep the per-recipient copy on the workers | The user accepted my performance argument here. Keep work off the serial sync point. |
-| Bepu with automatic frames, or float positions between frames | Jolt in double-precision mode with explicit frames only | The user checked that Jolt's double mode costs only 5 to 10 percent. |
+| Bepu with automatic frames, or float positions between frames | Jolt in double-precision mode with explicit frames only | The user found that Jolt's double mode costs only 5 to 10 percent. |
 | Impostors below 48 px, back to geometry above 64 px | Below 200 px, back above 300 px, with the recapture angle derived from the projected size | |
 | A boolean for whether a frame moves on rails | The `MotionDriver` enum (`Static`, `Kepler`, `Physics`) | The user agreed to this one of mine. |
 | Frames separate from entities | Frames are entities with an extra handle into the frame tree. Frames are also a kind of scene graph that shares code with the normal scene graph. | Hence `FrameHandle` and the generic `PoseTree<TPose>`. |
