@@ -1,11 +1,35 @@
 using System.Numerics;
+using AwesomeAssertions;
 
 namespace Tertius.Simulation.Tests;
 
-/// <summary>Attachments on their own: releasing an entity takes it out of the chains.</summary>
+/// <summary>
+/// The attachment chains on their own, without a world around them. An attached entity follows its parent with a fixed
+/// offset in the parent's axes. <see cref="Attachments.Derive"/> computes the back transform of every attached entity from the
+/// back row of its chain root, which is the one entity of a chain that is not attached. The tests read the result from
+/// the back rows of the entity table.
+/// </summary>
 public class AttachmentsSubsystemTests
 {
-    private static Pose Offset(float x, float y) => new(new Vector3(x, y, 0), Quaternion.Identity);
+    /// <summary>A quarter turn about +Y, which maps +X to -Z and +Z to +X.</summary>
+    private static readonly Quaternion QuarterTurn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
+
+    private static Pose Offset(float x, float y, float z = 0) => new(new Vector3(x, y, z), Quaternion.Identity);
+
+    private static Pose TurnedOffset(float x, float y, float z) => new(new Vector3(x, y, z), QuarterTurn);
+
+    private static Double3 PositionOf(EntityTable entities, Entity entity) => entities.BackRow(entity).Pose.Position;
+
+    /// <summary>Gives a chain root a velocity and a spin, as physics would have written them into its back row.</summary>
+    private static void SetMotion(EntityTable entities, Entity entity, Vector3 velocity, Vector3 spin)
+    {
+        TransformRow row = entities.BackRow(entity);
+        row.LinearVelocity = velocity;
+        row.AngularVelocity = spin;
+        entities.SetBackTransform(entity, row);
+    }
+
+    // ---- Releasing ------------------------------------------------------------------------------------------------
 
     [Theory]
     [InlineData(false)]
@@ -20,8 +44,8 @@ public class AttachmentsSubsystemTests
         attachments.Attach(child, root, Offset(1, 0));
         attachments.Attach(grandchild, child, Offset(0, 1));
         attachments.Derive();
-        Assert.Equal([child, grandchild], attachments.Attached.ToArray());
-        Assert.Equal(new Double3(11, 1, 0), entities.BackRow(grandchild).Pose.Position);
+        attachments.Attached.ToArray().Should().Equal(child, grandchild);
+        PositionOf(entities, grandchild).Should().Be(new Double3(11, 1, 0));
         attachments.AssertInvariants();
 
         // The world releases an attached entity together with its children, in either order.
@@ -29,8 +53,8 @@ public class AttachmentsSubsystemTests
         foreach (Entity entity in order)
             entities.Release(entity);
 
-        Assert.Empty(attachments.Attached.ToArray());
-        Assert.True(attachments.ChildrenOf(root).IsEmpty);
+        attachments.Attached.ToArray().Should().BeEmpty();
+        attachments.ChildrenOf(root).IsEmpty.Should().BeTrue();
         // The released links are clear: the table checks every column entry of a slot that is not live.
         entities.AssertInvariants();
         attachments.AssertInvariants();
@@ -39,7 +63,461 @@ public class AttachmentsSubsystemTests
         Entity next = entities.SpawnLive();
         attachments.Attach(next, root, Offset(2, 0));
         attachments.Derive();
-        Assert.Equal(new Double3(12, 0, 0), entities.BackRow(next).Pose.Position);
+        PositionOf(entities, next).Should().Be(new Double3(12, 0, 0));
         attachments.AssertInvariants();
+    }
+
+    [Fact]
+    public void ACommonParentKeepsItsOtherChildrenWhenOneChildIsReleased()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity root = entities.SpawnLive();
+        Entity first = entities.SpawnLive();
+        Entity second = entities.SpawnLive();
+        attachments.Attach(first, root, Offset(1, 0));
+        attachments.Attach(second, root, Offset(2, 0));
+
+        entities.Release(first);
+
+        attachments.ChildrenOf(root).ToArray().Should().Equal(second);
+        attachments.Attached.ToArray().Should().Equal(second);
+        attachments.AssertInvariants();
+    }
+
+    [Fact]
+    public void AnEntityThatLostItsLastChildCanBeAttachedToAParentOfItsOwn()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity parent = entities.SpawnLive(x: 20);
+        Entity middle = entities.SpawnLive(x: 10);
+        Entity child = entities.SpawnLive();
+        attachments.Attach(child, middle, Offset(1, 0));
+        entities.Release(child);
+
+        attachments.Attach(middle, parent, Offset(3, 0));
+        attachments.Derive();
+
+        PositionOf(entities, middle).Should().Be(new Double3(23, 0, 0));
+        attachments.AssertInvariants();
+    }
+
+    // ---- Who is attached to whom ----------------------------------------------------------------------------------
+
+    [Fact]
+    public void AnEntityThatIsNotAttachedHasNoParent()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity loner = entities.SpawnLive();
+
+        attachments.ParentOf(loner).IsNull.Should().BeTrue();
+    }
+
+    [Fact]
+    public void AnAttachedEntityNamesItsParentAndTheParentListsItAsAChild()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity parent = entities.SpawnLive();
+        Entity child = entities.SpawnLive();
+
+        attachments.Attach(child, parent, Offset(1, 0));
+
+        attachments.ParentOf(child).Should().Be(parent);
+        attachments.ChildrenOf(parent).ToArray().Should().Equal(child);
+    }
+
+    [Fact]
+    public void TheChildrenOfAParentAreListedInSlotOrderWhateverTheOrderOfAttaching()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity parent = entities.SpawnLive();
+        Entity first = entities.SpawnLive(), second = entities.SpawnLive(), third = entities.SpawnLive();
+
+        attachments.Attach(third, parent, Offset(3, 0));
+        attachments.Attach(first, parent, Offset(1, 0));
+        attachments.Attach(second, parent, Offset(2, 0));
+
+        attachments.ChildrenOf(parent).ToArray().Should().Equal(first, second, third);
+        attachments.Attached.ToArray().Should().Equal(first, second, third);
+    }
+
+    [Fact]
+    public void AnEntityWithNoChildrenHasAnEmptyChildList()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity loner = entities.SpawnLive();
+
+        attachments.ChildrenOf(loner).IsEmpty.Should().BeTrue();
+    }
+
+    // ---- What a parent accepts ------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ALiveParentInTheSameFrameIsAccepted()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        FrameHandle frame = FakeFrame(2);
+        Entity parent = entities.SpawnLive(frame);
+
+        attachments.CheckParent(parent, frame).Should().BeNull();
+    }
+
+    [Fact]
+    public void AParentInAnotherFrameIsRefusedWithAReasonThatNamesBothFrames()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        FrameHandle parentsFrame = FakeFrame(2), childsFrame = FakeFrame(3);
+        Entity parent = entities.SpawnLive(parentsFrame);
+
+        string? reason = attachments.CheckParent(parent, childsFrame);
+
+        reason.Should().Contain(parentsFrame.ToString()).And.Contain(childsFrame.ToString());
+    }
+
+    [Fact]
+    public void AParentThatIsNotLiveIsRefusedWithAReasonThatNamesIt()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity parent = entities.SpawnLive();
+        entities.Release(parent);
+
+        string? reason = attachments.CheckParent(parent, default);
+
+        reason.Should().Contain(parent.ToString()).And.Contain("not live");
+    }
+
+    [Fact]
+    public void TheNullEntityIsNotAParent()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+
+        attachments.CheckParent(Entity.Null, default).Should().NotBeNull();
+    }
+
+    // ---- Writing an offset ----------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AnEntityThatIsNotAttachedCannotWriteAnOffset()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity loner = entities.SpawnLive();
+
+        Action write = () => attachments.WritableOffset(loner) = Offset(1, 0);
+
+        write.Should().Throw<InvalidOperationException>().WithMessage($"*{loner}*not attached*");
+    }
+
+    [Fact]
+    public void ANewOffsetMovesTheChildAtTheNextDeriveAndNotBefore()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity parent = entities.SpawnLive(x: 10);
+        Entity child = entities.SpawnLive();
+        attachments.Attach(child, parent, Offset(1, 0));
+        attachments.Derive();
+
+        attachments.WritableOffset(child) = Offset(5, 0);
+        PositionOf(entities, child).Should().Be(new Double3(11, 0, 0));
+        attachments.Derive();
+
+        PositionOf(entities, child).Should().Be(new Double3(15, 0, 0));
+    }
+
+    // ---- Deriving the transform of a child ------------------------------------------------------------------------
+
+    [Fact]
+    public void ADerivedChildSitsAtItsOffsetFromItsParent()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity parent = entities.SpawnLive(x: 10);
+        Entity child = entities.SpawnLive();
+        attachments.Attach(child, parent, Offset(1, 2, 3));
+
+        attachments.Derive();
+
+        PositionOf(entities, child).Should().Be(new Double3(11, 2, 3));
+    }
+
+    [Fact]
+    public void AnOffsetIsMeasuredInTheAxesOfTheParent()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity parent = entities.SpawnLive(x: 10);
+        TurnTo(entities, parent, QuarterTurn);
+        Entity child = entities.SpawnLive();
+        attachments.Attach(child, parent, Offset(0, 0, 2));
+
+        attachments.Derive();
+
+        // The quarter turn maps the parent's +Z to the frame's +X.
+        PoseChecks.AssertNear(PositionOf(entities, child), new Double3(12, 0, 0), 1e-6);
+    }
+
+    [Fact]
+    public void ADerivedChildTurnsWithItsParentAndAddsTheTurnOfItsOffset()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity parent = entities.SpawnLive();
+        TurnTo(entities, parent, QuarterTurn);
+        Entity child = entities.SpawnLive();
+        attachments.Attach(child, parent, TurnedOffset(0, 0, 0));
+
+        attachments.Derive();
+
+        // Two quarter turns about +Y make a half turn, which maps +X to -X.
+        Double3 turnedX = entities.BackRow(child).Pose.Rotation.Rotate(Double3.UnitX);
+        PoseChecks.AssertNear(turnedX, new Double3(-1, 0, 0), 1e-6);
+    }
+
+    [Fact]
+    public void AGrandchildIsDerivedFromTheDerivedPoseOfItsParent()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity root = entities.SpawnLive(x: 10);
+        Entity child = entities.SpawnLive();
+        Entity grandchild = entities.SpawnLive();
+        attachments.Attach(child, root, TurnedOffset(1, 0, 0));
+        attachments.Attach(grandchild, child, Offset(0, 0, 1));
+
+        attachments.Derive();
+
+        // The child is at (11, 0, 0) and turned a quarter turn, which maps the grandchild's +Z offset to +X: (12, 0, 0).
+        PoseChecks.AssertNear(PositionOf(entities, grandchild), new Double3(12, 0, 0), 1e-6);
+    }
+
+    [Fact]
+    public void AChildIsDerivedFromItsParentEvenWhenTheChildHasTheLowerSlot()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity root = entities.SpawnLive(x: 10);
+        Entity grandchild = entities.SpawnLive();
+        Entity child = entities.SpawnLive();
+        // The chain is made from the top: the child with the higher slot is attached first.
+        attachments.Attach(child, root, TurnedOffset(1, 0, 0));
+        attachments.Attach(grandchild, child, Offset(0, 0, 1));
+        grandchild.Index.Should().BeLessThan(child.Index);
+
+        attachments.Derive();
+
+        PoseChecks.AssertNear(PositionOf(entities, grandchild), new Double3(12, 0, 0), 1e-6);
+    }
+
+    [Fact]
+    public void ALongChainIsDerivedLinkByLink()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity root = entities.SpawnLive();
+        Entity a = entities.SpawnLive(), b = entities.SpawnLive(), c = entities.SpawnLive(), d = entities.SpawnLive();
+        attachments.Attach(a, root, Offset(1, 0));
+        attachments.Attach(b, a, Offset(1, 0));
+        attachments.Attach(c, b, Offset(1, 0));
+        attachments.Attach(d, c, Offset(1, 0));
+
+        attachments.Derive();
+
+        PositionOf(entities, d).Should().Be(new Double3(4, 0, 0));
+    }
+
+    [Fact]
+    public void TheChildrenOfOneParentAreDerivedIndependentlyOfEachOther()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity parent = entities.SpawnLive(x: 10);
+        Entity left = entities.SpawnLive(), right = entities.SpawnLive();
+        attachments.Attach(left, parent, Offset(-1, 0));
+        attachments.Attach(right, parent, Offset(1, 0));
+
+        attachments.Derive();
+
+        PositionOf(entities, left).Should().Be(new Double3(9, 0, 0));
+        PositionOf(entities, right).Should().Be(new Double3(11, 0, 0));
+    }
+
+    [Fact]
+    public void ANewPoseOfTheChainRootMovesTheWholeChainAtTheNextDerive()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity root = entities.SpawnLive(x: 10);
+        Entity child = entities.SpawnLive();
+        Entity grandchild = entities.SpawnLive();
+        attachments.Attach(child, root, Offset(1, 0));
+        attachments.Attach(grandchild, child, Offset(0, 1));
+        attachments.Derive();
+
+        TransformRow moved = entities.BackRow(root);
+        moved.Pose = TestWorld.At(100);
+        entities.SetBackTransform(root, moved);
+        attachments.Derive();
+
+        PositionOf(entities, child).Should().Be(new Double3(101, 0, 0));
+        PositionOf(entities, grandchild).Should().Be(new Double3(101, 1, 0));
+    }
+
+    [Fact]
+    public void ADerivedChildIsInTheFrameOfItsChainRoot()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        FrameHandle home = FakeFrame(2), station = FakeFrame(3);
+        Entity root = entities.SpawnLive(home);
+        Entity child = entities.SpawnLive(home);
+        Entity grandchild = entities.SpawnLive(home);
+        attachments.Attach(child, root, Offset(1, 0));
+        attachments.Attach(grandchild, child, Offset(1, 0));
+
+        TransformRow moved = entities.BackRow(root);
+        moved.Frame = station;
+        entities.SetBackTransform(root, moved);
+        attachments.Derive();
+
+        entities.BackRow(child).Frame.Should().Be(station);
+        entities.BackRow(grandchild).Frame.Should().Be(station);
+    }
+
+    [Fact]
+    public void DerivingWhenNothingIsAttachedChangesNothing()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity loner = entities.SpawnLive(x: 4);
+
+        attachments.Derive();
+
+        PositionOf(entities, loner).Should().Be(new Double3(4, 0, 0));
+        attachments.AssertInvariants();
+    }
+
+    [Fact]
+    public void AnOffsetWhoseRotationIsAllZeroesCountsAsNoRotation()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity parent = entities.SpawnLive(x: 10);
+        Entity child = entities.SpawnLive();
+        // A defaulted Pose has the quaternion (0, 0, 0, 0), which is not a rotation.
+        attachments.Attach(child, parent, new Pose(new Vector3(1, 0, 0), default));
+
+        attachments.Derive();
+
+        PositionOf(entities, child).Should().Be(new Double3(11, 0, 0));
+        PoseChecks.AssertSameRotation(entities.BackRow(child).Pose.Rotation, DQuaternion.Identity);
+    }
+
+    // ---- Velocity -------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ADerivedChildMovesWithTheVelocityOfItsRootPlusTheSpinOfItsLeverArm()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity root = entities.SpawnLive();
+        SetMotion(entities, root, velocity: new Vector3(1, 0, 0), spin: new Vector3(0, 1, 0));
+        Entity child = entities.SpawnLive();
+        attachments.Attach(child, root, Offset(0, 0, 2));
+
+        attachments.Derive();
+
+        // The velocity of a point on a spinning body is v + w x r. Here (1, 0, 0) + (0, 1, 0) x (0, 0, 2) = (3, 0, 0).
+        PoseChecks.AssertNear(entities.BackRow(child).LinearVelocity, new Vector3(3, 0, 0));
+    }
+
+    [Fact]
+    public void TheLeverArmTurnsWithTheRoot()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity root = entities.SpawnLive();
+        TurnTo(entities, root, QuarterTurn);
+        SetMotion(entities, root, velocity: new Vector3(1, 0, 0), spin: new Vector3(0, 1, 0));
+        Entity child = entities.SpawnLive();
+        attachments.Attach(child, root, Offset(0, 0, 2));
+
+        attachments.Derive();
+
+        // The turned root puts the child 2 m along +X, so the lever arm is (2, 0, 0), and (0, 1, 0) x (2, 0, 0) = (0, 0, -2).
+        PoseChecks.AssertNear(entities.BackRow(child).LinearVelocity, new Vector3(1, 0, -2), 1e-5f);
+    }
+
+    [Fact]
+    public void TheLeverArmOfAGrandchildRunsFromTheChainRootThroughTheWholeChain()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity root = entities.SpawnLive();
+        SetMotion(entities, root, velocity: Vector3.Zero, spin: new Vector3(0, 0, 1));
+        Entity child = entities.SpawnLive();
+        Entity grandchild = entities.SpawnLive();
+        attachments.Attach(child, root, Offset(1, 0));
+        attachments.Attach(grandchild, child, Offset(0, 1));
+
+        attachments.Derive();
+
+        // The grandchild is 1 m along +X and 1 m along +Y from the root: (0, 0, 1) x (1, 1, 0) = (-1, 1, 0).
+        PoseChecks.AssertNear(entities.BackRow(grandchild).LinearVelocity, new Vector3(-1, 1, 0));
+        PoseChecks.AssertNear(entities.BackRow(child).LinearVelocity, new Vector3(0, 1, 0));
+    }
+
+    [Fact]
+    public void EveryLinkOfAChainSpinsLikeItsRoot()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity root = entities.SpawnLive();
+        SetMotion(entities, root, velocity: Vector3.Zero, spin: new Vector3(0.5f, 0, 2));
+        Entity child = entities.SpawnLive();
+        Entity grandchild = entities.SpawnLive();
+        attachments.Attach(child, root, Offset(1, 0));
+        attachments.Attach(grandchild, child, Offset(0, 1));
+
+        attachments.Derive();
+
+        entities.BackRow(child).AngularVelocity.Should().Be(new Vector3(0.5f, 0, 2));
+        entities.BackRow(grandchild).AngularVelocity.Should().Be(new Vector3(0.5f, 0, 2));
+    }
+
+    [Fact]
+    public void AChildOfARootThatDoesNotMoveDoesNotMoveEither()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity root = entities.SpawnLive();
+        Entity child = entities.SpawnLive();
+        attachments.Attach(child, root, Offset(1, 0));
+
+        attachments.Derive();
+
+        entities.BackRow(child).LinearVelocity.Should().Be(Vector3.Zero);
+        entities.BackRow(child).AngularVelocity.Should().Be(Vector3.Zero);
+    }
+
+    // ---- Helpers --------------------------------------------------------------------------------------------------
+
+    /// <summary>A frame handle for a test that needs only distinct frames: the subsystem compares frames and does not look them up.</summary>
+    private static FrameHandle FakeFrame(int index) => new(new Entity((uint)index, 1), index, 1);
+
+    private static void TurnTo(EntityTable entities, Entity entity, Quaternion rotation)
+    {
+        TransformRow row = entities.BackRow(entity);
+        row.Pose = row.Pose with { Rotation = DQuaternion.FromQuaternion(rotation) };
+        entities.SetBackTransform(entity, row);
     }
 }
