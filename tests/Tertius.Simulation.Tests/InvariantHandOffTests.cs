@@ -80,7 +80,7 @@ public class InvariantHandOffTests
         scene.World.AssertInvariants();
     }
 
-    [Fact(Skip = "Bug: FrameTree.Reparent converts the frame's velocities before PoseTree.Reparent refuses a cycle, so a refused hand-off still zeroes them.")]
+    [Fact]
     public void ARefusedHandOffLeavesTheVelocityOfTheHullAsItWas()
     {
         using var scene = new HullWorld((hull, inner) => inner);

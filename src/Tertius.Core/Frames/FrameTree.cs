@@ -72,7 +72,9 @@ public sealed class FrameTree
     }
 
     /// <summary>
-    /// Moves a frame under a new parent. Its pose and velocity relative to everything else stay the same.
+    /// Moves a frame under a new parent. Its pose and velocity relative to everything else stay the same. Throws
+    /// <see cref="InvalidOperationException"/>, and changes nothing, if the new parent is the frame itself or one of
+    /// its descendants.
     /// </summary>
     public void Reparent(FrameHandle frame, FrameHandle newParent)
     {
@@ -80,6 +82,9 @@ public sealed class FrameTree
         FrameHandle oldParent = Parent(frame);
         if (oldParent == newParent)
             return;
+        // Refuse a cycle before the velocities below are converted: a refused move must leave the frame as it was.
+        if (!newParent.IsNull && (newParent == frame || IsAncestorOf(frame, newParent)))
+            throw new InvalidOperationException($"Cannot move frame {frame} under itself or its own descendant {newParent}.");
 
         // Carry the frame origin's velocity and the frame's spin from the old parent into the new parent.
         // A null parent is the virtual root above every root frame.
