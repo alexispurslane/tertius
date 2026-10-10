@@ -238,6 +238,10 @@ A frame that fits inside a sibling frame enters it, like any other object. A fra
 
 Docking two frames of similar size merges them explicitly into one frame, and undocking splits them again.
 
+### Destroying a frame
+
+When a frame dies, its contents move to the nearest ancestor frame that survives. Pose and velocity convert through the tree, each moved entity gets `FrameChanged`, and its body moves to the new frame's physics system. Child frames move up the same way. If no ancestor survives, as with a root frame, the contents die with it.
+
 ### Hand-off
 
 An object belongs to the deepest frame whose bubble it is in. These rules control its moves between frames:
@@ -270,6 +274,19 @@ A frame entity has two bodies. In the parent system, its hull is a body on the `
 
 Point gravity is applied as a force on each awake body before each step. The Jolt system gravity is zero.
 
+These Jolt settings differ from the Jolt defaults:
+
+| Setting | Value | Reason |
+|---|---|---|
+| Penetration slop | 0.005 m | Jolt uses 0.02 m, which is visible on small props. |
+| Maximum linear velocity | 30 km/s | Orbital speeds reach about 8 km/s, and Jolt clamps at 500 m/s. |
+| Motion quality | Linear cast | Fast bodies must not tunnel through thin walls. |
+| Bodies per frame system | 4,096 | Jolt sizes its buffers up front. A larger frame needs larger options. |
+
+Proper acceleration has a dead band. A component below the float resolution of the hull velocity, divided by the time step, reads as zero. Without it, cargo in an orbiting ship drifts on float noise.
+
+A physics-driven hull in orbit is integrated with float velocities, so its orbit drifts slowly. A frame that coasts for a long time uses a Kepler driver instead.
+
 The character controller is a capsule. It stands on whatever is below it and inherits that surface's velocity. It uses the frame's effective gravity. Near zero effective gravity, it switches to zero-g movement.
 
 ## Rendering
@@ -286,7 +303,7 @@ All instances go into one large instance buffer. Textures live in one bindless a
 
 ### Depth ranges
 
-There are three depth ranges, drawn from far to near into the same G-buffer:
+There are three depth ranges, drawn from far to near into the same G-buffer. An instance belongs to every range that its bounding sphere touches, measured in view depth, so an object that straddles a boundary is drawn twice.
 
 | Range | Distance |
 |---|---|
@@ -294,7 +311,9 @@ There are three depth ranges, drawn from far to near into the same G-buffer:
 | Middle | 2 km to 2,000 km |
 | Near | 5 cm to 2 km |
 
-The hardware depth buffer is cleared between ranges. The G-buffer stores linear view distance in an R32F target, so one lighting pass serves all three ranges.
+Each range uses an infinite reversed-Z projection. Before a range draws, the depth buffer is cleared to the depth of the range's far boundary, so the GREATER test rejects anything beyond it. A finite far plane is simpler, but on MoltenVK a triangle clipped against both the near and the far plane gets the wrong depth.
+
+The G-buffer stores the distance from the eye in an R32F target, so one lighting pass serves all three ranges.
 
 ### Shading
 
@@ -306,13 +325,27 @@ The lighting model is energy-normalized Blinn-Phong, not PBR:
 - A gloss map that sets the exponent.
 - Hemisphere ambient light.
 
-Lighting is in linear color space, into an HDR target, with tone mapping at the end. The G-buffer holds albedo, an octahedral-encoded normal, specular intensity and gloss, emissive, and linear view distance. Transparent objects use a forward pass per range after the lighting pass.
+Lighting is in linear color space, into an HDR target, with tone mapping at the end. Lighting works in world axes centered on the camera. The specular exponent is n = 2^(1 + 11 · gloss), from 2 to 4096. The Fresnel F0 is 0.16 · specular².
+
+The G-buffer has these targets:
+
+| Target | Format | Contents |
+|---|---|---|
+| Albedo | RGBA8 sRGB | Base color. Alpha 0 marks an unlit impostor pixel. |
+| Normals | RGBA16 SNORM | The shading normal and the geometric normal, both octahedral-encoded, in world axes. Shadow biasing uses the geometric normal. |
+| Specular | RG8 | Specular intensity and gloss. |
+| Emissive | RGBA16F | Emitted light. Impostors write their baked color here. |
+| Distance | R32F | Distance from the eye. Zero is sky. |
+
+Transparent objects use one forward pass after the lighting pass, sorted back to front across ranges. They test occlusion against the distance target, not the depth buffer.
 
 Dynamic point and spot lights are shaded in the deferred lighting pass. The sun is a directional light.
 
 ### Shadows
 
-Shadow casters are selected by distance from the camera, not by frame. Cascaded shadow maps for the sun cover the first 2 km. Planet shadows and eclipses use a sphere test in the shader.
+Shadow casters are selected by distance from the camera, not by frame. Cascaded shadow maps for the sun cover the first 2 km, with four cascades and blending at the seams. Planet shadows and eclipses use a sphere test in the shader.
+
+The texel grid of each cascade snaps to a world-fixed anchor: the origin of the camera's frame. As a result, shadows do not shimmer as the camera moves. On MoltenVK, a steep caster clipped at the edge of the shadow map gets a flat, wrong depth plane. To avoid it, each cascade box is 16 times deeper than it is wide.
 
 ### Impostors
 
@@ -320,6 +353,10 @@ Shadow casters are selected by distance from the camera, not by frame. Cascaded 
 - The impostor is captured on demand, into a 512 px texture.
 - If the view direction changes by more than 2 / h radians, the renderer captures it again. Here h is the projected height in pixels. A change in sun direction uses the same rule.
 - Captures go through a priority queue ordered by error, with a budget of 4 captures per frame.
+- A capture uses a perspective camera at the real eye position, fitted to the bounding sphere. An orthographic capture looked wrong at the switch distance.
+- A capture bakes the sun, ambient light, eclipses and point and spot lights, but not shadow-map shadows.
+- A billboard writes its per-pixel depth, so impostors intersect the ground like the real object.
+- The renderer keys impostor state on the entity index and the render part.
 
 ## Blueprints
 
