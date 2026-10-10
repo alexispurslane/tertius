@@ -1,36 +1,145 @@
+using AwesomeAssertions;
+
 namespace Tertius.Simulation.Tests;
 
+/// <summary>
+/// The list of events that the components of one entity share during a run, on its own: adding, editing and removing
+/// events, the mask that tells the scheduler what the list holds, and the rule that the list does not allocate.
+/// </summary>
 public class EventListTests
 {
     private static readonly Entity Owner = new(7, 3);
     private static readonly Entity Other = new(9, 1);
 
+    // ---- Adding ----------------------------------------------------------------------------------------------------------
+
     [Fact]
-    public void AddFillsTheEnvelopeAndTheMask()
+    public void AddingAPayloadMakesAnEventForTheOwnerFromTheGivenSender()
     {
         var buffer = new EventBuffer();
         EventList list = buffer.Begin(Owner);
+
         list.Add(new Damage { Amount = 5, Kind = 2 }, Other);
 
-        Assert.Equal(1, list.Count);
-        Assert.True(list[0].Target.TryGetValue(out Entity target));
-        Assert.Equal(Owner, target);
-        Assert.Equal(Other, list[0].Sender);
-        Assert.True(list[0].Is<Damage>());
-        Assert.Equal(5, list[0].As<Damage>().Amount);
-        Assert.True(list.Mask.Contains<Damage>());
-        Assert.False(list.Mask.Contains<Heal>());
-
-        var e = Event.Create<Heal>(new Topic(3), Other, new Heal { Amount = 1 });
-        list.Add(e);
-        Assert.Equal(2, list.Count);
-        Assert.True(list[1].Target.TryGetValue(out Topic topic));
-        Assert.Equal(3, topic.Id);
-        Assert.True(list.Mask.Contains<Heal>());
+        list.Count.Should().Be(1);
+        list[0].Target.TryGetValue(out Entity target).Should().BeTrue();
+        target.Should().Be(Owner);
+        list[0].Sender.Should().Be(Other);
+        list[0].Is<Damage>().Should().BeTrue();
+        list[0].As<Damage>().Amount.Should().Be(5);
+        list[0].As<Damage>().Kind.Should().Be(2);
     }
 
     [Fact]
-    public void OfEditsPayloadsInPlaceAndSkipsOtherTypes()
+    public void AnEventAddedWithoutASenderHasNone()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+
+        list.Add(new Note { Value = 1 });
+
+        list[0].Sender.Should().Be(Entity.Null);
+    }
+
+    [Fact]
+    public void AddingAnEventKeepsItsOwnTargetAndSender()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+
+        list.Add(Event.Create<Heal>(new Topic(3), Other, new Heal { Amount = 1 }));
+
+        list.Count.Should().Be(1);
+        list[0].Target.TryGetValue(out Topic topic).Should().BeTrue();
+        topic.Id.Should().Be(3);
+        list[0].Sender.Should().Be(Other);
+    }
+
+    [Fact]
+    public void TheMaskNamesTheTypesOfTheEventsAdded()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+
+        list.Add(new Damage());
+        list.Add(Event.Create(Owner, Other, new Heal()));
+
+        list.Mask.Contains<Damage>().Should().BeTrue();
+        list.Mask.Contains<Heal>().Should().BeTrue();
+        list.Mask.Contains<Note>().Should().BeFalse();
+    }
+
+    [Fact]
+    public void BeginClearsTheEventsAndTheMaskOfThePreviousRun()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+        list.Add(new Damage());
+
+        list = buffer.Begin(Owner);
+
+        list.Count.Should().Be(0);
+        list.Mask.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void TheListKnowsItsOwner()
+    {
+        var buffer = new EventBuffer();
+
+        EventList list = buffer.Begin(Owner);
+
+        list.Owner.Should().Be(Owner);
+    }
+
+    [Fact]
+    public void TheListGrowsBeyondItsInitialCapacityAndKeepsEveryEventInOrder()
+    {
+        var buffer = new EventBuffer(4);
+        EventList list = buffer.Begin(Owner);
+
+        for (int i = 0; i < 100; i++)
+            list.Add(new Note { Value = i });
+
+        list.Count.Should().Be(100);
+        int expected = 0;
+        foreach (ref Note n in list.Of<Note>())
+            n.Value.Should().Be(expected++);
+        expected.Should().Be(100);
+        buffer.Capacity.Should().BeGreaterThanOrEqualTo(100);
+    }
+
+    // ---- Reading ---------------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AnEditThroughTheIndexerChangesTheStoredEvent()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+        list.Add(new Damage { Amount = 10 });
+
+        list[0].As<Damage>().Amount = 3;
+
+        list[0].As<Damage>().Amount.Should().Be(3);
+    }
+
+    [Fact]
+    public void AsSpanShowsTheEventsInTheOrderTheyWereAdded()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+        list.Add(new Note { Value = 1 });
+        list.Add(new Heal { Amount = 2 });
+        list.Add(new Note { Value = 3 });
+
+        Event[] events = list.AsSpan().ToArray();
+
+        events.Select(e => e.Is<Note>() ? $"note {e.As<Note>().Value}" : $"heal {e.As<Heal>().Amount}")
+            .Should().Equal("note 1", "heal 2", "note 3");
+    }
+
+    [Fact]
+    public void OfYieldsReferencesSoEditsLandInTheListAndOtherTypesAreSkipped()
     {
         var buffer = new EventBuffer();
         EventList list = buffer.Begin(Owner);
@@ -41,15 +150,68 @@ public class EventListTests
         foreach (ref Damage d in list.Of<Damage>())
             d.Amount -= 4;
 
-        Assert.Equal(6, list[0].As<Damage>().Amount);
-        Assert.Equal(3, list[1].As<Heal>().Amount);
-        Assert.Equal(16, list[2].As<Damage>().Amount);
-        Assert.Equal(2, list.Of<Damage>().Count());
-        Assert.Equal(0, list.Of<Ping>().Count());
+        list[0].As<Damage>().Amount.Should().Be(6);
+        list[1].As<Heal>().Amount.Should().Be(3);
+        list[2].As<Damage>().Amount.Should().Be(16);
     }
 
     [Fact]
-    public void RemoveAllByPayloadKeepsTheOrderOfTheRest()
+    public void OfCountsOnlyTheEventsOfItsType()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+        list.Add(new Damage());
+        list.Add(new Heal());
+        list.Add(new Damage());
+
+        list.Of<Damage>().Count().Should().Be(2);
+        list.Of<Ping>().Count().Should().Be(0);
+    }
+
+    [Fact]
+    public void ContainsAndIndexOfFindTheFirstEventOfATypeFromAStartingIndex()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+        list.Contains<Damage>().Should().BeFalse();
+        list.Add(new Note { Value = 1 });
+        list.Add(new Damage());
+        list.Add(new Damage());
+
+        list.Contains<Damage>().Should().BeTrue();
+        list.IndexOf<Damage>().Should().Be(1);
+        list.IndexOf<Damage>(2).Should().Be(2);
+        list.IndexOf<Damage>(3).Should().Be(-1);
+        list.IndexOf<Heal>().Should().Be(-1);
+    }
+
+    [Fact]
+    public void IndexOfTreatsANegativeStartAsTheStartOfTheList()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+        list.Add(new Damage());
+
+        list.IndexOf<Damage>(-5).Should().Be(0);
+    }
+
+    [Fact]
+    public void CountOfCountsTheEventsOfOneType()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+        list.Add(new Note());
+        list.Add(new Damage());
+        list.Add(new Damage());
+
+        list.CountOf<Damage>().Should().Be(2);
+        list.CountOf<Heal>().Should().Be(0);
+    }
+
+    // ---- Removing ----------------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void RemoveAllByPayloadKeepsTheOrderOfTheRestAndReturnsTheNumberRemoved()
     {
         var buffer = new EventBuffer();
         EventList list = buffer.Begin(Owner);
@@ -61,17 +223,46 @@ public class EventListTests
 
         int removed = list.RemoveAll(static (ref Damage d) => d.Amount == 0);
 
-        Assert.Equal(3, removed);
-        Assert.Equal(9, list.Count);
+        removed.Should().Be(3);
+        list.Count.Should().Be(9);
         var order = new List<string>();
         for (int i = 0; i < list.Count; i++)
             order.Add(list[i].Is<Damage>() ? $"d{list[i].As<Damage>().Amount}" : $"n{list[i].As<Note>().Value}");
-        Assert.Equal(["n0", "d1", "n1", "n2", "d3", "n3", "n4", "d5", "n5"], order);
-        Assert.Equal(0, list.RemoveAll(static (ref Heal _) => true));
+        order.Should().Equal("n0", "d1", "n1", "n2", "d3", "n3", "n4", "d5", "n5");
     }
 
     [Fact]
-    public void RemoveAllByEvent()
+    public void RemoveAllByPayloadOfATypeInTheListThatNothingMatchesRemovesNothing()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+        list.Add(new Damage { Amount = 1 });
+
+        list.RemoveAll(static (ref Damage d) => d.Amount > 100).Should().Be(0);
+
+        list.Count.Should().Be(1);
+    }
+
+    [Fact]
+    public void RemoveAllByPayloadOfATypeNotInTheListNeverCallsThePredicate()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+        list.Add(new Damage());
+        int calls = 0;
+
+        int removed = list.RemoveAll((ref Heal _) =>
+        {
+            calls++;
+            return true;
+        });
+
+        removed.Should().Be(0);
+        calls.Should().Be(0);
+    }
+
+    [Fact]
+    public void RemoveAllByEventRemovesEveryEventThatMatches()
     {
         var buffer = new EventBuffer();
         EventList list = buffer.Begin(Owner);
@@ -81,13 +272,32 @@ public class EventListTests
 
         int removed = list.RemoveAll(static (ref Event e) => e.Sender == new Entity(9, 1));
 
-        Assert.Equal(2, removed);
-        Assert.Equal(1, list.Count);
-        Assert.Equal(2, list[0].As<Damage>().Amount);
+        removed.Should().Be(2);
+        list.Count.Should().Be(1);
+        list[0].As<Damage>().Amount.Should().Be(2);
     }
 
     [Fact]
-    public void RemoveAtKeepsOrder()
+    public void RemoveAllRejectsANullPredicateOfEitherKind()
+    {
+        var buffer = new EventBuffer();
+        Action byPayload = () =>
+        {
+            EventList list = buffer.Begin(Owner);
+            list.RemoveAll<Damage>(null!);
+        };
+        Action byEvent = () =>
+        {
+            EventList list = buffer.Begin(Owner);
+            list.RemoveAll((RefPredicate<Event>)null!);
+        };
+
+        byPayload.Should().Throw<ArgumentNullException>();
+        byEvent.Should().Throw<ArgumentNullException>();
+    }
+
+    [Fact]
+    public void RemoveAtKeepsTheOrderOfTheOtherEvents()
     {
         var buffer = new EventBuffer();
         EventList list = buffer.Begin(Owner);
@@ -98,111 +308,157 @@ public class EventListTests
         list.RemoveAt(3);
         list.RemoveAt(0);
 
-        Assert.Equal(2, list.Count);
-        Assert.Equal(2, list[0].As<Note>().Value);
-        Assert.Equal(3, list[1].As<Note>().Value);
+        // Removing 1 leaves 0 2 3 4; removing index 3 leaves 0 2 3; removing index 0 leaves 2 3.
+        list.Count.Should().Be(2);
+        list[0].As<Note>().Value.Should().Be(2);
+        list[1].As<Note>().Value.Should().Be(3);
     }
 
     [Fact]
-    public void ContainsIndexOfAndCount()
+    public void RemoveAtCanRemoveTheLastEvent()
     {
         var buffer = new EventBuffer();
         EventList list = buffer.Begin(Owner);
-        Assert.False(list.Contains<Damage>());
         list.Add(new Note { Value = 1 });
-        list.Add(new Damage());
-        list.Add(new Damage());
-        Assert.True(list.Contains<Damage>());
-        Assert.Equal(1, list.IndexOf<Damage>());
-        Assert.Equal(2, list.IndexOf<Damage>(2));
-        Assert.Equal(-1, list.IndexOf<Damage>(3));
-        Assert.Equal(2, list.CountOf<Damage>());
-        Assert.Equal(-1, list.IndexOf<Heal>());
+        list.Add(new Note { Value = 2 });
+
+        list.RemoveAt(1);
+
+        list.Count.Should().Be(1);
+        list[0].As<Note>().Value.Should().Be(1);
     }
 
+    // ---- The mask ---------------------------------------------------------------------------------------------------------
+
     [Fact]
-    public void MaskTracksAddsAndRemovals()
+    public void TheMaskDropsATypeWhenRemoveAllRemovesItsLastEvent()
     {
         var buffer = new EventBuffer();
         EventList list = buffer.Begin(Owner);
         list.Add(new Damage());
         list.Add(new Heal());
         list.Add(new Damage());
-        Assert.True(list.Mask.Contains<Heal>());
 
         list.RemoveAll(static (ref Heal _) => true);
-        Assert.False(list.Mask.Contains<Heal>());
-        Assert.True(list.Mask.Contains<Damage>());
 
-        // One Damage remains, so the mask still names it.
-        list.RemoveAt(0);
-        Assert.True(list.Mask.Contains<Damage>());
-        list.RemoveAt(0);
-        Assert.True(list.Mask.IsEmpty);
-
-        // A predicate that removes nothing leaves the mask alone.
-        list.Add(new Note());
-        Assert.Equal(0, list.RemoveAll(static (ref Event _) => false));
-        Assert.True(list.Mask.Contains<Note>());
-
-        // A new list starts with an empty mask.
-        list = buffer.Begin(Owner);
-        Assert.True(list.Mask.IsEmpty);
-        Assert.Equal(0, list.Count);
+        list.Mask.Contains<Heal>().Should().BeFalse();
+        list.Mask.Contains<Damage>().Should().BeTrue();
     }
 
     [Fact]
-    public void ChangingTheListDuringEnumerationThrows()
+    public void TheMaskKeepsATypeUntilItsLastEventIsRemoved()
     {
         var buffer = new EventBuffer();
-        Assert.Throws<InvalidOperationException>(() =>
+        EventList list = buffer.Begin(Owner);
+        list.Add(new Damage());
+        list.Add(new Damage());
+
+        list.RemoveAt(0);
+        list.Mask.Contains<Damage>().Should().BeTrue();
+        list.RemoveAt(0);
+
+        list.Mask.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ARemovalThatRemovesNothingLeavesTheMaskAlone()
+    {
+        var buffer = new EventBuffer();
+        EventList list = buffer.Begin(Owner);
+        list.Add(new Note());
+
+        list.RemoveAll(static (ref Event _) => false).Should().Be(0);
+
+        list.Mask.Contains<Note>().Should().BeTrue();
+    }
+
+    // ---- Errors ------------------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AddingToTheListWhileEnumeratingItThrows()
+    {
+        var buffer = new EventBuffer();
+        Action act = () =>
         {
             EventList list = buffer.Begin(Owner);
             list.Add(new Damage { Amount = 1 });
             list.Add(new Damage { Amount = 2 });
             foreach (ref Damage d in list.Of<Damage>())
                 list.Add(new Damage { Amount = d.Amount });
-        });
+        };
+
+        act.Should().Throw<InvalidOperationException>();
     }
 
     [Fact]
-    public void IndexerRejectsOutOfRange()
+    public void RemovingFromTheListWhileEnumeratingItThrows()
     {
         var buffer = new EventBuffer();
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Action removeAt = () =>
+        {
+            EventList list = buffer.Begin(Owner);
+            list.Add(new Damage { Amount = 1 });
+            list.Add(new Damage { Amount = 2 });
+            foreach (ref Damage _ in list.Of<Damage>())
+                list.RemoveAt(0);
+        };
+        Action removeAll = () =>
+        {
+            EventList list = buffer.Begin(Owner);
+            list.Add(new Damage { Amount = 1 });
+            list.Add(new Damage { Amount = 2 });
+            foreach (ref Damage _ in list.Of<Damage>())
+                list.RemoveAll(static (ref Damage d) => d.Amount == 1);
+        };
+
+        removeAt.Should().Throw<InvalidOperationException>();
+        removeAll.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void TheIndexerRejectsAnIndexPastTheEndOrBelowZero()
+    {
+        var buffer = new EventBuffer();
+        Action pastTheEnd = () =>
         {
             EventList list = buffer.Begin(Owner);
             list.Add(new Note());
             _ = list[1];
-        });
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        };
+        Action belowZero = () =>
         {
             EventList list = buffer.Begin(Owner);
-            list.RemoveAt(0);
-        });
+            list.Add(new Note());
+            _ = list[-1];
+        };
+
+        pastTheEnd.Should().Throw<ArgumentOutOfRangeException>();
+        belowZero.Should().Throw<ArgumentOutOfRangeException>();
     }
 
     [Fact]
-    public void GrowsBeyondItsInitialCapacity()
-    {
-        var buffer = new EventBuffer(4);
-        EventList list = buffer.Begin(Owner);
-        for (int i = 0; i < 100; i++)
-            list.Add(new Note { Value = i });
-        Assert.Equal(100, list.Count);
-        int expected = 0;
-        foreach (ref Note n in list.Of<Note>())
-            Assert.Equal(expected++, n.Value);
-        Assert.True(buffer.Capacity >= 100);
-    }
-
-    [Fact]
-    public void APredicateThatThrowsLeavesAConsistentList()
+    public void RemoveAtRejectsAnIndexOutsideTheList()
     {
         var buffer = new EventBuffer();
-        int seen = 0;
-        int count = -1;
-        Assert.Throws<InvalidOperationException>(() =>
+        Action fromEmpty = () => buffer.Begin(Owner).RemoveAt(0);
+        Action pastTheEnd = () =>
+        {
+            EventList list = buffer.Begin(Owner);
+            list.Add(new Note());
+            list.RemoveAt(1);
+        };
+
+        fromEmpty.Should().Throw<ArgumentOutOfRangeException>();
+        pastTheEnd.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    [Fact]
+    public void APredicateThatThrowsKeepsTheEventsFromTheFailureOnUnchanged()
+    {
+        var buffer = new EventBuffer();
+        int calls = 0;
+        List<int> remaining = [];
+        Action removeAll = () =>
         {
             EventList list = buffer.Begin(Owner);
             for (int i = 0; i < 6; i++)
@@ -211,19 +467,25 @@ public class EventListTests
             {
                 list.RemoveAll((ref Note n) =>
                 {
-                    if (++seen == 4)
+                    if (++calls == 4)
                         throw new InvalidOperationException("boom");
                     return n.Value % 2 == 0;
                 });
             }
             finally
             {
-                count = list.Count;
+                for (int i = 0; i < list.Count; i++)
+                    remaining.Add(list[i].As<Note>().Value);
             }
-        });
-        // Notes 0 and 2 were removed before the predicate threw on note 3. Notes 1, 3, 4 and 5 remain.
-        Assert.Equal(4, count);
+        };
+
+        removeAll.Should().Throw<InvalidOperationException>();
+
+        // Notes 0 and 2 were removed before the predicate threw on note 3, and notes 1, 3, 4 and 5 remain.
+        remaining.Should().Equal(1, 3, 4, 5);
     }
+
+    // ---- Allocation -----------------------------------------------------------------------------------------------------------
 
     [Fact]
     public void SteadyStateUseDoesNotAllocate()
@@ -234,7 +496,8 @@ public class EventListTests
         for (int i = 0; i < 100; i++)
             Exercise(buffer);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.Equal(0, allocated);
+
+        allocated.Should().Be(0);
 
         static void Exercise(EventBuffer buffer)
         {

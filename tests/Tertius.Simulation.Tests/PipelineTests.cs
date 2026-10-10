@@ -1,17 +1,39 @@
+using AwesomeAssertions;
+
 namespace Tertius.Simulation.Tests;
 
+/// <summary>
+/// When an entity runs and which of its components get called, in what order. How the components change the list of
+/// events they share is in <see cref="PipelineEventsTests"/>, and how an entity's components change, and fail, is in
+/// <see cref="PipelineComponentTests"/>.
+/// </summary>
 public class PipelineTests
 {
     private static Lambda Named(List<string> log, string name, int priority, EventMask wants) =>
-        new(wants, (Self self, scoped ref EventList events, scoped ref Outbox outbox) => log.Add(name), priority);
+        new(wants, (self, scoped ref events, scoped ref outbox) => log.Add(name), priority);
+
+    // ---- The order of the components ------------------------------------------------------------------------------
 
     [Fact]
-    public void ComponentsRunInPriorityOrderAndTiesKeepInsertionOrder()
+    public void ComponentsRunFromTheLowestPriorityToTheHighestWhateverOrderTheyWereGiven()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using var t = new TestWorld();
         var log = new List<string>();
         EventMask tick = EventMask.Of<Tick>();
-        world.SpawnWith(root,
+        t.SpawnWith(Named(log, "3", 3, tick), Named(log, "-2", -2, tick), Named(log, "1", 1, tick), Named(log, "0", 0, tick));
+
+        t.World.Tick();
+
+        log.Should().Equal("-2", "0", "1", "3");
+    }
+
+    [Fact]
+    public void ComponentsOfEqualPriorityRunInTheOrderTheyWereGivenEvenWhenOthersStandBetweenThem()
+    {
+        using var t = new TestWorld();
+        var log = new List<string>();
+        EventMask tick = EventMask.Of<Tick>();
+        t.SpawnWith(
             Named(log, "5a", 5, tick),
             Named(log, "1a", 1, tick),
             Named(log, "5b", 5, tick),
@@ -19,280 +41,171 @@ public class PipelineTests
             Named(log, "3", 3, tick),
             Named(log, "-2", -2, tick));
 
-        world.Tick();
+        t.World.Tick();
 
-        Assert.Equal(["-2", "1a", "1b", "3", "5a", "5b"], log);
+        log.Should().Equal("-2", "1a", "1b", "3", "5a", "5b");
     }
 
     [Fact]
-    public void AnAddedEventIsVisibleOnlyToLaterComponents()
+    public void TheOrderOfTheComponentsHoldsOnEveryRun()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var before = new Recorder(EventMask.Of<Tick>().And<Note>(), priority: -1);
-        var adder = new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) => events.Add(new Note { Value = 42 }, self.Entity));
-        var after = new Recorder(EventMask.Of<Note>(), priority: 1);
-        Entity e = world.SpawnWith(root, before, adder, after);
+        using var t = new TestWorld();
+        var log = new List<string>();
+        EventMask tick = EventMask.Of<Tick>();
+        t.SpawnWith(Named(log, "late", 1, tick), Named(log, "early", 0, tick));
 
-        world.Tick();
+        t.Run(3);
 
-        Assert.Single(before.Seen);
-        Assert.True(before.Seen[0].Event.Is<Tick>());
-        Assert.Equal(2, after.Seen.Count);
-        Assert.True(after.Seen[0].Event.Is<Tick>());
-        Assert.Equal(42, after.Seen[1].Event.As<Note>().Value);
-        Assert.True(after.Seen[1].Event.Target.TryGetValue(out Entity target));
-        Assert.Equal(e, target);
+        log.Should().Equal("early", "late", "early", "late", "early", "late");
     }
 
+    // ---- Which components are called ---------------------------------------------------------------------------------
+
     [Fact]
-    public void ComponentsWhoseWantsDoNotOverlapAreSkipped()
+    public void AComponentWhoseWantsDoNotOverlapTheListIsSkipped()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using var t = new TestWorld();
         var pings = new Recorder(EventMask.Of<Ping>());
         var heals = new Recorder(EventMask.Of<Heal>());
-        Entity target = world.SpawnWith(root, pings, heals);
-        world.SpawnWith(root, new Lambda(EventMask.Of<Tick>(),
-            (Self self, scoped ref EventList events, scoped ref Outbox outbox) => outbox.Send(target, new Ping { Value = 1 })));
+        Entity target = t.SpawnWith(pings, heals);
+        t.SpawnWith(SendOnce.Of(target, new Ping { Value = 1 }));
 
-        world.Run(2);
+        t.Run(2);
 
-        Assert.Equal(1, pings.Runs);
-        Assert.Equal(0, heals.Runs);
+        pings.Runs.Should().Be(1);
+        heals.Runs.Should().Be(0);
     }
 
     [Fact]
-    public void AnEntityWithNoMatchingEventsDoesNotRun()
+    public void AComponentThatIsCalledSeesTheWholeListNotOnlyTheTypesItWants()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using var t = new TestWorld();
+        var ticker = new Recorder(EventMask.Of<Tick>());
+        var pings = new Recorder(EventMask.Of<Ping>());
+        Entity target = t.SpawnWith(ticker, pings);
+        t.World.Post(Event.Create(target, Entity.Null, new Ping { Value = 1 }));
+
+        t.Run(2);
+
+        // On tick 1 the list holds the Tick and the Ping, and the component that wants only Pings sees both.
+        pings.History.Should().ContainSingle().Which.EventTypes.Should().Equal(typeof(Tick), typeof(Ping));
+    }
+
+    // ---- When an entity runs ------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AnEntityThatWantsTickRunsOnEveryTickEvenWithNoMail()
+    {
+        using var t = new TestWorld();
+        var ticker = new Recorder(EventMask.Of<Tick>());
+        t.SpawnWith(ticker);
+
+        t.Run(5);
+
+        ticker.History.Select(run => run.Tick).Should().Equal(0, 1, 2, 3, 4);
+    }
+
+    [Fact]
+    public void AnEntityThatDoesNotWantTickRunsOnlyOnTheTicksWhenMailArrives()
+    {
+        using var t = new TestWorld();
+        var inbox = new Recorder(EventMask.Of<Ping>());
+        Entity target = t.SpawnWith(inbox);
+        t.SpawnWith(SendEvery.Of(target, new Ping { Value = 1 }, every: 3));
+
+        t.Run(9);
+
+        // Sent on ticks 0, 3 and 6, so mail arrives on ticks 1, 4 and 7, and the entity runs on no other tick.
+        inbox.History.Select(run => run.Tick).Should().Equal(1, 4, 7);
+    }
+
+    [Fact]
+    public void AnEntityWithNothingToHandleDoesNotRun()
+    {
+        using var t = new TestWorld();
         var idle = new Recorder(EventMask.Of<Ping>());
-        Entity e = world.SpawnWith(root, idle);
+        t.SpawnWith(idle);
 
-        world.Run(5);
-        Assert.Equal(0, idle.Runs);
+        t.Run(5);
 
-        // A message type that the entity does not want is dropped at routing and does not wake it up.
-        world.Post(Event.Create(e, Entity.Null, new Heal()));
-        world.Run(2);
-        Assert.Equal(0, idle.Runs);
-        Assert.Equal(0, world.Stats.Deliveries);
-
-        world.Post(Event.Create(e, Entity.Null, new Ping { Value = 3 }));
-        world.Run(2);
-        Assert.Equal(1, idle.Runs);
-        Assert.Equal([3], idle.PingValues());
+        idle.Runs.Should().Be(0);
     }
 
     [Fact]
-    public void TickEventCarriesTheTickNumberAndComesFirst()
+    public void AMessageOfATypeNoComponentWantsIsDroppedAndDoesNotWakeTheEntity()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var recorder = new Recorder(EventMask.Of<Tick>().And<Ping>().And<Spawned>());
-        Entity e = world.SpawnWith(root, recorder);
-        world.Post(Event.Create(e, Entity.Null, new Ping { Value = 1 }));
+        using var t = new TestWorld();
+        var idle = new Recorder(EventMask.Of<Ping>());
+        Entity e = t.SpawnWith(idle);
 
-        world.Run(2);
+        t.World.Post(Event.Create(e, Entity.Null, new Heal()));
+        t.Run(2);
 
-        // Tick 0: Tick, then Spawned. Tick 1: Tick, then the posted Ping.
-        Assert.Equal(4, recorder.Seen.Count);
-        Assert.Equal(0, recorder.Seen[0].Event.As<Tick>().Number);
-        Assert.Equal(world.DeltaTime, recorder.Seen[0].Event.As<Tick>().DeltaTime);
-        Assert.True(recorder.Seen[1].Event.Is<Spawned>());
-        Assert.Equal(1, recorder.Seen[2].Event.As<Tick>().Number);
-        Assert.True(recorder.Seen[3].Event.Is<Ping>());
+        idle.Runs.Should().Be(0);
+        t.World.Stats.Deliveries.Should().Be(0);
     }
 
     [Fact]
-    public void SpawnedIsDeliveredOnceAndOnlyIfWanted()
+    public void AnIdleEntityRunsWhenAMessageItWantsFinallyArrives()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using var t = new TestWorld();
+        var idle = new Recorder(EventMask.Of<Ping>());
+        Entity e = t.SpawnWith(idle);
+        t.Run(5);
+
+        t.World.Post(Event.Create(e, Entity.Null, new Ping { Value = 3 }));
+        t.Run(2);
+
+        idle.Pings().Should().Equal((6L, 3));
+    }
+
+    // ---- The engine's own events -------------------------------------------------------------------------------------
+
+    [Fact]
+    public void TickCarriesTheTickNumberAndTheTimeStep()
+    {
+        using var t = new TestWorld();
+        var ticker = new Recorder(EventMask.Of<Tick>());
+        t.SpawnWith(ticker);
+
+        t.Run(3);
+
+        ticker.Seen.Select(seen => seen.Event.As<Tick>().Number).Should().Equal(0, 1, 2);
+        ticker.Seen.Select(seen => seen.Event.As<Tick>().DeltaTime).Should().AllBeEquivalentTo(t.World.DeltaTime);
+    }
+
+    [Fact]
+    public void TickComesFirstThenSpawnedThenTheInbox()
+    {
+        using var t = new TestWorld();
+        var recorder = new Recorder(EventMask.Of<Tick>().And<Spawned>().And<Ping>());
+        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            if (self.Tick != 0)
+                return;
+            // The child is spawned and sent a message on the same tick, so its first run has all three kinds of event.
+            Entity child = self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [recorder] });
+            outbox.Send(child, new Ping { Value = 1 });
+        }));
+
+        t.Run(2);
+
+        recorder.History.Should().ContainSingle().Which.EventTypes.Should().Equal(typeof(Tick), typeof(Spawned), typeof(Ping));
+    }
+
+    [Fact]
+    public void SpawnedIsDeliveredOnceToAnEntityThatWantsItAndNeverToOneThatDoesNot()
+    {
+        using var t = new TestWorld();
         var wants = new Recorder(EventMask.Of<Spawned>());
         var ignores = new Recorder(EventMask.Of<Ping>());
-        world.SpawnWith(root, wants);
-        world.SpawnWith(root, ignores);
+        t.SpawnWith(wants);
+        t.SpawnWith(ignores);
 
-        world.Run(3);
+        t.Run(3);
 
-        Assert.Equal(1, wants.Runs);
-        Assert.True(wants.Seen.Single().Event.Is<Spawned>());
-        Assert.Equal(0, ignores.Runs);
-    }
-
-    [Fact]
-    public void AComponentExceptionIsIsolatedAndReported()
-    {
-        using World world = TestWorld.Create(out FrameHandle root, maxDop: 4);
-        var logged = new List<string>();
-        world.Log += logged.Add;
-        var thrower = new Lambda(EventMask.Of<Tick>(),
-            (Self self, scoped ref EventList events, scoped ref Outbox outbox) => throw new InvalidOperationException("kaboom"));
-        var later = new Recorder(EventMask.Of<Tick>(), priority: 1);
-        Entity bad = world.SpawnWith(root, thrower, later);
-        var bystander = new Recorder(EventMask.Of<Tick>());
-        world.SpawnWith(root, bystander);
-
-        world.Run(2);
-
-        Assert.Equal(2, later.Runs);
-        Assert.Equal(2, bystander.Runs);
-        Assert.Equal(2, world.Errors.Count);
-        Assert.Contains(bad.ToString(), world.Errors[0]);
-        Assert.Contains(typeof(Lambda).FullName!, world.Errors[0]);
-        Assert.Contains("kaboom", world.Errors[0]);
-        Assert.Contains("tick 0", world.Errors[0]);
-        Assert.Contains("tick 1", world.Errors[1]);
-        Assert.Equal(2, logged.Count(l => l.Contains("kaboom")));
-        Assert.True(world.IsAlive(bad));
-    }
-
-    [Fact]
-    public void AddAndRemoveComponentTakeEffectForTheNextRunAndUpdateTheMask()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var late = new Recorder(EventMask.Of<Ping>());
-        int phase = 0;
-        bool visibleDuringRun = false;
-        Entity target = default;
-        var manager = new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-        {
-            if (self.Tick == 0)
-            {
-                self.AddComponent(late);
-                visibleDuringRun |= self.GetComponent<Recorder>() != null;
-            }
-            if (self.Tick == 2)
-                self.RemoveComponent(late);
-            phase++;
-        });
-        target = world.SpawnWith(root, manager);
-        world.SpawnWith(root, new Lambda(EventMask.Of<Tick>(),
-            (Self self, scoped ref EventList events, scoped ref Outbox outbox) => outbox.Send(target, new Ping { Value = (int)self.Tick })));
-
-        world.Tick();
-        // The Ping sent during tick 0 is routed with the new mask, so it reaches the new component on tick 1.
-        Assert.Same(late, world.GetComponent<Recorder>(target));
-        world.Run(4);
-
-        Assert.Equal([(1L, 0), (2L, 1)], late.Pings());
-        Assert.Null(world.GetComponent<Recorder>(target));
-        Assert.Single(world.GetComponents(target));
-        Assert.Equal(5, phase);
-        Assert.False(visibleDuringRun);
-        Assert.Empty(world.Errors);
-    }
-
-    [Fact]
-    public void AnAddedComponentTakesItsPlaceByPriorityAfterEqualOnes()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var order = new List<string>();
-        Lambda Named(string name, int priority) =>
-            new(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) => order.Add(name), priority);
-        Entity e = world.SpawnWith(root, Named("a0", 0), Named("b10", 10));
-
-        world.AddComponent(e, Named("c5", 5));
-        world.AddComponent(e, Named("d-1", -1));
-        world.AddComponent(e, Named("e5", 5));
-        world.Tick();
-
-        Assert.Equal(["d-1", "a0", "c5", "e5", "b10"], order);
-        Assert.Equal([-1, 0, 5, 5, 10], world.GetComponents(e).Select(c => c.Priority));
-    }
-
-    [Fact]
-    public void ComponentChangesThatFailDuringATickAreReported()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var log = new List<string>();
-        world.Log += log.Add;
-        var stranger = new Recorder();
-        Lambda? self = null;
-        self = new Lambda(EventMask.Of<Tick>(), (Self s, scoped ref EventList events, scoped ref Outbox outbox) =>
-        {
-            if (s.Tick != 0)
-                return;
-            s.AddComponent(self!);
-            s.RemoveComponent(stranger);
-        });
-        Entity e = world.SpawnWith(root, self);
-
-        world.Tick();
-
-        Assert.Contains("AddComponent", Assert.Single(world.Errors));
-        Assert.Contains(log, l => l.Contains("RemoveComponent: the entity has no such Recorder"));
-        Assert.Single(world.GetComponents(e));
-    }
-
-    [Fact]
-    public void WorldAddComponentOutsideATick()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        Entity e = world.SpawnWith(root);
-        var recorder = new Recorder(EventMask.Of<Tick>());
-        world.AddComponent(e, recorder);
-        world.Tick();
-        Assert.Equal(1, recorder.Runs);
-        Assert.True(world.RemoveComponent(e, recorder));
-        Assert.False(world.RemoveComponent(e, recorder));
-        world.Tick();
-        Assert.Equal(1, recorder.Runs);
-        world.AddComponent(e, recorder);
-        Assert.Throws<InvalidOperationException>(() => world.AddComponent(e, recorder));
-    }
-
-    [Fact]
-    public void SelfLogReachesTheLogAndErrorsKeepOnlyTheNewest()
-    {
-        using var world = new World(new WorldOptions { MaxErrors = 3, MaxDegreeOfParallelism = 1 });
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
-        var log = new List<string>();
-        world.Log += log.Add;
-        world.SpawnWith(root, new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-        {
-            self.Log($"hello {self.Tick}");
-            throw new InvalidOperationException($"failure {self.Tick}");
-        }));
-
-        world.Run(5);
-
-        Assert.Equal(5, log.Count(l => l.Contains("hello")));
-        Assert.Equal(5, log.Count(l => l.Contains("failure")));
-        Assert.Equal(3, world.Errors.Count);
-        Assert.Contains("failure 2", world.Errors[0]);
-        Assert.Contains("failure 4", world.Errors[2]);
-        world.ClearErrors();
-        Assert.Empty(world.Errors);
-    }
-
-    [Fact]
-    public void AComponentThatThrowsFromWantsFailsTheSpawnNotTheTick()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        Assert.Throws<NotSupportedException>(() => world.SpawnWith(root, new BrokenWants()));
-        world.SpawnWith(root, new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-        {
-            if (self.Tick == 0)
-                self.Spawn(new SpawnDesc { Frame = self.Frame, Components = [new BrokenWants()] });
-        }));
-        world.Run(2);
-        Assert.Contains(nameof(NotSupportedException), Assert.Single(world.Errors));
-        Assert.Equal(2, world.Stats.LiveEntities);
-    }
-
-    private sealed class BrokenWants : IComponent
-    {
-        public int Priority => 0;
-        public EventMask Wants => throw new NotSupportedException("no wants");
-
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-        {
-        }
-    }
-
-    [Fact]
-    public void SharedComponentInstancesAreRejected()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var shared = new Recorder();
-        Assert.Throws<ArgumentException>(() => world.Spawn(new SpawnDesc { Frame = root, Components = [shared, shared] }));
+        wants.Runs.Should().Be(1);
+        wants.Seen.Single().Event.Is<Spawned>().Should().BeTrue();
+        ignores.Runs.Should().Be(0);
     }
 }

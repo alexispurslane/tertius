@@ -1,423 +1,315 @@
+using AwesomeAssertions;
+
 namespace Tertius.Simulation.Tests;
 
+/// <summary>
+/// Direct messages and broadcast, through a whole world: when a message arrives, what arrives with it, in what order
+/// the messages of one tick land in an inbox, and what becomes of a message whose target is gone or new. Topics are in
+/// <see cref="MessagingTopicTests"/>, delayed sends in <see cref="MessagingDelayedTests"/> and messages from outside
+/// the simulation in <see cref="MessagingPostTests"/>.
+/// </summary>
 public class MessagingTests
 {
-    private static Lambda Sender(Func<long, (Target Target, int Value)[]> plan) =>
-        new(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-        {
-            foreach ((Target target, int value) in plan(self.Tick))
-                outbox.Send(target, new Ping { Value = value });
-        });
+    // ---- Latency ----------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void AMessageArrivesOnTheNextTick()
+    public void AMessageSentOnOneTickIsHandledOnTheNext()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using var t = new TestWorld();
         var inbox = new Recorder();
-        Entity b = world.SpawnWith(root, inbox);
-        world.SpawnWith(root, Sender(t => [(b, (int)t)]));
+        Entity receiver = t.SpawnWith(inbox);
+        Entity sender = t.SpawnWith(SendEvery.Of(receiver, tick => new Ping { Value = (int)tick }));
 
-        world.Run(4);
+        t.Run(4);
 
-        Assert.Equal([(1L, 0), (2L, 1), (3L, 2)], inbox.Pings());
-        Assert.All(inbox.Seen, s => Assert.NotEqual(Entity.Null, s.Event.Sender));
+        // Ticks 0 to 3 send the values 0 to 3, and each arrives one tick later, so the run ends before the last arrives.
+        inbox.Pings().Should().Equal((1L, 0), (2L, 1), (3L, 2));
+        inbox.Seen.Should().OnlyContain(seen => seen.Event.Sender == sender);
     }
 
     [Fact]
-    public void DirectTopicAndBroadcastDelivery()
+    public void AnAnswerToAMessageArrivesTwoTicksAfterTheQuestion()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
-        Topic topic = Topics.Get("tests.messaging.alarm");
-        var subscribed = new Recorder();
-        var other = new Recorder();
+        using var t = new TestWorld();
+        var responder = new Lambda(EventMask.Of<Ping>(), (self, scoped ref events, scoped ref outbox) =>
+        {
+            for (int i = 0; i < events.Count; i++)
+                if (events[i].Is<Ping>())
+                    outbox.Send(events[i].Sender, new Ping { Value = events[i].As<Ping>().Value + 100 });
+        });
+        Entity responderEntity = t.SpawnWith(responder);
+        var answers = new Recorder();
+        t.SpawnWith(SendOnce.Of(responderEntity, new Ping { Value = 1 }), answers);
+
+        t.Run(4);
+
+        // Asked on tick 0, handled and answered on tick 1, and the answer handled on tick 2.
+        responder.Runs.Should().Be(1);
+        answers.Pings().Should().Equal((2L, 101));
+    }
+
+    [Fact]
+    public void AnEntityCanSendAMessageToItself()
+    {
+        using var t = new TestWorld();
+        var inbox = new Recorder();
+        t.SpawnWith(inbox, Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            if (self.Tick == 0)
+                outbox.Send(self.Entity, new Ping { Value = 5 });
+        }));
+
+        t.Run(3);
+
+        inbox.Pings().Should().Equal((1L, 5));
+    }
+
+    [Fact]
+    public void ASenderThatDiesOnTheTickItSendsStillDeliversItsMessage()
+    {
+        using var t = new TestWorld();
+        var inbox = new Recorder();
+        Entity receiver = t.SpawnWith(inbox);
+        Entity sender = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            outbox.Send(receiver, new Ping { Value = 5 });
+            self.Destroy();
+        }));
+
+        t.Run(2);
+
+        t.World.IsAlive(sender).Should().BeFalse();
+        inbox.Pings().Should().Equal((1L, 5));
+    }
+
+    // ---- What arrives -------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AMessageArrivesWithItsPayloadItsSenderAndItsExtraData()
+    {
+        using var t = new TestWorld();
+        var inbox = new Recorder(EventMask.Of<Damage>());
+        Entity receiver = t.SpawnWith(inbox);
+        var extra = new object();
+        Entity sender = t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            if (self.Tick == 0)
+                outbox.Send(receiver, new Damage { Amount = 2.5f, Kind = 7 }, extra);
+        }));
+
+        t.Run(2);
+
+        Event arrived = inbox.Seen.Single().Event;
+        arrived.As<Damage>().Amount.Should().Be(2.5f);
+        arrived.As<Damage>().Kind.Should().Be(7);
+        arrived.Sender.Should().Be(sender);
+        arrived.Extra.Should().BeSameAs(extra);
+    }
+
+    [Fact]
+    public void ASendToNoTargetIsRejectedAndReported()
+    {
+        using var t = new TestWorld();
+        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => outbox.Send(default(Target), new Ping())));
+
+        t.World.Tick();
+
+        t.World.Errors.Should().ContainSingle().Which.Should().Contain(nameof(ArgumentException));
+        t.World.Stats.RoutedEvents.Should().Be(0);
+    }
+
+    // ---- Who receives it -------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ADirectMessageReachesOnlyItsTarget()
+    {
+        using var t = new TestWorld();
+        var target = new Recorder();
+        var bystander = new Recorder();
+        Entity targetEntity = t.SpawnWith(target);
+        t.SpawnWith(bystander);
+        t.SpawnWith(SendOnce.Of(targetEntity, new Ping { Value = 1 }));
+
+        t.Run(2);
+
+        target.PingValues().Should().Equal(1);
+        bystander.Seen.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AMessageSentToAFrameHandleReachesTheEntityThatOwnsTheFrameNotItsMembers()
+    {
+        using var t = new TestWorld();
+        var ownerInbox = new Recorder();
+        var memberInbox = new Recorder();
+        // A frame is an entity too. Its handle names that entity, and its topic (Frame.Topic) names the frame's contents.
+        Entity owner = t.World.Spawn(new SpawnDesc
+        {
+            Frame = t.Root,
+            Components = [ownerInbox],
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static),
+        });
+        FrameHandle ship = t.World.GetOwnedFrame(owner);
+        t.World.SpawnWith(ship, memberInbox);
+        t.SpawnWith(SendOnce.Of(ship, new Ping { Value = 1 }));
+
+        t.Run(2);
+
+        ownerInbox.PingValues().Should().Equal(1);
+        memberInbox.Seen.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ABroadcastReachesEveryEntityThatWantsItsTypeIncludingTheSender()
+    {
+        using var t = new TestWorld();
+        var first = new Recorder();
+        var second = new Recorder();
         var deaf = new Recorder(EventMask.Of<Heal>());
-        Entity a = world.Spawn(new SpawnDesc { Frame = root, Components = [subscribed], Subscriptions = [topic] });
-        Entity b = world.SpawnWith(root, other);
-        world.SpawnWith(root, deaf);
-        world.SpawnWith(root, Sender(t => t == 0 ? [(b, 1), (topic, 2), (new Broadcast(), 3)] : []));
+        var senderInbox = new Recorder();
+        t.SpawnWith(first);
+        t.SpawnWith(second);
+        t.SpawnWith(deaf);
+        t.SpawnWith(SendOnce.Of(new Broadcast(), new Ping { Value = 3 }), senderInbox);
 
-        world.Run(2);
+        t.Run(2);
 
-        Assert.Equal([2, 3], subscribed.PingValues());
-        Assert.Equal([1, 3], other.PingValues());
-        Assert.Equal(0, deaf.Runs);
-        Assert.True(world.IsAlive(a));
+        first.PingValues().Should().Equal(3);
+        second.PingValues().Should().Equal(3);
+        senderInbox.PingValues().Should().Equal(3);
+        deaf.Runs.Should().Be(0);
     }
 
     [Fact]
-    public void AFrameTopicReachesEveryEntityInThatFrameOnly()
+    public void ABroadcastReachesEntitiesInEveryFrame()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
-        FrameHandle shipA = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(100), AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
-        FrameHandle shipB = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(-100), AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
-        var inA1 = new Recorder();
-        var inA2 = new Recorder();
-        var inB = new Recorder();
+        using var t = new TestWorld();
+        FrameHandle ship = t.SpawnStaticFrame(TestWorld.At(100), radius: 50);
+        var onShip = new Recorder();
         var inRoot = new Recorder();
-        world.SpawnWith(shipA, inA1);
-        world.SpawnWith(shipA, inA2);
-        world.SpawnWith(shipB, inB);
-        world.SpawnWith(root, inRoot);
-        world.SpawnWith(root, Sender(t => t == 0 ? [(shipA.Topic, 7)] : []));
+        t.World.SpawnWith(ship, onShip);
+        t.SpawnWith(inRoot);
+        t.SpawnWith(SendOnce.Of(new Broadcast(), new Ping { Value = 1 }));
 
-        world.Run(2);
+        t.Run(2);
 
-        Assert.Equal([7], inA1.PingValues());
-        Assert.Equal([7], inA2.PingValues());
-        Assert.Empty(inB.Seen);
-        Assert.Empty(inRoot.Seen);
+        onShip.PingValues().Should().Equal(1);
+        inRoot.PingValues().Should().Equal(1);
+    }
+
+    // ---- The order of an inbox -------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AnInboxListsTheMessagesOfOneTickInChunkOrderThenSendOrderThenPostedEvents()
+    {
+        // Entities run in slot order here, because the world is single-threaded. That the order does not depend on which
+        // thread ran which chunk is the router's rule (RouterTests fills the chunks out of order) and the determinism
+        // test's (it hashes whole runs with many threads).
+        using var t = new TestWorld(chunkSize: 2);
+        var inbox = new Recorder();
+        Entity target = t.SpawnWith(inbox);
+        for (int sender = 1; sender <= 4; sender++)
+            t.SpawnWith(SendOnce.Of(target, new Ping { Value = sender * 10 }), SendOnce.Of(target, new Ping { Value = sender * 10 + 1 }));
+        t.World.Post(Event.Create(target, Entity.Null, new Ping { Value = 999 }));
+
+        t.Run(2);
+
+        inbox.PingValues().Should().Equal(10, 11, 20, 21, 30, 31, 40, 41, 999);
     }
 
     [Fact]
-    public void FrameTopicMembershipFollowsAHandOff()
+    public void AnEngineEventStandsAheadOfTheMessagesOfEntitiesInAnInbox()
     {
         IPhysicsBackend physics = TestPhysics.Create();
-        using World world = TestWorld.Create(out FrameHandle root, physics: physics);
-        FrameHandle a = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(0), AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
-        FrameHandle b = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(1000), AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
+        using var t = new TestWorld(physics);
+        FrameHandle a = t.SpawnStaticFrame(TestWorld.At(0), radius: 50);
+        FrameHandle b = t.SpawnStaticFrame(TestWorld.At(1000), radius: 50);
         var traveller = new Recorder(EventMask.Of<Ping>().And<FrameChanged>());
-        Entity body = world.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Components = [traveller] });
-        var deaf = new Recorder(EventMask.Of<Ping>());
-        Entity bystander = world.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Components = [deaf] });
+        Entity body = t.World.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Components = [traveller] });
         physics.OnStep((context, output) =>
         {
             if (context.Tick == 1)
-            {
-                output.HandOffs.Add(new HandOff(body, a, b, TestWorld.At(5), new System.Numerics.Vector3(1, 0, 0), default));
-                output.HandOffs.Add(new HandOff(bystander, a, b, TestWorld.At(6), default, default));
-            }
+                output.HandOffs.Add(new HandOff(body, a, b, TestWorld.At(5), default, default));
         });
-        world.SpawnWith(root, Sender(t => [(a.Topic, (int)(t * 10)), (b.Topic, (int)(t * 10 + 1))]));
+        t.SpawnWith(SendEvery.Of(body, new Ping { Value = 1 }));
 
-        world.Run(4);
+        t.Run(4);
 
-        Assert.Equal(b, world.GetFrame(body));
-        Assert.Equal(5, world.GetPose(body).Position.X);
-        Assert.Equal(1, world.GetVelocity(body).X);
-        // The hand-off applies before routing at the sync of tick 1, so from the messages of tick 1 on, topic B reaches it.
-        Assert.Equal([0, 11, 21], traveller.PingValues());
-        FrameChanged changed = traveller.Seen.Single(s => s.Event.Is<FrameChanged>()).Event.As<FrameChanged>();
-        Assert.Equal(a, changed.From);
-        Assert.Equal(b, changed.To);
-        Assert.Equal(2, traveller.Seen.Single(s => s.Event.Is<FrameChanged>()).Tick);
-        // FrameChanged is delivered only to entities that want it.
-        Assert.DoesNotContain(deaf.Seen, s => s.Event.Is<FrameChanged>());
-        Assert.Empty(world.Errors);
+        // The sync point of tick 1 sends the FrameChanged, and routes it together with the Ping that was sent on tick 1.
+        string[] runs = [.. traveller.History.Select(run => $"tick {run.Tick}: {string.Join(", ", run.EventTypes.Select(type => type.Name))}")];
+        runs.Should().Equal("tick 1: Ping", "tick 2: FrameChanged, Ping", "tick 3: Ping");
     }
 
+    // ---- A target that is gone, or new --------------------------------------------------------------------------------
+
     [Fact]
-    public void DelayedSendsJoinTheRoutingOfALaterTick()
+    public void AMessageToAnEntityThatDiesOnTheSameTickIsDropped()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using var t = new TestWorld();
         var inbox = new Recorder();
-        Entity target = world.SpawnWith(root, inbox);
-        world.SpawnWith(root, new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-        {
-            if (self.Tick != 0)
-                return;
-            outbox.SendAfter(3, target, new Ping { Value = 3 });
-            outbox.SendAfter(1, target, new Ping { Value = 1 });
-            outbox.Send(target, new Ping { Value = 0 });
-            outbox.SendAfter(1, target, new Ping { Value = 11 });
-        }));
+        Entity doomed = t.SpawnWith(inbox, Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy()));
+        t.SpawnWith(SendOnce.Of(doomed, new Ping { Value = 1 }));
 
-        world.Run(6);
+        t.Run(1);
 
-        Assert.Equal([(1L, 0), (2L, 1), (2L, 11), (4L, 3)], inbox.Pings());
+        // The message was sent and routed, but the entity was gone by the routing, so nothing was written to an inbox.
+        t.World.IsAlive(doomed).Should().BeFalse();
+        t.World.Stats.RoutedEvents.Should().Be(1);
+        t.World.Stats.Deliveries.Should().Be(0);
+        t.Run(1);
+        inbox.Seen.Should().BeEmpty();
     }
 
     [Fact]
-    public void ADelayOfZeroIsRejected()
+    public void ABroadcastReachesAnEntityThatIsSpawnedOnTheTickItIsSent()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
-        Entity target = world.SpawnWith(root, new Recorder());
-        world.SpawnWith(root, new Lambda(EventMask.Of<Tick>(),
-            (Self self, scoped ref EventList events, scoped ref Outbox outbox) => outbox.SendAfter(0, target, new Ping())));
-        world.Tick();
-        Assert.Contains(nameof(ArgumentOutOfRangeException), Assert.Single(world.Errors));
+        using var t = new TestWorld();
+        var child = new Recorder();
+        t.SpawnWith(new Spawner(() => [child]), SendOnce.Of(new Broadcast(), new Ping { Value = 3 }));
+
+        t.Run(2);
+
+        // The child goes live at the sync point, before the routing, so it is a recipient of the broadcast.
+        child.Pings().Should().Equal((1L, 3));
     }
 
     [Fact]
-    public void InboxOrderIsChunkOrderThenSendOrderWhateverTheThreads()
+    public void AMessageToAStaleHandleIsDroppedAndDoesNotReachTheEntityThatReusedTheSlot()
     {
-        for (int run = 0; run < 3; run++)
-        {
-            using World world = TestWorld.Create(out FrameHandle root, maxDop: 8, chunkSize: 2);
-            var inbox = new Recorder();
-            Entity target = world.SpawnWith(root, inbox);
-            for (int s = 1; s <= 4; s++)
-            {
-                int sender = s;
-                world.SpawnWith(root, Sender(t => t == 0 ? [(target, sender * 10), (target, sender * 10 + 1)] : []));
-            }
-            world.Post(Event.Create(target, Entity.Null, new Ping { Value = 999 }));
+        using var t = new TestWorld();
+        var first = new Recorder();
+        Entity old = t.SpawnWith(first);
+        t.World.Destroy(old);
+        var second = new Recorder();
+        Entity reused = t.SpawnWith(second);
+        reused.Index.Should().Be(old.Index);
+        reused.Generation.Should().NotBe(old.Generation);
 
-            world.Run(2);
+        t.World.Post(Event.Create(old, Entity.Null, new Ping { Value = 1 }));
+        t.Run(2);
 
-            Assert.Equal([10, 11, 20, 21, 30, 31, 40, 41, 999], inbox.PingValues());
-        }
+        first.Seen.Should().BeEmpty();
+        second.Seen.Should().BeEmpty();
     }
 
     [Fact]
-    public void PostIsThreadSafeAndJoinsTheNextRouting()
+    public void ASlotReusedOutsideATickDoesNotInheritTheMessagesOfItsPredecessor()
     {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var inbox = new Recorder();
-        Entity target = world.SpawnWith(root, inbox);
-
-        Parallel.For(0, 4, t =>
-        {
-            for (int i = 0; i < 250; i++)
-                world.Post(Event.Create(target, Entity.Null, new Ping { Value = t * 1000 + i }));
-        });
-        world.Tick();
-        Assert.Equal(0, inbox.Runs);
-        world.Tick();
-
-        Assert.Equal(1, inbox.Runs);
-        List<int> values = inbox.PingValues();
-        Assert.Equal(1000, values.Count);
-        Assert.Equal(1000, values.Distinct().Count());
-        Assert.Throws<ArgumentException>(() => world.Post(default));
-    }
-
-    [Fact]
-    public void SelfSubscribeAndUnsubscribeTakeEffectAtTheSyncPoint()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        Topic topic = Topics.Get("tests.messaging.news");
-        var inbox = new Recorder(EventMask.Of<Ping>().And<Tick>());
-        var manager = new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-        {
-            if (self.Tick == 0)
-                self.Subscribe(topic);
-            if (self.Tick == 2)
-                self.Unsubscribe(topic);
-        });
-        world.SpawnWith(root, manager, inbox);
-        world.SpawnWith(root, Sender(t => [(topic, (int)t)]));
-
-        world.Run(5);
-
-        // Subscriptions apply before routing, so the message sent during the subscribing tick already arrives.
-        Assert.Equal([(1L, 0), (2L, 1)], inbox.Pings());
-    }
-
-    [Fact]
-    public void WorldSubscribeOutsideATick()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        Topic topic = Topics.Get("tests.messaging.weather");
-        var inbox = new Recorder();
-        Entity e = world.SpawnWith(root, inbox);
-        world.Subscribe(e, topic);
-        world.Post(Event.Create(topic, Entity.Null, new Ping { Value = 1 }));
-        world.Run(2);
-        world.Unsubscribe(e, topic);
-        world.Post(Event.Create(topic, Entity.Null, new Ping { Value = 2 }));
-        world.Run(2);
-        Assert.Equal([1], inbox.PingValues());
-    }
-
-    [Fact]
-    public void AnEntityOutsideAFrameCanSubscribeToItsTopicAndNobodyHearsTwice()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        FrameHandle bay = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
-        var observer = new Recorder();
-        var member = new Recorder();
-        world.Spawn(new SpawnDesc { Frame = root, Components = [observer], Subscriptions = [bay.Topic] });
-        // Subscribing to its own frame's topic is allowed and changes nothing.
-        world.Spawn(new SpawnDesc { Frame = bay, Components = [member], Subscriptions = [bay.Topic] });
-        world.SpawnWith(root, Sender(t => t == 0 ? [(bay.Topic, 9)] : []));
-
-        world.Run(2);
-
-        Assert.Equal([9], observer.PingValues());
-        Assert.Equal([9], member.PingValues());
-    }
-
-    [Fact]
-    public void AMessageToADeadFrameNeverReachesTheFrameThatReusesItsIndex()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var log = new List<string>();
-        world.Log += log.Add;
-        FrameHandle old = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
-        Topic stale = old.Topic;
-        world.Destroy(old.Entity);
-        FrameHandle reused = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
-        Assert.Equal(old.Index, reused.Index);
-        Assert.NotEqual(old.Generation, reused.Generation);
-
-        var inside = new Recorder();
-        var watcher = new Recorder();
-        world.SpawnWith(reused, inside);
-        Entity outside = world.SpawnWith(root, watcher);
-        world.Subscribe(outside, stale);
-        Assert.Contains(log, l => l.Contains("cannot subscribe"));
-        // An entity that kept the old topic sends to it during a tick; the host posts to it from outside.
-        world.SpawnWith(root, Sender(t => t == 0 ? [(stale, 1), (reused.Topic, 2)] : []));
-        world.Post(Event.Create(stale, Entity.Null, new Ping { Value = 3 }));
-
-        world.Run(2);
-
-        Assert.Equal([2], inside.PingValues());
-        Assert.Empty(watcher.Seen);
-    }
-
-    [Fact]
-    public void TopicsQueriesAndDrawingWorkInEachOfManyFrames()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var frames = new List<FrameHandle>();
-        var recorders = new List<Recorder>();
-        for (int i = 0; i < 40; i++)
-        {
-            FrameHandle frame = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(i * 1000), AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static) }));
-            var recorder = new Recorder();
-            world.Spawn(new SpawnDesc
-            {
-                Frame = frame,
-                Pose = TestWorld.At(1, 2, 3),
-                Components = [recorder],
-                Render = new RenderData { Mesh = new MeshId(i), Flags = RenderFlags.Visible },
-            });
-            frames.Add(frame);
-            recorders.Add(recorder);
-        }
-        world.Camera = world.SpawnWith(root);
-        world.SpawnWith(root, Sender(t => t == 0 ? [.. frames.Select((f, i) => ((Target)f.Topic, i))] : []));
-
-        world.Run(2);
-
-        Assert.True(frames[^1].Index >= 32, frames[^1].ToString());
-        for (int i = 0; i < frames.Count; i++)
-            Assert.Equal([i], recorders[i].PingValues());
-        var found = new List<Entity>();
-        world.Snapshot.QueryRadius(frames[^1], new Double3(1, 2, 3), 0.5, found);
-        Assert.Single(found);
-        Assert.True(world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot));
-        Assert.Equal(40, snapshot.Instances.Count);
-        RenderInstance last = snapshot.Instances.Single(i => i.Mesh == new MeshId(39));
-        Assert.Equal(new System.Numerics.Vector3(39_001, 2, 3), last.Position);
-    }
-
-    [Fact]
-    public void ASlotReusedOutsideATickDoesNotInheritTheOldInbox()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
+        using var t = new TestWorld();
         var oldLog = new Recorder();
-        Entity old = world.SpawnWith(root, oldLog);
-        world.Post(Event.Create(old, Entity.Null, new Ping { Value = 1 }));
-        world.Tick();
+        Entity old = t.SpawnWith(oldLog);
+        t.World.Post(Event.Create(old, Entity.Null, new Ping { Value = 1 }));
+        t.World.Tick();
 
         // The Ping now sits in the old entity's inbox. Destroy it and reuse its slot before the next tick.
-        world.Destroy(old);
+        t.World.Destroy(old);
         var newLog = new Recorder();
-        Entity reused = world.SpawnWith(root, newLog);
-        Assert.Equal(old.Index, reused.Index);
-        world.Post(Event.Create(reused, Entity.Null, new Ping { Value = 2 }));
-        world.Run(2);
+        Entity reused = t.SpawnWith(newLog);
+        reused.Index.Should().Be(old.Index);
+        t.World.Post(Event.Create(reused, Entity.Null, new Ping { Value = 2 }));
+        t.Run(2);
 
-        Assert.Empty(oldLog.Seen);
-        Assert.Equal([2], newLog.PingValues());
-    }
-
-    [Fact]
-    public void AnEntityThatReusesASlotHearsNoneOfItsPredecessorsTopics()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        Topic topic = Topics.Get("tests.messaging.inherited");
-        FrameHandle bay = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
-        Entity old = world.Spawn(new SpawnDesc { Frame = bay, Components = [new Recorder()], Subscriptions = [topic, root.Topic] });
-        world.Destroy(old);
-        var heir = new Recorder();
-        Entity reused = world.SpawnWith(root, heir);
-        Assert.Equal(old.Index, reused.Index);
-
-        world.Post(Event.Create(topic, Entity.Null, new Ping { Value = 1 }));
-        world.Post(Event.Create(bay.Topic, Entity.Null, new Ping { Value = 2 }));
-        world.Post(Event.Create(root.Topic, Entity.Null, new Ping { Value = 3 }));
-        world.Run(2);
-
-        // Only the root topic, as a member of the root frame, and only once.
-        Assert.Equal([3], heir.PingValues());
-    }
-
-    [Fact]
-    public void AnEntityThatReusesASlotCanSubscribeToItsPredecessorsTopic()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        Topic topic = Topics.Get("tests.messaging.handed-down");
-        Entity old = world.Spawn(new SpawnDesc { Frame = root, Components = [new Recorder()], Subscriptions = [topic] });
-        world.Destroy(old);
-        var heir = new Recorder();
-        Entity reused = world.Spawn(new SpawnDesc { Frame = root, Components = [heir], Subscriptions = [topic] });
-        Assert.Equal(old.Index, reused.Index);
-
-        world.Post(Event.Create(topic, Entity.Null, new Ping { Value = 1 }));
-        world.Run(2);
-
-        Assert.Equal([1], heir.PingValues());
-    }
-
-    [Fact]
-    public void SubscribingTwiceIsHarmlessAndUnsubscribingKeepsTheOtherTopics()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var log = new List<string>();
-        world.Log += log.Add;
-        Topic first = Topics.Get("tests.messaging.first");
-        Topic second = Topics.Get("tests.messaging.second");
-        var inbox = new Recorder();
-        Entity e = world.Spawn(new SpawnDesc { Frame = root, Components = [inbox], Subscriptions = [first, first] });
-        world.Subscribe(e, first);
-        world.Subscribe(e, second);
-        world.Unsubscribe(e, first);
-        world.Unsubscribe(e, first);
-
-        world.Post(Event.Create(first, Entity.Null, new Ping { Value = 1 }));
-        world.Post(Event.Create(second, Entity.Null, new Ping { Value = 2 }));
-        world.Run(2);
-
-        Assert.Equal([2], inbox.PingValues());
-        Assert.Empty(log);
-    }
-
-    [Fact]
-    public void ATimerBucketIsReusedWithoutReplayingItsOldMessages()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var inbox = new Recorder();
-        Entity target = world.SpawnWith(root, inbox);
-        world.SpawnWith(root, new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-        {
-            if (self.Tick is 0 or 2 or 4)
-                outbox.SendAfter(1, target, new Ping { Value = (int)self.Tick });
-        }));
-
-        world.Run(7);
-
-        Assert.Equal([(2L, 0), (4L, 2), (6L, 4)], inbox.Pings());
-    }
-
-    [Fact]
-    public void MessagesToAStaleHandleAreDropped()
-    {
-        using World world = TestWorld.Create(out FrameHandle root);
-        var first = new Recorder();
-        Entity old = world.SpawnWith(root, first);
-        world.Destroy(old);
-        var second = new Recorder();
-        Entity reused = world.SpawnWith(root, second);
-        Assert.Equal(old.Index, reused.Index);
-        Assert.NotEqual(old.Generation, reused.Generation);
-
-        world.Post(Event.Create(old, Entity.Null, new Ping { Value = 1 }));
-        world.Run(2);
-
-        Assert.Empty(first.Seen);
-        Assert.Empty(second.Seen);
+        oldLog.Seen.Should().BeEmpty();
+        newLog.PingValues().Should().Equal(2);
     }
 }
