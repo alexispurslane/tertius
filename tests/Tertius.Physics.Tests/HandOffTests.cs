@@ -38,13 +38,13 @@ public class HandOffTests
                 before = h[ball];
             return exit is not null;
         }, 400);
-        Assert.True(exit is not null, $"no hand-off after {ticks} ticks");
+        exit.Should().NotBeNull("the ball leaves the ship within {0} ticks", ticks);
 
         HandOff result = exit!.Value;
-        Assert.Equal(ship, result.From);
-        Assert.Equal(space, result.To);
-        Assert.Equal(space, h[ball].Frame);
-        Assert.Equal(ship, before.Frame);
+        result.From.Should().Be(ship);
+        result.To.Should().Be(space);
+        h[ball].Frame.Should().Be(space);
+        before.Frame.Should().Be(ship);
 
         // In ship coordinates the ball coasts in a straight line (no Coriolis force acts), so at the end of the
         // hand-off step it is one step further along. Its parent velocity includes ω × r of the spinning ship.
@@ -52,12 +52,12 @@ public class HandOffTests
         var shipMotion = new FrameMotionData(shipAtExit.LocalPose, shipAtExit.LinearVelocity, shipAtExit.AngularVelocity);
         Double3 expected = ToParentVelocity(shipMotion, position, before.LinearVelocity);
         Double3 actual = result.LinearVelocity;
-        Assert.True((actual - expected).Length < 1e-3 * expected.Length, $"expected {expected}, got {actual}");
-        Assert.True((result.Pose.Position - shipMotion.Pose.TransformPoint(position)).Length < 1e-3, result.Pose.Position.ToString());
+        (actual - expected).Length.Should().BeLessThan(1e-3 * expected.Length);
+        (result.Pose.Position - shipMotion.Pose.TransformPoint(position)).Length.Should().BeLessThan(1e-3);
 
         // The spin term matters: without ω × r the answer would be off by meters per second.
         Double3 withoutSpin = shipMotion.Pose.TransformDirection(before.LinearVelocity) + shipMotion.Velocity;
-        Assert.True((withoutSpin - expected).Length > 1);
+        (withoutSpin - expected).Length.Should().BeGreaterThan(1);
     }
 
     [Fact]
@@ -85,16 +85,16 @@ public class HandOffTests
                 before = h[ball];
             return exit is not null;
         }, 400);
-        Assert.True(exit is not null);
-        Assert.Equal(station, exit!.Value.From);
-        Assert.Equal(planet, exit.Value.To);
+        exit.Should().NotBeNull();
+        exit!.Value.From.Should().Be(station);
+        exit.Value.To.Should().Be(planet);
 
         // The harness has advanced the station to the end of the hand-off step, so the tree converts exactly.
         Double3 position = before.Pose.Position + (Double3)before.LinearVelocity * PhysicsHarness.Dt;
         Double3 expected = h.Frames.VelocityToParent(station, position, before.LinearVelocity);
         Double3 actual = exit.Value.LinearVelocity;
-        Assert.True((actual - expected).Length < 1e-3 * expected.Length, $"expected {expected}, got {actual}");
-        Assert.True((exit.Value.Pose.Position - h.Frames.PointToParent(station, position)).Length < 1e-2);
+        (actual - expected).Length.Should().BeLessThan(1e-3 * expected.Length);
+        (exit.Value.Pose.Position - h.Frames.PointToParent(station, position)).Length.Should().BeLessThan(1e-2);
     }
 
     [Fact]
@@ -116,14 +116,13 @@ public class HandOffTests
             last = h[ball];
             return false;
         }, 120);
-        Assert.Single(h.HandOffs);
-        HandOff entry = h.HandOffs[0];
-        Assert.Equal(space, entry.From);
-        Assert.Equal(bubble, entry.To);
-        Assert.True((last.Pose.Position - center).Length - 20 > radius, "the ball touched the bubble one step earlier");
+        HandOff entry = h.HandOffs.Should().ContainSingle().Which;
+        entry.From.Should().Be(space);
+        entry.To.Should().Be(bubble);
+        ((last.Pose.Position - center).Length - 20).Should().BeGreaterThan(radius, "the ball did not touch the bubble one step earlier");
         double depth = entry.Pose.Position.Length - 20;
-        Assert.True(depth <= radius && depth > radius - 5 * PhysicsHarness.Dt - 1e-6, $"signed distance at entry {depth}");
-        Assert.True((entry.Pose.Position - (last.Pose.Position + (Double3)last.LinearVelocity * PhysicsHarness.Dt - center)).Length < 1e-6);
+        depth.Should().BeLessThanOrEqualTo(radius).And.BeGreaterThan(radius - 5 * PhysicsHarness.Dt - 1e-6);
+        (entry.Pose.Position - (last.Pose.Position + (Double3)last.LinearVelocity * PhysicsHarness.Dt - center)).Length.Should().BeLessThan(1e-6);
 
         // Turn back slowly. The ball stays in the child until it is fully outside plus the margin.
         h.Intent(ball).Flags = IntentFlags.SetVelocity;
@@ -135,22 +134,22 @@ public class HandOffTests
         {
             if (h.HandOffs.Count > 1)
                 return true;
-            Assert.Equal(bubble, h[ball].Frame);
-            Assert.False(bounds.FullyOutside(h[ball].Pose.Position, radius, margin));
+            h[ball].Frame.Should().Be(bubble);
+            bounds.FullyOutside(h[ball].Pose.Position, radius, margin).Should().BeFalse();
             ticksInside++;
             return false;
         }, 200);
-        Assert.Equal(2, h.HandOffs.Count);
+        h.HandOffs.Should().HaveCount(2);
         HandOff exit = h.HandOffs[1];
-        Assert.Equal(bubble, exit.From);
-        Assert.Equal(space, exit.To);
-        Assert.True(ticksInside > 20, $"left after {ticksInside} ticks");
-        Assert.True((exit.Pose.Position - center).Length - 20 > radius + margin);
+        exit.From.Should().Be(bubble);
+        exit.To.Should().Be(space);
+        ticksInside.Should().BeGreaterThan(20);
+        ((exit.Pose.Position - center).Length - 20).Should().BeGreaterThan(radius + margin);
 
         // Back in the parent and outside the margin, but not touching: it stays out.
         h.Step(5);
-        Assert.Equal(2, h.HandOffs.Count);
-        Assert.Equal(space, h[ball].Frame);
+        h.HandOffs.Should().HaveCount(2);
+        h[ball].Frame.Should().Be(space);
     }
 
     [Fact]
@@ -165,11 +164,10 @@ public class HandOffTests
 
         h.Step();
 
-        Assert.Single(h.HandOffs);
-        Assert.Equal(right, h.HandOffs[0].To);
-        Assert.Equal(right, h[ball].Frame);
+        h.HandOffs.Should().ContainSingle().Which.To.Should().Be(right);
+        h[ball].Frame.Should().Be(right);
         // It still touches the left bubble, so the left system holds a ghost of it.
-        Assert.True(h.Backend.HasGhostIn(ball, left));
+        h.Backend.HasGhostIn(ball, left).Should().BeTrue();
     }
 
     [Fact]
@@ -187,24 +185,25 @@ public class HandOffTests
 
         h.StepUntil(() => h.HandOffs.Count > 0, 120);
 
-        HandOff entry = Assert.Single(h.HandOffs);
-        Assert.Equal(fighter.Entity, entry.Entity);
-        Assert.Equal(space, entry.From);
-        Assert.Equal(carrier, entry.To);
-        Assert.Equal(carrier, h.Frames.Parent(fighter));
-        Assert.True(h.Backend.TryGetBodyFrame(fighter.Entity, out FrameHandle hullFrame) && hullFrame == carrier);
+        HandOff entry = h.HandOffs.Should().ContainSingle().Which;
+        entry.Entity.Should().Be(fighter.Entity);
+        entry.From.Should().Be(space);
+        entry.To.Should().Be(carrier);
+        h.Frames.Parent(fighter).Should().Be(carrier);
+        h.Backend.TryGetBodyFrame(fighter.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        hullFrame.Should().Be(carrier);
         // The fighter's own contents do not move.
-        Assert.Equal(fighter, h[pilot].Frame);
+        h[pilot].Frame.Should().Be(fighter);
         // It entered on first touch: its hull sphere reached the carrier's bubble.
         float hullRadius = h.Backend.BoundingRadius(fighterHull.Shape);
-        Assert.InRange(entry.Pose.Position.Length - 200, hullRadius - 60 * PhysicsHarness.Dt - 1e-3, hullRadius);
-        Assert.Equal(-60, entry.LinearVelocity.X, 3);
+        (entry.Pose.Position.Length - 200).Should().BeInRange(hullRadius - 60 * PhysicsHarness.Dt - 1e-3, hullRadius);
+        entry.LinearVelocity.X.Should().BeApproximately(-60, 5e-4f);
 
         // The fighter keeps flying inside the carrier frame, and the tree follows the hull.
         h.Step(10);
-        Assert.Single(h.HandOffs);
-        Assert.Equal(carrier, h[fighter.Entity].Frame);
-        Assert.True((h.Frames.LocalPose(fighter).Position - h[fighter.Entity].Pose.Position).Length < 1e-9);
+        h.HandOffs.Should().ContainSingle();
+        h[fighter.Entity].Frame.Should().Be(carrier);
+        (h.Frames.LocalPose(fighter).Position - h[fighter.Entity].Pose.Position).Length.Should().BeLessThan(1e-9);
     }
 
     [Fact]
@@ -218,20 +217,20 @@ public class HandOffTests
             velocity: new Vector3(-10, 0, 0));
         // The bubbles overlap from the start, so each hull has a ghost in the other frame.
         h.Step();
-        Assert.True(h.Backend.HasGhostIn(a.Entity, b));
-        Assert.True(h.Backend.HasGhostIn(b.Entity, a));
+        h.Backend.HasGhostIn(a.Entity, b).Should().BeTrue();
+        h.Backend.HasGhostIn(b.Entity, a).Should().BeTrue();
 
         h.Step(240);
 
-        Assert.Empty(h.HandOffs);
-        Assert.Equal(space, h.Frames.Parent(a));
-        Assert.Equal(space, h.Frames.Parent(b));
+        h.HandOffs.Should().BeEmpty();
+        h.Frames.Parent(a).Should().Be(space);
+        h.Frames.Parent(b).Should().Be(space);
         // B hit A: momentum is shared, so both now move in -X and the hulls do not overlap.
-        Assert.True(h.Frames.LinearVelocity(a).X < -3, h.Frames.LinearVelocity(a).ToString());
-        Assert.True(h.Frames.LinearVelocity(b).X > -7, h.Frames.LinearVelocity(b).ToString());
+        h.Frames.LinearVelocity(a).X.Should().BeLessThan(-3);
+        h.Frames.LinearVelocity(b).X.Should().BeGreaterThan(-7);
         double gap = h.Frames.LocalPose(b).Position.X - h.Frames.LocalPose(a).Position.X;
-        Assert.True(gap > 9.9, $"hulls overlap: centers {gap} m apart");
-        Assert.Contains(h.Contacts, c => (c.A == a.Entity && c.B == b.Entity) || (c.A == b.Entity && c.B == a.Entity));
+        gap.Should().BeGreaterThan(9.9, "the hull centers are that far apart when the hulls do not overlap");
+        h.Contacts.Should().Contain(c => (c.A == a.Entity && c.B == b.Entity) || (c.A == b.Entity && c.B == a.Entity));
     }
 
     [Fact]
@@ -251,15 +250,15 @@ public class HandOffTests
 
         h.StepUntil(() => h.HandOffs.Count > 0, 300);
 
-        HandOff exit = Assert.Single(h.HandOffs);
-        Assert.Equal(building, exit.From);
-        Assert.Equal(ground, exit.To);
-        Assert.Equal(4, exit.LinearVelocity.X, 1);
+        HandOff exit = h.HandOffs.Should().ContainSingle().Which;
+        exit.From.Should().Be(building);
+        exit.To.Should().Be(ground);
+        exit.LinearVelocity.X.Should().BeApproximately(4, 0.05f);
         // It keeps walking with the same desired velocity in the parent.
         double x = h[walker].Pose.Position.X;
         h.Step(30);
-        Assert.Equal(ground, h[walker].Frame);
-        Assert.InRange(h[walker].Pose.Position.X - x, 1.8, 2.2);
-        Assert.InRange(h[walker].Pose.Position.Y, 0.85, 1.0);
+        h[walker].Frame.Should().Be(ground);
+        (h[walker].Pose.Position.X - x).Should().BeInRange(1.8, 2.2);
+        h[walker].Pose.Position.Y.Should().BeInRange(0.85, 1.0);
     }
 }

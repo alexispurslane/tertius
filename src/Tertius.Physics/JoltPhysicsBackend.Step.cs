@@ -84,9 +84,10 @@ public sealed partial class JoltPhysicsBackend
         BodyID id = record.Body;
         IntentFlags flags = intent.Flags;
 
+        // Teleport first, so that a kinematic target in the same intent moves the body on from the new pose.
         if ((flags & IntentFlags.Teleport) != 0)
         {
-            bodies.SetRPositionAndRotation(id, intent.Target.Position.ToJolt(), intent.Target.Rotation.ToJolt(), Activation.Activate);
+            bodies.SetRPositionAndRotation(id, intent.TeleportPose.Position.ToJolt(), intent.TeleportPose.Rotation.ToJolt(), Activation.Activate);
             bodies.SetLinearAndAngularVelocity(id, Vector3.Zero, Vector3.Zero);
         }
         if ((flags & IntentFlags.SetVelocity) != 0)
@@ -138,8 +139,8 @@ public sealed partial class JoltPhysicsBackend
         IntentFlags flags = intent.Flags;
         if ((flags & IntentFlags.Teleport) != 0)
         {
-            character.RPosition = intent.Target.Position.ToJolt();
-            character.Rotation = intent.Target.Rotation.ToJolt();
+            character.RPosition = intent.TeleportPose.Position.ToJolt();
+            character.Rotation = intent.TeleportPose.Rotation.ToJolt();
             character.LinearVelocity = Vector3.Zero;
             record.PendingVelocityChange = Vector3.Zero;
         }
@@ -184,8 +185,6 @@ public sealed partial class JoltPhysicsBackend
         float wakeThreshold = options.WakeAccelerationThreshold;
         foreach (FrameWorld world in worldList)
         {
-            if (world.Orphaned)
-                continue;
             FrameHandle frame = world.Frame;
             Vector3 properAcceleration = frames.ProperAcceleration(frame);
             GravityField field = frames.Gravity(frame);
@@ -215,9 +214,9 @@ public sealed partial class JoltPhysicsBackend
         // A sleeping hull still rests against gravity, and its frame's accelerometer reads that.
         foreach (BodyRecord owner in frameOwners)
         {
-            if (owner.Motion != BodyMotion.Dynamic || !owner.HasPrimary || owner.World!.Orphaned)
+            if (owner.Motion != BodyMotion.Dynamic || !owner.HasPrimary)
                 continue;
-            BodyInterface bodies = owner.World.Bodies;
+            BodyInterface bodies = owner.World!.Bodies;
             if (bodies.IsActive(owner.Body))
                 continue;
             bodies.GetRCenterOfMassPosition(owner.Body, out RVector3 center);
@@ -239,7 +238,7 @@ public sealed partial class JoltPhysicsBackend
     {
         foreach (FrameWorld world in worldList)
         {
-            if (world.Orphaned || world.CharacterCount == 0)
+            if (world.CharacterCount == 0)
                 continue;
             foreach (BodyRecord member in world.Members)
                 if (member.Character is { } character)
@@ -320,8 +319,6 @@ public sealed partial class JoltPhysicsBackend
     {
         foreach (FrameWorld world in worldList)
         {
-            if (world.Orphaned)
-                continue;
             if (world.CharacterCount == 0 && world.System.GetNumActiveBodies(BodyType.Rigid) == 0)
                 continue;
             PhysicsUpdateError error = world.System.Update(stepDt, 1, jobs);

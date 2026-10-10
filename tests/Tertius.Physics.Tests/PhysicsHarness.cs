@@ -109,10 +109,12 @@ internal sealed class PhysicsHarness : IDisposable
 
     public BodyState this[Entity entity] => States[entity];
 
-    /// <summary>Applies pending changes, as the sync point does before a step.</summary>
+    /// <summary>Applies pending changes, as the sync point does before a step. Like the simulation, it skips an empty batch.</summary>
     public void Sync()
     {
-        Backend.ApplyChanges(Changes, Frames);
+        if (Changes.FramesCreated.Count > 0 || Changes.BodiesDestroyed.Count > 0 ||
+            Changes.FramesDestroyed.Count > 0 || Changes.BodiesCreated.Count > 0)
+            Backend.ApplyChanges(Changes, Frames);
         Changes.Clear();
         Frames.Update();
     }

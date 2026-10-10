@@ -8,17 +8,17 @@ public class ShapeTests
     public void BoundingRadiusOfEachShape()
     {
         using var backend = new JoltPhysicsBackend();
-        Assert.Equal(3f, backend.BoundingRadius(new BoxShapeDesc(new Vector3(1, 2, 2))), 5);
-        Assert.Equal(1.5f, backend.BoundingRadius(new SphereShapeDesc(1.5f)));
-        Assert.Equal(1.5f, backend.BoundingRadius(new CapsuleShapeDesc(1, 0.5f)), 5);
-        Assert.Equal(0.5f, backend.BoundingRadius(new CapsuleShapeDesc(0, 0.5f)), 5);
+        backend.BoundingRadius(new BoxShapeDesc(new Vector3(1, 2, 2))).Should().BeApproximately(3f, 5e-6f);
+        backend.BoundingRadius(new SphereShapeDesc(1.5f)).Should().Be(1.5f);
+        backend.BoundingRadius(new CapsuleShapeDesc(1, 0.5f)).Should().BeApproximately(1.5f, 5e-6f);
+        backend.BoundingRadius(new CapsuleShapeDesc(0, 0.5f)).Should().BeApproximately(0.5f, 5e-6f);
 
         var hull = new ConvexHullShapeDesc([new(1, 0, 0), new(-1, 0, 0), new(0, 2, 0), new(0, 0, -3)]);
-        Assert.Equal(3f, backend.BoundingRadius(hull), 5);
+        backend.BoundingRadius(hull).Should().BeApproximately(3f, 5e-6f);
 
         // A vertex that no triangle uses is not part of the shape.
         var mesh = new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0), new(100, 100, 100)], [0, 1, 2]);
-        Assert.Equal(1f, backend.BoundingRadius(mesh), 5);
+        backend.BoundingRadius(mesh).Should().BeApproximately(1f, 5e-6f);
 
         // Children with poses: a unit sphere at x = 3, and a unit cube at y = -3 turned 45° about Z. The cube's
         // farthest corner is at (0, -3 - √2, ±1).
@@ -28,11 +28,11 @@ public class ShapeTests
             new CompoundChild(new BoxShapeDesc(new Vector3(1)), new Pose(new Vector3(0, -3, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 4))),
         ]);
         double expected = Math.Sqrt((3 + Math.Sqrt(2)) * (3 + Math.Sqrt(2)) + 1);
-        Assert.Equal(expected, backend.BoundingRadius(compound), 4);
+        ((double)backend.BoundingRadius(compound)).Should().BeApproximately(expected, 5e-5);
 
         // Nested compounds compose their poses.
         var nested = new CompoundShapeDesc([new CompoundChild(compound, new Pose(new Vector3(0, 0, 10), Quaternion.Identity))]);
-        Assert.Equal(Math.Sqrt((3 + Math.Sqrt(2)) * (3 + Math.Sqrt(2)) + 121), backend.BoundingRadius(nested), 4);
+        ((double)backend.BoundingRadius(nested)).Should().BeApproximately(Math.Sqrt((3 + Math.Sqrt(2)) * (3 + Math.Sqrt(2)) + 121), 5e-5);
     }
 
     [Fact]
@@ -41,7 +41,7 @@ public class ShapeTests
         using var backend = new JoltPhysicsBackend();
         var box = new BoxShapeDesc(new Vector3(0.1f, 0.2f, 0.3f));
         float radius = backend.BoundingRadius(box);
-        Assert.True(radius >= Math.Sqrt(0.1f * 0.1f + 0.2f * 0.2f + 0.3f * 0.3f));
+        ((double)radius).Should().BeGreaterThanOrEqualTo(Math.Sqrt(0.1f * 0.1f + 0.2f * 0.2f + 0.3f * 0.3f));
     }
 
     [Fact]
@@ -79,8 +79,8 @@ public class ShapeTests
         // Everything fell onto the mesh and came to rest above it.
         foreach (Entity body in bodies)
         {
-            Assert.InRange(h[body].Pose.Position.Y, -0.02, 1);
-            Assert.True(h[body].LinearVelocity.Length() < 0.1f);
+            h[body].Pose.Position.Y.Should().BeInRange(-0.02, 1);
+            h[body].LinearVelocity.Length().Should().BeLessThan(0.1f);
         }
     }
 
@@ -91,25 +91,24 @@ public class ShapeTests
         FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
         var mesh = new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)], [0, 1, 2]);
         h.AddBody(space, new BodyDesc(mesh, BodyMotion.Dynamic), DPose.Identity);
-        var error = Assert.Throws<ArgumentException>(h.Sync);
-        Assert.Contains("Mesh", error.Message);
+        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>().WithMessage("*Mesh*");
 
         // Inside a compound it is rejected too, and so is a mesh hull of a physics-driven frame.
         h.Changes.Clear();
         var compound = new CompoundShapeDesc([new CompoundChild(mesh, Pose.Identity)]);
         h.AddBody(space, new BodyDesc(compound, BodyMotion.Kinematic), DPose.Identity);
-        Assert.Throws<ArgumentException>(h.Sync);
+        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
         h.Changes.Clear();
         FrameHandle ship = h.AddFrame(space, DPose.Identity, FrameBounds.Sphere(10), MotionDriver.Physics);
         h.AddBody(space, new BodyDesc(mesh), DPose.Identity, entity: ship.Entity);
-        Assert.Throws<ArgumentException>(h.Sync);
+        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
 
         // As a static frame interior, a mesh is fine.
         h.Changes.Clear();
         FrameHandle hangar = h.AddFrameWithBody(space, Shapes.At(100, 0, 0), FrameBounds.Sphere(50), MotionDriver.Static,
             new BodyDesc(new BoxShapeDesc(new Vector3(10)), BodyMotion.Static, InteriorShape: mesh));
         h.Sync();
-        Assert.True(h.Backend.HasInterior(hangar.Entity));
+        h.Backend.HasInterior(hangar.Entity).Should().BeTrue();
     }
 
     [Fact]
@@ -118,16 +117,16 @@ public class ShapeTests
         using var h = new PhysicsHarness();
         FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
         h.AddBody(space, new BodyDesc(new ConvexHullShapeDesc([new(1, 1, 1), new(1, 1, 1), new(1, 1, 1), new(1, 1, 1)])), DPose.Identity);
-        Assert.Throws<ArgumentException>(h.Sync);
+        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
         h.Changes.Clear();
         h.AddBody(space, new BodyDesc(new ConvexHullShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)])), DPose.Identity);
-        Assert.Throws<ArgumentException>(h.Sync);
+        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
         h.Changes.Clear();
         h.AddBody(space, new BodyDesc(new MeshShapeDesc([new(0, 0, 0)], [0, 1, 2]), BodyMotion.Static), DPose.Identity);
-        Assert.Throws<ArgumentException>(h.Sync);
+        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
         h.Changes.Clear();
         h.AddBody(space, new BodyDesc(new SphereShapeDesc(1), BodyMotion.Character), DPose.Identity);
-        Assert.Throws<ArgumentException>(h.Sync);
+        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
     }
 
     [Fact]
@@ -144,6 +143,6 @@ public class ShapeTests
         };
         for (int a = 0; a < 4; a++)
             for (int b = 0; b < 4; b++)
-                Assert.Equal(expected[a, b], Layers.Collide(layers[a], layers[b]));
+                Layers.Collide(layers[a], layers[b]).Should().Be(expected[a, b], "the table says so for {0} against {1}", layers[a], layers[b]);
     }
 }

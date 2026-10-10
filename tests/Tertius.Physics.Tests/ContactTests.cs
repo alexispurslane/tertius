@@ -15,16 +15,17 @@ public class ContactTests
 
         h.Step(120);
 
-        ContactStarted contact = Assert.Single(h.Contacts);
+        ContactStarted contact = h.Contacts.Should().ContainSingle().Which;
         // Canonical order: the lower entity first. The normal points from A to B.
-        Assert.Equal(floor, contact.A);
-        Assert.Equal(box, contact.B);
-        Assert.Equal(ground, contact.Frame);
-        Assert.True(Vector3.Distance(contact.Normal, Vector3.UnitY) < 1e-3f, contact.Normal.ToString());
-        Assert.InRange(contact.Point.Y, -0.05, 0.05);
-        Assert.True(Math.Abs(contact.Point.X) < 0.6 && Math.Abs(contact.Point.Z) < 0.6);
+        contact.A.Should().Be(floor);
+        contact.B.Should().Be(box);
+        contact.Frame.Should().Be(ground);
+        Vector3.Distance(contact.Normal, Vector3.UnitY).Should().BeLessThan(1e-3f);
+        contact.Point.Y.Should().BeInRange(-0.05, 0.05);
+        Math.Abs(contact.Point.X).Should().BeLessThan(0.6);
+        Math.Abs(contact.Point.Z).Should().BeLessThan(0.6);
         // It fell 0.2 m: about 2 m/s, times the reduced mass (2 kg against a static floor).
-        Assert.InRange(contact.Impulse, 3f, 4.5f);
+        contact.Impulse.Should().BeInRange(3f, 4.5f);
     }
 
     [Fact]
@@ -39,11 +40,11 @@ public class ContactTests
 
         h.Step(90);
 
-        ContactStarted contact = Assert.Single(h.Contacts);
-        Assert.Equal(ship, contact.Frame);
-        Assert.Equal(ship.Entity, contact.A);
-        Assert.Equal(crate, contact.B);
-        Assert.InRange(contact.Point.Y, -2.05, -1.95);
+        ContactStarted contact = h.Contacts.Should().ContainSingle().Which;
+        contact.Frame.Should().Be(ship);
+        contact.A.Should().Be(ship.Entity);
+        contact.B.Should().Be(crate);
+        contact.Point.Y.Should().BeInRange(-2.05, -1.95);
     }
 
     [Fact]
@@ -59,8 +60,7 @@ public class ContactTests
 
         h.Step(60);
 
-        Assert.Equal(5, h.Contacts.Count);
-        Assert.All(h.Contacts, c => Assert.Equal(floor, c.A));
-        Assert.Equal(boxes, h.Contacts.Select(c => c.B));
+        h.Contacts.Should().HaveCount(5).And.OnlyContain(c => c.A == floor);
+        h.Contacts.Select(c => c.B).Should().Equal(boxes);
     }
 }

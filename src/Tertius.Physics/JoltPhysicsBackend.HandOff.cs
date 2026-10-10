@@ -108,7 +108,7 @@ public sealed partial class JoltPhysicsBackend
         handOffPlans.Clear();
         foreach (FrameWorld world in worldList)
         {
-            if (world.Orphaned || world.Members.Count == 0)
+            if (world.Members.Count == 0)
                 continue;
             FrameHandle frame = world.Frame;
             FrameHandle parent = ParentOf(frame);
@@ -222,7 +222,7 @@ public sealed partial class JoltPhysicsBackend
         for (int w = 0; w < worldCount; w++)
         {
             FrameWorld world = worldList[w];
-            if (world.Orphaned || world.Members.Count == 0)
+            if (world.Members.Count == 0)
                 continue;
             FrameHandle frame = world.Frame;
             FrameHandle parent = ParentOf(frame);
@@ -354,8 +354,6 @@ public sealed partial class JoltPhysicsBackend
     {
         foreach (FrameWorld world in worldList)
         {
-            if (world.Orphaned)
-                continue;
             (world.ReportedLast, world.ReportedNow) = (world.ReportedNow, world.ReportedLast);
             world.ReportedNow.Clear();
 
@@ -395,7 +393,7 @@ public sealed partial class JoltPhysicsBackend
     {
         foreach (BodyRecord owner in frameOwners)
         {
-            if (owner.Motion != BodyMotion.Dynamic || !owner.HasPrimary || owner.World!.Orphaned)
+            if (owner.Motion != BodyMotion.Dynamic || !owner.HasPrimary)
                 continue;
             BodySnapshot s = ReadPrimary(owner);
             Double3 originVelocity = (Double3)s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);

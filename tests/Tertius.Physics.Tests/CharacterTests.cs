@@ -27,12 +27,13 @@ public class CharacterTests
             Entity person = h.AddBody(ground, Person, Shapes.At(1, StandingHeight + 0.3, 2));
             h.Step(90);
             BodyState state = h[person];
-            Assert.Equal(ground, state.Frame);
-            Assert.InRange(state.Pose.Position.Y, StandingHeight - 0.01, StandingHeight + 0.05);
-            Assert.True(Math.Abs(state.Pose.Position.X - 1) < 1e-3 && Math.Abs(state.Pose.Position.Z - 2) < 1e-3);
-            Assert.True(state.LinearVelocity.Length() < 0.2f, state.LinearVelocity.ToString());
+            state.Frame.Should().Be(ground);
+            state.Pose.Position.Y.Should().BeInRange(StandingHeight - 0.01, StandingHeight + 0.05);
+            state.Pose.Position.X.Should().BeApproximately(1, 1e-3);
+            state.Pose.Position.Z.Should().BeApproximately(2, 1e-3);
+            state.LinearVelocity.Length().Should().BeLessThan(0.2f);
             // Upright along the gravity's up direction.
-            Assert.True(Vector3.Distance(state.Pose.Rotation.Rotate(Vector3.UnitY), Vector3.UnitY) < 1e-4f);
+            Vector3.Distance(state.Pose.Rotation.Rotate(Vector3.UnitY), Vector3.UnitY).Should().BeLessThan(1e-4f);
         }
     }
 
@@ -49,16 +50,21 @@ public class CharacterTests
             h.Intent(person).CharacterVelocity = new Vector3(3, 5, 0);
             h.Step(60);
             BodyState walking = h[person];
-            Assert.InRange(walking.Pose.Position.X, 2.8, 3.1);
-            Assert.InRange(walking.Pose.Position.Y, StandingHeight - 0.01, StandingHeight + 0.05);
-            Assert.Equal(3, walking.LinearVelocity.X, 1);
+            walking.Pose.Position.X.Should().BeInRange(2.8, 3.1);
+            walking.Pose.Position.Y.Should().BeInRange(StandingHeight - 0.01, StandingHeight + 0.05);
+            walking.LinearVelocity.X.Should().BeApproximately(3, 0.05f);
+
+            // A sideways push is not a new CharacterMove: the character keeps walking.
+            h.Intent(person).Impulse = new Vector3(0, 0, 70);
+            h.Step(30);
+            (h[person].Pose.Position.X - walking.Pose.Position.X).Should().BeInRange(1.4, 1.6);
 
             h.Intent(person).Flags = IntentFlags.CharacterMove;
             h.Intent(person).CharacterVelocity = Vector3.Zero;
             h.Step(30);
             double x = h[person].Pose.Position.X;
             h.Step(30);
-            Assert.True(Math.Abs(h[person].Pose.Position.X - x) < 1e-3);
+            h[person].Pose.Position.X.Should().BeApproximately(x, 1e-3);
         }
     }
 
@@ -80,8 +86,8 @@ public class CharacterTests
                 peak = Math.Max(peak, h[person].Pose.Position.Y);
             }
             // v² / 2g = 1.27 m.
-            Assert.InRange(peak - floor, 1.15, 1.35);
-            Assert.InRange(h[person].Pose.Position.Y, floor - 0.02, floor + 0.02);
+            (peak - floor).Should().BeInRange(1.15, 1.35);
+            h[person].Pose.Position.Y.Should().BeInRange(floor - 0.02, floor + 0.02);
         }
     }
 
@@ -106,12 +112,12 @@ public class CharacterTests
             }
 
             Double3 moved = h[person].Pose.Position - start;
-            Assert.InRange(moved.X, 1.85, 2.1);
-            Assert.InRange(moved.Y, 0.45, 0.55);
-            Assert.True((h[lift].Pose.Position - new Double3(2, 1.5, 0)).Length < 1e-4);
+            moved.X.Should().BeInRange(1.85, 2.1);
+            moved.Y.Should().BeInRange(0.45, 0.55);
+            (h[lift].Pose.Position - new Double3(2, 1.5, 0)).Length.Should().BeLessThan(1e-4);
             // The platform stops at its last target.
             h.Step(5);
-            Assert.True((h[lift].Pose.Position - new Double3(2, 1.5, 0)).Length < 1e-4);
+            (h[lift].Pose.Position - new Double3(2, 1.5, 0)).Length.Should().BeLessThan(1e-4);
         }
     }
 
@@ -129,8 +135,39 @@ public class CharacterTests
             h.Intent(deck).Velocity = new Vector3(0, 0, 2);
             double z = h[person].Pose.Position.Z;
             h.Step(60);
-            Assert.InRange(h[person].Pose.Position.Z - z, 1.9, 2.05);
-            Assert.InRange(h[deck].Pose.Position.Z, 1.95, 2.05);
+            (h[person].Pose.Position.Z - z).Should().BeInRange(1.9, 2.05);
+            h[deck].Pose.Position.Z.Should().BeInRange(1.95, 2.05);
+        }
+    }
+
+    [Fact]
+    public void ImpulsesForcesAndSetVelocityMoveACharacterInTheAirByItsMass()
+    {
+        var (h, ground) = World();
+        using (h)
+        {
+            // High above the floor, so the character is in the air and keeps its momentum.
+            Entity person = h.AddBody(ground, Person, Shapes.At(0, 40, 0));
+            h.Step();
+            Vector3 falling = h[person].LinearVelocity;
+
+            // 140 N·s and 4200 N for one step on 70 kg: +2 m/s along X and +1 m/s along Z.
+            h.Intent(person).Impulse = new Vector3(140, 0, 0);
+            h.Intent(person).Force = new Vector3(0, 0, 4200);
+            h.Step();
+            Vector3 pushed = h[person].LinearVelocity;
+            pushed.X.Should().BeApproximately(2, 1e-3f);
+            pushed.Z.Should().BeApproximately(1, 1e-3f);
+            pushed.Y.Should().BeApproximately(falling.Y - 9.81f * PhysicsHarness.Dt, 1e-3f);
+
+            // SetVelocity replaces the velocity; gravity then acts for the step.
+            h.Intent(person).Flags = IntentFlags.SetVelocity;
+            h.Intent(person).Velocity = new Vector3(0, 3, 0);
+            h.Step();
+            Vector3 thrown = h[person].LinearVelocity;
+            thrown.X.Should().BeApproximately(0, 1e-3f);
+            thrown.Z.Should().BeApproximately(0, 1e-3f);
+            thrown.Y.Should().BeApproximately(3 - 9.81f * PhysicsHarness.Dt, 1e-3f);
         }
     }
 
@@ -143,7 +180,7 @@ public class CharacterTests
         h.Intent(person).Flags = IntentFlags.CharacterMove;
         h.Intent(person).CharacterVelocity = new Vector3(0, 1, 1);
         h.Step(60);
-        Assert.True((h[person].Pose.Position - new Double3(0, 1, 1)).Length < 0.05, h[person].Pose.Position.ToString());
+        (h[person].Pose.Position - new Double3(0, 1, 1)).Length.Should().BeLessThan(0.05);
     }
 
     [Fact]
@@ -158,7 +195,7 @@ public class CharacterTests
         Entity person = h.AddBody(planet, Person, new DPose(new Double3(radius + StandingHeight + 0.1, 0, 0), DQuaternion.Identity));
         h.Step(60);
         BodyState state = h[person];
-        Assert.InRange(state.Pose.Position.X - radius, StandingHeight - 0.01, StandingHeight + 0.05);
-        Assert.True(Vector3.Distance(state.Pose.Rotation.Rotate(Vector3.UnitY), Vector3.UnitX) < 1e-3f);
+        (state.Pose.Position.X - radius).Should().BeInRange(StandingHeight - 0.01, StandingHeight + 0.05);
+        Vector3.Distance(state.Pose.Rotation.Rotate(Vector3.UnitY), Vector3.UnitX).Should().BeLessThan(1e-3f);
     }
 }

@@ -19,11 +19,12 @@ public class GravityTests
         h.Step(150);
 
         BodyState state = h[box];
-        Assert.Equal(planet, state.Frame);
+        state.Frame.Should().Be(planet);
         double height = state.Pose.Position.Y - (EarthRadius + 0.5);
-        Assert.True(Math.Abs(height) < 0.02, $"rest height error {height} m");
-        Assert.True(Math.Abs(state.Pose.Position.X) < 1e-3 && Math.Abs(state.Pose.Position.Z) < 1e-3, state.Pose.Position.ToString());
-        Assert.True(state.LinearVelocity.Length() < 0.05f, state.LinearVelocity.ToString());
+        height.Should().BeApproximately(0, 0.02, "the box rests on the surface");
+        state.Pose.Position.X.Should().BeApproximately(0, 1e-3);
+        state.Pose.Position.Z.Should().BeApproximately(0, 1e-3);
+        state.LinearVelocity.Length().Should().BeLessThan(0.05f);
     }
 
     [Fact]
@@ -37,10 +38,10 @@ public class GravityTests
 
         double g = EarthMu / ((EarthRadius + 100) * (EarthRadius + 100));
         double t = 30 * PhysicsHarness.Dt;
-        Assert.Equal(-g * t, h[ball].LinearVelocity.Y, 2);
+        ((double)h[ball].LinearVelocity.Y).Should().BeApproximately(-g * t, 5e-3);
         // Semi-implicit Euler falls a little further than the exact g t² / 2.
         double fall = EarthRadius + 100 - h[ball].Pose.Position.Y;
-        Assert.InRange(fall, 0.5 * g * t * t, 0.5 * g * t * (t + PhysicsHarness.Dt) + 1e-6);
+        fall.Should().BeInRange(0.5 * g * t * t, 0.5 * g * t * (t + PhysicsHarness.Dt) + 1e-6);
     }
 
     [Fact]
@@ -58,15 +59,16 @@ public class GravityTests
 
         h.Step(10);
         BodyState falling = h[crate];
-        Assert.Equal(ship, falling.Frame);
-        Assert.Equal(-9.81 * 10 * PhysicsHarness.Dt, falling.LinearVelocity.Y, 3);
-        Assert.True(MathF.Abs(falling.LinearVelocity.X) < 1e-4f && MathF.Abs(falling.LinearVelocity.Z) < 1e-4f);
+        falling.Frame.Should().Be(ship);
+        ((double)falling.LinearVelocity.Y).Should().BeApproximately(-9.81 * 10 * PhysicsHarness.Dt, 5e-4);
+        MathF.Abs(falling.LinearVelocity.X).Should().BeLessThan(1e-4f);
+        MathF.Abs(falling.LinearVelocity.Z).Should().BeLessThan(1e-4f);
 
         h.Step(110);
         BodyState resting = h[crate];
-        Assert.Equal(ship, resting.Frame);
-        Assert.True(Math.Abs(resting.Pose.Position.Y - (-2 + 0.5)) < 0.02, resting.Pose.Position.ToString());
-        Assert.Empty(h.HandOffs);
+        resting.Frame.Should().Be(ship);
+        resting.Pose.Position.Y.Should().BeApproximately(-2 + 0.5, 0.02, "the crate rests on the deck");
+        h.HandOffs.Should().BeEmpty();
     }
 
     [Fact]
@@ -83,8 +85,8 @@ public class GravityTests
 
         // Coasting: the crate floats in place.
         h.Step(60);
-        Assert.True(h[crate].Pose.Position.Length < 1e-4, h[crate].Pose.Position.ToString());
-        Assert.True(h.Frames.ProperAcceleration(ship).Length() < 1e-4f);
+        h[crate].Pose.Position.Length.Should().BeLessThan(1e-4);
+        h.Frames.ProperAcceleration(ship).Length().Should().BeLessThan(1e-4f);
 
         // Thrust of 2000 N on 1000 kg, along the bow. Gameplay forces are in the hull's frame axes, which are space axes.
         const int ticks = 60;
@@ -95,16 +97,17 @@ public class GravityTests
         }
 
         Vector3 accelerometer = h.Frames.ProperAcceleration(ship);
-        Assert.True(Vector3.Distance(accelerometer, new Vector3(0, 0, 2)) < 1e-3f, accelerometer.ToString());
-        Assert.True(h.Frames.LinearVelocity(ship).X > 1.9);
+        Vector3.Distance(accelerometer, new Vector3(0, 0, 2)).Should().BeLessThan(1e-3f, "the accelerometer reads the thrust, {0}", accelerometer);
+        h.Frames.LinearVelocity(ship).X.Should().BeGreaterThan(1.9);
 
         BodyState state = h[crate];
-        Assert.Equal(ship, state.Frame);
+        state.Frame.Should().Be(ship);
         // The crate feels -2 m/s² along the ship axis, one tick after the thrust starts.
         double t = (ticks - 1) * PhysicsHarness.Dt;
-        Assert.Equal(-2 * t, state.LinearVelocity.Z, 2);
-        Assert.InRange(state.Pose.Position.Z, -0.5 * 2 * t * t - 0.05, -0.5 * 2 * t * t + 0.05);
-        Assert.True(Math.Abs(state.Pose.Position.X) < 1e-3 && Math.Abs(state.Pose.Position.Y) < 1e-3);
+        ((double)state.LinearVelocity.Z).Should().BeApproximately(-2 * t, 5e-3);
+        state.Pose.Position.Z.Should().BeInRange(-0.5 * 2 * t * t - 0.05, -0.5 * 2 * t * t + 0.05);
+        state.Pose.Position.X.Should().BeApproximately(0, 1e-3);
+        state.Pose.Position.Y.Should().BeApproximately(0, 1e-3);
     }
 
     [Fact]
@@ -122,9 +125,9 @@ public class GravityTests
 
         // The ship rests on the ground, so its accelerometer reads 1 g upward, and the crate falls to the deck.
         Vector3 accelerometer = h.Frames.ProperAcceleration(ship);
-        Assert.InRange(accelerometer.Y, 9.7f, 9.95f);
-        Assert.Equal(ship, h[crate].Frame);
-        Assert.True(Math.Abs(h[crate].Pose.Position.Y - (-1.5 + 0.25)) < 0.03, h[crate].Pose.Position.ToString());
+        accelerometer.Y.Should().BeInRange(9.7f, 9.95f);
+        h[crate].Frame.Should().Be(ship);
+        h[crate].Pose.Position.Y.Should().BeApproximately(-1.5 + 0.25, 0.03, "the crate rests on the deck");
     }
 
     [Fact]
@@ -143,13 +146,13 @@ public class GravityTests
         for (int i = 0; i < 180; i++)
         {
             h.Step();
-            Assert.Equal(Vector3.Zero, h.Frames.ProperAcceleration(ship));
+            h.Frames.ProperAcceleration(ship).Should().Be(Vector3.Zero);
         }
-        Assert.True((h[crate].Pose.Position - new Double3(5, 0, 0)).Length < 1e-9, h[crate].Pose.Position.ToString());
+        (h[crate].Pose.Position - new Double3(5, 0, 0)).Length.Should().BeLessThan(1e-9);
         // The ship really orbits: in 3 s it flew 22.6 km and curved about 36 m toward the planet, at constant radius.
         Double3 position = h.Frames.LocalPose(ship).Position;
-        Assert.True(Math.Abs(position.Length - radius) < 1, $"radius changed by {position.Length - radius} m");
-        Assert.InRange(position.Z, -speed * 3.0 - 1, -speed * 3.0 + 1);
-        Assert.InRange(radius - position.X, 30, 42);
+        position.Length.Should().BeApproximately(radius, 1, "the orbit is circular");
+        position.Z.Should().BeInRange(-speed * 3.0 - 1, -speed * 3.0 + 1);
+        (radius - position.X).Should().BeInRange(30, 42);
     }
 }

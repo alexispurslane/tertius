@@ -59,9 +59,6 @@ internal sealed class FrameWorld : IDisposable
 
     public int CharacterCount { get; set; }
 
-    /// <summary>Set when the frame disappeared from the tree without a FramesDestroyed change. The world is not stepped.</summary>
-    public bool Orphaned { get; set; }
-
     /// <summary>Set after the first update that overflowed a Jolt limit, so the warning appears once.</summary>
     public bool ReportedOverflow { get; set; }
 

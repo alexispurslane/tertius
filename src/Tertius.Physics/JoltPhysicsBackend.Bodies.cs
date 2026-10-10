@@ -321,11 +321,12 @@ public sealed partial class JoltPhysicsBackend
         }
     }
 
-    // ---- Moving frame hulls at the sync point ----
+    // ---- Moving frame hulls after the tree changed ----
 
     /// <summary>
-    /// Puts a frame hull where the tree says, after the simulation reparented the frame on its own. A frame that
-    /// became a root loses its hull.
+    /// Puts a frame hull where the tree says, after the tree moved the frame on its own: the simulation reparented
+    /// it, or the frame's parent was destroyed. The hull takes the tree's pose and velocity. A frame that became a
+    /// root loses its hull.
     /// </summary>
     private void PlaceHullFromTree(BodyRecord owner, FrameHandle parent)
     {
@@ -334,39 +335,5 @@ public sealed partial class JoltPhysicsBackend
         RemovePrimary(owner);
         if (!parent.IsNull)
             CreateHullFromTree(owner, parent);
-    }
-
-    /// <summary>
-    /// Moves the hull of a child frame out of a system whose frame is being destroyed, into the grandparent's
-    /// system. The tree moves the child frame to the grandparent too.
-    /// </summary>
-    private void RehomeHull(BodyRecord hull, FrameWorld dying, bool dyingFrameStillInTree)
-    {
-        FrameHandle frame = hull.OwnedFrame;
-        BodySnapshot s = ReadPrimary(hull);
-        FrameHandle parent;
-        DPose pose;
-        Vector3 linear, angular;
-        if (dyingFrameStillInTree)
-        {
-            parent = frames.Parent(dying.Frame);
-            FrameMotion motion = CurrentMotion(dying.Frame);
-            pose = motion.PoseToParent(s.Pose);
-            linear = motion.VelocityToParent(s.CenterOfMass, s.Linear).ToVector3();
-            angular = motion.AngularToParent(s.Angular).ToVector3();
-        }
-        else
-        {
-            // The tree already moved the child and composed its pose. The dying frame's own motion is gone with
-            // it, so the velocities only turn with the axes.
-            parent = frames.Parent(frame);
-            pose = frames.LocalPose(frame);
-            DQuaternion turn = (pose.Rotation * s.Pose.Rotation.Conjugate()).Normalized();
-            linear = turn.Rotate(s.Linear);
-            angular = turn.Rotate(s.Angular);
-        }
-        RemovePrimary(hull);
-        if (!parent.IsNull)
-            CreatePrimary(hull, parent, pose, linear, angular);
     }
 }

@@ -16,31 +16,31 @@ public class GhostTests
 
         // Outside and not touching: no ghost.
         h.Step();
-        Assert.Equal(space, h[ball].Frame);
-        Assert.Equal(0, h.Backend.GhostCount(ball));
+        h[ball].Frame.Should().Be(space);
+        h.Backend.GhostCount(ball).Should().Be(0);
 
         // Entered on first touch. Part of the ball is still outside, so the parent holds a ghost.
         h.StepUntil(() => h[ball].Frame == bubble, 60);
-        Assert.Equal(bubble, h[ball].Frame);
-        Assert.True(h.Backend.HasGhostIn(ball, space));
-        Assert.Equal(1, h.Backend.GhostCount(ball));
+        h[ball].Frame.Should().Be(bubble);
+        h.Backend.HasGhostIn(ball, space).Should().BeTrue();
+        h.Backend.GhostCount(ball).Should().Be(1);
 
         // Fully inside: the ghost goes away.
         h.StepUntil(() => h[ball].Pose.Position.Length < 20 - radius - 0.1, 60);
         h.Step();
-        Assert.Equal(0, h.Backend.GhostCount(ball));
+        h.Backend.GhostCount(ball).Should().Be(0);
 
         // Back out through the boundary: the ghost returns while the ball straddles it...
         h.Intent(ball).Flags = IntentFlags.SetVelocity;
         h.Intent(ball).Velocity = new Vector3(-3, 0, 0);
         h.StepUntil(() => h[ball].Pose.Position.Length > 20 - radius + 0.05, 60);
-        Assert.Equal(bubble, h[ball].Frame);
-        Assert.True(h.Backend.HasGhostIn(ball, space));
+        h[ball].Frame.Should().Be(bubble);
+        h.Backend.HasGhostIn(ball, space).Should().BeTrue();
 
         // ...and after the exit hand-off the real body replaces it. Outside the margin nothing is ghosted.
         h.StepUntil(() => h[ball].Frame == space, 120);
-        Assert.Equal(space, h[ball].Frame);
-        Assert.Equal(0, h.Backend.GhostCount(ball));
+        h[ball].Frame.Should().Be(space);
+        h.Backend.GhostCount(ball).Should().Be(0);
     }
 
     [Fact]
@@ -56,25 +56,51 @@ public class GhostTests
         Entity ball = h.AddBody(space, Shapes.Ball(0.25f), Shapes.At(16, 0, 0), velocity: new Vector3(-5, 0, 0));
 
         h.Step();
-        Assert.True(h.Backend.HasGhostIn(block, space));
+        h.Backend.HasGhostIn(block, space).Should().BeTrue();
 
         h.Step(90);
 
         BodyState state = h[ball];
-        Assert.Equal(space, state.Frame);
-        Assert.True(state.Pose.Position.X > 11.25 - 0.05, $"the ball went through the ghost: {state.Pose.Position}");
-        Assert.True(state.LinearVelocity.X > -0.5f, state.LinearVelocity.ToString());
-        Assert.Empty(h.HandOffs);
+        state.Frame.Should().Be(space);
+        state.Pose.Position.X.Should().BeGreaterThan(11.25 - 0.05, "the ball must not go through the ghost");
+        state.LinearVelocity.X.Should().BeGreaterThan(-0.5f);
+        h.HandOffs.Should().BeEmpty();
         // The ghost pushed, but the block did not move: ghosts never push back on the real body.
-        Assert.True((h[block].Pose.Position - new Double3(10, 0, 0)).Length < 1e-6);
+        (h[block].Pose.Position - new Double3(10, 0, 0)).Length.Should().BeLessThan(1e-6);
         // Ghost contacts are not reported as collisions.
-        Assert.DoesNotContain(h.Contacts, c => c.A == block || c.B == block);
+        h.Contacts.Should().NotContain(c => c.A == block || c.B == block);
 
         // Move the block fully inside: the ghost goes away.
         h.Intent(block).Flags = IntentFlags.Teleport;
-        h.Intent(block).Target = new DPose(new Double3(5, 0, 0), DQuaternion.Identity);
+        h.Intent(block).TeleportPose = new DPose(new Double3(5, 0, 0), DQuaternion.Identity);
         h.Step();
-        Assert.Equal(0, h.Backend.GhostCount(block));
+        h.Backend.GhostCount(block).Should().Be(0);
+    }
+
+    [Fact]
+    public void GhostsInADestroyedFrameGoWithIt()
+    {
+        using var h = new PhysicsHarness();
+        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static);
+        FrameHandle left = h.AddFrame(space, Shapes.At(-10.6, 0, 0), FrameBounds.Sphere(10), MotionDriver.Static);
+        FrameHandle right = h.AddFrame(space, Shapes.At(10.4, 0, 0), FrameBounds.Sphere(10), MotionDriver.Static);
+        // The ball enters the right bubble and sticks out of it: space and the left frame hold ghosts of it.
+        Entity ball = h.AddBody(space, Shapes.Ball(1f), Shapes.At(0, 0, 0));
+        h.Step();
+        h[ball].Frame.Should().Be(right);
+        h.Backend.HasGhostIn(ball, left).Should().BeTrue();
+        h.Backend.GhostCount(ball).Should().Be(2);
+
+        h.Frames.Destroy(left);
+        h.Changes.FramesDestroyed.Add(left);
+        h.Step(3);
+
+        // The ghost went with the left frame's system; the ball itself is untouched.
+        h.Backend.HasGhostIn(ball, left).Should().BeFalse();
+        h.Backend.HasGhostIn(ball, space).Should().BeTrue();
+        h.Backend.GhostCount(ball).Should().Be(1);
+        h[ball].Frame.Should().Be(right);
+        h.Warnings.Should().BeEmpty();
     }
 
     [Fact]
@@ -96,8 +122,8 @@ public class GhostTests
 
         // The probe hit the ghost where the real body is, converted into the parent's coordinates, and stopped.
         Double3 probeInChild = h.Frames.PointFromParent(bubble, h[probe].Pose.Position);
-        Assert.True(probeInChild.Z > 9.8 + 1.5 - 0.05, $"probe at {probeInChild} in the child");
-        Assert.True(h.Backend.HasGhostIn(rider, space));
+        probeInChild.Z.Should().BeGreaterThan(9.8 + 1.5 - 0.05, "the probe stops against the ghost");
+        h.Backend.HasGhostIn(rider, space).Should().BeTrue();
     }
 
     [Fact]
@@ -118,12 +144,12 @@ public class GhostTests
         Entity crate = h.AddBody(ship, Shapes.Box(0.5f), Shapes.At(10, 0, 0), velocity: new Vector3(4, 0, 0));
 
         h.Step();
-        Assert.True(h.Backend.HasGhostIn(station.Entity, ship));
-        Assert.True(h.Backend.HasGhostIn(ship.Entity, station));
+        h.Backend.HasGhostIn(station.Entity, ship).Should().BeTrue();
+        h.Backend.HasGhostIn(ship.Entity, station).Should().BeTrue();
 
         h.Step(120);
-        Assert.Equal(ship, h[crate].Frame);
-        Assert.InRange(h[crate].Pose.Position.X, 14.5 - 0.6, 14.5 + 0.05);
-        Assert.True(h[crate].LinearVelocity.X < 0.5f);
+        h[crate].Frame.Should().Be(ship);
+        h[crate].Pose.Position.X.Should().BeInRange(14.5 - 0.6, 14.5 + 0.05);
+        h[crate].LinearVelocity.X.Should().BeLessThan(0.5f);
     }
 }
