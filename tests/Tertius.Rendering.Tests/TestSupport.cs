@@ -49,7 +49,7 @@ internal static class Gpu
             File.Delete(path);
         renderer.CaptureNextFrame(path);
         renderer.Render(snapshot, alpha);
-        Assert.True(File.Exists(path), $"{path} was not written.");
+        File.Exists(path).Should().BeTrue("the capture of {0} must be written before Render returns", name);
         return Capture.Load(path);
     }
 
@@ -60,11 +60,8 @@ internal static class Gpu
         AssertClean(renderer);
     }
 
-    public static void AssertClean(VulkanRenderer renderer)
-    {
-        IReadOnlyList<string> messages = renderer.ValidationMessages;
-        Assert.True(messages.Count == 0, "Validation messages:\n" + string.Join("\n", messages));
-    }
+    public static void AssertClean(VulkanRenderer renderer) =>
+        renderer.ValidationMessages.Should().BeEmpty("the Vulkan validation layers and the renderer's own checks must stay silent");
 
     /// <summary>The pixel of a camera-relative point for a camera with identity rotation (looking down −Z).</summary>
     public static Vector2 Project(Vector3 point, int width, int height, float fov = Fov)
@@ -88,24 +85,13 @@ internal static class Gpu
     public static float ViewDepth(Vector3 point, Quaternion cameraRotation) =>
         Vector3.Dot(point, Vector3.Transform(-Vector3.UnitZ, cameraRotation));
 
+    /// <summary>
+    /// A still, visible instance: <see cref="RenderInstance.Create"/> with <see cref="RenderFlags.Visible"/> always
+    /// added. Tests that need an instance that is not visible call <see cref="RenderInstance.Create"/> themselves.
+    /// </summary>
     public static RenderInstance Instance(MeshId mesh, MaterialId material, Vector3 position, Vector3 scale,
-        Quaternion? rotation = null, RenderFlags flags = RenderFlags.None, float radius = 0, uint entity = 0)
-    {
-        Quaternion r = rotation ?? Quaternion.Identity;
-        return new RenderInstance
-        {
-            EntityIndex = entity,
-            Mesh = mesh,
-            Material = material,
-            Flags = flags | RenderFlags.Visible,
-            Position = position,
-            PreviousPosition = position,
-            Rotation = r,
-            PreviousRotation = r,
-            Scale = scale,
-            BoundingRadius = radius,
-        };
-    }
+        Quaternion? rotation = null, RenderFlags flags = RenderFlags.None, float radius = 0, uint entity = 0, ushort part = 0) =>
+        RenderInstance.Create(mesh, material, position, rotation ?? Quaternion.Identity, scale, radius, flags | RenderFlags.Visible, entity, part);
 
     public static RenderSnapshot Snapshot(Vector3 sunDirection, float sunIntensity = 3f)
     {

@@ -30,6 +30,10 @@ namespace Tertius.Rendering;
 /// </list>
 /// <para>Threading: the Create methods, <see cref="Resize"/> and <see cref="CaptureNextFrame"/> may be called from
 /// any thread. <see cref="Render"/> and <see cref="Dispose"/> belong to the render thread.</para>
+/// <para>Ids: each Create method numbers its ids from 0, and none of them is ever None. On an instance,
+/// <see cref="MeshId.None"/> draws nothing and <see cref="MaterialId.None"/> draws with the default material (white,
+/// specular 0.5, gloss 0.5). In a material, a <see cref="TextureId.None"/> slot uses the built-in default for that
+/// slot. These defaults live in slots that no id can name.</para>
 /// </remarks>
 public sealed unsafe class VulkanRenderer : IRenderer
 {
@@ -210,18 +214,25 @@ public sealed unsafe class VulkanRenderer : IRenderer
     internal SceneBatcher Batcher => batcher;
     internal FrameGraph Graph => graph;
     internal PreparedScene LastScene => scene;
-    internal int TextureCount => textures.Count;
-    internal int MaterialCount => materials.Count;
+    /// <summary>Textures from <see cref="CreateTexture"/> on the GPU, not counting the built-in defaults.</summary>
+    internal int TextureCount => textures.UserCount;
+    /// <summary>Materials from <see cref="CreateMaterial"/> on the GPU, not counting the default material.</summary>
+    internal int MaterialCount => materials.UserCount;
     internal int MeshCount => geometry.Meshes.Length;
     internal int PendingReleases => releases.Count;
 
+    /// <summary>Queues a mesh. It can be drawn from the next <see cref="Render"/> on.</summary>
     public MeshId CreateMesh(MeshData mesh)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         return uploads.AddMesh(mesh);
     }
 
-    /// <summary>Queues a texture. Ids start after the built-in defaults, so <c>default(TextureId)</c> also means "default".</summary>
+    /// <summary>
+    /// Queues a texture. The id is never <see cref="TextureId.None"/>, which a material uses to ask for the default
+    /// texture instead.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The bindless array is full.</exception>
     public TextureId CreateTexture(TextureData texture)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
@@ -229,9 +240,11 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Queues a material. Base and emissive colors are linear. A texture slot holding <see cref="TextureId.None"/>
-    /// or any id this renderer did not hand out (such as <c>default(TextureId)</c>) uses the default texture.
+    /// Queues a material. Base and emissive colors are linear. A texture slot holding <see cref="TextureId.None"/>, its
+    /// default, uses the built-in default for that slot: white albedo, a flat normal map, and a specular-gloss map
+    /// that keeps <see cref="MaterialDesc.SpecularIntensity"/> and <see cref="MaterialDesc.Gloss"/> as they are.
     /// </summary>
+    /// <exception cref="ArgumentException">A texture slot holds an id that this renderer did not create.</exception>
     public MaterialId CreateMaterial(MaterialDesc material)
     {
         ObjectDisposedException.ThrowIf(disposed, this);

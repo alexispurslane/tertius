@@ -45,16 +45,16 @@ public sealed class StressTests(ITestOutputHelper output)
         try
         {
             RenderSnapshot snapshot = Field(renderer, RenderFlags.None);
-            Assert.Equal(20_000, snapshot.Instances.Count);
+            snapshot.Instances.Should().HaveCount(20_000);
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "twenty-thousand");
             RenderStats stats = renderer.LastFrameStats;
             output.WriteLine($"{stats}");
-            Assert.Equal(20_000, stats.SubmittedInstances);
-            Assert.True(stats.VisibleInstances > 8_000, $"visible {stats.VisibleInstances}");
+            stats.SubmittedInstances.Should().Be(20_000);
+            stats.VisibleInstances.Should().BeGreaterThan(8_000);
             // All visible objects are in the near range: one command per mesh, one draw call.
-            Assert.Equal(2, stats.IndirectCommands);
-            Assert.Equal(1, stats.IndirectDrawCalls);
+            stats.IndirectCommands.Should().Be(2);
+            stats.IndirectDrawCalls.Should().Be(1);
 
             // A large part of the lower half of the screen is covered by objects.
             int covered = 0, samples = 0;
@@ -67,7 +67,7 @@ public sealed class StressTests(ITestOutputHelper output)
                         covered++;
                 }
             }
-            Assert.True(covered > samples / 3, $"covered {covered} of {samples}");
+            covered.Should().BeGreaterThan(samples / 3, "the field covers much of the lower half ({0} samples)", samples);
 
             // Steady-state frame time, for information; correctness does not depend on it.
             var clock = Stopwatch.StartNew();
@@ -93,21 +93,21 @@ public sealed class StressTests(ITestOutputHelper output)
             Capture geometry = Gpu.RenderAndCapture(renderer, snapshot, "twenty-thousand-impostors-frame-0");
             RenderStats first = renderer.LastFrameStats;
             output.WriteLine($"first frame: {first}");
-            Assert.Equal(4, first.ImpostorCaptures);
+            first.ImpostorCaptures.Should().Be(4);
             // Every visible object here is below 200 px.
-            Assert.Equal(first.VisibleInstances - 4, first.ImpostorsWaiting);
+            first.ImpostorsWaiting.Should().Be(first.VisibleInstances - 4);
 
             for (int i = 1; i < 16; i++)
             {
                 renderer.Render(snapshot, 1f);
-                Assert.Equal(4, renderer.LastFrameStats.ImpostorCaptures);
+                renderer.LastFrameStats.ImpostorCaptures.Should().Be(4, "the budget is used in full while tiles are free (frame {0})", i);
             }
             Capture impostors = Gpu.RenderAndCapture(renderer, snapshot, "twenty-thousand-impostors");
             RenderStats stats = renderer.LastFrameStats;
             output.WriteLine($"atlas full: {stats}");
             // 64 impostors, each visible every frame, so no tile can be evicted: the rest wait as geometry.
-            Assert.Equal((64, 64, 0), (stats.Impostors, stats.ImpostorTilesInUse, stats.ImpostorCaptures));
-            Assert.Equal(stats.VisibleInstances - 64, stats.ImpostorsWaiting);
+            (stats.Impostors, stats.ImpostorTilesInUse, stats.ImpostorCaptures).Should().Be((64, 64, 0));
+            stats.ImpostorsWaiting.Should().Be(stats.VisibleInstances - 64);
 
             double sum = 0;
             for (int y = 0; y < height; y += 2)
@@ -120,7 +120,7 @@ public sealed class StressTests(ITestOutputHelper output)
             }
             float mean = (float)(sum / (width / 2 * (height / 2)));
             output.WriteLine($"mean |Δ| against the first frame {mean * 255:0.000} / 255");
-            Assert.True(mean < 0.5f / 255f, $"{mean * 255} / 255");
+            (mean * 255).Should().BeLessThan(0.5f, "64 impostors among 20,000 objects change the frame by less than half a step of 1/255");
 
             var clock = Stopwatch.StartNew();
             const int frames = 20;
@@ -167,12 +167,12 @@ public sealed class StressTests(ITestOutputHelper output)
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "twenty-thousand-shadows");
             RenderStats stats = renderer.LastFrameStats;
             output.WriteLine($"{stats}");
-            Assert.Equal(20_001, stats.ShadowCasters);
-            Assert.Equal(4, stats.ShadowCascades);
-            Assert.True(stats.ShadowInstances >= stats.ShadowCasters, $"{stats.ShadowInstances}");
+            stats.ShadowCasters.Should().Be(20_001);
+            stats.ShadowCascades.Should().Be(4);
+            stats.ShadowInstances.Should().BeGreaterThanOrEqualTo(stats.ShadowCasters, "every caster is in at least one cascade");
             // Three meshes: at most three commands per cascade, and one multi-draw per cascade plus the near range.
-            Assert.InRange(stats.ShadowCommands, ShadowCascades.Count, 3 * ShadowCascades.Count);
-            Assert.Equal(1 + ShadowCascades.Count, stats.IndirectDrawCalls);
+            stats.ShadowCommands.Should().BeInRange(ShadowCascades.Count, 3 * ShadowCascades.Count);
+            stats.IndirectDrawCalls.Should().Be(1 + ShadowCascades.Count);
 
             // Shadows make the field darker than the same field without shadow maps.
             for (int i = 0; i < snapshot.Instances.Count; i++)
@@ -192,7 +192,7 @@ public sealed class StressTests(ITestOutputHelper output)
                 }
                 return sum;
             }
-            Assert.True(Mean(image) < 0.85 * Mean(unshadowed), $"{Mean(image)} vs {Mean(unshadowed)}");
+            Mean(image).Should().BeLessThan(0.85 * Mean(unshadowed), "shadows darken the field");
 
             for (int i = 0; i < snapshot.Instances.Count; i++)
             {

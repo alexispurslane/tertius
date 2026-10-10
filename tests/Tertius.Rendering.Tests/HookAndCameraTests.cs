@@ -27,14 +27,14 @@ public sealed class HookAndCameraTests
             snapshot.Instances.Add(Gpu.Instance(sphere, red, new Vector3(0, 0, -6), Vector3.One));
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "rotated-camera");
-            Assert.Equal(1, renderer.LastFrameStats.VisibleInstances);
+            renderer.LastFrameStats.VisibleInstances.Should().Be(1, "the red sphere is behind the turned camera");
             // In camera space the white sphere is straight ahead: project it as (0, 0, -6).
             Vector2 top = Gpu.Project(new Vector3(0, 0.7f, -5.4f), width, height);
             Vector2 bottom = Gpu.Project(new Vector3(0, -0.7f, -5.4f), width, height);
-            Assert.True(image.Luma(top) > 0.5f, $"lit top {image.Luma(top)}");
-            Assert.True(image.Luma(bottom) < 0.25f, $"unlit bottom {image.Luma(bottom)}");
+            image.Luma(top).Should().BeGreaterThan(0.5f, "the sun from +Y lights the top");
+            image.Luma(bottom).Should().BeLessThan(0.25f, "the bottom faces away from the sun");
             Vector3 center = image.Color(width / 2, height / 2);
-            Assert.True(MathF.Abs(center.X - center.Y) < 0.05f, $"the white sphere is in front, not the red one: {center}");
+            MathF.Abs(center.X - center.Y).Should().BeLessThan(0.05f, "the white sphere is in front, not the red one: {0}", center);
         }
         finally
         {
@@ -56,7 +56,7 @@ public sealed class HookAndCameraTests
             for (int i = 0; i < 20; i++)
                 renderer.Render(snapshot, i / 20f);
             long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-            Assert.Equal(0, allocated);
+            allocated.Should().Be(0, "a steady state allocates nothing");
         }
         finally
         {
@@ -79,13 +79,13 @@ public sealed class HookAndCameraTests
             snapshot.Instances.Add(Gpu.Instance(box, white, new Vector3(0, 0, -5), Vector3.One));
             renderer.Render(snapshot, 1f);
 
-            Assert.Equal(["prepare", "record"], log);
+            log.Should().Equal("prepare", "record");
             // The appended instance and command reached the frame's buffers after the batched ones.
-            Assert.Equal(2, renderer.LastScene.InstanceCount);
-            Assert.Equal(1, probe.AppendedInstance);
-            Assert.Equal(1, probe.AppendedCommand);
-            Assert.Same(snapshot, probe.SeenSnapshot);
-            Assert.Equal(1, renderer.LastFrameStats.NearCommands);
+            renderer.LastScene.InstanceCount.Should().Be(2);
+            probe.AppendedInstance.Should().Be(1);
+            probe.AppendedCommand.Should().Be(1);
+            probe.SeenSnapshot.Should().BeSameAs(snapshot);
+            renderer.LastFrameStats.NearCommands.Should().Be(1);
         }
         finally
         {

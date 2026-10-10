@@ -36,14 +36,14 @@ internal sealed unsafe class GeometryStore : IDisposable
     public GpuBuffer VertexBuffer { get; private set; }
     public GpuBuffer IndexBuffer { get; private set; }
 
-    /// <summary>Meshes on the GPU, indexed by <see cref="MeshId.Value"/>.</summary>
+    /// <summary>Meshes on the GPU, indexed by <see cref="MeshId.Value"/>. <see cref="MeshId.None"/> has no entry.</summary>
     public ReadOnlySpan<MeshInfo> Meshes => CollectionsMarshal.AsSpan(meshes);
 
     public ulong VertexCount => vertexCount;
     public ulong IndexCount => indexCount;
 
     /// <summary>Records the upload of queued meshes. They are usable by draws recorded after this call.</summary>
-    public void Upload(CommandBuffer commandBuffer, List<(int Id, MeshData Data)> pending, StagingArena staging,
+    public void Upload(CommandBuffer commandBuffer, List<(MeshId Id, MeshData Data)> pending, StagingArena staging,
         BarrierBatch barriers, DeferredReleases releases, long frame)
     {
         if (pending.Count == 0)
@@ -61,11 +61,11 @@ internal sealed unsafe class GeometryStore : IDisposable
         StagingSlice vertexStage = staging.Allocate(newVertices * (ulong)vertexSize);
         StagingSlice indexStage = staging.Allocate(newIndices * sizeof(uint));
         ulong vertexCursor = 0, indexCursor = 0;
-        foreach ((int id, MeshData data) in pending)
+        foreach ((MeshId id, MeshData data) in pending)
         {
-            // Ids are dense and drained in order, so the next id is always the next slot.
-            if (id != meshes.Count)
-                throw new InvalidOperationException($"Mesh {id} arrived out of order; expected {meshes.Count}.");
+            // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
+            // slot. If that broke, an instance would draw another mesh.
+            Contract.Assert(id.Value == meshes.Count);
             MemoryMarshal.AsBytes(data.Vertices.AsSpan()).CopyTo(new Span<byte>(vertexStage.Pointer + vertexCursor * (ulong)vertexSize, data.Vertices.Length * vertexSize));
             MemoryMarshal.AsBytes(data.Indices.AsSpan()).CopyTo(new Span<byte>(indexStage.Pointer + indexCursor * sizeof(uint), data.Indices.Length * sizeof(uint)));
             meshes.Add(new MeshInfo((uint)(indexCount + indexCursor), (uint)data.Indices.Length, checked((int)(vertexCount + vertexCursor)), Radius(data.Vertices)));

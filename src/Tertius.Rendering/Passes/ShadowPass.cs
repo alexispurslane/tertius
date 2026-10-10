@@ -20,7 +20,10 @@ namespace Tertius.Rendering;
 /// vkCmdDrawIndexedIndirect, from the same global vertex, index and instance buffers as the G-buffer pass. Depth
 /// clamping pancakes casters between the cascade box and the sun onto its sun-side face, and the rasterizer adds a
 /// slope-scaled depth bias. Faces are not culled, so single-sided meshes such as planes cast shadows too.</para>
-/// <para>Without a sun, or without any caster, nothing is drawn and the lighting pass skips the shadow maps.</para>
+/// <para>The texel grid passes through the origin of the camera's reference frame, which the snapshot gives as
+/// <see cref="RenderSnapshot.OriginInFrame"/> (<see cref="ShadowCascades.Anchor"/>).</para>
+/// <para>Without a sun (<see cref="SceneBatcher.HasSun"/>: a zero or negative intensity turns it off), or without
+/// any caster, nothing is drawn and the lighting pass skips the shadow maps.</para>
 /// </remarks>
 internal sealed unsafe class ShadowPass : RenderPass
 {
@@ -39,8 +42,6 @@ internal sealed unsafe class ShadowPass : RenderPass
     private Caster[] casters = new Caster[64];
     private int[] order = new int[64];
     private int[] meshStarts = new int[64];
-    private bool hasTick;
-    private long lastTick;
 
     public ShadowPass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts, ShadowMap map)
     {
@@ -67,25 +68,20 @@ internal sealed unsafe class ShadowPass : RenderPass
 
     public override string Name => "shadow maps";
 
-    /// <summary>
-    /// A world-fixed point in snapshot coordinates (relative to the current render origin). The cascades' texel grid
-    /// passes through it. It moves by <see cref="RenderCamera.PreviousPosition"/> each time the tick advances, which
-    /// is how far the origin moved, so it stays at the same place in the world.
-    /// </summary>
-    public Double3 Anchor { get; private set; }
-
     public override void Prepare(FrameContext context)
     {
         RenderSnapshot snapshot = context.Snapshot;
         PreparedScene scene = context.Scene;
-        TrackOrigin(snapshot);
-
+        // Sun.Intensity <= 0 (or no direction) turns the sun off, and its shadow maps with it.
         RenderSun sun = snapshot.Sun;
-        if (!(sun.Direction.LengthSquared() > 1e-12f) || !(sun.Intensity > 0f) || !float.IsFinite(sun.Direction.X + sun.Direction.Y + sun.Direction.Z))
+        if (!SceneBatcher.HasSun(sun))
             return;
         CameraView camera = scene.Camera;
         LightBasis light = LightBasis.FromSunDirection(sun.Direction);
-        ShadowCascades.Fit(camera, light, map.Size, map.DepthRangeScale, Anchor - camera.Offset, ref scene.Cascades);
+        // The grid passes through the origin of the camera's frame. It is worked out from this snapshot alone, so
+        // nothing carries over from tick to tick.
+        Double3 anchor = ShadowCascades.Anchor(snapshot.OriginInFrame, camera.Offset);
+        ShadowCascades.Fit(camera, light, map.Size, map.DepthRangeScale, anchor, ref scene.Cascades);
 
         ReadOnlySpan<MeshInfo> meshes = context.Geometry.Meshes;
         int casterCount = SelectCasters(snapshot, SceneBatcher.ClampAlpha(context.Alpha), meshes, light, scene);
@@ -97,18 +93,6 @@ internal sealed unsafe class ShadowPass : RenderPass
         WriteConstants(scene, light);
     }
 
-    private void TrackOrigin(RenderSnapshot snapshot)
-    {
-        if (hasTick && snapshot.Tick == lastTick)
-            return;
-        if (hasTick && snapshot.Tick > lastTick)
-            Anchor += snapshot.Camera.PreviousPosition;
-        else
-            Anchor = Double3.Zero;
-        hasTick = true;
-        lastTick = snapshot.Tick;
-    }
-
     /// <summary>Finds the casters and the cascades each one touches. Returns the number of casters.</summary>
     private int SelectCasters(RenderSnapshot snapshot, float alpha, ReadOnlySpan<MeshInfo> meshes, in LightBasis light, PreparedScene scene)
     {
@@ -116,10 +100,11 @@ internal sealed unsafe class ShadowPass : RenderPass
         int casterCount = 0, instanceCount = 0;
         foreach (ref readonly RenderInstance instance in CollectionsMarshal.AsSpan(snapshot.Instances))
         {
+            // CastsShadow alone decides: an instance that is not Visible still casts its shadow.
             if ((instance.Flags & RenderFlags.CastsShadow) == 0)
                 continue;
-            int mesh = instance.Mesh.Value;
-            if ((uint)mesh >= (uint)meshes.Length || !SceneBatcher.HasVolume(instance.Scale))
+            int mesh = SceneBatcher.MeshIndex(instance.Mesh, meshes.Length);
+            if (mesh < 0 || !SceneBatcher.HasVolume(instance.Scale))
                 continue;
             Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - offset;
             float radius = SceneBatcher.BoundingRadius(instance, meshes[mesh]);
@@ -147,7 +132,8 @@ internal sealed unsafe class ShadowPass : RenderPass
             if (casterCount == casters.Length)
                 Array.Resize(ref casters, casters.Length * 2);
             Quaternion rotation = SceneBatcher.Interpolate(instance.PreviousRotation, instance.Rotation, alpha);
-            casters[casterCount++] = new Caster(GpuInstance.From(position, rotation, instance.Scale, 0), mesh, mask);
+            // The depth-only pass reads no material.
+            casters[casterCount++] = new Caster(GpuInstance.From(position, rotation, instance.Scale, MaterialStore.DefaultSlot), mesh, mask);
             instanceCount += BitOperations.PopCount((uint)mask);
         }
         scene.ShadowCasters = casterCount;

@@ -19,14 +19,14 @@ public sealed class DepthRangeTests
     public void ProjectionIsReversedZ()
     {
         Matrix4x4 finite = DepthRanges.Projection(1f, 1.5f, 0.05f, 2_000f);
-        Assert.Equal(1f, Depth(finite, 0.05f), 5);
-        Assert.Equal(0f, Depth(finite, 2_000f), 5);
-        Assert.True(Depth(finite, 1f) > Depth(finite, 10f));
+        Depth(finite, 0.05f).Should().BeApproximately(1f, 1e-5f);
+        Depth(finite, 2_000f).Should().BeApproximately(0f, 1e-5f);
+        Depth(finite, 1f).Should().BeGreaterThan(Depth(finite, 10f), "nearer is greater");
 
         Matrix4x4 infinite = DepthRanges.Projection(1f, 1.5f, 2e6f, float.PositiveInfinity);
-        Assert.Equal(1f, Depth(infinite, 2e6f), 5);
-        Assert.InRange(Depth(infinite, 1.5e11f), 1e-6f, 1e-4f);
-        Assert.True(Depth(infinite, 1e7f) > Depth(infinite, 1e8f));
+        Depth(infinite, 2e6f).Should().BeApproximately(1f, 1e-5f);
+        Depth(infinite, 1.5e11f).Should().BeInRange(1e-6f, 1e-4f);
+        Depth(infinite, 1e7f).Should().BeGreaterThan(Depth(infinite, 1e8f), "nearer is greater");
     }
 
     [Fact]
@@ -37,13 +37,13 @@ public sealed class DepthRangeTests
             Matrix4x4 projection = DepthRanges.RangeProjection(range, 1f, 1.5f);
             float boundary = DepthRanges.FarOf(range);
             float clear = DepthRanges.ClearDepth(range);
-            Assert.Equal(clear, Depth(projection, boundary), clear * 1e-5f);
+            Depth(projection, boundary).Should().BeApproximately(clear, clear * 1e-5f);
             // Compare GREATER: just inside the boundary passes against the cleared depth, just beyond it fails.
-            Assert.True(Depth(projection, boundary * 0.999f) > clear);
-            Assert.True(Depth(projection, boundary * 1.001f) < clear);
-            Assert.Equal(1f, Depth(projection, DepthRanges.NearOf(range)), 5);
+            Depth(projection, boundary * 0.999f).Should().BeGreaterThan(clear);
+            Depth(projection, boundary * 1.001f).Should().BeLessThan(clear);
+            Depth(projection, DepthRanges.NearOf(range)).Should().BeApproximately(1f, 1e-5f);
         }
-        Assert.Equal(0f, DepthRanges.ClearDepth(DepthRanges.Far));
+        DepthRanges.ClearDepth(DepthRanges.Far).Should().Be(0f);
     }
 
     [Fact]
@@ -53,18 +53,18 @@ public sealed class DepthRangeTests
         // A point above the view axis lands in the upper half: negative y in Vulkan NDC.
         Vector4 up = Vector4.Transform(new Vector4(0, 1, -2, 1), projection);
         Vector4 right = Vector4.Transform(new Vector4(1, 0, -2, 1), projection);
-        Assert.True(up.Y / up.W < 0);
-        Assert.Equal(-0.5f, up.Y / up.W, 5);
-        Assert.Equal(0.25f, right.X / right.W, 5);
+        (up.Y / up.W).Should().BeNegative();
+        (up.Y / up.W).Should().BeApproximately(-0.5f, 1e-5f);
+        (right.X / right.W).Should().BeApproximately(0.25f, 1e-5f);
     }
 
     [Fact]
     public void RangesOverlapAtTheirBoundaries()
     {
-        Assert.True(DepthRanges.FarOf(DepthRanges.Near) > DepthRanges.NearOf(DepthRanges.Middle));
-        Assert.True(DepthRanges.FarOf(DepthRanges.Middle) > DepthRanges.NearOf(DepthRanges.Far));
-        Assert.Equal(DepthRanges.NearPlane, DepthRanges.NearOf(DepthRanges.Near));
-        Assert.True(float.IsPositiveInfinity(DepthRanges.FarOf(DepthRanges.Far)));
+        DepthRanges.FarOf(DepthRanges.Near).Should().BeGreaterThan(DepthRanges.NearOf(DepthRanges.Middle));
+        DepthRanges.FarOf(DepthRanges.Middle).Should().BeGreaterThan(DepthRanges.NearOf(DepthRanges.Far));
+        DepthRanges.NearOf(DepthRanges.Near).Should().Be(DepthRanges.NearPlane);
+        DepthRanges.FarOf(DepthRanges.Far).Should().Be(float.PositiveInfinity);
     }
 
     [Theory]
@@ -80,7 +80,7 @@ public sealed class DepthRangeTests
     [InlineData(0.02f, 0.5f, Near)]                    // touches the camera
     public void OpaqueObjectsGoToEveryRangeTheyReach(float depth, float radius, int expected)
     {
-        Assert.Equal(expected, DepthRanges.OpaqueMask(depth, radius));
+        DepthRanges.OpaqueMask(depth, radius).Should().Be(expected);
     }
 
     [Theory]
@@ -91,6 +91,6 @@ public sealed class DepthRangeTests
     [InlineData(2_000_000f, DepthRanges.Far)]
     public void TransparentObjectsUseTheRangeOfTheirCenter(float depth, int range)
     {
-        Assert.Equal(range, DepthRanges.Containing(depth));
+        DepthRanges.Containing(depth).Should().Be(range);
     }
 }

@@ -3,8 +3,15 @@ using System.Runtime.InteropServices;
 
 namespace Tertius.Rendering;
 
-/// <summary>Identifies one impostor: the entity, and the mesh and material (already resolved) it is drawn with.</summary>
-internal readonly record struct ImpostorKey(uint EntityIndex, int Mesh, uint Material);
+/// <summary>
+/// Identifies one impostor: the entity and its render part (<see cref="RenderInstance.Part"/>), and the mesh and the
+/// resolved material slot it is drawn with. Two parts of one entity are separate impostors even when they share a
+/// mesh and a material. A part that changes its mesh or material gets a new key, so it never draws an old capture.
+/// </summary>
+internal readonly record struct ImpostorKey(uint EntityIndex, ushort Part, int Mesh, uint Material)
+{
+    public static ImpostorKey Of(in PreparedInstance instance) => new(instance.EntityIndex, instance.Part, instance.Mesh, instance.Material);
+}
 
 /// <summary>A capture that <see cref="ImpostorPass"/> renders this frame: one object alone, into one atlas tile.</summary>
 internal struct ImpostorCapture
@@ -64,11 +71,12 @@ internal readonly record struct ImpostorStatus(bool Impostor, int Tile, long Cap
 /// <para>Projected height h: the diameter in pixels of the bounding sphere's image at the center of the screen,
 /// H · tan(asin(r / d)) / tan(fov / 2), where H is the output height and d the distance to the eye. It does not
 /// change when the camera only turns. An eye inside the sphere gives an infinite height.</para>
-/// <para>Hysteresis, per key (entity index, mesh, resolved material): an object becomes an impostor when h drops
-/// below <see cref="EnterHeight"/> and returns to geometry when h rises above <see cref="ExitHeight"/>.
+/// <para>Hysteresis, per key (entity index, part, mesh and resolved material; see <see cref="ImpostorKey"/>): an
+/// object becomes an impostor when h drops below <see cref="EnterHeight"/> and returns to geometry when h rises
+/// above <see cref="ExitHeight"/>.
 /// <see cref="RenderFlags.NoImpostor"/>, <see cref="RenderFlags.Celestial"/> and <see cref="RenderFlags.Transparent"/>
-/// objects never become impostors. If two visible instances share a key in one frame, only the first can be an
-/// impostor; the others draw as geometry.</para>
+/// objects never become impostors. If two visible instances share a key in one frame (the snapshot repeats a part),
+/// only the first can be an impostor; the others draw as geometry.</para>
 /// <para>Captures: an impostor needs a capture in an atlas tile; until it has one it keeps drawing as geometry. A
 /// capture is a perspective view from the eye, fitted to the bounding sphere's tangent cone (see
 /// <see cref="ImpostorPass"/>). It records the view direction (from the object to the eye), the sun direction, and
@@ -220,7 +228,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
             if ((instance.Flags & Excluded) != 0 || !(instance.Radius > 0f) || instance.Distance < MinimumDistance * instance.Radius)
                 continue;
             float height = ProjectedHeight(instance.Distance, instance.Radius, camera);
-            var key = new ImpostorKey(instance.EntityIndex, instance.Mesh, instance.Material);
+            var key = ImpostorKey.Of(instance);
             ref int slot = ref CollectionsMarshal.GetValueRefOrAddDefault(lookup, key, out bool exists);
             if (!exists)
                 slot = AllocateState(key);
@@ -540,7 +548,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
         public SceneLight(PreparedScene scene)
         {
             RenderSun sun = scene.Sun;
-            HasSun = SceneBatcher.HasSun(sun) && float.IsFinite(sun.Direction.X + sun.Direction.Y + sun.Direction.Z);
+            HasSun = SceneBatcher.HasSun(sun);
             SunDirection = HasSun ? Vector3.Normalize(sun.Direction) : Vector3.Zero;
             sunRadiance = HasSun ? sun.Color * sun.Intensity : Vector3.Zero;
             sunAngularRadius = MathF.Max(sun.AngularRadius, 0f);

@@ -5,14 +5,19 @@ namespace Tertius.Rendering;
 /// frame. Ids are dense and assigned under the same lock that queues the data, so a batch never holds a material
 /// whose textures are missing from it or from an earlier batch.
 /// </summary>
+/// <remarks>
+/// Each kind of id counts from 0. The built-in default textures and the default material live in slots that no id
+/// names (<see cref="TextureStore.Slot"/>, <see cref="MaterialStore.Slot"/>), so the zeroed id,
+/// <see cref="TextureId.None"/>, is the only way to ask for a default, and no id handed out here is ever None.
+/// </remarks>
 internal sealed class UploadQueue
 {
     private readonly Lock gate = new();
     private Pending pending = new();
     private Pending spare = new();
     private int meshCount;
-    private int textureCount = TextureStore.FirstUserIndex;
-    private int materialCount = MaterialStore.FirstUserIndex;
+    private int textureCount;
+    private int materialCount;
     private readonly int maxTextureSize;
 
     public UploadQueue(int maxTextureSize)
@@ -37,8 +42,8 @@ internal sealed class UploadQueue
         }
         lock (gate)
         {
-            var id = new MeshId(meshCount++);
-            pending.Meshes.Add((id.Value, mesh));
+            var id = new MeshId(Next(ref meshCount, "meshes"));
+            pending.Meshes.Add((id, mesh));
             return id;
         }
     }
@@ -53,10 +58,10 @@ internal sealed class UploadQueue
             throw new ArgumentException($"Expected {texture.Width * texture.Height * 4} bytes of RGBA8, got {texture.Rgba.Length}.", nameof(texture));
         lock (gate)
         {
-            if (textureCount >= TextureStore.Capacity)
-                throw new InvalidOperationException($"The bindless texture array is full ({TextureStore.Capacity} textures).");
-            var id = new TextureId(textureCount++);
-            pending.Textures.Add((id.Value, texture));
+            if (textureCount >= TextureStore.UserCapacity)
+                throw new InvalidOperationException($"The bindless texture array is full ({TextureStore.UserCapacity} textures besides the defaults).");
+            var id = new TextureId(Next(ref textureCount, "textures"));
+            pending.Textures.Add((id, texture));
             return id;
         }
     }
@@ -69,16 +74,28 @@ internal sealed class UploadQueue
             CheckTexture(material.Albedo, nameof(material.Albedo));
             CheckTexture(material.Normal, nameof(material.Normal));
             CheckTexture(material.SpecularGloss, nameof(material.SpecularGloss));
-            var id = new MaterialId(materialCount++);
-            pending.Materials.Add((id.Value, material));
+            var id = new MaterialId(Next(ref materialCount, "materials"));
+            pending.Materials.Add((id, material));
             return id;
         }
     }
 
+    /// <summary>
+    /// Takes the next id from a counter. The counter must not wrap: after <see cref="int.MaxValue"/> it would count
+    /// up through the negative numbers to −1, the value of None, and a real resource would then read as None.
+    /// </summary>
+    private static int Next(ref int counter, string kind)
+    {
+        if (counter == int.MaxValue)
+            throw new InvalidOperationException($"This renderer has run out of ids for {kind}.");
+        return counter++;
+    }
+
+    /// <summary>A material's texture slot is None (the default texture) or a texture this renderer created.</summary>
     private void CheckTexture(TextureId texture, string slot)
     {
-        if (texture.Value >= textureCount)
-            throw new ArgumentException($"{slot} refers to texture {texture.Value}, which this renderer did not create.", slot);
+        if (!texture.IsNone && (uint)texture.Value >= (uint)textureCount)
+            throw new ArgumentException($"{slot} refers to {texture}, which this renderer did not create.", slot);
     }
 
     /// <summary>Takes everything queued so far. The returned batch is valid until the next call.</summary>
@@ -95,9 +112,9 @@ internal sealed class UploadQueue
     /// <summary>One frame's worth of queued resources, each list in id order.</summary>
     public sealed class Pending
     {
-        public readonly List<(int Id, MeshData Data)> Meshes = new();
-        public readonly List<(int Id, TextureData Data)> Textures = new();
-        public readonly List<(int Id, MaterialDesc Desc)> Materials = new();
+        public readonly List<(MeshId Id, MeshData Data)> Meshes = new();
+        public readonly List<(TextureId Id, TextureData Data)> Textures = new();
+        public readonly List<(MaterialId Id, MaterialDesc Desc)> Materials = new();
 
         public bool IsEmpty => Meshes.Count == 0 && Textures.Count == 0 && Materials.Count == 0;
 

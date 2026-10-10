@@ -24,19 +24,24 @@ public sealed class ResourceTests
                 materials.Add(renderer.CreateMaterial(new MaterialDesc(Vector4.One, Albedo: texture)));
             });
 
-            Assert.Equal(64, meshes.Select(m => m.Value).Distinct().Count());
-            Assert.Equal(64, textures.Select(t => t.Value).Distinct().Count());
-            Assert.Equal(64, materials.Select(m => m.Value).Distinct().Count());
-            // Ids are dense. Texture and material ids start after the built-in defaults.
-            Assert.Equal(Enumerable.Range(0, 64), meshes.Select(m => m.Value).Order());
-            Assert.Equal(Enumerable.Range(TextureStore.FirstUserIndex, 64), textures.Select(t => t.Value).Order());
-            Assert.Equal(Enumerable.Range(MaterialStore.FirstUserIndex, 64), materials.Select(m => m.Value).Order());
+            // Ids are dense from 0, distinct, and never None: the defaults live in slots no id names.
+            meshes.Select(m => m.Value).Order().Should().Equal(Enumerable.Range(0, 64));
+            textures.Select(t => t.Value).Order().Should().Equal(Enumerable.Range(0, 64));
+            materials.Select(m => m.Value).Order().Should().Equal(Enumerable.Range(0, 64));
+            meshes.Should().NotContain(MeshId.None);
+            textures.Should().NotContain(TextureId.None);
+            materials.Should().NotContain(MaterialId.None);
 
-            Assert.Equal(0, renderer.MeshCount);
+            renderer.MeshCount.Should().Be(0, "uploads wait for the next frame");
             renderer.Render(Gpu.Snapshot(Vector3.UnitY), 1f);
-            Assert.Equal(64, renderer.MeshCount);
-            Assert.Equal(TextureStore.FirstUserIndex + 64, renderer.TextureCount);
-            Assert.Equal(MaterialStore.FirstUserIndex + 64, renderer.MaterialCount);
+            renderer.MeshCount.Should().Be(64);
+            renderer.TextureCount.Should().Be(64);
+            renderer.MaterialCount.Should().Be(64);
+
+            // A frame that uploads only a mesh leaves the textures and materials as they are.
+            renderer.CreateMesh(Primitives.Box(Vector3.One)).Value.Should().Be(64);
+            renderer.Render(Gpu.Snapshot(Vector3.UnitY), 1f);
+            (renderer.MeshCount, renderer.TextureCount, renderer.MaterialCount).Should().Be((65, 64, 64));
         }
         finally
         {
@@ -50,20 +55,64 @@ public sealed class ResourceTests
         VulkanRenderer renderer = Gpu.Headless(64, 64);
         try
         {
-            Assert.Throws<ArgumentException>(() => renderer.CreateMesh(new MeshData([new Vertex()], [0, 0, 1])));
-            Assert.Throws<ArgumentException>(() => renderer.CreateMesh(new MeshData([new Vertex()], [0, 0])));
-            Assert.Throws<ArgumentException>(() => renderer.CreateMesh(new MeshData([], [])));
-            Assert.Throws<ArgumentException>(() => renderer.CreateTexture(new TextureData(2, 2, new byte[15])));
-            Assert.Throws<ArgumentOutOfRangeException>(() => renderer.CreateTexture(new TextureData(0, 2, [])));
-            Assert.Throws<ArgumentException>(() => renderer.CreateMaterial(new MaterialDesc(Vector4.One, Albedo: new TextureId(500))));
-            Assert.Throws<ArgumentOutOfRangeException>(() => renderer.Resize(0, 10));
+            FluentActions.Invoking(() => renderer.CreateMesh(new MeshData([new Vertex()], [0, 0, 1]))).Should().ThrowExactly<ArgumentException>("index 1 is out of range");
+            FluentActions.Invoking(() => renderer.CreateMesh(new MeshData([new Vertex()], [0, 0]))).Should().ThrowExactly<ArgumentException>("two indices are not a triangle");
+            FluentActions.Invoking(() => renderer.CreateMesh(new MeshData([], []))).Should().ThrowExactly<ArgumentException>("a mesh needs vertices");
+            FluentActions.Invoking(() => renderer.CreateTexture(new TextureData(2, 2, new byte[15]))).Should().ThrowExactly<ArgumentException>("2 × 2 RGBA8 is 16 bytes");
+            FluentActions.Invoking(() => renderer.CreateTexture(new TextureData(0, 2, []))).Should().ThrowExactly<ArgumentOutOfRangeException>();
+            // A material may name only None or textures this renderer created. Texture 0 does not exist yet, and a
+            // negative id other than None is never handed out.
+            FluentActions.Invoking(() => renderer.CreateMaterial(new MaterialDesc(Vector4.One, Albedo: new TextureId(500)))).Should().ThrowExactly<ArgumentException>();
+            FluentActions.Invoking(() => renderer.CreateMaterial(new MaterialDesc(Vector4.One, Normal: new TextureId(0)))).Should().ThrowExactly<ArgumentException>();
+            FluentActions.Invoking(() => renderer.CreateMaterial(new MaterialDesc(Vector4.One, SpecularGloss: new TextureId(-3)))).Should().ThrowExactly<ArgumentException>();
+            renderer.CreateMaterial(new MaterialDesc(Vector4.One, Albedo: TextureId.None)).IsNone.Should().BeFalse();
+            TextureId first = renderer.CreateTexture(TestTextures.Checker(4, 2, (255, 0, 0), (0, 255, 0)));
+            first.Should().Be(new TextureId(0));
+            renderer.CreateMaterial(new MaterialDesc(Vector4.One, Normal: first)).Value.Should().Be(1);
+            FluentActions.Invoking(() => renderer.Resize(0, 10)).Should().ThrowExactly<ArgumentOutOfRangeException>("a headless renderer needs a positive size");
         }
         finally
         {
             Gpu.DisposeAndAssertClean(renderer);
         }
-        Assert.Throws<ObjectDisposedException>(() => renderer.CreateMesh(Primitives.Box(Vector3.One)));
-        Assert.Throws<ObjectDisposedException>(() => renderer.Render(new RenderSnapshot(), 1f));
+        FluentActions.Invoking(() => renderer.CreateMesh(Primitives.Box(Vector3.One))).Should().ThrowExactly<ObjectDisposedException>();
+        FluentActions.Invoking(() => renderer.Render(new RenderSnapshot(), 1f)).Should().ThrowExactly<ObjectDisposedException>();
+    }
+
+    [Fact]
+    public void TheBindlessArrayHoldsItsCapacityBesidesTheDefaults()
+    {
+        VulkanRenderer renderer = Gpu.Headless(160, 90);
+        try
+        {
+            const int width = 160, height = 90;
+            MeshId box = renderer.CreateMesh(Primitives.Box(new Vector3(0.5f)));
+            // Magenta everywhere but in the last slot, which is green.
+            for (int i = 0; i < TextureStore.UserCapacity - 1; i++)
+                renderer.CreateTexture(new TextureData(1, 1, [255, 0, 255, 255]));
+            TextureId green = renderer.CreateTexture(new TextureData(1, 1, [0, 255, 0, 255]));
+            green.Value.Should().Be(TextureStore.UserCapacity - 1);
+            TextureStore.Slot(green).Should().Be(TextureStore.Capacity - 1, "the last texture takes the last slot of the array");
+            FluentActions.Invoking(() => renderer.CreateTexture(new TextureData(1, 1, [0, 0, 0, 255]))).Should().ThrowExactly<InvalidOperationException>();
+
+            // The texture in the array's last slot draws. No specular, whose white highlight would wash the green out:
+            // the sun is straight behind the camera.
+            MaterialId material = renderer.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0f, Albedo: green));
+            RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0, 0, 1));
+            snapshot.Instances.Add(Gpu.Instance(box, material, new Vector3(0, 0, -4), Vector3.One));
+            Capture image = Gpu.RenderAndCapture(renderer, snapshot, "texture-array-last-slot");
+            renderer.TextureCount.Should().Be(TextureStore.UserCapacity);
+            Vector3 color = image.Color(width / 2, height / 2);
+            color.Y.Should().BeGreaterThan(0.3f, "the box is lit");
+            // Every other slot is magenta. ACES (with its RRT saturation) mixes channels, so pure green displays with
+            // some red and blue, but green stays far ahead.
+            color.Y.Should().BeGreaterThan(color.X + 0.3f, "the box shows the green texture, not a magenta one: {0}", color)
+                .And.BeGreaterThan(color.Z + 0.3f, "the box shows the green texture, not a magenta one: {0}", color);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
     }
 
     [Fact]
@@ -82,25 +131,25 @@ public sealed class ResourceTests
 
             // About 200,000 vertices and 1,200,000 indices: both global buffers must grow (past 64 Ki vertices and
             // 256 Ki indices), and 300 more materials grow the material buffer, while earlier frames may still run.
-            MeshId last = default;
+            MeshId last = MeshId.None;
             for (int i = 0; i < 12; i++)
                 last = renderer.CreateMesh(Primitives.Sphere(1f, 128, 128));
-            MaterialId lastMaterial = default;
+            MaterialId lastMaterial = MaterialId.None;
             for (int i = 0; i < 300; i++)
                 lastMaterial = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.9f, 0.1f + i / 1000f, 0.1f, 1)));
             snapshot.Instances.Add(Gpu.Instance(last, lastMaterial, new Vector3(1.5f, 0, -6), Vector3.One));
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "buffer-growth");
-            Assert.True(renderer.PendingReleases > 0, "the replaced buffers wait for the frames that use them");
+            renderer.PendingReleases.Should().BePositive("the replaced buffers wait for the frames that use them");
             for (int i = 0; i < 4; i++)
                 renderer.Render(snapshot, 1f);
-            Assert.Equal(0, renderer.PendingReleases);
+            renderer.PendingReleases.Should().Be(0, "every frame that used the old buffers has finished");
 
             // The first mesh survived the copy into the larger buffers, and the new mesh draws with the new material.
             Vector3 left = image.Color(Gpu.Project(new Vector3(-1.5f, 0, -5.5f), width, height));
             Vector3 right = image.Color(Gpu.Project(new Vector3(1.5f, 0, -5.2f), width, height));
-            Assert.True(left.Y > left.X && left.Y > left.Z, $"green box {left}");
-            Assert.True(right.X > right.Y && right.X > right.Z, $"red sphere {right}");
+            left.Y.Should().BeGreaterThan(left.X, "the box is green").And.BeGreaterThan(left.Z);
+            right.X.Should().BeGreaterThan(right.Y, "the sphere is red").And.BeGreaterThan(right.Z);
         }
         finally
         {
@@ -109,28 +158,59 @@ public sealed class ResourceTests
     }
 
     [Fact]
-    public void DefaultTextureIdsMeanDefaultTextures()
+    public void NoneMeansTheDefaultTextureOrMaterialAndIdZeroIsARealResource()
     {
         const int width = 160, height = 90;
         VulkanRenderer renderer = Gpu.Headless(width, height);
         try
         {
+            // The first texture, material and mesh all get id 0, and none of them is None.
+            TextureId red = renderer.CreateTexture(TestTextures.Checker(8, 2, (255, 0, 0), (255, 0, 0)));
+            MaterialId gray = renderer.CreateMaterial(new MaterialDesc(new Vector4(0.8f, 0.8f, 0.8f, 1)));
             MeshId box = renderer.CreateMesh(Primitives.Box(new Vector3(0.5f)));
-            // A real texture exists at the first user index, but default(TextureId) and None must not pick it up.
-            renderer.CreateTexture(TestTextures.Checker(8, 2, (255, 0, 0), (255, 0, 0)));
-            MaterialId byDefault = renderer.CreateMaterial(new MaterialDesc(new Vector4(0.8f, 0.8f, 0.8f, 1)));
-            MaterialId byNone = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.8f, 0.8f, 0.8f, 1)));
+            (red.Value, gray.Value, box.Value).Should().Be((0, 0, 0));
+            red.IsNone.Should().BeFalse();
+            gray.IsNone.Should().BeFalse();
+            box.IsNone.Should().BeFalse();
+            // A material whose texture slots are left at None uses the default textures, not texture 0.
+            MaterialId explicitNone = renderer.CreateMaterial(new MaterialDesc(new Vector4(0.8f, 0.8f, 0.8f, 1), Albedo: TextureId.None));
+            // No specular here, so that the sun straight behind the camera leaves the texture's red unwashed.
+            MaterialId textured = renderer.CreateMaterial(new MaterialDesc(new Vector4(0.8f, 0.8f, 0.8f, 1), SpecularIntensity: 0f, Albedo: red));
+
             RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0, 0, 1));
-            snapshot.Instances.Add(Gpu.Instance(box, byDefault, new Vector3(-1f, 0, -5), Vector3.One));
-            snapshot.Instances.Add(Gpu.Instance(box, byNone, new Vector3(1f, 0, -5), Vector3.One));
-            // An unknown material id falls back to the default white material.
-            snapshot.Instances.Add(Gpu.Instance(box, new MaterialId(9999), new Vector3(0, 1.2f, -5), Vector3.One));
-            Capture image = Gpu.RenderAndCapture(renderer, snapshot, "default-textures");
-            foreach (Vector3 position in new[] { new Vector3(-1f, 0, -4.5f), new Vector3(1f, 0, -4.5f), new Vector3(0, 1.2f, -4.5f) })
+            var places = new (Vector3 Position, MaterialId Material, bool Gray)[]
             {
-                Vector3 color = image.Color(Gpu.Project(position, width, height));
-                Assert.True(color.X > 0.4f && MathF.Abs(color.X - color.Y) < 0.03f && MathF.Abs(color.Y - color.Z) < 0.03f, $"gray expected at {position}: {color}");
+                (new Vector3(-1.2f, 0, -5), gray, true),
+                (new Vector3(1.2f, 0, -5), textured, false),
+                (new Vector3(-1.2f, 1.2f, -5), explicitNone, true),
+                // None and an id this renderer never handed out both draw with the default white material.
+                (new Vector3(1.2f, 1.2f, -5), MaterialId.None, true),
+                (new Vector3(0, -1.2f, -5), new MaterialId(9999), true),
+            };
+            foreach ((Vector3 position, MaterialId material, _) in places)
+                snapshot.Instances.Add(Gpu.Instance(box, material, position, Vector3.One));
+            // MeshId.None draws nothing.
+            snapshot.Instances.Add(Gpu.Instance(MeshId.None, gray, new Vector3(0, 0, -3), Vector3.One));
+
+            Capture image = Gpu.RenderAndCapture(renderer, snapshot, "default-textures");
+            renderer.LastFrameStats.SubmittedInstances.Should().Be(6);
+            renderer.LastFrameStats.VisibleInstances.Should().Be(5, "an instance of MeshId.None is not drawn");
+            foreach ((Vector3 position, MaterialId material, bool expectGray) in places)
+            {
+                Vector3 color = image.Color(Gpu.Project(position + new Vector3(0, 0, 0.5f), width, height));
+                if (expectGray)
+                {
+                    color.X.Should().BeGreaterThan(0.4f, "{0} at {1} is lit", material, position);
+                    MathF.Abs(color.X - color.Y).Should().BeLessThan(0.03f, "{0} at {1} is gray: {2}", material, position, color);
+                    MathF.Abs(color.Y - color.Z).Should().BeLessThan(0.03f, "{0} at {1} is gray: {2}", material, position, color);
+                }
+                else
+                {
+                    color.X.Should().BeGreaterThan(2 * color.Y, "texture 0 is red: {0}", color);
+                }
             }
+            // Nothing is drawn where the None mesh would be, in front of the others: the center shows the sky.
+            image.MeanLuma(new Vector2(width / 2f, height / 2f), 1).Should().BeLessThan(0.1f);
         }
         finally
         {

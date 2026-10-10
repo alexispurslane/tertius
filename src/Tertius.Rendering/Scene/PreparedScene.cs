@@ -60,6 +60,8 @@ internal struct PreparedInstance
     public uint Material;
     public RenderFlags Flags;
     public uint EntityIndex;
+    /// <summary>Which of the entity's render parts this is. With <see cref="EntityIndex"/>, it names the object from frame to frame.</summary>
+    public ushort Part;
 }
 
 /// <summary>A run of indirect commands for one draw call.</summary>

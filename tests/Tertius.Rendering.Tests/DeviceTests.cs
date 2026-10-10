@@ -10,8 +10,8 @@ public sealed class DeviceTests
     public void HeadlessRendererCreatesAndDisposesCleanly()
     {
         VulkanRenderer renderer = Gpu.Headless(320, 180);
-        Assert.False(string.IsNullOrEmpty(renderer.DeviceName));
-        Assert.Equal((320, 180), renderer.OutputSize);
+        renderer.DeviceName.Should().NotBeNullOrEmpty();
+        renderer.OutputSize.Should().Be((320, 180));
         Gpu.DisposeAndAssertClean(renderer);
     }
 
@@ -23,10 +23,10 @@ public sealed class DeviceTests
         {
             RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0, 1, 0));
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "empty");
-            Assert.Equal(320, image.Width);
-            Assert.Equal(180, image.Height);
-            Assert.True(renderer.LastFrameStats.Rendered);
-            Assert.Equal(0, renderer.LastFrameStats.IndirectDrawCalls);
+            image.Width.Should().Be(320);
+            image.Height.Should().Be(180);
+            renderer.LastFrameStats.Rendered.Should().BeTrue();
+            renderer.LastFrameStats.IndirectDrawCalls.Should().Be(0);
 
             // Mostly black space with a few stars.
             int bright = 0;
@@ -41,8 +41,8 @@ public sealed class DeviceTests
                         bright++;
                 }
             }
-            Assert.True(sum / (image.Width * image.Height) < 0.05f, $"mean luma {sum / (image.Width * image.Height)}");
-            Assert.InRange(bright, 10, image.Width * image.Height / 50);
+            (sum / (image.Width * image.Height)).Should().BeLessThan(0.05f, "space is mostly black");
+            bright.Should().BeInRange(10, image.Width * image.Height / 50, "a few stars show");
         }
         finally
         {
@@ -64,7 +64,7 @@ public sealed class DeviceTests
                 snapshot.Instances.Add(Gpu.Instance(box, material, new Vector3(0, 0, -4), Vector3.One));
                 for (int i = 0; i < 8; i++)
                     renderer.Render(snapshot, 1f);
-                Assert.Equal(1, renderer.LastFrameStats.NearCommands);
+                renderer.LastFrameStats.NearCommands.Should().Be(1, "with {0} frames in flight", framesInFlight);
             }
             finally
             {
@@ -76,19 +76,20 @@ public sealed class DeviceTests
     [Fact]
     public void TheShadowMapSizeIsAnOptionWithALowerBound()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => VulkanRenderer.CreateHeadless(new RendererOptions { Width = 64, Height = 64, ShadowMapSize = 100 }));
+        FluentActions.Invoking(() => VulkanRenderer.CreateHeadless(new RendererOptions { Width = 64, Height = 64, ShadowMapSize = 100 }))
+            .Should().ThrowExactly<ArgumentOutOfRangeException>();
         VulkanRenderer renderer = VulkanRenderer.CreateHeadless(new RendererOptions { Validation = true, Width = 160, Height = 90, ShadowMapSize = 1024 });
         try
         {
-            Assert.Equal(1024, renderer.ShadowMap.Size);
-            Assert.Equal((uint)ShadowCascades.Count, renderer.ShadowMap.Image.ArrayLayers);
+            renderer.ShadowMap.Size.Should().Be(1024);
+            renderer.ShadowMap.Image.ArrayLayers.Should().Be((uint)ShadowCascades.Count);
             MeshId box = renderer.CreateMesh(Primitives.Box(new Vector3(0.5f)));
             MaterialId white = renderer.CreateMaterial(MaterialDesc.Color(Vector4.One));
             RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.3f, 1f, 0.2f));
             snapshot.Instances.Add(Gpu.Instance(box, white, new Vector3(0, 0, -5), Vector3.One, flags: RenderFlags.CastsShadow));
             renderer.Render(snapshot, 1f);
-            Assert.Equal(4, renderer.LastFrameStats.ShadowCascades);
-            Assert.Equal(1024 * 1024, renderer.ReadShadowCascade(0).Length);
+            renderer.LastFrameStats.ShadowCascades.Should().Be(4);
+            renderer.ReadShadowCascade(0).Should().HaveCount(1024 * 1024);
         }
         finally
         {

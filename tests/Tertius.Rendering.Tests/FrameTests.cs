@@ -20,10 +20,9 @@ public sealed class FrameTests
             RenderSnapshot snapshot = LitFromBehind();
             var left = new Vector3(-2.5f, 0, -8);
             var right = new Vector3(2.5f, 0, -8);
-            RenderInstance instance = Gpu.Instance(box, white, right, Vector3.One);
+            RenderInstance instance = Gpu.Instance(box, white, right, Vector3.One, Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4));
             instance.PreviousPosition = left;
             instance.PreviousRotation = Quaternion.Identity;
-            instance.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4);
             snapshot.Instances.Add(instance);
 
             Capture start = Gpu.RenderAndCapture(renderer, snapshot, "interpolation-alpha0", alpha: 0f);
@@ -33,21 +32,25 @@ public sealed class FrameTests
             Vector2 centerPixel = Gpu.Project((left + right) / 2, width, height);
             Vector2 rightPixel = Gpu.Project(right, width, height);
 
-            Assert.True(start.Luma(leftPixel) > 0.3f && start.Luma(rightPixel) < 0.1f, "alpha 0 draws the previous position");
-            Assert.True(middle.Luma(centerPixel) > 0.3f && middle.Luma(leftPixel) < 0.1f && middle.Luma(rightPixel) < 0.1f, "alpha 0.5 draws the midpoint");
-            Assert.True(end.Luma(rightPixel) > 0.3f && end.Luma(leftPixel) < 0.1f, "alpha 1 draws the current position");
+            start.Luma(leftPixel).Should().BeGreaterThan(0.3f, "alpha 0 draws the previous position");
+            start.Luma(rightPixel).Should().BeLessThan(0.1f, "alpha 0 draws nothing at the current position");
+            middle.Luma(centerPixel).Should().BeGreaterThan(0.3f, "alpha 0.5 draws the midpoint");
+            middle.Luma(leftPixel).Should().BeLessThan(0.1f, "alpha 0.5 draws nothing at the previous position");
+            middle.Luma(rightPixel).Should().BeLessThan(0.1f, "alpha 0.5 draws nothing at the current position");
+            end.Luma(rightPixel).Should().BeGreaterThan(0.3f, "alpha 1 draws the current position");
+            end.Luma(leftPixel).Should().BeLessThan(0.1f, "alpha 1 draws nothing at the previous position");
 
             // The rotation is interpolated too: a centered box turning 45 degrees about Y shows only its front face
             // at alpha 0 and two faces, about √2 times wider, at alpha 1.
             RenderSnapshot turning = LitFromBehind();
-            RenderInstance spinner = Gpu.Instance(box, white, new Vector3(0, 0, -8), Vector3.One);
-            spinner.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4);
+            RenderInstance spinner = Gpu.Instance(box, white, new Vector3(0, 0, -8), Vector3.One, Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4));
+            spinner.PreviousRotation = Quaternion.Identity;
             turning.Instances.Add(spinner);
             Capture unturned = Gpu.RenderAndCapture(renderer, turning, "rotation-alpha0", alpha: 0f);
             Capture turned = Gpu.RenderAndCapture(renderer, turning, "rotation-alpha1", alpha: 1f);
             int row = height / 2;
             float ratio = Measure.LongestRun(turned, row, horizontal: true) / (float)Measure.LongestRun(unturned, row, horizontal: true);
-            Assert.InRange(ratio, 1.3f, 1.5f);
+            ratio.Should().BeInRange(1.3f, 1.5f, "a box turned by 45 degrees is about √2 times wider");
         }
         finally
         {
@@ -72,8 +75,9 @@ public sealed class FrameTests
             Capture end = Gpu.RenderAndCapture(renderer, snapshot, "camera-alpha1", alpha: 1f);
             Vector2 seenFromPrevious = Gpu.Project(new Vector3(2f, 0, -6), width, height);
             Vector2 seenFromCurrent = Gpu.Project(new Vector3(0, 0, -6), width, height);
-            Assert.True(start.Luma(seenFromPrevious) > 0.3f && start.Luma(seenFromCurrent) < 0.1f, "alpha 0 sees the box from the previous position");
-            Assert.True(end.Luma(seenFromCurrent) > 0.3f, "alpha 1 sees the box from the current position");
+            start.Luma(seenFromPrevious).Should().BeGreaterThan(0.3f, "alpha 0 sees the box from the previous position");
+            start.Luma(seenFromCurrent).Should().BeLessThan(0.1f, "alpha 0 does not see the box where the current position would");
+            end.Luma(seenFromCurrent).Should().BeGreaterThan(0.3f, "alpha 1 sees the box from the current position");
         }
         finally
         {
@@ -93,22 +97,22 @@ public sealed class FrameTests
             snapshot.Instances.Add(Gpu.Instance(sphere, orange, new Vector3(0, 0, -5), Vector3.One));
 
             Capture small = Gpu.RenderAndCapture(renderer, snapshot, "resize-320x180");
-            Assert.Equal((320, 180), (small.Width, small.Height));
+            (small.Width, small.Height).Should().Be((320, 180));
 
             renderer.Resize(400, 300);
             Capture square = Gpu.RenderAndCapture(renderer, snapshot, "resize-400x300");
-            Assert.Equal((400, 300), (square.Width, square.Height));
-            Assert.Equal((400, 300), renderer.OutputSize);
-            Assert.True(square.Luma(200, 150) > 0.3f, "the sphere is centered after the resize");
+            (square.Width, square.Height).Should().Be((400, 300));
+            renderer.OutputSize.Should().Be((400, 300));
+            square.Luma(200, 150).Should().BeGreaterThan(0.3f, "the sphere is centered after the resize");
 
             renderer.Resize(800, 450);
             for (int i = 0; i < 3; i++)
                 renderer.Render(snapshot, 1f);
             Capture large = Gpu.RenderAndCapture(renderer, snapshot, "resize-800x450");
-            Assert.Equal((800, 450), (large.Width, large.Height));
+            (large.Width, large.Height).Should().Be((800, 450));
             // The sphere covers the same fraction of the height at any size.
             static float SphereHeight(Capture image) => Measure.LongestRun(image, image.Width / 2, horizontal: false) / (float)image.Height;
-            Assert.InRange(SphereHeight(large) - SphereHeight(small), -0.03f, 0.03f);
+            SphereHeight(large).Should().BeApproximately(SphereHeight(small), 0.03f, "the vertical field of view does not change with the size");
         }
         finally
         {
@@ -137,16 +141,17 @@ public sealed class FrameTests
             Vector3 wall = image.Color(Gpu.Project(new Vector3(1.5f, 1.5f, -7.5f), width, height));
             Vector3 tinted = image.Color(Gpu.Project(new Vector3(-1, 0, -5), width, height));
             Vector3 hidden = image.Color(Gpu.Project(new Vector3(1, 0, -7.5f), width, height));
-            Assert.True(wall.X > 0.5f && MathF.Abs(wall.X - wall.Y) < 0.05f, $"wall {wall}");
+            wall.X.Should().BeGreaterThan(0.5f, "the wall is lit");
+            MathF.Abs(wall.X - wall.Y).Should().BeLessThan(0.05f, "the wall is white: {0}", wall);
             // Half red glass over a white wall, compared in linear light: red stays, green drops to about half
             // (the wall still shows through).
             Vector3 wallLinear = Measure.ToLinear(wall), tintedLinear = Measure.ToLinear(tinted);
-            Assert.True(tintedLinear.X > 0.8f * wallLinear.X, $"tinted {tintedLinear} over {wallLinear}");
-            Assert.InRange(tintedLinear.Y / wallLinear.Y, 0.35f, 0.7f);
-            Assert.True(Vector3.Distance(hidden, wall) < 0.05f, $"the sphere behind the wall shows: {hidden} vs {wall}");
+            tintedLinear.X.Should().BeGreaterThan(0.8f * wallLinear.X, "red glass keeps the red of the wall behind it");
+            (tintedLinear.Y / wallLinear.Y).Should().BeInRange(0.35f, 0.7f, "half-opaque red glass lets about half the green through");
+            Vector3.Distance(hidden, wall).Should().BeLessThan(0.05f, "the sphere behind the wall does not show ({0} vs {1})", hidden, wall);
             // Both spheres share a mesh and a range, so after sorting back to front they form one command.
-            Assert.Equal(1, renderer.LastFrameStats.TransparentCommands);
-            Assert.Equal(3, renderer.LastFrameStats.GpuInstances);
+            renderer.LastFrameStats.TransparentCommands.Should().Be(1);
+            renderer.LastFrameStats.GpuInstances.Should().Be(3);
         }
         finally
         {
@@ -173,10 +178,10 @@ public sealed class FrameTests
             RenderStats stats = renderer.LastFrameStats;
             // The rail is drawn in the near and middle ranges, the slab in the middle and far ranges. In the middle
             // range they share the box mesh, so they form one command with two instances.
-            Assert.Equal(1, stats.NearCommands);
-            Assert.Equal(1, stats.MiddleCommands);
-            Assert.Equal(1, stats.FarCommands);
-            Assert.Equal(4, stats.GpuInstances);
+            stats.NearCommands.Should().Be(1);
+            stats.MiddleCommands.Should().Be(1);
+            stats.FarCommands.Should().Be(1);
+            stats.GpuInstances.Should().Be(4);
 
             // The center line of each top face projects to a screen segment. Every pixel along it must be covered,
             // in particular where it crosses a range boundary.
@@ -189,7 +194,7 @@ public sealed class FrameTests
                 for (int i = 10; i <= 190; i++)
                 {
                     Vector2 p = Vector2.Lerp(a, b, i / 200f);
-                    Assert.True(image.Luma(p) > 0.2f, $"gap at {p} on {a}-{b}; the boundary crosses at {crossing}");
+                    image.Luma(p).Should().BeGreaterThan(0.2f, "{0} on {1}-{2} is covered; the range boundary crosses at {3}", p, a, b, crossing);
                 }
             }
             AssertCovered(new Vector3(0, -198, -1_020), new Vector3(0, -198, -2_980), new Vector3(0, -198, -2_000));
@@ -227,7 +232,7 @@ public sealed class FrameTests
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "ground-behind-and-beyond");
             Vector3 top = image.Color(Gpu.Project(new Vector3(0, ground + 40f, -1_500f), camera, width, height, fov));
-            Assert.True(top.X > 2 * top.Y && top.X > 0.4f, $"the box's top is red: {top}");
+            top.X.Should().BeGreaterThan(0.4f, "the box's top is lit").And.BeGreaterThan(2 * top.Y, "the box's top is red, not the ground: {0}", top);
         }
         finally
         {

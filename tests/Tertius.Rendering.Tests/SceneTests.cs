@@ -20,25 +20,25 @@ public sealed class SceneTests
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "scene");
             RenderStats stats = renderer.LastFrameStats;
 
-            Assert.Equal(snapshot.Instances.Count, stats.SubmittedInstances);
-            Assert.Equal(snapshot.Instances.Count, stats.VisibleInstances);
-            Assert.True(stats.FarCommands >= 1, "far range");
-            Assert.True(stats.MiddleCommands >= 1, "middle range");
-            Assert.True(stats.NearCommands >= 2, "near range");
-            Assert.Equal(1, stats.TransparentCommands);
-            Assert.Equal(2, stats.Lights);
+            stats.SubmittedInstances.Should().Be(snapshot.Instances.Count);
+            stats.VisibleInstances.Should().Be(snapshot.Instances.Count);
+            stats.FarCommands.Should().BeGreaterThanOrEqualTo(1, "the planet and the star are in the far range");
+            stats.MiddleCommands.Should().BeGreaterThanOrEqualTo(1, "the station is in the middle range");
+            stats.NearCommands.Should().BeGreaterThanOrEqualTo(2, "boxes, spheres and the ground are in the near range");
+            stats.TransparentCommands.Should().Be(1);
+            stats.Lights.Should().Be(2);
             // The ground, three boxes and two spheres cast shadows into all four cascades.
-            Assert.Equal(6, stats.ShadowCasters);
-            Assert.Equal(4, stats.ShadowCascades);
+            stats.ShadowCasters.Should().Be(6);
+            stats.ShadowCascades.Should().Be(4);
             // One multi-draw per opaque range, one for the transparent range and one per shadow cascade.
-            Assert.Equal(4 + ShadowCascades.Count, stats.IndirectDrawCalls);
+            stats.IndirectDrawCalls.Should().Be(4 + ShadowCascades.Count);
 
             Vector2 Pixel(Vector3 p) => Gpu.Project(p, Width, Height);
             float sky = image.MeanLuma(new Vector2(Width * 0.5f, Height * 0.12f), 3);
 
             // The star at 1 AU is a small, saturated disc where the sun direction projects.
             Vector2 star = Pixel(TestScene.StarCenter);
-            Assert.True(image.Luma(star) > 0.95f, $"star luma {image.Luma(star)}");
+            image.Luma(star).Should().BeGreaterThan(0.95f, "the star is saturated");
 
             // The planet's sunlit limb, a little inside the disc toward the sun, is lit; its far side is dark but
             // still covers the stars.
@@ -46,27 +46,27 @@ public sealed class SceneTests
             Vector3 viewDirection = Vector3.Normalize(TestScene.PlanetCenter);
             Vector3 limbDirection = Vector3.Normalize(toSun - Vector3.Dot(toSun, viewDirection) * viewDirection);
             Vector2 litLimb = Pixel(TestScene.PlanetCenter + limbDirection * TestScene.PlanetRadius * 0.85f);
-            Assert.True(image.MeanLuma(litLimb, 2) > sky + 0.15f, $"planet limb {image.MeanLuma(litLimb, 2)} vs sky {sky}");
+            image.MeanLuma(litLimb, 2).Should().BeGreaterThan(sky + 0.15f, "the planet's sunlit limb is brighter than the sky ({0})", sky);
 
             // The station at 50 km: its sunlit face is brighter than the sky around it.
             Vector2 station = Pixel(TestScene.StationCenter);
-            Assert.True(image.MaxLuma(station, 6) > sky + 0.2f, $"station {image.MaxLuma(station, 6)}");
-            Assert.True(image.MeanLuma(station + new Vector2(0, -40), 2) < 0.1f, "sky above the station");
+            image.MaxLuma(station, 6).Should().BeGreaterThan(sky + 0.2f, "the station's sunlit face is brighter than the sky ({0})", sky);
+            image.MeanLuma(station + new Vector2(0, -40), 2).Should().BeLessThan(0.1f, "the sky above the station is dark");
 
             // Lit near objects are brighter than the sky behind them.
-            Assert.True(image.MeanLuma(Pixel(TestScene.RedSphere), 2) > sky + 0.1f, "red sphere");
-            Assert.True(image.MeanLuma(Pixel(TestScene.TexturedBox + new Vector3(0, 0.89f, 0.3f)), 2) > sky + 0.15f, "top of the textured box");
+            image.MeanLuma(Pixel(TestScene.RedSphere), 2).Should().BeGreaterThan(sky + 0.1f, "the red sphere is lit");
+            image.MeanLuma(Pixel(TestScene.TexturedBox + new Vector3(0, 0.89f, 0.3f)), 2).Should().BeGreaterThan(sky + 0.15f, "the top of the textured box is lit");
             Vector3 red = image.Color(Pixel(TestScene.RedSphere));
-            Assert.True(red.X > 2 * red.Y && red.X > 2 * red.Z, $"red sphere color {red}");
+            red.X.Should().BeGreaterThan(2 * red.Y, "the red sphere is red: {0}", red).And.BeGreaterThan(2 * red.Z, "the red sphere is red: {0}", red);
 
             // The spot light makes the top of the blue sphere brighter than its unlit lower half.
             Vector2 spotlit = Pixel(TestScene.BlueSphere + new Vector3(0.15f, 0.45f, 0.2f));
             Vector2 below = Pixel(TestScene.BlueSphere + new Vector3(0f, -0.45f, 0.3f));
-            Assert.True(image.Luma(spotlit) > image.Luma(below) + 0.1f, $"spot {image.Luma(spotlit)} vs {image.Luma(below)}");
+            image.Luma(spotlit).Should().BeGreaterThan(image.Luma(below) + 0.1f, "the spot light reaches the top of the blue sphere");
 
             // The transparent green sphere tints what is behind it.
             Vector3 glass = image.Color(Pixel(TestScene.GreenGlass));
-            Assert.True(glass.Y > glass.X && glass.Y > glass.Z, $"glass color {glass}");
+            glass.Y.Should().BeGreaterThan(glass.X, "the glass tints green: {0}", glass).And.BeGreaterThan(glass.Z, "the glass tints green: {0}", glass);
         }
         finally
         {
@@ -98,8 +98,8 @@ public sealed class SceneTests
             var sunward = Vector3.Normalize(new Vector3(0.6f, 0, 0.8f)) * moonRadius;
             float inShadow = image.MeanLuma(Gpu.Project(shadowed + sunward, 960, 540), 1);
             float inSun = image.MeanLuma(Gpu.Project(lit + sunward, 960, 540), 1);
-            Assert.True(inSun > 0.4f, $"lit moon {inSun}");
-            Assert.True(inShadow < 0.3f * inSun, $"shadowed moon {inShadow} vs lit moon {inSun}");
+            inSun.Should().BeGreaterThan(0.4f, "the moon on the day side is lit");
+            inShadow.Should().BeLessThan(0.3f * inSun, "the moon in the planet's shadow is dark");
         }
         finally
         {
@@ -122,8 +122,8 @@ public sealed class SceneTests
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "occluder-shadow");
             float shadow = image.MeanLuma(Gpu.Project(new Vector3(0, -1.5f, -8f), 640, 360), 2);
             float sunlit = image.MeanLuma(Gpu.Project(new Vector3(3f, -1.5f, -8f), 640, 360), 2);
-            Assert.True(sunlit > 0.3f, $"sunlit ground {sunlit}");
-            Assert.True(shadow < 0.5f * sunlit, $"shadow {shadow} vs sunlit {sunlit}");
+            sunlit.Should().BeGreaterThan(0.3f, "the ground away from the occluder is lit");
+            shadow.Should().BeLessThan(0.5f * sunlit, "the occluder sphere shadows the ground under it");
         }
         finally
         {

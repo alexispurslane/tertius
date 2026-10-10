@@ -4,22 +4,26 @@ using Silk.NET.Vulkan;
 namespace Tertius.Rendering;
 
 /// <summary>
-/// Every material texture, addressed by its index in one bindless array of sampled images (set 1). Indices 0 to 2
-/// hold the defaults that <see cref="TextureId.None"/> resolves to. Textures get a full mip chain made with blits
-/// when the format allows linear blits.
+/// Every material texture, in one bindless array of sampled images (set 1). The first <see cref="BuiltInCount"/>
+/// slots hold the built-in defaults that a material's <see cref="TextureId.None"/> slots resolve to. Texture n from
+/// <see cref="VulkanRenderer.CreateTexture"/> lives in slot n + <see cref="BuiltInCount"/>, so no
+/// <see cref="TextureId"/> names a built-in, and ids start at 0 without any of them meaning "default". Textures get
+/// a full mip chain made with blits when the format allows linear blits.
 /// </summary>
 internal sealed unsafe class TextureStore : IDisposable
 {
     /// <summary>The size of the bindless array. The descriptor binding has a variable count of this many.</summary>
     public const int Capacity = 4096;
-    /// <summary>Opaque white in sRGB: the default albedo.</summary>
+    /// <summary>The slot of opaque white in sRGB: the default albedo.</summary>
     public const int White = 0;
-    /// <summary>(0.5, 0.5, 1) in UNORM: the default normal map, a tangent-space normal of +Z.</summary>
+    /// <summary>The slot of (0.5, 0.5, 1) in UNORM: the default normal map, a tangent-space normal of +Z.</summary>
     public const int FlatNormal = 1;
-    /// <summary>(1, 1) in UNORM: the default specular-gloss map, which leaves the material's scalars as they are.</summary>
+    /// <summary>The slot of (1, 1) in UNORM: the default specular-gloss map, which leaves the material's scalars as they are.</summary>
     public const int DefaultSpecularGloss = 2;
-    /// <summary>The first index that <see cref="VulkanRenderer.CreateTexture"/> hands out.</summary>
-    public const int FirstUserIndex = 3;
+    /// <summary>The slots the built-in defaults take, before the first texture that the renderer hands out.</summary>
+    public const int BuiltInCount = 3;
+    /// <summary>The most textures that <see cref="VulkanRenderer.CreateTexture"/> can create.</summary>
+    public const int UserCapacity = Capacity - BuiltInCount;
 
     private readonly VulkanDevice device;
     private readonly DeviceAllocator allocator;
@@ -52,29 +56,40 @@ internal sealed unsafe class TextureStore : IDisposable
     /// <summary>Linear filtering, repeat addressing, trilinear mips and up to 16x anisotropy.</summary>
     public Sampler MaterialSampler { get; }
 
-    /// <summary>Textures on the GPU. The bindless array is valid for indices below this.</summary>
+    /// <summary>Slots on the GPU, the built-in defaults included. The bindless array is valid for slots below this.</summary>
     public int Count => images.Count;
 
-    public GpuImage this[int index] => images[index];
+    /// <summary>Textures from <see cref="VulkanRenderer.CreateTexture"/> on the GPU.</summary>
+    public int UserCount => Math.Max(images.Count - BuiltInCount, 0);
 
-    /// <summary>Resolves a material's texture slot: ids the renderer did not hand out mean the default.</summary>
-    public static uint Resolve(TextureId texture, int fallback) =>
-        texture.Value >= FirstUserIndex ? (uint)texture.Value : (uint)fallback;
+    public GpuImage this[int slot] => images[slot];
 
-    /// <summary>Records the upload of queued textures, creating the defaults on the first call.</summary>
-    public void Upload(CommandBuffer commandBuffer, List<(int Id, TextureData Data)> pending, StagingArena staging, BarrierBatch barriers)
+    /// <summary>The bindless slot of a texture that the renderer handed out.</summary>
+    public static int Slot(TextureId texture) => texture.Value + BuiltInCount;
+
+    /// <summary>
+    /// The bindless slot for a material's texture: <paramref name="fallback"/>, a built-in default, for
+    /// <see cref="TextureId.None"/>, and the texture's own slot otherwise. The upload queue has already rejected ids
+    /// it did not hand out, and it queues a texture no later than the materials that use it.
+    /// </summary>
+    public static uint Resolve(TextureId texture, int fallback) => texture.IsNone ? (uint)fallback : (uint)Slot(texture);
+
+    /// <summary>Records the upload of queued textures, creating the built-in defaults on the first call.</summary>
+    public void Upload(CommandBuffer commandBuffer, List<(TextureId Id, TextureData Data)> pending, StagingArena staging, BarrierBatch barriers)
     {
         if (images.Count == 0)
         {
+            // In slot order: White, FlatNormal, DefaultSpecularGloss.
             Add(commandBuffer, new TextureData(1, 1, [255, 255, 255, 255], Srgb: true), "default white", staging, barriers);
             Add(commandBuffer, new TextureData(1, 1, [128, 128, 255, 255], Srgb: false), "default normal", staging, barriers);
             Add(commandBuffer, new TextureData(1, 1, [255, 255, 0, 255], Srgb: false), "default specular-gloss", staging, barriers);
         }
-        foreach ((int id, TextureData data) in pending)
+        foreach ((TextureId id, TextureData data) in pending)
         {
-            if (id != images.Count)
-                throw new InvalidOperationException($"Texture {id} arrived out of order; expected {images.Count}.");
-            Add(commandBuffer, data, $"texture {id}", staging, barriers);
+            // The upload queue hands out dense ids under one lock and drains them in order, so each id names the next
+            // slot. If that broke, a material would sample another texture.
+            Contract.Assert(Slot(id) == images.Count);
+            Add(commandBuffer, data, $"texture {id.Value}", staging, barriers);
         }
     }
 

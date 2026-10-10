@@ -26,8 +26,11 @@ internal sealed class SceneBatcher
     /// <param name="alpha">Interpolation factor from the previous transforms (0) to the current ones (1).</param>
     /// <param name="width">Output width in pixels.</param>
     /// <param name="height">Output height in pixels.</param>
-    /// <param name="meshes">Meshes that are on the GPU. Instances of other meshes are skipped.</param>
-    /// <param name="materialCount">Materials on the GPU. Other material ids fall back to the default material 0.</param>
+    /// <param name="meshes">Meshes that are on the GPU. Instances of <see cref="MeshId.None"/> and of other meshes are skipped.</param>
+    /// <param name="materialCount">
+    /// Material slots on the GPU, the default included. <see cref="MaterialId.None"/> and ids that are not on the GPU
+    /// draw with the default material (<see cref="MaterialStore.Resolve"/>).
+    /// </param>
     /// <param name="scene">Receives the result.</param>
     public void Prepare(RenderSnapshot snapshot, float alpha, int width, int height, ReadOnlySpan<MeshInfo> meshes, int materialCount, PreparedScene scene)
     {
@@ -86,6 +89,13 @@ internal sealed class SceneBatcher
             : mesh.Radius * MathF.Max(MathF.Abs(scale.X), MathF.Max(MathF.Abs(scale.Y), MathF.Abs(scale.Z)));
     }
 
+    /// <summary>
+    /// The index of an instance's mesh in the meshes on the GPU, or −1 when it has none: <see cref="MeshId.None"/>, or
+    /// an id that is not on the GPU, such as one from another renderer.
+    /// </summary>
+    internal static int MeshIndex(MeshId mesh, int meshCount) =>
+        !mesh.IsNone && (uint)mesh.Value < (uint)meshCount ? mesh.Value : -1;
+
     /// <summary>A zero scale axis collapses the object, and the normal matrix would divide by zero.</summary>
     internal static bool HasVolume(Vector3 scale) => scale.X != 0f && scale.Y != 0f && scale.Z != 0f;
 
@@ -110,8 +120,8 @@ internal sealed class SceneBatcher
         {
             if ((instance.Flags & RenderFlags.Visible) == 0)
                 continue;
-            int mesh = instance.Mesh.Value;
-            if ((uint)mesh >= (uint)meshes.Length)
+            int mesh = MeshIndex(instance.Mesh, meshes.Length);
+            if (mesh < 0)
                 continue;
             Vector3 scale = instance.Scale;
             if (!HasVolume(scale))
@@ -119,6 +129,7 @@ internal sealed class SceneBatcher
 
             Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - camera.Offset;
             float radius = BoundingRadius(instance, meshes[mesh]);
+            // One sum is non-finite when any term is NaN or infinite.
             if (!float.IsFinite(position.X + position.Y + position.Z + radius) || camera.Culls(position, radius))
                 continue;
 
@@ -130,10 +141,10 @@ internal sealed class SceneBatcher
             prepared.Depth = Vector3.Dot(position, camera.Forward);
             prepared.Distance = position.Length();
             prepared.Mesh = mesh;
-            int material = instance.Material.Value;
-            prepared.Material = (uint)material < (uint)materialCount ? (uint)material : 0u;
+            prepared.Material = MaterialStore.Resolve(instance.Material, materialCount);
             prepared.Flags = instance.Flags;
             prepared.EntityIndex = instance.EntityIndex;
+            prepared.Part = instance.Part;
         }
     }
 
@@ -250,8 +261,17 @@ internal sealed class SceneBatcher
         }
     }
 
-    /// <summary>The sun lights the scene: a non-zero direction and a positive intensity.</summary>
-    internal static bool HasSun(in RenderSun sun) => sun.Direction.LengthSquared() > 1e-12f && sun.Intensity > 0f;
+    /// <summary>
+    /// The sun lights the scene: a finite, non-zero direction and a finite, positive intensity. Every part of the frame
+    /// asks this: without a sun, nothing is lit by it, no shadow map is drawn, and impostor captures bake no sunlight.
+    /// </summary>
+    internal static bool HasSun(in RenderSun sun)
+    {
+        float lengthSquared = sun.Direction.LengthSquared();
+        // The threshold only tells a zero direction from a real one.
+        bool hasDirection = float.IsFinite(lengthSquared) && lengthSquared > 1e-12f;
+        return hasDirection && float.IsFinite(sun.Intensity) && sun.Intensity > 0f;
+    }
 
     private static void WriteConstants(RenderSnapshot snapshot, PreparedScene scene)
     {

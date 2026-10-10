@@ -52,7 +52,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
         try
         {
             var assets = Assets.Create(renderer);
-            var key = new ImpostorKey(7, assets.Sphere.Value, (uint)assets.Red.Value);
+            var key = new ImpostorKey(7, 0, assets.Sphere.Value, MaterialStore.Slot(assets.Red));
             // Heights in pixels and the expected result: geometry above 300, impostor below 200, and between them
             // whatever the object was before.
             (float Height, bool Impostor)[] steps =
@@ -67,15 +67,57 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 snapshot.Instances.Add(Gpu.Instance(assets.Sphere, assets.Red, new Vector3(0, 0, -distance), Vector3.One, entity: 7));
                 Capture image = Gpu.RenderAndCapture(renderer, snapshot, $"impostor-hysteresis-{frame++}-{h:0}px");
                 RenderStats stats = renderer.LastFrameStats;
-                Assert.True(renderer.Impostors!.TryGetStatus(key, out ImpostorStatus status));
-                Assert.Equal(h, status.ProjectedHeight, 0.5f);
-                Assert.Equal(expected, status.Impostor);
-                Assert.Equal(expected ? 1 : 0, stats.Impostors);
-                Assert.Equal(1, stats.VisibleInstances);
+                renderer.Impostors!.TryGetStatus(key, out ImpostorStatus status).Should().BeTrue();
+                status.ProjectedHeight.Should().BeApproximately(h, 0.5f);
+                status.Impostor.Should().Be(expected, "at {0} px", h);
+                stats.Impostors.Should().Be(expected ? 1 : 0);
+                stats.VisibleInstances.Should().Be(1);
                 // Drawn either way: the center pixel is the lit red sphere.
                 Vector3 center = image.Color(width / 2, height / 2);
-                Assert.True(center.X > 0.3f && center.X > 2 * center.Y, $"{h} px: center {center}");
+                center.X.Should().BeGreaterThan(0.3f, "the sphere is lit at {0} px", h).And.BeGreaterThan(2 * center.Y, "it is red at {0} px: {1}", h, center);
             }
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void TwoPartsOfOneEntityWithTheSameMeshAndMaterialAreSeparateImpostors()
+    {
+        const int width = 960, height = 540;
+        VulkanRenderer renderer = Gpu.Headless(width, height, impostors: true);
+        try
+        {
+            var assets = Assets.Create(renderer);
+            // One entity whose two render parts share the sphere mesh and the red material, side by side at 120 px.
+            float distance = DistanceForHeight(120f, 1f, height);
+            RenderSnapshot Scene(RenderFlags flags, bool objects)
+            {
+                RenderSnapshot snapshot = Gpu.Snapshot(Sun);
+                if (objects)
+                {
+                    snapshot.Instances.Add(Gpu.Instance(assets.Sphere, assets.Red, new Vector3(-1.6f, 0, -distance), Vector3.One, flags: flags, entity: 4, part: 0));
+                    snapshot.Instances.Add(Gpu.Instance(assets.Sphere, assets.Red, new Vector3(1.6f, 0.4f, -distance), Vector3.One, flags: flags, entity: 4, part: 1));
+                }
+                return snapshot;
+            }
+            (Capture background, Capture geometry, Capture impostor) = GeometryAndImpostor(renderer, Scene, "impostor-two-parts");
+            RenderStats stats = renderer.LastFrameStats;
+            stats.Impostors.Should().Be(2, "each part is an impostor of its own");
+            stats.ImpostorsWaiting.Should().Be(0);
+            stats.ImpostorTilesInUse.Should().Be(2);
+            ImpostorManager manager = renderer.Impostors!;
+            int Tile(ushort part) =>
+                manager.TryGetStatus(new ImpostorKey(4, part, assets.Sphere.Value, MaterialStore.Slot(assets.Red)), out ImpostorStatus status) ? status.Tile : -1;
+            Tile(0).Should().BeGreaterThanOrEqualTo(0);
+            Tile(1).Should().BeGreaterThanOrEqualTo(0).And.NotBe(Tile(0), "each part has its own capture");
+
+            (float mean, float overlap, int pixels) = Compare(background, geometry, impostor);
+            output.WriteLine($"silhouette {pixels} px, IoU {overlap:0.000}, mean |Δ| {mean * 255:0.00} / 255");
+            overlap.Should().BeGreaterThan(0.97f, "both parts are drawn where their geometry is");
+            (mean * 255).Should().BeLessThan(6f, "both impostors look like their geometry, in 1/255 steps");
         }
         finally
         {
@@ -104,29 +146,29 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             float far = DistanceForHeight(195, radius, height);
             Capture background = Gpu.RenderAndCapture(renderer, Gpu.Snapshot(Sun), "impostor-accuracy-background");
             Capture geometry = Gpu.RenderAndCapture(renderer, Scene(near), "impostor-accuracy-geometry");
-            Assert.Equal(0, renderer.LastFrameStats.Impostors);
+            renderer.LastFrameStats.Impostors.Should().Be(0);
             // Below 200 px: captured and drawn as an impostor in the same frame.
             Gpu.RenderAndCapture(renderer, Scene(far), "impostor-accuracy-195px");
-            Assert.Equal(1, renderer.LastFrameStats.ImpostorCaptures);
-            Assert.Equal(1, renderer.LastFrameStats.Impostors);
+            renderer.LastFrameStats.ImpostorCaptures.Should().Be(1);
+            renderer.LastFrameStats.Impostors.Should().Be(1);
             // Back at 210 px it stays an impostor (hysteresis). It moved along its view ray, so only the perspective
             // changed: r / d grew by 0.0145, times h = 210 that is above 2, so it is captured again.
             renderer.Render(Scene(near), 1f);
-            Assert.Equal(1, renderer.LastFrameStats.Impostors);
-            Assert.Equal(1, renderer.LastFrameStats.ImpostorCaptures);
+            renderer.LastFrameStats.Impostors.Should().Be(1);
+            renderer.LastFrameStats.ImpostorCaptures.Should().Be(1);
             Capture impostor = Gpu.RenderAndCapture(renderer, Scene(near), "impostor-accuracy-impostor");
-            Assert.Equal(1, renderer.LastFrameStats.Impostors);
-            Assert.Equal(0, renderer.LastFrameStats.ImpostorCaptures);
+            renderer.LastFrameStats.Impostors.Should().Be(1);
+            renderer.LastFrameStats.ImpostorCaptures.Should().Be(0);
             SaveTile(renderer, 0, "impostor-accuracy-tile");
 
             (float meanDifference, float overlap, int pixels) = Compare(background, geometry, impostor);
             output.WriteLine($"silhouette {pixels} px, overlap (IoU) {overlap:0.000}, mean |Δ| inside {meanDifference * 255:0.00} / 255");
-            Assert.True(pixels > 20_000, $"the object covers {pixels} px");
-            Assert.True(overlap > 0.97f, $"silhouette IoU {overlap}");
+            pixels.Should().BeGreaterThan(20_000, "the object covers a large part of the frame");
+            overlap.Should().BeGreaterThan(0.97f, "the silhouettes match");
             // Documented threshold: within the silhouette the impostor differs from the geometry by less than 6/255
             // per channel on average (display-encoded). The differences come from resampling the 512 px capture to
-            // ~210 px through the mip chain, and from the orthographic capture of a perspective view.
-            Assert.True(meanDifference < 6f / 255f, $"mean difference {meanDifference * 255} / 255");
+            // ~210 px through the mip chain.
+            (meanDifference * 255).Should().BeLessThan(6f, "the impostor looks like the geometry, in 1/255 steps");
         }
         finally
         {
@@ -162,20 +204,20 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                     Gpu.RenderAndCapture(renderer, snapshot, name);
                 else
                     renderer.Render(snapshot, 1f);
-                Assert.Equal(1, renderer.LastFrameStats.Impostors);
+                renderer.LastFrameStats.Impostors.Should().Be(1, "the box stays an impostor");
                 return renderer.LastFrameStats.ImpostorCaptures;
             }
 
-            Assert.Equal(1, Captures(Orbit(0f), "impostor-recapture-0"));
-            Assert.Equal(0, Captures(Orbit(0.5f * limit)));
-            Assert.Equal(0, Captures(Orbit(0.95f * limit)));
-            Assert.Equal(1, Captures(Orbit(1.05f * limit)));
+            Captures(Orbit(0f), "impostor-recapture-0").Should().Be(1);
+            Captures(Orbit(0.5f * limit)).Should().Be(0);
+            Captures(Orbit(0.95f * limit)).Should().Be(0);
+            Captures(Orbit(1.05f * limit)).Should().Be(1);
             // Turning the camera in place changes nothing about the object's view.
-            Assert.Equal(0, Captures(Orbit(1.05f * limit, Quaternion.CreateFromYawPitchRoll(0.1f, 0.08f, 0.2f))));
-            Assert.Equal(0, Captures(Orbit(2f * limit)));
-            Assert.Equal(1, Captures(Orbit(2.2f * limit)));
+            Captures(Orbit(1.05f * limit, Quaternion.CreateFromYawPitchRoll(0.1f, 0.08f, 0.2f))).Should().Be(0);
+            Captures(Orbit(2f * limit)).Should().Be(0);
+            Captures(Orbit(2.2f * limit)).Should().Be(1);
             // A large orbit: the capture follows, and the impostor shows the box from the new side.
-            Assert.Equal(1, Captures(Orbit(0.6f), "impostor-recapture-orbit"));
+            Captures(Orbit(0.6f), "impostor-recapture-orbit").Should().Be(1);
             SaveTile(renderer, 0, "impostor-recapture-orbit-tile");
         }
         finally
@@ -220,17 +262,17 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 first ??= image;
                 frames++;
                 RenderStats stats = renderer.LastFrameStats;
-                Assert.Equal(Math.Min(4, 50 - captured), stats.ImpostorCaptures);
+                stats.ImpostorCaptures.Should().Be(Math.Min(4, 50 - captured), "the budget is four captures per frame");
                 captured += stats.ImpostorCaptures;
-                Assert.Equal(captured, stats.Impostors);
-                Assert.Equal(50 - captured, stats.ImpostorsWaiting);
-                Assert.Equal(50, stats.VisibleInstances);
-                Assert.Equal(captured, stats.ImpostorTilesInUse);
+                stats.Impostors.Should().Be(captured);
+                stats.ImpostorsWaiting.Should().Be(50 - captured);
+                stats.VisibleInstances.Should().Be(50);
+                stats.ImpostorTilesInUse.Should().Be(captured);
             }
-            Assert.Equal(13, frames);
+            frames.Should().Be(13);
             Capture last = Gpu.RenderAndCapture(renderer, snapshot, "impostor-budget-all");
-            Assert.Equal(0, renderer.LastFrameStats.ImpostorCaptures);
-            Assert.Equal(50, renderer.LastFrameStats.Impostors);
+            renderer.LastFrameStats.ImpostorCaptures.Should().Be(0);
+            renderer.LastFrameStats.Impostors.Should().Be(50);
 
             // The first frame had 4 impostors and 46 objects as geometry; the last has 50 impostors. They look the same.
             double sum = 0;
@@ -249,7 +291,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             }
             float mean = (float)(sum / pixels);
             output.WriteLine($"{pixels} lit pixels, mean |Δ| {mean * 255:0.00} / 255");
-            Assert.True(mean < 6f / 255f, $"geometry and impostors differ by {mean * 255} / 255 on average");
+            (mean * 255).Should().BeLessThan(6f, "geometry and impostors look the same, in 1/255 steps");
         }
         finally
         {
@@ -279,7 +321,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 return snapshot;
             }
             ImpostorManager manager = renderer.Impostors!;
-            int Tile(int index) => manager.TryGetStatus(new ImpostorKey((uint)index, assets.Sphere.Value, (uint)materials[index].Value), out ImpostorStatus s) ? s.Tile : -1;
+            int Tile(int index) => manager.TryGetStatus(new ImpostorKey((uint)index, 0, assets.Sphere.Value, MaterialStore.Slot(materials[index])), out ImpostorStatus s) ? s.Tile : -1;
             Vector3 TileColor(int tile)
             {
                 (float[] rgba, _) = renderer.ReadImpostorTile(tile);
@@ -295,36 +337,36 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             void AssertTileShows(int tile, int index)
             {
                 Vector3 color = TileColor(tile), expected = Vector3.Normalize(new Vector3(tints[index].X, tints[index].Y, tints[index].Z));
-                Assert.True(Vector3.Dot(color, expected) > 0.95f, $"tile {tile} shows {color}, expected object {index} ({expected})");
+                Vector3.Dot(color, expected).Should().BeGreaterThan(0.95f, "tile {0} shows {1}, and object {2} is {3}", tile, color, index, expected);
             }
 
             renderer.Render(Scene((0, far), (1, far), (2, far), (3, far)), 1f);
-            Assert.Equal(4, renderer.LastFrameStats.ImpostorTilesInUse);
+            renderer.LastFrameStats.ImpostorTilesInUse.Should().Be(4);
             int[] tiles = [Tile(0), Tile(1), Tile(2), Tile(3)];
             for (int i = 0; i < 4; i++)
                 AssertTileShows(tiles[i], i);
             // Object 0 leaves, then object 1; object 4 arrives and takes the least recently used tile: object 0's.
             renderer.Render(Scene((1, far), (2, far), (3, far)), 1f);
             Gpu.RenderAndCapture(renderer, Scene((2, far), (3, far), (4, far)), "impostor-eviction-1");
-            Assert.Equal(1, renderer.LastFrameStats.ImpostorCaptures);
-            Assert.Equal(tiles[0], Tile(4));
-            Assert.Equal(-1, Tile(0));
+            renderer.LastFrameStats.ImpostorCaptures.Should().Be(1);
+            Tile(4).Should().Be(tiles[0]);
+            Tile(0).Should().Be(-1);
             AssertTileShows(tiles[0], 4);
             SaveTile(renderer, tiles[0], "impostor-eviction-tile-reused");
             // Object 5 takes object 1's tile, the only one left whose key is gone.
             renderer.Render(Scene((2, far), (3, far), (4, far), (5, far)), 1f);
-            Assert.Equal(tiles[1], Tile(5));
+            Tile(5).Should().Be(tiles[1]);
             AssertTileShows(tiles[1], 5);
             // Object 6 finds every tile in use by a drawn impostor: it waits, drawn as geometry.
             Gpu.RenderAndCapture(renderer, Scene((2, far), (3, far), (4, far), (5, far), (6, far)), "impostor-eviction-waiting");
             RenderStats stats = renderer.LastFrameStats;
-            Assert.Equal((4, 1, 0, 5), (stats.Impostors, stats.ImpostorsWaiting, stats.ImpostorCaptures, stats.VisibleInstances));
+            (stats.Impostors, stats.ImpostorsWaiting, stats.ImpostorCaptures, stats.VisibleInstances).Should().Be((4, 1, 0, 5));
             // Object 2 comes close and returns to geometry: object 6 takes its tile.
             Gpu.RenderAndCapture(renderer, Scene((2, close), (3, far), (4, far), (5, far), (6, far)), "impostor-eviction-2");
-            Assert.Equal(tiles[2], Tile(6));
+            Tile(6).Should().Be(tiles[2]);
             AssertTileShows(tiles[2], 6);
             stats = renderer.LastFrameStats;
-            Assert.Equal((4, 0, 1, 4), (stats.Impostors, stats.ImpostorsWaiting, stats.ImpostorCaptures, stats.ImpostorTilesInUse));
+            (stats.Impostors, stats.ImpostorsWaiting, stats.ImpostorCaptures, stats.ImpostorTilesInUse).Should().Be((4, 0, 1, 4));
         }
         finally
         {
@@ -341,11 +383,11 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     {
         Capture background = Gpu.RenderAndCapture(renderer, scene(RenderFlags.None, false), name + "-background");
         Capture geometry = Gpu.RenderAndCapture(renderer, scene(RenderFlags.NoImpostor, true), name + "-geometry");
-        Assert.Equal(0, renderer.LastFrameStats.Impostors);
+        renderer.LastFrameStats.Impostors.Should().Be(0, "NoImpostor keeps every object geometry");
         for (int i = 0; i < 4; i++)
             renderer.Render(scene(RenderFlags.None, true), 1f);
         Capture impostor = Gpu.RenderAndCapture(renderer, scene(RenderFlags.None, true), name + "-impostor");
-        Assert.Equal(0, renderer.LastFrameStats.ImpostorCaptures);
+        renderer.LastFrameStats.ImpostorCaptures.Should().Be(0, "every impostor is captured by now");
         return (background, geometry, impostor);
     }
 
@@ -376,13 +418,13 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 return snapshot;
             }
             (Capture background, Capture geometry, Capture impostor) = GeometryAndImpostor(renderer, Scene, "impostor-ground");
-            Assert.Equal(2, renderer.LastFrameStats.Impostors);
+            renderer.LastFrameStats.Impostors.Should().Be(2);
             (float mean, float overlap, int pixels) = Compare(background, geometry, impostor);
             output.WriteLine($"silhouette {pixels} px, IoU {overlap:0.000}, mean |Δ| {mean * 255:0.00} / 255");
             // A flat billboard would cut the objects off with a straight line where they meet the ground; the
             // captured depth gives the same curved intersection as the geometry.
-            Assert.True(overlap > 0.97f, $"IoU {overlap}");
-            Assert.True(mean < 8f / 255f, $"mean difference {mean * 255} / 255");
+            overlap.Should().BeGreaterThan(0.97f, "the impostors meet the ground where the geometry does");
+            (mean * 255).Should().BeLessThan(8f, "the impostors look like the geometry, in 1/255 steps");
         }
         finally
         {
@@ -410,13 +452,13 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 return snapshot;
             }
             (Capture background, Capture geometry, Capture impostor) = GeometryAndImpostor(renderer, Scene, "impostor-ranges");
-            Assert.Equal(2, renderer.LastFrameStats.Impostors);
-            Assert.True(renderer.LastScene.Impostors[DepthRanges.Near].Count == 1 && renderer.LastScene.Impostors[DepthRanges.Middle].Count == 2,
-                "the sphere is drawn in the near and middle ranges, the box in the middle range");
+            renderer.LastFrameStats.Impostors.Should().Be(2);
+            renderer.LastScene.Impostors[DepthRanges.Near].Count.Should().Be(1, "the sphere is drawn in the near range");
+            renderer.LastScene.Impostors[DepthRanges.Middle].Count.Should().Be(2, "the sphere and the box are drawn in the middle range");
             (float mean, float overlap, int pixels) = Compare(background, geometry, impostor);
             output.WriteLine($"silhouette {pixels} px, IoU {overlap:0.000}, mean |Δ| {mean * 255:0.00} / 255");
-            Assert.True(overlap > 0.97f, $"IoU {overlap}");
-            Assert.True(mean < 6f / 255f, $"mean difference {mean * 255} / 255");
+            overlap.Should().BeGreaterThan(0.97f, "the silhouettes match");
+            (mean * 255).Should().BeLessThan(6f, "the impostors look like the geometry, in 1/255 steps");
         }
         finally
         {
@@ -452,8 +494,8 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             RenderStats stats = renderer.LastFrameStats;
             output.WriteLine($"{stats}");
             // The boxes, the opaque spheres and the station; not the ground (too large), the glass, planet or star.
-            Assert.Equal(6, stats.Impostors);
-            Assert.Equal(0, stats.ImpostorCaptures);
+            stats.Impostors.Should().Be(6);
+            stats.ImpostorCaptures.Should().Be(0);
 
             double sum = 0;
             for (int y = 0; y < height; y++)
@@ -468,7 +510,7 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             output.WriteLine($"mean |Δ| over the frame {mean * 255:0.00} / 255");
             // Captures bake the sun, the ambient light and the point and spot lights, but not the shadow maps: the
             // shadows other objects cast onto the impostors are missing, which is most of the difference.
-            Assert.True(mean < 2f / 255f, $"mean difference {mean * 255} / 255");
+            (mean * 255).Should().BeLessThan(2f, "the frame with impostors looks like the geometry, in 1/255 steps");
         }
         finally
         {
@@ -492,12 +534,12 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             }
             for (int i = 0; i < 5; i++)
                 renderer.Render(snapshot, 0.5f);
-            Assert.True(renderer.LastFrameStats.Impostors > 0);
+            renderer.LastFrameStats.Impostors.Should().BePositive();
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 20; i++)
                 renderer.Render(snapshot, i / 20f);
             long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-            Assert.Equal(0, allocated);
+            allocated.Should().Be(0, "a steady state allocates nothing");
         }
         finally
         {
@@ -536,9 +578,9 @@ public sealed class ImpostorTests(ITestOutputHelper output)
                 else
                     renderer.Render(snapshot, 1f);
                 captures += renderer.LastFrameStats.ImpostorCaptures;
-                Assert.InRange(renderer.LastFrameStats.ImpostorCaptures, 1, 4);
+                renderer.LastFrameStats.ImpostorCaptures.Should().BeInRange(1, 4, "every frame recaptures within the budget");
             }
-            Assert.True(captures >= 24, $"{captures} captures");
+            captures.Should().BeGreaterThanOrEqualTo(24);
         }
         finally
         {
@@ -549,22 +591,24 @@ public sealed class ImpostorTests(ITestOutputHelper output)
     [Fact]
     public void ImpostorOptionsAreCheckedAndImpostorsCanBeTurnedOff()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => VulkanRenderer.CreateHeadless(new RendererOptions { Width = 64, Height = 64, ImpostorTiles = 0 }));
-        Assert.Throws<ArgumentOutOfRangeException>(() => VulkanRenderer.CreateHeadless(new RendererOptions { Validation = true, Width = 64, Height = 64, ImpostorTiles = 1_000_000 }));
-        Assert.Equal(64, new RendererOptions().ImpostorTiles);
-        Assert.True(new RendererOptions().Impostors);
+        FluentActions.Invoking(() => VulkanRenderer.CreateHeadless(new RendererOptions { Width = 64, Height = 64, ImpostorTiles = 0 }))
+            .Should().ThrowExactly<ArgumentOutOfRangeException>();
+        FluentActions.Invoking(() => VulkanRenderer.CreateHeadless(new RendererOptions { Validation = true, Width = 64, Height = 64, ImpostorTiles = 1_000_000 }))
+            .Should().ThrowExactly<ArgumentOutOfRangeException>("the atlas cannot have more layers than the device allows");
+        new RendererOptions().ImpostorTiles.Should().Be(64);
+        new RendererOptions().Impostors.Should().BeTrue();
 
         // Off: no manager, no atlas, and a small object stays geometry.
         VulkanRenderer renderer = Gpu.Headless(320, 180, impostors: false);
         try
         {
             var assets = Assets.Create(renderer);
-            Assert.Null(renderer.Impostors);
+            renderer.Impostors.Should().BeNull();
             RenderSnapshot snapshot = Gpu.Snapshot(Sun);
             snapshot.Instances.Add(Gpu.Instance(assets.Sphere, assets.Red, new Vector3(0, 0, -40f), Vector3.One, entity: 1));
             renderer.Render(snapshot, 1f);
-            Assert.Equal((0, 0, 1), (renderer.LastFrameStats.Impostors, renderer.LastFrameStats.ImpostorCaptures, renderer.LastFrameStats.NearCommands));
-            Assert.Throws<InvalidOperationException>(() => renderer.ReadImpostorTile(0));
+            (renderer.LastFrameStats.Impostors, renderer.LastFrameStats.ImpostorCaptures, renderer.LastFrameStats.NearCommands).Should().Be((0, 0, 1));
+            FluentActions.Invoking(() => renderer.ReadImpostorTile(0)).Should().ThrowExactly<InvalidOperationException>();
         }
         finally
         {
@@ -579,9 +623,9 @@ public sealed class ImpostorTests(ITestOutputHelper output)
             RenderSnapshot snapshot = Gpu.Snapshot(Sun);
             snapshot.Instances.Add(Gpu.Instance(assets.Sphere, assets.Red, new Vector3(0, 0, -40f), Vector3.One, entity: 1));
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "impostor-one-tile");
-            Assert.Equal(1, renderer.LastFrameStats.Impostors);
+            renderer.LastFrameStats.Impostors.Should().Be(1);
             Vector3 center = image.Color(160, 90);
-            Assert.True(center.X > 0.2f && center.X > 2 * center.Y, $"center {center}");
+            center.X.Should().BeGreaterThan(0.2f, "the impostor is lit").And.BeGreaterThan(2 * center.Y, "it is red: {0}", center);
         }
         finally
         {

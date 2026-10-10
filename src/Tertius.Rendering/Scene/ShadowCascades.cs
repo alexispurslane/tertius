@@ -66,8 +66,8 @@ internal struct ShadowCascadeArray
 /// <para><b>Stability.</b> Each cascade is the bounding sphere of its view slice (extended back over the previous
 /// cascade's blend band). The sphere's radius depends only on the slice depths, the field of view and the aspect
 /// ratio, so turning the camera never changes the texel size. The sphere's center is then snapped, in light space,
-/// to a texel grid that is fixed in the world: positions are camera-relative, so the grid is anchored to a
-/// world-fixed point that the caller tracks as the render origin moves (<c>anchor</c>). A static shadow therefore
+/// to a texel grid that is fixed in the world: positions are camera-relative, so the grid passes through a
+/// world-fixed anchor, the origin of the camera's reference frame (<see cref="Anchor"/>). A static shadow therefore
 /// keeps the same texels while the camera moves and turns, and does not shimmer.</para>
 /// <para><b>Depth.</b> The cascade box is centered on the snapped center and is <c>depthRangeScale</c> times deeper
 /// than it is wide (16 for D32). Casters between the box and the sun are "pancaked" onto its sun-side face by depth
@@ -137,13 +137,35 @@ internal static class ShadowCascades
     }
 
     /// <summary>
+    /// The anchor of the texel grid for one frame: the origin of the camera's reference frame (ARCHITECTURE.md,
+    /// Shadows), in camera-relative world space. The render origin is at <paramref name="originInFrame"/> in the
+    /// frame (<see cref="RenderSnapshot.OriginInFrame"/>), in the same axes as every snapshot position, and the
+    /// interpolated eye is <paramref name="cameraOffset"/> from the render origin. So the frame origin is at
+    /// −originInFrame − cameraOffset.
+    /// </summary>
+    /// <remarks>
+    /// It is computed from the snapshot alone. Nothing carries over from earlier ticks, so a tick that the render
+    /// thread never sees cannot shift the grid, and when the camera changes frame (a new
+    /// <see cref="RenderSnapshot.OriginFrameId"/>) the grid moves to the new frame's origin at once, with no state
+    /// from the old frame left to reset. The result is in doubles, and <see cref="Fit"/> snaps against it in doubles:
+    /// rounding moves the grid by about 10⁻¹⁶ of the distance to the frame origin, well under a hundredth of a texel
+    /// while the camera is within 10¹¹ m (an orbit around a star) of it. A non-finite origin falls back to the
+    /// render origin, which keeps the cascades finite.
+    /// </remarks>
+    public static Double3 Anchor(Double3 originInFrame, Vector3 cameraOffset)
+    {
+        bool finite = double.IsFinite(originInFrame.X) && double.IsFinite(originInFrame.Y) && double.IsFinite(originInFrame.Z);
+        return (finite ? -originInFrame : Double3.Zero) - cameraOffset;
+    }
+
+    /// <summary>
     /// Fits every cascade for this frame's camera.
     /// </summary>
     /// <param name="camera">The interpolated camera. Camera-relative world space has the eye at the origin.</param>
     /// <param name="light">The light basis of the sun.</param>
     /// <param name="mapSize">The side of each cascade's shadow map in texels.</param>
     /// <param name="depthRangeScale">How many times deeper than wide each cascade box is.</param>
-    /// <param name="anchor">A world-fixed point in camera-relative world space. The texel grid passes through it.</param>
+    /// <param name="anchor">A world-fixed point in camera-relative world space (see <see cref="Anchor"/>). The texel grid passes through it.</param>
     /// <param name="cascades">Receives the cascades.</param>
     public static void Fit(in CameraView camera, in LightBasis light, int mapSize, float depthRangeScale, Double3 anchor, ref ShadowCascadeArray cascades)
     {
