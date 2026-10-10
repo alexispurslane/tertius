@@ -1,11 +1,19 @@
 <Project>
-  <!-- Projects that set UsesJolt=true get the double-precision Jolt library copied next to their output. -->
+  <!--
+    Projects that set UsesJolt=true get the double-precision Jolt library copied next to their output.
+    The dev shell sets TERTIUS_JOLTC_DIR to the Nix-built library (native/joltc.nix). Without it, the build
+    falls back to native/<rid>/, which native/build-joltc.sh fills. Nix store files are dated 1970, so the copy
+    must be Always: PreserveNewest would keep a stale copy forever.
+  -->
+  <PropertyGroup Condition="'$(UsesJolt)' == 'true'">
+    <_JoltcDir Condition="'$(TERTIUS_JOLTC_DIR)' != '' And Exists('$(TERTIUS_JOLTC_DIR)')">$(TERTIUS_JOLTC_DIR)/</_JoltcDir>
+    <_JoltcDir Condition="'$(_JoltcDir)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">$(MSBuildThisFileDirectory)native/osx-arm64/</_JoltcDir>
+    <_JoltcDir Condition="'$(_JoltcDir)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">$(MSBuildThisFileDirectory)native/linux-x64/</_JoltcDir>
+  </PropertyGroup>
   <ItemGroup Condition="'$(UsesJolt)' == 'true'">
-    <None Include="$(MSBuildThisFileDirectory)native/osx-arm64/libjoltc_double.dylib"
-          Condition="Exists('$(MSBuildThisFileDirectory)native/osx-arm64/libjoltc_double.dylib')"
-          Link="libjoltc_double.dylib" CopyToOutputDirectory="PreserveNewest" Visible="false" />
-    <None Include="$(MSBuildThisFileDirectory)native/linux-x64/libjoltc_double.so"
-          Condition="Exists('$(MSBuildThisFileDirectory)native/linux-x64/libjoltc_double.so')"
-          Link="libjoltc_double.so" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(_JoltcDir)libjoltc_double.dylib" Condition="Exists('$(_JoltcDir)libjoltc_double.dylib')"
+          Link="libjoltc_double.dylib" CopyToOutputDirectory="Always" Visible="false" />
+    <None Include="$(_JoltcDir)libjoltc_double.so" Condition="Exists('$(_JoltcDir)libjoltc_double.so')"
+          Link="libjoltc_double.so" CopyToOutputDirectory="Always" Visible="false" />
   </ItemGroup>
 </Project>

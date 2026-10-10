@@ -14,14 +14,19 @@
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
+      packages = forAllSystems (pkgs: {
+        joltc-double = pkgs.callPackage ./native/joltc.nix { };
+      });
+
       devShells = forAllSystems (
         pkgs:
         let
           dotnet = pkgs.dotnet-sdk_11;
+          joltc = pkgs.callPackage ./native/joltc.nix { };
           vulkanLibs = [
             pkgs.vulkan-loader
           ]
-          ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ pkgs.moltenvk ];
+          ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.moltenvk ];
         in
         {
           default = pkgs.mkShell {
@@ -39,7 +44,7 @@
               pkgs.vulkan-tools
               pkgs.vulkan-validation-layers
             ]
-            ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [ pkgs.moltenvk ];
+            ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.moltenvk ];
 
             # The wrapped SDK links its install tree to $out/share/dotnet.
             DOTNET_ROOT = "${dotnet}/share/dotnet";
@@ -54,7 +59,10 @@
             DYLD_FALLBACK_LIBRARY_PATH = pkgs.lib.makeLibraryPath vulkanLibs;
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath vulkanLibs;
             VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
-            VK_ICD_FILENAMES = pkgs.lib.optionalString pkgs.stdenv.isDarwin "${pkgs.moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
+            VK_ICD_FILENAMES = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin "${pkgs.moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
+
+            # The Nix-built double-precision Jolt library. MSBuild does not read this yet.
+            TERTIUS_JOLTC_DIR = "${joltc}/lib";
           };
         }
       );
