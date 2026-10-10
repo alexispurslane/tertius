@@ -8,7 +8,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 - Build: `dotnet build Tertius.slnx`. Test one module: `dotnet test --project tests/Tertius.<Module>.Tests`.
 - The tests use xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions and NSubstitute.
 - The double-precision Jolt library comes from `native/joltc.nix`. Read the Jolt pitfalls in project memory before you touch Jolt interop.
-- Commit with git. Never push without the user's permission. This project stays on git, not jj. The user confirmed this, and it overrides the jj rule in their other agent configuration.
+- Commit with git. Never push without the user's permission. This project stays on git, not jj. The user chose this, and it overrides the jj rule in their other agent configuration.
 
 ## General architectural preferences
 
@@ -48,6 +48,10 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 - Prefer declarative code that states its intent. The user expected deferred LINQ to be as fast as loops. The benchmark showed LINQ is 5 to 26 times slower on hot paths. So give hot paths LINQ-like APIs that allocate nothing, such as `EventList.Of<T>()`, and use normal LINQ elsewhere.
 - Name each piece of state for what it holds, and remove variables that only exist as scratch for another variable.
 - When the user asks how something works, show the real code, with elisions marked `...` and a `where` list for every name in it.
+
+## Contracts
+
+Follow the global contracts rule. In this repository, the helper is `Tertius.Contract` in `src/Tertius.Core/Contracts/Contract.cs`. `Requires`, `Ensures` and `Assert` compile out of Release builds. `Invariant` is for `AssertInvariants` methods. `WorldOptions.DebugChecks` runs the world's invariant checks at the end of every sync point.
 
 ## Testing
 
