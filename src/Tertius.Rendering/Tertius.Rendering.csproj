@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- glslc comes from shaderc in the Nix dev shell. Override with -p:Glslc=/path/to/glslc. -->
+    <Glslc Condition="'$(Glslc)' == ''">glslc</Glslc>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Tertius.Core/Tertius.Core.csproj" />
     <PackageReference Include="Silk.NET.Vulkan" />
@@ -11,4 +15,26 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Tertius.Rendering.Tests" />
   </ItemGroup>
+
+  <!-- GLSL 4.60 shaders. Each stage file becomes one SPIR-V module, embedded as Tertius.Rendering.Shaders.<file>.spv.
+       Files ending in .glsl are includes. A change to any include recompiles every stage. -->
+  <ItemGroup>
+    <GlslShader Include="Shaders/*.vert;Shaders/*.frag;Shaders/*.comp" />
+    <GlslInclude Include="Shaders/*.glsl" />
+    <None Include="@(GlslShader);@(GlslInclude)" />
+  </ItemGroup>
+
+  <Target Name="CompileGlslShaders" BeforeTargets="BeforeBuild"
+          Inputs="@(GlslShader);@(GlslInclude);$(MSBuildProjectFullPath)"
+          Outputs="@(GlslShader->'$(IntermediateOutputPath)shaders/%(Filename)%(Extension).spv')">
+    <MakeDir Directories="$(IntermediateOutputPath)shaders" />
+    <Exec Command="&quot;$(Glslc)&quot; --target-env=vulkan1.3 -O -Werror -I &quot;$(MSBuildProjectDirectory)/Shaders&quot; -o &quot;$(IntermediateOutputPath)shaders/%(GlslShader.Filename)%(GlslShader.Extension).spv&quot; &quot;%(GlslShader.FullPath)&quot;" />
+  </Target>
+
+  <Target Name="EmbedGlslShaders" DependsOnTargets="CompileGlslShaders" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <_GlslSpirv Include="@(GlslShader->'$(IntermediateOutputPath)shaders/%(Filename)%(Extension).spv')" />
+      <EmbeddedResource Include="@(_GlslSpirv)" LogicalName="Tertius.Rendering.Shaders.%(_GlslSpirv.Filename)%(_GlslSpirv.Extension)" WithCulture="false" />
+    </ItemGroup>
+  </Target>
 </Project>

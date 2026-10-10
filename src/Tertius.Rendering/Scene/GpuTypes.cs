@@ -1,0 +1,145 @@
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+namespace Tertius.Rendering;
+
+// C# mirrors of the shader structs in Shaders/frame.glsl. Layouts follow std430 (storage buffers) and std140 (the
+// frame block). Change both sides together; RendererLayoutTests checks the sizes.
+
+/// <summary>One drawn instance in the instance storage buffer. 64 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuInstance
+{
+    /// <summary>Rows of the 3x4 model matrix that maps mesh space to camera-relative world space.</summary>
+    public Vector4 ModelRow0;
+    public Vector4 ModelRow1;
+    public Vector4 ModelRow2;
+    /// <summary>1 / scale², so the shader can form the normal matrix R · S⁻¹ from the model matrix.</summary>
+    public Vector3 InverseScaleSquared;
+    public uint Material;
+
+    public static GpuInstance From(Vector3 position, Quaternion rotation, Vector3 scale, uint material)
+    {
+        // Rotation matrix columns from the unit quaternion, then scaled per axis: M = T · R · S.
+        float x = rotation.X, y = rotation.Y, z = rotation.Z, w = rotation.W;
+        float xx = x * x, yy = y * y, zz = z * z, xy = x * y, xz = x * z, yz = y * z, wx = w * x, wy = w * y, wz = w * z;
+        var axisX = new Vector3(1 - 2 * (yy + zz), 2 * (xy + wz), 2 * (xz - wy)) * scale.X;
+        var axisY = new Vector3(2 * (xy - wz), 1 - 2 * (xx + zz), 2 * (yz + wx)) * scale.Y;
+        var axisZ = new Vector3(2 * (xz + wy), 2 * (yz - wx), 1 - 2 * (xx + yy)) * scale.Z;
+        return new GpuInstance
+        {
+            ModelRow0 = new Vector4(axisX.X, axisY.X, axisZ.X, position.X),
+            ModelRow1 = new Vector4(axisX.Y, axisY.Y, axisZ.Y, position.Y),
+            ModelRow2 = new Vector4(axisX.Z, axisY.Z, axisZ.Z, position.Z),
+            InverseScaleSquared = new Vector3(InverseSquare(scale.X), InverseSquare(scale.Y), InverseSquare(scale.Z)),
+            Material = material,
+        };
+    }
+
+    /// <summary>
+    /// An instance whose model matrix has the given columns, for draws that are not meshes: an impostor billboard
+    /// maps its quad space through it and keeps its atlas layer in <see cref="Material"/>.
+    /// </summary>
+    public static GpuInstance FromAxes(Vector3 axisX, Vector3 axisY, Vector3 axisZ, Vector3 origin, uint material) => new()
+    {
+        ModelRow0 = new Vector4(axisX.X, axisY.X, axisZ.X, origin.X),
+        ModelRow1 = new Vector4(axisX.Y, axisY.Y, axisZ.Y, origin.Y),
+        ModelRow2 = new Vector4(axisX.Z, axisY.Z, axisZ.Z, origin.Z),
+        Material = material,
+    };
+
+    private static float InverseSquare(float s) => s != 0 ? 1f / (s * s) : 0f;
+}
+
+/// <summary>One material in the material storage buffer. 48 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuMaterial
+{
+    public Vector4 BaseColor;
+    public Vector3 Emissive;
+    public float SpecularIntensity;
+    public float Gloss;
+    public uint AlbedoTexture;
+    public uint NormalTexture;
+    public uint SpecularGlossTexture;
+}
+
+/// <summary>One point or spot light in the light storage buffer. 64 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuLight
+{
+    /// <summary>xyz camera-relative position, w range.</summary>
+    public Vector4 PositionRange;
+    /// <summary>rgb color × intensity, w kind: 0 point, 1 spot.</summary>
+    public Vector4 RadianceKind;
+    /// <summary>xyz unit spot direction, w cos(outer half-angle).</summary>
+    public Vector4 DirectionCosOuter;
+    /// <summary>x cos(inner half-angle).</summary>
+    public Vector4 Spot;
+}
+
+/// <summary>The frame uniform block (std140). 704 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuFrameConstants
+{
+    // System.Numerics matrices are row-major with row vectors. Their bytes read as a column-major GLSL mat4 give
+    // the transpose, which is the matrix for column vectors. So M_numerics = (P · V)ᵀ uploads as P · V.
+    public Matrix4x4 FarViewProj;
+    public Matrix4x4 MiddleViewProj;
+    public Matrix4x4 NearViewProj;
+    public Vector4 CameraRight;
+    public Vector4 CameraUp;
+    public Vector4 CameraForward;
+    public Vector4 SunDirection;
+    public Vector4 SunRadiance;
+    public Vector4 AmbientSky;
+    public Vector4 AmbientGround;
+    public Vector4 Viewport;
+    public Vector4 Params;
+    public uint LightCount;
+    public uint OccluderCount;
+    /// <summary>Sun shadow cascades to sample: <see cref="ShadowCascades.Count"/>, or 0 when no cascade was drawn.</summary>
+    public uint ShadowCascadeCount;
+    public uint Flags;
+    /// <summary>World to shadow clip space per cascade, row-vector form like the range matrices.</summary>
+    public ShadowMatrices ShadowViewProj;
+    /// <summary>The view depth where each cascade ends.</summary>
+    public Vector4 ShadowSplits;
+    /// <summary>The view depth where each cascade starts to blend into the next one (or, for the last, to no shadow).</summary>
+    public Vector4 ShadowBlendStart;
+    /// <summary>The world size of one shadow map texel in each cascade.</summary>
+    public Vector4 ShadowTexel;
+    /// <summary>
+    /// xyz: the light-space x axis in world space (the z axis is the sun direction). w: the cascade boxes' lateral
+    /// half-extent over their depth half-range, which turns a light-space slope into depth per uv.
+    /// </summary>
+    public Vector4 ShadowAxisX;
+    /// <summary>xyz: the light-space y axis in world space.</summary>
+    public Vector4 ShadowAxisY;
+    /// <summary>x: 1 / map size; y: normal offset in texels; z: constant depth bias; w: smallest cosine for the receiver-plane slope.</summary>
+    public Vector4 ShadowParams;
+}
+
+/// <summary>One matrix per shadow cascade, laid out as a std140 <c>mat4[4]</c>.</summary>
+[InlineArray(ShadowCascades.Count)]
+internal struct ShadowMatrices
+{
+    private Matrix4x4 element;
+}
+
+/// <summary>The push constants of every mesh pass (Shaders/draw.glsl). 80 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct DrawPushConstants
+{
+    public Matrix4x4 ViewProj;
+    public Vector4 Eye;
+}
+
+/// <summary>The push constants of the tone mapping pass.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct ToneMapPushConstants
+{
+    public float Exposure;
+    public uint EncodeSrgb;
+}

@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- BenchmarkDotNet refuses unoptimized code, so run it with: dotnet run -c Release -->
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Tertius.Simulation/Tertius.Simulation.csproj" />
+    <PackageReference Include="BenchmarkDotNet" />
+  </ItemGroup>
+</Project>

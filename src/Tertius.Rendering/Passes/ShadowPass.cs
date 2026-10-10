@@ -1,0 +1,286 @@
+using System.Numerics;
+using System.Runtime.InteropServices;
+using Silk.NET.Vulkan;
+
+namespace Tertius.Rendering;
+
+/// <summary>
+/// Renders the sun's cascaded shadow maps (stage <see cref="FrameGraph.Stage.ShadowMaps"/>).
+/// </summary>
+/// <remarks>
+/// <para><see cref="Prepare"/> runs on the CPU. It fits the cascades for this frame's camera
+/// (<see cref="ShadowCascades"/>) and selects casters from the whole snapshot, not from the view-culled scene: every
+/// instance with <see cref="RenderFlags.CastsShadow"/> whose bounding sphere comes within 2 km of the camera, in any
+/// depth range, in view or not, and whether or not it is <see cref="RenderFlags.Visible"/> (an invisible caster casts
+/// a shadow only). Each caster is culled against every cascade's box, extruded toward the sun, and gets one GPU
+/// instance per cascade it touches. The casters are put in mesh order with a counting sort, then each cascade's
+/// instances are appended to the frame's instance buffer in that order, with one indirect command per run of one
+/// mesh. All of this is linear in the number of casters and meshes, and allocates nothing in a steady state.</para>
+/// <para><see cref="Record"/> draws each cascade into its layer of the <see cref="ShadowMap"/> with one depth-only
+/// vkCmdDrawIndexedIndirect, from the same global vertex, index and instance buffers as the G-buffer pass. Depth
+/// clamping pancakes casters between the cascade box and the sun onto its sun-side face, and the rasterizer adds a
+/// slope-scaled depth bias. Faces are not culled, so single-sided meshes such as planes cast shadows too.</para>
+/// <para>Without a sun, or without any caster, nothing is drawn and the lighting pass skips the shadow maps.</para>
+/// </remarks>
+internal sealed unsafe class ShadowPass : RenderPass
+{
+    /// <summary>The caster's slope-scaled depth bias, in multiples of its largest depth change per texel.</summary>
+    public const float SlopeBias = 1.5f;
+    /// <summary>How far the lighting pass moves its lookup along the geometric normal, in texels, times sin(angle to the sun).</summary>
+    public const float NormalOffsetTexels = 1f;
+    /// <summary>The lighting pass's constant depth bias toward the sun, in texels of depth.</summary>
+    public const float ConstantBiasTexels = 0.5f;
+    /// <summary>Receiver planes are treated as at most this steep: the cosine of their angle to the sun.</summary>
+    public const float MinimumReceiverCosine = 0.1f;
+
+    private readonly VulkanDevice device;
+    private readonly ShadowMap map;
+    private readonly Pipeline pipeline;
+    private Caster[] casters = new Caster[64];
+    private int[] order = new int[64];
+    private int[] meshStarts = new int[64];
+    private bool hasTick;
+    private long lastTick;
+
+    public ShadowPass(VulkanDevice device, ShaderLibrary shaders, DescriptorLayouts layouts, ShadowMap map)
+    {
+        this.device = device;
+        this.map = map;
+        pipeline = new GraphicsPipelineDesc
+        {
+            Name = "shadow cascades",
+            VertexShader = "shadow.vert",
+            FragmentShader = null,
+            Layout = layouts.SceneLayout,
+            ColorFormats = [],
+            DepthFormat = map.Format,
+            VertexInput = VertexInput.PositionOnly,
+            DepthTest = true,
+            DepthWrite = true,
+            DepthCompare = CompareOp.Greater,
+            DepthClamp = true,
+            CullMode = CullModeFlags.None,
+            // Reversed depth: a negative bias moves casters away from the sun.
+            DepthBiasSlope = -SlopeBias,
+        }.Create(device, shaders);
+    }
+
+    public override string Name => "shadow maps";
+
+    /// <summary>
+    /// A world-fixed point in snapshot coordinates (relative to the current render origin). The cascades' texel grid
+    /// passes through it. It moves by <see cref="RenderCamera.PreviousPosition"/> each time the tick advances, which
+    /// is how far the origin moved, so it stays at the same place in the world.
+    /// </summary>
+    public Double3 Anchor { get; private set; }
+
+    public override void Prepare(FrameContext context)
+    {
+        RenderSnapshot snapshot = context.Snapshot;
+        PreparedScene scene = context.Scene;
+        TrackOrigin(snapshot);
+
+        RenderSun sun = snapshot.Sun;
+        if (!(sun.Direction.LengthSquared() > 1e-12f) || !(sun.Intensity > 0f) || !float.IsFinite(sun.Direction.X + sun.Direction.Y + sun.Direction.Z))
+            return;
+        CameraView camera = scene.Camera;
+        LightBasis light = LightBasis.FromSunDirection(sun.Direction);
+        ShadowCascades.Fit(camera, light, map.Size, map.DepthRangeScale, Anchor - camera.Offset, ref scene.Cascades);
+
+        ReadOnlySpan<MeshInfo> meshes = context.Geometry.Meshes;
+        int casterCount = SelectCasters(snapshot, SceneBatcher.ClampAlpha(context.Alpha), meshes, light, scene);
+        if (casterCount == 0)
+            return;
+        SortByMesh(casterCount, meshes.Length);
+        Emit(scene, meshes, casterCount);
+        scene.ShadowCascadeCount = ShadowCascades.Count;
+        WriteConstants(scene, light);
+    }
+
+    private void TrackOrigin(RenderSnapshot snapshot)
+    {
+        if (hasTick && snapshot.Tick == lastTick)
+            return;
+        if (hasTick && snapshot.Tick > lastTick)
+            Anchor += snapshot.Camera.PreviousPosition;
+        else
+            Anchor = Double3.Zero;
+        hasTick = true;
+        lastTick = snapshot.Tick;
+    }
+
+    /// <summary>Finds the casters and the cascades each one touches. Returns the number of casters.</summary>
+    private int SelectCasters(RenderSnapshot snapshot, float alpha, ReadOnlySpan<MeshInfo> meshes, in LightBasis light, PreparedScene scene)
+    {
+        Vector3 offset = scene.Camera.Offset;
+        int casterCount = 0, instanceCount = 0;
+        foreach (ref readonly RenderInstance instance in CollectionsMarshal.AsSpan(snapshot.Instances))
+        {
+            if ((instance.Flags & RenderFlags.CastsShadow) == 0)
+                continue;
+            int mesh = instance.Mesh.Value;
+            if ((uint)mesh >= (uint)meshes.Length || !SceneBatcher.HasVolume(instance.Scale))
+                continue;
+            Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - offset;
+            float radius = SceneBatcher.BoundingRadius(instance, meshes[mesh]);
+            if (!float.IsFinite(position.X + position.Y + position.Z + radius) || position.Length() - radius > ShadowCascades.Distance)
+                continue;
+
+            // The caster can shadow a cascade's receivers if its sphere overlaps the cascade box or the part of the
+            // light's view in front of it, toward the sun.
+            Vector3 lightPosition = light.ToLight(position);
+            int mask = 0;
+            for (int i = 0; i < ShadowCascades.Count; i++)
+            {
+                ref readonly ShadowCascade cascade = ref scene.Cascades[i];
+                float reach = cascade.HalfExtent + radius;
+                if (MathF.Abs(lightPosition.X - cascade.Center.X) <= reach &&
+                    MathF.Abs(lightPosition.Y - cascade.Center.Y) <= reach &&
+                    lightPosition.Z + radius >= cascade.Center.Z - cascade.DepthHalfRange)
+                {
+                    mask |= 1 << i;
+                }
+            }
+            if (mask == 0)
+                continue;
+
+            if (casterCount == casters.Length)
+                Array.Resize(ref casters, casters.Length * 2);
+            Quaternion rotation = SceneBatcher.Interpolate(instance.PreviousRotation, instance.Rotation, alpha);
+            casters[casterCount++] = new Caster(GpuInstance.From(position, rotation, instance.Scale, 0), mesh, mask);
+            instanceCount += BitOperations.PopCount((uint)mask);
+        }
+        scene.ShadowCasters = casterCount;
+        scene.ShadowInstances = instanceCount;
+        return casterCount;
+    }
+
+    /// <summary>Fills <see cref="order"/> with the caster indices in mesh order, keeping snapshot order within a mesh.</summary>
+    private void SortByMesh(int casterCount, int meshCount)
+    {
+        if (order.Length < casterCount)
+            Array.Resize(ref order, Math.Max(casterCount, order.Length * 2));
+        if (meshStarts.Length < meshCount + 1)
+            Array.Resize(ref meshStarts, Math.Max(meshCount + 1, meshStarts.Length * 2));
+        Span<int> starts = meshStarts.AsSpan(0, meshCount + 1);
+        starts.Clear();
+        for (int i = 0; i < casterCount; i++)
+            starts[casters[i].Mesh + 1]++;
+        for (int m = 1; m <= meshCount; m++)
+            starts[m] += starts[m - 1];
+        for (int i = 0; i < casterCount; i++)
+            order[starts[casters[i].Mesh]++] = i;
+    }
+
+    /// <summary>For each cascade, appends its casters' instances in mesh order and one indirect command per mesh.</summary>
+    private void Emit(PreparedScene scene, ReadOnlySpan<MeshInfo> meshes, int casterCount)
+    {
+        ReadOnlySpan<int> sorted = order.AsSpan(0, casterCount);
+        for (int cascade = 0; cascade < ShadowCascades.Count; cascade++)
+        {
+            int bit = 1 << cascade, currentMesh = -1, rangeStart = scene.CommandCount;
+            foreach (int index in sorted)
+            {
+                ref readonly Caster caster = ref casters[index];
+                if ((caster.Mask & bit) == 0)
+                    continue;
+                int gpuIndex = scene.AppendInstance(caster.Instance);
+                if (caster.Mesh == currentMesh)
+                {
+                    scene.Commands[scene.CommandCount - 1].InstanceCount++;
+                    continue;
+                }
+                currentMesh = caster.Mesh;
+                MeshInfo info = meshes[caster.Mesh];
+                scene.AppendCommand(new DrawIndexedIndirectCommand
+                {
+                    IndexCount = info.IndexCount,
+                    InstanceCount = 1,
+                    FirstIndex = info.FirstIndex,
+                    VertexOffset = info.VertexOffset,
+                    FirstInstance = (uint)gpuIndex,
+                });
+            }
+            scene.ShadowCommands[cascade] = new CommandRange(rangeStart, scene.CommandCount - rangeStart);
+        }
+    }
+
+    private void WriteConstants(PreparedScene scene, in LightBasis light)
+    {
+        ref GpuFrameConstants constants = ref scene.Constants;
+        ref ShadowCascadeArray cascades = ref scene.Cascades;
+        constants.ShadowCascadeCount = ShadowCascades.Count;
+        for (int i = 0; i < ShadowCascades.Count; i++)
+            constants.ShadowViewProj[i] = cascades[i].ViewProjection;
+        constants.ShadowSplits = new Vector4(ShadowCascades.Split(0), ShadowCascades.Split(1), ShadowCascades.Split(2), ShadowCascades.Split(3));
+        constants.ShadowBlendStart = new Vector4(ShadowCascades.BlendStart(0), ShadowCascades.BlendStart(1), ShadowCascades.BlendStart(2), ShadowCascades.BlendStart(3));
+        constants.ShadowTexel = new Vector4(cascades[0].TexelSize, cascades[1].TexelSize, cascades[2].TexelSize, cascades[3].TexelSize);
+        // Every box has the same shape: a light-space slope s moves depth by s · h / d per unit of uv.
+        float depthPerUv = cascades[0].HalfExtent / cascades[0].DepthHalfRange;
+        constants.ShadowAxisX = new Vector4(light.X, depthPerUv);
+        constants.ShadowAxisY = new Vector4(light.Y, 0f);
+        // One texel of world distance along the light is depthPerUv / size in [0, 1] depth units.
+        constants.ShadowParams = new Vector4(1f / map.Size, NormalOffsetTexels, ConstantBiasTexels * depthPerUv / map.Size, MinimumReceiverCosine);
+    }
+
+    public override void Record(FrameContext context)
+    {
+        PreparedScene scene = context.Scene;
+        if (scene.ShadowCascadeCount == 0)
+            return;
+        Vk vk = context.Vk;
+        CommandBuffer commandBuffer = context.CommandBuffer;
+        BarrierBatch barriers = context.Barriers;
+        barriers.Buffer(context.Geometry.VertexBuffer, BufferUse.VertexInput);
+        barriers.Buffer(context.Geometry.IndexBuffer, BufferUse.VertexInput);
+        barriers.Image(map.Image, ImageUse.DepthAttachment, discard: true);
+        barriers.Flush(vk, commandBuffer);
+
+        var extent = new Extent2D((uint)map.Size, (uint)map.Size);
+        for (int i = 0; i < scene.ShadowCascadeCount; i++)
+        {
+            var depth = new RenderingAttachmentInfo
+            {
+                SType = StructureType.RenderingAttachmentInfo,
+                ImageView = map.LayerView(i),
+                ImageLayout = ImageLayout.DepthAttachmentOptimal,
+                LoadOp = AttachmentLoadOp.Clear,
+                StoreOp = AttachmentStoreOp.Store,
+                // Reversed depth: 0 is the far side of the cascade, so an empty texel shadows nothing.
+                ClearValue = new ClearValue(depthStencil: new ClearDepthStencilValue(0f, 0)),
+            };
+            var rendering = new RenderingInfo
+            {
+                SType = StructureType.RenderingInfo,
+                RenderArea = new Rect2D(new Offset2D(0, 0), extent),
+                LayerCount = 1,
+                PDepthAttachment = &depth,
+            };
+            vk.CmdBeginRendering(commandBuffer, &rendering);
+            if (i == 0)
+            {
+                vk.CmdBindPipeline(commandBuffer, PipelineBindPoint.Graphics, pipeline);
+                // Only the frame set: the G-buffer set holds this very image as a sampled descriptor.
+                DescriptorSet frameSet = context.Frame.FrameSet;
+                vk.CmdBindDescriptorSets(commandBuffer, PipelineBindPoint.Graphics, context.Layouts.SceneLayout, 0, 1, &frameSet, 0, null);
+                var viewport = new Viewport(0, 0, map.Size, map.Size, 0, 1);
+                var scissor = new Rect2D(new Offset2D(0, 0), extent);
+                vk.CmdSetViewport(commandBuffer, 0, 1, &viewport);
+                vk.CmdSetScissor(commandBuffer, 0, 1, &scissor);
+                GeometryPass.BindGeometry(context);
+            }
+            CommandRange commands = scene.ShadowCommands[i];
+            if (commands.Count > 0)
+            {
+                GeometryPass.PushDraw(context, scene.Cascades[i].ViewProjection);
+                GeometryPass.DrawIndirect(context, commands);
+            }
+            vk.CmdEndRendering(commandBuffer);
+        }
+    }
+
+    public override void Dispose() => device.Vk.DestroyPipeline(device.Device, pipeline, null);
+
+    /// <summary>A selected caster: its GPU instance, its mesh and a bit for each cascade it touches.</summary>
+    private readonly record struct Caster(GpuInstance Instance, int Mesh, int Mask);
+}
