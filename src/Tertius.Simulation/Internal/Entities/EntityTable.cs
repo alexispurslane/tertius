@@ -34,8 +34,9 @@ namespace Tertius.Simulation;
 /// <item>A live slot's mask is <see cref="DestroyEvent"/> plus the OR of its components' cached wants.</item>
 /// <item>A live slot whose back row differs from its front row is dirty and in a dirty list, so
 /// <see cref="CopyDirtyRows"/> never misses a change. Gameplay never writes the transform of a slot with a body.</item>
-/// <item>A back intent is set only for a slot in its chunk's intent list, and a front intent only for an entity in
-/// <see cref="IntentEntities"/>.</item>
+/// <item>A back intent is set only for a live entity in its chunk's list of intent writers, and a front intent only
+/// for an entity in <see cref="IntentEntities"/>. A writer that died since it wrote stays in the list until the swap,
+/// which skips it: releasing it cleared its slot.</item>
 /// <item>Every live entity whose front transform changed since the last <see cref="TakeMoved"/> is in the moved
 /// list.</item>
 /// </list>
@@ -63,7 +64,7 @@ internal sealed class EntityTable
         TransformDirty = 1 << 0,
         /// <summary>The back render row may differ from the front row, and the slot is in a dirty list.</summary>
         RenderDirty = 1 << 1,
-        /// <summary>The slot is in its chunk's intent list for this tick.</summary>
+        /// <summary>The slot's entity is in its chunk's list of intent writers for this tick.</summary>
         IntentRegistered = 1 << 2,
         /// <summary>The entity became live at the last sync and has not had its first tick yet.</summary>
         FirstTick = 1 << 3,
@@ -89,7 +90,11 @@ internal sealed class EntityTable
     private sealed class ChunkBook
     {
         public readonly List<uint> DirtySlots = new();
-        public readonly List<uint> IntentSlots = new();
+        /// <summary>
+        /// The entities that wrote an intent this tick, in the order they first wrote it. Handles, not slots: a writer
+        /// that dies before the swap must not hand its place to the entity that takes its slot.
+        /// </summary>
+        public readonly List<Entity> IntentWriters = new();
         /// <summary>Free slots reserved for this chunk's spawns, in a deterministic order.</summary>
         public readonly Queue<uint> SpawnPool = new();
         public int LiveCount;
@@ -378,7 +383,7 @@ internal sealed class EntityTable
             chunks[c].EndTick();
             ChunkBook book = books[c];
             book.DirtySlots.Clear();
-            book.IntentSlots.Clear();
+            book.IntentWriters.Clear();
             book.LastSpawnCount = book.SpawnsThisTick;
             book.SpawnsThisTick = 0;
         }
@@ -629,7 +634,7 @@ internal sealed class EntityTable
         if ((f & SlotFlags.IntentRegistered) == 0)
         {
             f |= SlotFlags.IntentRegistered;
-            books[slot / chunkSize].IntentSlots.Add(slot);
+            books[slot / chunkSize].IntentWriters.Add(entity);
         }
         return ref backIntent[slot];
     }
@@ -707,17 +712,22 @@ internal sealed class EntityTable
         int count = ChunkCountFor(slotCount);
         for (int c = 0; c < count; c++)
         {
-            foreach (uint slot in books[c].IntentSlots)
+            foreach (Entity writer in books[c].IntentWriters)
             {
+                // Releasing a writer cleared its slot, intent and flag included. An entity that took the slot since
+                // then wrote nothing in this tick, so the slot is left as it is.
+                if (!IsAlive(writer))
+                    continue;
+                uint slot = writer.Index;
                 flags[slot] &= ~SlotFlags.IntentRegistered;
-                if (keep && state[slot] == SlotState.Live)
+                if (keep)
                 {
                     frontIntent[slot] = backIntent[slot];
-                    frontIntentEntities.Add(new Entity(slot, generation[slot]));
+                    frontIntentEntities.Add(writer);
                 }
                 backIntent[slot] = default;
             }
-            books[c].IntentSlots.Clear();
+            books[c].IntentWriters.Clear();
         }
     }
 
@@ -788,6 +798,7 @@ internal sealed class EntityTable
         }
 
         var dirtyListed = new bool[capacity];
+        var intentWriterListed = new bool[capacity];
         var pooled = new bool[capacity];
         int pooledCount = 0;
         for (int c = 0; c < books.Length; c++)
@@ -795,8 +806,15 @@ internal sealed class EntityTable
             ChunkBook book = books[c];
             foreach (uint slot in book.DirtySlots)
                 dirtyListed[slot] = true;
-            foreach (uint slot in book.IntentSlots)
-                Contract.Invariant((flags[slot] & SlotFlags.IntentRegistered) != 0 && (int)slot / chunkSize == c);
+            foreach (Entity writer in book.IntentWriters)
+            {
+                Contract.Invariant((int)writer.Index / chunkSize == c);
+                // A writer that died since it wrote is skipped by the swap.
+                if (!IsAlive(writer))
+                    continue;
+                Contract.Invariant((flags[writer.Index] & SlotFlags.IntentRegistered) != 0 && !intentWriterListed[writer.Index]);
+                intentWriterListed[writer.Index] = true;
+            }
             foreach (uint slot in book.SpawnPool)
             {
                 Contract.Invariant(state[slot] == SlotState.Reserved && !pooled[slot]);
@@ -850,6 +868,8 @@ internal sealed class EntityTable
                 Contract.Invariant((f & SlotFlags.TransformDirty) != 0 && rec.Body == null);
             if ((f & SlotFlags.IntentRegistered) == 0)
                 Contract.Invariant(IsDefault(in backIntent[slot]));
+            else
+                Contract.Invariant(intentWriterListed[slot]);
             if (!inIntentList[slot])
                 Contract.Invariant(IsDefault(in frontIntent[slot]));
             if ((f & SlotFlags.FrontMoved) != 0)

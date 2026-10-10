@@ -415,7 +415,7 @@ public class EntityTableTests
 
     // Not reachable through the world today: its sync point swaps the intents (step 4) before it destroys entities (step
     // 5) and makes new ones live (step 6). The table's own interface allows the order, so the table should survive it.
-    [Fact(Skip = "Bug: SwapIntents lists the entity that took the slot of an intent writer that died before the swap")]
+    [Fact]
     public void AnIntentWrittenByAnEntityThatDiedIsNotGivenToTheEntityThatTookItsSlot()
     {
         EntityTable table = TableSupport.NewTable();
@@ -432,6 +432,21 @@ public class EntityTableTests
         // The successor wrote no intent, so physics must not be told that it did.
         table.IntentEntities.IsEmpty.Should().BeTrue();
         table.FrontIntents.Span[(int)successor.Index].Should().Be(default(PhysicsIntent));
+        table.AssertInvariants();
+    }
+
+    [Fact]
+    public void AnIntentWriterThatDiesBeforeTheSwapBreaksNoInvariantWhileItIsStillListed()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity writer = table.SpawnLiveWith(TestWorld.Ball);
+        table.BeginTick(spawnPoolSize: 0);
+        table.WritableIntent(writer).Force = new Vector3(1, 0, 0);
+        table.EndGameplay();
+
+        table.Release(writer);
+        table.AssertInvariants();
+        table.SpawnLiveWith(TestWorld.Ball).Index.Should().Be(writer.Index);
         table.AssertInvariants();
     }
 
