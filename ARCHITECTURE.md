@@ -77,7 +77,7 @@ An entity is a 64-bit handle: a 32-bit slot index and a 32-bit generation. The g
 
 Each live entity has a row in three parallel tables, indexed by the slot index:
 
-- Transform: frame-local `Pose` (float), the frame that the entity is in, linear and angular velocity.
+- Transform: the frame that the entity is in, a frame-local `DPose`, and linear and angular velocity. Positions are double, because Jolt gives double positions and a planet frame is millions of meters across.
 - Physics: an optional body description and the double-buffered `PhysicsIntent`.
 - Render: mesh, material, scale, bounding radius, render flags and an optional light.
 
@@ -190,7 +190,7 @@ The engine defines these payload types in `Tertius.Core`:
 | `Destroy` | A request to destroy the recipient |
 | `FrameChanged` | After a hand-off moved the entity to another frame |
 | `Collision` | Physics reported a contact that started |
-| `Input` | The host forwards input to the entities that subscribe to the input topic |
+| `InputEvent` | The host forwards input to the entities that subscribe to the input topic |
 
 ## Snapshots
 

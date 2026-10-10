@@ -79,8 +79,8 @@ public struct PhysicsIntent
     public Vector3 AngularImpulse;
     public Vector3 Velocity;
     public Vector3 AngularVelocity;
-    /// <summary>The target pose for a kinematic body, or the new pose for a teleport.</summary>
-    public Pose Target;
+    /// <summary>The target pose for a kinematic body, or the new pose for a teleport, in frame coordinates.</summary>
+    public DPose Target;
     /// <summary>The desired movement velocity of a character.</summary>
     public Vector3 CharacterVelocity;
     public float JumpSpeed;
@@ -98,7 +98,7 @@ public readonly record struct BodyCreate(
     Entity Entity,
     FrameHandle Frame,
     BodyDesc Desc,
-    Pose Pose,
+    DPose Pose,
     Vector3 LinearVelocity,
     Vector3 AngularVelocity);
 
@@ -148,13 +148,13 @@ public readonly struct PhysicsStepContext
 }
 
 /// <summary>The state of one body after a step, in its frame.</summary>
-public readonly record struct BodyState(Entity Entity, FrameHandle Frame, Pose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
+public readonly record struct BodyState(Entity Entity, FrameHandle Frame, DPose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
 
 /// <summary>Physics moved an entity's body to another frame during the step. Pose and velocities are in the new frame.</summary>
-public readonly record struct HandOff(Entity Entity, FrameHandle From, FrameHandle To, Pose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
+public readonly record struct HandOff(Entity Entity, FrameHandle From, FrameHandle To, DPose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
 
 /// <summary>A contact that started during the step. Point and normal are in the frame of <see cref="A"/>.</summary>
-public readonly record struct ContactStarted(Entity A, Entity B, FrameHandle Frame, Vector3 Point, Vector3 Normal, float Impulse);
+public readonly record struct ContactStarted(Entity A, Entity B, FrameHandle Frame, Double3 Point, Vector3 Normal, float Impulse);
 
 /// <summary>The new state of a physics-driven frame, relative to its parent.</summary>
 public readonly record struct FrameState(FrameHandle Frame, DPose LocalPose, Double3 LinearVelocity, Vector3 AngularVelocity, Vector3 ProperAcceleration);

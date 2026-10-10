@@ -26,7 +26,7 @@ public struct FrameChanged : IEventPayload
 public struct Collision : IEventPayload
 {
     public Entity Other;
-    public Vector3 Point;
+    public Double3 Point;
     public Vector3 Normal;
     public float Impulse;
 }
