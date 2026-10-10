@@ -1,0 +1,25 @@
+# 02 Design review
+
+Status: planned. It starts after plan 01.
+
+## Goal
+
+Find the design problems in every module before more code builds on them. The review uses the software-design-philosophy skill: deep modules, information hiding, no pass-through methods, no conjoined methods, and errors defined out of existence.
+
+## How
+
+1. Reviewers look at each module from several angles: correctness, determinism, thread safety, performance and interface design.
+2. Independent skeptics try to refute each finding. Only the findings that survive go to the user.
+3. Each accepted finding gets a failing test first, then the fix.
+
+## Known items
+
+- `EntityTable.IntentEntities` is a property getter that changes state: it removes dead entities from the list on its first read after a death.
+- `EntityTable.Activate` takes seven parameters.
+- Physics: when a hand-off is rejected, the parent override of the body stays in place. Drop it at reconcile.
+- Physics: JoltPhysicsSharp 2.23.0 corrupts the stack in its `ContactManifold` wrapper, and the backend works around it. Review the workaround. Do not report the bug upstream without the user's approval.
+- If plan 01 did not fix the slow Stryker runs, find the cause here.
+
+## Report
+
+For each finding: the module, the problem, the evidence, the skeptics' verdict and the proposed fix.

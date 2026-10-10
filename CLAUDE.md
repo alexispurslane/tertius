@@ -43,6 +43,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 | A boolean for whether a frame moves on rails | The `MotionDriver` enum (`Static`, `Kepler`, `Physics`) | The user agreed to this one of mine. |
 | Frames separate from entities | Frames are entities with an extra handle into the frame tree. Frames are also a kind of scene graph that shares code with the normal scene graph. | Hence `FrameHandle` and the generic `PoseTree<TPose>`. |
 | A lock-free shared message list | Per-chunk outboxes merged in chunk order | This was my refinement of the user's per-entity worker idea. The user agreed. |
+| An entity table whose members take bare slot indices, with the generation check left to the caller | Handles everywhere: every way from an `Entity` to its data checks the generation, and stale handles give an explicit `null`, `false` or exception | Slots are a private storage index. No interface between modules takes or returns a bare slot. The user also rejected a "proof of liveness" marker type that would let later calls skip the check: every member that takes an `Entity` checks it, in every build. |
 
 ## Code style
 
