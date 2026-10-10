@@ -4,7 +4,7 @@ Status: planned. The user approved this design.
 
 ## Goal
 
-Wire all modules into a running program, and let tests and agents drive it with scripts. `src/Tertius.Host` and `src/Tertius.Demo` are empty projects today.
+Wire all modules into a running program, and let tests and agents drive it with scripts. `src/Tertius.Host` and `src/Tertius.Demo` are empty projects today. The empty Demo project has no `Main` method, so `dotnet build Tertius.slnx` fails on it.
 
 ## Host
 

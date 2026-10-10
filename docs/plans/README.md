@@ -21,17 +21,12 @@ ARCHITECTURE.md stays the binding design. When a plan is done, its decisions mov
 
 ## Running now
 
-The workflow `wf_231d1c74-922` refactors the Simulation module. Its stages are:
-
-1. Split `World` into subsystems. Done.
-2. Make the subsystems deep modules that own their invariants. Done.
-3. Replace every slot in the subsystem interfaces with an `Entity` handle that each member checks on every call. Running.
-4. Move the Simulation tests to AwesomeAssertions and add subsystem tests. Waiting.
+- The workflow `wf_bfab1ac8-cfa` builds the Simulation test stack. One agent writes the shared test helpers first. Then four agents work in parallel, each in its own git worktree, on one test area each. The orchestrator merges their branches. The refactor before it is done and committed (`7e5ecd3`).
+- The workflow `wf_5b5b785e-538` drafts plans 07 to 10.
 
 ## Chores
 
-- Commit the workflow results in clean commits, with one commit for each module change. Stage files by name, never with `git commit -a`.
-- Rebuild commit `a8d8ae4` ("Note that this project stays on git"). It contains in-progress module changes under an unrelated message, and the commit after it does not compile the Simulation module. The history is local and unpushed. The user must approve the rewrite first.
+- Delete the branch `backup/before-history-rewrite` once the user agrees. It keeps the history from before the rewrite of commit `a8d8ae4`.
 
 ## Not planned yet
 
