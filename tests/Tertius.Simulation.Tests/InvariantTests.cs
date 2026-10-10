@@ -1,221 +1,91 @@
-using System.Numerics;
+using AwesomeAssertions;
 
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// The world's invariant checks over a workload that churns every subsystem at once, and the debug switch that runs
-/// them at every sync point.
+/// The world's invariant checks over a seeded workload that churns every subsystem at once, with an independent audit
+/// after every tick; the switch that runs the checks at every sync point; and proof that the audit finds the damage
+/// it is there to find. The workload and the audit are in <see cref="ChaoticWorkload"/> and <see cref="InvariantCrossChecks"/>.
 /// </summary>
 public class InvariantTests(ITestOutputHelper output)
 {
-    private static readonly Topic Chatter = Topics.Get("tests.invariants.chatter");
+    private const int FixedSeed = 20261010;
 
-    /// <summary>What the churn did, so that the test can show that the workload reached every subsystem.</summary>
-    private sealed class Tally
+    // ---- The invariants hold ---------------------------------------------------------------------------------------
+
+    // Each seed is a different run: different spawns, different hand-offs, different deaths. Run fails with the seed in its message.
+    [Theory]
+    [InlineData(FixedSeed)]
+    [InlineData(1)]
+    [InlineData(7)]
+    [InlineData(31337)]
+    public void EverySubsystemKeepsItsInvariantsAfterEveryTickOfAChaoticWorkload(int seed)
     {
-        public int Spawns, AttachedSpawns, FrameSpawns, Destroys, Subscriptions, ComponentChanges, Moves;
-    }
+        using var workload = new ChaoticWorkload(seed);
 
-    /// <summary>
-    /// Does one random thing per tick from a seeded generator: spawn (plain, attached, with a body, or a frame), destroy
-    /// itself or a neighbor, subscribe or unsubscribe, send, change its components, or move.
-    /// </summary>
-    private sealed class Churn(ulong seed, Entity rootOwner, Tally tally) : IComponent
-    {
-        private readonly List<Entity> neighbors = new();
-        private ulong rng = seed | 1;
-        private Recorder? extra;
+        workload.Run(150);
 
-        public int Priority => 0;
-        public EventMask Wants => EventMask.Of<Tick>().And<Ping>().And<FrameChanged>().And<Collision>();
-
-        private int Next(int n)
-        {
-            rng ^= rng << 13;
-            rng ^= rng >> 7;
-            rng ^= rng << 17;
-            return (int)(rng % (ulong)n);
-        }
-
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-        {
-            if (!events.Contains<Tick>() || self.Frame.IsNull)
-                return;
-            DPose here = new(self.Pose.Position + new Double3(Next(21) - 10, 0, Next(21) - 10), DQuaternion.Identity);
-            int roll = Next(100);
-            if (roll < 3)
-            {
-                self.Spawn(new SpawnDesc { Frame = self.Frame, Pose = here, Components = [new Churn(rng + 1, rootOwner, tally)] });
-                tally.Spawns++;
-            }
-            else if (roll < 5 && !self.Body.Exists)
-            {
-                self.Spawn(new SpawnDesc { Frame = self.Frame, AttachTo = self.Entity, AttachOffset = new Pose(new Vector3(1, 0, 0), Quaternion.Identity) });
-                tally.AttachedSpawns++;
-            }
-            else if (roll < 7)
-            {
-                self.Spawn(new SpawnDesc { Frame = self.Frame, Pose = here, Body = TestWorld.Ball, LinearVelocity = new Vector3(Next(3) - 1, 0, 0), Components = [new Churn(rng + 2, rootOwner, tally)] });
-                tally.Spawns++;
-            }
-            else if (roll < 8)
-            {
-                self.Spawn(new SpawnDesc
-                {
-                    Frame = self.Frame,
-                    Pose = here,
-                    AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
-                    Components = [new Churn(rng + 3, rootOwner, tally)],
-                    Subscriptions = [Chatter],
-                });
-                tally.FrameSpawns++;
-            }
-            else if (roll < 13)
-            {
-                self.Destroy();
-                tally.Destroys++;
-            }
-            else if (roll < 17)
-            {
-                self.Snapshot.QueryRadius(self.Frame, self.Pose.Position, 40, neighbors);
-                neighbors.Remove(rootOwner);
-                if (neighbors.Count > 0)
-                {
-                    outbox.Send(neighbors[Next(neighbors.Count)], new Destroy());
-                    tally.Destroys++;
-                }
-            }
-            else if (roll < 24)
-            {
-                Topic topic = Next(2) == 0 ? Chatter : self.Frame.Topic;
-                if (Next(2) == 0)
-                    self.Subscribe(topic);
-                else
-                    self.Unsubscribe(topic);
-                tally.Subscriptions++;
-            }
-            else if (roll < 30)
-            {
-                outbox.Send(Chatter, new Ping { Value = roll });
-                outbox.Send(self.Frame.Topic, new Ping { Value = roll });
-                outbox.SendAfter(1 + Next(3), new Broadcast(), new Ping { Value = roll });
-            }
-            else if (roll < 33)
-            {
-                if (extra == null)
-                {
-                    extra = new Recorder(EventMask.Of<Heal>(), priority: Next(3) - 1);
-                    self.AddComponent(extra);
-                }
-                else
-                {
-                    self.RemoveComponent(extra);
-                    extra = null;
-                }
-                tally.ComponentChanges++;
-            }
-            else if (roll < 50 && !self.Body.Exists && self.AttachedTo.IsNull)
-            {
-                self.Transform = here;
-                self.Render.Scale = new Vector3(1 + Next(3));
-                tally.Moves++;
-            }
-            else if (self.Body.Exists)
-            {
-                self.Body.AddForce(new Vector3(Next(3) - 1, 0, 0));
-            }
-        }
+        output.WriteLine($"seed {seed}: {workload.World.Stats}");
+        output.WriteLine(workload.Tally.ToString());
+        output.WriteLine(workload.History.ToString());
+        workload.World.Errors.Where(error => error.Contains("Exception")).Should().BeEmpty($"seed {seed}: a component or the engine threw");
     }
 
     [Fact]
-    public void TheInvariantsHoldThroughAWorkloadThatChurnsEverySubsystem()
+    public void TheChaoticWorkloadReachesEverySubsystemAndTheAuditLooksAtEverySet()
     {
-        var tally = new Tally();
-        int handOffs = 0, frameStates = 0;
-        var physics = new FakePhysics();
-        using World world = TestWorld.Create(out FrameHandle root, physics: physics, chunkSize: 8);
-        Entity rootOwner = root.Entity;
-        Entity shuttleOwner = world.Spawn(new SpawnDesc
-        {
-            Frame = root,
-            Pose = TestWorld.At(50),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
-            Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
-            Components = [new Churn(99, rootOwner, tally)],
-        });
-        FrameHandle shuttle = world.GetOwnedFrame(shuttleOwner);
-        world.Spawn(new SpawnDesc
-        {
-            Frame = root,
-            Pose = TestWorld.At(-200),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(200, 1e9, spinRate: 0.1)),
-        });
+        // An audit that looks at empty sets agrees with anything. This test requires that the workload fills every set
+        // and every kind of change happens many times, so that "no violations" means something.
+        using var workload = new ChaoticWorkload(FixedSeed);
 
-        // Every few steps physics moves a body into another live frame, and the shuttle reports a new state.
-        var frames = new List<FrameHandle>();
-        physics.OnStep = (context, output) =>
-        {
-            if (context.Frames.IsAlive(shuttle))
-            {
-                output.Frames.Add(new FrameState(shuttle, TestWorld.At(50 + context.Tick * 0.1), new Double3(6, 0, 0), Vector3.Zero, Vector3.Zero));
-                frameStates++;
-            }
-            if (context.Tick % 3 != 0)
-                return;
-            frames.Clear();
-            context.Frames.GetAll(frames);
-            foreach ((Entity entity, FakePhysics.Body body) in physics.Bodies)
-            {
-                FrameHandle to = frames[(int)((ulong)context.Tick * 2654435761UL % (ulong)frames.Count)];
-                bool cycle = entity == shuttleOwner && (to == shuttle || context.Frames.IsAncestorOf(shuttle, to));
-                if (to == body.Frame || cycle)
-                    continue;
-                output.HandOffs.Add(new HandOff(entity, body.Frame, to, body.Pose, body.Velocity, default));
-                handOffs++;
-                break;
-            }
-        };
+        workload.Run(150);
 
-        var random = new Random(20261010);
-        for (int i = 0; i < 40; i++)
-            world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(random.Next(-100, 100), 0, random.Next(-100, 100)), Components = [new Churn((ulong)random.NextInt64(), rootOwner, tally)] });
-        world.AssertInvariants();
-
-        var live = new List<Entity>();
-        for (int tick = 0; tick < 150; tick++)
-        {
-            // DebugChecks run the checks inside every sync point; the outside-tick changes are checked here.
-            world.Tick();
-            live.Clear();
-            world.CopyLiveEntities(live);
-            live.Remove(rootOwner);
-            if (tick % 10 == 0 && live.Count > 0)
-            {
-                world.Destroy(live[random.Next(live.Count)]);
-                world.AssertInvariants();
-            }
-            if (tick % 5 == 0)
-            {
-                for (int i = 0; i < 4; i++)
-                    world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(random.Next(-100, 100)), Components = [new Churn((ulong)random.NextInt64(), rootOwner, tally)] });
-                world.AssertInvariants();
-            }
-            if (tick % 7 == 0 && live.Count > 0 && world.IsAlive(live[0]))
-            {
-                world.Subscribe(live[0], Chatter);
-                world.AddComponent(live[0], new Recorder(EventMask.Of<Heal>()));
-                world.AssertInvariants();
-            }
-        }
-
-        output.WriteLine($"{world.Stats}; spawns {tally.Spawns}, attached {tally.AttachedSpawns}, frames {tally.FrameSpawns}, destroys {tally.Destroys}, " +
-                         $"subscriptions {tally.Subscriptions}, component changes {tally.ComponentChanges}, moves {tally.Moves}, hand-offs {handOffs}, frame states {frameStates}, errors {world.Errors.Count}");
-        Assert.True(world.Stats.LiveEntities > 20, world.Stats.ToString());
-        Assert.True(tally.Spawns > 50 && tally.AttachedSpawns > 10 && tally.FrameSpawns > 5, $"{tally.Spawns} {tally.AttachedSpawns} {tally.FrameSpawns}");
-        Assert.True(tally.Destroys > 50 && tally.Subscriptions > 50 && tally.ComponentChanges > 20 && tally.Moves > 100);
-        Assert.True(handOffs > 10 && frameStates > 0, $"{handOffs} {frameStates}");
-        Assert.DoesNotContain(world.Errors, e => e.Contains("Exception"));
+        WorkloadTally tally = workload.Tally;
+        CrossCheckHistory audit = workload.History;
+        output.WriteLine(tally.ToString());
+        output.WriteLine(audit.ToString());
+        workload.World.Stats.LiveEntities.Should().BeGreaterThan(20);
+        tally.Spawns.Should().BeGreaterThan(50);
+        tally.AttachedSpawns.Should().BeGreaterThan(10);
+        tally.BodySpawns.Should().BeGreaterThan(20);
+        tally.FrameSpawns.Should().BeGreaterThan(5);
+        tally.Destroys.Should().BeGreaterThan(50);
+        tally.DestroyMessages.Should().BeGreaterThan(20);
+        tally.Subscriptions.Should().BeGreaterThan(50);
+        tally.ComponentChanges.Should().BeGreaterThan(20);
+        tally.Moves.Should().BeGreaterThan(100);
+        tally.OffsetChanges.Should().BeGreaterThan(5);
+        tally.HandOffs.Should().BeGreaterThan(10);
+        tally.FrameStates.Should().BeGreaterThan(50);
+        tally.Contacts.Should().BeGreaterThan(5);
+        tally.OutsideSpawns.Should().BeGreaterThan(50);
+        tally.OutsideDestroys.Should().BeGreaterThan(10);
+        tally.OutsideFrameDestroys.Should().BeGreaterThan(2);
+        audit.Checks.Should().Be(300, "the audit runs after the tick and after the changes between ticks, 150 times");
+        audit.MemberEntries.Should().BeGreaterThan(1000);
+        audit.RecipientEntries.Should().BeGreaterThan(1000);
+        audit.AttachedLinks.Should().BeGreaterThan(100);
+        audit.InboxEvents.Should().BeGreaterThan(1000);
+        audit.TopicDeliveries.Should().BeGreaterThan(100);
+        audit.SpatialMatches.Should().BeGreaterThan(1000);
+        audit.DeadHandlesProbed.Should().BeGreaterThan(1000);
+        audit.StaleFramesProbed.Should().BeGreaterThan(50);
     }
+
+    [Fact]
+    public void ARunThatFindsAViolationNamesTheSeedAndTheTick()
+    {
+        using var workload = new ChaoticWorkload(99);
+        workload.Run(5);
+        // A frame destroyed behind the world's back: its owner and its contents point at a frame that is gone.
+        workload.World.Frames.Destroy(workload.West);
+
+        Action run = () => workload.Run(1);
+
+        run.Should().Throw<Exception>().Where(ex => ex.Message.Contains("seed 99"));
+    }
+
+    // ---- DebugChecks -----------------------------------------------------------------------------------------------
 
     [Fact]
     public void DebugChecksCatchABrokenInvariantAtTheNextSyncPoint()
@@ -223,9 +93,8 @@ public class InvariantTests(ITestOutputHelper output)
         // Destroying a frame behind the world's back leaves its owner and its contents pointing at a dead frame.
         static World Broken(bool debugChecks)
         {
-            var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = debugChecks });
-            FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
-            FrameHandle bay = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static) }));
+            World world = TestWorld.Create(out FrameHandle root, debugChecks: debugChecks);
+            FrameHandle bay = world.SpawnStaticFrame(root, TestWorld.At(0), radius: 10);
             world.SpawnAt(bay, new Double3(1, 0, 0));
             world.Tick();
             world.Frames.Destroy(bay);
@@ -234,10 +103,152 @@ public class InvariantTests(ITestOutputHelper output)
 
         using (World checkedWorld = Broken(debugChecks: true))
         {
-            Assert.Throws<ContractException>(checkedWorld.AssertInvariants);
-            Assert.Throws<ContractException>(checkedWorld.Tick);
+            checkedWorld.Invoking(w => w.AssertInvariants()).Should().Throw<ContractException>();
+            checkedWorld.Invoking(w => w.Tick()).Should().Throw<ContractException>();
         }
-        using (World uncheckedWorld = Broken(debugChecks: false))
-            uncheckedWorld.Tick();
+    }
+
+    [Fact]
+    public void WithDebugChecksOffTheSyncPointDoesNotRunTheChecks()
+    {
+        // The checks cost O(capacity) every tick, so the default leaves them off. The same damage then goes unnoticed by the tick.
+        World world = TestWorld.Create(out FrameHandle root, debugChecks: false);
+        using (world)
+        {
+            FrameHandle bay = world.SpawnStaticFrame(root, TestWorld.At(0), radius: 10);
+            world.SpawnAt(bay, new Double3(1, 0, 0));
+            world.Tick();
+            world.Frames.Destroy(bay);
+
+            world.Invoking(w => w.Tick()).Should().NotThrow();
+        }
+    }
+
+    // ---- The audit finds what it is there to find -------------------------------------------------------------------------
+
+    private static Entity[] LiveEntitiesOf(World world)
+    {
+        var live = new List<Entity>();
+        world.CopyLiveEntities(live);
+        return [.. live];
+    }
+
+    private static List<FrameHandle> FramesOf(World world)
+    {
+        var frames = new List<FrameHandle>();
+        world.Frames.GetAll(frames);
+        return frames;
+    }
+
+    /// <summary>Puts an entity of one frame into the member set of another, the way a bug in the sync point could.</summary>
+    private static (Entity Entity, FrameHandle Right, FrameHandle Wrong) MoveSomeEntityIntoTheWrongMemberSet(World world)
+    {
+        Entity victim = LiveEntitiesOf(world).First(e => !world.GetFrame(e).IsNull && world.GetOwnedFrame(e).IsNull);
+        FrameHandle right = world.GetFrame(victim);
+        FrameHandle wrong = FramesOf(world).First(f => f != right);
+        Inside.TopicsOf(world).MoveMember(victim, wrong, out _).Should().BeTrue();
+        return (victim, right, wrong);
+    }
+
+    private static ChaoticWorkload WarmedUp(int ticks = 40)
+    {
+        var workload = new ChaoticWorkload(FixedSeed);
+        workload.Run(ticks);
+        // One more tick with nothing changed after it, so that the inboxes match the sets they were routed from.
+        workload.TickOnce();
+        workload.FindViolations(afterTick: true).Should().BeEmpty("the world is sound before it is damaged");
+        return workload;
+    }
+
+    [Fact]
+    public void TheAuditFindsAnEntityInTheMemberSetOfAFrameItIsNotIn()
+    {
+        using ChaoticWorkload workload = WarmedUp();
+        (Entity victim, _, _) = MoveSomeEntityIntoTheWrongMemberSet(workload.World);
+
+        List<string> problems = workload.FindViolations(afterTick: true);
+
+        problems.Should().Contain(p => p.Contains(victim.ToString()) && p.Contains("member of"));
+        workload.World.Invoking(w => w.AssertInvariants()).Should().Throw<ContractException>("the topic sets check the same rule on their own");
+    }
+
+    [Fact]
+    public void TheAuditFindsABackRowThatWasNeverCopiedForward()
+    {
+        using ChaoticWorkload workload = WarmedUp();
+        World world = workload.World;
+        Entity victim = LiveEntitiesOf(world).First(e => !world.GetFrame(e).IsNull && world.Entities.Body(e) == null);
+        TransformRow row = world.Entities.BackRow(victim);
+        row.Pose = row.Pose with { Position = row.Pose.Position + new Double3(5, 0, 0) };
+
+        world.Entities.SetBackTransform(victim, row);
+
+        workload.FindViolations(afterTick: true).Should().Contain(p => p.Contains(victim.ToString()) && p.Contains("front row"));
+    }
+
+    [Fact]
+    public void TheAuditFindsAnAttachmentAcrossFrames()
+    {
+        using ChaoticWorkload workload = WarmedUp();
+        World world = workload.World;
+        Entity[] candidates = LiveEntitiesOf(world).Where(e => !world.GetFrame(e).IsNull && world.Attachments.ParentOf(e).IsNull).ToArray();
+        Entity child = candidates[0];
+        Entity parent = candidates.First(e => world.GetFrame(e) != world.GetFrame(child));
+
+        // Attachments.CheckParent refuses this. Skipping it is the damage.
+        world.Attachments.Attach(child, parent, Pose.Identity);
+
+        workload.FindViolations(afterTick: true).Should().Contain(p => p.Contains(child.ToString()) && p.Contains("its parent"));
+    }
+
+    [Fact]
+    public void TheAuditFindsMailThatWasRoutedToAnEntityThatNoLongerHearsTheTopic()
+    {
+        using ChaoticWorkload workload = WarmedUp();
+        World world = workload.World;
+        Topic chatter = Topics.Get("tests.invariants.chatter");
+        TopicSets topics = Inside.TopicsOf(world);
+        Router router = Inside.RouterOf(world);
+
+        // Someone whose inbox holds a message to the chatter topic.
+        Entity listener = default;
+        var buffer = new EventBuffer();
+        foreach (Entity candidate in LiveEntitiesOf(world))
+        {
+            EventList events = buffer.Begin(candidate);
+            router.CopyInbox(candidate, events);
+            for (int i = 0; i < events.Count && listener.IsNull; i++)
+            {
+                if (events[i].Target.TryGetValue(out Topic topic) && topic == chatter)
+                    listener = candidate;
+            }
+            if (!listener.IsNull)
+                break;
+        }
+        listener.IsNull.Should().BeFalse("the workload sends to the chatter topic every tick");
+
+        topics.Unsubscribe(listener, chatter).Should().BeTrue();
+
+        workload.FindViolations(afterTick: true).Should().Contain(p => p.Contains(listener.ToString()) && p.Contains("does not hear that topic"));
+        workload.FindViolations(afterTick: false).Should().NotContain(p => p.Contains("does not hear that topic"),
+            "after a change between ticks the inboxes still hold the old mail, so the audit does not compare them with the sets");
+    }
+
+    [Fact]
+    public void TheAuditFindsAnEntityThatTheSpatialIndexStillFilesInItsOldFrame()
+    {
+        using ChaoticWorkload workload = WarmedUp();
+        World world = workload.World;
+        Entity victim = LiveEntitiesOf(world).First(e => !world.GetFrame(e).IsNull && world.Entities.Body(e) == null && world.GetOwnedFrame(e).IsNull);
+        FrameHandle oldFrame = world.GetFrame(victim);
+        FrameHandle otherFrame = FramesOf(world).First(f => f != oldFrame);
+
+        // The rows move forward and the index is not updated: the step that the sync point must not skip.
+        TransformRow row = world.Entities.BackRow(victim);
+        row.Frame = otherFrame;
+        world.Entities.SetBackTransform(victim, row);
+        world.Entities.CopyDirtyRows();
+
+        workload.FindViolations(afterTick: true).Should().Contain(p => p.Contains("A query over all of"));
     }
 }

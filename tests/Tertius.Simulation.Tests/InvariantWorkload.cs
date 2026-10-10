@@ -1,0 +1,451 @@
+using System.Numerics;
+using AwesomeAssertions;
+using NSubstitute;
+
+namespace Tertius.Simulation.Tests;
+
+/// <summary>What a <see cref="ChaoticWorkload"/> did, so that a test can show that the workload reached every subsystem.</summary>
+internal sealed class WorkloadTally
+{
+    public int Spawns, AttachedSpawns, BodySpawns, FrameSpawns, Destroys, DestroyMessages, Subscriptions, ComponentChanges, Moves, OffsetChanges;
+    public int HandOffs, FrameStates, Contacts, OutsideSpawns, OutsideDestroys, OutsideFrameDestroys;
+
+    /// <summary>Entity-ticks: the sum, over the ticks, of the live entities at the end of each tick.</summary>
+    public long EntityTicks;
+
+    public override string ToString() =>
+        $"spawns {Spawns} (attached {AttachedSpawns}, with a body {BodySpawns}, as a frame {FrameSpawns}), destroys {Destroys}, destroy messages {DestroyMessages}, " +
+        $"subscription changes {Subscriptions}, component changes {ComponentChanges}, moves {Moves}, attach offset changes {OffsetChanges}, hand-offs {HandOffs}, " +
+        $"frame states {FrameStates}, contacts {Contacts}, outside-tick spawns {OutsideSpawns}, destroys {OutsideDestroys}, frame destroys {OutsideFrameDestroys}";
+}
+
+/// <summary>
+/// A seeded workload that churns every subsystem of a <see cref="Simulation.World"/> at once: entities spawn (plain,
+/// attached to a parent, with a body, or as a frame) and die, move, change frame (through hand-offs that a physics
+/// backend reports, and through the death of the frame they are in), subscribe and unsubscribe, gain and lose
+/// components, and send each other messages of every delivery mode. The physics backend is an NSubstitute double that
+/// reports hand-offs, body states, contacts and the state of a physics-driven frame.
+/// </summary>
+/// <remarks>
+/// The same seed gives the same run on one worker. On more workers the invariants must hold all the same, but the counts
+/// in <see cref="Tally"/> may lose updates, since the churning components add to them without a lock. <see cref="Run"/> checks the world after every tick and again after
+/// the changes made between ticks, and puts the seed in every failure message.
+/// </remarks>
+internal sealed class ChaoticWorkload : IDisposable
+{
+    private static readonly Topic Chatter = Topics.Get("tests.invariants.chatter");
+
+    private readonly Random random;
+    private readonly IPhysicsBackend physics;
+    // The bodies that the physics double was told to create, by entity, kept by its ApplyChanges callback. The step
+    // script reads them on the physics thread, which never overlaps with ApplyChanges.
+    private readonly SortedDictionary<Entity, BodyDesc> bodies = new();
+    private readonly List<FrameHandle> frameScratch = new();
+    private readonly List<Entity> liveScratch = new();
+    private readonly CrossCheckHistory history = new();
+    private readonly FrameHandle shuttle;
+    private readonly Random sampler;
+
+    public ChaoticWorkload(int seed, int chunkSize = 8, bool debugChecks = true, int initialEntities = 40, int maxDegreeOfParallelism = 1)
+    {
+        Seed = seed;
+        random = new Random(seed);
+        sampler = new Random(seed ^ 0x5EED);
+        physics = TestPhysics.Create();
+        physics.When(p => p.ApplyChanges(Arg.Any<PhysicsChanges>(), Arg.Any<FrameTree>())).Do(call =>
+        {
+            var changes = call.Arg<PhysicsChanges>();
+            foreach (Entity entity in changes.BodiesDestroyed)
+                bodies.Remove(entity);
+            foreach (BodyCreate create in changes.BodiesCreated)
+                bodies[create.Entity] = create.Desc;
+        });
+        physics.OnStep(StepPhysics);
+
+        World = TestWorld.Create(out FrameHandle root, maxDegreeOfParallelism, physics, chunkSize, debugChecks);
+        Root = root;
+
+        West = SpawnFrame(root, TestWorld.At(-500), new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Static));
+        East = SpawnFrame(root, TestWorld.At(500), new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Static));
+        FrameHandle bay = SpawnFrame(East, TestWorld.At(10), new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static));
+        FrameHandle orbit = SpawnFrame(root, DPose.Identity,
+            new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(2000, 1e9, spinRate: 0.1)));
+
+        // The shuttle is a frame whose hull is a body: physics drives the frame, and hands the hull off between frames.
+        Entity shuttleOwner = World.Spawn(new SpawnDesc
+        {
+            Frame = root,
+            Pose = TestWorld.At(50),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+            // It refuses Destroy messages, so that the frame that physics drives lives through the run and gets its state every step.
+            Components = [new Invulnerable()],
+        });
+        shuttle = World.GetOwnedFrame(shuttleOwner);
+        World.Camera = shuttleOwner;
+
+        FrameHandle[] startFrames = [root, West, East, bay, orbit, shuttle];
+        for (int i = 0; i < initialEntities; i++)
+            SpawnIntoRandomFrame(startFrames);
+        World.AssertInvariants();
+    }
+
+    public int Seed { get; }
+    public World World { get; }
+    public FrameHandle Root { get; }
+    public FrameHandle West { get; }
+    public FrameHandle East { get; }
+    public WorkloadTally Tally { get; } = new();
+
+    /// <summary>What the cross-checks have looked at so far.</summary>
+    public CrossCheckHistory History => history;
+
+    /// <summary>
+    /// Runs this many ticks. After each tick it runs <see cref="World.AssertInvariants"/> and the cross-checks of
+    /// <see cref="InvariantCrossChecks"/> on the state the sync point left. Then it makes changes between ticks, as a
+    /// host would, and checks again. Every failure names the seed and the tick.
+    /// </summary>
+    public void Run(int ticks)
+    {
+        for (int i = 0; i < ticks; i++)
+        {
+            TickOnce();
+
+            ChangeBetweenTicks();
+            Check("after the changes between ticks", afterTick: false);
+
+            // The double keeps every call it receives, which a long soak would pile up.
+            if (World.TickNumber % 64 == 0)
+                physics.ClearReceivedCalls();
+        }
+    }
+
+    /// <summary>
+    /// Runs one tick and checks the state the sync point left, with no changes between ticks after it. The inboxes then
+    /// still match the topic sets they were routed from, which the cross-checks can verify.
+    /// </summary>
+    public void TickOnce()
+    {
+        try
+        {
+            World.Tick();
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException($"seed {Seed}: tick {World.TickNumber} threw {ex.GetType().Name}: {ex.Message}", ex);
+        }
+        Tally.EntityTicks += World.Stats.LiveEntities;
+        Check("after the tick", afterTick: true);
+    }
+
+    /// <summary>The violations that the cross-checks find in the state as it is now. Empty if it is sound.</summary>
+    public List<string> FindViolations(bool afterTick) => InvariantCrossChecks.Find(World, history, afterTick, sampler);
+
+    private void Check(string when, bool afterTick)
+    {
+        try
+        {
+            World.AssertInvariants();
+        }
+        catch (ContractException ex)
+        {
+            throw new InvalidOperationException($"seed {Seed}, tick {World.TickNumber}, {when}: {ex.Message}", ex);
+        }
+        FindViolations(afterTick).Should().BeEmpty($"seed {Seed}, tick {World.TickNumber}, {when}");
+    }
+
+    public void Dispose() => World.Dispose();
+
+    // ---- The changes between ticks -------------------------------------------------------------------------------------
+
+    private void ChangeBetweenTicks()
+    {
+        long tick = World.TickNumber;
+        liveScratch.Clear();
+        World.CopyLiveEntities(liveScratch);
+        liveScratch.Remove(Root.Entity);
+
+        if (tick % 10 == 0 && liveScratch.Count > 0)
+        {
+            World.Destroy(liveScratch[random.Next(liveScratch.Count)]);
+            Tally.OutsideDestroys++;
+        }
+        if (tick % 40 == 0)
+        {
+            // A frame owner: the frame's contents move to its parent, outside a tick.
+            frameScratch.Clear();
+            World.Frames.GetAll(frameScratch);
+            frameScratch.Remove(Root);
+            if (frameScratch.Count > 0)
+            {
+                World.Destroy(frameScratch[random.Next(frameScratch.Count)].Entity);
+                Tally.OutsideFrameDestroys++;
+            }
+        }
+        if (tick % 5 == 0 || liveScratch.Count < 50)
+        {
+            int count = liveScratch.Count < 50 ? 15 : 4;
+            frameScratch.Clear();
+            World.Frames.GetAll(frameScratch);
+            FrameHandle[] frames = [.. frameScratch];
+            for (int i = 0; i < count; i++)
+                SpawnIntoRandomFrame(frames);
+            Tally.OutsideSpawns += count;
+        }
+        if (liveScratch.Count > 300)
+        {
+            for (int i = 0; i < 40 && liveScratch.Count > 0; i++)
+            {
+                int at = random.Next(liveScratch.Count);
+                World.Destroy(liveScratch[at]);
+                liveScratch.RemoveAt(at);
+                Tally.OutsideDestroys++;
+            }
+        }
+        if (tick % 7 == 0)
+        {
+            liveScratch.Clear();
+            World.CopyLiveEntities(liveScratch);
+            if (liveScratch.Count > 0)
+            {
+                Entity entity = liveScratch[random.Next(liveScratch.Count)];
+                World.Subscribe(entity, Chatter);
+                World.AddComponent(entity, new Recorder(EventMask.Of<Heal>()));
+            }
+        }
+    }
+
+    private void SpawnIntoRandomFrame(FrameHandle[] frames)
+    {
+        FrameHandle frame = frames[random.Next(frames.Length)];
+        // A frame may have died since the list was made; its handle is then stale, and the spawn would be refused.
+        if (!World.Frames.IsAlive(frame))
+            frame = Root;
+        bool withBody = random.Next(4) == 0;
+        World.Spawn(new SpawnDesc
+        {
+            Frame = frame,
+            Pose = TestWorld.At(random.Next(-15, 16), 0, random.Next(-15, 16)),
+            Body = withBody ? TestWorld.Ball : null,
+            LinearVelocity = new Vector3(random.Next(-1, 2), 0, 0),
+            Render = random.Next(2) == 0 ? new RenderData { Mesh = new MeshId(1 + random.Next(3)), Flags = RenderFlags.Visible } : null,
+            Components = [NewChurn()],
+            Subscriptions = random.Next(3) == 0 ? [Chatter] : [],
+        });
+        if (withBody)
+            Tally.BodySpawns++;
+    }
+
+    private FrameHandle SpawnFrame(FrameHandle parent, DPose pose, FrameSpec spec) =>
+        World.GetOwnedFrame(World.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = spec }));
+
+    private Churn NewChurn() => new((ulong)random.NextInt64(), this);
+
+    // ---- The physics double ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// One step of the double, on the physics thread: it reports a new state for the shuttle frame, drifts the bodies, hands
+    /// one body off to another frame every third step, and reports a contact between two neighbors every fifth.
+    /// The body list comes from the world's own calls to <c>ApplyChanges</c>; where a body is comes from the front state.
+    /// </summary>
+    private void StepPhysics(PhysicsStepContext context, PhysicsStepOutput output)
+    {
+        long tick = context.Tick;
+        var frames = new List<FrameHandle>();
+        context.Frames.GetAll(frames);
+
+        if (context.Frames.IsAlive(shuttle))
+        {
+            output.Frames.Add(new FrameState(shuttle, TestWorld.At(50 + 0.1 * (tick % 100)), new Double3(6, 0, 0), Vector3.Zero, Vector3.Zero));
+            Tally.FrameStates++;
+        }
+
+        Entity handedOff = default;
+        if (tick % 3 == 0 && bodies.Count > 0 && frames.Count > 0)
+        {
+            Entity pick = bodies.Keys.ElementAt((int)((ulong)tick * 2654435761UL % (ulong)bodies.Count));
+            FrameHandle to = frames[(int)((ulong)tick * 40503UL % (ulong)frames.Count)];
+            if (World.IsAlive(pick))
+            {
+                FrameHandle from = World.GetFrame(pick);
+                FrameHandle own = World.GetOwnedFrame(pick);
+                // A frame cannot go inside itself or inside a frame it contains.
+                bool cycle = !own.IsNull && (to == own || context.Frames.IsAncestorOf(own, to));
+                if (to != from && !cycle)
+                {
+                    output.HandOffs.Add(new HandOff(pick, from, to, TestWorld.At(tick % 11, 0, tick % 7), Vector3.Zero, Vector3.Zero));
+                    Tally.HandOffs++;
+                    handedOff = pick;
+                }
+            }
+        }
+
+        Entity previous = default;
+        FrameHandle previousFrame = default;
+        DPose previousPose = default;
+        bool contactReported = false;
+        double drift = (tick / 50) % 2 == 0 ? 0.05 : -0.05;
+        foreach (Entity entity in bodies.Keys)
+        {
+            if (!World.IsAlive(entity))
+                continue;
+            FrameHandle frame = World.GetFrame(entity);
+            DPose pose = World.GetPose(entity);
+            // A frame's hull gets its state from the frame state above.
+            if (World.GetOwnedFrame(entity).IsNull && entity != handedOff)
+            {
+                pose = pose with { Position = pose.Position + new Double3(drift, 0, 0.02 * ((tick + entity.Index) % 5 - 2)) };
+                output.Bodies.Add(new BodyState(entity, frame, pose, Vector3.Zero, Vector3.Zero));
+            }
+            if (tick % 5 == 0 && !contactReported && !previous.IsNull && previousFrame == frame)
+            {
+                output.Contacts.Add(new ContactStarted(previous, entity, frame, previousPose.Position, Vector3.UnitY, 1));
+                Tally.Contacts++;
+                contactReported = true;
+            }
+            previous = entity;
+            previousFrame = frame;
+            previousPose = pose;
+        }
+    }
+
+    // ---- The entity that does the churning ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// Does one random thing per tick from a seeded generator: spawn (plain, attached, with a body, or a frame), destroy
+    /// itself or a neighbor, subscribe or unsubscribe, send, change its components, or move.
+    /// </summary>
+    private sealed class Churn(ulong seed, ChaoticWorkload workload) : IComponent
+    {
+        private readonly List<Entity> neighbors = new();
+        private ulong rng = seed | 1;
+        private Recorder? extra;
+
+        public int Priority => 0;
+        public EventMask Wants => EventMask.Of<Tick>().And<Ping>().And<FrameChanged>().And<Collision>();
+
+        private int Next(int n)
+        {
+            // xorshift64: deterministic, and cheap enough for a hot loop.
+            rng ^= rng << 13;
+            rng ^= rng >> 7;
+            rng ^= rng << 17;
+            return (int)(rng % (ulong)n);
+        }
+
+        private Churn Child(ulong salt) => new(rng + salt, workload);
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (!events.Contains<Tick>() || self.Frame.IsNull)
+                return;
+            WorkloadTally tally = workload.Tally;
+            DPose here = new(self.Pose.Position + new Double3(Next(21) - 10, 0, Next(21) - 10), DQuaternion.Identity);
+            int roll = Next(100);
+            if (roll < 3)
+            {
+                self.Spawn(new SpawnDesc { Frame = self.Frame, Pose = here, Components = [Child(1)] });
+                tally.Spawns++;
+            }
+            else if (roll < 5 && !self.Body.Exists)
+            {
+                // The child may itself be a parent later, so chains grow.
+                self.Spawn(new SpawnDesc
+                {
+                    Frame = self.Frame,
+                    AttachTo = self.Entity,
+                    AttachOffset = new Pose(new Vector3(Next(5) - 2, 0, Next(5) - 2), Quaternion.Identity),
+                    Components = [Child(4)],
+                });
+                tally.AttachedSpawns++;
+            }
+            else if (roll < 7)
+            {
+                self.Spawn(new SpawnDesc
+                {
+                    Frame = self.Frame,
+                    Pose = here,
+                    Body = TestWorld.Ball,
+                    LinearVelocity = new Vector3(Next(3) - 1, 0, 0),
+                    Components = [Child(2)],
+                });
+                tally.BodySpawns++;
+            }
+            else if (roll < 8)
+            {
+                self.Spawn(new SpawnDesc
+                {
+                    Frame = self.Frame,
+                    Pose = here,
+                    AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+                    Components = [Child(3)],
+                    Subscriptions = [Chatter],
+                });
+                tally.FrameSpawns++;
+            }
+            else if (roll < 13)
+            {
+                self.Destroy();
+                tally.Destroys++;
+            }
+            else if (roll < 17)
+            {
+                self.Snapshot.QueryRadius(self.Frame, self.Pose.Position, 40, neighbors);
+                neighbors.Remove(workload.Root.Entity);
+                if (neighbors.Count > 0)
+                {
+                    outbox.Send(neighbors[Next(neighbors.Count)], new Destroy());
+                    tally.DestroyMessages++;
+                }
+            }
+            else if (roll < 24)
+            {
+                Topic topic = Next(2) == 0 ? Chatter : self.Frame.Topic;
+                if (Next(2) == 0)
+                    self.Subscribe(topic);
+                else
+                    self.Unsubscribe(topic);
+                tally.Subscriptions++;
+            }
+            else if (roll < 30)
+            {
+                outbox.Send(Chatter, new Ping { Value = roll });
+                outbox.Send(self.Frame.Topic, new Ping { Value = roll });
+                outbox.SendAfter(1 + Next(3), new Broadcast(), new Ping { Value = roll });
+            }
+            else if (roll < 33)
+            {
+                if (extra == null)
+                {
+                    extra = new Recorder(EventMask.Of<Heal>(), priority: Next(3) - 1);
+                    self.AddComponent(extra);
+                }
+                else
+                {
+                    self.RemoveComponent(extra);
+                    extra = null;
+                }
+                tally.ComponentChanges++;
+            }
+            else if (roll < 50 && !self.Body.Exists && self.AttachedTo.IsNull)
+            {
+                // A frame that a driver moves cannot be moved from gameplay. Only the static ones are.
+                if (!self.Snapshot.Frames.TryGetFrame(self.Entity, out FrameHandle own) || self.Snapshot.Frames.Driver(own) == MotionDriver.Static)
+                {
+                    self.Transform = here;
+                    self.Render.Scale = new Vector3(1 + Next(3));
+                    tally.Moves++;
+                }
+            }
+            else if (roll < 60 && !self.AttachedTo.IsNull)
+            {
+                self.AttachOffset = new Pose(new Vector3(Next(5) - 2, 0, Next(5) - 2), Quaternion.Identity);
+                tally.OffsetChanges++;
+            }
+            else if (self.Body.Exists)
+            {
+                self.Body.AddForce(new Vector3(Next(3) - 1, 0, 0));
+            }
+        }
+    }
+}
