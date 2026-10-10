@@ -221,7 +221,8 @@ public class LifecycleTests
     [Fact]
     public void DestroyingAFrameMovesItsContentsToTheParentFrame()
     {
-        var physics = new FakePhysics();
+        IPhysicsBackend physics = TestPhysics.Create();
+        List<ChangeBatch> batches = physics.RecordChanges();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         DQuaternion quarterTurn = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
         Entity shipOwner = world.Spawn(new SpawnDesc
@@ -237,7 +238,7 @@ public class LifecycleTests
         FrameHandle pod = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = ship, Pose = TestWorld.At(-20), AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static) }));
         Entity passenger = world.SpawnAt(pod, new Double3(1, 2, 3));
         world.Tick();
-        physics.Changes.Clear();
+        batches.Clear();
 
         world.Destroy(shipOwner);
 
@@ -251,10 +252,11 @@ public class LifecycleTests
         Assert.True(TestWorld.RoughlyEqual(new Double3(1000, 0, -10), world.GetPose(crew).Position), world.GetPose(crew).ToString());
         Assert.True(TestWorld.RoughlyEqual(new Double3(1010, 0, 0), world.GetPose(cargo).Position), world.GetPose(cargo).ToString());
         Assert.True(TestWorld.RoughlyEqual(new Double3(1000, 0, 20), world.GetPose(pod.Entity).Position));
-        Assert.Contains($"body- {crew}", physics.Changes);
-        Assert.Contains($"body+ {crew} in {root.Index}", physics.Changes);
-        Assert.Contains($"frame- {ship.Index}", physics.Changes);
-        Assert.True(physics.Changes.IndexOf($"body- {crew}") < physics.Changes.IndexOf($"body+ {crew} in {root.Index}"));
+        // Physics hears of the move as one batch: the crew member's body leaves the ship's system and joins the root's.
+        ChangeBatch batch = Assert.Single(batches);
+        Assert.Contains(crew, batch.BodiesDestroyed);
+        Assert.Contains(batch.BodiesCreated, create => create.Entity == crew && create.Frame == root);
+        Assert.Contains(ship, batch.FramesDestroyed);
 
         // Like a posted message, the FrameChanged of an outside-tick destroy joins the next routing.
         world.Tick();

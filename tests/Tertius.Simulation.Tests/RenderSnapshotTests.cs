@@ -98,18 +98,18 @@ public class RenderSnapshotTests
     [Fact]
     public void ACameraFrameChangeDisablesInterpolationForOneTick()
     {
-        var physics = new FakePhysics { Integrate = false };
+        IPhysicsBackend physics = TestPhysics.Create();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         FrameHandle a = StaticFrame(world, root, TestWorld.At(0), 100);
         FrameHandle b = StaticFrame(world, root, TestWorld.At(500), 100);
         Entity camera = world.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Render = new RenderData() });
         Entity moving = Show(world, a, TestWorld.At(0, 0, -10), new Mover(new Double3(1, 0, 0)));
         world.Camera = camera;
-        physics.OnStep = (context, output) =>
+        physics.OnStep((context, output) =>
         {
             if (context.Tick == 2)
                 output.HandOffs.Add(new HandOff(camera, a, b, TestWorld.At(-500), default, default));
-        };
+        });
 
         world.Run(2);
         RenderInstance before = InstanceOf(Latest(world), moving);
@@ -248,7 +248,7 @@ public class RenderSnapshotTests
     [Fact]
     public void TheOriginIsTheCameraPositionInItsFrameAndTheFrameIdFollowsTheCamera()
     {
-        var physics = new FakePhysics { Integrate = false };
+        IPhysicsBackend physics = TestPhysics.Create();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         FrameHandle a = StaticFrame(world, root, TestWorld.At(0), 100);
         FrameHandle b = StaticFrame(world, root, TestWorld.At(500), 100);
@@ -273,11 +273,11 @@ public class RenderSnapshotTests
         Assert.Equal(0, only.Part);
         Assert.Equal(new MeshId(0), only.Mesh);
 
-        physics.OnStep = (context, output) =>
+        physics.OnStep((context, output) =>
         {
             if (context.Tick == 1)
                 output.HandOffs.Add(new HandOff(camera, a, b, TestWorld.At(7, 8, 9), default, default));
-        };
+        });
         world.Tick();
         Assert.Equal(idOfA, Latest(world).OriginFrameId);
         world.Tick();

@@ -2,31 +2,6 @@ using System.Numerics;
 
 namespace Tertius.Simulation.Tests;
 
-public enum Faction
-{
-    Neutral,
-    Rebel,
-    Empire,
-}
-
-public sealed class Health : IComponent
-{
-    public float Max = 100;
-    public float Current { get; set; } = 100;
-    public Faction Side;
-    public string? Name;
-    public int? Armor;
-
-    public int Priority => 0;
-    public EventMask Wants => EventMask.Of<Damage>();
-
-    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-    {
-        foreach (ref Damage d in events.Of<Damage>())
-            Current -= d.Amount;
-    }
-}
-
 public sealed class Weapon : IComponent
 {
     public float Damage = 1;
@@ -224,8 +199,7 @@ public class BlueprintTests
     [Fact]
     public void TheWorldSpawnsBlueprintsOutsideAndDuringATick()
     {
-        var physics = new FakePhysics();
-        using World world = TestWorld.Create(out FrameHandle root, physics: physics);
+        using World world = TestWorld.Create(out FrameHandle root, physics: TestPhysics.Create());
         foreach (string name in new[] { "soldier", "officer" })
             world.Blueprints.Register(Soldiers().Resolve(name) with { Name = name });
         world.Blueprints.Register(new Blueprint("outpost", [new ComponentSpec(typeof(Radio))], Frame: new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Static)));

@@ -71,7 +71,7 @@ public class MessagingTests
     [Fact]
     public void FrameTopicMembershipFollowsAHandOff()
     {
-        var physics = new FakePhysics { Integrate = false };
+        IPhysicsBackend physics = TestPhysics.Create();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         FrameHandle a = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(0), AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
         FrameHandle b = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(1000), AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static) }));
@@ -79,14 +79,14 @@ public class MessagingTests
         Entity body = world.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Components = [traveller] });
         var deaf = new Recorder(EventMask.Of<Ping>());
         Entity bystander = world.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Components = [deaf] });
-        physics.OnStep = (context, output) =>
+        physics.OnStep((context, output) =>
         {
             if (context.Tick == 1)
             {
                 output.HandOffs.Add(new HandOff(body, a, b, TestWorld.At(5), new System.Numerics.Vector3(1, 0, 0), default));
                 output.HandOffs.Add(new HandOff(bystander, a, b, TestWorld.At(6), default, default));
             }
-        };
+        });
         world.SpawnWith(root, Sender(t => [(a.Topic, (int)(t * 10)), (b.Topic, (int)(t * 10 + 1))]));
 
         world.Run(4);

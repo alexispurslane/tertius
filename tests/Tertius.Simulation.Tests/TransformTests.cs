@@ -1,4 +1,5 @@
 using System.Numerics;
+using NSubstitute;
 
 namespace Tertius.Simulation.Tests;
 
@@ -7,7 +8,7 @@ public class TransformTests
     [Fact]
     public void TransformThrowsWhenPhysicsOwnsTheEntity()
     {
-        using World world = TestWorld.Create(out FrameHandle root, physics: new FakePhysics());
+        using World world = TestWorld.Create(out FrameHandle root, physics: TestPhysics.Create());
         bool exists = false;
         world.Spawn(new SpawnDesc
         {
@@ -154,13 +155,14 @@ public class PhysicsSeamTests
         Assert.Equal(body.Velocity, world.GetVelocity(ball));
         Assert.Equal(1 + 3 * 6 * (double)world.DeltaTime, world.GetPose(ball).Position.X, 6);
         Assert.Equal(root, world.GetFrame(ball));
-        Assert.Contains($"body+ {ball} in {root.Index}", physics.Changes);
+        Assert.Equal(root, body.Frame);
     }
 
     [Fact]
     public void IntentsReachPhysicsInTheNextStepWithAccumulateAndLastWriteRules()
     {
-        var physics = new FakePhysics();
+        IPhysicsBackend physics = TestPhysics.Create();
+        List<IntentRecord> intents = physics.RecordIntents();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         PhysicsIntent pendingAtEnd = default;
         Entity ball = world.Spawn(new SpawnDesc
@@ -191,7 +193,7 @@ public class PhysicsSeamTests
 
         world.Run(3);
 
-        (long tick, Entity entity, PhysicsIntent intent) = Assert.Single(physics.Intents);
+        (long tick, Entity entity, PhysicsIntent intent) = Assert.Single(intents);
         Assert.Equal(1, tick);
         Assert.Equal(ball, entity);
         Assert.Equal(new Vector3(3, 0, 0), intent.Force);
@@ -212,27 +214,28 @@ public class PhysicsSeamTests
     [Fact]
     public void PhysicsStepsOnOneDedicatedThread()
     {
-        var physics = new FakePhysics();
+        IPhysicsBackend physics = TestPhysics.Create();
+        List<StepRecord> steps = physics.RecordSteps();
         using (World world = TestWorld.Create(out FrameHandle root, maxDop: 4, physics: physics))
         {
             world.Spawn(new SpawnDesc { Frame = root, Body = TestWorld.Ball });
             world.Run(5);
-            Assert.Equal([0L, 1, 2, 3, 4], physics.StepTicks);
-            Assert.Equal(0, physics.StepTimes[0]);
-            Assert.Equal(4 * (double)world.DeltaTime, physics.StepTimes[4], 12);
+            Assert.Equal([0L, 1, 2, 3, 4], steps.Select(s => s.Tick));
+            Assert.Equal(0, steps[0].Time);
+            Assert.Equal(4 * (double)world.DeltaTime, steps[4].Time, 12);
         }
-        Assert.Single(physics.StepThreads.Distinct());
-        Assert.NotEqual(Environment.CurrentManagedThreadId, physics.StepThreads[0]);
-        Assert.All(physics.StepOnPool, onPool => Assert.False(onPool));
-        Assert.False(physics.Disposed);
+        Assert.Single(steps.Select(s => s.ThreadId).Distinct());
+        Assert.NotEqual(Environment.CurrentManagedThreadId, steps[0].ThreadId);
+        Assert.All(steps, s => Assert.False(s.OnPoolThread));
+        physics.DidNotReceive().Dispose();
     }
 
     [Fact]
     public void TheWorldDisposesThePhysicsBackendOnlyWhenAsked()
     {
-        var physics = new FakePhysics();
+        IPhysicsBackend physics = TestPhysics.Create();
         new World(new WorldOptions { DisposePhysics = true }, physics).Dispose();
-        Assert.True(physics.Disposed);
+        physics.Received(1).Dispose();
     }
 
     [Fact]
@@ -257,7 +260,7 @@ public class PhysicsSeamTests
     [Fact]
     public void ContactsBecomeCollisionsForBothEntitiesInTheirOwnFrames()
     {
-        var physics = new FakePhysics { Integrate = false };
+        IPhysicsBackend physics = TestPhysics.Create();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         FrameHandle turned = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
@@ -269,11 +272,11 @@ public class PhysicsSeamTests
         var bLog = new Recorder(EventMask.Of<Collision>());
         Entity a = world.Spawn(new SpawnDesc { Frame = root, Body = TestWorld.Ball, Components = [aLog] });
         Entity b = world.Spawn(new SpawnDesc { Frame = turned, Body = TestWorld.Ball, Components = [bLog] });
-        physics.OnStep = (context, output) =>
+        physics.OnStep((context, output) =>
         {
             if (context.Tick == 0)
                 output.Contacts.Add(new ContactStarted(a, b, root, new Double3(1, 2, 3), new Vector3(1, 0, 0), 5));
-        };
+        });
 
         world.Run(2);
 
@@ -295,7 +298,8 @@ public class PhysicsSeamTests
     [Fact]
     public void FrameStatesDrivePhysicsFrames()
     {
-        var physics = new FakePhysics { Integrate = false };
+        IPhysicsBackend physics = TestPhysics.Create();
+        List<ChangeBatch> batches = physics.RecordChanges();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         Entity owner = world.Spawn(new SpawnDesc
         {
@@ -304,8 +308,8 @@ public class PhysicsSeamTests
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(10)), Layer: BodyLayer.FrameHull),
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
-        physics.OnStep = (context, output) =>
-            output.Frames.Add(new FrameState(ship, TestWorld.At(5, 6, 7), new Double3(1, 2, 3), new Vector3(0, 0.5f, 0), new Vector3(0, -2, 0)));
+        physics.OnStep((context, output) =>
+            output.Frames.Add(new FrameState(ship, TestWorld.At(5, 6, 7), new Double3(1, 2, 3), new Vector3(0, 0.5f, 0), new Vector3(0, -2, 0))));
 
         world.Tick();
 
@@ -315,14 +319,16 @@ public class PhysicsSeamTests
         Assert.Equal(new Vector3(0, -2, 0), world.Frames.ProperAcceleration(ship));
         Assert.Equal(new Double3(5, 6, 7), world.GetPose(owner).Position);
         Assert.Equal(new Vector3(1, 2, 3), world.GetVelocity(owner));
-        Assert.Contains($"frame+ {ship.Index}", physics.Changes);
-        Assert.True(physics.Changes.IndexOf($"frame+ {ship.Index}") < physics.Changes.IndexOf($"body+ {owner} in {root.Index}"));
+        // Physics hears of the frame no later than it hears of the frame's hull body.
+        int frameDeclared = batches.FindIndex(batch => batch.FramesCreated.Contains(ship));
+        int hullCreated = batches.FindIndex(batch => batch.BodiesCreated.Any(create => create.Entity == owner && create.Frame == root));
+        Assert.True(frameDeclared >= 0 && frameDeclared <= hullCreated, $"frame declared in batch {frameDeclared}, hull created in batch {hullCreated}");
     }
 
     [Fact]
     public void AHandOffOfAFrameOwnerReparentsItsFrame()
     {
-        var physics = new FakePhysics { Integrate = false };
+        IPhysicsBackend physics = TestPhysics.Create();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         FrameHandle carrier = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(1000), AsFrame = new FrameSpec(FrameBounds.Sphere(500), MotionDriver.Static) }));
         Entity fighterOwner = world.Spawn(new SpawnDesc
@@ -334,11 +340,11 @@ public class PhysicsSeamTests
         });
         FrameHandle fighter = world.GetOwnedFrame(fighterOwner);
         Entity pilot = world.SpawnAt(fighter, new Double3(0, 1, 0));
-        physics.OnStep = (context, output) =>
+        physics.OnStep((context, output) =>
         {
             if (context.Tick == 0)
                 output.HandOffs.Add(new HandOff(fighterOwner, root, carrier, TestWorld.At(100), default, default));
-        };
+        });
 
         world.Tick();
 
@@ -353,7 +359,7 @@ public class PhysicsSeamTests
     [Fact]
     public void AFrameStateIsRelativeToTheParentAfterTheFramesHandOff()
     {
-        var physics = new FakePhysics { Integrate = false };
+        IPhysicsBackend physics = TestPhysics.Create();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         FrameHandle carrier = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(1000), AsFrame = new FrameSpec(FrameBounds.Sphere(500), MotionDriver.Static) }));
         Entity fighterOwner = world.Spawn(new SpawnDesc
@@ -364,13 +370,13 @@ public class PhysicsSeamTests
             Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
         });
         FrameHandle fighter = world.GetOwnedFrame(fighterOwner);
-        physics.OnStep = (context, output) =>
+        physics.OnStep((context, output) =>
         {
             if (context.Tick != 0)
                 return;
             output.HandOffs.Add(new HandOff(fighterOwner, root, carrier, TestWorld.At(100), default, default));
             output.Frames.Add(new FrameState(fighter, TestWorld.At(102), new Double3(3, 0, 0), Vector3.Zero, Vector3.Zero));
-        };
+        });
 
         world.Tick();
 
@@ -384,7 +390,7 @@ public class PhysicsSeamTests
     [Fact]
     public void AFrameStateLandsBeforeTheFramesParentDies()
     {
-        var physics = new FakePhysics { Integrate = false };
+        IPhysicsBackend physics = TestPhysics.Create();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         FrameHandle dock = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
@@ -394,11 +400,11 @@ public class PhysicsSeamTests
             Components = [new Lambda(EventMask.Of<Tick>(), (Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.Destroy())],
         }));
         FrameHandle shuttle = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = dock, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics) }));
-        physics.OnStep = (context, output) =>
+        physics.OnStep((context, output) =>
         {
             if (context.Tick == 0)
                 output.Frames.Add(new FrameState(shuttle, TestWorld.At(5), new Double3(2, 0, 0), Vector3.Zero, Vector3.Zero));
-        };
+        });
 
         world.Tick();
 
@@ -416,7 +422,8 @@ public class PhysicsSeamTests
     [Fact]
     public void AHullThatTheDestroyBatchMovesStartsFromItsFramesNewState()
     {
-        var physics = new FakePhysics { Integrate = false };
+        IPhysicsBackend physics = TestPhysics.Create();
+        List<ChangeBatch> batches = physics.RecordChanges();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         FrameHandle dock = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
@@ -433,20 +440,20 @@ public class PhysicsSeamTests
         });
         FrameHandle shuttle = world.GetOwnedFrame(shuttleOwner);
         // Physics reports only the frame's state, as the hull's own body state may not be in the output.
-        physics.OnStep = (context, output) =>
+        physics.OnStep((context, output) =>
         {
             if (context.Tick == 0)
                 output.Frames.Add(new FrameState(shuttle, TestWorld.At(5), new Double3(2, 0, 0), Vector3.Zero, Vector3.Zero));
-        };
+        });
 
         world.Tick();
 
         // The dock died at this sync point, so the hull moved to the root's physics system. It starts from the pose and
         // velocity after the step, converted through the dock's quarter turn, not from the pose before the step.
-        FakePhysics.Body hull = physics.Bodies[shuttleOwner];
+        BodyCreate hull = batches.SelectMany(batch => batch.BodiesCreated).Last(create => create.Entity == shuttleOwner);
         Assert.Equal(root, hull.Frame);
         Assert.True(TestWorld.RoughlyEqual(new Double3(1000, 0, -5), hull.Pose.Position), hull.Pose.ToString());
-        Assert.True(Vector3.Distance(new Vector3(0, 0, -2), hull.Velocity) < 1e-5f, hull.Velocity.ToString());
+        Assert.True(Vector3.Distance(new Vector3(0, 0, -2), hull.LinearVelocity) < 1e-5f, hull.LinearVelocity.ToString());
         Assert.True(TestWorld.RoughlyEqual(world.GetPose(shuttleOwner).Position, hull.Pose.Position, 1e-9));
         Assert.Empty(world.Errors);
     }
@@ -454,12 +461,12 @@ public class PhysicsSeamTests
     [Fact]
     public void AHandOffToAStaleFrameIsReportedAndIgnored()
     {
-        var physics = new FakePhysics { Integrate = false };
+        IPhysicsBackend physics = TestPhysics.Create();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
         FrameHandle gone = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static) }));
         world.Destroy(gone.Entity);
         Entity ball = world.Spawn(new SpawnDesc { Frame = root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
-        physics.OnStep = (context, output) => output.HandOffs.Add(new HandOff(ball, root, gone, TestWorld.At(9), default, default));
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(ball, root, gone, TestWorld.At(9), default, default)));
 
         world.Tick();
 
@@ -471,13 +478,13 @@ public class PhysicsSeamTests
     [Fact]
     public void APhysicsFailureIsReportedAndTheWorldGoesOn()
     {
-        var physics = new FakePhysics();
+        IPhysicsBackend physics = TestPhysics.Create();
         using World world = TestWorld.Create(out FrameHandle root, physics: physics);
-        physics.OnStep = (context, output) =>
+        physics.OnStep((context, output) =>
         {
             if (context.Tick == 1)
                 throw new InvalidOperationException("solver exploded");
-        };
+        });
         world.Run(3);
         Assert.Contains("solver exploded", Assert.Single(world.Errors));
         Assert.Equal(3, world.TickNumber);
