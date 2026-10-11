@@ -36,6 +36,18 @@ internal sealed class PhysicsHarness : IDisposable
     /// <summary>Runs after each step, before the outputs are cleared.</summary>
     public Action<PhysicsStepOutput>? AfterStep { get; set; }
 
+    /// <summary>
+    /// Says whether the simulation takes a hand-off. Null takes every hand-off that the frame tree accepts. A test sets
+    /// it to model a simulation that keeps an entity, and the frame it owns, where they were.
+    /// </summary>
+    public Func<HandOff, bool>? TakesHandOff { get; set; }
+
+    /// <summary>
+    /// The hand-offs that the simulation did not take, as the sync point refuses them: <see cref="TakesHandOff"/> said
+    /// no, or the frame tree refused to move the entity's frame under the target.
+    /// </summary>
+    public List<HandOff> RefusedHandOffs { get; } = new();
+
     public Entity NewEntity() => new(nextEntity++, 1);
 
     public FrameHandle AddFrame(
@@ -149,9 +161,12 @@ internal sealed class PhysicsHarness : IDisposable
         foreach (HandOff handOff in Output.HandOffs)
         {
             HandOffs.Add(handOff);
+            if (!Take(handOff))
+            {
+                RefusedHandOffs.Add(handOff);
+                continue;
+            }
             States[handOff.Entity] = new BodyState(handOff.Entity, handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity);
-            if (Frames.TryGetFrame(handOff.Entity, out FrameHandle frame))
-                Frames.Reparent(frame, handOff.To);
         }
         foreach (BodyState body in Output.Bodies)
             States[body.Entity] = body;
@@ -173,6 +188,25 @@ internal sealed class PhysicsHarness : IDisposable
         Tick++;
         AdvanceKeplerFrames();
         Frames.Update();
+    }
+
+    /// <summary>Moves the frame that the entity of a hand-off owns under the target, unless the simulation does not take the hand-off.</summary>
+    private bool Take(in HandOff handOff)
+    {
+        if (TakesHandOff is { } takes && !takes(handOff))
+            return false;
+        if (!Frames.TryGetFrame(handOff.Entity, out FrameHandle frame))
+            return true;
+        try
+        {
+            Frames.Reparent(frame, handOff.To);
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            // The tree refuses to put a frame under itself or its own descendant, and changes nothing.
+            return false;
+        }
     }
 
     private void AdvanceKeplerFrames()

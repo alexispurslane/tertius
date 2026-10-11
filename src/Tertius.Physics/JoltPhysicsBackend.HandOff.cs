@@ -100,8 +100,9 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Moves bodies between frames by the rules of ARCHITECTURE.md: enter a child on the first touch of its bubble
     /// (the deepest one if two touch), leave only when fully outside plus the exit margin, and a frame enters a
-    /// sibling only if it fits. Every decision and conversion uses the state at the end of the step, before any
-    /// body moves, so the order of execution does not matter.
+    /// sibling only if it fits. A frame's hull never enters that frame or a frame that the tree keeps inside it. Every
+    /// decision and conversion uses the state at the end of the step, before any body moves, so the order of
+    /// execution does not matter.
     /// </summary>
     private void HandOffBodies(PhysicsStepOutput output)
     {
@@ -147,7 +148,10 @@ public sealed partial class JoltPhysicsBackend
                 for (int i = 0; i < children.Count; i++)
                 {
                     FrameHandle child = children[i];
-                    if (child == member.OwnedFrame)
+                    // A hull never enters its own frame, nor a frame that the tree keeps inside its own frame: the tree
+                    // would refuse that move. Physics sees such a frame here only while it holds a hand-off of that frame
+                    // that the simulation did not take.
+                    if (member.IsHull && (child == member.OwnedFrame || frames.IsAncestorOf(member.OwnedFrame, child)))
                         continue;
                     FrameBounds childBounds = frames.Bounds(child);
                     if (member.IsHull && !FrameBounds.Fits(frames.Bounds(member.OwnedFrame), childBounds))

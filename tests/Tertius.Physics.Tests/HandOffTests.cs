@@ -234,6 +234,42 @@ public class HandOffTests
     }
 
     [Fact]
+    public void AHullThatOverlapsTheBubbleOfAFrameInsideItsOwnFrameStaysWhereItIs()
+    {
+        using var h = new PhysicsHarness();
+        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
+        FrameHandle ship = h.AddFrameWithBody(space, Shapes.At(0, 0, 0), FrameBounds.Sphere(10), MotionDriver.Physics, Shapes.Box(2, mass: 1000));
+        // A big hall inside the ship. The ship's hull would fit in the hall's bubble, and touches it.
+        h.AddFrame(ship, Shapes.At(5, 0, 0), FrameBounds.Sphere(30), MotionDriver.Static);
+
+        h.Step(3);
+
+        h.HandOffs.Should().BeEmpty();
+        h.Backend.TryGetBodyFrame(ship.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        hullFrame.Should().Be(space);
+    }
+
+    [Fact]
+    public void AHullNeverEntersAFrameThatTheTreeKeepsInsideItsOwnFrame()
+    {
+        using var h = new PhysicsHarness();
+        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
+        FrameHandle ship = h.AddFrameWithBody(space, Shapes.At(0, 0, 0), FrameBounds.Sphere(10), MotionDriver.Physics, Shapes.Box(2, mass: 1000));
+        // A big annex of the ship, whose hull is outside the ship's bubble, so the first step hands the annex out into
+        // space. The simulation keeps the annex inside the ship, so physics still holds that hand-off as pending and,
+        // from the second step on, sees the annex beside the ship. The ship's hull would fit in the annex's bubble,
+        // and touches it.
+        FrameHandle annex = h.AddFrameWithBody(ship, Shapes.At(33, 0, 0), FrameBounds.Sphere(30), MotionDriver.Physics, Shapes.Box(1, mass: 10));
+        h.TakesHandOff = handOff => handOff.Entity != annex.Entity;
+
+        h.Step(3);
+
+        h.Frames.Parent(annex).Should().Be(ship);
+        h.HandOffs.Should().NotContain(handOff => handOff.Entity == ship.Entity, "the tree keeps the annex inside the ship");
+        h.RefusedHandOffs.Should().ContainSingle().Which.Entity.Should().Be(annex.Entity);
+    }
+
+    [Fact]
     public void CharacterWalkingOutOfAFrameIsRecreatedInTheParent()
     {
         using var h = new PhysicsHarness();
