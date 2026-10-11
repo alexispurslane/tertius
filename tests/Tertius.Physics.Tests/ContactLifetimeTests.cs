@@ -53,7 +53,7 @@ public class ContactLifetimeTests
         }
 
         /// <summary>Changes the gravity of the ground a little, which wakes every body in it.</summary>
-        public void ChangeGravity() => H.Frames.Gravity(Frame) = GravityField.Uniform(new Vector3(0, -9.82f, 0));
+        public void ChangeGravity() => H.Frames.SetGravity(Frame, GravityField.Uniform(new Vector3(0, -9.82f, 0)));
 
         public void Dispose() => H.Dispose();
     }

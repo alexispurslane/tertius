@@ -56,7 +56,7 @@ public class FrameDriverTests
     {
         using var test = new TestWorld();
         FrameHandle ship = SpawnShip(test);
-        test.World.Frames.Orbit(ship) = KeplerOrbit.Circular(1000, 1e9);
+        test.World.SetFrameOrbit(ship, KeplerOrbit.Circular(1000, 1e9));
 
         test.World.SetFrameDriver(ship, MotionDriver.Kepler);
         test.Run(1);
@@ -226,8 +226,8 @@ public class FrameDriverTests
     public void TheKeplerDriverIsRefusedForAFrameWithoutAValidOrbit(string why, KeplerOrbit orbit)
     {
         using var test = new TestWorld();
-        FrameHandle ship = SpawnShip(test);
-        test.World.Frames.Orbit(ship) = orbit;
+        // A frame with another driver keeps the orbit that it was spawned with, valid or not, until it gets the Kepler driver.
+        FrameHandle ship = SpawnFrame(test, MotionDriver.Physics, new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000), orbit);
 
         Action set = () => test.World.SetFrameDriver(ship, MotionDriver.Kepler);
 

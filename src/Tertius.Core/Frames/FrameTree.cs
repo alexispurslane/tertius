@@ -21,15 +21,15 @@ public sealed class FrameTree
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
     private Vector3[] properAcceleration = new Vector3[64];
-    // The number of calls to SetDriver for each frame, and for every frame together.
+    // The number of calls to SetDriver and SetOrbit for each frame, and for every frame together.
     private int[] driverVersion = new int[64];
     private int driverChanges;
 
     public int Count => poses.Count;
 
     /// <summary>
-    /// Changes on every structural change (add, remove or reparent) and on every call to <see cref="SetDriver"/>. Physics
-    /// compares it with the version that it last followed.
+    /// Changes on every structural change (add, remove or reparent) and on every call to <see cref="SetDriver"/> and
+    /// <see cref="SetOrbit"/>. Physics compares it with the version that it last followed.
     /// </summary>
     public int Version => poses.Version + driverChanges;
 
@@ -127,14 +127,16 @@ public sealed class FrameTree
 
     public void SetLocalPose(FrameHandle frame, in DPose pose) => poses.Local(Node(frame)) = pose;
 
-    public ref FrameBounds Bounds(FrameHandle frame) => ref bounds[Node(frame).Id];
+    /// <summary>The bubble of the frame. It never changes after the frame is created.</summary>
+    public FrameBounds Bounds(FrameHandle frame) => bounds[Node(frame).Id];
 
     /// <summary>What moves the frame. <see cref="SetDriver"/> changes it.</summary>
     public MotionDriver Driver(FrameHandle frame) => driver[Node(frame).Id];
 
     /// <summary>
-    /// Changes on every call to <see cref="SetDriver"/> for the frame, also a call that gives the frame the driver that it
-    /// has. Physics compares it with the version that the frame's hull last followed.
+    /// Changes on every call to <see cref="SetDriver"/> or <see cref="SetOrbit"/> for the frame, also a call that gives the
+    /// frame the driver or the orbit that it has. Each of them can change how the frame moves. Physics compares it with
+    /// the version that the frame's hull last followed.
     /// </summary>
     public int DriverVersion(FrameHandle frame) => driverVersion[Node(frame).Id];
 
@@ -165,8 +167,33 @@ public sealed class FrameTree
         }
     }
 
-    public ref KeplerOrbit Orbit(FrameHandle frame) => ref orbit[Node(frame).Id];
-    public ref GravityField Gravity(FrameHandle frame) => ref gravity[Node(frame).Id];
+    /// <summary>The orbit of the frame around its parent, which the Kepler driver follows. <see cref="SetOrbit"/> changes it.</summary>
+    public KeplerOrbit Orbit(FrameHandle frame) => orbit[Node(frame).Id];
+
+    /// <summary>
+    /// Gives a frame a new orbit. Like <see cref="SetDriver"/>, every call changes <see cref="Version"/> and
+    /// <see cref="DriverVersion"/>, so physics puts the frame's hull at the frame's pose and velocity in the tree at the
+    /// start of its next step. The frame keeps its pose and velocities: the caller moves a Kepler frame onto the new orbit.
+    /// Throws <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    /// <remarks>Only the simulation calls it, through <c>World.SetFrameOrbit</c>, which refuses an orbit that is not valid.</remarks>
+    internal void SetOrbit(FrameHandle frame, in KeplerOrbit value)
+    {
+        int id = Node(frame).Id;
+        orbit[id] = value;
+        driverVersion[id]++;
+        driverChanges++;
+    }
+
+    /// <summary>The gravity field of the frame. <see cref="SetGravity"/> changes it.</summary>
+    public GravityField Gravity(FrameHandle frame) => gravity[Node(frame).Id];
+
+    /// <summary>
+    /// Gives a frame a new gravity field. Physics wakes the frame's bodies at the start of its next step. Throws
+    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    /// <remarks>Only the simulation calls it, through <c>World.SetFrameGravity</c>, which refuses a field that is not valid.</remarks>
+    internal void SetGravity(FrameHandle frame, in GravityField value) => gravity[Node(frame).Id] = value;
 
     /// <summary>Linear velocity of the frame origin relative to the parent, in parent axes.</summary>
     public ref Double3 LinearVelocity(FrameHandle frame) => ref linearVelocity[Node(frame).Id];

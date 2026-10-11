@@ -130,11 +130,57 @@ public sealed partial class World
         if (entities.Body(frame.Entity)?.FrameHullProblem(driver) is { } problem)
             throw new ArgumentException($"Cannot give {frame} the {driver} driver: the hull of its owner {frame.Entity} {problem}.", nameof(driver));
         if (driver == MotionDriver.Kepler && !Frames.Orbit(frame).IsValid)
-            throw new ArgumentException($"Cannot give {frame} the Kepler driver: its orbit is not valid. Set Frames.Orbit first.", nameof(driver));
+            throw new ArgumentException($"Cannot give {frame} the Kepler driver: its orbit is not valid. Call SetFrameOrbit first.", nameof(driver));
 
         Frames.SetDriver(frame, driver);
         MirrorFrameOwner(frame);
         FinishOutsideTickChange();
+    }
+
+    /// <summary>
+    /// Gives a frame a new orbit around its parent, outside a tick only. A frame with the Kepler driver moves to its place on
+    /// the new orbit at once, and its owner's transform follows. Physics follows at the start of its next step, as it
+    /// follows a new driver: the hull takes the frame's pose and velocity in the tree. A frame with another driver keeps the
+    /// orbit for a later <see cref="SetFrameDriver"/> with the Kepler driver.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
+    /// <exception cref="ArgumentException">
+    /// A frame that is gone, or an orbit that is not valid (see <see cref="KeplerOrbit.IsValid"/>). The frame keeps its orbit.
+    /// </exception>
+    public void SetFrameOrbit(FrameHandle frame, in KeplerOrbit orbit)
+    {
+        ThrowIfInTick(nameof(SetFrameOrbit));
+        if (!Frames.IsAlive(frame))
+            throw new ArgumentException($"Cannot set the orbit of {frame}: the frame is gone.", nameof(frame));
+        if (!orbit.IsValid)
+            throw new ArgumentException($"Cannot give {frame} this orbit: the orbit is not valid (see KeplerOrbit.IsValid).", nameof(orbit));
+
+        Frames.SetOrbit(frame, orbit);
+        if (Frames.Driver(frame) == MotionDriver.Kepler)
+        {
+            ApplyKepler(frame, Time);
+            MirrorFrameOwner(frame);
+        }
+        FinishOutsideTickChange();
+    }
+
+    /// <summary>
+    /// Gives a frame a new gravity field, outside a tick only. Physics wakes the frame's bodies at the start of its next
+    /// step, and they feel the new field from then on.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
+    /// <exception cref="ArgumentException">
+    /// A frame that is gone, or a field that is not valid (see <see cref="GravityField.IsValid"/>). The frame keeps its field.
+    /// </exception>
+    public void SetFrameGravity(FrameHandle frame, in GravityField gravity)
+    {
+        ThrowIfInTick(nameof(SetFrameGravity));
+        if (!Frames.IsAlive(frame))
+            throw new ArgumentException($"Cannot set the gravity of {frame}: the frame is gone.", nameof(frame));
+        if (!gravity.IsValid)
+            throw new ArgumentException($"Cannot give {frame} this gravity field: the field is not valid (see GravityField.IsValid).", nameof(gravity));
+
+        Frames.SetGravity(frame, gravity);
     }
 
     // ---- Spawning -------------------------------------------------------------------------------------------------
@@ -169,6 +215,10 @@ public sealed partial class World
                 throw new ArgumentException("A frame needs a bubble with positive radii.", nameof(desc));
             if (!Enum.IsDefined(spec.Driver))
                 throw new ArgumentException($"MotionDriver does not define the driver {spec.Driver}.", nameof(desc));
+            if (spec.Driver == MotionDriver.Kepler && !spec.Orbit.IsValid)
+                throw new ArgumentException("A frame with the Kepler driver needs an orbit that it can follow: this orbit is not valid (see KeplerOrbit.IsValid).", nameof(desc));
+            if (!spec.Gravity.IsValid)
+                throw new ArgumentException("A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).", nameof(desc));
             // So a frame with the physics driver whose owner has a body always has a dynamic hull.
             if (desc.Body?.FrameHullProblem(spec.Driver) is { } problem)
                 throw new ArgumentException($"A frame with the {spec.Driver} driver cannot have this hull: it {problem}.", nameof(desc));

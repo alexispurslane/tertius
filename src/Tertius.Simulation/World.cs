@@ -82,10 +82,10 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>
-    /// The reference frames. Read it freely. Outside a tick, a game can change the gravity field and the orbit of a frame
-    /// here. To give a frame a new motion driver, for example to park a ship, call <see cref="SetFrameDriver"/>. It refuses
-    /// a driver that the frame cannot follow, and the owner of the frame follows the change at once. Make every other
-    /// change through the world.
+    /// The reference frames. Read it freely. Outside a tick, a game gives a frame a new motion driver, orbit or gravity field
+    /// with <see cref="SetFrameDriver"/>, <see cref="SetFrameOrbit"/> and <see cref="SetFrameGravity"/>. They refuse a value
+    /// that the engine cannot use, and the owner of the frame follows the change at once. Make every other change through
+    /// the world.
     /// </summary>
     public FrameTree Frames { get; } = new();
 

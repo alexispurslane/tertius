@@ -75,6 +75,21 @@ public record struct GravityField(GravityKind Kind, Vector3 Acceleration, Boundi
     /// <param name="mu">The standard gravitational parameter G·M, in m³/s².</param>
     public static GravityField Point(double mu) => new(GravityKind.Point, Vector3.Zero, null, mu);
 
+    /// <summary>
+    /// True for a field that physics can apply: a kind that <see cref="GravityKind"/> defines; for a uniform field, a
+    /// finite acceleration, and finite corners of the region when it has one; for a point mass, a finite G·M that is not
+    /// negative. Any other field would give the bodies of the frame a force that is not finite.
+    /// </summary>
+    public readonly bool IsValid => Kind switch
+    {
+        GravityKind.None => true,
+        GravityKind.Uniform => IsFinite(Acceleration) && (Region is not { } region || (IsFinite(region.Min) && IsFinite(region.Max))),
+        GravityKind.Point => double.IsFinite(Mu) && Mu >= 0,
+        _ => false,
+    };
+
+    private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
+
     /// <summary>The acceleration at a point in frame coordinates.</summary>
     public readonly Vector3 At(Double3 position)
     {

@@ -772,8 +772,8 @@ public class PhysicsHandOffTests
     });
 
     /// <summary>
-    /// A frame of radius 10 m at the origin of the root, with <paramref name="driver"/>, whose owner has a hull in the root:
-    /// a static body for the static driver, a kinematic one for the Kepler driver.
+    /// A frame of radius 10 m near the origin of the root, with <paramref name="driver"/>, whose owner has a hull in the root:
+    /// a static body for the static driver, a kinematic one for the Kepler driver. A Kepler frame circles the origin at 1 m.
     /// </summary>
     private static Entity SpawnFrameWithHull(TestWorld test, MotionDriver driver, out FrameHandle frame)
     {
@@ -781,7 +781,7 @@ public class PhysicsHandOffTests
         {
             Frame = test.Root,
             Pose = TestWorld.At(0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: driver == MotionDriver.Kepler ? KeplerOrbit.Circular(1, 1) : default),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), driver == MotionDriver.Kepler ? BodyMotion.Kinematic : BodyMotion.Static),
         });
         frame = test.World.GetOwnedFrame(owner);
