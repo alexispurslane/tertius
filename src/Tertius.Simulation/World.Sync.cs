@@ -8,10 +8,21 @@ public sealed partial class World
     // is here twice; its second entry finds its membership already moved.
     private readonly List<Entity> physicsTouched = new();
 
-    // Entities whose whole physics update this sync skips, because physics reported something about them that only a bug
-    // in the backend produces. Their body states, their hand-offs, the states of the frames they own and the contacts
-    // that name them are all ignored.
-    private readonly HashSet<Entity> skippedPhysicsUpdates = new();
+    // The check of each step's output. It skips the whole physics update of every entity that physics reported something
+    // about that only a bug in the backend produces. Their body states, their hand-offs, the states of the frames they
+    // own and the contacts that name them are all ignored.
+    private readonly PhysicsOutputCheck physicsOutputCheck = new();
+
+    /// <summary>What the entity table knows about an entity, for the check of the physics output.</summary>
+    private readonly struct PhysicsOutputFacts(EntityTable entities) : IPhysicsOutputFacts
+    {
+        public bool IsAlive(Entity entity) => entities.IsAlive(entity);
+
+        public bool HasBody(Entity entity) => entities.Body(entity) != null;
+
+        // Every write to the row of an entity with a body comes from physics, so the row is where the step began.
+        public FrameHandle FrameOf(Entity entity) => entities.BackRow(entity).Frame;
+    }
 
     /// <summary>
     /// The sync point, the steps of "Threads and the tick" in ARCHITECTURE.md. One thread runs it; nothing else runs
@@ -104,11 +115,11 @@ public sealed partial class World
         SkipBrokenPhysicsUpdates();
         MoveHandedOffFrames();
 
-        // The checks of the first pass put every entity that is not live, or has no body, among the skipped updates.
+        // The check put every entity that is not live, or has no body, among the skipped updates.
         foreach (BodyState state in stepOutput.Bodies)
         {
             Entity entity = state.Entity;
-            if (skippedPhysicsUpdates.Contains(entity))
+            if (physicsOutputCheck.IsSkipped(entity))
                 continue;
             entities.SetBackTransform(entity, new TransformRow
             {
@@ -123,7 +134,7 @@ public sealed partial class World
         foreach (HandOff handOff in stepOutput.HandOffs)
         {
             Entity entity = handOff.Entity;
-            if (skippedPhysicsUpdates.Contains(entity))
+            if (physicsOutputCheck.IsSkipped(entity))
                 continue;
             entities.SetBackTransform(entity, new TransformRow
             {
@@ -140,7 +151,7 @@ public sealed partial class World
         // state after the step. A frame that is gone has its owner's update skipped.
         foreach (FrameState state in stepOutput.Frames)
         {
-            if (skippedPhysicsUpdates.Contains(state.Frame.Entity))
+            if (physicsOutputCheck.IsSkipped(state.Frame.Entity))
                 continue;
             Frames.SetLocalPose(state.Frame, state.LocalPose);
             Frames.LinearVelocity(state.Frame) = state.LinearVelocity;
@@ -160,153 +171,44 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// The first pass of step 2, before any state lands. It checks each output of physics against what a correct backend
-    /// keeps:
-    /// <list type="bullet">
-    /// <item>Entities and frames die in step 5 or outside a tick, and physics hears of each death before its next step.
-    /// An entity keeps its body for life. So every body state, hand-off and contact names live entities with bodies.</item>
-    /// <item>For the same reason, the frame of every body state and contact is alive, and so is the target of every
-    /// hand-off. None of them is null.</item>
-    /// <item>Physics follows the frame tree. So a hand-off leaves the frame that the entity is in at the start of the
-    /// step (for the owner of a frame, the frame's parent in the tree) and enters another frame. The owner of a root frame
-    /// is in no frame, so it never hands off.</item>
-    /// <item>Physics drives a frame through the hull of the frame's owner. So a frame state names a live frame with the
-    /// physics driver whose owner has a body.</item>
-    /// <item>A contact names two different entities.</item>
-    /// </list>
-    /// Any other output comes only from a bug in the backend. It breaks a contract in Debug builds. In Release builds the
-    /// sync skips, for this step, the whole physics update of every entity that the output names. It records exactly one
-    /// error for each broken output, however many checks the output fails, and also when another broken output skipped
-    /// the same entities already. For a frame state, that entity is the frame's owner. The skip does not change physics: the backend keeps each body
-    /// where it put it. A frame hull goes back where the tree says at the start of the next step. A plain body that
-    /// physics moved into a frame that is gone stays in that frame's system, so later outputs about it are broken too,
-    /// until physics finds the frame gone and removes the body, with a warning.
+    /// The first pass of step 2, before any state lands: the check of every output of physics (see
+    /// <see cref="PhysicsOutputCheck"/> for the rules). An output that breaks a rule comes only from a bug in the backend.
+    /// It breaks a contract in Debug builds. In Release builds the sync skips, for this step, the whole physics update of
+    /// every entity that the output names, and it records exactly one error for each broken output: however many rules
+    /// the output breaks, and also when another broken output skipped the same entities already. For a frame state, that
+    /// entity is the frame's owner. The skip does not change physics: the backend keeps each body where it put it. A frame
+    /// hull goes back where the tree says at the start of the next step. A plain body that physics moved into a frame that
+    /// is gone stays in that frame's system, so later outputs about it are broken too, until physics finds the frame gone
+    /// and removes the body, with a warning.
     /// </summary>
     private void SkipBrokenPhysicsUpdates()
     {
-        skippedPhysicsUpdates.Clear();
-        foreach (BodyState state in stepOutput.Bodies)
+        physicsOutputCheck.Run(stepOutput, Frames, new PhysicsOutputFacts(entities));
+        foreach (PhysicsOutputFault fault in physicsOutputCheck.Faults)
         {
-            // The pose and velocities are relative to the reported frame, so they are useless in any other frame.
-            string? fault = BodyFault(state.Entity) ?? FrameFault(state.Frame);
-            Contract.Assert(fault is null, fault);
-            if (fault is not null)
-                SkipPhysicsUpdate(state.Entity, $"ignored the body state of {state.Entity}, because {fault}");
-        }
-        foreach (HandOff handOff in stepOutput.HandOffs)
-        {
-            string? fault = BodyFault(handOff.Entity) ?? FrameFault(handOff.To) ?? MoveFault(handOff);
-            Contract.Assert(fault is null, fault);
-            if (fault is not null)
-                SkipPhysicsUpdate(handOff.Entity, $"ignored the hand-off of {handOff.Entity}, because {fault}");
-        }
-        foreach (FrameState state in stepOutput.Frames)
-        {
-            string? fault = DrivenFrameFault(state.Frame);
-            Contract.Assert(fault is null, fault);
-            if (fault is not null)
-                SkipPhysicsUpdate(state.Frame.Entity, $"ignored the state of {fault}");
-        }
-        foreach (ContactStarted contact in stepOutput.Contacts)
-        {
-            // The point and normal are relative to the contact's frame.
-            string? fault = BodyFault(contact.A) ?? BodyFault(contact.B) ?? (contact.A == contact.B ? $"{contact.A} cannot touch itself" : null) ??
-                FrameFault(contact.Frame);
-            Contract.Assert(fault is null, fault);
-            if (fault is not null)
-                SkipPhysicsUpdates(contact.A, contact.B, $"ignored the contact of {contact.A} and {contact.B}, because {fault}");
+            // Only a bug in the backend produces a broken output.
+            Contract.Assert(false, fault.Message);
+            Report($"tick {TickNumber}: {fault.Message}.", isError: true);
         }
     }
-
-    /// <summary>Why physics cannot name <paramref name="entity"/> in its output, or null when it can.</summary>
-    private string? BodyFault(Entity entity) =>
-        !entities.IsAlive(entity) ? $"{entity} no longer exists" :
-        entities.Body(entity) == null ? $"{entity} has no body" :
-        null;
-
-    /// <summary>Why physics cannot report a state relative to <paramref name="frame"/>, or null when it can.</summary>
-    private string? FrameFault(FrameHandle frame) =>
-        frame.IsNull ? "it names no frame" :
-        !Frames.IsAlive(frame) ? $"it names the stale frame {frame}" :
-        null;
-
-    /// <summary>
-    /// Why a hand-off of a live entity into a live frame is not a move that physics makes, or null when it is. The entity
-    /// is in its row's frame, or, if it owns a frame, in the frame's parent in the tree. Every write to the row of a body
-    /// comes from physics, and the row of a frame owner mirrors its frame, so both are where the step began.
-    /// </summary>
-    private string? MoveFault(in HandOff handOff)
-    {
-        Entity entity = handOff.Entity;
-        FrameHandle own = entities.OwnedFrame(entity);
-        FrameHandle current = own.IsNull ? entities.BackRow(entity).Frame : Frames.Parent(own);
-        return current.IsNull ? $"{entity} is in no frame, so it leaves none" :
-            handOff.From != current ? $"{entity} is in {current}, not in {handOff.From}" :
-            handOff.To == current ? $"it moves {entity} into {current}, which it is in already" :
-            null;
-    }
-
-    /// <summary>
-    /// Why physics cannot report the state of <paramref name="frame"/>, or null when it can. The fault names the frame,
-    /// because a stale frame has no owner to blame.
-    /// </summary>
-    private string? DrivenFrameFault(FrameHandle frame) =>
-        !Frames.IsAlive(frame) ? $"the stale frame {frame}" :
-        Frames.Driver(frame) != MotionDriver.Physics ? $"{frame}, because physics does not drive it" :
-        BodyFault(frame.Entity) is { } fault ? $"{frame}, because {fault}" :
-        null;
 
     /// <summary>
     /// The second pass of step 2, before any state lands: moves the frame of each handed-off frame owner under its new
-    /// parent, in hand-off order. A hand-off is a proposal of physics, and the frame tree decides. A correct backend
-    /// never proposes one that the tree refuses, because its reconcile starts every step with each frame hull in the
-    /// system of its frame's parent in the tree. From there a hull can only enter a sibling of its frame or
-    /// leave for the parent's parent, never its own frame. It enters a sibling only when its bubble fits in the
-    /// sibling's, and fitting is a strict order of size, so the entries of one step never close a loop. So no hand-off
-    /// puts a frame under itself or its own descendant. One that does comes only from a bug in the backend. It breaks a
-    /// contract in Debug builds. In Release builds the sync skips the whole physics update of that entity for this step
-    /// and records one error, and the frame stays where it was. The check also covers the hand-off of an entity whose
-    /// update another output skipped already, so that every broken output records its error.
+    /// parent, in hand-off order. A hand-off is a proposal of physics, and the frame tree decides. The check of the first
+    /// pass refused every hand-off that would put a frame under itself or its own descendant, with the earlier hand-offs
+    /// of the step applied, so every move here is one that the tree takes.
     /// </summary>
     private void MoveHandedOffFrames()
     {
         foreach (HandOff handOff in stepOutput.HandOffs)
         {
             Entity entity = handOff.Entity;
-            // A hand-off that the first pass found broken has its error already.
-            if (BodyFault(entity) is not null || FrameFault(handOff.To) is not null || MoveFault(handOff) is not null)
+            if (physicsOutputCheck.IsSkipped(entity))
                 continue;
             FrameHandle own = entities.OwnedFrame(entity);
-            if (own.IsNull)
-                continue;
-            bool intoItself = handOff.To == own || Frames.IsAncestorOf(own, handOff.To);
-            Contract.Assert(!intoItself);
-            if (intoItself)
-            {
-                SkipPhysicsUpdate(entity, $"refused the hand-off of {entity} from {handOff.From} to {handOff.To}, which would put {own} under itself or its own descendant");
-                continue;
-            }
-            if (!skippedPhysicsUpdates.Contains(entity))
+            if (!own.IsNull)
                 Frames.Reparent(own, handOff.To);
         }
-    }
-
-    /// <summary>Skips the whole physics update of an entity for this step, and records one error for the broken output.</summary>
-    private void SkipPhysicsUpdate(Entity entity, string error)
-    {
-        skippedPhysicsUpdates.Add(entity);
-        Report($"tick {TickNumber}: {error}.", isError: true);
-    }
-
-    /// <summary>
-    /// Skips the whole physics update of both entities of a broken contact for this step, and records one error for the
-    /// contact.
-    /// </summary>
-    private void SkipPhysicsUpdates(Entity a, Entity b, string error)
-    {
-        skippedPhysicsUpdates.Add(a);
-        skippedPhysicsUpdates.Add(b);
-        Report($"tick {TickNumber}: {error}.", isError: true);
     }
 
     /// <summary>
@@ -316,7 +218,7 @@ public sealed partial class World
     /// </summary>
     private void RouteContact(in ContactStarted contact)
     {
-        if (skippedPhysicsUpdates.Contains(contact.A) || skippedPhysicsUpdates.Contains(contact.B))
+        if (physicsOutputCheck.IsSkipped(contact.A) || physicsOutputCheck.IsSkipped(contact.B))
             return;
         AddCollision(contact.A, contact.B, contact.Frame, contact.Point, contact.Normal, contact.Impulse);
         AddCollision(contact.B, contact.A, contact.Frame, contact.Point, -contact.Normal, contact.Impulse);

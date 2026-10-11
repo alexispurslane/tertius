@@ -99,6 +99,9 @@ public class ReconcileTests
         FrameHandle carrier = h.AddFrame(space, Shapes.At(1000, 0, 0), FrameBounds.Sphere(200), MotionDriver.Static);
         FrameHandle fighter = h.AddFrameWithBody(space, Shapes.At(1260, 0, 0), FrameBounds.Sphere(10), MotionDriver.Physics,
             Shapes.Box(2, mass: 1000), velocity: new Vector3(-60, 0, 0));
+        // The backend hands the fighter into the carrier. The test gives the report a wrong origin, as a bug would, so the
+        // harness refuses it and the tree keeps the fighter in space.
+        h.BeforeApply = output => PhysicsHarness.ReplaceHandOffs(output, fighter.Entity, handOff => handOff with { From = carrier });
         h.RefusesHandOff = handOff => handOff.Entity == fighter.Entity;
         h.StepUntil(() => h.RefusedHandOffs.Count > 0, 120);
         h.RefusedHandOffs.Should().ContainSingle().Which.To.Should().Be(carrier);

@@ -256,9 +256,11 @@ public class HandOffTests
         FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
         FrameHandle ship = h.AddFrameWithBody(space, Shapes.At(0, 0, 0), FrameBounds.Sphere(10), MotionDriver.Physics, Shapes.Box(2, mass: 1000));
         // A big annex of the ship, whose hull is outside the ship's bubble, so every step hands the annex out into
-        // space. The simulation keeps the annex inside the ship each time. Beside the ship, the annex's bubble would
+        // space. The test turns each of those reports into a move of the annex into itself, as a bug would, so the
+        // harness refuses it and the tree keeps the annex inside the ship. Beside the ship, the annex's bubble would
         // touch the ship's hull, which would fit in it.
         FrameHandle annex = h.AddFrameWithBody(ship, Shapes.At(33, 0, 0), FrameBounds.Sphere(30), MotionDriver.Physics, Shapes.Box(1, mass: 10));
+        h.BeforeApply = output => PhysicsHarness.ReplaceHandOffs(output, annex.Entity, handOff => handOff with { To = annex });
         h.RefusesHandOff = handOff => handOff.Entity == annex.Entity;
 
         h.Step(3);
@@ -287,6 +289,8 @@ public class HandOffTests
     {
         using var h = new PhysicsHarness();
         var (space, carrier, fighter) = FighterApproachingCarrier(h);
+        // The test gives the report of the fighter's hand-off a wrong origin, as a bug would, so the harness refuses it.
+        h.BeforeApply = output => PhysicsHarness.ReplaceHandOffs(output, fighter.Entity, handOff => handOff with { From = carrier });
         h.RefusesHandOff = handOff => handOff.Entity == fighter.Entity;
         h.StepUntil(() => h.RefusedHandOffs.Count > 0, 120);
         h.RefusedHandOffs.Should().ContainSingle().Which.To.Should().Be(carrier);

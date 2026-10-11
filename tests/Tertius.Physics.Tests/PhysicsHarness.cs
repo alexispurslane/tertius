@@ -5,9 +5,10 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// Drives <see cref="JoltPhysicsBackend"/> the way the sync point does, without the simulation: it applies body
 /// states, hand-offs and frame states from the physics output, advances Kepler frames, and feeds intents. Like the sync
-/// point in a Debug build, it refuses output that only a bug in the backend produces: a hand-off that the frame tree
-/// refuses, and a body state or a hand-off in a frame that is gone, throw out of <see cref="Step"/>, so a test whose
-/// backend has such a bug fails loudly. A test that wants a refusal on purpose sets <see cref="RefusesHandOff"/>.
+/// point in a Debug build, it refuses output that only a bug in the backend produces: it runs the same
+/// <see cref="PhysicsOutputCheck"/>, and every broken output throws out of <see cref="Step"/>, so a test whose backend
+/// has such a bug fails loudly. A test that wants a refused hand-off on purpose breaks it in <see cref="BeforeApply"/>
+/// and names it in <see cref="RefusesHandOff"/>.
 /// </summary>
 internal sealed class PhysicsHarness : IDisposable
 {
@@ -17,8 +18,9 @@ internal sealed class PhysicsHarness : IDisposable
     private PhysicsIntent[] intents = new PhysicsIntent[64];
     private readonly List<Entity> intentEntities = new();
     private readonly List<FrameHandle> frameScratch = new();
-    // The entities whose hand-off the current step refused.
-    private readonly HashSet<Entity> refusedEntities = new();
+    private readonly PhysicsOutputCheck check = new();
+    // Entities whose body a test destroyed and did not create again.
+    private readonly HashSet<Entity> destroyed = new();
 
     public PhysicsHarness(JoltBackendOptions? options = null)
     {
@@ -48,11 +50,12 @@ internal sealed class PhysicsHarness : IDisposable
     public Action<PhysicsStepOutput>? BeforeApply { get; set; }
 
     /// <summary>
-    /// Opts a test in to refused hand-offs, and names the hand-offs that the simulation refuses. Null by default: the
-    /// harness takes every hand-off. A test that provokes a refusal on purpose sets it. The harness then treats each
-    /// hand-off that it names as the sync point treats a refused one: it skips the hand-off, the entity's body state from
-    /// that step and the state of the frame that the entity owns, so the entity and its frame keep the state they had
-    /// before the step. A hand-off that the frame tree refuses throws out of <see cref="Step"/> in every case.
+    /// Opts a test in to refused hand-offs, and names the hand-offs that the test expects the harness to refuse. Null by
+    /// default: every broken output throws. Each hand-off that it names must be broken (a test breaks the backend's own
+    /// hand-off in <see cref="BeforeApply"/>), and the harness treats it as a Release sync point does: it skips the
+    /// entity's whole update in that step, its body state and the state of the frame that it owns included, so the entity
+    /// and its frame keep the state they had before the step. A hand-off that it names but that passes every check throws
+    /// out of <see cref="Step"/>, so that a test cannot hide a hand-off that the frame tree would take.
     /// </summary>
     public Func<HandOff, bool>? RefusesHandOff { get; set; }
 
@@ -60,6 +63,18 @@ internal sealed class PhysicsHarness : IDisposable
     public List<HandOff> RefusedHandOffs { get; } = new();
 
     public Entity NewEntity() => new(nextEntity++, 1);
+
+    /// <summary>
+    /// Replaces each hand-off of <paramref name="entity"/> in <paramref name="output"/> with what <paramref name="replace"/>
+    /// makes of it. A test calls it from <see cref="BeforeApply"/> to give the backend's own hand-off the shape of a bug's
+    /// output, so that the harness refuses it as the sync point would.
+    /// </summary>
+    public static void ReplaceHandOffs(PhysicsStepOutput output, Entity entity, Func<HandOff, HandOff> replace)
+    {
+        for (int i = 0; i < output.HandOffs.Count; i++)
+            if (output.HandOffs[i].Entity == entity)
+                output.HandOffs[i] = replace(output.HandOffs[i]);
+    }
 
     public FrameHandle AddFrame(
         FrameHandle parent,
@@ -89,6 +104,7 @@ internal sealed class PhysicsHarness : IDisposable
         Entity e = entity.IsNull ? NewEntity() : entity;
         Changes.BodiesCreated.Add(new BodyCreate(e, frame, desc, pose, velocity, angularVelocity));
         States[e] = new BodyState(e, frame, pose, velocity, angularVelocity);
+        destroyed.Remove(e);
         return e;
     }
 
@@ -114,10 +130,12 @@ internal sealed class PhysicsHarness : IDisposable
         return frame;
     }
 
+    /// <summary>Destroys the entity's body. Physics may name the entity again only after a test creates its body again.</summary>
     public void Destroy(Entity entity)
     {
         Changes.BodiesDestroyed.Add(entity);
         States.Remove(entity);
+        destroyed.Add(entity);
     }
 
     /// <summary>The intent slot of an entity for the next step.</summary>
@@ -180,41 +198,36 @@ internal sealed class PhysicsHarness : IDisposable
         var context = new PhysicsStepContext(Tick, Dt, Time, Frames, intents, intentEntities.ToArray());
         Backend.Step(context, Output);
         BeforeApply?.Invoke(Output);
+        CheckOutput();
 
-        refusedEntities.Clear();
         foreach (HandOff handOff in Output.HandOffs)
         {
             HandOffs.Add(handOff);
-            if (RefusesHandOff is { } refuses && refuses(handOff))
-            {
-                RefusedHandOffs.Add(handOff);
-                refusedEntities.Add(handOff.Entity);
+            if (check.IsSkipped(handOff.Entity))
                 continue;
-            }
-            RequireLiveFrame(handOff.To, $"the hand-off of {handOff.Entity}");
-            // The frame tree throws, and changes nothing, if the move would put a frame under itself or its descendant.
             if (Frames.TryGetFrame(handOff.Entity, out FrameHandle frame))
                 Frames.Reparent(frame, handOff.To);
             States[handOff.Entity] = new BodyState(handOff.Entity, handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity);
         }
         foreach (BodyState body in Output.Bodies)
         {
-            // Physics reported these states relative to the target of a refused hand-off, so they are useless here.
-            if (refusedEntities.Contains(body.Entity))
-                continue;
-            RequireLiveFrame(body.Frame, $"the body state of {body.Entity}");
-            States[body.Entity] = body;
+            if (!check.IsSkipped(body.Entity))
+                States[body.Entity] = body;
         }
         foreach (FrameState state in Output.Frames)
         {
-            if (refusedEntities.Contains(state.Frame.Entity))
+            if (check.IsSkipped(state.Frame.Entity))
                 continue;
             Frames.SetLocalPose(state.Frame, state.LocalPose);
             Frames.LinearVelocity(state.Frame) = state.LinearVelocity;
             Frames.AngularVelocity(state.Frame) = state.AngularVelocity;
             Frames.ProperAcceleration(state.Frame) = state.ProperAcceleration;
         }
-        Contacts.AddRange(Output.Contacts);
+        foreach (ContactStarted contact in Output.Contacts)
+        {
+            if (!check.IsSkipped(contact.A) && !check.IsSkipped(contact.B))
+                Contacts.Add(contact);
+        }
         AfterStep?.Invoke(Output);
 
         foreach (Entity entity in intentEntities)
@@ -227,11 +240,45 @@ internal sealed class PhysicsHarness : IDisposable
         Frames.Update();
     }
 
-    /// <summary>Throws for an output that names a frame that is gone, or no frame: only a bug in the backend reports one.</summary>
-    private void RequireLiveFrame(FrameHandle frame, string output)
+    /// <summary>
+    /// Runs the sync point's check over the output. Throws for every broken output, except a broken hand-off that the test
+    /// refuses, and throws for a hand-off that the test refuses although it passes every check.
+    /// </summary>
+    private void CheckOutput()
     {
-        if (!Frames.IsAlive(frame))
-            throw new InvalidOperationException($"Physics reported {output} in {frame}, which is not a live frame.");
+        check.Run(Output, Frames, new Facts(this));
+        var brokenHandOffs = new HashSet<int>();
+        foreach (PhysicsOutputFault fault in check.Faults)
+        {
+            if (fault.Kind == PhysicsOutputKind.HandOff && RefusesHandOff is { } refuses && refuses(Output.HandOffs[fault.Index]))
+            {
+                brokenHandOffs.Add(fault.Index);
+                continue;
+            }
+            throw new InvalidOperationException($"Physics reported output that only a bug produces: {fault.Message}.");
+        }
+        if (RefusesHandOff is not { } refusesAny)
+            return;
+        for (int i = 0; i < Output.HandOffs.Count; i++)
+        {
+            HandOff handOff = Output.HandOffs[i];
+            if (!refusesAny(handOff))
+                continue;
+            if (!brokenHandOffs.Contains(i))
+                throw new InvalidOperationException(
+                    $"The test refuses the hand-off of {handOff.Entity} from {handOff.From} to {handOff.To}, but the frame tree accepts it.");
+            RefusedHandOffs.Add(handOff);
+        }
+    }
+
+    /// <summary>What the harness knows about an entity: like the sync point, it knows which bodies exist and where.</summary>
+    private readonly struct Facts(PhysicsHarness harness) : IPhysicsOutputFacts
+    {
+        public bool IsAlive(Entity entity) => !harness.destroyed.Contains(entity);
+
+        public bool HasBody(Entity entity) => harness.States.ContainsKey(entity);
+
+        public FrameHandle FrameOf(Entity entity) => harness.States[entity].Frame;
     }
 
     private void AdvanceKeplerFrames()

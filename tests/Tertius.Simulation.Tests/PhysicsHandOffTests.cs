@@ -265,6 +265,43 @@ public class PhysicsHandOffTests
     }
 
     [Fact]
+    public void ASecondHandOffOfOneEntityInOneStepBreaksAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(-500), radius: 100);
+        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        physics.OnStep((context, output) =>
+        {
+            output.HandOffs.Add(new HandOff(ball, test.Root, station, TestWorld.At(9), default, default));
+            output.HandOffs.Add(new HandOff(ball, test.Root, dock, TestWorld.At(9), default, default));
+        });
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage($"*{ball} has another hand-off in this step*");
+    }
+
+    [Fact]
+    public void TwoShipsThatAStepHandsIntoEachOtherBreakAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity first = SpawnFighter(test, TestWorld.At(0), out FrameHandle firstFrame);
+        Entity second = SpawnFighter(test, TestWorld.At(100), out FrameHandle secondFrame);
+        physics.OnStep((context, output) =>
+        {
+            output.HandOffs.Add(new HandOff(first, test.Root, secondFrame, TestWorld.At(-100), default, default));
+            output.HandOffs.Add(new HandOff(second, test.Root, firstFrame, TestWorld.At(100), default, default));
+        });
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage($"*refused the hand-off of {second}*");
+    }
+
+    [Fact]
     public void AHandOffThatTheFrameTreeRefusesBreaksAContract()
     {
         IPhysicsBackend physics = TestPhysics.Create();
@@ -432,6 +469,80 @@ public class PhysicsHandOffTests
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {ball}").And.Contain($"into {test.Root}, which it is in already");
         test.World.GetPose(ball).Should().Be(TestWorld.At(3));
+    }
+
+    [Fact]
+    public void ASecondHandOffOfOneEntityInOneStepIsReportedAndTheEntityStaysWhereItWas()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(-500), radius: 100);
+        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        physics.OnStep((context, output) =>
+        {
+            if (context.Tick != 0)
+                return;
+            output.HandOffs.Add(new HandOff(ball, test.Root, station, TestWorld.At(9), default, default));
+            output.HandOffs.Add(new HandOff(ball, test.Root, dock, TestWorld.At(9), default, default));
+        });
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {ball}").And.Contain("another hand-off in this step");
+        test.World.GetFrame(ball).Should().Be(test.Root, "the first hand-off is part of the skipped update");
+        test.World.GetPose(ball).Should().Be(TestWorld.At(3));
+    }
+
+    [Fact]
+    public void OfTwoShipsThatAStepHandsIntoEachOtherTheFirstMovesAndTheSecondIsRefused()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity first = SpawnFighter(test, TestWorld.At(0), out FrameHandle firstFrame);
+        Entity second = SpawnFighter(test, TestWorld.At(100), out FrameHandle secondFrame);
+        physics.OnStep((context, output) =>
+        {
+            if (context.Tick != 0)
+                return;
+            output.HandOffs.Add(new HandOff(first, test.Root, secondFrame, TestWorld.At(-100), default, default));
+            output.HandOffs.Add(new HandOff(second, test.Root, firstFrame, TestWorld.At(100), default, default));
+        });
+
+        test.Run(1);
+
+        // The hand-offs apply in their order: the first ship enters the second, so the second cannot enter the first.
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"refused the hand-off of {second}");
+        test.World.Frames.Parent(firstFrame).Should().Be(secondFrame);
+        test.World.Frames.Parent(secondFrame).Should().Be(test.Root);
+        test.World.AssertInvariants();
+    }
+
+    [Fact]
+    public void AHandOffThatASkippedHandOffWouldHaveRefusedGoesAhead()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity first = SpawnFighter(test, TestWorld.At(0), out FrameHandle firstFrame);
+        Entity second = SpawnFighter(test, TestWorld.At(100), out FrameHandle secondFrame);
+        FrameHandle gone = test.SpawnStaticFrame(TestWorld.At(500), radius: 10);
+        test.World.Destroy(gone.Entity);
+        physics.OnStep((context, output) =>
+        {
+            if (context.Tick != 0)
+                return;
+            // The body state skips the first ship's whole update, so its hand-off moves nothing.
+            output.Bodies.Add(new BodyState(first, gone, TestWorld.At(0), default, default));
+            output.HandOffs.Add(new HandOff(first, test.Root, secondFrame, TestWorld.At(-100), default, default));
+            output.HandOffs.Add(new HandOff(second, test.Root, firstFrame, TestWorld.At(100), default, default));
+        });
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {first}");
+        test.World.Frames.Parent(firstFrame).Should().Be(test.Root);
+        test.World.Frames.Parent(secondFrame).Should().Be(firstFrame);
+        test.World.AssertInvariants();
     }
 
     [Fact]
