@@ -10,23 +10,21 @@ public static class ScriptRunner
     /// Runs every step of <paramref name="script"/> on <paramref name="world"/>, whose scene ids are
     /// <paramref name="scene"/>. Checks every step before the first tick, and throws <see cref="ScriptException"/>
     /// without changing the world for a step that cannot run. With <paramref name="outputFolder"/>, writes each dump
-    /// there as <c>&lt;name&gt;.json</c> when it is taken. A capture step renders with <paramref name="renderer"/> into
-    /// <c>&lt;name&gt;.png</c> in the output folder, so a script with captures needs both.
+    /// there as <c>&lt;name&gt;.json</c> when it is taken. <paramref name="playback"/> paces the ticks and draws each capture
+    /// into <c>&lt;name&gt;.png</c> in the output folder, so a script with captures needs both. With no playback, the ticks
+    /// run back to back. If the playback stops the run, the steps after that point do not run, and the result says so.
     /// </summary>
-    public static RunResult Run(Script script, World world, SceneInstance scene, string? outputFolder = null, IRenderer? renderer = null)
+    public static RunResult Run(Script script, World world, SceneInstance scene, string? outputFolder = null, IPlayback? playback = null)
     {
         ArgumentNullException.ThrowIfNull(script);
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(scene);
         EventPayloads payloads = EventPayloads.FromLoadedAssemblies();
-        ReadyStep[] steps = MakeReady(script, world, scene, outputFolder, renderer, payloads);
+        ReadyStep[] steps = MakeReady(script, world, scene, outputFolder, playback, payloads);
         JsonSerializerOptions dumpJson = ScriptJson.Dumps(scene);
 
         if (outputFolder != null)
             Directory.CreateDirectory(outputFolder);
-        // The script sets the image size, whatever size the caller made the renderer with.
-        if (renderer != null && steps.Any(step => step is ReadyCapture))
-            renderer.Resize(script.Window.Width, script.Window.Height);
         var recorder = new DumpRecorder(world, scene, payloads);
         var dumps = new List<StateDump>();
         var captures = new List<string>();
@@ -37,6 +35,8 @@ public static class ScriptRunner
                 case ReadyRun run:
                     for (int tick = 0; tick < run.Ticks; tick++)
                     {
+                        if (playback?.WaitForTick() == false)
+                            return new RunResult(dumps, captures, stopped: true);
                         world.Tick();
                         recorder.RecordRoutedEvents();
                     }
@@ -57,7 +57,7 @@ public static class ScriptRunner
                     // The check before the first tick saw a live camera, but a component may have destroyed it since.
                     if (!world.IsAlive(world.Camera))
                         throw new ScriptException($"{where}: at tick {world.TickNumber}, the camera '{scene.IdOf(world.Camera)}' is not alive.");
-                    Capture(world, renderer!, path);
+                    playback!.Capture(world, path);
                     captures.Add(path);
                     break;
                 default:
@@ -65,19 +65,6 @@ public static class ScriptRunner
             }
         }
         return new RunResult(dumps, captures);
-    }
-
-    /// <summary>
-    /// Renders the current state with interpolation alpha 1 and writes it to <paramref name="path"/>. The render snapshot
-    /// is built now, so a capture before the first tick, or right after a camera step, shows the current state.
-    /// </summary>
-    private static void Capture(World world, IRenderer renderer, string path)
-    {
-        world.PublishRenderSnapshot();
-        // A snapshot was published just now, so the latest one is that one.
-        world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot);
-        renderer.CaptureNextFrame(path);
-        renderer.Render(snapshot, alpha: 1f);
     }
 
     /// <summary>A step after its checks, with every name in it resolved. Running it cannot fail for a reason of the script.</summary>
@@ -97,7 +84,7 @@ public static class ScriptRunner
     /// Checks every step and resolves its names before the first tick, so that a bad step changes nothing. Throws
     /// <see cref="ScriptException"/> for the first step that cannot run.
     /// </summary>
-    private static ReadyStep[] MakeReady(Script script, World world, SceneInstance scene, string? outputFolder, IRenderer? renderer, EventPayloads payloads)
+    private static ReadyStep[] MakeReady(Script script, World world, SceneInstance scene, string? outputFolder, IPlayback? playback, EventPayloads payloads)
     {
         script.CheckSteps();
         JsonSerializerOptions json = ScriptJson.Payloads(world, scene);
@@ -125,7 +112,7 @@ public static class ScriptRunner
                     break;
                 case CaptureStep { Name: var name } when !world.IsAlive(camera):
                     throw new ScriptException($"{where} (capture): a capture of '{name}' needs a live camera. Let the scene set one, or put a camera step before the capture.");
-                case CaptureStep { Name: var name } when renderer is null:
+                case CaptureStep { Name: var name } when playback is null:
                     throw new ScriptException($"{where} (capture): a capture of '{name}' needs a renderer, and the run has none.");
                 case CaptureStep { Name: var name } when outputFolder is null:
                     throw new ScriptException($"{where} (capture): a capture of '{name}' needs an output folder, and the run has none.");
@@ -181,8 +168,11 @@ public static class ScriptRunner
 }
 
 /// <summary>What a scripted run made: its state dumps and the paths of its captured images, each in the order taken.</summary>
-public sealed class RunResult(IReadOnlyList<StateDump> dumps, IReadOnlyList<string> captures)
+public sealed class RunResult(IReadOnlyList<StateDump> dumps, IReadOnlyList<string> captures, bool stopped = false)
 {
+    /// <summary>True if the playback stopped the run before its last step, for example because the user closed the window.</summary>
+    public bool Stopped => stopped;
+
     public IReadOnlyList<StateDump> Dumps => dumps;
 
     /// <summary>The path of each captured image, in the order taken.</summary>

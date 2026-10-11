@@ -101,7 +101,8 @@ public static class ScriptCommand
         world.Log += error.WriteLine;
         try
         {
-            RunResult result = ScriptRunner.Run(script, world, scene.Build(world, renderer ?? RenderResources.None), options.Out, renderer);
+            RunResult result = ScriptRunner.Run(script, world, scene.Build(world, renderer ?? RenderResources.None), options.Out,
+                renderer is null ? null : new HeadlessPlayback(renderer, script.Window));
             foreach (StateDump dump in result.Dumps)
                 output.WriteLine(Path.Combine(options.Out, dump.Name + ".json"));
             foreach (string capture in result.Captures)

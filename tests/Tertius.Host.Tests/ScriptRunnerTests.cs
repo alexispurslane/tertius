@@ -275,4 +275,38 @@ public class ScriptRunnerTests
 
         result.Dump("after").Camera.Should().BeNull("the camera entity is not alive");
     }
+
+    /// <summary>A playback that lets a number of ticks run and then stops the run, as closing the window does.</summary>
+    private sealed class StopsAfter(int ticks) : IPlayback
+    {
+        private int run;
+
+        public bool WaitForTick() => run++ < ticks;
+
+        public void Capture(World world, string path) => throw new InvalidOperationException("no captures in this test");
+    }
+
+    [Fact]
+    public void APlaybackThatStopsEndsTheRunAndTheStepsAfterItDoNotRun()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        RunResult result = ScriptRunner.Run(Script.Parse("""
+            { "scene": "test", "steps": [ { "do": "run", "ticks": 2 }, { "do": "dump", "name": "a" }, { "do": "run", "ticks": 5 }, { "do": "dump", "name": "b" } ] }
+            """), world, scene, playback: new StopsAfter(4));
+
+        result.Stopped.Should().BeTrue();
+        world.TickNumber.Should().Be(4);
+        result.Dumps.Select(d => d.Name).Should().Equal("a");
+    }
+
+    [Fact]
+    public void ARunThatEndsAfterItsLastStepWasNotStopped()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene, """{ "do": "run", "ticks": 2 }""").Stopped.Should().BeFalse();
+    }
 }

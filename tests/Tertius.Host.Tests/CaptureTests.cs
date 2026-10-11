@@ -32,7 +32,7 @@ public sealed class CaptureTests : IDisposable
         VulkanRenderer renderer = Headless(16, 16);
         try
         {
-            return ScriptRunner.Run(script, world, build(world, renderer), output, renderer);
+            return ScriptRunner.Run(script, world, build(world, renderer), output, new HeadlessPlayback(renderer, script.Window));
         }
         finally
         {
