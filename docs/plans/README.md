@@ -21,7 +21,7 @@ ARCHITECTURE.md stays the binding design. When a plan is done, its decisions mov
 
 ## Running now
 
-- The workflow `wf_a3ca6a19-5b4` is round six of the physics work. A full physics system already grows to twice its size, as the user decided. This round keeps contacts correct across two growths, and physics follows a change of a frame's motion driver. It also lets resting bodies sleep under gravity. The other bugs from the test stage are fixed and committed.
+- Round seven of the physics work fixes what round six broke. Bodies under weak gravity must not fall asleep in the air, and a slow change of acceleration must wake sleeping bodies. A frame's driver changes through the World, which refuses a driver that the hull cannot follow. The other bugs from the test stage are fixed and committed.
 
 The Simulation test stage is done and merged: 1,228 tests, none skipped.
 
