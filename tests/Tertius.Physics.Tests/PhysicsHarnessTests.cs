@@ -12,8 +12,9 @@ public class PhysicsHarnessTests
 {
     /// <summary>
     /// A ship frame that physics drives, 10 m along +X in space, with a cockpit frame inside it, a ball in space, a frame
-    /// with the physics driver whose owner has no body, a second root frame whose owner has a body, a bubble frame that
-    /// is gone from the tree, and a wreck whose body is gone.
+    /// with the physics driver whose owner has no body, a second root frame whose owner has a body, a third root frame with
+    /// the physics driver whose owner has a body, a dock frame with a static hull and a moon frame with the Kepler driver
+    /// and a kinematic hull, both in space, a bubble frame that is gone from the tree, and a wreck whose body is gone.
     /// </summary>
     private sealed class Scene : IDisposable
     {
@@ -28,6 +29,10 @@ public class PhysicsHarnessTests
             Drifter = H.AddFrame(Space, Shapes.At(300, 0, 0), FrameBounds.Sphere(5), MotionDriver.Physics);
             Island = H.AddFrameWithBody(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(10), MotionDriver.Static,
                 new BodyDesc(new SphereShapeDesc(5), BodyMotion.Static));
+            Raft = H.AddFrameWithBody(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(10), MotionDriver.Physics, Shapes.Box(2, mass: 100));
+            Dock = H.AddFrameWithBody(Space, Shapes.At(0, -200, 0), FrameBounds.Sphere(5), MotionDriver.Static,
+                new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static));
+            Moon = H.AddFrameWithBody(Space, Shapes.At(0, 200, 0), FrameBounds.Sphere(5), MotionDriver.Kepler, Shapes.Box(1, mass: 10));
             Gone = H.AddFrame(Space, Shapes.At(-500, 0, 0), FrameBounds.Sphere(5), MotionDriver.Static);
             H.Step();
             H.Frames.Destroy(Gone);
@@ -43,6 +48,9 @@ public class PhysicsHarnessTests
         public Entity Wreck { get; }
         public FrameHandle Drifter { get; }
         public FrameHandle Island { get; }
+        public FrameHandle Raft { get; }
+        public FrameHandle Dock { get; }
+        public FrameHandle Moon { get; }
         public FrameHandle Gone { get; }
 
         /// <summary>Adds <paramref name="broken"/> to the output of the next step, which then throws out of the step.</summary>
@@ -185,6 +193,30 @@ public class PhysicsHarnessTests
         Action step = scene.StepWith(output => output.Frames.Add(new FrameState(scene.Drifter, DPose.Identity, Double3.Zero, Vector3.Zero, Vector3.Zero)));
 
         step.Should().Throw<InvalidOperationException>().WithMessage($"*state of {scene.Drifter}*has no body*");
+    }
+
+    [Fact]
+    public void AFrameStateOfARootFrameThrowsOutOfTheStep()
+    {
+        using var scene = new Scene();
+
+        Action step = scene.StepWith(output => output.Frames.Add(new FrameState(scene.Raft, DPose.Identity, Double3.Zero, Vector3.Zero, Vector3.Zero)));
+
+        step.Should().Throw<InvalidOperationException>().WithMessage($"*state of {scene.Raft}*root frame*");
+    }
+
+    [Theory]
+    [InlineData(MotionDriver.Static)]
+    [InlineData(MotionDriver.Kepler)]
+    public void AHandOffOfTheOwnerOfAFrameThatPhysicsDoesNotDriveThrowsOutOfTheStep(MotionDriver driver)
+    {
+        using var scene = new Scene();
+        FrameHandle frame = driver == MotionDriver.Kepler ? scene.Moon : scene.Dock;
+
+        Action step = scene.StepWith(output => output.HandOffs.Add(HandOffOf(frame.Entity, scene.Space, scene.Ship)));
+
+        step.Should().Throw<InvalidOperationException>().WithMessage($"*hand-off of {frame.Entity}*physics does not drive {frame}*");
+        scene.H.Frames.Parent(frame).Should().Be(scene.Space);
     }
 
     [Fact]

@@ -50,12 +50,15 @@ public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Ind
 /// <item>Physics follows the frame tree. So a hand-off leaves the frame that its entity is in as the step began (for
 /// the owner of a frame, the frame's parent in the tree), and it enters another frame. The owner of a root frame is in
 /// no frame, so it never hands off. Each entity hands off at most once per step.</item>
+/// <item>Physics moves a frame only through the hull of a frame with the physics driver, which is a dynamic body in the
+/// system of the frame's parent. The hull of a frame with another driver is static or kinematic, and physics never hands
+/// it off. So the owner of a frame hands off only when its frame has the physics driver.</item>
+/// <item>For the same reason, a frame state names a live frame with the physics driver and a parent, whose owner has a
+/// body: the hull. A root frame has no parent, so its owner has no hull, and physics never reports its state.</item>
 /// <item>The hand-offs of a step, applied in their order, never put a frame under itself or under a frame inside it.
 /// Each hull starts the step in the system of its frame's parent, so its frame can only enter a sibling or leave for its
 /// parent's parent. It enters a sibling only when its bubble fits in the sibling's, and fitting is a strict order of
 /// size, so the entries of one step never close a loop.</item>
-/// <item>Physics drives a frame through the hull of the frame's owner. So a frame state names a live frame with the
-/// physics driver whose owner has a body.</item>
 /// <item>A contact names two different entities.</item>
 /// </list>
 /// <para>
@@ -178,8 +181,10 @@ public sealed class PhysicsOutputCheck
     private static string? MoveFault<TFacts>(in HandOff handOff, FrameTree frames, TFacts facts) where TFacts : IPhysicsOutputFacts
     {
         Entity entity = handOff.Entity;
-        FrameHandle current = frames.TryGetFrame(entity, out FrameHandle own) ? frames.Parent(own) : facts.FrameOf(entity);
+        bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle own);
+        FrameHandle current = ownsFrame ? frames.Parent(own) : facts.FrameOf(entity);
         return current.IsNull ? $"{entity} is in no frame, so it leaves none" :
+            ownsFrame && frames.Driver(own) != MotionDriver.Physics ? $"physics does not drive {own}, the frame that {entity} owns" :
             handOff.From != current ? $"{entity} is in {current}, not in {handOff.From}" :
             handOff.To == current ? $"it moves {entity} into {current}, which it is in already" :
             null;
@@ -192,6 +197,7 @@ public sealed class PhysicsOutputCheck
     private static string? DrivenFrameFault<TFacts>(FrameHandle frame, FrameTree frames, TFacts facts) where TFacts : IPhysicsOutputFacts =>
         !frames.IsAlive(frame) ? $"the stale frame {frame}" :
         frames.Driver(frame) != MotionDriver.Physics ? $"{frame}, because physics does not drive it" :
+        frames.Parent(frame).IsNull ? $"{frame}, because it is a root frame, so its owner has no hull" :
         BodyFault(frame.Entity, facts) is { } fault ? $"{frame}, because {fault}" :
         null;
 

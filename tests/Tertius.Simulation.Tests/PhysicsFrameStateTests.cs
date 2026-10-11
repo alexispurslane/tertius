@@ -76,7 +76,7 @@ public class PhysicsFrameStateTests
 
     // Physics hears of a destroyed frame before its next step, and it drives a frame only through the hull of a frame
     // with the physics driver. So only a bug in the backend reports a state for a frame that is gone, a frame with
-    // another driver, or a frame whose owner has no body.
+    // another driver, a frame whose owner has no body, or a root frame, whose owner has no hull.
 #if TERTIUS_CONTRACTS
     [Fact]
     public void AFrameStateForAFrameThatIsGoneBreaksAContract()
@@ -119,6 +119,20 @@ public class PhysicsFrameStateTests
         Action tick = () => test.World.Tick();
 
         tick.Should().Throw<ContractException>().WithMessage("*has no body*");
+    }
+
+    [Fact]
+    public void AFrameStateForARootFrameBreaksAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle raft = SpawnRootPhysicsFrameWithBody(test);
+        physics.OnStep((context, output) =>
+            output.Frames.Add(new FrameState(raft, TestWorld.At(1000), new Double3(5, 0, 0), Vector3.Zero, Vector3.Zero)));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage($"*state of {raft}*root frame*");
     }
 #else
     [Fact]
@@ -168,7 +182,36 @@ public class PhysicsFrameStateTests
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"state of {drifter}").And.Contain($"{drifter.Entity} has no body");
         test.World.Frames.LocalPose(drifter).Should().Be(TestWorld.At(100));
     }
+
+    [Fact]
+    public void AFrameStateForARootFrameIsReportedOnceAndMovesNothing()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle raft = SpawnRootPhysicsFrameWithBody(test);
+        physics.OnStep((context, output) =>
+        {
+            if (context.Tick == 0)
+                output.Frames.Add(new FrameState(raft, TestWorld.At(1000), new Double3(5, 0, 0), Vector3.Zero, Vector3.Zero));
+        });
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"state of {raft}").And.Contain("root frame");
+        test.World.Frames.LocalPose(raft).Should().Be(DPose.Identity);
+        test.World.Frames.LinearVelocity(raft).Should().Be(Double3.Zero);
+    }
 #endif
+
+    /// <summary>
+    /// A second root frame with the physics driver, whose owner has a body. A root frame has no parent, so the body is only
+    /// the interior in the frame's own system, and physics has no hull to drive the frame with.
+    /// </summary>
+    private static FrameHandle SpawnRootPhysicsFrameWithBody(TestWorld test) => test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+    {
+        AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Physics),
+        Body = new BodyDesc(new SphereShapeDesc(10), Mass: 1),
+    }));
 
     /// <summary>A frame with the physics driver, 100 m along +X, whose owner has no body, so physics has nothing to drive it with.</summary>
     private static FrameHandle SpawnBodilessPhysicsFrame(TestWorld test) => test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc

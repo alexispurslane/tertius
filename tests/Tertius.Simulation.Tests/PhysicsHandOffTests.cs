@@ -314,6 +314,24 @@ public class PhysicsHandOffTests
 
         tick.Should().Throw<ContractException>();
     }
+
+    // Physics moves a frame only through the hull of a frame with the physics driver. The hull of a static frame is static
+    // and the hull of a Kepler frame is kinematic, and physics hands neither of them off.
+    [Theory]
+    [InlineData(MotionDriver.Static)]
+    [InlineData(MotionDriver.Kepler)]
+    public void AHandOffOfTheOwnerOfAFrameThatPhysicsDoesNotDriveBreaksAContract(MotionDriver driver)
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity owner = SpawnFrameWithHull(test, driver, out FrameHandle frame);
+        FrameHandle yard = test.SpawnStaticFrame(TestWorld.At(5), radius: 100);
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(owner, test.Root, yard, TestWorld.At(-5), default, default)));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage($"*hand-off of {owner}*physics does not drive {frame}*");
+    }
 #else
     [Fact]
     public void AHandOffOfAnEntityThatNoLongerExistsIsReportedOnceAndChangesNothing()
@@ -454,6 +472,29 @@ public class PhysicsHandOffTests
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {islandOwner}").And.Contain($"{islandOwner} is in no frame");
         test.World.Frames.Parent(island).Should().Be(FrameHandle.Null, "a root frame stays a root");
         test.World.GetFrame(islandOwner).Should().Be(FrameHandle.Null);
+        test.World.AssertInvariants();
+    }
+
+    [Theory]
+    [InlineData(MotionDriver.Static)]
+    [InlineData(MotionDriver.Kepler)]
+    public void AHandOffOfTheOwnerOfAFrameThatPhysicsDoesNotDriveIsReportedOnceAndTheFrameStaysUnderItsParent(MotionDriver driver)
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity owner = SpawnFrameWithHull(test, driver, out FrameHandle frame);
+        FrameHandle yard = test.SpawnStaticFrame(TestWorld.At(5), radius: 100);
+        physics.OnStep((context, output) =>
+        {
+            if (context.Tick == 0)
+                output.HandOffs.Add(new HandOff(owner, test.Root, yard, TestWorld.At(-5), default, default));
+        });
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {owner}").And.Contain($"physics does not drive {frame}");
+        test.World.Frames.Parent(frame).Should().Be(test.Root);
+        test.World.GetFrame(owner).Should().Be(test.Root);
         test.World.AssertInvariants();
     }
 
@@ -729,6 +770,23 @@ public class PhysicsHandOffTests
         AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
         Body = new BodyDesc(new SphereShapeDesc(5), BodyMotion.Static),
     });
+
+    /// <summary>
+    /// A frame of radius 10 m at the origin of the root, with <paramref name="driver"/>, whose owner has a hull in the root:
+    /// a static body for the static driver, a kinematic one for the Kepler driver.
+    /// </summary>
+    private static Entity SpawnFrameWithHull(TestWorld test, MotionDriver driver, out FrameHandle frame)
+    {
+        Entity owner = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Pose = TestWorld.At(0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), driver == MotionDriver.Kepler ? BodyMotion.Kinematic : BodyMotion.Static),
+        });
+        frame = test.World.GetOwnedFrame(owner);
+        return owner;
+    }
 
     /// <summary>A small ship: a frame that physics moves, whose owner has a hull body in the parent frame.</summary>
     private static Entity SpawnFighter(TestWorld test, DPose pose, out FrameHandle frame, params IComponent[] components)

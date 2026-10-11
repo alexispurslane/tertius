@@ -182,9 +182,10 @@ public readonly record struct FrameState(FrameHandle Frame, DPose LocalPose, Dou
 /// <summary>
 /// Results of one step. The backend fills it on the physics thread. The sync point reads and clears it. Every entity
 /// that the output names is live and has a body, and every frame that it names is alive and not null. A hand-off leaves
-/// the frame that its entity is in, each entity hands off at most once, a frame state names a frame with the physics
-/// driver, and a contact names two different entities. <see cref="PhysicsOutputCheck"/> holds the full rules, and the
-/// sync point treats any other output as a bug in the backend: see ARCHITECTURE.md, "Threads and the tick", step 2.
+/// the frame that its entity is in, each entity hands off at most once, and the owner of a frame hands off only when
+/// the frame has the physics driver. A frame state names a frame with the physics driver and a parent, whose owner has
+/// a body. A contact names two different entities. <see cref="PhysicsOutputCheck"/> holds the full rules, and the sync
+/// point treats any other output as a bug in the backend: see ARCHITECTURE.md, "Threads and the tick", step 2.
 /// </summary>
 public sealed class PhysicsStepOutput
 {
