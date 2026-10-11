@@ -224,9 +224,11 @@ The scene graph inside a frame uses the same `PoseTree`, with the float `Pose`.
 - Physics: the frame's hull is a dynamic body in the parent frame's physics system. Its pose and velocity come from that body after each step. The proper acceleration is the velocity change over the step minus the gravity that the parent applied.
 - Static: the pose does not change.
 
-A game can give a frame a new driver between ticks with `FrameTree.SetDriver`, for example to park a ship. A frame that gets the static driver stops where it is: both of its velocities become zero. It keeps its proper acceleration, so the cargo of a ship that is parked on the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until the new driver moves it.
+A game gives a frame a new driver between ticks with `World.SetFrameDriver`, for example to park a ship. `FrameTree.SetDriver` is internal to the simulation. The world refuses the call during a tick, because physics reads the frame tree on its own thread then. A frame that gets the static driver stops where it is: both of its velocities become zero. It keeps its proper acceleration, so the cargo of a ship that is parked on the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until the new driver moves it. The transform of the frame's owner follows the frame at once.
 
-A new driver changes the version of the frame tree. Physics then follows the new driver at the start of its next step, as it follows a reparent. The hull keeps its body and its contacts, and it gets the motion that the new driver needs: dynamic for the physics driver, kinematic for the Kepler driver, and static for the static driver. It starts from the frame's pose and velocity in the tree. Jolt cannot move a mesh, and a dynamic body needs mass. So a mesh hull stays static at the frame's pose in the tree, and so does a hull without mass under the physics driver. Physics then writes a warning.
+The world refuses a driver that `MotionDriver` does not define, and a driver that the frame cannot follow. The physics driver needs a dynamic hull, which has mass and is not a mesh. Jolt never moves a mesh. The Kepler driver needs a hull that is not a mesh, and a valid orbit. A valid orbit is closed, with a positive semi-major axis around a parent with a positive mass. The world refuses the same hulls at spawn. So if the owner of a frame with the physics driver has a body, that body is a dynamic hull.
+
+Each call changes the version of the frame tree, also a call that gives a frame the driver that it has. Physics then follows the call at the start of its next step, as it follows a reparent. The hull keeps its body, and it gets the motion that the driver needs: dynamic for the physics driver, kinematic for the Kepler driver, and static for the static driver. It starts from the frame's pose and velocity in the tree. So a park and an unpark between two ticks stop the ship. A driver that the hull cannot follow comes only from a bug. It breaks a contract in a Debug build. A Release build keeps the motion of the hull and writes a warning.
 
 ### Gravity
 
@@ -284,7 +286,11 @@ Object layers:
 
 A frame entity has two bodies. In the parent system, its hull is a body on the `FrameHull` layer. In its own system, the same hull shape is static geometry on the `Static` layer. This includes the exterior surfaces, so that a person on a spacewalk can stand on the hull. Objects inside do not push the hull body.
 
-Gravity is a force that physics applies to each awake dynamic body before each step. The Jolt system gravity is zero. The force does not wake a sleeping body, and it does not reset the sleep timer of an awake body. So a body at rest under gravity falls asleep, and it costs nothing until something wakes it.
+Gravity is a force that physics applies to each awake dynamic body before each step. The Jolt system gravity is zero. The force does not wake a sleeping body, and it does not reset the sleep timer of an awake body.
+
+If a body moves less than about 3 cm in half a second, Jolt puts it to sleep. In gravity below about 0.24 m/s², a body that gravity starts to pull from rest also moves that little. So physics lets a body sleep only while gravity does not accelerate it. The velocity of such a body changed by less than half of g · dt since the last step. Something holds it, such as a floor or the stack under it. A body at rest on something falls asleep, and it costs nothing until something wakes it. A falling body stays awake, and so does a stack of bodies that falls together. Without gravity, the rule of Jolt alone decides.
+
+If the gravity field of a frame changes, the sleeping bodies of the frame wake. If the proper acceleration of the frame moved more than `WakeAccelerationThreshold` away from its value at their last wake, they wake too. So if the thrust of a ship changes, even slowly, its cargo wakes.
 
 These Jolt settings differ from the Jolt defaults:
 
@@ -301,11 +307,17 @@ A physics-driven hull in orbit is integrated with float velocities, so its orbit
 
 The character controller is a capsule. It stands on whatever is below it and inherits that surface's velocity. It uses the frame's effective gravity. Near zero effective gravity, it switches to zero-g movement.
 
+### Contacts
+
+If two bodies start to touch, physics reports the contact once. It reports the contact again only after the bodies separate. Jolt finds contacts only for the bodies that it simulates, and it does not simulate a sleeping or a static body. A body can fall asleep on something static or asleep, or a hull can become static on a floor. If the rest of the system keeps stepping then, Jolt drops the contact. After the body wakes or moves, Jolt finds the contact again.
+
+Physics holds each contact that Jolt drops. If Jolt finds a held contact again, the contact continues, and physics does not report it. A held contact ends at the first step that simulates one of its two bodies without finding the contact. For example, the game can lift a sleeping box off the floor. The box then reports the floor again at its landing. In each step of a system, physics visits every held contact of that system.
+
 ### Physics systems that grow
 
 Jolt creates each physics system with buffers of a fixed size. So a system holds a fixed number of bodies. Ghosts and the inner bodies of characters count too. Physics never refuses a body for lack of room. It adds a body or a character to a full system in three steps. First, it builds a new system with twice the limits for bodies, body pairs and contact constraints. Then it moves every body of the old system into the new one. Last, it adds the new body. This happens in one place, so every path that adds a body gets it: a new body, an interior, a ghost, a hand-off, and a hull that the reconcile moves.
 
-The move keeps the state of each body. A rigid body keeps its ID, its shape, motion type, layer, mass, material and user data, its pose and velocities, and whether it sleeps. A character keeps its pose, velocity and up direction, and it finds its ground again. Each pair of bodies that touches stays in contact, so physics does not report the contact again. This holds for any number of growths before the next update of the system: each growth carries over the pairs that touched before the first of those growths. Two things stay behind, because the C API of Jolt cannot save them. The first step in the new system solves its contacts without the impulses of the last step. Also, the sleep timer of each body starts again.
+The move keeps the state of each body. A rigid body keeps its ID, its shape, motion type, layer, mass, material and user data, its pose and velocities, and whether it sleeps. A character keeps its pose, velocity and up direction, and it finds its ground again. Each pair of bodies that touches stays in contact, so physics does not report the contact again. The new system starts with no contacts, so physics holds each pair, as it holds a contact that Jolt drops (see "Contacts"). This holds for any number of growths. Two things stay behind, because the C API of Jolt cannot save them. The first step in the new system solves its contacts without the impulses of the last step. Also, the sleep timer of each body starts again.
 
 The bodies move in the order of their IDs, and the characters after them. So two runs that grow at the same tick stay the same, bit for bit. A growth costs one pause, in proportion to the number of bodies in the frame, each time that the frame doubles. Physics writes a warning each time. A frame that is known to be large can start larger: raise `MaxBodiesPerFrame` in the backend options.
 
@@ -313,7 +325,7 @@ The bodies move in the order of their IDs, and the characters after them. So two
 
 A state that only a bug can produce breaks a contract in a Debug build. A Release build skips it and records it in `World.Errors`. A contract that the physics backend breaks is a bug too. It escapes `World.Tick` on the ticking thread, with the stack of the physics thread, and the world does not record it as a failed step.
 
-For physics output, the facts below define a correct backend. Entities and frames die only in step 5 of the sync point or outside a tick. Physics hears of each death before its next step. An entity keeps its body for its whole life, because a full physics system grows. Each hull starts a step in the system of its frame's parent. So its frame can only enter a sibling or leave for the parent's parent. Physics moves a frame only through the hull of a frame with the physics driver. That hull is a dynamic body. Physics follows a new driver at the start of its next step. So the hull of a frame with another driver is static or kinematic. Physics never hands such a hull off. A root frame has no parent, so its owner has no hull.
+For physics output, the facts below define a correct backend. Entities and frames die only in step 5 of the sync point or outside a tick. Physics hears of each death before its next step. An entity keeps its body for its whole life, because a full physics system grows. Each hull starts a step in the system of its frame's parent. So its frame can only enter a sibling or leave for the parent's parent. Physics moves a frame only through the hull of a frame with the physics driver. The world refuses that driver for a frame whose hull cannot be dynamic, at spawn and at a driver change. So that hull is a dynamic body. Physics follows a new driver at the start of its next step. So the hull of a frame with another driver is static or kinematic. Physics never hands such a hull off. A root frame has no parent, so its owner has no hull.
 
 So step 2 of the sync point checks each output before any state lands:
 
