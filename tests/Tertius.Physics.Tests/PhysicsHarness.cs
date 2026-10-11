@@ -4,7 +4,9 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// Drives <see cref="JoltPhysicsBackend"/> the way the sync point does, without the simulation: it applies body
-/// states, hand-offs and frame states from the physics output, advances Kepler frames, and feeds intents.
+/// states, hand-offs and frame states from the physics output, advances Kepler frames, and feeds intents. A hand-off
+/// that the frame tree refuses throws out of <see cref="Step"/>, so a test whose backend proposes an impossible
+/// hand-off fails loudly. A test that wants a refusal on purpose sets <see cref="RefusesHandOff"/>.
 /// </summary>
 internal sealed class PhysicsHarness : IDisposable
 {
@@ -14,6 +16,8 @@ internal sealed class PhysicsHarness : IDisposable
     private PhysicsIntent[] intents = new PhysicsIntent[64];
     private readonly List<Entity> intentEntities = new();
     private readonly List<FrameHandle> frameScratch = new();
+    // The entities whose hand-off the current step refused.
+    private readonly HashSet<Entity> refusedEntities = new();
 
     public PhysicsHarness(JoltBackendOptions? options = null)
     {
@@ -37,15 +41,15 @@ internal sealed class PhysicsHarness : IDisposable
     public Action<PhysicsStepOutput>? AfterStep { get; set; }
 
     /// <summary>
-    /// Says whether the simulation takes a hand-off. Null takes every hand-off that the frame tree accepts. A test sets
-    /// it to model a simulation that keeps an entity, and the frame it owns, where they were.
+    /// Opts a test in to refused hand-offs, and names the hand-offs that the simulation refuses. Null by default: the
+    /// harness takes every hand-off. A test that provokes a refusal on purpose sets it. The harness then treats each
+    /// hand-off that it names as the sync point treats a refused one: it skips the hand-off, the entity's body state from
+    /// that step and the state of the frame that the entity owns, so the entity and its frame keep the state they had
+    /// before the step. A hand-off that the frame tree refuses throws out of <see cref="Step"/> in every case.
     /// </summary>
-    public Func<HandOff, bool>? TakesHandOff { get; set; }
+    public Func<HandOff, bool>? RefusesHandOff { get; set; }
 
-    /// <summary>
-    /// The hand-offs that the simulation did not take, as the sync point refuses them: <see cref="TakesHandOff"/> said
-    /// no, or the frame tree refused to move the entity's frame under the target.
-    /// </summary>
+    /// <summary>The hand-offs that <see cref="RefusesHandOff"/> refused, in the order of the steps.</summary>
     public List<HandOff> RefusedHandOffs { get; } = new();
 
     public Entity NewEntity() => new(nextEntity++, 1);
@@ -158,20 +162,29 @@ internal sealed class PhysicsHarness : IDisposable
         var context = new PhysicsStepContext(Tick, Dt, Time, Frames, intents, intentEntities.ToArray());
         Backend.Step(context, Output);
 
+        refusedEntities.Clear();
         foreach (HandOff handOff in Output.HandOffs)
         {
             HandOffs.Add(handOff);
-            if (!Take(handOff))
+            if (RefusesHandOff is { } refuses && refuses(handOff))
             {
                 RefusedHandOffs.Add(handOff);
+                refusedEntities.Add(handOff.Entity);
                 continue;
             }
+            // The frame tree throws, and changes nothing, if the move would put a frame under itself or its descendant.
+            if (Frames.TryGetFrame(handOff.Entity, out FrameHandle frame))
+                Frames.Reparent(frame, handOff.To);
             States[handOff.Entity] = new BodyState(handOff.Entity, handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity);
         }
+        // Physics reported these states relative to the target of a refused hand-off, so they are useless here.
         foreach (BodyState body in Output.Bodies)
-            States[body.Entity] = body;
+            if (!refusedEntities.Contains(body.Entity))
+                States[body.Entity] = body;
         foreach (FrameState state in Output.Frames)
         {
+            if (refusedEntities.Contains(state.Frame.Entity))
+                continue;
             Frames.SetLocalPose(state.Frame, state.LocalPose);
             Frames.LinearVelocity(state.Frame) = state.LinearVelocity;
             Frames.AngularVelocity(state.Frame) = state.AngularVelocity;
@@ -188,25 +201,6 @@ internal sealed class PhysicsHarness : IDisposable
         Tick++;
         AdvanceKeplerFrames();
         Frames.Update();
-    }
-
-    /// <summary>Moves the frame that the entity of a hand-off owns under the target, unless the simulation does not take the hand-off.</summary>
-    private bool Take(in HandOff handOff)
-    {
-        if (TakesHandOff is { } takes && !takes(handOff))
-            return false;
-        if (!Frames.TryGetFrame(handOff.Entity, out FrameHandle frame))
-            return true;
-        try
-        {
-            Frames.Reparent(frame, handOff.To);
-            return true;
-        }
-        catch (InvalidOperationException)
-        {
-            // The tree refuses to put a frame under itself or its own descendant, and changes nothing.
-            return false;
-        }
     }
 
     private void AdvanceKeplerFrames()

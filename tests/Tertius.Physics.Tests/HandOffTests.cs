@@ -260,7 +260,7 @@ public class HandOffTests
         // from the second step on, sees the annex beside the ship. The ship's hull would fit in the annex's bubble,
         // and touches it.
         FrameHandle annex = h.AddFrameWithBody(ship, Shapes.At(33, 0, 0), FrameBounds.Sphere(30), MotionDriver.Physics, Shapes.Box(1, mass: 10));
-        h.TakesHandOff = handOff => handOff.Entity != annex.Entity;
+        h.RefusesHandOff = handOff => handOff.Entity == annex.Entity;
 
         h.Step(3);
 
