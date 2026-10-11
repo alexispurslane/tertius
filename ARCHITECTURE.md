@@ -257,7 +257,7 @@ Physics follows the frame tree, and the tree is the authority. Each hand-off is 
 
 At the start of every step, physics reconciles with the tree. First it drops every hand-off of a frame from the last step, whether the tree took it or not. Then it puts the hull of each frame into the physics system of the frame's parent in the tree. A hull that changes systems this way restarts from the frame's pose and velocity in the tree. So after a refused hand-off, the hull loses the motion of the refused step. The same reconcile follows the changes that the game makes to the tree between ticks, for example a reparent that docks a ship. Physics also reconciles each time that the simulation gives it a batch of structural changes.
 
-If the system of the parent is full, the hull gets no body. Physics writes a warning to its log and goes on with the other hulls. A hull without a body does not move or collide, and physics reports nothing for it. Its frame keeps the state that the tree gives it. Until the hull has a body again, physics reconciles at the start of every step and tries again.
+If the system of the parent is full, that system grows first. "Physics systems that grow" under "Physics" tells how. So every hull gets its body in the system that the tree names.
 
 ### Ghosts
 
@@ -289,7 +289,7 @@ These Jolt settings differ from the Jolt defaults:
 | Penetration slop | 0.005 m | Jolt uses 0.02 m, which is visible on small props. |
 | Maximum linear velocity | 30 km/s | Orbital speeds reach about 8 km/s, and Jolt clamps at 500 m/s. |
 | Motion quality | Linear cast | Fast bodies must not tunnel through thin walls. |
-| Bodies per frame system | 4,096 | Jolt sizes its buffers up front. A larger frame needs larger options. |
+| Bodies per frame system | 4,096 at first | Jolt sizes its buffers up front. A full system grows to twice the size. |
 
 Proper acceleration has a dead band. A component below the float resolution of the hull velocity, divided by the time step, reads as zero. Without it, cargo in an orbiting ship drifts on float noise.
 
@@ -297,20 +297,31 @@ A physics-driven hull in orbit is integrated with float velocities, so its orbit
 
 The character controller is a capsule. It stands on whatever is below it and inherits that surface's velocity. It uses the frame's effective gravity. Near zero effective gravity, it switches to zero-g movement.
 
+### Physics systems that grow
+
+Jolt creates each physics system with buffers of a fixed size. So a system holds a fixed number of bodies. Ghosts and the inner bodies of characters count too. Physics never refuses a body for lack of room. It adds a body or a character to a full system in three steps. First, it builds a new system with twice the limits for bodies, body pairs and contact constraints. Then it moves every body of the old system into the new one. Last, it adds the new body. This happens in one place, so every path that adds a body gets it: a new body, an interior, a ghost, a hand-off, and a hull that the reconcile moves.
+
+The move keeps the state of each body. A rigid body keeps its ID, its shape, motion type, layer, mass, material and user data, its pose and velocities, and whether it sleeps. A character keeps its pose, velocity and up direction, and it finds its ground again. Each pair of bodies that touches stays in contact, so physics does not report the contact again. Two things stay behind, because the C API of Jolt cannot save them. The first step in the new system solves its contacts without the impulses of the last step. Also, the sleep timer of each body starts again.
+
+The bodies move in the order of their IDs, and the characters after them. So two runs that grow at the same tick stay the same, bit for bit. A growth costs one pause, in proportion to the number of bodies in the frame, each time that the frame doubles. Physics writes a warning each time. A frame that is known to be large can start larger: raise `MaxBodiesPerFrame` in the backend options.
+
 ### Output that only a bug produces
 
-A state that only a bug can produce breaks a contract in a Debug build. A Release build skips it and records it in `World.Errors`.
+A state that only a bug can produce breaks a contract in a Debug build. A Release build skips it and records it in `World.Errors`. A contract that the physics backend breaks is a bug too. It escapes `World.Tick` on the ticking thread, with the stack of the physics thread, and the world does not record it as a failed step.
 
-For physics output, the facts below define a correct backend. Entities and frames die only in step 5 of the sync point or outside a tick. Physics hears of each death before its next step. An entity keeps its body for its whole life. Each hull starts a step in the system of its frame's parent. So its frame can only enter a sibling or leave for the parent's parent.
+For physics output, the facts below define a correct backend. Entities and frames die only in step 5 of the sync point or outside a tick. Physics hears of each death before its next step. An entity keeps its body for its whole life, because a full physics system grows. Each hull starts a step in the system of its frame's parent. So its frame can only enter a sibling or leave for the parent's parent. Physics moves a frame only through the hull of a frame with the physics driver.
 
 So step 2 of the sync point checks each output before any state lands:
 
 1. A body state names a live entity that has a body, and a live frame.
-2. A hand-off names a live entity that has a body, and a live target frame. The hand-off of a frame never puts the frame under itself or under a frame inside it.
-3. A frame state names a live frame.
-4. A contact names two live entities that have a body, and a live frame.
+2. A hand-off names a live entity that has a body, and a live target frame. It leaves the frame that the entity is in at the start of the step. For the owner of a frame, that is the frame's parent in the tree. The owner of a root frame is in no frame, so it never hands off. The target is a different frame. Each entity has at most one hand-off in a step.
+3. The hand-offs of a step, applied in their order, never put a frame under itself or under a frame inside it.
+4. A frame state names a live frame with the physics driver, and the owner of that frame has a body.
+5. A contact names two different live entities that have a body, and a live frame.
 
-If an output fails a check, a Release build skips the whole physics update of each entity that the output names, for that step. It records one error. For a frame state, the entity is the owner of the frame. The whole update of an entity is its body state, its hand-off, the state of its own frame, and its contacts.
+The class `PhysicsOutputCheck` in `Tertius.Core` holds these checks. The sync point uses it. The physics tests use it too, in the class that stands in for the sync point. So the tests apply the same rules as the engine.
+
+If an output fails a check, a Release build skips the whole physics update of each entity that the output names, for that step. For a frame state, the entity is the owner of the frame. The whole update of an entity is its body state, its hand-off, the state of its own frame, and its contacts. The sync point records exactly one error for each output that fails. An output that fails more than one check still records one error. An output whose entities another failed output skipped already still records its own error.
 
 The skip does not change physics. At the next reconcile, a frame hull goes back to where the tree says. A plain body that physics moved into a frame that is gone stays in that system. When physics finds that the frame is gone, it removes the body with a warning.
 
