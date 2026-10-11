@@ -74,8 +74,25 @@ public class PhysicsFrameStateTests
         PoseChecks.AssertNear(inRoot.Position, new Double3(5, 7, 7));
     }
 
+    // Physics hears of a destroyed frame before its next step, so only a bug in the backend reports a state for it.
+#if TERTIUS_CONTRACTS
     [Fact]
-    public void AFrameStateForAFrameThatNoLongerExistsIsIgnored()
+    public void AFrameStateForAFrameThatIsGoneBreaksAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        SpawnShip(test, test.Root, out FrameHandle gone);
+        test.World.Destroy(gone.Entity);
+        physics.OnStep((context, output) =>
+            output.Frames.Add(new FrameState(gone, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero)));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>();
+    }
+#else
+    [Fact]
+    public void AFrameStateForAFrameThatIsGoneIsReportedOnceAndChangesNoFrame()
     {
         IPhysicsBackend physics = TestPhysics.Create();
         using var test = new TestWorld(physics);
@@ -87,9 +104,10 @@ public class PhysicsFrameStateTests
 
         test.Run(1);
 
-        test.World.Errors.Should().BeEmpty();
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"stale frame {gone}");
         test.World.Frames.LocalPose(other).Position.Should().Be(new Double3(100, 0, 0));
     }
+#endif
 
     [Fact]
     public void PhysicsHearsOfAFrameNoLaterThanItHearsOfTheFramesHullBody()

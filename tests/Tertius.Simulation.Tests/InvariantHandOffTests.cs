@@ -5,12 +5,31 @@ using NSubstitute;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// Physics reports where bodies went, and the report can be wrong: a hand-off that would put a frame inside itself, or
-/// into a frame that is gone. The world must refuse such a hand-off, say so in <see cref="World.Errors"/>, and stay
-/// coherent: every invariant holds, and nothing about the refused entity changes.
+/// Physics follows the frame tree, so it never reports a hand-off that would put a frame inside itself, a hand-off into a
+/// frame that is gone, or a body state in a frame that is gone. Only a bug in the backend reports one. In Debug builds
+/// that breaks a contract. In Release builds the world skips the whole update of that entity for the step, says so once
+/// in <see cref="World.Errors"/>, and stays coherent: every invariant holds, and nothing about the entity changes.
 /// </summary>
 public class InvariantHandOffTests
 {
+#if TERTIUS_CONTRACTS
+    [Fact]
+    public void ABodyStateInAFrameThatIsGoneBreaksAContract()
+    {
+        FrameHandle gone = default;
+        Entity body = default;
+        using var test = new TestWorld(TestPhysics.Create((context, output) =>
+            output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), Vector3.Zero, Vector3.Zero))));
+        World world = test.World;
+        gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
+        body = world.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
+        world.Destroy(gone.Entity).Should().BeTrue();
+
+        Action tick = () => world.Tick();
+
+        tick.Should().Throw<ContractException>();
+    }
+#else
     /// <summary>
     /// A world with a hull: a frame <see cref="Hull"/> that physics drives, whose owner has a body and a velocity of
     /// (1, 2, 3), in the root frame, and a static frame <see cref="Inner"/> inside the hull.
@@ -148,4 +167,45 @@ public class InvariantHandOffTests
         world.GetVelocity(body).Should().Be(new Vector3(1, 2, 3));
         world.GetAngularVelocity(body).Should().Be(Vector3.Zero);
     }
+
+    [Fact]
+    public void ABodyStateInAFrameThatIsGoneAlsoSkipsTheHandOffAndTheFrameStateOfItsEntity()
+    {
+        FrameHandle root = default, gone = default, station = default, hull = default;
+        Entity owner = default;
+        using var test = new TestWorld(TestPhysics.Create((context, output) =>
+        {
+            if (context.Tick != 0)
+                return;
+            output.Bodies.Add(new BodyState(owner, gone, TestWorld.At(1), Vector3.Zero, Vector3.Zero));
+            output.HandOffs.Add(new HandOff(owner, root, station, TestWorld.At(1), Vector3.Zero, Vector3.Zero));
+            output.Frames.Add(new FrameState(hull, TestWorld.At(1), Double3.Zero, Vector3.Zero, Vector3.Zero));
+        }));
+        World world = test.World;
+        root = test.Root;
+        station = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 100);
+        gone = world.SpawnStaticFrame(test.Root, TestWorld.At(500), radius: 5);
+        owner = world.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Pose = TestWorld.At(100),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Physics),
+            Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+            LinearVelocity = new Vector3(1, 2, 3),
+        });
+        hull = world.GetOwnedFrame(owner);
+        world.Destroy(gone.Entity).Should().BeTrue();
+
+        world.Tick();
+
+        // The hand-off to the station is legal, but it comes from the same broken report as the body state.
+        world.Errors.Should().ContainSingle().Which.Should().Contain("stale frame");
+        world.Frames.Parent(hull).Should().Be(test.Root);
+        world.Frames.LocalPose(hull).Should().Be(TestWorld.At(100));
+        world.Frames.LinearVelocity(hull).Should().Be(new Double3(1, 2, 3));
+        world.GetFrame(owner).Should().Be(test.Root);
+        world.GetPose(owner).Should().Be(TestWorld.At(100));
+        world.AssertInvariants();
+    }
+#endif
 }

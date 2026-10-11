@@ -174,6 +174,55 @@ public class PhysicsHandOffTests
     }
 
     [Fact]
+    public void AHandOffOfAnEntityThatNoLongerExistsIsIgnored()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        Entity gone = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
+        Entity bystander = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), Body = TestWorld.Ball });
+        test.World.Destroy(gone);
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(gone, test.Root, station, TestWorld.At(9), default, default)));
+
+        test.Run(1);
+
+        test.World.Errors.Should().BeEmpty();
+        test.World.GetFrame(bystander).Should().Be(test.Root);
+    }
+
+    // Physics follows the frame tree, so it hands off only into frames that the tree has, and never puts a frame inside
+    // itself. A hand-off that breaks either rule comes only from a bug in the backend.
+#if TERTIUS_CONTRACTS
+    [Fact]
+    public void AHandOffToAFrameThatIsGoneBreaksAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle gone = test.SpawnStaticFrame(TestWorld.At(0), radius: 10);
+        test.World.Destroy(gone.Entity);
+        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(ball, test.Root, gone, TestWorld.At(9), default, default)));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>();
+    }
+
+    [Fact]
+    public void AHandOffThatTheFrameTreeRefusesBreaksAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity fighterOwner = SpawnFighter(test, TestWorld.At(0), out FrameHandle fighter);
+        FrameHandle cockpit = test.World.SpawnStaticFrame(fighter, TestWorld.At(1), radius: 2);
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(fighterOwner, test.Root, cockpit, TestWorld.At(0), default, default)));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>();
+    }
+#else
+    [Fact]
     public void AHandOffToAStaleFrameIsReportedAndTheEntityStaysWhereItWas()
     {
         IPhysicsBackend physics = TestPhysics.Create();
@@ -213,23 +262,6 @@ public class PhysicsHandOffTests
         test.World.Errors.Should().ContainSingle().Which.Should().Contain("stale frame");
         test.World.Frames.LocalPose(fighter).Should().Be(TestWorld.At(100));
         test.World.GetPose(fighterOwner).Should().Be(TestWorld.At(100));
-    }
-
-    [Fact]
-    public void AHandOffOfAnEntityThatNoLongerExistsIsIgnored()
-    {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
-        Entity gone = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        Entity bystander = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), Body = TestWorld.Ball });
-        test.World.Destroy(gone);
-        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(gone, test.Root, station, TestWorld.At(9), default, default)));
-
-        test.Run(1);
-
-        test.World.Errors.Should().BeEmpty();
-        test.World.GetFrame(bystander).Should().Be(test.Root);
     }
 
     [Fact]
@@ -404,6 +436,8 @@ public class PhysicsHandOffTests
         string error = scene.World.Errors.Should().ContainSingle().Subject;
         error.Should().Contain($"refused the hand-off of {scene.Owner} from {scene.Test.Root} to {scene.Cockpit}");
     }
+
+#endif
 
     /// <summary>A small ship: a frame that physics moves, whose owner has a hull body in the parent frame.</summary>
     private static Entity SpawnFighter(TestWorld test, DPose pose, out FrameHandle frame, params IComponent[] components)
