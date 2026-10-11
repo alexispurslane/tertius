@@ -441,15 +441,14 @@ internal sealed class EntityTable
     /// <summary>
     /// Makes a reserved entity live: writes both copies of every row and the cached mask. The entity runs its first tick
     /// after the next sync point. Throws <see cref="StaleEntityException"/> if the handle does not name its slot's
-    /// current reservation.
+    /// current reservation, which includes a handle to a live entity.
     /// </summary>
     public void Activate(Entity entity, in TransformRow row, in RenderData render, IComponent[] components, EventMask[] wants, BodyDesc? body, FrameHandle ownedFrame)
     {
         Contract.Requires(!gameplayRunning);
-        if (!IsCurrent(entity))
+        if (!IsCurrentReservation(entity))
             StaleEntityException.Throw(entity);
         uint slot = entity.Index;
-        Contract.Requires(state[slot] == SlotState.Reserved);
         Contract.Requires(components.Length == wants.Length);
         records[slot] = new Record { Components = components, Wants = wants, Body = body, OwnedFrame = ownedFrame };
         frontTransform[slot] = row;
@@ -894,14 +893,20 @@ internal sealed class EntityTable
     }
 
     /// <summary>
-    /// True if the handle names its slot's current reservation or live entity: what <see cref="Activate"/> and
-    /// <see cref="Release"/> act on. A fresh slot has generation 0 and is free, so the null handle never passes.
+    /// True if the handle names its slot's current reservation or live entity: what <see cref="Release"/> acts on. A
+    /// fresh slot has generation 0 and is free, so the null handle never passes.
     /// </summary>
     private bool IsCurrent(Entity entity)
     {
         uint slot = entity.Index;
         return slot < (uint)generation.Length && generation[slot] == entity.Generation && state[slot] != SlotState.Free;
     }
+
+    /// <summary>
+    /// True if the handle names its slot's current reservation, and not a live entity: what <see cref="Activate"/> acts
+    /// on. The null handle never passes, as with <see cref="IsCurrent"/>.
+    /// </summary>
+    private bool IsCurrentReservation(Entity entity) => IsCurrent(entity) && state[entity.Index] == SlotState.Reserved;
 
     private int ChunkCountFor(int slots) => (slots + chunkSize - 1) / chunkSize;
 

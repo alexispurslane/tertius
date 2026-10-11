@@ -180,6 +180,20 @@ public class StaleHandleTests
         table.IsAlive(next).Should().BeFalse();
     }
 
+    // Not a contract: the check must hold in Release too, where a second activation would count the entity twice.
+    [Fact]
+    public void ALiveEntityCannotBeActivatedAgain()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity live = table.SpawnLive();
+
+        Action activate = () => table.Activate(live, RowAt(9), new RenderData(), [], [], null, FrameHandle.Null);
+
+        activate.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(live);
+        table.LiveCount.Should().Be(1);
+        table.AssertInvariants();
+    }
+
     [Fact]
     public void AStaleSpawnerCannotReserveASlotFromTheSuccessorsPool()
     {

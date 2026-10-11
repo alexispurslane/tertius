@@ -549,9 +549,6 @@ public class EntityTableTests
         Entity live = table.SpawnLive();
         Entity reserved = table.Reserve();
 
-        Action activateLive = () => table.Activate(live, default, new RenderData(), [], [], null, FrameHandle.Null);
-        activateLive.Should().Throw<ContractException>();
-
         table.BeginTick(spawnPoolSize: 0);
         ((Action)(() => table.Reserve())).Should().Throw<ContractException>();
         ((Action)(() => table.Release(reserved))).Should().Throw<ContractException>();
