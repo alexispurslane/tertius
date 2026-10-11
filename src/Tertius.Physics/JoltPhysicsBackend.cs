@@ -14,7 +14,8 @@ namespace Tertius.Physics;
 /// </summary>
 /// <remarks>
 /// <see cref="ApplyChanges"/> runs at the sync point and <see cref="Step"/> on the physics thread. They never run at
-/// the same time. <see cref="BoundingRadius"/> is thread-safe.
+/// the same time. <see cref="BoundingRadius"/> is thread-safe. Both start by reconciling with the frame tree, and
+/// <see cref="AssertInvariants"/> lists what a reconcile that placed every frame hull guarantees.
 /// </remarks>
 public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 {
@@ -116,7 +117,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>
     /// Runs one physics step for every frame with awake bodies or characters: puts every frame hull where the frame tree
     /// says, which drops the hand-offs of the last step that the simulation refused and follows changes to the tree that
-    /// no change batch announced, then applies intents, drives kinematic frame hulls, applies gravity, moves characters,
+    /// no change batch announced (a hull that its new system has no room for has no body, with a warning, until a later
+    /// step finds room), then applies intents, drives kinematic frame hulls, applies gravity, moves characters,
     /// updates every system, then reports contacts, hands bodies between frames, updates ghosts and writes body and
     /// frame states to <paramref name="output"/>.
     /// </summary>
@@ -291,13 +293,17 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// step, removes the systems of frames that left the tree, and puts every frame hull in the system of the parent
     /// that the tree names. The sync point has applied or refused each hand-off before this runs, so a hull whose
     /// hand-off the tree did not take, or whose frame the simulation moved on its own, goes where the tree says, with
-    /// the tree's pose and velocity. Afterwards every system belongs to a live frame, and every hull is in the system
-    /// of its frame's parent in the tree.
+    /// the tree's pose and velocity. A hull that its new system has no room for gets no body (see
+    /// <see cref="PlaceHullFromTree"/>), and the reconcile goes on with the other hulls. Until a reconcile places every
+    /// hull, every call reconciles again. Once one does, <see cref="AssertInvariants"/> holds: every system belongs to
+    /// a live frame, and every hull is in the system of its frame's parent in the tree.
     /// </summary>
     private void ReconcileFrames()
     {
         // A hand-off that the tree took leaves its hull where the tree has the frame. One that the tree refused leaves
-        // its hull out of place, and the tree's version does not show that, so the hulls need the check below.
+        // its hull out of place, and the tree's version does not show that, so the hulls need the check below. Every
+        // override goes now, whatever happens below: the tree holds the sync point's decision, and an override that
+        // outlived its step would show the next step a parent that the tree does not have.
         bool handedOffFrames = parentOverrides.Count > 0;
         parentOverrides.Clear();
 
@@ -305,7 +311,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         // Stryker disable once Statement : the check only saves work; reconciling an unchanged tree changes nothing.
         if (frames.Version == reconciledFrameVersion && !handedOffFrames)
             return;
-        reconciledFrameVersion = frames.Version;
+        // No version counts as reconciled until every hull is in place. A placement that fails, or anything below that
+        // throws, then makes the next call reconcile again.
+        reconciledFrameVersion = -1;
 
         // A frame that left the tree without a FramesDestroyed change, or after one that came too early, loses its
         // system the same way as a destroyed frame.
@@ -323,6 +331,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             DisposeWorld(world);
         }
 
+        // A hull without a body, after a placement that failed, is not where the tree says either, so it gets another try.
+        bool placedEveryHull = true;
         for (int i = frameOwners.Count - 1; i >= 0; i--)
         {
             BodyRecord owner = frameOwners[i];
@@ -331,7 +341,42 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 continue;
             FrameHandle parent = frames.Parent(owner.OwnedFrame);
             if (owner.Frame != parent)
-                PlaceHullFromTree(owner, parent);
+                placedEveryHull &= PlaceHullFromTree(owner, parent);
+        }
+        if (!placedEveryHull)
+            return;
+        reconciledFrameVersion = frames.Version;
+        EnsureFollowsTree();
+    }
+
+    /// <summary>The postcondition of a reconcile that placed every hull. Debug builds only.</summary>
+    [Conditional("TERTIUS_CONTRACTS")]
+    private void EnsureFollowsTree() => AssertInvariants();
+
+    /// <summary>
+    /// Checks the invariants that hold right after a reconcile that placed every hull, and until the next step hands a
+    /// frame off or the tree changes. Throws <see cref="ContractException"/> when one does not hold. O(frame owners +
+    /// systems). Debug builds run it at the end of every such reconcile, and tests call it.
+    /// <list type="bullet">
+    /// <item>No hand-off override remains, so the backend reads every frame's parent from the tree.</item>
+    /// <item>Every system belongs to a live frame.</item>
+    /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
+    /// and the owner of a root frame has no hull.</item>
+    /// </list>
+    /// </summary>
+    internal void AssertInvariants()
+    {
+        Contract.Invariant(parentOverrides.Count == 0);
+        foreach (FrameWorld world in worldList)
+            Contract.Invariant(frames.IsAlive(world.Frame) && ExistingWorld(world.Frame) == world);
+        foreach (BodyRecord owner in frameOwners)
+        {
+            Contract.Invariant(frames.IsAlive(owner.OwnedFrame));
+            FrameHandle parent = frames.Parent(owner.OwnedFrame);
+            if (parent.IsNull)
+                Contract.Invariant(!owner.HasPrimary);
+            else
+                Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
         }
     }
 

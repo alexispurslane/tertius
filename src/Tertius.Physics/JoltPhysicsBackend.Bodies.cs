@@ -321,14 +321,28 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Puts a frame hull where the tree says: the simulation refused the hull's hand-off or reparented its frame on its
     /// own, or the frame's parent was destroyed. The hull takes the tree's pose and velocity. A frame that became a root
-    /// loses its hull.
+    /// loses its hull. Returns false, and logs a warning, when the parent's system already holds
+    /// <see cref="JoltBackendOptions.MaxBodiesPerFrame"/> bodies. The hull then has no body: it neither moves nor
+    /// collides, physics reports no state for it or its frame, and the frame keeps the state that the tree gives it.
+    /// <see cref="ReconcileFrames"/> tries again at its next call.
     /// </summary>
-    private void PlaceHullFromTree(BodyRecord owner, FrameHandle parent)
+    private bool PlaceHullFromTree(BodyRecord owner, FrameHandle parent)
     {
         if (!parent.IsNull && ExistingWorld(parent) is { } target)
             RemoveGhostIn(owner, target);
         RemovePrimary(owner);
-        if (!parent.IsNull)
+        if (parent.IsNull)
+            return true;
+        try
+        {
             CreateHullFromTree(owner, parent);
+            return true;
+        }
+        // CreateRigid throws this for a full system, before the record changes.
+        catch (InvalidOperationException ex)
+        {
+            log($"Physics: the hull of {owner.Entity} has no body until the system of {parent} has room for it. {ex.Message}");
+            return false;
+        }
     }
 }

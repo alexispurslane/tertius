@@ -135,6 +135,17 @@ internal sealed class PhysicsHarness : IDisposable
         Frames.Update();
     }
 
+    /// <summary>
+    /// Applies pending changes even when there are none, so that the backend reconciles with the frame tree now, as it
+    /// does at the start of a step. A test then sees the backend's state between the reconcile and the step.
+    /// </summary>
+    public void Reconcile()
+    {
+        Backend.ApplyChanges(Changes, Frames);
+        Changes.Clear();
+        Frames.Update();
+    }
+
     public void Step(int ticks = 1)
     {
         for (int i = 0; i < ticks; i++)
