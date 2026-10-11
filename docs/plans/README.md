@@ -8,7 +8,8 @@ ARCHITECTURE.md stays the binding design. When a plan is done, its decisions mov
 
 | Number | Plan | Status | Depends on |
 |---|---|---|---|
-| 01 | [Test hardening](01-test-hardening.md) | Planned | The refactor workflow |
+| 00 | [Real physics in every test](00-real-physics-in-tests.md) | Planned | The physics rounds that run now |
+| 01 | [Test hardening](01-test-hardening.md) | Planned | 00 |
 | 02 | [Design review](02-design-review.md) | Planned | 01 |
 | 03 | [Renderer snapshot tests](03-renderer-snapshot-tests.md) | Planned | 02 |
 | 04 | [Anti-aliasing](04-anti-aliasing.md) | Planned | 03 |
@@ -21,7 +22,7 @@ ARCHITECTURE.md stays the binding design. When a plan is done, its decisions mov
 
 ## Running now
 
-- Round seven of the physics work fixes what round six broke. Bodies under weak gravity must not fall asleep in the air, and a slow change of acceleration must wake sleeping bodies. A frame's driver changes through the World, which refuses a driver that the hull cannot follow. The other bugs from the test stage are fixed and committed.
+- Round seven of the physics work is merged. The next round depends on a decision by the user about sleep under gravity. The other bugs from the test stage are fixed and committed.
 
 The Simulation test stage is done and merged: 1,228 tests, none skipped.
 
