@@ -22,7 +22,7 @@ The first useful editor has a viewport, a hierarchy, an inspector and play mode 
    - ImGui.NET 1.91.6.1 predates 1.92 and has no ImGuizmo binding.
    - The only ImGui integration of Silk.NET is for OpenGL.
 
-   The cost is the label "experimental". The exact pin and the binding test of step A1 keep that risk small. Open question 1 asks the user about this choice.
+   The cost is the label "experimental". The exact pin and the binding test of step A1 keep that risk small. (User)
 3. The native libraries `cimgui` and `cimguizmo` come from small pinned Nix derivations, not from the NuGet packages. Each derivation builds the fork commit and the CMake flags that Hexa's own build workflow uses. Native dependencies come from Nix in this project. (User)
 4. Both ImGui backends are C# code in Tertius. The renderer backend draws through the engine's Vulkan renderer, and every UI texture is a slot of the bindless array. A 3D view or a thumbnail is then an ordinary `TextureId` in the UI. Hexa ships its own backends as separate native libraries, and its GLFW backend can bring a second GLFW copy next to the one of Silk.NET. The C# backends avoid that question.
 5. `Tertius.Rendering` gets no ImGui dependency. The editor copies the draw data of each UI frame into an engine type, `UiDrawList`. The copy is small, and a later in-game debug UI can use the same UI pass.
@@ -42,6 +42,8 @@ The first useful editor has a viewport, a hierarchy, an inspector and play mode 
 19. Overlays, such as frame bubbles and orbits, are 3D lines that a new line pass of the renderer draws. The pass dims lines behind geometry with the distance target. Captures for agents include the overlays.
 20. Every editor action is a method of one class, `EditorApi`. The panels and the scripts call the same methods. The headless runner uses the step format of plan 06.
 21. The Dear ImGui Test Engine is left out for now. Its license is free for the user as a natural person, but it is C++ only and has no Hexa binding. Snapshot tests and `EditorApi` tests cover the editor.
+22. The editor saves a document by itself 1 s after the last edit, and also on Cmd+S. Agents, git and the CLI read the files, so an unsaved change is invisible to them. Undo still works after a save. (User)
+23. Stop discards the changes that the inspector made during play mode. "Apply to scene" keeps the live values of one component, as one undoable edit. Play mode then never changes a document by surprise. (User)
 
 ## Design
 
@@ -114,7 +116,7 @@ The last commits of both forks are from 2026-07-31, the day that Hexa published 
 - The exported symbols must be equal, as `nm` lists them.
 - A small C program in the derivation writes the sizes of the main structs to `cimgui-sizes.json`. The structs are `ImGuiIO`, `ImGuiStyle`, `ImDrawCmd`, `ImDrawVert`, `ImDrawList`, `ImTextureData` and `ImFontConfig`. A test compares the sizes with the Hexa structs.
 
-If either comparison fails, step A1 tries the fork commits of the days around the release. If none of them matches, the user chooses between option B of open question 1 and a patch to the derivation.
+If either comparison fails, step A1 tries the fork commits of the days around the release. If none of them matches, the user chooses between the stable Hexa 2.2.9 with its prebuilt libraries and a patch to the derivation.
 
 The dev shell sets `TERTIUS_CIMGUI_DIR`, `TERTIUS_CIMGUIZMO_DIR` and `TERTIUS_EDITOR_FONTS_DIR`. A project that sets `<UsesImGui>true</UsesImGui>` gets the libraries and fonts copied next to its output, as `UsesJolt` does for Jolt. The package references set `ExcludeAssets="native"`, so the NuGet libraries never reach the output.
 
@@ -383,7 +385,7 @@ The cost of one edit, as estimates from the record sizes of plan 07 that the ben
 
 The `entities` object of a scene holds its members in an `ImmutableArray`. An edit of one entity copies that array, which is 8 bytes per entity. That copy is most of the cost in large scenes. History has a cap of 256 MB of retained bytes and 10,000 entries, and it drops the oldest entries first. If large scenes make edits slow, `ObjectNode` can change to an `ImmutableList`, which copies O(log n) nodes per edit. That change touches only plan 07's member collection type.
 
-Saving follows these rules. Open question 2 decides whether the editor also saves by itself, 1 s after the last edit. The rules hold in both cases.
+Saving follows these rules. The editor saves by itself 1 s after the last edit, and also on Cmd+S (User). The rules hold for both kinds of save.
 
 - A document is dirty while its root is not the same object as the root that the editor last saved or loaded. Undo back to the saved state makes it clean again.
 - Save writes the canonical layout of plan 07 with `ContentWriter`, comments included. It writes a temporary file and renames it.
@@ -1090,20 +1092,13 @@ Each step writes its tests first and sees them fail for the right reason. The en
   - Asset reloads run only on the main thread.
 - Benchmarks for every row of the budgets.
 
-## Open questions for the user
+## Decided by the user
 
-1. Which Dear ImGui binding and native library?
-   - Option A: Hexa 3.1.0-experimental with Dear ImGui 1.92.9b. Nix builds `cimgui` and `cimguizmo` from known fork commits, as your rule for native dependencies asks.
-   - Option B: the stable Hexa 2.2.9 with Dear ImGui 1.92.2b, and the prebuilt libraries from NuGet. No commit records their sources, so this is an exception to the Nix rule, like the GLFW library of Silk.NET today.
-   - Recommendation: A. The exact pin and the binding test of step A1 cover the risk of the label "experimental".
-2. When do edits reach the files on disk?
-   - Option A: only on save, with Cmd+S.
-   - Option B: automatically 1 s after the last edit, and also on Cmd+S.
-   - Recommendation: B. Agents, git and the CLI read the files, so an unsaved change is invisible to them. Undo still works after an automatic save.
-3. What happens to changes made in the inspector during play mode?
-   - Option A: stop discards them, and "Apply to scene" keeps the values of one component on request.
-   - Option B: stop writes every such change into the scene document.
-   - Recommendation: A. Play mode then never changes a document by surprise.
+The user accepted every recommendation of this section on 2026-10-10.
+
+1. The binding is Hexa.NET.ImGui 3.1.0-experimental with Dear ImGui 1.92.9b. Nix builds `cimgui` and `cimguizmo` from known fork commits, as the rule for native dependencies asks. The other option was the stable Hexa 2.2.9 with prebuilt libraries from NuGet.
+2. The editor saves a document by itself 1 s after the last edit, and also on Cmd+S. The other option was saving only on Cmd+S.
+3. Stop discards the changes that the inspector made during play mode, and "Apply to scene" keeps the values of one component on request. The other option was to write every such change into the scene document.
 
 ## Out of scope and later
 

@@ -8,7 +8,7 @@ Separate the engine from game content, and load game content and mods through on
 
 A mod works blindly: copy its built folder into a mods folder, and it loads. Every id comes from a folder or file name, so a mod needs no registration step and no load order list. A built package is the form of a package that players get: it holds the DLL and the cooked assets, so a player needs no build tools (see "Built packages").
 
-The user asked that blueprints link component names to "the loaded DLL components or built-in components". This plan reads "built-in components" as the components of the package `tertius.base`, which every game depends on. Open question 2 asks the user about this reading.
+The user asked that blueprints link component names to "the loaded DLL components or built-in components". This plan reads "built-in components" as the components of the package `tertius.base`, which every game depends on. The user confirmed this reading.
 
 Today no package or mod loading exists. ARCHITECTURE.md lists mods as out of scope, and the user brought them into scope. No class in `src` implements `IComponent` today, so all components can live in packages from the start.
 
@@ -17,12 +17,12 @@ Today no package or mod loading exists. ARCHITECTURE.md lists mods as out of sco
 1. Game content and mods use exactly the same mechanism. (User)
 2. A package is a folder, and the folder name is the package id. The layout is rigid, and every id comes from a path. The manifest holds only what the folder cannot say. (User)
 3. Each package with code has one C# project, compiled against the public engine API into one DLL. The engine loads the DLL at runtime and maps component names to types once, by reflection. The `Blueprints` registry then compiles the factories. (User)
-4. Built-in components live in the DLL of the package `tertius.base`, not in the engine assemblies. There are three reasons:
+4. Built-in components live in the DLL of the package `tertius.base`, not in the engine assemblies. (User) There are three reasons:
    - The base components use only the mod API. So every build proves that the API is enough for real components.
    - The engine assemblies hold no game rules. A test makes sure that no engine type implements `IComponent`.
    - The base components reload in the editor like the code of any other package.
 
-   The cost is that base components cannot use engine internals. If one needs more, the mod API grows on purpose. Open question 2 asks the user about this decision.
+   The cost is that base components cannot use engine internals. If one needs more, the mod API grows on purpose.
 5. Each package gets its own collectible `AssemblyLoadContext` (a package context). Engine assemblies always come from the default context, so a mod and the engine share one `IComponent` type (research probe). Separate contexts keep conflicting private libraries apart and name the failing package in errors.
 6. One load gives a code set and a content set. A code set is the loaded package code: the package contexts, the component types and the caches over those types. A content set is the data over it: the packages, the frozen blueprint registry and the prepared scenes. A reload of data files makes a new content set over the same code set.
 7. A reference without a package prefix means the package of the file that wrote it. The loader never searches other packages for a path. A qualified reference must name the own package or a declared dependency.
@@ -30,7 +30,7 @@ Today no package or mod loading exists. ARCHITECTURE.md lists mods as out of sco
 9. The load order comes from the dependencies. Ties break by the ordinal order of the package ids. The order then does not depend on the file system or the operating system.
 10. A package changes the content of another package only through patch files that merge (plan 07 merge rule). There is no whole replacement of a blueprint. Players of Bethesda games and of Caves of Qud dislike whole replacement, because only the last mod wins.
 11. All file and folder names in a package are lowercase. A reference that works on macOS then also works on case-sensitive Linux file systems.
-12. The loader reports every error with the file, the JSON Pointer and, where it can, the line and column. Errors in packages from content roots stop the load. Errors in mods can skip the mod (see "Errors and policy").
+12. The loader reports every error with the file, the JSON Pointer and, where it can, the line and column. Errors in packages from content roots stop the load. Errors in mods can skip the mod (see "Errors and policy"). A player's launcher skips a broken mod and every mod that depends on it, then starts and shows the errors. (User)
 13. Mods run with full trust. See "Trust".
 14. The mod API is an explicit list of types. `[EngineOnly]` marks the public engine types that mods must not use. An analyzer in the mod SDK makes each use a build error, not a warning. A mod that compiles then keeps working within one API version.
 15. The editor never replaces code inside a live World. After a DLL changes, it discards its worlds, unloads the package contexts and loads again. Data changes reload without unloading code.
@@ -107,7 +107,7 @@ content/tertius.demo/
 | `code/` holds exactly one project, named `<package id>.csproj`. | CT5009 | The assembly name is the package id. |
 | The name rules do not apply inside `code/` and `bin/`, or to the fixed names `README.md`, `LICENSE`, `LICENSE.md` and `CREDITS.md`. | None | C# files follow C# naming. |
 
-A game package is an ordinary package that has `scenes/start.scene.json`. The launcher starts that scene unless its `--scene` option names another one.
+A game package is an ordinary package that has `scenes/start.scene.json`. The launcher starts that scene unless its `--scene` option names another one. The launcher's `--game` option names the game package. A shipped game's launcher has its game id built in, so a player starts the game with no options.
 
 ### Built packages
 
@@ -350,7 +350,7 @@ Engine only, in `Tertius.Simulation`:
 - `World`, `WorldOptions` and `WorldStats`.
 - `Blueprints`, `Blueprint`, `ComponentSpec`, `ComponentFactories`, `ComponentRecipe` and `ComponentMembers`.
 - `EventBuffer`.
-- `Self.Spawn(string, ...)`. A mod spawns only through a `BlueprintId` field, which the loader checked at load time.
+- `Self.Spawn(string, ...)`. A mod spawns only through a `BlueprintId` field, because the loader resolves that field at load time.
 
 Every other engine assembly is engine only as a whole, and the SDK does not reference it.
 
@@ -426,6 +426,67 @@ The second adds an entity to the start scene of the demo and needs an optional d
   }
 }
 ```
+
+### How mods change behavior
+
+A mod never patches the C# code of another package. The engine has no IL patching, such as Harmony, and no runtime compilation. A mod runs with full trust, so it can bundle such a library itself, but the engine neither supports nor tests that.
+
+A mod changes behavior through components, as in Caves of Qud. It has three ways:
+
+1. It adds its own component to a blueprint with a patch. Components run in `Priority` order on one event list, lowest first. So a mod component with a lower `Priority` changes or removes an event before the base component sees it. One with a higher `Priority` sees what the earlier components did.
+2. A patch removes a base component with `null` and adds the mod's replacement in the same merge.
+3. A mod component derives from a public component class of a dependency and overrides what the base author made `virtual`. Then the mod replaces the base component as in way 2. The package contexts allow this (research probe).
+
+The `Shield` of the patch example above uses way 1. It runs before `Health` and soaks up damage from its charge:
+
+```csharp
+// mods/alice.shields/code/Shield.cs
+namespace Alice.Shields;
+
+public sealed class Shield : IComponent
+{
+    /// <summary>The most damage that the shield holds, in hit points.</summary>
+    [Range(0, 1e6)]
+    public float Capacity { get; init; } = 100;
+
+    /// <summary>The charge that comes back per second, in hit points.</summary>
+    [Range(0, 1e6)]
+    public float RechargeRate { get; init; } = 10;
+
+    private float charge = -1;
+
+    // Before tertius.base:Health, which runs at 0.
+    public int Priority => -20;
+    public EventMask Wants => EventMask.Of<Tick>() | EventMask.Of<Damage>();
+
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+    {
+        if (charge < 0)
+            charge = Capacity;
+        if (events.Contains<Tick>())
+            charge = MathF.Min(Capacity, charge + RechargeRate * self.DeltaTime);
+        foreach (ref Damage damage in events.Of<Damage>())
+        {
+            float soaked = MathF.Min(damage.Amount, charge);
+            damage.Amount -= soaked;
+            charge -= soaked;
+        }
+        events.RemoveAll(static (ref Damage damage) => damage.Amount <= 0);
+    }
+}
+```
+
+In this example:
+
+- `Capacity` and `RechargeRate` are the fields that the patch sets as `capacity` and `rechargeRate`. They are `init` properties, because every spawn of a blueprint shares the bound values (plan 07).
+- `Damage` is the event payload of `tertius.base`, a declared dependency of the mod.
+- `events.Of<Damage>()` gives each `Damage` payload by reference, so the shield lowers its amount in place. `Health` then sees only what the shield did not soak up.
+- `RemoveAll` takes out every `Damage` that nothing is left of, so `Health` never runs for it.
+
+Authors of base packages make mods easier with two habits:
+
+- Keep components small and driven by events, so a mod can come before or after one behavior.
+- Mark the methods that mods need to change as `virtual`.
 
 ### Determinism
 
@@ -828,16 +889,12 @@ Each step writes its tests first and sees them fail for the right reason. The en
   - Both unload guards throw in a Release build.
   - A built package loads with no `code/` and no `assets/`.
 
-## Open questions for the user
+## Decided by the user
 
-1. A player starts the game with a broken mod.
-   - Option A: skip the mod and the mods that depend on it, start the game and show the errors.
-   - Option B: refuse to start until the player removes the mod.
-   - Recommendation: A, the policy `SkipBrokenMods`. Development and CI always use `Strict`.
-2. Where do built-in components live? You named "the loaded DLL components or built-in components".
-   - Option A: in the package `tertius.base`, as this plan designs. Every game depends on it, so a short name such as `Health` still works.
-   - Option B: in an engine assembly. Their names need no package and no dependency, and every package sees them.
-   - Recommendation: A. The base components then prove that the mod API is enough, and they reload in the editor like other code.
+The user accepted every recommendation of this section on 2026-10-10.
+
+1. A player who starts the game with a broken mod gets the policy `SkipBrokenMods`. The launcher skips the mod and every mod that depends on it, starts the game and shows the errors. Development, CI and the editor always use `Strict`. The other option was to refuse to start.
+2. Built-in components live in the package `tertius.base`, which every game depends on. The base components then prove that the mod API is enough, and they reload in the editor like other code. The other option was an engine assembly.
 
 ## Out of scope and later
 

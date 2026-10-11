@@ -28,7 +28,7 @@ Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` 
 10. The front of an object in the engine is -Z, like the camera and spot lights. glTF puts the front of an asset at +Z. So the importer turns every model by 180° about +Y.
 11. One engine light unit is 683 candela for point and spot lights, and 683 lux for the sun. For the sun, this is a Blender sun of strength 1 W/m². For a point light, it is a Blender point light of 4π W. The Blender exporter multiplies by exactly 683, so a scene from Blender keeps its relative brightness.
 12. Materials convert from glTF metallic-roughness to the Blinn-Phong model of the engine with fixed formulas. The default glTF dielectric, with an IOR of 1.5, gives the default engine specular intensity of 0.5 exactly.
-13. Metals cannot look right yet. The engine caps F0 at 0.16 and has no environment reflections. The importer keeps half of the base color of a metal as its diffuse color. Open question 1 asks the user about a renderer change.
+13. Metals cannot look right yet. The engine caps F0 at 0.16 and has no environment reflections. The importer keeps half of the base color of a metal as its diffuse color. Colored specular and environment reflections get a renderer plan of their own later. (User)
 14. Textures are block-compressed (BC4, BC5 and BC7), and the importer makes every mip level. All target GPUs support BC: Apple Silicon through MoltenVK (measured on this machine) and desktop GPUs on Linux.
 15. LODs belong to a mesh. A LOD is a coarser index list over the same vertices. The renderer picks a LOD by its projected error in pixels.
 16. Collision is stored as points and triangles. Jolt builds the shapes at content load, outside a tick. joltc exports no shape serialization (research), and the documentation of Jolt says that its cooked format changes between versions.
@@ -36,6 +36,7 @@ Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` 
 18. The cache key is a SHA-256 hash of the source bytes, the effective configuration, the importer version and the tools. The tools are the Nix store path of each native tool and the .NET runtime version. A rebuild with the same version number can change the output. Provenance is not part of the key, because it does not change the output.
 19. Every third-party asset records its source, authors, license and attribution text. The CLI rejects licenses that forbid adaptations or commercial use.
 20. Every download needs the approval of the user. `tertius asset fetch` only prints a plan of the files, sizes and license. It downloads only with `--approved`, which an agent passes after the user said yes in chat.
+21. Binary source files in `content/*/assets/` go into Git LFS from the start. A later move to LFS rewrites the history of the repository. The dev shell adds `git-lfs` 3.8.0, and the remote must support LFS. (User)
 
 ## Design
 
@@ -1565,17 +1566,12 @@ Other tests:
   - A lock that another import holds gives exit code 7, never 3.
   - Blender backup files cause no diagnostic.
 
-## Open questions for the user
+## Decided by the user
 
-1. Metals. The engine caps F0 at 0.16 and has no environment reflections, so a metal looks like dark plastic with a highlight.
-   - Option A: keep the approximation of this plan. A metal keeps half its base color as diffuse color.
-   - Option B: plan a renderer change: colored specular with F0 up to 1, and reflections of the sky and the surroundings. It is still Blinn-Phong, but the specular target grows from RG8 to RGBA8.
-   - Recommendation: A now. Plan B as its own renderer plan at the time that ships and stations need metal that looks right.
-2. Large binary files in git. A 2k model with textures is 5 to 40 MB, and git keeps every old version forever.
-   - Option A: plain git with limits: 2k textures by default, and a warning above 20 MB per file.
-   - Option B: Git LFS for the binary files in `content/*/assets/` from the start. `git-lfs` 3.8.0 is in nixpkgs, and the remote must support LFS.
-   - Option C: keep third-party source files out of git, and fetch them again from their provenance records.
-   - Recommendation: B. A later move to LFS rewrites the history of the repository.
+The user accepted every recommendation of this section on 2026-10-10.
+
+1. Metals keep the approximation of this plan: a metal keeps half its base color as diffuse color. Colored specular with F0 up to 1 and reflections of the surroundings get a renderer plan of their own. When ships and stations need metal that looks right, that plan comes next.
+2. Binary source files in `content/*/assets/` use Git LFS from the start, because a later move to LFS rewrites the history. The other options were plain git with size limits, and fetching third-party files again from their provenance records.
 
 ## Out of scope and later
 

@@ -26,9 +26,9 @@ Two terms of plan 08 appear in this plan. A content set is the result of one loa
 5. The binder turns a JSON value into a C# value. The C# type of the target member decides the JSON form of the value. One description per C# type, `TypeShape`, drives the binder, the schema writer and the inspector of plan 10. So the schema and the binder accept the same value forms.
 6. One merge rule covers blueprint inheritance, scene overrides and the patches of plan 08. The rule is JSON Merge Patch (RFC 7386), directed by the C# type of each position. Only at a union position does an object with a `kind` member replace the target. One rule is easier to learn and test than three.
 7. A collection that content can change is an object keyed by name: components, scene entities and topics. An array holds a value, and a merge replaces it whole. So a merge can add, change or remove one item by its name.
-8. Numbers use the units of the code: SI units and radians. Where degrees are easier to read, a file writes `{"deg": 30}`. A color can also be an sRGB hex string. See "Units".
+8. Numbers use the units of the code: SI units and radians. (User) Where degrees are easier to read, a file writes `{"deg": 30}`. A color can also be an sRGB hex string. See "Units".
 9. Keys are the camelCase form of the C# member names, as `JsonNamingPolicy.CamelCase` makes them. Enum values are camelCase names too. Component names keep their C# form, because they are type names.
-10. A scene is a flat set of entities keyed by scene id. A scene id is a name that is unique in one scene. Each entity names the frame that it is in and its attachment parent. In a nested file, every move of an entity to another frame is a large edit. The editor and the patches of plan 08 work on one entity at a time.
+10. A scene is a flat set of entities keyed by scene id. A scene id is a name that is unique in one scene. Each entity names the frame that it is in and its attachment parent. In a nested file, every move of an entity to another frame is a large edit. The editor and the patches of plan 08 work on one entity at a time. (User)
 11. In a scene file, a component field of type `Entity` holds a scene id. The spawner writes the handle after it spawns every entity of the scene. So the order of the entities in the file does not matter for references.
 12. The loader resolves blueprint inheritance on the JSON tree, after the patches of plan 08. It gives the registry fully resolved blueprints with no parent. A patch to a parent then reaches its children, and the body, render and frame sections merge field by field.
 13. File model types in `Tertius.Content` mirror the engine types `BodyDesc`, `RenderData` and `FrameSpec`. They add the forms that files need: asset references, degree literals and file defaults. A small hand-written mapping turns them into engine types, and the schema comes from the file model types.
@@ -1016,16 +1016,12 @@ Plan 08 then replaces the fake scope with real packages.
   - A `BlueprintId` field can name its own blueprint.
 - Contracts, for the state that must stay coherent. `PreparedScene.AssertInvariants` states that the spawn order puts frames before contents and parents before attachments, and that every handle fix-up names an entity of the scene.
 
-## Open questions for the user
+## Decided by the user
 
-1. Angles in files.
-   - Option A: radians, as in the code, with the `{"deg": x}` literal for readability.
-   - Option B: degrees as plain numbers for every engine angle key, and a `[Degrees]` attribute for component fields that want degrees.
-   - Recommendation: A. A plain number always has the unit of the code, so no file can have a hidden unit.
-2. The layout of a scene.
-   - Option A: a flat set of entities keyed by scene id, each with `frame` and `attachTo`.
-   - Option B: entities nested inside their frames.
-   - Recommendation: A. Moves, patches and editor changes then touch one entry, and a git diff stays small.
+The user accepted every recommendation of this section on 2026-10-10.
+
+1. Angles in files use radians, as in the code, with the `{"deg": x}` literal for readability. A plain number then always has the unit of the code, so no file has a hidden unit. The other option was degrees as plain numbers.
+2. A scene is a flat set of entities keyed by scene id, each with `frame` and `attachTo`. Moves, patches and editor changes then touch one entry, and a git diff stays small. The other option was entities nested inside their frames.
 
 ## Out of scope and later
 
