@@ -21,7 +21,7 @@ ARCHITECTURE.md stays the binding design. When a plan is done, its decisions mov
 
 ## Running now
 
-- The workflow `wf_f9b2f65a-f27` makes a refused frame hand-off change nothing and stops the physics backend from proposing one. The four other bugs from the test stage are fixed and committed.
+- The workflow `wf_8625483d-a0a` makes physics follow the frame tree: at the start of every step, physics drops every hand-off that the tree did not take. Physics output that only a bug can produce then fails a contract in Debug builds and is skipped in Release builds. The other bugs from the test stage are fixed and committed.
 - The workflow `wf_5b5b785e-538` drafts plans 07 to 10.
 
 The Simulation test stage is done and merged: 1,228 tests, none skipped.
