@@ -23,6 +23,8 @@ Find the design problems in every module before more code builds on them. The re
 - JoltPhysicsSharp keeps a wrapper object for every body that it ever created, in a static dictionary that never shrinks. After 3,000 created bodies it holds about 3,025 entries. A long session that creates and destroys many bodies leaks memory slowly. Measure it, and find a way to release the wrappers.
 - `World.Frames` gives the game the whole mutable `FrameTree`. Some changes there bypass the World, so a row that mirrors the tree can disagree with it until the next tick. Decide which tree changes go through `World` methods.
 - `Attachments.Attach` overwrites the node of an entity that already holds attached children, and those children lose their place in the tree. The public `World` API cannot do this today, because only new entities get attached. If `Attach` gets another caller, add a contract.
+- A frame owner cannot have a character body. The backend refuses it in `JoltPhysicsBackend.Bodies.cs`, and round eight of the physics work moves the refusal into `World.Spawn`. Nobody decided this. The first implementation wrote the hull code against Jolt's rigid-body calls on the owner's body ID, for example to read its velocity and rotation. A character has no such body, so the code refused it in one line. The user wants walking vehicles with an interior, such as a mech with a cockpit that people walk around in. Give the hull code one interface for the owner's pose, velocity and acceleration in the parent frame. A rigid body or a character can stand behind it. Then remove the refusal.
+- Search the World and the backend for other refusals that no design decision backs, and list them for the user.
 
 ## Report
 
