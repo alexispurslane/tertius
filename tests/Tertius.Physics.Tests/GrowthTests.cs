@@ -323,6 +323,105 @@ public class GrowthTests
         h.Contacts.Should().ContainSingle(contact => contact.A == dropped || contact.B == dropped);
     }
 
+    // ---- Contacts across more than one growth ----
+
+    /// <summary>
+    /// A ball that rolls at 1 m/s, with no damping, on a floor in a ground frame with gravity, whose system holds 8 bodies
+    /// at first. The ball's contact with the floor starts in the first steps and never ends.
+    /// </summary>
+    private sealed class Roller : IDisposable
+    {
+        public Roller()
+        {
+            H = new PhysicsHarness(Small);
+            Ground = H.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static,
+                GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+            H.AddBody(Ground, Shapes.Floor(100), Shapes.At(0, -0.5, 0));
+            Ball = H.AddBody(Ground, Shapes.Ball(0.5f, mass: 2), Shapes.At(0, 0.5, 0), velocity: new Vector3(1, 0, 0));
+            H.Step(30);
+            BallContacts.Should().Be(1, "the ball's contact with the floor started once");
+        }
+
+        public PhysicsHarness H { get; }
+        public FrameHandle Ground { get; }
+        public Entity Ball { get; }
+
+        /// <summary>The number of contacts that physics reported for the ball so far.</summary>
+        public int BallContacts => H.Contacts.Count(contact => contact.A == Ball || contact.B == Ball);
+
+        /// <summary>The number of times that a system grew so far.</summary>
+        public int Growths => H.Warnings.Count(warning => warning.Contains("so it grew"));
+
+        /// <summary>Adds static crates far below the floor, which touch nothing, to the next change batch.</summary>
+        public void AddCrates(int count)
+        {
+            for (int i = 0; i < count; i++)
+                H.AddBody(Ground, Crate, Shapes.At(3 * i, -100, 0));
+        }
+
+        public void Dispose() => H.Dispose();
+    }
+
+    [Fact]
+    public void APairThatTouchesAcrossTwoGrowthsInOneChangeBatchReportsNoNewContact()
+    {
+        using var scene = new Roller();
+
+        // The floor, the ball and 15 crates: the system grows from 8 to 16 at the 7th crate and to 32 at the 15th.
+        scene.AddCrates(15);
+        scene.H.Step(10);
+
+        scene.Growths.Should().Be(2);
+        scene.H.Backend.CapacityOf(scene.Ground).Should().Be(32);
+        scene.BallContacts.Should().Be(1, "the ball touched the floor through both growths, so its contact did not start again");
+    }
+
+    [Fact]
+    public void APairThatTouchesAcrossGrowthsAtTwoSyncPointsWithNoStepBetweenReportsNoNewContact()
+    {
+        using var scene = new Roller();
+
+        // One change batch grows the system to 16, and the next one grows it to 32 before the system's next update.
+        scene.AddCrates(7);
+        scene.H.Sync();
+        scene.AddCrates(8);
+        scene.H.Step(10);
+
+        scene.Growths.Should().Be(2);
+        scene.H.Backend.CapacityOf(scene.Ground).Should().Be(32);
+        scene.BallContacts.Should().Be(1, "the ball touched the floor through both growths, so its contact did not start again");
+    }
+
+    /// <summary>
+    /// A pit frame with gravity, whose system of 8 bodies holds a floor, a ball that rolls on it, and 6 crates. A ball in
+    /// space flies toward the pit. Its ghost needs room in the full pit system, so the pit's system grows during the step
+    /// that adds the ghost, after the system's update. The next sync point grows it again, before its next update.
+    /// </summary>
+    [Fact]
+    public void APairThatTouchesAcrossAGrowthDuringAStepAndAnotherAtTheNextSyncPointReportsNoNewContact()
+    {
+        using var h = new PhysicsHarness(Small);
+        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
+        FrameHandle pit = h.AddFrame(space, Shapes.At(0, 0, 0), FrameBounds.Sphere(20), MotionDriver.Static,
+            GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+        h.AddBody(pit, Shapes.Floor(15), Shapes.At(0, -0.5, 0));
+        Entity rolling = h.AddBody(pit, Shapes.Ball(0.5f, mass: 2), Shapes.At(0, 0.5, 0), velocity: new Vector3(0.5f, 0, 0));
+        AddCrates(h, pit, 6);
+        h.AddBody(space, Shapes.Ball(0.5f), Shapes.At(40, 3, 0), velocity: new Vector3(-30, 0, 0));
+        h.Step(5);
+        int ContactsOfTheRollingBall() => h.Contacts.Count(contact => contact.A == rolling || contact.B == rolling);
+        ContactsOfTheRollingBall().Should().Be(1);
+
+        h.StepUntil(() => h.Backend.CapacityOf(pit) > 8, 120);
+        h.Backend.CapacityOf(pit).Should().Be(16, "the ghost grew the pit's system during the last step");
+        int bodies = h.Backend.BodiesIn(pit).Count;
+        AddCrates(h, pit, 16 - bodies + 1);
+        h.Step(5);
+
+        h.Backend.CapacityOf(pit).Should().Be(32, "the crates grew the pit's system again at the sync point");
+        ContactsOfTheRollingBall().Should().Be(1, "the ball touched the floor through both growths, so its contact did not start again");
+    }
+
     // ---- Determinism ----
 
     /// <summary>

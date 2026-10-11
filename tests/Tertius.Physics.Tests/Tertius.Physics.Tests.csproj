@@ -6,6 +6,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Tertius.Physics/Tertius.Physics.csproj" />
+    <!-- The World-level tests run the simulation's sync point on the real backend. -->
+    <ProjectReference Include="../../src/Tertius.Simulation/Tertius.Simulation.csproj" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />

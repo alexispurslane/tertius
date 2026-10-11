@@ -52,12 +52,14 @@ internal sealed class FrameWorld : IDisposable
     private readonly List<ulong> removed = new(64);
     // Body pairs in contact, with the number of touching sub-shape pairs. A pair starts when this goes from 0 to 1.
     private readonly Dictionary<ulong, int> touching = new();
-    // The body pairs that touched in the system that the last growth replaced. The new system has no contact cache, so
-    // its first update reports each pair that still touches as added. Such a pair continues: it did not start.
+    // The body pairs that touched before the growths since the last update. The new system has no contact cache, so its
+    // first update reports each pair that still touches as added. Such a pair continues: it did not start.
     private readonly HashSet<ulong> carried = new();
     // False from a growth until the first update of the new system, which reports every pair that still touches.
     private bool updatedSinceGrowth = true;
     private readonly List<ulong> purgeScratch = new();
+    // The pairs that a growth carries over, before they take the new IDs.
+    private readonly List<ulong> carryScratch = new();
 
     public FrameWorld(FrameHandle frame, Layers.Tables layers, JoltBackendOptions options)
     {
@@ -139,7 +141,9 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>
     /// Makes <paramref name="larger"/>, which already holds every body of the current system, this frame's system, and
     /// disposes the current one. The pairs that touch now are carried over: the first update of the new system reports
-    /// each of them again, and <see cref="DrainContacts"/> does not take that for a new contact.
+    /// each of them again, and <see cref="DrainContacts"/> does not take that for a new contact. Until that update, the
+    /// touching-pair table is empty, so a second growth before it carries over the pairs of the first one again. Any
+    /// number of growths between two updates keeps every pair that touched before the first of them.
     /// </summary>
     /// <param name="larger">The new system, with <paramref name="limits"/>.</param>
     /// <param name="limits">The limits of <paramref name="larger"/>.</param>
@@ -161,8 +165,13 @@ internal sealed class FrameWorld : IDisposable
 
         lock (contactGate)
         {
+            // The pairs that an earlier growth carried and that no update has reported yet still touch, as far as the
+            // backend knows. They take the new IDs too.
+            carryScratch.Clear();
+            carryScratch.AddRange(carried);
+            carryScratch.AddRange(touching.Keys);
             carried.Clear();
-            foreach (ulong key in touching.Keys)
+            foreach (ulong key in carryScratch)
                 carried.Add(PairKey(Renamed((uint)(key >> 32), renamed), Renamed((uint)key, renamed)));
             touching.Clear();
             updatedSinceGrowth = false;
