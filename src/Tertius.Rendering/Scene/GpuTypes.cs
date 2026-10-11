@@ -120,6 +120,8 @@ internal struct GpuFrameConstants
     public Vector4 ShadowAxisY;
     /// <summary>x: 1 / map size; y: normal offset in texels; z: constant depth bias; w: smallest cosine for the receiver-plane slope.</summary>
     public Vector4 ShadowParams;
+    /// <summary>The root frame's axes in world axes, interpolated, as a quaternion (x, y, z, w). The star field is fixed to them.</summary>
+    public Vector4 RootRotation;
 }
 
 /// <summary>One matrix per shadow cascade, laid out as a std140 <c>mat4[4]</c>.</summary>

@@ -61,6 +61,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 shadowAxisX;         // xyz light-space x axis, w lateral half-extent / depth half-range of the cascade boxes
     vec4 shadowAxisY;         // xyz light-space y axis
     vec4 shadowParams;        // x 1 / map size, y normal offset in texels, z constant depth bias, w smallest receiver cosine
+    vec4 rootRotation;        // the root frame's axes in world axes, as a quaternion (xyz, w)
 } frame;
 
 layout(set = 0, binding = 1, std430) readonly buffer InstanceBlock { GpuInstance instances[]; };

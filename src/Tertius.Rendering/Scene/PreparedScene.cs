@@ -20,6 +20,8 @@ internal struct CameraView
     public int Height;
     /// <summary>World to view rotation, in System.Numerics row-vector form.</summary>
     public Matrix4x4 View;
+    /// <summary>The root frame's axes in world axes, interpolated like <see cref="Rotation"/>.</summary>
+    public Quaternion RootRotation;
 
     /// <summary>The angle that one pixel covers at the center of the screen.</summary>
     public readonly float PixelAngle => 2f * TanHalfY / Math.Max(Height, 1);

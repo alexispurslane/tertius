@@ -109,6 +109,7 @@ internal sealed class RenderSnapshotBuilder
         snapshot.Ambient = view.Ambient;
         snapshot.Camera = new RenderCamera { Rotation = Quaternion.Identity, PreviousRotation = Quaternion.Identity, VerticalFov = view.VerticalFov };
         snapshot.Sun = new RenderSun { Direction = Vector3.UnitY, Color = view.SunColor, Intensity = view.SunIntensity };
+        snapshot.RootRotation = snapshot.PreviousRootRotation = Quaternion.Identity;
         snapshot.OriginInFrame = Double3.Zero;
         snapshot.OriginFrameId = 0;
 
@@ -133,6 +134,9 @@ internal sealed class RenderSnapshotBuilder
             PreviousRotation = previousCamera.Rotation.ToQuaternion(),
             VerticalFov = view.VerticalFov,
         };
+        int root = denseOfFrame[RootOf(cameraFrame).Index];
+        snapshot.RootRotation = relCurrent[root].Rotation.ToQuaternion();
+        snapshot.PreviousRootRotation = interpolate ? relPrevious[root].Rotation.ToQuaternion() : snapshot.RootRotation;
         snapshot.OriginInFrame = renderOrigin;
         // Stable for the life of the frame, and new when a frame reuses the index: the generation changes.
         snapshot.OriginFrameId = ((long)cameraFrame.Generation << 32) | (uint)cameraFrame.Index;
@@ -347,6 +351,14 @@ internal sealed class RenderSnapshotBuilder
             previous = DPose.Compose(relPrevious[denseOfFrame[last.Frame.Index]], last.Pose);
         last = new PoseMemory { Pose = row.Pose, Frame = row.Frame, Stamp = buildStamp };
         return true;
+    }
+
+    /// <summary>The root frame of the tree that <paramref name="frame"/> is in.</summary>
+    private FrameHandle RootOf(FrameHandle frame)
+    {
+        for (FrameHandle parent = frames.Parent(frame); !parent.IsNull; parent = frames.Parent(frame))
+            frame = parent;
+        return frame;
     }
 
     /// <summary>True for a live frame that this build has placed.</summary>

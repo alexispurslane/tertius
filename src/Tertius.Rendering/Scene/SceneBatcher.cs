@@ -38,7 +38,7 @@ internal sealed class SceneBatcher
     {
         alpha = ClampAlpha(alpha);
         scene.Reset();
-        scene.Camera = InterpolateCamera(snapshot.Camera, alpha, width, height);
+        scene.Camera = InterpolateCamera(snapshot, alpha, width, height);
         scene.Sun = snapshot.Sun;
         scene.Ambient = snapshot.Ambient;
         for (int range = 0; range < DepthRanges.Count; range++)
@@ -54,8 +54,9 @@ internal sealed class SceneBatcher
         WriteConstants(snapshot, scene);
     }
 
-    private static CameraView InterpolateCamera(in RenderCamera camera, float alpha, int width, int height)
+    private static CameraView InterpolateCamera(RenderSnapshot snapshot, float alpha, int width, int height)
     {
+        RenderCamera camera = snapshot.Camera;
         Quaternion rotation = Interpolate(camera.PreviousRotation, camera.Rotation, alpha);
         float fov = camera.VerticalFov > 0f && camera.VerticalFov < MathF.PI ? camera.VerticalFov : DefaultVerticalFov;
         float aspect = (float)Math.Max(width, 1) / Math.Max(height, 1);
@@ -74,6 +75,7 @@ internal sealed class SceneBatcher
             Width = width,
             Height = height,
             View = Matrix4x4.CreateFromQuaternion(Quaternion.Conjugate(rotation)),
+            RootRotation = Interpolate(snapshot.PreviousRootRotation, snapshot.RootRotation, alpha),
         };
     }
 
@@ -347,6 +349,7 @@ internal sealed class SceneBatcher
             // The shadow pass fills in the cascades when it draws them.
             ShadowCascadeCount = 0,
             MappedOccluderCount = (uint)scene.MappedOccluderCount,
+            RootRotation = new Vector4(camera.RootRotation.X, camera.RootRotation.Y, camera.RootRotation.Z, camera.RootRotation.W),
         };
     }
 

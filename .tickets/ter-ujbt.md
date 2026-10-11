@@ -1,6 +1,6 @@
 ---
 id: ter-ujbt
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-11T18:48:00Z

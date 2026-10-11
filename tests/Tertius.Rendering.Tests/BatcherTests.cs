@@ -298,13 +298,38 @@ public sealed class BatcherTests
     }
 
     [Fact]
+    public void TheRootRotationBlendsFromThePreviousTickAsTheCameraDoes()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.PreviousRootRotation = Quaternion.Identity;
+        snapshot.RootRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
+
+        Vector4 root = Prepare(snapshot, alpha: 0.5f).Constants.RootRotation;
+
+        // Half of a quarter turn about +Y.
+        Quaternion expected = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4);
+        Vector4.Distance(root, new Vector4(expected.X, expected.Y, expected.Z, expected.W)).Should().BeLessThan(1e-6f);
+    }
+
+    [Fact]
+    public void AnUnsetRootRotationLeavesTheSkyInTheAxesOfTheCamerasFrame()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.RootRotation = default;
+        snapshot.PreviousRootRotation = default;
+
+        Prepare(snapshot).Constants.RootRotation.Should().Be(new Vector4(0, 0, 0, 1));
+    }
+
+    [Fact]
     public void GpuStructsMatchTheShaderLayouts()
     {
         Unsafe.SizeOf<GpuInstance>().Should().Be(64);
         Unsafe.SizeOf<GpuMaterial>().Should().Be(48);
         Unsafe.SizeOf<GpuLight>().Should().Be(64);
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(704);
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(720);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.ShadowViewProj))).Should().Be(352);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(704);
         Unsafe.SizeOf<DrawPushConstants>().Should().Be(80);
         Unsafe.SizeOf<DrawIndexedIndirectCommand>().Should().Be(20);
         Unsafe.SizeOf<Vertex>().Should().Be(48);

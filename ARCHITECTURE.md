@@ -441,6 +441,8 @@ Transparent objects use one forward pass after the lighting pass, sorted back to
 
 Dynamic point and spot lights are shaded in the deferred lighting pass. The sun is a directional light.
 
+The sky is a procedural star field, fixed to the axes of the root frame of the camera's frame tree. The render snapshot carries the root's axes in the axes of the camera's frame, as `RenderSnapshot.RootRotation`, and the renderer interpolates them as it interpolates the camera. So the stars do not turn with a ship that the camera rides in, and a switch of the camera to another frame does not move them.
+
 ### Shadows
 
 Shadow casters are selected by distance from the camera, not by frame, so an object shadows objects in any frame. Every caster has the `CastsShadow` flag, and the sun has none. A caster casts two kinds of shadow:

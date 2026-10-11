@@ -192,6 +192,16 @@ public sealed class RenderSnapshot
     public long OriginFrameId;
     public RenderSun Sun;
     public AmbientLight Ambient;
+    /// <summary>
+    /// The axes of the root frame of the camera's frame tree, in the axes of the camera's frame: it turns a direction
+    /// in root axes into world axes. The star field is fixed to the root's axes. Identity without a camera.
+    /// </summary>
+    public Quaternion RootRotation;
+    /// <summary>
+    /// <see cref="RootRotation"/> at the previous snapshot, for interpolation, or the same rotation when the camera
+    /// changed frame or did not interpolate.
+    /// </summary>
+    public Quaternion PreviousRootRotation;
     public readonly List<RenderInstance> Instances = new();
     public readonly List<RenderLight> Lights = new();
 

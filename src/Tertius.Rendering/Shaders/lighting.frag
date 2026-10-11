@@ -16,12 +16,15 @@ vec3 hash33(vec3 p)
     return fract((p.xxy + p.yxx) * p.zyx);
 }
 
-// A cheap procedural star field fixed to the world axes. Directions are split into cells of a 3D grid (about
+// A cheap procedural star field fixed to the root frame's axes. Directions are split into cells of a 3D grid (about
 // 0.4 degrees across); one cell in fifty holds a star at a hashed position, which gives roughly 450 stars per
 // steradian, most of them dim. Each star is a Gaussian about one pixel wide, so its size does not depend on the
 // resolution.
 vec3 starField(vec3 direction)
 {
+    // Into the root frame's axes: the inverse of rootRotation, by the quaternion sandwich with the conjugate.
+    vec3 u = -frame.rootRotation.xyz;
+    direction += 2.0 * cross(u, cross(u, direction) + frame.rootRotation.w * direction);
     const float cells = 150.0;
     vec3 cell = floor(direction * cells);
     vec3 h = hash33(cell);

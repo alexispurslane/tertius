@@ -303,6 +303,30 @@ public sealed class OrbitSliceImageTests : IDisposable
     }
 
     [Fact]
+    public void AsTheShipTurnsAQuarterTurnOverAQuarterOrbitTheStarsSweepAcrossTheChaseView()
+    {
+        // The chase camera rides in the ship's frame, which turns once per orbit to face Earth. The stars are fixed to the
+        // sun frame's axes, so a quarter orbit later they stand elsewhere in the view. The rows above the ship show sky.
+        static HashSet<(int, int)> Stars(Png image)
+        {
+            var stars = new HashSet<(int, int)>();
+            for (int y = 0; y < 250; y++)
+                for (int x = 0; x < image.Width; x++)
+                {
+                    (int r, int g, int b) = image.At(x, y);
+                    if (r + g + b > 75)
+                        stars.Add((x, y));
+                }
+            return stars;
+        }
+        HashSet<(int, int)> start = Stars(ChaseAt(0, "stars-0")), quarter = Stars(ChaseAt(90, "stars-90"));
+
+        start.Count.Should().BeGreaterThan(50);
+        quarter.Count.Should().BeGreaterThan(50);
+        start.Intersect(quarter).Count().Should().BeLessThan(start.Count / 5);
+    }
+
+    [Fact]
     public void InEarthsShadowTheFaceOfTheShipThatFacesTheSunGoesDark()
     {
         // Past the terminator, the ship's nose points away from the sun, so its back face, which the chase camera sees,
