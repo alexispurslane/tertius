@@ -255,10 +255,9 @@ public class HandOffTests
         using var h = new PhysicsHarness();
         FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
         FrameHandle ship = h.AddFrameWithBody(space, Shapes.At(0, 0, 0), FrameBounds.Sphere(10), MotionDriver.Physics, Shapes.Box(2, mass: 1000));
-        // A big annex of the ship, whose hull is outside the ship's bubble, so the first step hands the annex out into
-        // space. The simulation keeps the annex inside the ship, so physics still holds that hand-off as pending and,
-        // from the second step on, sees the annex beside the ship. The ship's hull would fit in the annex's bubble,
-        // and touches it.
+        // A big annex of the ship, whose hull is outside the ship's bubble, so every step hands the annex out into
+        // space. The simulation keeps the annex inside the ship each time. Beside the ship, the annex's bubble would
+        // touch the ship's hull, which would fit in it.
         FrameHandle annex = h.AddFrameWithBody(ship, Shapes.At(33, 0, 0), FrameBounds.Sphere(30), MotionDriver.Physics, Shapes.Box(1, mass: 10));
         h.RefusesHandOff = handOff => handOff.Entity == annex.Entity;
 
@@ -266,7 +265,100 @@ public class HandOffTests
 
         h.Frames.Parent(annex).Should().Be(ship);
         h.HandOffs.Should().NotContain(handOff => handOff.Entity == ship.Entity, "the tree keeps the annex inside the ship");
-        h.RefusedHandOffs.Should().ContainSingle().Which.Entity.Should().Be(annex.Entity);
+        // Physics follows the tree, so each step starts with the annex's hull back in the ship's system.
+        h.RefusedHandOffs.Should().HaveCount(3).And.OnlyContain(handOff => handOff.Entity == annex.Entity && handOff.From == ship);
+    }
+
+    /// <summary>
+    /// A carrier bubble of radius 200 m, 1 km along +X from the origin of space, and a fighter 1,260 m along +X that
+    /// flies at 60 m/s toward the carrier, whose bubble it fits in.
+    /// </summary>
+    private static (FrameHandle Space, FrameHandle Carrier, FrameHandle Fighter) FighterApproachingCarrier(PhysicsHarness h)
+    {
+        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static);
+        FrameHandle carrier = h.AddFrame(space, Shapes.At(1000, 0, 0), FrameBounds.Sphere(200), MotionDriver.Static);
+        FrameHandle fighter = h.AddFrameWithBody(space, Shapes.At(1260, 0, 0), FrameBounds.Sphere(10), MotionDriver.Physics,
+            Shapes.Box(2, mass: 1000), velocity: new Vector3(-60, 0, 0));
+        return (space, carrier, fighter);
+    }
+
+    [Fact]
+    public void AHullWhoseHandOffTheSimulationRefusedIsBackInTheTreesParentOnTheNextStep()
+    {
+        using var h = new PhysicsHarness();
+        var (space, carrier, fighter) = FighterApproachingCarrier(h);
+        h.RefusesHandOff = handOff => handOff.Entity == fighter.Entity;
+        h.StepUntil(() => h.RefusedHandOffs.Count > 0, 120);
+        h.RefusedHandOffs.Should().ContainSingle().Which.To.Should().Be(carrier);
+
+        // The tree still has the fighter in space, where it was before the refused step. It stops there, so the next
+        // step does not take it into the carrier's bubble again.
+        DPose inSpace = h.Frames.LocalPose(fighter);
+        h.Intent(fighter.Entity).Flags = IntentFlags.SetVelocity;
+        h.Intent(fighter.Entity).Velocity = Vector3.Zero;
+        FrameState reported = default;
+        h.AfterStep = output => reported = output.Frames.Single(state => state.Frame == fighter);
+        h.Step();
+
+        h.Backend.TryGetBodyFrame(fighter.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        hullFrame.Should().Be(space);
+        h[fighter.Entity].Frame.Should().Be(space);
+        (h[fighter.Entity].Pose.Position - inSpace.Position).Length.Should().BeLessThan(1e-6);
+        // Relative to the carrier, the fighter would be about 1 km closer to the origin.
+        (reported.LocalPose.Position - inSpace.Position).Length.Should().BeLessThan(1e-6);
+        h.RefusedHandOffs.Should().ContainSingle();
+    }
+
+    [Fact]
+    public void PhysicsFollowsAFrameThatTheGameReparentsRightAfterItsHandOff()
+    {
+        using var h = new PhysicsHarness();
+        var (space, carrier, fighter) = FighterApproachingCarrier(h);
+        h.StepUntil(() => h.HandOffs.Count > 0, 120);
+        h.Frames.Parent(fighter).Should().Be(carrier);
+
+        // Between steps, with no change batch, the game moves the fighter back into space and turns it around at
+        // 120 m/s, fast enough that it leaves the carrier's bubble in one step.
+        h.Frames.Reparent(fighter, space);
+        h.Frames.LinearVelocity(fighter) = new Double3(120, 0, 0);
+        h.Frames.Update();
+        Double3 expected = h.Frames.LocalPose(fighter).Position + new Double3(120 * (double)PhysicsHarness.Dt, 0, 0);
+        FrameState reported = default;
+        h.AfterStep = output => reported = output.Frames.Single(state => state.Frame == fighter);
+        h.Step();
+
+        h.Backend.TryGetBodyFrame(fighter.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        hullFrame.Should().Be(space);
+        h[fighter.Entity].Frame.Should().Be(space);
+        (h[fighter.Entity].Pose.Position - expected).Length.Should().BeLessThan(1e-5);
+        (reported.LocalPose.Position - expected).Length.Should().BeLessThan(1e-5);
+        reported.LinearVelocity.X.Should().BeApproximately(120, 1e-3);
+        h.HandOffs.Should().ContainSingle("the fighter is out of the carrier's bubble");
+    }
+
+    [Fact]
+    public void AHullThatTheGameMovesOutOfTheFrameItEnteredNeverLeavesThatFrameForItsOwnFrame()
+    {
+        using var h = new PhysicsHarness();
+        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static);
+        FrameHandle hangar = h.AddFrame(space, Shapes.At(1000, 0, 0), FrameBounds.Sphere(30), MotionDriver.Static);
+        FrameHandle ship = h.AddFrameWithBody(space, Shapes.At(1040, 0, 0), FrameBounds.Sphere(10), MotionDriver.Physics,
+            Shapes.Box(2, mass: 1000), velocity: new Vector3(-60, 0, 0));
+        h.StepUntil(() => h.HandOffs.Count > 0, 60);
+        h.HandOffs.Should().ContainSingle().Which.To.Should().Be(hangar);
+
+        // Between steps, with no change batch, the game moves the ship back into space and the hangar under the ship.
+        // Both moves are legal. The hangar's parent is now the ship.
+        h.Frames.Reparent(ship, space);
+        h.Frames.Reparent(hangar, ship);
+        h.Frames.Update();
+        // At 60 m/s the hull needs about 70 steps to cross the hangar's bubble and leave it on the far side. A hull that
+        // physics kept in the hangar's system would then leave it for the hangar's parent: the ship's own frame.
+        h.Step(90);
+
+        h.HandOffs.Should().ContainSingle("the ship has no other frame to enter or leave");
+        h.Backend.TryGetBodyFrame(ship.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        hullFrame.Should().Be(space);
     }
 
     [Fact]

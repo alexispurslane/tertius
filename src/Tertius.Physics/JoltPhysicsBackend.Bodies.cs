@@ -258,12 +258,7 @@ public sealed partial class JoltPhysicsBackend
         RemovePrimary(record);
         RemoveInterior(record);
         if (record.IsHull)
-        {
             frameOwners.Remove(record);
-            // Without its hull, only the tree knows where the frame is, so a pending hand-off of it no longer holds.
-            if (parentOverrides.TryGetValue(record.OwnedFrame.Index, out var link) && link.Frame == record.OwnedFrame)
-                parentOverrides.Remove(record.OwnedFrame.Index);
-        }
         records[entity.Index] = null;
     }
 
@@ -324,9 +319,9 @@ public sealed partial class JoltPhysicsBackend
     // ---- Moving frame hulls after the tree changed ----
 
     /// <summary>
-    /// Puts a frame hull where the tree says, after the tree moved the frame on its own: the simulation reparented
-    /// it, or the frame's parent was destroyed. The hull takes the tree's pose and velocity. A frame that became a
-    /// root loses its hull.
+    /// Puts a frame hull where the tree says: the simulation refused the hull's hand-off or reparented its frame on its
+    /// own, or the frame's parent was destroyed. The hull takes the tree's pose and velocity. A frame that became a root
+    /// loses its hull.
     /// </summary>
     private void PlaceHullFromTree(BodyRecord owner, FrameHandle parent)
     {

@@ -33,8 +33,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private BodyRecord?[] records = new BodyRecord?[256];
     private readonly List<BodyRecord> frameOwners = new();
 
-    // Frames that a hand-off moved to a new parent. The frame tree is read-only during a step, so these stand in for
-    // the tree until the simulation reparents the frame and the tree agrees.
+    // Frames that a hand-off moved to a new parent during the current step. The frame tree is read-only during a step,
+    // so these stand in for the tree until the step ends. The sync point then applies or refuses each hand-off, and
+    // ReconcileFrames drops them all, so none survives into the next step.
     private readonly Dictionary<int, (FrameHandle Frame, FrameHandle Parent)> parentOverrides = new();
     private List<FrameHandle>[] childLists = [];
     private readonly List<int> usedChildLists = new();
@@ -79,13 +80,15 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Physics follows the frame tree. A frame in FramesDestroyed is already gone from <paramref name="frames"/>:
-    /// <see cref="FrameTree.Destroy"/> moved its child frames to its parent, with poses and velocities converted. The
-    /// hulls of those child frames move with them and take pose and velocity from the tree. Any other body still in
-    /// the destroyed frame is removed with a warning, and so is the hull of an owner that outlives its frame. A frame
-    /// in FramesDestroyed that the tree still has keeps its system, with a warning, until it leaves the tree. A frame
-    /// that leaves the tree without a FramesDestroyed change, and a frame that the simulation reparents on its own,
-    /// are handled here or at the start of the next step, whichever comes first.
+    /// Physics follows the frame tree. A hand-off of a frame is only a proposal, which the sync point applies or refuses
+    /// before this call, so the frame's hull goes where the tree has the frame now. A frame in FramesDestroyed is already
+    /// gone from <paramref name="frames"/>: <see cref="FrameTree.Destroy"/> moved its child frames to its parent, with
+    /// poses and velocities converted. The hulls of those child frames move with them and take pose and velocity from
+    /// the tree. Any other body still in the destroyed frame is removed with a warning, and so is the hull of an owner
+    /// that outlives its frame. A frame in FramesDestroyed that the tree still has keeps its system, with a warning,
+    /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, and
+    /// a frame that the simulation reparents on its own are handled here or at the start of the next step, whichever
+    /// comes first.
     /// </para>
     /// <para>
     /// A shape that Jolt cannot build, a mesh on a body that moves, or a character without a capsule throws
@@ -111,10 +114,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     }
 
     /// <summary>
-    /// Runs one physics step for every frame with awake bodies or characters: catches up with changes to the frame
-    /// tree that no change batch announced, applies intents, drives kinematic frame hulls, applies gravity, moves
-    /// characters, updates every system, then reports contacts, hands bodies between frames, updates ghosts and
-    /// writes body and frame states to <paramref name="output"/>.
+    /// Runs one physics step for every frame with awake bodies or characters: puts every frame hull where the frame tree
+    /// says, which drops the hand-offs of the last step that the simulation refused and follows changes to the tree that
+    /// no change batch announced, then applies intents, drives kinematic frame hulls, applies gravity, moves characters,
+    /// updates every system, then reports contacts, hands bodies between frames, updates ghosts and writes body and
+    /// frame states to <paramref name="output"/>.
     /// </summary>
     /// <remarks>
     /// <para>Intents, in the entity's frame axes. The intent of a frame's owner acts on the frame's hull.</para>
@@ -157,8 +161,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             stepTime = context.Time;
             stepEndTime = context.Time + context.DeltaTime;
 
-            // The simulation skips ApplyChanges when a sync point has no changes, but it may still have changed the
-            // tree, for example to dock a ship.
+            // The simulation skips ApplyChanges when a sync point has no changes, but it has still applied or refused
+            // the hand-offs of the last step, and it can also have changed the tree on its own, for example to dock a ship.
             ReconcileFrames();
             RefreshFrameStructure();
             CaptureHullVelocities();
@@ -246,7 +250,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private BodyRecord? OwnerRecord(FrameHandle frame) =>
         Find(frame.Entity) is { } record && record.OwnedFrame == frame ? record : null;
 
-    /// <summary>The parent of a frame, including hand-offs that the frame tree does not show yet.</summary>
+    /// <summary>The parent of a frame, including the hand-offs of the current step, which the frame tree does not show yet.</summary>
     private FrameHandle ParentOf(FrameHandle frame)
     {
         if (parentOverrides.TryGetValue(frame.Index, out var link) && link.Frame == frame)
@@ -283,25 +287,23 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     }
 
     /// <summary>
-    /// Brings physics in line with the frame tree: drops hand-off overrides that the tree now agrees with, removes
-    /// the systems of frames that left the tree, and moves frame hulls whose frame the simulation reparented on its
-    /// own. Afterwards every system belongs to a live frame.
+    /// Brings physics in line with the frame tree, which is the authority: drops the hand-offs of frames from the last
+    /// step, removes the systems of frames that left the tree, and puts every frame hull in the system of the parent
+    /// that the tree names. The sync point has applied or refused each hand-off before this runs, so a hull whose
+    /// hand-off the tree did not take, or whose frame the simulation moved on its own, goes where the tree says, with
+    /// the tree's pose and velocity. Afterwards every system belongs to a live frame, and every hull is in the system
+    /// of its frame's parent in the tree.
     /// </summary>
     private void ReconcileFrames()
     {
-        if (parentOverrides.Count > 0)
-        {
-            frameScratch.Clear();
-            foreach (var (_, link) in parentOverrides)
-                if (!frames.IsAlive(link.Frame) || frames.Parent(link.Frame) == link.Parent)
-                    frameScratch.Add(link.Frame);
-            foreach (FrameHandle frame in frameScratch)
-                parentOverrides.Remove(frame.Index);
-        }
+        // A hand-off that the tree took leaves its hull where the tree has the frame. One that the tree refused leaves
+        // its hull out of place, and the tree's version does not show that, so the hulls need the check below.
+        bool handedOffFrames = parentOverrides.Count > 0;
+        parentOverrides.Clear();
 
         // Every structural change of the tree, removals included, changes its version.
-        // Stryker disable once Statement : the version check only saves work; reconciling an unchanged tree changes nothing.
-        if (frames.Version == reconciledFrameVersion)
+        // Stryker disable once Statement : the check only saves work; reconciling an unchanged tree changes nothing.
+        if (frames.Version == reconciledFrameVersion && !handedOffFrames)
             return;
         reconciledFrameVersion = frames.Version;
 
@@ -324,9 +326,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         for (int i = frameOwners.Count - 1; i >= 0; i--)
         {
             BodyRecord owner = frameOwners[i];
-            // After the sweep every owner's frame is alive, so the first test is only a guard. A frame with an override
-            // keeps its hull where the hand-off put it until the tree agrees.
-            if (!frames.IsAlive(owner.OwnedFrame) || parentOverrides.ContainsKey(owner.OwnedFrame.Index))
+            // After the sweep every owner's frame is alive, so this test is only a guard.
+            if (!frames.IsAlive(owner.OwnedFrame))
                 continue;
             FrameHandle parent = frames.Parent(owner.OwnedFrame);
             if (owner.Frame != parent)
@@ -406,7 +407,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 // made it a root) and converted its pose and velocities, so the hull takes them from the tree as they
                 // are. Physics converts nothing itself: the tree's conversion is the only one, so the destroyed
                 // frame's motion counts once and the hull and the tree agree.
-                parentOverrides.Remove(member.OwnedFrame.Index);
                 PlaceHullFromTree(member, frames.Parent(member.OwnedFrame));
             }
             else

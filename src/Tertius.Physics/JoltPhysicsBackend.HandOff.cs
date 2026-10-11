@@ -100,9 +100,8 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Moves bodies between frames by the rules of ARCHITECTURE.md: enter a child on the first touch of its bubble
     /// (the deepest one if two touch), leave only when fully outside plus the exit margin, and a frame enters a
-    /// sibling only if it fits. A frame's hull never enters that frame or a frame that the tree keeps inside it. Every
-    /// decision and conversion uses the state at the end of the step, before any body moves, so the order of
-    /// execution does not matter.
+    /// sibling only if it fits. A frame's hull never enters its own frame. Every decision and conversion uses the state
+    /// at the end of the step, before any body moves, so the order of execution does not matter.
     /// </summary>
     private void HandOffBodies(PhysicsStepOutput output)
     {
@@ -148,10 +147,9 @@ public sealed partial class JoltPhysicsBackend
                 for (int i = 0; i < children.Count; i++)
                 {
                     FrameHandle child = children[i];
-                    // A hull never enters its own frame, nor a frame that the tree keeps inside its own frame: the tree
-                    // would refuse that move. Physics sees such a frame here only while it holds a hand-off of that frame
-                    // that the simulation did not take.
-                    if (member.IsHull && (child == member.OwnedFrame || frames.IsAncestorOf(member.OwnedFrame, child)))
+                    // A hull never enters its own frame. The other children are its frame's siblings, never frames
+                    // inside it: every hull starts the step in the system of its frame's parent in the tree.
+                    if (child == member.OwnedFrame)
                         continue;
                     FrameBounds childBounds = frames.Bounds(child);
                     if (member.IsHull && !FrameBounds.Fits(frames.Bounds(member.OwnedFrame), childBounds))
@@ -198,7 +196,7 @@ public sealed partial class JoltPhysicsBackend
         output.HandOffs.Add(new HandOff(record.Entity, plan.From, plan.To, plan.Pose, plan.LinearVelocity, plan.AngularVelocity));
     }
 
-    /// <summary>Records that a frame now has a new parent, until the tree catches up.</summary>
+    /// <summary>Records that a frame has a new parent for the rest of the step. The sync point decides whether the tree takes it.</summary>
     private void MoveFrame(FrameHandle frame, FrameHandle from, FrameHandle to)
     {
         parentOverrides[frame.Index] = (frame, to);
