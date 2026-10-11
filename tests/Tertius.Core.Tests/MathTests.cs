@@ -41,6 +41,25 @@ public class MathTests
         Assert.True(Math.Abs(Math.Abs(id.Rotation.W) - 1) < Eps);
     }
 
+    /// <summary>Object-initializer syntax runs the parameterless constructor, so a pose that names only its position faces along the axes.</summary>
+    [Fact]
+    public void DPose_ThatNamesOnlyItsPositionHasTheIdentityRotation()
+    {
+        var p = new DPose { Position = new Double3(1, 2, 3) };
+        Assert.Equal(DQuaternion.Identity, p.Rotation);
+        Assert.Equal(new Double3(1, 2, 3), p.Position);
+        Assert.Equal(DPose.Identity, new DPose());
+    }
+
+    /// <summary>The default value of a struct skips every constructor. Spawn refuses its zero rotation.</summary>
+    [Fact]
+    public void DPose_DefaultValueKeepsAZeroRotation()
+    {
+        var poses = new DPose[1];
+        Assert.Equal(new DQuaternion(0, 0, 0, 0), default(DPose).Rotation);
+        Assert.Equal(new DQuaternion(0, 0, 0, 0), poses[0].Rotation);
+    }
+
     [Fact]
     public void Pose_TransformPointRoundTrips()
     {

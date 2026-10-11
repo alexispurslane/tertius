@@ -4,7 +4,7 @@ Ticket: `ter-tanj`.
 
 ## Goal
 
-Find the design problems in every module before more code builds on them. The review uses the software-design-philosophy skill: deep modules, information hiding, no pass-through methods, no conjoined methods, and errors defined out of existence.
+Find the design problems in every module before more code builds on them. The review uses the software-design skill, the user's own design philosophy. It merges Ousterhout's deep modules and information hiding with Muratori's rule of two. It sorts every piece of a design into a boundary, a flow or a shared abstraction.
 
 ## How
 

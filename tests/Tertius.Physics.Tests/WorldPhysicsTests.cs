@@ -109,6 +109,46 @@ public class WorldPhysicsTests
     }
 
     /// <summary>
+    /// A parked station rests 10 km from the point of its orbit where it belongs now. The game gives it the Kepler driver.
+    /// The station moves onto its orbit at once, as it does for a new orbit, and its owner with it. Physics then puts the
+    /// hull there at the start of the next step, so it never drives the hull across the gap: after one tick the hull is on
+    /// the orbit and moves at the orbital speed of 10 m/s.
+    /// </summary>
+    [Fact]
+    public void AFrameThatGetsTheKeplerDriverMovesOntoItsOrbitAtOnceSoItsHullNeverCrossesTheGap()
+    {
+        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
+        using World world = NewWorld(backend);
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = planet,
+            Pose = At(-5000),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static),
+        });
+        FrameHandle station = world.GetOwnedFrame(owner);
+        world.Tick();
+        // At 5 km, a parent with this gravitational parameter gives an orbital speed of 10 m/s.
+        KeplerOrbit orbit = KeplerOrbit.Circular(5000, 5000.0 * 100);
+        world.SetFrameOrbit(station, orbit);
+
+        world.SetFrameDriver(station, MotionDriver.Kepler);
+
+        (Double3 onOrbit, Double3 orbitalVelocity) = orbit.StateAt(world.Time);
+        (world.Frames.LocalPose(station).Position - onOrbit).Length.Should().BeLessThan(1e-6, "the station moved onto its orbit at once");
+        (world.Frames.LinearVelocity(station) - orbitalVelocity).Length.Should().BeLessThan(1e-6);
+        world.GetPose(owner).Should().Be(world.Frames.LocalPose(station), "the owner mirrors its frame at once");
+
+        world.Tick();
+
+        JoltPhysicsBackend.BodyFacts hull = backend.BodiesIn(planet).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
+        hull.LinearVelocity.Length().Should().BeApproximately(10f, 0.01f, "the hull moves along the orbit, not across the gap");
+        (hull.Position - orbit.StateAt(world.Time).Position).Length.Should().BeLessThan(0.01, "the hull is on the orbit");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// The reviewer's probe W7. Between two ticks, or with one tick between, the game parks a ship that flies at 10 m/s and
     /// gives it the physics driver again. The ship stays where it was parked.
     /// </summary>

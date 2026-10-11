@@ -162,6 +162,12 @@ public sealed record BodyDesc(
             return $"has the layer {Layer}, which BodyLayer does not define";
         if (Shape.Problem() is { } shape)
             return $"has a shape that {shape}";
+        // Jolt divides by the mass, so a subnormal mass gives an infinite inverse mass. A body that does not need a mass can have 0.
+        if (!(Mass == 0 || (float.IsNormal(Mass) && Mass > 0)))
+            return $"has the mass {Mass}, which must be 0 or a finite positive number of at least 1.2E-38";
+        if ((NotFinite("friction", Friction) ?? NotFinite("restitution", Restitution) ?? NotFinite("linear damping", LinearDamping) ??
+             NotFinite("angular damping", AngularDamping)) is { } material)
+            return material;
         if (ownsFrame)
         {
             if (Motion == BodyMotion.Character)
@@ -176,6 +182,8 @@ public sealed record BodyDesc(
             return $"is dynamic, so its mass must be positive, not {Mass}";
         return null;
     }
+
+    private static string? NotFinite(string name, float value) => float.IsFinite(value) ? null : $"has the {name} {value}, which must be finite";
 
     /// <summary>
     /// Why the hull of a frame with this description cannot move the way that <paramref name="driver"/> needs, or null

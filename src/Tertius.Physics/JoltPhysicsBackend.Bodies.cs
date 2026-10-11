@@ -232,7 +232,7 @@ public sealed partial class JoltPhysicsBackend
     private BodyCreationSettings Settings(in RigidSpec spec, RVector3 position, Quaternion rotation, Vector3 linearVelocity, Vector3 angularVelocity)
     {
         BodyDesc material = spec.Material;
-        var settings = new BodyCreationSettings(shapes.Get(spec.Shape), position, rotation, spec.Motion, spec.Layer)
+        BodyCreationSettings settings = NativeOwnership.Owned(new BodyCreationSettings(shapes.Get(spec.Shape), position, rotation, spec.Motion, spec.Layer)
         {
             UserData = spec.UserData,
             Friction = material.Friction,
@@ -242,7 +242,7 @@ public sealed partial class JoltPhysicsBackend
             MaxLinearVelocity = options.MaxLinearVelocity,
             // Jolt changes the motion type only of a body that it created to allow the change.
             AllowDynamicOrKinematic = spec.MotionChanges,
-        };
+        });
         // A body whose motion can change keeps its mass while it is static or kinematic, for the time that it is dynamic.
         // A body without mass never becomes dynamic.
         if (spec.Motion == MotionType.Dynamic || (spec.MotionChanges && material.Mass > 0))
@@ -299,7 +299,7 @@ public sealed partial class JoltPhysicsBackend
             // Contacts below the center of the lower hemisphere support the character.
             SupportingVolume = new Plane(Vector3.UnitY, -capsule.Radius),
         };
-        var character = new CharacterVirtual(settings, position, rotation, BodyUserData.Encode(BodyKind.CharacterInner, record.Entity), system);
+        CharacterVirtual character = NativeOwnership.Owned(new CharacterVirtual(settings, position, rotation, BodyUserData.Encode(BodyKind.CharacterInner, record.Entity), system));
         character.LinearVelocity = linearVelocity;
         return character;
     }

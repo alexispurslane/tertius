@@ -226,7 +226,7 @@ The scene graph inside a frame uses the same `PoseTree`, with the float `Pose`.
 - Physics: the frame's hull is a dynamic body in the parent frame's physics system. Its pose and velocity come from that body after each step. The proper acceleration is the velocity change over the step minus the gravity that the parent applied.
 - Static: the pose does not change.
 
-A game gives a frame a new driver between ticks with `World.SetFrameDriver`, for example to park a ship. `FrameTree.SetDriver` is internal to the simulation. The world refuses the call during a tick, because physics reads the frame tree on its own thread then. A frame that gets the static driver stops where it is: both of its velocities become zero. It keeps its proper acceleration, so the cargo of a ship that is parked on the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until the new driver moves it. The transform of the frame's owner follows the frame at once.
+A game gives a frame a new driver between ticks with `World.SetFrameDriver`, for example to park a ship. `FrameTree.SetDriver` is internal to the simulation. The world refuses the call during a tick, because physics reads the frame tree on its own thread then. A frame that gets the static driver stops where it is: both of its velocities become zero. It keeps its proper acceleration, so the cargo of a ship that is parked on the ground keeps its weight. A frame that gets the Kepler driver moves to its place on its orbit at once, as it does for a new orbit. So physics never drives its hull across the gap from its old place. A frame that gets the physics driver keeps its pose and velocities until physics moves it. The transform of the frame's owner follows the frame at once.
 
 The world refuses a driver that `MotionDriver` does not define, and a driver that the frame cannot follow. The physics driver needs a dynamic hull, which has mass and is not a mesh. Jolt never moves a mesh. The Kepler driver needs a hull that is not a mesh, and a valid orbit. A valid orbit is closed, with a positive semi-major axis around a parent with a positive mass, and each of its elements is finite. The world refuses the same hulls and orbits at spawn.
 
@@ -285,6 +285,8 @@ A ghost is only in the system of a frame next to the body's frame in the tree: i
 
 Tertius uses Jolt in double-precision mode. Each frame that contains bodies has its own `PhysicsSystem`. A frame with no awake bodies is not stepped.
 
+The backend owns each native Jolt object that it creates, and it frees each one in the order that Jolt needs. For example, it frees a character before the system of the character. JoltPhysicsSharp does not mark every native object as owned, so the backend marks each one itself. The C API of Jolt frees the layer filter tables of a system with the system, so each system has its own tables.
+
 Object layers:
 
 | Layer | Collides with |
@@ -297,6 +299,8 @@ Object layers:
 A frame entity has two bodies. In the parent system, its hull is a body on the `FrameHull` layer. In its own system, the same hull shape is static geometry on the `Static` layer. This includes the exterior surfaces, so that a person on a spacewalk can stand on the hull. Objects inside do not push the hull body.
 
 Spawn refuses every body that physics cannot create, before anything changes. `BodyDesc.Problem` and `ShapeDesc.Problem` in `Tertius.Core` hold these rules, and the World and the backend use the same ones. `IPhysicsBackend.ShapeProblem` adds what only the backend can tell, for example a convex hull whose points coincide. So a change batch holds only bodies that physics can create.
+
+Physics turns some values into NaN in its first step, so spawn refuses them too, for every entity. A position or a velocity must be finite. A rotation must be finite and not zero. A mass must be 0 or a finite positive number of at least 1.2E-38, because Jolt divides by it. Friction, restitution and damping must be finite. `new DPose { Position = p }` has the identity rotation. Only `default(DPose)` has the zero rotation, and spawn refuses it. Two gaps remain, tracked by ticket `ter-d0t6`. Spawn tests a rotation in double precision, but physics normalizes it in single precision. So a rotation whose single-precision length rounds to 0 or to infinity still passes. A mass above about 3.5E+37 kg also passes, and its gravity force overflows.
 
 Gravity is a force that physics applies to each awake dynamic body before each step. The Jolt system gravity is zero. The force does not wake a sleeping body, and it does not reset the sleep timer of an awake body.
 
@@ -314,11 +318,14 @@ The sleep rule has these limits:
 - A body whose motion turns around under a net acceleration below 9.8 % of the gravity can fall asleep at the turning point. An example is a ball that rolls up a ramp of 5°, whose net acceleration is 6.2 % of the gravity.
 - Below 0.001 m/s², the threshold does not fall further. There, a body that a net acceleration below 0.000024 m/s² moves from rest can fall asleep.
 - One system has one threshold, which its weakest gravity sets. An example is one awake body far out in the frame of a planet, where the gravity is weak. It lowers the threshold for every body of that frame, so bodies at rest there take longer to fall asleep.
-- Jolt puts a group of bodies that touch to sleep only all at once. In the benchmark, a heap of 400 boxes that fell and tumbled in 9.81 m/s² took about 55 s to fall asleep. Jolt's own rule takes about as long.
+- Jolt puts a group of bodies that touch to sleep only all at once. In the benchmark, a heap of 400 boxes that fell and tumbled in 9.81 m/s² took about 25 s to fall asleep. Before round eight it took about 57 s.
+- In weak gravity the threshold is lower, so a heap that tumbles takes longer to fall asleep. The same heap took about 125 s in 1.62 m/s², the gravity of the Moon. Before round eight, it took 76 s there.
 
 If a body that Jolt simulates touches a sleeping body, Jolt wakes the sleeping body. Nothing else wakes it. So before physics removes a body, teleports it, or moves it without a simulated step, physics wakes the bodies around it. One example of such a move is a static hull that the game moves through the frame tree. Others are a hull that the reconcile puts in another place, and a ghost.
 
 Physics wakes each body that is near the moved body and can touch it. Near means in the bounds of the moved body, plus 0.05 m. Can touch means that the two layers collide. If Jolt does not simulate the body at its new place either, physics wakes the bodies there too. This is the case for a static body and for a character. So if the table under a sleeping box goes, the box falls, and the bodies farther away sleep on.
+
+If the world destroys a character, or if the character moves to another frame, the character takes its inner body out of its old system. So a box that sleeps on the head of a character that the world destroys falls. A character that walks into another frame leaves nothing behind that a body can hit.
 
 If the gravity field of a frame changes, the sleeping bodies of the frame wake. If the proper acceleration of the frame moved more than `WakeAccelerationThreshold` away from its value at their last wake, they wake too. So if the thrust of a ship changes, even slowly, its cargo wakes.
 
@@ -343,11 +350,13 @@ If two bodies start to touch, physics reports the contact once. It reports the c
 
 Physics holds each contact that Jolt drops. If Jolt finds a held contact again, the contact continues, and physics does not report it. A held contact ends at the first step that simulates one of its two bodies without finding the contact. For example, the game can lift a sleeping box off the floor. The box then reports the floor again at its landing. In each step of a system, physics visits every held contact of that system.
 
-Jolt never simulates the inner body of a character. A character also keeps a gap of 0.02 m from what it touches, which is Jolt's speculative contact distance. So Jolt loses and finds the contact of a character and a box again and again while the character pushes the box. For a contact with a character, the character's own contact list decides instead. This list holds each body within 0.1 m of the character, asleep or awake. If the list no longer has the other body, the held contact of the character ends.
+Jolt never simulates the inner body of a character. A character also keeps a gap of 0.02 m from what it touches, which is Jolt's speculative contact distance. So Jolt loses and finds the contact of a character and a box again and again while the character pushes the box. For this reason, the character's own contact list decides the end of a held contact of the character. This list holds each body within 0.1 m of the character, asleep or awake. If the list no longer has the other body, the held contact ends.
+
+The list does not start a contact. Only a contact that Jolt finds for the inner body starts a contact with a character. The gap of 0.02 m puts that contact at the edge of Jolt's speculative contact distance, so Jolt can miss it. Physics then reports no contact for a character that stands on a box, for a ball that shoves a character, or for a slow push. Ticket ter-84co tracks this gap.
 
 ### Physics systems that grow
 
-Jolt creates each physics system with buffers of a fixed size. So a system holds a fixed number of bodies. Ghosts and the inner bodies of characters count too. Physics never refuses a body for lack of room. It adds a body or a character to a full system in three steps. First, it builds a new system with twice the limits for bodies, body pairs and contact constraints. Then it moves every body of the old system into the new one. Last, it adds the new body. This happens in one place, so every path that adds a body gets it: a new body, an interior, a ghost, a hand-off, and a hull that the reconcile moves.
+Jolt creates each physics system with buffers of a fixed size. So a system holds a fixed number of bodies. Ghosts and the inner bodies of characters count too. Physics never refuses a body for lack of room. It adds a body or a character to a full system in three steps. First, it builds a new system with twice the limits for bodies, body pairs and contact constraints. Then it moves every body of the old system into the new one, and it frees the old system. Last, it adds the new body. A character moves as a new native character in the new system. A native character that physics frees takes its inner body out of its system. So physics frees the old native character before the old system. This happens in one place, so every path that adds a body gets it: a new body, an interior, a ghost, a hand-off, and a hull that the reconcile moves.
 
 The move keeps the state of each body. A rigid body keeps its ID, its shape, motion type, layer, mass, material and user data, its pose and velocities, and whether it sleeps. A character keeps its pose, velocity and up direction, and it finds its ground again. Each pair of bodies that touches stays in contact, so physics does not report the contact again. The new system starts with no contacts, so physics holds each pair, as it holds a contact that Jolt drops (see "Contacts"). This holds for any number of growths. Two things stay behind, because the C API of Jolt cannot save them. The first step in the new system solves its contacts without the impulses of the last step. Also, the sleep timer of each body starts again.
 

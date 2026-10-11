@@ -45,7 +45,6 @@ internal readonly record struct SystemLimits(int MaxBodies, int MaxBodyPairs, in
 /// </remarks>
 internal sealed class FrameWorld : IDisposable
 {
-    private readonly Layers.Tables layers;
     private readonly float penetrationSlop;
     private readonly Lock contactGate = new();
     private readonly List<RawContact> added = new(64);
@@ -70,10 +69,9 @@ internal sealed class FrameWorld : IDisposable
     // The pairs that a growth holds, before they take the new IDs, and the held pairs that a drain ends.
     private readonly List<ulong> heldScratch = new();
 
-    public FrameWorld(FrameHandle frame, Layers.Tables layers, JoltBackendOptions options)
+    public FrameWorld(FrameHandle frame, JoltBackendOptions options)
     {
         Frame = frame;
-        this.layers = layers;
         penetrationSlop = options.PenetrationSlop;
         Limits = SystemLimits.From(options);
         System = CreateSystem(Limits);
@@ -132,12 +130,14 @@ internal sealed class FrameWorld : IDisposable
     }
 
     /// <summary>
-    /// Creates an empty system with this frame's filters and settings and the given limits. Nothing listens to its
+    /// Creates an empty system with its own filter tables, this frame's settings and the given limits. Nothing listens to its
     /// contacts until <see cref="ReplaceSystem"/> makes it this frame's system.
     /// </summary>
     public PhysicsSystem CreateSystem(SystemLimits limits)
     {
-        var system = new PhysicsSystem(new PhysicsSystemSettings
+        // The system frees its tables when it is destroyed.
+        var layers = new Layers.Tables();
+        PhysicsSystem system = NativeOwnership.Owned(new PhysicsSystem(new PhysicsSystemSettings
         {
             MaxBodies = limits.MaxBodies,
             MaxBodyPairs = limits.MaxBodyPairs,
@@ -145,7 +145,7 @@ internal sealed class FrameWorld : IDisposable
             ObjectLayerPairFilter = layers.Pairs,
             BroadPhaseLayerInterface = layers.BroadPhase,
             ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase,
-        });
+        }));
         system.Gravity = Vector3.Zero;
         PhysicsSettings settings = system.Settings;
         settings.PenetrationSlop = penetrationSlop;
