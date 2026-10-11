@@ -129,6 +129,15 @@ public class ScriptRunnerTests
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "force": 1 } }""", "force")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Tag", "payload": { "other": "ghost" } }""", "ghost")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Twin" }""", "Twin")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Label" }""", "Label")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Huge" }""", "Huge")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Fleeting" }""", "Fleeting")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Address", "payload": { "value": 1 } }""", "Address")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Fixed", "payload": { "amount": 5 } }""", "amount")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1e39 } }""", "amount")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1e39, 0, 0] } }""", "direction")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1, 2] } }""", "direction")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": 4 } }""", "kind")]
     public void AStepThatCannotRunStopsTheRunBeforeTheFirstTick(string badStep, string named)
     {
         using World world = NewWorld();
@@ -138,5 +147,61 @@ public class ScriptRunnerTests
 
         run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain(named);
         world.TickNumber.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "crew" }, "event": "Nudge" }""")]
+    [InlineData("""{ "do": "post", "to": { "kind": "frame", "id": "ship" }, "event": "Nudge" }""")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Link", "payload": { "frame": "ship" } }""")]
+    public void AStepThatNamesAnEntityThatIsGoneStopsTheRunBeforeTheFirstTick(string step)
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        // The crew dies with the ship: destroying a frame moves its contents to the parent, so destroy the crew first.
+        world.Destroy(scene["crew"]);
+        world.Destroy(scene["ship"]);
+
+        Action run = () => Run(world, scene, step, """{ "do": "run", "ticks": 1 }""");
+
+        run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 1").And.Contain("not alive");
+        world.TickNumber.Should().Be(0);
+    }
+
+    [Fact]
+    public void AScriptBuiltInCodeIsCheckedLikeAParsedOne()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        var script = new Script("test", [new RunStep(1), new DumpStep("../escape")]);
+
+        Action run = () => ScriptRunner.Run(script, world, scene);
+
+        run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2");
+        world.TickNumber.Should().Be(0);
+    }
+
+    [Fact]
+    public void EveryFieldTypeWithASpecialFormIsReadFromItsScriptForm()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene,
+            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1, 2, 3], "point": [4, 5, 6] } }""",
+            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Spin", "payload": { "turn": [0, 0, 0.6, 0.8], "attitude": [0, 0.6, 0, 0.8] } }""",
+            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Link", "payload": { "channel": "test", "frame": "ship" } }""",
+            """{ "do": "run", "ticks": 2 }""");
+
+        List<(long Tick, Event Event)> seen = ProbeOf(world, scene, "probe").Seen;
+        seen.Should().HaveCount(3);
+        Aim aim = seen[0].Event.As<Aim>();
+        aim.Direction.Should().Be(new Vector3(1, 2, 3));
+        aim.Point.Should().Be(new Double3(4, 5, 6));
+        Spin spin = seen[1].Event.As<Spin>();
+        spin.Turn.Should().Be(new Quaternion(0, 0, 0.6f, 0.8f));
+        spin.Attitude.Should().Be(new DQuaternion(0, 0.6, 0, 0.8));
+        Link link = seen[2].Event.As<Link>();
+        link.Channel.Should().Be(Topics.Get("test"));
+        link.Frame.Should().Be(world.GetOwnedFrame(scene["ship"]));
     }
 }

@@ -17,9 +17,10 @@ public static class ScriptRunner
         ArgumentNullException.ThrowIfNull(script);
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(scene);
-        JsonSerializerOptions json = ScriptJson.ForRun(world, scene);
+        script.CheckSteps();
         EventPayloads payloads = EventPayloads.FromLoadedAssemblies();
-        Event[] posts = MakePostedEvents(script, world, scene, payloads, json);
+        Event[] posts = MakePostedEvents(script, world, scene, payloads, ScriptJson.Payloads(world, scene));
+        JsonSerializerOptions dumpJson = ScriptJson.Dumps(scene);
 
         if (outputFolder != null)
             Directory.CreateDirectory(outputFolder);
@@ -43,8 +44,10 @@ public static class ScriptRunner
                     StateDump dump = recorder.Take(step.Name);
                     dumps.Add(dump);
                     if (outputFolder != null)
-                        File.WriteAllText(Path.Combine(outputFolder, step.Name + ".json"), JsonSerializer.Serialize(dump, json) + "\n");
+                        File.WriteAllText(Path.Combine(outputFolder, step.Name + ".json"), JsonSerializer.Serialize(dump, dumpJson) + "\n");
                     break;
+                default:
+                    throw new InvalidOperationException($"The runner has no arm for the step {script.Steps[i]}.");
             }
         }
         return new RunResult(dumps);
@@ -68,7 +71,12 @@ public static class ScriptRunner
             }
             catch (JsonException ex)
             {
-                throw new ScriptException($"{where}: the payload is not a {post.Event}: {ex.Message}", ex);
+                throw new ScriptException($"{where}: the payload is not a {post.Event}, at {ex.Path}: {ex.Message}", ex);
+            }
+            // System.Text.Json reads no field of a type such as nint.
+            catch (NotSupportedException ex)
+            {
+                throw new ScriptException($"{where}: a script cannot write a {post.Event}: {ex.Message}", ex);
             }
             posts[i] = type.Create(target, payload ?? throw new ScriptException($"{where}: the payload is null."));
         }
@@ -77,17 +85,21 @@ public static class ScriptRunner
 
     private static Target TargetOf(MessageTarget to, World world, SceneInstance scene, string where) => to switch
     {
-        ToEntity(string id) => EntityWithId(id, scene, where),
+        ToEntity(string id) => LiveEntity(id, world, scene, where),
         ToTopic(string name) => Topics.Get(name),
-        ToFrame(string id) => world.GetOwnedFrame(EntityWithId(id, scene, where)) is { IsNull: false } frame
+        ToFrame(string id) => world.GetOwnedFrame(LiveEntity(id, world, scene, where)) is { IsNull: false } frame
             ? frame.Topic
             : throw new ScriptException($"{where}: the entity '{id}' owns no frame."),
         ToEveryone => new Broadcast(),
-        _ => throw new ScriptException($"{where}: the target has no kind."),
+        _ => throw new InvalidOperationException($"The runner has no arm for the target {to}."),
     };
 
-    private static Entity EntityWithId(string id, SceneInstance scene, string where) =>
-        scene.TryGetEntity(id, out Entity entity) ? entity : throw new ScriptException($"{where}: the scene has no entity with the id '{id}'.");
+    private static Entity LiveEntity(string id, World world, SceneInstance scene, string where)
+    {
+        if (!scene.TryGetEntity(id, out Entity entity))
+            throw new ScriptException($"{where}: the scene has no entity with the id '{id}'.");
+        return world.IsAlive(entity) ? entity : throw new ScriptException($"{where}: the entity '{id}' is not alive.");
+    }
 }
 
 /// <summary>What a scripted run made: its state dumps, in the order taken.</summary>

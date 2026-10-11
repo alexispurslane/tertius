@@ -66,6 +66,9 @@ public static class ScriptCommand
         }
 
         using var world = new World(new WorldOptions { DisposePhysics = true }, new JoltPhysicsBackend());
+        // The log holds the errors, which the dumps also hold, and the engine's notes, such as a run that is no longer
+        // deterministic, which only the log holds.
+        world.Log += error.WriteLine;
         try
         {
             RunResult result = ScriptRunner.Run(script, world, scene.Build(world), options.Out);
@@ -99,7 +102,7 @@ public static class ScriptCommand
                 case "--headless":
                     headless = true;
                     break;
-                case "--script" or "--out" when i + 1 >= args.Length:
+                case "--script" or "--out" when i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]):
                     problem = $"{args[i]} needs a value.";
                     return null;
                 case "--script":

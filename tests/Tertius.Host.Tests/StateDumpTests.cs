@@ -68,13 +68,15 @@ public class StateDumpTests
     {
         using World world = NewWorld();
         SceneInstance scene = ShipWithCrate(world);
+        string[] named = ["space", "ship", "crate", "shuttle", "pod", "moon"];
         var live = new List<Entity>();
         world.CopyLiveEntities(live);
-        Entity unnamed = live.Single(e => e != scene["space"] && e != scene["ship"] && e != scene["crate"]);
+        Entity unnamed = live.Single(e => !named.Any(id => scene[id] == e));
 
         StateDump dump = Run(world, scene, DumpNow).Dump("now");
 
-        dump.Entities.Select(e => e.Id).Should().Equal("space", "ship", "crate", $"#{unnamed.Index}.{unnamed.Generation}");
+        // The scene makes them in this order, so their slots are in this order too.
+        dump.Entities.Select(e => e.Id).Should().Equal([.. named, $"#{unnamed.Index}.{unnamed.Generation}"]);
     }
 
     [Fact]
@@ -85,7 +87,40 @@ public class StateDumpTests
 
         StateDump dump = Run(world, scene, DumpNow).Dump("now");
 
-        dump.Frames.Should().Equal(new FrameRecord("space", null, MotionDriver.Static), new FrameRecord("ship", "space", MotionDriver.Static));
+        dump.Frames.Should().Equal(
+            new FrameRecord("space", null, MotionDriver.Static),
+            new FrameRecord("ship", "space", MotionDriver.Static),
+            new FrameRecord("shuttle", "ship", MotionDriver.Static),
+            new FrameRecord("moon", "space", MotionDriver.Kepler));
+    }
+
+    [Fact]
+    public void ADumpHoldsAnEntitysVelocityAndAngularVelocityInItsOwnFrame()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = ShipWithCrate(world);
+
+        EntityRecord crate = Run(world, scene, DumpNow).Dump("now").Entity("crate");
+
+        crate.Velocity.Should().Be(new Vector3(1, 2, 3));
+        crate.AngularVelocity.Should().Be(new Vector3(0.25f, 0.5f, 0.75f));
+    }
+
+    [Fact]
+    public void TheRootPoseWalksUpEveryFrameToTheRootOfTheTree()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = ShipWithCrate(world);
+
+        StateDump dump = Run(world, scene, DumpNow).Dump("now");
+
+        // The pod's (1, 0, 0) in the shuttle is (1, 0, 2) in the ship, and the ship's turn takes (x, 0, z) to (z, 0, -x),
+        // so the pod is at (10 + 2, 0, -1) in space.
+        FramePose root = dump.Entity("pod").RootPose;
+        root.Frame.Should().Be("space");
+        root.Position.X.Should().BeApproximately(12, 1e-12);
+        root.Position.Y.Should().BeApproximately(0, 1e-12);
+        root.Position.Z.Should().BeApproximately(-1, 1e-12);
     }
 
     [Fact]
@@ -140,15 +175,54 @@ public class StateDumpTests
     }
 
     [Fact]
-    public void ADumpHoldsTheErrorsThatTheWorldRecorded()
+    public void ADumpHoldsTheErrorsThatTheWorldHadRecordedWhenItWasTaken()
     {
         using World world = NewWorld();
         SceneInstance scene = Probes(world);
         world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(scene["space"]), Components = [new ThrowsOnce()] });
 
+        RunResult result = Run(world, scene, """{ "do": "dump", "name": "before" }""", """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "after" }""");
+
+        result.Dump("before").Errors.Should().BeEmpty();
+        result.Dump("after").Errors.Should().ContainSingle().Which.Should().Contain("the probe broke on purpose");
+    }
+
+    [Theory]
+    [InlineData("""{ "kind": "frame", "id": "ship" }""", "frame")]
+    [InlineData("""{ "kind": "broadcast" }""", "broadcast")]
+    [InlineData("""{ "kind": "entity", "id": "crew" }""", "entity")]
+    public void ARecordedEventNamesItsTargetInTheFormThatAScriptWrites(string target, string kind)
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        StateDump dump = Run(world, scene, $$"""{ "do": "post", "to": {{target}}, "event": "Nudge" }""", """{ "do": "run", "ticks": 1 }""", DumpNow).Dump("now");
+
+        MessageTarget expected = kind switch
+        {
+            "frame" => new ToFrame("ship"),
+            "broadcast" => new ToEveryone(),
+            _ => new ToEntity("crew"),
+        };
+        dump.Events.Should().ContainSingle().Which.To.Should().Be(expected);
+    }
+
+    [Fact]
+    public void ARecordedMessageNamesTheEntityThatSentIt()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        scene.Add("sender", world.Spawn(new SpawnDesc
+        {
+            Frame = world.GetOwnedFrame(scene["space"]),
+            Components = [new SendOnce<Nudge>(scene["probe"], new Nudge { Amount = 4 })],
+        }));
+
         StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 1 }""", DumpNow).Dump("now");
 
-        dump.Errors.Should().ContainSingle().Which.Should().Contain("the probe broke on purpose");
+        EventRecord record = dump.Events.Should().ContainSingle().Which;
+        record.From.Should().Be("sender");
+        record.To.Should().Be(new ToEntity("probe"));
     }
 
     [Fact]

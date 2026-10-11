@@ -45,7 +45,8 @@ public sealed record Script(string Scene, IReadOnlyList<ScriptStep> Steps)
     /// </summary>
     public static Script Load(string path) => Parse(File.ReadAllText(path));
 
-    private void CheckSteps()
+    /// <summary>Throws <see cref="ScriptException"/> for a step that cannot run, whether the script was parsed or built in code.</summary>
+    internal void CheckSteps()
     {
         if (Steps.Count == 0)
             throw new ScriptException("The script has no steps.");
@@ -55,6 +56,8 @@ public sealed record Script(string Scene, IReadOnlyList<ScriptStep> Steps)
             int number = i + 1;
             switch (Steps[i])
             {
+                case null:
+                    throw new ScriptException($"step {number}: a step cannot be null.");
                 case RunStep { Ticks: < 1 } run:
                     throw new ScriptException($"step {number} (run): it runs {run.Ticks} ticks, and a run step runs at least 1.");
                 case DumpStep dump when !SceneInstance.IsSceneId(dump.Name):
@@ -74,7 +77,13 @@ public sealed record Script(string Scene, IReadOnlyList<ScriptStep> Steps)
 [JsonDerivedType(typeof(RunStep), "run")]
 [JsonDerivedType(typeof(PostStep), "post")]
 [JsonDerivedType(typeof(DumpStep), "dump")]
-public abstract record ScriptStep;
+public abstract record ScriptStep
+{
+    // The kinds of step are a closed set: only this assembly can add one, together with its arm in the runner.
+    private protected ScriptStep()
+    {
+    }
+}
 
 /// <summary>Runs <paramref name="Ticks"/> ticks, at least 1.</summary>
 public sealed record RunStep(int Ticks) : ScriptStep;
@@ -97,7 +106,13 @@ public sealed record DumpStep(string Name) : ScriptStep;
 [JsonDerivedType(typeof(ToTopic), "topic")]
 [JsonDerivedType(typeof(ToFrame), "frame")]
 [JsonDerivedType(typeof(ToEveryone), "broadcast")]
-public abstract record MessageTarget;
+public abstract record MessageTarget
+{
+    // The kinds of target are a closed set, like the cases of the engine's Target union.
+    private protected MessageTarget()
+    {
+    }
+}
 
 /// <summary>The entity with the scene id <paramref name="Id"/>.</summary>
 public sealed record ToEntity(string Id) : MessageTarget;

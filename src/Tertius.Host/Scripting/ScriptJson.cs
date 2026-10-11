@@ -10,29 +10,56 @@ namespace Tertius.Host.Scripting;
 
 /// <summary>
 /// The System.Text.Json options of scripts and state dumps. They follow the conventions of the content formats design:
-/// camelCase keys and enum values, public fields, no comments, and an unknown key, a duplicate key or a number in a
-/// string is an error. Vectors are arrays, and a dump writes each one on one line.
+/// camelCase keys and enum values, public fields, no comments, and vectors and quaternions as arrays.
 /// </summary>
 /// <remarks>
-/// Every options object is new, never <see cref="JsonSerializerOptions.Default"/>, whose caches live as long as the
-/// process (content formats design, decision 18).
+/// Reading is strict: an unknown key, a duplicate key, a number in a string, an enum value as a number, a number out of
+/// the range of its field, and a key for a payload member that a script cannot set are all errors. Writing a dump is
+/// lenient, because a dump of a broken state must still write: a number that JSON cannot hold, such as NaN, becomes a
+/// string, and an enum value with no name becomes its number. Every options object is new, never
+/// <see cref="JsonSerializerOptions.Default"/>, whose caches live as long as the process (content formats design,
+/// decision 18).
 /// </remarks>
 internal static class ScriptJson
 {
     /// <summary>The options that read a script. They know no scene, so they cannot read an entity.</summary>
-    public static readonly JsonSerializerOptions Scripts = Create(world: null, scene: null);
+    public static readonly JsonSerializerOptions Scripts = Reading(world: null, scene: null);
 
-    /// <summary>The options of one run: they read the payloads of its posts and write its dumps, with the scene's ids.</summary>
-    public static JsonSerializerOptions ForRun(World world, SceneInstance scene) => Create(world, scene);
+    /// <summary>The options that read the payloads of a run's posts, with the scene's ids.</summary>
+    public static JsonSerializerOptions Payloads(World world, SceneInstance scene) => Reading(world, scene);
 
-    private static JsonSerializerOptions Create(World? world, SceneInstance? scene)
+    /// <summary>The options that write a run's dumps, with the scene's ids.</summary>
+    public static JsonSerializerOptions Dumps(SceneInstance scene)
+    {
+        JsonSerializerOptions options = Common(JsonNumberHandling.AllowNamedFloatingPointLiterals, new DefaultJsonTypeInfoResolver());
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: true));
+        options.Converters.Add(new EntityConverter(scene));
+        options.Converters.Add(new FrameHandleConverter(world: null, scene));
+        return options;
+    }
+
+    private static JsonSerializerOptions Reading(World? world, SceneInstance? scene)
+    {
+        JsonSerializerOptions options = Common(JsonNumberHandling.Strict, new DefaultJsonTypeInfoResolver { Modifiers = { LeaveOutReadOnlyPayloadMembers } });
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false));
+        options.Converters.Add(new FiniteSingleConverter());
+        options.Converters.Add(new FiniteDoubleConverter());
+        if (world != null && scene != null)
+        {
+            options.Converters.Add(new EntityConverter(scene, world));
+            options.Converters.Add(new FrameHandleConverter(world, scene));
+        }
+        return options;
+    }
+
+    private static JsonSerializerOptions Common(JsonNumberHandling numbers, DefaultJsonTypeInfoResolver resolver)
     {
         var options = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
             AllowDuplicateProperties = false,
-            NumberHandling = JsonNumberHandling.Strict,
+            NumberHandling = numbers,
             IncludeFields = true,
             AllowOutOfOrderMetadataProperties = true,
             RespectNullableAnnotations = true,
@@ -40,21 +67,28 @@ internal static class ScriptJson
             WriteIndented = true,
             NewLine = "\n",
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
-            TypeInfoResolver = new DefaultJsonTypeInfoResolver(),
+            TypeInfoResolver = resolver,
         };
-        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false));
         options.Converters.Add(new Vector2Converter());
         options.Converters.Add(new Vector3Converter());
         options.Converters.Add(new Double3Converter());
         options.Converters.Add(new QuaternionConverter());
         options.Converters.Add(new DQuaternionConverter());
         options.Converters.Add(new TopicConverter());
-        if (world != null && scene != null)
-        {
-            options.Converters.Add(new EntityConverter(scene));
-            options.Converters.Add(new FrameHandleConverter(world, scene));
-        }
         return options;
+    }
+
+    /// <summary>
+    /// Leaves the read-only members of a payload type out of its contract, so that a key that names one is an unknown
+    /// key. Without it, System.Text.Json reads the key and drops the value without an error.
+    /// </summary>
+    private static void LeaveOutReadOnlyPayloadMembers(JsonTypeInfo info)
+    {
+        if (info.Kind != JsonTypeInfoKind.Object || !typeof(IEventPayload).IsAssignableFrom(info.Type))
+            return;
+        for (int i = info.Properties.Count - 1; i >= 0; i--)
+            if (info.Properties[i].Set is null)
+                info.Properties.RemoveAt(i);
     }
 
     // A vector reads from an array with its exact count of numbers: StartArray, then Next once per number, then EndArray.
@@ -70,20 +104,44 @@ internal static class ScriptJson
     {
         if (!reader.Read() || reader.TokenType != JsonTokenType.Number)
             throw new JsonException($"Expected {form}.");
-        return reader.GetSingle();
+        return Finite(reader.GetSingle());
     }
 
     private static double NextDouble(ref Utf8JsonReader reader, string form)
     {
         if (!reader.Read() || reader.TokenType != JsonTokenType.Number)
             throw new JsonException($"Expected {form}.");
-        return reader.GetDouble();
+        return Finite(reader.GetDouble());
     }
 
     private static void EndArray(ref Utf8JsonReader reader, string form)
     {
         if (!reader.Read() || reader.TokenType != JsonTokenType.EndArray)
             throw new JsonException($"Expected {form}.");
+    }
+
+    private static float Finite(float value) =>
+        float.IsFinite(value) ? value : throw new JsonException("The number is out of the range of a float.");
+
+    private static double Finite(double value) =>
+        double.IsFinite(value) ? value : throw new JsonException("The number is out of the range of a double.");
+
+    /// <summary>Reads a float, and refuses a number that rounds to infinity, such as 1e39. Reading only.</summary>
+    private sealed class FiniteSingleConverter : JsonConverter<float>
+    {
+        public override float Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            reader.TokenType == JsonTokenType.Number ? Finite(reader.GetSingle()) : throw new JsonException("Expected a number.");
+
+        public override void Write(Utf8JsonWriter writer, float value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    /// <summary>Reads a double, and refuses a number that rounds to infinity, such as 1e309. Reading only.</summary>
+    private sealed class FiniteDoubleConverter : JsonConverter<double>
+    {
+        public override double Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            reader.TokenType == JsonTokenType.Number ? Finite(reader.GetDouble()) : throw new JsonException("Expected a number.");
+
+        public override void Write(Utf8JsonWriter writer, double value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
     }
 
     /// <summary>
@@ -189,14 +247,14 @@ internal static class ScriptJson
             writer.WriteStringValue(Topics.NameOf(value));
     }
 
-    /// <summary>An entity is its scene id, or <c>#index.generation</c> for an entity without one.</summary>
-    private sealed class EntityConverter(SceneInstance scene) : JsonConverter<Entity>
+    /// <summary>
+    /// An entity is its scene id, or <c>#index.generation</c> for an entity without one. Reading needs the world, and
+    /// takes only the id of a live entity.
+    /// </summary>
+    private sealed class EntityConverter(SceneInstance scene, World? world = null) : JsonConverter<Entity>
     {
-        public override Entity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            string id = reader.GetString() ?? throw new JsonException("An entity is a scene id.");
-            return scene.TryGetEntity(id, out Entity entity) ? entity : throw new JsonException($"No entity has the scene id '{id}'.");
-        }
+        public override Entity Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            LiveEntity(reader.GetString() ?? throw new JsonException("An entity is a scene id."), scene, world ?? throw WriteOnly());
 
         public override void Write(Utf8JsonWriter writer, Entity value, JsonSerializerOptions options)
         {
@@ -207,15 +265,14 @@ internal static class ScriptJson
         }
     }
 
-    /// <summary>A frame is the scene id of the entity that owns it.</summary>
-    private sealed class FrameHandleConverter(World world, SceneInstance scene) : JsonConverter<FrameHandle>
+    /// <summary>A frame is the scene id of the entity that owns it. Reading needs the world, and takes only a live owner.</summary>
+    private sealed class FrameHandleConverter(World? world, SceneInstance scene) : JsonConverter<FrameHandle>
     {
         public override FrameHandle Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
             string id = reader.GetString() ?? throw new JsonException("A frame is the scene id of the entity that owns it.");
-            if (!scene.TryGetEntity(id, out Entity entity))
-                throw new JsonException($"No entity has the scene id '{id}'.");
-            FrameHandle frame = world.GetOwnedFrame(entity);
+            World live = world ?? throw WriteOnly();
+            FrameHandle frame = live.GetOwnedFrame(LiveEntity(id, scene, live));
             return frame.IsNull ? throw new JsonException($"The entity '{id}' owns no frame.") : frame;
         }
 
@@ -226,5 +283,15 @@ internal static class ScriptJson
             else
                 writer.WriteStringValue(scene.IdOf(value.Entity));
         }
+    }
+
+    private static InvalidOperationException WriteOnly() => new("The dump options only write. Reading an entity needs the world.");
+
+    /// <summary>The live entity with the scene id. Throws <see cref="JsonException"/> for an unknown id or an entity that is gone.</summary>
+    private static Entity LiveEntity(string id, SceneInstance scene, World world)
+    {
+        if (!scene.TryGetEntity(id, out Entity entity))
+            throw new JsonException($"No entity has the scene id '{id}'.");
+        return world.IsAlive(entity) ? entity : throw new JsonException($"The entity '{id}' is not alive.");
     }
 }

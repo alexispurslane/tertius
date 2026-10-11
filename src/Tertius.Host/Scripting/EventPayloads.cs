@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace Tertius.Host.Scripting;
 
@@ -21,7 +22,10 @@ internal sealed class EventPayloads
         public object Box(in Event e) => box(e);
     }
 
-    private readonly Dictionary<string, List<Type>> byName = new(StringComparer.Ordinal);
+    /// <summary>A type that implements <see cref="IEventPayload"/>, and why an event cannot hold it, or null if it can.</summary>
+    private readonly record struct Candidate(Type Type, string? Problem);
+
+    private readonly Dictionary<string, List<Candidate>> byName = new(StringComparer.Ordinal);
     private readonly Dictionary<Type, PayloadType> bound = new();
 
     /// <summary>
@@ -42,33 +46,58 @@ internal sealed class EventPayloads
                 continue;
             foreach (Type type in assembly.GetTypes())
                 if (type.IsValueType && !type.ContainsGenericParameters && typeof(IEventPayload).IsAssignableFrom(type))
-                    payloads.Add(type);
+                    payloads.Add(new Candidate(type, ProblemOf(type)));
         }
         return payloads;
     }
 
-    private void Add(Type type)
+    /// <summary>
+    /// Why an event cannot hold the type, or null. The compiler checks the <c>unmanaged</c> constraint of every payload
+    /// in code, but a type that reflection finds has passed no such check. A reference in the payload bytes would not
+    /// keep its object alive, and a payload over <see cref="EventTypeRegistry.MaxPayloadSize"/> bytes does not fit.
+    /// </summary>
+    private static string? ProblemOf(Type type)
     {
-        if (!byName.TryGetValue(type.Name, out List<Type>? types))
-            byName.Add(type.Name, types = new List<Type>());
-        types.Add(type);
+        if (type.IsByRefLike)
+            return "it is a ref struct";
+        (bool hasReferences, int size) = ((bool, int))typeof(EventPayloads).GetMethod(nameof(Layout), BindingFlags.NonPublic | BindingFlags.Static)!
+            .MakeGenericMethod(type).Invoke(null, null)!;
+        if (hasReferences)
+            return "it has a field that holds a reference";
+        if (size > EventTypeRegistry.MaxPayloadSize)
+            return $"it is {size} bytes, and a payload holds at most {EventTypeRegistry.MaxPayloadSize}";
+        return null;
     }
 
-    /// <summary>The payload type with the C# name, or null and the reason: no such type, or more than one.</summary>
+    private static (bool HasReferences, int Size) Layout<T>() => (RuntimeHelpers.IsReferenceOrContainsReferences<T>(), Unsafe.SizeOf<T>());
+
+    private void Add(Candidate candidate)
+    {
+        if (!byName.TryGetValue(candidate.Type.Name, out List<Candidate>? candidates))
+            byName.Add(candidate.Type.Name, candidates = new List<Candidate>());
+        candidates.Add(candidate);
+    }
+
+    /// <summary>The payload type with the C# name, or null and the reason: no such type, more than one, or a type that an event cannot hold.</summary>
     public PayloadType? Find(string name, out string? problem)
     {
-        if (!byName.TryGetValue(name, out List<Type>? types))
+        if (!byName.TryGetValue(name, out List<Candidate>? candidates))
         {
             problem = $"no loaded payload type is named '{name}'.";
             return null;
         }
-        if (types.Count > 1)
+        if (candidates.Count > 1)
         {
-            problem = $"the name '{name}' is ambiguous: it names {string.Join(", ", types.Select(t => t.FullName).Order(StringComparer.Ordinal))}. Rename one of them.";
+            problem = $"the name '{name}' is ambiguous: it names {string.Join(", ", candidates.Select(c => c.Type.FullName).Order(StringComparer.Ordinal))}. Rename one of them.";
+            return null;
+        }
+        if (candidates[0].Problem is { } why)
+        {
+            problem = $"{candidates[0].Type.FullName} ({name}) cannot be an event payload: {why}.";
             return null;
         }
         problem = null;
-        return Of(types[0]);
+        return Of(candidates[0].Type);
     }
 
     /// <summary>The payload type of a type that an event holds.</summary>

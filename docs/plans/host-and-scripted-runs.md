@@ -44,7 +44,9 @@ A scene is a C# function that fills a new `World` and gives scene ids to some of
 - The run ends after the last step.
 - `to` is a union with `kind`: `{"kind": "entity", "id": "box"}`, `{"kind": "topic", "name": "input"}`, `{"kind": "frame", "id": "ship"}` (every entity in the frame that the entity `ship` owns), or `{"kind": "broadcast"}`.
 - `event` is the C# name of a payload type, such as `InputEvent`. The runner finds the type through reflection over the loaded assemblies. (User) Two payload types with one name make that name an error.
-- `payload` holds the fields of the payload by their camelCase names. A missing `payload` is the same as `{}`.
+- `payload` holds the fields of the payload by their camelCase names. A missing `payload` is the same as `{}`. A key for a read-only member is an unknown key, and a number out of the range of its field is an error.
+- A target, or an entity field of a payload, must name a live entity.
+- A payload type must fit an event: no field that holds a reference, and at most 48 bytes. The runner checks this, because a type that reflection finds passed no compiler check.
 - The JSON follows the conventions of the content formats design: camelCase keys and enum values, `[x, y, z]` vectors, `[x, y, z, w]` quaternions, scene ids for entities, no comments, and an unknown key is an error.
 
 The runner checks every step before the first tick. A script that it cannot run changes nothing.
@@ -77,7 +79,8 @@ The runner checks every step before the first tick. A script that it cannot run 
 - `frames` lists every frame in the dense order of the frame tree, which puts each parent before its children.
 - `events` lists every event that the sync points routed since the previous dump, or since the start of the run. (User) Each event carries the tick count after the sync point that routed it. The order is by tick, then routing order.
 - `errors` is `World.Errors` at the time of the dump, oldest first.
-- `World.RoutedEvents` is the source of `events`: the events that the last sync point routed, in routing order.
+- `World.RoutedEvents` is the source of `events`: the events that the last sync point routed, in routing order. `Tick` and `Spawned` go straight into each entity's own event list, so they are never routed and never in a dump.
+- A number that JSON cannot hold, such as NaN, appears as a string, such as `"NaN"`. So a dump of a broken state still writes.
 
 ## Command line
 

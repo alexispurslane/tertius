@@ -78,4 +78,19 @@ public class SceneInstanceTests
 
         add.Should().Throw<ArgumentException>();
     }
+
+    [Theory]
+    [InlineData("a", true)]
+    [InlineData("0box", true)]
+    [InlineData("a_b.c-d", true)]
+    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", true)]
+    [InlineData("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", false)]
+    [InlineData("bOx", false)]
+    [InlineData("a/b", false)]
+    [InlineData(".hidden", false)]
+    [InlineData("_box", false)]
+    public void ASceneIdHasLowercaseLettersDigitsAndThreeMarksAndAtMost64Characters(string id, bool valid)
+    {
+        SceneInstance.IsSceneId(id).Should().Be(valid);
+    }
 }

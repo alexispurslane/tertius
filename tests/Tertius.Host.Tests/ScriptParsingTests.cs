@@ -68,6 +68,8 @@ public class ScriptParsingTests
     [InlineData("""{ "scene": "probes", "steps": [ { "do": "run", "ticks": 1 } ], "steps2": [] }""", "steps2")]
     [InlineData("""{ "scene": "probes", "steps": [ { "do": "post", "to": { "kind": "planet", "id": "x" }, "event": "Nudge" } ] }""", "planet")]
     [InlineData("""{ "scene": "probes", "steps": [ { "do": "run", "ticks": "1" } ] }""", "ticks")]
+    [InlineData("""{ "scene": "probes", "steps": [ { "do": "run", "ticks": 1, "ticks": 500 } ] }""", "ticks")]
+    [InlineData("""{ "scene": "probes", "steps": [ null ] }""", "step 1")]
     public void AScriptWithAMissingUnknownOrMistypedKeyIsRefusedByName(string json, string named)
     {
         Action parse = () => Script.Parse(json);
@@ -126,5 +128,13 @@ public class ScriptParsingTests
         Action parse = () => Script.Parse("""{ "scene": "probes", "steps": [] }""");
 
         parse.Should().Throw<ScriptException>();
+    }
+
+    [Fact]
+    public void TheDoAndKindKeysCanStandAnywhereInTheirObject()
+    {
+        Script script = Script.Parse("""{ "steps": [ { "ticks": 2, "do": "run" }, { "event": "Nudge", "to": { "id": "probe", "kind": "entity" }, "do": "post" } ], "scene": "probes" }""");
+
+        script.Steps.Should().Equal(new RunStep(2), new PostStep(new ToEntity("probe"), "Nudge"));
     }
 }
