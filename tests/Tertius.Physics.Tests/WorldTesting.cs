@@ -12,14 +12,15 @@ internal static class WorldTesting
     public static DPose At(double x, double y = 0, double z = 0) => new(new Double3(x, y, z), DQuaternion.Identity);
 
     /// <summary>
-    /// A world with one gameplay thread and its debug checks on, which owns a new backend with two Jolt threads. The
-    /// backend's warnings go to <paramref name="warnings"/> when it is given.
+    /// A world with one gameplay thread, which owns a new backend with two Jolt threads. The backend's warnings go to
+    /// <paramref name="warnings"/> when it is given. With <paramref name="debugChecks"/>, the world checks all of its
+    /// invariants at the end of every tick, which costs about 0.5 ms a tick in a Debug build.
     /// </summary>
-    public static World NewWorld(out JoltPhysicsBackend backend, List<string>? warnings = null)
+    public static World NewWorld(out JoltPhysicsBackend backend, List<string>? warnings = null, bool debugChecks = true)
     {
         Action<string>? log = warnings is null ? null : message => { lock (warnings) warnings.Add(message); };
         backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2, Log = log });
-        return new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, backend);
+        return new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = debugChecks, DisposePhysics = true }, backend);
     }
 
     /// <summary>A root frame with uniform gravity of <paramref name="g"/> m/s² along -Y and a large bubble.</summary>

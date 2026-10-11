@@ -10,6 +10,10 @@ namespace Tertius.Physics.Tests;
 /// the deck of a ship that thrusts, or in free fall with damping. Jolt alone would put such a body to sleep when it
 /// moves less than about 3 cm in half a second.
 /// </summary>
+/// <remarks>
+/// These tests run for up to 60 s of simulated time, 33,000 ticks in all. So they leave the world's checks of its
+/// invariants at the end of every tick off, which would take 15 s in a Debug build. The other World tests keep them on.
+/// </remarks>
 public class WorldSleepTests
 {
     /// <summary>
@@ -29,7 +33,7 @@ public class WorldSleepTests
     [InlineData(0.1f, 40f, false)]
     public void ABodyLetGoAtRestOnARampMovesDownIt(float g, float degrees, bool ball)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(out _, debugChecks: false);
         FrameHandle ground = Ground(world, g);
         double theta = degrees * Math.PI / 180;
         DQuaternion tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, -theta);
@@ -72,7 +76,7 @@ public class WorldSleepTests
     [InlineData(0.1f)]
     public void ABoxThatHangsOverALedgeTipsOffIt(float g)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(out _, debugChecks: false);
         FrameHandle ground = Ground(world, g);
         Floor(world, ground, top: -10);
         world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(2, 0.5f, 2)), BodyMotion.Static) });
@@ -95,7 +99,7 @@ public class WorldSleepTests
     [InlineData(0.01f)]
     public void ABoxLetGoInVeryWeakGravityFallsToTheFloor(float g)
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(out _, debugChecks: false);
         FrameHandle ground = Ground(world, g);
         Floor(world, ground);
         Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1.5), Body = Cube() });
@@ -118,7 +122,7 @@ public class WorldSleepTests
     [InlineData(1f, 0.8f)]
     public void CargoThatFrictionCannotQuiteHoldSlidesTowardTheStern(float g, float thrust)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
         var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(10, 0.25f, 30)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
         var pilot = new Pilot();
@@ -151,7 +155,7 @@ public class WorldSleepTests
     [Fact]
     public void ABoxThatDriftsSlowlyWithoutGravityKeepsDrifting()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(out _, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
         Entity box = world.Spawn(new SpawnDesc
         {
@@ -176,7 +180,7 @@ public class WorldSleepTests
     [InlineData(0.01f)]
     public void AStackOfFiveBoxesOnTheFloorFallsAsleepWithinTwoSeconds(float g)
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle ground = Ground(world, g);
         Floor(world, ground);
         var boxes = new List<Entity>();
