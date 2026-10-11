@@ -290,13 +290,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>
     /// Brings physics in line with the frame tree, which is the authority: drops the hand-offs of frames from the last
-    /// step, removes the systems of frames that left the tree, and puts every frame hull in the system of the parent
-    /// that the tree names. The sync point has applied or refused each hand-off before this runs, so a hull whose
-    /// hand-off the tree did not take, or whose frame the simulation moved on its own, goes where the tree says, with
-    /// the tree's pose and velocity. A hull that its new system has no room for gets no body (see
-    /// <see cref="PlaceHullFromTree"/>), and the reconcile goes on with the other hulls. Until a reconcile places every
-    /// hull, every call reconciles again. Once one does, <see cref="AssertInvariants"/> holds: every system belongs to
-    /// a live frame, and every hull is in the system of its frame's parent in the tree.
+    /// step, removes the systems of frames that left the tree, puts every frame hull in the system of the parent that
+    /// the tree names, and removes every ghost that the tree no longer allows. The sync point has applied or refused
+    /// each hand-off before this runs, so a hull whose hand-off the tree did not take, or whose frame the simulation
+    /// moved on its own, goes where the tree says, with the tree's pose and velocity. A hull that its new system has no
+    /// room for gets no body (see <see cref="PlaceHullFromTree"/>), and the reconcile goes on with the other hulls.
+    /// Until a reconcile places every hull, every call reconciles again. Once one does, <see cref="AssertInvariants"/>
+    /// holds: every system belongs to a live frame, every hull is in the system of its frame's parent in the tree, and
+    /// every ghost is in a frame next to its body's frame.
     /// </summary>
     private void ReconcileFrames()
     {
@@ -343,6 +344,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             if (owner.Frame != parent)
                 placedEveryHull &= PlaceHullFromTree(owner, parent);
         }
+
+        // Ghosts follow the tree too. A frame that the game moved, or a hull that moved, can leave a ghost in a frame
+        // that is no longer next to its body's frame, even inside the frame that the body owns. The ghost pass at the
+        // end of the step adds the ghosts that the new tree wants.
+        DropGhostsThatTheTreeForbids();
         if (!placedEveryHull)
             return;
         reconciledFrameVersion = frames.Version;
@@ -362,7 +368,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>Every system belongs to a live frame.</item>
     /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
     /// and the owner of a root frame has no hull.</item>
+    /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame (see
+    /// <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
     /// </list>
+    /// The ghost check visits every entity slot, so the whole check is O(entity slots + systems).
     /// </summary>
     internal void AssertInvariants()
     {
@@ -377,6 +386,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(!owner.HasPrimary);
             else
                 Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
+        }
+        foreach (BodyRecord? record in records)
+        {
+            if (record?.Ghosts is not { } ghosts)
+                continue;
+            foreach (GhostBody ghost in ghosts)
+                Contract.Invariant(GhostAllowed(record, ghost.Frame) && ghost.World == ExistingWorld(ghost.Frame));
         }
     }
 

@@ -131,4 +131,72 @@ public class ReconcileTests
         h.Backend.TryGetBodyFrame(fighter.Entity, out FrameHandle hullFrame).Should().BeTrue();
         hullFrame.Should().Be(space);
     }
+
+    /// <summary>
+    /// A ship whose bubble of radius 10 m sits at the origin of space, and a hangar bubble of radius 15 m, 20 m along +X.
+    /// The ship's bubble does not fit in the hangar's, so it never enters, but it reaches into the hangar's bubble, so
+    /// the hangar's system holds a ghost of the ship's hull.
+    /// </summary>
+    private static (FrameHandle Space, FrameHandle Hangar, FrameHandle Ship) ShipBesideHangar(PhysicsHarness h)
+    {
+        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static);
+        FrameHandle hangar = h.AddFrame(space, Shapes.At(20, 0, 0), FrameBounds.Sphere(15), MotionDriver.Static);
+        FrameHandle ship = h.AddFrameWithBody(space, DPose.Identity, FrameBounds.Sphere(10), MotionDriver.Physics, Shapes.Box(2, mass: 1000));
+        h.Step();
+        h.Backend.HasGhostIn(ship.Entity, hangar).Should().BeTrue();
+        return (space, hangar, ship);
+    }
+
+    [Fact]
+    public void AHullHasNoGhostInAFrameThatTheGameMovedInsideItsOwnFrame()
+    {
+        using var h = new PhysicsHarness();
+        var (_, hangar, ship) = ShipBesideHangar(h);
+
+        // Between steps, with no change batch, the game moves the hangar into the ship.
+        h.Frames.Reparent(hangar, ship);
+        h.Frames.Update();
+        h.Reconcile();
+
+        h.Backend.HasGhostIn(ship.Entity, hangar).Should().BeFalse("the hangar's contents are inside the ship and never meet its hull");
+        h.Backend.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void ABodyHasNoGhostInAFrameThatTheGameMovedAwayFromItsFrame()
+    {
+        using var h = new PhysicsHarness();
+        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static);
+        FrameHandle bubble = h.AddFrame(space, Shapes.At(50, 0, 0), FrameBounds.Sphere(20), MotionDriver.Static);
+        FrameHandle station = h.AddFrame(space, Shapes.At(-500, 0, 0), FrameBounds.Sphere(200), MotionDriver.Static);
+        // The ball sticks out of the bubble, so space holds a ghost of it.
+        Entity ball = h.AddBody(bubble, Shapes.Ball(0.5f), Shapes.At(19.8, 0, 0));
+        h.Step();
+        h.Backend.HasGhostIn(ball, space).Should().BeTrue();
+
+        // Between steps the game moves the bubble into the station. Space is now the bubble's grandparent.
+        h.Frames.Reparent(bubble, station);
+        h.Frames.Update();
+        h.Reconcile();
+
+        h.Backend.HasGhostIn(ball, space).Should().BeFalse();
+        h.Backend.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void AGhostThatTheTreeStillAllowsSurvivesTheReconcile()
+    {
+        using var h = new PhysicsHarness();
+        var (space, hangar, ship) = ShipBesideHangar(h);
+        FrameHandle buoy = h.AddFrame(space, Shapes.At(-5000, 0, 0), FrameBounds.Sphere(5), MotionDriver.Static);
+        FrameHandle depot = h.AddFrame(space, Shapes.At(5000, 0, 0), FrameBounds.Sphere(50), MotionDriver.Static);
+        h.Step();
+
+        // A change far away makes the backend reconcile, but the hangar is still the ship's frame's sibling.
+        h.Frames.Reparent(buoy, depot);
+        h.Frames.Update();
+        h.Reconcile();
+
+        h.Backend.HasGhostIn(ship.Entity, hangar).Should().BeTrue("without the ghost, the hangar's contents would pass through the hull for a step");
+    }
 }

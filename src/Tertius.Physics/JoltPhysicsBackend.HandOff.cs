@@ -333,6 +333,41 @@ public sealed partial class JoltPhysicsBackend
         ghosts.Add(new GhostBody { Frame = frame, World = world, Body = id, Wanted = true });
     }
 
+    /// <summary>
+    /// True when the frame tree allows a ghost of the record's body in <paramref name="frame"/>: the frame is the parent,
+    /// a sibling or a child of the frame whose system holds the body, and not the frame that the record owns. These are
+    /// the only frames where <see cref="UpdateGhosts"/> puts a ghost. A record without a body has no place for a ghost.
+    /// </summary>
+    private bool GhostAllowed(BodyRecord record, FrameHandle frame)
+    {
+        FrameHandle home = record.Frame;
+        if (home.IsNull || frame == home || frame == record.OwnedFrame || !frames.IsAlive(frame))
+            return false;
+        FrameHandle homeParent = frames.Parent(home);
+        FrameHandle frameParent = frames.Parent(frame);
+        return frame == homeParent || frameParent == home || (!homeParent.IsNull && frameParent == homeParent);
+    }
+
+    /// <summary>
+    /// Removes every ghost that the frame tree no longer allows (see <see cref="GhostAllowed"/>). Visits every entity
+    /// slot, so the reconcile runs it only when the tree changed or a frame was handed off.
+    /// </summary>
+    private void DropGhostsThatTheTreeForbids()
+    {
+        foreach (BodyRecord? record in records)
+        {
+            if (record?.Ghosts is not { Count: > 0 } ghosts)
+                continue;
+            for (int i = ghosts.Count - 1; i >= 0; i--)
+            {
+                if (GhostAllowed(record, ghosts[i].Frame))
+                    continue;
+                ghosts[i].World.Bodies.RemoveAndDestroyBody(ghosts[i].Body);
+                ghosts.RemoveAt(i);
+            }
+        }
+    }
+
     private static void DropUnwantedGhosts(BodyRecord record)
     {
         if (record.Ghosts is not { Count: > 0 } ghosts)
