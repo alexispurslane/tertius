@@ -549,7 +549,7 @@ public sealed partial class World
         (Double3 position, Double3 velocity) = orbit.StateAt(time);
         Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(time)));
         Frames.LinearVelocity(frame) = velocity;
-        Frames.AngularVelocity(frame) = orbit.AngularVelocity();
+        Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(time).ToVector3();
         Frames.ProperAcceleration(frame) = Vector3.Zero;
     }
 

@@ -223,7 +223,7 @@ The scene graph inside a frame uses the same `PoseTree`, with the float `Pose`.
 
 ### Motion drivers
 
-- Kepler: the pose is a function of time, computed in doubles from the orbital elements and a spin rate. The frame is in free fall, so its proper acceleration is zero.
+- Kepler: the pose is a function of time, computed in doubles from the orbital elements and the attitude. The attitude `Spin` turns the frame by its axial tilt and a steady spin about its own +Y, as a planet turns. The attitude `FacesParent` points the frame's belly (-Y) at its parent and its nose (-Z) along its motion across the horizon, as a station in low orbit flies. It turns with the true anomaly, so it is exact on an oval orbit too. The frame is in free fall, so its proper acceleration is zero.
 - Physics: the frame's hull is a dynamic body in the parent frame's physics system. Its pose and velocity come from that body after each step. The proper acceleration is the velocity change over the step minus the gravity that the parent applied.
 - Static: the pose does not change.
 

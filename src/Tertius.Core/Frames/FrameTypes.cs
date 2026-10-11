@@ -109,8 +109,21 @@ public record struct GravityField(GravityKind Kind, Vector3 Acceleration, Boundi
     }
 }
 
+/// <summary>How a Kepler frame turns as it orbits.</summary>
+public enum KeplerAttitude : byte
+{
+    /// <summary>The axial tilt, then a steady spin about the frame's own +Y, as a planet turns.</summary>
+    Spin,
+
+    /// <summary>
+    /// Faces the parent, as a station in low orbit does: the belly (-Y) points at the parent, and the nose (-Z) points
+    /// along the motion across the horizon. The tilt and the spin are not used.
+    /// </summary>
+    FacesParent,
+}
+
 /// <summary>
-/// Kepler elements of a frame around its parent, plus the frame's spin. Angles are radians, distances meters,
+/// Kepler elements of a frame around its parent, plus the frame's attitude. Angles are radians, distances meters,
 /// times seconds. The reference plane is the parent's XZ plane, with +Y as the orbit normal at zero inclination.
 /// </summary>
 public record struct KeplerOrbit(
@@ -124,7 +137,8 @@ public record struct KeplerOrbit(
     double ParentMu,
     DQuaternion AxialTilt,
     double SpinRate,
-    double SpinPhaseAtEpoch)
+    double SpinPhaseAtEpoch,
+    KeplerAttitude Attitude = KeplerAttitude.Spin)
 {
     /// <summary>A circular orbit in the reference plane.</summary>
     public static KeplerOrbit Circular(double radius, double parentMu, double phase = 0, double spinRate = 0) =>
@@ -140,7 +154,8 @@ public record struct KeplerOrbit(
         Eccentricity >= 0 && Eccentricity < 1 &&
         double.IsFinite(Inclination) && double.IsFinite(LongitudeOfAscendingNode) && double.IsFinite(ArgumentOfPeriapsis) &&
         double.IsFinite(MeanAnomalyAtEpoch) && double.IsFinite(Epoch) && double.IsFinite(SpinRate) && double.IsFinite(SpinPhaseAtEpoch) &&
-        double.IsFinite(AxialTilt.X) && double.IsFinite(AxialTilt.Y) && double.IsFinite(AxialTilt.Z) && double.IsFinite(AxialTilt.W);
+        double.IsFinite(AxialTilt.X) && double.IsFinite(AxialTilt.Y) && double.IsFinite(AxialTilt.Z) && double.IsFinite(AxialTilt.W) &&
+        Attitude is KeplerAttitude.Spin or KeplerAttitude.FacesParent;
 
     public readonly double MeanMotion => SemiMajorAxis > 0 ? Math.Sqrt(ParentMu / (SemiMajorAxis * SemiMajorAxis * SemiMajorAxis)) : 0;
 
@@ -154,20 +169,7 @@ public record struct KeplerOrbit(
 
         double e = Eccentricity;
         double n = MeanMotion;
-        double m = MeanAnomalyAtEpoch + n * (time - Epoch);
-        m = Math.IEEERemainder(m, 2 * Math.PI);
-
-        // Solve Kepler's equation M = E - e sin E with Newton iterations.
-        double eccentric = e < 0.8 ? m : Math.PI;
-        for (int i = 0; i < 30; i++)
-        {
-            double f = eccentric - e * Math.Sin(eccentric) - m;
-            double step = f / (1 - e * Math.Cos(eccentric));
-            eccentric -= step;
-            if (Math.Abs(step) < 1e-15)
-                break;
-        }
-
+        double eccentric = EccentricAnomalyAt(time, out _);
         double cosE = Math.Cos(eccentric), sinE = Math.Sin(eccentric);
         double a = SemiMajorAxis;
         double b = a * Math.Sqrt(1 - e * e);
@@ -184,19 +186,70 @@ public record struct KeplerOrbit(
         return (position, velocity);
     }
 
-    /// <summary>The frame's orientation relative to the parent at <paramref name="time"/>: axial tilt, then spin about local +Y.</summary>
+    /// <summary>
+    /// The eccentric anomaly at <paramref name="time"/>, from -π to π, and in <paramref name="turns"/> the whole orbits
+    /// before it, in radians: a multiple of 2π. Their sum grows without a jump as the frame goes round.
+    /// </summary>
+    private readonly double EccentricAnomalyAt(double time, out double turns)
+    {
+        double e = Eccentricity;
+        double mean = MeanAnomalyAtEpoch + MeanMotion * (time - Epoch);
+        double m = Math.IEEERemainder(mean, 2 * Math.PI);
+        turns = mean - m;
+
+        // Solve Kepler's equation M = E - e sin E with Newton iterations.
+        double eccentric = e < 0.8 ? m : Math.PI;
+        for (int i = 0; i < 30; i++)
+        {
+            double f = eccentric - e * Math.Sin(eccentric) - m;
+            double step = f / (1 - e * Math.Cos(eccentric));
+            eccentric -= step;
+            if (Math.Abs(step) < 1e-15)
+                break;
+        }
+        return eccentric;
+    }
+
+    /// <summary>
+    /// The frame's orientation relative to the parent at <paramref name="time"/>: for <see cref="KeplerAttitude.Spin"/>, the
+    /// axial tilt, then the spin about local +Y; for <see cref="KeplerAttitude.FacesParent"/>, the belly toward the parent
+    /// and the nose along the motion across the horizon.
+    /// </summary>
     public readonly DQuaternion RotationAt(double time)
     {
+        if (Attitude == KeplerAttitude.FacesParent)
+            return FacingParentAt(time);
         double angle = SpinPhaseAtEpoch + SpinRate * (time - Epoch);
         DQuaternion tilt = AxialTilt.LengthSquared == 0 ? DQuaternion.Identity : AxialTilt;
         return tilt * DQuaternion.FromAxisAngle(Double3.UnitY, angle);
     }
 
-    /// <summary>The frame's angular velocity in parent axes.</summary>
-    public readonly Vector3 AngularVelocity()
+    /// <summary>The frame's angular velocity in parent axes at <paramref name="time"/>, in radians per second.</summary>
+    public readonly Double3 AngularVelocityAt(double time)
     {
+        if (Attitude == KeplerAttitude.FacesParent)
+        {
+            // A frame that faces its parent turns with the direction to it: at h / r² about the orbit normal.
+            (Double3 position, Double3 velocity) = StateAt(time);
+            return Double3.Cross(position, velocity) / position.LengthSquared;
+        }
         DQuaternion tilt = AxialTilt.LengthSquared == 0 ? DQuaternion.Identity : AxialTilt;
-        return (tilt.Rotate(Double3.UnitY) * SpinRate).ToVector3();
+        return tilt.Rotate(Double3.UnitY) * SpinRate;
+    }
+
+    /// <summary>
+    /// The attitude that faces the parent. At periapsis, the belly (-Y) points at the parent, along -P, and the nose
+    /// (-Z) points along the motion, Q, which is perifocal -Z: a quarter turn about Z. From there, the frame turns
+    /// about the orbit normal by the true anomaly, which keeps the belly on the parent and the nose on the horizon. The
+    /// true anomaly counts whole orbits, so the quaternion never flips its sign from one tick to the next.
+    /// </summary>
+    private readonly DQuaternion FacingParentAt(double time)
+    {
+        double e = Eccentricity;
+        double eccentric = EccentricAnomalyAt(time, out double turns);
+        double trueAnomaly = 2 * Math.Atan2(Math.Sqrt(1 + e) * Math.Sin(eccentric / 2), Math.Sqrt(1 - e) * Math.Cos(eccentric / 2));
+        DQuaternion atPeriapsis = DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2);
+        return PerifocalToParent() * DQuaternion.FromAxisAngle(Double3.UnitY, trueAnomaly + turns) * atPeriapsis;
     }
 
     private readonly DQuaternion PerifocalToParent()

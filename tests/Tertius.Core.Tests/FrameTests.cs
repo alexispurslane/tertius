@@ -106,7 +106,7 @@ public class FrameTests
         DQuaternion q = orbit.RotationAt(1);
         Double3 x = q.Rotate(Double3.UnitX);
         Assert.True((x - new Double3(0, 0, -1)).Length < 1e-12);
-        Assert.Equal(Math.PI / 2, orbit.AngularVelocity().Y, 6);
+        Assert.Equal(Math.PI / 2, orbit.AngularVelocityAt(0).Y, 6);
     }
 
     [Fact]

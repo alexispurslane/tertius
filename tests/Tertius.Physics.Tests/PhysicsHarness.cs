@@ -93,7 +93,7 @@ internal sealed class PhysicsHarness : IDisposable
         if (orbiting)
         {
             Frames.LinearVelocity(frame) = orbit.StateAt(Time).Velocity;
-            Frames.AngularVelocity(frame) = orbit.AngularVelocity();
+            Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(Time).ToVector3();
         }
         Changes.FramesCreated.Add(frame);
         return frame;
@@ -299,7 +299,7 @@ internal sealed class PhysicsHarness : IDisposable
             var (position, velocity) = orbit.StateAt(Time);
             Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(Time)));
             Frames.LinearVelocity(frame) = velocity;
-            Frames.AngularVelocity(frame) = orbit.AngularVelocity();
+            Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(Time).ToVector3();
         }
     }
 }

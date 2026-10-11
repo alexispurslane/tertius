@@ -709,7 +709,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             if (OrbitMatchesTree(orbit, pose))
             {
                 var (position, velocity) = orbit.StateAt(time);
-                return new FrameMotion(new DPose(position, orbit.RotationAt(time)), velocity, orbit.AngularVelocity());
+                return new FrameMotion(new DPose(position, orbit.RotationAt(time)), velocity, orbit.AngularVelocityAt(time));
             }
         }
 
