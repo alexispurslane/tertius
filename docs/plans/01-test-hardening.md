@@ -12,6 +12,7 @@ Make sure that the tests of every module really test the behavior that they clai
 - Mutation thresholds: 80 high, 70 low, break at 70. (The test-hardening skill)
 - Coverage is a map, not a goal. The floor is 90 percent of lines on core logic.
 - A surviving mutant gets a test that kills it, or a written reason. Never ignore one silently.
+- Coverage and mutation testing run in both Debug and Release. The tests of the skip path for physics output run only in Release builds (`#if !TERTIUS_CONTRACTS`). A run in Debug alone shows those branches as untested.
 
 ## Steps
 
