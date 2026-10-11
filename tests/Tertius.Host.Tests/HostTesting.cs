@@ -184,10 +184,10 @@ public static class HostTesting
         return scene;
     }
 
-    public static readonly Scene ProbesScene = new("probes", Probes);
+    public static readonly Scene ProbesScene = new("probes", (world, _) => Probes(world));
 
     /// <summary>The scene "logger": the root frame <c>space</c> and one entity that logs "hello from the logger" on its first tick.</summary>
-    public static readonly Scene LoggerScene = new("logger", world =>
+    public static readonly Scene LoggerScene = new("logger", (world, _) =>
     {
         var scene = new SceneInstance();
         FrameHandle space = Space(world);
@@ -253,7 +253,7 @@ public static class HostTesting
         return scene;
     }
 
-    public static readonly Scene BoxOnFloorScene = new("box-on-floor", BoxOnFloor);
+    public static readonly Scene BoxOnFloorScene = new("box-on-floor", (world, _) => BoxOnFloor(world));
 
     /// <summary>A new empty folder under the system temp folder. The caller deletes it.</summary>
     public static string NewFolder() => Directory.CreateTempSubdirectory("tertius-host-tests-").FullName;

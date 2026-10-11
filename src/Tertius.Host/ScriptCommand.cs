@@ -1,5 +1,6 @@
 using Tertius.Host.Scripting;
 using Tertius.Physics;
+using Tertius.Rendering;
 using Tertius.Simulation;
 
 namespace Tertius.Host;
@@ -23,9 +24,16 @@ public static class ScriptCommand
     /// <summary>The script cannot run, or names a scene that the table does not have.</summary>
     public const int ScriptError = 3;
 
+    /// <summary>The headless renderer cannot start, for example on a machine with no Vulkan driver: a missing tool.</summary>
+    public const int RendererError = 5;
+
     private const string Usage = "Usage: --script <file> --headless --out <folder>";
 
-    /// <summary>Runs the command. Returns the exit code. Writes the path of each dump to <paramref name="output"/> and every problem to <paramref name="error"/>.</summary>
+    /// <summary>
+    /// Runs the command. Returns the exit code. Writes the path of each dump and each captured image to
+    /// <paramref name="output"/>, and every problem and the world's log to <paramref name="error"/>. Makes a headless
+    /// renderer only for a script with a capture step, so a script with dumps only runs on a machine with no GPU.
+    /// </summary>
     public static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error)
     {
         ArgumentNullException.ThrowIfNull(args);
@@ -65,15 +73,32 @@ public static class ScriptCommand
             return ScriptError;
         }
 
+        VulkanRenderer? renderer = null;
+        if (script.Steps.Any(step => step is CaptureStep))
+        {
+            try
+            {
+                renderer = VulkanRenderer.CreateHeadless(new RendererOptions { Width = script.Window.Width, Height = script.Window.Height, Impostors = false });
+            }
+            catch (Exception ex)
+            {
+                error.WriteLine($"Cannot start the headless renderer for the captures of {options.Script}: {ex.Message}");
+                return RendererError;
+            }
+        }
+        // Disposed in reverse order: the renderer, then the world and its physics.
         using var world = new World(new WorldOptions { DisposePhysics = true }, new JoltPhysicsBackend());
+        using VulkanRenderer? rendererToDispose = renderer;
         // The log holds the errors, which the dumps also hold, and the engine's notes, such as a run that is no longer
         // deterministic, which only the log holds.
         world.Log += error.WriteLine;
         try
         {
-            RunResult result = ScriptRunner.Run(script, world, scene.Build(world), options.Out);
+            RunResult result = ScriptRunner.Run(script, world, scene.Build(world, renderer ?? RenderResources.None), options.Out, renderer);
             foreach (StateDump dump in result.Dumps)
                 output.WriteLine(Path.Combine(options.Out, dump.Name + ".json"));
+            foreach (string capture in result.Captures)
+                output.WriteLine(capture);
             return Ok;
         }
         catch (ScriptException ex)

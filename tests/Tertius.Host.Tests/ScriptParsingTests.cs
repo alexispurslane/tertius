@@ -137,4 +137,58 @@ public class ScriptParsingTests
 
         script.Steps.Should().Equal(new RunStep(2), new PostStep(new ToEntity("probe"), "Nudge"));
     }
+
+    [Fact]
+    public void AScriptReadsItsWindowSizeAndItsCaptureAndCameraSteps()
+    {
+        Script script = Script.Parse("""
+            {
+              "scene": "lit-box",
+              "window": { "width": 640, "height": 360 },
+              "steps": [ { "do": "camera", "entity": "away" }, { "do": "capture", "name": "away" } ]
+            }
+            """);
+
+        script.Window.Should().Be(new ScriptWindow(640, 360));
+        script.Steps.Should().Equal(new CameraStep("away"), new CaptureStep("away"));
+    }
+
+    [Theory]
+    [InlineData(0, 360)]
+    [InlineData(640, -1)]
+    [InlineData(16385, 360)]
+    public void AWindowSideOutsideOneTo16384PixelsIsRefused(int width, int height)
+    {
+        Action parse = () => Script.Parse($$"""{ "scene": "lit-box", "window": { "width": {{width}}, "height": {{height}} }, "steps": [ { "do": "run", "ticks": 1 } ] }""");
+
+        parse.Should().Throw<ScriptException>().Which.Message.Should().Contain("window");
+    }
+
+    [Fact]
+    public void TwoCapturesWithOneNameAreRefused()
+    {
+        Action parse = () => Script.Parse("""
+            { "scene": "lit-box", "steps": [ { "do": "capture", "name": "a" }, { "do": "run", "ticks": 1 }, { "do": "capture", "name": "a" } ] }
+            """);
+
+        parse.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 3");
+    }
+
+    [Theory]
+    [InlineData("../escape")]
+    [InlineData("Upper")]
+    public void ACaptureNameOutsideTheSceneIdGrammarIsRefused(string name)
+    {
+        Action parse = () => Script.Parse($$"""{ "scene": "lit-box", "steps": [ { "do": "capture", "name": "{{name}}" } ] }""");
+
+        parse.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 1");
+    }
+
+    [Fact]
+    public void ACaptureAndADumpCanShareANameBecauseTheirFilesDiffer()
+    {
+        Script script = Script.Parse("""{ "scene": "lit-box", "steps": [ { "do": "capture", "name": "end" }, { "do": "dump", "name": "end" } ] }""");
+
+        script.Steps.Should().HaveCount(2);
+    }
 }

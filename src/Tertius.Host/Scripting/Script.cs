@@ -9,8 +9,12 @@ namespace Tertius.Host.Scripting;
 /// </summary>
 /// <param name="Scene">The name of the scene that the program builds before the first step.</param>
 /// <param name="Steps">The steps, in the order that they run.</param>
-public sealed record Script(string Scene, IReadOnlyList<ScriptStep> Steps)
+/// <param name="Window">The size of the captured images. A script with no <c>window</c> key has <see cref="ScriptWindow.Default"/>.</param>
+public sealed record Script(string Scene, IReadOnlyList<ScriptStep> Steps, ScriptWindow? Window = null)
 {
+    /// <summary>The size of the captured images, in pixels.</summary>
+    public ScriptWindow Window { get; init; } = Window ?? ScriptWindow.Default;
+
     /// <summary>
     /// Reads a script from JSON text. Throws <see cref="ScriptException"/> for a script that is not valid: bad JSON, a
     /// missing, unknown or mistyped key, no steps, a run of less than one tick, or a dump name that is not a scene id or
@@ -48,9 +52,12 @@ public sealed record Script(string Scene, IReadOnlyList<ScriptStep> Steps)
     /// <summary>Throws <see cref="ScriptException"/> for a step that cannot run, whether the script was parsed or built in code.</summary>
     internal void CheckSteps()
     {
+        if (Window.Width is < 1 or > ScriptWindow.MaxSide || Window.Height is < 1 or > ScriptWindow.MaxSide)
+            throw new ScriptException($"The window is {Window.Width} by {Window.Height} pixels. Each side must be 1 to {ScriptWindow.MaxSide}.");
         if (Steps.Count == 0)
             throw new ScriptException("The script has no steps.");
         var dumpSteps = new Dictionary<string, int>(StringComparer.Ordinal);
+        var captureSteps = new Dictionary<string, int>(StringComparer.Ordinal);
         for (int i = 0; i < Steps.Count; i++)
         {
             int number = i + 1;
@@ -67,6 +74,13 @@ public sealed record Script(string Scene, IReadOnlyList<ScriptStep> Steps)
                 case DumpStep dump:
                     dumpSteps.Add(dump.Name, number);
                     break;
+                case CaptureStep capture when !SceneInstance.IsSceneId(capture.Name):
+                    throw new ScriptException($"step {number} (capture): '{capture.Name}' is not a capture name. A capture name follows the grammar of a scene id: lowercase letters, digits, '_', '.' and '-', starting with a letter or a digit.");
+                case CaptureStep capture when captureSteps.TryGetValue(capture.Name, out int earlier):
+                    throw new ScriptException($"step {number} (capture): step {earlier} has the capture name '{capture.Name}' already.");
+                case CaptureStep capture:
+                    captureSteps.Add(capture.Name, number);
+                    break;
             }
         }
     }
@@ -77,6 +91,8 @@ public sealed record Script(string Scene, IReadOnlyList<ScriptStep> Steps)
 [JsonDerivedType(typeof(RunStep), "run")]
 [JsonDerivedType(typeof(PostStep), "post")]
 [JsonDerivedType(typeof(DumpStep), "dump")]
+[JsonDerivedType(typeof(CaptureStep), "capture")]
+[JsonDerivedType(typeof(CameraStep), "camera")]
 public abstract record ScriptStep
 {
     // The kinds of step are a closed set: only this assembly can add one, together with its arm in the runner.
@@ -99,6 +115,25 @@ public sealed record PostStep(MessageTarget To, string Event, JsonElement? Paylo
 
 /// <summary>Takes a state dump named <paramref name="Name"/>, written to <c>&lt;out&gt;/&lt;name&gt;.json</c>.</summary>
 public sealed record DumpStep(string Name) : ScriptStep;
+
+/// <summary>Renders the current state and writes <c>&lt;out&gt;/&lt;name&gt;.png</c>, at the size of the script's window.</summary>
+public sealed record CaptureStep(string Name) : ScriptStep;
+
+/// <summary>Makes the live entity with the scene id <paramref name="Entity"/> the camera of the world.</summary>
+public sealed record CameraStep(string Entity) : ScriptStep;
+
+/// <summary>The size of a script's captured images, and later of its window, in pixels.</summary>
+public sealed record ScriptWindow(int Width, int Height)
+{
+    /// <summary>1280 by 720, the size of a script with no <c>window</c> key.</summary>
+    public static ScriptWindow Default { get; } = new(1280, 720);
+
+    /// <summary>
+    /// The longest side that a script can ask for, in pixels: the image limit of common desktop GPUs. Vulkan guarantees
+    /// only 4096, so on a device with a lower limit, the renderer fails to make a larger image.
+    /// </summary>
+    public const int MaxSide = 16384;
+}
 
 /// <summary>The recipient of a posted or recorded event, in the form that scripts and dumps write. Its <c>kind</c> key names the case.</summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]

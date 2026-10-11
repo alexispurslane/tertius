@@ -9,6 +9,7 @@ namespace Tertius.Host.Scripting;
 /// <param name="Name">The name of the dump step.</param>
 /// <param name="Tick">The number of completed ticks, <c>World.TickNumber</c>.</param>
 /// <param name="Time">Simulation time, in seconds.</param>
+/// <param name="Camera">The scene id of the world's camera, or null if the world has no live camera.</param>
 /// <param name="Entities">Every live entity, in slot order.</param>
 /// <param name="Frames">Every frame, in the dense order of the frame tree: each parent before its children.</param>
 /// <param name="Events">Every event that the sync points routed since the previous dump, by tick, then in routing order.</param>
@@ -17,6 +18,7 @@ public sealed record StateDump(
     string Name,
     long Tick,
     double Time,
+    string? Camera,
     IReadOnlyList<EntityRecord> Entities,
     IReadOnlyList<FrameRecord> Frames,
     IReadOnlyList<EventRecord> Events,

@@ -240,15 +240,21 @@ public sealed record MaterialDesc(
 }
 
 /// <summary>
-/// The renderer as the host sees it. The Create methods are thread-safe. Uploads happen on the render thread
-/// before the next frame. <see cref="Render"/> runs only on the render thread.
+/// The resource half of the renderer: what a scene needs to make the meshes, textures and materials that its render
+/// rows name. The Create methods are thread-safe. Uploads happen on the render thread before the next frame.
 /// </summary>
-public interface IRenderer : IDisposable
+public interface IRenderResources
 {
     MeshId CreateMesh(MeshData mesh);
     TextureId CreateTexture(TextureData texture);
     MaterialId CreateMaterial(MaterialDesc material);
+}
 
+/// <summary>
+/// The renderer as the host sees it. <see cref="Render"/> runs only on the render thread.
+/// </summary>
+public interface IRenderer : IRenderResources, IDisposable
+{
     void Resize(int width, int height);
 
     /// <summary>Draws one frame, interpolated between the previous and current transforms by <paramref name="alpha"/>.</summary>

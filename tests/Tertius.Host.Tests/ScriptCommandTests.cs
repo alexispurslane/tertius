@@ -39,19 +39,6 @@ public sealed class ScriptCommandTests : IDisposable
     }
 
     [Fact]
-    public void TheDemoRunsItsDropBoxScript()
-    {
-        string root = RepositoryRoot();
-
-        int code = ScriptCommand.Run(["--script", Path.Combine(root, "scripts", "drop-box.json"), "--headless", "--out", Out], Tertius.Demo.DemoScenes.All, output, error);
-
-        code.Should().Be(ScriptCommand.Ok, error.ToString());
-        using var landed = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, "landed.json")));
-        System.Text.Json.JsonElement box = landed.RootElement.GetProperty("entities").EnumerateArray().Single(e => e.GetProperty("id").GetString() == "box");
-        box.GetProperty("pose").GetProperty("position")[1].GetDouble().Should().BeApproximately(0.5, 0.02, "the 1 m box rests on the floor whose top is at y = 0");
-    }
-
-    [Fact]
     public void AScriptThatIsNotValidExitsWithTheScriptErrorCodeAndNamesTheFile()
     {
         string script = ScriptFile("""{ "scene": "probes", "steps": [] }""");

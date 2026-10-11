@@ -10,77 +10,136 @@ public static class ScriptRunner
     /// Runs every step of <paramref name="script"/> on <paramref name="world"/>, whose scene ids are
     /// <paramref name="scene"/>. Checks every step before the first tick, and throws <see cref="ScriptException"/>
     /// without changing the world for a step that cannot run. With <paramref name="outputFolder"/>, writes each dump
-    /// there as <c>&lt;name&gt;.json</c> when it is taken.
+    /// there as <c>&lt;name&gt;.json</c> when it is taken. A capture step renders with <paramref name="renderer"/> into
+    /// <c>&lt;name&gt;.png</c> in the output folder, so a script with captures needs both.
     /// </summary>
-    public static RunResult Run(Script script, World world, SceneInstance scene, string? outputFolder = null)
+    public static RunResult Run(Script script, World world, SceneInstance scene, string? outputFolder = null, IRenderer? renderer = null)
     {
         ArgumentNullException.ThrowIfNull(script);
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(scene);
-        script.CheckSteps();
         EventPayloads payloads = EventPayloads.FromLoadedAssemblies();
-        Event[] posts = MakePostedEvents(script, world, scene, payloads, ScriptJson.Payloads(world, scene));
+        ReadyStep[] steps = MakeReady(script, world, scene, outputFolder, renderer, payloads);
         JsonSerializerOptions dumpJson = ScriptJson.Dumps(scene);
 
         if (outputFolder != null)
             Directory.CreateDirectory(outputFolder);
+        // The script sets the image size, whatever size the caller made the renderer with.
+        if (renderer != null && steps.Any(step => step is ReadyCapture))
+            renderer.Resize(script.Window.Width, script.Window.Height);
         var recorder = new DumpRecorder(world, scene, payloads);
         var dumps = new List<StateDump>();
-        for (int i = 0; i < script.Steps.Count; i++)
+        var captures = new List<string>();
+        foreach (ReadyStep step in steps)
         {
-            switch (script.Steps[i])
+            switch (step)
             {
-                case RunStep run:
+                case ReadyRun run:
                     for (int tick = 0; tick < run.Ticks; tick++)
                     {
                         world.Tick();
                         recorder.RecordRoutedEvents();
                     }
                     break;
-                case PostStep:
-                    world.Post(posts[i]);
+                case ReadyPost post:
+                    world.Post(post.Event);
                     break;
-                case DumpStep step:
-                    StateDump dump = recorder.Take(step.Name);
+                case ReadyCamera camera:
+                    world.Camera = camera.Entity;
+                    break;
+                case ReadyDump(string name):
+                    StateDump dump = recorder.Take(name);
                     dumps.Add(dump);
                     if (outputFolder != null)
-                        File.WriteAllText(Path.Combine(outputFolder, step.Name + ".json"), JsonSerializer.Serialize(dump, dumpJson) + "\n");
+                        File.WriteAllText(Path.Combine(outputFolder, name + ".json"), JsonSerializer.Serialize(dump, dumpJson) + "\n");
+                    break;
+                case ReadyCapture(string path):
+                    Capture(world, renderer!, path);
+                    captures.Add(path);
                     break;
                 default:
-                    throw new InvalidOperationException($"The runner has no arm for the step {script.Steps[i]}.");
+                    throw new InvalidOperationException($"The runner has no arm for the step {step}.");
             }
         }
-        return new RunResult(dumps);
+        return new RunResult(dumps, captures);
     }
 
-    /// <summary>The event of each post step, by step index, made before the first tick so that a bad step changes nothing.</summary>
-    private static Event[] MakePostedEvents(Script script, World world, SceneInstance scene, EventPayloads payloads, JsonSerializerOptions json)
+    /// <summary>
+    /// Renders the current state with interpolation alpha 1 and writes it to <paramref name="path"/>. The render snapshot
+    /// is built now, so a capture before the first tick, or right after a camera step, shows the current state.
+    /// </summary>
+    private static void Capture(World world, IRenderer renderer, string path)
     {
-        var posts = new Event[script.Steps.Count];
+        world.PublishRenderSnapshot();
+        // A snapshot was published just now, so the latest one is that one.
+        world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot);
+        renderer.CaptureNextFrame(path);
+        renderer.Render(snapshot, alpha: 1f);
+    }
+
+    /// <summary>A step after its checks, with every name in it resolved. Running it cannot fail for a reason of the script.</summary>
+    private abstract record ReadyStep;
+
+    private sealed record ReadyRun(int Ticks) : ReadyStep;
+
+    private sealed record ReadyPost(Event Event) : ReadyStep;
+
+    private sealed record ReadyCamera(Entity Entity) : ReadyStep;
+
+    private sealed record ReadyDump(string Name) : ReadyStep;
+
+    private sealed record ReadyCapture(string Path) : ReadyStep;
+
+    /// <summary>
+    /// Checks every step and resolves its names before the first tick, so that a bad step changes nothing. Throws
+    /// <see cref="ScriptException"/> for the first step that cannot run.
+    /// </summary>
+    private static ReadyStep[] MakeReady(Script script, World world, SceneInstance scene, string? outputFolder, IRenderer? renderer, EventPayloads payloads)
+    {
+        script.CheckSteps();
+        JsonSerializerOptions json = ScriptJson.Payloads(world, scene);
+        var ready = new ReadyStep[script.Steps.Count];
         for (int i = 0; i < script.Steps.Count; i++)
         {
-            if (script.Steps[i] is not PostStep post)
-                continue;
-            string where = $"step {i + 1} (post)";
-            EventPayloads.PayloadType type = payloads.Find(post.Event, out string? problem) ?? throw new ScriptException($"{where}: {problem}");
-            Target target = TargetOf(post.To, world, scene, where);
-            object? payload;
-            try
+            ScriptStep step = script.Steps[i];
+            string where = $"step {i + 1}";
+            ready[i] = step switch
             {
-                payload = post.Payload is { } given ? given.Deserialize(type.Type, json) : JsonSerializer.Deserialize("{}", type.Type, json);
-            }
-            catch (JsonException ex)
-            {
-                throw new ScriptException($"{where}: the payload is not a {post.Event}, at {ex.Path}: {ex.Message}", ex);
-            }
-            // System.Text.Json reads no field of a type such as nint.
-            catch (NotSupportedException ex)
-            {
-                throw new ScriptException($"{where}: a script cannot write a {post.Event}: {ex.Message}", ex);
-            }
-            posts[i] = type.Create(target, payload ?? throw new ScriptException($"{where}: the payload is null."));
+                RunStep run => new ReadyRun(run.Ticks),
+                PostStep post => new ReadyPost(MakeEvent(post, world, scene, payloads, json, $"{where} (post)")),
+                CameraStep camera => new ReadyCamera(LiveEntity(camera.Entity, world, scene, $"{where} (camera)")),
+                DumpStep dump => new ReadyDump(dump.Name),
+                CaptureStep { Name: var name } when renderer is null =>
+                    throw new ScriptException($"{where} (capture): a capture of '{name}' needs a renderer, and the run has none."),
+                CaptureStep { Name: var name } when outputFolder is null =>
+                    throw new ScriptException($"{where} (capture): a capture of '{name}' needs an output folder, and the run has none."),
+                CaptureStep capture => new ReadyCapture(Path.Combine(outputFolder!, capture.Name + ".png")),
+                _ => throw new InvalidOperationException($"The runner has no arm for the step {step}."),
+            };
         }
-        return posts;
+        return ready;
+    }
+
+    /// <summary>The event of a post step.</summary>
+    private static Event MakeEvent(PostStep post, World world, SceneInstance scene, EventPayloads payloads, JsonSerializerOptions json, string where)
+    {
+        EventPayloads.PayloadType type = payloads.Find(post.Event, out string? problem) ?? throw new ScriptException($"{where}: {problem}");
+        Target target = TargetOf(post.To, world, scene, where);
+        object? payload;
+        try
+        {
+            payload = post.Payload is { } given ? given.Deserialize(type.Type, json) : JsonSerializer.Deserialize("{}", type.Type, json);
+        }
+        catch (JsonException ex)
+        {
+            throw new ScriptException($"{where}: the payload is not a {post.Event}, at {ex.Path}: {ex.Message}", ex);
+        }
+        // System.Text.Json reads no field of a type such as nint.
+        catch (NotSupportedException ex)
+        {
+            throw new ScriptException($"{where}: a script cannot write a {post.Event}: {ex.Message}", ex);
+        }
+        return type.Create(target, payload ?? throw new ScriptException($"{where}: the payload is null."));
     }
 
     private static Target TargetOf(MessageTarget to, World world, SceneInstance scene, string where) => to switch
@@ -102,10 +161,13 @@ public static class ScriptRunner
     }
 }
 
-/// <summary>What a scripted run made: its state dumps, in the order taken.</summary>
-public sealed class RunResult(IReadOnlyList<StateDump> dumps)
+/// <summary>What a scripted run made: its state dumps and the paths of its captured images, each in the order taken.</summary>
+public sealed class RunResult(IReadOnlyList<StateDump> dumps, IReadOnlyList<string> captures)
 {
     public IReadOnlyList<StateDump> Dumps => dumps;
+
+    /// <summary>The path of each captured image, in the order taken.</summary>
+    public IReadOnlyList<string> Captures => captures;
 
     /// <summary>The dump with the name. Throws <see cref="KeyNotFoundException"/> if the run took none.</summary>
     public StateDump Dump(string name) =>

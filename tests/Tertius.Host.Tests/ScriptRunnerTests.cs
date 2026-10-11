@@ -138,6 +138,7 @@ public class ScriptRunnerTests
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1e39, 0, 0] } }""", "direction")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1, 2] } }""", "direction")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": 4 } }""", "kind")]
+    [InlineData("""{ "do": "camera", "entity": "ghost" }""", "ghost")]
     public void AStepThatCannotRunStopsTheRunBeforeTheFirstTick(string badStep, string named)
     {
         using World world = NewWorld();
@@ -153,6 +154,7 @@ public class ScriptRunnerTests
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "crew" }, "event": "Nudge" }""")]
     [InlineData("""{ "do": "post", "to": { "kind": "frame", "id": "ship" }, "event": "Nudge" }""")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Link", "payload": { "frame": "ship" } }""")]
+    [InlineData("""{ "do": "camera", "entity": "crew" }""")]
     public void AStepThatNamesAnEntityThatIsGoneStopsTheRunBeforeTheFirstTick(string step)
     {
         using World world = NewWorld();
@@ -203,5 +205,48 @@ public class ScriptRunnerTests
         Link link = seen[2].Event.As<Link>();
         link.Channel.Should().Be(Topics.Get("test"));
         link.Frame.Should().Be(world.GetOwnedFrame(scene["ship"]));
+    }
+
+    [Fact]
+    public void ACameraStepMakesTheEntityTheWorldsCamera()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene, """{ "do": "camera", "entity": "crew" }""");
+
+        world.Camera.Should().Be(scene["crew"]);
+    }
+
+    [Fact]
+    public void ADumpNamesTheCameraThatTheStepsBeforeItChose()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        RunResult result = Run(world, scene,
+            """{ "do": "dump", "name": "before" }""", """{ "do": "camera", "entity": "crew" }""", """{ "do": "dump", "name": "after" }""");
+
+        result.Dump("before").Camera.Should().BeNull("the probes scene sets no camera");
+        result.Dump("after").Camera.Should().Be("crew");
+    }
+
+    [Fact]
+    public void ACaptureWithoutARendererStopsTheRunBeforeTheFirstTick()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        string folder = NewFolder();
+        try
+        {
+            Action run = () => ScriptRunner.Run(Script.Parse("""{ "scene": "test", "steps": [ { "do": "run", "ticks": 1 }, { "do": "capture", "name": "now" } ] }"""), world, scene, folder);
+
+            run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("renderer");
+            world.TickNumber.Should().Be(0);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 }

@@ -37,6 +37,7 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
             name,
             world.TickNumber,
             world.Time,
+            world.IsAlive(world.Camera) ? scene.IdOf(world.Camera) : null,
             live.Select(EntityRecordOf).ToArray(),
             frames.Select(FrameRecordOf).ToArray(),
             eventsSinceDump,

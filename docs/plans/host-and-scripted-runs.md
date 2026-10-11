@@ -51,6 +51,31 @@ A scene is a C# function that fills a new `World` and gives scene ids to some of
 
 The runner checks every step before the first tick. A script that it cannot run changes nothing.
 
+## Captures and the camera
+
+Ticket `ter-1i4z` added these. The user chose each point marked (User).
+
+```json
+{
+  "scene": "drop-box",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "camera", "entity": "camera" },
+    { "do": "capture", "name": "start" }
+  ]
+}
+```
+
+- A `capture` step renders the current state with the headless renderer and writes `<out>/<name>.png`. A capture name follows the grammar of a scene id, and two captures cannot have one name.
+- `window` sets the image size in pixels, 1 to 16384 on each side. Without it, the size is 1280 by 720.
+- A `camera` step makes a live entity the camera of the world, `World.Camera`. The camera is the entity's pose composed with the view offset of its render row. (User) The scene picks the camera at the start.
+- A scripted run renders with interpolation alpha 1 and no impostor captures. So on one machine, the captures of a script are the same in every run.
+- A capture needs a renderer and an output folder. The runner checks both before the first tick.
+- The command makes a headless renderer only for a script that has a capture step. So a script with dumps only runs with no GPU.
+- A scene gets the resource half of the renderer, `IRenderResources`, to make its meshes and materials. A run with no renderer gives the scene `RenderResources.None`, whose meshes are `MeshId.None`. The scene makes the same entities either way.
+- A dump names the camera in `camera`.
+- The window comes with input in ticket `ter-mu7k`. (User) It plays a script at real time, 60 ticks a second, and `--speed` changes the rate. When the script ends, the window closes.
+
 ## State dumps
 
 ```json
@@ -58,6 +83,7 @@ The runner checks every step before the first tick. A script that it cannot run 
   "name": "after-one-second",
   "tick": 60,
   "time": 1,
+  "camera": "camera",
   "entities": [
     {
       "id": "box",
@@ -91,7 +117,12 @@ dotnet run --project src/Tertius.Demo -- --script scripts/drop-box.json --headle
 - The command builds the scene that the script names, in a new `World` on the Jolt backend, and runs the script.
 - It writes the path of each dump to standard output, and each problem to standard error.
 - `--headless` is required until the windowed host exists (ticket `ter-mu7k`).
-- The exit codes are the codes of the `tertius` command line in the content packages design: 0 when the run finished, 1 for a wrong command line, 2 when a file cannot be read or written, and 3 for a script that cannot run or that names an unknown scene.
+- The exit codes are the codes of the `tertius` command line in the content packages design:
+  - 0: the run finished.
+  - 1: the command line is wrong.
+  - 2: a file cannot be read or written.
+  - 3: the script cannot run, or it names an unknown scene.
+  - 5: the headless renderer cannot start, for example on a machine with no Vulkan driver.
 
 ## The vertical slice
 

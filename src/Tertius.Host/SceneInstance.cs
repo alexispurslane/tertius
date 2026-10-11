@@ -59,5 +59,24 @@ public sealed class SceneInstance
     private static bool IsLowercaseLetterOrDigit(char c) => c is (>= 'a' and <= 'z') or (>= '0' and <= '9');
 }
 
-/// <summary>A named function that fills a new world and returns the scene ids of what it made.</summary>
-public sealed record Scene(string Name, Func<World, SceneInstance> Build);
+/// <summary>
+/// A named function that fills a new world and returns the scene ids of what it made. It makes its meshes and materials
+/// through the render resources, which are <see cref="RenderResources.None"/> in a run with no renderer.
+/// </summary>
+public sealed record Scene(string Name, Func<World, IRenderResources, SceneInstance> Build);
+
+/// <summary>Render resources for a run with no renderer.</summary>
+public static class RenderResources
+{
+    /// <summary>Resources with no renderer behind them. Every mesh, texture and material they make is none, so nothing draws.</summary>
+    public static IRenderResources None { get; } = new NoResources();
+
+    private sealed class NoResources : IRenderResources
+    {
+        public MeshId CreateMesh(MeshData mesh) => MeshId.None;
+
+        public TextureId CreateTexture(TextureData texture) => TextureId.None;
+
+        public MaterialId CreateMaterial(MaterialDesc material) => MaterialId.None;
+    }
+}
