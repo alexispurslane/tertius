@@ -7,19 +7,27 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// The first scene of the vertical slice, "a ship orbits a planet", run for a quarter orbit: about 83,000 ticks at Earth
-/// scale. The run is long, so every test of the class reads the dumps of one run.
+/// The first scene of the vertical slice, "a ship orbits a planet", at Earth scale. The run starts 10 s before the ship
+/// reaches the far side of its orbit, where the mean anomaly wraps from π to -π, and runs 20 s. Every test of the class
+/// reads the dumps of that one run. The full orbit is the manual run of scripts/orbit.json.
 /// </summary>
-public sealed class OrbitQuarterRun : IDisposable
+public sealed class OrbitRun : IDisposable
 {
-    public OrbitQuarterRun()
+    /// <summary>The orbit's radius, 400 km above Earth's 6,371 km, in meters.</summary>
+    public const double Radius = 6.771e6;
+
+    /// <summary>Earth's G·M, in m³/s².</summary>
+    public const double Mu = 3.986004418e14;
+
+    /// <summary>The ship's angular speed round Earth, sqrt(mu / r³), in radians per second.</summary>
+    public static double MeanMotion => Math.Sqrt(Mu / (Radius * Radius * Radius));
+
+    public OrbitRun()
     {
-        // No invariant checks every tick: they cost about 0.5 ms a tick, and the run has 83,000 ticks. The checks run in
-        // the shorter World tests.
-        World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true }, new Tertius.Physics.JoltPhysicsBackend());
+        World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true, StartTime = Math.PI / MeanMotion - 10 }, new Tertius.Physics.JoltPhysicsBackend());
         Scene = DemoScenes.All.Single(s => s.Name == "orbit").Build(World, RenderResources.None);
         Result = ScriptRunner.Run(Script.Parse("""
-            { "scene": "orbit", "steps": [ { "do": "dump", "name": "start" }, { "do": "run", "ticks": 83173 }, { "do": "dump", "name": "quarter" } ] }
+            { "scene": "orbit", "steps": [ { "do": "dump", "name": "before" }, { "do": "run", "ticks": 1200 }, { "do": "dump", "name": "after" } ] }
             """), World, Scene);
     }
 
@@ -30,25 +38,24 @@ public sealed class OrbitQuarterRun : IDisposable
     public void Dispose() => World.Dispose();
 }
 
-public sealed class OrbitSliceTests(OrbitQuarterRun run) : IClassFixture<OrbitQuarterRun>
+public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
 {
     private static void ExpectNear(Double3 actual, Double3 expected, double tolerance) =>
         Double3.Distance(actual, expected).Should().BeLessThan(tolerance, $"{actual} is not {expected}");
 
-    /// <summary>The mean motion of the ship's orbit, sqrt(mu / r³), in radians per second.</summary>
-    private static double MeanMotion => Math.Sqrt(DemoScenes.EarthMu / Math.Pow(DemoScenes.OrbitRadius, 3));
-
     [Fact]
-    public void AfterAQuarterOrbitTheShipIsAQuarterOfTheWayRoundEarthOnItsCircle()
+    public void TheShipIsOnItsCircleAtTheAngleThatItsTimeGivesOnBothSidesOfTheFarSide()
     {
-        StateDump quarter = run.Result.Dump("quarter");
-
-        // The orbit starts at (r, 0, 0) and runs counterclockwise seen from +Y: at angle M it is at r (cos M, 0, -sin M).
-        double m = MeanMotion * quarter.Time;
-        FramePose ship = quarter.Entity("ship").RootPose;
-        ship.Frame.Should().Be("earth");
-        ExpectNear(ship.Position, new Double3(Math.Cos(m), 0, -Math.Sin(m)) * DemoScenes.OrbitRadius, 1e-3);
-        m.Should().BeApproximately(Math.PI / 2, 1e-4, "83,173 ticks are a quarter of the 5,544.9 s orbit");
+        foreach (StateDump dump in run.Result.Dumps)
+        {
+            // The orbit starts at (r, 0, 0) and runs counterclockwise seen from +Y: at angle M it is at r (cos M, 0, -sin M).
+            double m = OrbitRun.MeanMotion * dump.Time;
+            FramePose ship = dump.Entity("ship").RootPose;
+            ship.Frame.Should().Be("earth");
+            ExpectNear(ship.Position, new Double3(Math.Cos(m), 0, -Math.Sin(m)) * OrbitRun.Radius, 1e-3);
+        }
+        run.Result.Dump("before").Time.Should().BeLessThan(Math.PI / OrbitRun.MeanMotion);
+        run.Result.Dump("after").Time.Should().BeGreaterThan(Math.PI / OrbitRun.MeanMotion);
     }
 
     [Fact]
@@ -56,7 +63,7 @@ public sealed class OrbitSliceTests(OrbitQuarterRun run) : IClassFixture<OrbitQu
     {
         foreach (StateDump dump in run.Result.Dumps)
         {
-            double m = MeanMotion * dump.Time;
+            double m = OrbitRun.MeanMotion * dump.Time;
             DQuaternion rotation = dump.Entity("ship").RootPose.Rotation;
 
             ExpectNear(rotation.Rotate(new Double3(0, -1, 0)), new Double3(-Math.Cos(m), 0, Math.Sin(m)), 1e-9);
@@ -65,25 +72,67 @@ public sealed class OrbitSliceTests(OrbitQuarterRun run) : IClassFixture<OrbitQu
     }
 
     [Fact]
-    public void TheChaseCameraRidesAtItsPlaceBehindTheShipToAMicrometerAtEarthScale()
+    public void TheChaseCameraRidesBehindAndAboveTheShipAndLooksAtItsCenter()
     {
-        StateDump quarter = run.Result.Dump("quarter");
-        FramePose ship = quarter.Entity("ship").RootPose;
-        FramePose chase = quarter.Entity("chase").RootPose;
+        StateDump after = run.Result.Dump("after");
+        FramePose ship = after.Entity("ship").RootPose;
+        FramePose chase = after.Entity("chase").RootPose;
 
-        // The camera's offset from the ship, in the ship's own axes, is still (0, 12, 70) m, 6,771 km from Earth's center.
-        Double3 offset = ship.Rotation.Conjugate().Rotate(chase.Position - ship.Position);
-        ExpectNear(offset, new Double3(0, 12, 70), 1e-6);
+        // In the ship's own axes, the camera is still at (0, 12, 70) m, 6,771 km from Earth's center, and it looks
+        // along -(0, 12, 70) / sqrt(5,044), at the ship's center.
+        DQuaternion toShip = ship.Rotation.Conjugate();
+        ExpectNear(toShip.Rotate(chase.Position - ship.Position), new Double3(0, 12, 70), 1e-6);
+        ExpectNear(toShip.Rotate(chase.Rotation.Rotate(new Double3(0, 0, -1))), new Double3(0, -0.1689638151, -0.9856222548), 1e-9);
+    }
+
+    [Fact]
+    public void TheChaseCameraIsInsideTheShipsBubble()
+    {
+        // An entity outside its frame's bubble would leave the frame, if a later check covers entities without bodies.
+        FrameHandle ship = run.World.GetOwnedFrame(run.Scene["ship"]);
+        Double3 chase = run.World.GetPose(run.Scene["chase"]).Position;
+
+        run.World.Frames.Bounds(ship).FullyOutside(chase, 0, run.World.Frames.Bounds(ship).ExitMargin(0)).Should().BeFalse();
+        run.World.Frames.Bounds(ship).SignedDistance(chase).Should().BeNegative();
+    }
+
+    [Fact]
+    public void TheSceneOffersTheChaseViewAndTheFarViewAndVTogglesBetweenThem()
+    {
+        run.Scene.Views.Should().Equal("chase", "far");
+        run.Scene.NextView(run.Scene["chase"]).Should().Be(run.Scene["far"]);
+        run.Scene.NextView(run.Scene["far"]).Should().Be(run.Scene["chase"]);
+    }
+
+    [Fact]
+    public void TheSunHasTheAngularSizeOfTheRealSunSeenFromEarth()
+    {
+        run.World.PublishRenderSnapshot();
+        run.World.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot).Should().BeTrue();
+
+        // The sun's radius, 696,000 km, seen from 1 AU away.
+        snapshot.Sun.AngularRadius.Should().BeApproximately(4.65e-3f, 2e-5f);
     }
 
     [Fact]
     public void TheRunReportsNoErrorAndKeepsTheChaseView()
     {
-        StateDump quarter = run.Result.Dump("quarter");
+        StateDump after = run.Result.Dump("after");
 
-        quarter.Errors.Should().BeEmpty();
-        quarter.Camera.Should().Be("chase");
-        quarter.Frames.Select(f => (f.Id, f.Parent, f.Driver)).Should().Contain(("ship", "earth", MotionDriver.Kepler));
+        after.Errors.Should().BeEmpty();
+        after.Camera.Should().Be("chase");
+        after.Frames.Select(f => (f.Id, f.Parent, f.Driver)).Should().Contain(("ship", "earth", MotionDriver.Kepler));
+    }
+
+    [Fact]
+    public void EveryCameraStepOfTheCheckedInOrbitScriptNamesAnEntityOfTheScene()
+    {
+        Script script = Script.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "orbit.json")));
+
+        script.Scene.Should().Be("orbit");
+        script.Steps.OfType<CameraStep>().Should().NotBeEmpty();
+        foreach (CameraStep step in script.Steps.OfType<CameraStep>())
+            run.Scene.TryGetEntity(step.Entity, out _).Should().BeTrue($"the scene has no entity {step.Entity}");
     }
 }
 

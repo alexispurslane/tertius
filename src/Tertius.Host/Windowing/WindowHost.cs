@@ -27,6 +27,7 @@ internal sealed class WindowHost : IInputTarget
     private readonly VulkanRenderer renderer;
     private readonly World world;
     private readonly SceneInstance scene;
+    private readonly ViewSwitch views;
     private readonly Script? script;
     private readonly string? outputFolder;
     private readonly TickPacer pacer;
@@ -47,8 +48,6 @@ internal sealed class WindowHost : IInputTarget
     private Exception? failure;
     private int closeWanted;
 
-    // Presses of the view key, which the main thread counts and the simulation thread applies between ticks.
-    private int viewChanges;
 
     private WindowHost(IWindow window, VulkanRenderer renderer, World world, SceneInstance scene, Script? script, string? outputFolder, double speed)
     {
@@ -56,6 +55,7 @@ internal sealed class WindowHost : IInputTarget
         this.renderer = renderer;
         this.world = world;
         this.scene = scene;
+        views = new ViewSwitch(scene);
         this.script = script;
         this.outputFolder = outputFolder;
         pacer = new TickPacer(world.DeltaTime, speed);
@@ -177,9 +177,7 @@ internal sealed class WindowHost : IInputTarget
             {
                 while (playback.WaitForTick())
                 {
-                    // Only the ticking thread may set the world's camera.
-                    for (int changes = Interlocked.Exchange(ref viewChanges, 0); changes > 0; changes--)
-                        world.Camera = scene.NextView(world.Camera);
+                    views.Apply(world);
                     world.Tick();
                 }
             }
@@ -298,7 +296,7 @@ internal sealed class WindowHost : IInputTarget
 
     public void Close() => window.Close();
 
-    public void NextView() => Interlocked.Increment(ref viewChanges);
+    public void NextView() => views.Press();
 
     // ---- The outcome ---------------------------------------------------------------------------------------------------
 

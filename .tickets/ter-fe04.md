@@ -1,6 +1,6 @@
 ---
 id: ter-fe04
-status: in_progress
+status: closed
 deps: [ter-1i4z]
 links: []
 created: 2026-10-11T13:52:09Z

@@ -125,6 +125,23 @@ public class SceneInstanceTests
     }
 
     [Fact]
+    public void ACameraWithNoSceneIdGoesToTheFirstView()
+    {
+        WithViews().NextView(new Entity(99, 1)).Should().Be(Chase);
+    }
+
+    [Fact]
+    public void ThreeViewsCycleForwardInTheOrderThatTheSceneAddedThem()
+    {
+        SceneInstance scene = WithViews();
+        scene.AddView("box");
+
+        scene.NextView(Chase).Should().Be(Far);
+        scene.NextView(Far).Should().Be(Box);
+        scene.NextView(Box).Should().Be(Chase);
+    }
+
+    [Fact]
     public void WithNoViewsTheCameraStays()
     {
         var scene = new SceneInstance();

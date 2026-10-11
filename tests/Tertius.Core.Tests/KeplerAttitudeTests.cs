@@ -102,6 +102,16 @@ public class KeplerAttitudeTests
     }
 
     [Fact]
+    public void TheRotationKeepsItsSignWhereTheMeanAnomalyWrapsOnTheFarSideOfTheOrbit()
+    {
+        KeplerOrbit orbit = Facing(KeplerOrbit.Circular(LowOrbit, Mu));
+
+        // The same rotation has two quaternions, q and -q. Across the wrap from π to -π, the frame keeps the one near q.
+        DQuaternion a = orbit.RotationAt(orbit.Period / 2 - 0.01), b = orbit.RotationAt(orbit.Period / 2 + 0.01);
+        (a.X * b.X + a.Y * b.Y + a.Z * b.Z + a.W * b.W).Should().BeGreaterThan(0.999);
+    }
+
+    [Fact]
     public void ASpinningFrameKeepsItsSpinWhateverItsPlaceOnTheOrbit()
     {
         KeplerOrbit orbit = KeplerOrbit.Circular(LowOrbit, Mu, spinRate: 0.01);

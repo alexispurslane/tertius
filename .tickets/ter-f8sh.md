@@ -1,7 +1,7 @@
 ---
 id: ter-f8sh
 status: open
-deps: [ter-ai0t]
+deps: [ter-ai0t, ter-ujbt, ter-1zfs]
 links: []
 created: 2026-10-11T13:52:09Z
 type: task

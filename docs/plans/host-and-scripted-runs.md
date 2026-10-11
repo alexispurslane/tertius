@@ -157,7 +157,9 @@ Step 1, the ship's orbit (ticket `ter-fe04`), is the Demo's scene `orbit` and th
 - The planet has Earth's radius and gravity, and the ship orbits 400 km up, once in 92.4 minutes. (User) A full orbit runs headless in about 30 s. `--speed 60` plays it in the window in about 1.5 minutes.
 - The ship faces the planet: its nose points along its orbit and its belly toward the planet, through the Kepler attitude `FacesParent`. (User)
 - The scene has two views. (User) `chase` rides 70 m behind the ship and 12 m above it. `far` stands three Earth radii out and shows the whole planet, where the ship is too small to see. In free play, V switches between them. A script switches them with camera steps.
-- The script captures both views and dumps the state at the start and after each quarter of the orbit.
+- The script captures both views and dumps the state at the start and after each quarter of the orbit. A quarter is 83,172.83 ticks, and the script runs 83,173, so the ship ends each quarter about 22 m past the mark. The float tick length adds 0.55 m per quarter (ticket `ter-xshi`).
+- The ship's bubble has a radius of 100 m, so it holds the hull and the chase camera. The sun has the real sun's radius at 1 AU, so the light has the real sun's angular size.
+- The tests of the scene run 20 s across the far side of the orbit, where the mean anomaly wraps from π to -π. The full orbit is the manual run of `scripts/orbit.json`.
 
 The demo starts as C# code. The [content packages and mods](content-packages.md) work later moves the content of the demo into the first content package.
 

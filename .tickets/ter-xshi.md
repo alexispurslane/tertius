@@ -21,3 +21,9 @@ Design to decide: compute time as StartTime + tick / (double)TickRate, and give 
 
 After N ticks at 60 ticks a second, World.Time is StartTime + N / 60.0 in doubles, exactly as that division gives it. The physics step and every test still pass.
 
+
+## Notes
+
+**2026-10-11T18:48:00Z**
+
+The acceptance read of the orbit scene (ter-fe04) measured the effect. At 60 ticks a second, the float tick is 8.7e-10 s (5.2e-8 relative) longer than 1/60 s. The clock gains 0.29 ms per orbit of 92 minutes, 4.5 ms per simulated day (about 35 m along the orbit) and 1.6 s per simulated year. Of the 22.7 m by which the ship passes each quarter mark in scripts/orbit.json, 0.55 m comes from the float tick. The other 22.2 m comes from the script, which rounds the quarter period of 83,172.83 ticks up to 83,173. A tick rate of 64 is exact as a float, but 50 and 60 are not.

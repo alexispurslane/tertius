@@ -25,14 +25,16 @@ public static class DemoScenes
     /// The vertical slice's first scene: a ship on a round orbit 400 km above an Earth-sized planet, its nose along the
     /// orbit and its belly toward the planet. The planet is the root frame <c>earth</c>, with Earth's radius and gravity
     /// and a grid of 10-degree lines, so that its motion below the ship shows. The ship is the frame <c>ship</c>, a 20 by 8
-    /// by 60 m hull. It starts at (r, 0, 0) and goes round counterclockwise seen from +Y, once in about 92 minutes.
+    /// by 60 m hull in a bubble of radius 100 m. It starts at (r, 0, 0) and goes round counterclockwise seen from +Y, once
+    /// in about 92 minutes.
     /// <list type="bullet">
     /// <item>The view <c>chase</c>, the camera at the start, rides in the ship's frame, 70 m behind it and 12 m above it,
     /// and looks at the ship's center.</item>
     /// <item>The view <c>far</c> stands in the planet's frame, three Earth radii from its center, 30 degrees above the
     /// orbit's plane, and looks at the center. The ship is too small to see from there.</item>
     /// </list>
-    /// The frame <c>sun</c>, 1 AU away, is where the light comes from, so the ship has day and night.
+    /// The frame <c>sun</c>, 1 AU away, is where the light comes from, so the ship has day and night. It has the real sun's
+    /// radius, so the light has the real sun's angular size.
     /// </summary>
     private static SceneInstance Orbit(World world, IRenderResources resources)
     {
@@ -52,7 +54,8 @@ public static class DemoScenes
         {
             Frame = earth,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(60), MotionDriver.Kepler,
+            // The bubble holds the hull and the chase camera, 71 m from the ship's center.
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler,
                 Orbit: KeplerOrbit.Circular(OrbitRadius, EarthMu) with { Attitude = KeplerAttitude.FacesParent }),
             Render = Drawn(resources, Primitives.Box(new Vector3(10, 4, 30)), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32),
         });
@@ -83,6 +86,9 @@ public static class DemoScenes
             Frame = earth,
             Pose = new DPose(new Double3(1, 0.3, 0.6).Normalized() * 1.496e11, DQuaternion.Identity),
             AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Static),
+            // The sun's radius gives the light its angular size, and so the width of the penumbra at the terminator. The
+            // sun is not drawn.
+            Render = new RenderData { BoundingRadius = 6.957e8f },
         });
         scene.Add("sun", sun);
         world.SunFrame = world.GetOwnedFrame(sun);
@@ -91,16 +97,21 @@ public static class DemoScenes
         return scene;
     }
 
-    /// <summary>A deep blue planet with light lines every 10 degrees of longitude and latitude, 1024 by 512 sRGB.</summary>
+    /// <summary>
+    /// A deep blue planet with light lines every 10 degrees of longitude and latitude, 1024 by 512 sRGB. Each line is 0.7
+    /// degrees wide, centered on its mark, so the equator line runs under the ship's ground track.
+    /// </summary>
     private static TextureData EarthGrid()
     {
         const int width = 1024, height = 512;
+        const double halfWidth = 0.35;
+        static bool OnLine(double degrees) => Math.Abs(degrees - 10 * Math.Round(degrees / 10)) < halfWidth;
         var rgba = new byte[width * height * 4];
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
             {
-                bool line = x * 36 % width < 36 * 2 || y * 18 % height < 18 * 2;
+                bool line = OnLine((x + 0.5) * 360.0 / width) || OnLine((y + 0.5) * 180.0 / height);
                 int i = (y * width + x) * 4;
                 (rgba[i], rgba[i + 1], rgba[i + 2], rgba[i + 3]) = line ? ((byte)190, (byte)210, (byte)240, (byte)255) : ((byte)35, (byte)85, (byte)170, (byte)255);
             }

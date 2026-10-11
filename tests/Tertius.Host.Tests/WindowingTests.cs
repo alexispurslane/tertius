@@ -529,3 +529,60 @@ public class WindowPlaybackTests
         captured.Should().BeFalse();
     }
 }
+
+public class ViewSwitchTests
+{
+    private static (World World, SceneInstance Scene) Orbit()
+    {
+        World world = HostTesting.NewJoltWorld();
+        return (world, Tertius.Demo.DemoScenes.All.Single(s => s.Name == "orbit").Build(world, RenderResources.None));
+    }
+
+    [Fact]
+    public void OnePressMovesTheCameraToTheNextView()
+    {
+        (World world, SceneInstance scene) = Orbit();
+        using (world)
+        {
+            var views = new ViewSwitch(scene);
+
+            views.Press();
+            views.Apply(world);
+
+            world.Camera.Should().Be(scene["far"]);
+        }
+    }
+
+    [Fact]
+    public void EveryPressBetweenTwoTicksCounts()
+    {
+        (World world, SceneInstance scene) = Orbit();
+        using (world)
+        {
+            var views = new ViewSwitch(scene);
+
+            // At a low --speed, ticks are far apart, and two presses can fall between them.
+            views.Press();
+            views.Press();
+            views.Apply(world);
+
+            world.Camera.Should().Be(scene["chase"]);
+        }
+    }
+
+    [Fact]
+    public void APressCountsOnce()
+    {
+        (World world, SceneInstance scene) = Orbit();
+        using (world)
+        {
+            var views = new ViewSwitch(scene);
+
+            views.Press();
+            views.Apply(world);
+            views.Apply(world);
+
+            world.Camera.Should().Be(scene["far"]);
+        }
+    }
+}

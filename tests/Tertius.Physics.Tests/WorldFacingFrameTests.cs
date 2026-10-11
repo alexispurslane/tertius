@@ -57,6 +57,29 @@ public class WorldFacingFrameTests
     }
 
     [Fact]
+    public void OnAnOvalOrbitTheStationsOwnerTurnsAtTheRateOfItsPlaceOnTheOrbit()
+    {
+        World world = NewWorld(out _);
+        using (world)
+        {
+            FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)));
+            // Periapsis at t = 0, apoapsis at half the 31.4 s period.
+            var oval = new KeplerOrbit(5000, 0.3, 0, 0, 0, 0, 0, PlanetMu, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
+            Entity owner = world.Spawn(new SpawnDesc
+            {
+                Frame = planet,
+                Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), Mass: 1000),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler, Orbit: oval),
+            });
+
+            Tick(world, 942);
+
+            // Near apoapsis, 6,500 m out, the turn rate is h / r² = sqrt(mu a (1 - e²)) / 6,500² = 0.112892 rad/s.
+            world.GetAngularVelocity(owner).Y.Should().BeApproximately(0.112892f, 1e-4f);
+        }
+    }
+
+    [Fact]
     public void TheStationsHullInThePlanetsSystemTurnsWithTheFrame()
     {
         (World world, JoltPhysicsBackend backend, FrameHandle planet, Entity owner) = Station();

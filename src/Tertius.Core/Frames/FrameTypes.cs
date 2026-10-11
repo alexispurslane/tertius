@@ -197,8 +197,9 @@ public record struct KeplerOrbit(
         double m = Math.IEEERemainder(mean, 2 * Math.PI);
         turns = mean - m;
 
-        // Solve Kepler's equation M = E - e sin E with Newton iterations.
-        double eccentric = e < 0.8 ? m : Math.PI;
+        // Solve Kepler's equation M = E - e sin E with Newton iterations. For a high eccentricity, the start is ±π on the
+        // side of M: a start on the other side diverges for some M.
+        double eccentric = e < 0.8 ? m : Math.CopySign(Math.PI, m);
         for (int i = 0; i < 30; i++)
         {
             double f = eccentric - e * Math.Sin(eccentric) - m;

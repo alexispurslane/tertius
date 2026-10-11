@@ -194,6 +194,19 @@ public class InputRouterTests
     }
 
     [Fact]
+    public void WhileTheFlyCameraIsOnVStillCyclesTheViews()
+    {
+        var window = new Window();
+        var router = new InputRouter(freePlay: true, window);
+
+        router.Key(Key.F1, down: true);
+        router.Key(Key.V, down: true);
+
+        window.ViewChanges.Should().Be(1);
+        window.FlyKeys.Should().BeEmpty();
+    }
+
+    [Fact]
     public void DuringAScriptVChangesNoViewBecauseTheScriptsCameraStepsDo()
     {
         var window = new Window();
