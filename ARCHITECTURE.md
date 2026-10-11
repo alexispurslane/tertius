@@ -58,7 +58,7 @@ One tick has two parts. During the parallel part, gameplay and physics run at th
 The sync point does these steps in this order:
 
 1. Wait for all gameplay chunks and for the physics step.
-2. Copy body poses and velocities from the physics output into the back transform table. Apply the hand-offs that physics reported, and then the new states of physics-driven frames. A frame state is relative to the frame's parent after its hand-off, so it must come after the hand-offs and before any frame is destroyed.
+2. Check the physics output before any of it lands. If an output can only come from a bug in the backend, skip the physics update of each entity that it names. "Output that only a bug produces" under "Physics" gives the checks. Then move each handed-off frame under its new parent in the frame tree. Copy body poses, velocities and hand-offs into the back transform table, and then apply the new states of physics-driven frames. A frame state is relative to the frame's parent after its hand-off. So it must come after the hand-offs, and before step 5 destroys any frame. Send the contacts as `Collision` events last.
 3. Make sure that no entity with a body wrote its own transform. This is a debug assertion.
 4. Swap the physics intent buffers, so that physics gets this tick's forces in the next step.
 5. Free dead entities. Increment the generation of each slot and return the slot to the free list. Tell physics to destroy their bodies.
@@ -253,11 +253,17 @@ An object belongs to the deepest frame whose bubble it is in. These rules contro
 5. The pose converts in double precision. Velocity converts as `v' = R⁻¹(v − v_frame − ω × r)` on entry, and the reverse on exit. No Coriolis force acts, but the conversion keeps the ω × r term. An object thrown out of a spinning station then leaves with the correct velocity.
 6. The entity handle does not change. The body moves from one physics system to the other. The entity moves to the new frame's topic and gets a `FrameChanged` event.
 
-Physics follows the frame tree. Each hand-off is a proposal that the sync point applies or refuses in step 2. At the start of every step, physics drops every hand-off of a frame that the tree did not take, and moves the frame's hull into the physics system of the frame's parent in the tree.
+Physics follows the frame tree, and the tree is the authority. Each hand-off is a proposal that the sync point checks and applies in step 2. A correct backend never proposes a hand-off that the tree refuses, so a refusal comes only from a bug. "Output that only a bug produces" under "Physics" tells what the sync point does then.
+
+At the start of every step, physics reconciles with the tree. First it drops every hand-off of a frame from the last step, whether the tree took it or not. Then it puts the hull of each frame into the physics system of the frame's parent in the tree. A hull that changes systems this way restarts from the frame's pose and velocity in the tree. So after a refused hand-off, the hull loses the motion of the refused step. The same reconcile follows the changes that the game makes to the tree between ticks, for example a reparent that docks a ship. Physics also reconciles each time that the simulation gives it a batch of structural changes.
+
+If the system of the parent is full, the hull gets no body. Physics writes a warning to its log and goes on with the other hulls. A hull without a body does not move or collide, and physics reports nothing for it. Its frame keeps the state that the tree gives it. Until the hull has a body again, physics reconciles at the start of every step and tries again.
 
 ### Ghosts
 
 While an object's bounding sphere crosses a bubble boundary, the other physics system holds a ghost. A ghost is a kinematic body that copies the real body's pose every step. Bodies in the other system collide with the ghost, but the ghost does not push back on the real body. After the object is fully on one side, physics removes the ghost.
+
+A ghost is only in the system of a frame next to the body's frame in the tree: its parent, a sibling or a child. The ghost of a hull is never in the hull's own frame. When the tree changes, the reconcile at the start of the next step removes each ghost that the new tree does not allow. The ghost pass at the end of that step adds the ghosts that the new tree needs.
 
 ## Physics
 
@@ -290,6 +296,23 @@ Proper acceleration has a dead band. A component below the float resolution of t
 A physics-driven hull in orbit is integrated with float velocities, so its orbit drifts slowly. A frame that coasts for a long time uses a Kepler driver instead.
 
 The character controller is a capsule. It stands on whatever is below it and inherits that surface's velocity. It uses the frame's effective gravity. Near zero effective gravity, it switches to zero-g movement.
+
+### Output that only a bug produces
+
+A state that only a bug can produce breaks a contract in a Debug build. A Release build skips it and records it in `World.Errors`.
+
+For physics output, the facts below define a correct backend. Entities and frames die only in step 5 of the sync point or outside a tick. Physics hears of each death before its next step. An entity keeps its body for its whole life. Each hull starts a step in the system of its frame's parent. So its frame can only enter a sibling or leave for the parent's parent.
+
+So step 2 of the sync point checks each output before any state lands:
+
+1. A body state names a live entity that has a body, and a live frame.
+2. A hand-off names a live entity that has a body, and a live target frame. The hand-off of a frame never puts the frame under itself or under a frame inside it.
+3. A frame state names a live frame.
+4. A contact names two live entities that have a body, and a live frame.
+
+If an output fails a check, a Release build skips the whole physics update of each entity that the output names, for that step. It records one error. For a frame state, the entity is the owner of the frame. The whole update of an entity is its body state, its hand-off, the state of its own frame, and its contacts.
+
+The skip does not change physics. At the next reconcile, a frame hull goes back to where the tree says. A plain body that physics moved into a frame that is gone stays in that system. When physics finds that the frame is gone, it removes the body with a warning.
 
 ## Rendering
 
