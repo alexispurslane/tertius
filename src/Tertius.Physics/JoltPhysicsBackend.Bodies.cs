@@ -317,6 +317,7 @@ public sealed partial class JoltPhysicsBackend
             return;
         if (record.Character is { } character)
         {
+            world.WakeAround(character.InnerBodyID);
             world.ForgetContacts(character.InnerBodyID);
             character.Dispose();
             record.Character = null;
@@ -325,7 +326,7 @@ public sealed partial class JoltPhysicsBackend
         else if (record.Body.IsValid)
         {
             world.ForgetContacts(record.Body);
-            world.Bodies.RemoveAndDestroyBody(record.Body);
+            world.RemoveBody(record.Body);
         }
         record.Body = BodyID.Invalid;
         world.RemoveMember(record);
@@ -338,7 +339,7 @@ public sealed partial class JoltPhysicsBackend
         if (record.InteriorWorld is not { } world)
             return;
         world.ForgetContacts(record.InteriorBody);
-        world.Bodies.RemoveAndDestroyBody(record.InteriorBody);
+        world.RemoveBody(record.InteriorBody);
         record.InteriorWorld = null;
         record.InteriorBody = BodyID.Invalid;
     }
@@ -348,7 +349,7 @@ public sealed partial class JoltPhysicsBackend
         if (record.Ghosts is not { } ghosts)
             return;
         foreach (GhostBody ghost in ghosts)
-            ghost.World.Bodies.RemoveAndDestroyBody(ghost.Body);
+            ghost.World.RemoveBody(ghost.Body);
         ghosts.Clear();
     }
 
@@ -360,7 +361,7 @@ public sealed partial class JoltPhysicsBackend
         {
             if (ghosts[i].World != world)
                 continue;
-            world.Bodies.RemoveAndDestroyBody(ghosts[i].Body);
+            world.RemoveBody(ghosts[i].Body);
             ghosts.RemoveAt(i);
         }
     }
@@ -370,15 +371,32 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Puts a frame hull where the tree says: the simulation refused the hull's hand-off or reparented its frame on its
     /// own, or the frame's parent was destroyed. The hull takes the tree's pose and velocity. A frame that became a root
-    /// loses its hull. A full system grows to take the hull.
+    /// loses its hull. A full system grows to take the hull. The bodies around the old hull wake, and so do the bodies
+    /// around a new hull that is static, because Jolt does not simulate the move.
     /// </summary>
     private void PlaceHullFromTree(BodyRecord owner, FrameHandle parent)
     {
         if (!parent.IsNull && ExistingWorld(parent) is { } target)
             RemoveGhostIn(owner, target);
         RemovePrimary(owner);
-        if (!parent.IsNull)
-            CreateHullFromTree(owner, parent);
+        if (parent.IsNull)
+            return;
+        CreateHullFromTree(owner, parent);
+        if (owner.Motion == BodyMotion.Static)
+            owner.World!.WakeAround(owner.Body);
+    }
+
+    /// <summary>
+    /// True when Jolt has <paramref name="body"/> at <paramref name="pose"/>, within the tolerance by which Jolt itself
+    /// decides that a pose did not change.
+    /// </summary>
+    private static bool IsAt(BodyInterface bodies, BodyID body, in DPose pose)
+    {
+        bodies.GetRPosition(body, out RVector3 position);
+        Quaternion rotation = bodies.GetRotation(body);
+        Quaternion target = pose.Rotation.ToJolt();
+        var difference = new Vector4(rotation.X - target.X, rotation.Y - target.Y, rotation.Z - target.Z, rotation.W - target.W);
+        return (position.ToDouble3() - pose.Position).LengthSquared <= 1e-12 && difference.LengthSquared() <= 1e-12f;
     }
 
     // ---- Following a frame's driver ----
@@ -430,19 +448,26 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Gives a frame owner's hull the Jolt motion type of the record's motion, also when it has that type already. The hull
     /// keeps its BodyID, its system and its contacts. Like a hull that the reconcile moves to another system, it takes the
-    /// frame's pose and velocity from the tree.
+    /// frame's pose and velocity from the tree. If that moves the hull, the bodies around its old place wake, and for a
+    /// static hull the bodies around its new place too.
     /// </summary>
     private void ApplyHullMotion(BodyRecord owner)
     {
-        BodyInterface bodies = owner.World!.Bodies;
+        FrameWorld world = owner.World!;
+        BodyInterface bodies = world.Bodies;
         BodyID hull = owner.Body;
         MotionType motion = ToMotionType(owner.Motion);
         Activation activation = motion == MotionType.Static ? Activation.DontActivate : Activation.Activate;
+        DPose pose = frames.LocalPose(owner.OwnedFrame);
+        bool moves = !IsAt(bodies, hull, pose);
+        if (moves)
+            world.WakeAround(hull);
         bodies.SetMotionType(hull, motion, activation);
         // The same motion quality as a hull that the backend creates with this motion (see Settings).
         bodies.SetMotionQuality(hull, motion == MotionType.Dynamic ? MotionQuality.LinearCast : MotionQuality.Discrete);
-        DPose pose = frames.LocalPose(owner.OwnedFrame);
         bodies.SetRPositionAndRotation(hull, pose.Position.ToJolt(), pose.Rotation.ToJolt(), activation);
+        if (moves && motion == MotionType.Static)
+            world.WakeAround(hull);
         // Jolt stops a body that becomes static.
         if (motion != MotionType.Static)
         {

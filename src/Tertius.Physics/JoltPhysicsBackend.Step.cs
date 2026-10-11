@@ -84,9 +84,11 @@ public sealed partial class JoltPhysicsBackend
         BodyID id = record.Body;
         IntentFlags flags = intent.Flags;
 
-        // Teleport first, so that a kinematic target in the same intent moves the body on from the new pose.
+        // Teleport first, so that a kinematic target in the same intent moves the body on from the new pose. Jolt does not
+        // simulate the jump, so the bodies around the old place wake. Jolt wakes those that the body touches at the new place.
         if ((flags & IntentFlags.Teleport) != 0)
         {
+            record.World!.WakeAround(id);
             bodies.SetRPositionAndRotation(id, intent.TeleportPose.Position.ToJolt(), intent.TeleportPose.Rotation.ToJolt(), Activation.Activate);
             bodies.SetLinearAndAngularVelocity(id, Vector3.Zero, Vector3.Zero);
         }
@@ -139,10 +141,14 @@ public sealed partial class JoltPhysicsBackend
         IntentFlags flags = intent.Flags;
         if ((flags & IntentFlags.Teleport) != 0)
         {
+            // Jolt never simulates the inner body of a character, so the bodies around its old and new places wake.
+            FrameWorld world = record.World!;
+            world.WakeAround(character.InnerBodyID);
             character.RPosition = intent.TeleportPose.Position.ToJolt();
             character.Rotation = intent.TeleportPose.Rotation.ToJolt();
             character.LinearVelocity = Vector3.Zero;
             record.PendingVelocityChange = Vector3.Zero;
+            world.WakeAround(character.InnerBodyID);
         }
         if ((flags & IntentFlags.SetVelocity) != 0)
             character.LinearVelocity = intent.Velocity;
@@ -169,10 +175,14 @@ public sealed partial class JoltPhysicsBackend
             }
             else if (owner.Motion == BodyMotion.Static)
             {
-                // A static frame does not move, unless the simulation placed it somewhere else. Jolt skips the
-                // broad-phase update when nothing changed.
+                // A static frame does not move, unless the game placed it somewhere else. Jolt does not simulate that
+                // move, so the bodies around the hull's old and new places wake.
                 DPose pose = frames.LocalPose(owner.OwnedFrame);
-                bodies.SetRPositionAndRotationWhenChanged(owner.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(), Activation.DontActivate);
+                if (IsAt(bodies, owner.Body, pose))
+                    continue;
+                owner.World!.WakeAround(owner.Body);
+                bodies.SetRPositionAndRotation(owner.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(), Activation.DontActivate);
+                owner.World!.WakeAround(owner.Body);
             }
         }
     }

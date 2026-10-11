@@ -319,10 +319,21 @@ public sealed partial class JoltPhysicsBackend
         {
             if (ghost.World != world)
                 continue;
+            // Jolt does not simulate the move of a ghost, so the bodies around its old and new places wake.
+            bool moves = !IsAt(world.Bodies, ghost.Body, pose);
+            if (moves)
+                world.WakeAround(ghost.Body);
             if (record.HasMesh)
-                world.Bodies.SetRPositionAndRotationWhenChanged(ghost.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(), Activation.DontActivate);
+            {
+                if (moves)
+                    world.Bodies.SetRPositionAndRotation(ghost.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(), Activation.DontActivate);
+            }
             else
+            {
                 world.Bodies.SetRPositionRotationAndVelocity(ghost.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(), linear, angular);
+            }
+            if (moves)
+                world.WakeAround(ghost.Body);
             ghost.Wanted = true;
             return;
         }
@@ -359,7 +370,7 @@ public sealed partial class JoltPhysicsBackend
             {
                 if (GhostAllowed(record, ghosts[i].Frame))
                     continue;
-                ghosts[i].World.Bodies.RemoveAndDestroyBody(ghosts[i].Body);
+                ghosts[i].World.RemoveBody(ghosts[i].Body);
                 ghosts.RemoveAt(i);
             }
         }
@@ -373,7 +384,7 @@ public sealed partial class JoltPhysicsBackend
         {
             if (ghosts[i].Wanted)
                 continue;
-            ghosts[i].World.Bodies.RemoveAndDestroyBody(ghosts[i].Body);
+            ghosts[i].World.RemoveBody(ghosts[i].Body);
             ghosts.RemoveAt(i);
         }
     }

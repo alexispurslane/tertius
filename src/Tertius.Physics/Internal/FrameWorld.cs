@@ -206,6 +206,42 @@ internal sealed class FrameWorld : IDisposable
     private static BodyID Renamed(uint id, IReadOnlyDictionary<uint, uint> renamed) =>
         new(renamed.TryGetValue(id, out uint newId) ? newId : id);
 
+    /// <summary>How far beyond the bounds of a body <see cref="WakeAround"/> reaches, in meters: more than Jolt's speculative contact distance of 0.02 m.</summary>
+    private const float WakeMargin = 0.05f;
+
+    /// <summary>
+    /// Wakes every body in or near the bounds of <paramref name="body"/> whose layer collides with the body's layer. Jolt
+    /// wakes a sleeping body only when a body that it simulates touches it. So call this before the backend removes or
+    /// moves a body without Jolt simulating the move, and after it puts a body that Jolt does not simulate somewhere new.
+    /// A body that rested on it, or that it now overlaps, then wakes. Does nothing for a body that is not in the system.
+    /// </summary>
+    public void WakeAround(BodyID body)
+    {
+        if (body.IsInvalid)
+            return;
+        BodyLockInterface locks = System.BodyLockInterface;
+        locks.LockRead(body, out BodyLockRead read);
+        bool found = read.Succeeded && read.Body is not null;
+        JoltPhysicsSharp.BoundingBox bounds = found ? read.Body!.WorldSpaceBounds : default;
+        ObjectLayer layer = found ? read.Body!.ObjectLayer : default;
+        locks.UnlockRead(read);
+        if (!found)
+            return;
+        // Jolt keeps the bounds in float, so far from the frame origin they are rounded by more than the margin.
+        float reach = MathF.Max(MaxAbs(bounds.Min), MaxAbs(bounds.Max));
+        var margin = new Vector3(WakeMargin + reach * 1e-6f);
+        System.ActivateBodiesInAABox(new JoltPhysicsSharp.BoundingBox(bounds.Min - margin, bounds.Max + margin), layer);
+    }
+
+    private static float MaxAbs(Vector3 v) => MathF.Max(MathF.Abs(v.X), MathF.Max(MathF.Abs(v.Y), MathF.Abs(v.Z)));
+
+    /// <summary>Removes and destroys a body, after it wakes the bodies around it (see <see cref="WakeAround"/>).</summary>
+    public void RemoveBody(BodyID body)
+    {
+        WakeAround(body);
+        Bodies.RemoveAndDestroyBody(body);
+    }
+
     /// <summary>Runs one update of the system. Call it on the physics thread, with the native gate held.</summary>
     public PhysicsUpdateError Update(float deltaTime, JobSystem jobs)
     {
