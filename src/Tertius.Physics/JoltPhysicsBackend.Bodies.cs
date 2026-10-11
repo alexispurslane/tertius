@@ -410,13 +410,13 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The motion that the hull of a frame with <paramref name="driver"/> has: dynamic for the physics driver, kinematic for
-    /// the Kepler driver and static for the static driver. The simulation gives a frame only a driver that its hull can
+    /// the Kepler and Spin drivers, which move on rails, and static for the static driver. The simulation gives a frame only a driver that its hull can
     /// follow (see <see cref="BodyDesc.FrameHullProblem"/>), and the backend refuses to create a hull that cannot.
     /// </summary>
     private static BodyMotion HullMotion(MotionDriver driver) => driver switch
     {
         MotionDriver.Physics => BodyMotion.Dynamic,
-        MotionDriver.Kepler => BodyMotion.Kinematic,
+        MotionDriver.Kepler or MotionDriver.Spin => BodyMotion.Kinematic,
         _ => BodyMotion.Static,
     };
 

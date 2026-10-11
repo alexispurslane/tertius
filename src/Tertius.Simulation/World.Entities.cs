@@ -112,6 +112,7 @@ public sealed partial class World
     /// stops where it is: both of its velocities become zero, and it keeps its proper acceleration, so the cargo of a ship
     /// that is parked on the ground keeps its weight. A frame that gets the Kepler driver moves to its place on its orbit at
     /// once, as for <see cref="SetFrameOrbit"/>, so physics never drives its hull across the gap. A frame that gets the
+    /// Spin driver keeps its place and turns to its spin at once, as for <see cref="SetFrameSpin"/>. A frame that gets the
     /// physics driver keeps its pose and velocities until physics moves it. The owner's transform mirrors the frame at once. Physics follows at the start of its next
     /// step: the hull gets the motion that the driver needs, at the frame's pose and velocity in the tree. Every call does
     /// that, also a call that gives the frame the driver that it has, so a park and an unpark between two ticks stop the
@@ -122,8 +123,10 @@ public sealed partial class World
     /// <exception cref="ArgumentException">
     /// A frame that is gone. The physics driver for a frame with a parent whose owner's body cannot be dynamic: it has no
     /// mass, or it is a mesh, which never moves. The Kepler driver for a frame with a parent whose owner's body is a mesh.
-    /// The Kepler driver for a frame whose orbit is not valid (see <see cref="KeplerOrbit.IsValid"/>). A root frame has no
-    /// hull, so any body of its owner can have any driver. The frame keeps its driver.
+    /// The Kepler driver for a frame whose orbit is not valid (see <see cref="KeplerOrbit.IsValid"/>). The Spin driver for a
+    /// frame with a parent whose owner's body is a mesh, or for a frame whose spin is not valid (see
+    /// <see cref="FrameSpin.IsValid"/>). A root frame has no hull, so any body of its owner can have any driver. The frame
+    /// keeps its driver.
     /// </exception>
     public void SetFrameDriver(FrameHandle frame, MotionDriver driver)
     {
@@ -137,11 +140,41 @@ public sealed partial class World
             throw new ArgumentException($"Cannot give {frame} the {driver} driver: the hull of its owner {frame.Entity} {problem}.", nameof(driver));
         if (driver == MotionDriver.Kepler && !Frames.Orbit(frame).IsValid)
             throw new ArgumentException($"Cannot give {frame} the Kepler driver: its orbit is not valid. Call SetFrameOrbit first.", nameof(driver));
+        if (driver == MotionDriver.Spin && !Frames.Spin(frame).IsValid)
+            throw new ArgumentException($"Cannot give {frame} the Spin driver: its spin is not valid. Call SetFrameSpin first.", nameof(driver));
 
         Frames.SetDriver(frame, driver);
         if (driver == MotionDriver.Kepler)
             ApplyKepler(frame, Time);
+        else if (driver == MotionDriver.Spin)
+            ApplySpin(frame, Time);
         MirrorFrameOwner(frame);
+        FinishOutsideTickChange();
+    }
+
+    /// <summary>
+    /// Gives a frame a new spin, outside a tick only. A frame with the Spin driver turns to its place on the new spin at
+    /// once, and its owner's transform follows. Physics follows at the start of its next step, as it follows a new driver.
+    /// A frame with another driver keeps the spin for a later <see cref="SetFrameDriver"/> with the Spin driver.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
+    /// <exception cref="ArgumentException">
+    /// A frame that is gone, or a spin that is not valid (see <see cref="FrameSpin.IsValid"/>). The frame keeps its spin.
+    /// </exception>
+    public void SetFrameSpin(FrameHandle frame, in FrameSpin spin)
+    {
+        ThrowIfInTick(nameof(SetFrameSpin));
+        if (!Frames.IsAlive(frame))
+            throw new ArgumentException($"Cannot set the spin of {frame}: the frame is gone.", nameof(frame));
+        if (!spin.IsValid)
+            throw new ArgumentException($"Cannot give {frame} this spin: the spin is not valid (see FrameSpin.IsValid).", nameof(spin));
+
+        Frames.SetSpin(frame, spin);
+        if (Frames.Driver(frame) == MotionDriver.Spin)
+        {
+            ApplySpin(frame, Time);
+            MirrorFrameOwner(frame);
+        }
         FinishOutsideTickChange();
     }
 
@@ -243,6 +276,8 @@ public sealed partial class World
                 throw new ArgumentException($"MotionDriver does not define the driver {spec.Driver}.", nameof(desc));
             if (spec.Driver == MotionDriver.Kepler && !spec.Orbit.IsValid)
                 throw new ArgumentException("A frame with the Kepler driver needs an orbit that it can follow: this orbit is not valid (see KeplerOrbit.IsValid).", nameof(desc));
+            if (spec.Driver == MotionDriver.Spin && !spec.Spin.IsValid)
+                throw new ArgumentException("A frame with the Spin driver needs a spin that it can follow: this spin is not valid (see FrameSpin.IsValid).", nameof(desc));
             if (!spec.Gravity.IsValid)
                 throw new ArgumentException("A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).", nameof(desc));
             // So a frame with the physics driver whose owner has a body always has a dynamic hull. A root frame has no parent,
@@ -307,11 +342,15 @@ public sealed partial class World
         FrameHandle own = FrameHandle.Null;
         if (desc.AsFrame is { } spec)
         {
-            own = Frames.Create(entity, desc.Frame, desc.Pose, spec.Bounds, spec.Driver, spec.Gravity, spec.Orbit);
+            own = Frames.Create(entity, desc.Frame, desc.Pose, spec.Bounds, spec.Driver, spec.Gravity, spec.Orbit, spec.Spin);
             topics.AddFrame(own);
             if (spec.Driver == MotionDriver.Kepler)
             {
                 ApplyKepler(own, time);
+            }
+            else if (spec.Driver == MotionDriver.Spin)
+            {
+                ApplySpin(own, time);
             }
             else
             {
@@ -550,6 +589,16 @@ public sealed partial class World
         Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(time)));
         Frames.LinearVelocity(frame) = velocity;
         Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(time).ToVector3();
+        Frames.ProperAcceleration(frame) = Vector3.Zero;
+    }
+
+    /// <summary>A Spin frame keeps its place in its parent and turns to its spin at <paramref name="time"/>.</summary>
+    private void ApplySpin(FrameHandle frame, double time)
+    {
+        FrameSpin spin = Frames.Spin(frame);
+        Frames.SetLocalPose(frame, new DPose(Frames.LocalPose(frame).Position, spin.RotationAt(time)));
+        Frames.LinearVelocity(frame) = Double3.Zero;
+        Frames.AngularVelocity(frame) = spin.AngularVelocity.ToVector3();
         Frames.ProperAcceleration(frame) = Vector3.Zero;
     }
 

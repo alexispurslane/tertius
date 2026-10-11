@@ -694,7 +694,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>
     /// The motion of a frame relative to its tree parent at <paramref name="time"/>. A Kepler frame uses its orbit
     /// when the tree pose matches the orbit at the step start; anything else extrapolates the tree pose with the
-    /// tree velocities.
+    /// tree velocities. A Spin frame turns at a steady rate in place, so that extrapolation is its exact motion.
     /// </summary>
     private FrameMotion PredictMotion(FrameHandle frame, double time)
     {

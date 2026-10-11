@@ -17,19 +17,20 @@ public sealed class FrameTree
     private FrameBounds[] bounds = new FrameBounds[64];
     private MotionDriver[] driver = new MotionDriver[64];
     private KeplerOrbit[] orbit = new KeplerOrbit[64];
+    private FrameSpin[] spin = new FrameSpin[64];
     private GravityField[] gravity = new GravityField[64];
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
     private Vector3[] properAcceleration = new Vector3[64];
-    // The number of calls to SetDriver and SetOrbit for each frame, and for every frame together.
+    // The number of calls to SetDriver, SetOrbit and SetSpin for each frame, and for every frame together.
     private int[] driverVersion = new int[64];
     private int driverChanges;
 
     public int Count => poses.Count;
 
     /// <summary>
-    /// Changes on every structural change (add, remove or reparent) and on every call to <see cref="SetDriver"/> and
-    /// <see cref="SetOrbit"/>. Physics compares it with the version that it last followed.
+    /// Changes on every structural change (add, remove or reparent) and on every call to <see cref="SetDriver"/>,
+    /// <see cref="SetOrbit"/> and <see cref="SetSpin"/>. Physics compares it with the version that it last followed.
     /// </summary>
     public int Version => poses.Version + driverChanges;
 
@@ -40,7 +41,8 @@ public sealed class FrameTree
         FrameBounds frameBounds,
         MotionDriver motion,
         GravityField field = default,
-        in KeplerOrbit kepler = default)
+        in KeplerOrbit kepler = default,
+        in FrameSpin spinning = default)
     {
         if (frameOwner.IsNull)
             throw new ArgumentException("A frame needs an owner entity.", nameof(frameOwner));
@@ -53,6 +55,7 @@ public sealed class FrameTree
         bounds[node.Id] = frameBounds;
         driver[node.Id] = motion;
         orbit[node.Id] = kepler;
+        spin[node.Id] = spinning;
         gravity[node.Id] = field;
         linearVelocity[node.Id] = Double3.Zero;
         angularVelocity[node.Id] = Vector3.Zero;
@@ -134,8 +137,8 @@ public sealed class FrameTree
     public MotionDriver Driver(FrameHandle frame) => driver[Node(frame).Id];
 
     /// <summary>
-    /// Changes on every call to <see cref="SetDriver"/> or <see cref="SetOrbit"/> for the frame, also a call that gives the
-    /// frame the driver or the orbit that it has. Each of them can change how the frame moves. Physics compares it with
+    /// Changes on every call to <see cref="SetDriver"/>, <see cref="SetOrbit"/> or <see cref="SetSpin"/> for the frame, also
+    /// a call that gives the frame the driver, the orbit or the spin that it has. Each of them can change how the frame moves. Physics compares it with
     /// the version that the frame's hull last followed.
     /// </summary>
     public int DriverVersion(FrameHandle frame) => driverVersion[Node(frame).Id];
@@ -181,6 +184,24 @@ public sealed class FrameTree
     {
         int id = Node(frame).Id;
         orbit[id] = value;
+        driverVersion[id]++;
+        driverChanges++;
+    }
+
+    /// <summary>How the frame turns in place, which the Spin driver follows. <see cref="SetSpin"/> changes it.</summary>
+    public FrameSpin Spin(FrameHandle frame) => spin[Node(frame).Id];
+
+    /// <summary>
+    /// Gives a frame a new spin. Like <see cref="SetOrbit"/>, every call changes <see cref="Version"/> and
+    /// <see cref="DriverVersion"/>, so physics puts the frame's hull at the frame's pose and velocity in the tree at the
+    /// start of its next step. The frame keeps its pose and velocities: the caller turns a Spin frame to the new spin.
+    /// Throws <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    /// <remarks>Only the simulation calls it, through <c>World.SetFrameSpin</c>, which refuses a spin that is not valid.</remarks>
+    internal void SetSpin(FrameHandle frame, in FrameSpin value)
+    {
+        int id = Node(frame).Id;
+        spin[id] = value;
         driverVersion[id]++;
         driverChanges++;
     }
@@ -353,6 +374,7 @@ public sealed class FrameTree
         Array.Resize(ref bounds, size);
         Array.Resize(ref driver, size);
         Array.Resize(ref orbit, size);
+        Array.Resize(ref spin, size);
         Array.Resize(ref gravity, size);
         Array.Resize(ref linearVelocity, size);
         Array.Resize(ref angularVelocity, size);

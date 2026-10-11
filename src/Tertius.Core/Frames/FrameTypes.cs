@@ -11,6 +11,36 @@ public enum MotionDriver : byte
     Kepler,
     /// <summary>The frame's hull is a dynamic body in the parent frame's physics system.</summary>
     Physics,
+    /// <summary>
+    /// The frame stays at its place in its parent and turns in place, as the ground of a planet does: its rotation is a
+    /// function of time, set by its <see cref="FrameSpin"/>.
+    /// </summary>
+    Spin,
+}
+
+/// <summary>
+/// How a frame with the <see cref="MotionDriver.Spin"/> driver turns: it leans by <see cref="Tilt"/>, then it turns about
+/// its own +Y, its pole, at <see cref="Rate"/>. Angles are radians, rates radians per second, times seconds. The default
+/// spin holds the frame still, with its axes parallel to its parent's.
+/// </summary>
+/// <param name="Tilt">The rotation from the parent's axes to the frame's axes at a spin angle of 0. A zero quaternion means none.</param>
+/// <param name="Rate">How fast the frame turns about its pole, counterclockwise seen from the pole's tip.</param>
+/// <param name="PhaseAtEpoch">The spin angle at <paramref name="Epoch"/>.</param>
+/// <param name="Epoch">The time at which the spin angle is <paramref name="PhaseAtEpoch"/>.</param>
+public record struct FrameSpin(DQuaternion Tilt, double Rate, double PhaseAtEpoch = 0, double Epoch = 0)
+{
+    /// <summary>True when every value is finite.</summary>
+    public readonly bool IsValid =>
+        double.IsFinite(Rate) && double.IsFinite(PhaseAtEpoch) && double.IsFinite(Epoch) &&
+        double.IsFinite(Tilt.X) && double.IsFinite(Tilt.Y) && double.IsFinite(Tilt.Z) && double.IsFinite(Tilt.W);
+
+    /// <summary>The frame's rotation relative to its parent at <paramref name="time"/>.</summary>
+    public readonly DQuaternion RotationAt(double time) => Leaning * DQuaternion.FromAxisAngle(Double3.UnitY, PhaseAtEpoch + Rate * (time - Epoch));
+
+    /// <summary>The frame's angular velocity in parent axes, in radians per second: <see cref="Rate"/> about the pole.</summary>
+    public readonly Double3 AngularVelocity => Leaning.Rotate(Double3.UnitY) * Rate;
+
+    private readonly DQuaternion Leaning => Tilt.LengthSquared == 0 ? DQuaternion.Identity : Tilt;
 }
 
 /// <summary>
@@ -220,9 +250,7 @@ public record struct KeplerOrbit(
     {
         if (Attitude == KeplerAttitude.FacesParent)
             return FacingParentAt(time);
-        double angle = SpinPhaseAtEpoch + SpinRate * (time - Epoch);
-        DQuaternion tilt = AxialTilt.LengthSquared == 0 ? DQuaternion.Identity : AxialTilt;
-        return tilt * DQuaternion.FromAxisAngle(Double3.UnitY, angle);
+        return Spin.RotationAt(time);
     }
 
     /// <summary>The frame's angular velocity in parent axes at <paramref name="time"/>, in radians per second.</summary>
@@ -234,8 +262,7 @@ public record struct KeplerOrbit(
             (Double3 position, Double3 velocity) = StateAt(time);
             return Double3.Cross(position, velocity) / position.LengthSquared;
         }
-        DQuaternion tilt = AxialTilt.LengthSquared == 0 ? DQuaternion.Identity : AxialTilt;
-        return tilt.Rotate(Double3.UnitY) * SpinRate;
+        return Spin.AngularVelocity;
     }
 
     /// <summary>
@@ -252,6 +279,9 @@ public record struct KeplerOrbit(
         DQuaternion atPeriapsis = DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2);
         return PerifocalToParent() * DQuaternion.FromAxisAngle(Double3.UnitY, trueAnomaly + turns) * atPeriapsis;
     }
+
+    /// <summary>The spin of the attitude <see cref="KeplerAttitude.Spin"/>: the axial tilt, then the spin about +Y.</summary>
+    private readonly FrameSpin Spin => new(AxialTilt, SpinRate, SpinPhaseAtEpoch, Epoch);
 
     private readonly DQuaternion PerifocalToParent()
     {

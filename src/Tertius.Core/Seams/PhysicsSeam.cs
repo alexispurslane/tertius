@@ -192,7 +192,7 @@ public sealed record BodyDesc(
     /// </summary>
     public string? FrameHullProblem(MotionDriver driver) => driver switch
     {
-        MotionDriver.Physics or MotionDriver.Kepler when Shape.ContainsMesh() =>
+        MotionDriver.Physics or MotionDriver.Kepler or MotionDriver.Spin when Shape.ContainsMesh() =>
             $"is a mesh, which never moves, so it cannot follow the {driver} driver",
         MotionDriver.Physics when !(Mass > 0) => $"has a mass of {Mass}, so it cannot be dynamic for the Physics driver",
         _ => null,

@@ -270,8 +270,8 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Step 7: Kepler frames from time, static frames from their owners' gameplay writes, then every owner's row from its
-    /// frame. Physics frames got their states in step 2.
+    /// Step 7: Kepler and Spin frames from time, static frames from their owners' gameplay writes, then every owner's row
+    /// from its frame. Physics frames got their states in step 2.
     /// </summary>
     private void AdvanceFrames(double endTime)
     {
@@ -283,6 +283,9 @@ public sealed partial class World
             {
                 case MotionDriver.Kepler:
                     ApplyKepler(frame, endTime);
+                    break;
+                case MotionDriver.Spin:
+                    ApplySpin(frame, endTime);
                     break;
                 case MotionDriver.Static:
                     // A static frame whose owner has no body moves when gameplay writes the owner's transform.

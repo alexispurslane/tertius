@@ -47,4 +47,5 @@ public sealed class SpawnDesc
 /// <param name="Driver">What moves the frame.</param>
 /// <param name="Gravity">The gravity field that objects inside feel.</param>
 /// <param name="Orbit">The orbit around the parent, for <see cref="MotionDriver.Kepler"/>.</param>
-public sealed record FrameSpec(FrameBounds Bounds, MotionDriver Driver, GravityField Gravity = default, KeplerOrbit Orbit = default);
+/// <param name="Spin">How the frame turns in place, for <see cref="MotionDriver.Spin"/>.</param>
+public sealed record FrameSpec(FrameBounds Bounds, MotionDriver Driver, GravityField Gravity = default, KeplerOrbit Orbit = default, FrameSpin Spin = default);
