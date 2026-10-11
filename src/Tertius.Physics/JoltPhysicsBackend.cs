@@ -25,7 +25,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 {
     private readonly JoltBackendOptions options;
     private readonly Action<string> log;
-    private readonly Layers.Tables layers;
     private readonly JobSystemThreadPool jobs;
     private readonly ShapeCache shapes = new();
     private readonly ConcurrentDictionary<ShapeDesc, float> radii = new(ReferenceEqualityComparer.Instance);
@@ -69,10 +68,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         this.options = options ?? new JoltBackendOptions();
         log = this.options.Log ?? (static message => Trace.TraceWarning(message));
         JoltRuntime.EnsureInitialized();
-        layers = new Layers.Tables();
-        jobs = this.options.WorkerThreads > 0
+        jobs = NativeOwnership.Owned(this.options.WorkerThreads > 0
             ? new JobSystemThreadPool(new JobSystemThreadPoolConfig { numThreads = this.options.WorkerThreads })
-            : new JobSystemThreadPool();
+            : new JobSystemThreadPool());
     }
 
     /// <summary>
@@ -301,7 +299,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             frameOwners.Clear();
             shapes.Dispose();
             jobs.Dispose();
-            layers.Dispose();
         }
     }
 
@@ -330,6 +327,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     }
 
     internal bool HasInterior(Entity owner) => Find(owner) is { InteriorWorld: not null };
+
+    /// <summary>The native character of <paramref name="entity"/>, or null when it has none. Tests check that the backend frees it.</summary>
+    internal CharacterVirtual? CharacterOf(Entity entity) => Find(entity)?.Character;
+
+    /// <summary>The physics system of <paramref name="frame"/>, or null when the frame has none. Tests check that the backend frees it.</summary>
+    internal PhysicsSystem? SystemOf(FrameHandle frame) => ExistingWorld(frame)?.System;
 
     /// <summary>The most bodies that the system of <paramref name="frame"/> holds now, or 0 when the frame has no system.</summary>
     internal uint CapacityOf(FrameHandle frame) => ExistingWorld(frame)?.System.MaxBodies ?? 0;
@@ -598,7 +601,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             log($"Physics: {world.Frame} was replaced by {frame} without a FramesDestroyed change. Its system is discarded.");
             DisposeWorld(world);
         }
-        world = new FrameWorld(frame, layers, options);
+        world = new FrameWorld(frame, options);
         worlds[frame.Index] = world;
         worldList.Add(world);
         return world;

@@ -33,31 +33,28 @@ internal static class Layers
         return false;
     }
 
-    /// <summary>The Jolt filter tables. Every physics system of a backend shares one set.</summary>
-    public sealed class Tables : IDisposable
+    /// <summary>
+    /// The Jolt filter tables of one physics system. joltc's <c>JPH_PhysicsSystem_Destroy</c> deletes the three tables that
+    /// the system was created with. So each system gets its own set, the system frees it, and the managed objects here
+    /// never free it.
+    /// </summary>
+    public sealed class Tables
     {
         public Tables()
         {
-            Pairs = new ObjectLayerPairFilterTable(Count);
+            Pairs = NativeOwnership.Disowned(new ObjectLayerPairFilterTable(Count));
             foreach ((BodyLayer a, BodyLayer b) in Layers.Pairs)
                 Pairs.EnableCollision((uint)a, (uint)b);
 
-            BroadPhase = new BroadPhaseLayerInterfaceTable(Count, Count);
+            BroadPhase = NativeOwnership.Disowned(new BroadPhaseLayerInterfaceTable(Count, Count));
             for (uint layer = 0; layer < Count; layer++)
                 BroadPhase.MapObjectToBroadPhaseLayer(layer, (byte)layer);
 
-            ObjectVsBroadPhase = new ObjectVsBroadPhaseLayerFilterTable(BroadPhase, Count, Pairs, Count);
+            ObjectVsBroadPhase = NativeOwnership.Disowned(new ObjectVsBroadPhaseLayerFilterTable(BroadPhase, Count, Pairs, Count));
         }
 
         public ObjectLayerPairFilterTable Pairs { get; }
         public BroadPhaseLayerInterfaceTable BroadPhase { get; }
         public ObjectVsBroadPhaseLayerFilterTable ObjectVsBroadPhase { get; }
-
-        public void Dispose()
-        {
-            ObjectVsBroadPhase.Dispose();
-            BroadPhase.Dispose();
-            Pairs.Dispose();
-        }
     }
 }
