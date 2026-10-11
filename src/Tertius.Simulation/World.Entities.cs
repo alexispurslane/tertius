@@ -110,8 +110,9 @@ public sealed partial class World
     /// <summary>
     /// Gives a frame a motion driver, for example to park a ship. Outside a tick only. A frame that gets the static driver
     /// stops where it is: both of its velocities become zero, and it keeps its proper acceleration, so the cargo of a ship
-    /// that is parked on the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until
-    /// that driver moves it. The owner's transform mirrors the frame at once. Physics follows at the start of its next
+    /// that is parked on the ground keeps its weight. A frame that gets the Kepler driver moves to its place on its orbit at
+    /// once, as for <see cref="SetFrameOrbit"/>, so physics never drives its hull across the gap. A frame that gets the
+    /// physics driver keeps its pose and velocities until physics moves it. The owner's transform mirrors the frame at once. Physics follows at the start of its next
     /// step: the hull gets the motion that the driver needs, at the frame's pose and velocity in the tree. Every call does
     /// that, also a call that gives the frame the driver that it has, so a park and an unpark between two ticks stop the
     /// ship.
@@ -138,6 +139,8 @@ public sealed partial class World
             throw new ArgumentException($"Cannot give {frame} the Kepler driver: its orbit is not valid. Call SetFrameOrbit first.", nameof(driver));
 
         Frames.SetDriver(frame, driver);
+        if (driver == MotionDriver.Kepler)
+            ApplyKepler(frame, Time);
         MirrorFrameOwner(frame);
         FinishOutsideTickChange();
     }
