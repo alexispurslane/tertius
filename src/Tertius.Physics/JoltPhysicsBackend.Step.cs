@@ -179,7 +179,10 @@ public sealed partial class JoltPhysicsBackend
 
     // ---- Gravity ----
 
-    /// <summary>Applies m · g_eff to every awake dynamic body. Wakes a frame's bodies when its effective gravity changes.</summary>
+    /// <summary>
+    /// Applies m · g_eff to every awake dynamic body. Wakes a frame's bodies when its effective gravity changes. A sleeping
+    /// body gets no force, and the force does not reset the sleep timer of an awake body, so a body at rest falls asleep.
+    /// </summary>
     private void ApplyGravity()
     {
         float wakeThreshold = options.WakeAccelerationThreshold;
@@ -195,19 +198,17 @@ public sealed partial class JoltPhysicsBackend
             world.LastGravity = field;
             world.LastProperAcceleration = properAcceleration;
 
-            BodyInterface bodies = world.Bodies;
+            // BodyInterface.AddForce resets the sleep timer of the body, so a body under gravity would never sleep. The
+            // force goes on the locked body instead, which changes nothing else.
+            BodyLockInterface locks = world.System.BodyLockInterface;
             int count = CopyActiveBodies(world);
             for (int i = 0; i < count; i++)
             {
                 BodyID id = activeScratch[i];
-                ulong data = bodies.GetUserData(id);
-                if (BodyUserData.Kind(data) != BodyKind.Primary || RecordFor(data) is not { Motion: BodyMotion.Dynamic } record || record.Body != id)
-                    continue;
-                bodies.GetRCenterOfMassPosition(id, out RVector3 center);
-                Vector3 gravity = frames.EffectiveGravity(frame, center.ToDouble3());
-                record.GravityApplied = gravity;
-                if (gravity != Vector3.Zero)
-                    bodies.AddForce(id, gravity * record.Desc.Mass);
+                locks.LockWrite(id, out BodyLockWrite write);
+                if (write.Succeeded && write.Body is { } body)
+                    ApplyGravity(frame, id, body);
+                locks.UnlockWrite(write);
             }
         }
 
@@ -222,6 +223,19 @@ public sealed partial class JoltPhysicsBackend
             bodies.GetRCenterOfMassPosition(owner.Body, out RVector3 center);
             owner.GravityApplied = frames.EffectiveGravity(owner.Frame, center.ToDouble3());
         }
+    }
+
+    /// <summary>Adds m · g_eff to the locked body <paramref name="id"/> in the system of <paramref name="frame"/>, if it is the primary body of a dynamic record.</summary>
+    private void ApplyGravity(FrameHandle frame, BodyID id, Body body)
+    {
+        ulong data = body.GetUserData();
+        if (BodyUserData.Kind(data) != BodyKind.Primary || RecordFor(data) is not { Motion: BodyMotion.Dynamic } record || record.Body != id)
+            return;
+        body.GetRCenterOfMassPosition(out RVector3 center);
+        Vector3 gravity = frames.EffectiveGravity(frame, center.ToDouble3());
+        record.GravityApplied = gravity;
+        if (gravity != Vector3.Zero)
+            body.AddForce(gravity * record.Desc.Mass);
     }
 
     private static void WakeDynamicMembers(FrameWorld world)

@@ -180,8 +180,7 @@ public class GrowthTests
     /// the interior of the ground frame itself, a rolling ball, a kinematic platform that slides, a compound body whose
     /// center of mass is off its origin, a ship's hull, a ghost of a kinematic block that sticks out of a small bubble, a
     /// character, static crates, and a box that has fallen asleep. Gravity acts only in a region around the floor. The
-    /// box floats at rest above that region: the backend pushes every body under gravity with a force each step, which
-    /// keeps the body awake.
+    /// box floats at rest above that region, so it falls asleep where it starts and stays out of the way of the others.
     /// </summary>
     private sealed class FullGround : IDisposable
     {

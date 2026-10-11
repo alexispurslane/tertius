@@ -27,6 +27,62 @@ public class GravityTests
         state.LinearVelocity.Length().Should().BeLessThan(0.05f);
     }
 
+    /// <summary>What Jolt holds for the body of <paramref name="entity"/> in the system of <paramref name="frame"/>.</summary>
+    private static JoltPhysicsBackend.BodyFacts BodyOf(PhysicsHarness h, FrameHandle frame, Entity entity) =>
+        h.Backend.BodiesIn(frame).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, entity));
+
+    /// <summary>A ground frame with uniform gravity, a floor whose top is at y = 0, and a box of 1 m that rests on it.</summary>
+    private static (FrameHandle Ground, Entity Box) BoxOnTheGround(PhysicsHarness h)
+    {
+        FrameHandle ground = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static,
+            GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+        h.AddBody(ground, Shapes.Floor(50), Shapes.At(0, -0.5, 0));
+        Entity box = h.AddBody(ground, Shapes.Box(0.5f, mass: 10), Shapes.At(0, 0.5, 0));
+        h.Step();
+        return (ground, box);
+    }
+
+    /// <summary>
+    /// Gravity is a force that the backend adds to each awake body before each step. The force leaves the body's sleep
+    /// timer alone, so a body that rests under gravity falls asleep, the same as a body that rests without gravity.
+    /// </summary>
+    [Fact]
+    public void ABoxThatRestsOnAFloorUnderGravityFallsAsleepWithinTwoSeconds()
+    {
+        using var h = new PhysicsHarness();
+        var (ground, box) = BoxOnTheGround(h);
+
+        int ticks = h.StepUntil(() => !BodyOf(h, ground, box).Active, 120);
+
+        ticks.Should().BeLessThan(120, "the box falls asleep within 2 s");
+        h[box].Pose.Position.Y.Should().BeApproximately(0.5, 0.01, "the box sleeps on the floor");
+        h[box].LinearVelocity.Should().Be(Vector3.Zero, "the last report of a body that fell asleep has no velocity");
+    }
+
+    [Fact]
+    public void ABoxThatSleepsUnderGravityWakesWhenABallHitsIt()
+    {
+        using var h = new PhysicsHarness();
+        var (ground, box) = BoxOnTheGround(h);
+        h.StepUntil(() => !BodyOf(h, ground, box).Active, 120);
+        BodyOf(h, ground, box).Active.Should().BeFalse("the box fell asleep");
+        // A sleeping body gets no gravity force, so nothing reports it, and gravity does not wake it.
+        var reported = new List<long>();
+        h.AfterStep = output =>
+        {
+            if (output.Bodies.Any(state => state.Entity == box))
+                reported.Add(h.Tick);
+        };
+        h.Step(30);
+        reported.Should().BeEmpty();
+
+        h.AddBody(ground, Shapes.Ball(0.25f, mass: 1), Shapes.At(0, 2, 0));
+        int ticks = h.StepUntil(() => BodyOf(h, ground, box).Active, 120);
+
+        ticks.Should().BeLessThan(120, "the ball hits the box within 2 s");
+        reported.Should().NotBeEmpty("the box is awake, so physics reports it again");
+    }
+
     [Fact]
     public void FreeFallNearSurfaceMatchesPointGravity()
     {
