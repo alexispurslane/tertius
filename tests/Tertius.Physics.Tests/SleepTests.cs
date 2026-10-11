@@ -4,9 +4,11 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// A dynamic body falls asleep only when it really rests. Jolt puts a body to sleep when it moves less than about 3 cm in
-/// half a second. A body that gravity has just started to pull moves that little too, when the gravity is weak. So a body
-/// that gravity accelerates never falls asleep, while a body that something holds against gravity does. The sleeping
-/// bodies of a frame wake when the frame's proper acceleration has moved far enough from its value when they last woke.
+/// half a second. A body that gravity has just started to pull moves that little too, when the gravity is weak. So the
+/// sleep threshold of a frame's system scales with the frame's gravity, and a body that gravity accelerates stays awake,
+/// while a body that something holds against gravity falls asleep. The sleeping bodies of a frame wake when the frame's
+/// proper acceleration has moved far enough from its value when they last woke. <see cref="WorldSleepTests"/> has the
+/// cases where only a small share of a weak gravity moves the body.
 /// </summary>
 public class SleepTests
 {

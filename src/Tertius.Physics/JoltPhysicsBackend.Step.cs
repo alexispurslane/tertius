@@ -180,10 +180,11 @@ public sealed partial class JoltPhysicsBackend
     // ---- Gravity ----
 
     /// <summary>
-    /// Applies m · g_eff to every awake dynamic body, and lets it fall asleep only while gravity does not accelerate it.
-    /// Wakes a frame's bodies when its gravity field changes, or when its proper acceleration has moved more than
-    /// <see cref="JoltBackendOptions.WakeAccelerationThreshold"/> from its value when they last woke. A sleeping body gets
-    /// no force, and the force does not reset the sleep timer of an awake body, so a body at rest falls asleep.
+    /// Applies m · g_eff to every awake dynamic body, and gives each system the sleep threshold of the weakest effective
+    /// gravity on its awake dynamic bodies (see <see cref="SleepThresholdFor"/>). Wakes a frame's bodies when its gravity
+    /// field changes, or when its proper acceleration has moved more than <see cref="JoltBackendOptions.WakeAccelerationThreshold"/>
+    /// from its value when they last woke. A sleeping body gets no force, and the force does not reset the sleep timer of
+    /// an awake body, so a body at rest falls asleep.
     /// </summary>
     private void ApplyGravity()
     {
@@ -206,14 +207,17 @@ public sealed partial class JoltPhysicsBackend
             // force goes on the locked body instead, which changes nothing else.
             BodyLockInterface locks = world.System.BodyLockInterface;
             int count = CopyActiveBodies(world);
+            float weakest = float.PositiveInfinity;
             for (int i = 0; i < count; i++)
             {
                 BodyID id = activeScratch[i];
                 locks.LockWrite(id, out BodyLockWrite write);
                 if (write.Succeeded && write.Body is { } body)
-                    ApplyGravity(frame, id, body);
+                    weakest = MathF.Min(weakest, ApplyGravity(frame, id, body));
                 locks.UnlockWrite(write);
             }
+            if (weakest < float.PositiveInfinity)
+                world.SetSleepThreshold(SleepThresholdFor(weakest));
         }
 
         // A sleeping hull still rests against gravity, and its frame's accelerometer reads that.
@@ -231,38 +235,42 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Adds m · g_eff to the locked body <paramref name="id"/> in the system of <paramref name="frame"/>, if it is the
-    /// primary body of a dynamic record. Lets the body fall asleep only while gravity does not accelerate it.
+    /// primary body of a dynamic record. Returns the strength of g_eff, in m/s², or positive infinity for any other body.
     /// </summary>
-    /// <remarks>
-    /// Jolt puts a body to sleep when it moves less than about 3 cm in half a second. A body that gravity has just started
-    /// to pull from rest moves that little too, when the gravity is below about 0.24 m/s², so Jolt would leave it asleep in
-    /// mid-air. A body that rests on something, or a stack that rests on the floor, keeps its velocity from step to step,
-    /// because what holds it cancels the pull of gravity. A falling body gains g · dt each step. So a body whose velocity
-    /// changed by more than half of that since the last step may not sleep. A body that touches something is not enough:
-    /// two boxes that fall together touch each other the whole way down. Without gravity, Jolt alone decides.
-    /// </remarks>
-    private void ApplyGravity(FrameHandle frame, BodyID id, Body body)
+    private float ApplyGravity(FrameHandle frame, BodyID id, Body body)
     {
         ulong data = body.GetUserData();
         if (BodyUserData.Kind(data) != BodyKind.Primary || RecordFor(data) is not { Motion: BodyMotion.Dynamic } record || record.Body != id)
-            return;
+            return float.PositiveInfinity;
         body.GetRCenterOfMassPosition(out RVector3 center);
         Vector3 gravity = frames.EffectiveGravity(frame, center.ToDouble3());
         record.GravityApplied = gravity;
-
-        Vector3 velocity = body.GetLinearVelocity();
-        float pullPerStep = gravity.Length() * stepDt;
-        bool accelerated = pullPerStep > 0 && record.GravityStep == stepIndex - 1 &&
-                           Vector3.Distance(velocity, record.GravityVelocity) > 0.5f * pullPerStep;
-        // Jolt resets the sleep timer when sleep becomes allowed again, so the body must then rest for the full time.
-        if (body.AllowSleeping == accelerated)
-            body.AllowSleeping = !accelerated;
-        record.GravityVelocity = velocity;
-        record.GravityStep = stepIndex;
-
         if (gravity != Vector3.Zero)
             body.AddForce(gravity * record.Desc.Mass);
+        return gravity.Length();
     }
+
+    /// <summary>Standard gravity, in m/s².</summary>
+    private const float StandardGravity = 9.80665f;
+
+    /// <summary>The gravity below which the sleep threshold stops falling, in m/s².</summary>
+    private const float SleepGravityFloor = 0.001f;
+
+    /// <summary>
+    /// The sleep threshold of a system whose weakest effective gravity on an awake dynamic body is <paramref name="gravity"/>,
+    /// in m/s: Jolt's own threshold of 0.03 m/s at standard gravity and above, and a share of it in proportion to the
+    /// gravity below standard gravity, down to the share of <see cref="SleepGravityFloor"/>, 3.1 µm/s.
+    /// </summary>
+    /// <remarks>
+    /// Jolt puts a body to sleep when each of its three test points stays within a sphere of radius threshold · 0.5 s for
+    /// 0.5 s. A body that a net acceleration a moves from rest covers a · (0.5 s)² / 2 in that time, and it must cover the
+    /// diameter of the sphere to stay awake: a must be more than 8 per second times the threshold. With Jolt's own
+    /// threshold, that is 0.24 m/s², more than all of a weak gravity. With a threshold in proportion to the gravity, it is
+    /// the same share of the gravity in every gravity up to standard gravity: 2.4 %. The weakest gravity sets the threshold
+    /// of the whole system, because one system has one threshold.
+    /// </remarks>
+    private static float SleepThresholdFor(float gravity) =>
+        FrameWorld.JoltSleepThreshold * MathF.Min(1f, MathF.Max(gravity, SleepGravityFloor) / StandardGravity);
 
     private static void WakeDynamicMembers(FrameWorld world)
     {

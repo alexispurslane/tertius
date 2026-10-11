@@ -144,8 +144,26 @@ internal sealed class FrameWorld : IDisposable
         system.Gravity = Vector3.Zero;
         PhysicsSettings settings = system.Settings;
         settings.PenetrationSlop = penetrationSlop;
+        settings.PointVelocitySleepThreshold = SleepThreshold;
         system.Settings = settings;
         return system;
+    }
+
+    /// <summary>Jolt's own sleep threshold, in m/s: a body whose points move slower than this for half a second sleeps.</summary>
+    public const float JoltSleepThreshold = 0.03f;
+
+    /// <summary>The sleep threshold of <see cref="System"/>, in m/s. A system starts with Jolt's own.</summary>
+    public float SleepThreshold { get; private set; } = JoltSleepThreshold;
+
+    /// <summary>Gives <see cref="System"/> a new sleep threshold, in m/s. A growth keeps it.</summary>
+    public void SetSleepThreshold(float threshold)
+    {
+        if (threshold == SleepThreshold)
+            return;
+        SleepThreshold = threshold;
+        PhysicsSettings settings = System.Settings;
+        settings.PointVelocitySleepThreshold = threshold;
+        System.Settings = settings;
     }
 
     /// <summary>
