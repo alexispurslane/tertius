@@ -296,11 +296,16 @@ public sealed partial class JoltPhysicsBackend
     {
         foreach (FrameWorld world in worldList)
         {
+            world.ClearCharacterContacts();
             if (world.CharacterCount == 0)
                 continue;
             foreach (BodyRecord member in world.Members)
-                if (member.Character is { } character)
-                    UpdateCharacter(world, member, character);
+            {
+                if (member.Character is not { } character)
+                    continue;
+                UpdateCharacter(world, member, character);
+                world.NoteCharacterContacts(character);
+            }
         }
     }
 

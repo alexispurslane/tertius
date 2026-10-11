@@ -57,10 +57,15 @@ internal sealed class FrameWorld : IDisposable
     // only for a body that it simulates. So it drops the pair of two bodies that it does not simulate (a body fell asleep
     // or a hull became static, on something static or asleep) while the system keeps stepping. A growth drops every pair,
     // because the new system starts with an empty cache. Jolt reports a held pair as added when it finds it again: the
-    // contact continues. A held pair ends at the first update that simulates one of its bodies and does not find it.
+    // contact continues. A held pair ends as HeldPairEnded says.
     private readonly HashSet<ulong> held = new();
     // True from an update until the contacts that it reported are drained.
     private bool updatedSinceDrain;
+    // The inner bodies of this system's characters, and each pair of an inner body with a body that the character's own
+    // contact list holds, from the characters' last update. Jolt never simulates an inner body, and the character keeps a
+    // gap from what it touches as wide as Jolt's speculative contact distance, so for these pairs the character decides.
+    private readonly HashSet<uint> characterBodies = new();
+    private readonly HashSet<ulong> characterTouches = new();
     private readonly List<ulong> purgeScratch = new();
     // The pairs that a growth holds, before they take the new IDs, and the held pairs that a drain ends.
     private readonly List<ulong> heldScratch = new();
@@ -269,15 +274,53 @@ internal sealed class FrameWorld : IDisposable
 
     private static bool Involves(ulong key, BodyID body) => (uint)(key >> 32) == body.ID || (uint)key == body.ID;
 
+    /// <summary>Forgets the characters' contacts of the last update. Call it before the characters of the system update.</summary>
+    public void ClearCharacterContacts()
+    {
+        characterBodies.Clear();
+        characterTouches.Clear();
+    }
+
+    /// <summary>
+    /// Records what <paramref name="character"/> touches after its update, by its own contact list: every body within its
+    /// predictive contact distance, asleep or awake. <see cref="DrainContacts"/> ends a held pair of the character's inner
+    /// body only when that list no longer has the other body.
+    /// </summary>
+    public void NoteCharacterContacts(CharacterVirtual character)
+    {
+        BodyID inner = character.InnerBodyID;
+        characterBodies.Add(inner.ID);
+        int count = character.GetNumActiveContacts();
+        for (int i = 0; i < count; i++)
+        {
+            character.GetActiveContact(i, out CharacterContact contact);
+            if (!contact.WasDiscarded && contact.BodyB.IsValid)
+                characterTouches.Add(PairKey(inner, contact.BodyB));
+        }
+    }
+
+    /// <summary>
+    /// True when a held pair has ended. A pair with the inner body of a character ends when the character's contact list no
+    /// longer has the other body. Any other pair ends when the last update simulated one of its bodies and Jolt did not find
+    /// the pair: Jolt finds the contacts of every body that it simulates, also of one that woke during the update, while
+    /// two bodies that Jolt did not simulate did not move apart.
+    /// </summary>
+    private bool HeldPairEnded(ulong key)
+    {
+        if (characterBodies.Contains((uint)(key >> 32)) || characterBodies.Contains((uint)key))
+            return !characterTouches.Contains(key);
+        return IsAwake(First(key)) || IsAwake(Second(key));
+    }
+
     /// <summary>True when Jolt simulates the body: it is awake and not static. False for a body that left the system.</summary>
     private bool IsAwake(BodyID body) => BodiesNoLock.IsActive(body);
 
     /// <summary>
     /// Moves the contacts that Jolt reported during the last update into the touching-pair table, and appends the
     /// ones that started a new body pair contact to <paramref name="started"/>. A pair that Jolt drops becomes held, and a
-    /// held pair that Jolt finds again continues. A held pair ends when the update simulated one of its bodies and did not
-    /// find it. Call it on the physics thread after the update, with no update running. Visits every held pair after an
-    /// update, so it costs O(held pairs) for a system that steps.
+    /// held pair that Jolt finds again continues. A held pair ends as <see cref="HeldPairEnded"/> says. Call it on the
+    /// physics thread after the update, with no update running. Visits every held pair after an update, so it costs
+    /// O(held pairs) for a system that steps.
     /// </summary>
     public void DrainContacts(List<RawContact> started)
     {
@@ -318,15 +361,12 @@ internal sealed class FrameWorld : IDisposable
             added.Clear();
             removed.Clear();
 
-            // Jolt finds the contacts of every body that it simulates, also of one that woke during the update. So a held
-            // pair with a simulated body that Jolt did not find has ended. Two bodies that Jolt did not simulate did not
-            // move apart.
             // Stryker disable once all : the test only saves work; without an update Jolt simulates no body, so no pair ends.
             if (updatedSinceDrain && held.Count > 0)
             {
                 heldScratch.Clear();
                 foreach (ulong key in held)
-                    if (IsAwake(First(key)) || IsAwake(Second(key)))
+                    if (HeldPairEnded(key))
                         heldScratch.Add(key);
                 foreach (ulong key in heldScratch)
                     held.Remove(key);
