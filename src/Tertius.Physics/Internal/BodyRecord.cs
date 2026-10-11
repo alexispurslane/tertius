@@ -89,6 +89,12 @@ internal sealed class BodyRecord
     // Per-step bookkeeping.
     public Vector3 VelocityBefore;
     public Vector3 GravityApplied;
+    /// <summary>
+    /// The linear velocity of an awake dynamic body when the gravity pass of step <see cref="GravityStep"/> saw it. The
+    /// next pass compares it with the velocity then, to tell whether gravity accelerates the body.
+    /// </summary>
+    public Vector3 GravityVelocity;
+    public long GravityStep = -1;
     /// <summary>For a physics-driven frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>
     public Vector3 ProperAcceleration;
     public long KinematicTargetStep = -1;

@@ -180,8 +180,10 @@ public sealed partial class JoltPhysicsBackend
     // ---- Gravity ----
 
     /// <summary>
-    /// Applies m · g_eff to every awake dynamic body. Wakes a frame's bodies when its effective gravity changes. A sleeping
-    /// body gets no force, and the force does not reset the sleep timer of an awake body, so a body at rest falls asleep.
+    /// Applies m · g_eff to every awake dynamic body, and lets it fall asleep only while gravity does not accelerate it.
+    /// Wakes a frame's bodies when its gravity field changes, or when its proper acceleration has moved more than
+    /// <see cref="JoltBackendOptions.WakeAccelerationThreshold"/> from its value when they last woke. A sleeping body gets
+    /// no force, and the force does not reset the sleep timer of an awake body, so a body at rest falls asleep.
     /// </summary>
     private void ApplyGravity()
     {
@@ -191,12 +193,14 @@ public sealed partial class JoltPhysicsBackend
             FrameHandle frame = world.Frame;
             Vector3 properAcceleration = frames.ProperAcceleration(frame);
             GravityField field = frames.Gravity(frame);
-            if (world.HasGravityState &&
-                (field != world.LastGravity || Vector3.DistanceSquared(properAcceleration, world.LastProperAcceleration) > wakeThreshold * wakeThreshold))
+            bool wake = world.HasGravityState &&
+                (field != world.LastGravity || Vector3.DistanceSquared(properAcceleration, world.WakeProperAcceleration) > wakeThreshold * wakeThreshold);
+            if (wake)
                 WakeDynamicMembers(world);
+            if (wake || !world.HasGravityState)
+                world.WakeProperAcceleration = properAcceleration;
             world.HasGravityState = true;
             world.LastGravity = field;
-            world.LastProperAcceleration = properAcceleration;
 
             // BodyInterface.AddForce resets the sleep timer of the body, so a body under gravity would never sleep. The
             // force goes on the locked body instead, which changes nothing else.
@@ -225,7 +229,18 @@ public sealed partial class JoltPhysicsBackend
         }
     }
 
-    /// <summary>Adds m · g_eff to the locked body <paramref name="id"/> in the system of <paramref name="frame"/>, if it is the primary body of a dynamic record.</summary>
+    /// <summary>
+    /// Adds m · g_eff to the locked body <paramref name="id"/> in the system of <paramref name="frame"/>, if it is the
+    /// primary body of a dynamic record. Lets the body fall asleep only while gravity does not accelerate it.
+    /// </summary>
+    /// <remarks>
+    /// Jolt puts a body to sleep when it moves less than about 3 cm in half a second. A body that gravity has just started
+    /// to pull from rest moves that little too, when the gravity is below about 0.24 m/s², so Jolt would leave it asleep in
+    /// mid-air. A body that rests on something, or a stack that rests on the floor, keeps its velocity from step to step,
+    /// because what holds it cancels the pull of gravity. A falling body gains g · dt each step. So a body whose velocity
+    /// changed by more than half of that since the last step may not sleep. A body that touches something is not enough:
+    /// two boxes that fall together touch each other the whole way down. Without gravity, Jolt alone decides.
+    /// </remarks>
     private void ApplyGravity(FrameHandle frame, BodyID id, Body body)
     {
         ulong data = body.GetUserData();
@@ -234,6 +249,17 @@ public sealed partial class JoltPhysicsBackend
         body.GetRCenterOfMassPosition(out RVector3 center);
         Vector3 gravity = frames.EffectiveGravity(frame, center.ToDouble3());
         record.GravityApplied = gravity;
+
+        Vector3 velocity = body.GetLinearVelocity();
+        float pullPerStep = gravity.Length() * stepDt;
+        bool accelerated = pullPerStep > 0 && record.GravityStep == stepIndex - 1 &&
+                           Vector3.Distance(velocity, record.GravityVelocity) > 0.5f * pullPerStep;
+        // Jolt resets the sleep timer when sleep becomes allowed again, so the body must then rest for the full time.
+        if (body.AllowSleeping == accelerated)
+            body.AllowSleeping = !accelerated;
+        record.GravityVelocity = velocity;
+        record.GravityStep = stepIndex;
+
         if (gravity != Vector3.Zero)
             body.AddForce(gravity * record.Desc.Mass);
     }

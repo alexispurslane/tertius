@@ -90,9 +90,11 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>Set after the first update that overflowed a Jolt limit, so the warning appears once.</summary>
     public bool ReportedOverflow { get; set; }
 
-    // The frame's gravity state at the last step, to wake sleeping bodies when it changes.
+    // The frame's gravity state, to wake sleeping bodies when it changes: the field at the last step, and the proper
+    // acceleration when the frame's bodies last woke, or when the frame first stepped. A proper acceleration that drifts
+    // by a small amount each step still wakes them once it has drifted far enough.
     public bool HasGravityState;
-    public Vector3 LastProperAcceleration;
+    public Vector3 WakeProperAcceleration;
     public GravityField LastGravity;
 
     // Records reported in the last and the current step. A body that falls asleep gets one final report.

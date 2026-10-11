@@ -42,9 +42,10 @@ public sealed record JoltBackendOptions
     public float CharacterMaxStrength { get; init; } = 100f;
 
     /// <summary>
-    /// When the effective gravity of a frame changes by more than this, in m/s², physics wakes every body in the
-    /// frame, so that sleeping bodies react to a ship that starts or stops thrusting. It sits above the noise of a
-    /// proper acceleration measured from float velocities at orbital speed.
+    /// When the proper acceleration of a frame has moved more than this, in m/s², from its value when the frame's bodies
+    /// last woke, physics wakes every body in the frame, so that sleeping bodies react to a ship that starts or stops
+    /// thrusting, however slowly its thrust changes. A change of the frame's gravity field wakes them too. It sits above
+    /// the noise of a proper acceleration measured from float velocities at orbital speed.
     /// </summary>
     public float WakeAccelerationThreshold { get; init; } = 0.02f;
 

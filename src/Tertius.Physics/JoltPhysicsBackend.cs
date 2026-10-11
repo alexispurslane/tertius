@@ -10,7 +10,7 @@ namespace Tertius.Physics;
 /// physics system, created when the first body arrives. All systems share one job system and step one after
 /// another; each update spreads over the job threads. Jolt gravity is zero: before each step, every awake dynamic
 /// body gets the force m · g_eff, where g_eff is the frame's own field minus the frame's proper acceleration. The force
-/// leaves the body's sleep timer alone, so a body at rest falls asleep.
+/// leaves the body's sleep timer alone, so a body at rest falls asleep. A body that gravity accelerates may not sleep.
 /// After each step, the backend moves bodies between frames (hand-off) and keeps ghosts of bodies that cross a
 /// bubble boundary. See ARCHITECTURE.md, "Reference frames" and "Physics".
 /// </summary>
