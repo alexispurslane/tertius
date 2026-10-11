@@ -440,14 +440,19 @@ internal sealed class EntityTable
 
     /// <summary>
     /// Makes a reserved entity live: writes both copies of every row and the cached mask. The entity runs its first tick
-    /// after the next sync point. Throws <see cref="StaleEntityException"/> if the handle does not name its slot's
-    /// current reservation, which includes a handle to a live entity.
+    /// after the next sync point. Throws <see cref="InvalidOperationException"/> for a handle to a live entity, which
+    /// is current but names no reservation, and <see cref="StaleEntityException"/> for any other handle that does not
+    /// name its slot's current reservation.
     /// </summary>
     public void Activate(Entity entity, in TransformRow row, in RenderData render, IComponent[] components, EventMask[] wants, BodyDesc? body, FrameHandle ownedFrame)
     {
         Contract.Requires(!gameplayRunning);
         if (!IsCurrentReservation(entity))
+        {
+            if (IsAlive(entity))
+                throw new InvalidOperationException($"{entity} is live, so the handle does not name a reservation to activate.");
             StaleEntityException.Throw(entity);
+        }
         uint slot = entity.Index;
         Contract.Requires(components.Length == wants.Length);
         records[slot] = new Record { Components = components, Wants = wants, Body = body, OwnedFrame = ownedFrame };

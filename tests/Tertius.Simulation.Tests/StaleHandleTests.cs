@@ -180,7 +180,8 @@ public class StaleHandleTests
         table.IsAlive(next).Should().BeFalse();
     }
 
-    // Not a contract: the check must hold in Release too, where a second activation would count the entity twice.
+    // Not a contract: the check must hold in Release too, where a second activation would count the entity twice. The
+    // handle is not stale, so the error is not StaleEntityException: it names a live entity, not a reservation.
     [Fact]
     public void ALiveEntityCannotBeActivatedAgain()
     {
@@ -189,8 +190,9 @@ public class StaleHandleTests
 
         Action activate = () => table.Activate(live, RowAt(9), new RenderData(), [], [], null, FrameHandle.Null);
 
-        activate.Should().Throw<StaleEntityException>().Which.Entity.Should().Be(live);
+        activate.Should().ThrowExactly<InvalidOperationException>().WithMessage($"*{live}*does not name a reservation*");
         table.LiveCount.Should().Be(1);
+        table.FrontRow(live).Pose.Position.X.Should().Be(0);
         table.AssertInvariants();
     }
 
