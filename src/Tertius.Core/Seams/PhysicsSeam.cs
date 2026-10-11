@@ -160,12 +160,16 @@ public readonly struct PhysicsStepContext
 /// </summary>
 public readonly record struct BodyState(Entity Entity, FrameHandle Frame, DPose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
 
-/// <summary>Physics moved an entity's body to another frame during the step. Pose and velocities are in the new frame.</summary>
+/// <summary>
+/// Physics moved an entity's body to another frame during the step. <see cref="From"/> is the frame that the entity was in
+/// when the step began (for the owner of a frame, the frame's parent), and <see cref="To"/> is a different frame. Pose and
+/// velocities are in the new frame.
+/// </summary>
 public readonly record struct HandOff(Entity Entity, FrameHandle From, FrameHandle To, DPose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
 
 /// <summary>
-/// A contact that started during the step. Point and normal are in <see cref="Frame"/>, the frame whose physics system
-/// holds both bodies, and the normal points from <see cref="A"/> toward <see cref="B"/>.
+/// A contact that started during the step between two different entities. Point and normal are in <see cref="Frame"/>,
+/// the frame whose physics system holds both bodies, and the normal points from <see cref="A"/> toward <see cref="B"/>.
 /// </summary>
 public readonly record struct ContactStarted(Entity A, Entity B, FrameHandle Frame, Double3 Point, Vector3 Normal, float Impulse);
 
@@ -177,8 +181,10 @@ public readonly record struct FrameState(FrameHandle Frame, DPose LocalPose, Dou
 
 /// <summary>
 /// Results of one step. The backend fills it on the physics thread. The sync point reads and clears it. Every entity
-/// that the output names is live and has a body, and every frame that it names is alive and not null. The sync point
-/// treats any other output as a bug in the backend: see ARCHITECTURE.md, "Threads and the tick", step 2.
+/// that the output names is live and has a body, and every frame that it names is alive and not null. A hand-off leaves
+/// the frame that its entity is in, a frame state names a frame with the physics driver, and a contact names two
+/// different entities. The sync point treats any other output as a bug in the backend: see ARCHITECTURE.md, "Threads
+/// and the tick", step 2.
 /// </summary>
 public sealed class PhysicsStepOutput
 {

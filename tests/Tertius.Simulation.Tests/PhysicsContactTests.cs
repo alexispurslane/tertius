@@ -133,7 +133,7 @@ public class PhysicsContactTests
     }
 
     // Physics hears of every destroyed entity and frame before its next step, and an entity keeps its body for life. So a
-    // contact names two live entities with bodies and a live frame, unless the backend has a bug.
+    // contact names two different live entities with bodies and a live frame, unless the backend has a bug.
 #if TERTIUS_CONTRACTS
     [Fact]
     public void AContactThatNamesNoFrameBreaksAContract()
@@ -186,6 +186,18 @@ public class PhysicsContactTests
         Action tick = () => scene.Test.World.Tick();
 
         tick.Should().Throw<ContractException>();
+    }
+
+    [Fact]
+    public void AContactOfABodyWithItselfBreaksAContract()
+    {
+        using var scene = new Scene();
+        scene.Physics.OnStep((context, output) =>
+            output.Contacts.Add(new ContactStarted(scene.First, scene.First, scene.Test.Root, ContactPoint, ContactNormal, ContactImpulse)));
+
+        Action tick = () => scene.Test.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage($"*{scene.First} cannot touch itself*");
     }
 #else
     [Fact]
@@ -266,6 +278,23 @@ public class PhysicsContactTests
         scene.Test.World.Errors.Should().ContainSingle().Which.Should().Contain($"contact of {scene.First} and {bodiless}");
         log.Seen.Should().BeEmpty();
         scene.FirstLog.Seen.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AContactOfABodyWithItselfIsReportedOnceAndReachesNoOne()
+    {
+        using var scene = new Scene();
+        scene.Physics.OnStep((context, output) =>
+        {
+            if (context.Tick == 1)
+                output.Contacts.Add(new ContactStarted(scene.First, scene.First, scene.Test.Root, ContactPoint, ContactNormal, ContactImpulse));
+        });
+
+        scene.Test.Run(3);
+
+        scene.Test.World.Errors.Should().ContainSingle().Which.Should().Contain($"contact of {scene.First} and {scene.First}").And.Contain("cannot touch itself");
+        scene.FirstLog.Seen.Should().ContainSingle("only the scene's own contact of tick 0 reaches the first body")
+            .Which.Event.As<Collision>().Other.Should().Be(scene.Second);
     }
 
     [Fact]

@@ -74,7 +74,9 @@ public class PhysicsFrameStateTests
         PoseChecks.AssertNear(inRoot.Position, new Double3(5, 7, 7));
     }
 
-    // Physics hears of a destroyed frame before its next step, so only a bug in the backend reports a state for it.
+    // Physics hears of a destroyed frame before its next step, and it drives a frame only through the hull of a frame
+    // with the physics driver. So only a bug in the backend reports a state for a frame that is gone, a frame with
+    // another driver, or a frame whose owner has no body.
 #if TERTIUS_CONTRACTS
     [Fact]
     public void AFrameStateForAFrameThatIsGoneBreaksAContract()
@@ -89,6 +91,34 @@ public class PhysicsFrameStateTests
         Action tick = () => test.World.Tick();
 
         tick.Should().Throw<ContractException>();
+    }
+
+    [Fact]
+    public void AFrameStateForAFrameThatPhysicsDoesNotDriveBreaksAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
+        physics.OnStep((context, output) =>
+            output.Frames.Add(new FrameState(dock, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero)));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage("*physics does not drive it*");
+    }
+
+    [Fact]
+    public void AFrameStateForAFrameWhoseOwnerHasNoBodyBreaksAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle drifter = SpawnBodilessPhysicsFrame(test);
+        physics.OnStep((context, output) =>
+            output.Frames.Add(new FrameState(drifter, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero)));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage("*has no body*");
     }
 #else
     [Fact]
@@ -107,7 +137,46 @@ public class PhysicsFrameStateTests
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"stale frame {gone}");
         test.World.Frames.LocalPose(other).Position.Should().Be(new Double3(100, 0, 0));
     }
+
+    [Fact]
+    public void AFrameStateForAFrameThatPhysicsDoesNotDriveIsReportedOnceAndMovesNothing()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
+        physics.OnStep((context, output) =>
+            output.Frames.Add(new FrameState(dock, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero)));
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"state of {dock}").And.Contain("physics does not drive it");
+        test.World.Frames.LocalPose(dock).Should().Be(TestWorld.At(100));
+        test.World.GetPose(dock.Entity).Should().Be(TestWorld.At(100));
+    }
+
+    [Fact]
+    public void AFrameStateForAFrameWhoseOwnerHasNoBodyIsReportedOnceAndMovesNothing()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle drifter = SpawnBodilessPhysicsFrame(test);
+        physics.OnStep((context, output) =>
+            output.Frames.Add(new FrameState(drifter, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero)));
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"state of {drifter}").And.Contain($"{drifter.Entity} has no body");
+        test.World.Frames.LocalPose(drifter).Should().Be(TestWorld.At(100));
+    }
 #endif
+
+    /// <summary>A frame with the physics driver, 100 m along +X, whose owner has no body, so physics has nothing to drive it with.</summary>
+    private static FrameHandle SpawnBodilessPhysicsFrame(TestWorld test) => test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+    {
+        Frame = test.Root,
+        Pose = TestWorld.At(100),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+    }));
 
     [Fact]
     public void PhysicsHearsOfAFrameNoLaterThanItHearsOfTheFramesHullBody()
@@ -167,6 +236,7 @@ public class PhysicsFrameStateTests
         {
             Frame = dock,
             AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Layer: BodyLayer.FrameHull),
         }));
         physics.OnStep((context, output) =>
         {

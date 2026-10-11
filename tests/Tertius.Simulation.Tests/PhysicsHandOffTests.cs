@@ -174,8 +174,9 @@ public class PhysicsHandOffTests
     }
 
     // Physics hears of every destroyed entity and frame before its next step, and an entity keeps its body for life, so it
-    // hands off only live entities with bodies, into frames that the tree has. It follows the frame tree, so it never
-    // puts a frame inside itself. A hand-off that breaks any of these rules comes only from a bug in the backend.
+    // hands off only live entities with bodies, into frames that the tree has. It follows the frame tree, so a hand-off
+    // leaves the frame that the entity is in, never the frame that it enters, and it never puts a frame inside itself. A
+    // hand-off that breaks any of these rules comes only from a bug in the backend.
 #if TERTIUS_CONTRACTS
     [Fact]
     public void AHandOffOfAnEntityThatNoLongerExistsBreaksAContract()
@@ -215,6 +216,48 @@ public class PhysicsHandOffTests
         test.World.Destroy(gone.Entity);
         Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
         physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(ball, test.Root, gone, TestWorld.At(9), default, default)));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>();
+    }
+
+    [Fact]
+    public void AHandOffFromAFrameThatTheEntityIsNotInBreaksAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(-500), radius: 100);
+        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(ball, dock, station, TestWorld.At(9), default, default)));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage($"*{ball} is in {test.Root}, not in {dock}*");
+    }
+
+    [Fact]
+    public void AHandOffOfTheOwnerOfARootFrameBreaksAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity islandOwner = SpawnRootWithBody(test);
+        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(islandOwner, test.Root, station, TestWorld.At(9), default, default)));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage($"*{islandOwner} is in no frame*");
+    }
+
+    [Fact]
+    public void AHandOffIntoTheFrameThatTheEntityIsInBreaksAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(ball, test.Root, test.Root, TestWorld.At(9), default, default)));
 
         Action tick = () => test.World.Tick();
 
@@ -309,6 +352,59 @@ public class PhysicsHandOffTests
         test.World.Errors.Should().ContainSingle().Which.Should().Contain("stale frame");
         test.World.Frames.LocalPose(fighter).Should().Be(TestWorld.At(100));
         test.World.GetPose(fighterOwner).Should().Be(TestWorld.At(100));
+    }
+
+    [Fact]
+    public void AHandOffFromAFrameThatTheEntityIsNotInIsReportedOnceAndLeavesTheEntityWhereItWas()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(-500), radius: 100);
+        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(ball, dock, station, TestWorld.At(9), default, default)));
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {ball}").And.Contain($"{ball} is in {test.Root}, not in {dock}");
+        test.World.GetFrame(ball).Should().Be(test.Root);
+        test.World.GetPose(ball).Should().Be(TestWorld.At(3));
+    }
+
+    [Fact]
+    public void TheOwnerOfARootFrameNeverHandsItsFrameOff()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity islandOwner = SpawnRootWithBody(test);
+        FrameHandle island = test.World.GetOwnedFrame(islandOwner);
+        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        physics.OnStep((context, output) =>
+        {
+            if (context.Tick == 0)
+                output.HandOffs.Add(new HandOff(islandOwner, test.Root, station, TestWorld.At(9), default, default));
+        });
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {islandOwner}").And.Contain($"{islandOwner} is in no frame");
+        test.World.Frames.Parent(island).Should().Be(FrameHandle.Null, "a root frame stays a root");
+        test.World.GetFrame(islandOwner).Should().Be(FrameHandle.Null);
+        test.World.AssertInvariants();
+    }
+
+    [Fact]
+    public void AHandOffIntoTheFrameThatTheEntityIsInIsReportedOnceAndChangesNothing()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(ball, test.Root, test.Root, TestWorld.At(9), default, default)));
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {ball}").And.Contain($"into {test.Root}, which it is in already");
+        test.World.GetPose(ball).Should().Be(TestWorld.At(3));
     }
 
     [Fact]
@@ -485,6 +581,16 @@ public class PhysicsHandOffTests
     }
 
 #endif
+
+    /// <summary>
+    /// A second root frame, an island of radius 100 m, whose owner has a body: only the static interior in its own frame,
+    /// because a root frame has no parent for a hull.
+    /// </summary>
+    private static Entity SpawnRootWithBody(TestWorld test) => test.World.Spawn(new SpawnDesc
+    {
+        AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
+        Body = new BodyDesc(new SphereShapeDesc(5), BodyMotion.Static),
+    });
 
     /// <summary>A small ship: a frame that physics moves, whose owner has a hull body in the parent frame.</summary>
     private static Entity SpawnFighter(TestWorld test, DPose pose, out FrameHandle frame, params IComponent[] components)
