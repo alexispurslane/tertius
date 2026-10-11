@@ -11,5 +11,5 @@ tags: [tests, physics]
 ---
 # Real physics in every test
 
-Design: docs/plans/00-real-physics-in-tests.md. It starts after the vertical slice.
+Design: docs/plans/real-physics-in-tests.md. It starts after the vertical slice.
 

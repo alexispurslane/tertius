@@ -11,5 +11,5 @@ tags: [tests]
 ---
 # Test hardening: coverage, mutation testing and a soak run
 
-Design: docs/plans/01-test-hardening.md. The vertical slice shows what is right, so this locks in verified behavior.
+Design: docs/plans/test-hardening.md. The vertical slice shows what is right, so this locks in verified behavior.
 

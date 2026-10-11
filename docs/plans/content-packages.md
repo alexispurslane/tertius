@@ -1,10 +1,10 @@
-# 08 Content packages and mods
+# Content packages and mods
 
-Ticket: `ter-ynqi`. It needs plan 07. Plans 09 and 10 build on it.
+Ticket: `ter-ynqi`. It needs the [content formats](content-formats.md) work. The [asset pipeline](asset-pipeline.md) and the [editor](editor.md) build on it.
 
 ## Goal
 
-Separate the engine from game content, and load game content and mods through one mechanism. A package is a folder with a rigid layout. It holds blueprint, scene and patch files (plan 07), assets (plan 09), and optionally one C# project that compiles into one DLL of components. The engine loads the DLLs at runtime and links the component names in the JSON files to the component types once, by reflection.
+Separate the engine from game content, and load game content and mods through one mechanism. A package is a folder with a rigid layout. It holds blueprint, scene and patch files (content formats), assets (asset pipeline), and optionally one C# project that compiles into one DLL of components. The engine loads the DLLs at runtime and links the component names in the JSON files to the component types once, by reflection.
 
 A mod works blindly: copy its built folder into a mods folder, and it loads. Every id comes from a folder or file name, so a mod needs no registration step and no load order list. A built package is the form of a package that players get: it holds the DLL and the cooked assets, so a player needs no build tools (see "Built packages").
 
@@ -28,7 +28,7 @@ Today no package or mod loading exists. ARCHITECTURE.md lists mods as out of sco
 7. A reference without a package prefix means the package of the file that wrote it. The loader never searches other packages for a path. A qualified reference must name the own package or a declared dependency.
 8. A short component name resolves in the own package first, then in the direct dependencies. Two matches in the dependencies are an error, never a silent choice.
 9. The load order comes from the dependencies. Ties break by the ordinal order of the package ids. The order then does not depend on the file system or the operating system.
-10. A package changes the content of another package only through patch files that merge (plan 07 merge rule). There is no whole replacement of a blueprint. Players of Bethesda games and of Caves of Qud dislike whole replacement, because only the last mod wins.
+10. A package changes the content of another package only through patch files that merge (the merge rule of content formats). There is no whole replacement of a blueprint. Players of Bethesda games and of Caves of Qud dislike whole replacement, because only the last mod wins.
 11. All file and folder names in a package are lowercase. A reference that works on macOS then also works on case-sensitive Linux file systems.
 12. The loader reports every error with the file, the JSON Pointer and, where it can, the line and column. Errors in packages from content roots stop the load. Errors in mods can skip the mod (see "Errors and policy"). A player's launcher skips a broken mod and every mod that depends on it, then starts and shows the errors. (User)
 13. Mods run with full trust. See "Trust".
@@ -48,26 +48,26 @@ src/                       the engine; no game rules and no components
   Tertius.Simulation
   Tertius.Physics
   Tertius.Rendering
-  Tertius.Content          new: content formats (plan 07), packages and loading (this plan)
-  Tertius.Assets           new in plan 09: the cooked format and the asset store
+  Tertius.Content          new: content formats (the content formats design), packages and loading (this design)
+  Tertius.Assets           new with the asset pipeline: the cooked format and the asset store
   Tertius.Host
   Tertius.Launcher         renamed from Tertius.Demo: runs a game package
 content/                   packages that ship in this repository
   Directory.Build.props    imports the root props and the mod SDK props
   Directory.Build.targets  imports the mod SDK targets
   tertius.base/            built-in components and shared content
-  tertius.demo/            the vertical slice of plan 06
+  tertius.demo/            the vertical slice of host and scripted runs
 tools/
-  Tertius.Cli/             the `tertius` command: content and package commands here, asset and editor commands from plans 09 and 10
+  Tertius.Cli/             the `tertius` command: content and package commands here, asset and editor commands from the asset pipeline and the editor
   Tertius.Mod.Sdk/         the MSBuild SDK for package code, with the mod API analyzer
-  Tertius.Import/          plan 09: the asset importer
-  Tertius.Editor/          plan 10: the editor
+  Tertius.Import/          the asset importer, from the asset pipeline
+  Tertius.Editor/          the editor, from the editor design
 tests/
   Tertius.Content.Tests/   unit tests, plus fixture packages in Packages/ and files in Corpus/
   Tertius.Packages.Tests/  tests of tertius.base and tertius.demo through scripted runs
 mods/                      ignored by git: local mods during development
 dist/                      ignored by git: built packages from `tertius package build`
-.tertius/                  ignored by git: downloads (plan 09) and editor state (plan 10)
+.tertius/                  ignored by git: downloads of the asset pipeline and state of the editor
 ```
 
 Git ignores `mods/`, `dist/` and `.tertius/`. In every package, it ignores `bin/`, `.schemas/` and `code/obj/`. It also ignores the backup and temporary files of Blender (see "Package layout"). The solution file `Tertius.slnx` includes the code projects of the packages in `content/`. One `dotnet build Tertius.slnx` then builds the engine and the shipped packages. The flake dev shell adds a small `tertius` wrapper script, so an agent types `tertius content validate` instead of a long `dotnet run` line.
@@ -79,19 +79,19 @@ content/tertius.demo/
   manifest.json            required
   README.md                optional
   LICENSE, LICENSE.md      optional
-  CREDITS.md               optional; plan 09 generates it from the asset records
+  CREDITS.md               optional; the asset pipeline generates it from the asset records
   preview.png              optional: the picture for a mod list
   blueprints/              *.blueprint.json, in any folder depth
   scenes/                  *.scene.json; start.scene.json is the start scene of a game
   patches/                 *.patch.json
-  assets/                  source assets and their *.import.json files (plan 09)
+  assets/                  source assets and their *.import.json files (asset pipeline)
   code/
     tertius.demo.csproj    the one C# project
     Ships/Thruster.cs      C# sources, with any names and folders
   bin/                     build output; ignored by git
     tertius.demo.dll       the package DLL and its PDB
-    assets/                cooked assets (plan 09)
-    previews/              preview images (plan 09)
+    assets/                cooked assets (asset pipeline)
+    previews/              preview images (asset pipeline)
   .schemas/                generated schemas; ignored by git
 ```
 
@@ -103,7 +103,7 @@ content/tertius.demo/
 | In `assets/`, a name has at most one extension, and then optionally the suffix `.import.json`. `defaults.import.json` is a fixed name. | CT1002 | An import file names its source: `corvette.blend.import.json` belongs to `corvette.blend`. |
 | A file in `blueprints/` ends in `.blueprint.json`, in `scenes/` in `.scene.json`, and in `patches/` in `.patch.json`. | CT1003 | The folder and the suffix both give the kind, and they must agree. A file opened alone still shows its kind. |
 | The loader ignores every name that starts with a dot. | None | `.DS_Store`, `.gitignore` and `.schemas` cause no errors. |
-| The loader ignores the backup files `*.blend1` to `*.blend32` and the save files `*.blend@` of Blender. | None | Blender writes them next to a `.blend` file on every save (plan 09). |
+| The loader ignores the backup files `*.blend1` to `*.blend32` and the save files `*.blend@` of Blender. | None | Blender writes them next to a `.blend` file on every save (see the asset pipeline design). |
 | `code/` holds exactly one project, named `<package id>.csproj`. | CT5009 | The assembly name is the package id. |
 | The name rules do not apply inside `code/` and `bin/`, or to the fixed names `README.md`, `LICENSE`, `LICENSE.md` and `CREDITS.md`. | None | C# files follow C# naming. |
 
@@ -114,7 +114,7 @@ A game package is an ordinary package that has `scenes/start.scene.json`. The la
 A source package is a package as git holds it: with `code/` and `assets/`, and with no `bin/`. It loads only where the mod SDK and the asset tools exist, which is during development. A built package is the form that players get. `tertius package build <id> [--out <folder>]` makes it in these steps:
 
 1. Build the code project in Release.
-2. Import every asset of the package (plan 09).
+2. Import every asset of the package (see the asset pipeline design).
 3. Copy `manifest.json`, the optional files of the root, `blueprints/`, `scenes/` and `patches/` into the output folder.
 4. Copy `bin/<id>.dll`, `bin/<id>.pdb` and `bin/assets/` into the output folder.
 
@@ -126,7 +126,7 @@ The loader reads both forms with these rules:
 - A package without `assets/` takes its asset ids from the cooked folders in `bin/assets/`. Each cooked folder has the name of its source file, so the ids of both forms are equal.
 - `PackageInfo.Form` says which form the loader found.
 
-A source package in a mod root of a player gives CT5004 or AS8001 (plan 09). The hint says: "This folder is a source package. Copy its built package from `tertius package build`."
+A source package in a mod root of a player gives CT5004 or AS8001 (see the asset pipeline design). The hint says: "This folder is a source package. Copy its built package from `tertius package build`."
 
 ### Ids and references
 
@@ -148,7 +148,7 @@ name         = (lower / digit) *(lower / digit / "-" / "_")
 path         = name *("/" name)
 asset-path   = path "." extension                      ; extension = 1*(lower / digit)
 reference    = [package-id ":"] (path / asset-path) ["#" fragment]
-fragment     = 1*(any character except "#")            ; plan 09 defines the fragments of each asset kind
+fragment     = 1*(any character except "#")            ; the asset pipeline design defines the fragments of each asset kind
 component    = [package-id ":"] upper *(alpha / digit)
 ```
 
@@ -160,7 +160,7 @@ component    = [package-id ":"] upper *(alpha / digit)
 
 Resolution rules:
 
-1. A reference without a package resolves in the package of the file that wrote it. This holds inside merged values too, because phase 6 qualifies each reference in its own file before any merge (plan 07).
+1. A reference without a package resolves in the package of the file that wrote it. This holds inside merged values too, because phase 6 qualifies each reference in its own file before any merge (see the content formats design).
 2. A qualified reference must name the own package, a hard dependency or an optional dependency (CT4004). The dependency then loads first, and a package cannot reach content that it did not declare.
 3. A missing target is error CT4001. The message lists up to three ids with a small edit distance, so an agent can fix a typo from the error alone.
 4. An optional dependency that is absent makes its references errors, except inside patches that require it (see "Patches").
@@ -175,7 +175,7 @@ Resolution rules:
 | `title` | A string | Yes | The display name |
 | `description` | A string | No | A short description |
 | `authors` | An array of strings | Yes | The authors |
-| `license` | An SPDX expression | Yes | The license of the package. Plan 09 records the license of each asset. |
+| `license` | An SPDX expression | Yes | The license of the package. The asset pipeline records the license of each asset. |
 | `dependencies` | An object: package id to version range | No | Packages that must load first |
 | `optionalDependencies` | An object: package id to version range | No | Packages that load first. They can be absent. |
 | `loadAfter` | An array of package ids | No | Packages that load first. They can be absent. This gives order only, with no version and no access to their names. |
@@ -230,7 +230,7 @@ The load set comes from these steps:
 
 Optional dependencies and `loadAfter` never add a package. They only add order.
 
-`ContentLoader.FindPackages` runs only these steps and the load order, and it loads no code. The importer of plan 09 and the packages panel of plan 10 use it. It returns every package that it found, also after an error, so a panel can show a broken package.
+`ContentLoader.FindPackages` runs only these steps and the load order, and it loads no code. The importer of the asset pipeline and the packages panel of the editor use it. It returns every package that it found, also after an error, so a panel can show a broken package.
 
 ### Load order
 
@@ -255,7 +255,7 @@ Factorio breaks ties by the length of the dependency chain first. That rule adds
 
 Each phase reports every error that it finds. Phases 1 to 3 end the load after an error, because the later phases need a complete set of packages and types. Phases 5 to 10 skip only the items that depend on a failed item, such as the children of a broken blueprint. So one run reports every content error at once.
 
-Phases 9 and 10 call the asset resolver in the fixed order of plan 07: package load order, file path, then document order.
+Phases 9 and 10 call the asset resolver in the fixed order of the content formats design: package load order, file path, then document order.
 
 ### Code: the project, the SDK and the package context
 
@@ -264,7 +264,7 @@ The mod SDK `Tertius.Mod.Sdk` is an MSBuild project SDK. It sets these values fo
 - `net11.0`, `LangVersion` `preview`, nullable, and `EnableDynamicLoading`.
 - The assembly name is the package id, from the folder name.
 - The output goes to `<package>/bin/`, with no framework or runtime subfolder.
-- The documentation file is on, with warning CS1591 off. The schemas of plan 07 take their descriptions from it.
+- The documentation file is on, with warning CS1591 off. The schemas of the content formats work take their descriptions from it.
 - A reference to the engine API with `Private=false`, so the package never ships its own copy of an engine assembly. The API is `Tertius.Core` and `Tertius.Simulation`.
 - A small MSBuild task reads `manifest.json` and adds a reference with `Private=false` to the DLL of each dependency. In this repository it adds a project reference instead, so the build order is right.
 - The analyzer that reports uses of `[EngineOnly]` types and members as error TRT0001.
@@ -326,7 +326,7 @@ The mod API in `Tertius.Core`:
 - Handles: `Entity`, `FrameHandle`, `Topic`, `Topics`, `Broadcast` and `Target`.
 - Events: `Event`, `IEventPayload`, `EventType<T>`, `EventMask` and `PayloadBytes`.
 - Engine payloads: `Tick`, `Spawned`, `Destroy`, `FrameChanged`, `Collision`, `InputEvent` and `InputKind`.
-- Render values: `MeshId`, `ModelId` (plan 09), `MaterialId`, `TextureId`, `TextureSlot` (plan 07), `RenderFlags` and `LightKind`.
+- Render values: `MeshId`, `ModelId` (from the asset pipeline), `MaterialId`, `TextureId`, `TextureSlot` (from content formats), `RenderFlags` and `LightKind`.
 - Physics values: `BodyDesc`, the shape records, `CompoundChild`, `BodyMotion`, `BodyLayer`, `PhysicsIntent` and `IntentFlags`.
 - Frame values: `FrameBounds`, `MotionDriver`, `GravityField`, `GravityKind` and `KeplerOrbit`.
 
@@ -335,7 +335,7 @@ The mod API in `Tertius.Simulation`:
 - The component surface: `IComponent`, `Self`, `BodyHandle`, `Outbox`, `EventList`, `EventsOf<T>` and `RefPredicate<T>`.
 - Reads of other entities: `Snapshot` and `FrameView`.
 - Spawning: `SpawnDesc`, `FrameSpec`, `RenderData`, `LightData`, `BlueprintId` and `Self.Spawn(BlueprintId, ...)`.
-- Attributes: `ComponentNameAttribute`, `TextureSlotAttribute` and `UnionCaseAttribute` (plan 07), and `ColorAttribute` (plan 10).
+- Attributes: `ComponentNameAttribute`, `TextureSlotAttribute` and `UnionCaseAttribute` (from content formats), and `ColorAttribute` (from the editor).
 - Other types: `StaleEntityException`.
 
 Engine only, in `Tertius.Core`:
@@ -355,13 +355,13 @@ Engine only, in `Tertius.Simulation`:
 Every other engine assembly is engine only as a whole, and the SDK does not reference it.
 
 - `[EngineOnly]` in Core marks each engine-only type or member in Core and Simulation. The analyzer reads the attribute, so the list lives next to the code and cannot drift from it.
-- The research found a real hole: `Self.Snapshot.Frames` returns the mutable `FrameTree`. A component can call `SetLocalPose` or `Reparent` during a parallel tick, which breaks thread safety and determinism. This plan adds `FrameView`, a read-only view, and makes `Snapshot.Frames` return it. If plan 02 fixes this first, the step is already done.
+- The research found a real hole: `Self.Snapshot.Frames` returns the mutable `FrameTree`. A component can call `SetLocalPose` or `Reparent` during a parallel tick, which breaks thread safety and determinism. This plan adds `FrameView`, a read-only view, and makes `Snapshot.Frames` return it. If the [design review](design-review.md) fixes this first, the step is already done.
 - The boundary is about stability, not security. A mod can still reach any engine type through reflection. See "Trust".
-- `Self`, `Outbox` and `EventList` keep their internal constructors. Tests of a package load it through `ContentLoader` and drive a `World`, as the scripted runs of plan 06 do. Test projects are not mods, so they can reference the whole engine.
+- `Self`, `Outbox` and `EventList` keep their internal constructors. Tests of a package load it through `ContentLoader` and drive a `World`, as the scripted runs from [host and scripted runs](host-and-scripted-runs.md) do. Test projects are not mods, so they can reference the whole engine.
 
 ### Patches
 
-A patch file changes one blueprint or one scene of another package with the merge rule of plan 07.
+A patch file changes one blueprint or one scene of another package with the merge rule of content formats.
 
 | Key | Form | Meaning |
 |---|---|---|
@@ -380,7 +380,7 @@ Rules:
 - If two patches set a leaf value at the same JSON Pointer, the later one wins. Warning CT6002 names both packages and the winner. A patch that removes a component that another patch changed also gets CT6002.
 - `tertius content explain <id>` prints the resolved blueprint, with the file and package of every value. For one entity of a scene, it prints the entry merged over its blueprint, with patches.
 
-An error belongs to the package of the file that wrote the failing value. For a missing key, it belongs to the package of the patch whose `null` removed the key (the source map of plan 07 records removals). So a patch that breaks a blueprint of the game counts against the mod, not against the game.
+An error belongs to the package of the file that wrote the failing value. For a missing key, it belongs to the package of the patch whose `null` removed the key (the source map of content formats records removals). So a patch that breaks a blueprint of the game counts against the mod, not against the game.
 
 The research on other games shaped these rules:
 
@@ -476,7 +476,7 @@ public sealed class Shield : IComponent
 
 In this example:
 
-- `Capacity` and `RechargeRate` are the fields that the patch sets as `capacity` and `rechargeRate`. They are `init` properties, because every spawn of a blueprint shares the bound values (plan 07).
+- `Capacity` and `RechargeRate` are the fields that the patch sets as `capacity` and `rechargeRate`. They are `init` properties, because every spawn of a blueprint shares the bound values (see the content formats design).
 - `Damage` is the event payload of `tertius.base`, a declared dependency of the mod.
 - `events.Of<Damage>()` gives each `Damage` payload by reference, so the shield lowers its amount in place. `Health` then sees only what the shield did not soak up.
 - `RemoveAll` takes out every `Damage` that nothing is left of, so `Health` never runs for it.
@@ -499,13 +499,13 @@ Authors of base packages make mods easier with two habits:
 | `BlueprintId` values | Ordinal order of the qualified blueprint id. Phase 9 declares every id before it binds. | A field can then name any blueprint, also one that registers later, or its own blueprint. |
 | Asset resolver calls | Package load order, file path, document order | The resolver hands out renderer ids in the order of the requests. |
 | Parallel file reads | Results stored by file index, not by finish order | Thread timing must not change a result. |
-| Diagnostics | The order of `DiagnosticBag.Sorted` (plan 07) | One input gives one report. |
+| Diagnostics | The order of `DiagnosticBag.Sorted` (from content formats) | One input gives one report. |
 
 Topic id values do not change the order of delivery, because the router orders deliveries by recipient (ARCHITECTURE.md, Messages). So an editor that keeps old topic names after a reload behaves like a fresh process.
 
 ### Errors and policy
 
-The loader collects every diagnostic in a `DiagnosticBag` (plan 07) and never throws for a content error. Errors use the compiler format of plan 07, and `--json` gives the same data as JSON.
+The loader collects every diagnostic in a `DiagnosticBag` (from content formats) and never throws for a content error. Errors use the compiler format of the content formats design, and `--json` gives the same data as JSON.
 
 | Policy | Used by | Behavior |
 |---|---|---|
@@ -522,7 +522,7 @@ The ids of the second attempt are then equal to those of a clean load without th
 
 The second load attempt keeps the diagnostics of the first one in the result, so the player sees why a mod is missing. Warnings never fail a load. The CLI option `--warnings-as-errors` changes that for CI.
 
-This plan owns these codes. Plan 07 owns CT2xxx, CT3xxx and CT7xxx, and it also reports CT4001, CT4006, CT4007 and CT4008.
+This design owns these codes. The content formats design owns CT2xxx, CT3xxx and CT7xxx, and it also reports CT4001, CT4006, CT4007 and CT4008.
 
 | Code | Meaning |
 |---|---|
@@ -542,7 +542,7 @@ This plan owns these codes. Plan 07 owns CT2xxx, CT3xxx and CT7xxx, and it also 
 | CT4005 | Warning: an own component hides a component of a dependency. |
 | CT4006 | The blueprints form an inheritance cycle. |
 | CT4007 | A scene or a `BlueprintId` field names an abstract blueprint. |
-| CT4008 | The asset resolver of plan 09 reports an error. The message starts with its AS code. |
+| CT4008 | The asset resolver of the asset pipeline reports an error. The message starts with its AS code. |
 | CT5001 | The DLL was built against another engine API version. |
 | CT5002 | The DLL does not load, or `GetTypes()` fails. |
 | CT5003 | Two component types in one package have one name. |
@@ -560,31 +560,31 @@ This plan owns these codes. Plan 07 owns CT2xxx, CT3xxx and CT7xxx, and it also 
 
 ### Unloading and hot reload
 
-The editor of plan 10 reloads content in two ways.
+The editor reloads content in two ways.
 
 | Change | What reloads | Cost |
 |---|---|---|
 | Blueprint, scene or patch files | `ContentLoader.ReloadData` runs phases 5 to 10 again and reuses the code set. The editor rebuilds its worlds from the scene document. | Milliseconds for the demo |
 | A package DLL or a manifest | The editor disposes every world and content set, unloads the code set and loads everything again. | About a second (an estimate) |
 
-The editor never moves live component state from an old type to a new type. Such a transfer is complex and fragile. The scene document is the source of truth in plan 10, so a rebuilt world loses nothing that the document holds.
+The editor never moves live component state from an old type to a new type. Such a transfer is complex and fragile. The scene document is the source of truth in the editor design, so a rebuilt world loses nothing that the document holds.
 
 A collectible context unloads only after nothing outside it refers to its types, objects or code (Microsoft documentation, and the research probe). This table lists every holder of mod types and how it lets go.
 
 | Holder | What it holds | How it lets go |
 |---|---|---|
 | `World` | Component instances | `World.Dispose()`, and the caller drops the world |
-| `ComponentFactories` | Compiled delegates over mod types | The code set owns it, and every content set over the code set shares it. A static cache kept the context alive in the probe, so plan 07 makes it an instance. |
+| `ComponentFactories` | Compiled delegates over mod types | The code set owns it, and every content set over the code set shares it. A static cache kept the context alive in the probe, so the content formats work makes it an instance. |
 | `ContentContracts` | The `JsonSerializerOptions` of the code set, with contracts and converters over mod types | The code set owns it and drops it at unload. Content sets borrow it. No mod type reaches `JsonSerializerOptions.Default`. |
 | `Blueprints` | `ComponentSpec.Type` | The content set owns it. `ContentSet.Dispose` drops it. |
 | `EventTypeRegistry` | The `Type` of each mod payload | `EventTypeRegistry.TruncateTo(engineCount)` at unload. `EngineEvents.Register()` runs before the first load, and the loader records the count before it registers package types. A contract asserts that every type above that count comes from a package context. |
-| Editor caches | Inspector data | `InspectorCache` belongs to the code set (plan 10). |
-| `AssetStore` (plan 09) | Nothing | It holds renderer ids and engine shapes, never a mod type. |
+| Editor caches | Inspector data | `InspectorCache` belongs to the code set (see the editor design). |
+| `AssetStore` (from the asset pipeline) | Nothing | It holds renderer ids and engine shapes, never a mod type. |
 | Mod threads, timers and static event handlers | Anything | Mods must not create them. The unload timeout reports them. |
 
 Generic statics over mod types, such as `EventType<T>.Id`, do not keep a context alive (research probe).
 
-A risk remains: a static cache of System.Text.Json can keep a mod type. A research probe for the earlier design of plan 07 saw the caches of `JsonSerializer` keep a context alive. The unload tests of plan 07 step 2 and of step 11 bind first, so they find it. If a context stays alive on .NET 11, the editor restarts its process to reload code (plan 10). A player gets CT5010 at the second attempt of `SkipBrokenMods`, which costs only memory.
+A risk remains: a static cache of System.Text.Json can keep a mod type. A research probe for the earlier design of content formats saw the caches of `JsonSerializer` keep a context alive. The unload tests of step 2 of content formats and of step 11 here bind first, so they find it. If a context stays alive on .NET 11, the editor restarts its process to reload code (see the editor design). A player gets CT5010 at the second attempt of `SkipBrokenMods`, which costs only memory.
 
 Two always-on guards stop an unload while mod code still runs. A failed guard throws `InvalidOperationException` in every build, because a caller of a public API broke a rule:
 
@@ -611,9 +611,9 @@ The `tertius` command lives in `tools/Tertius.Cli`. Every command takes `--json`
 
 | Command | What it does |
 |---|---|
-| `tertius content validate [--game id] [--no-build]` | Builds package code and imports the assets of the load set (plan 09), unless `--no-build` is set. Then it loads the set with `Strict`, prepares every scene and reports every diagnostic. |
+| `tertius content validate [--game id] [--no-build]` | Builds package code and imports the assets of the load set (see the asset pipeline design), unless `--no-build` is set. Then it loads the set with `Strict`, prepares every scene and reports every diagnostic. |
 | `tertius content schema` | Writes `.schemas/` in each package, and the VS Code entries that map each file kind to its schema |
-| `tertius content format [paths] [--dry-run]` | Writes the canonical layout of plan 07 and corrects every `$schema` path |
+| `tertius content format [paths] [--dry-run]` | Writes the canonical layout of the content formats design and corrects every `$schema` path |
 | `tertius content new <kind> <id>` | Creates a blueprint, scene or patch file at the right path, with the right suffix and `$schema` |
 | `tertius content ids [--kind k]` | Lists every id of the content set |
 | `tertius content explain <id> [--entity scene-id]` | Prints a resolved blueprint, a scene or one scene entity, with the file and package of every value |
@@ -621,7 +621,7 @@ The `tertius` command lives in `tools/Tertius.Cli`. Every command takes `--json`
 | `tertius package new <id>` | Creates a package folder with a manifest, the folders and, with `--code`, the project |
 | `tertius package build <id> [--out folder]` | Writes the built package (see "Built packages") |
 
-Plan 09 adds the `tertius asset` commands, and plan 10 adds the `tertius editor` commands. Every subcommand of `tertius` uses these exit codes:
+The asset pipeline adds the `tertius asset` commands, and the editor work adds the `tertius editor` commands. Every subcommand of `tertius` uses these exit codes:
 
 | Exit code | Meaning | Commands | What an agent does next |
 |---|---|---|---|
@@ -630,11 +630,11 @@ Plan 09 adds the `tertius asset` commands, and plan 10 adds the `tertius editor`
 | 2 | A file or the network cannot be read or written. | All | Report the error and stop. |
 | 3 | The content or the assets have errors. | All | Read the diagnostics and fix them. |
 | 4 | An internal error, which is a bug | All | Report the error and stop. |
-| 5 | A required tool is missing, such as Blender outside the assets shell (plan 09). | `content validate`, `package build`, `asset` | Follow the runbook of plan 09: ask the user before the first build of the assets shell. |
-| 6 | An `expect` step of an editor script failed (plan 10). | `editor run` | Read the result of the step. |
-| 7 | Another process held the asset lock of a package for longer than the wait (plan 09). | `content validate`, `package build`, `asset` | Wait, then run the command again. |
+| 5 | A required tool is missing, such as Blender outside the assets shell (see the asset pipeline design). | `content validate`, `package build`, `asset` | Follow the runbook of the asset pipeline design: ask the user before the first build of the assets shell. |
+| 6 | An `expect` step of an editor script failed (see the editor design). | `editor run` | Read the result of the step. |
+| 7 | Another process held the asset lock of a package for longer than the wait (see the asset pipeline design). | `content validate`, `package build`, `asset` | Wait, then run the command again. |
 
-Each code has one meaning, so an agent can act on the code alone. The JSON output is `{"diagnostics": [...], "summary": {...}}`, with the diagnostic keys of plan 07.
+Each code has one meaning, so an agent can act on the code alone. The JSON output is `{"diagnostics": [...], "summary": {...}}`, with the diagnostic keys of the content formats design.
 
 ### Code
 
@@ -643,7 +643,7 @@ New types in `Tertius.Content`:
 ```csharp
 namespace Tertius.Content;
 
-// Plan 07 adds the type. This plan uses its parser everywhere.
+// The content formats work adds the type. This plan uses its parser everywhere.
 public readonly record struct PackageId
 {
     public static bool TryParse(string text, out PackageId id, out string error);
@@ -705,7 +705,7 @@ public sealed record ContentRequest
     public IReadOnlyList<PackageId> Disabled { get; init; } = [];
     public LoadPolicy Policy { get; init; } = LoadPolicy.Strict;
 
-    /// <summary>File text in memory, by file path, that phase 5 parses instead of the files on disk. Plan 10 adds it in step B2.</summary>
+    /// <summary>File text in memory, by file path, that phase 5 parses instead of the files on disk. The editor work adds it in step B2.</summary>
     public IReadOnlyDictionary<string, ReadOnlyMemory<byte>> Overrides { get; init; } = ImmutableDictionary<string, ReadOnlyMemory<byte>>.Empty;
 }
 
@@ -751,7 +751,7 @@ public sealed class ContentSet : IDisposable
     public PreparedScene Scene(string qualifiedId);
     public IReadOnlyList<ContentId> Ids(ContentKind kind);   // assets: source assets only
 
-    /// <summary>The resolved blueprint or scene, and the source map of plan 07 with the file of every value. A new tree per call.</summary>
+    /// <summary>The resolved blueprint or scene, and the source map of content formats with the file of every value. A new tree per call.</summary>
     public (JsonObject Tree, SourceMap Sources) Explain(ContentId id);
 
     /// <summary>One entity entry of a scene, merged over its blueprint, with patches. As above.</summary>
@@ -832,7 +832,7 @@ These are targets, not measurements. The benchmarks of step 15 replace them with
 | Find and order 200 packages | Under 50 ms | Manifests are small files. |
 | Load and scan one package DLL | About 1 ms, plus 2 ms per 1,000 types | The research probe: a context loads in 0.6 to 1.0 ms, and 4,000 types scan in 7.5 ms. |
 | Read the metadata of one DLL | Under 1 ms warm, about 7 ms cold | The research probe |
-| Load `tertius.base` and `tertius.demo` in full | Under 500 ms cold | Asset import (plan 09) and GPU uploads not included |
+| Load `tertius.base` and `tertius.demo` in full | Under 500 ms cold | Asset import (from the asset pipeline) and GPU uploads not included |
 | `ReloadData` for the demo | Under 100 ms | |
 
 ### ARCHITECTURE.md changes
@@ -843,17 +843,17 @@ These are targets, not measurements. The benchmarks of step 15 replace them with
 4. Messages: event payload ids follow the fixed registration order, and engine and mods share the cap of 512 types.
 5. Snapshots: `Snapshot.Frames` returns a `FrameView`.
 6. Rules for references: replace the deferred sentence about mod unloading with the table of holders, the guards and the unload steps.
-7. Blueprints, and the new section "Content files": the changes that plan 07 lists.
+7. Blueprints, and the new section "Content files": the changes that the content formats design lists.
 8. A new section, "Tools": the `tertius` command and its exit codes.
 
 ## Steps
 
 Each step writes its tests first and sees them fail for the right reason. The engine builds and every test passes after each step.
 
-1. Write `ContentId`, `SemVersion` and `VersionRange`. Plan 07 already added `PackageId` and `AssetRef`. Write one test per grammar rule.
+1. Write `ContentId`, `SemVersion` and `VersionRange`. The content formats work already added `PackageId` and `AssetRef`. Write one test per grammar rule.
 2. Write package discovery and the layout rules. Use fixture folders in `tests/Tertius.Content.Tests/Packages/`. Write one test per code from CT1001 to CT1004. Test the import file names and the ignored Blender files.
-3. Read manifests with `JsonSerializer` and a `ContentContracts` with no package types (plan 07), and build the load set and the order. First write tests for the closure, the ranges and the engine range. Also test incompatibilities, optional dependencies, `loadAfter`, cycles and the tie-break. Done: `ContentLoader.FindPackages` returns the index, also for a broken root.
-4. Add `FrameView`, and make `Snapshot.Frames` return it. If plan 02 did this, skip the step.
+3. Read manifests with `JsonSerializer` and a `ContentContracts` with no package types (from content formats), and build the load set and the order. First write tests for the closure, the ranges and the engine range. Also test incompatibilities, optional dependencies, `loadAfter`, cycles and the tie-break. Done: `ContentLoader.FindPackages` returns the index, also for a broken root.
+4. Add `FrameView`, and make `Snapshot.Frames` return it. If the design review did this, skip the step.
 5. Add the engine types. First write these tests:
    - `EventTypeRegistry.Register(typeof(T))` returns `EventType<T>.Id`, in both call orders.
    - `TruncateTo` removes every id above the count, and a new registration then reuses the first free id.
@@ -866,11 +866,11 @@ Each step writes its tests first and sees them fail for the right reason. The en
 8. Implement `IContentScope` from packages. Write one test per name rule, and one per hint.
 9. Write the patch phase. Test each patch rule, the conflict warnings and the package that an error belongs to. Test `Explain` of a blueprint, a scene and one scene entity.
 10. Write `ContentLoader` from end to end. Test both policies and the order of diagnostics. Test the second attempt: its event payload ids, topic ids and `BlueprintId` values equal those of a clean load without the dropped mod. Test that a patch that removes a required key drops its mod, not the game.
-11. Write `ReloadData` and `CodeSet.Unload`. First write the tests of both guards. Then write the lock-in test: load a fixture package with its bind and schemas, spawn and tick, dispose, unload, and see that a `WeakReference` to each context dies. If one stays alive on .NET 11, apply the fallback of plan 07, decision 18.
+11. Write `ReloadData` and `CodeSet.Unload`. First write the tests of both guards. Then write the lock-in test: load a fixture package with its bind and schemas, spawn and tick, dispose, unload, and see that a `WeakReference` to each context dies. If one stays alive on .NET 11, apply the fallback of decision 18 of content formats.
 12. Write the mod SDK and its analyzer. First write the analyzer tests: a fixture mod that uses `World` fails with TRT0001, and a mod that uses only the API builds. Then write the analyzer. Build a mod outside the repository from a local feed.
-13. Create `tertius.base` and `tertius.demo`. Move the components and the scene of plan 06 into them. Rename `Tertius.Demo` to `Tertius.Launcher`, with a `--game` option. Done: the scripted runs of plan 06 give the same state dumps and captures as before the move.
+13. Create `tertius.base` and `tertius.demo`. Move the components and the scene of the host and scripted runs work into them. Rename `Tertius.Demo` to `Tertius.Launcher`, with a `--game` option. Done: the scripted runs give the same state dumps and captures as before the move.
 14. Write the CLI commands, `package build` included. Test the command classes directly, and test every exit code. Run the process once as a smoke test. Done: a built `tertius.demo` in a fresh mod root loads with no SDK and no asset tools.
-15. Write the benchmarks and report the numbers. Move the decisions of plans 07 and 08 into ARCHITECTURE.md, and mark both plans done.
+15. Write the benchmarks and report the numbers. Move the decisions of content formats and of this design into ARCHITECTURE.md, and close the epic tickets of both designs.
 
 ## Testing
 
@@ -878,7 +878,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
 - Determinism across processes: two child processes load one content set and print the event payload ids, topic ids, `BlueprintId` values and spawned handles. The outputs must be equal.
 - The unload lock-in test of step 11.
 - An architecture test: no type in the engine assemblies implements `IComponent`.
-- The scripted runs of plan 06, unchanged, as the proof that the move into packages kept the behavior.
+- The scripted runs from host and scripted runs, unchanged, as the proof that the move into packages kept the behavior.
 - Analyzer tests in the style of Roslyn analyzer tests: source in, diagnostics out.
 - `ContentSet.AssertInvariants` after every load in the tests.
 - Lock-in tests for the decisions:

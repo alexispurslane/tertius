@@ -1,6 +1,6 @@
-# 04 Anti-aliasing
+# Anti-aliasing
 
-Ticket: `ter-gcm3`. It needs plan 03 for its snapshot tests.
+Ticket: `ter-gcm3`. Its tests use the [renderer snapshot tests](renderer-snapshot-tests.md).
 
 ## Goal
 
@@ -9,7 +9,7 @@ Add SMAA 1x (subpixel morphological anti-aliasing, single sample) as the default
 ## Decisions
 
 - SMAA 1x is on by default. A switch in `RendererOptions` turns it off. (User)
-- The deterministic-rendering switch from plan 03 turns it off, so the existing snapshots stay valid. Separate snapshot scenes test SMAA itself.
+- The deterministic-rendering switch from the renderer snapshot tests work turns it off, so the existing snapshots stay valid. Separate snapshot scenes test SMAA itself.
 - Measure the cost with GPU timestamps and report it. (User: the engine must be fast.)
 - Toksvig gloss reduction is optional. It reduces specular sparkle on bumpy, glossy surfaces. If the snapshots show sparkle, add it as a switchable feature.
 

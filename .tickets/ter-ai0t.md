@@ -12,5 +12,5 @@ tags: [host, slice]
 ---
 # Vertical slice: a person walks inside the orbiting ship
 
-Step 3 of docs/plans/06-host-and-scripted-runs.md.
+Step 3 of docs/plans/host-and-scripted-runs.md.
 

@@ -12,5 +12,5 @@ tags: [host]
 ---
 # Write the script format and the runner test-first, with a world that has no renderer
 
-Step 1 of docs/plans/06-host-and-scripted-runs.md. Give Tertius.Demo a Main method, so that dotnet build Tertius.slnx succeeds.
+Step 1 of docs/plans/host-and-scripted-runs.md. Give Tertius.Demo a Main method, so that dotnet build Tertius.slnx succeeds.
 

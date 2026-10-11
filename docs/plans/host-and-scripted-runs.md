@@ -1,4 +1,4 @@
-# 06 Host and scripted runs
+# Host and scripted runs
 
 Ticket: `ter-dtw2`. The user approved this design.
 
@@ -29,7 +29,7 @@ The demo shows the engine's main idea working end to end:
 3. The person goes through an airlock to the outside.
 4. The person throws an object from one frame into another.
 
-The demo starts as C# code. Plan 08 later moves its content into the first content package.
+The demo starts as C# code. The [content packages and mods](content-packages.md) work later moves the content of the demo into the first content package.
 
 ## Steps
 

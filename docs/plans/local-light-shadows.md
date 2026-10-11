@@ -1,4 +1,4 @@
-# 05 Point and spot light shadows
+# Point and spot light shadows
 
 Ticket: `ter-s9cv`. The user approved this design.
 

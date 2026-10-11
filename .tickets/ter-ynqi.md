@@ -11,5 +11,5 @@ tags: [content]
 ---
 # Content packages and mods
 
-Design: docs/plans/08-content-packages.md.
+Design: docs/plans/content-packages.md.
 

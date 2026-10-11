@@ -1,17 +1,17 @@
-# 10 Editor
+# Editor
 
-Ticket: `ter-631h`. It needs plan 06 for the host, plans 07 and 08 for content, and plan 09 for assets.
+Ticket: `ter-631h`. It needs the host from [host and scripted runs](host-and-scripted-runs.md). It needs content from [content formats](content-formats.md) and [content packages and mods](content-packages.md), and assets from the [asset pipeline](asset-pipeline.md).
 
 ## Goal
 
 Build an editor for everything in Tertius with Dear ImGui, and give it a theme that looks like a desktop application. (User)
 
-- The editor edits the content files of plans 07 and 08: scenes, blueprints, patches and manifests.
+- The editor edits the content files of the content formats and content packages designs: scenes, blueprints, patches and manifests.
 - A 3D viewport shows the result at every scale from 1 m to 1e11 m.
 - Play mode runs the game's component DLLs inside the editor, and the editor loads them again after a rebuild.
 - Every editor action is also a script step. Claude agents can drive the editor without a window and read its screenshots.
 
-The first useful editor has a viewport, a hierarchy, an inspector and play mode (step groups A and B). The asset browser, the blueprint editor, the console, the message log, the profiler, the debug switches and package management follow in group C. Plan 09 owns asset import, previews, thumbnails and asset hot reload. This plan connects them to the editor (see "Assets in the editor") and does not design them again.
+The first useful editor has a viewport, a hierarchy, an inspector and play mode (step groups A and B). The asset browser, the blueprint editor, the console, the message log, the profiler, the debug switches and package management follow in group C. The asset pipeline design owns asset import, previews, thumbnails and asset hot reload. This design connects them to the editor (see "Assets in the editor") and does not design them again.
 
 ## Decisions
 
@@ -34,13 +34,13 @@ The first useful editor has a viewport, a hierarchy, an inspector and play mode 
 11. The edit world has no physics backend and never ticks. It shows the start state of the scene. With physics, bodies move away from the poses that the user edits.
 12. Play mode spawns a new world, the play world, from the documents in memory. Stop disposes it. So stop restores the edit state exactly, by construction.
 13. The editor runs the UI, the ticks and the recording of GPU commands on the main thread. The World API belongs to one thread, and Dear ImGui draw data lives only until the next UI frame. The simulation result does not depend on the thread that ticks.
-14. Code reload follows plan 08: dispose the worlds, unload the package contexts, load again and rebuild from the documents. The editor never swaps code inside a live world.
+14. Code reload follows the content packages design: dispose the worlds, unload the package contexts, load again and rebuild from the documents. The editor never swaps code inside a live world.
 15. The editor camera is not an entity. It is a frame handle, an eye pose in that frame and a field of view. A new engine-only call builds a render snapshot from it. The camera follows the frame rules of ARCHITECTURE.md, so it moves between frames like an object.
 16. The flight speed of the camera scales with the distance to the nearest surface. The GPU measures that distance in the view, and the CPU measures it to the bounding spheres around the camera. One control then works from 1 m to 1e11 m.
 17. Picking uses a pick pass that runs only for a click, cut to one pixel by a scissor. It writes the entity index and generation, so the result is a full `Entity` handle with a generation check.
 18. The gizmo is ImGuizmo. It works in the axes of the frame of the selected entity, and the editor applies its delta matrix in doubles. The pinned ImGuizmo handles reversed and infinite projections, so it gets the engine's projection without the Y flip of Vulkan clip space.
 19. Overlays, such as frame bubbles and orbits, are 3D lines that a new line pass of the renderer draws. The pass dims lines behind geometry with the distance target. Captures for agents include the overlays.
-20. Every editor action is a method of one class, `EditorApi`. The panels and the scripts call the same methods. The headless runner uses the step format of plan 06.
+20. Every editor action is a method of one class, `EditorApi`. The panels and the scripts call the same methods. The headless runner uses the step format of the host and scripted runs design.
 21. The Dear ImGui Test Engine is left out for now. Its license is free for the user as a natural person, but it is C++ only and has no Hexa binding. Snapshot tests and `EditorApi` tests cover the editor.
 22. The editor saves a document by itself 1 s after the last edit, and also on Cmd+S. Agents, git and the CLI read the files, so an unsaved change is invisible to them. Undo still works after a save. (User)
 23. Stop discards the changes that the inspector made during play mode. "Apply to scene" keeps the live values of one component, as one undoable edit. Play mode then never changes a document by surprise. (User)
@@ -80,7 +80,7 @@ tools/Tertius.Editor/
   Scripting/            EditorApi, ScriptRunner, LiveChannel
 ```
 
-`tertius editor` starts the editor, and `tertius editor run` runs a script. The `tertius` wrapper of plan 08 forwards both to this project.
+`tertius editor` starts the editor, and `tertius editor run` runs a script. The `tertius` wrapper from the content packages work forwards both to this project.
 
 ### Threads and the UI frame
 
@@ -88,7 +88,7 @@ A UI frame is one pass of the editor loop that draws the window once. One UI fra
 
 1. Read the window events and give them to Dear ImGui. In play mode, input for the Game view goes to the play world as `InputEvent` posts.
 2. Apply the asset imports that finished on the background thread (see "Assets in the editor").
-3. In play mode, run the ticks that are due, with the fixed-step loop of plan 06. At most 4 ticks run per UI frame. If the simulation falls behind, play mode slows down, and the status bar shows the speed, for example `0.6x`.
+3. In play mode, run the ticks that are due, with the fixed-step loop of the host. At most 4 ticks run per UI frame. If the simulation falls behind, play mode slows down, and the status bar shows the speed, for example `0.6x`.
 4. Apply the edits of the previous UI frame to the edit world (see "From documents to the edit world").
 5. Build the UI: `ImGui.NewFrame`, every panel, `ImGui.Render`.
 6. Build a render snapshot for each visible 3D view, and the line overlays of each view.
@@ -388,7 +388,7 @@ The parts of a scene are in an `ImmutableList`, so an edit of one entity copies 
 Saving follows these rules. The editor saves by itself 1 s after the last edit, and also on Cmd+S (User). The rules hold for both kinds of save.
 
 - A document is dirty while it is not the same object as the document that the editor last saved or loaded. Undo back to the saved state makes it clean again.
-- Save writes the canonical layout of plan 07 with `ContentFormat`. It writes a temporary file and renames it.
+- Save writes the canonical layout of the content formats design with `ContentFormat`. It writes a temporary file and renames it.
 - Before each save, the editor compares the bytes on disk with the bytes that it last loaded or saved. If they differ, it does not write, and it shows the banner of an external change instead. So a save that comes after the write of an agent, and before the watcher event, never overwrites that write.
 - The editor watches every open file. If a clean document changes on disk, the editor loads it again and adds a history entry, "External change to scenes/start.scene.json". If a dirty document changes on disk, a banner offers "Keep mine" and "Load from disk". Agents often change files while the editor runs, so this case is normal and not an error.
 
@@ -410,7 +410,7 @@ After each UI frame with edits, `WorldSync` compares the old and the new documen
 | Anything else: `blueprint`, `frame`, `attachTo`, other `asFrame` keys, added or removed components, added or removed entities, `startTime` | Rebuild | Prepare the scene, create a new edit world, spawn |
 | Any blueprint or patch document | Rebuild | `ContentLoader.ReloadData` with the open documents, then as above |
 
-Each in-place change binds one entity entry again with the preparer of one entity entry (step B4). That preparer applies the patches of the content set to the entry first, as phase 7 of plan 08 does. A blueprint edit rebuilds the edit world after its gesture ends, not on every UI frame. A reload of the data takes tens of milliseconds.
+Each in-place change binds one entity entry again with the preparer of one entity entry (step B4). That preparer applies the patches of the content set to the entry first, as phase 7 of the content packages loader does. A blueprint edit rebuilds the edit world after its gesture ends, not on every UI frame. A reload of the data takes tens of milliseconds.
 
 Errors leave the editor usable:
 
@@ -432,27 +432,27 @@ Errors leave the editor usable:
 In edit mode, the hierarchy comes from the scene document and from the patches of the content set:
 
 - A root frame is a top node. Inside a frame come its entities, and a frame entity holds its own contents. Attachments sit under their parents.
-- Children keep document order, which is also the tie-break of the spawn order (plan 07).
+- Children keep document order, which is also the tie-break of the spawn order (see the content formats design).
 - A drag onto a frame entity sets `frame`. A drag with Alt onto an entity sets `attachTo`. The editor converts the pose, or makes an attach offset, so that the entity keeps its place in space at the start time.
 - A drag between two rows changes the member order of `entities`. This changes the spawn order and so the entity handles in play mode. The result is still deterministic.
 - Delete removes the entry, its attachments and the contents of a frame entity. A popup lists every entry that goes with it. `Entity` fields that named a removed entry become errors in the console. The editor never clears them silently.
-- An entity that a patch adds, such as `shield-hum` of plan 08, is a read-only row with the patch color. Its tooltip names the patch, such as `alice.shields:start-hum`. Without a content set, the hierarchy shows only the scene document.
+- An entity that a patch adds, such as `shield-hum` of the content packages design, is a read-only row with the patch color. Its tooltip names the patch, such as `alice.shields:start-hum`. Without a content set, the hierarchy shows only the scene document.
 - New entries get a scene id from the last segment of the blueprint id and a number, such as `crate-2`.
-- Rename changes a scene id and every reference to it in the same scene: `frame`, `attachTo`, `camera`, `sun.frame`, and component fields of type `Entity` or `FrameHandle`. The contract walk of plan 07 finds these fields. Patches in other packages can name the old id, and the console warns about each one.
+- Rename changes a scene id and every reference to it in the same scene: `frame`, `attachTo`, `camera`, `sun.frame`, and component fields of type `Entity` or `FrameHandle`. The contract walk of the content formats design finds these fields. Patches in other packages can name the old id, and the console warns about each one.
 - Selection uses `BeginMultiSelect` of Dear ImGui: click, Shift and Cmd. A list clipper draws only the visible rows, so 10,000 entities stay fast.
 
 In play mode, the hierarchy comes from the live play world, once per tick. Entities from the scene show their scene ids. Entities that components spawned show `#index.generation` and their blueprint id.
 
 ### The inspector
 
-The inspector shows the selected entity as the merge of its blueprint and its scene entry, with patches. It uses `ContentSet.Explain(scene, sceneId)` of plan 08 for the source of each value:
+The inspector shows the selected entity as the merge of its blueprint and its scene entry, with patches. It uses `ContentSet.Explain(scene, sceneId)` of the content packages design for the source of each value:
 
 - A value of the scene entry has a blue marker dot. The context menu offers "Revert to blueprint value", which removes the key from the entry.
 - A value from the blueprint shows its source in a tooltip, such as `tertius.demo:ships/corvette`.
 - A value that a patch sets has the patch marker, and its widget is read-only. A patch applies to the scene file before the merge, so an edit of the scene entry has no effect at load. The tooltip names the patch, and "Open patch" opens the patch document at that value. `EditorApi.Set` on such a value writes the entry and returns a warning that names the patch.
 - An edit writes into the scene entry. "Edit in blueprint" opens the blueprint document at that value.
 
-One widget model exists per value form of the contracts of plan 07. A widget model reads `JsonTypeInfo` and `JsonPropertyInfo`: the key, the type and the converter. `AttributeProvider` gives it `[Range]`, `[Color]` and the description. It turns the current value and the widget input into a new `JsonNode`, with no Dear ImGui calls. So the tests cover it with no UI.
+One widget model exists per value form of the contracts of the content formats design. A widget model reads `JsonTypeInfo` and `JsonPropertyInfo`: the key, the type and the converter. `AttributeProvider` gives it `[Range]`, `[Color]` and the description. It turns the current value and the widget input into a new `JsonNode`, with no Dear ImGui calls. So the tests cover it with no UI.
 
 | Value form | Widget |
 |---|---|
@@ -478,14 +478,14 @@ Rules for written values:
 - The rotation of the three angles is R = Ry(yaw) · Rx(pitch) · Rz(roll) for column vectors: roll first, then pitch, then yaw, about the fixed axes of the parent. This is the order of `Quaternion.CreateFromYawPitchRoll` (probe). A test locks it in.
 - During a drag of an angle, the inspector keeps the three angles in its UI state. They do not jump between equal rotations with other angles.
 - A typed number keeps its text. A dragged number is written with the shortest text that reads back as the same value.
-- "Add component" lists only the names that the file can use: its own package, then direct dependencies (plan 08). A search field filters the list.
-- The description of a member (plan 07) is its tooltip.
+- "Add component" lists only the names that the file can use: its own package, then direct dependencies (see the content packages design). A search field filters the list.
+- The description of a member (see the content formats design) is its tooltip.
 
 `[Color]` is a new attribute in the mod API, in `Tertius.Simulation`. It marks a `Vector3` or `Vector4` member as a color for the inspector.
 
 The raw inspector edits any content file as a JSON tree: keys, values, add and remove. It serves manifests, patches, files of an unknown kind, and every file after a failed code load.
 
-`InspectorCache` holds compiled accessors and widget models per component type. Play mode reads live values through these accessors, not through reflection on each UI frame. The cache belongs to the code set, and the editor drops it before `CodeSet.Unload` (plan 08, table of holders).
+`InspectorCache` holds compiled accessors and widget models per component type. Play mode reads live values through these accessors, not through reflection on each UI frame. The cache belongs to the code set, and the editor drops it before `CodeSet.Unload` (see the table of holders in the content packages design).
 
 ### Play mode
 
@@ -507,22 +507,22 @@ Code reload:
 1. A watcher sees a changed DLL in the `bin/` folder of a package, and waits 500 ms for more changes.
 2. If play mode runs, stop it, and say so in the console.
 3. Dispose the edit world and every content set. Drop `InspectorCache` and the message trace.
-4. Call `CodeSet.Unload`. If a package context stays alive, show warning CT5010 and a banner that asks for a restart. The editor still continues. On the fallback of plan 07, decision 18, the editor saves every document and restarts its process instead.
+4. Call `CodeSet.Unload`. If a package context stays alive, show warning CT5010 and a banner that asks for a restart. The editor still continues. On the fallback of decision 18 of the content formats design, the editor saves every document and restarts its process instead.
 5. Load the content again, and rebuild the edit world from the documents. The documents keep every unsaved change.
 
 The Build button runs `dotnet build` for the code project of the selected package as a child process. The console shows its output, and each compiler error opens its file and line. The DLL watcher then starts the reload.
 
 ### Assets in the editor
 
-The editor connects the asset pipeline of plan 09 like this:
+The editor connects the asset pipeline like this:
 
 - One `AssetStore` lives for the whole editor process. The editor creates it at start, with the renderer and with `CheckFreshness` on. Every load and every `ReloadData` uses it, so unchanged assets keep their ids.
 - Before play spawns the play world, it calls `IPhysicsBackend.Prepare` on the new physics backend for each shape of `AssetStore.Shapes`. The sync point then never builds a large shape. The edit world has no physics, so it needs no shapes.
 - `AssetWatcher` watches the `assets/` folder of every source package of the load set. It imports on its background thread and raises `Imported` on that thread.
 - The handler of `Imported` only puts the report into a queue. In step 2 of each UI frame, the main thread takes the reports and calls `AssetStore.Reload`. `Reload` calls `IRenderer.Replace*`, and the renderer records its commands on the main thread (decision 13).
-- A drop of a file onto the window runs `add` of plan 09 on a background thread, and its report goes through the same queue.
+- A file drop onto the window runs `add` of the asset pipeline on a background thread, and its report goes through the same queue.
 - The console shows the diagnostics of every import, and the asset browser marks the assets that failed.
-- A `.blend` source needs the assets shell of plan 09. In the default shell, a changed `.blend` file gives AS6001 in the console, and the last good output stays.
+- A `.blend` source needs the assets shell of the asset pipeline. In the default shell, a changed `.blend` file gives AS6001 in the console, and the last good output stays.
 
 After `Reload`, the editor acts on the flags of `AssetReload`:
 
@@ -593,7 +593,7 @@ Other camera controls:
 - A click in the Scene view asks for a pick at that pixel.
 - In that UI frame, a pick pass draws the visible instances of each depth range again, from far to near. A scissor cuts it to one pixel. It writes the entity index and the generation into a 1 × 1 R32G32_UINT image.
 - The pass draws impostor billboards too. The result arrives after the GPU frames in flight.
-- The editor makes sure that the handle is alive with `World.IsAlive`. The selection then maps the handle to a scene id through the `SceneInstance` of plan 07.
+- The editor makes sure that the handle is alive with `World.IsAlive`. The selection then maps the handle to a scene id through the `SceneInstance` of the content formats design.
 - Transparent instances are not in the G-buffer. If the pass finds nothing, the CPU tests the click ray against the bounding spheres of the transparent instances.
 - `RenderInstance` gets an `EntityGeneration` field for this. The pick shader reads it from a per-instance buffer that the batcher fills only in UI frames with a pick.
 
@@ -634,13 +634,13 @@ The colors of bubbles and orbits follow the depth in the frame tree (see the pal
 
 Asset browser:
 
-- A tree of packages and folders, and a grid of thumbnails. The thumbnails are the `thumbnail.png` files of plan 09, 256 × 256 pixels each.
+- A tree of packages and folders, and a grid of thumbnails. The thumbnails are the `thumbnail.png` files of the asset pipeline, 256 × 256 pixels each.
 - Thumbnails load as UI textures, with a cache of 256 textures: 256 KB each, 64 MB in all. Released slots of the bindless array go back to the renderer. Content textures and UI textures share the 4,093 user slots of the array.
 - Filters by kind: models, textures, blueprints and scenes. A search field matches ids.
-- A drag of a blueprint into the Scene view or the hierarchy adds an entity entry with that blueprint. A drag of a model asset adds an entry with the render section that plan 09 defines for models.
-- A drag of a file from the operating system into the window imports it into the selected package folder, through the import of plan 09.
-- The asset inspector shows the import configuration and the record of the source: URL, author and license (plan 09).
-- Rename uses `tertius content rename` of plan 08.
+- A drag of a blueprint into the Scene view or the hierarchy adds an entity entry with that blueprint. A drag of a model asset adds an entry with the render section that the asset pipeline design defines for models.
+- A drag of a file from the operating system into the window imports it into the selected package folder, through the asset pipeline.
+- The asset inspector shows the import configuration and the record of the source: URL, author and license (see the asset pipeline design).
+- Rename uses `tertius content rename` of the content packages design.
 
 Blueprint editor:
 
@@ -654,7 +654,7 @@ Console:
 
 - Lines from `World.Log`, `World.Errors`, content diagnostics, build output and the editor.
 - Filters by severity and by text.
-- A diagnostic opens its file at its line in the external editor. For a diagnostic with only a pointer, `JsonPositions.Find` of plan 07 gives the line at that time. The command is in the editor configuration, with `{file}`, `{line}` and `{column}` placeholders, and `code --goto {file}:{line}:{column}` is the default.
+- A diagnostic opens its file at its line in the external editor. For a diagnostic with only a pointer, `JsonPositions.Find` of the content formats design gives the line at that time. The command is in the editor configuration, with `{file}`, `{line}` and `{column}` placeholders, and `code --goto {file}:{line}:{column}` is the default.
 - A diagnostic whose pointer is inside a scene entity also selects that entity.
 
 Message log:
@@ -690,7 +690,7 @@ Packages panel:
 
 `EditorApi` has one public method per editor action. Panels call it, the script runner calls it, and the live channel calls it. Arguments and results are records that convert to JSON.
 
-A script uses the step format of plan 06 and adds the editor steps:
+A script uses the step format of the host and scripted runs design and adds the editor steps:
 
 ```json
 {
@@ -725,13 +725,13 @@ A script uses the step format of plan 06 and adds the editor steps:
 | `reload` | Reloads data or code |
 | `frames` | Runs the given number of UI frames |
 | `capture` | Writes a PNG of the window, of one panel, or of one view |
-| `dump` | Writes JSON: an entity entry, a document, the selection, the history, the diagnostics, profiler numbers, or the world state dump of plan 06 |
+| `dump` | Writes JSON: an entity entry, a document, the selection, the history, the diagnostics, profiler numbers, or the world state dump of the host and scripted runs design |
 | `expect` | Compares a document value or a dump value with an expected value |
 
 - The command is `tertius editor run --script <file> [--headless] [--out <folder>] [--json]`.
 - With `--json`, each step prints one JSON line: the step number, `ok`, the written files, the diagnostics and the time.
-- The exit codes are the codes of every `tertius` subcommand, in the table of plan 08. A failed `expect` gives code 6.
-- `dump` and every `EditorApi` result write component values and payloads with `JsonSerializer` and the options of the code set (plan 07). They never use `JsonSerializerOptions.Default`, whose caches live as long as the process.
+- The exit codes are the codes of every `tertius` subcommand, in the table of the content packages design. A failed `expect` gives code 6.
+- `dump` and every `EditorApi` result write component values and payloads with `JsonSerializer` and the options of the code set (see the content formats design). They never use `JsonSerializerOptions.Default`, whose caches live as long as the process.
 - A panel capture crops the window image to the rectangle of the panel.
 
 Rules that make a scripted run give the same images every time:
@@ -740,14 +740,14 @@ Rules that make a scripted run give the same images every time:
 - The layout file is off, so the default layout always applies.
 - Every UI frame has a delta time of 1/60 s.
 - Text cursors do not blink, and the mouse rests outside every window unless a step moves it.
-- The views use the deterministic switch of plan 03.
+- The views use the deterministic switch of [renderer snapshot tests](renderer-snapshot-tests.md).
 - Every number that comes from a clock, such as UI frame times in the status bar, shows as `-`.
 
 The live channel (group C) lets an agent drive the open editor while the user watches. `tertius editor --listen` opens a Unix domain socket at `.tertius/editor/editor.sock` with file mode 0600. It takes the same step objects as JSON lines and answers with the same results. It is off by default, and it never listens on a network port.
 
 ### Engine changes
 
-Every engine-only member gets `[EngineOnly]` from plan 08. Each change goes in test-first.
+Every engine-only member gets `[EngineOnly]` from the content packages work. Each change goes in test-first.
 
 | Module | Change | Used for | Step |
 |---|---|---|---|
@@ -765,21 +765,21 @@ Every engine-only member gets `[EngineOnly]` from plan 08. Each change goes in t
 | Rendering | `RendererOptions.GpuTimings`, pass times in `RenderStats` | The profiler | C5 |
 | Rendering | Per-view impostor and shadow switches, display modes, the selection outline pass | The debug panel | C6 |
 
-### Needs from plans 07, 08 and 09
+### Needs from the content formats, content packages and asset pipeline designs
 
 Each need has one step that owns it. Some are small additions to `Tertius.Content` that only the editor uses, so steps of this plan write them.
 
-| Plan | Need | Owner |
+| Design | Need | Owner |
 |---|---|---|
-| 07 | `ContentDocument` and `ContentEdit` in `Tertius.Content`: documents in parts, and edits by JSON Pointer that keep the unchanged parts | This plan, step B1 |
-| 07 | A partial scene: the preparer leaves out a broken entry with its contents and attachments, and reports diagnostics. | This plan, step B2 |
-| 07 | A preparer for one entity entry against a prepared scene, with the patches of the content set. Public reads of `PreparedEntity`: pose, render data, body, recipes, frame and parent ids. | This plan, step B4 |
-| 08 | `ContentRequest.Overrides`: file text in memory, by file path, that `Load` and `ReloadData` use instead of the files on disk | This plan, step B2 |
-| 08 | `ContentLoader.FindPackages`: the package index and its diagnostics, also for a load that fails | Plan 08, step 3 |
-| 08 | `ContentSet.Explain(scene, sceneId)`: one entity entry merged over its blueprint, with patches and sources | Plan 08, step 9 |
-| 09 | `thumbnail.png` for each asset | Plan 09, step 16 |
-| 09 | The importer as a library call, `AssetWatcher`, and `AssetStore.Reload` behind the same ids | Plan 09, steps 13 and 18 |
-| 07, 09 | `render.model` for a dropped model asset | Plan 07, and plan 09 step 14 |
+| Content formats | `ContentDocument` and `ContentEdit` in `Tertius.Content`: documents in parts, and edits by JSON Pointer that keep the unchanged parts | This plan, step B1 |
+| Content formats | A partial scene: the preparer leaves out a broken entry with its contents and attachments, and reports diagnostics. | This plan, step B2 |
+| Content formats | A preparer for one entity entry against a prepared scene, with the patches of the content set. Public reads of `PreparedEntity`: pose, render data, body, recipes, frame and parent ids. | This plan, step B4 |
+| Content packages | `ContentRequest.Overrides`: file text in memory, by file path, that `Load` and `ReloadData` use instead of the files on disk | This plan, step B2 |
+| Content packages | `ContentLoader.FindPackages`: the package index and its diagnostics, also for a load that fails | Content packages, step 3 |
+| Content packages | `ContentSet.Explain(scene, sceneId)`: one entity entry merged over its blueprint, with patches and sources | Content packages, step 9 |
+| Asset pipeline | `thumbnail.png` for each asset | Asset pipeline, step 16 |
+| Asset pipeline | The importer as a library call, `AssetWatcher`, and `AssetStore.Reload` behind the same ids | Asset pipeline, steps 13 and 18 |
+| Content formats, asset pipeline | `render.model` for a dropped model asset | Content formats, and asset pipeline step 14 |
 
 ### Code
 
@@ -1011,7 +1011,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
 1. A1, native libraries. Write `native/cimgui.nix`, `native/cimguizmo.nix` and the font derivation, the flake entries and the `UsesImGui` copy. First write the test that creates a Dear ImGui context, turns on docking and runs one empty UI frame. The test also compares the struct sizes with `cimgui-sizes.json`. Done: the test passes in the dev shell, and the symbol lists of the Nix and NuGet libraries are equal.
 2. A2, the UI pass. First write CPU tests for `UiDrawList` (indices in range, clip rectangles, offsets) and for slot reuse after the GPU frames in flight. Write a snapshot test that draws a fixed `UiDrawList` headlessly: colored rectangles, a clipped triangle and a texture with an updated rectangle. Then add `UpdateTexture`, `ReleaseTexture`, `TextureData.Mips`, `UnormOutput` and the UI pass. Done: the snapshot is approved after a review.
 3. A3, the editor shell. First write CPU tests for the scale rule, the theme values in the style, the key map and the tree of the default layout. Then build the window, the platform backend, `UiBridge`, the fonts, the icons, the theme, the menus, the toolbar, the status bar and empty panels. Done: `tertius editor` opens in the dev shell, and the theme preview window has an approved snapshot at scale 1 and at scale 2.
-4. A4, views. First write a Simulation test: a `CameraView` build equals a build with a camera entity at the same eye pose, and it leaves the interpolation memory unchanged. Write renderer tests for the life of a view and the resize after 3 stable UI frames. Then add `RenderView`, `RenderFrame`, the main G-buffer on demand and `BuildRenderSnapshot`. Done: the Scene panel shows the world of plan 06 from a free camera.
+4. A4, views. First write a Simulation test: a `CameraView` build equals a build with a camera entity at the same eye pose, and it leaves the interpolation memory unchanged. Write renderer tests for the life of a view and the resize after 3 stable UI frames. Then add `RenderView`, `RenderFrame`, the main G-buffer on demand and `BuildRenderSnapshot`. Done: the Scene panel shows the world of the host and scripted runs work from a free camera.
 5. A5, the headless runner. First write tests for the script parser, the exit codes and the capture of one panel. Then add headless mode, `frames`, `capture` and `expect`. Done: the snapshot tests of A3 and A4 run through scripts.
 
 ### Group B: the first useful editor
@@ -1034,7 +1034,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
    - An unsaved document reaches the content set through `Overrides`.
 
    Then create the `AssetStore` of the editor, and add opening and saving of scenes, the hierarchy panel and selection. Done: a save with no edits gives the same bytes as `tertius content format`.
-8. B3, the inspector. First write round-trip tests: a value that the inspector writes with `JsonSerializer.SerializeToNode` binds back to an equal value. Reference and scene id widgets write their text instead, because their converters write only debug forms (plan 07). Then write one test per widget model and per rule for written values, the rotation order included. Test the value sources and revert, patched values that are read-only, the list of components that a file can add, and the raw inspector. Add `ColorAttribute`. Done: every field of the demo crate and corvette changes through `EditorApi`, and the documents bind with no errors.
+8. B3, the inspector. First write round-trip tests: a value that the inspector writes with `JsonSerializer.SerializeToNode` binds back to an equal value. Reference and scene id widgets write their text instead, because their converters write only debug forms (see the content formats design). Then write one test per widget model and per rule for written values, the rotation order included. Test the value sources and revert, patched values that are read-only, the list of components that a file can add, and the raw inspector. Add `ColorAttribute`. Done: every field of the demo crate and corvette changes through `EditorApi`, and the documents bind with no errors.
 9. B4, the in-place path. Add the preparer of one entity entry to `Tertius.Content`, with its tests first: it gives the same entity as a full preparation, patches included. Write Simulation tests for each new setter: outside a tick only, a stale handle throws, and the world invariants hold. Then write the property test: random edit sequences on the demo scene give the same edit world in place as after a rebuild. Done: a drag of 600 UI frames on a scene of 10,000 entities stays within the sync budget.
 10. B5, the viewport. First write tests:
     - The frame changes of the camera, with the margin.
@@ -1051,15 +1051,15 @@ Each step writes its tests first and sees them fail for the right reason. The en
     - The labels of the play hierarchy, live inspector values and tick timings.
     - Play calls `Prepare` on its new physics backend for every shape of the store, and the first tick builds no shape.
     - The unload lock-in test. Load a fixture package with code, and select an entity with a package component. Play one tick and dump the entity with `dump`. Then stop and reload the code. A `WeakReference` to the old context must die.
-    - Determinism: play in the editor and the scripted run of plan 06 give equal state dumps after 600 ticks.
+    - Determinism: play in the editor and the scripted run of the host give equal state dumps after 600 ticks.
 
-    Done: the demo plays in the editor, and a code rebuild reloads without a restart, or with one on the fallback of plan 07.
-12. B7, the script API for group B. First write one test per step kind. Then add the remaining steps and the snapshot tests of the group B panels: the demo layout, the inspector of the corvette, the open hierarchy and the Scene view with overlays. Done: a script plays the vertical slice of plan 06 in the editor and writes the same state dumps.
+    Done: the demo plays in the editor, and a code rebuild reloads without a restart, or with one on the fallback of the content formats design.
+12. B7, the script API for group B. First write one test per step kind. Then add the remaining steps and the snapshot tests of the group B panels: the demo layout, the inspector of the corvette, the open hierarchy and the Scene view with overlays. Done: a script plays the vertical slice of the host and scripted runs design in the editor and writes the same state dumps.
 
 ### Group C: the rest
 
 13. C1, the console. Test the filters and the parser of compiler-format lines first. Add the Build button and the external editor command.
-14. C2, the asset browser and asset hot reload. First test the thumbnail cache limits and the entries that drops create. Test that `Reload` runs only on the main thread, from the queue. Test the action for each flag of `AssetReload` in edit mode and in play mode. Then add the panel, drags, file drops through plan 09, and `AssetWatcher`.
+14. C2, the asset browser and asset hot reload. First test the thumbnail cache limits and the entries that drops create. Test that `Reload` runs only on the main thread, from the queue. Test the action for each flag of `AssetReload` in edit mode and in play mode. Then add the panel, drags, file drops through the asset pipeline, and `AssetWatcher`.
 15. C3, the blueprint editor. Test the parent chain, the value sources and "Create blueprint from entity" first. Add the tabs and the preview world.
 16. C4, the message log. Test `EventTrace` in Simulation first: records, the drop count, the ring buffer, the cost with the trace off, and no `Extra` objects kept. Add the panel and the inbox filter.
 17. C5, the profiler. Test the timing collection and the averages first. Add GPU timestamps, and compare the sum of the pass times with the frame time on this machine.
@@ -1074,7 +1074,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
 - CPU tests for the camera, flight, the gizmo math, picking and overlays.
 - CPU tests for the theme, the scale rule and the script runner.
 - The property test of step B4, which compares the in-place path with a rebuild after random edit sequences.
-- Snapshot tests through the headless runner and the FLIP setup of plan 03: the empty layout, the theme preview, the demo layout, the inspector, the hierarchy, the Scene view with overlays, the display modes and the selection outline. Panels that show clock values get CPU tests of their models instead of snapshots.
+- Snapshot tests through the headless runner and the FLIP setup of the renderer snapshot tests: the empty layout, the theme preview, the demo layout, the inspector, the hierarchy, the Scene view with overlays, the display modes and the selection outline. Panels that show clock values get CPU tests of their models instead of snapshots.
 - The unload lock-in test of step B6.
 - The determinism test of step B6: the editor and the launcher give equal state dumps.
 - `EditorSession.AssertInvariants` and `History.AssertInvariants` after every step of the editor tests.
@@ -1105,13 +1105,13 @@ The user accepted every recommendation of this section on 2026-10-10.
 - A light theme. The palette is one table, so a second table can add it.
 - ImPlot graphs, node editors and visual scripting.
 - The Dear ImGui Test Engine.
-- Prefabs: the scene instancing that plan 07 lists as later work.
+- Prefabs: the scene instancing that the content formats design lists as later work.
 - A time control that moves Kepler frames in edit mode without ticks.
 - Editing of several selected entities at once in the inspector.
 - Unit attributes for component fields, such as meters or newtons.
 - Native file dialogs and the native macOS menu bar.
 - Deletion of asset files from the browser.
 - Editor extensions inside packages, such as custom inspectors from mods.
-- Replacement of component code inside a live world, which plan 08 rules out.
+- Replacement of component code inside a live world, which the content packages design rules out.
 - An in-game debug UI that uses the same UI pass.
 - A move to a stable Hexa.NET.ImGui 3.x release, after one exists.

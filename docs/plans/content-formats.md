@@ -1,6 +1,6 @@
-# 07 Content formats: blueprints and scenes
+# Content formats: blueprints and scenes
 
-Ticket: `ter-jwzd`. It needs plan 06 for the host. Plan 08 builds packages on top of it. Plans 09 and 10 use both.
+Ticket: `ter-jwzd`. It needs the host from [host and scripted runs](host-and-scripted-runs.md). [Content packages and mods](content-packages.md) builds packages on top of it. The [asset pipeline](asset-pipeline.md) and the [editor](editor.md) use both.
 
 ## Goal
 
@@ -10,30 +10,30 @@ Store blueprints and scenes in JSON files that people and agents can write by ha
 - A scene file describes a starting state of a world: a set of entities, their frames, their attachments and their per-instance values.
 - The loader turns blueprint files into `Blueprint` records and scene files into spawned entities.
 
-Today a blueprint exists only as a C# object (`src/Tertius.Simulation/Blueprints/Blueprints.cs`), and no scene format exists. This plan owns the file formats, the merge rule, the value grammar, the schemas and the scene spawner. Plan 08 owns packages, ids, mods and code loading. Plan 09 owns the assets that the files name.
+Today a blueprint exists only as a C# object (`src/Tertius.Simulation/Blueprints/Blueprints.cs`), and no scene format exists. This plan owns the file formats, the merge rule, the value grammar, the schemas and the scene spawner. The content packages design owns packages, ids, mods and code loading. The asset pipeline design owns the assets that the files name.
 
-Two terms of plan 08 appear in this plan. A content set is the result of one load: the packages, the frozen blueprint registry and the prepared scenes. A code set is the loaded package code under a content set: the component types and the caches over them. Several content sets can share one code set. Three terms of System.Text.Json appear too. A contract, `JsonTypeInfo`, describes how one C# type maps to JSON: its keys, member types and converters. A converter reads and writes the JSON form of one type. A modifier changes a contract after System.Text.Json builds it.
+Two terms of the content packages design appear in this plan. A content set is the result of one load: the packages, the frozen blueprint registry and the prepared scenes. A code set is the loaded package code under a content set: the component types and the caches over them. Several content sets can share one code set. Three terms of System.Text.Json appear too. A contract, `JsonTypeInfo`, describes how one C# type maps to JSON: its keys, member types and converters. A converter reads and writes the JSON form of one type. A modifier changes a contract after System.Text.Json builds it.
 
 ## Decisions
 
 1. The files are JSON, and a JSON Schema describes each file kind. (User)
-2. The files are plain JSON, and a comment or a trailing comma is a load error. (User) System.Text.Json cannot keep comments through a parse and a write, and the editor of plan 10 saves by itself. A silently lost comment is worse than none. Explanations go into the C# documentation comments of the members, and the schemas show them.
-3. A file holds no name and no id. Its id comes from its path (plan 08). One file holds one blueprint or one scene.
+2. The files are plain JSON, and a comment or a trailing comma is a load error. (User) System.Text.Json cannot keep comments through a parse and a write, and the editor saves by itself. A silently lost comment is worse than none. Explanations go into the C# documentation comments of the members, and the schemas show them.
+3. A file holds no name and no id. Its id comes from its path (see the content packages design). One file holds one blueprint or one scene.
 4. The loader uses System.Text.Json, which ships with .NET 11, and no other JSON or schema package. (User) The user wanted metaprogramming through attributes and reflection, as Serde gives Rust, not a hand-written type model. Source generation cannot see mod types, so the loader uses the reflection resolver.
-5. One contract per C# type drives the binder, the merge, the schema exporter and the inspector of plan 10. A modifier adds the engine rules to each contract, and converters give the engine types their forms. So the schema and the binder accept the same value forms.
-6. One merge rule covers blueprint inheritance, scene overrides and the patches of plan 08. The rule is JSON Merge Patch (RFC 7386), directed by the C# type of each position. Only at a union position does an object with a `kind` member replace the target. One rule is easier to learn and test than three.
+5. One contract per C# type drives the binder, the merge, the schema exporter and the inspector of the editor. A modifier adds the engine rules to each contract, and converters give the engine types their forms. So the schema and the binder accept the same value forms.
+6. One merge rule covers blueprint inheritance, scene overrides and the patches of the content packages design. The rule is JSON Merge Patch (RFC 7386), directed by the C# type of each position. Only at a union position does an object with a `kind` member replace the target. One rule is easier to learn and test than three.
 7. A collection that content can change is an object keyed by name: components, scene entities and topics. An array holds a value, and a merge replaces it whole. So a merge can add, change or remove one item by its name.
 8. Numbers use the units of the code: SI units and radians. (User) Where degrees are easier to read, a file writes `{"deg": 30}`. A color can also be an sRGB hex string. See "Units".
 9. Keys are the camelCase form of the C# member names, as `JsonNamingPolicy.CamelCase` makes them. Enum values are camelCase names too. Component names keep their C# form, because they are type names.
-10. A scene is a flat set of entities keyed by scene id. A scene id is a name that is unique in one scene. Each entity names the frame that it is in and its attachment parent. In a nested file, every move of an entity to another frame is a large edit. The editor and the patches of plan 08 work on one entity at a time. (User)
+10. A scene is a flat set of entities keyed by scene id. A scene id is a name that is unique in one scene. Each entity names the frame that it is in and its attachment parent. In a nested file, every move of an entity to another frame is a large edit. The editor and the patches (see the content packages design) work on one entity at a time. (User)
 11. In a scene file, a component field of type `Entity` holds a scene id. The spawner writes the handle after it spawns every entity of the scene. So the order of the entities in the file does not matter for references.
-12. The loader resolves blueprint inheritance on the JSON tree, after the patches of plan 08. It gives the registry fully resolved blueprints with no parent. A patch to a parent then reaches its children, and the body, render and frame sections merge field by field.
+12. The loader resolves blueprint inheritance on the JSON tree, after the patches of the content packages design. It gives the registry fully resolved blueprints with no parent. A patch to a parent then reaches its children, and the body, render and frame sections merge field by field.
 13. File model types in `Tertius.Content` mirror the engine types `BodyDesc`, `RenderData` and `FrameSpec`. They add the forms that files need: asset references, degree literals and file defaults. A small hand-written mapping turns them into engine types, and the schema comes from the file model types.
 14. A render section can define a primitive mesh (box, sphere or plane) and a material inline. Tests, prototypes and the demo then need no asset files for simple shapes.
 15. An error names its place only as far as that is cheap. (User) System.Text.Json keeps no positions in a tree. So an error in a value from a parent, a scene override or a patch has no line and column. It names the file and the JSON Pointer. A value of the file being bound also gets its line and column. The loader reads no other file for positions.
 16. Errors use the compiler format that the `$msCompile` problem matcher of VS Code reads. Agents get the same errors as JSON.
 17. A value that a file sets is immutable. Every spawn of a blueprint shares the bound values. A mutable shared value lets one entity change every other entity of its blueprint, and the chunk workers then race.
-18. Each code set has its own `JsonSerializerOptions` and drops them at unload. (User) No mod type reaches `JsonSerializerOptions.Default`. A research probe for the earlier design saw the caches of `JsonSerializer` keep a package context alive, so this is a real risk. Step 2 makes sure that a package context unloads after a bind. If it does not on .NET 11, the editor restarts its process to reload code, and players get the CT5010 path of plan 08.
+18. Each code set has its own `JsonSerializerOptions` and drops them at unload. (User) No mod type reaches `JsonSerializerOptions.Default`. A research probe for the earlier design saw the caches of `JsonSerializer` keep a package context alive, so this is a real risk. Step 2 makes sure that a package context unloads after a bind. If it does not on .NET 11, the editor restarts its process to reload code. In that case, players get the CT5010 path of the content packages design.
 
 ## Design
 
@@ -41,17 +41,17 @@ Two terms of plan 08 appear in this plan. A content set is the result of one loa
 
 | File | Folder in a package | Owner | Purpose |
 |---|---|---|---|
-| `manifest.json` | The package root | Plan 08 | Version, dependencies and authors of the package |
+| `manifest.json` | The package root | Content packages design | Version, dependencies and authors of the package |
 | `*.blueprint.json` | `blueprints/` | This plan | One entity template |
 | `*.scene.json` | `scenes/` | This plan | A starting state of a world |
-| `*.patch.json` | `patches/` | Plan 08 | A change to a blueprint or scene of another package |
-| `*.import.json` | `assets/` | Plan 09 | Import configuration and provenance of source assets |
+| `*.patch.json` | `patches/` | Content packages design | A change to a blueprint or scene of another package |
+| `*.import.json` | `assets/` | Asset pipeline design | Import configuration and provenance of source assets |
 
-Plan 08 gives the full rules for ids and references. In short:
+The content packages design gives the full rules for ids and references. In short:
 
 - `ships/corvette` is a path in the package of the file that writes it.
 - `tertius.base:ships/corvette` names the package too.
-- An asset reference keeps the file extension. It can name a sub-asset after `#`: `ships/corvette.blend#Hull`. A sub-asset is a named thing inside an asset file, such as a piece or a material. The text after `#` is the fragment. Plan 09 defines the fragments of each asset kind.
+- An asset reference keeps the file extension. It can name a sub-asset after `#`: `ships/corvette.blend#Hull`. A sub-asset is a named thing inside an asset file, such as a piece or a material. The text after `#` is the fragment. The asset pipeline design defines the fragments of each asset kind.
 - A name or reference always resolves in the package of the file that wrote it. This rule also holds after a merge mixes values from several files.
 
 ### Options and contracts
@@ -72,7 +72,7 @@ The modifier changes each contract once, at the time that System.Text.Json build
 - It adds the union cases of other packages (see "Unions").
 - It leaves out `Entity` and `FrameHandle` members of types that are not components. A key for such a member gets CT3005 too.
 
-Each Tertius converter implements `IContentForm`: the JSON Schema of its forms, and the reference strings in a value. `ContentWalk` visits a `JsonNode` tree with the contract of each position, and gives the pointer, the contract and the member of each value. The merge, phase 6 of plan 08, the preparer and the editor use it. The inspector of plan 10 reads the contracts directly.
+Each Tertius converter implements `IContentForm`: the JSON Schema of its forms, and the reference strings in a value. `ContentWalk` visits a `JsonNode` tree with the contract of each position, and gives the pointer, the contract and the member of each value. The merge, phase 6 of the content packages load pipeline, the preparer and the editor use it. The inspector of the editor reads the contracts directly.
 
 ### Value grammar
 
@@ -111,8 +111,8 @@ These rules apply to every value:
 - An integer outside the range of the member type is error CT3003. A number with a fraction for an integer member is error CT3002.
 - `[Range]` from `System.ComponentModel.DataAnnotations` sets a minimum and a maximum. A range also catches many degree values written into radian fields.
 - A positional record sets its members through its constructor and calls no setter. Step 5 tests `[Range]` on such a member. If the range test does not run, the modifier rejects that record type with CT3005.
-- Outside a load, an `Entity`, a `FrameHandle`, a `BlueprintId` or an asset id has no name. So its converter writes a debug form, such as `#index.generation`, that no file accepts. The inspector of plan 10 writes the reference or scene id that its widget holds.
-- A `TextureId` member has a texture slot: the kind of texture that it needs. `[TextureSlot(...)]` on the member sets it, and the default is `TextureSlot.Any`. Plan 09 makes sure that the image fits the slot.
+- Outside a load, an `Entity`, a `FrameHandle`, a `BlueprintId` or an asset id has no name. So its converter writes a debug form, such as `#index.generation`, that no file accepts. The inspector of the editor writes the reference or scene id that its widget holds.
+- A `TextureId` member has a texture slot: the kind of texture that it needs. `[TextureSlot(...)]` on the member sets it, and the default is `TextureSlot.Any`. The asset pipeline makes sure that the image fits the slot.
 - Only a member of a component itself can have the type `Entity` or `FrameHandle`. A struct, a record or a list cannot hold one (see "Scene files").
 
 The binder reads each value once per blueprint, and every spawn of the blueprint gets the same value object. So a file can set only immutable values:
@@ -190,7 +190,7 @@ The keys map to the members by these rules. Each rule names the error of a mista
 | Gravitational parameter μ | m³/s² | |
 | Damping | 1/s | Jolt's unit |
 | Color | Linear RGB, 0 to 1 per channel | Emissive values can be above 1. A hex string is sRGB, and the converter turns it into linear values. |
-| Light intensity | 1 is 683 cd for point and spot lights | Irradiance at distance d is color × intensity / d². An intensity of 1 is a Blender point light of 4π W, about 12.6 W (plan 09). |
+| Light intensity | 1 is 683 cd for point and spot lights | Irradiance at distance d is color × intensity / d². An intensity of 1 is a Blender point light of 4π W, about 12.6 W (see the asset pipeline design). |
 | Scale | A factor | It changes rendering only. Collision does not scale. |
 
 The degree literal `{"deg": x}` is a number literal. `FloatConverter` and `DoubleConverter` read it and give x × π / 180 in the member type. It is valid where a `float` or `double` is expected, and nowhere else. One converter for all `float` and `double` values is the simplest choice, because no angle member needs an attribute. Files keep radians for three reasons:
@@ -212,7 +212,7 @@ Euler angles are left out, because they need an order rule. The axis and angle f
 
 A pose is `{"position": [x, y, z], "rotation": r}`, and both keys are optional. A missing position is zero, and a missing rotation is the identity. `default(Quaternion)` is all zeros and not a valid rotation, so the converter never uses it. A `DPose` reads its position as doubles.
 
-A node pose is `{"node": <asset reference>}`. Its value is the pose of a node of a model, relative to the origin of the piece that holds the node (plan 09). A door then takes its place from the model, and no file copies the numbers. A node pose has no other keys.
+A node pose is `{"node": <asset reference>}`. Its value is the pose of a node of a model, relative to the origin of the piece that holds the node (asset pipeline design). A door then takes its place from the model, and no file copies the numbers. A node pose has no other keys.
 
 The axes are the axes of the engine: right-handed, +Y up, and -Z forward for cameras, spot lights and models.
 
@@ -269,8 +269,8 @@ In this example:
 - `Health` resolves to `tertius.base:Health`, because `tertius.demo` depends on `tertius.base`. `Thruster` comes from the DLL of `tertius.demo`.
 - The resolved corvette has `Health` with `max` 1200 at the position of the parent's `Health`, then `Thruster`. `maxThrust` is in N, `mass` in kg, and `nozzles` and the ellipsoid radii `bounds` in m in ship axes.
 - The frame section of the corvette merges with the parent's: driver `kepler`, no gravity, and the ellipsoid bubble. The orbit comes from the scene.
-- `ships/corvette.blend#Hull` is the piece `Hull` of the Blender file `assets/ships/corvette.blend`. A piece is a node of a model that renders as one unit (plan 09). `render.model` draws every part and light of the piece.
-- One piece gives two shapes. The body is a moving use, so it gets the convex collision markers of the piece. The interior is a static use, so it gets the triangle mesh markers. Plan 09 defines the markers.
+- `ships/corvette.blend#Hull` is the piece `Hull` of the Blender file `assets/ships/corvette.blend`. A piece is a node of a model that renders as one unit (see the asset pipeline design). `render.model` draws every part and light of the piece.
+- One piece gives two shapes. The body is a moving use, so it gets the convex collision markers of the piece. The interior is a static use, so it gets the triangle mesh markers. The asset pipeline design defines the markers.
 
 Four smaller blueprints from the same package show topics, inline primitives, an inline material, a light and a door. The first is `blueprints/people/crew.blueprint.json`:
 
@@ -357,7 +357,7 @@ A shape is a `ShapeSection` union.
 | `convexHull` | `points`: an array of positions, at least 4 | `ConvexHullShapeDesc` |
 | `mesh` | `vertices`, `indices`. Only static bodies and frame interiors can use it. | `MeshShapeDesc` |
 | `compound` | `children`: an array of `{"shape": ..., "pose": ...}` | `CompoundShapeDesc` |
-| `asset` | `asset`: a reference to a piece of a model | The `ShapeDesc` that plan 09 builds from the piece for the use |
+| `asset` | `asset`: a reference to a piece of a model | The `ShapeDesc` that the asset pipeline builds from the piece for the use |
 
 The use of an asset shape is static or moving. A static use is an `interiorShape`, or the shape of a body with motion `static`. Every other body is a moving use. The mapping passes the use to the resolver, so one piece can give convex hulls for a body and a triangle mesh for an interior.
 
@@ -367,7 +367,7 @@ The render section maps to `RenderData`. The mapping starts from `new RenderData
 
 | Key | Form | Default | Notes |
 |---|---|---|---|
-| `model` | A reference to a piece of a model, or to a whole model file | None | The entity draws every part and light of the piece. A section with `model` has no `mesh` and no `material` (CT3011). Plan 09 adds the binding, with `ModelId`. |
+| `model` | A reference to a piece of a model, or to a whole model file | None | The entity draws every part and light of the piece. A section with `model` has no `mesh` and no `material` (CT3011). The asset pipeline work adds the binding, with `ModelId`. |
 | `mesh` | An asset reference, or a primitive | None | Primitives: `{"kind": "box", "halfExtents"}`, `{"kind": "sphere", "radius", "segments", "rings"}`, `{"kind": "plane", "halfSize", "uvRepeat"}` |
 | `material` | An asset reference, or an inline material | The default material of the renderer | A merge replaces an inline material whole. |
 | `scale` | 3 factors | `[1, 1, 1]` | |
@@ -391,7 +391,7 @@ An inline material maps to `MaterialDesc`. Each texture key passes its slot to t
 | `albedo` | A texture reference | None | `Albedo` |
 | `normal` | A texture reference | None | `Normal` |
 | `specularGloss` | A texture reference | None | `SpecularGloss` |
-| `emissiveMap` | A texture reference | None | `Emissive`. Emitted radiance is `emissive` times the texture color. Plan 09 adds the binding, with `MaterialDesc.EmissiveMap`. |
+| `emissiveMap` | A texture reference | None | `Emissive`. Emitted radiance is `emissive` times the texture color. The asset pipeline work adds the binding, with `MaterialDesc.EmissiveMap`. |
 
 The loader creates one material for each distinct inline value and one mesh for each distinct primitive.
 
@@ -554,7 +554,7 @@ A union patch with no `kind` merges by rule 3, so it keeps the case of the targe
 The merge finds the contract of a position in two ways:
 
 - The file model types give the contracts of the keys of blueprint, scene, patch and import files. The `components` key has the type `ComponentMap`, whose keys name component types. It has no converter, so rule 3 merges it member by member.
-- Phase 6 of plan 08 qualifies every component name before any merge, so `ContentContracts.Component` gives the contract of each component.
+- Phase 6 of the content packages load pipeline qualifies every component name before any merge, so `ContentContracts.Component` gives the contract of each component.
 
 At a position of unknown type, such as an unknown key or an unknown component, the merge uses plain RFC 7386. The binder then reports the unknown key or name.
 
@@ -562,13 +562,13 @@ At a position of unknown type, such as an unknown key or an unknown component, t
 |---|---|---|
 | Inheritance | The resolved parent, or an empty object for a blueprint with no parent | The inherited keys of the child |
 | Scene override | The inherited keys of the resolved blueprint, or an empty object for an entry with no blueprint | The inheritable keys of the entity entry |
-| Patch file (plan 08) | The target file, before inheritance | The `merge` object of the patch |
+| Patch file (see the content packages design) | The target file, before inheritance | The `merge` object of the patch |
 
 Phase 6 also qualifies each reference in its own file, with the package of that file. It finds the references with the contract walk and `IContentForm`. So `Health` in one file and `tertius.base:Health` in another file are one key. A reference resolves in the package of the file that wrote it.
 
 Every file merges onto a resolved tree or onto an empty object. So a `null` never reaches the binder: it removes a member, as in RFC 7386, or it removes nothing. A file cannot set a member to `null`. A removed member is absent from the resolved tree, so the component keeps the initial value of its C# member.
 
-The merge fills a source map. It maps the JSON Pointer of each value that a patch sets to the file and pointer that wrote it. It also records each removal with its `null`. A replaced subtree drops the entries below it, and a lookup takes the longest recorded prefix. Plan 08 uses the map to blame the package of a patch for an error that the patch caused.
+The merge fills a source map. It maps the JSON Pointer of each value that a patch sets to the file and pointer that wrote it. It also records each removal with its `null`. A replaced subtree drops the entries below it, and a lookup takes the longest recorded prefix. The content packages work uses the map to blame the package of a patch for an error that the patch caused.
 
 ### Mapping to engine types
 
@@ -586,7 +586,7 @@ The merge fills a source map. It maps the JSON Pointer of each value that a patc
 
 ### Asset references and the resolver
 
-The loader turns every asset reference into an engine resource through `IAssetResolver` (see "Code"). Plan 09 implements it. This plan defines what the loader passes:
+The loader turns every asset reference into an engine resource through `IAssetResolver` (see "Code"). The asset pipeline work implements it. This plan defines what the loader passes:
 
 | Field or key | Resolver member |
 |---|---|
@@ -600,7 +600,7 @@ The loader turns every asset reference into an engine resource through `IAssetRe
 | `{"kind": "asset"}` shapes | `Collision` with the use of the shape |
 | Node poses | `NodePose` |
 
-The resolver calls come in a fixed order: package load order, then file path, then document order. A resolver hands out renderer ids in the order of the requests, so equal content gets equal ids in every run. Phases 9 and 10 of plan 08 bind on one thread in this order, and every resolver call happens during a bind:
+The resolver calls come in a fixed order: package load order, then file path, then document order. A resolver hands out renderer ids in the order of the requests, so equal content gets equal ids in every run. Phases 9 and 10 of the content packages load pipeline bind on one thread in this order, and every resolver call happens during a bind:
 
 - `AssetIdConverter` and `PoseConverter` call the resolver while they read a value. A converter lives as long as its code set, and the .NET documentation shows no way to give it the state of one call. So the binder puts the resolver of the load into a `BindContext` on its thread around each `Deserialize` call.
 - A section value that needs another value of its section binds to a small reference value first, such as an `AssetRef`. The mapping resolves it right after its section binds. An asset shape needs `motion` for its use, and an inline material needs its texture ids.
@@ -609,13 +609,13 @@ This needs no second pass over the trees and no table of resolved ids. Phase 5 s
 
 ### Schemas
 
-- There is one schema per file kind: blueprint, scene, patch, import and manifest. Plan 08 owns the patch and manifest schemas, and plan 09 owns the import schema.
-- The schema writer runs `JsonSchemaExporter` over the options of the code set, so the schema and the binder share one contract. Plan 08 writes the schemas per package into `<package>/.schemas/`, which git ignores.
+- There is one schema per file kind: blueprint, scene, patch, import and manifest. The content packages design owns the patch and manifest schemas, and the asset pipeline design owns the import schema.
+- The schema writer runs `JsonSchemaExporter` over the options of the code set, so the schema and the binder share one contract. The content packages work writes the schemas per package into `<package>/.schemas/`, which git ignores.
 - `TransformSchemaNode` adds what the exporter leaves out: descriptions, `minimum` and `maximum` from `[Range]`, the forms of each converter from its `IContentForm`, and the component map of the blueprint schema.
-- Descriptions come from the XML documentation comments, or from `[Description]`. The mod SDK of plan 08 turns on the documentation file.
+- Descriptions come from the XML documentation comments, or from `[Description]`. The mod SDK of the content packages work turns on the documentation file.
 - In the blueprint schema, `components` has one property per visible component name, short and qualified. `propertyNames` lists both forms, and `additionalProperties` is false. VS Code then completes component names and field names.
 - VS Code fully supports JSON Schema drafts 4 to 7 and only partly supports later drafts (VS Code documentation). The .NET documentation names no draft for the exporter, so step 12 tests the schemas in VS Code.
-- Each file holds the relative path of its schema in `$schema`. `tertius content format` and `tertius content new` (plan 08) write that path, so people and agents do not count `../` by hand.
+- Each file holds the relative path of its schema in `$schema`. `tertius content format` and `tertius content new` (see the content packages design) write that path, so people and agents do not count `../` by hand.
 
 The blueprint, scene and patch schemas describe partial documents. A child blueprint leaves out the keys of its parent, and a scene entry or a patch changes only some keys. So the transform applies three rules to these schemas:
 
@@ -627,7 +627,7 @@ The loader does not use the schemas at load time. A conformance test runs `check
 
 ### Parsing, writing and errors
 
-Phase 5 of plan 08 parses each file with `JsonSerializer.Deserialize<JsonObject>` and `ContentContracts.ParseOptions`. Comments and trailing commas are errors by default, and the default depth limit is 64. `AllowDuplicateProperties = false` makes a duplicate key an error, as the .NET 10 documentation shows for `JsonObject`. The loader skips a UTF-8 byte order mark, and it reports bytes that are not UTF-8 as CT2003.
+Phase 5 of the content packages load pipeline parses each file with `JsonSerializer.Deserialize<JsonObject>` and `ContentContracts.ParseOptions`. Comments and trailing commas are errors by default, and the default depth limit is 64. `AllowDuplicateProperties = false` makes a duplicate key an error, as the .NET 10 documentation shows for `JsonObject`. The loader skips a UTF-8 byte order mark, and it reports bytes that are not UTF-8 as CT2003.
 
 A parse error is CT2001. Its `JsonException` gives the line and the byte in the line, both from 0. The loader turns them into a line and a UTF-16 column from 1, as VS Code counts. If the text at that place starts with `/`, the hint says that content files hold no comments.
 
@@ -641,7 +641,7 @@ The binder finds the place of a bind error in three steps:
 
 The binder takes the error code from the exception and the contract, never from the message text. A Tertius converter throws `ContentValueException`, which carries its code. For other exceptions, the binder looks at the value at the pointer and the contract of its position. So it tells apart CT3001, CT3002, CT3003, CT3006, CT3009 and CT3010. System.Text.Json reports some errors as a `NotSupportedException`, which has the path only in its message text. So the binder finds a union object without `kind` with the contract walk before the bind, and reports CT3009.
 
-`ContentFormat.Write` writes a file in one canonical layout with `Utf8JsonWriter`. `tertius content format` (plan 08) and the editor of plan 10 use it:
+`ContentFormat.Write` writes a file in one canonical layout with `Utf8JsonWriter`. `tertius content format` (see the content packages design) and the editor use it:
 
 - Two spaces of indent, LF line ends and one final newline.
 - Members in document order, so a save never moves a key.
@@ -658,7 +658,7 @@ content/tertius.demo/scenes/start.scene.json(41,23): error CT4001: Unknown bluep
 
 The JSON form has the keys `code`, `severity`, `package`, `file`, `pointer`, `line`, `column`, `message` and `hint`. The file, line, column and pointer name the place where the failing value was written. For an unsaved editor document, that place is in the text that the editor will save.
 
-This plan owns the codes CT2xxx (JSON syntax), CT3xxx (values) and CT7xxx (scenes). Plan 08 owns the other ranges. The loader of this plan also reports four codes that plan 08 defines: CT4001, CT4006, CT4007 and CT4008.
+This plan owns the codes CT2xxx (JSON syntax), CT3xxx (values) and CT7xxx (scenes). The content packages design owns the other ranges. The loader of this plan also reports four codes that the content packages design defines: CT4001, CT4006, CT4007 and CT4008.
 
 | Code | Meaning |
 |---|---|
@@ -695,7 +695,7 @@ namespace Tertius.Content;
 
 /// <summary>
 /// The contracts of one code set: the options with the converters and the modifier, and the component contracts.
-/// The code set of plan 08 owns it and drops it at unload. Until plan 08, the test loader owns one.
+/// The code set of the content packages design owns it and drops it at unload. Until the content packages work lands, the test loader owns one.
 /// </summary>
 public sealed class ContentContracts
 {
@@ -768,24 +768,24 @@ public sealed class DiagnosticBag
 
     /// <summary>
     /// Sorted by package load order, file path, line, column, JSON Pointer and code. A missing line or column counts
-    /// as 0. Plans 08, 09 and 10 use this one order.
+    /// as 0. The content packages work, the asset pipeline and the editor use this one order.
     /// </summary>
     public IReadOnlyList<ContentDiagnostic> Sorted();
 }
 
-/// <summary>A package id, such as tertius.base. Plan 08 defines the grammar, and step 1 of this plan adds the type.</summary>
+/// <summary>A package id, such as tertius.base. The content packages design defines the grammar, and step 1 of this plan adds the type.</summary>
 public readonly record struct PackageId { ... }
 
 /// <summary>A reference to an asset or to a sub-asset, such as tertius.demo:ships/corvette.blend#Hull.</summary>
 public readonly record struct AssetRef(PackageId Package, string Path, string? Fragment);
 
-/// <summary>A component type and its names. Plan 08 discovers them in package DLLs.</summary>
+/// <summary>A component type and its names. The content packages load pipeline discovers them in package DLLs.</summary>
 public sealed record ComponentInfo(string Name, PackageId Package, Type Type)
 {
     public string QualifiedName => $"{Package}:{Name}";
 }
 
-/// <summary>What one content file can see: its own package and the packages it depends on. Plan 08 implements it.</summary>
+/// <summary>What one content file can see: its own package and the packages it depends on. The content packages work implements it.</summary>
 public interface IContentScope
 {
     PackageId Package { get; }
@@ -810,18 +810,18 @@ public sealed record PlaneMesh(float HalfSize, float UvRepeat = 1) : PrimitiveMe
 public enum CollisionUse { Moving, Static }
 
 /// <summary>
-/// Turns asset references into engine resources. Plan 09 implements it for asset files. Each method returns the
+/// Turns asset references into engine resources. The asset pipeline work implements it for asset files. Each method returns the
 /// same result for the same input, so equal references share one resource and one ShapeDesc object.
-/// Until plan 09 lands, PrimitiveAssets implements it: it creates primitives and inline materials through an
+/// Until the asset pipeline work lands, PrimitiveAssets implements it: it creates primitives and inline materials through an
 /// IRenderer, or returns None ids without one, and it reports each asset file reference as error CT4008.
 /// </summary>
 public interface IAssetResolver
 {
-    /// <summary>ContentLoader calls it after phase 2 with the load set in load order, before any other member. Plan 08 adds it.</summary>
+    /// <summary>ContentLoader calls it after phase 2 with the load set in load order, before any other member. The content packages work adds it.</summary>
     void BeginLoad(IReadOnlyList<PackageInfo> packages, DiagnosticBag diagnostics);
 
     Resolved<MeshId> Mesh(AssetRef asset);
-    Resolved<ModelId> Model(AssetRef asset);                          // plan 09 adds it, together with ModelId
+    Resolved<ModelId> Model(AssetRef asset);                          // the asset pipeline work adds it, together with ModelId
     Resolved<MaterialId> Material(AssetRef asset);
     Resolved<TextureId> Texture(AssetRef asset, TextureSlot slot);
     Resolved<ShapeDesc> Collision(AssetRef asset, CollisionUse use);
@@ -861,12 +861,12 @@ public static class SceneSpawner
 }
 ```
 
-`PackageInfo` comes from plan 08 with `BeginLoad`. `TextureSlot` is new in Core, because mods name it in an attribute:
+`PackageInfo` comes from the content packages work with `BeginLoad`. `TextureSlot` is new in Core, because mods name it in an attribute:
 
 ```csharp
 namespace Tertius;
 
-/// <summary>What a texture is for. The resolver of plan 09 makes sure that the role of the image fits the slot.</summary>
+/// <summary>What a texture is for. The resolver of the asset pipeline makes sure that the role of the image fits the slot.</summary>
 public enum TextureSlot { Albedo, Normal, SpecularGloss, Emissive, Ui, Data, Any }
 
 namespace Tertius.Simulation;
@@ -894,18 +894,18 @@ A host uses the module like this:
 PreparedScene scene = content.Scene("tertius.demo:start");
 var world = new World(new WorldOptions { StartTime = scene.StartTime, Blueprints = content.Blueprints }, physics);
 SceneInstance instance = SceneSpawner.Spawn(world, scene);
-Entity pilot = instance["pilot"];   // the scripted runs of plan 06 find entities this way
+Entity pilot = instance["pilot"];   // scripted runs find entities this way (see the host and scripted runs design)
 ```
 
 where
 
-- `content` = the loaded content set of plan 08.
+- `content` = the loaded content set of the content packages design.
 - `content.Blueprints` = the frozen blueprint registry of that set, which every world of the set shares.
 - `physics` = the physics backend, or null for a world without physics.
 - `instance` = the map from scene ids to the handles of the spawned entities.
 - `pilot` = the handle of the entity with the scene id `pilot`.
 
-Plan 10 makes three additions to this module in its own steps. They are `ContentDocument` and `ContentEdit` (step B1), partial scenes (step B2) and the preparer of one entity entry (step B4).
+The editor work makes three additions to this module in its own steps. They are `ContentDocument` and `ContentEdit` (step B1), partial scenes (step B2) and the preparer of one entity entry (step B4).
 
 ### Engine changes for this plan
 
@@ -921,7 +921,7 @@ Each change goes into Simulation or Core test-first, and the existing tests stay
 8. `World.Spawn` rejects a Kepler `FrameSpec` whose orbit has a `SemiMajorAxis` or a `ParentMu` that is not above 0. This is an ordinary argument guard in every build. `StateAt` of a default `KeplerOrbit` returns zero, so without the guard such a frame stays at the origin of its parent with no error.
 9. `TextureSlot` in Core, and `TextureSlotAttribute` and `UnionCaseAttribute` in Simulation, as shown in "Code".
 
-The string overloads `World.Spawn(string, ...)` and `Self.Spawn(string, ...)` stay for tests and tools. Plan 08 marks the `Self` overload `[EngineOnly]`, so mod code spawns only through `BlueprintId` fields that the loader checked.
+The string overloads `World.Spawn(string, ...)` and `Self.Spawn(string, ...)` stay for tests and tools. The content packages work marks the `Self` overload `[EngineOnly]`, so mod code spawns only through `BlueprintId` fields that the loader checked.
 
 ```csharp
 namespace Tertius.Simulation;
@@ -962,7 +962,7 @@ These are targets, not measurements. The benchmarks of step 13 replace them with
 | Work | Target | Notes |
 |---|---|---|
 | Build the contracts of 100 component types | Under 50 ms | Reflection, once per code set. A code reload pays it again. |
-| Parse and bind 1,000 blueprint files of 2 KB each | Under 100 ms of CPU time | On one thread, with the contracts built before the timer starts. Phase 5 of plan 08 parses in parallel. |
+| Parse and bind 1,000 blueprint files of 2 KB each | Under 100 ms of CPU time | On one thread, with the contracts built before the timer starts. Phase 5 of the content packages load pipeline parses in parallel. |
 | Prepare a scene of 10,000 entities | Under 100 ms | |
 | Spawn a prepared scene of 10,000 entities | Under 30 ms | No reflection and no JSON. One delegate call per component. |
 | Compile one factory | About 60 µs | Measured in the research probe |
@@ -980,21 +980,21 @@ Loading never runs during a tick.
 
 Each step writes its tests first and sees them fail for the right reason. The engine builds and every test passes after each step.
 
-1. Write `PackageId` and `AssetRef`, with the grammar of plan 08. Write one test per grammar rule.
-2. Test the unload risk first. Compile a small component assembly into a collectible `AssemblyLoadContext`. Build a `ContentContracts` over it, bind a component and export its schema. Drop every reference and unload, and make sure that a `WeakReference` to the context dies within 5 s. If it does not die on .NET 11, record the fallback of decision 18 in plans 08 and 10.
+1. Write `PackageId` and `AssetRef`, with the grammar of the content packages design. Write one test per grammar rule.
+2. Test the unload risk first. Compile a small component assembly into a collectible `AssemblyLoadContext`. Build a `ContentContracts` over it, bind a component and export its schema. Drop every reference and unload, and make sure that a `WeakReference` to the context dies within 5 s. If it does not die on .NET 11, record the fallback of decision 18 in the content packages and editor designs.
 3. Write the parse of phase 5 and `ContentFormat`. Test comments with the hint, trailing commas, duplicate keys in a nested object, invalid UTF-8, a byte order mark and the depth limit. Test UTF-16 columns, `JsonPositions.Find`, each layout rule and a second format.
 4. Write the Tertius converters. Test one read and one write per row of the value grammar. Test that each write binds back to an equal value, except a debug form. Test the degree literal, sRGB colors, CT3004 and node poses with a fake resolver. Test a `float` that rounds differently through a `double`, and the path of a `ContentValueException`.
 5. Move the member rule into `ComponentMembers`, and the `Blueprints` tests stay green. Then write the modifier and `ContentContracts`. Test the member rules, `[JsonPropertyName]`, `[JsonIgnore]`, `[JsonRequired]` and `[Range]`. Test CT3005 for `T[]`, `List<T>` and a class with a `set` accessor. Test `IReadOnlyList<T>`, a union case from a second assembly, and the path in an exception of a wrapped setter. Test a positional record, also with a `[Range]` member.
 6. Write the binder. Write one test per CT3xxx code and per mistake of "How a JSON object becomes a component". Test a union object without `kind`, and an integer for an enum. Test that one bad component leaves the next one bound. Test the positions of a value of the file being bound and of a value of a parent.
 7. Write the merge and the source map. Test the examples in Appendix A of RFC 7386, the union rule and the converter rule. Test that a light `kind`, a component field `Kind` and a scene id `kind` merge as ordinary members. Test the member order, the source map, removals, and inputs that stay unchanged.
 8. Make the Simulation and Core changes 2 to 9, one at a time, each with its tests first.
-9. Write the file model types and their mapping to engine types. Test each example section of this plan against hand-built `BodyDesc`, `RenderData` and `FrameSpec` values. Use a fake `IAssetResolver` that records its calls. The keys `render.model` and `emissiveMap` bind from step 14 of plan 09, so their tests come with that step.
+9. Write the file model types and their mapping to engine types. Test each example section of this plan against hand-built `BodyDesc`, `RenderData` and `FrameSpec` values. Use a fake `IAssetResolver` that records its calls. The keys `render.model` and `emissiveMap` bind from step 14 of the asset pipeline design, so their tests come with that step.
 10. Load blueprints with a fake `IContentScope` that holds one package from a test folder. Test the qualification of references, inheritance, an abstract parent without required keys, topics, shared `ShapeDesc` objects, and inline primitives and materials. Test the order of the resolver calls. Done: the example blueprints without `render.model` register and spawn.
 11. Prepare and spawn scenes. Test the spawn order, root frames with components and topics, the `parentMu` default and attachments. Test `Entity` and `FrameHandle` fields, the scene-wide values and every CT7xxx code. Done: the example scene spawns, and one tick runs.
 12. Write the schema writer. Approve the generated schemas of the example package after a review. Add `check-jsonschema` to the dev shell and write the conformance test. Open the examples in VS Code. Make sure that component names, keys, enum names and union kinds complete, and that a wrong value gets a mark.
 13. Write benchmarks for the budgets and report the numbers.
 
-Plan 08 then replaces the fake scope with real packages.
+The content packages work then replaces the fake scope with real packages.
 
 ## Testing
 
@@ -1023,7 +1023,7 @@ The user accepted every recommendation of this section on 2026-10-10.
 
 ## Out of scope and later
 
-- Scene instancing: an entry that spawns another scene as a unit, which is a prefab. A sketch: the entry has `"scene"` instead of `"blueprint"`, and the ids of the inner scene get the entry id as a prefix. The editor of plan 10 can add it for prefabs.
+- Scene instancing: an entry that spawns another scene as a unit, which is a prefab. A sketch: the entry has `"scene"` instead of `"blueprint"`, and the ids of the inner scene get the entry id as a prefix. The editor can add it for prefabs.
 - A save of a running world. A scene describes only a starting state.
 - A spawn of a scene into a world that already has entities.
 - A binary cooked format for faster loads. Measure the JSON load first.

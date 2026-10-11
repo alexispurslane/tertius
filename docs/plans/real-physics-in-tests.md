@@ -1,6 +1,6 @@
-# 00 Real physics in every test
+# Real physics in every test
 
-Ticket: `ter-se84`. It comes before plan 01, because plan 01 measures the tests that this plan rewrites.
+Ticket: `ter-se84`. It comes before [test hardening](test-hardening.md), because test hardening measures the tests that this plan rewrites.
 
 ## Goal
 
@@ -58,7 +58,7 @@ Real Jolt costs little. In a Debug build at `07c74f0`, the Physics suite ran 148
 
 - Tests always use the real World and the real Jolt backend. No test uses a model of Jolt. (User)
 - The only test double for physics is `FaultInjectingBackend`, a wrapper around the real Jolt backend. (User)
-- This plan runs first, before plan 01. (User)
+- This plan runs first, before test hardening. (User)
 - Assertions stay exact. A test compares the World's state with the output that Jolt really sent, which the wrapper records. It does not compare with numbers that the test picked.
 - The engine code keeps its module boundary. `Tertius.Simulation` does not reference `Tertius.Physics`. Only the test projects reference both.
 - Sonnet agents port the tests in parallel, one test file each, as the user's rule for test-writing agents says. They do not run coverage or mutation testing.
@@ -173,7 +173,7 @@ The Release halves of the tests run only in a Release build, and the documented 
 
 ## Risks
 
-- A ported test can find a real bug, because it now sees real output. Each bug gets a failing test and a fix. A design question goes to plan 02.
+- A ported test can find a real bug, because it now sees real output. Each bug gets a failing test and a fix. A design question goes to the [design review](design-review.md).
 - Jolt's global lock lets only one backend step at a time, so parallel test classes take turns. Measure the suite times before and after.
 - A scene that must produce one exact event, such as a hand-off at a given tick, takes more setup than a script. The scene builders keep this setup short.
 

@@ -11,5 +11,5 @@ tags: [rendering, tests]
 ---
 # Renderer snapshot tests
 
-Design: docs/plans/03-renderer-snapshot-tests.md.
+Design: docs/plans/renderer-snapshot-tests.md.
 

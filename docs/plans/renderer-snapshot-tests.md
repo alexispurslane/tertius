@@ -1,4 +1,4 @@
-# 03 Renderer snapshot tests
+# Renderer snapshot tests
 
 Ticket: `ter-rtxu`.
 

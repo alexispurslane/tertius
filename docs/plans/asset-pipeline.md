@@ -1,6 +1,6 @@
-# 09 Asset pipeline
+# Asset pipeline
 
-Ticket: `ter-kge6`. It needs plan 08. It also uses plan 06 for headless rendering and plan 03 for snapshot tests. Plan 10 builds on it.
+Ticket: `ter-kge6`. It needs [content packages and mods](content-packages.md). It also uses the headless rendering of [host and scripted runs](host-and-scripted-runs.md) and the [renderer snapshot tests](renderer-snapshot-tests.md). The [editor](editor.md) builds on it.
 
 ## Goal
 
@@ -12,7 +12,7 @@ Turn source assets into runtime-ready data that blueprints and scenes can name. 
 - The same output bytes for the same inputs.
 - A record of the source, authors and license of every third-party asset.
 
-Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` through `IRenderer`, and no importer exists. Plan 07 defines asset references in content files and the `IAssetResolver` interface. Plan 08 defines the `assets/` folder of a package and the built form of a package. This plan owns everything between a source file and a `MeshId`, `ModelId`, `MaterialId`, `TextureId` or `ShapeDesc`.
+Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` through `IRenderer`, and no importer exists. The [content formats](content-formats.md) design defines asset references in content files and the `IAssetResolver` interface. The content packages and mods design defines the `assets/` folder of a package and the built form of a package. This design owns everything between a source file and a `MeshId`, `ModelId`, `MaterialId`, `TextureId` or `ShapeDesc`.
 
 ## Decisions
 
@@ -22,7 +22,7 @@ Today the renderer takes in-memory `MeshData`, `MaterialDesc` and `TextureData` 
 4. Blender lives in a second dev shell, `nix develop .#assets`. Blender adds about 1.7 GiB to the Nix store, and only conversions need it. Every other tool is in the default shell. The cost: every machine that imports a `.blend` source needs the assets shell once, with a download of about 620 MiB. This includes the machine of the user, a fresh clone and CI, because git ignores the cooked output. Third-party FBX and OBJ files become `.glb` files at intake, so after intake only the own `.blend` files of the user need Blender.
 5. The importer uses C# libraries where a mature one exists: SharpGLTF, StbImageSharp, TinyEXR.NET and BCnEncoder.Net. It uses native code only where C# has no equal: meshoptimizer, V-HACD and Jolt.
 6. Native bindings use `[DllImport]` with blittable arguments, not `[LibraryImport]`. The `LibraryImport` source generator does not load inside Stryker.NET 5.0.0 (project memory), so mutation tests of the importer stay possible.
-7. Cooked output is the runtime-ready data that the importer writes. It goes into `bin/assets/` of the package, which git ignores (plan 08). A built package of plan 08 carries `bin/assets/`, so a player needs no importer.
+7. Cooked output is the runtime-ready data that the importer writes. It goes into `bin/assets/` of the package, which git ignores (content packages and mods). A built package, as the content packages and mods design defines it, carries `bin/assets/`, so a player needs no importer.
 8. The game never imports. The CLI, the editor and `tertius content validate` import, and the game loads only cooked output. The game then ships no native asset tools.
 9. A model file is addressed by node names. A piece is a node that renders as one unit. Every root node is a piece, and an author can mark any other node as a piece. A part is one mesh with one material inside a piece. One entity renders one piece with all its parts through `render.model`.
 10. The front of an object in the engine is -Z, like the camera and spot lights. glTF puts the front of an asset at +Z. So the importer turns every model by 180° about +Y.
@@ -49,9 +49,9 @@ assets/**/defaults.import.json  folder defaults (optional)    ┘         │
                                                                         ├─> bin/assets/<path>/    cooked folder
                                                                         └─> bin/previews/<path>/  preview images
 
-*.blueprint.json, *.scene.json ─> ContentLoader (plan 08) ─> AssetStore (src/Tertius.Assets)
-                                                               ├─> IRenderer: meshes, textures, materials, models
-                                                               └─> ShapeDesc objects ─> IPhysicsBackend.Prepare
+*.blueprint.json, *.scene.json ─> ContentLoader (content packages and mods) ─> AssetStore (src/Tertius.Assets)
+                                                                                 ├─> IRenderer: meshes, textures, materials, models
+                                                                                 └─> ShapeDesc objects ─> IPhysicsBackend.Prepare
 ```
 
 ### Projects
@@ -60,7 +60,7 @@ assets/**/defaults.import.json  folder defaults (optional)    ┘         │
 |---|---|---|---|
 | `src/Tertius.Assets` | Library | Core, Simulation, Content | The cooked format, `AssetStore` (the runtime resolver) |
 | `tools/Tertius.Import` | Library | Core, Content, Assets, Physics, Rendering | The importer, intake (`tertius asset add`), fetch, previews and the file watcher |
-| `tools/Tertius.Cli` | Executable (plan 08) | Adds Import | The `tertius asset` commands |
+| `tools/Tertius.Cli` | Executable (content packages and mods) | Adds Import | The `tertius asset` commands |
 | `tests/Tertius.Assets.Tests` | Tests | Assets | Format round trips and the store |
 | `tests/Tertius.Import.Tests` | Tests | Import | Importer tests, `Fixtures/` and `Golden/` |
 | `native/vhacd.nix` | Nix derivation | | V-HACD 4.1.0 behind a small C API |
@@ -90,7 +90,7 @@ The user's own `.blend` files stay `.blend` files. The importer converts them on
 
 ### Assets in a package
 
-A package from plan 08, with assets:
+A package in the layout of content packages and mods, with assets:
 
 ```
 content/tertius.demo/
@@ -115,7 +115,7 @@ content/tertius.demo/
       earth_albedo.jpg.import.json  provenance: Solar System Scope, CC-BY-4.0
     ui/
       crosshair.png
-  bin/                              ignored by git (plan 08)
+  bin/                              ignored by git (content packages and mods)
     assets/
       ships/corvette.blend/         one cooked folder per source asset
     previews/
@@ -124,7 +124,7 @@ content/tertius.demo/
 
 A sidecar is the import file next to one source asset. Its name is `<source file name>.import.json`. A folder default file is `defaults.import.json`, and it applies to every asset in its folder and in the folders below.
 
-The name rules of plan 08 apply to every file and folder in `assets/`. These rules apply too:
+The name rules of content packages and mods apply to every file and folder in `assets/`. These rules apply too:
 
 | Rule | Error | Reason |
 |---|---|---|
@@ -136,11 +136,11 @@ The name rules of plan 08 apply to every file and folder in `assets/`. These rul
 
 By default, Blender keeps one backup, `corvette.blend1`, on each save, and it can keep up to 32. It also saves through a temporary file, `corvette.blend@`, and a rename. These are beliefs from the defaults of Blender, and step 15 tests them. Without the rule above, every save of the user makes `tertius content validate` fail with AS1001.
 
-Names inside a glTF, such as node, material and image names, are free text. They become fragments, and the plan 08 grammar allows any character except `#` in a fragment.
+Names inside a glTF, such as node, material and image names, are free text. They become fragments, and the grammar in the content packages and mods design allows any character except `#` in a fragment.
 
 ### Ids and fragments
 
-An asset id keeps its file extension (plan 08): `tertius.demo:ships/corvette.blend`. The fragment after `#` names a sub-asset: a piece, a material or a node inside the file. The kind of the field that holds the reference decides where the importer looks up the name. Plan 08 states the same rule for whole references.
+An asset id keeps its file extension (content packages and mods): `tertius.demo:ships/corvette.blend`. The fragment after `#` names a sub-asset: a piece, a material or a node inside the file. The kind of the field that holds the reference decides where the importer looks up the name. The content packages and mods design states the same rule for whole references.
 
 | Field or key | Reference form | Looks up | Result |
 |---|---|---|---|
@@ -148,11 +148,11 @@ An asset id keeps its file extension (plan 08): `tertius.demo:ships/corvette.ble
 | `render.model` | `ships/corvette.blend` | | Every root piece of the file |
 | `render.mesh`, `MeshId` fields | `ships/corvette.blend#Hull` | Pieces | The mesh of a piece that has exactly one material (AS2011 otherwise) |
 | `render.material`, `MaterialId` fields | `ships/corvette.blend#HullPaint` | Materials | The converted material |
-| `{"kind": "asset"}` shapes | `ships/corvette.blend#Hull` | Pieces | The collision of the piece for the use of plan 07: moving for a body that moves, static for an interior or a static body |
+| `{"kind": "asset"}` shapes | `ships/corvette.blend#Hull` | Pieces | The collision of the piece for the use that content formats defines: moving for a body that moves, static for an interior or a static body |
 | `{"node": ...}` poses | `ships/corvette.blend#AirlockInner` | Nodes | The pose of the node in its piece (see "Node poses") |
 | Texture keys of inline materials, `TextureId` fields | `planets/earth_albedo.jpg` | | A standalone image that fits the texture slot. Images inside a model have no texture id. Name the material instead. |
 
-A reference without a fragment names the only piece or the only material of the file. If the file has several, the reference is error AS2010, and the message lists the names. A missing asset file is error CT4001 of plan 08. A missing sub-asset is an AS error inside CT4008.
+A reference without a fragment names the only piece or the only material of the file. If the file has several, the reference is error AS2010, and the message lists the names. A missing asset file is error CT4001 of content packages and mods. A missing sub-asset is an AS error inside CT4008.
 
 LODs have no reference. They belong to their mesh, and the renderer picks them.
 
@@ -183,18 +183,18 @@ Hull                                     Hull           meshes of Hull and Inter
 └── Lamp                (point light)
 ```
 
-Plan 07 defines the key `render.model`, and a render section with `model` has no `mesh` and no `material` (CT3011 of plan 07). A renderer model, named by a `ModelId`, holds the parts and lights of one piece. The entity draws every part of the piece with its own transform. A reference to the whole file draws every root piece at the pose of its root node.
+The content formats design defines the key `render.model`, and a render section with `model` has no `mesh` and no `material` (CT3011 of content formats). A renderer model, named by a `ModelId`, holds the parts and lights of one piece. The entity draws every part of the piece with its own transform. A reference to the whole file draws every root piece at the pose of its root node.
 
 #### Node poses
 
-Plan 07 defines the node pose `{"node": <asset reference>}` for `Pose` and `DPose` members. Its value is the pose of that node relative to the origin of a piece:
+The content formats design defines the node pose `{"node": <asset reference>}` for `Pose` and `DPose` members. Its value is the pose of that node relative to the origin of a piece:
 
 - For a piece node: the piece that contains its parent node.
 - For any other node: the piece that contains the node.
 
 So a door that is a piece under the hull gets its pose in hull axes. An entity in the frame of the ship needs exactly this pose. The origin of the frame is the origin of the ship entity. A node pose is rigid. The importer bakes every scale into the geometry (see "Axes, units and scale").
 
-The corvette blueprint and the start scene of plan 07 use this model:
+The corvette blueprint and the start scene of the content formats design use this model:
 
 - The corvette draws `ships/corvette.blend#Hull` through `render.model`. Its body shape and its interior shape both name that piece. The body is a moving use and gets the 12 `UCX_` hulls. The interior is a static use and gets `UTM_Interior` (see "Collision").
 - The blueprint `ship-parts/airlock-door` draws the piece `AirlockDoor`.
@@ -209,9 +209,9 @@ The configuration of one asset comes from four sources. Each later source wins o
 3. The name rules: suffixes of the file name and folder names.
 4. The sidecar of the asset.
 
-The loader merges them with the merge rule of plan 07. A nearer source describes fewer files, so it is more specific. A file name describes one file, so it wins over the folders above it. The sidecar is the most specific source.
+The loader merges them with the merge rule of content formats. A nearer source describes fewer files, so it is more specific. A file name describes one file, so it wins over the folders above it. The sidecar is the most specific source.
 
-Import files are plain JSON that the binder of plan 07 reads, so they get positions, the CT2xxx and CT3xxx errors and a schema. `tertius content schema` (plan 08) also writes `.schemas/import.schema.json`, and the VS Code entries map `*.import.json` to it.
+Import files are plain JSON that the binder of content formats reads, so they get positions, the CT2xxx and CT3xxx errors and a schema. `tertius content schema` (content packages and mods) also writes `.schemas/import.schema.json`, and the VS Code entries map `*.import.json` to it.
 
 A sidecar, `assets/props/rock-moss-set-01.glb.import.json`. Its `received` key holds the SHA-256 of each file as downloaded.
 
@@ -488,13 +488,13 @@ castsShadow        = the custom property tertius_cast_shadow, or lights.castsSha
 - A directional light is ignored (warning AS2019). The sun is a value of the scene.
 - Emissive values pass through unchanged. KHR_materials_emissive_strength is a unitless factor (its specification), and the Blender exporter writes the Blender emission strength without a conversion. The engine adds emissive as radiance, and its diffuse term is albedo × (1 − F) / π. So an emission strength of 1 looks as bright as in Blender.
 
-Plan 07 states this unit for the light sections of content files: an intensity of 1 is 683 candela, which is a Blender point light of 4π W, about 12.6 W.
+The content formats design states this unit for the light sections of content files: an intensity of 1 is 683 candela, which is a Blender point light of 4π W, about 12.6 W.
 
 ### Textures
 
 #### Roles
 
-A role says what an image holds. A slot (`TextureSlot` of plan 07) says what a field or a material key needs. An image fits a slot in one case: its role is in the row of that slot. The slot `Any` takes every role.
+A role says what an image holds. A slot (`TextureSlot` of content formats) says what a field or a material key needs. An image fits a slot in one case: its role is in the row of that slot. The slot `Any` takes every role.
 
 | Role | Source color space | Slot | Format | Bytes per pixel | Mips |
 |---|---|---|---|---|---|
@@ -531,7 +531,7 @@ ft = |Na| / (|Na| + n × (1 − |Na|))
 n' = ft × n
 ```
 
-Plan 04 lists Toksvig as an optional renderer feature. Doing it in the mips costs nothing at runtime. A material with a normal map and a constant gloss then gets a `SpecularGloss` texture, so that the mips can carry the reduced gloss. `toksvig: false` turns this off for one asset or folder.
+The [anti-aliasing](anti-aliasing.md) design lists Toksvig as an optional renderer feature. Doing it in the mips costs nothing at runtime. A material with a normal map and a constant gloss then gets a `SpecularGloss` texture, so that the mips can carry the reduced gloss. `toksvig: false` turns this off for one asset or folder.
 
 #### The container
 
@@ -583,7 +583,7 @@ The material is then `materials/painted-metal.gltf#painted-metal`, or `materials
 
 #### What the importer makes
 
-The mapping of plan 07 asks for a collision shape with a use. A static use is an `interiorShape` or a body with motion `static`. Every other body is a moving use.
+The mapping of content formats asks for a collision shape with a use. A static use is an `interiorShape` or a body with motion `static`. Every other body is a moving use.
 
 | Use | Markers in the piece | Result |
 |---|---|---|
@@ -624,7 +624,7 @@ The importer builds every final shape once with `ShapeCooker.TryBuild` (see "Eng
 
 #### At load
 
-The store makes one `ShapeDesc` object per (piece, use). Every body that names it shares it, as the reference-keyed `ShapeCache` of the physics backend needs (plan 07). `AssetStore.Shapes` lists the current shape of each (piece, use), and a reload replaces the entry. After a content load, the host calls `IPhysicsBackend.Prepare` for each shape of `AssetStore.Shapes`, on every new physics backend. Jolt then builds the shapes outside a tick, and the sync point never stalls on a large shape. A demo with 40 hulls and two 16,000-triangle meshes prepares in about 20 ms by the measured costs.
+The store makes one `ShapeDesc` object per (piece, use). Every body that names it shares it, as the reference-keyed `ShapeCache` of the physics backend needs (content formats). `AssetStore.Shapes` lists the current shape of each (piece, use), and a reload replaces the entry. After a content load, the host calls `IPhysicsBackend.Prepare` for each shape of `AssetStore.Shapes`, on every new physics backend. Jolt then builds the shapes outside a tick, and the sync point never stalls on a large shape. A demo with 40 hulls and two 16,000-triangle meshes prepares in about 20 ms by the measured costs.
 
 Scale: Jolt shapes have no scale, and `RenderData.Scale` changes only rendering. A blueprint that scales a model by 2 does not scale its collision. Use the `scale` key of the import configuration instead.
 
@@ -722,7 +722,7 @@ Writes are atomic per asset:
 
 A crash between two steps leaves no cooked folder, or an old one. The next import repairs both, and a reader never sees half a folder.
 
-A lock file `bin/assets/.lock` keeps two importers out of one package at a time. An importer that finds the lock taken waits for it, up to `--lock-wait` seconds (default 120). The editor and an agent often import at the same time (plan 10), so a short wait is normal. After the wait, the importer reports AS6006 and exits with code 7 of plan 08, not with code 3. An agent then knows that the content has no error.
+A lock file `bin/assets/.lock` keeps two importers out of one package at a time. An importer that finds the lock taken waits for it, up to `--lock-wait` seconds (default 120). The editor and an agent often import at the same time (see the editor design), so a short wait is normal. After the wait, the importer reports AS6006 and exits with code 7 of content packages and mods, not with code 3. An agent then knows that the content has no error.
 
 ### Caching and determinism
 
@@ -753,13 +753,13 @@ Ordering rules, each with its reason:
 | What | Order | Reason |
 |---|---|---|
 | Assets of a package | Ordinal order of the path | Directory listings differ between operating systems. |
-| Packages | Load order of plan 08 | It exists already and is deterministic. |
+| Packages | Load order of content packages and mods | It exists already and is deterministic. |
 | Nodes, meshes, materials and images of a glTF | glTF index order | The file stores them in that order. |
 | Pieces | Node order, depth first | A parent comes before its child pieces. |
 | Parts of a piece | Order of the first use of each material, depth first through the nodes | |
 | Textures in a cooked asset | Order of first use by the materials | |
 | Parallel work | Results are stored by index, not by finish time. | Thread timing must not change a result. |
-| Diagnostics | The order of `DiagnosticBag.Sorted` (plan 07): package load order, file path, line, column, pointer, code | One input gives one report. A `.glb` diagnostic has no line, which counts as 0. |
+| Diagnostics | The order of `DiagnosticBag.Sorted` (content formats): package load order, file path, line, column, pointer, code | One input gives one report. A `.glb` diagnostic has no line, which counts as 0. |
 | Name dedupe | glTF index order | |
 
 Other rules for deterministic bytes:
@@ -772,7 +772,7 @@ Other rules for deterministic bytes:
 
 ### Runtime: the asset store
 
-`AssetStore` in `Tertius.Assets` implements the `IAssetResolver` of plan 07. One store lives for the whole process. It outlives content sets, so `ReloadData` of plan 08 gets the same ids for unchanged assets, and GPU memory does not grow with each reload.
+`AssetStore` in `Tertius.Assets` implements the `IAssetResolver` of content formats. One store lives for the whole process. It outlives content sets. So `ReloadData` of content packages and mods gets the same ids for unchanged assets, and GPU memory does not grow with each reload.
 
 ```csharp
 namespace Tertius.Assets;
@@ -784,7 +784,7 @@ public sealed record AssetStoreOptions
 }
 
 /// <summary>
-/// Loads cooked assets and creates their renderer resources. Implements the resolver of plan 07.
+/// Loads cooked assets and creates their renderer resources. Implements the resolver of content formats.
 /// It loads each sub-asset on its first request and returns the same id or ShapeDesc object for every later request.
 /// Thread-safe. Without a renderer it reads and resolves everything and returns None ids, for tests and tools.
 /// </summary>
@@ -815,14 +815,14 @@ public sealed record AssetReload(
     IReadOnlyList<ContentDiagnostic> Diagnostics);
 ```
 
-Plan 07 shows the interface `IAssetResolver`, with `TextureSlot` and `CollisionUse`. These rules belong to this plan:
+The content formats design shows the interface `IAssetResolver`, with `TextureSlot` and `CollisionUse`. These rules belong to this design:
 
 - `Texture` takes the slot, so an image whose role does not fit the slot fails at load with AS4005 (see "Roles"). A `normalDx` image fits the slot `Normal`, because the importer flips its green channel. An example: a normal map named `rock.png`, which has the role `albedo`. The hint names the suffix or the `role` key that fixes it.
 - `Collision` takes the use, so that one piece can give convex hulls for a body and a triangle mesh for an interior.
 - `BeginLoad` gives the store the package folders and their forms. The resolver cannot find `bin/assets/` without them.
-- For a built package of plan 08, the store reads only `bin/assets/`, because the package has no `assets/` folder.
-- A resolver error is a string that starts with its AS code. ContentLoader reports it as CT4008 (plan 08), and the message keeps the AS code for agents.
-- `Primitive` and `InlineMaterial` keep the behavior of `PrimitiveAssets` from plan 07.
+- For a built package of content packages and mods, the store reads only `bin/assets/`, because the package has no `assets/` folder.
+- A resolver error is a string that starts with its AS code. ContentLoader reports it as CT4008 (content packages and mods), and the message keeps the AS code for agents.
+- `Primitive` and `InlineMaterial` keep the behavior of `PrimitiveAssets` from content formats.
 
 A host wires the store like this:
 
@@ -842,9 +842,9 @@ where
 - `store` = the asset store for the whole process.
 - `renderer` = the `IRenderer` of the host, or null for a world without graphics.
 - `isDevelopment` = true for the launcher in development and for the editor.
-- `request` = the `ContentRequest` of plan 08.
+- `request` = the `ContentRequest` of content packages and mods.
 - `physics` = the physics backend of the world. Every new backend gets `Prepare` for every shape of the store.
-- `scene` = the prepared start scene of plan 07.
+- `scene` = the prepared start scene of content formats.
 
 ### Engine changes
 
@@ -914,8 +914,8 @@ public interface IPhysicsBackend : IDisposable
 Simulation:
 
 - `RenderData` gains `public ModelId Model`. The snapshot builder copies it into `RenderInstance.Model`.
-- `World.Spawn` rejects a render row with a model and a mesh or material, with an ordinary argument guard. The binder of plan 07 reports the same mistake in a file as CT3011.
-- Plan 08 lists `ModelId` in the mod API as a render value, next to `MeshId`. Its constructor is `[EngineOnly]`, like the other id constructors.
+- `World.Spawn` rejects a render row with a model and a mesh or material, with an ordinary argument guard. The binder of content formats reports the same mistake in a file as CT3011.
+- The content packages and mods design lists `ModelId` in the mod API as a render value, next to `MeshId`. Its constructor is `[EngineOnly]`, like the other id constructors.
 
 Rendering:
 
@@ -930,7 +930,7 @@ Rendering:
 | LOD selection: the coarsest LOD with a projected error under `RendererOptions.LodPixelError` (default 1 pixel). Shadow cascades use the texel size of the cascade. `RendererOptions.Lods` turns it off. | CPU tests of the selection math. Snapshot pairs with LODs on and off. | Triangles drawn and GPU time, with and without LODs |
 | `Replace*`: same id, new data. A replaced texture frees its old image after the GPU frames in flight finish, which are the frames that the GPU still draws. A replaced mesh takes a new range in the global buffers. | CPU tests through the upload queue. Headless test: a replaced texture shows new pixels. | None |
 
-The projected error of a LOD is error × scale × (output height / (2 × tan(fov / 2))) / distance, in pixels. The deterministic test mode of plan 03 picks LODs the same way, so snapshots stay stable.
+The projected error of a LOD is error × scale × (output height / (2 × tan(fov / 2))) / distance, in pixels. The deterministic test mode of renderer snapshot tests picks LODs the same way, so snapshots stay stable.
 
 A replaced mesh leaves its old range in the global buffers until the process ends. Hot reload is a development feature, so the stats report this memory and nothing frees it.
 
@@ -952,25 +952,25 @@ public static class ShapeCooker
 
 `JoltPhysicsBackend.Prepare` builds the shape into the existing `ShapeCache` and the radius cache, under `JoltRuntime.NativeGate`.
 
-### Interfaces in plans 07 and 08
+### Interfaces in content formats and in content packages and mods
 
-Plans 07 and 08 hold every interface, file key, value form, name rule and layout entry that this plan needs. Examples are `IAssetResolver`, `render.model`, the node pose, `emissiveMap`, the import file names, `bin/assets/`, `FindPackages` and the order of resolver calls.
+These two designs hold every interface, file key, value form, name rule and layout entry that this design needs. Examples are `IAssetResolver`, `render.model`, the node pose, `emissiveMap`, the import file names, `bin/assets/`, `FindPackages` and the order of resolver calls.
 
 ### Hot reload
 
-The editor of plan 10 and the launcher in development use `AssetWatcher` from `Tertius.Import`:
+The editor and the launcher in development use `AssetWatcher` from `Tertius.Import`:
 
 1. A `FileSystemWatcher` on the `assets/` folder of each package reports changes. Renames count, because Blender saves through a temporary file and a rename.
 2. After 300 ms with no new change, the watcher collects the changed files.
 3. It finds the affected assets: a changed source, its sidecar, a dependency that the last import recorded, or a `defaults.import.json` above it.
 4. It imports them on a background thread, with the same importer as the CLI.
 5. It raises `Imported` with the report on that thread. The owner of the store queues the report.
-6. The owner calls `AssetStore.Reload` on the thread that owns the renderer, between two rendered frames. The editor does this on its main thread at the start of a UI frame (plan 10). Meshes, textures, materials and models keep their ids, and the next rendered frame shows the new data.
+6. The owner calls `AssetStore.Reload` on the thread that owns the renderer, between two rendered frames. The editor does this on its main thread at the start of a UI frame (see the editor design). Meshes, textures, materials and models keep their ids, and the next rendered frame shows the new data.
 
 | Change | Editor | Launcher in development |
 |---|---|---|
 | Geometry, textures, materials, lights | Live, with the same ids | Live, with the same ids |
-| Collision | `CollisionChanged`: the editor rebuilds its edit world, and the next play world gets the new shapes (plan 10). | Logged. A restart applies it. |
+| Collision | `CollisionChanged`: the editor rebuilds its edit world, and the next play world gets the new shapes (see the editor design). | Logged. A restart applies it. |
 | New or removed pieces, materials or nodes | `StructureChanged`: the editor runs `ContentLoader.ReloadData` and rebuilds its worlds. | Logged. A restart applies it. |
 
 A failed import keeps the last good cooked folder, so the running game keeps working. A removed asset keeps its resources until the process ends. A `.blend` source needs the assets shell. In the default shell, the watcher reports AS6001 for a changed `.blend` file and keeps the last good output.
@@ -1007,7 +1007,7 @@ License policy:
 
 The policy lives in `tools/Tertius.Import/LicensePolicy.cs`. The user can change it there, and the tests lock in the list.
 
-`tertius asset credits` prints the attribution list of a package, grouped by license. `--write` writes `CREDITS.md` (plan 08). A test fails on a `CREDITS.md` that does not match the records. The CLI reports the same problem as warning AS7006. A line looks like this:
+`tertius asset credits` prints the attribution list of a package, grouped by license. `--write` writes `CREDITS.md` (content packages and mods). A test fails on a `CREDITS.md` that does not match the records. The CLI reports the same problem as warning AS7006. A line looks like this:
 
 ```
 - "Rock Moss Set 01" by Kless Gyzen, from Poly Haven (https://polyhaven.com/a/rock_moss_set_01), CC0-1.0. Changes: packed into one GLB file.
@@ -1017,7 +1017,7 @@ NASA media also needs the line "Courtesy of NASA" and no use of NASA logos. The 
 
 ### The CLI
 
-The commands live in `tools/Tertius.Cli` next to the content commands of plan 08. Every command takes `--json`, and asset ids follow plan 08. A package id alone means every asset of the package.
+The commands live in `tools/Tertius.Cli` next to the content commands that content packages and mods adds. Every command takes `--json`, and asset ids follow the content packages and mods design. A package id alone means every asset of the package.
 
 | Command | What it does |
 |---|---|
@@ -1033,7 +1033,7 @@ The commands live in `tools/Tertius.Cli` next to the content commands of plan 08
 | `tertius asset add <path> --to <package>:<path> [provenance options]` | Copies a file or folder into a package, converts it, writes provenance, imports it and renders previews |
 | `tertius asset watch [packages]` | Imports on every change and prints one JSON line per import |
 
-The exit codes are the codes of every `tertius` subcommand, in the table of plan 08. Two of them matter most here. Code 5 means that a tool is missing, such as Blender outside the assets shell. Code 7 means that another import held the lock of the package for longer than the wait.
+The exit codes are the codes of every `tertius` subcommand, in the table of the content packages and mods design. Two of them matter most here. Code 5 means that a tool is missing, such as Blender outside the assets shell. Code 7 means that another import held the lock of the package for longer than the wait.
 
 An import:
 
@@ -1076,7 +1076,7 @@ $ tertius asset import tertius.demo --json
 }
 ```
 
-The diagnostic keys are those of plan 07. For a `.glb`, `pointer` is a JSON Pointer into the JSON chunk, and `line` and `column` are null. For a `.gltf`, the importer maps the pointer to a line and column with `JsonPositions.Find` of plan 07.
+The diagnostic keys are those of the content formats design. For a `.glb`, `pointer` is a JSON Pointer into the JSON chunk, and `line` and `column` are null. For a `.gltf`, the importer maps the pointer to a line and column with `JsonPositions.Find` of content formats.
 
 An inspection:
 
@@ -1122,7 +1122,7 @@ $ tertius asset inspect tertius.demo:ships/corvette.blend --json
 
 ### Previews
 
-`tertius asset preview` renders PNG images with the headless renderer of plan 06, in the deterministic mode of plan 03. They go to `bin/previews/<asset path>/`. An agent opens them with the Read tool. Each image except the thumbnail is 1024 × 1024 pixels and has text labels from a small bitmap font.
+`tertius asset preview` renders PNG images with the headless renderer of host and scripted runs, in the deterministic mode of renderer snapshot tests. They go to `bin/previews/<asset path>/`. An agent opens them with the Read tool. Each image except the thumbnail is 1024 × 1024 pixels and has text labels from a small bitmap font.
 
 | View | Contents |
 |---|---|
@@ -1131,7 +1131,7 @@ $ tertius asset inspect tertius.demo:ships/corvette.blend --json
 | `lods.png` | LOD 0 to the last LOD side by side at one distance. Labels: triangles and error in millimeters. |
 | `textures.png` | Each texture after BC compression, decoded again: albedo, alpha, normal, specular, gloss and emissive as separate tiles. Labels: role, size and format. |
 | `materials.png` | One sphere per material, with the textures of the material. Labels: material names. |
-| `thumbnail.png` | 256 × 256 pixels, with no labels: the three-quarter view of a model, or the sphere of a texture. The asset browser of plan 10 shows it. |
+| `thumbnail.png` | 256 × 256 pixels, with no labels: the three-quarter view of a model, or the sphere of a texture. The asset browser of the editor shows it. |
 
 A texture asset gets `textures.png` and a sphere with the texture. The light rig is fixed: a sun from the front, above and to the left, with intensity 3, and the default hemisphere ambient light. The camera fits the bounding sphere with a vertical field of view of 35°. The 8 × 8 font comes from a public-domain source such as `dhepper/font8x8`, and step 16 makes sure of its license first.
 
@@ -1203,7 +1203,7 @@ $ tertius asset fetch polyhaven:rock_moss_set_01 --json
 | `--keep-gltf` | Keeps a `.gltf` with its files instead of one `.glb` |
 | `--configure <json>` | Writes these configuration keys into the new sidecar |
 
-`add` makes names follow the rules of plan 08: lowercase, `-` for spaces, and no dots except the extension. It writes the asset, the sidecar or folder default file with provenance, then imports and renders previews. The output is the output of `import` plus the list of written files.
+`add` makes names follow the rules of content packages and mods: lowercase, `-` for spaces, and no dots except the extension. It writes the asset, the sidecar or folder default file with provenance, then imports and renders previews. The output is the output of `import` plus the list of written files.
 
 `add` changes a package completely or not at all:
 
@@ -1323,7 +1323,7 @@ Every version below comes from the pinned nixpkgs (`nix eval`) or from NuGet, as
 | V-HACD | 4.1.0 | BSD-3-Clause | `native/vhacd.nix` | Convex decomposition |
 | libjoltc_double | Jolt 5.6.0 | MIT | `native/joltc.nix` (exists) | Hull reduction, shape tests |
 | ktx-tools | 4.4.2 | Apache-2.0 | nixpkgs `ktx-tools` | `ktx validate` in tests |
-| `check-jsonschema` | 0.38.0 | Apache-2.0 | nixpkgs `check-jsonschema` (plan 07) | Schema conformance of import files. Import files are plain JSON, so it reads them as they are. |
+| `check-jsonschema` | 0.38.0 | Apache-2.0 | nixpkgs `check-jsonschema` (content formats) | Schema conformance of import files. Import files are plain JSON, so it reads them as they are. |
 | Blender | 5.2.2 | GPL-2.0-or-later | nixpkgs `blender`, `assets` shell only | FBX, OBJ, `.blend`, TIFF and WebP conversion |
 
 Running Blender as a tool does not put its license on the output files (research belief, the usual reading of the GPL). The meshoptimizer README asks for a credit line. The importer prints it in `tertius asset --version`, and the game does not ship meshoptimizer.
@@ -1438,9 +1438,9 @@ Memory:
 3. Rendering: every renderer change of "Engine changes". These are models with parts and lights, one impostor tile per model and LOD selection by projected error. They also include BC textures with given mips, the emissive map, normal Z from X and Y, and the `Replace` methods.
 4. Physics: `Prepare`, and asset shapes as points and triangles that Jolt builds at load.
 5. A new section, "Assets". It records the formats, the axes, the front at -Z, the light unit of 683 cd, and pieces, parts and fragments. It also records cooked output, the cache key, the ordering rules and provenance. It states that every machine that imports a `.blend` file needs the assets shell.
-6. Rules for references: `AssetStore` holds no mod types, so it does not block the unload of plan 08.
+6. Rules for references: `AssetStore` holds no mod types, so it does not block the unload that content packages and mods defines.
 
-### Hand-offs to plan 10
+### Hand-offs to the editor
 
 - `Importer`, `AssetWatcher` and the `Imported` event for the asset browser and its error list. The event comes on a background thread.
 - `AssetStore.Reload`, which runs on the thread of the renderer, and its flags `CollisionChanged` and `StructureChanged`. They tell the editor to rebuild worlds or to run `ReloadData`.
@@ -1489,7 +1489,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
     - Jolt reduction, AS5002 and the simplification error of static meshes.
     - V-HACD run twice with equal hashes.
 13. Write the configuration and the cache. Tests:
-    - Sidecars bind through the binder of plan 07.
+    - Sidecars bind through the binder of content formats.
     - The precedence of the four sources.
     - Each key input, changed alone, makes the asset stale with the right reason.
     - A provenance change makes no asset stale.
@@ -1498,7 +1498,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
     - The model and texture sections in a folder default file, and AS1005 only for sidecars.
     - Determinism: two imports give the same bytes, and so do serial and parallel imports and a reversed asset order.
     - The schema of import files passes `check-jsonschema` against good and bad fixtures.
-14. Add `IAssetResolver.Model`, and bind `render.model`, `ModelId` fields and `emissiveMap` in the binder of plan 07. Then write `AssetStore`, the implementation of the resolver. Tests:
+14. Add `IAssetResolver.Model`, and bind `render.model`, `ModelId` fields and `emissiveMap` in the binder of content formats. Then write `AssetStore`, the implementation of the resolver. Tests:
     - Every resolver member, the use rules, and CT4008 with the AS code.
     - Every row of the role and slot table, also `Ui`, `Data` and `Any` for component fields.
     - A built package with no `assets/` folder resolves the same ids as its source form.
@@ -1547,10 +1547,10 @@ Other tests:
 - Round trips:
   - KTX2 write and read, and cooked write and read.
   - The glTF of a fixture to `MeshData`, against the expected vertices within float tolerance.
-  - Import files: bind, write with `ContentFormat` of plan 07, and bind again.
+  - Import files: bind, write with `ContentFormat` from content formats, and bind again.
 - Determinism: the three tests of "Caching and determinism".
 - Conformance: `ktx validate` on every KTX2 file, and `check-jsonschema` on import files.
-- Snapshots: the renderer changes, the previews and the material grid, as plan 03 describes.
+- Snapshots: the renderer changes, the previews and the material grid, as the renderer snapshot tests design describes.
 - Security: the auto-run `.blend`, archive entries with `..` and links, and the false image header.
 - Contracts, for the state that must stay coherent:
   - `CookedAsset.AssertInvariants`: every part names a mesh and a material in range. LOD index lists are in range, and their errors increase. Every node parent comes before its children.
@@ -1583,7 +1583,7 @@ The user accepted every recommendation of this section on 2026-10-10.
 - Zstd supercompression of KTX2 files, and a native BC7 encoder such as bc7e.
 - A budget for GPU uploads per frame, and the release of GPU resources at a content unload.
 - Material overrides on a model in a render section, such as a red variant of a ship.
-- Attachment prefabs that spawn an entity for each piece. They need the scene instancing of plan 07.
+- Attachment prefabs that spawn an entity for each piece. They need the scene instancing of content formats.
 - Sky maps and environment maps. The renderer has no slot for them.
 - Audio assets.
 - Cooked output in archives for shipping, and mod distribution.

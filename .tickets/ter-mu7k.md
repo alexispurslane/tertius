@@ -12,5 +12,5 @@ tags: [host]
 ---
 # Add the windowed host with input
 
-Step 4 of docs/plans/06-host-and-scripted-runs.md.
+Step 4 of docs/plans/host-and-scripted-runs.md.
 

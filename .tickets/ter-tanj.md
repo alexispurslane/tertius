@@ -11,5 +11,5 @@ tags: [design]
 ---
 # Design review
 
-Design: docs/plans/02-design-review.md. It simplifies what the vertical slice showed to work.
+Design: docs/plans/design-review.md. It simplifies what the vertical slice showed to work.
 

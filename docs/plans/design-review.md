@@ -1,4 +1,4 @@
-# 02 Design review
+# Design review
 
 Ticket: `ter-tanj`.
 

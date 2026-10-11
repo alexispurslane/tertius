@@ -11,5 +11,5 @@ tags: [rendering]
 ---
 # Point and spot light shadows
 
-Design: docs/plans/05-local-light-shadows.md.
+Design: docs/plans/local-light-shadows.md.
 

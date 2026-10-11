@@ -11,5 +11,5 @@ tags: [editor]
 ---
 # Editor
 
-Design: docs/plans/10-editor.md.
+Design: docs/plans/editor.md.
 

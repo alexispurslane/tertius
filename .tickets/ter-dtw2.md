@@ -11,7 +11,7 @@ tags: [host]
 ---
 # Host and scripted runs, with the vertical slice
 
-Design: docs/plans/06-host-and-scripted-runs.md. This comes right after round eight. The vertical slice shows that the engine really does the right thing, and that result guides test hardening, the design review and the snapshot tests.
+Design: docs/plans/host-and-scripted-runs.md. This comes right after round eight. The vertical slice shows that the engine really does the right thing, and that result guides test hardening, the design review and the snapshot tests.
 
 ## Acceptance Criteria
 

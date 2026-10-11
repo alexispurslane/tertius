@@ -12,5 +12,5 @@ tags: [host, rendering]
 ---
 # Add the renderer and headless captures to scripted runs
 
-Step 2 of docs/plans/06-host-and-scripted-runs.md.
+Step 2 of docs/plans/host-and-scripted-runs.md.
 

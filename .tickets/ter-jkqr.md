@@ -12,5 +12,5 @@ tags: [physics]
 ---
 # Report every body velocity at the body origin, not at the center of mass
 
-Jolt reports the pose of the origin with the velocity of the center of mass, and the World reads it as the velocity of the origin. See The velocity point in docs/plans/00-real-physics-in-tests.md.
+Jolt reports the pose of the origin with the velocity of the center of mass, and the World reads it as the velocity of the origin. See The velocity point in docs/plans/real-physics-in-tests.md.
 

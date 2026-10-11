@@ -11,5 +11,5 @@ tags: [content]
 ---
 # Content formats: blueprints and scenes
 
-Design: docs/plans/07-content-formats.md.
+Design: docs/plans/content-formats.md.
 

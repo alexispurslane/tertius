@@ -11,5 +11,5 @@ tags: [content, assets]
 ---
 # Asset pipeline
 
-Design: docs/plans/09-asset-pipeline.md.
+Design: docs/plans/asset-pipeline.md.
 

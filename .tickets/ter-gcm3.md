@@ -11,5 +11,5 @@ tags: [rendering]
 ---
 # Anti-aliasing with SMAA 1x
 
-Design: docs/plans/04-anti-aliasing.md.
+Design: docs/plans/anti-aliasing.md.
 

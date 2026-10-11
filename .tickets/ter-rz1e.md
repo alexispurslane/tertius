@@ -12,5 +12,5 @@ tags: [tests, physics]
 ---
 # Add end-to-end tests for the behaviors that no test runs on the World with Jolt
 
-See step 8 of docs/plans/00-real-physics-in-tests.md.
+See step 8 of docs/plans/real-physics-in-tests.md.
 

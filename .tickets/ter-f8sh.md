@@ -12,5 +12,5 @@ tags: [host, slice]
 ---
 # Vertical slice: the person goes through an airlock to the outside
 
-Step 3 of docs/plans/06-host-and-scripted-runs.md.
+Step 3 of docs/plans/host-and-scripted-runs.md.
 

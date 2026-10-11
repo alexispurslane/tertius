@@ -1,6 +1,6 @@
-# 01 Test hardening
+# Test hardening
 
-Ticket: `ter-7e55`. It comes after plan 00, which moves every test onto the real World and the real Jolt backend.
+Ticket: `ter-7e55`. It comes after the work on [real physics in every test](real-physics-in-tests.md), which moves every test onto the real World and the real Jolt backend.
 
 ## Goal
 
@@ -23,7 +23,7 @@ Make sure that the tests of every module really test the behavior that they clai
 5. Run coverage for Simulation. Read the uncovered lines file by file. Add tests through public behavior, delete dead code, or comment why defensive code stays.
 6. Run Stryker for Simulation. Triage every survivor and every mutant with no coverage, as the test-hardening skill says.
 7. Lock in the decisions from the CLAUDE.md table and ARCHITECTURE.md. Test the behavior that depends on each decision, not the constant.
-8. Review the determinism test, which plan 00 moves onto Jolt. The test stage made it smaller: 160 entities for 200 ticks, down from 240 entities for 300 ticks. It also added checks that the workload really hands bodies off and reports contacts. Make sure that the smaller workload still covers every routing source and every sync step.
+8. Review the determinism test, which the work on real physics in every test moves onto Jolt. The test stage made it smaller: 160 entities for 200 ticks, down from 240 entities for 300 ticks. It also added checks that the workload really hands bodies off and reports contacts. Make sure that the smaller workload still covers every routing source and every sync step.
 9. Run a seeded chaotic workload with `WorldOptions.DebugChecks` on, for a long soak. Report the exposure, the failures and the MTBF (mean time between failures).
 10. Repeat steps 4 to 7 for Physics, Core and the CPU parts of Rendering.
 
