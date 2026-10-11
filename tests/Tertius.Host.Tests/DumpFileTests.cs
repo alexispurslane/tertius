@@ -159,4 +159,22 @@ public sealed class DumpFileTests : IDisposable
         payloads[0].GetProperty("amount").GetString().Should().Be("NaN");
         payloads[1].GetProperty("direction")[0].GetString().Should().Be("Infinity");
     }
+
+    [Fact]
+    public void NegativeZeroIsWrittenAsZeroSoThatDumpsCompareAsText()
+    {
+        JsonElement dump = RunAndRead(NewWorld, world =>
+        {
+            SceneInstance scene = Probes(world);
+            Entity probe = scene["probe"];
+            world.Spawn(new SpawnDesc
+            {
+                Frame = world.GetOwnedFrame(scene["space"]),
+                Components = [new SendOnce<Aim>(probe, new Aim { Direction = new System.Numerics.Vector3(-0f, 1, -0f) })],
+            });
+            return scene;
+        }, Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""), "now");
+
+        dump.GetProperty("events")[0].GetProperty("payload").GetProperty("direction").GetRawText().Should().Be("[0, 1, 0]");
+    }
 }

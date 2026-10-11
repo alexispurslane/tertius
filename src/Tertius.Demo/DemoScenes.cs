@@ -79,8 +79,10 @@ public static class DemoScenes
             });
         scene.Add("sun", sun.Entity);
         world.SunFrame = sun;
-        // Sunlight above the atmosphere is bright.
+        // Sunlight above the atmosphere is bright. Space has no sky and no ground, so a face that the sun does not reach gets
+        // the same dim light from every direction.
         world.SunIntensity = 2.5f;
+        world.Ambient = new AmbientLight { SkyColor = new Vector3(0.03f), GroundColor = new Vector3(0.03f), Intensity = 1 };
 
         // The pole leans from the sun's +Y toward -Z, the direction of the sun from Earth at the June solstice.
         DQuaternion obliquity = DQuaternion.FromAxisAngle(Double3.UnitX, -Obliquity);

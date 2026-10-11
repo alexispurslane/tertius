@@ -151,11 +151,12 @@ internal static class ScriptJson
     private static void WriteArray(Utf8JsonWriter writer, params ReadOnlySpan<string> numbers) =>
         writer.WriteRawValue($"[{string.Join(", ", numbers.ToArray())}]", skipInputValidation: true);
 
+    // Adding +0 turns -0 into 0, so that two dumps of equal values compare equal as text.
     private static string Number(float value) =>
-        float.IsFinite(value) ? value.ToString("R", CultureInfo.InvariantCulture) : $"\"{value.ToString(CultureInfo.InvariantCulture)}\"";
+        float.IsFinite(value) ? (value + 0f).ToString("R", CultureInfo.InvariantCulture) : $"\"{value.ToString(CultureInfo.InvariantCulture)}\"";
 
     private static string Number(double value) =>
-        double.IsFinite(value) ? value.ToString("R", CultureInfo.InvariantCulture) : $"\"{value.ToString(CultureInfo.InvariantCulture)}\"";
+        double.IsFinite(value) ? (value + 0.0).ToString("R", CultureInfo.InvariantCulture) : $"\"{value.ToString(CultureInfo.InvariantCulture)}\"";
 
     private sealed class Vector2Converter : JsonConverter<Vector2>
     {

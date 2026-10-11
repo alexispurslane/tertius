@@ -144,11 +144,16 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
     }
 
     [Fact]
-    public void EarthsAxisLeans23Point44DegreesFromThePoleOfItsOrbit()
+    public void TheEarthFrameDoesNotTurnAndItsPoleLeansTowardTheSunOfTheJuneSolstice()
     {
         DQuaternion earth = run.World.Frames.LocalPose(run.Frame("earth")).Rotation;
+        double obliquity = 23.4392811 * Math.PI / 180;
 
-        Math.Acos(earth.Rotate(Double3.UnitY).Y).Should().BeApproximately(23.4392811 * Math.PI / 180, 1e-9);
+        // The pole leans 23.44 degrees from the pole of the orbit toward -Z, where the sun stands seen from Earth in June,
+        // and +X, the March equinox direction, stays where it is.
+        ExpectNear(earth.Rotate(Double3.UnitY), new Double3(0, Math.Cos(obliquity), -Math.Sin(obliquity)), 1e-9);
+        ExpectNear(earth.Rotate(Double3.UnitX), Double3.UnitX, 1e-9);
+        run.World.Frames.AngularVelocity(run.Frame("earth")).Should().Be(System.Numerics.Vector3.Zero);
     }
 
     [Fact]
@@ -212,6 +217,15 @@ public sealed class OrbitStartTests
         Double3.Distance(toSun, Double3.UnitY).Should().BeLessThan(1e-4);
     }
 
+    [Fact]
+    public void SpaceHasNoSkyOrGroundSoTheAmbientLightIsTheSameFromEveryDirection()
+    {
+        using World world = NewJoltWorld();
+        DemoScenes.All.Single(s => s.Name == "orbit").Build(world, RenderResources.None);
+
+        world.Ambient.SkyColor.Should().Be(world.Ambient.GroundColor);
+    }
+
     /// <summary>Resources that give each mesh, texture and material its own id, so that the snapshot holds the scene's instances.</summary>
     private sealed class NumberedResources : IRenderResources
     {
@@ -236,6 +250,9 @@ public sealed class OrbitStartTests
         RenderInstance sun = snapshot.Instances.Single(instance => instance.BoundingRadius == 6.957e8f);
         (earth.Flags & RenderFlags.CastsShadow).Should().Be(RenderFlags.CastsShadow);
         (sun.Flags & RenderFlags.CastsShadow).Should().Be(RenderFlags.None);
+        // Both are drawn, and neither ever becomes an impostor.
+        (earth.Flags & (RenderFlags.Visible | RenderFlags.Celestial)).Should().Be(RenderFlags.Visible | RenderFlags.Celestial);
+        (sun.Flags & (RenderFlags.Visible | RenderFlags.Celestial)).Should().Be(RenderFlags.Visible | RenderFlags.Celestial);
     }
 }
 
@@ -259,6 +276,37 @@ public sealed class OrbitSliceImageTests : IDisposable
                 b += pb;
             }
         return (r / 25, g / 25, b / 25);
+    }
+
+    /// <summary>The chase capture with the ship <paramref name="degrees"/> along its first circle, as the world starts there.</summary>
+    private Png ChaseAt(double degrees, string name)
+    {
+        double period = 2 * Math.PI / OrbitRun.MeanMotion;
+        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true, StartTime = degrees / 360 * period }, new Tertius.Physics.JoltPhysicsBackend());
+        Script script = Script.Parse($$"""{ "scene": "orbit", "window": { "width": 1280, "height": 720 }, "steps": [ { "do": "capture", "name": "{{name}}" } ] }""");
+        VulkanRenderer renderer = GpuTesting.Headless(16, 16);
+        try
+        {
+            ScriptRunner.Run(script, world, DemoScenes.All.Single(s => s.Name == "orbit").Build(world, renderer), folder, new HeadlessPlayback(renderer, script.Window));
+        }
+        finally
+        {
+            renderer.Dispose();
+            renderer.ValidationMessages.Should().BeEmpty();
+        }
+        return Png.Load(Path.Combine(folder, name + ".png"));
+    }
+
+    [Fact]
+    public void InEarthsShadowTheFaceOfTheShipThatFacesTheSunGoesDark()
+    {
+        // Past the terminator, the ship's nose points away from the sun, so its back face, which the chase camera sees,
+        // faces it: at 100 degrees the sun still lights it; at 120 degrees Earth's shadow covers the ship.
+        (int r, int g, int b) day = Average(ChaseAt(100, "dusk"), 640, 440);
+        (int r, int g, int b) night = Average(ChaseAt(120, "umbra"), 640, 440);
+
+        (day.r > 150).Should().BeTrue($"before the shadow, the back face is sunlit, not {day}");
+        (night.r + night.g + night.b < 120).Should().BeTrue($"in Earth's shadow, the back face is dark, not {night}");
     }
 
     [Fact]
