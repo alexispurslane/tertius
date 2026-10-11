@@ -1,6 +1,6 @@
 # 09 Asset pipeline
 
-Status: planned. It needs plan 08. It also uses plan 06 for headless rendering and plan 03 for snapshot tests. Plan 10 builds on it.
+Ticket: `ter-kge6`. It needs plan 08. It also uses plan 06 for headless rendering and plan 03 for snapshot tests. Plan 10 builds on it.
 
 ## Goal
 

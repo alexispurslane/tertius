@@ -1,6 +1,6 @@
 # 05 Point and spot light shadows
 
-Status: planned. The user approved this design.
+Ticket: `ter-s9cv`. The user approved this design.
 
 ## Goal
 

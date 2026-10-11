@@ -1,6 +1,6 @@
 # 07 Content formats: blueprints and scenes
 
-Status: planned. It needs plan 06 for the host. Plan 08 builds packages on top of it. Plans 09 and 10 use both.
+Ticket: `ter-jwzd`. It needs plan 06 for the host. Plan 08 builds packages on top of it. Plans 09 and 10 use both.
 
 ## Goal
 

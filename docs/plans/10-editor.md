@@ -1,6 +1,6 @@
 # 10 Editor
 
-Status: planned. It needs plan 06 for the host, plans 07 and 08 for content, and plan 09 for assets.
+Ticket: `ter-631h`. It needs plan 06 for the host, plans 07 and 08 for content, and plan 09 for assets.
 
 ## Goal
 

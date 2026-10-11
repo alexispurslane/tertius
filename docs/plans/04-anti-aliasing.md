@@ -1,6 +1,6 @@
 # 04 Anti-aliasing
 
-Status: planned. It needs plan 03 for its snapshot tests.
+Ticket: `ter-gcm3`. It needs plan 03 for its snapshot tests.
 
 ## Goal
 

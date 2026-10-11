@@ -8,6 +8,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 - Build: `dotnet build Tertius.slnx`. Test one module: `dotnet test --project tests/Tertius.<Module>.Tests`.
 - The tests use xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions and NSubstitute.
 - The double-precision Jolt library comes from `native/joltc.nix`. Read the Jolt pitfalls in project memory before you touch Jolt interop.
+- This project uses a CLI ticket system for task management. When you need it, run `tk help`. The tickets in `.tickets/` track what to do and in which order, and `tk ready` lists the work whose dependencies are done. Design docs live in `docs/plans/`, and each epic ticket names its design doc. When you start a ticket, run `tk start`. When its work is merged, run `tk close`. Commit ticket changes together with the work.
 - Commit with git. Never push without the user's permission. This project stays on git, not jj. The user chose this, and it overrides the jj rule in their other agent configuration.
 
 ## General architectural preferences

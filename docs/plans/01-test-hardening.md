@@ -1,6 +1,6 @@
 # 01 Test hardening
 
-Status: planned. It starts after plan 00, which moves every test onto the real World and the real Jolt backend.
+Ticket: `ter-7e55`. It comes after plan 00, which moves every test onto the real World and the real Jolt backend.
 
 ## Goal
 

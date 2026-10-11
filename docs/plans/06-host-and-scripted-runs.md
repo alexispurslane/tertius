@@ -1,6 +1,6 @@
 # 06 Host and scripted runs
 
-Status: planned. The user approved this design.
+Ticket: `ter-dtw2`. The user approved this design.
 
 ## Goal
 

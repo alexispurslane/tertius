@@ -1,38 +1,21 @@
-# Plans
+# Design docs
 
-This folder holds the work that the user asked for and that no running workflow covers yet. Each feature has one plan file. The number in a file name gives the planned order of the work.
+This folder holds one design doc for each feature that the user asked for. A design doc says what to build and why. It does not track progress.
 
-ARCHITECTURE.md stays the binding design. When a plan is done, its decisions move into ARCHITECTURE.md, and the plan's status changes to done.
+The tickets in `.tickets/` track the work: what comes next, what depends on what, and what is done. Each epic ticket names its design doc, and each design doc names its epic ticket. Run `tk ready` to list the work whose dependencies are done, and `tk dep tree <id>` to see what a ticket waits for. The numbers in the file names are names only, and the tickets hold the order.
 
-## Plan files
+ARCHITECTURE.md stays the binding design. When a feature is done, its decisions move into ARCHITECTURE.md.
 
-| Number | Plan | Status | Depends on |
-|---|---|---|---|
-| 00 | [Real physics in every test](00-real-physics-in-tests.md) | Planned | The physics rounds that run now |
-| 01 | [Test hardening](01-test-hardening.md) | Planned | 00 |
-| 02 | [Design review](02-design-review.md) | Planned | 01 |
-| 03 | [Renderer snapshot tests](03-renderer-snapshot-tests.md) | Planned | 02 |
-| 04 | [Anti-aliasing](04-anti-aliasing.md) | Planned | 03 |
-| 05 | [Point and spot light shadows](05-local-light-shadows.md) | Planned | 03 |
-| 06 | [Host and scripted runs](06-host-and-scripted-runs.md) | Planned | 02 |
-| 07 | [Content formats: blueprints and scenes](07-content-formats.md) | Planned, with open questions | 06 |
-| 08 | [Content packages and mods](08-content-packages.md) | Planned, with open questions | 07 |
-| 09 | [Asset pipeline](09-asset-pipeline.md) | Planned, with open questions | 08 |
-| 10 | [Editor](10-editor.md) | Planned, with open questions | 06, 07, 08, 09 |
-
-## Running now
-
-- The workflow `wf_ea81abf7-ccb` is round eight of the physics work. The user chose to keep sleep under gravity, so this round fixes the bodies that it freezes. It also refuses bad orbits and bad frame owners at spawn. The other bugs from the test stage are fixed and committed.
-
-The Simulation test stage is done and merged: 1,228 tests, none skipped.
-
-## Chores
-
-- Delete the branch `backup/before-history-rewrite` once the user agrees. It keeps the history from before the rewrite of commit `a8d8ae4`.
-
-## Not planned yet
-
-These came up during the work, but nobody asked for them yet.
-
-- Saving and loading a running world. Scenes describe a starting state, and a save game needs the state of every component too.
-- Audio.
+| Design doc | Epic ticket |
+|---|---|
+| [00 Real physics in every test](00-real-physics-in-tests.md) | `ter-se84` |
+| [01 Test hardening](01-test-hardening.md) | `ter-7e55` |
+| [02 Design review](02-design-review.md) | `ter-tanj` |
+| [03 Renderer snapshot tests](03-renderer-snapshot-tests.md) | `ter-rtxu` |
+| [04 Anti-aliasing](04-anti-aliasing.md) | `ter-gcm3` |
+| [05 Point and spot light shadows](05-local-light-shadows.md) | `ter-s9cv` |
+| [06 Host and scripted runs](06-host-and-scripted-runs.md) | `ter-dtw2` |
+| [07 Content formats: blueprints and scenes](07-content-formats.md) | `ter-jwzd` |
+| [08 Content packages and mods](08-content-packages.md) | `ter-ynqi` |
+| [09 Asset pipeline](09-asset-pipeline.md) | `ter-kge6` |
+| [10 Editor](10-editor.md) | `ter-631h` |

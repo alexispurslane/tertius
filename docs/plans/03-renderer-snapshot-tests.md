@@ -1,6 +1,6 @@
 # 03 Renderer snapshot tests
 
-Status: planned.
+Ticket: `ter-rtxu`.
 
 ## Goal
 

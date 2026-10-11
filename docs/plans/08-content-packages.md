@@ -1,6 +1,6 @@
 # 08 Content packages and mods
 
-Status: planned. It needs plan 07. Plans 09 and 10 build on it.
+Ticket: `ter-ynqi`. It needs plan 07. Plans 09 and 10 build on it.
 
 ## Goal
 

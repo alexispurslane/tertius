@@ -1,6 +1,6 @@
 # 00 Real physics in every test
 
-Status: planned. It starts after round seven of the physics work (workflow `wf_e874ca96-80c`) is merged. It comes before plan 01, because plan 01 measures the tests that this plan rewrites.
+Ticket: `ter-se84`. It comes before plan 01, because plan 01 measures the tests that this plan rewrites.
 
 ## Goal
 
