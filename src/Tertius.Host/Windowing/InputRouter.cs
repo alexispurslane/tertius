@@ -20,13 +20,17 @@ public interface IInputTarget
 
     /// <summary>Closes the window.</summary>
     void Close();
+
+    /// <summary>Makes the scene's next view the camera.</summary>
+    void NextView();
 }
 
 /// <summary>
 /// Decides where each input event of the window goes: to the host, to the fly camera, or to the game's <c>input</c> topic.
 /// On the main thread. The rules:
 /// <list type="bullet">
-/// <item>Esc closes the window, and F1 switches the fly camera on and off. The game sees neither key.</item>
+/// <item>Esc closes the window, F1 switches the fly camera on and off, and V makes the scene's next view the camera in
+/// free play. The game sees none of these keys.</item>
 /// <item>While the fly camera is on, its keys and the mouse movement drive it, and nothing reaches the game.</item>
 /// <item>Otherwise, in free play, keys, buttons, mouse movements and scrolls reach the game. During a script, nothing
 /// does, so a script runs the same with or without a person at the keyboard.</item>
@@ -55,6 +59,13 @@ public sealed class InputRouter(bool freePlay, IInputTarget target)
         {
             if (down)
                 SwitchFlyCamera();
+            return;
+        }
+        if (key == Silk.NET.Input.Key.V)
+        {
+            // A script chooses its views with camera steps, so the key changes them only in free play.
+            if (down && freePlay)
+                target.NextView();
             return;
         }
         if (flying)

@@ -152,6 +152,13 @@ The demo shows the engine's main idea working end to end:
 3. The person goes through an airlock to the outside.
 4. The person throws an object from one frame into another.
 
+Step 1, the ship's orbit (ticket `ter-fe04`), is the Demo's scene `orbit` and the script `scripts/orbit.json`. The user chose each point marked (User).
+
+- The planet has Earth's radius and gravity, and the ship orbits 400 km up, once in 92.4 minutes. (User) A full orbit runs headless in about 30 s. `--speed 60` plays it in the window in about 1.5 minutes.
+- The ship faces the planet: its nose points along its orbit and its belly toward the planet, through the Kepler attitude `FacesParent`. (User)
+- The scene has two views. (User) `chase` rides 70 m behind the ship and 12 m above it. `far` stands three Earth radii out and shows the whole planet, where the ship is too small to see. In free play, V switches between them. A script switches them with camera steps.
+- The script captures both views and dumps the state at the start and after each quarter of the orbit.
+
 The demo starts as C# code. The [content packages and mods](content-packages.md) work later moves the content of the demo into the first content package.
 
 ## Steps

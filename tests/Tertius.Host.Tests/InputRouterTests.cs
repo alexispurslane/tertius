@@ -15,12 +15,14 @@ public class InputRouterTests
         public List<Vector2> Turns { get; } = new();
         public List<bool> FlyChanges { get; } = new();
         public int Closes { get; private set; }
+        public int ViewChanges { get; private set; }
 
         public void Post(InputEvent e) => Posted.Add(e);
         public void Fly(FlyKey key, bool down) => FlyKeys.Add((key, down));
         public void Turn(Vector2 movement) => Turns.Add(movement);
         public void FlyChanged(bool flying) => FlyChanges.Add(flying);
         public void Close() => Closes++;
+        public void NextView() => ViewChanges++;
     }
 
     private static (InputKind Kind, int Code) Of(InputEvent e) => (e.Kind, e.Code);
@@ -175,5 +177,29 @@ public class InputRouterTests
         router.MouseMove(new Vector2(12, 10));
 
         window.Posted.Should().ContainSingle().Which.Delta.Should().Be(Vector2.Zero);
+    }
+
+    [Fact]
+    public void InFreePlayVCyclesTheViewsAndNeverReachesTheGame()
+    {
+        var window = new Window();
+        var router = new InputRouter(freePlay: true, window);
+
+        router.Key(Key.V, down: true);
+        router.Key(Key.V, down: false);
+        router.Key(Key.V, down: true);
+
+        window.ViewChanges.Should().Be(2);
+        window.Posted.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void DuringAScriptVChangesNoViewBecauseTheScriptsCameraStepsDo()
+    {
+        var window = new Window();
+
+        new InputRouter(freePlay: false, window).Key(Key.V, down: true);
+
+        window.ViewChanges.Should().Be(0);
     }
 }

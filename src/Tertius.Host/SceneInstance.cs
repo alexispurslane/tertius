@@ -15,6 +15,7 @@ public sealed class SceneInstance
 {
     private readonly Dictionary<string, Entity> entities = new(StringComparer.Ordinal);
     private readonly Dictionary<Entity, string> ids = new();
+    private readonly List<string> views = new();
 
     /// <summary>
     /// Gives <paramref name="entity"/> the scene id <paramref name="id"/>. Throws <see cref="ArgumentException"/> for an id
@@ -44,6 +45,33 @@ public sealed class SceneInstance
 
     /// <summary>The scene id of the entity, or its debug form <c>#index.generation</c> if it has none.</summary>
     public string IdOf(Entity entity) => ids.TryGetValue(entity, out string? id) ? id : $"#{entity.Index}.{entity.Generation}";
+
+    /// <summary>The scene ids of the entities that the window's view key cycles through as the camera, in order.</summary>
+    public IReadOnlyList<string> Views => views;
+
+    /// <summary>
+    /// Makes the entity with the scene id one of the views. Throws <see cref="KeyNotFoundException"/> for an unknown id,
+    /// and <see cref="ArgumentException"/> for an id that is a view already.
+    /// </summary>
+    public void AddView(string id)
+    {
+        _ = this[id];
+        if (views.Contains(id))
+            throw new ArgumentException($"The scene id '{id}' is a view already.", nameof(id));
+        views.Add(id);
+    }
+
+    /// <summary>
+    /// The view after <paramref name="camera"/>, in the order that the views were added, from the last back to the first.
+    /// The first view if the camera is none of them. The camera itself if the scene has no views.
+    /// </summary>
+    public Entity NextView(Entity camera)
+    {
+        if (views.Count == 0)
+            return camera;
+        int current = ids.TryGetValue(camera, out string? id) ? views.IndexOf(id) : -1;
+        return entities[views[(current + 1) % views.Count]];
+    }
 
     /// <summary>True if <paramref name="text"/> follows the grammar of a scene id.</summary>
     public static bool IsSceneId(string text)

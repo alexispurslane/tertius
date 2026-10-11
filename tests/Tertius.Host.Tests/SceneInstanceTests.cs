@@ -93,4 +93,52 @@ public class SceneInstanceTests
     {
         SceneInstance.IsSceneId(id).Should().Be(valid);
     }
+
+    private static readonly Entity Chase = new(7, 1);
+    private static readonly Entity Far = new(8, 1);
+
+    private static SceneInstance WithViews()
+    {
+        var scene = new SceneInstance();
+        scene.Add("box", Box);
+        scene.Add("chase", Chase);
+        scene.Add("far", Far);
+        scene.AddView("chase");
+        scene.AddView("far");
+        return scene;
+    }
+
+    [Fact]
+    public void TheViewsCycleInTheOrderThatTheSceneAddedThem()
+    {
+        SceneInstance scene = WithViews();
+
+        scene.Views.Should().Equal("chase", "far");
+        scene.NextView(Chase).Should().Be(Far);
+        scene.NextView(Far).Should().Be(Chase);
+    }
+
+    [Fact]
+    public void ACameraThatIsNoViewGoesToTheFirstView()
+    {
+        WithViews().NextView(Box).Should().Be(Chase);
+    }
+
+    [Fact]
+    public void WithNoViewsTheCameraStays()
+    {
+        var scene = new SceneInstance();
+        scene.Add("box", Box);
+
+        scene.NextView(Box).Should().Be(Box);
+    }
+
+    [Fact]
+    public void AViewMustNameAnEntityOfTheSceneOnce()
+    {
+        SceneInstance scene = WithViews();
+
+        scene.Invoking(s => s.AddView("ghost")).Should().Throw<KeyNotFoundException>();
+        scene.Invoking(s => s.AddView("far")).Should().Throw<ArgumentException>();
+    }
 }
