@@ -226,11 +226,14 @@ public sealed class OrbitStartTests
         FrameHandle ship = world.GetOwnedFrame(scene["ship"]);
 
         // The ship falls freely, so its proper acceleration is zero, and only its own field acts inside it. The belly, -Y,
-        // faces Earth. Outside the hull, a person on a spacewalk floats.
+        // faces Earth. Physics takes a person's gravity at the capsule's center, so a person on a spacewalk floats: on the
+        // roof or against a side, the center is 0.92 m or 0.32 m out from the hull. The field ends at the cabin, inside
+        // the slabs.
         world.Frames.EffectiveGravity(ship, new Double3(3, -2, 20)).Should().Be(new System.Numerics.Vector3(0, -9.81f, 0));
-        world.Frames.EffectiveGravity(ship, new Double3(0, 6, 0)).Should().Be(System.Numerics.Vector3.Zero);
-        world.Frames.EffectiveGravity(ship, new Double3(12, 0, 0)).Should().Be(System.Numerics.Vector3.Zero);
-        world.Frames.EffectiveGravity(ship, new Double3(0, 0, -40)).Should().Be(System.Numerics.Vector3.Zero);
+        world.Frames.EffectiveGravity(ship, new Double3(0, 4.92, 0)).Should().Be(System.Numerics.Vector3.Zero);
+        world.Frames.EffectiveGravity(ship, new Double3(10.32, 0, 0)).Should().Be(System.Numerics.Vector3.Zero);
+        world.Frames.EffectiveGravity(ship, new Double3(0, 0, -30.32)).Should().Be(System.Numerics.Vector3.Zero);
+        world.Frames.EffectiveGravity(ship, new Double3(0, 3.75, 0)).Should().Be(System.Numerics.Vector3.Zero);
     }
 
     [Fact]

@@ -17,25 +17,32 @@ public sealed class PersonControlTests : IDisposable
     private readonly World world = NewJoltWorld();
     private readonly Entity person;
 
-    public PersonControlTests()
+    public PersonControlTests() => person = StandOnAFloor(Vector3.UnitY);
+
+    /// <summary>
+    /// Makes the room's gravity pull along -<paramref name="up"/>, puts a floor under the origin across that direction, and
+    /// stands a person on it with the identity rotation. Physics then turns the person's +Y to <paramref name="up"/>.
+    /// </summary>
+    private Entity StandOnAFloor(Vector3 up)
     {
-        FrameHandle room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        FrameHandle room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static, GravityField.Uniform(-9.81f * up)));
         world.Spawn(new SpawnDesc
         {
             Frame = room,
-            Pose = new DPose(new Double3(0, -0.5, 0), DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), BodyMotion.Static),
+            Pose = new DPose(new Double3(-0.5 * up.X, -0.5 * up.Y, -0.5 * up.Z), DQuaternion.Identity),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(50) - 49.5f * Vector3.Abs(up)), BodyMotion.Static),
         });
-        person = world.Spawn(new SpawnDesc
+        Entity standing = world.Spawn(new SpawnDesc
         {
             Frame = room,
-            Pose = new DPose(new Double3(0, 0.95, 0), DQuaternion.Identity),
+            Pose = new DPose(new Double3(0.95 * up.X, 0.95 * up.Y, 0.95 * up.Z), DQuaternion.Identity),
             Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
             Components = [new PersonControl(Eye)],
             Subscriptions = [Topics.Input],
         });
         // The person lands on the floor.
         Ticks(30);
+        return standing;
     }
 
     public void Dispose() => world.Dispose();
@@ -53,14 +60,17 @@ public sealed class PersonControlTests : IDisposable
 
     private void MoveMouse(float right, float down) => Post(InputKind.MouseMove, delta: new Vector2(right, down));
 
-    /// <summary>The velocity along the floor, in the room's axes, after the posted input has acted for a while.</summary>
-    private Vector3 WalkingVelocity()
+    /// <summary>
+    /// The velocity along the floor, in the room's axes, after the posted input has acted for a while. The part along
+    /// <paramref name="up"/>, +Y unless given, is left out: it holds the step of gravity that pins the person to the floor.
+    /// </summary>
+    private Vector3 WalkingVelocity(Entity walker = default, Vector3? up = null)
     {
         // A post joins the routing at the end of the next tick, the person handles it in the tick after that, and physics
         // moves the person in the step of the third tick.
         Ticks(10);
-        Vector3 velocity = world.Snapshot.VelocityOf(person);
-        return velocity with { Y = 0 };
+        Vector3 velocity = world.Snapshot.VelocityOf(walker.IsNull ? person : walker), along = up ?? Vector3.UnitY;
+        return velocity - Vector3.Dot(velocity, along) * along;
     }
 
     private Quaternion View => world.Snapshot.RenderOf(person).ViewOffset.Rotation;
@@ -90,12 +100,16 @@ public sealed class PersonControlTests : IDisposable
         ExpectNear(WalkingVelocity(), Vector3.Normalize(new Vector3(1, 0, -1)) * PersonControl.WalkSpeed, 0.05f);
     }
 
-    [Fact]
-    public void ReleasingTheKeyStopsThePerson()
+    [Theory]
+    [InlineData(Key.W)]
+    [InlineData(Key.S)]
+    [InlineData(Key.A)]
+    [InlineData(Key.D)]
+    public void ReleasingTheKeyStopsThePerson(Key key)
     {
-        Press(Key.W);
+        Press(key);
         Ticks(20);
-        Post(InputKind.KeyUp, (int)Key.W);
+        Post(InputKind.KeyUp, (int)key);
 
         ExpectNear(WalkingVelocity(), Vector3.Zero, 0.05f);
     }
@@ -110,6 +124,30 @@ public sealed class PersonControlTests : IDisposable
 
         ExpectNear(Vector3.Transform(-Vector3.UnitZ, View), Vector3.UnitX, 1e-4f);
         ExpectNear(WalkingVelocity(), Vector3.UnitX * PersonControl.WalkSpeed, 0.05f);
+    }
+
+    [Fact]
+    public void AfterATurnMovingTheMouseDownTiltsTheViewDownwardAlongTheNewHeading()
+    {
+        MoveMouse(MathF.PI / 2 / PersonControl.TurnPerPixel, 0);
+        MoveMouse(0, 0.8f / PersonControl.TurnPerPixel);
+        Ticks(3);
+
+        // The tilt is about the turned view's own side, not about the room's +X, which would roll the view.
+        ExpectNear(Vector3.Transform(-Vector3.UnitZ, View), new Vector3(MathF.Cos(0.8f), -MathF.Sin(0.8f), 0), 1e-4f);
+    }
+
+    [Fact]
+    public void WhereGravityPullsSidewaysTheTurnedViewWalksThePersonAlongItsFloor()
+    {
+        // In a second room, gravity pulls along -X, so physics turns the person's +Y to +X: a quarter turn about -Z.
+        Entity sideways = StandOnAFloor(Vector3.UnitX);
+        world.Post(Event.Create(sideways, Entity.Null, new InputEvent { Kind = InputKind.MouseMove, Delta = new Vector2(-MathF.PI / 2 / PersonControl.TurnPerPixel, 0) }));
+        world.Post(Event.Create(sideways, Entity.Null, new InputEvent { Kind = InputKind.KeyDown, Code = (int)Key.W }));
+
+        // The view's quarter turn left takes forward from -Z to -X in the person's axes, and the body's turn takes -X to
+        // +Y in the room's: along the floor, which lies across +X.
+        ExpectNear(WalkingVelocity(sideways, Vector3.UnitX), Vector3.UnitY * PersonControl.WalkSpeed, 0.05f);
     }
 
     [Fact]
@@ -153,7 +191,23 @@ public sealed class PersonControlTests : IDisposable
         Press(Key.Space);
         Ticks(3 + 24);
 
-        // A jump at 4 m/s rises 0.82 m in 0.41 s, about 24 ticks.
-        (world.Snapshot.PoseOf(person).Position.Y - standing).Should().BeInRange(0.7, 0.85);
+        // A jump at 4 m/s rises 0.82 m in 0.41 s, about 24 ticks. Physics adds each tick's gravity before the move, so
+        // after 25 moves the person is 0.781 m up.
+        (world.Snapshot.PoseOf(person).Position.Y - standing).Should().BeApproximately(0.781, 0.005);
+    }
+
+    [Fact]
+    public void HoldingSpaceJumpsOnceAndItsReleaseDoesNotJumpAgain()
+    {
+        double standing = world.Snapshot.PoseOf(person).Position.Y;
+        Press(Key.Space);
+        // The jump lasts 0.82 s, 49 ticks.
+        Ticks(3 + 60);
+        double landed = world.Snapshot.PoseOf(person).Position.Y;
+        Post(InputKind.KeyUp, (int)Key.Space);
+        Ticks(3 + 10);
+
+        landed.Should().BeApproximately(standing, 0.005);
+        world.Snapshot.PoseOf(person).Position.Y.Should().BeApproximately(standing, 0.005);
     }
 }

@@ -11,9 +11,13 @@ namespace Tertius.Demo;
 /// so the entity is a first-person camera.
 /// </summary>
 /// <remarks>
-/// No physics intent turns a character, so the body does not turn: the turn lives in this component and in the view
-/// offset. The walk goes along the entity's own axes, turned by the turn of the view about the entity's +Y. Physics keeps
-/// that +Y along the frame's up, so the walk stays on the floor in any gravity, and looking up or down does not tip it.
+/// <para>Only a teleport turns a character, and a teleport skips the sweep that keeps the character out of walls. So the
+/// body does not turn: the turn lives in this component and in the view offset. The walk goes along the entity's own
+/// axes, turned by the turn of the view about the entity's +Y. Physics keeps that +Y against the effective gravity at the
+/// person, so the walk stays along the floor, and looking up or down does not tip it.</para>
+/// <para>Below the zero-gravity threshold of physics, a character moves at its desired velocity alone. There the person
+/// stops when no key is held, cannot jump, and moves only across the plane of its last floor. The airlock step of the
+/// vertical slice decides how a person moves outside the cabin.</para>
 /// </remarks>
 /// <param name="eye">The eye's position relative to the entity, in meters, in the entity's axes.</param>
 public sealed class PersonControl(Vector3 eye) : IComponent

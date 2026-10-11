@@ -59,8 +59,8 @@ public static class DemoScenes
     /// is hollow: six slabs 0.5 m thick around a cabin 19 by 7 by 59 m. Only the cabin has gravity: 9.81 m/s² toward the
     /// belly. Five lamps under the roof light the cabin, because the hull keeps the sunlight out.</item>
     /// <item>The <c>person</c>, a capsule character 1.8 m tall, stands on the cabin floor 10 m aft of the ship's center and
-    /// faces the nose. <see cref="PersonControl"/> walks it and turns its view from the <c>input</c> topic. Its eye, 1.65 m
-    /// above the floor, is a view.</item>
+    /// faces the nose. <see cref="PersonControl"/> walks it and turns its view from the <c>input</c> topic, in every view.
+    /// Its eye, 1.65 m above the floor, is a view.</item>
     /// <item>The view <c>chase</c>, the camera at the start, rides in the ship's frame, 70 m behind it and 12 m above it,
     /// and looks at the ship's center.</item>
     /// <item>The view <c>far</c> stands in <c>earth</c>, three Earth radii from its center, 30 degrees north of the
@@ -137,7 +137,7 @@ public static class DemoScenes
             // its own field acts inside it: one standard gravity toward its belly, in the cabin alone.
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics,
                 GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(-cabin, cabin))),
-            Render = Drawn(resources, Boxes(slabs), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32),
+            Render = Drawn(resources, HollowBox(Hull, cabin), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32),
         });
         scene.Add("ship", ship);
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
@@ -223,19 +223,20 @@ public static class DemoScenes
         ];
     }
 
-    /// <summary>One mesh of several boxes: each is a <see cref="Primitives.Box"/> of its half extents, moved to its center.</summary>
-    private static MeshData Boxes(IEnumerable<(Vector3 Center, Vector3 HalfExtents)> boxes)
+    /// <summary>
+    /// The faces of a hollow box: a box of half extents <paramref name="outer"/>, seen from outside, and one of
+    /// <paramref name="inner"/>, seen from inside. Each is one closed box, so the mesh has no T-junction, where a vertex
+    /// on another triangle's edge can leave a crack of single pixels.
+    /// </summary>
+    private static MeshData HollowBox(Vector3 outer, Vector3 inner)
     {
-        var vertices = new List<Vertex>();
-        var indices = new List<uint>();
-        foreach ((Vector3 center, Vector3 halfExtents) in boxes)
-        {
-            MeshData box = Primitives.Box(halfExtents);
-            uint first = (uint)vertices.Count;
-            vertices.AddRange(box.Vertices.Select(vertex => vertex with { Position = vertex.Position + center }));
-            indices.AddRange(box.Indices.Select(index => index + first));
-        }
-        return new MeshData([.. vertices], [.. indices]);
+        MeshData outside = Primitives.Box(outer), inside = Primitives.Box(inner);
+        uint first = (uint)outside.Vertices.Length;
+        // The inner box's faces turn toward its center: the normals flip, and so does the winding, which decides the front
+        // face. The bitangent keeps its direction, so its sign flips with the normal.
+        Vertex[] vertices = [.. outside.Vertices, .. inside.Vertices.Select(vertex => vertex with { Normal = -vertex.Normal, Tangent = vertex.Tangent with { W = -vertex.Tangent.W } })];
+        uint[] indices = [.. outside.Indices, .. inside.Indices.Chunk(3).SelectMany(triangle => new[] { triangle[0] + first, triangle[2] + first, triangle[1] + first })];
+        return new MeshData(vertices, indices);
     }
 
     /// <summary>The mean anomaly of an orbit with eccentricity <paramref name="e"/> at true anomaly <paramref name="trueAnomaly"/>.</summary>

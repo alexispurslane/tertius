@@ -23,6 +23,11 @@
     { "do": "run", "ticks": 27 },
     { "do": "dump", "name": "jumping" },
     { "do": "run", "ticks": 60 },
-    { "do": "dump", "name": "landed" }
+    { "do": "dump", "name": "landed" },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } },
+    { "do": "run", "ticks": 120 },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 87 } },
+    { "do": "run", "ticks": 30 },
+    { "do": "dump", "name": "at-wall" }
   ]
 }
