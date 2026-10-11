@@ -28,8 +28,8 @@ The first useful editor has a viewport, a hierarchy, an inspector and play mode 
 5. `Tertius.Rendering` gets no ImGui dependency. The editor copies the draw data of each UI frame into an engine type, `UiDrawList`. The copy is small, and a later in-game debug UI can use the same UI pass.
 6. One OS window holds every panel, with docking. Panels in separate OS windows come later. The Dear ImGui wiki says that they are hard to add to a custom backend. It also says that they do not work on Wayland and are often broken on X11.
 7. The theme is dark, with one blue accent. A dark window keeps the attention on space scenes, and current IDEs use the same scheme. The fonts are Inter and JetBrains Mono, and the icons are Lucide. All three are in the pinned nixpkgs, under the OFL and ISC licenses.
-8. The editor edits documents and never edits a World directly. A document is the immutable tree of one content file (plan 07). The worlds of the editor only show the documents. So agents, git and the CLI always see the real source of truth.
-9. Undo and redo keep a list of immutable document states. No edit has a command object or an inverse. (User: no command pattern.) Structural sharing makes each state cost only the path from the root to the changed value.
+8. The editor edits documents and never edits a World directly. A document is the immutable content of one file (see "Documents, edits and undo"). The worlds of the editor only show the documents. So agents, git and the CLI always see the real source of truth.
+9. Undo and redo keep a list of immutable document states. No edit has a command object or an inverse. (User: no command pattern.) Each state shares the unchanged parts of the state before it, so an edit of one entity costs only that entity.
 10. The edit world shows the documents in edit mode. It follows an edit in one of two ways. A change of a pose, an attach offset, a render section, an orbit or component values applies in place. Every other change rebuilds the edit world. A property test makes sure that both ways give the same world.
 11. The edit world has no physics backend and never ticks. It shows the start state of the scene. With physics, bodies move away from the poses that the user edits.
 12. Play mode spawns a new world, the play world, from the documents in memory. Stop disposes it. So stop restores the edit state exactly, by construction.
@@ -333,7 +333,7 @@ Keyboard shortcuts use Cmd on macOS and Ctrl on Linux and Windows:
 
 Terms:
 
-- Document: the immutable content tree of one file, as `ContentNode` of plan 07.
+- Document: the immutable content of one file, as the record `ContentDocument(ImmutableList<DocumentPart> Parts)` in `Tertius.Content`. A part is `DocumentPart(string? EntityId, JsonElement Value)`. A scene has a head part with an empty `entities` object, and one part per entity entry. Every other file is one part.
 - Document set: the documents of every open file, keyed by file path.
 - History: the list of past document sets, with a current index.
 - Gesture: one continuous user action, such as one drag of a slider.
@@ -343,7 +343,7 @@ Terms:
 namespace Tertius.Editor;
 
 /// <summary>The open documents, keyed by path relative to the repository root. Immutable.</summary>
-public sealed record EditorDocuments(ImmutableSortedDictionary<string, ObjectNode> Roots);
+public sealed record EditorDocuments(ImmutableSortedDictionary<string, ContentDocument> Roots);
 
 /// <summary>Selected entities by scene id in edit mode. Play mode selects entity handles instead.</summary>
 public sealed record Selection(ImmutableArray<string> SceneIds, string? Primary);
@@ -370,33 +370,33 @@ public sealed class History
 
 An edit is an ordinary function that `EditorApi` builds and runs once. History keeps the result, never the function. So no operation needs an undo of its own, and a new kind of edit gets undo for free. This is the difference from the command pattern.
 
-`ContentEdit` is a new static class in `Tertius.Content`, next to `MergePatch`. It holds pure tree functions: `Find`, `Set`, `Remove`, `Insert` and `Rename` by JSON Pointer. Each function copies only the nodes on the path to the change. Every other subtree of the result is the same object as in the input. Nodes store no JSON Pointer (plan 07), so a `Rename` or an `Insert` changes no node below it. A node that the editor makes has no source span.
+`ContentEdit` is a new static class in `Tertius.Content`, next to `MergePatch`. It holds pure functions by JSON Pointer: `Find`, `Set`, `Remove`, `Insert` and `Rename`. A function reads the part that holds the pointer into a `JsonNode`, changes it, and stores a new `JsonElement`. Every other part of the result is the same object as in the input. `ContentDocument.ToElement` gives the whole file for `ContentFormat` and `ContentRequest.Overrides`.
 
 A gesture merges into one history entry. The inspector calls `BeginGesture` at `IsItemActivated` and `EndGesture` at `IsItemDeactivatedAfterEdit`. Each UI frame of the drag replaces the entry of the gesture. The world follows every UI frame, and undo goes back to the state before the drag.
 
 Selection changes create no history entry. Each entry stores the selection at the time of its edit, and undo restores it with the documents.
 
-The cost of one edit, as estimates from the record sizes of plan 07 that the benchmarks of step B1 replace:
+The cost of one edit, as estimates that the benchmarks of step B1 replace:
 
-| Scene size | New nodes per edit of one pose | Retained bytes per entry | Time per edit and diff |
+| Scene size | New objects per edit of one pose | Retained bytes per entry | Time per edit and diff |
 |---|---|---|---|
-| 200 entities | About 12 | About 2.5 KB | Under 0.02 ms |
-| 10,000 entities | About 12 | About 81 KB | Under 0.2 ms |
+| 200 entities | One part and about 10 list nodes | About 2 KB | Under 0.02 ms |
+| 10,000 entities | One part and about 20 list nodes | About 3 KB | Under 0.1 ms |
 
-The `entities` object of a scene holds its members in an `ImmutableArray`. An edit of one entity copies that array, which is 8 bytes per entity. That copy is most of the cost in large scenes. History has a cap of 256 MB of retained bytes and 10,000 entries, and it drops the oldest entries first. If large scenes make edits slow, `ObjectNode` can change to an `ImmutableList`, which copies O(log n) nodes per edit. That change touches only plan 07's member collection type.
+The parts of a scene are in an `ImmutableList`, so an edit of one entity copies one part and O(log n) list nodes. The diff compares the parts of two documents by reference, about 10 µs for 10,000 entities. History has a cap of 256 MB of retained bytes and 10,000 entries, and it drops the oldest entries first.
 
 Saving follows these rules. The editor saves by itself 1 s after the last edit, and also on Cmd+S (User). The rules hold for both kinds of save.
 
-- A document is dirty while its root is not the same object as the root that the editor last saved or loaded. Undo back to the saved state makes it clean again.
-- Save writes the canonical layout of plan 07 with `ContentWriter`, comments included. It writes a temporary file and renames it.
+- A document is dirty while it is not the same object as the document that the editor last saved or loaded. Undo back to the saved state makes it clean again.
+- Save writes the canonical layout of plan 07 with `ContentFormat`. It writes a temporary file and renames it.
 - Before each save, the editor compares the bytes on disk with the bytes that it last loaded or saved. If they differ, it does not write, and it shows the banner of an external change instead. So a save that comes after the write of an agent, and before the watcher event, never overwrites that write.
 - The editor watches every open file. If a clean document changes on disk, the editor loads it again and adds a history entry, "External change to scenes/start.scene.json". If a dirty document changes on disk, a banner offers "Keep mine" and "Load from disk". Agents often change files while the editor runs, so this case is normal and not an error.
 
 ### From documents to the edit world
 
-The edit world shows the active scene as the content set prepares it: the scene document of the editor, with the patches of other packages applied. `WorldSync` keeps it equal to a fresh spawn of that prepared scene. Every load of the editor sets `ContentRequest.Overrides` to the open documents, so unsaved edits count.
+The edit world shows the active scene as the content set prepares it: the scene document of the editor, with the patches of other packages applied. `WorldSync` keeps it equal to a fresh spawn of that prepared scene. Every load of the editor sets `ContentRequest.Overrides` to the text of the open documents, so unsaved edits count.
 
-After each UI frame with edits, `WorldSync` compares the old and the new document set. Subtrees that are the same object are equal, so the diff visits only the changed paths. Then it picks a path for each changed entity:
+After each UI frame with edits, `WorldSync` compares the old and the new document set. Parts that are the same object are equal, so the diff reads only the changed parts. Then it picks a path for each changed entity:
 
 | Change | Path | How |
 |---|---|---|
@@ -438,7 +438,7 @@ In edit mode, the hierarchy comes from the scene document and from the patches o
 - Delete removes the entry, its attachments and the contents of a frame entity. A popup lists every entry that goes with it. `Entity` fields that named a removed entry become errors in the console. The editor never clears them silently.
 - An entity that a patch adds, such as `shield-hum` of plan 08, is a read-only row with the patch color. Its tooltip names the patch, such as `alice.shields:start-hum`. Without a content set, the hierarchy shows only the scene document.
 - New entries get a scene id from the last segment of the blueprint id and a number, such as `crate-2`.
-- Rename changes a scene id and every reference to it in the same scene: `frame`, `attachTo`, `camera`, `sun.frame`, and component fields of type `Entity` or `FrameHandle`. `TypeShape` gives the member types. Patches in other packages can name the old id, and the console warns about each one.
+- Rename changes a scene id and every reference to it in the same scene: `frame`, `attachTo`, `camera`, `sun.frame`, and component fields of type `Entity` or `FrameHandle`. The contract walk of plan 07 finds these fields. Patches in other packages can name the old id, and the console warns about each one.
 - Selection uses `BeginMultiSelect` of Dear ImGui: click, Shift and Cmd. A list clipper draws only the visible rows, so 10,000 entities stay fast.
 
 In play mode, the hierarchy comes from the live play world, once per tick. Entities from the scene show their scene ids. Entities that components spawned show `#index.generation` and their blueprint id.
@@ -452,7 +452,7 @@ The inspector shows the selected entity as the merge of its blueprint and its sc
 - A value that a patch sets has the patch marker, and its widget is read-only. A patch applies to the scene file before the merge, so an edit of the scene entry has no effect at load. The tooltip names the patch, and "Open patch" opens the patch document at that value. `EditorApi.Set` on such a value writes the entry and returns a warning that names the patch.
 - An edit writes into the scene entry. "Edit in blueprint" opens the blueprint document at that value.
 
-One widget model exists per value form of `TypeShape` (plan 07). A widget model turns the current value and the widget input into a new `ContentNode`, with no Dear ImGui calls. So the tests cover it with no UI.
+One widget model exists per value form of the contracts of plan 07. A widget model reads `JsonTypeInfo` and `JsonPropertyInfo`: the key, the type and the converter. `AttributeProvider` gives it `[Range]`, `[Color]` and the description. It turns the current value and the widget input into a new `JsonNode`, with no Dear ImGui calls. So the tests cover it with no UI.
 
 | Value form | Widget |
 |---|---|
@@ -479,7 +479,7 @@ Rules for written values:
 - During a drag of an angle, the inspector keeps the three angles in its UI state. They do not jump between equal rotations with other angles.
 - A typed number keeps its text. A dragged number is written with the shortest text that reads back as the same value.
 - "Add component" lists only the names that the file can use: its own package, then direct dependencies (plan 08). A search field filters the list.
-- The doc comment of a member is its tooltip.
+- The description of a member (plan 07) is its tooltip.
 
 `[Color]` is a new attribute in the mod API, in `Tertius.Simulation`. It marks a `Vector3` or `Vector4` member as a color for the inspector.
 
@@ -507,7 +507,7 @@ Code reload:
 1. A watcher sees a changed DLL in the `bin/` folder of a package, and waits 500 ms for more changes.
 2. If play mode runs, stop it, and say so in the console.
 3. Dispose the edit world and every content set. Drop `InspectorCache` and the message trace.
-4. Call `CodeSet.Unload`. If a package context stays alive, show warning CT5010 and a banner that asks for a restart. The editor still continues.
+4. Call `CodeSet.Unload`. If a package context stays alive, show warning CT5010 and a banner that asks for a restart. The editor still continues. On the fallback of plan 07, decision 18, the editor saves every document and restarts its process instead.
 5. Load the content again, and rebuild the edit world from the documents. The documents keep every unsaved change.
 
 The Build button runs `dotnet build` for the code project of the selected package as a child process. The console shows its output, and each compiler error opens its file and line. The DLL watcher then starts the reload.
@@ -654,7 +654,7 @@ Console:
 
 - Lines from `World.Log`, `World.Errors`, content diagnostics, build output and the editor.
 - Filters by severity and by text.
-- A diagnostic opens its file at its line in the external editor. The command is in the editor configuration, with `{file}`, `{line}` and `{column}` placeholders, and `code --goto {file}:{line}:{column}` is the default.
+- A diagnostic opens its file at its line in the external editor. For a diagnostic with only a pointer, `JsonPositions.Find` of plan 07 gives the line at that time. The command is in the editor configuration, with `{file}`, `{line}` and `{column}` placeholders, and `code --goto {file}:{line}:{column}` is the default.
 - A diagnostic whose pointer is inside a scene entity also selects that entity.
 
 Message log:
@@ -692,7 +692,7 @@ Packages panel:
 
 A script uses the step format of plan 06 and adds the editor steps:
 
-```jsonc
+```json
 {
   "window": { "width": 1600, "height": 1000, "scale": 1 },
   "content": { "game": "tertius.demo", "contentRoots": ["content"] },
@@ -731,7 +731,7 @@ A script uses the step format of plan 06 and adds the editor steps:
 - The command is `tertius editor run --script <file> [--headless] [--out <folder>] [--json]`.
 - With `--json`, each step prints one JSON line: the step number, `ok`, the written files, the diagnostics and the time.
 - The exit codes are the codes of every `tertius` subcommand, in the table of plan 08. A failed `expect` gives code 6.
-- `dump` and every `EditorApi` result write component values and payloads through the value writer of plan 07, which uses `TypeShape`. They never give a mod type to `JsonSerializer`, because its caches keep a package context alive (plan 08).
+- `dump` and every `EditorApi` result write component values and payloads with `JsonSerializer` and the options of the code set (plan 07). They never use `JsonSerializerOptions.Default`, whose caches live as long as the process.
 - A panel capture crops the window image to the rectangle of the panel.
 
 Rules that make a scripted run give the same images every time:
@@ -771,11 +771,10 @@ Each need has one step that owns it. Some are small additions to `Tertius.Conten
 
 | Plan | Need | Owner |
 |---|---|---|
-| 07 | `ContentEdit` in `Tertius.Content`: pure tree edits by JSON Pointer that share unchanged subtrees | This plan, step B1 |
+| 07 | `ContentDocument` and `ContentEdit` in `Tertius.Content`: documents in parts, and edits by JSON Pointer that keep the unchanged parts | This plan, step B1 |
 | 07 | A partial scene: the preparer leaves out a broken entry with its contents and attachments, and reports diagnostics. | This plan, step B2 |
-| 07 | The value writer: a typed value to a `ContentNode`, the inverse of the binder. A round-trip test binds what it writes. | This plan, step B3 |
 | 07 | A preparer for one entity entry against a prepared scene, with the patches of the content set. Public reads of `PreparedEntity`: pose, render data, body, recipes, frame and parent ids. | This plan, step B4 |
-| 08 | `ContentRequest.Overrides`: trees in memory, by file path, that `Load` and `ReloadData` use instead of the files on disk | This plan, step B2 |
+| 08 | `ContentRequest.Overrides`: file text in memory, by file path, that `Load` and `ReloadData` use instead of the files on disk | This plan, step B2 |
 | 08 | `ContentLoader.FindPackages`: the package index and its diagnostics, also for a load that fails | Plan 08, step 3 |
 | 08 | `ContentSet.Explain(scene, sceneId)`: one entity entry merged over its blueprint, with patches and sources | Plan 08, step 9 |
 | 09 | `thumbnail.png` for each asset | Plan 09, step 16 |
@@ -821,7 +820,7 @@ public sealed class EditorApi
 
     public StepResult Open(string id);
     public StepResult Select(IReadOnlyList<string> sceneIds);
-    public StepResult Set(string entity, string pointer, ContentNode value);   // scripts read the value with ContentReader
+    public StepResult Set(string entity, string pointer, JsonNode value);      // scripts give the value as JSON
     public StepResult Remove(string entity, string pointer);
     public StepResult AddEntity(string sceneId, string? blueprint, string? frame, DPose pose);
     public StepResult AddComponent(string entity, string component);
@@ -1017,8 +1016,8 @@ Each step writes its tests first and sees them fail for the right reason. The en
 
 ### Group B: the first useful editor
 
-6. B1, documents and history. Add `ContentEdit` to `Tertius.Content`. First write tests:
-   - `ContentEdit` keeps every untouched subtree as the same object, also below a `Rename` or an `Insert`.
+6. B1, documents and history. Add `ContentDocument` and `ContentEdit` to `Tertius.Content`. First write tests:
+   - `ContentEdit` keeps every untouched part as the same object, also after a `Rename` or an `Insert`.
    - Push, undo, redo and the loss of the redo entries after a push.
    - A gesture gives one entry, and the cap drops the oldest entries.
    - Dirty and clean after save and after undo to the saved state.
@@ -1035,7 +1034,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
    - An unsaved document reaches the content set through `Overrides`.
 
    Then create the `AssetStore` of the editor, and add opening and saving of scenes, the hierarchy panel and selection. Done: a save with no edits gives the same bytes as `tertius content format`.
-8. B3, the inspector. Add the value writer to `Tertius.Content`, with its round-trip tests first. First write one test per widget model and per rule for written values, the rotation order included. Test the value sources and revert, patched values that are read-only, the list of components that a file can add, and the raw inspector. Add `ColorAttribute`. Done: every field of the demo crate and corvette changes through `EditorApi`, and the documents bind with no errors.
+8. B3, the inspector. First write round-trip tests: a value that the inspector writes with `JsonSerializer.SerializeToNode` binds back to an equal value. Reference and scene id widgets write their text instead, because their converters write only debug forms (plan 07). Then write one test per widget model and per rule for written values, the rotation order included. Test the value sources and revert, patched values that are read-only, the list of components that a file can add, and the raw inspector. Add `ColorAttribute`. Done: every field of the demo crate and corvette changes through `EditorApi`, and the documents bind with no errors.
 9. B4, the in-place path. Add the preparer of one entity entry to `Tertius.Content`, with its tests first: it gives the same entity as a full preparation, patches included. Write Simulation tests for each new setter: outside a tick only, a stale handle throws, and the world invariants hold. Then write the property test: random edit sequences on the demo scene give the same edit world in place as after a rebuild. Done: a drag of 600 UI frames on a scene of 10,000 entities stays within the sync budget.
 10. B5, the viewport. First write tests:
     - The frame changes of the camera, with the margin.
@@ -1054,7 +1053,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
     - The unload lock-in test. Load a fixture package with code, and select an entity with a package component. Play one tick and dump the entity with `dump`. Then stop and reload the code. A `WeakReference` to the old context must die.
     - Determinism: play in the editor and the scripted run of plan 06 give equal state dumps after 600 ticks.
 
-    Done: the demo plays in the editor, and a code rebuild reloads without a restart.
+    Done: the demo plays in the editor, and a code rebuild reloads without a restart, or with one on the fallback of plan 07.
 12. B7, the script API for group B. First write one test per step kind. Then add the remaining steps and the snapshot tests of the group B panels: the demo layout, the inspector of the corvette, the open hierarchy and the Scene view with overlays. Done: a script plays the vertical slice of plan 06 in the editor and writes the same state dumps.
 
 ### Group C: the rest
@@ -1088,7 +1087,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
   - The trace keeps no `Extra` objects.
   - A save never overwrites a file that changed on disk.
   - The rotation of the inspector is R = Ry(yaw) · Rx(pitch) · Rz(roll).
-  - Dumps and results write mod values only through the value writer.
+  - Dumps and results never use `JsonSerializerOptions.Default`.
   - Asset reloads run only on the main thread.
 - Benchmarks for every row of the budgets.
 

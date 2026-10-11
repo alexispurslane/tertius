@@ -21,7 +21,7 @@ ARCHITECTURE.md stays the binding design. When a plan is done, its decisions mov
 
 ## Running now
 
-- The workflow `wf_8625483d-a0a` makes physics follow the frame tree: at the start of every step, physics drops every hand-off that the tree did not take. Physics output that only a bug can produce then fails a contract in Debug builds and is skipped in Release builds. The other bugs from the test stage are fixed and committed.
+- The workflow `wf_523870e6-778` hardens the physics reconcile. A hull that the reconcile cannot move is retried on the next step, and ghosts follow the frame tree too. Every physics output that only a bug can produce fails a contract in Debug builds and is skipped in Release builds. The other bugs from the test stage are fixed and committed.
 
 The Simulation test stage is done and merged: 1,228 tests, none skipped.
 

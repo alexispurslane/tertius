@@ -211,12 +211,11 @@ The configuration of one asset comes from four sources. Each later source wins o
 
 The loader merges them with the merge rule of plan 07. A nearer source describes fewer files, so it is more specific. A file name describes one file, so it wins over the folders above it. The sidecar is the most specific source.
 
-The plan 07 reader and binder read import files, so they get positions, the CT2xxx and CT3xxx errors and a schema. `tertius content schema` (plan 08) also writes `.schemas/import.schema.json`, and the VS Code entries map `*.import.json` to it.
+Import files are plain JSON that the binder of plan 07 reads, so they get positions, the CT2xxx and CT3xxx errors and a schema. `tertius content schema` (plan 08) also writes `.schemas/import.schema.json`, and the VS Code entries map `*.import.json` to it.
 
-A sidecar:
+A sidecar, `assets/props/rock-moss-set-01.glb.import.json`. Its `received` key holds the SHA-256 of each file as downloaded.
 
-```jsonc
-// assets/props/rock-moss-set-01.glb.import.json
+```json
 {
   "$schema": "../../.schemas/import.schema.json",
   "source": {
@@ -227,7 +226,7 @@ A sidecar:
     "url": "https://dl.polyhaven.org/file/ph-assets/Models/gltf/2k/rock_moss_set_01/rock_moss_set_01_2k.gltf",
     "license": "CC0-1.0",
     "retrieved": "2026-10-10",
-    "received": {                                   // SHA-256 of each file as downloaded
+    "received": {
       "rock_moss_set_01_2k.gltf": "sha256:3b1f0c…",
       "rock_moss_set_01.bin": "sha256:9a04e2…",
       "textures/rock_moss_set_01_diff_2k.jpg": "sha256:51c7aa…",
@@ -243,15 +242,14 @@ A sidecar:
 }
 ```
 
-A folder default file that makes every model in `props/` use convex decomposition, with every texture of those models at most 2048 pixels:
+A folder default file, `assets/props/defaults.import.json`, that makes every model in `props/` use convex decomposition, with every texture of those models at most 2048 pixels:
 
-```jsonc
-// assets/props/defaults.import.json
+```json
 {
   "$schema": "../../.schemas/import.schema.json",
   "model": {
     "collision": { "moving": "decompose" },
-    "textures": { "maxSize": 2048 }        // the textures of the materials of each model
+    "textures": { "maxSize": 2048 }
   }
 }
 ```
@@ -585,7 +583,7 @@ The material is then `materials/painted-metal.gltf#painted-metal`, or `materials
 
 #### What the importer makes
 
-The binder of plan 07 asks for a collision shape with a use. A static use is an `interiorShape` or a body with motion `static`. Every other body is a moving use.
+The mapping of plan 07 asks for a collision shape with a use. A static use is an `interiorShape` or a body with motion `static`. Every other body is a moving use.
 
 | Use | Markers in the piece | Result |
 |---|---|---|
@@ -1078,7 +1076,7 @@ $ tertius asset import tertius.demo --json
 }
 ```
 
-The diagnostic keys are those of plan 07. For a `.glb`, `pointer` is a JSON Pointer into the JSON chunk, and `line` and `column` are null. For a `.gltf`, the importer maps the pointer to a line and column with the reader of plan 07.
+The diagnostic keys are those of plan 07. For a `.glb`, `pointer` is a JSON Pointer into the JSON chunk, and `line` and `column` are null. For a `.gltf`, the importer maps the pointer to a line and column with `JsonPositions.Find` of plan 07.
 
 An inspection:
 
@@ -1325,7 +1323,7 @@ Every version below comes from the pinned nixpkgs (`nix eval`) or from NuGet, as
 | V-HACD | 4.1.0 | BSD-3-Clause | `native/vhacd.nix` | Convex decomposition |
 | libjoltc_double | Jolt 5.6.0 | MIT | `native/joltc.nix` (exists) | Hull reduction, shape tests |
 | ktx-tools | 4.4.2 | Apache-2.0 | nixpkgs `ktx-tools` | `ktx validate` in tests |
-| `check-jsonschema` | 0.38.0 | Apache-2.0 | nixpkgs `check-jsonschema` (plan 07) | Schema conformance of import files. It reads only strict JSON, so the test writes each file through the strict mode of the plan 07 writer first. |
+| `check-jsonschema` | 0.38.0 | Apache-2.0 | nixpkgs `check-jsonschema` (plan 07) | Schema conformance of import files. Import files are plain JSON, so it reads them as they are. |
 | Blender | 5.2.2 | GPL-2.0-or-later | nixpkgs `blender`, `assets` shell only | FBX, OBJ, `.blend`, TIFF and WebP conversion |
 
 Running Blender as a tool does not put its license on the output files (research belief, the usual reading of the GPL). The meshoptimizer README asks for a credit line. The importer prints it in `tertius asset --version`, and the game does not ship meshoptimizer.
@@ -1499,7 +1497,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
     - A store path in `tools`, changed alone, makes the asset stale with the reason `tools`.
     - The model and texture sections in a folder default file, and AS1005 only for sidecars.
     - Determinism: two imports give the same bytes, and so do serial and parallel imports and a reversed asset order.
-    - The schema of import files passes `check-jsonschema` against good and bad fixtures, through the strict writer.
+    - The schema of import files passes `check-jsonschema` against good and bad fixtures.
 14. Add `IAssetResolver.Model`, and bind `render.model`, `ModelId` fields and `emissiveMap` in the binder of plan 07. Then write `AssetStore`, the implementation of the resolver. Tests:
     - Every resolver member, the use rules, and CT4008 with the AS code.
     - Every row of the role and slot table, also `Ui`, `Data` and `Any` for component fields.
@@ -1549,7 +1547,7 @@ Other tests:
 - Round trips:
   - KTX2 write and read, and cooked write and read.
   - The glTF of a fixture to `MeshData`, against the expected vertices within float tolerance.
-  - Import files through the reader and writer of plan 07.
+  - Import files: bind, write with `ContentFormat` of plan 07, and bind again.
 - Determinism: the three tests of "Caching and determinism".
 - Conformance: `ktx validate` on every KTX2 file, and `check-jsonschema` on import files.
 - Snapshots: the renderer changes, the previews and the material grid, as plan 03 describes.

@@ -160,7 +160,7 @@ component    = [package-id ":"] upper *(alpha / digit)
 
 Resolution rules:
 
-1. A reference without a package resolves in the package of the file that wrote it. This holds inside merged values too, because every value keeps its file (plan 07).
+1. A reference without a package resolves in the package of the file that wrote it. This holds inside merged values too, because phase 6 qualifies each reference in its own file before any merge (plan 07).
 2. A qualified reference must name the own package, a hard dependency or an optional dependency (CT4004). The dependency then loads first, and a package cannot reach content that it did not declare.
 3. A missing target is error CT4001. The message lists up to three ids with a small edit distance, so an agent can fix a typo from the error alone.
 4. An optional dependency that is absent makes its references errors, except inside patches that require it (see "Patches").
@@ -183,7 +183,7 @@ Resolution rules:
 
 An example from a mod, `mods/alice.shields/manifest.json`:
 
-```jsonc
+```json
 {
   "$schema": ".schemas/manifest.schema.json",
   "version": "1.2.0",
@@ -244,13 +244,13 @@ Factorio breaks ties by the length of the dependency chain first. That rule adds
 |---|---|---|
 | 1. Find | Index the roots, apply the layout rules, read the manifests | CT1001 to CT1004 |
 | 2. Resolve | Build the load set and the order. Then call `IAssetResolver.BeginLoad` with the load set. | CT1101 to CT1105 |
-| 3. Code | Read the DLL references, create the package contexts, find components and event payload types | CT5xxx |
+| 3. Code | Read the DLL references, create the package contexts, find components, union cases and event payload types | CT5xxx |
 | 4. Events | Register the event payload types in the fixed order | CT5007, CT5008 |
 | 5. Read | Read every blueprint, scene and patch file, in parallel | CT2xxx |
-| 6. Qualify | Make component keys, parents and patch targets qualified | CT4xxx |
+| 6. Qualify | Make component keys, parents, patch targets and every reference qualified, each in the file that wrote it | CT4xxx |
 | 7. Patch | Apply the patches | CT6xxx |
 | 8. Inherit | Resolve inheritance with the merge rule | CT4006 |
-| 9. Bind | Register the topic names of all read files. Declare every blueprint id in ordinal order. Then bind and register the blueprints, and freeze the registry. | CT3xxx, CT4xxx |
+| 9. Bind | Register the topic names of all read files. Declare every blueprint id in ordinal order. Then bind and register the blueprints on one thread, and freeze the registry. | CT3xxx, CT4xxx |
 | 10. Scenes | Prepare every scene | CT3xxx, CT4xxx, CT7xxx |
 
 Each phase reports every error that it finds. Phases 1 to 3 end the load after an error, because the later phases need a complete set of packages and types. Phases 5 to 10 skip only the items that depend on a failed item, such as the children of a broken blueprint. So one run reports every content error at once.
@@ -335,7 +335,7 @@ The mod API in `Tertius.Simulation`:
 - The component surface: `IComponent`, `Self`, `BodyHandle`, `Outbox`, `EventList`, `EventsOf<T>` and `RefPredicate<T>`.
 - Reads of other entities: `Snapshot` and `FrameView`.
 - Spawning: `SpawnDesc`, `FrameSpec`, `RenderData`, `LightData`, `BlueprintId` and `Self.Spawn(BlueprintId, ...)`.
-- Attributes: `ComponentNameAttribute`, `TextureSlotAttribute` (plan 07) and `ColorAttribute` (plan 10).
+- Attributes: `ComponentNameAttribute`, `TextureSlotAttribute` and `UnionCaseAttribute` (plan 07), and `ColorAttribute` (plan 10).
 - Other types: `StaleEntityException`.
 
 Engine only, in `Tertius.Core`:
@@ -380,7 +380,7 @@ Rules:
 - If two patches set a leaf value at the same JSON Pointer, the later one wins. Warning CT6002 names both packages and the winner. A patch that removes a component that another patch changed also gets CT6002.
 - `tertius content explain <id>` prints the resolved blueprint, with the file and package of every value. For one entity of a scene, it prints the entry merged over its blueprint, with patches.
 
-An error belongs to the package of the file that wrote the failing value. For a missing key, it belongs to the package of the patch whose `null` removed the key (plan 07 records removals). So a patch that breaks a blueprint of the game counts against the mod, not against the game.
+An error belongs to the package of the file that wrote the failing value. For a missing key, it belongs to the package of the patch whose `null` removed the key (the source map of plan 07 records removals). So a patch that breaks a blueprint of the game counts against the mod, not against the game.
 
 The research on other games shaped these rules:
 
@@ -391,26 +391,24 @@ The research on other games shaped these rules:
 | RimWorld | XPath patches fail silently and are brittle. | A missing target is an error with a position. Targets are ids, not queries. |
 | Factorio | A "final fixes" stage invites races between mods. | One patch phase, in a fixed order, with conflict warnings. |
 
-Two patches from the mod `alice.shields`. The first adds a component from its own DLL and changes a field of a base component:
+Two patches from the mod `alice.shields`. The first, `patches/corvette-shields.patch.json`, adds a component from its own DLL and changes a field of a base component. `Shield` is `alice.shields:Shield`, and `Health` is `tertius.base:Health` of a declared dependency.
 
-```jsonc
-// mods/alice.shields/patches/corvette-shields.patch.json
+```json
 {
   "$schema": "../.schemas/patch.schema.json",
   "blueprint": "tertius.demo:ships/corvette",
   "merge": {
     "components": {
-      "Shield": { "capacity": 400, "rechargeRate": 25 },   // alice.shields:Shield
-      "Health": { "max": 1500 }                            // tertius.base:Health, a declared dependency
+      "Shield": { "capacity": 400, "rechargeRate": 25 },
+      "Health": { "max": 1500 }
     }
   }
 }
 ```
 
-The second adds an entity to the start scene of the demo and needs an optional dependency:
+The second, `patches/start-hum.patch.json`, adds an entity to the start scene of the demo and needs an optional dependency. The pose is in m in ship axes, in the engine room.
 
-```jsonc
-// mods/alice.shields/patches/start-hum.patch.json
+```json
 {
   "$schema": "../.schemas/patch.schema.json",
   "scene": "tertius.demo:start",
@@ -420,7 +418,7 @@ The second adds an entity to the start scene of the demo and needs an optional d
       "shield-hum": {
         "blueprint": "bob.ship-sounds:loops/low-hum",
         "frame": "corvette",
-        "pose": { "position": [0, 1, 25] }   // m, in ship axes: the engine room
+        "pose": { "position": [0, 1, 25] }
       }
     }
   }
@@ -577,15 +575,16 @@ A collectible context unloads only after nothing outside it refers to its types,
 |---|---|---|
 | `World` | Component instances | `World.Dispose()`, and the caller drops the world |
 | `ComponentFactories` | Compiled delegates over mod types | The code set owns it, and every content set over the code set shares it. A static cache kept the context alive in the probe, so plan 07 makes it an instance. |
-| `TypeShapes` | `Type` and `MemberInfo` | The code set owns it, and content sets borrow it. |
+| `ContentContracts` | The `JsonSerializerOptions` of the code set, with contracts and converters over mod types | The code set owns it and drops it at unload. Content sets borrow it. No mod type reaches `JsonSerializerOptions.Default`. |
 | `Blueprints` | `ComponentSpec.Type` | The content set owns it. `ContentSet.Dispose` drops it. |
 | `EventTypeRegistry` | The `Type` of each mod payload | `EventTypeRegistry.TruncateTo(engineCount)` at unload. `EngineEvents.Register()` runs before the first load, and the loader records the count before it registers package types. A contract asserts that every type above that count comes from a package context. |
-| `JsonSerializer` caches | Nothing | The loader never gives a mod type to `JsonSerializer` (plan 07). Editor dumps and results write mod values only through the value writer of plan 07 (plan 10). |
 | Editor caches | Inspector data | `InspectorCache` belongs to the code set (plan 10). |
 | `AssetStore` (plan 09) | Nothing | It holds renderer ids and engine shapes, never a mod type. |
 | Mod threads, timers and static event handlers | Anything | Mods must not create them. The unload timeout reports them. |
 
 Generic statics over mod types, such as `EventType<T>.Id`, do not keep a context alive (research probe).
+
+A risk remains: a static cache of System.Text.Json can keep a mod type. A research probe for the earlier design of plan 07 saw the caches of `JsonSerializer` keep a context alive. The unload tests of plan 07 step 2 and of step 11 bind first, so they find it. If a context stays alive on .NET 11, the editor restarts its process to reload code (plan 10). A player gets CT5010 at the second attempt of `SkipBrokenMods`, which costs only memory.
 
 Two always-on guards stop an unload while mod code still runs. A failed guard throws `InvalidOperationException` in every build, because a caller of a public API broke a rule:
 
@@ -595,7 +594,7 @@ Two always-on guards stop an unload while mod code still runs. A failed guard th
 `CodeSet.Unload` does these steps:
 
 1. Apply the guard above.
-2. Drop the factories, the shapes and the component list. Truncate the event type registry.
+2. Drop the factories, the contracts and the component list. Truncate the event type registry.
 3. Call `Unload()` on every package context.
 4. Run `GC.Collect()` and `GC.WaitForPendingFinalizers()` in a loop until every context is gone or the timeout ends.
 5. For each context that is still alive, report warning CT5010 with the package id. The editor then asks the user to restart it. `dotnet-dump` is not in the pinned nixpkgs, so a dotnet local tool manifest provides it for `gcroot` searches.
@@ -613,7 +612,7 @@ The `tertius` command lives in `tools/Tertius.Cli`. Every command takes `--json`
 | Command | What it does |
 |---|---|
 | `tertius content validate [--game id] [--no-build]` | Builds package code and imports the assets of the load set (plan 09), unless `--no-build` is set. Then it loads the set with `Strict`, prepares every scene and reports every diagnostic. |
-| `tertius content schema` | Writes `.schemas/` in each package, and the VS Code entries that open the files in JSONC mode and map each file kind to its schema |
+| `tertius content schema` | Writes `.schemas/` in each package, and the VS Code entries that map each file kind to its schema |
 | `tertius content format [paths] [--dry-run]` | Writes the canonical layout of plan 07 and corrects every `$schema` path |
 | `tertius content new <kind> <id>` | Creates a blueprint, scene or patch file at the right path, with the right suffix and `$schema` |
 | `tertius content ids [--kind k]` | Lists every id of the content set |
@@ -706,8 +705,8 @@ public sealed record ContentRequest
     public IReadOnlyList<PackageId> Disabled { get; init; } = [];
     public LoadPolicy Policy { get; init; } = LoadPolicy.Strict;
 
-    /// <summary>Trees in memory, by file path, that phase 5 uses instead of the files on disk. Plan 10 adds it in step B2.</summary>
-    public IReadOnlyDictionary<string, ObjectNode> Overrides { get; init; } = ImmutableDictionary<string, ObjectNode>.Empty;
+    /// <summary>File text in memory, by file path, that phase 5 parses instead of the files on disk. Plan 10 adds it in step B2.</summary>
+    public IReadOnlyDictionary<string, ReadOnlyMemory<byte>> Overrides { get; init; } = ImmutableDictionary<string, ReadOnlyMemory<byte>>.Empty;
 }
 
 public sealed record LoadResult(ContentSet? Set, IReadOnlyList<ContentDiagnostic> Diagnostics, IReadOnlyList<PackageId> SkippedMods)
@@ -732,7 +731,7 @@ public sealed class CodeSet
 {
     public IReadOnlyList<ComponentInfo> Components { get; }   // package load order, then component name
     public ComponentFactories Factories { get; }
-    public TypeShapes Shapes { get; }
+    public ContentContracts Contracts { get; }
 
     /// <summary>Unloads every package context. Throws InvalidOperationException while a content set over this code is not disposed.</summary>
     public UnloadReport Unload(TimeSpan timeout);
@@ -752,11 +751,11 @@ public sealed class ContentSet : IDisposable
     public PreparedScene Scene(string qualifiedId);
     public IReadOnlyList<ContentId> Ids(ContentKind kind);   // assets: source assets only
 
-    /// <summary>The resolved blueprint or scene as a tree. Every value keeps its source span. For explain and the editor.</summary>
-    public ObjectNode Explain(ContentId id);
+    /// <summary>The resolved blueprint or scene, and the source map of plan 07 with the file of every value. A new tree per call.</summary>
+    public (JsonObject Tree, SourceMap Sources) Explain(ContentId id);
 
-    /// <summary>One entity entry of a scene, merged over its blueprint, with patches. Every value keeps its source span.</summary>
-    public ObjectNode Explain(ContentId scene, string sceneId);
+    /// <summary>One entity entry of a scene, merged over its blueprint, with patches. As above.</summary>
+    public (JsonObject Tree, SourceMap Sources) Explain(ContentId scene, string sceneId);
 
     /// <summary>Asserts every invariant below. Tests and the debug switch call it.</summary>
     public void AssertInvariants();
@@ -853,7 +852,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
 
 1. Write `ContentId`, `SemVersion` and `VersionRange`. Plan 07 already added `PackageId` and `AssetRef`. Write one test per grammar rule.
 2. Write package discovery and the layout rules. Use fixture folders in `tests/Tertius.Content.Tests/Packages/`. Write one test per code from CT1001 to CT1004. Test the import file names and the ignored Blender files.
-3. Read manifests with the reader and binder of plan 07, and build the load set and the order. First write tests for the closure, the ranges and the engine range. Also test incompatibilities, optional dependencies, `loadAfter`, cycles and the tie-break. Done: `ContentLoader.FindPackages` returns the index, also for a broken root.
+3. Read manifests with `JsonSerializer` and a `ContentContracts` with no package types (plan 07), and build the load set and the order. First write tests for the closure, the ranges and the engine range. Also test incompatibilities, optional dependencies, `loadAfter`, cycles and the tie-break. Done: `ContentLoader.FindPackages` returns the index, also for a broken root.
 4. Add `FrameView`, and make `Snapshot.Frames` return it. If plan 02 did this, skip the step.
 5. Add the engine types. First write these tests:
    - `EventTypeRegistry.Register(typeof(T))` returns `EventType<T>.Id`, in both call orders.
@@ -867,7 +866,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
 8. Implement `IContentScope` from packages. Write one test per name rule, and one per hint.
 9. Write the patch phase. Test each patch rule, the conflict warnings and the package that an error belongs to. Test `Explain` of a blueprint, a scene and one scene entity.
 10. Write `ContentLoader` from end to end. Test both policies and the order of diagnostics. Test the second attempt: its event payload ids, topic ids and `BlueprintId` values equal those of a clean load without the dropped mod. Test that a patch that removes a required key drops its mod, not the game.
-11. Write `ReloadData` and `CodeSet.Unload`. First write the tests of both guards. Then write the lock-in test: load a fixture package, spawn and tick, dispose, unload, and see that a `WeakReference` to each context dies.
+11. Write `ReloadData` and `CodeSet.Unload`. First write the tests of both guards. Then write the lock-in test: load a fixture package with its bind and schemas, spawn and tick, dispose, unload, and see that a `WeakReference` to each context dies. If one stays alive on .NET 11, apply the fallback of plan 07, decision 18.
 12. Write the mod SDK and its analyzer. First write the analyzer tests: a fixture mod that uses `World` fails with TRT0001, and a mod that uses only the API builds. Then write the analyzer. Build a mod outside the repository from a local feed.
 13. Create `tertius.base` and `tertius.demo`. Move the components and the scene of plan 06 into them. Rename `Tertius.Demo` to `Tertius.Launcher`, with a `--game` option. Done: the scripted runs of plan 06 give the same state dumps and captures as before the move.
 14. Write the CLI commands, `package build` included. Test the command classes directly, and test every exit code. Run the process once as a smoke test. Done: a built `tertius.demo` in a fresh mod root loads with no SDK and no asset tools.
