@@ -40,9 +40,27 @@ public record struct Pose(Vector3 Position, Quaternion Rotation) : IPose<Pose>
 }
 
 /// <summary>A double-precision rigid transform. Used for reference frames relative to their parents.</summary>
+/// <remarks>
+/// <c>new DPose()</c>, and so <c>new DPose { Position = p }</c>, has the identity rotation. The default value of the struct,
+/// <c>default(DPose)</c>, skips every constructor, so its rotation is zero, which is not a rotation: spawn refuses it.
+/// </remarks>
 public record struct DPose(Double3 Position, DQuaternion Rotation) : IPose<DPose>
 {
+    /// <summary>A pose at the origin with the identity rotation.</summary>
+    public DPose()
+        : this(Double3.Zero, DQuaternion.Identity)
+    {
+    }
+
     public static DPose Identity => new(Double3.Zero, DQuaternion.Identity);
+
+    /// <summary>
+    /// True when the position is finite and the rotation can be normalized: the square of its length is finite and not zero.
+    /// A rotation with a component that is not finite fails that test, and so does one too small or too large to square.
+    /// </summary>
+    public readonly bool IsValid =>
+        double.IsFinite(Position.X) && double.IsFinite(Position.Y) && double.IsFinite(Position.Z) &&
+        Rotation.LengthSquared is > 0 and < double.PositiveInfinity;
 
     public static DPose Compose(in DPose parent, in DPose local) => new(
         parent.Position + parent.Rotation.Rotate(local.Position),

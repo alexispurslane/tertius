@@ -25,7 +25,8 @@ public sealed partial class World
     /// <summary>
     /// Creates an entity. Outside a tick it is live at once and gets <see cref="Spawned"/> on its first tick.
     /// During a tick, components call <see cref="Self.Spawn(SpawnDesc)"/> instead. Throws <see cref="ArgumentException"/>,
-    /// before anything changes, for a description that the world cannot make live: a body that physics cannot create (see
+    /// before anything changes, for a description that the world cannot make live: a pose that is not valid (see
+    /// <see cref="DPose.IsValid"/>), a velocity that is not finite, a body that physics cannot create (see
     /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>), a frame with a driver that its hull
     /// cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>), a Kepler frame whose orbit is not valid, or a gravity
     /// field that is not valid.
@@ -206,6 +207,13 @@ public sealed partial class World
         {
             throw new ArgumentException($"Cannot spawn in {desc.Frame}: the frame is stale.", nameof(desc));
         }
+        // Physics turns a pose or velocity that is not finite into NaN in its first step, and a zero rotation too.
+        if (!desc.Pose.IsValid)
+            throw new ArgumentException($"Cannot spawn at the pose {desc.Pose}: its position must be finite, and its rotation finite and not zero.", nameof(desc));
+        if (!IsFinite(desc.LinearVelocity))
+            throw new ArgumentException($"Cannot spawn with the linear velocity {desc.LinearVelocity}: it must be finite.", nameof(desc));
+        if (!IsFinite(desc.AngularVelocity))
+            throw new ArgumentException($"Cannot spawn with the angular velocity {desc.AngularVelocity}: it must be finite.", nameof(desc));
         if (!desc.AttachTo.IsNull)
         {
             if (desc.Body != null)
@@ -268,6 +276,8 @@ public sealed partial class World
         Topic[] subscriptions = desc.Subscriptions is { Count: > 0 } subs ? [.. subs] : [];
         return new SpawnPlan(components, wants, subscriptions);
     }
+
+    private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
     /// <summary>
     /// A spawn by the running entity <paramref name="spawner"/>. The slot comes from the spawner's chunk pool, so the

@@ -42,6 +42,15 @@ public class WorldSpawnRefusalTests
         "a character whose shape is not a capsule" => (new BodyDesc(new SphereShapeDesc(0.5f), BodyMotion.Character, Mass: 70), "CapsuleShapeDesc"),
         "a dynamic body without mass" => (new BodyDesc(new SphereShapeDesc(1), Mass: 0), "mass"),
         "a dynamic body whose mass is not a number" => (new BodyDesc(new SphereShapeDesc(1), Mass: float.NaN), "mass"),
+        "a dynamic body whose mass is infinite" => (new BodyDesc(new SphereShapeDesc(1), Mass: float.PositiveInfinity), "mass"),
+        "a dynamic body whose mass is too small for a float to hold its inverse" => (new BodyDesc(new SphereShapeDesc(1), Mass: 1e-40f), "mass"),
+        "a kinematic body whose mass is not a number" => (new BodyDesc(new SphereShapeDesc(1), BodyMotion.Kinematic, Mass: float.NaN), "mass"),
+        "a static body with a negative mass" => (new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static, Mass: -1), "mass"),
+        "a character whose mass is too small for a float to hold its inverse" => (new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 1e-40f), "mass"),
+        "a body whose friction is not a number" => (new BodyDesc(new SphereShapeDesc(1), Friction: float.NaN), "friction"),
+        "a body whose restitution is infinite" => (new BodyDesc(new SphereShapeDesc(1), Restitution: float.PositiveInfinity), "restitution"),
+        "a body whose linear damping is not a number" => (new BodyDesc(new SphereShapeDesc(1), LinearDamping: float.NaN), "linear damping"),
+        "a body whose angular damping is infinite" => (new BodyDesc(new SphereShapeDesc(1), AngularDamping: float.NegativeInfinity), "angular damping"),
         _ => throw new ArgumentOutOfRangeException(nameof(why), why, null),
     };
 
@@ -70,6 +79,15 @@ public class WorldSpawnRefusalTests
     [InlineData("a character whose shape is not a capsule")]
     [InlineData("a dynamic body without mass")]
     [InlineData("a dynamic body whose mass is not a number")]
+    [InlineData("a dynamic body whose mass is infinite")]
+    [InlineData("a dynamic body whose mass is too small for a float to hold its inverse")]
+    [InlineData("a kinematic body whose mass is not a number")]
+    [InlineData("a static body with a negative mass")]
+    [InlineData("a character whose mass is too small for a float to hold its inverse")]
+    [InlineData("a body whose friction is not a number")]
+    [InlineData("a body whose restitution is infinite")]
+    [InlineData("a body whose linear damping is not a number")]
+    [InlineData("a body whose angular damping is infinite")]
     public void SpawnRefusesABodyThatPhysicsCannotCreate(string why)
     {
         using World world = NewWorld(out _);
@@ -82,6 +100,84 @@ public class WorldSpawnRefusalTests
         spawn.Should().Throw<ArgumentException>(why).WithMessage($"*{word}*");
         world.Stats.LiveEntities.Should().Be(live, "nothing changed");
         world.Tick();
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The hull of a frame is a body too. Its mass counts while the frame has the physics driver, and the hull keeps it for
+    /// that time while the frame has another driver, so it must be a mass that physics can use, whatever the driver.
+    /// </summary>
+    [Theory]
+    [InlineData(MotionDriver.Physics, float.PositiveInfinity)]
+    [InlineData(MotionDriver.Physics, 1e-40f)]
+    [InlineData(MotionDriver.Static, 1e-40f)]
+    [InlineData(MotionDriver.Static, float.NaN)]
+    public void SpawnRefusesAFrameWhoseHullHasAMassThatPhysicsCannotUse(MotionDriver driver, float mass)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        int live = world.Stats.LiveEntities;
+
+        Action spawn = () => world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(100),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: mass),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
+        });
+
+        spawn.Should().Throw<ArgumentException>().WithMessage("*mass*");
+        world.Stats.LiveEntities.Should().Be(live, "nothing changed");
+    }
+
+    /// <summary>
+    /// A pose or a velocity that is not finite, or a rotation that is not a number or has no length, turns the body into NaN
+    /// in the first physics step. Spawn refuses it, for an entity with a body and for one without, and nothing changes.
+    /// </summary>
+    [Theory]
+    [InlineData("a position that is not a number", true)]
+    [InlineData("an infinite position", true)]
+    [InlineData("the zero rotation of a default pose", true)]
+    [InlineData("a rotation that is not a number", true)]
+    [InlineData("a linear velocity that is not a number", true)]
+    [InlineData("an infinite angular velocity", true)]
+    [InlineData("a position that is not a number", false)]
+    [InlineData("the zero rotation of a default pose", false)]
+    [InlineData("an infinite angular velocity", false)]
+    public void SpawnRefusesAPoseOrVelocityThatIsNotFinite(string why, bool withBody)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0.3, 3), Body = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 1) });
+        int live = world.Stats.LiveEntities;
+        DPose pose = At(0, 1);
+        Vector3 linear = Vector3.Zero, angular = Vector3.Zero;
+        string word = "pose";
+        switch (why)
+        {
+            case "a position that is not a number": pose = pose with { Position = new Double3(double.NaN, 1, 0) }; break;
+            case "an infinite position": pose = pose with { Position = new Double3(0, double.PositiveInfinity, 0) }; break;
+            case "the zero rotation of a default pose": pose = default; break;
+            case "a rotation that is not a number": pose = pose with { Rotation = new DQuaternion(double.NaN, 0, 0, 1) }; break;
+            case "a linear velocity that is not a number": linear = new Vector3(float.NaN, 0, 0); word = "linear velocity"; break;
+            case "an infinite angular velocity": angular = new Vector3(0, float.PositiveInfinity, 0); word = "angular velocity"; break;
+            default: throw new ArgumentOutOfRangeException(nameof(why), why, null);
+        }
+
+        Action spawn = () => world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = pose,
+            LinearVelocity = linear,
+            AngularVelocity = angular,
+            Body = withBody ? Cube() : null,
+        });
+
+        spawn.Should().Throw<ArgumentException>(why).WithMessage($"*{word}*");
+        world.Stats.LiveEntities.Should().Be(live, "nothing changed");
+        Tick(world, 120);
+        world.GetPose(ball).Position.Y.Should().BeApproximately(0.5, 0.01, "the ball fell onto the floor next to nothing");
         world.Errors.Should().BeEmpty();
     }
 
