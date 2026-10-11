@@ -1,6 +1,6 @@
 ---
 id: ter-hynj
-status: open
+status: in_progress
 deps: [ter-qawf]
 links: []
 created: 2026-10-11T13:52:09Z
