@@ -21,10 +21,10 @@ ARCHITECTURE.md stays the binding design. When a plan is done, its decisions mov
 
 ## Running now
 
-- The workflow `wf_6fef3166-23c` fixes the four bugs that the Simulation test stage found, test-first, and a reviewer checks each fix.
+- The workflow `wf_f9b2f65a-f27` makes a refused frame hand-off change nothing and stops the physics backend from proposing one. The four other bugs from the test stage are fixed and committed.
 - The workflow `wf_5b5b785e-538` drafts plans 07 to 10.
 
-The Simulation test stage is done and merged: 1,225 tests, with 4 skipped until their bugs are fixed.
+The Simulation test stage is done and merged: 1,228 tests, none skipped.
 
 ## Chores
 
