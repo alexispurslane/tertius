@@ -1,7 +1,7 @@
 ---
 id: ter-upyg
 status: open
-deps: [ter-f8sh]
+deps: [ter-f8sh, ter-7wbc]
 links: []
 created: 2026-10-11T13:52:09Z
 type: task
