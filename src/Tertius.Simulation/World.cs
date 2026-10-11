@@ -137,6 +137,13 @@ public sealed partial class World : IDisposable
     /// <summary>Errors and engine notes. Raised on the ticking thread after the tick, never during it.</summary>
     public event Action<string>? Log;
 
+    /// <summary>
+    /// The events that the last sync point routed, each once, in routing order: the engine events, the entities' messages
+    /// in chunk order, the delayed sends that were due, then the posted events. An event is here even if no entity
+    /// wanted it. The span is valid until the next sync point.
+    /// </summary>
+    public ReadOnlySpan<Event> RoutedEvents => router.Routed;
+
     /// <summary>Counters of the last tick.</summary>
     public WorldStats Stats => new(entities.LiveCount, entities.Capacity, Frames.Count, router.RoutedCount, router.DeliveryCount, fallbackSpawnTotal);
 

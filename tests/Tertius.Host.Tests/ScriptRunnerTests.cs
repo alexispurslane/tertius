@@ -1,0 +1,142 @@
+using System.Numerics;
+using Tertius.Host.Scripting;
+using Tertius.Simulation;
+using static Tertius.Host.Tests.HostTesting;
+
+namespace Tertius.Host.Tests;
+
+/// <summary>
+/// ScriptRunner.Run: steps in file order, ticks in lock-step with the run steps, and posts that reach the entities that
+/// their targets name. Each test builds its scene in a world with no physics.
+/// </summary>
+public class ScriptRunnerTests
+{
+    private static RunResult Run(World world, SceneInstance scene, params string[] steps) =>
+        ScriptRunner.Run(Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world, scene);
+
+    private const string NudgeProbe = """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1.5 } }""";
+
+    [Fact]
+    public void RunStepsAdvanceTheWorldByTheirTicksInFileOrder()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        RunResult result = Run(world, scene,
+            """{ "do": "run", "ticks": 3 }""", """{ "do": "dump", "name": "a" }""",
+            """{ "do": "run", "ticks": 2 }""", """{ "do": "dump", "name": "b" }""");
+
+        result.Dump("a").Tick.Should().Be(3);
+        result.Dump("b").Tick.Should().Be(5);
+        world.TickNumber.Should().Be(5, "the run ends after the last step");
+    }
+
+    [Fact]
+    public void APostedEventReachesItsRecipientOnTheSecondTickAfterThePost()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene, NudgeProbe, """{ "do": "run", "ticks": 1 }""");
+        ProbeOf(world, scene, "probe").Seen.Should().BeEmpty("the event is routed at the end of the first tick");
+
+        Run(world, scene, """{ "do": "run", "ticks": 1 }""");
+        ProbeOf(world, scene, "probe").Seen.Should().ContainSingle().Which.Tick.Should().Be(1, "the second tick of the run is tick 1");
+    }
+
+    [Fact]
+    public void APostBetweenTwoRunStepsIsPostedAfterTheTicksBeforeIt()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene, """{ "do": "run", "ticks": 4 }""", NudgeProbe, """{ "do": "run", "ticks": 2 }""");
+
+        ProbeOf(world, scene, "probe").Seen.Should().ContainSingle().Which.Tick.Should().Be(5);
+    }
+
+    [Theory]
+    [InlineData("""{ "kind": "entity", "id": "probe" }""", new[] { "probe" })]
+    [InlineData("""{ "kind": "topic", "name": "test" }""", new[] { "probe" })]
+    [InlineData("""{ "kind": "frame", "id": "ship" }""", new[] { "crew" })]
+    [InlineData("""{ "kind": "broadcast" }""", new[] { "probe", "bystander", "crew" })]
+    public void EachKindOfTargetReachesTheEntitiesThatItNames(string target, string[] reached)
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene, $$"""{ "do": "post", "to": {{target}}, "event": "Nudge" }""", """{ "do": "run", "ticks": 2 }""");
+
+        string[] all = ["probe", "bystander", "crew"];
+        all.Where(id => ProbeOf(world, scene, id).Seen.Count > 0).Should().BeEquivalentTo(reached);
+    }
+
+    [Fact]
+    public void APayloadIsReadIntoTheFieldsOfItsTypeByTheirCamelCaseNames()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene,
+            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "code": 7, "delta": [1.5, -2] } }""",
+            """{ "do": "run", "ticks": 2 }""");
+
+        InputEvent input = ProbeOf(world, scene, "probe").Seen.Single().Event.As<InputEvent>();
+        input.Kind.Should().Be(InputKind.MouseMove);
+        input.Code.Should().Be(7);
+        input.Delta.Should().Be(new Vector2(1.5f, -2));
+    }
+
+    [Fact]
+    public void AnEventIsFoundByTheCSharpNameOfAPayloadTypeInAnyLoadedAssembly()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene, NudgeProbe, """{ "do": "run", "ticks": 2 }""");
+
+        ProbeOf(world, scene, "probe").Seen.Single().Event.As<Nudge>().Amount.Should().Be(1.5f);
+    }
+
+    [Fact]
+    public void AnEntityFieldOfAPayloadIsReadFromASceneId()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene,
+            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Tag", "payload": { "other": "crew" } }""",
+            """{ "do": "run", "ticks": 2 }""");
+
+        ProbeOf(world, scene, "probe").Seen.Single().Event.As<Tag>().Other.Should().Be(scene["crew"]);
+    }
+
+    [Fact]
+    public void AMissingPayloadPostsTheDefaultPayload()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene, """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge" }""", """{ "do": "run", "ticks": 2 }""");
+
+        ProbeOf(world, scene, "probe").Seen.Single().Event.As<Nudge>().Amount.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Shove" }""", "Shove")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "ghost" }, "event": "Nudge" }""", "ghost")]
+    [InlineData("""{ "do": "post", "to": { "kind": "frame", "id": "probe" }, "event": "Nudge" }""", "probe")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "force": 1 } }""", "force")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Tag", "payload": { "other": "ghost" } }""", "ghost")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Twin" }""", "Twin")]
+    public void AStepThatCannotRunStopsTheRunBeforeTheFirstTick(string badStep, string named)
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Action run = () => Run(world, scene, """{ "do": "run", "ticks": 3 }""", badStep, """{ "do": "run", "ticks": 3 }""");
+
+        run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain(named);
+        world.TickNumber.Should().Be(0);
+    }
+}

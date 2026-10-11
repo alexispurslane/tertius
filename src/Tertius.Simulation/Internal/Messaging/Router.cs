@@ -60,6 +60,9 @@ internal sealed class Router
     /// <summary>Events routed at the last <see cref="Route"/>, each counted once.</summary>
     public int RoutedCount => routed.Count;
 
+    /// <summary>The events routed at the last <see cref="Route"/>, each once, in routing order.</summary>
+    public ReadOnlySpan<Event> Routed => routed.AsSpan();
+
     /// <summary>Inbox entries written at the last <see cref="Route"/>.</summary>
     public int DeliveryCount => deliveries.Count;
 

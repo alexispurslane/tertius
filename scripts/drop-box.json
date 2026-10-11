@@ -1,0 +1,9 @@
+{
+  "scene": "drop-box",
+  "steps": [
+    { "do": "run", "ticks": 30 },
+    { "do": "dump", "name": "falling" },
+    { "do": "run", "ticks": 90 },
+    { "do": "dump", "name": "landed" }
+  ]
+}
