@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using DestroyEvent = Tertius.Destroy;
 using TickEvent = Tertius.Tick;
 
@@ -13,6 +14,11 @@ public sealed partial class World
     /// Runs one tick. Physics steps on its own thread while the gameplay chunks run in parallel; both read only the
     /// front snapshot and the frame tree. Then the sync point merges the results. See ARCHITECTURE.md.
     /// </summary>
+    /// <remarks>
+    /// An exception that the physics backend throws is reported in <see cref="Errors"/>, and the tick goes on without
+    /// that step's output or that change batch. A <see cref="ContractException"/> is different: it is a bug, so it
+    /// escapes this call, in every build, with the stack where it was thrown.
+    /// </remarks>
     public void Tick()
     {
         ThrowIfDisposed();
@@ -32,13 +38,17 @@ public sealed partial class World
 
             RunGameplay();
 
-            Exception? physicsError = null;
+            ExceptionDispatchInfo? physicsError = null;
             if (stepping)
             {
                 stepping = false;
                 physicsError = physicsWorker!.Wait();
             }
-            Sync(physicsError);
+            // A broken contract is a bug in the backend, not a failed step, so the world does not survive it like one.
+            // It escapes here, on the ticking thread, with the stack of the physics thread where it broke.
+            if (physicsError?.SourceException is ContractException)
+                physicsError.Throw();
+            Sync(physicsError?.SourceException);
         }
         finally
         {
@@ -70,7 +80,8 @@ public sealed partial class World
         {
             physics?.ApplyChanges(changes, Frames);
         }
-        catch (Exception ex)
+        // A broken contract is a bug in the backend, not a failure to apply changes, so it is not survived like one.
+        catch (Exception ex) when (ex is not ContractException)
         {
             Report($"tick {TickNumber}: the physics backend failed to apply changes: {ex.GetType().Name}: {ex.Message}", isError: true);
         }

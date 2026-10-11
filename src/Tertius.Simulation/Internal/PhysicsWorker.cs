@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+
 namespace Tertius.Simulation;
 
 /// <summary>
@@ -12,7 +14,7 @@ internal sealed class PhysicsWorker : IDisposable
     private readonly SemaphoreSlim start = new(0, 1);
     private readonly ManualResetEventSlim done = new(true);
     private PhysicsStepContext context;
-    private Exception? error;
+    private ExceptionDispatchInfo? error;
     private volatile bool stopping;
     private bool running;
 
@@ -37,8 +39,11 @@ internal sealed class PhysicsWorker : IDisposable
         start.Release();
     }
 
-    /// <summary>Waits for the running step. Returns the exception the backend threw, if any.</summary>
-    public Exception? Wait()
+    /// <summary>
+    /// Waits for the running step. Returns the exception that the backend threw, if any, captured with the stack of the
+    /// physics thread, so that the caller can throw it again on its own thread.
+    /// </summary>
+    public ExceptionDispatchInfo? Wait()
     {
         if (!running)
             return null;
@@ -58,9 +63,10 @@ internal sealed class PhysicsWorker : IDisposable
             {
                 backend.Step(in context, output);
             }
+            // The ticking thread decides what to do with it, a broken contract included.
             catch (Exception ex)
             {
-                error = ex;
+                error = ExceptionDispatchInfo.Capture(ex);
             }
             done.Set();
         }

@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using AwesomeAssertions;
 using NSubstitute;
 
@@ -6,7 +7,8 @@ namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// The world steps physics once per tick, on one thread of its own, while the gameplay chunks run. It waits for the step
-/// at the sync point. A step that fails is reported and its output is not used; the world goes on.
+/// at the sync point. A step that fails is reported and its output is not used; the world goes on. A broken contract is
+/// a bug, not a failure, so it escapes the tick.
 /// </summary>
 public class PhysicsStepTests
 {
@@ -159,5 +161,57 @@ public class PhysicsStepTests
 
         test.World.Errors.Should().NotBeEmpty().And.OnlyContain(e => e.Contains("cannot create the body"));
         test.World.TickNumber.Should().Be(2);
+    }
+
+    /// <summary>A backend with a bug: it breaks a contract in every step, or in every change batch.</summary>
+    private sealed class ContractBreakingBackend(bool inStep) : IPhysicsBackend
+    {
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public void ApplyChanges(PhysicsChanges changes, FrameTree frames)
+        {
+            if (!inStep)
+                BreakContract();
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
+        {
+            if (inStep)
+                BreakContract();
+        }
+
+        public float BoundingRadius(ShapeDesc shape) => 1;
+
+        public void Dispose()
+        {
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void BreakContract() => throw new ContractException("Invariant failed: the backend is broken");
+    }
+
+    [Fact]
+    public void AContractThatTheBackendBreaksInAStepEscapesTheTickWithTheStackOfThePhysicsThread()
+    {
+        using var test = new TestWorld(new ContractBreakingBackend(inStep: true));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage("*the backend is broken")
+            .Which.StackTrace.Should().Contain($"{nameof(ContractBreakingBackend)}.{nameof(ContractBreakingBackend.Step)}");
+        test.World.Errors.Should().BeEmpty("a broken contract is not a failed step");
+    }
+
+    [Fact]
+    public void AContractThatTheBackendBreaksWhileItAppliesChangesEscapesTheTick()
+    {
+        using var test = new TestWorld(new ContractBreakingBackend(inStep: false));
+        test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage("*the backend is broken")
+            .Which.StackTrace.Should().Contain($"{nameof(ContractBreakingBackend)}.{nameof(ContractBreakingBackend.ApplyChanges)}");
+        test.World.Errors.Should().BeEmpty("a broken contract is not a failure to apply changes");
     }
 }
