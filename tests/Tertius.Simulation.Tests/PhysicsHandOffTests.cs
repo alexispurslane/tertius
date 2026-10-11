@@ -191,6 +191,31 @@ public class PhysicsHandOffTests
     }
 
     [Fact]
+    public void AHandOffToAStaleFrameAlsoIgnoresTheStatesThatPhysicsReportsRelativeToThatFrame()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity fighterOwner = SpawnFighter(test, TestWorld.At(100), out FrameHandle fighter);
+        FrameHandle gone = test.SpawnStaticFrame(TestWorld.At(0), radius: 10);
+        test.World.Destroy(gone.Entity);
+        // What the Jolt backend reports with a hand-off: the body state and the frame state in the target frame.
+        physics.OnStep((context, output) =>
+        {
+            if (context.Tick != 0)
+                return;
+            output.Bodies.Add(new BodyState(fighterOwner, gone, TestWorld.At(-1), AnyVelocity, AnySpin));
+            output.HandOffs.Add(new HandOff(fighterOwner, test.Root, gone, TestWorld.At(-1), AnyVelocity, AnySpin));
+            output.Frames.Add(new FrameState(fighter, TestWorld.At(-1), new Double3(1, 2, 3), AnySpin, Vector3.Zero));
+        });
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain("stale frame");
+        test.World.Frames.LocalPose(fighter).Should().Be(TestWorld.At(100));
+        test.World.GetPose(fighterOwner).Should().Be(TestWorld.At(100));
+    }
+
+    [Fact]
     public void AHandOffOfAnEntityThatNoLongerExistsIsIgnored()
     {
         IPhysicsBackend physics = TestPhysics.Create();
@@ -223,7 +248,7 @@ public class PhysicsHandOffTests
         test.Run(1);
 
         // A frame cannot be its own descendant's child.
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain("cannot move frame");
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain("refused the hand-off");
         test.World.Frames.Parent(fighter).Should().Be(test.Root);
         test.World.GetFrame(fighterOwner).Should().Be(test.Root);
     }
@@ -245,6 +270,139 @@ public class PhysicsHandOffTests
         test.Run(3);
 
         log.Seen.Should().BeEmpty("the owner never left the root frame");
+    }
+
+    /// <summary>What a physics step reports together with a hand-off that the frame tree refuses.</summary>
+    public enum RefusedReport
+    {
+        /// <summary>The owner's body state in the refused target frame.</summary>
+        BodyState,
+        /// <summary>
+        /// The owner's body state in the refused target frame, and the owned frame's state relative to that target:
+        /// what the Jolt backend reports for every hand-off that it executes.
+        /// </summary>
+        BodyAndFrameState,
+    }
+
+    /// <summary>
+    /// A fighter whose frame origin is 100 m along +X from the origin of the root, moving and spinning, with a cockpit
+    /// frame 1 m along +X inside it. The first physics step hands the fighter's owner into its own cockpit, which the
+    /// frame tree refuses, and reports with it what <see cref="RefusedReport"/> says. Seen from the cockpit, the fighter's
+    /// origin is at X = -1.
+    /// </summary>
+    private sealed class RefusedHandOffScene : IDisposable
+    {
+        public static readonly Vector3 OwnVelocity = new(0, 0, 5);
+        public static readonly Vector3 OwnSpin = new(0, 0.25f, 0);
+
+        public RefusedHandOffScene(RefusedReport report, params IComponent[] ownerComponents)
+        {
+            IPhysicsBackend physics = TestPhysics.Create();
+            Test = new TestWorld(physics);
+            Owner = Test.World.Spawn(new SpawnDesc
+            {
+                Frame = Test.Root,
+                Pose = TestWorld.At(100),
+                LinearVelocity = OwnVelocity,
+                AngularVelocity = OwnSpin,
+                AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+                Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+                Components = ownerComponents,
+            });
+            Fighter = Test.World.GetOwnedFrame(Owner);
+            Cockpit = Test.World.SpawnStaticFrame(Fighter, TestWorld.At(1), radius: 2);
+            physics.OnStep((context, output) =>
+            {
+                if (context.Tick != 0)
+                    return;
+                output.Bodies.Add(new BodyState(Owner, Cockpit, TestWorld.At(-1), AnyVelocity, AnySpin));
+                output.HandOffs.Add(new HandOff(Owner, Test.Root, Cockpit, TestWorld.At(-1), AnyVelocity, AnySpin));
+                if (report == RefusedReport.BodyAndFrameState)
+                    output.Frames.Add(new FrameState(Fighter, TestWorld.At(-1), new Double3(1, 2, 3), AnySpin, new Vector3(0, -2, 0)));
+            });
+        }
+
+        public TestWorld Test { get; }
+        public Entity Owner { get; }
+        public FrameHandle Fighter { get; }
+        public FrameHandle Cockpit { get; }
+        public World World => Test.World;
+
+        public void Dispose() => Test.Dispose();
+    }
+
+    [Theory]
+    [InlineData(RefusedReport.BodyState)]
+    [InlineData(RefusedReport.BodyAndFrameState)]
+    public void TheOwnerOfARefusedHandOffHearsNoFrameChanged(RefusedReport report)
+    {
+        var log = new Recorder(EventMask.Of<FrameChanged>());
+        using var scene = new RefusedHandOffScene(report, log);
+
+        scene.Test.Run(3);
+
+        log.Seen.Should().BeEmpty("the owner never left the root frame");
+    }
+
+    [Theory]
+    [InlineData(RefusedReport.BodyState)]
+    [InlineData(RefusedReport.BodyAndFrameState)]
+    public void TheOwnerOfARefusedHandOffKeepsItsFramePoseAndVelocities(RefusedReport report)
+    {
+        using var scene = new RefusedHandOffScene(report);
+
+        scene.Test.Run(1);
+
+        scene.World.GetFrame(scene.Owner).Should().Be(scene.Test.Root);
+        scene.World.GetPose(scene.Owner).Should().Be(TestWorld.At(100));
+        scene.World.GetVelocity(scene.Owner).Should().Be(RefusedHandOffScene.OwnVelocity);
+        scene.World.GetAngularVelocity(scene.Owner).Should().Be(RefusedHandOffScene.OwnSpin);
+    }
+
+    [Theory]
+    [InlineData(RefusedReport.BodyState)]
+    [InlineData(RefusedReport.BodyAndFrameState)]
+    public void TheFrameOfARefusedHandOffKeepsItsParentLocalPoseAndMotion(RefusedReport report)
+    {
+        using var scene = new RefusedHandOffScene(report);
+
+        scene.Test.Run(1);
+
+        FrameTree frames = scene.World.Frames;
+        frames.Parent(scene.Fighter).Should().Be(scene.Test.Root);
+        frames.LocalPose(scene.Fighter).Should().Be(TestWorld.At(100));
+        frames.LinearVelocity(scene.Fighter).Should().Be((Double3)RefusedHandOffScene.OwnVelocity);
+        frames.AngularVelocity(scene.Fighter).Should().Be(RefusedHandOffScene.OwnSpin);
+        frames.ProperAcceleration(scene.Fighter).Should().Be(Vector3.Zero);
+    }
+
+    [Theory]
+    [InlineData(RefusedReport.BodyState)]
+    [InlineData(RefusedReport.BodyAndFrameState)]
+    public void TheOwnerOfARefusedHandOffStaysAMemberOfItsFramesTopic(RefusedReport report)
+    {
+        var log = new Recorder(EventMask.Of<Ping>());
+        using var scene = new RefusedHandOffScene(report, log);
+        // Each tick, one sender tells each frame's topic the tick. A message sent in tick t reaches its recipients in tick t + 1.
+        scene.Test.SpawnWith(SendEvery.Of<Ping>(scene.Test.Root.Topic, tick => new Ping { Value = 100 + (int)tick }));
+        scene.Test.SpawnWith(SendEvery.Of<Ping>(scene.Cockpit.Topic, tick => new Ping { Value = 200 + (int)tick }));
+
+        scene.Test.Run(3);
+
+        log.Pings().Should().Equal((1L, 100), (2L, 101));
+    }
+
+    [Theory]
+    [InlineData(RefusedReport.BodyState)]
+    [InlineData(RefusedReport.BodyAndFrameState)]
+    public void ARefusedHandOffIsReportedOnceWithTheEntityAndTheRefusedMove(RefusedReport report)
+    {
+        using var scene = new RefusedHandOffScene(report);
+
+        scene.Test.Run(1);
+
+        string error = scene.World.Errors.Should().ContainSingle().Subject;
+        error.Should().Contain($"refused the hand-off of {scene.Owner} from {scene.Test.Root} to {scene.Cockpit}");
     }
 
     /// <summary>A small ship: a frame that physics moves, whose owner has a hull body in the parent frame.</summary>

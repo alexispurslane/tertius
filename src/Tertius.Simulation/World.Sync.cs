@@ -8,6 +8,11 @@ public sealed partial class World
     // is here twice; its second entry finds its membership already moved.
     private readonly List<Entity> physicsTouched = new();
 
+    // Entities whose hand-off this sync did not apply: its target frame is gone, or the frame tree refused to move the
+    // entity's frame there. Physics reported their body states, and the states of the frames they own, relative to that
+    // target, so the sync ignores those too.
+    private readonly HashSet<Entity> refusedHandOffs = new();
+
     /// <summary>
     /// The sync point, the steps of "Threads and the tick" in ARCHITECTURE.md. One thread runs it; nothing else runs
     /// meanwhile. Each step calls into the subsystems, which keep their own bookkeeping; the comments say why a step
@@ -27,9 +32,9 @@ public sealed partial class World
             stepOutput.Clear();
         }
 
-        // 2. Body states and hand-offs, then the physics frames' states and their owners' rows: a state is relative to
-        //    the parent after the hand-offs, and must land before step 5 can destroy that parent or move the hull.
-        //    Contacts last.
+        // 2. The hand-offs' reparents first, which decides the refused ones, then body states and hand-offs, then the
+        //    physics frames' states and their owners' rows: a state is relative to the parent after the hand-offs, and
+        //    must land before step 5 can destroy that parent or move the hull. Contacts last.
         if (physics != null)
             ApplyPhysicsOutput();
 
@@ -86,18 +91,21 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Step 2: body states and hand-offs into the back table, with the frame owners' reparents, then the new states of
-    /// the physics-driven frames and their owners' rows, then contacts as Collision events. The contacts come after the
-    /// frame states, so that a point converted between frames uses the frame poses after the step, like the bodies' own
-    /// poses.
+    /// Step 2: the frame owners' reparents of the hand-offs, then body states and hand-offs into the back table, then
+    /// the new states of the physics-driven frames and their owners' rows, then contacts as Collision events. The
+    /// contacts come after the frame states, so that a point converted between frames uses the frame poses after the
+    /// step, like the bodies' own poses.
     /// </summary>
     private void ApplyPhysicsOutput()
     {
         physicsTouched.Clear();
+        // Every hand-off is decided before any state lands, so a refused one changes nothing whatever the loops' order.
+        MoveHandedOffFrames();
+
         foreach (BodyState state in stepOutput.Bodies)
         {
             Entity entity = state.Entity;
-            if (!entities.IsAlive(entity) || entities.Body(entity) == null)
+            if (!entities.IsAlive(entity) || entities.Body(entity) == null || refusedHandOffs.Contains(entity))
                 continue;
             // The pose and velocities are relative to the reported frame, so a state in a frame that is gone is useless
             // in any other frame. The entity keeps its frame and its row, as with a hand-off to a stale frame.
@@ -118,29 +126,9 @@ public sealed partial class World
 
         foreach (HandOff handOff in stepOutput.HandOffs)
         {
-            if (!entities.IsAlive(handOff.Entity))
-                continue;
-            if (!Frames.IsAlive(handOff.To))
-            {
-                Report($"tick {TickNumber}: ignored the hand-off of {handOff.Entity} to the stale frame {handOff.To}.", isError: true);
-                continue;
-            }
             Entity entity = handOff.Entity;
-            // The frame tree may refuse to move an owned frame. It refuses before it changes anything, so the owner's
-            // row and membership are written only after it agreed: a refused hand-off changes nothing.
-            FrameHandle own = entities.OwnedFrame(entity);
-            if (!own.IsNull && Frames.Parent(own) != handOff.To)
-            {
-                try
-                {
-                    Frames.Reparent(own, handOff.To);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    Report($"tick {TickNumber}: cannot move frame {own} under {handOff.To}: {ex.Message}", isError: true);
-                    continue;
-                }
-            }
+            if (!entities.IsAlive(entity) || refusedHandOffs.Contains(entity))
+                continue;
             entities.SetBackTransform(entity, new TransformRow
             {
                 Frame = handOff.To,
@@ -151,12 +139,12 @@ public sealed partial class World
             physicsTouched.Add(entity);
         }
 
-        // The hand-offs above already put each frame under the parent that its state is relative to. The owner's row
+        // The first pass already put each frame under the parent that its state is relative to. The owner's row
         // mirrors the new state at once, so that a hull that the destroy batch moves to another physics system starts
         // from the state after the step.
         foreach (FrameState state in stepOutput.Frames)
         {
-            if (!Frames.IsAlive(state.Frame))
+            if (!Frames.IsAlive(state.Frame) || refusedHandOffs.Contains(state.Frame.Entity))
                 continue;
             Frames.SetLocalPose(state.Frame, state.LocalPose);
             Frames.LinearVelocity(state.Frame) = state.LinearVelocity;
@@ -173,6 +161,42 @@ public sealed partial class World
 
         foreach (ContactStarted contact in stepOutput.Contacts)
             RouteContact(contact);
+    }
+
+    /// <summary>
+    /// The first pass of step 2, before any body state or frame state lands: moves the frame of each handed-off frame
+    /// owner under its new parent, in hand-off order, and fills <see cref="refusedHandOffs"/> with the entities whose
+    /// hand-off is not applied. A hand-off to a frame that is gone is not applied, and neither is one that the frame
+    /// tree refuses because it would put a frame under itself or its own descendant. The tree refuses before it changes
+    /// anything, so a refused hand-off leaves the frame as it was.
+    /// </summary>
+    private void MoveHandedOffFrames()
+    {
+        refusedHandOffs.Clear();
+        foreach (HandOff handOff in stepOutput.HandOffs)
+        {
+            Entity entity = handOff.Entity;
+            if (!entities.IsAlive(entity))
+                continue;
+            if (!Frames.IsAlive(handOff.To))
+            {
+                Report($"tick {TickNumber}: ignored the hand-off of {entity} to the stale frame {handOff.To}.", isError: true);
+                refusedHandOffs.Add(entity);
+                continue;
+            }
+            FrameHandle own = entities.OwnedFrame(entity);
+            if (own.IsNull || Frames.Parent(own) == handOff.To)
+                continue;
+            try
+            {
+                Frames.Reparent(own, handOff.To);
+            }
+            catch (InvalidOperationException ex)
+            {
+                Report($"tick {TickNumber}: refused the hand-off of {entity} from {handOff.From} to {handOff.To}: {ex.Message}", isError: true);
+                refusedHandOffs.Add(entity);
+            }
+        }
     }
 
     /// <summary>Sends a Collision to each live entity of a contact, with the point and normal in that entity's frame.</summary>

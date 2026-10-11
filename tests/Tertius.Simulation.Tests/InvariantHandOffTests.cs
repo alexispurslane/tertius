@@ -63,7 +63,7 @@ public class InvariantHandOffTests
 
         scene.World.Frames.Parent(scene.Hull).Should().Be(scene.Test.Root, "a frame cannot become a child of its own descendant");
         scene.World.GetFrame(scene.HullOwner).Should().Be(scene.Test.Root, "the owner's row follows the frame's parent");
-        scene.World.Errors.Should().ContainSingle(error => error.Contains("cannot move frame"));
+        scene.World.Errors.Should().ContainSingle(error => error.Contains("refused the hand-off"));
         scene.World.AssertInvariants();
     }
 
@@ -76,7 +76,7 @@ public class InvariantHandOffTests
 
         scene.World.Frames.Parent(scene.Hull).Should().Be(scene.Test.Root);
         scene.World.GetFrame(scene.HullOwner).Should().Be(scene.Test.Root);
-        scene.World.Errors.Should().ContainSingle(error => error.Contains("cannot move frame"));
+        scene.World.Errors.Should().ContainSingle(error => error.Contains("refused the hand-off"));
         scene.World.AssertInvariants();
     }
 
