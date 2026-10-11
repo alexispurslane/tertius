@@ -127,8 +127,6 @@ public sealed partial class World
                 throw new ArgumentException("An attached entity cannot have a physics body.", nameof(desc));
             if (desc.AsFrame != null)
                 throw new ArgumentException("An attached entity cannot be a frame.", nameof(desc));
-            if (desc.Frame.IsNull)
-                throw new ArgumentException("An attached entity needs the frame of its parent.", nameof(desc));
         }
         if (desc.AsFrame is { } spec && !(spec.Bounds.MinRadius > 0))
             throw new ArgumentException("A frame needs a bubble with positive radii.", nameof(desc));
