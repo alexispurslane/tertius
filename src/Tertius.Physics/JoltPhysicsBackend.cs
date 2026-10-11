@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Numerics;
 using JoltPhysicsSharp;
 
 namespace Tertius.Physics;
@@ -15,7 +16,8 @@ namespace Tertius.Physics;
 /// <remarks>
 /// <see cref="ApplyChanges"/> runs at the sync point and <see cref="Step"/> on the physics thread. They never run at
 /// the same time. <see cref="BoundingRadius"/> is thread-safe. Both start by reconciling with the frame tree, and
-/// <see cref="AssertInvariants"/> lists what a reconcile that placed every frame hull guarantees.
+/// <see cref="AssertInvariants"/> lists what every reconcile guarantees. A system that is full grows when the backend
+/// adds a body to it (see <see cref="Grow"/>), so every entity with a body keeps it for its whole life.
 /// </remarks>
 public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 {
@@ -117,8 +119,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>
     /// Runs one physics step for every frame with awake bodies or characters: puts every frame hull where the frame tree
     /// says, which drops the hand-offs of the last step that the simulation refused and follows changes to the tree that
-    /// no change batch announced (a hull that its new system has no room for has no body, with a warning, until a later
-    /// step finds room), then applies intents, drives kinematic frame hulls, applies gravity, moves characters,
+    /// no change batch announced, then applies intents, drives kinematic frame hulls, applies gravity, moves characters,
     /// updates every system, then reports contacts, hands bodies between frames, updates ghosts and writes body and
     /// frame states to <paramref name="output"/>.
     /// </summary>
@@ -238,6 +239,71 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     internal bool HasInterior(Entity owner) => Find(owner) is { InteriorWorld: not null };
 
+    /// <summary>The most bodies that the system of <paramref name="frame"/> holds now, or 0 when the frame has no system.</summary>
+    internal uint CapacityOf(FrameHandle frame) => ExistingWorld(frame)?.System.MaxBodies ?? 0;
+
+    /// <summary>What Jolt holds for one body. Tests compare it before and after a system grows.</summary>
+    internal readonly record struct BodyFacts(
+        BodyID Id,
+        ulong UserData,
+        MotionType Motion,
+        ObjectLayer Layer,
+        nint Shape,
+        MotionQuality Quality,
+        Double3 Position,
+        Quaternion Rotation,
+        Vector3 LinearVelocity,
+        Vector3 AngularVelocity,
+        bool Active,
+        float Friction,
+        float Restitution,
+        float InverseMass,
+        Vector3 InverseInertia,
+        Quaternion InertiaRotation,
+        float LinearDamping,
+        float AngularDamping);
+
+    /// <summary>Every body in the system of <paramref name="frame"/>, in the order of its ID, as Jolt holds it.</summary>
+    internal unsafe List<BodyFacts> BodiesIn(FrameHandle frame)
+    {
+        var facts = new List<BodyFacts>();
+        if (ExistingWorld(frame) is not { } world)
+            return facts;
+        lock (JoltRuntime.NativeGate)
+        {
+            uint count = world.System.BodiesCount;
+            var ids = new BodyID[count];
+            fixed (BodyID* first = ids)
+                world.System.GetBodies(first, count);
+            BodyInterface bodies = world.Bodies;
+            BodyLockInterface locks = world.System.BodyLockInterface;
+            foreach (BodyID id in ids)
+            {
+                bodies.GetRPosition(id, out RVector3 position);
+                bodies.GetLinearAndAngularVelocity(id, out Vector3 linear, out Vector3 angular);
+                float inverseMass = 0, linearDamping = 0, angularDamping = 0;
+                Vector3 inverseInertia = Vector3.Zero;
+                Quaternion inertiaRotation = Quaternion.Identity;
+                locks.LockRead(id, out BodyLockRead read);
+                if (read.Succeeded && read.Body is { MotionProperties: { IsNotNull: true } motion })
+                {
+                    inverseMass = motion.InverseMassUnchecked;
+                    inverseInertia = motion.InverseInertiaDiagonal;
+                    inertiaRotation = motion.InertiaRotation;
+                    linearDamping = motion.LinearDamping;
+                    angularDamping = motion.AngularDamping;
+                }
+                locks.UnlockRead(read);
+                facts.Add(new BodyFacts(id, bodies.GetUserData(id), bodies.GetMotionType(id), bodies.GetObjectLayer(id),
+                    bodies.GetShape(id)?.Handle ?? 0, bodies.GetMotionQuality(id), position.ToDouble3(), bodies.GetRotation(id),
+                    linear, angular, bodies.IsActive(id), bodies.GetFriction(id), bodies.GetRestitution(id), inverseMass,
+                    inverseInertia, inertiaRotation, linearDamping, angularDamping));
+            }
+        }
+        facts.Sort(static (a, b) => a.Id.Index.CompareTo(b.Id.Index));
+        return facts;
+    }
+
     // ---- Frame structure ----
 
     private BodyRecord? Find(Entity entity)
@@ -293,11 +359,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// step, removes the systems of frames that left the tree, puts every frame hull in the system of the parent that
     /// the tree names, and removes every ghost that the tree no longer allows. The sync point has applied or refused
     /// each hand-off before this runs, so a hull whose hand-off the tree did not take, or whose frame the simulation
-    /// moved on its own, goes where the tree says, with the tree's pose and velocity. A hull that its new system has no
-    /// room for gets no body (see <see cref="PlaceHullFromTree"/>), and the reconcile goes on with the other hulls.
-    /// Until a reconcile places every hull, every call reconciles again. Once one does, <see cref="AssertInvariants"/>
-    /// holds: every system belongs to a live frame, every hull is in the system of its frame's parent in the tree, and
-    /// every ghost is in a frame next to its body's frame.
+    /// moved on its own, goes where the tree says, with the tree's pose and velocity. A system that is full grows to
+    /// take the hull. Afterwards <see cref="AssertInvariants"/> holds: every system belongs to a live frame, every
+    /// record has the bodies that it must have, every hull is in the system of its frame's parent in the tree, and every
+    /// ghost is in a frame next to its body's frame.
     /// </summary>
     private void ReconcileFrames()
     {
@@ -312,8 +377,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         // Stryker disable once Statement : the check only saves work; reconciling an unchanged tree changes nothing.
         if (frames.Version == reconciledFrameVersion && !handedOffFrames)
             return;
-        // No version counts as reconciled until every hull is in place. A placement that fails, or anything below that
-        // throws, then makes the next call reconcile again.
+        // No version counts as reconciled until the reconcile ends. Anything below that throws then makes the next call
+        // reconcile again, also after a step that handed a frame off, whose overrides are gone already.
         reconciledFrameVersion = -1;
 
         // A frame that left the tree without a FramesDestroyed change, or after one that came too early, loses its
@@ -332,8 +397,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             DisposeWorld(world);
         }
 
-        // A hull without a body, after a placement that failed, is not where the tree says either, so it gets another try.
-        bool placedEveryHull = true;
         for (int i = frameOwners.Count - 1; i >= 0; i--)
         {
             BodyRecord owner = frameOwners[i];
@@ -342,42 +405,69 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 continue;
             FrameHandle parent = frames.Parent(owner.OwnedFrame);
             if (owner.Frame != parent)
-                placedEveryHull &= PlaceHullFromTree(owner, parent);
+                PlaceHullFromTree(owner, parent);
         }
 
         // Ghosts follow the tree too. A frame that the game moved, or a hull that moved, can leave a ghost in a frame
         // that is no longer next to its body's frame, even inside the frame that the body owns. The ghost pass at the
         // end of the step adds the ghosts that the new tree wants.
         DropGhostsThatTheTreeForbids();
-        if (!placedEveryHull)
-            return;
         reconciledFrameVersion = frames.Version;
         EnsureFollowsTree();
     }
 
-    /// <summary>The postcondition of a reconcile that placed every hull. Debug builds only.</summary>
+    /// <summary>The postcondition of a reconcile. Debug builds only.</summary>
     [Conditional("TERTIUS_CONTRACTS")]
     private void EnsureFollowsTree() => AssertInvariants();
 
     /// <summary>
-    /// Checks the invariants that hold right after a reconcile that placed every hull, and until the next step hands a
-    /// frame off or the tree changes. Throws <see cref="ContractException"/> when one does not hold. O(frame owners +
-    /// systems). Debug builds run it at the end of every such reconcile, and tests call it.
+    /// Checks the invariants that hold right after every reconcile, and until the next step hands a frame off or the
+    /// tree changes. Throws <see cref="ContractException"/> when one does not hold. Debug builds run it at the end of
+    /// every reconcile that does work, and tests call it.
     /// <list type="bullet">
     /// <item>No hand-off override remains, so the backend reads every frame's parent from the tree.</item>
     /// <item>Every system belongs to a live frame.</item>
+    /// <item>Every record that must have a body has one. A plain body or a character is a member of the system of its
+    /// frame. The owner of a frame has its interior in the frame's own system, and it is in the list of frame
+    /// owners.</item>
     /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
     /// and the owner of a root frame has no hull.</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame (see
     /// <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
     /// </list>
-    /// The ghost check visits every entity slot, so the whole check is O(entity slots + systems).
+    /// The record and ghost checks visit every entity slot, so the whole check is O(entity slots + systems).
     /// </summary>
     internal void AssertInvariants()
     {
         Contract.Invariant(parentOverrides.Count == 0);
         foreach (FrameWorld world in worldList)
             Contract.Invariant(frames.IsAlive(world.Frame) && ExistingWorld(world.Frame) == world);
+        int hulls = 0;
+        foreach (BodyRecord? record in records)
+        {
+            if (record is null)
+                continue;
+            Contract.Invariant(Find(record.Entity) == record);
+            if (record.IsHull)
+            {
+                hulls++;
+                Contract.Invariant(record.InteriorBody.IsValid && record.InteriorWorld == ExistingWorld(record.OwnedFrame));
+            }
+            else
+            {
+                Contract.Invariant(record.HasPrimary && record.World == ExistingWorld(record.Frame));
+            }
+            if (record.World is { } home)
+            {
+                Contract.Invariant(record.Character is not null || record.Body.IsValid);
+                Contract.Invariant(home.Members[record.MemberIndex] == record);
+            }
+            if (record.Ghosts is not { } ghosts)
+                continue;
+            foreach (GhostBody ghost in ghosts)
+                Contract.Invariant(GhostAllowed(record, ghost.Frame) && ghost.World == ExistingWorld(ghost.Frame));
+        }
+        Contract.Invariant(hulls == frameOwners.Count);
         foreach (BodyRecord owner in frameOwners)
         {
             Contract.Invariant(frames.IsAlive(owner.OwnedFrame));
@@ -386,13 +476,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(!owner.HasPrimary);
             else
                 Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
-        }
-        foreach (BodyRecord? record in records)
-        {
-            if (record?.Ghosts is not { } ghosts)
-                continue;
-            foreach (GhostBody ghost in ghosts)
-                Contract.Invariant(GhostAllowed(record, ghost.Frame) && ghost.World == ExistingWorld(ghost.Frame));
         }
     }
 

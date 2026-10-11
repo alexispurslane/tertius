@@ -6,13 +6,18 @@ public sealed record JoltBackendOptions
     // Every frame with bodies gets its own Jolt system, and Jolt sizes its buffers from these limits up front, so
     // they are per frame and kept moderate.
 
-    /// <summary>The most bodies that one frame's physics system can hold, ghosts and character bodies included.</summary>
+    /// <summary>
+    /// The most bodies that one frame's physics system holds when the backend creates it, ghosts and character bodies
+    /// included. When a full system needs one more body, the backend replaces it with a system of twice the limits (all
+    /// three limits here) and moves every body over. That move costs time in proportion to the frame's bodies, once
+    /// each time the frame doubles, and it writes a warning. A frame that is known to be large starts larger.
+    /// </summary>
     public int MaxBodiesPerFrame { get; init; } = 4096;
 
-    /// <summary>The most body pairs that one frame's broad phase can report per step.</summary>
+    /// <summary>The most body pairs that one frame's broad phase can report per step, until the frame's system grows.</summary>
     public int MaxBodyPairsPerFrame { get; init; } = 8192;
 
-    /// <summary>The most contact constraints that one frame's solver can hold per step.</summary>
+    /// <summary>The most contact constraints that one frame's solver can hold per step, until the frame's system grows.</summary>
     public int MaxContactConstraintsPerFrame { get; init; } = 4096;
 
     /// <summary>Jolt worker threads. Zero or less uses Jolt's default: one per core, minus one.</summary>

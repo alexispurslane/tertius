@@ -5,7 +5,7 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// Physics follows the frame tree. At the start of each step, and in ApplyChanges, the backend reconciles with the tree:
 /// it drops the hand-offs of the last step and puts each frame hull in the physics system of its frame's parent in the
-/// tree. These tests pin down what the reconcile guarantees, also when it cannot place a hull.
+/// tree. These tests pin down what the reconcile guarantees, also when the system that a hull moves into is full.
 /// </summary>
 public class ReconcileTests
 {
@@ -26,7 +26,7 @@ public class ReconcileTests
                 Shapes.Box(2, mass: 1000), velocity: new Vector3(-60, 0, 0));
             Storage = H.AddFrame(Space, Shapes.At(-5000, 0, 0), FrameBounds.Sphere(50), MotionDriver.Static);
             for (int i = 0; i < 8; i++)
-                Crates.Add(H.AddBody(Storage, Shapes.Box(0.5f, motion: BodyMotion.Static), Shapes.At(3 * i - 12, 0, 0)));
+                H.AddBody(Storage, Shapes.Box(0.5f, motion: BodyMotion.Static), Shapes.At(3 * i - 12, 0, 0));
             Skiff = H.AddFrameWithBody(Space, Shapes.At(-3000, 0, 0), FrameBounds.Sphere(5), MotionDriver.Static,
                 new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static));
         }
@@ -36,7 +36,6 @@ public class ReconcileTests
         public FrameHandle Hangar { get; }
         public FrameHandle Ship { get; }
         public FrameHandle Storage { get; }
-        public List<Entity> Crates { get; } = new();
         public FrameHandle Skiff { get; }
 
         /// <summary>
@@ -57,7 +56,7 @@ public class ReconcileTests
     }
 
     [Fact]
-    public void AHullThatCannotBePlacedDoesNotStopTheOtherHullsFromFollowingTheTree()
+    public void EveryHullFollowsTheTreeWhenTheGameMovesAFrameIntoAFullSystem()
     {
         using var scene = new FullStorage();
         PhysicsHarness h = scene.H;
@@ -67,47 +66,29 @@ public class ReconcileTests
         // the hangar's system would then leave it for the hangar's parent, which is the ship's own frame.
         for (int i = 0; i < 90; i++)
         {
-            h.Invoking(x => x.Step()).Should().NotThrow("a full system is no reason to stop the step {0}", i);
+            h.Step();
             h.Backend.TryGetBodyFrame(scene.Ship.Entity, out FrameHandle hullFrame).Should().BeTrue();
             hullFrame.Should().Be(h.Frames.Parent(scene.Ship), "the ship's hull follows the tree after step {0}", i);
+            h.Backend.TryGetBodyFrame(scene.Skiff.Entity, out FrameHandle skiffFrame).Should().BeTrue();
+            skiffFrame.Should().Be(scene.Storage, "the storage system grew to take the skiff's hull at step {0}", i);
         }
 
         h.HandOffs.Should().ContainSingle("the ship has no other frame to enter or leave");
-        h.Backend.TryGetBodyFrame(scene.Skiff.Entity, out _).Should().BeFalse("the storage system has no room for the skiff's hull");
-        h.Warnings.Should().Contain(warning => warning.Contains(scene.Skiff.Entity.ToString()) && warning.Contains(scene.Storage.ToString()));
+        h.Backend.CapacityOf(scene.Storage).Should().Be(16);
     }
 
     [Fact]
-    public void AHullThatCouldNotBePlacedGetsItsBodyOnceTheSystemHasRoom()
+    public void TheInvariantsHoldRightAfterTheReconcileThatMovesAHullIntoAFullSystem()
     {
         using var scene = new FullStorage();
         PhysicsHarness h = scene.H;
         scene.MoveFramesAfterTheShipEntersTheHangar();
-        h.Step();
-        h.Backend.TryGetBodyFrame(scene.Skiff.Entity, out _).Should().BeFalse();
 
-        // A crate leaves storage. Nothing in the frame tree changes.
-        h.Destroy(scene.Crates[0]);
-        h.Step();
-
-        h.Backend.TryGetBodyFrame(scene.Skiff.Entity, out FrameHandle hullFrame).Should().BeTrue();
-        hullFrame.Should().Be(scene.Storage);
-    }
-
-    [Fact]
-    public void TheInvariantsFailWhileAHullHasNoBodyAndHoldOnceTheReconcilePlacesIt()
-    {
-        using var scene = new FullStorage();
-        PhysicsHarness h = scene.H;
-        scene.MoveFramesAfterTheShipEntersTheHangar();
-        h.Reconcile();
-
-        h.Backend.Invoking(backend => backend.AssertInvariants()).Should().Throw<ContractException>("the skiff's frame has a parent, but its hull has no body");
-
-        h.Destroy(scene.Crates[0]);
         h.Reconcile();
 
         h.Backend.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        h.Backend.TryGetBodyFrame(scene.Skiff.Entity, out FrameHandle skiffFrame).Should().BeTrue();
+        skiffFrame.Should().Be(scene.Storage);
     }
 
     [Fact]

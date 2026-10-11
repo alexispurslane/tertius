@@ -17,42 +17,68 @@ internal readonly record struct RawContact(
 }
 
 /// <summary>
+/// The limits by which Jolt sizes the buffers of a physics system when it creates the system. A system never holds more
+/// than <see cref="MaxBodies"/> bodies.
+/// </summary>
+internal readonly record struct SystemLimits(int MaxBodies, int MaxBodyPairs, int MaxContactConstraints)
+{
+    public static SystemLimits From(JoltBackendOptions options) =>
+        new(options.MaxBodiesPerFrame, options.MaxBodyPairsPerFrame, options.MaxContactConstraintsPerFrame);
+
+    /// <summary>
+    /// Twice every limit. The number of bodies stops at <see cref="BodyID.MaxBodyIndex"/>, the most that a body ID can
+    /// count, and the other limits stop at <see cref="int.MaxValue"/>.
+    /// </summary>
+    public SystemLimits Doubled() => new(
+        (int)Math.Min(2L * MaxBodies, BodyID.MaxBodyIndex),
+        (int)Math.Min(2L * MaxBodyPairs, int.MaxValue),
+        (int)Math.Min(2L * MaxContactConstraints, int.MaxValue));
+}
+
+/// <summary>
 /// The Jolt physics system of one reference frame. Positions in the system are frame coordinates, so a body's pose
 /// in Jolt is its pose in the frame. Gravity is zero: the backend applies the frame's effective gravity as forces.
 /// </summary>
+/// <remarks>
+/// A system that is full can be replaced by a larger one (<see cref="ReplaceSystem"/>). The <see cref="FrameWorld"/>
+/// stays the same object, with the same members, so every reference to it stays valid.
+/// </remarks>
 internal sealed class FrameWorld : IDisposable
 {
+    private readonly Layers.Tables layers;
+    private readonly float penetrationSlop;
     private readonly Lock contactGate = new();
     private readonly List<RawContact> added = new(64);
     private readonly List<ulong> removed = new(64);
     // Body pairs in contact, with the number of touching sub-shape pairs. A pair starts when this goes from 0 to 1.
     private readonly Dictionary<ulong, int> touching = new();
+    // The body pairs that touched in the system that the last growth replaced. The new system has no contact cache, so
+    // its first update reports each pair that still touches as added. Such a pair continues: it did not start.
+    private readonly HashSet<ulong> carried = new();
+    // False from a growth until the first update of the new system, which reports every pair that still touches.
+    private bool updatedSinceGrowth = true;
     private readonly List<ulong> purgeScratch = new();
 
     public FrameWorld(FrameHandle frame, Layers.Tables layers, JoltBackendOptions options)
     {
         Frame = frame;
-        System = new PhysicsSystem(new PhysicsSystemSettings
-        {
-            MaxBodies = options.MaxBodiesPerFrame,
-            MaxBodyPairs = options.MaxBodyPairsPerFrame,
-            MaxContactConstraints = options.MaxContactConstraintsPerFrame,
-            ObjectLayerPairFilter = layers.Pairs,
-            BroadPhaseLayerInterface = layers.BroadPhase,
-            ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase,
-        });
-        System.Gravity = Vector3.Zero;
-        PhysicsSettings settings = System.Settings;
-        settings.PenetrationSlop = options.PenetrationSlop;
-        System.Settings = settings;
+        this.layers = layers;
+        penetrationSlop = options.PenetrationSlop;
+        Limits = SystemLimits.From(options);
+        System = CreateSystem(Limits);
         Bodies = System.BodyInterface;
-        System.OnContactAdded += OnContactAdded;
-        System.OnContactRemoved += OnContactRemoved;
+        Listen(System);
     }
 
     public FrameHandle Frame { get; }
-    public PhysicsSystem System { get; }
-    public BodyInterface Bodies { get; }
+    public PhysicsSystem System { get; private set; }
+    public BodyInterface Bodies { get; private set; }
+
+    /// <summary>The limits of <see cref="System"/>.</summary>
+    public SystemLimits Limits { get; private set; }
+
+    /// <summary>True when <see cref="System"/> holds as many bodies as it can, so that Jolt refuses one more.</summary>
+    public bool IsFull => System.BodiesCount >= System.MaxBodies;
 
     /// <summary>Records whose primary body or character lives in this system.</summary>
     public List<BodyRecord> Members { get; } = new();
@@ -88,6 +114,77 @@ internal sealed class FrameWorld : IDisposable
         record.MemberIndex = -1;
     }
 
+    /// <summary>
+    /// Creates an empty system with this frame's filters and settings and the given limits. Nothing listens to its
+    /// contacts until <see cref="ReplaceSystem"/> makes it this frame's system.
+    /// </summary>
+    public PhysicsSystem CreateSystem(SystemLimits limits)
+    {
+        var system = new PhysicsSystem(new PhysicsSystemSettings
+        {
+            MaxBodies = limits.MaxBodies,
+            MaxBodyPairs = limits.MaxBodyPairs,
+            MaxContactConstraints = limits.MaxContactConstraints,
+            ObjectLayerPairFilter = layers.Pairs,
+            BroadPhaseLayerInterface = layers.BroadPhase,
+            ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase,
+        });
+        system.Gravity = Vector3.Zero;
+        PhysicsSettings settings = system.Settings;
+        settings.PenetrationSlop = penetrationSlop;
+        system.Settings = settings;
+        return system;
+    }
+
+    /// <summary>
+    /// Makes <paramref name="larger"/>, which already holds every body of the current system, this frame's system, and
+    /// disposes the current one. The pairs that touch now are carried over: the first update of the new system reports
+    /// each of them again, and <see cref="DrainContacts"/> does not take that for a new contact.
+    /// </summary>
+    /// <param name="larger">The new system, with <paramref name="limits"/>.</param>
+    /// <param name="limits">The limits of <paramref name="larger"/>.</param>
+    /// <param name="renamed">
+    /// The bodies whose ID changed in the move: by full ID in the current system, their full ID in the new one.
+    /// </param>
+    public void ReplaceSystem(PhysicsSystem larger, SystemLimits limits, IReadOnlyDictionary<uint, uint> renamed)
+    {
+        // Contacts are drained after every update, and only an update reports them.
+        Contract.Requires(added.Count == 0 && removed.Count == 0);
+        System.OnContactAdded -= OnContactAdded;
+        System.OnContactRemoved -= OnContactRemoved;
+        System.Dispose();
+        System = larger;
+        Bodies = larger.BodyInterface;
+        Limits = limits;
+        Listen(larger);
+        ReportedOverflow = false;
+
+        lock (contactGate)
+        {
+            carried.Clear();
+            foreach (ulong key in touching.Keys)
+                carried.Add(PairKey(Renamed((uint)(key >> 32), renamed), Renamed((uint)key, renamed)));
+            touching.Clear();
+            updatedSinceGrowth = false;
+        }
+    }
+
+    private static BodyID Renamed(uint id, IReadOnlyDictionary<uint, uint> renamed) =>
+        new(renamed.TryGetValue(id, out uint newId) ? newId : id);
+
+    /// <summary>Runs one update of the system. Call it on the physics thread, with the native gate held.</summary>
+    public PhysicsUpdateError Update(float deltaTime, JobSystem jobs)
+    {
+        updatedSinceGrowth = true;
+        return System.Update(deltaTime, 1, jobs);
+    }
+
+    private void Listen(PhysicsSystem system)
+    {
+        system.OnContactAdded += OnContactAdded;
+        system.OnContactRemoved += OnContactRemoved;
+    }
+
     public static ulong PairKey(BodyID a, BodyID b)
     {
         uint x = a.ID, y = b.ID;
@@ -119,7 +216,7 @@ internal sealed class FrameWorld : IDisposable
                 ulong key = contact.PairKey;
                 touching.TryGetValue(key, out int count);
                 touching[key] = count + 1;
-                if (count == 0)
+                if (count == 0 && !carried.Contains(key))
                     started.Add(contact);
             }
             foreach (ulong key in removed)
@@ -133,6 +230,9 @@ internal sealed class FrameWorld : IDisposable
             }
             added.Clear();
             removed.Clear();
+            // The first update after a growth has reported every carried pair that still touches.
+            if (updatedSinceGrowth)
+                carried.Clear();
         }
     }
 
@@ -149,6 +249,8 @@ internal sealed class FrameWorld : IDisposable
                     purgeScratch.Add(key);
             foreach (ulong key in purgeScratch)
                 touching.Remove(key);
+            if (carried.Count > 0)
+                carried.RemoveWhere(key => (uint)(key >> 32) == body.ID || (uint)key == body.ID);
         }
     }
 

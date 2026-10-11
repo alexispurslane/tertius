@@ -321,7 +321,7 @@ public sealed partial class JoltPhysicsBackend
         {
             if (world.CharacterCount == 0 && world.System.GetNumActiveBodies(BodyType.Rigid) == 0)
                 continue;
-            PhysicsUpdateError error = world.System.Update(stepDt, 1, jobs);
+            PhysicsUpdateError error = world.Update(stepDt, jobs);
             if (error != PhysicsUpdateError.None && !world.ReportedOverflow)
             {
                 world.ReportedOverflow = true;

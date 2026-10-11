@@ -326,10 +326,7 @@ public sealed partial class JoltPhysicsBackend
             ghost.Wanted = true;
             return;
         }
-        // Meshes are static-only, so the ghost of a mesh hull (a static frame's) is a static body that physics
-        // repositions. The other ghosts are kinematic and carry the real body's velocity.
-        BodyID id = CreateRigid(world, record.Desc.Shape, record.HasMesh ? MotionType.Static : MotionType.Kinematic, Layers.Ghost,
-            pose, linear, angular, BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc);
+        BodyID id = CreateRigid(world, GhostSpec(record), pose, linear, angular);
         ghosts.Add(new GhostBody { Frame = frame, World = world, Body = id, Wanted = true });
     }
 

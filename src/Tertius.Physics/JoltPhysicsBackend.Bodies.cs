@@ -143,14 +143,9 @@ public sealed partial class JoltPhysicsBackend
     {
         FrameWorld world = WorldFor(frame);
         if (record.Motion == BodyMotion.Character)
-        {
             record.Character = CreateCharacter(record, world, pose, linearVelocity);
-        }
         else
-        {
-            record.Body = CreateRigid(world, record.Desc.Shape, ToMotionType(record.Motion), record.Layer, pose,
-                linearVelocity, angularVelocity, BodyUserData.Encode(BodyKind.Primary, record.Entity), record.Desc);
-        }
+            record.Body = CreateRigid(world, PrimarySpec(record), pose, linearVelocity, angularVelocity);
         record.Frame = frame;
         record.World = world;
         world.AddMember(record);
@@ -174,77 +169,113 @@ public sealed partial class JoltPhysicsBackend
     private void CreateInterior(BodyRecord record)
     {
         FrameWorld world = WorldFor(record.OwnedFrame);
-        record.InteriorBody = CreateRigid(world, record.Desc.InteriorShape ?? record.Desc.Shape, MotionType.Static, Layers.Static,
-            DPose.Identity, Vector3.Zero, Vector3.Zero, BodyUserData.Encode(BodyKind.Interior, record.Entity), record.Desc);
+        record.InteriorBody = CreateRigid(world, InteriorSpec(record), DPose.Identity, Vector3.Zero, Vector3.Zero);
         record.InteriorWorld = world;
     }
 
-    private BodyID CreateRigid(
-        FrameWorld world,
-        ShapeDesc shapeDesc,
-        MotionType motion,
-        ObjectLayer layer,
-        in DPose pose,
-        Vector3 linearVelocity,
-        Vector3 angularVelocity,
-        ulong userData,
-        BodyDesc material)
+    /// <summary>
+    /// What a rigid body is apart from its state: everything that it keeps for its whole life. The backend never changes
+    /// any of it after the body exists, so the spec of a body and its state rebuild the body exactly.
+    /// </summary>
+    private readonly record struct RigidSpec(ShapeDesc Shape, MotionType Motion, ObjectLayer Layer, ulong UserData, BodyDesc Material);
+
+    /// <summary>The spec of a record's primary rigid body: its own body, or the hull of the frame that it owns.</summary>
+    private static RigidSpec PrimarySpec(BodyRecord record) =>
+        new(record.Desc.Shape, ToMotionType(record.Motion), record.Layer, BodyUserData.Encode(BodyKind.Primary, record.Entity), record.Desc);
+
+    /// <summary>The spec of the static interior of the frame that a record owns, in the frame's own system.</summary>
+    private static RigidSpec InteriorSpec(BodyRecord record) =>
+        new(record.Desc.InteriorShape ?? record.Desc.Shape, MotionType.Static, Layers.Static, BodyUserData.Encode(BodyKind.Interior, record.Entity), record.Desc);
+
+    /// <summary>
+    /// The spec of a ghost of a record's body. Meshes are static-only, so the ghost of a mesh hull (a static frame's) is a
+    /// static body that physics repositions. The other ghosts are kinematic and carry the real body's velocity.
+    /// </summary>
+    private static RigidSpec GhostSpec(BodyRecord record) =>
+        new(record.Desc.Shape, record.HasMesh ? MotionType.Static : MotionType.Kinematic, Layers.Ghost, BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc);
+
+    /// <summary>Creates a rigid body in the system of <paramref name="world"/>, which grows first if it is full.</summary>
+    private BodyID CreateRigid(FrameWorld world, in RigidSpec spec, in DPose pose, Vector3 linearVelocity, Vector3 angularVelocity)
     {
-        Shape shape = shapes.Get(shapeDesc);
-        using var settings = new BodyCreationSettings(shape, pose.Position.ToJolt(), pose.Rotation.ToJolt(), motion, layer);
-        settings.UserData = userData;
-        settings.Friction = material.Friction;
-        settings.Restitution = material.Restitution;
-        settings.LinearDamping = material.LinearDamping;
-        settings.AngularDamping = material.AngularDamping;
-        settings.MaxLinearVelocity = options.MaxLinearVelocity;
-        if (motion == MotionType.Dynamic)
+        EnsureRoom(world);
+        using BodyCreationSettings settings = Settings(spec, pose.Position.ToJolt(), pose.Rotation.ToJolt(), linearVelocity, angularVelocity);
+        BodyID id = world.Bodies.CreateAndAddBody(settings, spec.Motion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
+        if (id.IsInvalid)
+            throw new InvalidOperationException($"Jolt refused to create a body in {world.Frame}, although its system had room.");
+        return id;
+    }
+
+    /// <summary>
+    /// The Jolt settings that create a rigid body from its spec and its state. Every rigid body comes from here, both when
+    /// the backend creates it and when a growth moves it to a larger system.
+    /// </summary>
+    private BodyCreationSettings Settings(in RigidSpec spec, RVector3 position, Quaternion rotation, Vector3 linearVelocity, Vector3 angularVelocity)
+    {
+        BodyDesc material = spec.Material;
+        var settings = new BodyCreationSettings(shapes.Get(spec.Shape), position, rotation, spec.Motion, spec.Layer)
+        {
+            UserData = spec.UserData,
+            Friction = material.Friction,
+            Restitution = material.Restitution,
+            LinearDamping = material.LinearDamping,
+            AngularDamping = material.AngularDamping,
+            MaxLinearVelocity = options.MaxLinearVelocity,
+        };
+        if (spec.Motion == MotionType.Dynamic)
         {
             settings.OverrideMassProperties = OverrideMassProperties.CalculateInertia;
             settings.MassPropertiesOverride = new MassProperties { Mass = material.Mass };
             // Continuous collision only costs anything when the body moves far in one step.
             settings.MotionQuality = MotionQuality.LinearCast;
         }
-        if (motion != MotionType.Static)
+        if (spec.Motion != MotionType.Static)
         {
             settings.LinearVelocity = linearVelocity;
             settings.AngularVelocity = angularVelocity;
         }
-        BodyID id = world.Bodies.CreateAndAddBody(settings, motion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
-        if (id.IsInvalid)
-            throw new InvalidOperationException(
-                $"Jolt could not create a body in {world.Frame}: the system already holds its maximum of {options.MaxBodiesPerFrame} bodies.");
-        return id;
+        return settings;
     }
 
+    /// <summary>
+    /// Creates a character in the system of <paramref name="world"/>, which grows first if it is full. Up is against the
+    /// effective gravity, or the record's last up direction near zero gravity.
+    /// </summary>
     private CharacterVirtual CreateCharacter(BodyRecord record, FrameWorld world, in DPose pose, Vector3 linearVelocity)
+    {
+        // The character's inner body takes a place in the system.
+        EnsureRoom(world);
+        Vector3 gravity = frames.EffectiveGravity(world.Frame, pose.Position);
+        float strength = gravity.Length();
+        record.Up = strength >= options.ZeroGravityThreshold ? -gravity / strength : Vector3.Normalize(record.Up);
+        Quaternion rotation = Rotations.AlignUp(pose.Rotation.ToJolt(), record.Up);
+        CharacterVirtual character = NewCharacter(record, world.System, pose.Position.ToJolt(), rotation, linearVelocity);
+        world.CharacterCount++;
+        return character;
+    }
+
+    /// <summary>
+    /// The character of a record in <paramref name="system"/>, with up along <see cref="BodyRecord.Up"/>. Every character
+    /// comes from here, both when the backend creates it and when a growth moves it to a larger system.
+    /// </summary>
+    private CharacterVirtual NewCharacter(BodyRecord record, PhysicsSystem system, RVector3 position, Quaternion rotation, Vector3 linearVelocity)
     {
         var capsule = (CapsuleShapeDesc)record.Desc.Shape;
         Shape shape = shapes.Get(capsule);
-
-        Vector3 gravity = frames.EffectiveGravity(world.Frame, pose.Position);
-        float strength = gravity.Length();
-        Vector3 up = strength >= options.ZeroGravityThreshold ? -gravity / strength : Vector3.Normalize(record.Up);
-        record.Up = up;
-
         var settings = new CharacterVirtualSettings
         {
             Shape = shape,
             // The inner body lets rigid bodies collide with the character and lets it report contacts.
             InnerBodyShape = shape,
             InnerBodyLayer = Layers.Moving,
-            Up = up,
+            Up = record.Up,
             MaxSlopeAngle = options.CharacterMaxSlopeDegrees * (MathF.PI / 180f),
             Mass = record.Desc.Mass,
             MaxStrength = options.CharacterMaxStrength,
             // Contacts below the center of the lower hemisphere support the character.
             SupportingVolume = new Plane(Vector3.UnitY, -capsule.Radius),
         };
-        Quaternion rotation = Rotations.AlignUp(pose.Rotation.ToJolt(), up);
-        var character = new CharacterVirtual(settings, pose.Position.ToJolt(), rotation,
-            BodyUserData.Encode(BodyKind.CharacterInner, record.Entity), world.System);
+        var character = new CharacterVirtual(settings, position, rotation, BodyUserData.Encode(BodyKind.CharacterInner, record.Entity), system);
         character.LinearVelocity = linearVelocity;
-        world.CharacterCount++;
         return character;
     }
 
@@ -321,28 +352,14 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Puts a frame hull where the tree says: the simulation refused the hull's hand-off or reparented its frame on its
     /// own, or the frame's parent was destroyed. The hull takes the tree's pose and velocity. A frame that became a root
-    /// loses its hull. Returns false, and logs a warning, when the parent's system already holds
-    /// <see cref="JoltBackendOptions.MaxBodiesPerFrame"/> bodies. The hull then has no body: it neither moves nor
-    /// collides, physics reports no state for it or its frame, and the frame keeps the state that the tree gives it.
-    /// <see cref="ReconcileFrames"/> tries again at its next call.
+    /// loses its hull. A full system grows to take the hull.
     /// </summary>
-    private bool PlaceHullFromTree(BodyRecord owner, FrameHandle parent)
+    private void PlaceHullFromTree(BodyRecord owner, FrameHandle parent)
     {
         if (!parent.IsNull && ExistingWorld(parent) is { } target)
             RemoveGhostIn(owner, target);
         RemovePrimary(owner);
-        if (parent.IsNull)
-            return true;
-        try
-        {
+        if (!parent.IsNull)
             CreateHullFromTree(owner, parent);
-            return true;
-        }
-        // CreateRigid throws this for a full system, before the record changes.
-        catch (InvalidOperationException ex)
-        {
-            log($"Physics: the hull of {owner.Entity} has no body until the system of {parent} has room for it. {ex.Message}");
-            return false;
-        }
     }
 }

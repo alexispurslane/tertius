@@ -224,9 +224,8 @@ public sealed partial class World
     /// <summary>
     /// The second pass of step 2, before any state lands: moves the frame of each handed-off frame owner under its new
     /// parent, in hand-off order. A hand-off is a proposal of physics, and the frame tree decides. A correct backend
-    /// never proposes one that the tree refuses, because its reconcile starts every step with each frame hull that has a
-    /// body in the system of its frame's parent in the tree. (The reconcile leaves a hull that it cannot place without a
-    /// body, and a hull without a body proposes nothing.) From there a hull can only enter a sibling of its frame or
+    /// never proposes one that the tree refuses, because its reconcile starts every step with each frame hull in the
+    /// system of its frame's parent in the tree. From there a hull can only enter a sibling of its frame or
     /// leave for the parent's parent, never its own frame. It enters a sibling only when its bubble fits in the
     /// sibling's, and fitting is a strict order of size, so the entries of one step never close a loop. So no hand-off
     /// puts a frame under itself or its own descendant. One that does comes only from a bug in the backend. It breaks a
