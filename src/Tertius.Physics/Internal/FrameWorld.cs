@@ -50,16 +50,20 @@ internal sealed class FrameWorld : IDisposable
     private readonly Lock contactGate = new();
     private readonly List<RawContact> added = new(64);
     private readonly List<ulong> removed = new(64);
-    // Body pairs in contact, with the number of touching sub-shape pairs. A pair starts when this goes from 0 to 1.
+    // Body pairs in contact as Jolt's contact cache holds them, with the number of touching sub-shape pairs. A pair starts
+    // when this goes from 0 to 1, unless it is held.
     private readonly Dictionary<ulong, int> touching = new();
-    // The body pairs that touched before the growths since the last update. The new system has no contact cache, so its
-    // first update reports each pair that still touches as added. Such a pair continues: it did not start.
-    private readonly HashSet<ulong> carried = new();
-    // False from a growth until the first update of the new system, which reports every pair that still touches.
-    private bool updatedSinceGrowth = true;
+    // Body pairs that touch as far as the backend knows, but that Jolt's contact cache no longer holds. Jolt finds contacts
+    // only for a body that it simulates. So it drops the pair of two bodies that it does not simulate (a body fell asleep
+    // or a hull became static, on something static or asleep) while the system keeps stepping. A growth drops every pair,
+    // because the new system starts with an empty cache. Jolt reports a held pair as added when it finds it again: the
+    // contact continues. A held pair ends at the first update that simulates one of its bodies and does not find it.
+    private readonly HashSet<ulong> held = new();
+    // True from an update until the contacts that it reported are drained.
+    private bool updatedSinceDrain;
     private readonly List<ulong> purgeScratch = new();
-    // The pairs that a growth carries over, before they take the new IDs.
-    private readonly List<ulong> carryScratch = new();
+    // The pairs that a growth holds, before they take the new IDs, and the held pairs that a drain ends.
+    private readonly List<ulong> heldScratch = new();
 
     public FrameWorld(FrameHandle frame, Layers.Tables layers, JoltBackendOptions options)
     {
@@ -69,12 +73,16 @@ internal sealed class FrameWorld : IDisposable
         Limits = SystemLimits.From(options);
         System = CreateSystem(Limits);
         Bodies = System.BodyInterface;
+        BodiesNoLock = System.BodyInterfaceNoLock;
         Listen(System);
     }
 
     public FrameHandle Frame { get; }
     public PhysicsSystem System { get; private set; }
     public BodyInterface Bodies { get; private set; }
+
+    /// <summary>The body interface that takes no body locks. Use it only on the physics thread, between updates.</summary>
+    private BodyInterface BodiesNoLock { get; set; }
 
     /// <summary>The limits of <see cref="System"/>.</summary>
     public SystemLimits Limits { get; private set; }
@@ -142,10 +150,9 @@ internal sealed class FrameWorld : IDisposable
 
     /// <summary>
     /// Makes <paramref name="larger"/>, which already holds every body of the current system, this frame's system, and
-    /// disposes the current one. The pairs that touch now are carried over: the first update of the new system reports
-    /// each of them again, and <see cref="DrainContacts"/> does not take that for a new contact. Until that update, the
-    /// touching-pair table is empty, so a second growth before it carries over the pairs of the first one again. Any
-    /// number of growths between two updates keeps every pair that touched before the first of them.
+    /// disposes the current one. Every pair that touches now becomes held: the new system finds it again in the first
+    /// update that simulates one of its bodies, and <see cref="DrainContacts"/> does not take that for a new contact. A
+    /// pair that was held already stays held, so any number of growths keeps every pair that touched before the first.
     /// </summary>
     /// <param name="larger">The new system, with <paramref name="limits"/>.</param>
     /// <param name="limits">The limits of <paramref name="larger"/>.</param>
@@ -161,22 +168,20 @@ internal sealed class FrameWorld : IDisposable
         System.Dispose();
         System = larger;
         Bodies = larger.BodyInterface;
+        BodiesNoLock = larger.BodyInterfaceNoLock;
         Limits = limits;
         Listen(larger);
         ReportedOverflow = false;
 
         lock (contactGate)
         {
-            // The pairs that an earlier growth carried and that no update has reported yet still touch, as far as the
-            // backend knows. They take the new IDs too.
-            carryScratch.Clear();
-            carryScratch.AddRange(carried);
-            carryScratch.AddRange(touching.Keys);
-            carried.Clear();
-            foreach (ulong key in carryScratch)
-                carried.Add(PairKey(Renamed((uint)(key >> 32), renamed), Renamed((uint)key, renamed)));
+            heldScratch.Clear();
+            heldScratch.AddRange(held);
+            heldScratch.AddRange(touching.Keys);
+            held.Clear();
+            foreach (ulong key in heldScratch)
+                held.Add(PairKey(Renamed(First(key), renamed), Renamed(Second(key), renamed)));
             touching.Clear();
-            updatedSinceGrowth = false;
         }
     }
 
@@ -186,7 +191,7 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>Runs one update of the system. Call it on the physics thread, with the native gate held.</summary>
     public PhysicsUpdateError Update(float deltaTime, JobSystem jobs)
     {
-        updatedSinceGrowth = true;
+        updatedSinceDrain = true;
         return System.Update(deltaTime, 1, jobs);
     }
 
@@ -202,10 +207,23 @@ internal sealed class FrameWorld : IDisposable
         return x < y ? ((ulong)x << 32) | y : ((ulong)y << 32) | x;
     }
 
+    /// <summary>The body of a pair key with the lower ID.</summary>
+    private static BodyID First(ulong key) => new((uint)(key >> 32));
+
+    /// <summary>The body of a pair key with the higher ID.</summary>
+    private static BodyID Second(ulong key) => new((uint)key);
+
+    private static bool Involves(ulong key, BodyID body) => (uint)(key >> 32) == body.ID || (uint)key == body.ID;
+
+    /// <summary>True when Jolt simulates the body: it is awake and not static. False for a body that left the system.</summary>
+    private bool IsAwake(BodyID body) => BodiesNoLock.IsActive(body);
+
     /// <summary>
     /// Moves the contacts that Jolt reported during the last update into the touching-pair table, and appends the
-    /// ones that started a new body pair contact to <paramref name="started"/>. Call it on the physics thread after
-    /// the update.
+    /// ones that started a new body pair contact to <paramref name="started"/>. A pair that Jolt drops becomes held, and a
+    /// held pair that Jolt finds again continues. A held pair ends when the update simulated one of its bodies and did not
+    /// find it. Call it on the physics thread after the update, with no update running. Visits every held pair after an
+    /// update, so it costs O(held pairs) for a system that steps.
     /// </summary>
     public void DrainContacts(List<RawContact> started)
     {
@@ -227,27 +245,43 @@ internal sealed class FrameWorld : IDisposable
                 ulong key = contact.PairKey;
                 touching.TryGetValue(key, out int count);
                 touching[key] = count + 1;
-                if (count == 0 && !carried.Contains(key))
+                if (count == 0 && !held.Remove(key))
                     started.Add(contact);
             }
             foreach (ulong key in removed)
             {
                 if (!touching.TryGetValue(key, out int count))
                     continue;
-                if (count <= 1)
-                    touching.Remove(key);
-                else
+                if (count > 1)
+                {
                     touching[key] = count - 1;
+                    continue;
+                }
+                // The pair ended, or Jolt dropped it because it simulates neither body. The check below tells which.
+                touching.Remove(key);
+                held.Add(key);
             }
             added.Clear();
             removed.Clear();
-            // The first update after a growth has reported every carried pair that still touches.
-            if (updatedSinceGrowth)
-                carried.Clear();
+
+            // Jolt finds the contacts of every body that it simulates, also of one that woke during the update. So a held
+            // pair with a simulated body that Jolt did not find has ended. Two bodies that Jolt did not simulate did not
+            // move apart.
+            // Stryker disable once all : the test only saves work; without an update Jolt simulates no body, so no pair ends.
+            if (updatedSinceDrain && held.Count > 0)
+            {
+                heldScratch.Clear();
+                foreach (ulong key in held)
+                    if (IsAwake(First(key)) || IsAwake(Second(key)))
+                        heldScratch.Add(key);
+                foreach (ulong key in heldScratch)
+                    held.Remove(key);
+            }
+            updatedSinceDrain = false;
         }
     }
 
-    /// <summary>Forgets every contact of a body that leaves the system.</summary>
+    /// <summary>Forgets every contact of a body that leaves the system, touching or held.</summary>
     public void ForgetContacts(BodyID body)
     {
         if (body.IsInvalid)
@@ -256,12 +290,12 @@ internal sealed class FrameWorld : IDisposable
         {
             purgeScratch.Clear();
             foreach (ulong key in touching.Keys)
-                if ((uint)(key >> 32) == body.ID || (uint)key == body.ID)
+                if (Involves(key, body))
                     purgeScratch.Add(key);
             foreach (ulong key in purgeScratch)
                 touching.Remove(key);
-            if (carried.Count > 0)
-                carried.RemoveWhere(key => (uint)(key >> 32) == body.ID || (uint)key == body.ID);
+            if (held.Count > 0)
+                held.RemoveWhere(key => Involves(key, body));
         }
     }
 

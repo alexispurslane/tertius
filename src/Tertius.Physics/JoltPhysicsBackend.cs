@@ -147,8 +147,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <see cref="PhysicsStepOutput.Frames"/> holds every physics-driven frame with a hull, relative to its parent
     /// after any hand-off in this step, with the velocity of the frame origin. Apply hand-offs before frame states.
     /// <see cref="PhysicsStepOutput.Contacts"/> holds each body pair that started touching, with A before B in
-    /// entity order and the normal from A to B. Contacts with ghosts are not reported. A pair that separates, or
-    /// falls asleep and wakes, reports again when it touches again.
+    /// entity order and the normal from A to B. Contacts with ghosts are not reported. A pair that separates reports again
+    /// when it touches again. A pair that never separates reports once, also when a body falls asleep and wakes, when a
+    /// hull becomes static and moves again, and when the system grows.
     /// </para>
     /// </remarks>
     public void Step(in PhysicsStepContext context, PhysicsStepOutput output)

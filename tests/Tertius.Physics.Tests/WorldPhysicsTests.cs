@@ -106,4 +106,42 @@ public class WorldPhysicsTests
         world.GetPose(owner).Should().Be(parked);
         world.GetVelocity(owner).Should().Be(Vector3.Zero);
     }
+
+    /// <summary>
+    /// The reviewer's probe W8. A crate rests on the floor of a frame with 1 g and falls asleep, while a ball rolls far
+    /// away and keeps the frame's system stepping. After 5 s a second ball drops onto the crate and wakes it. The crate
+    /// never leaves the floor, so it hears the floor once, when it arrives, and the dropped ball once.
+    /// </summary>
+    [Fact]
+    public void ACrateThatSleepsOnTheFloorAndWakesWhenABallHitsItHearsTheFloorOnlyOnce()
+    {
+        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
+        using World world = NewWorld(backend);
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static,
+            GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        Entity floor = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(0, -0.5),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(500, 0.5f, 500)), BodyMotion.Static),
+        });
+        var log = new CollisionLog();
+        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10), Components = [log] });
+        world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(-100, 0.5),
+            LinearVelocity = new Vector3(2, 0, 0),
+            Body = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 2, LinearDamping: 0, AngularDamping: 0),
+        });
+        for (int i = 0; i < 300; i++)
+            world.Tick();
+
+        Entity dropped = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 2.5), Body = new BodyDesc(new SphereShapeDesc(0.25f), Mass: 0.5f) });
+        for (int i = 0; i < 120; i++)
+            world.Tick();
+
+        log.Seen.Select(seen => seen.Other).Should().Equal([floor, dropped], "the crate never left the floor");
+        world.Errors.Should().BeEmpty();
+    }
 }
