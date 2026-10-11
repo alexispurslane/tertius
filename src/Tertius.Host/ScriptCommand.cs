@@ -1,14 +1,19 @@
 using Tertius.Host.Scripting;
 using Tertius.Physics;
+using Tertius.Host.Windowing;
 using Tertius.Rendering;
 using Tertius.Simulation;
 
 namespace Tertius.Host;
 
 /// <summary>
-/// The command line of a scripted run: <c>--script &lt;file&gt; --headless --out &lt;folder&gt;</c>. The Demo's Main calls it
-/// with its table of scenes. It builds the scene that the script names in a new world on the Jolt backend, runs the
-/// script, and writes each dump into the output folder.
+/// The command line of the host. The Demo's Main calls it with its table of scenes.
+/// <list type="bullet">
+/// <item><c>--script &lt;file&gt; --headless --out &lt;folder&gt;</c> runs a script with no window, as fast as it can.</item>
+/// <item><c>--script &lt;file&gt; --out &lt;folder&gt; [--speed &lt;factor&gt;]</c> plays a script in a window.</item>
+/// <item><c>--scene &lt;name&gt; [--speed &lt;factor&gt;]</c> runs a scene live in a window until you close it.</item>
+/// </list>
+/// Each run builds its scene in a new world on the Jolt backend.
 /// </summary>
 public static class ScriptCommand
 {
@@ -24,10 +29,14 @@ public static class ScriptCommand
     /// <summary>The script cannot run, or names a scene that the table does not have.</summary>
     public const int ScriptError = 3;
 
-    /// <summary>The headless renderer cannot start, for example on a machine with no Vulkan driver: a missing tool.</summary>
+    /// <summary>A thread of the window failed with an exception that is a bug.</summary>
+    public const int InternalError = 4;
+
+    /// <summary>The renderer cannot start, for example on a machine with no Vulkan driver: a missing tool.</summary>
     public const int RendererError = 5;
 
-    private const string Usage = "Usage: --script <file> --headless --out <folder>";
+    private const string Usage =
+        "Usage: --script <file> --headless --out <folder>  |  --script <file> --out <folder> [--speed <factor>]  |  --scene <name> [--speed <factor>]";
 
     /// <summary>
     /// Runs the command. Returns the exit code. Writes the path of each dump and each captured image to
@@ -51,16 +60,22 @@ public static class ScriptCommand
             error.WriteLine(Usage);
             return CommandLineError;
         }
-        if (!options.Headless)
+        if (options.Scene is { } sceneName)
         {
-            error.WriteLine("The window does not exist yet (ticket ter-mu7k), so every run is headless. Pass --headless.");
-            return CommandLineError;
+            // Free play: the scene is found before a window opens.
+            Scene? live = scenes.FirstOrDefault(s => s.Name == sceneName);
+            if (live is null)
+            {
+                error.WriteLine($"No scene is named '{sceneName}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}.");
+                return ScriptError;
+            }
+            return WindowHost.Run(live, script: null, scriptPath: null, outputFolder: null, options.Speed, output, error);
         }
 
         Script script;
         try
         {
-            script = Script.Load(options.Script);
+            script = Script.Load(options.Script!);
         }
         catch (ScriptException ex)
         {
@@ -79,6 +94,8 @@ public static class ScriptCommand
             error.WriteLine($"{options.Script}: no scene is named '{script.Scene}'. The scenes are: {string.Join(", ", scenes.Select(s => s.Name))}.");
             return ScriptError;
         }
+        if (!options.Headless)
+            return WindowHost.Run(scene, script, options.Script, options.Out, options.Speed, output, error);
 
         using var world = new World(new WorldOptions { DisposePhysics = true }, new JoltPhysicsBackend());
         VulkanRenderer? renderer = null;
@@ -103,10 +120,7 @@ public static class ScriptCommand
         {
             RunResult result = ScriptRunner.Run(script, world, scene.Build(world, renderer ?? RenderResources.None), options.Out,
                 renderer is null ? null : new HeadlessPlayback(renderer, script.Window));
-            foreach (StateDump dump in result.Dumps)
-                output.WriteLine(Path.Combine(options.Out, dump.Name + ".json"));
-            foreach (string capture in result.Captures)
-                output.WriteLine(capture);
+            WriteFiles(result, options.Out!, output);
             return Ok;
         }
         catch (ScriptException ex)
@@ -121,12 +135,26 @@ public static class ScriptCommand
         }
     }
 
-    private sealed record Options(string Script, string Out, bool Headless);
+    /// <summary>Writes the path of each dump, then of each captured image.</summary>
+    internal static void WriteFiles(RunResult result, string outputFolder, TextWriter output)
+    {
+        foreach (StateDump dump in result.Dumps)
+            output.WriteLine(Path.Combine(outputFolder, dump.Name + ".json"));
+        foreach (string capture in result.Captures)
+            output.WriteLine(capture);
+    }
+
+    /// <param name="Script">The script file, or null for free play.</param>
+    /// <param name="Scene">The scene of free play, or null for a script.</param>
+    /// <param name="Out">The output folder of a script.</param>
+    /// <param name="Headless">True to run a script with no window.</param>
+    /// <param name="Speed">The wall-clock speed of the window, 1 for real time.</param>
+    private sealed record Options(string? Script, string? Scene, string? Out, bool Headless, double Speed);
 
     /// <summary>The options, or null and the problem for an unknown option, a missing value or a missing option.</summary>
     private static Options? ReadOptions(string[] args, out string? problem)
     {
-        string? script = null, output = null;
+        string? script = null, scene = null, output = null, speedText = null;
         bool headless = false;
         for (int i = 0; i < args.Length; i++)
         {
@@ -135,21 +163,39 @@ public static class ScriptCommand
                 case "--headless":
                     headless = true;
                     break;
-                case "--script" or "--out" when i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]):
+                case "--script" or "--scene" or "--out" or "--speed" when i + 1 >= args.Length || string.IsNullOrWhiteSpace(args[i + 1]):
                     problem = $"{args[i]} needs a value.";
                     return null;
                 case "--script":
                     script = args[++i];
                     break;
+                case "--scene":
+                    scene = args[++i];
+                    break;
                 case "--out":
                     output = args[++i];
+                    break;
+                case "--speed":
+                    speedText = args[++i];
                     break;
                 default:
                     problem = $"Unknown option '{args[i]}'.";
                     return null;
             }
         }
-        problem = script is null ? "The option --script is missing." : output is null ? "The option --out is missing." : null;
-        return problem is null ? new Options(script!, output!, headless) : null;
+        double speed = 1;
+        problem = (script, scene) switch
+        {
+            (null, null) => "Give --script or --scene.",
+            ({ }, { }) => "Give --script or --scene, not both.",
+            (null, { }) when headless => "--scene is free play, and free play needs the window. Leave out --headless.",
+            (null, { }) when output != null => "--out applies to a script. Free play writes nothing.",
+            ({ }, null) when output is null => "The option --out is missing.",
+            _ when speedText != null && headless => "--speed applies to the window. A headless run runs its ticks back to back.",
+            _ when speedText != null && !(double.TryParse(speedText, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out speed) && double.IsFinite(speed) && speed > 0) =>
+                $"--speed needs a positive number, such as 0.5 or 2, not '{speedText}'.",
+            _ => null,
+        };
+        return problem is null ? new Options(script, scene, output, headless, speed) : null;
     }
 }

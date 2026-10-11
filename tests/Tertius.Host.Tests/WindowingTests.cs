@@ -245,16 +245,38 @@ public class WindowPlaybackTests
         reads.Should().Equal(0, 0, 0.03);
     }
 
-    [Fact]
-    public void LateTicksRunWithoutWaiting()
+    /// <summary>A clock that answers each read with the next value of the list, and the last value after that.</summary>
+    private static Func<double> Clock(List<double> reads, params double[] values) => () =>
     {
-        int reads = 0;
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), CancellationToken.None, () => { reads++; return 1.0; });
+        reads.Add(values[Math.Min(reads.Count, values.Length - 1)]);
+        return reads[^1];
+    };
 
-        for (int i = 0; i < 5; i++)
+    [Fact]
+    public void ATickLateByLessThanOneTickRunsAtOnceAndKeepsTheSchedule()
+    {
+        var reads = new List<double>();
+        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), CancellationToken.None, Clock(reads, 0, 0.03, 0.04));
+
+        for (int i = 0; i < 3; i++)
             playback.WaitForTick().Should().BeTrue();
 
-        reads.Should().Be(5, "each tick read the clock once and found itself late");
+        // Tick 1 starts 0.01 s late. Tick 2 keeps its start at 0.04 s, so it runs at once when the clock says 0.04.
+        reads.Should().Equal(0, 0.03, 0.04);
+    }
+
+    [Fact]
+    public void AfterAStallTheScheduleMovesSoTheTicksAfterItKeepTheirPace()
+    {
+        var reads = new List<double>();
+        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), CancellationToken.None, Clock(reads, 0, 0.5, 0.5, 0.52));
+
+        for (int i = 0; i < 3; i++)
+            playback.WaitForTick().Should().BeTrue();
+
+        // Tick 1, due at 0.02 s, starts at 0.5 s, after a stall such as a capture. Tick 2 then waits one tick after it,
+        // until 0.52 s, instead of running at once to catch up.
+        reads.Should().Equal(0, 0.5, 0.5, 0.52);
     }
 
     [Fact]

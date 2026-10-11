@@ -110,17 +110,6 @@ public sealed class ScriptCommandTests : IDisposable
     }
 
     [Fact]
-    public void ARunWithoutHeadlessExitsWithTheCommandLineErrorCodeUntilTheWindowExists()
-    {
-        string script = ScriptFile("""{ "scene": "probes", "steps": [ { "do": "run", "ticks": 1 } ] }""");
-
-        int code = Run("--script", script, "--out", Out);
-
-        code.Should().Be(ScriptCommand.CommandLineError);
-        error.ToString().Should().Contain("--headless");
-    }
-
-    [Fact]
     public void TheCommandWritesTheWorldsLogToStandardError()
     {
         string script = ScriptFile("""{ "scene": "logger", "steps": [ { "do": "run", "ticks": 2 } ] }""");
@@ -143,5 +132,34 @@ public sealed class ScriptCommandTests : IDisposable
         using var landed = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, "landed.json")));
         System.Text.Json.JsonElement box = landed.RootElement.GetProperty("entities").EnumerateArray().Single(e => e.GetProperty("id").GetString() == "box");
         box.GetProperty("pose").GetProperty("position")[1].GetDouble().Should().BeApproximately(0.5, 0.02);
+    }
+
+    [Theory]
+    [InlineData("--script or --scene", "--out", "out")]
+    [InlineData("not both", "--script", "script.json", "--scene", "probes", "--out", "out")]
+    [InlineData("free play", "--scene", "probes", "--headless")]
+    [InlineData("--out applies to a script", "--scene", "probes", "--out", "out")]
+    [InlineData("--speed applies to the window", "--script", "script.json", "--headless", "--out", "out", "--speed", "2")]
+    [InlineData("positive", "--scene", "probes", "--speed", "0")]
+    [InlineData("positive", "--scene", "probes", "--speed", "-1")]
+    [InlineData("positive", "--scene", "probes", "--speed", "fast")]
+    [InlineData("positive", "--scene", "probes", "--speed", "NaN")]
+    [InlineData("positive", "--scene", "probes", "--speed", "Infinity")]
+    [InlineData("--speed needs a value", "--scene", "probes", "--speed")]
+    public void AnOptionThatTheWindowRulesRefuseExitsWithTheCommandLineErrorCodeAndNamesTheRule(string rule, params string[] args)
+    {
+        int code = Run(args);
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error.ToString().Should().Contain(rule);
+    }
+
+    [Fact]
+    public void AnUnknownSceneForFreePlayExitsWithTheScriptErrorCodeBeforeAWindowOpens()
+    {
+        int code = Run("--scene", "moon-base");
+
+        code.Should().Be(ScriptCommand.ScriptError);
+        error.ToString().Should().Contain("moon-base");
     }
 }

@@ -19,26 +19,31 @@ public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, Can
     private readonly Func<double> secondsSinceStart = secondsSinceStart;
 
     /// <summary>
-    /// Waits until the next tick's start time. A tick that is late runs at once, so the ticks catch up back to back.
+    /// Waits until the next tick's start time. A tick late by less than one tick runs at once and keeps the schedule. A
+    /// tick that starts later than that, after a stall such as a capture or the first tick's compilation, moves the
+    /// schedule by its delay, so the ticks after it keep their pace instead of rushing to catch up. No tick is skipped.
     /// Returns false once <c>stop</c> fires.
     /// </summary>
     public bool WaitForTick()
     {
         while (!stop.IsCancellationRequested)
         {
-            double wait = pacer.StartOf(ticks) - secondsSinceStart();
-            if (wait <= 0)
+            double late = secondsSinceStart() - (pacer.StartOf(ticks) + slip);
+            if (late >= 0)
             {
+                if (late > pacer.SecondsPerTick)
+                    slip += late;
                 ticks++;
                 return true;
             }
-            stop.WaitHandle.WaitOne(TimeSpan.FromSeconds(wait));
+            stop.WaitHandle.WaitOne(TimeSpan.FromSeconds(-late));
         }
         return false;
     }
 
-    // The ticks that this playback let run.
+    // The ticks that this playback let run, and how far stalls moved the schedule, in wall-clock seconds.
     private long ticks;
+    private double slip;
 
     /// <summary>Publishes the current state and waits until the render thread has saved it. Throws <see cref="OperationCanceledException"/> if the window closes first.</summary>
     public void Capture(World world, string path)
