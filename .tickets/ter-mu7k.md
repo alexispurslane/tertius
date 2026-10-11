@@ -1,6 +1,6 @@
 ---
 id: ter-mu7k
-status: open
+status: in_progress
 deps: [ter-1i4z]
 links: []
 created: 2026-10-11T13:52:09Z
