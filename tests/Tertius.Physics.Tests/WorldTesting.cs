@@ -4,8 +4,8 @@ using Tertius.Simulation;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Helpers for tests that run the simulation's <see cref="World"/> on the real <see cref="JoltPhysicsBackend"/>. Plan 00
-/// moves them into a shared test project.
+/// Helpers for tests that run the simulation's <see cref="World"/> on the real <see cref="JoltPhysicsBackend"/>. The real physics
+/// in every test work (docs/plans/real-physics-in-tests.md) moves them into a shared test project.
 /// </summary>
 internal static class WorldTesting
 {
@@ -111,7 +111,8 @@ internal sealed class Pilot : IComponent
 
 /// <summary>
 /// The real backend plus one edit of the input that the World sends it. It stands in for a bug, for the tests of what the
-/// World and the backend do with a state that only a bug produces. Plan 00 grows it into the only test double for physics.
+/// World and the backend do with a state that only a bug produces. The real physics in every test work grows it into the
+/// only test double for physics.
 /// </summary>
 internal sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBackend
 {

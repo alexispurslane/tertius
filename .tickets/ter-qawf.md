@@ -1,6 +1,6 @@
 ---
 id: ter-qawf
-status: open
+status: in_progress
 deps: [ter-tfl6]
 links: []
 created: 2026-10-11T13:52:08Z
