@@ -150,6 +150,9 @@ internal sealed class SceneBatcher
             prepared.Flags = instance.Flags;
             prepared.EntityIndex = instance.EntityIndex;
             prepared.Part = instance.Part;
+            prepared.Hemisphere = instance.Hemisphere.Kind == HemisphereKind.AwayFrom
+                ? HemisphereUp.AwayFrom(instance.Hemisphere.Value - camera.Offset)
+                : instance.Hemisphere;
         }
     }
 
@@ -206,7 +209,7 @@ internal sealed class SceneBatcher
             }
 
             int gpuIndex = scene.InstanceCount++;
-            scene.Instances[gpuIndex] = GpuInstance.From(instance.Position, instance.Rotation, instance.Scale, instance.Material);
+            scene.Instances[gpuIndex] = GpuInstance.From(instance.Position, instance.Rotation, instance.Scale, instance.Material, instance.Hemisphere);
             if (instance.Mesh == currentMesh)
             {
                 scene.Commands[scene.CommandCount - 1].InstanceCount++;

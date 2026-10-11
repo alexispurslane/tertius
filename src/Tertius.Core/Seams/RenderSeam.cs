@@ -71,6 +71,38 @@ public enum RenderFlags : uint
     Celestial = 1 << 4,
 }
 
+/// <summary>How a <see cref="HemisphereUp"/> tells which way is up.</summary>
+public enum HemisphereKind : byte
+{
+    /// <summary>No way is up: every surface gets the mean of the sky and the ground color, as in a frame without gravity.</summary>
+    Even,
+    /// <summary>Up is one direction, as in a uniform gravity field.</summary>
+    Along,
+    /// <summary>Up leads away from one point, as in the gravity field of a planet.</summary>
+    AwayFrom,
+}
+
+/// <summary>
+/// Which way is up for the hemisphere ambient light of one instance: the sky color lights a surface that faces up, the
+/// ground color one that faces down, and a surface that faces sideways gets their mean. The default is
+/// <see cref="Even"/>.
+/// </summary>
+/// <param name="Kind">How <paramref name="Value"/> gives up.</param>
+/// <param name="Value">For <see cref="HemisphereKind.Along"/>, the up direction, a unit vector in the axes of the
+/// camera's frame. For <see cref="HemisphereKind.AwayFrom"/>, the point, relative to the render origin. Unused for
+/// <see cref="HemisphereKind.Even"/>.</param>
+public record struct HemisphereUp(HemisphereKind Kind, Vector3 Value)
+{
+    /// <summary>No way is up.</summary>
+    public static HemisphereUp Even => default;
+
+    /// <summary>Up is <paramref name="direction"/>, a unit vector in the axes of the camera's frame.</summary>
+    public static HemisphereUp Along(Vector3 direction) => new(HemisphereKind.Along, direction);
+
+    /// <summary>Up leads away from <paramref name="point"/>, relative to the render origin.</summary>
+    public static HemisphereUp AwayFrom(Vector3 point) => new(HemisphereKind.AwayFrom, point);
+}
+
 /// <summary>
 /// One object to draw. Positions are relative to the render origin, in the axes of the camera's frame.
 /// The previous transform uses the same origin, so the render thread can interpolate. A zeroed instance is not
@@ -94,8 +126,16 @@ public struct RenderInstance
     public Quaternion PreviousRotation;
     /// <summary>The world-space radius around <see cref="Position"/>, scale included. 0 means "derive it from the mesh".</summary>
     public float BoundingRadius;
+    /// <summary>
+    /// Which way is up for the object's hemisphere ambient light. The simulation takes it from the gravity of the object's
+    /// own frame, so it does not depend on the frame that the camera rides in. It is not interpolated.
+    /// </summary>
+    public HemisphereUp Hemisphere;
 
-    /// <summary>An instance that is not moving: the previous transform equals the current one.</summary>
+    /// <summary>
+    /// An instance that is not moving: the previous transform equals the current one. Without
+    /// <paramref name="hemisphere"/>, up is +Y of the camera's frame, as for a scene that stands on level ground there.
+    /// </summary>
     public static RenderInstance Create(
         MeshId mesh,
         MaterialId material,
@@ -105,7 +145,8 @@ public struct RenderInstance
         float boundingRadius,
         RenderFlags flags = RenderFlags.Visible,
         uint entityIndex = 0,
-        ushort part = 0) => new()
+        ushort part = 0,
+        HemisphereUp? hemisphere = null) => new()
     {
         EntityIndex = entityIndex,
         Part = part,
@@ -118,6 +159,7 @@ public struct RenderInstance
         PreviousPosition = position,
         PreviousRotation = rotation,
         BoundingRadius = boundingRadius,
+        Hemisphere = hemisphere ?? HemisphereUp.Along(Vector3.UnitY),
     };
 }
 

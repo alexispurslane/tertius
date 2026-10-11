@@ -51,7 +51,8 @@ void main()
         return;
     }
 
-    vec3 emissive = texelFetch(gbufferEmissive, pixel, 0).rgb;
+    vec4 emissiveSky = texelFetch(gbufferEmissive, pixel, 0);
+    vec3 emissive = emissiveSky.rgb;
     vec4 albedo = texelFetch(gbufferAlbedo, pixel, 0);
     // Albedo alpha 0 marks an unlit pixel: an impostor, whose lighting is baked into its emission.
     if (albedo.a == 0.0)
@@ -71,6 +72,7 @@ void main()
     vec2 specularGloss = texelFetch(gbufferSpecularGloss, pixel, 0).rg;
     s.specular = specularGloss.x;
     s.gloss = specularGloss.y;
+    s.skyFraction = emissiveSky.a;
 
     outColor = vec4(shadeSurface(s, position, -direction) + emissive, 1.0);
 }

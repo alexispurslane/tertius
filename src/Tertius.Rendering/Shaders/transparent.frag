@@ -11,6 +11,7 @@ layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec4 inTangent;
 layout(location = 3) in vec2 inTexCoord;
 layout(location = 4) flat in uint inMaterial;
+layout(location = 5) flat in vec4 inHemisphere;
 
 layout(location = 0) out vec4 outColor;
 
@@ -32,6 +33,7 @@ void main()
     shading.geometricNormal = normalize(inNormal);
     shading.specular = s.specular;
     shading.gloss = s.gloss;
+    shading.skyFraction = skyFraction(inHemisphere, inPosition, s.normal);
     vec3 V = (draw.eye.xyz - inPosition) / max(distanceToEye, 1e-6);
     outColor = vec4(shadeSurface(shading, inPosition, V) + s.emissive, clamp(s.albedo.a, 0.0, 1.0));
 }

@@ -5,7 +5,7 @@
 //   n  = 2^(1 + 11 · gloss), so gloss 0 gives n = 2 and gloss 1 gives n = 4096
 //   F  = Schlick: F0 + (1 − F0)(1 − L·H)^5, with F0 = 0.16 · specular² (specular 0.5 gives F0 = 0.04)
 // Lights add f · E · (N·L), where E is the irradiance of the light. Ambient light is a hemisphere: ground color
-// below, sky color above, blended by the world-space normal's y.
+// below, sky color above, blended by the normal's part along the up of the surface's own frame (skyFraction).
 //
 // The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
 // shadow maps (shadows.glsl). The two multiply.
@@ -13,6 +13,7 @@
 #define TERTIUS_LIGHTING_GLSL
 
 #include "shadows.glsl"
+#include "hemisphere.glsl"
 
 struct ShadingInput
 {
@@ -21,7 +22,9 @@ struct ShadingInput
     vec3 geometricNormal;   // interpolated vertex normal: the surface the shadow map sees
     float specular;
     float gloss;
+    float skyFraction;      // how much of the hemisphere ambient light comes from the sky, 0 to 1 (skyFraction below)
 };
+
 
 float specularExponent(float gloss)
 {
@@ -116,7 +119,7 @@ float distanceAttenuation(float distanceSq, float range)
 // Hemisphere ambient light reflected by a surface.
 vec3 ambientLight(ShadingInput s)
 {
-    return mix(frame.ambientGround.rgb, frame.ambientSky.rgb, s.normal.y * 0.5 + 0.5) * s.albedo;
+    return mix(frame.ambientGround.rgb, frame.ambientSky.rgb, s.skyFraction) * s.albedo;
 }
 
 // Sunlight reflected toward V, dimmed by the analytic eclipse term and, when shadowMaps is set, by the cascades.

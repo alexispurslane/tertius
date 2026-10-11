@@ -298,6 +298,39 @@ public sealed class BatcherTests
     }
 
     [Fact]
+    public void EachInstanceTakesItsHemispheresUpToTheGpuRelativeToTheInterpolatedEye()
+    {
+        RenderSnapshot snapshot = Empty();
+        // At alpha 0.5 the eye is 1 m along +X from the render origin, so every position moves 1 m along -X.
+        snapshot.Camera.PreviousPosition = new Vector3(2, 0, 0);
+        snapshot.Instances.Add(RenderInstance.Create(new MeshId(0), new MaterialId(1), new Vector3(0, 0, -10), Quaternion.Identity, Vector3.One, 1,
+            hemisphere: HemisphereUp.Along(Vector3.UnitX)));
+        snapshot.Instances.Add(RenderInstance.Create(new MeshId(0), new MaterialId(1), new Vector3(0, 1, -10), Quaternion.Identity, Vector3.One, 1,
+            hemisphere: HemisphereUp.AwayFrom(new Vector3(0, -50, -10))));
+        snapshot.Instances.Add(RenderInstance.Create(new MeshId(0), new MaterialId(1), new Vector3(0, 2, -10), Quaternion.Identity, Vector3.One, 1,
+            hemisphere: HemisphereUp.Even));
+
+        PreparedScene scene = Prepare(snapshot, alpha: 0.5f);
+
+        // The kind is in w: 1 along a direction, 2 away from a point, 0 even.
+        scene.Instances.AsSpan(0, 3).ToArray().Select(instance => instance.Hemisphere).Should().BeEquivalentTo(new[]
+        {
+            new Vector4(1, 0, 0, 1),
+            new Vector4(-1, -50, -10, 2),
+            Vector4.Zero,
+        });
+    }
+
+    [Fact]
+    public void AHandBuiltInstanceTakesThePlusYOfTheCamerasFrameAsUpUnlessItIsGiven()
+    {
+        RenderInstance instance = RenderInstance.Create(new MeshId(0), new MaterialId(1), Vector3.Zero, Quaternion.Identity, Vector3.One, 1);
+
+        // The renderer's own scenes and tests stand on level ground in the camera's frame. The simulation always says.
+        instance.Hemisphere.Should().Be(HemisphereUp.Along(Vector3.UnitY));
+    }
+
+    [Fact]
     public void TheRootRotationBlendsFromThePreviousTickAsTheCameraDoes()
     {
         RenderSnapshot snapshot = Empty();
@@ -324,7 +357,7 @@ public sealed class BatcherTests
     [Fact]
     public void GpuStructsMatchTheShaderLayouts()
     {
-        Unsafe.SizeOf<GpuInstance>().Should().Be(64);
+        Unsafe.SizeOf<GpuInstance>().Should().Be(80);
         Unsafe.SizeOf<GpuMaterial>().Should().Be(48);
         Unsafe.SizeOf<GpuLight>().Should().Be(64);
         Unsafe.SizeOf<GpuFrameConstants>().Should().Be(720);

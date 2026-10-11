@@ -90,7 +90,7 @@ internal sealed unsafe class ImpostorPass : RenderPass, IRangeDrawer
         foreach (ref readonly ImpostorCapture capture in manager.Captures)
         {
             MeshInfo mesh = meshes[capture.Mesh];
-            int instance = scene.AppendInstance(GpuInstance.From(capture.Position, capture.Rotation, capture.Scale, capture.Material));
+            int instance = scene.AppendInstance(GpuInstance.From(capture.Position, capture.Rotation, capture.Scale, capture.Material, capture.Hemisphere));
             int command = scene.AppendCommand(new DrawIndexedIndirectCommand
             {
                 IndexCount = mesh.IndexCount,

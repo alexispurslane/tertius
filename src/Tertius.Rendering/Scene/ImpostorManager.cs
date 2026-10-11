@@ -34,6 +34,8 @@ internal struct ImpostorCapture
     public float Radius;
     /// <summary>The tangent of the capture frustum's half angle: the sphere's tangent cone plus the margin.</summary>
     public float TanHalfAngle;
+    /// <summary>Which way is up for the object's hemisphere ambient light, as the capture bakes it.</summary>
+    public HemisphereUp Hemisphere;
 }
 
 /// <summary>An object drawn as an impostor this frame.</summary>
@@ -375,6 +377,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
             Distance = distance,
             Radius = radius,
             TanHalfAngle = tanHalfAngle,
+            Hemisphere = instance.Hemisphere,
         };
     }
 
@@ -519,17 +522,18 @@ internal sealed class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>
-    /// The light a capture bakes in, at the object: what reaches it from the sun, the two ambient colors, and the
-    /// irradiance from the point and spot lights, with that irradiance's direction in object space.
+    /// The light a capture bakes in, at the object: what reaches it from the sun, the two ambient colors, the up of the
+    /// hemisphere ambient light at its center in object space, weighted by how much the sky and the ground differ, and
+    /// the irradiance from the point and spot lights, with that irradiance's direction in object space.
     /// </summary>
-    private readonly record struct LightSignature(Vector3 Sun, Vector3 Sky, Vector3 Ground, Vector3 Local, Vector3 LocalDirection)
+    private readonly record struct LightSignature(Vector3 Sun, Vector3 Sky, Vector3 Ground, Vector3 Up, Vector3 Local, Vector3 LocalDirection)
     {
         private float Total => Sun.Length() + Sky.Length() + Ground.Length() + Local.Length();
 
         /// <summary>The change from <paramref name="a"/> to <paramref name="b"/> as a fraction of the larger total light.</summary>
         public static float Change(in LightSignature a, in LightSignature b)
         {
-            float difference = (a.Sun - b.Sun).Length() + (a.Sky - b.Sky).Length() + (a.Ground - b.Ground).Length() +
+            float difference = (a.Sun - b.Sun).Length() + (a.Sky - b.Sky).Length() + (a.Ground - b.Ground).Length() + (a.Up - b.Up).Length() +
                                (a.Local - b.Local).Length() + (a.LocalDirection - b.LocalDirection).Length();
             return difference / MathF.Max(MathF.Max(a.Total, b.Total), 1e-6f);
         }
@@ -566,9 +570,18 @@ internal sealed class ImpostorManager : IInstanceProcessor
             Vector3 position = instance.Position;
             Vector3 sun = HasSun ? sunRadiance * Eclipse.SunVisibility(position, SunDirection, sunAngularRadius, occluders) : Vector3.Zero;
             Vector3 local = Vector3.Zero, direction = Vector3.Zero;
+            Quaternion inverse = Quaternion.Conjugate(instance.Rotation);
+            HemisphereUp hemisphere = instance.Hemisphere;
+            Vector3 up = hemisphere.Kind switch
+            {
+                HemisphereKind.Along => hemisphere.Value,
+                HemisphereKind.AwayFrom => Vector3.Normalize(position - hemisphere.Value),
+                _ => Vector3.Zero,
+            };
+            // A NaN, from a point at the center itself, counts as no up.
+            Vector3 upInObject = float.IsFinite(up.X + up.Y + up.Z) ? Vector3.Transform(up, inverse) * (sky - ground).Length() : Vector3.Zero;
             if (!lights.IsEmpty)
             {
-                Quaternion inverse = Quaternion.Conjugate(instance.Rotation);
                 float radius = instance.Radius;
                 foreach (ref readonly GpuLight light in lights)
                 {
@@ -594,7 +607,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
                     direction += Vector3.Transform(unit, inverse) * irradiance.Length();
                 }
             }
-            return new LightSignature(sun, sky, ground, local, direction);
+            return new LightSignature(sun, sky, ground, upInObject, local, direction);
         }
 
         private static float SmoothStep(float edge0, float edge1, float x)

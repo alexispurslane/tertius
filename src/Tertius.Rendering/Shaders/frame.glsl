@@ -19,6 +19,9 @@ struct GpuInstance
     // 1 / scale². modelLinear * (n * inverseScaleSq) = R * S⁻¹ * n, the correct normal transform.
     vec3 inverseScaleSq;
     uint material;
+    // The up of the hemisphere ambient light: xyz the up direction with w 1, or the point that up leads away from with
+    // w 2. All zero mixes the sky and the ground evenly.
+    vec4 hemisphere;
 };
 
 struct GpuMaterial

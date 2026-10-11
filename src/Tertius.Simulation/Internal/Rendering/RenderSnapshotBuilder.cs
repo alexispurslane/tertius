@@ -295,6 +295,7 @@ internal sealed class RenderSnapshotBuilder
                     part: 0);
                 instance.PreviousPosition = (previous.Position - origin).ToVector3();
                 instance.PreviousRotation = previous.Rotation.ToQuaternion();
+                instance.Hemisphere = HemisphereOf(entity);
             }
             if (render.Light.Enabled)
             {
@@ -351,6 +352,35 @@ internal sealed class RenderSnapshotBuilder
             previous = DPose.Compose(relPrevious[denseOfFrame[last.Frame.Index]], last.Pose);
         last = new PoseMemory { Pose = row.Pose, Frame = row.Frame, Stamp = buildStamp };
         return true;
+    }
+
+    /// <summary>
+    /// Which way is up for the hemisphere ambient light of a placed entity: against the gravity field of its own frame,
+    /// at its place. A frame owner is its frame, so it takes its frame's field at the frame's origin; any other entity
+    /// takes the field of the frame that it is in. A uniform field points up against its acceleration, inside its region;
+    /// a point field leads up away from its frame's origin; no field, or one that pulls nowhere, mixes evenly.
+    /// </summary>
+    private HemisphereUp HemisphereOf(Entity entity)
+    {
+        FrameHandle frame = entities.OwnedFrame(entity);
+        Vector3 place = Vector3.Zero;
+        if (frame.IsNull)
+        {
+            ref readonly TransformRow row = ref entities.FrontRow(entity);
+            frame = row.Frame;
+            place = row.Pose.Position.ToVector3();
+        }
+        GravityField field = frames.Gravity(frame);
+        DPose pose = relCurrent[denseOfFrame[frame.Index]];
+        switch (field.Kind)
+        {
+            case GravityKind.Uniform when field.Acceleration != Vector3.Zero && (field.Region is not { } region || region.Contains(place)):
+                return HemisphereUp.Along(pose.Rotation.Rotate((Double3)(-field.Acceleration)).Normalized().ToVector3());
+            case GravityKind.Point when field.Mu > 0:
+                return HemisphereUp.AwayFrom((pose.Position - renderOrigin).ToVector3());
+            default:
+                return HemisphereUp.Even;
+        }
     }
 
     /// <summary>The root frame of the tree that <paramref name="frame"/> is in.</summary>

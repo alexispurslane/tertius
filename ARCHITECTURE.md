@@ -423,7 +423,7 @@ The lighting model is energy-normalized Blinn-Phong, not PBR:
 - Schlick Fresnel.
 - Normal maps.
 - A gloss map that sets the exponent.
-- Hemisphere ambient light.
+- Hemisphere ambient light: the sky color from above and the ground color from below.
 
 Lighting is in linear color space, into an HDR target, with tone mapping at the end. Lighting works in world axes centered on the camera. The specular exponent is n = 2^(1 + 11 · gloss), from 2 to 4096. The Fresnel F0 is 0.16 · specular².
 
@@ -434,7 +434,7 @@ The G-buffer has these targets:
 | Albedo | RGBA8 sRGB | Base color. Alpha 0 marks an unlit impostor pixel. |
 | Normals | RGBA16 SNORM | The shading normal and the geometric normal, both octahedral-encoded, in world axes. Shadow biasing uses the geometric normal. |
 | Specular | RG8 | Specular intensity and gloss. |
-| Emissive | RGBA16F | Emitted light. Impostors write their baked color here. |
+| Emissive | RGBA16F | Emitted light. Alpha is the share of the hemisphere ambient light that comes from the sky. Impostors write their baked color here. |
 | Distance | R32F | Distance from the eye. Zero is sky. |
 
 Transparent objects use one forward pass after the lighting pass, sorted back to front across ranges. They test occlusion against the distance target, not the depth buffer.
@@ -442,6 +442,8 @@ Transparent objects use one forward pass after the lighting pass, sorted back to
 Dynamic point and spot lights are shaded in the deferred lighting pass. The sun is a directional light.
 
 The sky is a procedural star field, fixed to the axes of the root frame of the camera's frame tree. The render snapshot carries the root's axes in the axes of the camera's frame, as `RenderSnapshot.RootRotation`, and the renderer interpolates them as it interpolates the camera. So the stars do not turn with a ship that the camera rides in, and a switch of the camera to another frame does not move them.
+
+The hemisphere ambient light needs an up, and each instance takes it from the gravity field of its own frame, at its place. Up points against a uniform field, inside the field's region, and away from the frame's origin in a point field. In a frame without gravity, every surface gets the mean of the sky and the ground color. A frame owner, such as a ship's hull, takes its own frame's field at the frame's origin. So the ambient light of a surface does not depend on the frame that the camera rides in, a planet sees the sky on every side, and an empty frame in space mixes evenly by itself. The G-buffer pass stores the sky's share in the alpha of the emissive target. The up is not interpolated between ticks. An impostor capture bakes the up in object space, so an object that turns against it is captured again.
 
 ### Shadows
 
