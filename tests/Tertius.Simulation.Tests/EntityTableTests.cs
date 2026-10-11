@@ -557,6 +557,22 @@ public class EntityTableTests
         table.EndGameplay();
         ((Action)(() => table.WritableTransform(live))).Should().Throw<ContractException>();
     }
+
+    // The world swaps the intents before it ends the tick. Ending it first would drop the writer from its chunk's list
+    // while its slot still says that it is listed, so its later intents would never reach physics.
+    [Fact]
+    public void EndingATickBeforeItsIntentsAreSwappedBreaksAContract()
+    {
+        EntityTable table = TableSupport.NewTable();
+        Entity writer = table.SpawnLiveWith(TestWorld.Ball);
+        table.BeginTick(spawnPoolSize: 0);
+        table.WritableIntent(writer).Force = new Vector3(1, 0, 0);
+        table.EndGameplay();
+
+        Action endTick = () => table.EndTick();
+
+        endTick.Should().Throw<ContractException>();
+    }
 #endif
 
     /// <summary>One tick in which the given entities write an intent, then the swap that makes the intents the physics input.</summary>

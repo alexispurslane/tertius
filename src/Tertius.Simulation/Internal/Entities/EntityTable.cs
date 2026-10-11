@@ -373,7 +373,11 @@ internal sealed class EntityTable
         return fallback;
     }
 
-    /// <summary>Ends the tick: every chunk's lists of this tick start empty for the next one.</summary>
+    /// <summary>
+    /// Ends the tick: every chunk's lists of this tick start empty for the next one. <see cref="SwapIntents"/> must have
+    /// run since the intents of this tick were written: it is what empties the lists of intent writers and clears the
+    /// writers' flags, which must change together.
+    /// </summary>
     public void EndTick()
     {
         Contract.Requires(!gameplayRunning);
@@ -382,8 +386,8 @@ internal sealed class EntityTable
         {
             chunks[c].EndTick();
             ChunkBook book = books[c];
+            Contract.Requires(book.IntentWriters.Count == 0);
             book.DirtySlots.Clear();
-            book.IntentWriters.Clear();
             book.LastSpawnCount = book.SpawnsThisTick;
             book.SpawnsThisTick = 0;
         }
