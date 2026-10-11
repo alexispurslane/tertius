@@ -69,6 +69,7 @@ public sealed partial class JoltPhysicsBackend
                 throw new ArgumentException($"{entity} owns {owned}, so its body cannot be a character.");
             record.OwnedFrame = owned;
             record.Driver = frames.Driver(owned);
+            record.DriverVersion = frames.DriverVersion(owned);
             record.Motion = record.Driver switch
             {
                 MotionDriver.Physics => BodyMotion.Dynamic,
@@ -401,32 +402,32 @@ public sealed partial class JoltPhysicsBackend
     };
 
     /// <summary>
-    /// Makes the motion of a frame owner's hull follow its frame's driver, after the game changed the driver with
-    /// <see cref="FrameTree.SetDriver"/>. Sets the record's driver and motion, and warns when Jolt cannot move the hull the
-    /// way that the new driver needs. Changes no body. Returns true when the motion changed, so that the hull, if the owner
-    /// has one, needs <see cref="ApplyHullMotion"/>.
+    /// Makes the record of a frame owner follow its frame's driver, after the simulation gave the frame a driver (see
+    /// <see cref="FrameTree.DriverVersion"/>). Sets the record's driver and motion, and warns when Jolt cannot move the hull
+    /// the way that the driver needs. Changes no body. Returns true when the frame got a driver since the record last
+    /// followed it, also the driver that it had: the hull, if the owner has one, then needs <see cref="ApplyHullMotion"/>,
+    /// which puts it at the frame's pose and velocity in the tree.
     /// </summary>
     private bool FollowDriver(BodyRecord owner)
     {
-        MotionDriver driver = frames.Driver(owner.OwnedFrame);
-        if (driver == owner.Driver)
+        int version = frames.DriverVersion(owner.OwnedFrame);
+        if (version == owner.DriverVersion)
             return false;
+        MotionDriver driver = frames.Driver(owner.OwnedFrame);
+        owner.DriverVersion = version;
         owner.Driver = driver;
-        BodyMotion motion = HullMotion(owner, driver);
-        if (motion == BodyMotion.Static && driver != MotionDriver.Static)
+        owner.Motion = HullMotion(owner, driver);
+        if (owner.Motion == BodyMotion.Static && driver != MotionDriver.Static)
             log($"Physics: {owner.OwnedFrame} has the {driver} driver now, but the hull of {owner.Entity} " +
                 $"{(owner.HasMesh ? "is a mesh, which never moves" : "has no mass, so it cannot be dynamic")}. " +
                 "The hull is static, at the frame's pose in the tree.");
-        if (motion == owner.Motion)
-            return false;
-        owner.Motion = motion;
         return true;
     }
 
     /// <summary>
-    /// Gives a frame owner's hull the Jolt motion type of the record's motion. The hull keeps its BodyID, its system and
-    /// its contacts. Like a hull that the reconcile moves to another system, it takes the frame's pose and velocity from
-    /// the tree.
+    /// Gives a frame owner's hull the Jolt motion type of the record's motion, also when it has that type already. The hull
+    /// keeps its BodyID, its system and its contacts. Like a hull that the reconcile moves to another system, it takes the
+    /// frame's pose and velocity from the tree.
     /// </summary>
     private void ApplyHullMotion(BodyRecord owner)
     {

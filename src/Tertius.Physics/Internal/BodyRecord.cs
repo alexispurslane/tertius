@@ -61,6 +61,8 @@ internal sealed class BodyRecord
     /// frame's driver when the record was created or at the last reconcile, whichever came later.
     /// </summary>
     public MotionDriver Driver;
+    /// <summary>For the owner of a frame: the <see cref="FrameTree.DriverVersion"/> of <see cref="OwnedFrame"/> that <see cref="Driver"/> follows.</summary>
+    public int DriverVersion;
     public ObjectLayer Layer;
     /// <summary>True when the primary shape is or contains a mesh. Only static bodies can have one.</summary>
     public bool HasMesh;

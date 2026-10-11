@@ -51,6 +51,31 @@ public class DriverChangeTests
         states.Should().BeEmpty("physics no longer drives the ship's frame");
     }
 
+    /// <summary>
+    /// The reviewer's probe D1. The game parks a ship that flies at 10 m/s, which sets the frame's velocities in the tree to
+    /// zero, and then gives it the physics driver again, before or after one step. Physics puts the hull at the frame's pose
+    /// and velocity in the tree after every driver call, also when the driver ends where it started. So the ship stays.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AShipThatIsParkedAndUnparkedStaysWhereItWasParked(bool stepBetween)
+    {
+        using var h = new PhysicsHarness();
+        var (space, ship) = FlyingShip(h);
+        DPose parked = h.Frames.LocalPose(ship);
+
+        h.Frames.SetDriver(ship, MotionDriver.Static);
+        if (stepBetween)
+            h.Step();
+        h.Frames.SetDriver(ship, MotionDriver.Physics);
+        h.Step(60);
+
+        (h.Frames.LocalPose(ship).Position - parked.Position).Length.Should().BeLessThan(1e-6, "the parked ship had no velocity left");
+        h.Frames.LinearVelocity(ship).Length.Should().BeLessThan(1e-6);
+        Hull(h, space, ship.Entity).Motion.Should().Be(MotionType.Dynamic);
+    }
+
     [Fact]
     public void AStaticFrameThatGetsThePhysicsDriverFallsWithItsHull()
     {

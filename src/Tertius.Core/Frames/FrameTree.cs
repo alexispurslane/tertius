@@ -21,14 +21,15 @@ public sealed class FrameTree
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
     private Vector3[] properAcceleration = new Vector3[64];
-    // The number of calls to SetDriver that changed a frame's driver.
+    // The number of calls to SetDriver for each frame, and for every frame together.
+    private int[] driverVersion = new int[64];
     private int driverChanges;
 
     public int Count => poses.Count;
 
     /// <summary>
-    /// Changes on every structural change (add, remove or reparent) and on every driver change. Physics compares it with
-    /// the version that it last followed.
+    /// Changes on every structural change (add, remove or reparent) and on every call to <see cref="SetDriver"/>. Physics
+    /// compares it with the version that it last followed.
     /// </summary>
     public int Version => poses.Version + driverChanges;
 
@@ -56,6 +57,7 @@ public sealed class FrameTree
         linearVelocity[node.Id] = Double3.Zero;
         angularVelocity[node.Id] = Vector3.Zero;
         properAcceleration[node.Id] = Vector3.Zero;
+        driverVersion[node.Id] = 0;
         var handle = new FrameHandle(frameOwner, node.Id, node.Generation);
         byOwner.Add(frameOwner, handle);
         return handle;
@@ -131,19 +133,30 @@ public sealed class FrameTree
     public MotionDriver Driver(FrameHandle frame) => driver[Node(frame).Id];
 
     /// <summary>
-    /// Gives a frame a new motion driver, for example to park a ship. A frame that gets the static driver stops where it
-    /// is: both of its velocities become zero, and it keeps its proper acceleration, so the cargo of a ship that is parked
-    /// on the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until that driver
-    /// moves it. A new driver changes <see cref="Version"/>, so physics follows the change at the start of its next step,
-    /// the same way that it follows a reparent. The driver that the frame has already changes nothing. Throws
+    /// Changes on every call to <see cref="SetDriver"/> for the frame, also a call that gives the frame the driver that it
+    /// has. Physics compares it with the version that the frame's hull last followed.
+    /// </summary>
+    public int DriverVersion(FrameHandle frame) => driverVersion[Node(frame).Id];
+
+    /// <summary>
+    /// Gives a frame a motion driver, for example to park a ship. A frame that gets the static driver stops where it is:
+    /// both of its velocities become zero, and it keeps its proper acceleration, so the cargo of a ship that is parked on
+    /// the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until that driver moves
+    /// it. Every call changes <see cref="Version"/> and <see cref="DriverVersion"/>, also a call that gives the frame the
+    /// driver that it has. So physics follows the call at the start of its next step, the same way that it follows a
+    /// reparent: it puts the frame's hull at the frame's pose and velocity in the tree. Throws
     /// <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
-    public void SetDriver(FrameHandle frame, MotionDriver motion)
+    /// <remarks>
+    /// Only the simulation calls it, through <c>World.SetFrameDriver</c>, which refuses a driver that the frame cannot
+    /// follow and keeps the owner of the frame in step.
+    /// </remarks>
+    internal void SetDriver(FrameHandle frame, MotionDriver motion)
     {
+        Contract.Requires(Enum.IsDefined(motion));
         int id = Node(frame).Id;
-        if (driver[id] == motion)
-            return;
         driver[id] = motion;
+        driverVersion[id]++;
         driverChanges++;
         if (motion == MotionDriver.Static)
         {
@@ -317,5 +330,6 @@ public sealed class FrameTree
         Array.Resize(ref linearVelocity, size);
         Array.Resize(ref angularVelocity, size);
         Array.Resize(ref properAcceleration, size);
+        Array.Resize(ref driverVersion, size);
     }
 }

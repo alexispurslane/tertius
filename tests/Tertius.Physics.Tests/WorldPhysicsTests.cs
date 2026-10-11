@@ -96,7 +96,8 @@ public class WorldPhysicsTests
         DPose parked = world.Frames.LocalPose(ship);
         parked.Position.X.Should().BeGreaterThan(0.5, "the ship flew for 5 ticks");
 
-        world.Frames.SetDriver(ship, MotionDriver.Static);
+        world.SetFrameDriver(ship, MotionDriver.Static);
+        world.GetVelocity(owner).Should().Be(Vector3.Zero, "the owner mirrors its frame at once");
         for (int i = 0; i < 3; i++)
             world.Tick();
 
@@ -105,6 +106,44 @@ public class WorldPhysicsTests
         world.Frames.LocalPose(ship).Should().Be(parked);
         world.GetPose(owner).Should().Be(parked);
         world.GetVelocity(owner).Should().Be(Vector3.Zero);
+    }
+
+    /// <summary>
+    /// The reviewer's probe W7. Between two ticks, or with one tick between, the game parks a ship that flies at 10 m/s and
+    /// gives it the physics driver again. The ship stays where it was parked.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AShipThatTheGameParksAndUnparksStaysWhereItWasParked(bool tickBetween)
+    {
+        var warnings = new List<string>();
+        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2, Log = warnings.Add });
+        using World world = NewWorld(backend);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            LinearVelocity = new Vector3(10, 0, 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+        });
+        FrameHandle ship = world.GetOwnedFrame(owner);
+        for (int i = 0; i < 5; i++)
+            world.Tick();
+        DPose parked = world.Frames.LocalPose(ship);
+
+        world.SetFrameDriver(ship, MotionDriver.Static);
+        if (tickBetween)
+            world.Tick();
+        world.SetFrameDriver(ship, MotionDriver.Physics);
+        for (int i = 0; i < 60; i++)
+            world.Tick();
+
+        (world.Frames.LocalPose(ship).Position - parked.Position).Length.Should().BeLessThan(1e-6, "the parked ship had no velocity left");
+        world.GetVelocity(owner).Length().Should().BeLessThan(1e-6f);
+        world.Errors.Should().BeEmpty();
+        warnings.Should().BeEmpty();
     }
 
     /// <summary>

@@ -364,7 +364,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// needs, puts every frame hull in the system of the parent that the tree names, and removes every ghost that the tree
     /// no longer allows. The sync point has applied or refused each hand-off before this runs, so a hull whose hand-off
     /// the tree did not take, or whose frame the simulation moved on its own, goes where the tree says, with the tree's
-    /// pose and velocity. A hull whose frame got a new driver keeps its body and takes the tree's pose and velocity too. A
+    /// pose and velocity. A hull whose frame got a driver keeps its body and takes the tree's pose and velocity too, also
+    /// when the driver is the one that the frame had. A
     /// system that is full grows to take the hull. Afterwards <see cref="AssertInvariants"/> holds: every system belongs
     /// to a live frame, every record has the bodies that it must have, every hull is in the system of its frame's parent
     /// in the tree and has the motion of its frame's driver, and every ghost is in a frame next to its body's frame.
@@ -409,12 +410,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             if (!frames.IsAlive(owner.OwnedFrame))
                 continue;
             // The hull's motion follows the frame's driver, and its system follows the frame's parent. A hull that moves
-            // to another system has its new motion there from the start.
-            bool newMotion = FollowDriver(owner);
+            // to another system has its new motion there from the start. Either way it starts from the tree.
+            bool newDriver = FollowDriver(owner);
             FrameHandle parent = frames.Parent(owner.OwnedFrame);
             if (owner.Frame != parent)
                 PlaceHullFromTree(owner, parent);
-            else if (newMotion && owner.HasPrimary)
+            else if (newDriver && owner.HasPrimary)
                 ApplyHullMotion(owner);
         }
 
@@ -442,8 +443,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// owners.</item>
     /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
     /// and the owner of a root frame has no hull.</item>
-    /// <item>Every frame owner follows its frame's driver: the record has that driver and the motion that
-    /// <see cref="HullMotion"/> gives for it, and Jolt moves the hull with that motion.</item>
+    /// <item>Every frame owner follows its frame's driver: the record has the frame's driver version and driver, and the
+    /// motion that <see cref="HullMotion"/> gives for it, and Jolt moves the hull with that motion.</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame (see
     /// <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
     /// </list>
@@ -488,7 +489,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(!owner.HasPrimary);
             else
                 Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
-            Contract.Invariant(owner.Driver == frames.Driver(owner.OwnedFrame) && owner.Motion == HullMotion(owner, owner.Driver));
+            Contract.Invariant(owner.DriverVersion == frames.DriverVersion(owner.OwnedFrame) && owner.Driver == frames.Driver(owner.OwnedFrame));
+            Contract.Invariant(owner.Motion == HullMotion(owner, owner.Driver));
             if (owner.HasPrimary)
                 Contract.Invariant(owner.World!.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
         }

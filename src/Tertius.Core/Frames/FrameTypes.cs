@@ -115,6 +115,18 @@ public record struct KeplerOrbit(
     public static KeplerOrbit Circular(double radius, double parentMu, double phase = 0, double spinRate = 0) =>
         new(radius, 0, 0, 0, 0, phase, 0, parentMu, DQuaternion.Identity, spinRate, 0);
 
+    /// <summary>
+    /// True for an orbit that the Kepler driver can follow: a closed orbit, with an eccentricity from 0 up to but not
+    /// including 1, a positive semi-major axis and a parent with a positive G·M, and every element, the tilt and the spin
+    /// finite. The default orbit is not valid: it would leave the frame at its parent's origin.
+    /// </summary>
+    public readonly bool IsValid =>
+        SemiMajorAxis > 0 && double.IsFinite(SemiMajorAxis) && ParentMu > 0 && double.IsFinite(ParentMu) &&
+        Eccentricity >= 0 && Eccentricity < 1 &&
+        double.IsFinite(Inclination) && double.IsFinite(LongitudeOfAscendingNode) && double.IsFinite(ArgumentOfPeriapsis) &&
+        double.IsFinite(MeanAnomalyAtEpoch) && double.IsFinite(Epoch) && double.IsFinite(SpinRate) && double.IsFinite(SpinPhaseAtEpoch) &&
+        double.IsFinite(AxialTilt.X) && double.IsFinite(AxialTilt.Y) && double.IsFinite(AxialTilt.Z) && double.IsFinite(AxialTilt.W);
+
     public readonly double MeanMotion => SemiMajorAxis > 0 ? Math.Sqrt(ParentMu / (SemiMajorAxis * SemiMajorAxis * SemiMajorAxis)) : 0;
 
     public readonly double Period => MeanMotion > 0 ? 2 * Math.PI / MeanMotion : double.PositiveInfinity;

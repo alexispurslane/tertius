@@ -60,15 +60,44 @@ public class FrameTreeDriverTests
         ship.Frames.Version.Should().NotBe(before);
     }
 
+    /// <summary>
+    /// Physics puts the hull at the frame's pose and velocity in the tree after every driver call. So a call that gives a
+    /// frame the driver that it has moves the version on too: after a park and an unpark in one gap between ticks, the hull
+    /// must stop, although its driver ends where it started.
+    /// </summary>
     [Fact]
-    public void TheDriverThatAFrameHasAlreadyLeavesTheVersionAsItWas()
+    public void TheDriverThatAFrameHasAlreadyMovesTheVersionOnToo()
     {
         var ship = new Ship();
         int before = ship.Frames.Version;
 
         ship.Frames.SetDriver(ship.Hull, MotionDriver.Physics);
 
-        ship.Frames.Version.Should().Be(before);
+        ship.Frames.Version.Should().NotBe(before);
+    }
+
+    [Theory]
+    [InlineData(MotionDriver.Static)]
+    [InlineData(MotionDriver.Physics)]
+    public void EveryDriverCallMovesTheFramesDriverVersionOn(MotionDriver driver)
+    {
+        var ship = new Ship();
+        int before = ship.Frames.DriverVersion(ship.Hull);
+
+        ship.Frames.SetDriver(ship.Hull, driver);
+
+        ship.Frames.DriverVersion(ship.Hull).Should().NotBe(before);
+    }
+
+    [Fact]
+    public void ADriverCallLeavesTheDriverVersionOfEveryOtherFrameAsItWas()
+    {
+        var ship = new Ship();
+        int before = ship.Frames.DriverVersion(ship.Root);
+
+        ship.Frames.SetDriver(ship.Hull, MotionDriver.Static);
+
+        ship.Frames.DriverVersion(ship.Root).Should().Be(before);
     }
 
     [Fact]

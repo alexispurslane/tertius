@@ -4,5 +4,9 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Tertius.Core.Tests" />
+    <!-- FrameTree.SetDriver is for the simulation alone, which keeps a frame's owner in step with the frame. The physics
+         tests stand in for the simulation. -->
+    <InternalsVisibleTo Include="Tertius.Simulation" />
+    <InternalsVisibleTo Include="Tertius.Physics.Tests" />
   </ItemGroup>
 </Project>

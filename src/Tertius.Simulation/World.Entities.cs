@@ -102,6 +102,39 @@ public sealed partial class World
         return topics.Unsubscribe(entity, topic);
     }
 
+    /// <summary>
+    /// Gives a frame a motion driver, for example to park a ship. Outside a tick only. A frame that gets the static driver
+    /// stops where it is: both of its velocities become zero, and it keeps its proper acceleration, so the cargo of a ship
+    /// that is parked on the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until
+    /// that driver moves it. The owner's transform mirrors the frame at once. Physics follows at the start of its next
+    /// step: the hull gets the motion that the driver needs, at the frame's pose and velocity in the tree. Every call does
+    /// that, also a call that gives the frame the driver that it has, so a park and an unpark between two ticks stop the
+    /// ship.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A driver that <see cref="MotionDriver"/> does not define.</exception>
+    /// <exception cref="ArgumentException">
+    /// A frame that is gone. The physics driver for a frame whose owner's body cannot be dynamic: it has no mass, or it is
+    /// a mesh, which never moves. The Kepler driver for a frame whose owner's body is a mesh, or whose orbit is not valid
+    /// (see <see cref="KeplerOrbit.IsValid"/>). The frame keeps its driver.
+    /// </exception>
+    public void SetFrameDriver(FrameHandle frame, MotionDriver driver)
+    {
+        ThrowIfInTick(nameof(SetFrameDriver));
+        if (!Enum.IsDefined(driver))
+            throw new ArgumentOutOfRangeException(nameof(driver), driver, "MotionDriver does not define this driver.");
+        if (!Frames.IsAlive(frame))
+            throw new ArgumentException($"Cannot set the driver of {frame}: the frame is gone.", nameof(frame));
+        if (entities.Body(frame.Entity)?.FrameHullProblem(driver) is { } problem)
+            throw new ArgumentException($"Cannot give {frame} the {driver} driver: the hull of its owner {frame.Entity} {problem}.", nameof(driver));
+        if (driver == MotionDriver.Kepler && !Frames.Orbit(frame).IsValid)
+            throw new ArgumentException($"Cannot give {frame} the Kepler driver: its orbit is not valid. Set Frames.Orbit first.", nameof(driver));
+
+        Frames.SetDriver(frame, driver);
+        MirrorFrameOwner(frame);
+        FinishOutsideTickChange();
+    }
+
     // ---- Spawning -------------------------------------------------------------------------------------------------
 
     /// <summary>

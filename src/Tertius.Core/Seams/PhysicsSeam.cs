@@ -21,7 +21,25 @@ public enum BodyLayer : byte
 }
 
 /// <summary>A collision shape. Shape descriptions are immutable and shared. Backends cache native shapes by reference.</summary>
-public abstract record ShapeDesc;
+public abstract record ShapeDesc
+{
+    /// <summary>True when the shape is a mesh or a compound that contains one. Only static bodies can use those.</summary>
+    public bool ContainsMesh()
+    {
+        switch (this)
+        {
+            case MeshShapeDesc:
+                return true;
+            case CompoundShapeDesc { Children: { } children }:
+                foreach (CompoundChild child in children)
+                    if (child.Shape?.ContainsMesh() == true)
+                        return true;
+                return false;
+            default:
+                return false;
+        }
+    }
+}
 
 public sealed record BoxShapeDesc(Vector3 HalfExtents) : ShapeDesc;
 
@@ -53,7 +71,21 @@ public sealed record BodyDesc(
     float Restitution = 0.1f,
     float LinearDamping = 0.05f,
     float AngularDamping = 0.05f,
-    ShapeDesc? InteriorShape = null);
+    ShapeDesc? InteriorShape = null)
+{
+    /// <summary>
+    /// Why the hull of a frame with this description cannot move the way that <paramref name="driver"/> needs, or null
+    /// when it can. The physics driver needs a dynamic hull, which has mass and is not a mesh. The Kepler driver needs a
+    /// kinematic hull, which is not a mesh. Any hull can be static. The message completes a sentence that names the hull.
+    /// </summary>
+    public string? FrameHullProblem(MotionDriver driver) => driver switch
+    {
+        MotionDriver.Physics or MotionDriver.Kepler when Shape.ContainsMesh() =>
+            $"is a mesh, which never moves, so it cannot follow the {driver} driver",
+        MotionDriver.Physics when !(Mass > 0) => $"has a mass of {Mass}, so it cannot be dynamic for the Physics driver",
+        _ => null,
+    };
+}
 
 [Flags]
 public enum IntentFlags : ushort

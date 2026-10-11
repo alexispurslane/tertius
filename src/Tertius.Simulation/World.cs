@@ -82,9 +82,8 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>
-    /// The reference frames. Read it freely. Outside a tick, a game can give a frame a new motion driver with
-    /// <see cref="FrameTree.SetDriver"/>, for example to park a ship, and physics follows at its next step. Make every
-    /// other change through the world.
+    /// The reference frames. Read it freely. Give a frame a new motion driver with <see cref="SetFrameDriver"/>, for
+    /// example to park a ship. Make every other change through the world too.
     /// </summary>
     public FrameTree Frames { get; } = new();
 
