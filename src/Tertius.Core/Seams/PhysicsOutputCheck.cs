@@ -51,8 +51,10 @@ public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Ind
 /// the owner of a frame, the frame's parent in the tree), and it enters another frame. The owner of a root frame is in
 /// no frame, so it never hands off. Each entity hands off at most once per step.</item>
 /// <item>Physics moves a frame only through the hull of a frame with the physics driver, which is a dynamic body in the
-/// system of the frame's parent. The hull of a frame with another driver is static or kinematic, and physics never hands
-/// it off. So the owner of a frame hands off only when its frame has the physics driver.</item>
+/// system of the frame's parent. The simulation makes that a fact: it refuses the physics driver for a frame whose
+/// owner's body cannot be dynamic, at spawn and when the driver changes (see <see cref="BodyDesc.FrameHullProblem"/>). So
+/// the driver alone tells whether the hull can move. The hull of a frame with another driver is static or kinematic, and
+/// physics never hands it off. So the owner of a frame hands off only when its frame has the physics driver.</item>
 /// <item>For the same reason, a frame state names a live frame with the physics driver and a parent, whose owner has a
 /// body: the hull. A root frame has no parent, so its owner has no hull, and physics never reports its state.</item>
 /// <item>The hand-offs of a step, applied in their order, never put a frame under itself or under a frame inside it.

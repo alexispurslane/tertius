@@ -23,23 +23,6 @@ internal sealed class ShapeCache : IDisposable
         return shape;
     }
 
-    /// <summary>True when the shape is a mesh or a compound that contains one. Only static bodies can use those.</summary>
-    public static bool ContainsMesh(ShapeDesc desc)
-    {
-        switch (desc)
-        {
-            case MeshShapeDesc:
-                return true;
-            case CompoundShapeDesc compound:
-                foreach (CompoundChild child in compound.Children)
-                    if (ContainsMesh(child.Shape))
-                        return true;
-                return false;
-            default:
-                return false;
-        }
-    }
-
     public void Dispose()
     {
         foreach (Shape shape in shapes.Values)

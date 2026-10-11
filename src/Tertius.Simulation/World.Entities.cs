@@ -24,7 +24,9 @@ public sealed partial class World
 
     /// <summary>
     /// Creates an entity. Outside a tick it is live at once and gets <see cref="Spawned"/> on its first tick.
-    /// During a tick, components call <see cref="Self.Spawn(SpawnDesc)"/> instead.
+    /// During a tick, components call <see cref="Self.Spawn(SpawnDesc)"/> instead. Throws <see cref="ArgumentException"/>
+    /// for a description that the world cannot make live, such as a frame with a driver that its hull cannot follow (see
+    /// <see cref="BodyDesc.FrameHullProblem"/>).
     /// </summary>
     public Entity Spawn(SpawnDesc desc)
     {
@@ -161,8 +163,16 @@ public sealed partial class World
             if (desc.AsFrame != null)
                 throw new ArgumentException("An attached entity cannot be a frame.", nameof(desc));
         }
-        if (desc.AsFrame is { } spec && !(spec.Bounds.MinRadius > 0))
-            throw new ArgumentException("A frame needs a bubble with positive radii.", nameof(desc));
+        if (desc.AsFrame is { } spec)
+        {
+            if (!(spec.Bounds.MinRadius > 0))
+                throw new ArgumentException("A frame needs a bubble with positive radii.", nameof(desc));
+            if (!Enum.IsDefined(spec.Driver))
+                throw new ArgumentException($"MotionDriver does not define the driver {spec.Driver}.", nameof(desc));
+            // So a frame with the physics driver whose owner has a body always has a dynamic hull.
+            if (desc.Body?.FrameHullProblem(spec.Driver) is { } problem)
+                throw new ArgumentException($"A frame with the {spec.Driver} driver cannot have this hull: it {problem}.", nameof(desc));
+        }
 
         IReadOnlyList<IComponent> source = desc.Components ?? [];
         var components = new IComponent[source.Count];

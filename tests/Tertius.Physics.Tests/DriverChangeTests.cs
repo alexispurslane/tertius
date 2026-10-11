@@ -202,11 +202,17 @@ public class DriverChangeTests
         MasslessUnderPhysics,
     }
 
+    /// <summary>
+    /// The simulation never gives a frame a driver that its hull cannot follow: World.SetFrameDriver and World.Spawn refuse
+    /// it. So a frame tree that does comes only from a bug. Physics then breaks a contract in a Debug build. A Release build
+    /// skips that driver for the hull: the hull keeps the motion that it has, physics writes a warning, and it reports no
+    /// state for the frame. A driver that the hull can follow is followed again.
+    /// </summary>
     [Theory]
     [InlineData(UnmovableHull.MeshUnderPhysics)]
     [InlineData(UnmovableHull.MeshUnderKepler)]
     [InlineData(UnmovableHull.MasslessUnderPhysics)]
-    public void AHullThatCannotMoveTheWayThatItsNewDriverNeedsIsStaticWithAWarning(UnmovableHull hull)
+    public void ADriverThatAHullCannotFollowComesOnlyFromABug(UnmovableHull hull)
     {
         using var h = new PhysicsHarness();
         FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static);
@@ -219,11 +225,21 @@ public class DriverChangeTests
         List<FrameState> states = RecordFrameStates(h, dock);
 
         h.Frames.SetDriver(dock, hull == UnmovableHull.MeshUnderKepler ? MotionDriver.Kepler : MotionDriver.Physics);
+        Action step = () => h.Step(3);
+
+#if TERTIUS_CONTRACTS
+        step.Should().Throw<ContractException>().WithMessage($"*{dock.Entity}*");
+#else
+        step.Should().NotThrow();
+        h.Warnings.Should().ContainSingle().Which.Should().Contain(dock.Entity.ToString()).And.Contain("Only a bug");
+        states.Should().BeEmpty();
+#endif
+        Hull(h, space, dock.Entity).Motion.Should().Be(MotionType.Static);
+
+        h.Frames.SetDriver(dock, MotionDriver.Static);
         h.Step(3);
 
         Hull(h, space, dock.Entity).Motion.Should().Be(MotionType.Static);
-        h.Warnings.Should().ContainSingle().Which.Should().Contain(dock.Entity.ToString()).And.Contain("hull is static");
-        states.Should().BeEmpty();
         h.Backend.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
     }
 }

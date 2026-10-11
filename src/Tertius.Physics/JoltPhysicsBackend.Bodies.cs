@@ -70,12 +70,7 @@ public sealed partial class JoltPhysicsBackend
             record.OwnedFrame = owned;
             record.Driver = frames.Driver(owned);
             record.DriverVersion = frames.DriverVersion(owned);
-            record.Motion = record.Driver switch
-            {
-                MotionDriver.Physics => BodyMotion.Dynamic,
-                MotionDriver.Kepler => BodyMotion.Kinematic,
-                _ => BodyMotion.Static,
-            };
+            record.Motion = HullMotion(record.Driver);
             record.Layer = Layers.FrameHull;
         }
         else
@@ -92,7 +87,7 @@ public sealed partial class JoltPhysicsBackend
         }
 
         // Validate and build every native shape before any state changes, so that a bad description throws cleanly.
-        record.HasMesh = ShapeCache.ContainsMesh(desc.Shape);
+        record.HasMesh = desc.Shape.ContainsMesh();
         if (record.Motion != BodyMotion.Static && record.HasMesh)
             throw new ArgumentException(
                 $"{entity} uses a mesh shape on a {(ownsFrame ? "frame hull that moves" : record.Motion.ToString().ToLowerInvariant() + " body")}. " +
@@ -390,37 +385,45 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The motion that the hull of a frame with <paramref name="driver"/> has: dynamic for the physics driver, kinematic for
-    /// the Kepler driver and static for the static driver. A hull that Jolt cannot move that way is static: a mesh never
-    /// moves, and a dynamic body needs mass. A new hull never needs this rule, because the backend refuses to create a hull
-    /// that cannot move the way that its frame's driver needs.
+    /// the Kepler driver and static for the static driver. The simulation gives a frame only a driver that its hull can
+    /// follow (see <see cref="BodyDesc.FrameHullProblem"/>), and the backend refuses to create a hull that cannot.
     /// </summary>
-    private static BodyMotion HullMotion(BodyRecord owner, MotionDriver driver) => driver switch
+    private static BodyMotion HullMotion(MotionDriver driver) => driver switch
     {
-        MotionDriver.Physics when !owner.HasMesh && owner.Desc.Mass > 0 => BodyMotion.Dynamic,
-        MotionDriver.Kepler when !owner.HasMesh => BodyMotion.Kinematic,
+        MotionDriver.Physics => BodyMotion.Dynamic,
+        MotionDriver.Kepler => BodyMotion.Kinematic,
         _ => BodyMotion.Static,
     };
 
     /// <summary>
     /// Makes the record of a frame owner follow its frame's driver, after the simulation gave the frame a driver (see
-    /// <see cref="FrameTree.DriverVersion"/>). Sets the record's driver and motion, and warns when Jolt cannot move the hull
-    /// the way that the driver needs. Changes no body. Returns true when the frame got a driver since the record last
-    /// followed it, also the driver that it had: the hull, if the owner has one, then needs <see cref="ApplyHullMotion"/>,
-    /// which puts it at the frame's pose and velocity in the tree.
+    /// <see cref="FrameTree.DriverVersion"/>). Sets the record's driver and motion. Changes no body. Returns true when the
+    /// frame got a driver since the record last followed it, also the driver that it had: the hull, if the owner has one,
+    /// then needs <see cref="ApplyHullMotion"/>, which puts it at the frame's pose and velocity in the tree.
     /// </summary>
+    /// <remarks>
+    /// The simulation refuses a driver that the hull cannot follow, so such a driver in the tree comes only from a bug. It
+    /// breaks a contract in a Debug build. A Release build skips it: the record keeps its driver and motion, physics writes
+    /// a warning, and it reports no state for the frame, because the hull is not dynamic.
+    /// </remarks>
     private bool FollowDriver(BodyRecord owner)
     {
         int version = frames.DriverVersion(owner.OwnedFrame);
         if (version == owner.DriverVersion)
             return false;
         MotionDriver driver = frames.Driver(owner.OwnedFrame);
+        if (owner.Desc.FrameHullProblem(driver) is { } problem)
+        {
+            string message = $"Physics: {owner.OwnedFrame} has the {driver} driver, but the hull of {owner.Entity} {problem}. " +
+                             $"Only a bug gives a frame that driver. The hull keeps the {owner.Driver} driver";
+            Contract.Assert(false, message);
+            log(message + ".");
+            owner.DriverVersion = version;
+            return false;
+        }
         owner.DriverVersion = version;
         owner.Driver = driver;
-        owner.Motion = HullMotion(owner, driver);
-        if (owner.Motion == BodyMotion.Static && driver != MotionDriver.Static)
-            log($"Physics: {owner.OwnedFrame} has the {driver} driver now, but the hull of {owner.Entity} " +
-                $"{(owner.HasMesh ? "is a mesh, which never moves" : "has no mass, so it cannot be dynamic")}. " +
-                "The hull is static, at the frame's pose in the tree.");
+        owner.Motion = HullMotion(driver);
         return true;
     }
 

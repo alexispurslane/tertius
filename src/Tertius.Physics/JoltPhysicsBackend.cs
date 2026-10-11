@@ -93,12 +93,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, a
     /// frame that the simulation reparents on its own, and a frame whose driver the game changes are handled here or at
     /// the start of the next step, whichever comes first. A hull follows its frame's driver: dynamic for the physics
-    /// driver, kinematic for the Kepler driver, static for the static driver. A hull that Jolt cannot move the way that a
-    /// new driver needs, a mesh or a hull without mass, is static, with a warning.
+    /// driver, kinematic for the Kepler driver, static for the static driver. The simulation never gives a frame a driver
+    /// that its hull cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>). Such a driver comes only from a bug: it
+    /// breaks a contract in a Debug build, and a Release build keeps the hull's motion, with a warning.
     /// </para>
     /// <para>
-    /// A shape that Jolt cannot build, a mesh on a body that moves, or a character without a capsule throws
-    /// <see cref="ArgumentException"/> before any state changes for that body.
+    /// A shape that Jolt cannot build, a mesh on a body that moves, a dynamic body without mass, or a character without a
+    /// capsule throws <see cref="ArgumentException"/> before any state changes for that body.
     /// </para>
     /// </remarks>
     public void ApplyChanges(PhysicsChanges changes, FrameTree frames)
@@ -490,7 +491,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             else
                 Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
             Contract.Invariant(owner.DriverVersion == frames.DriverVersion(owner.OwnedFrame) && owner.Driver == frames.Driver(owner.OwnedFrame));
-            Contract.Invariant(owner.Motion == HullMotion(owner, owner.Driver));
+            Contract.Invariant(owner.Motion == HullMotion(owner.Driver));
             if (owner.HasPrimary)
                 Contract.Invariant(owner.World!.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
         }
