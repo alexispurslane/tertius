@@ -29,6 +29,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private readonly JobSystemThreadPool jobs;
     private readonly ShapeCache shapes = new();
     private readonly ConcurrentDictionary<ShapeDesc, float> radii = new(ReferenceEqualityComparer.Instance);
+    // The answer of ShapeProblem for each shape description that it was asked about: null when Jolt can build the shape.
+    private readonly ConcurrentDictionary<ShapeDesc, string?> shapeProblems = new(ReferenceEqualityComparer.Instance);
 
     // Physics systems by frame index, and the same worlds as a list for iteration.
     private FrameWorld?[] worlds = new FrameWorld?[16];
@@ -99,8 +101,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// breaks a contract in a Debug build, and a Release build keeps the hull's motion, with a warning.
     /// </para>
     /// <para>
-    /// A shape that Jolt cannot build, a mesh on a body that moves, a dynamic body without mass, or a character without a
-    /// capsule throws <see cref="ArgumentException"/> before any state changes for that body.
+    /// The simulation refuses at spawn every body that physics cannot create, so a change that fails here comes only from
+    /// a bug, for example a body that <see cref="BodyDesc.Problem"/> or <see cref="ShapeProblem"/> refuses. A failed
+    /// change breaks a contract in a Debug build. A Release build skips it, leaves nothing of it behind, applies every other
+    /// change of the batch, and then throws <see cref="InvalidOperationException"/> that names each failed change.
     /// </para>
     /// </remarks>
     public void ApplyChanges(PhysicsChanges changes, FrameTree frames)
@@ -111,14 +115,58 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         lock (JoltRuntime.NativeGate)
         {
             this.frames = frames;
+            failedChanges.Clear();
             foreach (Entity entity in changes.BodiesDestroyed)
-                DestroyRecord(entity);
+            {
+                try
+                {
+                    DestroyRecord(entity);
+                }
+                catch (Exception ex) when (ex is not ContractException)
+                {
+                    ChangeFailed($"destroy the body of {entity}", ex);
+                }
+            }
             foreach (FrameHandle frame in changes.FramesDestroyed)
-                DestroyWorld(frame);
+            {
+                try
+                {
+                    DestroyWorld(frame);
+                }
+                catch (Exception ex) when (ex is not ContractException)
+                {
+                    ChangeFailed($"destroy the system of {frame}", ex);
+                }
+            }
             ReconcileFrames();
             foreach (BodyCreate create in changes.BodiesCreated)
-                CreateRecord(create);
+            {
+                try
+                {
+                    CreateRecord(create);
+                }
+                catch (Exception ex) when (ex is not ContractException)
+                {
+                    ChangeFailed($"create the body of {create.Entity}", ex);
+                }
+            }
+            if (failedChanges.Count > 0)
+                throw new InvalidOperationException(string.Join(" ", failedChanges));
         }
+    }
+
+    /// <summary>The messages of the changes that failed in the current call to <see cref="ApplyChanges"/>.</summary>
+    private readonly List<string> failedChanges = new();
+
+    /// <summary>
+    /// One change of a batch failed. Only a bug sends such a change: it breaks a contract in a Debug build. A Release build
+    /// remembers it, and <see cref="ApplyChanges"/> goes on with the next change.
+    /// </summary>
+    private void ChangeFailed(string change, Exception ex)
+    {
+        string message = $"Physics could not {change}: {ex.GetType().Name}: {ex.Message} Only a bug sends such a change.";
+        Contract.Assert(false, message);
+        failedChanges.Add(message);
     }
 
     /// <summary>
@@ -194,6 +242,38 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     {
         ArgumentNullException.ThrowIfNull(shape);
         return radii.GetOrAdd(shape, static s => ShapeBounds.Radius(s));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The first question about a shape builds its native Jolt shape, under the native gate, so it waits for a step that is
+    /// running. The backend keeps the shape for the body that needs it, and keeps the answer, so a later question about the
+    /// same shape description costs one dictionary lookup.
+    /// </remarks>
+    public string? ShapeProblem(ShapeDesc shape)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        ArgumentNullException.ThrowIfNull(shape);
+        return shapeProblems.GetOrAdd(shape, BuildShape);
+    }
+
+    /// <summary>Builds the native shape of <paramref name="shape"/>, or returns why Jolt cannot build it.</summary>
+    private string? BuildShape(ShapeDesc shape)
+    {
+        if (shape.Problem() is { } problem)
+            return problem;
+        lock (JoltRuntime.NativeGate)
+        {
+            try
+            {
+                shapes.Get(shape);
+                return null;
+            }
+            catch (ArgumentException ex)
+            {
+                return ex.Message;
+            }
+        }
     }
 
     /// <summary>Destroys every character, body, physics system and shape, and the job system.</summary>

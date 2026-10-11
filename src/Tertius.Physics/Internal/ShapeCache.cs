@@ -12,11 +12,18 @@ internal sealed class ShapeCache : IDisposable
 {
     private readonly Dictionary<ShapeDesc, Shape> shapes = new(ReferenceEqualityComparer.Instance);
 
+    /// <summary>
+    /// The native shape of <paramref name="desc"/>, built on first use. Throws <see cref="ArgumentException"/>, with a
+    /// message that completes a sentence that names the shape, when <see cref="ShapeDesc.Problem"/> refuses the shape or
+    /// Jolt cannot build it.
+    /// </summary>
     public Shape Get(ShapeDesc desc)
     {
         ArgumentNullException.ThrowIfNull(desc);
         if (!shapes.TryGetValue(desc, out Shape? shape))
         {
+            if (desc.Problem() is { } problem)
+                throw new ArgumentException(problem);
             shape = Create(desc);
             shapes.Add(desc, shape);
         }
@@ -45,61 +52,41 @@ internal sealed class ShapeCache : IDisposable
     {
         Vector3 half = box.HalfExtents;
         float smallest = MathF.Min(half.X, MathF.Min(half.Y, half.Z));
-        if (!(smallest >= 0) || !float.IsFinite(half.X + half.Y + half.Z))
-            throw new ArgumentException($"Box half extents must be finite and not negative: {half}.");
         // Jolt requires the convex radius to fit inside the box.
         return new BoxShape(half, MathF.Min(Foundation.DefaultConvexRadius, smallest));
     }
 
-    private static SphereShape CreateSphere(float radius)
-    {
-        if (!(radius > 0) || !float.IsFinite(radius))
-            throw new ArgumentException($"A sphere radius must be positive and finite: {radius}.");
-        return new SphereShape(radius);
-    }
+    private static SphereShape CreateSphere(float radius) => new(radius);
 
     private static ConvexShape CreateCapsule(CapsuleShapeDesc capsule)
     {
-        if (!(capsule.Radius > 0) || !float.IsFinite(capsule.Radius) || !float.IsFinite(capsule.HalfHeight) || capsule.HalfHeight < 0)
-            throw new ArgumentException($"Invalid capsule: half height {capsule.HalfHeight}, radius {capsule.Radius}.");
         // Jolt does not accept a capsule without a cylinder part. That capsule is a sphere.
         return capsule.HalfHeight > 0 ? new CapsuleShape(capsule.HalfHeight, capsule.Radius) : new SphereShape(capsule.Radius);
     }
 
     private static ConvexHullShape CreateHull(ConvexHullShapeDesc hull)
     {
-        if (hull.Points is not { Length: >= 4 })
-            throw new ArgumentException("A convex hull needs at least 4 points.");
         using var settings = new ConvexHullShapeSettings(hull.Points.AsSpan(), Foundation.DefaultConvexRadius);
         var shape = new ConvexHullShape(settings);
         if (shape.Handle == 0)
-            throw new ArgumentException($"Jolt could not build a convex hull from {hull.Points.Length} points. The points may be coplanar or degenerate.");
+            throw new ArgumentException($"is a convex hull that Jolt cannot build from its {hull.Points.Length} points: they may coincide or lie on a line");
         return shape;
     }
 
     private static MeshShape CreateMesh(MeshShapeDesc mesh)
     {
-        if (mesh.Vertices is null || mesh.Indices is null || mesh.Indices.Length == 0 || mesh.Indices.Length % 3 != 0)
-            throw new ArgumentException("A mesh needs vertices and a non-empty index list whose length is a multiple of 3.");
         var triangles = new IndexedTriangle[mesh.Indices.Length / 3];
         for (int i = 0; i < triangles.Length; i++)
-        {
-            int a = mesh.Indices[3 * i], b = mesh.Indices[3 * i + 1], c = mesh.Indices[3 * i + 2];
-            if ((uint)a >= (uint)mesh.Vertices.Length || (uint)b >= (uint)mesh.Vertices.Length || (uint)c >= (uint)mesh.Vertices.Length)
-                throw new ArgumentException($"Mesh triangle {i} has an index outside the {mesh.Vertices.Length} vertices.");
-            triangles[i] = new IndexedTriangle(a, b, c);
-        }
+            triangles[i] = new IndexedTriangle(mesh.Indices[3 * i], mesh.Indices[3 * i + 1], mesh.Indices[3 * i + 2]);
         using var settings = new MeshShapeSettings(mesh.Vertices.AsSpan(), triangles.AsSpan());
         var shape = new MeshShape(settings);
         if (shape.Handle == 0)
-            throw new ArgumentException("Jolt could not build the triangle mesh. Every triangle may be degenerate.");
+            throw new ArgumentException("is a mesh that Jolt cannot build: Jolt drops a triangle whose corners lie on a line, and it may have dropped them all");
         return shape;
     }
 
     private StaticCompoundShape CreateCompound(CompoundShapeDesc compound)
     {
-        if (compound.Children is not { Length: > 0 })
-            throw new ArgumentException("A compound shape needs at least one child.");
         using var settings = new StaticCompoundShapeSettings();
         foreach (CompoundChild child in compound.Children)
         {
@@ -108,7 +95,7 @@ internal sealed class ShapeCache : IDisposable
         }
         var shape = new StaticCompoundShape(settings);
         if (shape.Handle == 0)
-            throw new ArgumentException("Jolt could not build the compound shape.");
+            throw new ArgumentException("is a compound shape that Jolt cannot build");
         return shape;
     }
 }

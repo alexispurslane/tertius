@@ -182,6 +182,8 @@ public class PhysicsStepTests
 
         public float BoundingRadius(ShapeDesc shape) => 1;
 
+        public string? ShapeProblem(ShapeDesc shape) => shape.Problem();
+
         public void Dispose()
         {
         }

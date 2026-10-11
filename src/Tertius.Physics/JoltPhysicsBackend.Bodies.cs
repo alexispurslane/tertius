@@ -49,6 +49,12 @@ public sealed partial class JoltPhysicsBackend
 
     // ---- Creation ----
 
+    /// <summary>
+    /// Creates the record and the bodies of one BodyCreate. Throws <see cref="ArgumentException"/> for a body that physics
+    /// cannot create (see <see cref="BodyDesc.Problem"/>, <see cref="BodyDesc.FrameHullProblem"/> and
+    /// <see cref="ShapeProblem"/>) before any state changes. If anything fails after that, the record and every body that
+    /// it got are removed before the exception leaves, so a failed creation leaves nothing behind.
+    /// </summary>
     private void CreateRecord(in BodyCreate create)
     {
         Entity entity = create.Entity;
@@ -58,20 +64,21 @@ public sealed partial class JoltPhysicsBackend
             return;
         }
         BodyDesc desc = create.Desc ?? throw new ArgumentException($"The BodyCreate for {entity} has no body description.");
-        if (desc.Shape is null)
-            throw new ArgumentException($"The body description of {entity} has no shape.");
+        bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle owned);
+        if (desc.Problem(ownsFrame) is { } problem)
+            throw new ArgumentException($"{entity} cannot get a body: it {problem}.");
 
         var record = new BodyRecord { Entity = entity, Desc = desc };
-        bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle owned);
         if (ownsFrame)
         {
-            if (desc.Motion == BodyMotion.Character)
-                throw new ArgumentException($"{entity} owns {owned}, so its body cannot be a character.");
             record.OwnedFrame = owned;
             record.Driver = frames.Driver(owned);
             record.DriverVersion = frames.DriverVersion(owned);
             record.Motion = HullMotion(record.Driver);
             record.Layer = Layers.FrameHull;
+            // A root frame has no parent, so its owner has no hull, and only a hull has to follow the driver.
+            if (!ParentOf(owned).IsNull && desc.FrameHullProblem(record.Driver) is { } hull)
+                throw new ArgumentException($"{entity} owns {owned}, which has the {record.Driver} driver, but its hull {hull}.");
         }
         else
         {
@@ -80,20 +87,12 @@ public sealed partial class JoltPhysicsBackend
                 log($"Physics: {entity} was not created because its frame {create.Frame} is not alive.");
                 return;
             }
-            if (desc.Motion == BodyMotion.Character && desc.Shape is not CapsuleShapeDesc)
-                throw new ArgumentException($"{entity} is a character, so its shape must be a CapsuleShapeDesc, not {desc.Shape.GetType().Name}.");
             record.Motion = desc.Motion;
             record.Layer = LayerFor(desc);
         }
 
-        // Validate and build every native shape before any state changes, so that a bad description throws cleanly.
+        // Build every native shape before any state changes, so that a shape that Jolt cannot build throws cleanly.
         record.HasMesh = desc.Shape.ContainsMesh();
-        if (record.Motion != BodyMotion.Static && record.HasMesh)
-            throw new ArgumentException(
-                $"{entity} uses a mesh shape on a {(ownsFrame ? "frame hull that moves" : record.Motion.ToString().ToLowerInvariant() + " body")}. " +
-                "Mesh shapes are only allowed on static bodies and as frame interiors.");
-        if (record.Motion == BodyMotion.Dynamic && !(desc.Mass > 0))
-            throw new ArgumentException($"{entity} is dynamic, so its mass must be positive, not {desc.Mass}.");
         shapes.Get(desc.Shape);
         if (ownsFrame)
             shapes.Get(desc.InteriorShape ?? desc.Shape);
@@ -111,19 +110,27 @@ public sealed partial class JoltPhysicsBackend
         }
         Store(record);
 
-        if (ownsFrame)
+        try
         {
-            frameOwners.Add(record);
-            // The tree is the authority on a frame's pose. A root frame has no parent, so it has no hull.
-            FrameHandle parent = ParentOf(owned);
-            if (!parent.IsNull)
-                CreateHullFromTree(record, parent);
-            CreateInterior(record);
+            if (ownsFrame)
+            {
+                frameOwners.Add(record);
+                // The tree is the authority on a frame's pose. A root frame has no parent, so it has no hull.
+                FrameHandle parent = ParentOf(owned);
+                if (!parent.IsNull)
+                    CreateHullFromTree(record, parent);
+                CreateInterior(record);
+            }
+            else
+            {
+                record.Up = Vector3.Transform(Vector3.UnitY, create.Pose.Rotation.ToJolt());
+                CreatePrimary(record, create.Frame, create.Pose, create.LinearVelocity, create.AngularVelocity);
+            }
         }
-        else
+        catch
         {
-            record.Up = Vector3.Transform(Vector3.UnitY, create.Pose.Rotation.ToJolt());
-            CreatePrimary(record, create.Frame, create.Pose, create.LinearVelocity, create.AngularVelocity);
+            DestroyRecord(entity);
+            throw;
         }
     }
 
@@ -430,7 +437,8 @@ public sealed partial class JoltPhysicsBackend
         if (version == owner.DriverVersion)
             return false;
         MotionDriver driver = frames.Driver(owner.OwnedFrame);
-        if (owner.Desc.FrameHullProblem(driver) is { } problem)
+        // A root frame has no parent, so its owner has no hull, and only a hull has to follow the driver.
+        if (!frames.Parent(owner.OwnedFrame).IsNull && owner.Desc.FrameHullProblem(driver) is { } problem)
         {
             string message = $"Physics: {owner.OwnedFrame} has the {driver} driver, but the hull of {owner.Entity} {problem}. " +
                              $"Only a bug gives a frame that driver. The hull keeps the {owner.Driver} driver";

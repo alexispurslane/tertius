@@ -24,9 +24,11 @@ public sealed partial class World
 
     /// <summary>
     /// Creates an entity. Outside a tick it is live at once and gets <see cref="Spawned"/> on its first tick.
-    /// During a tick, components call <see cref="Self.Spawn(SpawnDesc)"/> instead. Throws <see cref="ArgumentException"/>
-    /// for a description that the world cannot make live, such as a frame with a driver that its hull cannot follow (see
-    /// <see cref="BodyDesc.FrameHullProblem"/>).
+    /// During a tick, components call <see cref="Self.Spawn(SpawnDesc)"/> instead. Throws <see cref="ArgumentException"/>,
+    /// before anything changes, for a description that the world cannot make live: a body that physics cannot create (see
+    /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>), a frame with a driver that its hull
+    /// cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>), a Kepler frame whose orbit is not valid, or a gravity
+    /// field that is not valid.
     /// </summary>
     public Entity Spawn(SpawnDesc desc)
     {
@@ -116,9 +118,10 @@ public sealed partial class World
     /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A driver that <see cref="MotionDriver"/> does not define.</exception>
     /// <exception cref="ArgumentException">
-    /// A frame that is gone. The physics driver for a frame whose owner's body cannot be dynamic: it has no mass, or it is
-    /// a mesh, which never moves. The Kepler driver for a frame whose owner's body is a mesh, or whose orbit is not valid
-    /// (see <see cref="KeplerOrbit.IsValid"/>). The frame keeps its driver.
+    /// A frame that is gone. The physics driver for a frame with a parent whose owner's body cannot be dynamic: it has no
+    /// mass, or it is a mesh, which never moves. The Kepler driver for a frame with a parent whose owner's body is a mesh.
+    /// The Kepler driver for a frame whose orbit is not valid (see <see cref="KeplerOrbit.IsValid"/>). A root frame has no
+    /// hull, so any body of its owner can have any driver. The frame keeps its driver.
     /// </exception>
     public void SetFrameDriver(FrameHandle frame, MotionDriver driver)
     {
@@ -127,7 +130,8 @@ public sealed partial class World
             throw new ArgumentOutOfRangeException(nameof(driver), driver, "MotionDriver does not define this driver.");
         if (!Frames.IsAlive(frame))
             throw new ArgumentException($"Cannot set the driver of {frame}: the frame is gone.", nameof(frame));
-        if (entities.Body(frame.Entity)?.FrameHullProblem(driver) is { } problem)
+        // A root frame has no parent, so its owner has no hull that must follow the driver.
+        if (!Frames.Parent(frame).IsNull && entities.Body(frame.Entity)?.FrameHullProblem(driver) is { } problem)
             throw new ArgumentException($"Cannot give {frame} the {driver} driver: the hull of its owner {frame.Entity} {problem}.", nameof(driver));
         if (driver == MotionDriver.Kepler && !Frames.Orbit(frame).IsValid)
             throw new ArgumentException($"Cannot give {frame} the Kepler driver: its orbit is not valid. Call SetFrameOrbit first.", nameof(driver));
@@ -209,6 +213,17 @@ public sealed partial class World
             if (desc.AsFrame != null)
                 throw new ArgumentException("An attached entity cannot be a frame.", nameof(desc));
         }
+        if (desc.Body is { } body)
+        {
+            bool ownsFrame = desc.AsFrame is not null;
+            if (body.Problem(ownsFrame) is { } problem)
+                throw new ArgumentException($"Physics cannot create this body: it {problem}.", nameof(desc));
+            // Only the backend can tell that it cannot build some shapes, for example a convex hull whose points coincide.
+            if (physics?.ShapeProblem(body.Shape) is { } shape)
+                throw new ArgumentException($"Physics cannot create this body: its shape {shape}.", nameof(desc));
+            if (ownsFrame && body.InteriorShape is { } interior && physics?.ShapeProblem(interior) is { } inside)
+                throw new ArgumentException($"Physics cannot create this body: its interior shape {inside}.", nameof(desc));
+        }
         if (desc.AsFrame is { } spec)
         {
             if (!(spec.Bounds.MinRadius > 0))
@@ -219,8 +234,9 @@ public sealed partial class World
                 throw new ArgumentException("A frame with the Kepler driver needs an orbit that it can follow: this orbit is not valid (see KeplerOrbit.IsValid).", nameof(desc));
             if (!spec.Gravity.IsValid)
                 throw new ArgumentException("A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).", nameof(desc));
-            // So a frame with the physics driver whose owner has a body always has a dynamic hull.
-            if (desc.Body?.FrameHullProblem(spec.Driver) is { } problem)
+            // So a frame with the physics driver whose owner has a body always has a dynamic hull. A root frame has no parent,
+            // so its owner has no hull, and its body is only the frame's static interior.
+            if (!desc.Frame.IsNull && desc.Body?.FrameHullProblem(spec.Driver) is { } problem)
                 throw new ArgumentException($"A frame with the {spec.Driver} driver cannot have this hull: it {problem}.", nameof(desc));
         }
 

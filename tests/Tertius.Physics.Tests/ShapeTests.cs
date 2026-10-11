@@ -85,51 +85,6 @@ public class ShapeTests
     }
 
     [Fact]
-    public void MeshOnMovingBodyIsRejected()
-    {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
-        var mesh = new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)], [0, 1, 2]);
-        h.AddBody(space, new BodyDesc(mesh, BodyMotion.Dynamic), DPose.Identity);
-        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>().WithMessage("*Mesh*");
-
-        // Inside a compound it is rejected too, and so is a mesh hull of a physics-driven frame.
-        h.Changes.Clear();
-        var compound = new CompoundShapeDesc([new CompoundChild(mesh, Pose.Identity)]);
-        h.AddBody(space, new BodyDesc(compound, BodyMotion.Kinematic), DPose.Identity);
-        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
-        h.Changes.Clear();
-        FrameHandle ship = h.AddFrame(space, DPose.Identity, FrameBounds.Sphere(10), MotionDriver.Physics);
-        h.AddBody(space, new BodyDesc(mesh), DPose.Identity, entity: ship.Entity);
-        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
-
-        // As a static frame interior, a mesh is fine.
-        h.Changes.Clear();
-        FrameHandle hangar = h.AddFrameWithBody(space, Shapes.At(100, 0, 0), FrameBounds.Sphere(50), MotionDriver.Static,
-            new BodyDesc(new BoxShapeDesc(new Vector3(10)), BodyMotion.Static, InteriorShape: mesh));
-        h.Sync();
-        h.Backend.HasInterior(hangar.Entity).Should().BeTrue();
-    }
-
-    [Fact]
-    public void InvalidShapesThrowClearErrors()
-    {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
-        h.AddBody(space, new BodyDesc(new ConvexHullShapeDesc([new(1, 1, 1), new(1, 1, 1), new(1, 1, 1), new(1, 1, 1)])), DPose.Identity);
-        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
-        h.Changes.Clear();
-        h.AddBody(space, new BodyDesc(new ConvexHullShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)])), DPose.Identity);
-        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
-        h.Changes.Clear();
-        h.AddBody(space, new BodyDesc(new MeshShapeDesc([new(0, 0, 0)], [0, 1, 2]), BodyMotion.Static), DPose.Identity);
-        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
-        h.Changes.Clear();
-        h.AddBody(space, new BodyDesc(new SphereShapeDesc(1), BodyMotion.Character), DPose.Identity);
-        h.Invoking(x => x.Sync()).Should().Throw<ArgumentException>();
-    }
-
-    [Fact]
     public void LayerTableMatchesTheArchitecture()
     {
         BodyLayer[] layers = [BodyLayer.Static, BodyLayer.Moving, BodyLayer.FrameHull, BodyLayer.Ghost];

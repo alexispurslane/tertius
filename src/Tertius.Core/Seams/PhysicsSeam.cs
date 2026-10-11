@@ -20,9 +20,80 @@ public enum BodyLayer : byte
     Ghost,
 }
 
-/// <summary>A collision shape. Shape descriptions are immutable and shared. Backends cache native shapes by reference.</summary>
+/// <summary>
+/// A collision shape. Shape descriptions are immutable and shared. Backends cache native shapes by reference. The set of
+/// shapes is closed: only the six records below derive from it.
+/// </summary>
 public abstract record ShapeDesc
 {
+    private protected ShapeDesc()
+    {
+    }
+
+    /// <summary>
+    /// Why no physics backend can build this shape, or null when its parameters are in range. The message completes a
+    /// sentence that names the shape. A backend can refuse a shape for more reasons, for example a convex hull whose points
+    /// coincide: see <see cref="IPhysicsBackend.ShapeProblem"/>.
+    /// </summary>
+    public string? Problem()
+    {
+        switch (this)
+        {
+            case BoxShapeDesc { HalfExtents: var half }:
+                return IsFinite(half) && half.X >= 0 && half.Y >= 0 && half.Z >= 0
+                    ? null
+                    : $"has the half extents {half}, which must be finite and not negative";
+            case SphereShapeDesc { Radius: var radius }:
+                return float.IsFinite(radius) && radius > 0 ? null : $"has the radius {radius}, which must be finite and positive";
+            case CapsuleShapeDesc capsule:
+                if (!(float.IsFinite(capsule.Radius) && capsule.Radius > 0))
+                    return $"has the radius {capsule.Radius}, which must be finite and positive";
+                return float.IsFinite(capsule.HalfHeight) && capsule.HalfHeight >= 0
+                    ? null
+                    : $"has the half height {capsule.HalfHeight}, which must be finite and not negative";
+            case ConvexHullShapeDesc hull:
+                if (hull.Points is not { Length: >= 4 } points)
+                    return "has fewer than 4 points";
+                return AllFinite(points) ? null : "has a point that is not finite";
+            case MeshShapeDesc mesh:
+                if (mesh.Vertices is not { } vertices || mesh.Indices is not { } indices)
+                    return "has no vertex list or no index list";
+                if (indices.Length == 0 || indices.Length % 3 != 0)
+                    return $"has {indices.Length} indices, which must be a positive multiple of 3";
+                foreach (int index in indices)
+                    if ((uint)index >= (uint)vertices.Length)
+                        return $"has the index {index}, which is outside its {vertices.Length} vertices";
+                return AllFinite(vertices) ? null : "has a vertex that is not finite";
+            case CompoundShapeDesc compound:
+                if (compound.Children is not { Length: > 0 } children)
+                    return "has no child shape";
+                for (int i = 0; i < children.Length; i++)
+                {
+                    CompoundChild child = children[i];
+                    if (child.Shape is null)
+                        return $"has no shape for child {i}";
+                    Quaternion rotation = child.Pose.Rotation;
+                    if (!IsFinite(child.Pose.Position) || !float.IsFinite(rotation.X + rotation.Y + rotation.Z + rotation.W) || rotation.LengthSquared() == 0)
+                        return $"has child {i} at the pose {child.Pose}, whose position and rotation must be finite and whose rotation must not be zero";
+                    if (child.Shape.Problem() is { } problem)
+                        return $"has child {i}, which {problem}";
+                }
+                return null;
+            default:
+                return $"is a {GetType().Name}, which physics does not know";
+        }
+    }
+
+    private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
+
+    private static bool AllFinite(Vector3[] points)
+    {
+        foreach (Vector3 point in points)
+            if (!IsFinite(point))
+                return false;
+        return true;
+    }
+
     /// <summary>True when the shape is a mesh or a compound that contains one. Only static bodies can use those.</summary>
     public bool ContainsMesh()
     {
@@ -73,6 +144,39 @@ public sealed record BodyDesc(
     float AngularDamping = 0.05f,
     ShapeDesc? InteriorShape = null)
 {
+    /// <summary>
+    /// Why no physics backend can create a body from this description, or null when one can. The message completes a
+    /// sentence that names the body. <paramref name="ownsFrame"/> is true for the owner of a frame. Its body is the frame's
+    /// static interior, and when the frame has a parent, also a hull in the parent frame. The hull's motion comes from the
+    /// frame's driver (see <see cref="FrameHullProblem"/>), so the description's motion and mass do not matter here. Any
+    /// other body has the motion of the description. A backend can also refuse a shape that only it can tell is broken
+    /// (see <see cref="IPhysicsBackend.ShapeProblem"/>).
+    /// </summary>
+    public string? Problem(bool ownsFrame)
+    {
+        if (Shape is null)
+            return "has no shape";
+        if (!Enum.IsDefined(Motion))
+            return $"has the motion {Motion}, which BodyMotion does not define";
+        if (!Enum.IsDefined(Layer))
+            return $"has the layer {Layer}, which BodyLayer does not define";
+        if (Shape.Problem() is { } shape)
+            return $"has a shape that {shape}";
+        if (ownsFrame)
+        {
+            if (Motion == BodyMotion.Character)
+                return "owns a frame, so it cannot be a character";
+            return InteriorShape?.Problem() is { } interior ? $"has an interior shape that {interior}" : null;
+        }
+        if (Motion == BodyMotion.Character && Shape is not CapsuleShapeDesc)
+            return $"is a character, so its shape must be a CapsuleShapeDesc, not a {Shape.GetType().Name}";
+        if (Motion != BodyMotion.Static && Shape.ContainsMesh())
+            return $"is {Motion.ToString().ToLowerInvariant()}, and its shape is or holds a mesh, which only a static body or a frame interior can have";
+        if (Motion == BodyMotion.Dynamic && !(Mass > 0))
+            return $"is dynamic, so its mass must be positive, not {Mass}";
+        return null;
+    }
+
     /// <summary>
     /// Why the hull of a frame with this description cannot move the way that <paramref name="driver"/> needs, or null
     /// when it can. The physics driver needs a dynamic hull, which has mass and is not a mesh. The Kepler driver needs a
@@ -248,4 +352,11 @@ public interface IPhysicsBackend : IDisposable
 
     /// <summary>The radius of the bounding sphere of a shape. Used for hand-off and rendering.</summary>
     float BoundingRadius(ShapeDesc shape);
+
+    /// <summary>
+    /// Why this backend cannot build <paramref name="shape"/>, or null when it can: what <see cref="ShapeDesc.Problem"/>
+    /// finds, and what only the backend can tell, for example that the points of a convex hull coincide. The message
+    /// completes a sentence that names the shape. Thread-safe, so that a spawn during a tick can ask.
+    /// </summary>
+    string? ShapeProblem(ShapeDesc shape);
 }

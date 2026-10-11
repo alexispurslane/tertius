@@ -107,3 +107,33 @@ internal sealed class Pilot : IComponent
         }
     }
 }
+
+/// <summary>
+/// The real backend plus one edit of the input that the World sends it. It stands in for a bug, for the tests of what the
+/// World and the backend do with a state that only a bug produces. Plan 00 grows it into the only test double for physics.
+/// </summary>
+internal sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBackend
+{
+    public JoltPhysicsBackend Jolt { get; } = jolt;
+
+    /// <summary>Edits the next change batch before Jolt applies it, once. Null edits nothing.</summary>
+    public Action<PhysicsChanges>? EditNextChanges { get; set; }
+
+    public void ApplyChanges(PhysicsChanges changes, FrameTree frames)
+    {
+        if (EditNextChanges is { } edit)
+        {
+            EditNextChanges = null;
+            edit(changes);
+        }
+        Jolt.ApplyChanges(changes, frames);
+    }
+
+    public void Step(in PhysicsStepContext context, PhysicsStepOutput output) => Jolt.Step(context, output);
+
+    public float BoundingRadius(ShapeDesc shape) => Jolt.BoundingRadius(shape);
+
+    public string? ShapeProblem(ShapeDesc shape) => Jolt.ShapeProblem(shape);
+
+    public void Dispose() => Jolt.Dispose();
+}

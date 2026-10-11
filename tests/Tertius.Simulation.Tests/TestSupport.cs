@@ -222,10 +222,14 @@ public readonly record struct ChangeBatch(Entity[] BodiesDestroyed, FrameHandle[
 /// </remarks>
 public static class TestPhysics
 {
-    /// <summary>A backend that does nothing. With <paramref name="onStep"/>, it runs that script at every step.</summary>
+    /// <summary>
+    /// A backend that does nothing. It can build every shape that <see cref="ShapeDesc.Problem"/> accepts. With
+    /// <paramref name="onStep"/>, it runs that script at every step.
+    /// </summary>
     public static IPhysicsBackend Create(Action<PhysicsStepContext, PhysicsStepOutput>? onStep = null)
     {
         IPhysicsBackend physics = Substitute.For<IPhysicsBackend>();
+        physics.ShapeProblem(Arg.Any<ShapeDesc>()).Returns(call => call.Arg<ShapeDesc>().Problem());
         if (onStep != null)
             physics.OnStep(onStep);
         return physics;
@@ -373,6 +377,8 @@ public sealed class FakePhysics : IPhysicsBackend
         BoxShapeDesc b => b.HalfExtents.Length(),
         _ => 1,
     };
+
+    public string? ShapeProblem(ShapeDesc shape) => shape.Problem();
 
     public void Dispose()
     {
