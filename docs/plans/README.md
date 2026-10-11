@@ -14,15 +14,14 @@ ARCHITECTURE.md stays the binding design. When a plan is done, its decisions mov
 | 04 | [Anti-aliasing](04-anti-aliasing.md) | Planned | 03 |
 | 05 | [Point and spot light shadows](05-local-light-shadows.md) | Planned | 03 |
 | 06 | [Host and scripted runs](06-host-and-scripted-runs.md) | Planned | 02 |
-| 07 | [Content formats: blueprints and scenes](07-content-formats.md) | Being drafted | 06 |
-| 08 | [Content packages and mods](08-content-packages.md) | Being drafted | 07 |
-| 09 | [Asset pipeline](09-asset-pipeline.md) | Being drafted | 08 |
-| 10 | [Editor](10-editor.md) | Being drafted | 06, 07, 08, 09 |
+| 07 | [Content formats: blueprints and scenes](07-content-formats.md) | Planned, with open questions | 06 |
+| 08 | [Content packages and mods](08-content-packages.md) | Planned, with open questions | 07 |
+| 09 | [Asset pipeline](09-asset-pipeline.md) | Planned, with open questions | 08 |
+| 10 | [Editor](10-editor.md) | Planned, with open questions | 06, 07, 08, 09 |
 
 ## Running now
 
 - The workflow `wf_8625483d-a0a` makes physics follow the frame tree: at the start of every step, physics drops every hand-off that the tree did not take. Physics output that only a bug can produce then fails a contract in Debug builds and is skipped in Release builds. The other bugs from the test stage are fixed and committed.
-- The workflow `wf_5b5b785e-538` drafts plans 07 to 10.
 
 The Simulation test stage is done and merged: 1,228 tests, none skipped.
 
