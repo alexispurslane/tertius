@@ -253,6 +253,8 @@ An object belongs to the deepest frame whose bubble it is in. These rules contro
 5. The pose converts in double precision. Velocity converts as `v' = R⁻¹(v − v_frame − ω × r)` on entry, and the reverse on exit. No Coriolis force acts, but the conversion keeps the ω × r term. An object thrown out of a spinning station then leaves with the correct velocity.
 6. The entity handle does not change. The body moves from one physics system to the other. The entity moves to the new frame's topic and gets a `FrameChanged` event.
 
+Physics follows the frame tree. Each hand-off is a proposal that the sync point applies or refuses in step 2. At the start of every step, physics drops every hand-off of a frame that the tree did not take, and moves the frame's hull into the physics system of the frame's parent in the tree.
+
 ### Ghosts
 
 While an object's bounding sphere crosses a bubble boundary, the other physics system holds a ghost. A ghost is a kinematic body that copies the real body's pose every step. Bodies in the other system collide with the ghost, but the ghost does not push back on the real body. After the object is fully on one side, physics removes the ghost.
