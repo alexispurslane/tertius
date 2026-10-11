@@ -298,6 +298,29 @@ public class PhysicsContactTests
     }
 
     [Fact]
+    public void ABrokenContactOfTwoEntitiesWhoseUpdatesAreSkippedAlreadyIsReportedToo()
+    {
+        using var scene = new Scene();
+        FrameHandle gone = scene.Test.SpawnStaticFrame(TestWorld.At(0, 0, 5000), radius: 10);
+        scene.Test.World.Destroy(gone.Entity);
+        scene.Physics.OnStep((context, output) =>
+        {
+            if (context.Tick != 0)
+                return;
+            output.Bodies.Add(new BodyState(scene.First, gone, TestWorld.At(9), Vector3.Zero, Vector3.Zero));
+            output.Bodies.Add(new BodyState(scene.Second, gone, TestWorld.At(9), Vector3.Zero, Vector3.Zero));
+            output.Contacts.Add(new ContactStarted(scene.First, scene.Second, gone, ContactPoint, ContactNormal, ContactImpulse));
+        });
+
+        scene.Test.Run(2);
+
+        // The two body states and the contact are three broken outputs. The scene's own contact is sound.
+        scene.Test.World.Errors.Should().HaveCount(3);
+        scene.Test.World.Errors.Should().ContainSingle(error => error.Contains($"contact of {scene.First} and {scene.Second}"));
+        scene.FirstLog.Seen.Should().BeEmpty();
+    }
+
+    [Fact]
     public void AContactOfAnEntityWhoseUpdateIsSkippedReachesNeitherBody()
     {
         using var scene = new Scene();

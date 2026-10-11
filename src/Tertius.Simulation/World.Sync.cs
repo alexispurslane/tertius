@@ -175,8 +175,9 @@ public sealed partial class World
     /// <item>A contact names two different entities.</item>
     /// </list>
     /// Any other output comes only from a bug in the backend. It breaks a contract in Debug builds. In Release builds the
-    /// sync skips, for this step, the whole physics update of every entity that the output names, and records one error.
-    /// For a frame state, that entity is the frame's owner. The skip does not change physics: the backend keeps each body
+    /// sync skips, for this step, the whole physics update of every entity that the output names. It records exactly one
+    /// error for each broken output, however many checks the output fails, and also when another broken output skipped
+    /// the same entities already. For a frame state, that entity is the frame's owner. The skip does not change physics: the backend keeps each body
     /// where it put it. A frame hull goes back where the tree says at the start of the next step. A plain body that
     /// physics moved into a frame that is gone stays in that frame's system, so later outputs about it are broken too,
     /// until physics finds the frame gone and removes the body, with a warning.
@@ -264,17 +265,19 @@ public sealed partial class World
     /// sibling's, and fitting is a strict order of size, so the entries of one step never close a loop. So no hand-off
     /// puts a frame under itself or its own descendant. One that does comes only from a bug in the backend. It breaks a
     /// contract in Debug builds. In Release builds the sync skips the whole physics update of that entity for this step
-    /// and records one error, and the frame stays where it was.
+    /// and records one error, and the frame stays where it was. The check also covers the hand-off of an entity whose
+    /// update another output skipped already, so that every broken output records its error.
     /// </summary>
     private void MoveHandedOffFrames()
     {
         foreach (HandOff handOff in stepOutput.HandOffs)
         {
             Entity entity = handOff.Entity;
-            if (skippedPhysicsUpdates.Contains(entity))
+            // A hand-off that the first pass found broken has its error already.
+            if (BodyFault(entity) is not null || FrameFault(handOff.To) is not null || MoveFault(handOff) is not null)
                 continue;
             FrameHandle own = entities.OwnedFrame(entity);
-            if (own.IsNull || Frames.Parent(own) == handOff.To)
+            if (own.IsNull)
                 continue;
             bool intoItself = handOff.To == own || Frames.IsAncestorOf(own, handOff.To);
             Contract.Assert(!intoItself);
@@ -283,26 +286,27 @@ public sealed partial class World
                 SkipPhysicsUpdate(entity, $"refused the hand-off of {entity} from {handOff.From} to {handOff.To}, which would put {own} under itself or its own descendant");
                 continue;
             }
-            Frames.Reparent(own, handOff.To);
+            if (!skippedPhysicsUpdates.Contains(entity))
+                Frames.Reparent(own, handOff.To);
         }
     }
 
-    /// <summary>Skips the whole physics update of an entity for this step, and records one error the first time.</summary>
+    /// <summary>Skips the whole physics update of an entity for this step, and records one error for the broken output.</summary>
     private void SkipPhysicsUpdate(Entity entity, string error)
     {
-        if (skippedPhysicsUpdates.Add(entity))
-            Report($"tick {TickNumber}: {error}.", isError: true);
+        skippedPhysicsUpdates.Add(entity);
+        Report($"tick {TickNumber}: {error}.", isError: true);
     }
 
     /// <summary>
-    /// Skips the whole physics update of both entities of a contact for this step, and records one error if either was
-    /// not skipped yet.
+    /// Skips the whole physics update of both entities of a broken contact for this step, and records one error for the
+    /// contact.
     /// </summary>
     private void SkipPhysicsUpdates(Entity a, Entity b, string error)
     {
-        // The non-short-circuit | adds both entities.
-        if (skippedPhysicsUpdates.Add(a) | skippedPhysicsUpdates.Add(b))
-            Report($"tick {TickNumber}: {error}.", isError: true);
+        skippedPhysicsUpdates.Add(a);
+        skippedPhysicsUpdates.Add(b);
+        Report($"tick {TickNumber}: {error}.", isError: true);
     }
 
     /// <summary>

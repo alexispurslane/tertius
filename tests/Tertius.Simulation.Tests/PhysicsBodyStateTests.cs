@@ -153,6 +153,26 @@ public class PhysicsBodyStateTests
     }
 
     [Fact]
+    public void EachBrokenOutputAboutOneBodyIsReportedOnce()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle gone = test.SpawnStaticFrame(TestWorld.At(500), radius: 10);
+        test.World.Destroy(gone.Entity);
+        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        physics.OnStep((context, output) =>
+        {
+            output.Bodies.Add(new BodyState(ball, gone, ReportedPose, ReportedVelocity, ReportedSpin));
+            output.Bodies.Add(new BodyState(ball, FrameHandle.Null, ReportedPose, ReportedVelocity, ReportedSpin));
+        });
+
+        test.Run(1);
+
+        test.World.Errors.Should().HaveCount(2).And.OnlyContain(error => error.Contains($"body state of {ball}"));
+        test.World.GetPose(ball).Should().Be(TestWorld.At(3));
+    }
+
+    [Fact]
     public void ABodyStateThatNamesNoFrameIsReportedOnceAndChangesNothing()
     {
         IPhysicsBackend physics = TestPhysics.Create();

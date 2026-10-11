@@ -349,9 +349,36 @@ public class PhysicsHandOffTests
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain("stale frame");
+        // Two outputs name the stale frame, the body state and the hand-off, and each is reported. The frame state is
+        // sound, but it belongs to the skipped update.
+        test.World.Errors.Should().HaveCount(2).And.OnlyContain(error => error.Contains("stale frame"));
         test.World.Frames.LocalPose(fighter).Should().Be(TestWorld.At(100));
         test.World.GetPose(fighterOwner).Should().Be(TestWorld.At(100));
+    }
+
+    [Fact]
+    public void ARefusedHandOffIsReportedAlsoWhenAnotherBrokenOutputSkippedTheOwnersUpdate()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        Entity fighterOwner = SpawnFighter(test, TestWorld.At(0), out FrameHandle fighter);
+        FrameHandle cockpit = test.World.SpawnStaticFrame(fighter, TestWorld.At(1), radius: 2);
+        FrameHandle gone = test.SpawnStaticFrame(TestWorld.At(500), radius: 10);
+        test.World.Destroy(gone.Entity);
+        physics.OnStep((context, output) =>
+        {
+            if (context.Tick != 0)
+                return;
+            output.Bodies.Add(new BodyState(fighterOwner, gone, TestWorld.At(0), default, default));
+            output.HandOffs.Add(new HandOff(fighterOwner, test.Root, cockpit, TestWorld.At(0), default, default));
+        });
+
+        test.Run(1);
+
+        test.World.Errors.Should().HaveCount(2);
+        test.World.Errors.Should().ContainSingle(error => error.Contains($"body state of {fighterOwner}"));
+        test.World.Errors.Should().ContainSingle(error => error.Contains($"refused the hand-off of {fighterOwner}"));
+        test.World.Frames.Parent(fighter).Should().Be(test.Root);
     }
 
     [Fact]
