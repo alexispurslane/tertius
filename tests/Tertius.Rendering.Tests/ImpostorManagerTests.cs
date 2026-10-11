@@ -63,6 +63,10 @@ public sealed class ImpostorManagerTests
         Vector3? scale = null, ushort part = 0, MaterialId? material = null) =>
         Gpu.Instance(new MeshId(Sphere), material ?? BallMaterial, position, scale ?? Vector3.One, rotation, flags, entity: entity, part: part);
 
+    /// <summary>An invisible sphere of <paramref name="radius"/> that casts a far shadow: a moon, for an eclipse.</summary>
+    private static RenderInstance Moon(Vector3 center, float radius) =>
+        RenderInstance.Create(new MeshId(Sphere), BallMaterial, center, Quaternion.Identity, new Vector3(radius), 0, RenderFlags.CastsShadow, 9_999, 0);
+
     [Fact]
     public void ProjectedHeightIsTheDiameterOfTheSpheresImageAtTheCenterOfTheScreen()
     {
@@ -281,7 +285,7 @@ public sealed class ImpostorManagerTests
         // An eclipse: a moon slides in front of the sun as seen from the object.
         RenderSnapshot snapshot = Snapshot(intensity: 3f * 1.5f);
         snapshot.Instances.Add(Ball(1, position));
-        snapshot.Occluders.Add(new RenderOccluder { Center = position + SunDirection * 1_000f, Radius = 20f });
+        snapshot.Instances.Add(Moon(position + SunDirection * 50_000f, 1_000f));
         harness.Run(snapshot);
         harness.Manager.Captures.Length.Should().Be(1, "the eclipse changes the light that reaches the object");
 
@@ -606,7 +610,7 @@ public sealed class ImpostorManagerTests
     {
         var harness = new Harness(tiles: 16);
         RenderSnapshot snapshot = Snapshot();
-        snapshot.Occluders.Add(new RenderOccluder { Center = new Vector3(0, 1e7f, 0), Radius = 1e6f });
+        snapshot.Instances.Add(Moon(new Vector3(0, 1e7f, 0), 1e6f));
         for (uint i = 0; i < 40; i++)
             snapshot.Instances.Add(Ball(i, new Vector3((i % 8 - 3.5f) * 4f, (i / 8 - 2f) * 4f, -DistanceFor(60f + i))));
         for (int i = 0; i < 20; i++)

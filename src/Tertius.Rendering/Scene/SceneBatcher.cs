@@ -43,8 +43,9 @@ internal sealed class SceneBatcher
             scene.RangeViewProjection[range] = scene.Camera.ViewProjection(range);
 
         CollectVisible(snapshot, alpha, meshes, materialCount, scene);
-        // Before the processors: impostor captures are lit with the sun as the occluders leave it.
+        // Before the processors: impostor captures are lit with the sun as the far shadows leave it.
         CollectLights(snapshot, scene);
+        CollectFarShadows(snapshot, alpha, meshes, scene);
         foreach (IInstanceProcessor processor in Processors)
             processor.Process(scene);
         Batch(scene, meshes);
@@ -250,14 +251,36 @@ internal sealed class SceneBatcher
                 Spot = new Vector4(cosInner, 0f, 0f, 0f),
             };
         }
+    }
 
-        foreach (ref readonly RenderOccluder occluder in CollectionsMarshal.AsSpan(snapshot.Occluders))
+    /// <summary>
+    /// The far shadows: every shadow caster that the shadow maps do not take (see <see cref="ShadowCascades.TakesCaster"/>)
+    /// shadows the sun as an analytic sphere of its bounding radius, from any frame, visible or not. Only while the sun
+    /// lights the scene, because a far shadow only blocks the sun. Only for a sphere that covers at least a pixel: a
+    /// smaller one hides at most a few percent of the sun near the camera, and its shadow farther away is under a pixel too.
+    /// </summary>
+    private static void CollectFarShadows(RenderSnapshot snapshot, float alpha, ReadOnlySpan<MeshInfo> meshes, PreparedScene scene)
+    {
+        if (!HasSun(snapshot.Sun))
+            return;
+        Vector3 offset = scene.Camera.Offset;
+        // A sphere of radius r at distance d covers 2 asin(r / d), which is a pixel when r / d = sin(half a pixel).
+        float smallestShare = MathF.Sin(scene.Camera.PixelAngle * 0.5f);
+        foreach (ref readonly RenderInstance instance in CollectionsMarshal.AsSpan(snapshot.Instances))
         {
-            if (occluder.Radius <= 0f)
+            if ((instance.Flags & RenderFlags.CastsShadow) == 0)
+                continue;
+            int mesh = MeshIndex(instance.Mesh, meshes.Length);
+            if (mesh < 0 || !HasVolume(instance.Scale))
+                continue;
+            Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - offset;
+            float radius = BoundingRadius(instance, meshes[mesh]);
+            float distance = position.Length();
+            if (!float.IsFinite(distance + radius) || ShadowCascades.TakesCaster(distance, radius) || radius < distance * smallestShare)
                 continue;
             if (scene.OccluderCount == scene.Occluders.Length)
                 Array.Resize(ref scene.Occluders, scene.Occluders.Length * 2);
-            scene.Occluders[scene.OccluderCount++] = new Vector4(occluder.Center - camera.Offset, occluder.Radius);
+            scene.Occluders[scene.OccluderCount++] = new Vector4(position, radius);
         }
     }
 

@@ -53,8 +53,10 @@ public enum RenderFlags : uint
     None = 0,
     Visible = 1 << 0,
     /// <summary>
-    /// Casts sun shadow-map shadows when within 2 km of the camera, whether or not the instance is
-    /// <see cref="Visible"/>. Planets and moons shadow through <see cref="RenderOccluder"/> instead.
+    /// Casts shadows from the sun, whether or not the instance is <see cref="Visible"/>, and onto objects in any frame. A
+    /// caster whose bounding sphere comes within 2 km of the camera casts shadow-map shadows. A farther caster, a planet
+    /// seen from orbit for example, shadows as an analytic sphere of its bounding radius, a far shadow, when that sphere
+    /// covers at least a pixel. Leave it off the sun itself.
     /// </summary>
     CastsShadow = 1 << 1,
     /// <summary>Alpha-blended with <see cref="MaterialDesc.BaseColor"/>.W as opacity. Never an impostor.</summary>
@@ -165,13 +167,6 @@ public struct RenderSun
     public float AngularRadius;
 }
 
-/// <summary>A sphere that can cast an eclipse or planet shadow, tested analytically in the lighting shader.</summary>
-public struct RenderOccluder
-{
-    public Vector3 Center;
-    public float Radius;
-}
-
 public struct AmbientLight
 {
     public Vector3 SkyColor;
@@ -198,13 +193,11 @@ public sealed class RenderSnapshot
     public AmbientLight Ambient;
     public readonly List<RenderInstance> Instances = new();
     public readonly List<RenderLight> Lights = new();
-    public readonly List<RenderOccluder> Occluders = new();
 
     public void Clear()
     {
         Instances.Clear();
         Lights.Clear();
-        Occluders.Clear();
     }
 }
 

@@ -224,7 +224,6 @@ public sealed class BatcherTests
         snapshot.Lights.Add(new RenderLight { Kind = LightKind.Spot, Position = new Vector3(0, 3, -5), Direction = new Vector3(0, -2, 0), Color = Vector3.One, Intensity = 1, Range = 8, InnerConeAngle = 0.3f, OuterConeAngle = 0.5f });
         snapshot.Lights.Add(new RenderLight { Kind = LightKind.Point, Position = new Vector3(0, 0, 50), Color = Vector3.One, Intensity = 1, Range = 10 });   // behind
         snapshot.Lights.Add(new RenderLight { Kind = LightKind.Point, Position = new Vector3(0, 0, -5), Color = Vector3.One, Intensity = 1, Range = 0 });    // no range
-        snapshot.Occluders.Add(new RenderOccluder { Center = new Vector3(0, 0, -100), Radius = 10 });
         PreparedScene scene = Prepare(snapshot, alpha: 0.5f);
 
         scene.LightCount.Should().Be(2);
@@ -235,10 +234,7 @@ public sealed class BatcherTests
         new Vector3(spot.DirectionCosOuter.X, spot.DirectionCosOuter.Y, spot.DirectionCosOuter.Z).Should().Be(new Vector3(0, -1, 0));
         spot.DirectionCosOuter.W.Should().BeApproximately(MathF.Cos(0.5f), 1e-5f);
         spot.Spot.X.Should().BeApproximately(MathF.Cos(0.3f), 1e-5f);
-        scene.OccluderCount.Should().Be(1);
-        scene.Occluders[0].Should().Be(new Vector4(0, 0, -101, 10));
         scene.Constants.LightCount.Should().Be(2u);
-        scene.Constants.OccluderCount.Should().Be(1u);
     }
 
     [Fact]

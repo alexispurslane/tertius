@@ -120,7 +120,7 @@ internal sealed class RenderSnapshotBuilder
 
         // Interpolate only when the same camera is in the same frame as at the previous build.
         bool interpolate = lastCamera == view.Camera && lastCameraFrame == cameraFrame && lastCameraStamp == stamp - 1;
-        int frameCount = PrepareFramePoses(cameraFrame, stamp, interpolate);
+        PrepareFramePoses(cameraFrame, stamp, interpolate);
         renderInterpolate = interpolate;
         renderOrigin = cameraPose.Position;
 
@@ -139,7 +139,6 @@ internal sealed class RenderSnapshotBuilder
 
         BuildInstances(snapshot);
         BuildSun(snapshot, view);
-        BuildOccluders(snapshot, frameCount);
 
         lastCamera = view.Camera;
         lastCameraFrame = cameraFrame;
@@ -171,9 +170,9 @@ internal sealed class RenderSnapshotBuilder
 
     /// <summary>
     /// Fills the current and previous pose of every frame relative to the camera frame, by dense index, and records
-    /// this build's local poses for the next one. Returns the frame count.
+    /// this build's local poses for the next one.
     /// </summary>
-    private int PrepareFramePoses(FrameHandle cameraFrame, long stamp, bool interpolate)
+    private void PrepareFramePoses(FrameHandle cameraFrame, long stamp, bool interpolate)
     {
         int n = frames.Count;
         EnsureDenseFrameArrays(n);
@@ -213,7 +212,6 @@ internal sealed class RenderSnapshotBuilder
             frames.ComputeRelativeTo(cameraFrame, localPrevious.AsSpan(0, n), relPrevious.AsSpan(0, n));
         else
             relCurrent.AsSpan(0, n).CopyTo(relPrevious);
-        return n;
     }
 
     private void BuildInstances(RenderSnapshot snapshot)
@@ -367,21 +365,6 @@ internal sealed class RenderSnapshotBuilder
         float radius = entities.IsAlive(sun.Entity) ? entities.FrontRender(sun.Entity).BoundingRadius : 0;
         snapshot.Sun.Direction = (toSun / distance).ToVector3();
         snapshot.Sun.AngularRadius = radius > 0 ? (float)Math.Atan(radius / distance) : 0;
-    }
-
-    /// <summary>Every planet frame with a render radius casts eclipses and planet shadows.</summary>
-    private void BuildOccluders(RenderSnapshot snapshot, int frameCount)
-    {
-        for (int i = 0; i < frameCount; i++)
-        {
-            FrameHandle frame = denseFrames[i];
-            if (frames.Gravity(frame).Kind != GravityKind.Point || !entities.IsAlive(frame.Entity))
-                continue;
-            float radius = entities.FrontRender(frame.Entity).BoundingRadius;
-            if (radius <= 0)
-                continue;
-            snapshot.Occluders.Add(new RenderOccluder { Center = (relCurrent[i].Position - renderOrigin).ToVector3(), Radius = radius });
-        }
     }
 
     private void EnsureDenseFrameArrays(int n)

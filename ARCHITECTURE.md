@@ -439,7 +439,9 @@ Dynamic point and spot lights are shaded in the deferred lighting pass. The sun 
 
 ### Shadows
 
-Shadow casters are selected by distance from the camera, not by frame. Cascaded shadow maps for the sun cover the first 2 km, with four cascades and blending at the seams. Planet shadows and eclipses use a sphere test in the shader.
+Shadow casters are selected by distance from the camera, not by frame, so an object shadows objects in any frame. Every caster has the `CastsShadow` flag, and the sun has none. Cascaded shadow maps for the sun cover the first 2 km, with four cascades and blending at the seams. They draw every caster whose bounding sphere comes within 2 km of the camera, however big it is.
+
+A farther caster casts a far shadow: a sphere test in the lighting shader, with the caster's bounding radius. Planet shadows and eclipses are far shadows. A far shadow counts only while the sun lights the scene, and only when its sphere covers at least a pixel. A smaller sphere hides at most a few percent of the sun near the camera, and its shadow farther away is under a pixel too. So the cost per pixel grows only with the shadows that can show. A long caster, such as a station, shadows as a rough sphere beyond 2 km.
 
 The texel grid of each cascade snaps to a world-fixed anchor: the origin of the camera's frame. As a result, shadows do not shimmer as the camera moves. On MoltenVK, a steep caster clipped at the edge of the shadow map gets a flat, wrong depth plane. To avoid it, each cascade box is 16 times deeper than it is wide.
 

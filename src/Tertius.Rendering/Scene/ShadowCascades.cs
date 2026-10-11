@@ -84,6 +84,14 @@ internal static class ShadowCascades
     public const int Count = 4;
     /// <summary>Shadow maps cover view depths up to here, and only casters whose bounding sphere comes this close to the camera are drawn.</summary>
     public const float Distance = 2_000f;
+
+    /// <summary>
+    /// True when the shadow maps draw a caster with bounding radius <paramref name="radius"/> whose center is
+    /// <paramref name="distance"/> meters from the camera: its bounding sphere comes within <see cref="Distance"/>, however
+    /// big it is, so a ground plane or a planet under the camera casts map shadows. Every other caster casts a far shadow
+    /// instead, if it is big enough to notice. So a far shadow's sphere never holds the camera.
+    /// </summary>
+    public static bool TakesCaster(float distance, float radius) => distance - radius <= Distance;
     /// <summary>The weight of the logarithmic split against the uniform one.</summary>
     public const float SplitLambda = 0.9f;
     /// <summary>The fraction of each cascade's depth interval over which it blends into the next.</summary>

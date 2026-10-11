@@ -54,9 +54,13 @@ public sealed class ShadowTests
             snapshot.Instances.Add(Gpu.Instance(kit.Plane, kit.Ground, new Vector3(0, ground, -15), new Vector3(30, 1, 30), flags: Caster));
             // Turned so that its sunlit +X face looks toward the camera.
             snapshot.Instances.Add(Gpu.Instance(kit.Box, kit.White, box, new Vector3(1.5f), Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.5f), flags: Caster));
-            // An invisible occluder sphere straight above a patch of ground to the right: the analytic term.
+            // The analytic term: an invisible sphere of 20 m radius 2.2 km toward the sun from the ground at (28, ground, -10).
+            // It stays farther than 2 km from the camera, so it casts a far shadow, an ellipse on the ground 25 m along x and
+            // 20 m along z. Its edge passes between the box, which stays lit, and the patch at x = 4, which it covers. A sun
+            // with almost no disc keeps that edge sharp; the disc plays no part in the shadow maps.
             Vector3 eclipsed = new(4f, ground, -10f);
-            snapshot.Occluders.Add(new RenderOccluder { Center = eclipsed + Vector3.Normalize(sun) * 4f, Radius = 0.8f });
+            snapshot.Sun.AngularRadius = 0f;
+            snapshot.Instances.Add(RenderInstance.Create(kit.Sphere, kit.White, new Vector3(28f, ground, -10f) + Vector3.Normalize(sun) * 2_200f, Quaternion.Identity, new Vector3(20f), 0, RenderFlags.CastsShadow, 0, 0));
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "shadow-box");
             RenderStats stats = renderer.LastFrameStats;
@@ -75,7 +79,7 @@ public sealed class ShadowTests
             shadowed.Should().BeLessThan(0.5f * lit, "the box shadows the ground beside it");
             shadowed.Should().BeLessThan(0.5f * litFar, "the shadow is darker than lit ground further back");
             top.Should().BeGreaterThan(lit, "the box's top faces the sun more than the ground does");
-            occluded.Should().BeLessThan(0.5f * lit, "the occluder sphere's analytic shadow multiplies with the shadow maps");
+            occluded.Should().BeLessThan(0.5f * lit, "the far sphere's analytic shadow multiplies with the shadow maps");
         }
         finally
         {
@@ -145,11 +149,12 @@ public sealed class ShadowTests
             snapshot.Instances.Add(Gpu.Instance(kit.Plane, kit.Ground, new Vector3(0, ground, -2_500f), new Vector3(3_000f, 1, 3_000f), flags: Caster));
             // Its bounding sphere reaches within 1 km of the camera, so it is a caster.
             snapshot.Instances.Add(Gpu.Instance(kit.Box, kit.White, new Vector3(0, ground + 20f, -2_250f), new Vector3(10f, 40f, 1_500f), flags: Caster));
-            // A second wall entirely beyond 2 km is not a caster at all.
+            // A second wall entirely beyond 2 km is not in the shadow maps. It casts a far shadow instead: the sphere of its
+            // bounding radius, 173 m.
             snapshot.Instances.Add(Gpu.Instance(kit.Box, kit.White, new Vector3(-600f, ground + 20f, -2_600f), new Vector3(10f, 40f, 200f), flags: Caster));
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "shadow-2km-cutoff");
-            renderer.LastFrameStats.ShadowCasters.Should().Be(2, "the wall beyond 2 km is not a caster");
+            renderer.LastFrameStats.ShadowCasters.Should().Be(2, "the wall beyond 2 km is not in the shadow maps");
             float Luma(Vector3 p) => image.MeanLuma(Gpu.Project(p, camera, width, height, fov), 1);
 
             foreach (float z in (float[])[1_550f, 1_600f, 1_650f, 1_700f, 1_750f])
@@ -167,9 +172,9 @@ public sealed class ShadowTests
                 depth.Should().BeGreaterThan(ShadowCascades.Distance, "the sample is beyond the maps");
                 float shadowed = Luma(shadowPoint), lit = Luma(new Vector3(40f, ground, -z));
                 MathF.Abs(shadowed - lit).Should().BeLessThan(0.02f, "at {0:F0} m, beyond the maps, nothing is shadowed ({1} vs {2})", depth, shadowed, lit);
-                // The left side of the second wall is lit ground too.
+                // 60 m left of the second wall, inside the 69 m shadow that the real wall would throw.
                 float beside = Luma(new Vector3(-660f, ground, -2_600f));
-                MathF.Abs(beside - lit).Should().BeLessThan(0.03f, "the far wall casts no shadow ({0} vs {1})", beside, lit);
+                beside.Should().BeLessThan(0.5f * lit, "the far wall shadows the ground beside it as a sphere ({0} vs {1})", beside, lit);
             }
         }
         finally

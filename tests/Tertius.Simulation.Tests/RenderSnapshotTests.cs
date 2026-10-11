@@ -62,7 +62,6 @@ public class RenderSnapshotTests
         RenderSnapshot snapshot = test.World.Latest();
         snapshot.Instances.Should().BeEmpty();
         snapshot.Lights.Should().BeEmpty();
-        snapshot.Occluders.Should().BeEmpty();
     }
 
     [Fact]

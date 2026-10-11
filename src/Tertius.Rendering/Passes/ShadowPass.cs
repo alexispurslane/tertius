@@ -108,7 +108,7 @@ internal sealed unsafe class ShadowPass : RenderPass
                 continue;
             Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - offset;
             float radius = SceneBatcher.BoundingRadius(instance, meshes[mesh]);
-            if (!float.IsFinite(position.X + position.Y + position.Z + radius) || position.Length() - radius > ShadowCascades.Distance)
+            if (!float.IsFinite(position.X + position.Y + position.Z + radius) || !ShadowCascades.TakesCaster(position.Length(), radius))
                 continue;
 
             // The caster can shadow a cascade's receivers if its sphere overlaps the cascade box or the part of the
