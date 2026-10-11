@@ -566,7 +566,8 @@ public class ViewSwitchTests
             views.Press();
             views.Apply(world);
 
-            world.Camera.Should().Be(scene["chase"]);
+            // From the chase view, past the far view.
+            world.Camera.Should().Be(scene["person"]);
         }
     }
 

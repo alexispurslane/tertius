@@ -91,6 +91,7 @@ dotnet run --project src/Tertius.Demo -- --scene drop-box
 - The render thread interpolates between the last two ticks. The interpolation alpha is the wall-clock time since the newest snapshot, divided by the wall-clock length of one tick.
 - A capture step works in the window. (User) The simulation thread waits while the render thread draws that tick with alpha 1 and saves it. The image has the size of the window's framebuffer. On a Retina display, that is twice the size in the `window` key. On a screen that is smaller than the `window` key, macOS makes the window smaller, and the images are smaller too.
 - Keys and mouse movement become `InputEvent` messages to the `input` topic in free play. During a script, live input reaches no entity, so a script runs the same with or without a person at the keyboard. `InputRouter` holds these rules. The game never sees Esc or F1, and every key or button down that it sees gets its release: switching the fly camera on releases the keys and buttons that the game holds.
+- In free play the window captures the cursor, so the mouse always turns the game's view. (User) During a script it captures the cursor only while the fly camera is on. To reach other apps, use Cmd-Tab.
 - F1 switches the view to a debug fly camera and back. (User) WASD moves it, Q and E move it down and up, Shift moves it ten times faster, and the mouse turns it. It starts at the world's camera and moves in the axes of that camera's frame, relative to that camera. When the camera entity moves into another frame, as through an airlock, the fly camera starts again at the world's camera. The render thread sets it in the render snapshot, so it changes nothing in the world.
 - Esc closes the window. If you close the window during a script, the run stops, and the dumps and captures until then stay on disk.
 
@@ -165,6 +166,16 @@ Step 1, the ship's orbit (tickets `ter-fe04` and `ter-uucg`), is the Demo's scen
 - Dumps keep `rootPose` relative to the root (User), which is now the sun. So a `rootPose` is about 1.5e11 m, good to 30 µm. A ship's `pose` is relative to `earth`.
 - The ship's bubble has a radius of 100 m, so it holds the hull and the chase camera. The sun has the real sun's radius, so the light has the real sun's angular size at Earth's distance.
 - The tests of the scene run 20 s across the far side of the ship's first circle, where the mean anomaly wraps from π to -π. The full orbit is the manual run of `scripts/orbit.json`.
+
+Step 2, the walk (ticket `ter-ai0t`), adds a person to the scene `orbit`. The script `scripts/walk.json` and its test `WalkSliceTests` drive it.
+
+- The hull keeps its solid box in Earth's frame, for its mass and its collisions there. Inside the ship's own frame, its interior shape is hollow: six slabs 0.5 m thick around a cabin 19 by 7 by 59 m. One list of slabs gives both the physics shape and the drawn mesh.
+- The ship falls freely, so its proper acceleration is zero, and only the ship's own gravity field acts inside it. The field is 9.81 m/s² toward the belly, and only inside the cabin's box. A person outside the hull floats, as the airlock step needs.
+- The person is a capsule character, 1.8 m tall, of 70 kg. It stands on the cabin floor 10 m aft of the ship's center and faces the nose. Nothing that the person does pushes the ship, because the cabin floor is a static body in the ship's own frame.
+- The component `PersonControl` reads the `input` topic. W, A, S and D walk at 3 m/s, Space jumps at 4 m/s, and the mouse turns the view. A script drives the person with the same `InputEvent` posts that the window makes in free play. No physics intent turns a character, so the body does not turn: the turn lives in the component and in the view offset.
+- The person's eye, 1.65 m above the floor, is the third view: V goes from `chase` to `far` to `person`.
+- The hull keeps the sunlight out of the cabin, so five lamps under the roof light it. They are point lights, which cast no shadows yet. The cabin is one box, so no wall stands between a lamp and a face that it lights, and the outer faces of the hull face away from every lamp.
+- The script stands the person on the floor, walks it 6 m toward the nose, turns the view a quarter turn left, walks it 6 m toward the port wall and jumps. The test checks each move in the ship's frame, and that the ship carries the person 49 km round Earth meanwhile. A jump rises straight off the deck and lands where it left, because the person and the deck fall together.
 
 The demo starts as C# code. The [content packages and mods](content-packages.md) work later moves the content of the demo into the first content package.
 

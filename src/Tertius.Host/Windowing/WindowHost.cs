@@ -144,6 +144,7 @@ internal sealed class WindowHost : IInputTarget
             device.MouseUp += (_, button) => router.MouseButton(button, down: false);
             device.Scroll += (_, wheel) => router.Scroll(new Vector2(wheel.X, wheel.Y));
         }
+        CaptureCursor();
 
         var renderThread = new Thread(RenderLoop) { Name = "Render" };
         var simulationThread = new Thread(SimulationLoop) { Name = "Simulation" };
@@ -290,8 +291,14 @@ internal sealed class WindowHost : IInputTarget
             // The render thread starts it at the world's camera, which only it can read.
             flyStartWanted = flying;
         }
+        CaptureCursor();
+    }
+
+    // Raw mode gives the mouse movement without the pointer's acceleration, where the system offers it.
+    private void CaptureCursor()
+    {
         foreach (IMouse device in input!.Mice)
-            device.Cursor.CursorMode = !flying ? CursorMode.Normal : device.Cursor.IsSupported(CursorMode.Raw) ? CursorMode.Raw : CursorMode.Disabled;
+            device.Cursor.CursorMode = !router.CapturesCursor ? CursorMode.Normal : device.Cursor.IsSupported(CursorMode.Raw) ? CursorMode.Raw : CursorMode.Disabled;
     }
 
     public void Close() => window.Close();

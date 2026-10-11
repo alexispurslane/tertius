@@ -55,7 +55,12 @@ public static class DemoScenes
     /// <item>The frame <c>ship</c>, a 20 by 8 by 60 m hull in a bubble of radius 100 m, falls freely in Earth's gravity:
     /// Jolt integrates it, with no damping. It starts on a circle 400 km up, crossing the equator northward at +X, tilted
     /// 51.64 degrees, with its belly toward Earth and its nose along its motion. Its spin, one turn per orbit, keeps it so.
-    /// At the start the sun stands straight above it.</item>
+    /// At the start the sun stands straight above it. In Earth's frame its hull is a solid box. In its own frame the hull
+    /// is hollow: six slabs 0.5 m thick around a cabin 19 by 7 by 59 m. Only the cabin has gravity: 9.81 m/s² toward the
+    /// belly. Five lamps under the roof light the cabin, because the hull keeps the sunlight out.</item>
+    /// <item>The <c>person</c>, a capsule character 1.8 m tall, stands on the cabin floor 10 m aft of the ship's center and
+    /// faces the nose. <see cref="PersonControl"/> walks it and turns its view from the <c>input</c> topic. Its eye, 1.65 m
+    /// above the floor, is a view.</item>
     /// <item>The view <c>chase</c>, the camera at the start, rides in the ship's frame, 70 m behind it and 12 m above it,
     /// and looks at the ship's center.</item>
     /// <item>The view <c>far</c> stands in <c>earth</c>, three Earth radii from its center, 30 degrees north of the
@@ -116,22 +121,62 @@ public static class DemoScenes
         // The circle that the ship starts on gives its state at the world's time. From there, gravity alone moves it.
         KeplerOrbit start = KeplerOrbit.Circular(OrbitRadius, EarthMu) with { Inclination = OrbitInclination, Attitude = KeplerAttitude.FacesParent };
         (Double3 position, Double3 velocity) = start.StateAt(world.Time);
+        (Vector3 Center, Vector3 HalfExtents)[] slabs = HullSlabs(Hull, HullWall);
+        Vector3 cabin = Hull - new Vector3(HullWall);
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = earth,
             Pose = new DPose(position, start.RotationAt(world.Time)),
             LinearVelocity = velocity.ToVector3(),
             AngularVelocity = start.AngularVelocityAt(world.Time).ToVector3(),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0),
-            // The bubble holds the hull and the chase camera, 71 m from the ship's center.
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics),
-            Render = Drawn(resources, Primitives.Box(new Vector3(10, 4, 30)), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32),
+            // In Earth's frame the hull is a solid box. Inside the ship's own frame it is hollow: the person walks on its
+            // floor, and a later airlock lets the person out onto its outer faces.
+            Body = new BodyDesc(new BoxShapeDesc(Hull), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
+                InteriorShape: new CompoundShapeDesc([.. slabs.Select(slab => new CompoundChild(new BoxShapeDesc(slab.HalfExtents), new Pose(slab.Center, Quaternion.Identity)))])),
+            // The bubble holds the hull and the chase camera, 71 m from the ship's center. The ship falls freely, so only
+            // its own field acts inside it: one standard gravity toward its belly, in the cabin alone.
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics,
+                GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(-cabin, cabin))),
+            Render = Drawn(resources, Boxes(slabs), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32),
         });
         scene.Add("ship", ship);
+        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+
+        // Five lamps under the roof, 12 m apart, light the cabin, because the hull keeps the sunlight out. Local lights
+        // cast no shadows yet, but the cabin is one box, so nothing stands between a lamp and a face that it lights, and
+        // the outer faces of the hull face away from every lamp. Each lamp is a glowing panel, with its light just below.
+        MeshId lampMesh = resources.CreateMesh(Primitives.Box(new Vector3(0.6f, 0.05f, 0.6f)));
+        MaterialId lampMaterial = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(6, 5.4f, 4.5f)));
+        for (int i = -2; i <= 2; i++)
+            world.Spawn(new SpawnDesc
+            {
+                Frame = shipFrame,
+                Pose = new DPose(new Double3(0, cabin.Y - 0.05, 12 * i), DQuaternion.Identity),
+                Render = new RenderData
+                {
+                    Mesh = lampMesh,
+                    Material = lampMaterial,
+                    BoundingRadius = 0.85f,
+                    Flags = RenderFlags.Visible,
+                    Light = new LightData { Enabled = true, Color = new Vector3(1, 0.9f, 0.75f), Intensity = 100, Range = 20, Offset = new Pose(new Vector3(0, -0.1f, 0), Quaternion.Identity) },
+                },
+            });
+
+        // The person stands on the cabin floor, 10 m aft of the ship's center, and faces the nose. The capsule is 1.8 m
+        // tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
+        scene.Add("person", world.Spawn(new SpawnDesc
+        {
+            Frame = shipFrame,
+            Pose = new DPose(new Double3(0, -cabin.Y + 0.95, 10), DQuaternion.Identity),
+            Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+            Render = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1),
+            Components = [new PersonControl(new Vector3(0, 0.75f, 0))],
+            Subscriptions = [Topics.Input],
+        }));
 
         Entity chase = world.Spawn(new SpawnDesc
         {
-            Frame = world.GetOwnedFrame(ship),
+            Frame = shipFrame,
             Pose = new DPose(new Double3(0, 12, 70), DQuaternion.FromAxisAngle(new Double3(1, 0, 0), -Math.Atan2(12, 70))),
             Render = new RenderData(),
         });
@@ -147,8 +192,50 @@ public static class DemoScenes
         scene.Add("far", far);
         scene.AddView("chase");
         scene.AddView("far");
+        scene.AddView("person");
         world.Camera = chase;
         return scene;
+    }
+
+    /// <summary>The half extents of the ship's hull, in meters: 20 m wide, 8 m high and 60 m long.</summary>
+    private static readonly Vector3 Hull = new(10, 4, 30);
+
+    /// <summary>The thickness of the hull's floor, roof and walls, in meters.</summary>
+    private const float HullWall = 0.5f;
+
+    /// <summary>
+    /// The six slabs of a hollow box with outer half extents <paramref name="hull"/> and walls <paramref name="wall"/>
+    /// thick, as centers and half extents: the floor and the roof span the whole box, the side walls stand between them,
+    /// and the end walls close the room between the side walls. The slabs touch without gaps or overlaps.
+    /// </summary>
+    private static (Vector3 Center, Vector3 HalfExtents)[] HullSlabs(Vector3 hull, float wall)
+    {
+        float half = wall / 2;
+        Vector3 cabin = hull - new Vector3(wall);
+        return
+        [
+            (new Vector3(0, -hull.Y + half, 0), hull with { Y = half }),
+            (new Vector3(0, hull.Y - half, 0), hull with { Y = half }),
+            (new Vector3(-hull.X + half, 0, 0), new Vector3(half, cabin.Y, hull.Z)),
+            (new Vector3(hull.X - half, 0, 0), new Vector3(half, cabin.Y, hull.Z)),
+            (new Vector3(0, 0, -hull.Z + half), new Vector3(cabin.X, cabin.Y, half)),
+            (new Vector3(0, 0, hull.Z - half), new Vector3(cabin.X, cabin.Y, half)),
+        ];
+    }
+
+    /// <summary>One mesh of several boxes: each is a <see cref="Primitives.Box"/> of its half extents, moved to its center.</summary>
+    private static MeshData Boxes(IEnumerable<(Vector3 Center, Vector3 HalfExtents)> boxes)
+    {
+        var vertices = new List<Vertex>();
+        var indices = new List<uint>();
+        foreach ((Vector3 center, Vector3 halfExtents) in boxes)
+        {
+            MeshData box = Primitives.Box(halfExtents);
+            uint first = (uint)vertices.Count;
+            vertices.AddRange(box.Vertices.Select(vertex => vertex with { Position = vertex.Position + center }));
+            indices.AddRange(box.Indices.Select(index => index + first));
+        }
+        return new MeshData([.. vertices], [.. indices]);
     }
 
     /// <summary>The mean anomaly of an orbit with eccentricity <paramref name="e"/> at true anomaly <paramref name="trueAnomaly"/>.</summary>

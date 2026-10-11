@@ -36,7 +36,8 @@ public interface IInputTarget
 /// does, so a script runs the same with or without a person at the keyboard.</item>
 /// <item>The game sees every down that it got released: switching the fly camera on releases each key and button that the
 /// game holds, and a release whose down the game never got is dropped.</item>
-/// <item>A switch of the fly camera forgets the mouse position, because the window hides and moves the cursor.</item>
+/// <item>A switch of the fly camera forgets the mouse position, because the window can hide and move the cursor.</item>
+/// <item>The window captures the cursor in free play, and during a script while the fly camera is on.</item>
 /// </list>
 /// </summary>
 public sealed class InputRouter(bool freePlay, IInputTarget target)
@@ -46,6 +47,12 @@ public sealed class InputRouter(bool freePlay, IInputTarget target)
     private readonly HashSet<Key> heldKeys = new();
     private readonly HashSet<MouseButton> heldButtons = new();
     private bool flying;
+
+    /// <summary>
+    /// Whether the window hides the cursor and keeps it inside, so that the mouse turns a view: always in free play, where
+    /// the game turns its view with the mouse, and during a script only while the fly camera is on.
+    /// </summary>
+    public bool CapturesCursor => freePlay || flying;
 
     public void Key(Key key, bool down)
     {

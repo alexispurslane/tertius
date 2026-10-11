@@ -1,6 +1,6 @@
 ---
 id: ter-ai0t
-status: open
+status: in_progress
 deps: [ter-fe04, ter-uucg]
 links: []
 created: 2026-10-11T13:52:09Z

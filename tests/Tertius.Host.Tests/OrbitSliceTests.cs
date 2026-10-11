@@ -125,11 +125,12 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
     }
 
     [Fact]
-    public void TheSceneOffersTheChaseViewAndTheFarViewAndVTogglesBetweenThem()
+    public void TheSceneOffersTheChaseTheFarAndThePersonsViewAndVCyclesThroughThem()
     {
-        run.Scene.Views.Should().Equal("chase", "far");
+        run.Scene.Views.Should().Equal("chase", "far", "person");
         run.Scene.NextView(run.Scene["chase"]).Should().Be(run.Scene["far"]);
-        run.Scene.NextView(run.Scene["far"]).Should().Be(run.Scene["chase"]);
+        run.Scene.NextView(run.Scene["far"]).Should().Be(run.Scene["person"]);
+        run.Scene.NextView(run.Scene["person"]).Should().Be(run.Scene["chase"]);
     }
 
     [Fact]
@@ -218,6 +219,21 @@ public sealed class OrbitStartTests
     }
 
     [Fact]
+    public void OnlyTheCabinHasGravityAndItPullsTowardTheShipsBelly()
+    {
+        using World world = NewJoltWorld();
+        SceneInstance scene = DemoScenes.All.Single(s => s.Name == "orbit").Build(world, RenderResources.None);
+        FrameHandle ship = world.GetOwnedFrame(scene["ship"]);
+
+        // The ship falls freely, so its proper acceleration is zero, and only its own field acts inside it. The belly, -Y,
+        // faces Earth. Outside the hull, a person on a spacewalk floats.
+        world.Frames.EffectiveGravity(ship, new Double3(3, -2, 20)).Should().Be(new System.Numerics.Vector3(0, -9.81f, 0));
+        world.Frames.EffectiveGravity(ship, new Double3(0, 6, 0)).Should().Be(System.Numerics.Vector3.Zero);
+        world.Frames.EffectiveGravity(ship, new Double3(12, 0, 0)).Should().Be(System.Numerics.Vector3.Zero);
+        world.Frames.EffectiveGravity(ship, new Double3(0, 0, -40)).Should().Be(System.Numerics.Vector3.Zero);
+    }
+
+    [Fact]
     public void SpaceHasNoSkyOrGroundSoTheAmbientLightIsTheSameFromEveryDirection()
     {
         using World world = NewJoltWorld();
@@ -264,20 +280,6 @@ public sealed class OrbitSliceImageTests : IDisposable
 
     public void Dispose() => Directory.Delete(folder, recursive: true);
 
-    private static (int R, int G, int B) Average(Png image, int x, int y)
-    {
-        int r = 0, g = 0, b = 0;
-        for (int dy = -2; dy <= 2; dy++)
-            for (int dx = -2; dx <= 2; dx++)
-            {
-                (int pr, int pg, int pb) = image.At(x + dx, y + dy);
-                r += pr;
-                g += pg;
-                b += pb;
-            }
-        return (r / 25, g / 25, b / 25);
-    }
-
     /// <summary>The chase capture with the ship <paramref name="degrees"/> along its first circle, as the world starts there.</summary>
     private Png ChaseAt(double degrees, string name)
     {
@@ -302,8 +304,8 @@ public sealed class OrbitSliceImageTests : IDisposable
     {
         // Past the terminator, the ship's nose points away from the sun, so its back face, which the chase camera sees,
         // faces it: at 100 degrees the sun still lights it; at 120 degrees Earth's shadow covers the ship.
-        (int r, int g, int b) day = Average(ChaseAt(100, "dusk"), 640, 440);
-        (int r, int g, int b) night = Average(ChaseAt(120, "umbra"), 640, 440);
+        (int r, int g, int b) day = ChaseAt(100, "dusk").Average(640, 440);
+        (int r, int g, int b) night = ChaseAt(120, "umbra").Average(640, 440);
 
         (day.r > 150).Should().BeTrue($"before the shadow, the back face is sunlit, not {day}");
         (night.r + night.g + night.b < 120).Should().BeTrue($"in Earth's shadow, the back face is dark, not {night}");
@@ -333,23 +335,23 @@ public sealed class OrbitSliceImageTests : IDisposable
         // back face, which the camera sees below the top, is edge-on to it. Earth's horizon, 19.8 degrees below level from
         // 400 km up, crosses the image below the ship.
         Png chase = Png.Load(Path.Combine(folder, "chase.png"));
-        (int r, int g, int b) top = Average(chase, 640, 340);
+        (int r, int g, int b) top = chase.Average(640, 340);
         (top.r > 150 && Math.Abs(top.r - top.g) < 12 && Math.Abs(top.g - top.b) < 12).Should().BeTrue($"the hull's top is sunlit gray, not {top}");
-        (int r, int g, int b) back = Average(chase, 640, 440);
+        (int r, int g, int b) back = chase.Average(640, 440);
         (back.r + back.g + back.b < 120).Should().BeTrue($"the hull's back is edge-on to the sun overhead, so it is dark, not {back}");
-        (int r, int g, int b) ground = Average(chase, 300, 650);
+        (int r, int g, int b) ground = chase.Average(300, 650);
         (ground.b > ground.r + 40).Should().BeTrue($"Earth below is blue, not {ground}");
-        (int r, int g, int b) sky = Average(chase, 640, 120);
+        (int r, int g, int b) sky = chase.Average(640, 120);
         (sky.r + sky.g + sky.b < 90).Should().BeTrue($"the sky above is dark, not {sky}");
 
         // From three Earth radii out, the planet's disc spans 39 degrees of the 60-degree view, around the middle. The sun,
         // at Earth's +X, is 90 degrees from the line of sight, so the right half of the disc is lit and the left half is night.
         Png far = Png.Load(Path.Combine(folder, "far.png"));
-        (int r, int g, int b) day = Average(far, 800, 400);
+        (int r, int g, int b) day = far.Average(800, 400);
         (day.b > day.r + 60).Should().BeTrue($"the sunward side of the planet is blue, not {day}");
-        (int r, int g, int b) night = Average(far, 500, 380);
+        (int r, int g, int b) night = far.Average(500, 380);
         (night.r + night.g + night.b < 40).Should().BeTrue($"the night side of the planet is dark, not {night}");
-        (int r, int g, int b) space = Average(far, 60, 60);
+        (int r, int g, int b) space = far.Average(60, 60);
         (space.r + space.g + space.b < 90).Should().BeTrue($"the corner is space, not {space}");
     }
 }

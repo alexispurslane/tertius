@@ -32,6 +32,21 @@ public sealed class Png(byte[] rgba, int width, int height)
         return (rgba[i], rgba[i + 1], rgba[i + 2]);
     }
 
+    /// <summary>The mean color of the 5 by 5 pixels centered on a pixel, 0 to 255 per channel.</summary>
+    public (int R, int G, int B) Average(int x, int y)
+    {
+        int r = 0, g = 0, b = 0;
+        for (int dy = -2; dy <= 2; dy++)
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                (int pr, int pg, int pb) = At(x + dx, y + dy);
+                r += pr;
+                g += pg;
+                b += pb;
+            }
+        return (r / 25, g / 25, b / 25);
+    }
+
     /// <summary>True if the pixel is clearly orange: red well above blue, and green above blue.</summary>
     public bool IsOrange(int x, int y)
     {

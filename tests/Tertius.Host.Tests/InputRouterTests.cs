@@ -215,4 +215,32 @@ public class InputRouterTests
 
         window.ViewChanges.Should().Be(0);
     }
+
+    [Fact]
+    public void InFreePlayTheWindowCapturesTheCursorWithOrWithoutTheFlyCamera()
+    {
+        var router = new InputRouter(freePlay: true, new Window());
+        bool before = router.CapturesCursor;
+
+        router.Key(Key.F1, down: true);
+        bool flying = router.CapturesCursor;
+        router.Key(Key.F1, down: true);
+
+        // The game turns its view with the mouse, so the cursor never leaves the window.
+        (before, flying, router.CapturesCursor).Should().Be((true, true, true));
+    }
+
+    [Fact]
+    public void DuringAScriptTheWindowCapturesTheCursorOnlyForTheFlyCamera()
+    {
+        var router = new InputRouter(freePlay: false, new Window());
+        bool before = router.CapturesCursor;
+
+        router.Key(Key.F1, down: true);
+        bool flying = router.CapturesCursor;
+        router.Key(Key.F1, down: true);
+
+        // The game sees no input during a script, so the cursor stays free unless the fly camera turns with it.
+        (before, flying, router.CapturesCursor).Should().Be((false, true, false));
+    }
 }
