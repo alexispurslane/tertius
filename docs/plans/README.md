@@ -22,7 +22,7 @@ ARCHITECTURE.md stays the binding design. When a plan is done, its decisions mov
 
 ## Running now
 
-- Round seven of the physics work is merged. The next round depends on a decision by the user about sleep under gravity. The other bugs from the test stage are fixed and committed.
+- The workflow `wf_ea81abf7-ccb` is round eight of the physics work. The user chose to keep sleep under gravity, so this round fixes the bodies that it freezes. It also refuses bad orbits and bad frame owners at spawn. The other bugs from the test stage are fixed and committed.
 
 The Simulation test stage is done and merged: 1,228 tests, none skipped.
 
