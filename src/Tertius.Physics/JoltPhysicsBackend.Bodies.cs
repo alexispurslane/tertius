@@ -68,7 +68,8 @@ public sealed partial class JoltPhysicsBackend
             if (desc.Motion == BodyMotion.Character)
                 throw new ArgumentException($"{entity} owns {owned}, so its body cannot be a character.");
             record.OwnedFrame = owned;
-            record.Motion = frames.Driver(owned) switch
+            record.Driver = frames.Driver(owned);
+            record.Motion = record.Driver switch
             {
                 MotionDriver.Physics => BodyMotion.Dynamic,
                 MotionDriver.Kepler => BodyMotion.Kinematic,
@@ -158,12 +159,22 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private void CreateHullFromTree(BodyRecord record, FrameHandle parent)
     {
+        DPose pose = frames.LocalPose(record.OwnedFrame);
+        var (linear, angular) = HullVelocityFromTree(record, pose);
+        CreatePrimary(record, parent, pose, linear, angular);
+    }
+
+    /// <summary>
+    /// The velocities that the hull of a record's frame needs, in Jolt's terms, to move like the frame in the tree when the
+    /// hull is at <paramref name="pose"/>: the linear velocity of the hull's center of mass, and the angular velocity.
+    /// </summary>
+    private (Vector3 Linear, Vector3 Angular) HullVelocityFromTree(BodyRecord record, in DPose pose)
+    {
         FrameHandle frame = record.OwnedFrame;
-        DPose pose = frames.LocalPose(frame);
         Vector3 angular = frames.AngularVelocity(frame);
         Double3 centerOffset = pose.TransformDirection(shapes.Get(record.Desc.Shape).CenterOfMass);
         Double3 linear = frames.LinearVelocity(frame) + Double3.Cross(angular, centerOffset);
-        CreatePrimary(record, parent, pose, linear.ToVector3(), angular);
+        return (linear.ToVector3(), angular);
     }
 
     private void CreateInterior(BodyRecord record)
@@ -174,14 +185,20 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// What a rigid body is apart from its state: everything that it keeps for its whole life. The backend never changes
-    /// any of it after the body exists, so the spec of a body and its state rebuild the body exactly.
+    /// What a rigid body is apart from its state. The backend changes none of it after the body exists, except the motion
+    /// of a body whose <see cref="MotionChanges"/> is true: the hull of a frame follows the frame's driver (see
+    /// <see cref="FollowDriver"/>), and its spec then has the new motion. So the spec of a body and its state rebuild the
+    /// body exactly.
     /// </summary>
-    private readonly record struct RigidSpec(ShapeDesc Shape, MotionType Motion, ObjectLayer Layer, ulong UserData, BodyDesc Material);
+    /// <param name="MotionChanges">
+    /// True when the backend can change the body's motion type: the hull of a frame, unless it is a mesh, which never moves.
+    /// </param>
+    private readonly record struct RigidSpec(ShapeDesc Shape, MotionType Motion, ObjectLayer Layer, ulong UserData, BodyDesc Material, bool MotionChanges = false);
 
     /// <summary>The spec of a record's primary rigid body: its own body, or the hull of the frame that it owns.</summary>
     private static RigidSpec PrimarySpec(BodyRecord record) =>
-        new(record.Desc.Shape, ToMotionType(record.Motion), record.Layer, BodyUserData.Encode(BodyKind.Primary, record.Entity), record.Desc);
+        new(record.Desc.Shape, ToMotionType(record.Motion), record.Layer, BodyUserData.Encode(BodyKind.Primary, record.Entity), record.Desc,
+            MotionChanges: record.IsHull && !record.HasMesh);
 
     /// <summary>The spec of the static interior of the frame that a record owns, in the frame's own system.</summary>
     private static RigidSpec InteriorSpec(BodyRecord record) =>
@@ -220,14 +237,19 @@ public sealed partial class JoltPhysicsBackend
             LinearDamping = material.LinearDamping,
             AngularDamping = material.AngularDamping,
             MaxLinearVelocity = options.MaxLinearVelocity,
+            // Jolt changes the motion type only of a body that it created to allow the change.
+            AllowDynamicOrKinematic = spec.MotionChanges,
         };
-        if (spec.Motion == MotionType.Dynamic)
+        // A body whose motion can change keeps its mass while it is static or kinematic, for the time that it is dynamic.
+        // A body without mass never becomes dynamic.
+        if (spec.Motion == MotionType.Dynamic || (spec.MotionChanges && material.Mass > 0))
         {
             settings.OverrideMassProperties = OverrideMassProperties.CalculateInertia;
             settings.MassPropertiesOverride = new MassProperties { Mass = material.Mass };
-            // Continuous collision only costs anything when the body moves far in one step.
-            settings.MotionQuality = MotionQuality.LinearCast;
         }
+        // Continuous collision only costs anything when the body moves far in one step.
+        if (spec.Motion == MotionType.Dynamic)
+            settings.MotionQuality = MotionQuality.LinearCast;
         if (spec.Motion != MotionType.Static)
         {
             settings.LinearVelocity = linearVelocity;
@@ -361,5 +383,67 @@ public sealed partial class JoltPhysicsBackend
         RemovePrimary(owner);
         if (!parent.IsNull)
             CreateHullFromTree(owner, parent);
+    }
+
+    // ---- Following a frame's driver ----
+
+    /// <summary>
+    /// The motion that the hull of a frame with <paramref name="driver"/> has: dynamic for the physics driver, kinematic for
+    /// the Kepler driver and static for the static driver. A hull that Jolt cannot move that way is static: a mesh never
+    /// moves, and a dynamic body needs mass. A new hull never needs this rule, because the backend refuses to create a hull
+    /// that cannot move the way that its frame's driver needs.
+    /// </summary>
+    private static BodyMotion HullMotion(BodyRecord owner, MotionDriver driver) => driver switch
+    {
+        MotionDriver.Physics when !owner.HasMesh && owner.Desc.Mass > 0 => BodyMotion.Dynamic,
+        MotionDriver.Kepler when !owner.HasMesh => BodyMotion.Kinematic,
+        _ => BodyMotion.Static,
+    };
+
+    /// <summary>
+    /// Makes the motion of a frame owner's hull follow its frame's driver, after the game changed the driver with
+    /// <see cref="FrameTree.SetDriver"/>. Sets the record's driver and motion, and warns when Jolt cannot move the hull the
+    /// way that the new driver needs. Changes no body. Returns true when the motion changed, so that the hull, if the owner
+    /// has one, needs <see cref="ApplyHullMotion"/>.
+    /// </summary>
+    private bool FollowDriver(BodyRecord owner)
+    {
+        MotionDriver driver = frames.Driver(owner.OwnedFrame);
+        if (driver == owner.Driver)
+            return false;
+        owner.Driver = driver;
+        BodyMotion motion = HullMotion(owner, driver);
+        if (motion == BodyMotion.Static && driver != MotionDriver.Static)
+            log($"Physics: {owner.OwnedFrame} has the {driver} driver now, but the hull of {owner.Entity} " +
+                $"{(owner.HasMesh ? "is a mesh, which never moves" : "has no mass, so it cannot be dynamic")}. " +
+                "The hull is static, at the frame's pose in the tree.");
+        if (motion == owner.Motion)
+            return false;
+        owner.Motion = motion;
+        return true;
+    }
+
+    /// <summary>
+    /// Gives a frame owner's hull the Jolt motion type of the record's motion. The hull keeps its BodyID, its system and
+    /// its contacts. Like a hull that the reconcile moves to another system, it takes the frame's pose and velocity from
+    /// the tree.
+    /// </summary>
+    private void ApplyHullMotion(BodyRecord owner)
+    {
+        BodyInterface bodies = owner.World!.Bodies;
+        BodyID hull = owner.Body;
+        MotionType motion = ToMotionType(owner.Motion);
+        Activation activation = motion == MotionType.Static ? Activation.DontActivate : Activation.Activate;
+        bodies.SetMotionType(hull, motion, activation);
+        // The same motion quality as a hull that the backend creates with this motion (see Settings).
+        bodies.SetMotionQuality(hull, motion == MotionType.Dynamic ? MotionQuality.LinearCast : MotionQuality.Discrete);
+        DPose pose = frames.LocalPose(owner.OwnedFrame);
+        bodies.SetRPositionAndRotation(hull, pose.Position.ToJolt(), pose.Rotation.ToJolt(), activation);
+        // Jolt stops a body that becomes static.
+        if (motion != MotionType.Static)
+        {
+            var (linear, angular) = HullVelocityFromTree(owner, pose);
+            bodies.SetLinearAndAngularVelocity(hull, linear, angular);
+        }
     }
 }

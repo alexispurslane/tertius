@@ -51,8 +51,16 @@ internal sealed class BodyRecord
     public BodyDesc Desc = null!;
     /// <summary>The bounding-sphere radius of the primary shape, about the body origin.</summary>
     public float Radius;
-    /// <summary>The motion of the primary body as Jolt sees it. For a frame hull it comes from the frame's driver.</summary>
+    /// <summary>
+    /// The motion of the primary body as Jolt sees it. For a frame hull it follows <see cref="Driver"/>, as far as Jolt can
+    /// move the hull that way.
+    /// </summary>
     public BodyMotion Motion;
+    /// <summary>
+    /// For the owner of a frame: the driver of <see cref="OwnedFrame"/> that <see cref="Motion"/> follows. It is the
+    /// frame's driver when the record was created or at the last reconcile, whichever came later.
+    /// </summary>
+    public MotionDriver Driver;
     public ObjectLayer Layer;
     /// <summary>True when the primary shape is or contains a mesh. Only static bodies can have one.</summary>
     public bool HasMesh;

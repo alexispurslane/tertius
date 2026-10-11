@@ -89,9 +89,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// poses and velocities converted. The hulls of those child frames move with them and take pose and velocity from
     /// the tree. Any other body still in the destroyed frame is removed with a warning, and so is the hull of an owner
     /// that outlives its frame. A frame in FramesDestroyed that the tree still has keeps its system, with a warning,
-    /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, and
-    /// a frame that the simulation reparents on its own are handled here or at the start of the next step, whichever
-    /// comes first.
+    /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, a
+    /// frame that the simulation reparents on its own, and a frame whose driver the game changes are handled here or at
+    /// the start of the next step, whichever comes first. A hull follows its frame's driver: dynamic for the physics
+    /// driver, kinematic for the Kepler driver, static for the static driver. A hull that Jolt cannot move the way that a
+    /// new driver needs, a mesh or a hull without mass, is static, with a warning.
     /// </para>
     /// <para>
     /// A shape that Jolt cannot build, a mesh on a body that moves, or a character without a capsule throws
@@ -118,10 +120,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>
     /// Runs one physics step for every frame with awake bodies or characters: puts every frame hull where the frame tree
-    /// says, which drops the hand-offs of the last step that the simulation refused and follows changes to the tree that
-    /// no change batch announced, then applies intents, drives kinematic frame hulls, applies gravity, moves characters,
-    /// updates every system, then reports contacts, hands bodies between frames, updates ghosts and writes body and
-    /// frame states to <paramref name="output"/>.
+    /// says, with the motion of its frame's driver, which drops the hand-offs of the last step that the simulation refused
+    /// and follows changes to the tree that no change batch announced, then applies intents, drives kinematic frame
+    /// hulls, applies gravity, moves characters, updates every system, then reports contacts, hands bodies between frames,
+    /// updates ghosts and writes body and frame states to <paramref name="output"/>.
     /// </summary>
     /// <remarks>
     /// <para>Intents, in the entity's frame axes. The intent of a frame's owner acts on the frame's hull.</para>
@@ -356,13 +358,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>
     /// Brings physics in line with the frame tree, which is the authority: drops the hand-offs of frames from the last
-    /// step, removes the systems of frames that left the tree, puts every frame hull in the system of the parent that
-    /// the tree names, and removes every ghost that the tree no longer allows. The sync point has applied or refused
-    /// each hand-off before this runs, so a hull whose hand-off the tree did not take, or whose frame the simulation
-    /// moved on its own, goes where the tree says, with the tree's pose and velocity. A system that is full grows to
-    /// take the hull. Afterwards <see cref="AssertInvariants"/> holds: every system belongs to a live frame, every
-    /// record has the bodies that it must have, every hull is in the system of its frame's parent in the tree, and every
-    /// ghost is in a frame next to its body's frame.
+    /// step, removes the systems of frames that left the tree, gives every frame hull the motion that its frame's driver
+    /// needs, puts every frame hull in the system of the parent that the tree names, and removes every ghost that the tree
+    /// no longer allows. The sync point has applied or refused each hand-off before this runs, so a hull whose hand-off
+    /// the tree did not take, or whose frame the simulation moved on its own, goes where the tree says, with the tree's
+    /// pose and velocity. A hull whose frame got a new driver keeps its body and takes the tree's pose and velocity too. A
+    /// system that is full grows to take the hull. Afterwards <see cref="AssertInvariants"/> holds: every system belongs
+    /// to a live frame, every record has the bodies that it must have, every hull is in the system of its frame's parent
+    /// in the tree and has the motion of its frame's driver, and every ghost is in a frame next to its body's frame.
     /// </summary>
     private void ReconcileFrames()
     {
@@ -373,7 +376,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         bool handedOffFrames = parentOverrides.Count > 0;
         parentOverrides.Clear();
 
-        // Every structural change of the tree, removals included, changes its version.
+        // Every structural change of the tree, removals included, and every driver change changes its version.
         // Stryker disable once Statement : the check only saves work; reconciling an unchanged tree changes nothing.
         if (frames.Version == reconciledFrameVersion && !handedOffFrames)
             return;
@@ -403,9 +406,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // After the sweep every owner's frame is alive, so this test is only a guard.
             if (!frames.IsAlive(owner.OwnedFrame))
                 continue;
+            // The hull's motion follows the frame's driver, and its system follows the frame's parent. A hull that moves
+            // to another system has its new motion there from the start.
+            bool newMotion = FollowDriver(owner);
             FrameHandle parent = frames.Parent(owner.OwnedFrame);
             if (owner.Frame != parent)
                 PlaceHullFromTree(owner, parent);
+            else if (newMotion && owner.HasPrimary)
+                ApplyHullMotion(owner);
         }
 
         // Ghosts follow the tree too. A frame that the game moved, or a hull that moved, can leave a ghost in a frame
@@ -432,6 +440,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// owners.</item>
     /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
     /// and the owner of a root frame has no hull.</item>
+    /// <item>Every frame owner follows its frame's driver: the record has that driver and the motion that
+    /// <see cref="HullMotion"/> gives for it, and Jolt moves the hull with that motion.</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame (see
     /// <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
     /// </list>
@@ -476,6 +486,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(!owner.HasPrimary);
             else
                 Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
+            Contract.Invariant(owner.Driver == frames.Driver(owner.OwnedFrame) && owner.Motion == HullMotion(owner, owner.Driver));
+            if (owner.HasPrimary)
+                Contract.Invariant(owner.World!.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
         }
     }
 

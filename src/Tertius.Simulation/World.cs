@@ -81,7 +81,11 @@ public sealed partial class World : IDisposable
             physicsWorker = new PhysicsWorker(physics, stepOutput);
     }
 
-    /// <summary>The reference frames. Mutate it only through the world; read it freely.</summary>
+    /// <summary>
+    /// The reference frames. Read it freely. Outside a tick, a game can give a frame a new motion driver with
+    /// <see cref="FrameTree.SetDriver"/>, for example to park a ship, and physics follows at its next step. Make every
+    /// other change through the world.
+    /// </summary>
     public FrameTree Frames { get; } = new();
 
     /// <summary>Completed ticks. During a tick, the number of the tick that is running.</summary>

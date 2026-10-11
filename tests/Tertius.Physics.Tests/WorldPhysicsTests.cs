@@ -70,4 +70,40 @@ public class WorldPhysicsTests
         log.Seen.Should().ContainSingle("the ball never left the floor, so its collision did not start again");
         world.Errors.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// The reviewer's probe W4: a ship flies through space at 10 m/s, and between ticks the game parks it by giving its
+    /// frame the static driver. Physics follows the change, so it reports no state for the parked frame, and the sync
+    /// point finds nothing wrong, in a Debug build and in a Release build.
+    /// </summary>
+    [Fact]
+    public void AShipThatTheGameParksStopsWhereItIsWithNoError()
+    {
+        var warnings = new List<string>();
+        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2, Log = warnings.Add });
+        using World world = NewWorld(backend);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            LinearVelocity = new Vector3(10, 0, 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+        });
+        FrameHandle ship = world.GetOwnedFrame(owner);
+        for (int i = 0; i < 5; i++)
+            world.Tick();
+        DPose parked = world.Frames.LocalPose(ship);
+        parked.Position.X.Should().BeGreaterThan(0.5, "the ship flew for 5 ticks");
+
+        world.Frames.SetDriver(ship, MotionDriver.Static);
+        for (int i = 0; i < 3; i++)
+            world.Tick();
+
+        world.Errors.Should().BeEmpty();
+        warnings.Should().BeEmpty();
+        world.Frames.LocalPose(ship).Should().Be(parked);
+        world.GetPose(owner).Should().Be(parked);
+        world.GetVelocity(owner).Should().Be(Vector3.Zero);
+    }
 }

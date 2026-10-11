@@ -21,11 +21,16 @@ public sealed class FrameTree
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
     private Vector3[] properAcceleration = new Vector3[64];
+    // The number of calls to SetDriver that changed a frame's driver.
+    private int driverChanges;
 
     public int Count => poses.Count;
 
-    /// <summary>Increments on every structural change.</summary>
-    public int Version => poses.Version;
+    /// <summary>
+    /// Changes on every structural change (add, remove or reparent) and on every driver change. Physics compares it with
+    /// the version that it last followed.
+    /// </summary>
+    public int Version => poses.Version + driverChanges;
 
     public FrameHandle Create(
         Entity frameOwner,
@@ -121,7 +126,32 @@ public sealed class FrameTree
     public void SetLocalPose(FrameHandle frame, in DPose pose) => poses.Local(Node(frame)) = pose;
 
     public ref FrameBounds Bounds(FrameHandle frame) => ref bounds[Node(frame).Id];
-    public ref MotionDriver Driver(FrameHandle frame) => ref driver[Node(frame).Id];
+
+    /// <summary>What moves the frame. <see cref="SetDriver"/> changes it.</summary>
+    public MotionDriver Driver(FrameHandle frame) => driver[Node(frame).Id];
+
+    /// <summary>
+    /// Gives a frame a new motion driver, for example to park a ship. A frame that gets the static driver stops where it
+    /// is: both of its velocities become zero, and it keeps its proper acceleration, so the cargo of a ship that is parked
+    /// on the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until that driver
+    /// moves it. A new driver changes <see cref="Version"/>, so physics follows the change at the start of its next step,
+    /// the same way that it follows a reparent. The driver that the frame has already changes nothing. Throws
+    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    public void SetDriver(FrameHandle frame, MotionDriver motion)
+    {
+        int id = Node(frame).Id;
+        if (driver[id] == motion)
+            return;
+        driver[id] = motion;
+        driverChanges++;
+        if (motion == MotionDriver.Static)
+        {
+            linearVelocity[id] = Double3.Zero;
+            angularVelocity[id] = Vector3.Zero;
+        }
+    }
+
     public ref KeplerOrbit Orbit(FrameHandle frame) => ref orbit[Node(frame).Id];
     public ref GravityField Gravity(FrameHandle frame) => ref gravity[Node(frame).Id];
 
