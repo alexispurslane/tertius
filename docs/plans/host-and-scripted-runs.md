@@ -152,14 +152,18 @@ The demo shows the engine's main idea working end to end:
 3. The person goes through an airlock to the outside.
 4. The person throws an object from one frame into another.
 
-Step 1, the ship's orbit (ticket `ter-fe04`), is the Demo's scene `orbit` and the script `scripts/orbit.json`. The user chose each point marked (User).
+Step 1, the ship's orbit (tickets `ter-fe04` and `ter-uucg`), is the Demo's scene `orbit` and the script `scripts/orbit.json`. The user chose each point marked (User).
 
-- The planet has Earth's radius and gravity, and the ship orbits 400 km up, once in 92.4 minutes. (User) A full orbit runs headless in about 30 s. `--speed 60` plays it in the window in about 1.5 minutes.
-- The ship faces the planet: its nose points along its orbit and its belly toward the planet, through the Kepler attitude `FacesParent`. (User)
-- The scene has two views. (User) `chase` rides 70 m behind the ship and 12 m above it. `far` stands three Earth radii out and shows the whole planet, where the ship is too small to see. In free play, V switches between them. A script switches them with camera steps.
-- The script captures both views and dumps the state at the start and after each quarter of the orbit. A quarter is 83,172.83 ticks, and the script runs 83,173, so the ship ends each quarter about 22 m past the mark. The float tick length adds 0.55 m per quarter (ticket `ter-xshi`).
-- The ship's bubble has a radius of 100 m, so it holds the hull and the chase camera. The sun has the real sun's radius at 1 AU, so the light has the real sun's angular size.
-- The tests of the scene run 20 s across the far side of the orbit, where the mean anomaly wraps from π to -π. The full orbit is the manual run of `scripts/orbit.json`.
+- The frame tree follows the real sky. (User) The sun is the root frame, with the sun's gravity and real radius, and it is the light. The frame `earth` goes round it on Earth's real orbit and does not turn. It leans by Earth's 23.44 degree obliquity, so its axes follow the equator. The frame `earth-surface` sits at Earth's center and turns once per sidereal day with the Spin driver (User). It draws the planet and casts its shadow.
+- The ship falls freely round Earth: Jolt integrates it in Earth's gravity, with no damping. (User) It starts on a circle 400 km up, tilted 51.64 degrees to the equator as the ISS flies, once in 92.4 minutes. Its spin keeps its belly toward Earth and its nose along its motion. Over one orbit it strays about 350 m from the exact circle, mostly along its track, and its height swings by about 110 m. Jolt keeps velocities as floats, and it adds each tick's pull to the velocity before it moves the ship.
+- The ship orbits `earth`, not `earth-surface`, because an orbit in a turning frame turns with it.
+- The scene starts at the March equinox, with the sun straight above the ship. The ship enters Earth's shadow on the far side of its orbit.
+- A full orbit runs headless in about 30 s. `--speed 60` plays it in the window in about 1.5 minutes.
+- The scene has two views. (User) `chase` rides 70 m behind the ship and 12 m above it. `far` stands in `earth`, three Earth radii out, and shows the whole planet turn, where the ship is too small to see. In free play, V switches between them. A script switches them with camera steps.
+- The script captures both views and dumps the state at the start and after each quarter of the orbit. A quarter is 83,172.83 ticks, and the script runs 83,173.
+- Dumps keep `rootPose` relative to the root (User), which is now the sun. So a `rootPose` is about 1.5e11 m, good to 30 µm. A ship's `pose` is relative to `earth`.
+- The ship's bubble has a radius of 100 m, so it holds the hull and the chase camera. The sun has the real sun's radius, so the light has the real sun's angular size at Earth's distance.
+- The tests of the scene run 20 s across the far side of the ship's first circle, where the mean anomaly wraps from π to -π. The full orbit is the manual run of `scripts/orbit.json`.
 
 The demo starts as C# code. The [content packages and mods](content-packages.md) work later moves the content of the demo into the first content package.
 

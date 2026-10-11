@@ -414,9 +414,10 @@ The frame section `asFrame` maps to `FrameSpec`.
 | Key | Form | Default | Notes |
 |---|---|---|---|
 | `bounds` | A radius, or 3 radii (m) | None | The bubble. The resolved frame section must have one (CT3009). |
-| `driver` | `"static"`, `"kepler"` or `"physics"` | `"static"` | |
+| `driver` | `"static"`, `"kepler"`, `"spin"` or `"physics"` | `"static"` | |
 | `gravity` | `{"kind": "none"}`, `{"kind": "uniform", "acceleration": [x, y, z], "region": {"min": [...], "max": [...]}}` or `{"kind": "point", "mu": μ}` | None | `region` is optional. |
 | `orbit` | An orbit | None | A Kepler frame must have one, and other frames must not (CT7007). |
+| `spin` | `{"tilt": a rotation, "rate": rad/s, "phaseAtEpoch": rad, "epoch": s}` | None, which holds the frame still | Maps to `FrameSpin`, for a Spin frame. |
 
 An orbit has one of two kinds:
 
@@ -495,10 +496,14 @@ This example scene is `content/tertius.demo/scenes/start.scene.json`. It has a s
           "kind": "elements", "semiMajorAxis": 1.495978707e11, "eccentricity": 0.0167,
           "inclination": 0, "longitudeOfAscendingNode": 0,
           "argumentOfPeriapsis": { "deg": 102.9 }, "meanAnomalyAtEpoch": { "deg": 100.5 }, "epoch": 0,
-          "axialTilt": { "axis": [1, 0, 0], "angle": { "deg": 23.44 } },
-          "spinRate": 7.2921159e-5, "spinPhaseAtEpoch": 0
+          "axialTilt": { "axis": [1, 0, 0], "angle": { "deg": -23.44 } },
+          "spinRate": 0, "spinPhaseAtEpoch": 0
         }
       }
+    },
+    "terra-surface": {
+      "blueprint": "planets/terra-surface", "frame": "terra",
+      "asFrame": { "driver": "spin", "spin": { "rate": 7.2921159e-5 } }
     },
     "corvette": {
       "blueprint": "ships/corvette", "frame": "terra",
@@ -533,12 +538,13 @@ This example scene is `content/tertius.demo/scenes/start.scene.json`. It has a s
 In this example:
 
 - `sol` is the root frame, with no `frame` and no pose. `stars/sol` has point gravity with μ 1.32712440018e20 m³/s² and a 1e13 m bubble.
-- `planets/terra` has a Kepler driver, point gravity with μ 3.986004418e14 m³/s², a 9e8 m bubble and a 6.371e6 m sphere. Its orbit has no `parentMu`, so the preparer takes μ from `sol`.
-- `corvette` orbits 400 km above the surface of `terra`. The entities in its frame have poses in ship axes.
+- `planets/terra` has a Kepler driver, point gravity with μ 3.986004418e14 m³/s² and a 9e8 m bubble. Its orbit has no `parentMu`, so the preparer takes μ from `sol`. It does not turn: its tilt makes its axes follow the equator.
+- `planets/terra-surface` has the Spin driver, point gravity with the same μ, a bubble that ends at the top of the air, and the 6.371e6 m sphere. It turns once per sidereal day and holds the ground.
+- `corvette` orbits 400 km above the surface, in `terra`, not in `terra-surface`. A Kepler orbit is in the axes of its parent, so in the turning frame the orbit would turn once a day with the ground. The entities in the corvette's frame have poses in ship axes.
 - The doors take their poses from nodes of the ship model, and only `airlock-outer` overrides `openSeconds`. `innerDoor` and `outerDoor` are `Entity` fields with scene ids.
 - The lamp follows the outer door, and its render section changes only the light color.
 
-The spawn order of this scene is `sol`, `terra`, `corvette`, `pilot`, `crate-1`, `airlock-inner`, `airlock-outer`, `airlock`, `outer-lamp`. The lamp waits for its parent, and every other entity keeps its file position.
+The spawn order of this scene is `sol`, `terra`, `terra-surface`, `corvette`, `pilot`, `crate-1`, `airlock-inner`, `airlock-outer`, `airlock`, `outer-lamp`. The lamp waits for its parent, and every other entity keeps its file position.
 
 ### The merge rule
 

@@ -18,45 +18,111 @@ public static class DemoScenes
     /// <summary>Earth's G·M, in m³/s².</summary>
     public const double EarthMu = 3.986004418e14;
 
-    /// <summary>The radius of the ship's orbit, 400 km above the surface, in meters.</summary>
+    /// <summary>The radius of the circle that the ship starts on, 400 km above the surface, in meters.</summary>
     public const double OrbitRadius = EarthRadius + 400e3;
 
+    /// <summary>The tilt of the ship's orbit to Earth's equator, as the ISS flies: 51.64 degrees, in radians.</summary>
+    public const double OrbitInclination = 51.64 * Math.PI / 180;
+
+    /// <summary>The sun's G·M, in m³/s².</summary>
+    public const double SunMu = 1.32712440018e20;
+
+    /// <summary>The sun's radius, in meters.</summary>
+    public const double SunRadius = 6.957e8;
+
+    /// <summary>The astronomical unit, in meters.</summary>
+    public const double AstronomicalUnit = 1.495978707e11;
+
+    /// <summary>Earth's spin relative to the stars, one turn per sidereal day of 86,164.0905 s, in radians per second.</summary>
+    public const double SiderealRate = 2 * Math.PI / 86_164.0905;
+
+    /// <summary>The tilt of Earth's axis from the pole of its orbit: 23.4392811 degrees, in radians.</summary>
+    public const double Obliquity = 23.4392811 * Math.PI / 180;
+
     /// <summary>
-    /// The vertical slice's first scene: a ship on a round orbit 400 km above an Earth-sized planet, its nose along the
-    /// orbit and its belly toward the planet. The planet is the root frame <c>earth</c>, with Earth's radius and gravity
-    /// and a grid of 10-degree lines, so that its motion below the ship shows. The ship is the frame <c>ship</c>, a 20 by 8
-    /// by 60 m hull in a bubble of radius 100 m. It starts at (r, 0, 0) and goes round counterclockwise seen from +Y, once
-    /// in about 92 minutes.
+    /// The vertical slice's first scene: a ship falls freely round an Earth that goes round the sun, at the March equinox.
     /// <list type="bullet">
+    /// <item>The sun is the root frame <c>sun</c>, with the sun's gravity, drawn with its real radius. It is the light, and
+    /// it casts no shadow. Its +Y is the pole of Earth's orbit, and its +X points from the sun to Earth's place at the
+    /// September equinox, so the sun, seen from Earth, stands toward +X at the March equinox.</item>
+    /// <item>The frame <c>earth</c> goes round the sun on Earth's real orbit (1.00000261 AU, eccentricity 0.01671123,
+    /// perihelion at longitude 102.94 degrees). It does not turn: it leans by Earth's 23.44 degree obliquity, so its +Y is
+    /// Earth's north pole and its +X is the March equinox direction, as for the real Earth-centered inertial frame. It
+    /// holds Earth's gravity. The ship falls round Earth in it.</item>
+    /// <item>The frame <c>earth-surface</c> sits at Earth's center and turns about Earth's pole once per sidereal day. It
+    /// draws the planet: Earth's radius, with a grid of 10-degree lines, so its turn shows. It casts Earth's shadow, and
+    /// it has Earth's gravity for objects on the ground.</item>
+    /// <item>The frame <c>ship</c>, a 20 by 8 by 60 m hull in a bubble of radius 100 m, falls freely in Earth's gravity:
+    /// Jolt integrates it, with no damping. It starts on a circle 400 km up, crossing the equator northward at +X, tilted
+    /// 51.64 degrees, with its belly toward Earth and its nose along its motion. Its spin, one turn per orbit, keeps it so.
+    /// At the start the sun stands straight above it.</item>
     /// <item>The view <c>chase</c>, the camera at the start, rides in the ship's frame, 70 m behind it and 12 m above it,
     /// and looks at the ship's center.</item>
-    /// <item>The view <c>far</c> stands in the planet's frame, three Earth radii from its center, 30 degrees above the
-    /// orbit's plane, and looks at the center. The ship is too small to see from there.</item>
+    /// <item>The view <c>far</c> stands in <c>earth</c>, three Earth radii from its center, 30 degrees north of the
+    /// equator, and looks at the center. It shows Earth's surface turn. The ship is too small to see from there.</item>
     /// </list>
-    /// The frame <c>sun</c>, 1 AU away, is where the light comes from, so the ship has day and night. It has the real sun's
-    /// radius, so the light has the real sun's angular size.
+    /// The scene places everything for the world's current time, so a world that starts later is consistent too.
     /// </summary>
     private static SceneInstance Orbit(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle earth = world.CreateRootFrame(
-            new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)),
+        FrameHandle sun = world.CreateRootFrame(
+            new FrameSpec(FrameBounds.Sphere(1e13f), MotionDriver.Static, GravityField.Point(SunMu)),
             new RenderData
+            {
+                Mesh = resources.CreateMesh(Primitives.Sphere((float)SunRadius, 64, 32)),
+                // Black, so that only the emission shows: the sun lights the scene through world.SunFrame, not through
+                // its sphere.
+                Material = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(60, 55, 45))),
+                BoundingRadius = (float)SunRadius,
+                Flags = RenderFlags.Visible | RenderFlags.Celestial,
+            });
+        scene.Add("sun", sun.Entity);
+        world.SunFrame = sun;
+        // Sunlight above the atmosphere is bright.
+        world.SunIntensity = 2.5f;
+
+        // The pole leans from the sun's +Y toward -Z, the direction of the sun from Earth at the June solstice.
+        DQuaternion obliquity = DQuaternion.FromAxisAngle(Double3.UnitX, -Obliquity);
+        const double eccentricity = 0.01671123, perihelion = 102.93768193 * Math.PI / 180;
+        // At the March equinox, Earth is at longitude 180 degrees from the sun.
+        double meanAnomaly = MeanAnomaly(Math.PI - perihelion, eccentricity);
+        Entity earthOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = sun,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu),
+                new KeplerOrbit(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, SunMu, obliquity, 0, 0)),
+        });
+        scene.Add("earth", earthOwner);
+        FrameHandle earth = world.GetOwnedFrame(earthOwner);
+
+        scene.Add("earth-surface", world.Spawn(new SpawnDesc
+        {
+            Frame = earth,
+            // The bubble holds the air, 100 km up, and ends below the ship's orbit.
+            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + 100e3)), MotionDriver.Spin, GravityField.Point(EarthMu),
+                Spin: new FrameSpin(DQuaternion.Identity, SiderealRate)),
+            Render = new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Sphere((float)EarthRadius, 256, 128)),
                 Material = resources.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0.1f, Albedo: resources.CreateTexture(EarthGrid()))),
                 BoundingRadius = (float)EarthRadius,
-                Flags = RenderFlags.Visible | RenderFlags.Celestial,
-            });
-        scene.Add("earth", earth);
+                Flags = RenderFlags.Visible | RenderFlags.Celestial | RenderFlags.CastsShadow,
+            },
+        }));
 
+        // The circle that the ship starts on gives its state at the world's time. From there, gravity alone moves it.
+        KeplerOrbit start = KeplerOrbit.Circular(OrbitRadius, EarthMu) with { Inclination = OrbitInclination, Attitude = KeplerAttitude.FacesParent };
+        (Double3 position, Double3 velocity) = start.StateAt(world.Time);
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = earth,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f),
+            Pose = new DPose(position, start.RotationAt(world.Time)),
+            LinearVelocity = velocity.ToVector3(),
+            AngularVelocity = start.AngularVelocityAt(world.Time).ToVector3(),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0),
             // The bubble holds the hull and the chase camera, 71 m from the ship's center.
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler,
-                Orbit: KeplerOrbit.Circular(OrbitRadius, EarthMu) with { Attitude = KeplerAttitude.FacesParent }),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics),
             Render = Drawn(resources, Primitives.Box(new Vector3(10, 4, 30)), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32),
         });
         scene.Add("ship", ship);
@@ -80,21 +146,14 @@ public static class DemoScenes
         scene.AddView("chase");
         scene.AddView("far");
         world.Camera = chase;
-
-        Entity sun = world.Spawn(new SpawnDesc
-        {
-            Frame = earth,
-            Pose = new DPose(new Double3(1, 0.3, 0.6).Normalized() * 1.496e11, DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Static),
-            // The sun's radius gives the light its angular size, and so the width of the penumbra at the terminator. The
-            // sun is not drawn.
-            Render = new RenderData { BoundingRadius = 6.957e8f },
-        });
-        scene.Add("sun", sun);
-        world.SunFrame = world.GetOwnedFrame(sun);
-        // Sunlight above the atmosphere is bright.
-        world.SunIntensity = 2.5f;
         return scene;
+    }
+
+    /// <summary>The mean anomaly of an orbit with eccentricity <paramref name="e"/> at true anomaly <paramref name="trueAnomaly"/>.</summary>
+    private static double MeanAnomaly(double trueAnomaly, double e)
+    {
+        double eccentric = 2 * Math.Atan(Math.Sqrt((1 - e) / (1 + e)) * Math.Tan(trueAnomaly / 2));
+        return eccentric - e * Math.Sin(eccentric);
     }
 
     /// <summary>
