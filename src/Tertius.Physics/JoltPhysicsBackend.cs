@@ -94,7 +94,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, a
     /// frame that the simulation reparents on its own, and a frame whose driver the game changes are handled here or at
     /// the start of the next step, whichever comes first. A hull follows its frame's driver: dynamic for the physics
-    /// driver, kinematic for the Kepler driver, static for the static driver. The simulation never gives a frame a driver
+    /// driver, kinematic for the Kepler and Spin drivers, static for the static driver. The simulation never gives a frame a driver
     /// that its hull cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>). Such a driver comes only from a bug: it
     /// breaks a contract in a Debug build, and a Release build keeps the hull's motion and reports the bug (see
     /// <see cref="ReportBug"/>).

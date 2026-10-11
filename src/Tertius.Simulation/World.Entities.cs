@@ -28,8 +28,8 @@ public sealed partial class World
     /// before anything changes, for a description that the world cannot make live: a pose that is not valid (see
     /// <see cref="DPose.IsValid"/>), a velocity that is not finite, a body that physics cannot create (see
     /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>), a frame with a driver that its hull
-    /// cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>), a Kepler frame whose orbit is not valid, or a gravity
-    /// field that is not valid.
+    /// cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>), a Kepler frame whose orbit is not valid, a Spin frame
+    /// whose spin is not valid, or a gravity field that is not valid.
     /// </summary>
     public Entity Spawn(SpawnDesc desc)
     {
@@ -592,14 +592,17 @@ public sealed partial class World
         Frames.ProperAcceleration(frame) = Vector3.Zero;
     }
 
-    /// <summary>A Spin frame keeps its place in its parent and turns to its spin at <paramref name="time"/>.</summary>
+    /// <summary>
+    /// A Spin frame keeps its place in its parent and turns to its spin at <paramref name="time"/>. Like a static frame, it
+    /// keeps its proper acceleration, so the cargo of a landed ship that starts to turn keeps its weight. A new frame
+    /// starts with none.
+    /// </summary>
     private void ApplySpin(FrameHandle frame, double time)
     {
         FrameSpin spin = Frames.Spin(frame);
         Frames.SetLocalPose(frame, new DPose(Frames.LocalPose(frame).Position, spin.RotationAt(time)));
         Frames.LinearVelocity(frame) = Double3.Zero;
         Frames.AngularVelocity(frame) = spin.AngularVelocity.ToVector3();
-        Frames.ProperAcceleration(frame) = Vector3.Zero;
     }
 
     /// <summary>The owner's transform row mirrors the frame's local pose, which is the authoritative one.</summary>

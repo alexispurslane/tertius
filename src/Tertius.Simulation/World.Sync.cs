@@ -67,7 +67,7 @@ public sealed partial class World
         MakeSpawnsLive(endTime);
         FlushPhysicsChanges();
 
-        // 7. Kepler frames advance to the end of the tick, and every frame owner, then every attached entity, follows.
+        // 7. Kepler and Spin frames advance to the end of the tick, and every frame owner, then every attached entity, follows.
         AdvanceFrames(endTime);
         DeriveAttachments();
 

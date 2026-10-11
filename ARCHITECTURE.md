@@ -64,7 +64,7 @@ The sync point does these steps in this order:
 4. Swap the physics intent buffers, so that physics gets this tick's forces in the next step.
 5. Free dead entities. Increment the generation of each slot and return the slot to the free list. Tell physics to destroy their bodies.
 6. Make new entities live. If the tables are full, grow them. Tell physics to create the new bodies.
-7. Advance the Kepler frames to the end of the tick.
+7. Advance the Kepler and Spin frames to the end of the tick.
 8. Route the outboxes into inboxes.
 9. Swap the snapshot. The back tables become the front tables. Copy only dirty slots forward.
 10. Build the render snapshot and publish it to the render thread through a triple buffer.
@@ -209,8 +209,9 @@ Frames form a tree. Each frame has a double-precision `DPose` relative to its pa
 |---|---|
 | `Owner` | The entity that is the frame |
 | `Bounds` | The ellipsoid radii of the bubble, in frame axes |
-| `Driver` | `MotionDriver.Kepler`, `MotionDriver.Physics` or `MotionDriver.Static` |
+| `Driver` | `MotionDriver.Kepler`, `MotionDriver.Spin`, `MotionDriver.Physics` or `MotionDriver.Static` |
 | `Orbit` | Kepler elements, for Kepler frames |
+| `Spin` | The tilt and steady turn, for Spin frames |
 | `Gravity` | The gravity field of the frame |
 | `Velocity` | Linear and angular velocity relative to the parent |
 | `ProperAcceleration` | The acceleration that an accelerometer at the frame origin reads |
@@ -224,7 +225,7 @@ The scene graph inside a frame uses the same `PoseTree`, with the float `Pose`.
 ### Motion drivers
 
 - Kepler: the pose is a function of time, computed in doubles from the orbital elements and the attitude. The attitude `Spin` turns the frame by its axial tilt and a steady spin about its own +Y, as a planet turns. The attitude `FacesParent` points the frame's belly (-Y) at its parent and its nose (-Z) along its motion across the horizon, as a station in low orbit flies. It turns with the true anomaly, so it is exact on an oval orbit too. The frame is in free fall, so its proper acceleration is zero.
-- Spin: the frame stays at its place in its parent and turns in place, as the ground of a planet does. Its `FrameSpin` gives the rotation as a function of time: a tilt, then a steady turn about the frame's own +Y. The same math gives the Kepler attitude `Spin`. The frame's origin does not accelerate, so its proper acceleration is zero, and no centrifugal force acts on its contents.
+- Spin: the frame stays at its place in its parent and turns in place, as the ground of a planet does. Its `FrameSpin` gives the rotation as a function of time: a tilt, then a steady turn about the frame's own +Y. The same math gives the Kepler attitude `Spin`. Like a static frame, it keeps its proper acceleration: a new frame has none, and a landed ship that starts to turn keeps its cargo's weight. No centrifugal force acts on its contents.
 - Physics: the frame's hull is a dynamic body in the parent frame's physics system. Its pose and velocity come from that body after each step. The proper acceleration is the velocity change over the step minus the gravity that the parent applied.
 - Static: the pose does not change.
 
@@ -236,7 +237,7 @@ The world refuses a driver that `MotionDriver` does not define, and a driver tha
 
 A root frame has no parent, so its owner has no hull. The body of its owner is only the static interior of the frame, so the rules for a hull do not apply to it. So if the owner of a frame that has a parent and the physics driver has a body, that body is a dynamic hull.
 
-Each call to `World.SetFrameDriver` changes the version of the frame tree, also a call that gives a frame the driver that it has. Physics then follows the call at the start of its next step, as it follows a reparent. The hull keeps its body, and it gets the motion that the driver needs: dynamic for the physics driver, kinematic for the Kepler and Spin drivers, and static for the static driver. A kinematic hull carries what rests on it: a frame hull on a turning planet's hull turns with the ground. It starts from the frame's pose and velocity in the tree. So a park and an unpark between two ticks stop the ship.
+Each call to `World.SetFrameDriver` changes the version of the frame tree, also a call that gives a frame the driver that it has. Physics then follows the call at the start of its next step, as it follows a reparent. The hull keeps its body, and it gets the motion that the driver needs: dynamic for the physics driver, kinematic for the Kepler and Spin drivers, and static for the static driver. A kinematic hull carries the frame hulls that rest on it, for example a small ship on a turntable whose bubble is small. Loose bodies never touch a hull: they enter its frame's bubble first. It starts from the frame's pose and velocity in the tree. So a park and an unpark between two ticks stop the ship.
 
 A driver that the hull cannot follow comes only from a bug. It breaks a contract in a Debug build. A Release build keeps the motion of the hull and records the bug in `World.Errors`. "Output that only a bug produces" under "Physics" tells how.
 

@@ -56,6 +56,16 @@ public class KeplerOrbitTests
     }
 
     [Fact]
+    public void ASpinningOrbitStandsAtItsSpinPhaseAtItsEpochAndTurnsAtItsRate()
+    {
+        KeplerOrbit orbit = new(1e7, 0, 0, 0, 0, 0, 40, Mu, DQuaternion.Identity, 3, Math.PI / 2);
+
+        // At the epoch, a quarter turn about +Y takes +X to -Z; π/6 s later, 3 rad/s has turned it another half turn.
+        Double3.Distance(orbit.RotationAt(40).Rotate(Double3.UnitX), new Double3(0, 0, -1)).Should().BeLessThan(1e-12);
+        Double3.Distance(orbit.RotationAt(40 + Math.PI / 6).Rotate(Double3.UnitX), new Double3(-1, 0, 0)).Should().BeLessThan(1e-12);
+    }
+
+    [Fact]
     public void AnOrbitWhoseMeanAnomalyIsZeroAtItsEpochIsAtPeriapsisThen()
     {
         // Periapsis lies along +X, at a (1 - e) = 7,000 km, and the epoch is 100 s.

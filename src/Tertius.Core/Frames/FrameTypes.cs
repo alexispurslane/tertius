@@ -23,7 +23,10 @@ public enum MotionDriver : byte
 /// its own +Y, its pole, at <see cref="Rate"/>. Angles are radians, rates radians per second, times seconds. The default
 /// spin holds the frame still, with its axes parallel to its parent's.
 /// </summary>
-/// <param name="Tilt">The rotation from the parent's axes to the frame's axes at a spin angle of 0. A zero quaternion means none.</param>
+/// <param name="Tilt">
+/// The rotation from the parent's axes to the frame's axes at a spin angle of 0. Only its direction counts, so it need not be
+/// unit length. A zero quaternion means none.
+/// </param>
 /// <param name="Rate">How fast the frame turns about its pole, counterclockwise seen from the pole's tip.</param>
 /// <param name="PhaseAtEpoch">The spin angle at <paramref name="Epoch"/>.</param>
 /// <param name="Epoch">The time at which the spin angle is <paramref name="PhaseAtEpoch"/>.</param>
@@ -40,7 +43,7 @@ public record struct FrameSpin(DQuaternion Tilt, double Rate, double PhaseAtEpoc
     /// <summary>The frame's angular velocity in parent axes, in radians per second: <see cref="Rate"/> about the pole.</summary>
     public readonly Double3 AngularVelocity => Leaning.Rotate(Double3.UnitY) * Rate;
 
-    private readonly DQuaternion Leaning => Tilt.LengthSquared == 0 ? DQuaternion.Identity : Tilt;
+    private readonly DQuaternion Leaning => Tilt.LengthSquared == 0 ? DQuaternion.Identity : Tilt.Normalized();
 }
 
 /// <summary>

@@ -42,6 +42,28 @@ public class WorldSpinFrameTests
     }
 
     [Fact]
+    public void ANewSpinPutsTheHullAtItsNewPoseAtOnceInsteadOfSweepingItThere()
+    {
+        World world = NewWorld(out JoltPhysicsBackend backend);
+        using (world)
+        {
+            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+            Entity owner = SpawnTurntable(world, space, bubble: 50);
+            Tick(world, 10);
+
+            // A quarter turn more at once. Swept over one tick, it would spin the hull at about 94 rad/s for that tick.
+            world.SetFrameSpin(world.GetOwnedFrame(owner), Turning with { PhaseAtEpoch = Math.PI / 2 });
+            Tick(world, 1);
+
+            JoltPhysicsBackend.BodyFacts hull = backend.BodiesIn(space)
+                .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
+            hull.AngularVelocity.Y.Should().BeApproximately((float)Rate, 0.01f);
+            MathF.Abs(Quaternion.Dot(hull.Rotation, world.GetPose(owner).Rotation.ToQuaternion())).Should().BeGreaterThan(1 - 1e-5f);
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    [Fact]
     public void AShipWhoseHullRestsOnTheHullOfASpinFrameIsCarriedRoundByIt()
     {
         World world = NewWorld(out _);

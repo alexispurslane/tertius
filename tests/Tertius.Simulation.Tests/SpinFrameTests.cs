@@ -40,6 +40,8 @@ public class SpinFrameTests
         FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, QuarterTurnPerSecond));
 
         PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX), new Double3(0, 0, -1), 1e-12);
+        // The spawn rotation turned about +X, which would move the pole: the spin alone keeps it at +Y.
+        PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitY), Double3.UnitY, 1e-12);
     }
 
     [Fact]
@@ -122,6 +124,25 @@ public class SpinFrameTests
         PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX), new Double3(0, 0, -1), 1e-12);
     }
 
+    [Fact]
+    public void ATiltedSpinFrameTurnsAboutItsTiltedPoleAndSaysSoInItsAngularVelocity()
+    {
+        using var test = NewWorld();
+        // The pole leans 90 degrees from +Y to +X, so the frame turns about the parent's +X.
+        var tilted = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2), Math.PI / 2);
+        FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, tilted));
+        Entity tower = test.World.SpawnAt(ground, new Double3(0, 0, 10));
+
+        test.Run(TicksPerSecond);
+
+        test.World.Frames.AngularVelocity(ground).X.Should().BeApproximately(MathF.PI / 2, 1e-6f);
+        test.World.Frames.AngularVelocity(ground).Y.Should().BeApproximately(0, 1e-6f);
+        // The tower stands 10 m along the frame's +Z, which the lean leaves at the parent's +Z. A quarter turn about +X then
+        // takes +Z to -Y.
+        test.World.Snapshot.TryGetPoseIn(tower, test.Root, out DPose inRoot).Should().BeTrue();
+        PoseChecks.AssertNear(inRoot.Position, new Double3(0, -10, 0), 1e-9);
+    }
+
     // ---- Changing the driver or the spin ------------------------------------------------------------------------
 
     [Fact]
@@ -140,6 +161,28 @@ public class SpinFrameTests
         test.World.Frames.LocalPose(dock).Position.Should().Be(new Double3(5, 0, 0));
         PoseChecks.AssertNear(test.World.Frames.LocalPose(dock).Rotation.Rotate(Double3.UnitX), new Double3(0, 0, -1), 1e-12);
         test.World.GetPose(dock.Entity).Should().Be(test.World.Frames.LocalPose(dock));
+    }
+
+    [Fact]
+    public void AMovingFrameThatGetsTheSpinDriverStopsButKeepsItsProperAcceleration()
+    {
+        using var test = NewWorld();
+        // A ship that landed under the physics driver reads the ground's push on its accelerometer, so its cargo has weight.
+        FrameHandle ship = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            LinearVelocity = new Vector3(10, 0, 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics, Spin: QuarterTurnPerSecond),
+        }));
+        test.World.Frames.ProperAcceleration(ship) = new Vector3(0, 9.81f, 0);
+
+        test.World.SetFrameDriver(ship, MotionDriver.Spin);
+        test.World.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
+        test.World.Frames.ProperAcceleration(ship).Should().Be(new Vector3(0, 9.81f, 0));
+        test.Run(1);
+
+        test.World.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
+        test.World.Frames.ProperAcceleration(ship).Should().Be(new Vector3(0, 9.81f, 0), "a ship on a turntable keeps its cargo's weight, as a parked one does");
     }
 
     [Fact]

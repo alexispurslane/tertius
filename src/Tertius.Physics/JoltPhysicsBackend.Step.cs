@@ -160,7 +160,7 @@ public sealed partial class JoltPhysicsBackend
         record.PendingVelocityChange += (intent.Impulse + intent.Force * stepDt) / mass;
     }
 
-    /// <summary>Moves the kinematic hulls of Kepler frames to their end-of-step pose, and static hulls to the tree pose.</summary>
+    /// <summary>Moves the kinematic hulls of Kepler and Spin frames to their end-of-step pose, and static hulls to the tree pose.</summary>
     private void DriveKinematicHulls()
     {
         foreach (BodyRecord owner in frameOwners)

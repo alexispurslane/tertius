@@ -52,6 +52,15 @@ public class FrameSpinTests
     }
 
     [Fact]
+    public void ATiltThatIsNotUnitLengthLeansTheFrameByItsDirectionAlone()
+    {
+        var spin = new FrameSpin(new DQuaternion(Obliquity.X * 1.5, Obliquity.Y * 1.5, Obliquity.Z * 1.5, Obliquity.W * 1.5), 0.25);
+
+        ExpectNear(spin.RotationAt(3).Rotate(new Double3(0, 1, 0)), Pole);
+        ExpectNear(spin.AngularVelocity, Pole * 0.25);
+    }
+
+    [Fact]
     public void TheDefaultSpinHoldsTheFrameStillWithTheAxesOfItsParent()
     {
         FrameSpin spin = default;
@@ -67,6 +76,8 @@ public class FrameSpinTests
     [InlineData("phase NaN")]
     [InlineData("epoch infinite")]
     [InlineData("tilt NaN")]
+    [InlineData("tilt Y NaN")]
+    [InlineData("tilt Z infinite")]
     [InlineData("tilt infinite")]
     public void ASpinWithAValueThatIsNotFiniteIsNotValid(string which)
     {
@@ -77,6 +88,8 @@ public class FrameSpinTests
             "phase NaN" => new FrameSpin(DQuaternion.Identity, 1, PhaseAtEpoch: double.NaN),
             "epoch infinite" => new FrameSpin(DQuaternion.Identity, 1, Epoch: double.NegativeInfinity),
             "tilt NaN" => new FrameSpin(new DQuaternion(double.NaN, 0, 0, 1), 1),
+            "tilt Y NaN" => new FrameSpin(new DQuaternion(0, double.NaN, 0, 1), 1),
+            "tilt Z infinite" => new FrameSpin(new DQuaternion(0, 0, double.PositiveInfinity, 1), 1),
             _ => new FrameSpin(new DQuaternion(0, 0, 0, double.PositiveInfinity), 1),
         };
 
