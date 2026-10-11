@@ -22,7 +22,7 @@ On 2026-10-11, the user moved a second goal into this epic: the sun stops being 
 How the sun works today:
 
 - A scene sets `World.SunFrame` (one frame), `World.SunColor` and `World.SunIntensity`.
-- Each frame, the snapshot takes the sun's direction from the camera toward that frame's origin, and its angular radius from the render radius of the frame's owner.
+- Each frame, the snapshot takes the sun's direction from the camera toward that frame's origin. It takes the sun's angular radius from the render radius of the frame's owner.
 - The brightness is a fixed number from the scene. It does not fall off with the distance to the star.
 - Only the sun gets cascaded shadow maps, far shadows (the sphere tests in the lighting shader), and baking into impostor captures. Every other light is a point or spot light with a range, no disc and no shadows.
 
@@ -30,7 +30,7 @@ The goal:
 
 - A light is a property of an entity. A star's data gives its power and its radius, as a lamp's data does.
 - Each frame, the renderer sees every light from the camera. The direction and the angular radius come from where the light is. The brightness comes from its power over its distance squared, so sunlight dims on its own as a ship travels outward.
-- Whether a light is far follows from geometry, not from a flag. A light whose distance is huge next to the 2 km region of the shadow maps lights that region from one direction, as the sun does. A near light stays a point or spot light with a range.
+- Whether a light is far follows from geometry, not from a flag. Take a light whose distance is huge next to the 2 km region of the shadow maps. It lights that region from one direction, as the sun does. A near light stays a point or spot light with a range.
 - Every far light gets what the sun gets now: far shadows tested against its own disc, the far-shadow pruning rule measured against its own angular radius, cascaded shadow maps, and baking into impostor captures.
 
 Points for the two designs:
