@@ -7,7 +7,7 @@ created: 2026-10-11T20:44:45Z
 type: feature
 priority: 2
 assignee: Alexis Purslane
-tags: [rendering]
+tags: [rendering, long-term]
 ---
 # Add a switchable bloom pass, so that the sun and other very bright things glow
 

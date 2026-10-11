@@ -7,7 +7,7 @@ created: 2026-10-11T13:52:12Z
 type: epic
 priority: 3
 assignee: Alexis Purslane
-tags: [rendering]
+tags: [rendering, long-term]
 ---
 # Point and spot light shadows
 
