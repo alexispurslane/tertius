@@ -267,6 +267,23 @@ public class RenderSnapshotTests
     }
 
     [Fact]
+    public void AComponentReadsTheWorldsCameraThroughTheSnapshot()
+    {
+        using var test = new TestWorld();
+        Entity? seen = null;
+        Entity reader = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seen = self.Snapshot.Camera)],
+        });
+        test.World.Camera = reader;
+
+        test.Run(1);
+
+        seen.Should().Be(reader);
+    }
+
+    [Fact]
     public void AnEntityStillReadsTheRenderRowOfThePreviousTickWhileItWritesANewOne()
     {
         using var test = new TestWorld();

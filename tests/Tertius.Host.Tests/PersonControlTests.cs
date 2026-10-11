@@ -7,8 +7,9 @@ using static Tertius.Host.Tests.HostTesting;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// PersonControl: the keys and the mouse on the input topic walk a character and turn its view. A person stands on a floor
-/// in a room with 9.81 m/s² of gravity along -Y, and the tests post the input that the window would post in free play.
+/// PersonControl: the keys and the mouse on the input topic walk a character and turn its view, while the character's
+/// view is on. A person stands on a floor in a room with 9.81 m/s² of gravity along -Y, its view is the world's camera, and
+/// the tests post the input that the window would post in free play.
 /// </summary>
 public sealed class PersonControlTests : IDisposable
 {
@@ -17,7 +18,11 @@ public sealed class PersonControlTests : IDisposable
     private readonly World world = NewJoltWorld();
     private readonly Entity person;
 
-    public PersonControlTests() => person = StandOnAFloor(Vector3.UnitY);
+    public PersonControlTests()
+    {
+        person = StandOnAFloor(Vector3.UnitY);
+        world.Camera = person;
+    }
 
     /// <summary>
     /// Makes the room's gravity pull along -<paramref name="up"/>, puts a floor under the origin across that direction, and
@@ -142,6 +147,7 @@ public sealed class PersonControlTests : IDisposable
     {
         // In a second room, gravity pulls along -X, so physics turns the person's +Y to +X: a quarter turn about -Z.
         Entity sideways = StandOnAFloor(Vector3.UnitX);
+        world.Camera = sideways;
         world.Post(Event.Create(sideways, Entity.Null, new InputEvent { Kind = InputKind.MouseMove, Delta = new Vector2(-MathF.PI / 2 / PersonControl.TurnPerPixel, 0) }));
         world.Post(Event.Create(sideways, Entity.Null, new InputEvent { Kind = InputKind.KeyDown, Code = (int)Key.W }));
 
@@ -174,6 +180,32 @@ public sealed class PersonControlTests : IDisposable
         // Straight up or down, the turn of the view about the vertical would have no meaning.
         down.Should().BeInRange(-0.99999f, -0.9999f);
         up.Should().BeInRange(0.9999f, 0.99999f);
+    }
+
+    [Fact]
+    public void WhileAnotherViewIsOnThePersonIgnoresTheKeysAndTheMouse()
+    {
+        world.Camera = world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Render = new RenderData() });
+        MoveMouse(300, 200);
+        Press(Key.W);
+
+        ExpectNear(WalkingVelocity(), Vector3.Zero, 0.05f);
+        View.Should().Be(Quaternion.Identity);
+    }
+
+    [Fact]
+    public void WhenItsViewGoesOffThePersonStopsAndLetsGoOfTheKeysThatItHeld()
+    {
+        Press(Key.W);
+        Ticks(10);
+        Entity other = world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Render = new RenderData() });
+        world.Camera = other;
+        Vector3 away = WalkingVelocity();
+        world.Camera = person;
+
+        // W is still down at the keyboard, but the window posts no second down, so the person waits for a new press.
+        ExpectNear(away, Vector3.Zero, 0.05f);
+        ExpectNear(WalkingVelocity(), Vector3.Zero, 0.05f);
     }
 
     [Fact]

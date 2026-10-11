@@ -5,10 +5,11 @@ using Tertius.Simulation;
 namespace Tertius.Demo;
 
 /// <summary>
-/// Lets the keyboard and the mouse on the <c>input</c> topic walk a person and turn its view: W, A, S and D walk forward,
-/// left, back and right, Space jumps, and the mouse turns the view, and with it the direction of the walk. Its entity
-/// needs a character body and a subscription to <see cref="Topics.Input"/>. The component sets the entity's view offset,
-/// so the entity is a first-person camera.
+/// Lets the keyboard and the mouse on the <c>input</c> topic walk a person and turn its view, while the person's view is
+/// on: W, A, S and D walk forward, left, back and right, Space jumps, and the mouse turns the view, and with it the
+/// direction of the walk. Its entity needs a character body and a subscription to <see cref="Topics.Input"/>. The
+/// component sets the entity's view offset, so the entity is a first-person camera. While another entity is the world's
+/// camera, the person ignores input and lets go of the keys that it held, so it stops.
 /// </summary>
 /// <remarks>
 /// <para>Only a teleport turns a character, and a teleport skips the sweep that keeps the character out of walls. So the
@@ -46,9 +47,16 @@ public sealed class PersonControl(Vector3 eye) : IComponent
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
-        for (int i = 0; i < events.Count; i++)
-            if (events[i].Is<InputEvent>())
-                Read(events[i].As<InputEvent>());
+        if (self.Snapshot.Camera == self.Entity)
+        {
+            for (int i = 0; i < events.Count; i++)
+                if (events[i].Is<InputEvent>())
+                    Read(events[i].As<InputEvent>());
+        }
+        else
+        {
+            forward = back = left = right = jump = false;
+        }
 
         Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw);
         self.Render.ViewOffset = new Pose(eye, turn * Quaternion.CreateFromAxisAngle(Vector3.UnitX, pitch));

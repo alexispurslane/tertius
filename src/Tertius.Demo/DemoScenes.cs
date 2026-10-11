@@ -59,8 +59,8 @@ public static class DemoScenes
     /// is hollow: six slabs 0.5 m thick around a cabin 19 by 7 by 59 m. Only the cabin has gravity: 9.81 m/s² toward the
     /// belly. Five lamps under the roof light the cabin, because the hull keeps the sunlight out.</item>
     /// <item>The <c>person</c>, a capsule character 1.8 m tall, stands on the cabin floor 10 m aft of the ship's center and
-    /// faces the nose. <see cref="PersonControl"/> walks it and turns its view from the <c>input</c> topic, in every view.
-    /// Its eye, 1.65 m above the floor, is a view.</item>
+    /// faces the nose. Its eye, 1.65 m above the floor, is a view. While that view is on, <see cref="PersonControl"/> walks
+    /// it and turns its view from the <c>input</c> topic.</item>
     /// <item>The view <c>chase</c>, the camera at the start, rides in the ship's frame, 70 m behind it and 12 m above it,
     /// and looks at the ship's center.</item>
     /// <item>The view <c>far</c> stands in <c>earth</c>, three Earth radii from its center, 30 degrees north of the

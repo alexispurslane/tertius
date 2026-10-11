@@ -16,6 +16,9 @@ public readonly struct Snapshot
     /// <summary>The tick number of the state that this snapshot shows.</summary>
     public long Tick => world.TickNumber;
 
+    /// <summary>The world's camera. Only code between ticks changes it, so it holds for the whole tick.</summary>
+    public Entity Camera => world.Camera;
+
     /// <summary>The frame tree. It does not change during a tick.</summary>
     public FrameTree Frames => world.Frames;
 
