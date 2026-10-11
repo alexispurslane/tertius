@@ -157,6 +157,8 @@ public class ScriptParsingTests
     [InlineData(0, 360)]
     [InlineData(640, -1)]
     [InlineData(16385, 360)]
+    [InlineData(640, 0)]
+    [InlineData(640, 16385)]
     public void AWindowSideOutsideOneTo16384PixelsIsRefused(int width, int height)
     {
         Action parse = () => Script.Parse($$"""{ "scene": "lit-box", "window": { "width": {{width}}, "height": {{height}} }, "steps": [ { "do": "run", "ticks": 1 } ] }""");
@@ -190,5 +192,16 @@ public class ScriptParsingTests
         Script script = Script.Parse("""{ "scene": "lit-box", "steps": [ { "do": "capture", "name": "end" }, { "do": "dump", "name": "end" } ] }""");
 
         script.Steps.Should().HaveCount(2);
+    }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(16384, 1)]
+    [InlineData(1, 16384)]
+    public void AWindowSideOfOneTo16384PixelsIsAccepted(int width, int height)
+    {
+        Script script = Script.Parse($$"""{ "scene": "lit-box", "window": { "width": {{width}}, "height": {{height}} }, "steps": [ { "do": "run", "ticks": 1 } ] }""");
+
+        script.Window.Should().Be(new ScriptWindow(width, height));
     }
 }

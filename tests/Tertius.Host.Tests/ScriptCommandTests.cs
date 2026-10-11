@@ -130,4 +130,18 @@ public sealed class ScriptCommandTests : IDisposable
         code.Should().Be(ScriptCommand.Ok, error.ToString());
         error.ToString().Should().Contain("hello from the logger");
     }
+
+    [Fact]
+    public void AScriptWithoutCapturesRunsWithNoRendererAndTheDemoSceneStillMakesItsEntities()
+    {
+        string script = ScriptFile("""{ "scene": "drop-box", "steps": [ { "do": "run", "ticks": 120 }, { "do": "dump", "name": "landed" } ] }""");
+
+        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], Tertius.Demo.DemoScenes.All, output, error,
+            _ => throw new InvalidOperationException("a script without captures makes no renderer"));
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        using var landed = System.Text.Json.JsonDocument.Parse(File.ReadAllText(Path.Combine(Out, "landed.json")));
+        System.Text.Json.JsonElement box = landed.RootElement.GetProperty("entities").EnumerateArray().Single(e => e.GetProperty("id").GetString() == "box");
+        box.GetProperty("pose").GetProperty("position")[1].GetDouble().Should().BeApproximately(0.5, 0.02);
+    }
 }

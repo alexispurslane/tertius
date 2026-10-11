@@ -44,8 +44,8 @@ public static class ScriptRunner
                 case ReadyPost post:
                     world.Post(post.Event);
                     break;
-                case ReadyCamera camera:
-                    world.Camera = camera.Entity;
+                case ReadyCamera(Entity entity, string where):
+                    world.Camera = world.IsAlive(entity) ? entity : throw new ScriptException($"{where}: at tick {world.TickNumber}, the entity '{scene.IdOf(entity)}' is not alive.");
                     break;
                 case ReadyDump(string name):
                     StateDump dump = recorder.Take(name);
@@ -53,7 +53,10 @@ public static class ScriptRunner
                     if (outputFolder != null)
                         File.WriteAllText(Path.Combine(outputFolder, name + ".json"), JsonSerializer.Serialize(dump, dumpJson) + "\n");
                     break;
-                case ReadyCapture(string path):
+                case ReadyCapture(string path, string where):
+                    // The check before the first tick saw a live camera, but a component may have destroyed it since.
+                    if (!world.IsAlive(world.Camera))
+                        throw new ScriptException($"{where}: at tick {world.TickNumber}, the camera '{scene.IdOf(world.Camera)}' is not alive.");
                     Capture(world, renderer!, path);
                     captures.Add(path);
                     break;
@@ -84,11 +87,11 @@ public static class ScriptRunner
 
     private sealed record ReadyPost(Event Event) : ReadyStep;
 
-    private sealed record ReadyCamera(Entity Entity) : ReadyStep;
+    private sealed record ReadyCamera(Entity Entity, string Where) : ReadyStep;
 
     private sealed record ReadyDump(string Name) : ReadyStep;
 
-    private sealed record ReadyCapture(string Path) : ReadyStep;
+    private sealed record ReadyCapture(string Path, string Where) : ReadyStep;
 
     /// <summary>
     /// Checks every step and resolves its names before the first tick, so that a bad step changes nothing. Throws
@@ -99,23 +102,39 @@ public static class ScriptRunner
         script.CheckSteps();
         JsonSerializerOptions json = ScriptJson.Payloads(world, scene);
         var ready = new ReadyStep[script.Steps.Count];
+        // The camera that each capture will use, as the camera steps before it set it.
+        Entity camera = world.Camera;
         for (int i = 0; i < script.Steps.Count; i++)
         {
             ScriptStep step = script.Steps[i];
             string where = $"step {i + 1}";
-            ready[i] = step switch
+            switch (step)
             {
-                RunStep run => new ReadyRun(run.Ticks),
-                PostStep post => new ReadyPost(MakeEvent(post, world, scene, payloads, json, $"{where} (post)")),
-                CameraStep camera => new ReadyCamera(LiveEntity(camera.Entity, world, scene, $"{where} (camera)")),
-                DumpStep dump => new ReadyDump(dump.Name),
-                CaptureStep { Name: var name } when renderer is null =>
-                    throw new ScriptException($"{where} (capture): a capture of '{name}' needs a renderer, and the run has none."),
-                CaptureStep { Name: var name } when outputFolder is null =>
-                    throw new ScriptException($"{where} (capture): a capture of '{name}' needs an output folder, and the run has none."),
-                CaptureStep capture => new ReadyCapture(Path.Combine(outputFolder!, capture.Name + ".png")),
-                _ => throw new InvalidOperationException($"The runner has no arm for the step {step}."),
-            };
+                case RunStep run:
+                    ready[i] = new ReadyRun(run.Ticks);
+                    break;
+                case PostStep post:
+                    ready[i] = new ReadyPost(MakeEvent(post, world, scene, payloads, json, $"{where} (post)"));
+                    break;
+                case CameraStep cameraStep:
+                    camera = LiveEntity(cameraStep.Entity, world, scene, $"{where} (camera)");
+                    ready[i] = new ReadyCamera(camera, $"{where} (camera)");
+                    break;
+                case DumpStep dump:
+                    ready[i] = new ReadyDump(dump.Name);
+                    break;
+                case CaptureStep { Name: var name } when !world.IsAlive(camera):
+                    throw new ScriptException($"{where} (capture): a capture of '{name}' needs a live camera. Let the scene set one, or put a camera step before the capture.");
+                case CaptureStep { Name: var name } when renderer is null:
+                    throw new ScriptException($"{where} (capture): a capture of '{name}' needs a renderer, and the run has none.");
+                case CaptureStep { Name: var name } when outputFolder is null:
+                    throw new ScriptException($"{where} (capture): a capture of '{name}' needs an output folder, and the run has none.");
+                case CaptureStep capture:
+                    ready[i] = new ReadyCapture(Path.Combine(outputFolder, capture.Name + ".png"), $"{where} (capture)");
+                    break;
+                default:
+                    throw new InvalidOperationException($"The runner has no arm for the step {step}.");
+            }
         }
         return ready;
     }

@@ -32,6 +32,13 @@ public sealed class Png(byte[] rgba, int width, int height)
         return (rgba[i], rgba[i + 1], rgba[i + 2]);
     }
 
+    /// <summary>True if the pixel is clearly orange: red well above blue, and green above blue.</summary>
+    public bool IsOrange(int x, int y)
+    {
+        (int r, int g, int b) = At(x, y);
+        return r > 40 && r > 2 * b && g > b;
+    }
+
     /// <summary>True if the pixel is clearly red: the red channel stands well above the other two.</summary>
     public bool IsRed(int x, int y)
     {

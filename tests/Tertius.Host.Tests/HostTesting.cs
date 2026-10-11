@@ -129,6 +129,15 @@ public sealed class SendOnce<T>(Target target, T payload) : IComponent where T :
     }
 }
 
+/// <summary>Destroys its entity on its first tick.</summary>
+public sealed class DestroysItselfOnFirstTick : IComponent
+{
+    public int Priority => 0;
+    public EventMask Wants => EventMask.Of<Tick>();
+
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.Destroy();
+}
+
 /// <summary>Writes one line to the world's log on its first tick.</summary>
 public sealed class LogsOnce(string message) : IComponent
 {

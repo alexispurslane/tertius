@@ -34,7 +34,14 @@ public static class ScriptCommand
     /// <paramref name="output"/>, and every problem and the world's log to <paramref name="error"/>. Makes a headless
     /// renderer only for a script with a capture step, so a script with dumps only runs on a machine with no GPU.
     /// </summary>
-    public static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error)
+    public static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error) =>
+        Run(args, scenes, output, error, VulkanRenderer.CreateHeadless);
+
+    /// <summary>
+    /// <see cref="Run(string[], IReadOnlyList{Scene}, TextWriter, TextWriter)"/> with the function that makes the headless
+    /// renderer, so that a test can wrap the real one or make it fail.
+    /// </summary>
+    internal static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error, Func<RendererOptions, VulkanRenderer> createRenderer)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(scenes);
@@ -73,12 +80,13 @@ public static class ScriptCommand
             return ScriptError;
         }
 
+        using var world = new World(new WorldOptions { DisposePhysics = true }, new JoltPhysicsBackend());
         VulkanRenderer? renderer = null;
         if (script.Steps.Any(step => step is CaptureStep))
         {
             try
             {
-                renderer = VulkanRenderer.CreateHeadless(new RendererOptions { Width = script.Window.Width, Height = script.Window.Height, Impostors = false });
+                renderer = createRenderer(new RendererOptions { Width = script.Window.Width, Height = script.Window.Height, Impostors = false });
             }
             catch (Exception ex)
             {
@@ -87,7 +95,6 @@ public static class ScriptCommand
             }
         }
         // Disposed in reverse order: the renderer, then the world and its physics.
-        using var world = new World(new WorldOptions { DisposePhysics = true }, new JoltPhysicsBackend());
         using VulkanRenderer? rendererToDispose = renderer;
         // The log holds the errors, which the dumps also hold, and the engine's notes, such as a run that is no longer
         // deterministic, which only the log holds.

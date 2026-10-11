@@ -20,8 +20,14 @@ public sealed class CaptureTests : IDisposable
     /// <summary>Runs the script on a fresh world and a fresh validating renderer, and checks that validation stayed silent.</summary>
     private static RunResult Run(string json, Func<World> newWorld, Func<World, IRenderResources, SceneInstance> build, string? output)
     {
-        Script script = Script.Parse(json);
         using World world = newWorld();
+        return Run(json, world, build, output);
+    }
+
+    /// <summary>Runs the script on the given world and a fresh validating renderer, and checks that validation stayed silent.</summary>
+    private static RunResult Run(string json, World world, Func<World, IRenderResources, SceneInstance> build, string? output)
+    {
+        Script script = Script.Parse(json);
         // A small renderer: the runner resizes it to the script's window.
         VulkanRenderer renderer = Headless(16, 16);
         try
@@ -115,9 +121,29 @@ public sealed class CaptureTests : IDisposable
     [Fact]
     public void ACaptureWithoutAnOutputFolderStopsTheRunBeforeTheFirstTick()
     {
+        using World world = NewWorld();
+
         Action run = () => Run("""{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "run", "ticks": 1 }, { "do": "capture", "name": "now" } ] }""",
-            NewWorld, LitBox, output: null);
+            world, LitBox, output: null);
 
         run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("output folder");
+        world.TickNumber.Should().Be(0);
+    }
+
+    [Fact]
+    public void ACaptureAfterTheCameraEntityDiesStopsTheRunAndNamesTheStep()
+    {
+        using World world = NewWorld();
+
+        Action run = () => Run("""{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "run", "ticks": 2 }, { "do": "capture", "name": "now" } ] }""",
+            world, (w, resources) =>
+            {
+                SceneInstance scene = LitBox(w, resources);
+                w.AddComponent(scene["front"], new DestroysItselfOnFirstTick());
+                return scene;
+            }, folder);
+
+        run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("camera").And.Contain("not alive");
+        File.Exists(Path.Combine(folder, "now.png")).Should().BeFalse("an image of nothing is not written");
     }
 }

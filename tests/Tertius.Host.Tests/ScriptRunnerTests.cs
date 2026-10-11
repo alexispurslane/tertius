@@ -239,7 +239,7 @@ public class ScriptRunnerTests
         string folder = NewFolder();
         try
         {
-            Action run = () => ScriptRunner.Run(Script.Parse("""{ "scene": "test", "steps": [ { "do": "run", "ticks": 1 }, { "do": "capture", "name": "now" } ] }"""), world, scene, folder);
+            Action run = () => ScriptRunner.Run(Script.Parse("""{ "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, { "do": "capture", "name": "now" } ] }"""), world, scene, folder);
 
             run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("renderer");
             world.TickNumber.Should().Be(0);
@@ -248,5 +248,31 @@ public class ScriptRunnerTests
         {
             Directory.Delete(folder, recursive: true);
         }
+    }
+
+    [Fact]
+    public void ACaptureWithNoLiveCameraStopsTheRunBeforeTheFirstTick()
+    {
+        using World world = NewWorld();
+        // The probes scene sets no camera, and no camera step comes before the capture.
+        SceneInstance scene = Probes(world);
+
+        Action run = () => Run(world, scene, """{ "do": "run", "ticks": 1 }""", """{ "do": "capture", "name": "now" }""");
+
+        run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("camera");
+        world.TickNumber.Should().Be(0);
+    }
+
+    [Fact]
+    public void ADumpNamesNoCameraAfterTheCameraEntityIsGone()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        Run(world, scene, """{ "do": "camera", "entity": "crew" }""");
+        world.Destroy(scene["crew"]);
+
+        RunResult result = Run(world, scene, """{ "do": "dump", "name": "after" }""");
+
+        result.Dump("after").Camera.Should().BeNull("the camera entity is not alive");
     }
 }

@@ -70,7 +70,7 @@ Ticket `ter-1i4z` added these. The user chose each point marked (User).
 - `window` sets the image size in pixels, 1 to 16384 on each side. Without it, the size is 1280 by 720.
 - A `camera` step makes a live entity the camera of the world, `World.Camera`. The camera is the entity's pose composed with the view offset of its render row. (User) The scene picks the camera at the start.
 - A scripted run renders with interpolation alpha 1 and no impostor captures. So on one machine, the captures of a script are the same in every run.
-- A capture needs a renderer and an output folder. The runner checks both before the first tick.
+- A capture needs a live camera, a renderer and an output folder. The runner checks all three before the first tick. If a component destroys the camera during the run, the run stops at the next capture or camera step with an error that names the step and the tick.
 - The command makes a headless renderer only for a script that has a capture step. So a script with dumps only runs with no GPU.
 - A scene gets the resource half of the renderer, `IRenderResources`, to make its meshes and materials. A run with no renderer gives the scene `RenderResources.None`, whose meshes are `MeshId.None`. The scene makes the same entities either way.
 - A dump names the camera in `camera`.
