@@ -173,26 +173,39 @@ public class PhysicsHandOffTests
         PoseChecks.AssertNear(pilotInRoot.Position, new Double3(1100, 1, 0));
     }
 
+    // Physics hears of every destroyed entity and frame before its next step, and an entity keeps its body for life, so it
+    // hands off only live entities with bodies, into frames that the tree has. It follows the frame tree, so it never
+    // puts a frame inside itself. A hand-off that breaks any of these rules comes only from a bug in the backend.
+#if TERTIUS_CONTRACTS
     [Fact]
-    public void AHandOffOfAnEntityThatNoLongerExistsIsIgnored()
+    public void AHandOffOfAnEntityThatNoLongerExistsBreaksAContract()
     {
         IPhysicsBackend physics = TestPhysics.Create();
         using var test = new TestWorld(physics);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         Entity gone = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        Entity bystander = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), Body = TestWorld.Ball });
         test.World.Destroy(gone);
         physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(gone, test.Root, station, TestWorld.At(9), default, default)));
 
-        test.Run(1);
+        Action tick = () => test.World.Tick();
 
-        test.World.Errors.Should().BeEmpty();
-        test.World.GetFrame(bystander).Should().Be(test.Root);
+        tick.Should().Throw<ContractException>();
     }
 
-    // Physics follows the frame tree, so it hands off only into frames that the tree has, and never puts a frame inside
-    // itself. A hand-off that breaks either rule comes only from a bug in the backend.
-#if TERTIUS_CONTRACTS
+    [Fact]
+    public void AHandOffOfAnEntityWithoutABodyBreaksAContract()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        Entity bodiless = test.SpawnAt(new Double3(3, 0, 0));
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(bodiless, test.Root, station, TestWorld.At(9), default, default)));
+
+        Action tick = () => test.World.Tick();
+
+        tick.Should().Throw<ContractException>();
+    }
+
     [Fact]
     public void AHandOffToAFrameThatIsGoneBreaksAContract()
     {
@@ -222,6 +235,40 @@ public class PhysicsHandOffTests
         tick.Should().Throw<ContractException>();
     }
 #else
+    [Fact]
+    public void AHandOffOfAnEntityThatNoLongerExistsIsReportedOnceAndChangesNothing()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        Entity gone = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
+        Entity bystander = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), Body = TestWorld.Ball });
+        test.World.Destroy(gone);
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(gone, test.Root, station, TestWorld.At(9), default, default)));
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {gone}").And.Contain("no longer exists");
+        test.World.GetFrame(bystander).Should().Be(test.Root);
+        test.World.GetPose(bystander).Position.X.Should().Be(7);
+    }
+
+    [Fact]
+    public void AHandOffOfAnEntityWithoutABodyIsReportedOnceAndLeavesTheEntityWhereItWas()
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        using var test = new TestWorld(physics);
+        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        Entity bodiless = test.SpawnAt(new Double3(3, 0, 0));
+        physics.OnStep((context, output) => output.HandOffs.Add(new HandOff(bodiless, test.Root, station, TestWorld.At(9), default, default)));
+
+        test.Run(1);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {bodiless}").And.Contain("has no body");
+        test.World.GetFrame(bodiless).Should().Be(test.Root);
+        test.World.GetPose(bodiless).Position.Should().Be(new Double3(3, 0, 0));
+    }
+
     [Fact]
     public void AHandOffToAStaleFrameIsReportedAndTheEntityStaysWhereItWas()
     {

@@ -67,7 +67,7 @@ public class TransformTests
         using var test = new TestWorld(physics);
         Entity ball = default;
         physics.OnStep((context, output) =>
-            output.Bodies.Add(new BodyState(ball, FrameHandle.Null, TestWorld.At(0), new Vector3(context.Tick + 1, 0, 0), Vector3.Zero)));
+            output.Bodies.Add(new BodyState(ball, test.Root, TestWorld.At(0), new Vector3(context.Tick + 1, 0, 0), Vector3.Zero)));
         var seenThroughSelf = new List<float>();
         var seenThroughSnapshot = new List<float>();
         ball = test.World.Spawn(new SpawnDesc

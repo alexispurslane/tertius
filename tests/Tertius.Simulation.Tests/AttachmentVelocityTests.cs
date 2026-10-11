@@ -108,7 +108,7 @@ public class AttachmentVelocityTests
         Entity parent = SpawnRoot(test, velocity: Vector3.Zero, spin: Vector3.Zero);
         Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 0, 2) });
         physics.OnStep((context, output) =>
-            output.Bodies.Add(new BodyState(parent, FrameHandle.Null, TestWorld.At(context.Tick), new Vector3(0, 5, 0), new Vector3(0, 1, 0))));
+            output.Bodies.Add(new BodyState(parent, test.Root, TestWorld.At(context.Tick), new Vector3(0, 5, 0), new Vector3(0, 1, 0))));
 
         test.Run(1);
 

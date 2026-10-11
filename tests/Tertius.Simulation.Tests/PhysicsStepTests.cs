@@ -118,7 +118,7 @@ public class PhysicsStepTests
         Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(1), Body = TestWorld.Ball });
         physics.OnStep((context, output) =>
         {
-            output.Bodies.Add(new BodyState(ball, FrameHandle.Null, TestWorld.At(99), Vector3.Zero, Vector3.Zero));
+            output.Bodies.Add(new BodyState(ball, test.Root, TestWorld.At(99), Vector3.Zero, Vector3.Zero));
             throw new InvalidOperationException("solver exploded");
         });
 
@@ -137,7 +137,7 @@ public class PhysicsStepTests
         {
             if (context.Tick == 0)
                 throw new InvalidOperationException("solver exploded");
-            output.Bodies.Add(new BodyState(ball, FrameHandle.Null, TestWorld.At(context.Tick), Vector3.Zero, Vector3.Zero));
+            output.Bodies.Add(new BodyState(ball, test.Root, TestWorld.At(context.Tick), Vector3.Zero, Vector3.Zero));
         });
 
         test.Run(3);

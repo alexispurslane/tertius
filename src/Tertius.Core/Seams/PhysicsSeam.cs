@@ -155,13 +155,18 @@ public readonly struct PhysicsStepContext
     public ReadOnlyMemory<Entity> IntentEntities { get; }
 }
 
-/// <summary>The state of one body after a step, in its frame.</summary>
+/// <summary>
+/// The state of one body after a step, relative to <see cref="Frame"/>: the frame whose physics system holds the body.
+/// </summary>
 public readonly record struct BodyState(Entity Entity, FrameHandle Frame, DPose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
 
 /// <summary>Physics moved an entity's body to another frame during the step. Pose and velocities are in the new frame.</summary>
 public readonly record struct HandOff(Entity Entity, FrameHandle From, FrameHandle To, DPose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
 
-/// <summary>A contact that started during the step. Point and normal are in the frame of <see cref="A"/>.</summary>
+/// <summary>
+/// A contact that started during the step. Point and normal are in <see cref="Frame"/>, the frame whose physics system
+/// holds both bodies, and the normal points from <see cref="A"/> toward <see cref="B"/>.
+/// </summary>
 public readonly record struct ContactStarted(Entity A, Entity B, FrameHandle Frame, Double3 Point, Vector3 Normal, float Impulse);
 
 /// <summary>
@@ -170,7 +175,11 @@ public readonly record struct ContactStarted(Entity A, Entity B, FrameHandle Fra
 /// </summary>
 public readonly record struct FrameState(FrameHandle Frame, DPose LocalPose, Double3 LinearVelocity, Vector3 AngularVelocity, Vector3 ProperAcceleration);
 
-/// <summary>Results of one step. The backend fills it on the physics thread. The sync point reads and clears it.</summary>
+/// <summary>
+/// Results of one step. The backend fills it on the physics thread. The sync point reads and clears it. Every entity
+/// that the output names is live and has a body, and every frame that it names is alive and not null. The sync point
+/// treats any other output as a bug in the backend: see ARCHITECTURE.md, "Threads and the tick", step 2.
+/// </summary>
 public sealed class PhysicsStepOutput
 {
     /// <summary>Bodies that moved: awake dynamic, kinematic and character bodies.</summary>

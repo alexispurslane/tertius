@@ -5,9 +5,9 @@ namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// A contact is physics telling the world that two bodies touched during a step. The world sends a
-/// <see cref="Collision"/> to each live body, with the point and the normal in that body's own frame. The contact names
-/// its point and normal in the frame of the first body, and the normal points from the first body toward the second, so
-/// the second body hears the opposite direction.
+/// <see cref="Collision"/> to each body, with the point and the normal in that body's own frame. The contact names its
+/// point and normal in the contact's frame, the frame whose physics system holds both bodies, and the normal points from
+/// the first body toward the second, so the second body hears the opposite direction.
 /// </summary>
 public class PhysicsContactTests
 {
@@ -132,55 +132,104 @@ public class PhysicsContactTests
         PoseChecks.AssertNear(forSecond.Normal, new Vector3(0, 0, -1));
     }
 
+    // Physics hears of every destroyed entity and frame before its next step, and an entity keeps its body for life. So a
+    // contact names two live entities with bodies and a live frame, unless the backend has a bug.
+#if TERTIUS_CONTRACTS
     [Fact]
-    public void AContactThatNamesNoFrameIsPassedOnWithoutConversion()
+    public void AContactThatNamesNoFrameBreaksAContract()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        FrameHandle turned = test.SpawnStaticFrame(new DPose(new Double3(100, 0, 0), PoseChecks.QuarterTurnAboutY), radius: 50);
-        var log = new Recorder(EventMask.Of<Collision>());
-        Entity first = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        Entity second = test.World.Spawn(new SpawnDesc { Frame = turned, Body = TestWorld.Ball, Components = [log] });
-        physics.OnStep((context, output) =>
-        {
-            if (context.Tick == 0)
-                output.Contacts.Add(new ContactStarted(first, second, FrameHandle.Null, ContactPoint, ContactNormal, ContactImpulse));
-        });
+        using var scene = new Scene();
+        scene.Physics.OnStep((context, output) =>
+            output.Contacts.Add(new ContactStarted(scene.First, scene.Second, FrameHandle.Null, ContactPoint, ContactNormal, ContactImpulse)));
 
-        test.Run(2);
+        Action tick = () => scene.Test.World.Tick();
 
-        // With no frame to convert from, the world cannot convert, so the second body gets the values as they are.
-        Collision forSecond = log.Seen.Single().Event.As<Collision>();
-        forSecond.Point.Should().Be(ContactPoint);
-        forSecond.Normal.Should().Be(-ContactNormal);
+        tick.Should().Throw<ContractException>();
     }
 
     [Fact]
-    public void AContactInAFrameThatHasBeenDestroyedIsPassedOnWithoutConversion()
+    public void AContactInAFrameThatIsGoneBreaksAContract()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        FrameHandle turned = test.SpawnStaticFrame(new DPose(new Double3(100, 0, 0), PoseChecks.QuarterTurnAboutY), radius: 50);
-        FrameHandle gone = test.SpawnStaticFrame(TestWorld.At(0, 0, 5000), radius: 10);
-        test.World.Destroy(gone.Entity);
-        var log = new Recorder(EventMask.Of<Collision>());
-        Entity first = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        Entity second = test.World.Spawn(new SpawnDesc { Frame = turned, Body = TestWorld.Ball, Components = [log] });
-        physics.OnStep((context, output) =>
-        {
-            if (context.Tick == 0)
-                output.Contacts.Add(new ContactStarted(first, second, gone, ContactPoint, ContactNormal, ContactImpulse));
-        });
+        using var scene = new Scene();
+        FrameHandle gone = scene.Test.SpawnStaticFrame(TestWorld.At(0, 0, 5000), radius: 10);
+        scene.Test.World.Destroy(gone.Entity);
+        scene.Physics.OnStep((context, output) =>
+            output.Contacts.Add(new ContactStarted(scene.First, scene.Second, gone, ContactPoint, ContactNormal, ContactImpulse)));
 
-        test.Run(2);
+        Action tick = () => scene.Test.World.Tick();
 
-        test.World.Errors.Should().BeEmpty();
-        Collision forSecond = log.Seen.Single().Event.As<Collision>();
-        forSecond.Point.Should().Be(ContactPoint);
+        tick.Should().Throw<ContractException>();
     }
 
     [Fact]
-    public void AContactWithABodyThatWasDestroyedBeforeTheStepStillReachesTheLiveBodyWithoutAnError()
+    public void AContactWithAnEntityThatNoLongerExistsBreaksAContract()
+    {
+        using var scene = new Scene();
+        Entity gone = scene.Test.World.Spawn(new SpawnDesc { Frame = scene.Test.Root, Body = TestWorld.Ball });
+        scene.Test.World.Destroy(gone);
+        scene.Physics.OnStep((context, output) =>
+            output.Contacts.Add(new ContactStarted(gone, scene.Second, scene.Test.Root, ContactPoint, ContactNormal, ContactImpulse)));
+
+        Action tick = () => scene.Test.World.Tick();
+
+        tick.Should().Throw<ContractException>();
+    }
+
+    [Fact]
+    public void AContactWithAnEntityWithoutABodyBreaksAContract()
+    {
+        using var scene = new Scene();
+        Entity bodiless = scene.Test.SpawnAt(new Double3(3, 0, 0));
+        scene.Physics.OnStep((context, output) =>
+            output.Contacts.Add(new ContactStarted(scene.First, bodiless, scene.Test.Root, ContactPoint, ContactNormal, ContactImpulse)));
+
+        Action tick = () => scene.Test.World.Tick();
+
+        tick.Should().Throw<ContractException>();
+    }
+#else
+    [Fact]
+    public void AContactThatNamesNoFrameIsReportedOnceAndReachesNeitherBody()
+    {
+        using var scene = new Scene();
+        scene.Physics.OnStep((context, output) =>
+        {
+            if (context.Tick == 0)
+                output.Contacts.Add(new ContactStarted(scene.Second, scene.First, FrameHandle.Null, ContactPoint, ContactNormal, ContactImpulse));
+        });
+
+        scene.Test.Run(2);
+
+        // The scene's own contact comes first in the report, and it names the same two bodies.
+        scene.Test.World.Errors.Should().ContainSingle().Which.Should().Contain("names no frame");
+        scene.FirstLog.Seen.Should().BeEmpty();
+        scene.SecondLog.Seen.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AContactInAFrameThatIsGoneSkipsTheWholeUpdateOfBothBodies()
+    {
+        using var scene = new Scene();
+        FrameHandle gone = scene.Test.SpawnStaticFrame(TestWorld.At(0, 0, 5000), radius: 10);
+        scene.Test.World.Destroy(gone.Entity);
+        scene.Physics.OnStep((context, output) =>
+        {
+            if (context.Tick != 0)
+                return;
+            output.Contacts.Add(new ContactStarted(scene.First, scene.Second, gone, ContactPoint, ContactNormal, ContactImpulse));
+            output.Bodies.Add(new BodyState(scene.Second, scene.Test.Root, TestWorld.At(9), Vector3.Zero, Vector3.Zero));
+        });
+
+        scene.Test.Run(2);
+
+        scene.Test.World.Errors.Should().ContainSingle().Which.Should().Contain($"stale frame {gone}");
+        scene.FirstLog.Seen.Should().BeEmpty();
+        scene.SecondLog.Seen.Should().BeEmpty();
+        scene.Test.World.GetPose(scene.Second).Should().Be(DPose.Identity, "the body state of the same step is part of the skipped update");
+    }
+
+    [Fact]
+    public void AContactWithAnEntityThatNoLongerExistsIsReportedOnceAndReachesNeitherBody()
     {
         IPhysicsBackend physics = TestPhysics.Create();
         using var test = new TestWorld(physics);
@@ -196,9 +245,49 @@ public class PhysicsContactTests
 
         test.Run(2);
 
-        test.World.Errors.Should().BeEmpty();
-        log.Seen.Single().Event.As<Collision>().Other.Should().Be(gone);
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"contact of {gone} and {survivor}");
+        log.Seen.Should().BeEmpty();
     }
+
+    [Fact]
+    public void AContactWithAnEntityWithoutABodyIsReportedOnceAndReachesNeitherEntity()
+    {
+        using var scene = new Scene();
+        var log = new Recorder(EventMask.Of<Collision>());
+        Entity bodiless = scene.Test.SpawnAt(new Double3(3, 0, 0), log);
+        scene.Physics.OnStep((context, output) =>
+        {
+            if (context.Tick == 0)
+                output.Contacts.Add(new ContactStarted(scene.First, bodiless, scene.Test.Root, ContactPoint, ContactNormal, ContactImpulse));
+        });
+
+        scene.Test.Run(2);
+
+        scene.Test.World.Errors.Should().ContainSingle().Which.Should().Contain($"contact of {scene.First} and {bodiless}");
+        log.Seen.Should().BeEmpty();
+        scene.FirstLog.Seen.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AContactOfAnEntityWhoseUpdateIsSkippedReachesNeitherBody()
+    {
+        using var scene = new Scene();
+        FrameHandle gone = scene.Test.SpawnStaticFrame(TestWorld.At(0, 0, 5000), radius: 10);
+        scene.Test.World.Destroy(gone.Entity);
+        // The scene's contact is sound, but the same report puts the first body in a frame that is gone.
+        scene.Physics.OnStep((context, output) =>
+        {
+            if (context.Tick == 0)
+                output.Bodies.Add(new BodyState(scene.First, gone, TestWorld.At(9), Vector3.Zero, Vector3.Zero));
+        });
+
+        scene.Test.Run(2);
+
+        scene.Test.World.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {scene.First}");
+        scene.FirstLog.Seen.Should().BeEmpty();
+        scene.SecondLog.Seen.Should().BeEmpty("the contact is part of the first body's skipped update");
+    }
+#endif
 
     [Fact]
     public void ABodyThatDestroysItselfInTheTickOfTheContactDoesNotStopItsPartnerFromHearingIt()
