@@ -5,9 +5,9 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// The hemisphere ambient light on the GPU: each instance says which way is up, and the sky color lights what faces up,
-/// the ground color what faces down. A white sphere 4 m ahead is lit by the ambient light alone: a red sky and a blue
-/// ground. Three pixels show it where its normal leans 53 degrees toward the right (+X), the left (-X) and the top (+Y),
-/// and 37 degrees toward the camera.
+/// the ground color what faces down. A white sphere of radius 1 m, 4 m ahead, is lit by the ambient light alone: a red
+/// sky and a blue ground. Three pixels show it at the projections of the points 0.8 m from its center toward the right
+/// (+X), the left (-X) and the top (+Y). There the normal leans about 40 degrees from the view axis toward that side.
 /// </summary>
 [Collection(GpuCollection.Name)]
 public sealed class HemisphereTests
@@ -27,8 +27,8 @@ public sealed class HemisphereTests
             MaterialId white = renderer.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0));
             RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
             snapshot.Ambient = new AmbientLight { SkyColor = new Vector3(0.6f, 0, 0), GroundColor = new Vector3(0, 0, 0.6f), Intensity = 1 };
-            snapshot.Instances.Add(RenderInstance.Create(sphere, white, Center, Quaternion.Identity, Vector3.One, 1f,
-                RenderFlags.Visible | flags, entityIndex: 1, hemisphere: up));
+            snapshot.Instances.Add(RenderInstance.Create(sphere, white, Center, Quaternion.Identity, Vector3.One, 1f, up,
+                RenderFlags.Visible | flags, entityIndex: 1));
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, name);
             if (impostors)
                 renderer.LastFrameStats.Impostors.Should().Be(1, "the sphere is 78 px tall, below 200");
@@ -72,10 +72,21 @@ public sealed class HemisphereTests
     [Fact]
     public void AroundAPointUpLeadsAwayFromItSoAPlanetSeesTheSkyOnEverySide()
     {
-        (Vector3 right, Vector3 left, Vector3 top) = Render(HemisphereUp.AwayFrom(Center), "hemisphere-away");
+        (Vector3 right, Vector3 left, Vector3 top) = Render(HemisphereUp.AwayFrom(Vector3.Zero), "hemisphere-away");
 
         ExpectSkyward(right, "right");
         ExpectSkyward(left, "left");
+        ExpectSkyward(top, "top");
+    }
+
+    [Fact]
+    public void FarAboveThePointUpIsTheSameDirectionAcrossTheWholeObject()
+    {
+        // 100 m above the point, up leans at most 0.6 degrees from +Y across the sphere, as on a planet's ground.
+        (Vector3 right, Vector3 left, Vector3 top) = Render(HemisphereUp.AwayFrom(new Vector3(0, -100, 0)), "hemisphere-away-far");
+
+        ExpectEven(right, "right");
+        ExpectEven(left, "left");
         ExpectSkyward(top, "top");
     }
 

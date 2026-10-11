@@ -64,7 +64,7 @@ internal struct PreparedInstance
     public uint EntityIndex;
     /// <summary>Which of the entity's render parts this is. With <see cref="EntityIndex"/>, it names the object from frame to frame.</summary>
     public ushort Part;
-    /// <summary>Which way is up for the hemisphere ambient light. A point is camera-relative, like <see cref="Position"/>.</summary>
+    /// <summary>Which way is up for the hemisphere ambient light.</summary>
     public HemisphereUp Hemisphere;
 }
 

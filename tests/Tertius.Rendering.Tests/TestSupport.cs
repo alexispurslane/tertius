@@ -87,11 +87,13 @@ internal static class Gpu
 
     /// <summary>
     /// A still, visible instance: <see cref="RenderInstance.Create"/> with <see cref="RenderFlags.Visible"/> always
-    /// added. Tests that need an instance that is not visible call <see cref="RenderInstance.Create"/> themselves.
+    /// added. Its hemisphere ambient light has up along +Y: the test scenes stand on level ground in the camera's frame.
+    /// Tests that need an instance that is not visible call <see cref="RenderInstance.Create"/> themselves.
     /// </summary>
     public static RenderInstance Instance(MeshId mesh, MaterialId material, Vector3 position, Vector3 scale,
         Quaternion? rotation = null, RenderFlags flags = RenderFlags.None, float radius = 0, uint entity = 0, ushort part = 0) =>
-        RenderInstance.Create(mesh, material, position, rotation ?? Quaternion.Identity, scale, radius, flags | RenderFlags.Visible, entity, part);
+        RenderInstance.Create(mesh, material, position, rotation ?? Quaternion.Identity, scale, radius, HemisphereUp.Along(Vector3.UnitY),
+            flags | RenderFlags.Visible, entity, part);
 
     public static RenderSnapshot Snapshot(Vector3 sunDirection, float sunIntensity = 3f)
     {

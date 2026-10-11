@@ -85,22 +85,40 @@ public enum HemisphereKind : byte
 /// <summary>
 /// Which way is up for the hemisphere ambient light of one instance: the sky color lights a surface that faces up, the
 /// ground color one that faces down, and a surface that faces sideways gets their mean. The default is
-/// <see cref="Even"/>.
+/// <see cref="Even"/>. It is 16 bytes: <see cref="Direction"/> and <see cref="Center"/> share one vector, because a
+/// kind uses at most one of them, and every render instance carries one.
 /// </summary>
-/// <param name="Kind">How <paramref name="Value"/> gives up.</param>
-/// <param name="Value">For <see cref="HemisphereKind.Along"/>, the up direction, a unit vector in the axes of the
-/// camera's frame. For <see cref="HemisphereKind.AwayFrom"/>, the point, relative to the render origin. Unused for
-/// <see cref="HemisphereKind.Even"/>.</param>
-public record struct HemisphereUp(HemisphereKind Kind, Vector3 Value)
+public readonly record struct HemisphereUp
 {
+    private readonly Vector3 vector;
+
+    private HemisphereUp(HemisphereKind kind, Vector3 vector)
+    {
+        Kind = kind;
+        this.vector = vector;
+    }
+
+    /// <summary>Which of <see cref="Direction"/> and <see cref="Center"/> gives up.</summary>
+    public HemisphereKind Kind { get; }
+
+    /// <summary>For <see cref="HemisphereKind.Along"/>, the up direction: a unit vector in the axes of the camera's frame. Zero otherwise.</summary>
+    public Vector3 Direction => Kind == HemisphereKind.Along ? vector : Vector3.Zero;
+
+    /// <summary>
+    /// For <see cref="HemisphereKind.AwayFrom"/>, the point that up leads away from, relative to the instance's position,
+    /// in the axes of the camera's frame. It moves with the instance, so a planet's own center is exactly zero. Zero
+    /// otherwise.
+    /// </summary>
+    public Vector3 Center => Kind == HemisphereKind.AwayFrom ? vector : Vector3.Zero;
+
     /// <summary>No way is up.</summary>
     public static HemisphereUp Even => default;
 
     /// <summary>Up is <paramref name="direction"/>, a unit vector in the axes of the camera's frame.</summary>
     public static HemisphereUp Along(Vector3 direction) => new(HemisphereKind.Along, direction);
 
-    /// <summary>Up leads away from <paramref name="point"/>, relative to the render origin.</summary>
-    public static HemisphereUp AwayFrom(Vector3 point) => new(HemisphereKind.AwayFrom, point);
+    /// <summary>Up leads away from <paramref name="center"/>, relative to the instance's position.</summary>
+    public static HemisphereUp AwayFrom(Vector3 center) => new(HemisphereKind.AwayFrom, center);
 }
 
 /// <summary>
@@ -132,10 +150,7 @@ public struct RenderInstance
     /// </summary>
     public HemisphereUp Hemisphere;
 
-    /// <summary>
-    /// An instance that is not moving: the previous transform equals the current one. Without
-    /// <paramref name="hemisphere"/>, up is +Y of the camera's frame, as for a scene that stands on level ground there.
-    /// </summary>
+    /// <summary>An instance that is not moving: the previous transform equals the current one.</summary>
     public static RenderInstance Create(
         MeshId mesh,
         MaterialId material,
@@ -143,10 +158,10 @@ public struct RenderInstance
         Quaternion rotation,
         Vector3 scale,
         float boundingRadius,
+        HemisphereUp hemisphere,
         RenderFlags flags = RenderFlags.Visible,
         uint entityIndex = 0,
-        ushort part = 0,
-        HemisphereUp? hemisphere = null) => new()
+        ushort part = 0) => new()
     {
         EntityIndex = entityIndex,
         Part = part,
@@ -159,7 +174,7 @@ public struct RenderInstance
         PreviousPosition = position,
         PreviousRotation = rotation,
         BoundingRadius = boundingRadius,
-        Hemisphere = hemisphere ?? HemisphereUp.Along(Vector3.UnitY),
+        Hemisphere = hemisphere,
     };
 }
 

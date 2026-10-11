@@ -100,7 +100,7 @@ public sealed class BatcherTests
         snapshot.Instances.Add(Gpu.Instance(box, material, new Vector3(0, -100, -5), Vector3.One));      // far below
         snapshot.Instances.Add(Gpu.Instance(new MeshId(7), material, new Vector3(0, 0, -5), Vector3.One)); // unknown mesh
         snapshot.Instances.Add(Gpu.Instance(MeshId.None, material, new Vector3(0, 0, -5), Vector3.One)); // no mesh
-        snapshot.Instances.Add(RenderInstance.Create(box, material, new Vector3(0, 0, -5), Quaternion.Identity, Vector3.One, 0f,
+        snapshot.Instances.Add(RenderInstance.Create(box, material, new Vector3(0, 0, -5), Quaternion.Identity, Vector3.One, 0f, HemisphereUp.Even,
             RenderFlags.CastsShadow));                                                                   // not Visible
         snapshot.Instances.Add(Gpu.Instance(box, material, new Vector3(0, 0, -5), new Vector3(1, 0, 1))); // flat
         snapshot.Instances.Add(default);                                                                 // zeroed
@@ -304,30 +304,24 @@ public sealed class BatcherTests
         // At alpha 0.5 the eye is 1 m along +X from the render origin, so every position moves 1 m along -X.
         snapshot.Camera.PreviousPosition = new Vector3(2, 0, 0);
         snapshot.Instances.Add(RenderInstance.Create(new MeshId(0), new MaterialId(1), new Vector3(0, 0, -10), Quaternion.Identity, Vector3.One, 1,
-            hemisphere: HemisphereUp.Along(Vector3.UnitX)));
-        snapshot.Instances.Add(RenderInstance.Create(new MeshId(0), new MaterialId(1), new Vector3(0, 1, -10), Quaternion.Identity, Vector3.One, 1,
-            hemisphere: HemisphereUp.AwayFrom(new Vector3(0, -50, -10))));
+            HemisphereUp.Along(Vector3.UnitX)));
+        RenderInstance moving = RenderInstance.Create(new MeshId(0), new MaterialId(1), new Vector3(0, 1, -10), Quaternion.Identity, Vector3.One, 1,
+            HemisphereUp.AwayFrom(new Vector3(0, -50, 0)));
+        moving.PreviousPosition = new Vector3(4, 1, -10);
+        snapshot.Instances.Add(moving);
         snapshot.Instances.Add(RenderInstance.Create(new MeshId(0), new MaterialId(1), new Vector3(0, 2, -10), Quaternion.Identity, Vector3.One, 1,
-            hemisphere: HemisphereUp.Even));
+            HemisphereUp.Even));
 
         PreparedScene scene = Prepare(snapshot, alpha: 0.5f);
 
-        // The kind is in w: 1 along a direction, 2 away from a point, 0 even.
+        // The kind is in w: 1 along a direction, 2 away from a point, 0 even. The point moves with its instance: halfway
+        // from x = 4 to x = 0 is x = 2, less the eye's 1 m, so 50 m below (1, 1, -10).
         scene.Instances.AsSpan(0, 3).ToArray().Select(instance => instance.Hemisphere).Should().BeEquivalentTo(new[]
         {
             new Vector4(1, 0, 0, 1),
-            new Vector4(-1, -50, -10, 2),
+            new Vector4(1, -49, -10, 2),
             Vector4.Zero,
         });
-    }
-
-    [Fact]
-    public void AHandBuiltInstanceTakesThePlusYOfTheCamerasFrameAsUpUnlessItIsGiven()
-    {
-        RenderInstance instance = RenderInstance.Create(new MeshId(0), new MaterialId(1), Vector3.Zero, Quaternion.Identity, Vector3.One, 1);
-
-        // The renderer's own scenes and tests stand on level ground in the camera's frame. The simulation always says.
-        instance.Hemisphere.Should().Be(HemisphereUp.Along(Vector3.UnitY));
     }
 
     [Fact]
@@ -337,10 +331,10 @@ public sealed class BatcherTests
         snapshot.PreviousRootRotation = Quaternion.Identity;
         snapshot.RootRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
 
-        Vector4 root = Prepare(snapshot, alpha: 0.5f).Constants.RootRotation;
+        Vector4 root = Prepare(snapshot, alpha: 0.25f).Constants.RootRotation;
 
-        // Half of a quarter turn about +Y.
-        Quaternion expected = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 4);
+        // A quarter of the way from the previous rotation to the current one: an eighth of a turn about +Y.
+        Quaternion expected = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 8);
         Vector4.Distance(root, new Vector4(expected.X, expected.Y, expected.Z, expected.W)).Should().BeLessThan(1e-6f);
     }
 

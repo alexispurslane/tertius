@@ -51,21 +51,59 @@ public class RenderSnapshotHemisphereTests
         HemisphereUp up = HemisphereOf(test, box);
 
         up.Kind.Should().Be(HemisphereKind.Along);
-        ExpectNear(up.Value, Vector3.UnitZ);
+        ExpectNear(up.Direction, Vector3.UnitZ);
     }
 
     [Fact]
-    public void InAPointFieldUpLeadsAwayFromTheFramesOrigin()
+    public void InAPointFieldUpLeadsAwayFromTheFramesOriginGivenRelativeToTheInstance()
     {
         using var test = new TestWorld();
         FrameHandle planet = Frame(test, new DPose(new Double3(0, -30, 0), QuarterTurnAboutX), GravityField.Point(4e14));
+        // The planet's quarter turn takes the box's +Z offset to the root's -Y: the box is at (0, -40, 0).
         Entity box = test.Show(planet, new DPose(new Double3(0, 0, 10), DQuaternion.Identity));
 
         HemisphereUp up = HemisphereOf(test, box);
 
-        // Relative to the render origin, the camera at (0, 0, 50) in the root frame.
         up.Kind.Should().Be(HemisphereKind.AwayFrom);
-        ExpectNear(up.Value, new Vector3(0, -30, -50));
+        ExpectNear(up.Center, new Vector3(0, 10, 0));
+    }
+
+    [Fact]
+    public void APlanetsOwnCenterIsExactlyAtTheInstance()
+    {
+        using var test = new TestWorld();
+        Entity planet = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Pose = new DPose(new Double3(0, -3e6, 1e5), DQuaternion.Identity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, GravityField.Point(4e14)),
+            Render = RenderSnapshotSupport.Visible(),
+        });
+
+        HemisphereUp up = HemisphereOf(test, planet);
+
+        // So the center moves with the planet's interpolated position, and does not wobble between ticks.
+        (up.Kind, up.Center).Should().Be((HemisphereKind.AwayFrom, Vector3.Zero));
+    }
+
+    [Fact]
+    public void WithTheCameraInATurnedFrameTheUpIsGivenInThatFramesAxes()
+    {
+        using var test = new TestWorld();
+        // The camera's frame is turned a quarter turn about +X, so the root's +Y is its -Z and the root's -Y its +Z.
+        FrameHandle cameraFrame = test.SpawnStaticFrame(new DPose(new Double3(7, 0, 0), QuarterTurnAboutX));
+        FrameHandle ship = Frame(test, DPose.Identity, GravityField.Uniform(new Vector3(0, -3, 0)));
+        FrameHandle planet = Frame(test, new DPose(new Double3(0, -30, 0), DQuaternion.Identity), GravityField.Point(4e14));
+        Entity crate = test.Show(ship, new DPose(new Double3(1, 0, 0), DQuaternion.Identity));
+        Entity rock = test.Show(planet, new DPose(new Double3(0, 31, 0), DQuaternion.Identity));
+        test.World.Camera = test.SpawnCamera(cameraFrame, DPose.Identity);
+
+        test.Run(1);
+        RenderSnapshot snapshot = test.World.Latest();
+
+        ExpectNear(snapshot.InstanceOf(crate).Hemisphere.Direction, -Vector3.UnitZ);
+        // The planet's center is 31 m below the rock along the root's -Y.
+        ExpectNear(snapshot.InstanceOf(rock).Hemisphere.Center, new Vector3(0, 0, 31));
     }
 
     [Fact]
@@ -102,7 +140,7 @@ public class RenderSnapshotHemisphereTests
         HemisphereUp up = HemisphereOf(test, hull);
 
         up.Kind.Should().Be(HemisphereKind.Along);
-        ExpectNear(up.Value, Vector3.UnitZ);
+        ExpectNear(up.Direction, Vector3.UnitZ);
     }
 
     [Theory]

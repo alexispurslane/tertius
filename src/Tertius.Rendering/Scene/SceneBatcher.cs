@@ -150,9 +150,7 @@ internal sealed class SceneBatcher
             prepared.Flags = instance.Flags;
             prepared.EntityIndex = instance.EntityIndex;
             prepared.Part = instance.Part;
-            prepared.Hemisphere = instance.Hemisphere.Kind == HemisphereKind.AwayFrom
-                ? HemisphereUp.AwayFrom(instance.Hemisphere.Value - camera.Offset)
-                : instance.Hemisphere;
+            prepared.Hemisphere = instance.Hemisphere;
         }
     }
 

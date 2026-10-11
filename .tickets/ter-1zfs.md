@@ -24,3 +24,9 @@ Design to decide (two designs, then the user chooses): what up means for the hem
 
 A surface's ambient light does not change when the camera moves to another frame. A test shows the same surface from cameras in two frames that turn relative to each other, with the same ambient light.
 
+
+## Notes
+
+**2026-10-11T22:48:45Z**
+
+Decided with the user on 2026-10-11. Two designs: (A) up is the root frame's +Y, one constant per frame shared with the star fix; (B) up points against the gravity of each surface's own frame: radial in a point field, against a uniform field inside its region (taken at the instance's center), an even mix without gravity, and a frame owner uses its own frame. The user chose B. After the review, the user also chose that only the field counts, not the frame's proper acceleration, so thrust never turns the up. The user also asked that hand-built render instances get no special default, so RenderInstance.Create takes the hemisphere as a required argument.

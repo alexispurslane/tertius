@@ -18,7 +18,7 @@ public sealed class FarShadowTests
     private static readonly MeshId Sphere = new(0);
 
     private static RenderInstance Caster(Vector3 position, float radius, bool visible = true) =>
-        RenderInstance.Create(Sphere, new MaterialId(0), position, Quaternion.Identity, new Vector3(radius), 0,
+        RenderInstance.Create(Sphere, new MaterialId(0), position, Quaternion.Identity, new Vector3(radius), 0, HemisphereUp.Even,
             (visible ? RenderFlags.Visible : RenderFlags.None) | RenderFlags.CastsShadow, 0, 0);
 
     private static PreparedScene Prepare(RenderSnapshot snapshot, float alpha = 1f)

@@ -71,11 +71,14 @@ public sealed class AmbientFrameTests : IDisposable
         }
         Png root = Png.Load(Path.Combine(folder, "root.png")), turned = Png.Load(Path.Combine(folder, "turned.png"));
 
-        // The top of the sphere faces up: the red sky lights it. Its side faces sideways: sky and ground mix.
-        (int r, int g, int b) top = root.Average(160, 56), side = root.Average(206, 90);
+        // The probes are the projections of the points 0.8 m from the sphere's center toward the top, the right, the bottom
+        // and the left, 31 px from the image's center, and the center. The sphere's edge is 40 px from the center. The top
+        // of the sphere faces up: the red sky lights it. Its side faces sideways: sky and ground mix.
+        (int r, int g, int b) top = root.Average(160, 59), side = root.Average(191, 90);
         (top.r > top.b + 40).Should().BeTrue($"the top faces the sky, not {top}");
         Math.Abs(side.r - side.b).Should().BeLessThan(12, $"the side faces sideways, not {side}");
-        foreach ((int x, int y) in new[] { (160, 56), (206, 90), (160, 124), (114, 90), (160, 90) })
+        (side.r + side.b).Should().BeGreaterThan(60, $"the probe is on the sphere, not on the sky: {side}");
+        foreach ((int x, int y) in new[] { (160, 59), (191, 90), (160, 121), (129, 90), (160, 90) })
         {
             (int r, int g, int b) a = root.Average(x, y), c = turned.Average(x, y);
             (Math.Abs(a.r - c.r) + Math.Abs(a.g - c.g) + Math.Abs(a.b - c.b)).Should().BeLessThan(4, $"at ({x}, {y}) the root view shows {a} and the turned view {c}");

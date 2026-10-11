@@ -20,7 +20,7 @@ Hable's curve, with his published constants:
 
 where A = 0.15 (shoulder strength), B = 0.50 (linear strength), C = 0.10 (linear angle), D = 0.20 (toe strength), E = 0.02 (toe numerator), F = 0.30 (toe denominator), W = 11.2 (the linear white point, which maps to 1), and ExposureBias = 2.0 in his example. It works per channel, on linear HDR color before the sRGB encoding.
 
-Design to decide (two designs, then the user chooses): a RendererOptions choice of curve (ACES or Hable) versus Hable as the only curve; whether the constants are settings; how it interacts with ter-zzyr (automatic exposure) and ter-63wr (bloom), which work on the same HDR stage. The snapshot tests' reference images use ACES today, so a new default re-approves them, each one reviewed by eye.
+Design to decide (two designs, then the user chooses): a RendererOptions choice of curve (ACES or Hable) versus Hable as the only curve; whether the constants are settings; how it interacts with ter-zzyr (automatic exposure) and ter-63wr (bloom), which work on the same HDR stage. The renderer has no snapshot tests yet: ticket ter-rtxu adds them. If they exist by then, a new default re-approves their reference images, each one reviewed by eye.
 
 ## Acceptance Criteria
 

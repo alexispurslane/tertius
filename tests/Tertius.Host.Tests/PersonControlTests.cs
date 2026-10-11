@@ -206,6 +206,9 @@ public sealed class PersonControlTests : IDisposable
         // W is still down at the keyboard, but the window posts no second down, so the person waits for a new press.
         ExpectNear(away, Vector3.Zero, 0.05f);
         ExpectNear(WalkingVelocity(), Vector3.Zero, 0.05f);
+        // Every key was let go: a new press of D walks right alone.
+        Press(Key.D);
+        ExpectNear(WalkingVelocity(), Vector3.UnitX * PersonControl.WalkSpeed, 0.05f);
     }
 
     [Fact]

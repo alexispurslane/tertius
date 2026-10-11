@@ -69,7 +69,7 @@ public sealed class ImpostorManagerTests
 
     /// <summary>An invisible sphere of <paramref name="radius"/> that casts a far shadow: a moon, for an eclipse.</summary>
     private static RenderInstance Moon(Vector3 center, float radius) =>
-        RenderInstance.Create(new MeshId(Sphere), BallMaterial, center, Quaternion.Identity, new Vector3(radius), 0, RenderFlags.CastsShadow, 9_999, 0);
+        RenderInstance.Create(new MeshId(Sphere), BallMaterial, center, Quaternion.Identity, new Vector3(radius), 0, HemisphereUp.Even, RenderFlags.CastsShadow, 9_999, 0);
 
     [Fact]
     public void ProjectedHeightIsTheDiameterOfTheSpheresImageAtTheCenterOfTheScreen()
@@ -321,6 +321,37 @@ public sealed class ImpostorManagerTests
 
         CapturesAfter(harness, Tilted(0.05f)).Should().Be(0);
         CapturesAfter(harness, Tilted(MathF.PI / 2)).Should().Be(1);
+    }
+
+    [Fact]
+    public void WithAnUpARollAboutTheViewAxisTurnsTheSkyLitSideSoItRecaptures()
+    {
+        // As in the test above, but up is +Y: the roll turns the up in object space by 1.2 rad. The sky and the ground
+        // differ by 0.134 against 5.24 of light in all, so the change is 0.134 · 2 sin(0.6) / 5.24, times 80 px: about 2.3.
+        (Harness harness, float distance) = Captured(80f, sun: Vector3.UnitZ);
+        Quaternion roll = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.2f);
+
+        CapturesAfter(harness, Ball(1, new Vector3(0, 0, -distance), roll), sun: Vector3.UnitZ).Should().Be(1);
+    }
+
+    [Fact]
+    public void WhenTheSkyAndTheGroundHaveOneColorTheUpDoesNotMatter()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+        RenderSnapshot Scene(Vector3 up)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Ambient = new AmbientLight { SkyColor = new Vector3(0.1f), GroundColor = new Vector3(0.1f), Intensity = 1 };
+            snapshot.Instances.Add(Ball(1, position, hemisphere: HemisphereUp.Along(up)));
+            return snapshot;
+        }
+        harness.Run(Scene(Vector3.UnitY));
+        harness.Manager.Captures.Length.Should().Be(1);
+
+        harness.Run(Scene(Vector3.UnitX));
+
+        harness.Manager.Captures.Length.Should().Be(0, "every side gets the same ambient light whichever way is up");
     }
 
     [Fact]
@@ -656,7 +687,7 @@ public sealed class ImpostorManagerTests
         RenderSnapshot dark = Snapshot();
         dark.Instances.Add(ball);
         dark.Instances.Add(RenderInstance.Create(new MeshId(Sphere), BallMaterial, position + SunDirection * 1e7f, Quaternion.Identity,
-            new Vector3(6e6f), 0, RenderFlags.CastsShadow, 9_998, 0));
+            new Vector3(6e6f), 0, HemisphereUp.Even, RenderFlags.CastsShadow, 9_998, 0));
         harness.Run(dark);
 
         harness.Manager.Captures.Length.Should().Be(1, "the planet's shadow changes the light that reaches the ball");

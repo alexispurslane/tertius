@@ -60,7 +60,7 @@ public sealed class ShadowTests
             // with almost no disc keeps that edge sharp; the disc plays no part in the shadow maps.
             Vector3 eclipsed = new(4f, ground, -10f);
             snapshot.Sun.AngularRadius = 0f;
-            snapshot.Instances.Add(RenderInstance.Create(kit.Sphere, kit.White, new Vector3(28f, ground, -10f) + Vector3.Normalize(sun) * 2_200f, Quaternion.Identity, new Vector3(20f), 0, RenderFlags.CastsShadow, 0, 0));
+            snapshot.Instances.Add(RenderInstance.Create(kit.Sphere, kit.White, new Vector3(28f, ground, -10f) + Vector3.Normalize(sun) * 2_200f, Quaternion.Identity, new Vector3(20f), 0, HemisphereUp.Even, RenderFlags.CastsShadow, 0, 0));
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "shadow-box");
             RenderStats stats = renderer.LastFrameStats;
@@ -107,7 +107,7 @@ public sealed class ShadowTests
             snapshot.Camera.PreviousRotation = camera;
             snapshot.Camera.VerticalFov = fov;
             snapshot.Instances.Add(Gpu.Instance(kit.Box, kit.White, box, new Vector3(10f)));
-            snapshot.Instances.Add(RenderInstance.Create(kit.Sphere, kit.White, new Vector3(0, 0, -5_000), Quaternion.Identity, new Vector3(1_000f), 0, Caster, 0, 0));
+            snapshot.Instances.Add(RenderInstance.Create(kit.Sphere, kit.White, new Vector3(0, 0, -5_000), Quaternion.Identity, new Vector3(1_000f), 0, HemisphereUp.Even, Caster, 0, 0));
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "far-caster-inside");
 
@@ -430,7 +430,7 @@ public sealed class ShadowTests
             snapshot.Instances.Add(Gpu.Instance(kit.Plane, kit.Ground, new Vector3(0, ground, -10f), new Vector3(20f, 1, 20f), flags: Caster));
             // An invisible caster (CastsShadow without Visible): only its shadow shows where it is. It moved from
             // x = -3 to x = +3 during the tick.
-            RenderInstance pole = RenderInstance.Create(kit.Box, kit.White, new Vector3(3f, ground + 1.5f, -8f), Quaternion.Identity, new Vector3(1f, 3f, 1f), 0f, Caster);
+            RenderInstance pole = RenderInstance.Create(kit.Box, kit.White, new Vector3(3f, ground + 1.5f, -8f), Quaternion.Identity, new Vector3(1f, 3f, 1f), 0f, HemisphereUp.Along(Vector3.UnitY), Caster);
             pole.PreviousPosition = new Vector3(-3f, ground + 1.5f, -8f);
             snapshot.Instances.Add(pole);
 
@@ -457,7 +457,7 @@ public sealed class ShadowTests
             Kit kit = Kit.Create(renderer);
             RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.2f, 1f, 0.1f));
             RenderInstance Box(Vector3 position, RenderFlags flags) =>
-                RenderInstance.Create(kit.Box, kit.White, position, Quaternion.Identity, Vector3.One, 0f, flags);
+                RenderInstance.Create(kit.Box, kit.White, position, Quaternion.Identity, Vector3.One, 0f, HemisphereUp.Along(Vector3.UnitY), flags);
             snapshot.Instances.Add(Box(new Vector3(0, 0, -10), RenderFlags.Visible | Caster));          // selected
             snapshot.Instances.Add(Box(new Vector3(2, 0, -10), Caster));                                // invisible but casting: selected
             snapshot.Instances.Add(Box(new Vector3(-2, 0, -10), RenderFlags.Visible));                  // not a caster

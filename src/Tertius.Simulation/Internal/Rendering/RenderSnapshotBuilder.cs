@@ -52,6 +52,7 @@ internal sealed class RenderSnapshotBuilder
     private DPose[] relPrevious = new DPose[16];
     private DPose[] localPrevious = new DPose[16];
     private FrameHandle[] denseFrames = new FrameHandle[16];
+    private FrameHemisphere[] frameHemisphere = new FrameHemisphere[16];
 
     // Frame data by frame index.
     private int[] denseOfFrame = new int[16];
@@ -61,6 +62,19 @@ internal sealed class RenderSnapshotBuilder
     private FrameHandle[] lastFrameHandle = new FrameHandle[16];
     private FrameHandle[] lastFrameParent = new FrameHandle[16];
     private long[] lastFrameStamp = new long[16];
+
+    /// <summary>
+    /// What a frame's gravity field means for the hemisphere ambient light, at this build. <see cref="Up"/> is the up of
+    /// every entity in the frame, but a point field's center depends on the entity, and a uniform field holds only inside
+    /// <see cref="Region"/> when <see cref="HasRegion"/> is set. The snapshot build reads it once per instance, so it
+    /// holds no nullable box to copy.
+    /// </summary>
+    private struct FrameHemisphere
+    {
+        public HemisphereUp Up;
+        public bool HasRegion;
+        public BoundingBox Region;
+    }
 
     /// <summary>The pose of one entity at the last build that placed it, relative to its frame then.</summary>
     private struct PoseMemory
@@ -208,6 +222,7 @@ internal sealed class RenderSnapshotBuilder
             lastFrameHandle[frame.Index] = frame;
             lastFrameParent[frame.Index] = parent;
             lastFrameStamp[frame.Index] = stamp;
+            frameHemisphere[i] = HemisphereOfFrame(frame, relCurrent[i].Rotation);
         }
 
         // The previous poses use this build's tree with last build's local poses: a frame that moved between the builds
@@ -276,7 +291,7 @@ internal sealed class RenderSnapshotBuilder
             bool visible = (render.Flags & RenderFlags.Visible) != 0 && !render.Mesh.IsNone;
             if (!visible && !render.Light.Enabled)
                 continue;
-            if (!TryGetRenderPoses(entity, out DPose current, out DPose previous))
+            if (!TryGetRenderPoses(entity, out DPose current, out DPose previous, out int dense, out Vector3 place))
                 continue;
 
             if (visible)
@@ -290,12 +305,12 @@ internal sealed class RenderSnapshotBuilder
                     current.Rotation.ToQuaternion(),
                     render.Scale,
                     render.BoundingRadius,
+                    HemisphereOf(dense, place, current.Position),
                     render.Flags,
                     entityIndex: entity.Index,
                     part: 0);
                 instance.PreviousPosition = (previous.Position - origin).ToVector3();
                 instance.PreviousRotation = previous.Rotation.ToQuaternion();
-                instance.Hemisphere = HemisphereOf(entity);
             }
             if (render.Light.Enabled)
             {
@@ -323,7 +338,10 @@ internal sealed class RenderSnapshotBuilder
     /// so a hand-off interpolates smoothly. False for an entity whose frame this build did not place. After a sync point
     /// every live entity is in a live frame, so that only guards against a broken table.
     /// </summary>
-    private bool TryGetRenderPoses(Entity entity, out DPose current, out DPose previous)
+    /// <param name="dense">The dense index of the entity's own frame: the frame that it owns, or else the frame that it
+    /// is in.</param>
+    /// <param name="place">The entity's position in that frame: zero for a frame owner, which is its frame's origin.</param>
+    private bool TryGetRenderPoses(Entity entity, out DPose current, out DPose previous, out int dense, out Vector3 place)
     {
         FrameHandle own = entities.OwnedFrame(entity);
         if (!own.IsNull)
@@ -331,11 +349,13 @@ internal sealed class RenderSnapshotBuilder
             if (!FrameSeen(own))
             {
                 current = previous = default;
+                (dense, place) = (0, Vector3.Zero);
                 return false;
             }
-            int d = denseOfFrame[own.Index];
-            current = relCurrent[d];
-            previous = renderInterpolate ? relPrevious[d] : current;
+            dense = denseOfFrame[own.Index];
+            place = Vector3.Zero;
+            current = relCurrent[dense];
+            previous = renderInterpolate ? relPrevious[dense] : current;
             return true;
         }
 
@@ -343,9 +363,12 @@ internal sealed class RenderSnapshotBuilder
         if (!FrameSeen(row.Frame))
         {
             current = previous = default;
+            (dense, place) = (0, Vector3.Zero);
             return false;
         }
-        current = DPose.Compose(relCurrent[denseOfFrame[row.Frame.Index]], row.Pose);
+        dense = denseOfFrame[row.Frame.Index];
+        place = row.Pose.Position.ToVector3();
+        current = DPose.Compose(relCurrent[dense], row.Pose);
         previous = current;
         ref PoseMemory last = ref lastEntityPose[entity];
         if (renderInterpolate && last.Stamp == buildStamp - 1 && FrameSeen(last.Frame))
@@ -355,32 +378,42 @@ internal sealed class RenderSnapshotBuilder
     }
 
     /// <summary>
-    /// Which way is up for the hemisphere ambient light of a placed entity: against the gravity field of its own frame,
-    /// at its place. A frame owner is its frame, so it takes its frame's field at the frame's origin; any other entity
-    /// takes the field of the frame that it is in. A uniform field points up against its acceleration, inside its region;
-    /// a point field leads up away from its frame's origin; no field, or one that pulls nowhere, mixes evenly.
+    /// What a frame's gravity field means for the hemisphere ambient light: a uniform field points up against its
+    /// acceleration, turned by <paramref name="rotation"/> into the axes of the camera's frame; a point field leads up
+    /// away from the frame's origin; no field, or one that pulls nowhere, mixes evenly. The frame's proper acceleration
+    /// does not count, so thrust never turns the up. (User)
     /// </summary>
-    private HemisphereUp HemisphereOf(Entity entity)
+    private FrameHemisphere HemisphereOfFrame(FrameHandle frame, DQuaternion rotation)
     {
-        FrameHandle frame = entities.OwnedFrame(entity);
-        Vector3 place = Vector3.Zero;
-        if (frame.IsNull)
-        {
-            ref readonly TransformRow row = ref entities.FrontRow(entity);
-            frame = row.Frame;
-            place = row.Pose.Position.ToVector3();
-        }
         GravityField field = frames.Gravity(frame);
-        DPose pose = relCurrent[denseOfFrame[frame.Index]];
-        switch (field.Kind)
+        return field.Kind switch
         {
-            case GravityKind.Uniform when field.Acceleration != Vector3.Zero && (field.Region is not { } region || region.Contains(place)):
-                return HemisphereUp.Along(pose.Rotation.Rotate((Double3)(-field.Acceleration)).Normalized().ToVector3());
-            case GravityKind.Point when field.Mu > 0:
-                return HemisphereUp.AwayFrom((pose.Position - renderOrigin).ToVector3());
-            default:
-                return HemisphereUp.Even;
-        }
+            GravityKind.Uniform when field.Acceleration != Vector3.Zero => new FrameHemisphere
+            {
+                Up = HemisphereUp.Along(rotation.Rotate((Double3)(-field.Acceleration)).Normalized().ToVector3()),
+                HasRegion = field.Region.HasValue,
+                Region = field.Region.GetValueOrDefault(),
+            },
+            GravityKind.Point when field.Mu > 0 => new FrameHemisphere { Up = HemisphereUp.AwayFrom(Vector3.Zero) },
+            _ => default,
+        };
+    }
+
+    /// <summary>
+    /// Which way is up for the hemisphere ambient light of a placed entity: its own frame's, at its place. A frame owner
+    /// is its frame, so it takes its frame's up at the frame's origin; any other entity takes the up of the frame that it
+    /// is in. A uniform field holds only inside its region.
+    /// </summary>
+    /// <param name="dense">The dense index of the entity's own frame.</param>
+    /// <param name="place">The entity's position in that frame.</param>
+    /// <param name="position">The entity's position relative to the camera's frame, which a point field's center is
+    /// given relative to.</param>
+    private HemisphereUp HemisphereOf(int dense, Vector3 place, Double3 position)
+    {
+        ref readonly FrameHemisphere frame = ref frameHemisphere[dense];
+        if (frame.Up.Kind == HemisphereKind.AwayFrom)
+            return HemisphereUp.AwayFrom((relCurrent[dense].Position - position).ToVector3());
+        return frame.HasRegion && !frame.Region.Contains(place) ? HemisphereUp.Even : frame.Up;
     }
 
     /// <summary>The root frame of the tree that <paramref name="frame"/> is in.</summary>
@@ -418,6 +451,7 @@ internal sealed class RenderSnapshotBuilder
         Array.Resize(ref relPrevious, size);
         Array.Resize(ref localPrevious, size);
         Array.Resize(ref denseFrames, size);
+        Array.Resize(ref frameHemisphere, size);
     }
 
     private void EnsureFrameIndexArrays(int index)

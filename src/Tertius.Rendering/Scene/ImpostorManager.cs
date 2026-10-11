@@ -572,14 +572,15 @@ internal sealed class ImpostorManager : IInstanceProcessor
             Vector3 local = Vector3.Zero, direction = Vector3.Zero;
             Quaternion inverse = Quaternion.Conjugate(instance.Rotation);
             HemisphereUp hemisphere = instance.Hemisphere;
+            // A center inside the object, such as a planet's own, gives every side its own up, so there is no one up to
+            // compare.
             Vector3 up = hemisphere.Kind switch
             {
-                HemisphereKind.Along => hemisphere.Value,
-                HemisphereKind.AwayFrom => Vector3.Normalize(position - hemisphere.Value),
+                HemisphereKind.Along => hemisphere.Direction,
+                HemisphereKind.AwayFrom when hemisphere.Center.Length() > instance.Radius => Vector3.Normalize(-hemisphere.Center),
                 _ => Vector3.Zero,
             };
-            // A NaN, from a point at the center itself, counts as no up.
-            Vector3 upInObject = float.IsFinite(up.X + up.Y + up.Z) ? Vector3.Transform(up, inverse) * (sky - ground).Length() : Vector3.Zero;
+            Vector3 upInObject = Vector3.Transform(up, inverse) * (sky - ground).Length();
             if (!lights.IsEmpty)
             {
                 float radius = instance.Radius;

@@ -109,7 +109,7 @@ public class ContractChangeTests
     [Fact]
     public void RenderInstanceCreateIsDrawableAndStill()
     {
-        var i = RenderInstance.Create(new MeshId(1), new MaterialId(2), new Vector3(1, 2, 3), Quaternion.Identity, Vector3.One, 1.5f, part: 2);
+        var i = RenderInstance.Create(new MeshId(1), new MaterialId(2), new Vector3(1, 2, 3), Quaternion.Identity, Vector3.One, 1.5f, HemisphereUp.Even, part: 2);
         Assert.Equal(i.Position, i.PreviousPosition);
         Assert.Equal(i.Rotation, i.PreviousRotation);
         Assert.Equal((ushort)2, i.Part);

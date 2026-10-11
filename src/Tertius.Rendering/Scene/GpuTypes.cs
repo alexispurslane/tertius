@@ -7,7 +7,7 @@ namespace Tertius.Rendering;
 // C# mirrors of the shader structs in Shaders/frame.glsl. Layouts follow std430 (storage buffers) and std140 (the
 // frame block). Change both sides together; RendererLayoutTests checks the sizes.
 
-/// <summary>One drawn instance in the instance storage buffer. 64 bytes.</summary>
+/// <summary>One drawn instance in the instance storage buffer. 80 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuInstance
 {
@@ -39,7 +39,13 @@ internal struct GpuInstance
             ModelRow2 = new Vector4(axisX.Z, axisY.Z, axisZ.Z, position.Z),
             InverseScaleSquared = new Vector3(InverseSquare(scale.X), InverseSquare(scale.Y), InverseSquare(scale.Z)),
             Material = material,
-            Hemisphere = hemisphere.Kind == HemisphereKind.Even ? Vector4.Zero : new Vector4(hemisphere.Value, (float)hemisphere.Kind),
+            Hemisphere = hemisphere.Kind switch
+            {
+                HemisphereKind.Along => new Vector4(hemisphere.Direction, 1),
+                // The center moves with the instance, so it is exact wherever the instance is interpolated to.
+                HemisphereKind.AwayFrom => new Vector4(position + hemisphere.Center, 2),
+                _ => Vector4.Zero,
+            },
         };
     }
 
@@ -85,7 +91,7 @@ internal struct GpuLight
     public Vector4 Spot;
 }
 
-/// <summary>The frame uniform block (std140). 704 bytes.</summary>
+/// <summary>The frame uniform block (std140). 720 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
 {

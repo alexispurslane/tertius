@@ -120,7 +120,7 @@ public sealed class SceneTests
             // An invisible caster of 200 m radius, 2.4 km straight up from a point 200 m to the left of the view. It stays
             // farther than 2 km from the camera, so it casts a far shadow, whose edge crosses the ground at x = 0. The sun's
             // disc, 4.67e-3 rad in radius, spreads that edge over 2 × 4.67e-3 × 2,400 m, about 22 m.
-            snapshot.Instances.Add(RenderInstance.Create(sphere, ground, new Vector3(-200f, 2_398.5f, -25f), Quaternion.Identity, new Vector3(200f), 0, RenderFlags.CastsShadow, 0, 0));
+            snapshot.Instances.Add(RenderInstance.Create(sphere, ground, new Vector3(-200f, 2_398.5f, -25f), Quaternion.Identity, new Vector3(200f), 0, HemisphereUp.Even, RenderFlags.CastsShadow, 0, 0));
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "occluder-shadow");
             float shadow = image.MeanLuma(Gpu.Project(new Vector3(-16f, -1.5f, -25f), 640, 360), 2);
             float edge = image.MeanLuma(Gpu.Project(new Vector3(0f, -1.5f, -25f), 640, 360), 2);
