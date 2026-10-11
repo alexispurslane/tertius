@@ -442,9 +442,12 @@ Dynamic point and spot lights are shaded in the deferred lighting pass. The sun 
 
 ### Shadows
 
-Shadow casters are selected by distance from the camera, not by frame, so an object shadows objects in any frame. Every caster has the `CastsShadow` flag, and the sun has none. Cascaded shadow maps for the sun cover the first 2 km, with four cascades and blending at the seams. They draw every caster whose bounding sphere comes within 2 km of the camera, however big it is.
+Shadow casters are selected by distance from the camera and by shape, not by frame, so an object shadows objects in any frame. Every caster has the `CastsShadow` flag, and the sun has none.
 
-A farther caster casts a far shadow: a sphere test in the lighting shader, with the caster's bounding radius. Planet shadows and eclipses are far shadows. A far shadow counts only while the sun lights the scene, and only when its sphere covers at least a pixel. A smaller sphere hides at most a few percent of the sun near the camera, and its shadow farther away is under a pixel too. So the cost per pixel grows only with the shadows that can show. A long caster, such as a station, shadows as a rough sphere beyond 2 km.
+- A round body (`Celestial`), such as a planet or a moon, always casts a far shadow: a sphere test in the lighting shader, with its bounding radius. Its surface is its sphere, so a point inside the sphere sees half the sky blocked, as the ground does at night. It never goes into the shadow maps. So a planet under the camera still shadows everything beyond the maps' reach at night.
+- Any other caster goes into the cascaded shadow maps when its bounding sphere comes within 2 km of the camera, however big it is, for example a ground plane. The maps cover the first 2 km, with four cascades and blending at the seams. Beyond 2 km, the caster casts a far shadow from its bounding sphere, which shadows only points outside the sphere. So a ship never shadows its own surface, and a long station shadows as a rough sphere.
+
+A far shadow counts only while the sun lights the scene, and only when its sphere covers at least a pixel or a fifth of the sun's angular radius. A smaller sphere hides at most 4% of the sun near the camera, and its shadow farther away is under a pixel too. So the cost per pixel grows only with the shadows that can show.
 
 The texel grid of each cascade snaps to a world-fixed anchor: the origin of the camera's frame. As a result, shadows do not shimmer as the camera moves. On MoltenVK, a steep caster clipped at the edge of the shadow map gets a flat, wrong depth plane. To avoid it, each cascade box is 16 times deeper than it is wide.
 

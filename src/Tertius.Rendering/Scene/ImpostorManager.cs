@@ -666,16 +666,24 @@ internal sealed class ImpostorManager : IInstanceProcessor
 /// </summary>
 internal static class Eclipse
 {
-    /// <summary>The visible fraction of the sun's disc at a camera-relative position, given occluder spheres (xyz center, w radius).</summary>
+    /// <summary>
+    /// The visible fraction of the sun's disc at a camera-relative position, given occluder spheres: xyz the center, w the
+    /// radius. A positive radius is a round body, whose surface is its sphere: a point inside it sees half the sky blocked,
+    /// as the ground at night does. A negative radius is the bounding sphere of a caster that is not round: it shadows only
+    /// points outside it, so a caster never shadows its own surface.
+    /// </summary>
     public static float SunVisibility(Vector3 position, Vector3 sunDirection, float sunAngularRadius, ReadOnlySpan<Vector4> occluders)
     {
         float sunRadius = MathF.Max(sunAngularRadius, 1e-5f);
         float visibility = 1f;
         foreach (Vector4 occluder in occluders)
         {
+            float radius = MathF.Abs(occluder.W);
             Vector3 toCenter = new Vector3(occluder.X, occluder.Y, occluder.Z) - position;
             float distance = toCenter.Length();
-            float occluderRadius = distance > occluder.W ? MathF.Asin(occluder.W / distance) : 0.5f * MathF.PI;
+            if (occluder.W < 0f && distance <= radius)
+                continue;
+            float occluderRadius = distance > radius ? MathF.Asin(radius / distance) : 0.5f * MathF.PI;
             float separation = MathF.Atan2(Vector3.Cross(toCenter, sunDirection).Length(), Vector3.Dot(toCenter, sunDirection));
             visibility *= 1f - DiscCoverage(sunRadius, occluderRadius, separation);
         }

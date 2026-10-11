@@ -7,8 +7,8 @@
 // Lights add f · E · (N·L), where E is the irradiance of the light. Ambient light is a hemisphere: ground color
 // below, sky color above, blended by the world-space normal's y.
 //
-// The sun is also dimmed by the analytic eclipse term (occluder spheres: planets and moons) and, within 2 km, by the
-// cascaded shadow maps (shadows.glsl). The two multiply.
+// The sun is also dimmed by the analytic eclipse term (the far shadows: spheres of round bodies, such as planets, and
+// bounding spheres of casters beyond 2 km) and, within 2 km, by the cascaded shadow maps (shadows.glsl). The two multiply.
 #ifndef TERTIUS_LIGHTING_GLSL
 #define TERTIUS_LIGHTING_GLSL
 
@@ -78,7 +78,9 @@ float discCoverage(float sunRadius, float occluderRadius, float separation)
 }
 
 // Analytic eclipse and planet-shadow test against every occluder sphere. The soft edge comes from the sun's
-// angular radius.
+// angular radius. A positive w is a round body: a point inside it sees half the sky blocked, as the ground at night does.
+// A negative w is the bounding sphere of a caster that is not round: it shadows only points outside it, so a caster never
+// shadows its own surface. Eclipse.SunVisibility is the same test on the CPU.
 float sunVisibility(vec3 position)
 {
     vec3 L = frame.sunDirection.xyz;
@@ -87,9 +89,12 @@ float sunVisibility(vec3 position)
     for (uint i = 0u; i < frame.counts.y; i++)
     {
         vec4 occluder = occluders[i];
+        float radius = abs(occluder.w);
         vec3 toCenter = occluder.xyz - position;
         float distanceToCenter = length(toCenter);
-        float occluderRadius = distanceToCenter > occluder.w ? asin(occluder.w / distanceToCenter) : 0.5 * PI;
+        if (occluder.w < 0.0 && distanceToCenter <= radius)
+            continue;
+        float occluderRadius = distanceToCenter > radius ? asin(radius / distanceToCenter) : 0.5 * PI;
         // atan2 of |cross| and dot keeps precision at small angles, where acos(dot) does not.
         float separation = atan(length(cross(toCenter, L)), dot(toCenter, L));
         visibility *= 1.0 - discCoverage(sunRadius, occluderRadius, separation);

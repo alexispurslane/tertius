@@ -255,17 +255,22 @@ internal sealed class SceneBatcher
 
     /// <summary>
     /// The far shadows: every shadow caster that the shadow maps do not take (see <see cref="ShadowCascades.TakesCaster"/>)
-    /// shadows the sun as an analytic sphere of its bounding radius, from any frame, visible or not. Only while the sun
-    /// lights the scene, because a far shadow only blocks the sun. Only for a sphere that covers at least a pixel: a
-    /// smaller one hides at most a few percent of the sun near the camera, and its shadow farther away is under a pixel too.
+    /// shadows the sun as an analytic sphere of its bounding radius, from any frame, visible or not. A round body's sphere
+    /// (<see cref="RenderFlags.Celestial"/>) has a positive radius. Any other caster's has a negative one: it is only a
+    /// bounding sphere, so it does not shadow what lies inside it, its own surface first of all (see
+    /// <see cref="Eclipse.SunVisibility"/>). Only while the sun lights the scene, because a far shadow only blocks the sun.
+    /// Only for a sphere that covers at least a pixel or a fifth of the sun's angular radius: a smaller one hides at most
+    /// 4% of the sun near the camera, and its shadow farther away is under a pixel too.
     /// </summary>
     private static void CollectFarShadows(RenderSnapshot snapshot, float alpha, ReadOnlySpan<MeshInfo> meshes, PreparedScene scene)
     {
         if (!HasSun(snapshot.Sun))
             return;
         Vector3 offset = scene.Camera.Offset;
-        // A sphere of radius r at distance d covers 2 asin(r / d), which is a pixel when r / d = sin(half a pixel).
-        float smallestShare = MathF.Sin(scene.Camera.PixelAngle * 0.5f);
+        // A sphere of radius r at distance d covers 2 asin(r / d), which is a pixel when r / d = sin(half a pixel). Far from
+        // the sun, its disc shrinks toward a pixel, and a sphere a fifth of its radius already hides 4% of it.
+        float sunRadius = MathF.Max(snapshot.Sun.AngularRadius, 1e-5f);
+        float smallestShare = MathF.Min(MathF.Sin(scene.Camera.PixelAngle * 0.5f), 0.2f * MathF.Sin(sunRadius));
         foreach (ref readonly RenderInstance instance in CollectionsMarshal.AsSpan(snapshot.Instances))
         {
             if ((instance.Flags & RenderFlags.CastsShadow) == 0)
@@ -276,11 +281,12 @@ internal sealed class SceneBatcher
             Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - offset;
             float radius = BoundingRadius(instance, meshes[mesh]);
             float distance = position.Length();
-            if (!float.IsFinite(distance + radius) || ShadowCascades.TakesCaster(distance, radius) || radius < distance * smallestShare)
+            if (!float.IsFinite(distance + radius) || ShadowCascades.TakesCaster(distance, radius, instance.Flags) || radius < distance * smallestShare)
                 continue;
             if (scene.OccluderCount == scene.Occluders.Length)
                 Array.Resize(ref scene.Occluders, scene.Occluders.Length * 2);
-            scene.Occluders[scene.OccluderCount++] = new Vector4(position, radius);
+            bool round = (instance.Flags & RenderFlags.Celestial) != 0;
+            scene.Occluders[scene.OccluderCount++] = new Vector4(position, round ? radius : -radius);
         }
     }
 

@@ -103,7 +103,10 @@ internal sealed class PreparedScene
 
     public GpuLight[] Lights = new GpuLight[16];
     public int LightCount;
-    /// <summary>Occluder spheres: xyz camera-relative center, w radius.</summary>
+    /// <summary>
+    /// The far shadows: xyz camera-relative center, w radius, positive for a round body and negative for a bounding sphere
+    /// (see <see cref="Eclipse.SunVisibility"/>).
+    /// </summary>
     public Vector4[] Occluders = new Vector4[8];
     public int OccluderCount;
 

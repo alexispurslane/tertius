@@ -88,6 +88,40 @@ public sealed class ShadowTests
     }
 
     [Fact]
+    public void AnObjectInsideTheBoundingSphereOfAFarCasterIsNotShadowedByIt()
+    {
+        const int width = 640, height = 360;
+        const float fov = 0.02f;
+        VulkanRenderer renderer = Gpu.Headless(width, height);
+        try
+        {
+            Kit kit = Kit.Create(renderer);
+            // The sun is up and toward the camera. An invisible caster that is not round, 1 km in radius and 5 km away,
+            // holds a 20 m box 500 m below its center, so the caster's center lies toward the sun from the box. A narrow view
+            // looks straight at the box.
+            var sun = new Vector3(0, 1, 1);
+            var box = new Vector3(0, -500, -5_000);
+            Quaternion camera = Gpu.PitchDown(MathF.Atan2(500, 5_000));
+            RenderSnapshot snapshot = Gpu.Snapshot(sun);
+            snapshot.Camera.Rotation = camera;
+            snapshot.Camera.PreviousRotation = camera;
+            snapshot.Camera.VerticalFov = fov;
+            snapshot.Instances.Add(Gpu.Instance(kit.Box, kit.White, box, new Vector3(10f)));
+            snapshot.Instances.Add(RenderInstance.Create(kit.Sphere, kit.White, new Vector3(0, 0, -5_000), Quaternion.Identity, new Vector3(1_000f), 0, Caster, 0, 0));
+
+            Capture image = Gpu.RenderAndCapture(renderer, snapshot, "far-caster-inside");
+
+            // The box's face toward the camera faces the sun at 45 degrees, so the sun lights it.
+            float face = image.MeanLuma(Gpu.Project(box + new Vector3(0, 0, 5f), camera, width, height, fov), 2);
+            face.Should().BeGreaterThan(0.3f, "a bounding sphere does not shadow what lies inside it");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void TheLastCascadeStillShadowsAtOnePointFiveKilometres()
     {
         const int width = 960, height = 540;
@@ -172,8 +206,8 @@ public sealed class ShadowTests
                 depth.Should().BeGreaterThan(ShadowCascades.Distance, "the sample is beyond the maps");
                 float shadowed = Luma(shadowPoint), lit = Luma(new Vector3(40f, ground, -z));
                 MathF.Abs(shadowed - lit).Should().BeLessThan(0.02f, "at {0:F0} m, beyond the maps, nothing is shadowed ({1} vs {2})", depth, shadowed, lit);
-                // 60 m left of the second wall, inside the 69 m shadow that the real wall would throw.
-                float beside = Luma(new Vector3(-660f, ground, -2_600f));
+                // 300 m left of the second wall: outside its bounding sphere, inside that sphere's shadow.
+                float beside = Luma(new Vector3(-900f, ground, -2_600f));
                 beside.Should().BeLessThan(0.5f * lit, "the far wall shadows the ground beside it as a sphere ({0} vs {1})", beside, lit);
             }
         }

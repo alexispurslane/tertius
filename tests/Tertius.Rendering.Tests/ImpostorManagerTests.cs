@@ -606,6 +606,43 @@ public sealed class ImpostorManagerTests
     }
 
     [Fact]
+    public void ABoundingSphereDoesNotShadowWhatIsInsideItButARoundBodyDoes()
+    {
+        Vector3 sun = Vector3.UnitY;
+        const float sunRadius = 0.00467f;
+        // Both spheres have their centers 5 m toward the sun from the point, which lies inside them. A negative radius marks
+        // the bounding sphere of a caster that is not round, a positive one a round body, whose surface is its sphere.
+        Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius, [new Vector4(0, 5, 0, -10)]).Should().Be(1f);
+        Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius, [new Vector4(0, 5, 0, 10)]).Should().BeApproximately(0f, 1e-6f);
+        // Outside it, a bounding sphere shadows like any other sphere.
+        Eclipse.SunVisibility(new Vector3(0, -20, 0), sun, sunRadius, [new Vector4(0, 0, 0, -10)]).Should().BeApproximately(0f, 1e-6f);
+    }
+
+    [Fact]
+    public void AFarShadowCasterThatMovesIntoAPlanetsShadowIsRecaptured()
+    {
+        var harness = new Harness();
+        // A ball of 100 m radius, about 3.1 km away and 40 px tall: an impostor, and a far-shadow caster itself.
+        var position = new Vector3(0, 0, -DistanceFor(40f, 100f));
+        RenderInstance ball = Ball(1, position, flags: RenderFlags.CastsShadow, scale: new Vector3(100f));
+        RenderSnapshot lit = Snapshot();
+        lit.Instances.Add(ball);
+        harness.Run(lit);
+        harness.Manager.Captures.Length.Should().Be(1, "the first sight of an impostor is captured");
+        harness.Run(lit);
+        harness.Manager.Captures.Length.Should().Be(0, "nothing changed");
+
+        // A planet comes between the ball and the sun.
+        RenderSnapshot dark = Snapshot();
+        dark.Instances.Add(ball);
+        dark.Instances.Add(RenderInstance.Create(new MeshId(Sphere), BallMaterial, position + SunDirection * 1e7f, Quaternion.Identity,
+            new Vector3(6e6f), 0, RenderFlags.Celestial | RenderFlags.CastsShadow, 9_998, 0));
+        harness.Run(dark);
+
+        harness.Manager.Captures.Length.Should().Be(1, "the planet's shadow changes the light that reaches the ball");
+    }
+
+    [Fact]
     public void SteadyStateProcessingDoesNotAllocate()
     {
         var harness = new Harness(tiles: 16);
