@@ -272,6 +272,43 @@ public class PhysicsHarnessTests
         return (space, carrier, fighter);
     }
 
+    /// <summary>
+    /// The step that hands the fighter into the carrier reports it twice: in the hand-off, and in a body state in the
+    /// carrier. The sync point lands body states first and hand-offs after them, so the entity keeps the state of its
+    /// hand-off. The harness keeps the same one. The test moves the body state by 1 m, so that the two states differ by
+    /// more than rounding.
+    /// </summary>
+    [Fact]
+    public void AnEntityWithABodyStateAndAHandOffInOneStepKeepsTheStateOfItsHandOff()
+    {
+        using var h = new PhysicsHarness();
+        var (_, carrier, fighter) = FighterApproachingCarrier(h);
+        HandOff? handOff = null;
+        bool reportedBoth = false;
+        h.BeforeApply = output =>
+        {
+            if (output.HandOffs.Count == 0)
+                return;
+            handOff = output.HandOffs.Single();
+            for (int i = 0; i < output.Bodies.Count; i++)
+            {
+                BodyState state = output.Bodies[i];
+                if (state.Entity != fighter.Entity)
+                    continue;
+                reportedBoth = true;
+                output.Bodies[i] = state with { Pose = new DPose(state.Pose.Position + new Double3(1, 0, 0), state.Pose.Rotation) };
+            }
+        };
+
+        h.StepUntil(() => handOff != null, 120);
+
+        handOff.Should().NotBeNull();
+        reportedBoth.Should().BeTrue("the backend reports the body in its new frame as well");
+        HandOff entry = handOff!.Value;
+        entry.To.Should().Be(carrier);
+        h[fighter.Entity].Should().Be(new BodyState(fighter.Entity, carrier, entry.Pose, entry.LinearVelocity, entry.AngularVelocity));
+    }
+
     [Fact]
     public void ATestThatRefusesAHandOffThatTheTreeAcceptsFailsAtThatStep()
     {

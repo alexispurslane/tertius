@@ -200,19 +200,23 @@ internal sealed class PhysicsHarness : IDisposable
         BeforeApply?.Invoke(Output);
         CheckOutput();
 
+        // The order of World.ApplyPhysicsOutput: the reparents of the hand-offs, then body states, then the states of the
+        // hand-offs, so that an entity with both keeps its hand-off's state, then frame states, then contacts.
         foreach (HandOff handOff in Output.HandOffs)
         {
             HandOffs.Add(handOff);
-            if (check.IsSkipped(handOff.Entity))
-                continue;
-            if (Frames.TryGetFrame(handOff.Entity, out FrameHandle frame))
+            if (!check.IsSkipped(handOff.Entity) && Frames.TryGetFrame(handOff.Entity, out FrameHandle frame))
                 Frames.Reparent(frame, handOff.To);
-            States[handOff.Entity] = new BodyState(handOff.Entity, handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity);
         }
         foreach (BodyState body in Output.Bodies)
         {
             if (!check.IsSkipped(body.Entity))
                 States[body.Entity] = body;
+        }
+        foreach (HandOff handOff in Output.HandOffs)
+        {
+            if (!check.IsSkipped(handOff.Entity))
+                States[handOff.Entity] = new BodyState(handOff.Entity, handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity);
         }
         foreach (FrameState state in Output.Frames)
         {
