@@ -104,11 +104,13 @@ internal sealed class PreparedScene
     public GpuLight[] Lights = new GpuLight[16];
     public int LightCount;
     /// <summary>
-    /// The far shadows: xyz camera-relative center, w radius, positive for a round body and negative for a bounding sphere
-    /// (see <see cref="Eclipse.SunVisibility"/>).
+    /// The far shadows: xyz camera-relative center, w the radius of the caster's bounding sphere (see
+    /// <see cref="Eclipse.SunVisibility"/>). Those of casters in the shadow maps come first.
     /// </summary>
     public Vector4[] Occluders = new Vector4[8];
     public int OccluderCount;
+    /// <summary>How many far shadows, at the front of <see cref="Occluders"/>, belong to casters that the shadow maps also draw.</summary>
+    public int MappedOccluderCount;
 
     /// <summary>Instances in the snapshot, before any filtering.</summary>
     public int SubmittedInstances;
@@ -172,6 +174,7 @@ internal sealed class PreparedScene
         CommandCount = 0;
         LightCount = 0;
         OccluderCount = 0;
+        MappedOccluderCount = 0;
         SubmittedInstances = 0;
         Array.Clear(Opaque);
         Array.Clear(Transparent);

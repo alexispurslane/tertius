@@ -4,22 +4,22 @@ using Tertius.Rendering;
 namespace Tertius.Rendering.Tests;
 
 /// <summary>
-/// Far shadows: a caster casts an analytic sphere shadow, from any frame, in two cases. A round body (Celestial, such as
-/// a planet), whose surface is its sphere, always does, and never goes into the shadow maps. Any other caster does when
-/// its bounding sphere stays farther than 2 km from the camera, where the shadow maps end. A round body's sphere has a
-/// positive radius, and it darkens a point inside it as the ground darkens it at night. Any other caster's bounding sphere
-/// has a negative radius, and it does not shadow what lies inside it, such as its own surface. A far shadow counts only
-/// while the sun lights the scene, and only when its sphere covers at least a pixel or a fifth of the sun's angular
-/// radius. The output is 1600 by 900 with a 60 degree field of view, so one pixel is about 1.28e-3 rad.
+/// Far shadows: every shadow caster is also a sphere of its bounding radius, from any frame, which shadows the sun for
+/// points outside it and never for points inside it. A caster whose bounding sphere comes within 2 km of the camera is also
+/// in the shadow maps: its sphere then counts only where the maps end, for receivers farther than 2 km, and those casters
+/// come first in the list. A sphere counts only while the sun lights the scene, and only when it can be noticed: a caster
+/// beyond the maps must cover a pixel or a fifth of the sun's angular radius seen from the camera, and a caster in the maps
+/// must hide 4% of the sun from 2 km away, where its far receivers start. The output is 1600 by 900 with a 60 degree field
+/// of view, so one pixel is about 1.28e-3 rad, and the sun is 4.67e-3 rad in radius.
 /// </summary>
 public sealed class FarShadowTests
 {
     private static readonly MeshInfo[] Meshes = [new(FirstIndex: 0, IndexCount: 600, VertexOffset: 0, Radius: 1f)];
     private static readonly MeshId Sphere = new(0);
 
-    private static RenderInstance Caster(Vector3 position, float radius, bool visible = true, bool round = false) =>
+    private static RenderInstance Caster(Vector3 position, float radius, bool visible = true) =>
         RenderInstance.Create(Sphere, new MaterialId(0), position, Quaternion.Identity, new Vector3(radius), 0,
-            (visible ? RenderFlags.Visible : RenderFlags.None) | RenderFlags.CastsShadow | (round ? RenderFlags.Celestial : RenderFlags.None), 0, 0);
+            (visible ? RenderFlags.Visible : RenderFlags.None) | RenderFlags.CastsShadow, 0, 0);
 
     private static PreparedScene Prepare(RenderSnapshot snapshot, float alpha = 1f)
     {
@@ -30,48 +30,29 @@ public sealed class FarShadowTests
 
     private static Vector4[] FarShadows(PreparedScene scene) => scene.Occluders.AsSpan(0, scene.OccluderCount).ToArray();
 
+    // ---- Casters beyond the shadow maps -----------------------------------------------------------------------
+
     [Fact]
     public void APlanetCastsAFarShadowAtItsCenterWithItsRadius()
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
-        snapshot.Instances.Add(Caster(new Vector3(0, 0, -3e7f), 6e6f, round: true));
+        snapshot.Instances.Add(Caster(new Vector3(0, 0, -3e7f), 6e6f));
 
         PreparedScene scene = Prepare(snapshot);
 
         FarShadows(scene).Should().Equal(new Vector4(0, 0, -3e7f, 6e6f));
+        scene.MappedOccluderCount.Should().Be(0);
         scene.Constants.OccluderCount.Should().Be(1u);
     }
 
     [Fact]
-    public void ARoundBodyCastsAFarShadowEvenWhenTheCameraStandsOnIt()
-    {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
-        // A planet 2 m under the camera: things farther than the shadow maps reach still need its shadow at night.
-        snapshot.Instances.Add(Caster(new Vector3(0, -6.371e6f - 2, 0), 6.371e6f, round: true));
-
-        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, -6.371e6f - 2, 0, 6.371e6f));
-    }
-
-    [Fact]
-    public void ACasterThatIsNotRoundAndComesWithin2KmCastsNoFarShadowHoweverBigItIs()
-    {
-        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
-        snapshot.Instances.Add(Caster(new Vector3(0, 0, -10), 1));
-        snapshot.Instances.Add(Caster(new Vector3(0, 0, -1_900), 500));
-        // A ground plane 6 km across around the camera.
-        snapshot.Instances.Add(Caster(new Vector3(0, -1, -100), 3_000));
-
-        FarShadows(Prepare(snapshot)).Should().BeEmpty("the shadow maps shadow them");
-    }
-
-    [Fact]
-    public void ACasterThatIsNotRoundCastsItsBoundingSphereAsAFarShadowBeyondTheShadowMaps()
+    public void ACasterBeyondTheShadowMapsThatCoversSixPixelsCastsAFarShadow()
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
         // 40 m across at 5 km: 8e-3 rad, about six pixels.
         snapshot.Instances.Add(Caster(new Vector3(0, 0, -5_000), 20));
 
-        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, 0, -5_000, -20));
+        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, 0, -5_000, 20));
     }
 
     [Fact]
@@ -81,18 +62,17 @@ public sealed class FarShadowTests
         // 40 m across at 25 km: 1.6e-3 rad, about 1.25 pixels.
         snapshot.Instances.Add(Caster(new Vector3(0, 0, -25_000), 20));
 
-        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, 0, -25_000, -20));
+        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, 0, -25_000, 20));
     }
 
     [Fact]
     public void ACasterUnderAPixelThatHidesLittleOfTheSunCastsNoFarShadow()
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
-        // 40 m across at 50 km: 8e-4 rad, about 0.6 pixels. Against the sun at 1 AU, 4.67e-3 rad in radius, it hides at
-        // most 0.7% of the disc.
+        // 40 m across at 50 km: 8e-4 rad, about 0.6 pixels. It hides at most 0.7% of the sun.
         snapshot.Instances.Add(Caster(new Vector3(0, 0, -50_000), 20));
         // 2,000 km across at 2e9 m: 1e-3 rad, also under a pixel, though it is far bigger than a kilometer.
-        snapshot.Instances.Add(Caster(new Vector3(0, 0, -2e9f), 1e6f, round: true));
+        snapshot.Instances.Add(Caster(new Vector3(0, 0, -2e9f), 1e6f));
 
         FarShadows(Prepare(snapshot)).Should().BeEmpty();
     }
@@ -104,7 +84,7 @@ public sealed class FarShadowTests
         // Near Saturn, the sun is 4.85e-4 rad in radius, less than half a pixel. A moon 9e-4 rad across is under a pixel,
         // but it can hide the whole sun.
         snapshot.Sun.AngularRadius = 4.85e-4f;
-        snapshot.Instances.Add(Caster(new Vector3(0, 0, -1e9f), 4.5e5f, round: true));
+        snapshot.Instances.Add(Caster(new Vector3(0, 0, -1e9f), 4.5e5f));
 
         FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, 0, -1e9f, 4.5e5f));
     }
@@ -115,8 +95,64 @@ public sealed class FarShadowTests
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
         snapshot.Instances.Add(Caster(new Vector3(0, 0, -5_000), 1_000, visible: false));
 
-        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, 0, -5_000, -1_000));
+        FarShadows(Prepare(snapshot)).Should().Equal(new Vector4(0, 0, -5_000, 1_000));
     }
+
+    // ---- Casters in the shadow maps -----------------------------------------------------------------------------
+
+    [Fact]
+    public void ASmallCasterNearTheCameraIsInTheShadowMapsOnly()
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
+        // From 2 km away, a crate 1 m in radius hides at most 1% of the sun, and a person at the camera less.
+        snapshot.Instances.Add(Caster(new Vector3(0, 0, -10), 1));
+        snapshot.Instances.Add(Caster(new Vector3(0, -1, 0), 0.9f));
+
+        FarShadows(Prepare(snapshot)).Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AShipInTheShadowMapsAlsoCastsAFarShadowForReceiversBeyondThem()
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
+        // A 50 m ship 500 m away, at least 1.5 km from any receiver beyond the maps, hides up to all of the sun there.
+        snapshot.Instances.Add(Caster(new Vector3(0, 0, -500), 50));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        FarShadows(scene).Should().Equal(new Vector4(0, 0, -500, 50));
+        scene.MappedOccluderCount.Should().Be(1);
+        scene.Constants.MappedOccluderCount.Should().Be(1u);
+    }
+
+    [Fact]
+    public void APlanetUnderTheCameraIsInTheShadowMapsAndStillShadowsEverythingBeyondThem()
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
+        snapshot.Instances.Add(Caster(new Vector3(0, -6.371e6f - 2, 0), 6.371e6f));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        FarShadows(scene).Should().Equal(new Vector4(0, -6.371e6f - 2, 0, 6.371e6f));
+        scene.MappedOccluderCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void TheFarShadowsOfCastersInTheShadowMapsComeFirst()
+    {
+        RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX);
+        snapshot.Instances.Add(Caster(new Vector3(0, 0, -5_000), 20));
+        snapshot.Instances.Add(Caster(new Vector3(0, 0, -500), 50));
+        snapshot.Instances.Add(Caster(new Vector3(0, 0, -6_000), 30));
+        snapshot.Instances.Add(Caster(new Vector3(0, 0, -700), 60));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        FarShadows(scene).Select(shadow => shadow.Z).Should().Equal(-500f, -700f, -5_000f, -6_000f);
+        scene.MappedOccluderCount.Should().Be(2);
+    }
+
+    // ---- Every caster ---------------------------------------------------------------------------------------------
 
     [Fact]
     public void AnObjectThatCastsNoShadowCastsNoFarShadowHoweverBigItIs()
@@ -132,9 +168,13 @@ public sealed class FarShadowTests
     public void WithoutASunThereAreNoFarShadows()
     {
         RenderSnapshot snapshot = Gpu.Snapshot(Vector3.UnitX, sunIntensity: 0);
-        snapshot.Instances.Add(Caster(new Vector3(0, 0, -3e7f), 6e6f, round: true));
+        snapshot.Instances.Add(Caster(new Vector3(0, 0, -3e7f), 6e6f));
+        snapshot.Instances.Add(Caster(new Vector3(0, 0, -500), 50));
 
-        FarShadows(Prepare(snapshot)).Should().BeEmpty("a far shadow only blocks the sun");
+        PreparedScene scene = Prepare(snapshot);
+
+        FarShadows(scene).Should().BeEmpty("a far shadow only blocks the sun");
+        scene.MappedOccluderCount.Should().Be(0);
     }
 
     [Fact]
@@ -147,7 +187,7 @@ public sealed class FarShadowTests
         snapshot.Instances.Add(caster);
 
         // A quarter of the way, the caster is at (0, 1,500, -5,000) and the camera at (0, 0, 6).
-        FarShadows(Prepare(snapshot, alpha: 0.25f)).Should().Equal(new Vector4(0, 1_500, -5_006, -1_000));
+        FarShadows(Prepare(snapshot, alpha: 0.25f)).Should().Equal(new Vector4(0, 1_500, -5_006, 1_000));
     }
 
     [Fact]
@@ -164,17 +204,15 @@ public sealed class FarShadowTests
     }
 
     [Theory]
-    [InlineData(1, 10, false, true)]
-    [InlineData(500, 2_499, false, true)]
-    [InlineData(500, 2_500, false, true)]
-    [InlineData(500, 2_501, false, false)]
-    [InlineData(3_000, 100, false, true)]
-    [InlineData(6.371e6, 6.371e6 + 2, false, true)]
-    [InlineData(6.371e6, 6.371e6 + 2, true, false)]
-    [InlineData(1, 10, true, false)]
-    [InlineData(6e6, 3e7, false, false)]
-    public void TheShadowMapsTakeACasterThatIsNotRoundWhoseBoundingSphereComesWithin2Km(float radius, float distance, bool round, bool mapped)
+    [InlineData(1, 10, true)]
+    [InlineData(500, 2_499, true)]
+    [InlineData(500, 2_500, true)]
+    [InlineData(500, 2_501, false)]
+    [InlineData(3_000, 100, true)]
+    [InlineData(6.371e6, 6.371e6 + 2, true)]
+    [InlineData(6e6, 3e7, false)]
+    public void TheShadowMapsTakeACasterWhoseBoundingSphereComesWithin2Km(float radius, float distance, bool mapped)
     {
-        ShadowCascades.TakesCaster(distance, radius, round ? RenderFlags.Celestial | RenderFlags.CastsShadow : RenderFlags.CastsShadow).Should().Be(mapped);
+        ShadowCascades.TakesCaster(distance, radius).Should().Be(mapped);
     }
 }

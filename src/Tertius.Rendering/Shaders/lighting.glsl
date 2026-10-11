@@ -7,8 +7,8 @@
 // Lights add f · E · (N·L), where E is the irradiance of the light. Ambient light is a hemisphere: ground color
 // below, sky color above, blended by the world-space normal's y.
 //
-// The sun is also dimmed by the analytic eclipse term (the far shadows: spheres of round bodies, such as planets, and
-// bounding spheres of casters beyond 2 km) and, within 2 km, by the cascaded shadow maps (shadows.glsl). The two multiply.
+// The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
+// shadow maps (shadows.glsl). The two multiply.
 #ifndef TERTIUS_LIGHTING_GLSL
 #define TERTIUS_LIGHTING_GLSL
 
@@ -77,27 +77,30 @@ float discCoverage(float sunRadius, float occluderRadius, float separation)
     return clamp((a1 + a2 - k) / (PI * r1s), 0.0, 1.0);
 }
 
-// Analytic eclipse and planet-shadow test against every occluder sphere. The soft edge comes from the sun's
-// angular radius. A positive w is a round body: a point inside it sees half the sky blocked, as the ground at night does.
-// A negative w is the bounding sphere of a caster that is not round: it shadows only points outside it, so a caster never
-// shadows its own surface. Eclipse.SunVisibility is the same test on the CPU.
-float sunVisibility(vec3 position)
+// The far shadows: an analytic eclipse test against the bounding sphere of every caster. The soft edge comes from the
+// sun's angular radius. A sphere shadows only points outside it, so a caster never shadows its own surface; a planet's
+// ground faces away from the sun at night anyway. The first frame.counts.w spheres belong to casters that the shadow maps
+// also draw: they count by beyondMaps, the weight of the far shadow where the maps end (beyondShadowMaps). Impostor
+// captures pass 1. Eclipse.SunVisibility is the same test on the CPU.
+float sunVisibility(vec3 position, float beyondMaps)
 {
     vec3 L = frame.sunDirection.xyz;
     float sunRadius = max(frame.sunDirection.w, 1e-5);
     float visibility = 1.0;
     for (uint i = 0u; i < frame.counts.y; i++)
     {
+        float weight = i < frame.counts.w ? beyondMaps : 1.0;
+        if (weight <= 0.0)
+            continue;
         vec4 occluder = occluders[i];
-        float radius = abs(occluder.w);
         vec3 toCenter = occluder.xyz - position;
         float distanceToCenter = length(toCenter);
-        if (occluder.w < 0.0 && distanceToCenter <= radius)
+        if (distanceToCenter <= occluder.w)
             continue;
-        float occluderRadius = distanceToCenter > radius ? asin(radius / distanceToCenter) : 0.5 * PI;
+        float occluderRadius = asin(occluder.w / distanceToCenter);
         // atan2 of |cross| and dot keeps precision at small angles, where acos(dot) does not.
         float separation = atan(length(cross(toCenter, L)), dot(toCenter, L));
-        visibility *= 1.0 - discCoverage(sunRadius, occluderRadius, separation);
+        visibility *= 1.0 - weight * discCoverage(sunRadius, occluderRadius, separation);
     }
     return visibility;
 }
@@ -126,7 +129,7 @@ vec3 sunLight(ShadingInput s, vec3 position, vec3 V, bool shadowMaps)
     float geometricNdotL = dot(s.geometricNormal, L);
     if (dot(s.normal, L) <= 0.0 || geometricNdotL <= 0.0)
         return vec3(0.0);
-    float visibility = sunVisibility(position);
+    float visibility = sunVisibility(position, shadowMaps ? beyondShadowMaps(position) : 1.0);
     if (shadowMaps && visibility > 0.0)
         visibility *= sunShadow(position, s.geometricNormal, geometricNdotL);
     return visibility > 0.0 ? blinnPhong(s, V, L) * frame.sunRadiance.rgb * visibility : vec3(0.0);

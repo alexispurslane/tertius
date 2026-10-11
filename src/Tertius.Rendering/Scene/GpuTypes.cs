@@ -101,7 +101,8 @@ internal struct GpuFrameConstants
     public uint OccluderCount;
     /// <summary>Sun shadow cascades to sample: <see cref="ShadowCascades.Count"/>, or 0 when no cascade was drawn.</summary>
     public uint ShadowCascadeCount;
-    public uint Flags;
+    /// <summary>How many far shadows, at the front of the list, belong to casters that the shadow maps also draw.</summary>
+    public uint MappedOccluderCount;
     /// <summary>World to shadow clip space per cascade, row-vector form like the range matrices.</summary>
     public ShadowMatrices ShadowViewProj;
     /// <summary>The view depth where each cascade ends.</summary>

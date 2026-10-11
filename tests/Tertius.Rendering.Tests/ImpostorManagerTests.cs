@@ -606,16 +606,14 @@ public sealed class ImpostorManagerTests
     }
 
     [Fact]
-    public void ABoundingSphereDoesNotShadowWhatIsInsideItButARoundBodyDoes()
+    public void ASphereShadowsPointsOutsideItAndNeverAPointInsideIt()
     {
         Vector3 sun = Vector3.UnitY;
         const float sunRadius = 0.00467f;
-        // Both spheres have their centers 5 m toward the sun from the point, which lies inside them. A negative radius marks
-        // the bounding sphere of a caster that is not round, a positive one a round body, whose surface is its sphere.
-        Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius, [new Vector4(0, 5, 0, -10)]).Should().Be(1f);
-        Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius, [new Vector4(0, 5, 0, 10)]).Should().BeApproximately(0f, 1e-6f);
-        // Outside it, a bounding sphere shadows like any other sphere.
-        Eclipse.SunVisibility(new Vector3(0, -20, 0), sun, sunRadius, [new Vector4(0, 0, 0, -10)]).Should().BeApproximately(0f, 1e-6f);
+        // The sphere's center lies 5 m toward the sun from a point inside it: its own caster's surface, or the ground of a
+        // planet, which faces away from the sun at night anyway.
+        Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius, [new Vector4(0, 5, 0, 10)]).Should().Be(1f);
+        Eclipse.SunVisibility(new Vector3(0, -20, 0), sun, sunRadius, [new Vector4(0, 0, 0, 10)]).Should().BeApproximately(0f, 1e-6f);
     }
 
     [Fact]
@@ -636,7 +634,7 @@ public sealed class ImpostorManagerTests
         RenderSnapshot dark = Snapshot();
         dark.Instances.Add(ball);
         dark.Instances.Add(RenderInstance.Create(new MeshId(Sphere), BallMaterial, position + SunDirection * 1e7f, Quaternion.Identity,
-            new Vector3(6e6f), 0, RenderFlags.Celestial | RenderFlags.CastsShadow, 9_998, 0));
+            new Vector3(6e6f), 0, RenderFlags.CastsShadow, 9_998, 0));
         harness.Run(dark);
 
         harness.Manager.Captures.Length.Should().Be(1, "the planet's shadow changes the light that reaches the ball");

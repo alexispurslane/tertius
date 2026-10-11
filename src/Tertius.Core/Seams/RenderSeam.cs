@@ -54,10 +54,10 @@ public enum RenderFlags : uint
     Visible = 1 << 0,
     /// <summary>
     /// Casts shadows from the sun, whether or not the instance is <see cref="Visible"/>, and onto objects in any frame. A
-    /// round body (<see cref="Celestial"/>), such as a planet, always shadows as an analytic sphere of its bounding radius, a
-    /// far shadow. Any other caster casts shadow-map shadows when its bounding sphere comes within 2 km of the camera, and a
-    /// far shadow beyond, which does not shadow what lies inside the sphere. A far shadow counts when its sphere covers at
-    /// least a pixel or a fifth of the sun's angular radius. Leave it off the sun itself.
+    /// caster whose bounding sphere comes within 2 km of the camera casts shadow-map shadows, which have its real shape, onto
+    /// what is within 2 km. Every caster also shadows as an analytic sphere of its bounding radius, a far shadow, where the
+    /// maps do not reach, when it is big enough to notice. A sphere never shadows what lies inside it, so a caster never
+    /// shadows itself. Leave it off the sun itself.
     /// </summary>
     CastsShadow = 1 << 1,
     /// <summary>Alpha-blended with <see cref="MaterialDesc.BaseColor"/>.W as opacity. Never an impostor.</summary>
@@ -67,10 +67,7 @@ public enum RenderFlags : uint
     /// change every frame.
     /// </summary>
     NoImpostor = 1 << 3,
-    /// <summary>
-    /// A round sky body such as a star or planet, whose surface is its bounding sphere. It is never an impostor. With
-    /// <see cref="CastsShadow"/>, it always casts a far shadow, never shadow-map shadows.
-    /// </summary>
+    /// <summary>A sky object such as a star or planet. It is never an impostor.</summary>
     Celestial = 1 << 4,
 }
 

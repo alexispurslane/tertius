@@ -667,10 +667,10 @@ internal sealed class ImpostorManager : IInstanceProcessor
 internal static class Eclipse
 {
     /// <summary>
-    /// The visible fraction of the sun's disc at a camera-relative position, given occluder spheres: xyz the center, w the
-    /// radius. A positive radius is a round body, whose surface is its sphere: a point inside it sees half the sky blocked,
-    /// as the ground at night does. A negative radius is the bounding sphere of a caster that is not round: it shadows only
-    /// points outside it, so a caster never shadows its own surface.
+    /// The visible fraction of the sun's disc at a camera-relative position, given far shadows: xyz the center, w the radius
+    /// of a caster's bounding sphere. A sphere shadows only points outside it, so a caster never shadows its own surface;
+    /// a planet's ground faces away from the sun at night anyway. Impostor captures get no shadow-map shadows, so every
+    /// sphere counts here, also those of casters that the maps draw.
     /// </summary>
     public static float SunVisibility(Vector3 position, Vector3 sunDirection, float sunAngularRadius, ReadOnlySpan<Vector4> occluders)
     {
@@ -678,12 +678,11 @@ internal static class Eclipse
         float visibility = 1f;
         foreach (Vector4 occluder in occluders)
         {
-            float radius = MathF.Abs(occluder.W);
             Vector3 toCenter = new Vector3(occluder.X, occluder.Y, occluder.Z) - position;
             float distance = toCenter.Length();
-            if (occluder.W < 0f && distance <= radius)
+            if (distance <= occluder.W)
                 continue;
-            float occluderRadius = distance > radius ? MathF.Asin(radius / distance) : 0.5f * MathF.PI;
+            float occluderRadius = MathF.Asin(occluder.W / distance);
             float separation = MathF.Atan2(Vector3.Cross(toCenter, sunDirection).Length(), Vector3.Dot(toCenter, sunDirection));
             visibility *= 1f - DiscCoverage(sunRadius, occluderRadius, separation);
         }

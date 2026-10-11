@@ -122,6 +122,48 @@ public sealed class ShadowTests
     }
 
     [Fact]
+    public void ACasterInTheShadowMapsAlsoShadowsTheGroundBeyondThemWithItsSphere()
+    {
+        const int width = 960, height = 540;
+        const float fov = 40f * MathF.PI / 180f;
+        VulkanRenderer renderer = Gpu.Headless(width, height);
+        try
+        {
+            Kit kit = Kit.Create(renderer);
+            // The camera is 300 m up. The sun is 5 degrees up, behind the camera and to its right. A sphere of 150 m radius,
+            // 1.5 km away, stands 150 m above the ground, so it is in the shadow maps. Its shadow falls 1.7 km from it, to the
+            // left and away from the camera, about 2.7 km deep: beyond the maps.
+            float elevation = 5f * MathF.PI / 180f, across = MathF.Cos(elevation) * MathF.Sqrt(0.5f);
+            var sun = new Vector3(across, MathF.Sin(elevation), across);
+            const float ground = -300f;
+            var center = new Vector3(0, ground + 150f, -1_500f);
+            Vector3 shadow = center - Vector3.Normalize(sun) * (150f / MathF.Sin(elevation));
+            Quaternion camera = Gpu.PitchDown(6f * MathF.PI / 180f);
+            RenderSnapshot snapshot = Gpu.Snapshot(sun);
+            snapshot.Camera.Rotation = camera;
+            snapshot.Camera.PreviousRotation = camera;
+            snapshot.Camera.VerticalFov = fov;
+            // No ambient light, so that the low sun alone lights the ground and the shadow shows plainly.
+            snapshot.Ambient = default;
+            snapshot.Instances.Add(Gpu.Instance(kit.Plane, kit.Ground, new Vector3(0, ground, -3_000f), new Vector3(3_000f, 1, 3_000f)));
+            snapshot.Instances.Add(Gpu.Instance(kit.Sphere, kit.White, center, new Vector3(150f), flags: Caster));
+
+            Capture image = Gpu.RenderAndCapture(renderer, snapshot, "mapped-caster-far-shadow");
+
+            Vector2 Pixel(Vector3 p) => Gpu.Project(p, camera, width, height, fov);
+            Gpu.ViewDepth(shadow, camera).Should().BeGreaterThan(ShadowCascades.Distance, "the shadow lies beyond the maps");
+            float shadowed = image.MeanLuma(Pixel(shadow), 2);
+            float lit = image.MeanLuma(Pixel(new Vector3(600f, ground, shadow.Z)), 2);
+            lit.Should().BeGreaterThan(0.03f, "the ground away from the shadow is in the low sun");
+            shadowed.Should().BeLessThan(0.1f * lit, "the sphere shadows the ground beyond the maps");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
     public void TheLastCascadeStillShadowsAtOnePointFiveKilometres()
     {
         const int width = 960, height = 540;

@@ -87,14 +87,11 @@ internal static class ShadowCascades
 
     /// <summary>
     /// True when the shadow maps draw a caster with bounding radius <paramref name="radius"/> whose center is
-    /// <paramref name="distance"/> meters from the camera, and with render flags <paramref name="flags"/>. A round body
-    /// (<see cref="RenderFlags.Celestial"/>), whose surface is its sphere, never goes into the maps: it always casts a far
-    /// shadow, so a planet under the camera still shadows everything beyond the maps' reach at night. Any other caster goes
-    /// into the maps when its bounding sphere comes within <see cref="Distance"/>, however big it is, such as a ground
-    /// plane. Every caster that the maps do not take casts a far shadow instead, if it is big enough to notice.
+    /// <paramref name="distance"/> meters from the camera: its bounding sphere comes within <see cref="Distance"/>, however
+    /// big it is, such as a ground plane or a planet under the camera. Every caster is also a far shadow, if it is big enough
+    /// to notice; for a caster that the maps draw, that sphere counts only where the maps end.
     /// </summary>
-    public static bool TakesCaster(float distance, float radius, RenderFlags flags) =>
-        (flags & RenderFlags.Celestial) == 0 && distance - radius <= Distance;
+    public static bool TakesCaster(float distance, float radius) => distance - radius <= Distance;
     /// <summary>The weight of the logarithmic split against the uniform one.</summary>
     public const float SplitLambda = 0.9f;
     /// <summary>The fraction of each cascade's depth interval over which it blends into the next.</summary>
