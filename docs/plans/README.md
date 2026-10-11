@@ -21,7 +21,7 @@ ARCHITECTURE.md stays the binding design. When a plan is done, its decisions mov
 
 ## Running now
 
-- The workflow `wf_7ad3e6f1-bfa` makes a full physics system grow to twice its size instead of failing, as the user decided. A failed contract in physics now stops the tick. The sync point checks where a hand-off starts. The physics test helper gets the same output checks as the sync point. The other bugs from the test stage are fixed and committed.
+- The workflow `wf_a3ca6a19-5b4` is round six of the physics work. A full physics system already grows to twice its size, as the user decided. This round keeps contacts correct across two growths, and physics follows a change of a frame's motion driver. It also lets resting bodies sleep under gravity. The other bugs from the test stage are fixed and committed.
 
 The Simulation test stage is done and merged: 1,228 tests, none skipped.
 
