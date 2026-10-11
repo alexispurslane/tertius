@@ -1,5 +1,6 @@
 using System.Numerics;
 using Tertius.Host.Windowing;
+using Tertius.Simulation;
 
 namespace Tertius.Host.Tests;
 
@@ -163,6 +164,114 @@ public class FlyCameraTests
     }
 }
 
+/// <summary>More FlyCamera behavior: every key, other frame times, combined turns, restarts and frame changes.</summary>
+public class FlyCameraMotionTests
+{
+    private static void ExpectNear(Vector3 actual, Vector3 expected) =>
+        Vector3.Distance(actual, expected).Should().BeLessThan(1e-3f, $"{actual} is not {expected}");
+
+    private static Vector3 Held(FlyCamera camera, FlyKey key, float seconds)
+    {
+        camera.SetKey(key, true);
+        camera.Advance(seconds);
+        camera.SetKey(key, false);
+        return camera.Position;
+    }
+
+    [Theory]
+    [InlineData(FlyKey.Forward, 0, 0, -5)]
+    [InlineData(FlyKey.Back, 0, 0, 5)]
+    [InlineData(FlyKey.Left, -5, 0, 0)]
+    [InlineData(FlyKey.Right, 5, 0, 0)]
+    [InlineData(FlyKey.Up, 0, 5, 0)]
+    [InlineData(FlyKey.Down, 0, -5, 0)]
+    public void EachMovementKeyMovesFiveMetersASecondAlongItsAxis(FlyKey key, float x, float y, float z)
+    {
+        var camera = new FlyCamera();
+        camera.Start(Quaternion.Identity);
+
+        ExpectNear(Held(camera, key, 1), new Vector3(x, y, z));
+    }
+
+    [Fact]
+    public void AQuarterSecondMovesAQuarterAsFar()
+    {
+        var camera = new FlyCamera();
+        camera.Start(Quaternion.Identity);
+
+        ExpectNear(Held(camera, FlyKey.Forward, 0.25f), new Vector3(0, 0, -1.25f));
+    }
+
+    [Fact]
+    public void ATurnRightAppliesAboutTheFramesUpAxisAfterTheStartRotation()
+    {
+        var camera = new FlyCamera();
+        // The start looks 30 degrees down. A turn right by 90 degrees about the frame's +Y then takes the view's right,
+        // which stays level, from +X to +Z.
+        camera.Start(Quaternion.CreateFromAxisAngle(Vector3.UnitX, -MathF.PI / 6));
+        camera.Turn(new Vector2(MathF.PI / 2 / FlyCamera.TurnPerPixel, 0));
+
+        ExpectNear(Held(camera, FlyKey.Right, 1), new Vector3(0, 0, 5));
+    }
+
+    [Fact]
+    public void AYawAndAPitchTogetherPointTheViewBetweenThem()
+    {
+        var camera = new FlyCamera();
+        camera.Start(Quaternion.Identity);
+        // Right 90 degrees and down 45 degrees: the view looks along +X and down, (0.707, -0.707, 0).
+        camera.Turn(new Vector2(MathF.PI / 2 / FlyCamera.TurnPerPixel, MathF.PI / 4 / FlyCamera.TurnPerPixel));
+
+        ExpectNear(Held(camera, FlyKey.Forward, 1), new Vector3(3.5355f, -3.5355f, 0));
+    }
+
+    [Fact]
+    public void StartingAgainForgetsThePositionTheTurnAndTheKeys()
+    {
+        var camera = new FlyCamera();
+        camera.Start(Quaternion.Identity);
+        camera.SetKey(FlyKey.Forward, true);
+        camera.Advance(1);
+        camera.Turn(new Vector2(100, 50));
+        Quaternion again = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.3f);
+
+        camera.Start(again);
+
+        camera.Position.Should().Be(Vector3.Zero);
+        camera.Rotation.Should().Be(again);
+        camera.Advance(1);
+        camera.Position.Should().Be(Vector3.Zero, "no key is held after a start");
+    }
+
+    [Fact]
+    public void FollowingTheWorldCameraInTheSameFrameKeepsTheFlyCameraWhereItIs()
+    {
+        var camera = new FlyCamera();
+        camera.Start(Quaternion.Identity, frame: 7);
+        Held(camera, FlyKey.Forward, 1);
+
+        camera.Follow(Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1), frame: 7);
+
+        ExpectNear(camera.Position, new Vector3(0, 0, -5));
+        camera.Rotation.Should().Be(Quaternion.Identity);
+    }
+
+    [Fact]
+    public void FollowingTheWorldCameraIntoAnotherFrameRestartsTheFlyCameraThere()
+    {
+        var camera = new FlyCamera();
+        camera.Start(Quaternion.Identity, frame: 7);
+        Held(camera, FlyKey.Forward, 1);
+        Quaternion inNewFrame = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1);
+
+        camera.Follow(inNewFrame, frame: 8);
+
+        camera.Position.Should().Be(Vector3.Zero);
+        camera.Rotation.Should().Be(inNewFrame);
+        camera.Frame.Should().Be(8);
+    }
+}
+
 /// <summary>MouseTracker: mouse movements from the positions that the window reports.</summary>
 public class MouseTrackerTests
 {
@@ -174,28 +283,65 @@ public class MouseTrackerTests
         mouse.MoveTo(new Vector2(100, 50)).Should().Be(Vector2.Zero);
         mouse.MoveTo(new Vector2(103, 46)).Should().Be(new Vector2(3, -4));
     }
+
+    [Fact]
+    public void AfterForgettingThePositionTheNextOneMovesNothing()
+    {
+        var mouse = new MouseTracker();
+        mouse.MoveTo(new Vector2(100, 50));
+
+        mouse.Forget();
+
+        mouse.MoveTo(new Vector2(900, 700)).Should().Be(Vector2.Zero);
+    }
 }
 
 /// <summary>CaptureMailbox: the handover of a capture from the simulation thread to the render thread.</summary>
 public class CaptureMailboxTests
 {
+    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
+
+    private static CancellationToken TestStop => TestContext.Current.CancellationToken;
+
+    private static string TakeWithin(CaptureMailbox mailbox)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        string path;
+        while (!mailbox.TryTake(out path))
+        {
+            clock.Elapsed.Should().BeLessThan(Bound, "the request must arrive");
+            Thread.Yield();
+        }
+        return path;
+    }
+
+    /// <summary>True if the task ends within <paramref name="time"/>.</summary>
+    private static async Task<bool> EndsWithin(Task task, TimeSpan time) =>
+        await Task.WhenAny(task, Task.Delay(time, TestStop)) == task;
+
     [Fact]
-    public void ARequestWaitsUntilTheRenderThreadHasSavedTheCapture()
+    public async Task ARequestWaitsUntilTheRenderThreadHasSavedTheCapture()
     {
         var mailbox = new CaptureMailbox();
-        string? taken = null;
-        var renderThread = new Thread(() =>
-        {
-            while (!mailbox.TryTake(out taken))
-                Thread.Yield();
-            mailbox.Done();
-        });
-        renderThread.Start();
+        Task request = Task.Run(() => mailbox.RequestAndWait("x.png", CancellationToken.None), TestStop);
 
-        mailbox.RequestAndWait("x.png", CancellationToken.None);
+        TakeWithin(mailbox).Should().Be("x.png");
+        (await EndsWithin(request, TimeSpan.FromMilliseconds(100))).Should().BeFalse("the capture is taken but not saved yet");
 
-        renderThread.Join();
-        taken.Should().Be("x.png");
+        mailbox.Done();
+        await request.WaitAsync(Bound, TestStop);
+    }
+
+    [Fact]
+    public async Task ARequestIsTakenOnce()
+    {
+        var mailbox = new CaptureMailbox();
+        Task request = Task.Run(() => mailbox.RequestAndWait("x.png", CancellationToken.None), TestStop);
+        TakeWithin(mailbox);
+
+        mailbox.TryTake(out _).Should().BeFalse();
+        mailbox.Done();
+        await request.WaitAsync(Bound, TestStop);
     }
 
     [Fact]
@@ -205,14 +351,25 @@ public class CaptureMailboxTests
     }
 
     [Fact]
-    public void ARequestStopsWaitingWhenTheWindowCloses()
+    public async Task ARequestStopsWaitingWhenTheWindowCloses()
     {
         var mailbox = new CaptureMailbox();
         using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 
-        Action request = () => mailbox.RequestAndWait("x.png", closing.Token);
+        Task request = Task.Run(() => mailbox.RequestAndWait("x.png", closing.Token), TestStop);
 
-        request.Should().Throw<OperationCanceledException>();
+        await FluentActions.Awaiting(() => request.WaitAsync(Bound, TestStop)).Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    [Fact]
+    public async Task ARequestThatTheWindowCancelsBeforeItIsTakenIsTakenBack()
+    {
+        var mailbox = new CaptureMailbox();
+        using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        Task request = Task.Run(() => mailbox.RequestAndWait("x.png", closing.Token), TestStop);
+        await FluentActions.Awaiting(() => request.WaitAsync(Bound, TestStop)).Should().ThrowAsync<OperationCanceledException>();
+
+        mailbox.TryTake(out _).Should().BeFalse("the render thread must not draw a capture that nobody waits for");
     }
 }
 
@@ -222,21 +379,18 @@ public class WindowPlaybackTests
     [Fact]
     public void TheFirstTickRunsAtOnce()
     {
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), CancellationToken.None, () => 0);
+        var reads = new List<double>();
+        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), CancellationToken.None, Clock(reads, 0));
 
         playback.WaitForTick().Should().BeTrue();
+        reads.Should().Equal(0);
     }
 
     [Fact]
     public void ALaterTickWaitsForItsStartTime()
     {
         var reads = new List<double>();
-        double[] clock = [0, 0, 0.03];
-        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), CancellationToken.None, () =>
-        {
-            reads.Add(clock[Math.Min(reads.Count, clock.Length - 1)]);
-            return reads[^1];
-        });
+        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), CancellationToken.None, Clock(reads, 0, 0, 0.03));
 
         playback.WaitForTick();
         playback.WaitForTick().Should().BeTrue();
@@ -245,10 +399,15 @@ public class WindowPlaybackTests
         reads.Should().Equal(0, 0, 0.03);
     }
 
-    /// <summary>A clock that answers each read with the next value of the list, and the last value after that.</summary>
+    /// <summary>
+    /// A clock that answers each read with the next value of the list. A read past the end fails the test, so a mutant
+    /// that waits forever on a frozen clock fails instead of hanging the run.
+    /// </summary>
     private static Func<double> Clock(List<double> reads, params double[] values) => () =>
     {
-        reads.Add(values[Math.Min(reads.Count, values.Length - 1)]);
+        if (reads.Count >= values.Length)
+            throw new InvalidOperationException($"The clock was read {reads.Count + 1} times, more than the {values.Length} that the test expects.");
+        reads.Add(values[reads.Count]);
         return reads[^1];
     };
 
@@ -280,6 +439,19 @@ public class WindowPlaybackTests
     }
 
     [Fact]
+    public void EachStallMovesTheScheduleAgain()
+    {
+        var reads = new List<double>();
+        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), CancellationToken.None, Clock(reads, 0, 0.5, 0.5, 0.52, 1.0, 1.0, 1.02));
+
+        for (int i = 0; i < 5; i++)
+            playback.WaitForTick().Should().BeTrue();
+
+        // A second stall at tick 3, due at 0.54 s, starts at 1.0 s. Tick 4 then waits one tick after it, until 1.02 s.
+        reads.Should().Equal(0, 0.5, 0.5, 0.52, 1.0, 1.0, 1.02);
+    }
+
+    [Fact]
     public void NoTickRunsAfterTheWindowCloses()
     {
         using var closing = new CancellationTokenSource();
@@ -292,11 +464,68 @@ public class WindowPlaybackTests
     [Fact]
     public void AWaitForALaterTickEndsWhenTheWindowCloses()
     {
-        using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
-        var playback = new WindowPlayback(new TickPacer(60, 1), new CaptureMailbox(), closing.Token, () => 0);
-        playback.WaitForTick();
+        using var closing = new CancellationTokenSource();
+        var playback = new WindowPlayback(new TickPacer(3600, 1), new CaptureMailbox(), closing.Token, () => 0);
+        playback.WaitForTick().Should().BeTrue();
+        closing.CancelAfter(TimeSpan.FromMilliseconds(50));
 
-        // The second tick would start a minute later.
+        // The second tick would start an hour later.
+        var clock = System.Diagnostics.Stopwatch.StartNew();
         playback.WaitForTick().Should().BeFalse();
+        clock.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task ASpeedSoSlowThatATickLastsMonthsStillWaitsAndStops()
+    {
+        using var closing = new CancellationTokenSource();
+        // At this speed, one tick lasts about 190 days of wall clock, longer than one wait can be.
+        var playback = new WindowPlayback(new TickPacer(1.0 / 60, 1e-9), new CaptureMailbox(), closing.Token, () => 0);
+        playback.WaitForTick().Should().BeTrue();
+        closing.CancelAfter(TimeSpan.FromMilliseconds(50));
+
+        bool second = await Task.Run(playback.WaitForTick, TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        second.Should().BeFalse();
+    }
+
+    [Fact]
+    public void ACapturePublishesTheStateOfItsMomentForTheRenderThread()
+    {
+        using World world = HostTesting.NewWorld();
+        HostTesting.Probes(world);
+        // The render thread has taken every snapshot so far.
+        world.PublishRenderSnapshot();
+        world.RenderSnapshots.TryAcquireLatest(out _);
+        var mailbox = new CaptureMailbox();
+        var playback = new WindowPlayback(new TickPacer(0.02, 1), mailbox, CancellationToken.None, () => 0);
+        bool fresh = false;
+        var renderThread = new Thread(() =>
+        {
+            while (!mailbox.TryTake(out _))
+                Thread.Yield();
+            fresh = world.RenderSnapshots.TryAcquireLatest(out _);
+            mailbox.Done();
+        });
+        renderThread.Start();
+
+        playback.Capture(world, "x.png").Should().BeTrue();
+
+        renderThread.Join();
+        fresh.Should().BeTrue("the capture publishes a snapshot of its moment before the render thread draws it");
+    }
+
+    [Fact]
+    public async Task ACaptureThatTheWindowClosesOnStopsTheRun()
+    {
+        using World world = HostTesting.NewWorld();
+        using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        var playback = new WindowPlayback(new TickPacer(0.02, 1), new CaptureMailbox(), closing.Token, () => 0);
+
+        // Nobody serves the capture, so only the closing ends the wait.
+        bool captured = await Task.Run(() => playback.Capture(world, "x.png"), TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+
+        captured.Should().BeFalse();
     }
 }

@@ -86,12 +86,12 @@ dotnet run --project src/Tertius.Demo -- --scene drop-box
 ```
 
 - Without `--headless`, the command opens a window. With `--script`, the window plays the script and closes after the last step. With `--scene`, it runs the scene live until you close the window. (User)
-- Four kinds of thread do the work, as in "Threads and the tick" of ARCHITECTURE.md. (User) The main thread runs the window and its input. The simulation thread runs the ticks and the script. The render thread draws the latest render snapshot. Jolt runs its own threads.
+- Separate threads do the work, as in "Threads and the tick" of ARCHITECTURE.md. (User) The main thread runs the window and its input. The simulation thread runs the ticks and the script. The render thread draws the latest render snapshot. The gameplay workers and Jolt run as during any tick.
 - The simulation thread runs 60 ticks a second of wall-clock time, times `--speed`. A tick late by less than one tick runs at once. A tick that starts later than that, after a stall such as a capture, moves the schedule by its delay. So the ticks after a stall keep their pace, instead of rushing to catch up, and no tick is ever skipped.
 - The render thread interpolates between the last two ticks. The interpolation alpha is the wall-clock time since the newest snapshot, divided by the wall-clock length of one tick.
 - A capture step works in the window. (User) The simulation thread waits while the render thread draws that tick with alpha 1 and saves it. The image has the size of the window's framebuffer. On a Retina display, that is twice the size in the `window` key. On a screen that is smaller than the `window` key, macOS makes the window smaller, and the images are smaller too.
-- Keys and mouse movement become `InputEvent` messages to the `input` topic in free play. During a script, live input reaches no entity, so a script runs the same with or without a person at the keyboard.
-- F1 switches the view to a debug fly camera and back. (User) WASD moves it, Q and E move it down and up, Shift moves it ten times faster, and the mouse turns it. It starts at the world's camera and moves in the axes of that camera's frame, relative to that camera. The render thread sets it in the render snapshot, so it changes nothing in the world.
+- Keys and mouse movement become `InputEvent` messages to the `input` topic in free play. During a script, live input reaches no entity, so a script runs the same with or without a person at the keyboard. `InputRouter` holds these rules. The game never sees Esc or F1, and every key or button down that it sees gets its release: switching the fly camera on releases the keys and buttons that the game holds.
+- F1 switches the view to a debug fly camera and back. (User) WASD moves it, Q and E move it down and up, Shift moves it ten times faster, and the mouse turns it. It starts at the world's camera and moves in the axes of that camera's frame, relative to that camera. When the camera entity moves into another frame, as through an airlock, the fly camera starts again at the world's camera. The render thread sets it in the render snapshot, so it changes nothing in the world.
 - Esc closes the window. If you close the window during a script, the run stops, and the dumps and captures until then stay on disk.
 
 ## State dumps
@@ -133,14 +133,15 @@ dotnet run --project src/Tertius.Demo -- --script scripts/drop-box.json --headle
 ```
 
 - The command builds the scene that the script names, in a new `World` on the Jolt backend, and runs the script.
-- It writes the path of each dump to standard output, and each problem to standard error.
-- `--headless` is required until the windowed host exists (ticket `ter-mu7k`).
+- It writes the path of each dump and each captured image to standard output. It writes each problem and the world's log to standard error.
+- With `--headless`, the ticks run back to back and no window opens. Without it, a window opens (see "The window").
 - The exit codes are the codes of the `tertius` command line in the content packages design:
-  - 0: the run finished.
+  - 0: the run finished, or the user closed its window.
   - 1: the command line is wrong.
   - 2: a file cannot be read or written.
   - 3: the script cannot run, or it names an unknown scene.
-  - 5: the headless renderer cannot start, for example on a machine with no Vulkan driver.
+  - 4: an internal error, which is a bug.
+  - 5: the renderer or the window cannot start, for example on a machine with no Vulkan driver.
 
 ## The vertical slice
 

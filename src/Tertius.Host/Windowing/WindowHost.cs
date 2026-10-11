@@ -21,7 +21,7 @@ namespace Tertius.Host.Windowing;
 /// lock, and the closing token. The renderer belongs to the render thread, which disposes it before the window is
 /// destroyed, as MoltenVK needs.
 /// </remarks>
-internal sealed class WindowHost
+internal sealed class WindowHost : IInputTarget
 {
     private readonly IWindow window;
     private readonly VulkanRenderer renderer;
@@ -32,7 +32,7 @@ internal sealed class WindowHost
     private readonly TickPacer pacer;
     private readonly CaptureMailbox captures = new();
     private readonly CancellationTokenSource closing = new();
-    private readonly MouseTracker mouse = new();
+    private readonly InputRouter router;
     private IInputContext? input;
 
     // The fly camera: the main thread sets its keys and turns it, the render thread starts, moves and applies it.
@@ -44,7 +44,6 @@ internal sealed class WindowHost
     // How the simulation thread ended. Read on the main thread after it joins.
     private RunResult? result;
     private string? scriptProblem;
-    private bool stoppedInCapture;
     private Exception? failure;
     private int closeWanted;
 
@@ -57,6 +56,7 @@ internal sealed class WindowHost
         this.script = script;
         this.outputFolder = outputFolder;
         pacer = new TickPacer(world.DeltaTime, speed);
+        router = new InputRouter(freePlay: script is null, this);
     }
 
     /// <summary>
@@ -67,13 +67,24 @@ internal sealed class WindowHost
     public static int Run(Scene sceneToBuild, Script? script, string? scriptPath, string? outputFolder, double speed, TextWriter output, TextWriter error)
     {
         ScriptWindow size = script?.Window ?? ScriptWindow.Default;
-        IWindow window = Window.Create(WindowOptions.DefaultVulkan with
+        IWindow? window = null;
+        try
         {
-            Size = new Vector2D<int>(size.Width, size.Height),
-            Title = $"Tertius: {sceneToBuild.Name}",
-            IsEventDriven = true,
-        });
-        window.Initialize();
+            window = Window.Create(WindowOptions.DefaultVulkan with
+            {
+                Size = new Vector2D<int>(size.Width, size.Height),
+                Title = $"Tertius: {sceneToBuild.Name}",
+                IsEventDriven = true,
+            });
+            window.Initialize();
+        }
+        // No display, or no Vulkan driver for the window: as for a renderer that cannot start.
+        catch (Exception ex)
+        {
+            error.WriteLine($"Cannot open the window: {ex.Message}");
+            window?.Dispose();
+            return ScriptCommand.RendererError;
+        }
         try
         {
             VulkanRenderer renderer;
@@ -107,6 +118,8 @@ internal sealed class WindowHost
         }
         finally
         {
+            // A last pump that does not wait: event-driven, it would wait for an input event that may never come.
+            window.IsEventDriven = false;
             window.DoEvents();
             window.Reset();
         }
@@ -118,15 +131,15 @@ internal sealed class WindowHost
         input = window.CreateInput();
         foreach (IKeyboard keyboard in input.Keyboards)
         {
-            keyboard.KeyDown += (_, key, _) => OnKey(key, down: true);
-            keyboard.KeyUp += (_, key, _) => OnKey(key, down: false);
+            keyboard.KeyDown += (_, key, _) => router.Key(key, down: true);
+            keyboard.KeyUp += (_, key, _) => router.Key(key, down: false);
         }
         foreach (IMouse device in input.Mice)
         {
-            device.MouseMove += (_, position) => OnMouseMove(position);
-            device.MouseDown += (_, button) => PostInput(InputKind.MouseDown, (int)button, Vector2.Zero);
-            device.MouseUp += (_, button) => PostInput(InputKind.MouseUp, (int)button, Vector2.Zero);
-            device.Scroll += (_, wheel) => PostInput(InputKind.Scroll, 0, new Vector2(wheel.X, wheel.Y));
+            device.MouseMove += (_, position) => router.MouseMove(position);
+            device.MouseDown += (_, button) => router.MouseButton(button, down: true);
+            device.MouseUp += (_, button) => router.MouseButton(button, down: false);
+            device.Scroll += (_, wheel) => router.Scroll(new Vector2(wheel.X, wheel.Y));
         }
 
         var renderThread = new Thread(RenderLoop) { Name = "Render" };
@@ -171,11 +184,6 @@ internal sealed class WindowHost
         {
             scriptProblem = ex.Message;
         }
-        catch (OperationCanceledException)
-        {
-            // The window closed while a capture waited for the render thread.
-            stoppedInCapture = true;
-        }
         catch (Exception ex)
         {
             failure = ex;
@@ -200,9 +208,16 @@ internal sealed class WindowHost
                 {
                     // The simulation thread published this tick's snapshot and waits. A capture shows the world's camera.
                     world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot shot);
-                    renderer.CaptureNextFrame(path);
-                    renderer.Render(shot, alpha: 1f);
-                    captures.Done();
+                    // A frame that the swapchain skips, for example while the window is minimized, draws and saves
+                    // nothing, so the capture is asked again until a frame is drawn or the window closes.
+                    do
+                    {
+                        renderer.CaptureNextFrame(path);
+                        renderer.Render(shot, alpha: 1f);
+                    }
+                    while (!renderer.LastFrameStats.Rendered && !closing.Token.WaitHandle.WaitOne(10));
+                    if (renderer.LastFrameStats.Rendered)
+                        captures.Done();
                     continue;
                 }
 
@@ -216,8 +231,12 @@ internal sealed class WindowHost
                 {
                     if (flyStartWanted)
                     {
-                        fly.Start(worldCamera.Rotation);
+                        fly.Start(worldCamera.Rotation, snapshot.OriginFrameId);
                         flyStartWanted = false;
+                    }
+                    else if (flyActive)
+                    {
+                        fly.Follow(worldCamera.Rotation, snapshot.OriginFrameId);
                     }
                     if (flyActive)
                     {
@@ -241,82 +260,35 @@ internal sealed class WindowHost
         }
     }
 
-    // ---- Input, on the main thread -------------------------------------------------------------------------------------
+    // ---- Input, on the main thread: the router decides, these carry it out -----------------------------------------------
 
-    private void OnKey(Key key, bool down)
-    {
-        if (key == Key.Escape && down)
-        {
-            window.Close();
-            return;
-        }
-        if (key == Key.F1 && down)
-        {
-            ToggleFlyCamera();
-            return;
-        }
-        if (FlyKeyOf(key) is { } flyKey && IsFlying())
-        {
-            lock (flyLock)
-                fly.SetKey(flyKey, down);
-            return;
-        }
-        PostInput(down ? InputKind.KeyDown : InputKind.KeyUp, (int)key, Vector2.Zero);
-    }
+    public void Post(InputEvent e) => world.Post(Event.Create(Topics.Input, Entity.Null, e));
 
-    private void OnMouseMove(Vector2 position)
-    {
-        Vector2 movement = mouse.MoveTo(position);
-        if (IsFlying())
-        {
-            lock (flyLock)
-                fly.Turn(movement);
-            return;
-        }
-        PostInput(InputKind.MouseMove, 0, movement);
-    }
-
-    /// <summary>
-    /// Sends input to the <c>input</c> topic in free play. During a script, live input reaches no entity, so the script
-    /// runs the same with or without a person at the keyboard.
-    /// </summary>
-    private void PostInput(InputKind kind, int code, Vector2 delta)
-    {
-        if (script is null && !IsFlying())
-            world.Post(Event.Create(Topics.Input, Entity.Null, new InputEvent { Kind = kind, Code = code, Delta = delta }));
-    }
-
-    private bool IsFlying()
+    public void Fly(FlyKey key, bool down)
     {
         lock (flyLock)
-            return flyActive;
+            fly.SetKey(key, down);
     }
 
-    private void ToggleFlyCamera()
+    public void Turn(Vector2 movement)
     {
-        bool active;
+        lock (flyLock)
+            fly.Turn(movement);
+    }
+
+    public void FlyChanged(bool flying)
+    {
         lock (flyLock)
         {
-            flyActive = !flyActive;
+            flyActive = flying;
             // The render thread starts it at the world's camera, which only it can read.
-            flyStartWanted = flyActive;
-            active = flyActive;
+            flyStartWanted = flying;
         }
         foreach (IMouse device in input!.Mice)
-            device.Cursor.CursorMode = !active ? CursorMode.Normal : device.Cursor.IsSupported(CursorMode.Raw) ? CursorMode.Raw : CursorMode.Disabled;
+            device.Cursor.CursorMode = !flying ? CursorMode.Normal : device.Cursor.IsSupported(CursorMode.Raw) ? CursorMode.Raw : CursorMode.Disabled;
     }
 
-    private static FlyKey? FlyKeyOf(Key key) => key switch
-    {
-        Key.W => FlyKey.Forward,
-        Key.S => FlyKey.Back,
-        Key.A => FlyKey.Left,
-        Key.D => FlyKey.Right,
-        Key.Q => FlyKey.Down,
-        Key.E => FlyKey.Up,
-        Key.ShiftLeft or Key.ShiftRight => FlyKey.Fast,
-        _ => null,
-    };
+    public void Close() => window.Close();
 
     // ---- The outcome ---------------------------------------------------------------------------------------------------
 
@@ -326,6 +298,11 @@ internal sealed class WindowHost
         {
             error.WriteLine($"Cannot write into {outputFolder}: {failure.Message}");
             return ScriptCommand.FileError;
+        }
+        if (failure is NotSupportedException)
+        {
+            error.WriteLine($"The window cannot do what the script asks: {failure.Message}");
+            return ScriptCommand.RendererError;
         }
         if (failure != null)
         {
@@ -339,7 +316,7 @@ internal sealed class WindowHost
         }
         if (result != null)
             ScriptCommand.WriteFiles(result, outputFolder!, output);
-        if (result is { Stopped: true } || stoppedInCapture)
+        if (result is { Stopped: true })
             error.WriteLine($"The window closed at tick {world.TickNumber}, so the script stopped before its last step.");
         return ScriptCommand.Ok;
     }

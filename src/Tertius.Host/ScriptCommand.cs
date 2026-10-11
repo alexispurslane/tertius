@@ -17,7 +17,7 @@ namespace Tertius.Host;
 /// </summary>
 public static class ScriptCommand
 {
-    /// <summary>The run finished.</summary>
+    /// <summary>The run finished, or the user closed its window.</summary>
     public const int Ok = 0;
 
     /// <summary>The command line is wrong.</summary>
@@ -29,10 +29,10 @@ public static class ScriptCommand
     /// <summary>The script cannot run, or names a scene that the table does not have.</summary>
     public const int ScriptError = 3;
 
-    /// <summary>A thread of the window failed with an exception that is a bug.</summary>
+    /// <summary>The run failed with an exception that is a bug.</summary>
     public const int InternalError = 4;
 
-    /// <summary>The renderer cannot start, for example on a machine with no Vulkan driver: a missing tool.</summary>
+    /// <summary>The renderer or the window cannot start, for example on a machine with no Vulkan driver: a missing tool.</summary>
     public const int RendererError = 5;
 
     private const string Usage =
@@ -133,6 +133,12 @@ public static class ScriptCommand
             error.WriteLine($"Cannot write into {options.Out}: {ex.Message}");
             return FileError;
         }
+        // A bug, such as a broken contract that escapes World.Tick: the same exit code as in the window.
+        catch (Exception ex)
+        {
+            error.WriteLine($"The run failed: {ex}");
+            return InternalError;
+        }
     }
 
     /// <summary>Writes the path of each dump, then of each captured image.</summary>
@@ -149,10 +155,10 @@ public static class ScriptCommand
     /// <param name="Out">The output folder of a script.</param>
     /// <param name="Headless">True to run a script with no window.</param>
     /// <param name="Speed">The wall-clock speed of the window, 1 for real time.</param>
-    private sealed record Options(string? Script, string? Scene, string? Out, bool Headless, double Speed);
+    internal sealed record Options(string? Script, string? Scene, string? Out, bool Headless, double Speed);
 
     /// <summary>The options, or null and the problem for an unknown option, a missing value or a missing option.</summary>
-    private static Options? ReadOptions(string[] args, out string? problem)
+    internal static Options? ReadOptions(string[] args, out string? problem)
     {
         string? script = null, scene = null, output = null, speedText = null;
         bool headless = false;

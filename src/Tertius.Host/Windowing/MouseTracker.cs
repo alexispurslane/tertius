@@ -14,4 +14,7 @@ public sealed class MouseTracker
     }
 
     private Vector2? last;
+
+    /// <summary>Forgets the last position, so that the next one moves nothing. Call it when the cursor mode changes.</summary>
+    public void Forget() => last = null;
 }

@@ -136,22 +136,36 @@ public sealed class ScriptCommandTests : IDisposable
 
     [Theory]
     [InlineData("--script or --scene", "--out", "out")]
-    [InlineData("not both", "--script", "script.json", "--scene", "probes", "--out", "out")]
-    [InlineData("free play", "--scene", "probes", "--headless")]
-    [InlineData("--out applies to a script", "--scene", "probes", "--out", "out")]
+    [InlineData("not both", "--script", "script.json", "--scene", "no-such-scene", "--out", "out")]
+    [InlineData("free play", "--scene", "no-such-scene", "--headless")]
+    [InlineData("--out applies to a script", "--scene", "no-such-scene", "--out", "out")]
     [InlineData("--speed applies to the window", "--script", "script.json", "--headless", "--out", "out", "--speed", "2")]
-    [InlineData("positive", "--scene", "probes", "--speed", "0")]
-    [InlineData("positive", "--scene", "probes", "--speed", "-1")]
-    [InlineData("positive", "--scene", "probes", "--speed", "fast")]
-    [InlineData("positive", "--scene", "probes", "--speed", "NaN")]
-    [InlineData("positive", "--scene", "probes", "--speed", "Infinity")]
-    [InlineData("--speed needs a value", "--scene", "probes", "--speed")]
+    [InlineData("positive", "--scene", "no-such-scene", "--speed", "0")]
+    [InlineData("positive", "--scene", "no-such-scene", "--speed", "-1")]
+    [InlineData("positive", "--scene", "no-such-scene", "--speed", "fast")]
+    [InlineData("positive", "--scene", "no-such-scene", "--speed", "NaN")]
+    [InlineData("positive", "--scene", "no-such-scene", "--speed", "Infinity")]
+    [InlineData("--speed needs a value", "--scene", "no-such-scene", "--speed")]
+    [InlineData("--scene needs a value", "--scene")]
     public void AnOptionThatTheWindowRulesRefuseExitsWithTheCommandLineErrorCodeAndNamesTheRule(string rule, params string[] args)
     {
         int code = Run(args);
 
         code.Should().Be(ScriptCommand.CommandLineError);
         error.ToString().Should().Contain(rule);
+    }
+
+    // The refused rows above name a scene that no table has. If a rule breaks, the run then ends in ScriptError before
+    // any window code runs, instead of opening a window on a test thread.
+
+    [Fact]
+    public void TheWindowOptionsCarryTheirValues()
+    {
+        ScriptCommand.Options? free = ScriptCommand.ReadOptions(["--scene", "drop-box", "--speed", "0.5"], out _);
+        ScriptCommand.Options? played = ScriptCommand.ReadOptions(["--script", "s.json", "--out", "o"], out _);
+
+        free.Should().Be(new ScriptCommand.Options(null, "drop-box", null, false, 0.5));
+        played.Should().Be(new ScriptCommand.Options("s.json", null, "o", false, 1));
     }
 
     [Fact]

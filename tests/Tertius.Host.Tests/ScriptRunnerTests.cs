@@ -283,7 +283,7 @@ public class ScriptRunnerTests
 
         public bool WaitForTick() => run++ < ticks;
 
-        public void Capture(World world, string path) => throw new InvalidOperationException("no captures in this test");
+        public bool Capture(World world, string path) => throw new InvalidOperationException("no captures in this test");
     }
 
     [Fact]
@@ -308,5 +308,36 @@ public class ScriptRunnerTests
         SceneInstance scene = Probes(world);
 
         Run(world, scene, """{ "do": "run", "ticks": 2 }""").Stopped.Should().BeFalse();
+    }
+
+    /// <summary>A playback whose ticks all run and whose captures report that the window closed while they waited.</summary>
+    private sealed class ClosesDuringCaptures : IPlayback
+    {
+        public bool WaitForTick() => true;
+
+        public bool Capture(World world, string path) => false;
+    }
+
+    [Fact]
+    public void APlaybackThatStopsDuringACaptureEndsTheRunWithTheFilesBeforeIt()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        string folder = NewFolder();
+        try
+        {
+            RunResult result = ScriptRunner.Run(Script.Parse("""
+                { "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, { "do": "dump", "name": "a" }, { "do": "capture", "name": "b" }, { "do": "run", "ticks": 3 }, { "do": "dump", "name": "c" } ] }
+                """), world, scene, folder, new ClosesDuringCaptures());
+
+            result.Stopped.Should().BeTrue();
+            result.Dumps.Select(d => d.Name).Should().Equal("a");
+            result.Captures.Should().BeEmpty("the capture did not finish");
+            world.TickNumber.Should().Be(0);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 }

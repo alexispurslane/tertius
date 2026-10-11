@@ -57,7 +57,8 @@ public static class ScriptRunner
                     // The check before the first tick saw a live camera, but a component may have destroyed it since.
                     if (!world.IsAlive(world.Camera))
                         throw new ScriptException($"{where}: at tick {world.TickNumber}, the camera '{scene.IdOf(world.Camera)}' is not alive.");
-                    playback!.Capture(world, path);
+                    if (!playback!.Capture(world, path))
+                        return new RunResult(dumps, captures, stopped: true);
                     captures.Add(path);
                     break;
                 default:

@@ -11,8 +11,11 @@ public interface IPlayback
     /// <summary>Waits until the next tick may run. Returns false to stop the run, for example when the user closed the window.</summary>
     bool WaitForTick();
 
-    /// <summary>Draws the world's current state from its camera with interpolation alpha 1, and writes it to <paramref name="path"/>.</summary>
-    void Capture(World world, string path);
+    /// <summary>
+    /// Draws the world's current state from its camera with interpolation alpha 1, and writes it to <paramref name="path"/>.
+    /// Returns false to stop the run instead, for example when the user closed the window while the capture waited.
+    /// </summary>
+    bool Capture(World world, string path);
 }
 
 /// <summary>
@@ -38,12 +41,13 @@ public sealed class HeadlessPlayback : IPlayback
     /// The render snapshot is built now, so a capture before the first tick, or right after a camera step, shows the
     /// current state. This thread publishes the snapshot and reads it, so it is the triple buffer's only reader.
     /// </summary>
-    public void Capture(World world, string path)
+    public bool Capture(World world, string path)
     {
         world.PublishRenderSnapshot();
         // A snapshot was published just now, so the latest one is that one.
         world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot);
         renderer.CaptureNextFrame(path);
         renderer.Render(snapshot, alpha: 1f);
+        return true;
     }
 }

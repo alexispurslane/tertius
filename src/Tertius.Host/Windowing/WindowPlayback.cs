@@ -36,7 +36,8 @@ public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, Can
                 ticks++;
                 return true;
             }
-            stop.WaitHandle.WaitOne(TimeSpan.FromSeconds(-late));
+            // In slices of at most a second: the loop reads the clock again, and a very slow speed's wait fits a timeout.
+            stop.WaitHandle.WaitOne(TimeSpan.FromSeconds(Math.Min(-late, 1)));
         }
         return false;
     }
@@ -45,11 +46,19 @@ public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, Can
     private long ticks;
     private double slip;
 
-    /// <summary>Publishes the current state and waits until the render thread has saved it. Throws <see cref="OperationCanceledException"/> if the window closes first.</summary>
-    public void Capture(World world, string path)
+    /// <summary>Publishes the current state and waits until the render thread has saved it. Returns false if the window closes first.</summary>
+    public bool Capture(World world, string path)
     {
         // The simulation thread publishes, and the render thread, the triple buffer's one reader, draws it.
         world.PublishRenderSnapshot();
-        captures.RequestAndWait(path, stop);
+        try
+        {
+            captures.RequestAndWait(path, stop);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
     }
 }

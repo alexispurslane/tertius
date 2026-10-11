@@ -51,6 +51,7 @@ The simulation runs at a fixed 60 ticks per second. Physics steps once per tick 
 | Main | The window and input. macOS requires this. |
 | Gameplay workers | Entity runs, in chunks of 64 entities, through `Parallel.For`. |
 | Physics | One Jolt step for every active frame. Jolt uses its own job threads. |
+| Simulation | Runs the ticks and their sync points, and a scripted run's steps. In the window, it paces the ticks by the wall clock. |
 | Render | Draws the latest render snapshot and interpolates between the last two. |
 
 One tick has two parts. During the parallel part, gameplay and physics run at the same time. Both read only state that is fixed for the tick: the front snapshot of tick N-1 and the frame tree. During the sync part, one thread merges the results.

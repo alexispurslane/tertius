@@ -46,10 +46,24 @@ public sealed class FlyCamera
     public Quaternion Rotation =>
         Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw) * start * Quaternion.CreateFromAxisAngle(Vector3.UnitX, pitch);
 
-    /// <summary>Puts the camera at the world's camera, with its rotation, and lets go of every key.</summary>
-    public void Start(Quaternion worldCameraRotation)
+    /// <summary>The id of the world camera's frame when the camera started, as <see cref="RenderSnapshot.OriginFrameId"/> gives it.</summary>
+    public long Frame { get; private set; }
+
+    /// <summary>
+    /// Restarts the camera at the world's camera if the world camera is in another frame than at the start. The camera's
+    /// numbers are in the axes of the old frame, so keeping them would turn the view when the camera entity changes frame.
+    /// </summary>
+    public void Follow(Quaternion worldCameraRotation, long frame)
+    {
+        if (frame != Frame)
+            Start(worldCameraRotation, frame);
+    }
+
+    /// <summary>Puts the camera at the world's camera in <paramref name="frame"/>, with its rotation, and lets go of every key.</summary>
+    public void Start(Quaternion worldCameraRotation, long frame = 0)
     {
         start = worldCameraRotation;
+        Frame = frame;
         yaw = pitch = 0;
         Position = Vector3.Zero;
         Array.Clear(held);
