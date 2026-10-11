@@ -69,10 +69,9 @@ public sealed partial class JoltPhysicsBackend
                 continue;
             BodyRecord? record = RecordFor(userData);
             // Every body in a system belongs to a live record. A body without one comes only from a bug.
-            Contract.Assert(record is not null);
             if (record is null)
             {
-                log($"Physics: {id} in {world.Frame} belongs to no entity. The growth of the system leaves it behind.");
+                ReportBug($"Physics: {id} in {world.Frame} belongs to no entity. Only a bug leaves such a body. The growth of the system leaves it behind.");
                 continue;
             }
             RigidSpec spec = kind switch

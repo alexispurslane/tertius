@@ -257,12 +257,20 @@ public sealed class PhysicsChanges
     /// <summary>Frames created at this sync point.</summary>
     public readonly List<FrameHandle> FramesCreated = new();
 
+    /// <summary>
+    /// Filled by <see cref="IPhysicsBackend.ApplyChanges"/>: one message for each state that only a bug produces, which the
+    /// backend found and skipped while it applied the batch, for example a change that it could not apply. A Debug build
+    /// breaks a contract instead. The simulation records each message in its errors.
+    /// </summary>
+    public readonly List<string> Errors = new();
+
     public void Clear()
     {
         FramesCreated.Clear();
         BodiesDestroyed.Clear();
         FramesDestroyed.Clear();
         BodiesCreated.Clear();
+        Errors.Clear();
     }
 }
 
@@ -331,12 +339,20 @@ public sealed class PhysicsStepOutput
     public readonly List<ContactStarted> Contacts = new();
     public readonly List<FrameState> Frames = new();
 
+    /// <summary>
+    /// One message for each state that only a bug produces, which the backend found and skipped during the step, for
+    /// example a frame whose driver its hull cannot follow. A Debug build breaks a contract instead. The sync point records
+    /// each message in the simulation's errors.
+    /// </summary>
+    public readonly List<string> Errors = new();
+
     public void Clear()
     {
         Bodies.Clear();
         HandOffs.Clear();
         Contacts.Clear();
         Frames.Clear();
+        Errors.Clear();
     }
 }
 

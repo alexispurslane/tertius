@@ -427,9 +427,9 @@ public sealed partial class JoltPhysicsBackend
     /// then needs <see cref="ApplyHullMotion"/>, which puts it at the frame's pose and velocity in the tree.
     /// </summary>
     /// <remarks>
-    /// The simulation refuses a driver that the hull cannot follow, so such a driver in the tree comes only from a bug. It
-    /// breaks a contract in a Debug build. A Release build skips it: the record keeps its driver and motion, physics writes
-    /// a warning, and it reports no state for the frame, because the hull is not dynamic.
+    /// The simulation refuses a driver that the hull cannot follow, so such a driver in the tree comes only from a bug (see
+    /// <see cref="ReportBug"/>). A Release build skips it: the record keeps its driver and motion, and physics reports no
+    /// state for the frame, because the hull is not dynamic.
     /// </remarks>
     private bool FollowDriver(BodyRecord owner)
     {
@@ -440,10 +440,8 @@ public sealed partial class JoltPhysicsBackend
         // A root frame has no parent, so its owner has no hull, and only a hull has to follow the driver.
         if (!frames.Parent(owner.OwnedFrame).IsNull && owner.Desc.FrameHullProblem(driver) is { } problem)
         {
-            string message = $"Physics: {owner.OwnedFrame} has the {driver} driver, but the hull of {owner.Entity} {problem}. " +
-                             $"Only a bug gives a frame that driver. The hull keeps the {owner.Driver} driver";
-            Contract.Assert(false, message);
-            log(message + ".");
+            ReportBug($"Physics: {owner.OwnedFrame} has the {driver} driver, but the hull of {owner.Entity} {problem}. " +
+                      $"Only a bug gives a frame that driver. The hull keeps the {owner.Driver} driver.");
             owner.DriverVersion = version;
             return false;
         }

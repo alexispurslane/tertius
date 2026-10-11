@@ -85,6 +85,9 @@ public sealed partial class World
         {
             Report($"tick {TickNumber}: the physics backend failed to apply changes: {ex.GetType().Name}: {ex.Message}", isError: true);
         }
+        // The states that only a bug produces, which the backend skipped in a Release build.
+        foreach (string error in changes.Errors)
+            Report($"tick {TickNumber}: {error}", isError: true);
         changes.Clear();
     }
 

@@ -205,8 +205,9 @@ public class DriverChangeTests
     /// <summary>
     /// The simulation never gives a frame a driver that its hull cannot follow: World.SetFrameDriver and World.Spawn refuse
     /// it. So a frame tree that does comes only from a bug. Physics then breaks a contract in a Debug build. A Release build
-    /// skips that driver for the hull: the hull keeps the motion that it has, physics writes a warning, and it reports no
-    /// state for the frame. A driver that the hull can follow is followed again.
+    /// skips that driver for the hull: the hull keeps the motion that it has, physics reports the bug once in the errors of
+    /// the step output, not as a warning, and it reports no state for the frame. A driver that the hull can follow is
+    /// followed again.
     /// </summary>
     [Theory]
     [InlineData(UnmovableHull.MeshUnderPhysics)]
@@ -222,7 +223,13 @@ public class DriverChangeTests
             : new BodyDesc(ramp, BodyMotion.Static);
         FrameHandle dock = h.AddFrameWithBody(space, Shapes.At(50, 0, 0), FrameBounds.Sphere(10), MotionDriver.Static, desc);
         h.Step();
-        List<FrameState> states = RecordFrameStates(h, dock);
+        var states = new List<FrameState>();
+        var errors = new List<string>();
+        h.AfterStep = output =>
+        {
+            states.AddRange(output.Frames.Where(state => state.Frame == dock));
+            errors.AddRange(output.Errors);
+        };
 
         h.Frames.SetDriver(dock, hull == UnmovableHull.MeshUnderKepler ? MotionDriver.Kepler : MotionDriver.Physics);
         Action step = () => h.Step(3);
@@ -231,7 +238,8 @@ public class DriverChangeTests
         step.Should().Throw<ContractException>().WithMessage($"*{dock.Entity}*");
 #else
         step.Should().NotThrow();
-        h.Warnings.Should().ContainSingle().Which.Should().Contain(dock.Entity.ToString()).And.Contain("Only a bug");
+        errors.Should().ContainSingle().Which.Should().Contain(dock.Entity.ToString()).And.Contain("Only a bug");
+        h.Warnings.Should().BeEmpty();
         states.Should().BeEmpty();
 #endif
         Hull(h, space, dock.Entity).Motion.Should().Be(MotionType.Static);

@@ -98,13 +98,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// the start of the next step, whichever comes first. A hull follows its frame's driver: dynamic for the physics
     /// driver, kinematic for the Kepler driver, static for the static driver. The simulation never gives a frame a driver
     /// that its hull cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>). Such a driver comes only from a bug: it
-    /// breaks a contract in a Debug build, and a Release build keeps the hull's motion, with a warning.
+    /// breaks a contract in a Debug build, and a Release build keeps the hull's motion and reports the bug (see
+    /// <see cref="ReportBug"/>).
     /// </para>
     /// <para>
     /// The simulation refuses at spawn every body that physics cannot create, so a change that fails here comes only from
     /// a bug, for example a body that <see cref="BodyDesc.Problem"/> or <see cref="ShapeProblem"/> refuses. A failed
     /// change breaks a contract in a Debug build. A Release build skips it, leaves nothing of it behind, applies every other
-    /// change of the batch, and then throws <see cref="InvalidOperationException"/> that names each failed change.
+    /// change of the batch, and adds a message to <see cref="PhysicsChanges.Errors"/> (see <see cref="ReportBug"/>).
     /// </para>
     /// </remarks>
     public void ApplyChanges(PhysicsChanges changes, FrameTree frames)
@@ -115,7 +116,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         lock (JoltRuntime.NativeGate)
         {
             this.frames = frames;
-            failedChanges.Clear();
+            bugReport = changes.Errors;
             foreach (Entity entity in changes.BodiesDestroyed)
             {
                 try
@@ -150,23 +151,27 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                     ChangeFailed($"create the body of {create.Entity}", ex);
                 }
             }
-            if (failedChanges.Count > 0)
-                throw new InvalidOperationException(string.Join(" ", failedChanges));
         }
     }
 
-    /// <summary>The messages of the changes that failed in the current call to <see cref="ApplyChanges"/>.</summary>
-    private readonly List<string> failedChanges = new();
+    /// <summary>One change of a batch failed. Only a bug sends such a change. <see cref="ApplyChanges"/> goes on with the next one.</summary>
+    private void ChangeFailed(string change, Exception ex) =>
+        ReportBug($"Physics could not {change}: {ex.GetType().Name}: {ex.Message} Only a bug sends such a change, so it was skipped.");
+
+    // The list that takes the messages of ReportBug: the errors of the change batch or of the step output that the backend
+    // is filling now.
+    private List<string>? bugReport;
 
     /// <summary>
-    /// One change of a batch failed. Only a bug sends such a change: it breaks a contract in a Debug build. A Release build
-    /// remembers it, and <see cref="ApplyChanges"/> goes on with the next change.
+    /// Reports a state that only a bug produces, which the backend found and skipped. It breaks a contract in a Debug build.
+    /// A Release build adds the message to the errors of the change batch or the step output that the backend is filling,
+    /// and the simulation records it in its errors. Every state that the backend can tell comes only from a bug goes here,
+    /// not to the log of warnings.
     /// </summary>
-    private void ChangeFailed(string change, Exception ex)
+    private void ReportBug(string message)
     {
-        string message = $"Physics could not {change}: {ex.GetType().Name}: {ex.Message} Only a bug sends such a change.";
         Contract.Assert(false, message);
-        failedChanges.Add(message);
+        bugReport?.Add(message);
     }
 
     /// <summary>
@@ -213,6 +218,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         lock (JoltRuntime.NativeGate)
         {
             frames = context.Frames;
+            bugReport = output.Errors;
             stepIndex++;
             stepDt = context.DeltaTime;
             stepTime = context.Time;

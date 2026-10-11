@@ -111,6 +111,9 @@ public sealed partial class World
     private void ApplyPhysicsOutput()
     {
         physicsTouched.Clear();
+        // The states that only a bug produces, which the backend found and skipped during the step in a Release build.
+        foreach (string error in stepOutput.Errors)
+            Report($"tick {TickNumber}: {error}", isError: true);
         // Every update is decided before any state lands, so a skipped one changes nothing whatever the loops' order.
         SkipBrokenPhysicsUpdates();
         MoveHandedOffFrames();
