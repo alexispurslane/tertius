@@ -2,14 +2,14 @@
 
 These helpers run code coverage and Stryker.NET mutation testing on the lines that a branch changed. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
 
-Run every command in the dev shell, from the repository root. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
+Run every command in the dev shell, from the repository root. Start the shell scripts with `bash`, as below. If you start one through its `#!` line, macOS removes the `DYLD_*` variables, and the GPU tests cannot find `libvulkan`. The scripts stop with a message in that case. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
 
 ## Coverage on changed lines
 
 1. Run every test project with coverage, in both build configurations:
 
    ```bash
-   nix develop --command bash -c 'tools/coverage/run.sh /tmp/tertius-coverage Debug Release'
+   nix develop --command bash -c 'bash tools/coverage/run.sh /tmp/tertius-coverage Debug Release'
    ```
 
 2. Print the coverage of the lines that this branch changed in `src/`, against `main`:
@@ -33,7 +33,7 @@ If either configuration covers a line, the line counts as covered. Debug covers 
 2. Run Stryker on that project:
 
    ```bash
-   nix develop --command bash -c 'tools/stryker/run.sh Core /tmp/tertius-stryker/Core'
+   nix develop --command bash -c 'bash tools/stryker/run.sh Core /tmp/tertius-stryker/Core'
    ```
 
 3. List the mutants that no test caught, and the mutants in the spans that did not compile:
