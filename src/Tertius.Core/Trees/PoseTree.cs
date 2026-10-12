@@ -18,6 +18,19 @@ public readonly record struct PoseNode(int Id, uint Generation)
 /// Mutate the tree from one thread only. Reads are safe from many threads at once only while nothing mutates the
 /// tree and the order is clean: every read calls EnsureOrder, which reorders a dirty tree. Call
 /// <see cref="UpdateWorld"/> after mutations to leave it clean.
+/// <para>
+/// The tree stores each local pose as it is given, and <see cref="Local"/> hands out a reference to it, so the caller writes
+/// the pose. The tree does not check the rotation of a <see cref="DPose"/> that the caller writes. <see cref="DPose.Compose"/>
+/// and <see cref="DPose.Inverse"/> normalize the rotation that they use, so a rotation that is a little off, such as a float
+/// quaternion from Jolt, still gives consistent answers for the poses that the tree computes from it. The world pose of a root
+/// is the exception, because it is the local pose as it is.
+/// </para>
+/// <para>
+/// Only <see cref="FrameTree"/> keeps the rule that the local rotation of every pose is unit length, and it checks that rule
+/// itself (see <see cref="FrameTree.AssertInvariants"/>). Another tree relies on <see cref="DPose.Compose"/> and
+/// <see cref="DPose.Inverse"/>, and not on the caller. The tree of attachments, for one, stores the pose of a chain root as
+/// it is, and gameplay can write a pose with any rotation.
+/// </para>
 /// </summary>
 public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
 {

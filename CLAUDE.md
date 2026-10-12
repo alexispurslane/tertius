@@ -63,6 +63,12 @@ Follow the global contracts rule. In this repository, the helper is `Tertius.Con
 ## Testing
 
 - Use red-green TDD. First write tests that define the core behavior, in the spirit of BDD but in xUnit. Then implement. Then use coverage and mutation testing (Stryker.NET with the MTP runner) to make sure that the tests are meaningful. Also add tests that lock in the decisions made along the way.
+- Mutation testing is not a gate on every epic. The user decided this on 2026-10-12, after a Stryker run over the whole vertical slice ran for hours. The rules:
+  - Every implementation brief asks for hand mutations: for each new test, the agent breaks the production line that the test protects, watches the test fail, and restores the line. The report names each mutation.
+  - Each epic still runs coverage on its changed lines, in the orchestrator, before the merge.
+  - Stryker.NET (MTP runner) runs on the core modules (Tertius.Core, Simulation, Physics) in the test-hardening epic ter-7e55, scoped to files, not on Host, Demo or the renderer.
+  - When an epic changes core logic a lot, a Stryker run on the changed lines of that core module only is fine. It takes minutes, not hours.
+  - The helpers in `tools/` run coverage and Stryker on changed lines or on whole files. `tools/README.md` gives the commands and the Stryker pitfalls.
 - NSubstitute cannot substitute interfaces with ref struct parameters, such as `IComponent`. Use small hand-written test components for those.
 - Most tests run single-threaded, so that they are deterministic and fast under mutation testing. A separate test covers parallel determinism.
 - Renderer tests are snapshot tests plus CPU tests. A snapshot test renders a scene headlessly and compares it with an approved reference image through the FLIP perceptual metric. A failure writes the actual image and a FLIP heat map next to the reference. An environment variable re-approves on purpose.

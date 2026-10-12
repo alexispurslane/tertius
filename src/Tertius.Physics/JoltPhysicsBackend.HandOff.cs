@@ -190,10 +190,21 @@ public sealed partial class JoltPhysicsBackend
         // The real body replaces its ghost.
         RemoveGhostIn(record, target);
         RemovePrimary(record);
-        CreatePrimary(record, plan.To, plan.Pose, plan.LinearVelocity, plan.AngularVelocity);
+        // A character that stood in this step takes its up from the new frame's gravity. One that did not stand falls
+        // freely, so nothing turns it: it keeps its up and its rotation, turned into the new frame's axes.
+        CreatePrimary(record, plan.To, plan.Pose, plan.LinearVelocity, plan.AngularVelocity, upFromGravity: record.Standing);
+        DPose pose = plan.Pose;
+        if (record.Character is { } character)
+        {
+            // Jolt starts a new character in the air. The character looks up its contacts now, as after a growth, so that
+            // its next update knows the ground under it.
+            character.RefreshContacts(Layers.Moving, target.System);
+            // The hand-off reports the rotation that the character got, which a turn to the new up can change.
+            pose = ReadPrimary(record).Pose;
+        }
         if (record.IsHull)
             MoveFrame(record.OwnedFrame, plan.From, plan.To);
-        output.HandOffs.Add(new HandOff(record.Entity, plan.From, plan.To, plan.Pose, plan.LinearVelocity, plan.AngularVelocity));
+        output.HandOffs.Add(new HandOff(record.Entity, plan.From, plan.To, pose, plan.LinearVelocity, plan.AngularVelocity));
     }
 
     /// <summary>Records that a frame has a new parent for the rest of the step. The sync point decides whether the tree takes it.</summary>
@@ -392,8 +403,10 @@ public sealed partial class JoltPhysicsBackend
     // ---- Output ----
 
     /// <summary>
-    /// Reports every awake dynamic or kinematic body and every character. A body that fell asleep during the step
-    /// gets one more report, so that the simulation sees its resting pose and zero velocity.
+    /// Reports every awake dynamic or kinematic body and every character, and the state of every character. A body that
+    /// fell asleep during the step gets one more report, so that the simulation sees its resting pose and zero
+    /// velocity. The hand-offs of the step are done, so a character that a hand-off moved reports from its new frame,
+    /// where it has not stood yet.
     /// </summary>
     private void WriteBodies(PhysicsStepOutput output)
     {
@@ -413,8 +426,12 @@ public sealed partial class JoltPhysicsBackend
                 Report(world, record, output, track: true);
             }
             foreach (BodyRecord member in world.Members)
-                if (member.Character is not null)
-                    Report(world, member, output, track: true);
+            {
+                if (member.Character is null)
+                    continue;
+                Report(world, member, output, track: true);
+                output.Characters.Add(new CharacterState(member.Entity, member.Standing));
+            }
             foreach (BodyRecord record in world.ReportedLast)
                 if (record.ReportedStep != stepIndex && record.World == world && Find(record.Entity) == record)
                     Report(world, record, output, track: false);

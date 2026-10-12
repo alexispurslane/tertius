@@ -19,6 +19,9 @@ struct GpuInstance
     // 1 / scale². modelLinear * (n * inverseScaleSq) = R * S⁻¹ * n, the correct normal transform.
     vec3 inverseScaleSq;
     uint material;
+    // The up of the hemisphere ambient light: xyz the up direction with w 1, or the point that up leads away from with
+    // w 2. All zero mixes the sky and the ground evenly.
+    vec4 hemisphere;
 };
 
 struct GpuMaterial
@@ -52,7 +55,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 ambientGround;       // rgb ground color × intensity
     vec4 viewport;            // width, height, 1 / width, 1 / height
     vec4 params;              // x exposure, y time in seconds, z angular size of one pixel
-    uvec4 counts;             // x lights, y occluders, z shadow cascades to sample (0: no shadow maps this frame)
+    uvec4 counts;             // x lights, y occluders, z shadow cascades to sample (0: no shadow maps this frame), w occluders of casters in the maps (first)
     // Sun shadow cascades (see ShadowCascades.cs). Light space: x = shadowAxisX, y = shadowAxisY, z = sunDirection.
     mat4 shadowViewProj[4];   // shadow clip space from world space; xy in [-1, 1], z reversed (1 nearest the sun)
     vec4 shadowSplits;        // view depth where each cascade ends
@@ -61,6 +64,7 @@ layout(set = 0, binding = 0, std140) uniform FrameBlock
     vec4 shadowAxisX;         // xyz light-space x axis, w lateral half-extent / depth half-range of the cascade boxes
     vec4 shadowAxisY;         // xyz light-space y axis
     vec4 shadowParams;        // x 1 / map size, y normal offset in texels, z constant depth bias, w smallest receiver cosine
+    vec4 rootRotation;        // the root frame's axes in world axes, as a quaternion (xyz, w)
 } frame;
 
 layout(set = 0, binding = 1, std430) readonly buffer InstanceBlock { GpuInstance instances[]; };

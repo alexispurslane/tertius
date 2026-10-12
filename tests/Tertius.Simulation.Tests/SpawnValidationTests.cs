@@ -14,7 +14,7 @@ public class SpawnValidationTests
 
     public static TheoryData<string> Defects => new(
         "no frame", "a destroyed frame", "an attached body", "an attached frame", "a null component",
-        "the same component twice", "a frame with no bubble", "a stale attachment parent");
+        "the same component twice", "a frame with no bubble", "a stale attachment parent", "an attachment parent that owns a root frame");
 
     /// <summary>A description with the named defect. <paramref name="staleFrame"/> and <paramref name="staleParent"/> are handles that have been destroyed.</summary>
     private static SpawnDesc WithDefect(string defect, FrameHandle root, FrameHandle staleFrame, Entity liveParent, Entity staleParent)
@@ -30,6 +30,8 @@ public class SpawnValidationTests
             "the same component twice" => new SpawnDesc { Frame = root, Components = [shared, shared] },
             "a frame with no bubble" => new SpawnDesc { Frame = root, AsFrame = new FrameSpec(default, MotionDriver.Static) },
             "a stale attachment parent" => new SpawnDesc { Frame = root, AttachTo = staleParent },
+            // The owner of a root frame is in no frame, so it has none to give a child.
+            "an attachment parent that owns a root frame" => new SpawnDesc { AttachTo = root.Entity },
             _ => throw new ArgumentOutOfRangeException(nameof(defect), defect, null),
         };
     }

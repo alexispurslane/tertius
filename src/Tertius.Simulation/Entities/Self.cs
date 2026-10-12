@@ -114,7 +114,8 @@ public readonly ref struct Self
 /// A proxy over the running entity's physics intent. All vectors are in frame axes. Forces, torques and impulses add
 /// up during the tick. Velocity changes, kinematic targets, teleports, character moves and jumps keep the last value
 /// written. Physics applies the intent in the next step. Every method throws <see cref="InvalidOperationException"/>
-/// when the entity has no body.
+/// when the entity has no body. The properties work for every entity: <see cref="Pending"/> is the empty intent for an
+/// entity without a body.
 /// </summary>
 public readonly ref struct BodyHandle
 {
@@ -129,6 +130,13 @@ public readonly ref struct BodyHandle
 
     /// <summary>True if the entity has a physics body.</summary>
     public bool Exists => world.Entities.Body(entity) != null;
+
+    /// <summary>
+    /// True if physics stood this character on walkable ground under gravity in its last step: the step that ran during
+    /// the previous tick. False for a character in the air, on steep ground or weightless, for any other body, and for
+    /// an entity without a body.
+    /// </summary>
+    public bool Standing => world.IsStanding(entity);
 
     /// <summary>The intent written so far during this tick.</summary>
     public PhysicsIntent Pending => world.Entities.PendingIntent(entity);
@@ -180,7 +188,12 @@ public readonly ref struct BodyHandle
         intent.Flags |= IntentFlags.Teleport;
     }
 
-    /// <summary>Sets the desired movement velocity of a character body.</summary>
+    /// <summary>
+    /// Sets the desired movement velocity of a character body, in frame axes. It moves the character only while physics
+    /// stands it on walkable ground under gravity (see <see cref="Standing"/>), and then only the part across the
+    /// character's up counts. It does not move a character in the air, on steep ground or weightless, but physics keeps
+    /// it, and it applies once the character stands.
+    /// </summary>
     public void MoveCharacter(Vector3 desiredVelocity)
     {
         ref PhysicsIntent intent = ref Intent;
@@ -188,7 +201,10 @@ public readonly ref struct BodyHandle
         intent.Flags |= IntentFlags.CharacterMove;
     }
 
-    /// <summary>Makes a character jump with this upward speed, if it stands on something.</summary>
+    /// <summary>
+    /// Makes a character jump with this upward speed in the next step, if physics stands it on walkable ground under
+    /// gravity then (see <see cref="Standing"/>). Otherwise the jump does nothing.
+    /// </summary>
     public void Jump(float speed)
     {
         ref PhysicsIntent intent = ref Intent;

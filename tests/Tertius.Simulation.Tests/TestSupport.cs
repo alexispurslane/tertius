@@ -76,6 +76,13 @@ public sealed class TestWorld : IDisposable
     /// <summary>Runs this many ticks.</summary>
     public void Run(int ticks) => World.Run(ticks);
 
+    /// <summary>
+    /// Gives <see cref="Root"/> a point gravity with this G·M, in m³/s². A Kepler frame in the root takes its G·M from it
+    /// (see <see cref="FrameTree.KeplerMu"/>), and so does everything that falls in the root with real physics. Call it
+    /// before the first Kepler frame spawns, and only in a test that wants a Kepler frame in the root.
+    /// </summary>
+    public void GiveRootPointGravity(double mu) => World.SetFrameGravity(Root, GravityField.Point(mu));
+
     public void Dispose() => World.Dispose();
 
     /// <summary>

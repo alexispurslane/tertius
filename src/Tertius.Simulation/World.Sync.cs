@@ -8,9 +8,15 @@ public sealed partial class World
     // is here twice; its second entry finds its membership already moved.
     private readonly List<Entity> physicsTouched = new();
 
+    // Per entity: true when physics stood the character on walkable ground under gravity in its last step. The sync
+    // point writes it from each step's character states, and gameplay reads it in the next tick. Nothing writes it
+    // while gameplay runs, so it needs no second copy. The entity table clears it when it releases an entity.
+    private readonly EntityTable.Column<bool> characterStanding;
+
     // The check of each step's output. It skips the whole physics update of every entity that physics reported something
     // about that only a bug in the backend produces. Their body states, their hand-offs, the states of the frames they
-    // own and the contacts that name them are all ignored.
+    // own, the contacts that name them and their character states are all ignored. A broken character state skips only
+    // itself.
     private readonly PhysicsOutputCheck physicsOutputCheck = new();
 
     /// <summary>What the entity table knows about an entity, for the check of the physics output.</summary>
@@ -19,6 +25,8 @@ public sealed partial class World
         public bool IsAlive(Entity entity) => entities.IsAlive(entity);
 
         public bool HasBody(Entity entity) => entities.Body(entity) != null;
+
+        public bool IsCharacter(Entity entity) => entities.Body(entity) is { Motion: BodyMotion.Character };
 
         // Every write to the row of an entity with a body comes from physics, so the row is where the step began.
         public FrameHandle FrameOf(Entity entity) => entities.BackRow(entity).Frame;
@@ -67,7 +75,7 @@ public sealed partial class World
         MakeSpawnsLive(endTime);
         FlushPhysicsChanges();
 
-        // 7. Kepler frames advance to the end of the tick, and every frame owner, then every attached entity, follows.
+        // 7. Kepler and Spin frames advance to the end of the tick, and every frame owner, then every attached entity, follows.
         AdvanceFrames(endTime);
         DeriveAttachments();
 
@@ -104,9 +112,9 @@ public sealed partial class World
 
     /// <summary>
     /// Step 2: the check of the report and the frame owners' reparents of the hand-offs, then body states and hand-offs
-    /// into the back table, then the new states of the physics-driven frames and their owners' rows, then contacts as
-    /// Collision events. The contacts come after the frame states, so that a point converted between frames uses the
-    /// frame poses after the step, like the bodies' own poses.
+    /// into the back table, then whether physics stood each character, then the new states of the physics-driven frames
+    /// and their owners' rows, then contacts as Collision events. The contacts come after the frame states, so that a
+    /// point converted between frames uses the frame poses after the step, like the bodies' own poses.
     /// </summary>
     private void ApplyPhysicsOutput()
     {
@@ -149,6 +157,13 @@ public sealed partial class World
             physicsTouched.Add(entity);
         }
 
+        // The check skipped every character state that is broken, and the state of every entity whose update it skipped.
+        for (int i = 0; i < stepOutput.Characters.Count; i++)
+        {
+            if (!physicsOutputCheck.IsCharacterStateSkipped(i))
+                characterStanding[stepOutput.Characters[i].Entity] = stepOutput.Characters[i].Standing;
+        }
+
         // The reparents already put each frame under the parent that its state is relative to. The owner's row mirrors
         // the new state at once, so that a hull that the destroy batch moves to another physics system starts from the
         // state after the step. A frame that is gone has its owner's update skipped.
@@ -179,10 +194,11 @@ public sealed partial class World
     /// It breaks a contract in Debug builds. In Release builds the sync skips, for this step, the whole physics update of
     /// every entity that the output names, and it records exactly one error for each broken output: however many rules
     /// the output breaks, and also when another broken output skipped the same entities already. For a frame state, that
-    /// entity is the frame's owner. The skip does not change physics: the backend keeps each body where it put it. A frame
-    /// hull goes back where the tree says at the start of the next step. A plain body that physics moved into a frame that
-    /// is gone stays in that frame's system, so later outputs about it are broken too, until physics finds the frame gone
-    /// and removes the body, with a warning.
+    /// entity is the frame's owner. A broken character state skips only itself, and the rest of the entity's update lands.
+    /// The skip does not change physics: the backend keeps each body where it put it. A frame hull goes back where the
+    /// tree says at the start of the next step. A plain body that physics moved into a frame that is gone stays in that
+    /// frame's system, so later outputs about it are broken too, until physics finds the frame gone and removes the body,
+    /// with a warning.
     /// </summary>
     private void SkipBrokenPhysicsUpdates()
     {
@@ -270,8 +286,8 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Step 7: Kepler frames from time, static frames from their owners' gameplay writes, then every owner's row from its
-    /// frame. Physics frames got their states in step 2.
+    /// Step 7: Kepler and Spin frames from time, static frames from their owners' gameplay writes, then every owner's row
+    /// from its frame. Physics frames got their states in step 2.
     /// </summary>
     private void AdvanceFrames(double endTime)
     {
@@ -284,11 +300,16 @@ public sealed partial class World
                 case MotionDriver.Kepler:
                     ApplyKepler(frame, endTime);
                     break;
+                case MotionDriver.Spin:
+                    ApplySpin(frame, endTime);
+                    break;
                 case MotionDriver.Static:
-                    // A static frame whose owner has no body moves when gameplay writes the owner's transform.
+                    // A static frame whose owner has no body moves when gameplay writes the owner's transform. Gameplay can
+                    // write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the world
+                    // normalizes it here, and the owner's row follows the frame (see MirrorFrameOwner).
                     Entity owner = frame.Entity;
                     if (entities.GameplayWroteTransform(owner))
-                        Frames.SetLocalPose(frame, entities.BackRow(owner).Pose);
+                        Frames.SetLocalPose(frame, entities.BackRow(owner).Pose.WithUnitRotation());
                     break;
             }
             MirrorFrameOwner(frame);

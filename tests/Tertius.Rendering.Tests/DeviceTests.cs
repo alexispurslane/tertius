@@ -51,6 +51,46 @@ public sealed class DeviceTests
     }
 
     [Fact]
+    public void TheStarsStayFixedToTheRootFramesAxesWhateverFrameTheCameraRidesIn()
+    {
+        VulkanRenderer renderer = Gpu.Headless(320, 180);
+        try
+        {
+            // The same view of the sky, from a camera in the root frame and from one in a frame turned by `turn`: in the
+            // turned frame's axes, the camera's rotation and the root's axes are both turned back by it.
+            Quaternion view = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.5f) * Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.2f);
+            Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.Normalize(new Vector3(1, 1, 0)), 0.7f);
+            RenderSnapshot inRoot = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            inRoot.Camera.Rotation = inRoot.Camera.PreviousRotation = view;
+            RenderSnapshot inTurned = Gpu.Snapshot(Vector3.UnitY, sunIntensity: 0);
+            inTurned.Camera.Rotation = inTurned.Camera.PreviousRotation = Quaternion.Conjugate(turn) * view;
+            inTurned.RootRotation = inTurned.PreviousRootRotation = Quaternion.Conjugate(turn);
+
+            HashSet<(int, int)> rootStars = Stars(Gpu.RenderAndCapture(renderer, inRoot, "stars-root"));
+            HashSet<(int, int)> turnedStars = Stars(Gpu.RenderAndCapture(renderer, inTurned, "stars-turned"));
+
+            rootStars.Count.Should().BeGreaterThan(10);
+            // Rounding can move a star's edge by a pixel.
+            rootStars.Intersect(turnedStars).Count().Should().BeGreaterThan(rootStars.Count * 9 / 10);
+            turnedStars.Count.Should().BeInRange(rootStars.Count * 9 / 10, rootStars.Count * 11 / 10);
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    private static HashSet<(int, int)> Stars(Capture image)
+    {
+        var stars = new HashSet<(int, int)>();
+        for (int y = 0; y < image.Height; y++)
+            for (int x = 0; x < image.Width; x++)
+                if (image.Luma(x, y) > 0.1f)
+                    stars.Add((x, y));
+        return stars;
+    }
+
+    [Fact]
     public void RenderingManyFramesWithEveryFramesInFlightSettingIsClean()
     {
         foreach (int framesInFlight in new[] { 1, 2, 3 })

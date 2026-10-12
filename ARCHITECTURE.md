@@ -51,6 +51,7 @@ The simulation runs at a fixed 60 ticks per second. Physics steps once per tick 
 | Main | The window and input. macOS requires this. |
 | Gameplay workers | Entity runs, in chunks of 64 entities, through `Parallel.For`. |
 | Physics | One Jolt step for every active frame. Jolt uses its own job threads. |
+| Simulation | Runs the ticks and their sync points, and a scripted run's steps. In the window, it paces the ticks by the wall clock. |
 | Render | Draws the latest render snapshot and interpolates between the last two. |
 
 One tick has two parts. During the parallel part, gameplay and physics run at the same time. Both read only state that is fixed for the tick: the front snapshot of tick N-1 and the frame tree. During the sync part, one thread merges the results.
@@ -58,12 +59,12 @@ One tick has two parts. During the parallel part, gameplay and physics run at th
 The sync point does these steps in this order:
 
 1. Wait for all gameplay chunks and for the physics step.
-2. Check the physics output before any of it lands. If an output can only come from a bug in the backend, skip the physics update of each entity that it names. "Output that only a bug produces" under "Physics" gives the checks. Then move each handed-off frame under its new parent in the frame tree. Copy body poses, velocities and hand-offs into the back transform table, and then apply the new states of physics-driven frames. A frame state is relative to the frame's parent after its hand-off. So it must come after the hand-offs, and before step 5 destroys any frame. Send the contacts as `Collision` events last.
+2. Check the physics output before any of it lands. If an output can only come from a bug in the backend, skip the physics update of each entity that it names. "Output that only a bug produces" under "Physics" gives the checks. Then move each handed-off frame under its new parent in the frame tree. Copy body poses, velocities and hand-offs into the back transform table. Keep whether physics stood each character. Then apply the new states of physics-driven frames. A frame state is relative to the frame's parent after its hand-off. So it must come after the hand-offs, and before step 5 destroys any frame. Send the contacts as `Collision` events last.
 3. Make sure that no entity with a body wrote its own transform. This is a debug assertion.
 4. Swap the physics intent buffers, so that physics gets this tick's forces in the next step.
 5. Free dead entities. Increment the generation of each slot and return the slot to the free list. Tell physics to destroy their bodies.
-6. Make new entities live. If the tables are full, grow them. Tell physics to create the new bodies.
-7. Advance the Kepler frames to the end of the tick.
+6. Make new entities live. If the tables are full, grow them. Tell physics to create the new bodies. An attached entity becomes live in the frame of its parent at this moment, after steps 2 and 5 have moved the parent.
+7. Advance the Kepler and Spin frames to the end of the tick. Then every attached entity takes its frame, pose and velocities from the root of its chain.
 8. Route the outboxes into inboxes.
 9. Swap the snapshot. The back tables become the front tables. Copy only dirty slots forward.
 10. Build the render snapshot and publish it to the render thread through a triple buffer.
@@ -104,6 +105,8 @@ If an entity has no body, gameplay owns its transform and writes it through `sel
 `self.Spawn(...)` takes a slot at once from an atomic free list and returns the new handle. The new entity starts to run on the next tick. The tables grow only at the sync point. An entity can destroy itself with `self.Destroy()`. To destroy another entity, send it a `Destroy` message. Both take effect at the sync point.
 
 No other operation is deferred. There is no general command buffer.
+
+A spawn can attach the new entity to a parent entity with `SpawnDesc.AttachTo`. The attached entity follows its parent with a fixed offset in the parent's axes. It has no body, it cannot be a frame, and it dies with its parent. A chain of attached entities is always in the frame of its root, the one entity of the chain that is not attached. In step 7 of the sync point, each attached entity takes its frame, pose and velocities from that root. So an attached spawn becomes live in the frame of its parent at that moment, and the frame that its description names does not count. A component that spawns during a tick saw the parent in the front snapshot. In the same tick, physics can hand the parent into another frame, or the parent's frame can die and move the parent to an ancestor frame. The component cannot know that, so it is not a bug: the new entity becomes live in the parent's new frame. A parent that is not live at the sync point, or that owns a root frame and so is in no frame, cannot take the new entity. The world then drops the spawn and records an error in `World.Errors`. Outside a tick, `World.Spawn` throws for such a parent instead.
 
 ## Messages
 
@@ -208,9 +211,10 @@ Frames form a tree. Each frame has a double-precision `DPose` relative to its pa
 |---|---|
 | `Owner` | The entity that is the frame |
 | `Bounds` | The ellipsoid radii of the bubble, in frame axes |
-| `Driver` | `MotionDriver.Kepler`, `MotionDriver.Physics` or `MotionDriver.Static` |
-| `Orbit` | Kepler elements, for Kepler frames |
-| `Gravity` | The gravity field of the frame |
+| `Driver` | `MotionDriver.Kepler`, `MotionDriver.Spin`, `MotionDriver.Physics` or `MotionDriver.Static` |
+| `Orbit` | Kepler elements, for Kepler frames. They hold no G·M: the frame takes it from the gravity of its parent |
+| `Spin` | The tilt and steady turn, for Spin frames |
+| `Gravity` | The gravity field of the frame, a `GravityField` union (see "Gravity") |
 | `Velocity` | Linear and angular velocity relative to the parent |
 | `ProperAcceleration` | The acceleration that an accelerometer at the frame origin reads |
 
@@ -220,31 +224,36 @@ The bubble of a frame never changes after the frame is created. The simulation a
 
 The scene graph inside a frame uses the same `PoseTree`, with the float `Pose`.
 
+The rotation of every local pose in the frame tree is a unit quaternion: the square of its length is within `1E-12` of 1. `FrameTree.AssertInvariants` checks it. The world normalizes a rotation that a caller gives it, in a spawn description or in a write to the transform of the owner of a static frame, and it does not refuse it. A rotation that is off by `1E-7` in the square of its length would put a parent that is `6.8E6` m away about a meter off, as seen from the frame.
+
 ### Motion drivers
 
-- Kepler: the pose is a function of time, computed in doubles from the orbital elements and a spin rate. The frame is in free fall, so its proper acceleration is zero.
+- Kepler: the pose is a function of time, computed in doubles from the orbital elements and the attitude. The attitude `Spin` turns the frame by its axial tilt and a steady spin about its own +Y, as a planet turns. The attitude `FacesParent` points the frame's belly (-Y) at its parent and its nose (-Z) along its motion across the horizon, as a station in low orbit flies. It turns with the true anomaly, so it is exact on an oval orbit too. The frame is in free fall, so its proper acceleration is zero. The orbit holds no G·M. It takes μ from the point gravity of the parent frame (`FrameTree.KeplerMu`), so a Kepler frame and the loose bodies in its parent fall on the same G·M. (User) G·M lives in one place only, so the two can never differ. Each `KeplerOrbit` member that needs it takes the parent's G·M as a parameter.
+- Spin: the frame stays at its place in its parent and turns in place, as the ground of a planet does. Its `FrameSpin` gives the rotation as a function of time: a tilt, then a steady turn about the frame's own +Y. The same math gives the Kepler attitude `Spin`. Like a static frame, it keeps its proper acceleration: a new frame has none, and a landed ship that starts to turn keeps its cargo's weight. No centrifugal force acts on its contents.
 - Physics: the frame's hull is a dynamic body in the parent frame's physics system. Its pose and velocity come from that body after each step. The proper acceleration is the velocity change over the step minus the gravity that the parent applied.
 - Static: the pose does not change.
 
-A game gives a frame a new driver between ticks with `World.SetFrameDriver`, for example to park a ship. `FrameTree.SetDriver` is internal to the simulation. The world refuses the call during a tick, because physics reads the frame tree on its own thread then. A frame that gets the static driver stops where it is: both of its velocities become zero. It keeps its proper acceleration, so the cargo of a ship that is parked on the ground keeps its weight. A frame that gets the Kepler driver moves to its place on its orbit at once, as it does for a new orbit. So physics never drives its hull across the gap from its old place. A frame that gets the physics driver keeps its pose and velocities until physics moves it. The transform of the frame's owner follows the frame at once.
+A Kepler orbit is in the axes of its parent, so in a parent that turns, the orbit turns with it. A planet that turns therefore has two frames, as real spaceflight has an Earth-centered inertial frame and an Earth-fixed one. The planet's frame does not turn: it goes round its star and holds the orbits of ships and moons. A Spin frame at its center turns and holds the ground. The orbit scene of the vertical slice is built this way.
 
-The world refuses a driver that `MotionDriver` does not define, and a driver that the frame cannot follow. The physics driver needs a dynamic hull, which has mass and is not a mesh. Jolt never moves a mesh. The Kepler driver needs a hull that is not a mesh, and a valid orbit. A valid orbit is closed, with a positive semi-major axis around a parent with a positive mass, and each of its elements is finite. The world refuses the same hulls and orbits at spawn.
+A game gives a frame a new driver between ticks with `World.SetFrameDriver`, for example to park a ship. `FrameTree.SetDriver` is internal to the simulation. The world refuses the call during a tick, because physics reads the frame tree on its own thread then. A frame that gets the static driver stops where it is: both of its velocities become zero. It keeps its proper acceleration, so the cargo of a ship that is parked on the ground keeps its weight. A frame that gets the Kepler driver moves to its place on its orbit at once, as it does for a new orbit. So physics never drives its hull across the gap from its old place. A frame that gets the Spin driver keeps its place and turns to its spin at once. A frame that gets the physics driver keeps its pose and velocities until physics moves it. The transform of the frame's owner follows the frame at once.
+
+The world refuses a driver that `MotionDriver` does not define, and a driver that the frame cannot follow. The physics driver needs a dynamic hull, which has mass and is not a mesh. Jolt never moves a mesh. The Kepler driver needs a hull that is not a mesh, a valid orbit, and a parent frame with a point gravity whose G·M is above 0. The Spin driver needs a hull that is not a mesh, and a spin whose values are all finite. A valid orbit is closed, with a positive semi-major axis, and each of its elements is finite. It has no mass of its own, so the parent's gravity gives the G·M. The world refuses a Kepler frame that has no parent, or whose parent has no point gravity, with an `ArgumentException` that names the frame and the reason. It does so at spawn, in `SetFrameDriver` and in `SetFrameOrbit`. It refuses the same hulls and orbits at spawn.
 
 A root frame has no parent, so its owner has no hull. The body of its owner is only the static interior of the frame, so the rules for a hull do not apply to it. So if the owner of a frame that has a parent and the physics driver has a body, that body is a dynamic hull.
 
-Each call to `World.SetFrameDriver` changes the version of the frame tree, also a call that gives a frame the driver that it has. Physics then follows the call at the start of its next step, as it follows a reparent. The hull keeps its body, and it gets the motion that the driver needs: dynamic for the physics driver, kinematic for the Kepler driver, and static for the static driver. It starts from the frame's pose and velocity in the tree. So a park and an unpark between two ticks stop the ship.
+Each call to `World.SetFrameDriver` changes the version of the frame tree, also a call that gives a frame the driver that it has. Physics then follows the call at the start of its next step, as it follows a reparent. The hull keeps its body, and it gets the motion that the driver needs: dynamic for the physics driver, kinematic for the Kepler and Spin drivers, and static for the static driver. A kinematic hull carries the frame hulls that rest on it, for example a small ship on a turntable whose bubble is small. Loose bodies never touch a hull: they enter its frame's bubble first. It starts from the frame's pose and velocity in the tree. So a park and an unpark between two ticks stop the ship.
 
 A driver that the hull cannot follow comes only from a bug. It breaks a contract in a Debug build. A Release build keeps the motion of the hull and records the bug in `World.Errors`. "Output that only a bug produces" under "Physics" tells how.
 
-A game gives a frame a new orbit between ticks with `World.SetFrameOrbit`. The world refuses an orbit that is not valid, also for a frame with another driver. A Kepler frame moves to its place on the new orbit at once, and the transform of its owner follows. `FrameTree.SetOrbit` is internal to the simulation. Like a new driver, it changes the version of the frame tree. So physics puts the hull on the new orbit before its next step.
+A game gives a frame a new orbit between ticks with `World.SetFrameOrbit`. The world refuses an orbit that is not valid, also for a frame with another driver. It also refuses an orbit for a root frame, or for a frame whose parent has no point gravity with a G·M above 0, because there is no G·M to orbit. A Kepler frame moves to its place on the new orbit at once, and the transform of its owner follows. `FrameTree.SetOrbit` is internal to the simulation. Like a new driver, it changes the version of the frame tree. So physics puts the hull on the new orbit before its next step. `World.SetFrameSpin` does the same for a frame's spin.
 
 ### Gravity
 
-Each frame has one gravity field: `None`, `Uniform` (artificial gravity, with an optional region box) or `Point` (a planet). An object feels only the field of the frame that it is in. This is the one-dominant-body rule.
+Each frame has one gravity field. `GravityField` is a custom C# 15 union, as `Target` is, so a field holds the values of its own case and nothing else. (User) The cases are `UniformGravity(Acceleration, Region)`, which is artificial gravity with an optional region box, and `PointGravity(Mu)`, which is a planet. The empty union is no gravity, and it is the default. So a uniform field cannot carry a G·M, and a point field cannot carry an acceleration. The factories `GravityField.None`, `GravityField.Uniform` and `GravityField.Point` make a field. Code reads a field with a `switch` over the cases or with `TryGetValue`, and neither boxes. An object feels only the field of the frame that it is in. This is the one-dominant-body rule.
 
 The effective gravity on a body inside a frame is the frame's own field minus the frame's proper acceleration, rotated into frame axes. As a result, loose objects inside an accelerating ship slide toward the stern.
 
-A game gives a frame a new gravity field between ticks with `World.SetFrameGravity`. The sleeping bodies of the frame wake at the next step. The world refuses a field that is not valid, at this call and at spawn. Such a field has a kind that `GravityKind` does not define, or a value that is not finite. A negative G·M is not valid either. `FrameTree.SetGravity` is internal to the simulation.
+A game gives a frame a new gravity field between ticks with `World.SetFrameGravity`. The sleeping bodies of the frame wake at the next step. The world refuses a field that is not valid, at this call and at spawn. Such a field has a value that is not finite. A negative G·M is not valid either. `FrameTree.SetGravity` is internal to the simulation. A frame that has a Kepler child takes only a point field with the same G·M as its current one: the child orbits that G·M, and another one would make the child jump. The world refuses any other field for such a frame, with an `ArgumentException` that names the frame and the child. Its invariant check (`World.AssertInvariants`) states the rule from the other side: every Kepler frame has a parent with a point gravity whose G·M is above 0.
 
 ### Bubbles and nesting
 
@@ -256,7 +265,7 @@ Docking two frames of similar size merges them explicitly into one frame, and un
 
 ### Destroying a frame
 
-When a frame dies, its contents move to the nearest ancestor frame that survives. Pose and velocity convert through the tree, each moved entity gets `FrameChanged`, and its body moves to the new frame's physics system. Child frames move up the same way. If no ancestor survives, as with a root frame, the contents die with it.
+When a frame dies, its contents move to the nearest ancestor frame that survives. Pose and velocity convert through the tree, each moved entity gets `FrameChanged`, and its body moves to the new frame's physics system. Child frames move up the same way. If no ancestor survives, as with a root frame, the contents die with it. A Kepler child frame that moves up orbits the point gravity of its new parent. If the new parent has none, the Kepler frame has no G·M to orbit, so it gets the static driver and stops where it is, and the world logs it. The game caused it by destroying the parent, so it is not an error.
 
 ### Hand-off
 
@@ -342,7 +351,13 @@ Proper acceleration has a dead band. A component below the float resolution of t
 
 A physics-driven hull in orbit is integrated with float velocities, so its orbit drifts slowly. A frame that coasts for a long time uses a Kepler driver instead.
 
-The character controller is a capsule. It stands on whatever is below it and inherits that surface's velocity. It uses the frame's effective gravity. Near zero effective gravity, it switches to zero-g movement.
+Jolt keeps rotations as float quaternions, and the square of the length of one is up to `2E-7` away from 1. So the backend normalizes every rotation in double precision where it leaves Jolt, because the hull's rotation becomes the local pose of its frame.
+
+The character controller is a capsule. It uses the frame's effective gravity. Physics stands a character only on walkable ground under gravity. That is, the effective gravity is at least `FrameTree.ZeroGravityThreshold`, 0.05 m/s², Jolt found ground under the character that is not too steep, and the character does not move away from that ground. A standing character inherits the velocity of the surface under it, walks with the part of its desired velocity across its up, and can jump. A character that does not stand is weightless, in any frame and any gravity, because it falls freely or no gravity acts on it. (User) It keeps its momentum, and gravity, forces and impulses change its velocity. Walking and jumping do not move it. Physics keeps the desired velocity of a walk, which applies once the character stands. After each step in which it did not stand, the character loses the part of its velocity that goes into each static or kinematic surface that it hit. So a character that jumps into a low ceiling falls back at once. That part is relative to the surface, so a wall that moves into the character gives it the wall's velocity. Against a dynamic body the character keeps its momentum and pushes the body. The direction into a surface is the face's own normal if Jolt's contact normal lies within 10 degrees of it, and Jolt's contact normal otherwise, because Jolt's contact normal can lean several degrees on a flat face, while at an edge or a corner the face's normal would cancel motion that nothing blocks. Jolt pushes a character out of a surface that it sank into by moving it, so that push gives the character no velocity.
+
+Under gravity, the up of a character turns against the gravity whenever the character touches anything. That is, Jolt's ground state from the last update of the character is anything but "in the air": walkable ground, steep ground, or a contact that does not support the character. So a character that lands on its side or on its head turns upright, and then it can stand. A character in free fall that touches nothing keeps its last up. So a person who drifts out of a ship in orbit does not turn toward the planet. At a hand-off, a character that stood in its last step takes its up from the gravity of its new frame. Any other character keeps its up and its rotation, turned into the axes of its new frame. The hand-off reports the rotation that the character got in its new frame.
+
+In each step, physics reports for each character whether it stood. A character that a hand-off moved has not stood in its new frame yet. Physics looks up the contacts of that character in its new frame at once, so a character that walks on across the boundary stands again in the next step. Components read the report as `self.Body.Standing`, and other code as `Snapshot.IsStanding`. Tick N sees the step that ran during tick N - 1. So the components that steer a character agree with physics on where weightlessness begins.
 
 ### Contacts
 
@@ -377,8 +392,11 @@ So step 2 of the sync point checks each output before any state lands:
 3. The hand-offs of a step, applied in their order, never put a frame under itself or under a frame inside it.
 4. A frame state names a live frame with the physics driver and a parent. The owner of that frame has a body, which is the hull. So a frame state never names a root frame.
 5. A contact names two different live entities that have a body, and a live frame.
+6. A character state names a live entity whose body is a character. Each entity has at most one character state in a step.
 
 The class `PhysicsOutputCheck` in `Tertius.Core` holds these checks. The sync point uses it. The physics tests use it too, in the class that stands in for the sync point. So the tests apply the same rules as the engine.
+
+A broken character state is the one exception to the rule below. It changes only whether its character stands, so a Release build records one error and skips only that state. The character state of an entity whose update the sync point skips is part of that update, so it is skipped too.
 
 If an output fails a check, a Release build skips the whole physics update of each entity that the output names, for that step. For a frame state, the entity is the owner of the frame. The whole update of an entity is its body state, its hand-off, the state of its own frame, and its contacts. The sync point records exactly one error for each output that fails. An output that fails more than one check still records one error. An output whose entities another failed output skipped already still records its own error.
 
@@ -418,7 +436,7 @@ The lighting model is energy-normalized Blinn-Phong, not PBR:
 - Schlick Fresnel.
 - Normal maps.
 - A gloss map that sets the exponent.
-- Hemisphere ambient light.
+- Hemisphere ambient light: the sky color from above and the ground color from below.
 
 Lighting is in linear color space, into an HDR target, with tone mapping at the end. Lighting works in world axes centered on the camera. The specular exponent is n = 2^(1 + 11 · gloss), from 2 to 4096. The Fresnel F0 is 0.16 · specular².
 
@@ -429,16 +447,29 @@ The G-buffer has these targets:
 | Albedo | RGBA8 sRGB | Base color. Alpha 0 marks an unlit impostor pixel. |
 | Normals | RGBA16 SNORM | The shading normal and the geometric normal, both octahedral-encoded, in world axes. Shadow biasing uses the geometric normal. |
 | Specular | RG8 | Specular intensity and gloss. |
-| Emissive | RGBA16F | Emitted light. Impostors write their baked color here. |
+| Emissive | RGBA16F | Emitted light. For a lit pixel, alpha is the share of the hemisphere ambient light that comes from the sky. Impostors write their baked color here. |
 | Distance | R32F | Distance from the eye. Zero is sky. |
 
 Transparent objects use one forward pass after the lighting pass, sorted back to front across ranges. They test occlusion against the distance target, not the depth buffer.
 
 Dynamic point and spot lights are shaded in the deferred lighting pass. The sun is a directional light.
 
+The sky is a procedural star field, fixed to the axes of the root frame of the camera's frame tree. The render snapshot carries the root's axes in the axes of the camera's frame, as `RenderSnapshot.RootRotation`, and the renderer interpolates them as it interpolates the camera. So the stars do not turn with a ship that the camera rides in, and a switch of the camera to another frame does not move them.
+
+The hemisphere ambient light needs an up, and each instance takes it from the gravity field of its own frame, at its place. (User) Up points against a uniform field, inside the field's region, and away from the frame's origin in a point field. In a frame without gravity, every surface gets the mean of the sky and the ground color. A frame owner, such as a ship's hull, takes its own frame's field at the frame's origin. Only the field counts, not the frame's proper acceleration, so thrust never turns the up. (User) The ambient light of a surface therefore does not depend on the frame that the camera rides in, a planet sees the sky on every side, and an empty frame in space mixes evenly by itself.
+
+The snapshot gives each instance its up as a `HemisphereUp`. It is a custom C# 15 union, as `GravityField` is. (User) Its cases are `UpAlong(Direction)`, a direction in the axes of the camera's frame, and `UpAwayFrom(Center)`, a point given relative to the instance, so that a planet's own center moves with it exactly. The empty union is the even mix. It takes 16 bytes, one vector and a tag, because a value holds one case. `GpuInstance` still packs it into one `Vector4` for the shaders: the direction with `w` 1, the point with `w` 2, and zero for the even mix. The G-buffer pass stores the sky's share in the alpha of the emissive target. The up is not interpolated between ticks. The impostor manager keeps each capture's up in object space in its record of the light, so an object that turns against its up is captured again.
+
+The up costs about 5 ns per instance in the snapshot build. On one thread, `RenderSnapshotBenchmarks` builds a snapshot of 20,000 visible entities in 784 µs, against 675 µs without the up. Each GPU instance grows from 64 to 80 bytes. The renderer has no GPU timer to measure that yet (ticket `ter-yiii`).
+
 ### Shadows
 
-Shadow casters are selected by distance from the camera, not by frame. Cascaded shadow maps for the sun cover the first 2 km, with four cascades and blending at the seams. Planet shadows and eclipses use a sphere test in the shader.
+Shadow casters are selected by distance from the camera, not by frame, so an object shadows objects in any frame. Every caster has the `CastsShadow` flag, and the sun has none. A caster casts two kinds of shadow:
+
+- Map shadows. Cascaded shadow maps for the sun cover receivers in the first 2 km of view depth, with four cascades and blending at the seams. They draw every caster whose bounding sphere comes within 2 km of the camera, however big it is, for example a ground plane or a planet under the camera. Map shadows have the caster's real shape.
+- Far shadows. Every caster is also a sphere of its bounding radius, tested analytically in the lighting shader against the sun's disc, so the edge is soft. A sphere never shadows a point inside it, so a caster never shadows its own surface, and a planet's ground needs no such shadow: it faces away from the sun at night. A caster that the maps draw counts as a sphere only beyond the maps' reach, faded in over the last cascade's blend, so no receiver gets both shadows from one caster. A long or flat caster shadows as a rough sphere there.
+
+A far shadow counts only while the sun lights the scene, and only when it can be noticed. A caster beyond the maps must cover a pixel, or a fifth of the sun's angular radius, seen from the camera. A caster in the maps must hide 4% of the sun from 2 km away, where its far receivers start: a 50 m ship 500 m away qualifies, and a crate or a person does not. So the cost per pixel grows only with the shadows that can show. The sun is still the one light with shadows; making every far light work the same way belongs to the point and spot light shadows epic.
 
 The texel grid of each cascade snaps to a world-fixed anchor: the origin of the camera's frame. As a result, shadows do not shimmer as the camera moves. On MoltenVK, a steep caster clipped at the edge of the shadow map gets a flat, wrong depth plane. To avoid it, each cascade box is 16 times deeper than it is wide.
 

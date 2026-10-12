@@ -54,9 +54,13 @@ public sealed class ShadowTests
             snapshot.Instances.Add(Gpu.Instance(kit.Plane, kit.Ground, new Vector3(0, ground, -15), new Vector3(30, 1, 30), flags: Caster));
             // Turned so that its sunlit +X face looks toward the camera.
             snapshot.Instances.Add(Gpu.Instance(kit.Box, kit.White, box, new Vector3(1.5f), Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.5f), flags: Caster));
-            // An invisible occluder sphere straight above a patch of ground to the right: the analytic term.
+            // The analytic term: an invisible sphere of 20 m radius 2.2 km toward the sun from the ground at (28, ground, -10).
+            // It stays farther than 2 km from the camera, so it casts a far shadow, an ellipse on the ground 25 m along x and
+            // 20 m along z. Its edge passes between the box, which stays lit, and the patch at x = 4, which it covers. A sun
+            // with almost no disc keeps that edge sharp; the disc plays no part in the shadow maps.
             Vector3 eclipsed = new(4f, ground, -10f);
-            snapshot.Occluders.Add(new RenderOccluder { Center = eclipsed + Vector3.Normalize(sun) * 4f, Radius = 0.8f });
+            snapshot.Sun.AngularRadius = 0f;
+            snapshot.Instances.Add(RenderInstance.Create(kit.Sphere, kit.White, new Vector3(28f, ground, -10f) + Vector3.Normalize(sun) * 2_200f, Quaternion.Identity, new Vector3(20f), 0, HemisphereUp.Even, RenderFlags.CastsShadow, 0, 0));
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "shadow-box");
             RenderStats stats = renderer.LastFrameStats;
@@ -75,7 +79,83 @@ public sealed class ShadowTests
             shadowed.Should().BeLessThan(0.5f * lit, "the box shadows the ground beside it");
             shadowed.Should().BeLessThan(0.5f * litFar, "the shadow is darker than lit ground further back");
             top.Should().BeGreaterThan(lit, "the box's top faces the sun more than the ground does");
-            occluded.Should().BeLessThan(0.5f * lit, "the occluder sphere's analytic shadow multiplies with the shadow maps");
+            occluded.Should().BeLessThan(0.5f * lit, "the far sphere's analytic shadow multiplies with the shadow maps");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void AnObjectInsideTheBoundingSphereOfAFarCasterIsNotShadowedByIt()
+    {
+        const int width = 640, height = 360;
+        const float fov = 0.02f;
+        VulkanRenderer renderer = Gpu.Headless(width, height);
+        try
+        {
+            Kit kit = Kit.Create(renderer);
+            // The sun is up and toward the camera. An invisible caster that is not round, 1 km in radius and 5 km away,
+            // holds a 20 m box 500 m below its center, so the caster's center lies toward the sun from the box. A narrow view
+            // looks straight at the box.
+            var sun = new Vector3(0, 1, 1);
+            var box = new Vector3(0, -500, -5_000);
+            Quaternion camera = Gpu.PitchDown(MathF.Atan2(500, 5_000));
+            RenderSnapshot snapshot = Gpu.Snapshot(sun);
+            snapshot.Camera.Rotation = camera;
+            snapshot.Camera.PreviousRotation = camera;
+            snapshot.Camera.VerticalFov = fov;
+            snapshot.Instances.Add(Gpu.Instance(kit.Box, kit.White, box, new Vector3(10f)));
+            snapshot.Instances.Add(RenderInstance.Create(kit.Sphere, kit.White, new Vector3(0, 0, -5_000), Quaternion.Identity, new Vector3(1_000f), 0, HemisphereUp.Even, Caster, 0, 0));
+
+            Capture image = Gpu.RenderAndCapture(renderer, snapshot, "far-caster-inside");
+
+            // The box's face toward the camera faces the sun at 45 degrees, so the sun lights it.
+            float face = image.MeanLuma(Gpu.Project(box + new Vector3(0, 0, 5f), camera, width, height, fov), 2);
+            face.Should().BeGreaterThan(0.3f, "a bounding sphere does not shadow what lies inside it");
+        }
+        finally
+        {
+            Gpu.DisposeAndAssertClean(renderer);
+        }
+    }
+
+    [Fact]
+    public void ACasterInTheShadowMapsAlsoShadowsTheGroundBeyondThemWithItsSphere()
+    {
+        const int width = 960, height = 540;
+        const float fov = 40f * MathF.PI / 180f;
+        VulkanRenderer renderer = Gpu.Headless(width, height);
+        try
+        {
+            Kit kit = Kit.Create(renderer);
+            // The camera is 300 m up. The sun is 5 degrees up, behind the camera and to its right. A sphere of 150 m radius,
+            // 1.5 km away, stands 150 m above the ground, so it is in the shadow maps. Its shadow falls 1.7 km from it, to the
+            // left and away from the camera, about 2.7 km deep: beyond the maps.
+            float elevation = 5f * MathF.PI / 180f, across = MathF.Cos(elevation) * MathF.Sqrt(0.5f);
+            var sun = new Vector3(across, MathF.Sin(elevation), across);
+            const float ground = -300f;
+            var center = new Vector3(0, ground + 150f, -1_500f);
+            Vector3 shadow = center - Vector3.Normalize(sun) * (150f / MathF.Sin(elevation));
+            Quaternion camera = Gpu.PitchDown(6f * MathF.PI / 180f);
+            RenderSnapshot snapshot = Gpu.Snapshot(sun);
+            snapshot.Camera.Rotation = camera;
+            snapshot.Camera.PreviousRotation = camera;
+            snapshot.Camera.VerticalFov = fov;
+            // No ambient light, so that the low sun alone lights the ground and the shadow shows plainly.
+            snapshot.Ambient = default;
+            snapshot.Instances.Add(Gpu.Instance(kit.Plane, kit.Ground, new Vector3(0, ground, -3_000f), new Vector3(3_000f, 1, 3_000f)));
+            snapshot.Instances.Add(Gpu.Instance(kit.Sphere, kit.White, center, new Vector3(150f), flags: Caster));
+
+            Capture image = Gpu.RenderAndCapture(renderer, snapshot, "mapped-caster-far-shadow");
+
+            Vector2 Pixel(Vector3 p) => Gpu.Project(p, camera, width, height, fov);
+            Gpu.ViewDepth(shadow, camera).Should().BeGreaterThan(ShadowCascades.Distance, "the shadow lies beyond the maps");
+            float shadowed = image.MeanLuma(Pixel(shadow), 2);
+            float lit = image.MeanLuma(Pixel(new Vector3(600f, ground, shadow.Z)), 2);
+            lit.Should().BeGreaterThan(0.03f, "the ground away from the shadow is in the low sun");
+            shadowed.Should().BeLessThan(0.1f * lit, "the sphere shadows the ground beyond the maps");
         }
         finally
         {
@@ -145,11 +225,12 @@ public sealed class ShadowTests
             snapshot.Instances.Add(Gpu.Instance(kit.Plane, kit.Ground, new Vector3(0, ground, -2_500f), new Vector3(3_000f, 1, 3_000f), flags: Caster));
             // Its bounding sphere reaches within 1 km of the camera, so it is a caster.
             snapshot.Instances.Add(Gpu.Instance(kit.Box, kit.White, new Vector3(0, ground + 20f, -2_250f), new Vector3(10f, 40f, 1_500f), flags: Caster));
-            // A second wall entirely beyond 2 km is not a caster at all.
+            // A second wall entirely beyond 2 km is not in the shadow maps. It casts a far shadow instead: the sphere of its
+            // bounding radius, 173 m.
             snapshot.Instances.Add(Gpu.Instance(kit.Box, kit.White, new Vector3(-600f, ground + 20f, -2_600f), new Vector3(10f, 40f, 200f), flags: Caster));
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "shadow-2km-cutoff");
-            renderer.LastFrameStats.ShadowCasters.Should().Be(2, "the wall beyond 2 km is not a caster");
+            renderer.LastFrameStats.ShadowCasters.Should().Be(2, "the wall beyond 2 km is not in the shadow maps");
             float Luma(Vector3 p) => image.MeanLuma(Gpu.Project(p, camera, width, height, fov), 1);
 
             foreach (float z in (float[])[1_550f, 1_600f, 1_650f, 1_700f, 1_750f])
@@ -167,9 +248,9 @@ public sealed class ShadowTests
                 depth.Should().BeGreaterThan(ShadowCascades.Distance, "the sample is beyond the maps");
                 float shadowed = Luma(shadowPoint), lit = Luma(new Vector3(40f, ground, -z));
                 MathF.Abs(shadowed - lit).Should().BeLessThan(0.02f, "at {0:F0} m, beyond the maps, nothing is shadowed ({1} vs {2})", depth, shadowed, lit);
-                // The left side of the second wall is lit ground too.
-                float beside = Luma(new Vector3(-660f, ground, -2_600f));
-                MathF.Abs(beside - lit).Should().BeLessThan(0.03f, "the far wall casts no shadow ({0} vs {1})", beside, lit);
+                // 300 m left of the second wall: outside its bounding sphere, inside that sphere's shadow.
+                float beside = Luma(new Vector3(-900f, ground, -2_600f));
+                beside.Should().BeLessThan(0.5f * lit, "the far wall shadows the ground beside it as a sphere ({0} vs {1})", beside, lit);
             }
         }
         finally
@@ -349,7 +430,7 @@ public sealed class ShadowTests
             snapshot.Instances.Add(Gpu.Instance(kit.Plane, kit.Ground, new Vector3(0, ground, -10f), new Vector3(20f, 1, 20f), flags: Caster));
             // An invisible caster (CastsShadow without Visible): only its shadow shows where it is. It moved from
             // x = -3 to x = +3 during the tick.
-            RenderInstance pole = RenderInstance.Create(kit.Box, kit.White, new Vector3(3f, ground + 1.5f, -8f), Quaternion.Identity, new Vector3(1f, 3f, 1f), 0f, Caster);
+            RenderInstance pole = RenderInstance.Create(kit.Box, kit.White, new Vector3(3f, ground + 1.5f, -8f), Quaternion.Identity, new Vector3(1f, 3f, 1f), 0f, HemisphereUp.Along(Vector3.UnitY), Caster);
             pole.PreviousPosition = new Vector3(-3f, ground + 1.5f, -8f);
             snapshot.Instances.Add(pole);
 
@@ -376,7 +457,7 @@ public sealed class ShadowTests
             Kit kit = Kit.Create(renderer);
             RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.2f, 1f, 0.1f));
             RenderInstance Box(Vector3 position, RenderFlags flags) =>
-                RenderInstance.Create(kit.Box, kit.White, position, Quaternion.Identity, Vector3.One, 0f, flags);
+                RenderInstance.Create(kit.Box, kit.White, position, Quaternion.Identity, Vector3.One, 0f, HemisphereUp.Along(Vector3.UnitY), flags);
             snapshot.Instances.Add(Box(new Vector3(0, 0, -10), RenderFlags.Visible | Caster));          // selected
             snapshot.Instances.Add(Box(new Vector3(2, 0, -10), Caster));                                // invisible but casting: selected
             snapshot.Instances.Add(Box(new Vector3(-2, 0, -10), RenderFlags.Visible));                  // not a caster

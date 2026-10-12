@@ -777,11 +777,14 @@ public class PhysicsHandOffTests
     /// </summary>
     private static Entity SpawnFrameWithHull(TestWorld test, MotionDriver driver, out FrameHandle frame)
     {
+        // The Kepler frame takes its G·M from the point gravity of the root: 1 m³/s², so that it circles at 1 m in 2π s.
+        if (driver == MotionDriver.Kepler)
+            test.GiveRootPointGravity(1);
         Entity owner = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
             Pose = TestWorld.At(0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: driver == MotionDriver.Kepler ? KeplerOrbit.Circular(1, 1) : default),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: driver == MotionDriver.Kepler ? KeplerOrbit.Circular(1) : default),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), driver == MotionDriver.Kepler ? BodyMotion.Kinematic : BodyMotion.Static),
         });
         frame = test.World.GetOwnedFrame(owner);

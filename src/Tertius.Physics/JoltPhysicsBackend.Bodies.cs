@@ -124,7 +124,7 @@ public sealed partial class JoltPhysicsBackend
             else
             {
                 record.Up = Vector3.Transform(Vector3.UnitY, create.Pose.Rotation.ToJolt());
-                CreatePrimary(record, create.Frame, create.Pose, create.LinearVelocity, create.AngularVelocity);
+                CreatePrimary(record, create.Frame, create.Pose, create.LinearVelocity, create.AngularVelocity, upFromGravity: true);
             }
         }
         catch
@@ -142,12 +142,16 @@ public sealed partial class JoltPhysicsBackend
         records[index] = record;
     }
 
-    /// <summary>Creates the primary body or character of a record in the system of <paramref name="frame"/>.</summary>
-    private void CreatePrimary(BodyRecord record, FrameHandle frame, in DPose pose, Vector3 linearVelocity, Vector3 angularVelocity)
+    /// <summary>
+    /// Creates the primary body or character of a record in the system of <paramref name="frame"/>. For a character,
+    /// <paramref name="upFromGravity"/> says where its up comes from (see <see cref="CreateCharacter"/>). A rigid body
+    /// ignores it.
+    /// </summary>
+    private void CreatePrimary(BodyRecord record, FrameHandle frame, in DPose pose, Vector3 linearVelocity, Vector3 angularVelocity, bool upFromGravity)
     {
         FrameWorld world = WorldFor(frame);
         if (record.Motion == BodyMotion.Character)
-            record.Character = CreateCharacter(record, world, pose, linearVelocity);
+            record.Character = CreateCharacter(record, world, pose, linearVelocity, upFromGravity);
         else
             record.Body = CreateRigid(world, PrimarySpec(record), pose, linearVelocity, angularVelocity);
         record.Frame = frame;
@@ -164,7 +168,7 @@ public sealed partial class JoltPhysicsBackend
     {
         DPose pose = frames.LocalPose(record.OwnedFrame);
         var (linear, angular) = HullVelocityFromTree(record, pose);
-        CreatePrimary(record, parent, pose, linear, angular);
+        CreatePrimary(record, parent, pose, linear, angular, upFromGravity: false);
     }
 
     /// <summary>
@@ -262,17 +266,27 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// Creates a character in the system of <paramref name="world"/>, which grows first if it is full. Up is against the
-    /// effective gravity, or the record's last up direction near zero gravity.
+    /// Creates a character in the system of <paramref name="world"/>, which grows first if it is full. The new
+    /// character has not stood yet. With <paramref name="upFromGravity"/>, up is against the effective gravity when
+    /// that is at least <see cref="FrameTree.ZeroGravityThreshold"/>, or the record's last up below it, and the
+    /// rotation turns to that up. Without it, the character keeps the record's last up and the rotation of
+    /// <paramref name="pose"/>, as a character in free fall does.
     /// </summary>
-    private CharacterVirtual CreateCharacter(BodyRecord record, FrameWorld world, in DPose pose, Vector3 linearVelocity)
+    private CharacterVirtual CreateCharacter(BodyRecord record, FrameWorld world, in DPose pose, Vector3 linearVelocity, bool upFromGravity)
     {
         // The character's inner body takes a place in the system.
         EnsureRoom(world);
-        Vector3 gravity = frames.EffectiveGravity(world.Frame, pose.Position);
-        float strength = gravity.Length();
-        record.Up = strength >= options.ZeroGravityThreshold ? -gravity / strength : Vector3.Normalize(record.Up);
-        Quaternion rotation = Rotations.AlignUp(pose.Rotation.ToJolt(), record.Up);
+        Quaternion rotation = pose.Rotation.ToJolt();
+        record.Up = Vector3.Normalize(record.Up);
+        if (upFromGravity)
+        {
+            Vector3 gravity = frames.EffectiveGravity(world.Frame, pose.Position);
+            float strength = gravity.Length();
+            if (strength >= FrameTree.ZeroGravityThreshold)
+                record.Up = -gravity / strength;
+            rotation = Rotations.AlignUp(rotation, record.Up);
+        }
+        record.Standing = false;
         CharacterVirtual character = NewCharacter(record, world.System, pose.Position.ToJolt(), rotation, linearVelocity);
         world.CharacterCount++;
         return character;
@@ -410,13 +424,13 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The motion that the hull of a frame with <paramref name="driver"/> has: dynamic for the physics driver, kinematic for
-    /// the Kepler driver and static for the static driver. The simulation gives a frame only a driver that its hull can
+    /// the Kepler and Spin drivers, which move on rails, and static for the static driver. The simulation gives a frame only a driver that its hull can
     /// follow (see <see cref="BodyDesc.FrameHullProblem"/>), and the backend refuses to create a hull that cannot.
     /// </summary>
     private static BodyMotion HullMotion(MotionDriver driver) => driver switch
     {
         MotionDriver.Physics => BodyMotion.Dynamic,
-        MotionDriver.Kepler => BodyMotion.Kinematic,
+        MotionDriver.Kepler or MotionDriver.Spin => BodyMotion.Kinematic,
         _ => BodyMotion.Static,
     };
 

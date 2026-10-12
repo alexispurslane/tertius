@@ -1,6 +1,6 @@
 ---
 id: ter-hynj
-status: open
+status: closed
 deps: [ter-qawf]
 links: []
 created: 2026-10-11T13:52:09Z
@@ -14,3 +14,9 @@ tags: [host]
 
 Step 1 of docs/plans/host-and-scripted-runs.md. Give Tertius.Demo a Main method, so that dotnet build Tertius.slnx succeeds.
 
+
+## Notes
+
+**2026-10-11T16:47:01Z**
+
+Done on the epic branch. Coverage and mutation testing run once for the whole epic, before the merge into main.

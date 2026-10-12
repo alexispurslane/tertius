@@ -3,12 +3,13 @@ using System.Numerics;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Drives <see cref="JoltPhysicsBackend"/> the way the sync point does, without the simulation: it applies body
-/// states, hand-offs and frame states from the physics output, advances Kepler frames, and feeds intents. Like the sync
-/// point in a Debug build, it refuses output that only a bug in the backend produces: it runs the same
+/// Drives <see cref="JoltPhysicsBackend"/> the way the sync point does, without the simulation: it applies body states,
+/// hand-offs, character states and frame states from the physics output, advances Kepler frames, and feeds intents.
+/// Like the sync point in a Debug build, it refuses output that only a bug in the backend produces: it runs the same
 /// <see cref="PhysicsOutputCheck"/>, and every broken output throws out of <see cref="Step"/>, so a test whose backend
-/// has such a bug fails loudly. A test that wants a refused hand-off on purpose breaks it in <see cref="BeforeApply"/>
-/// and names it in <see cref="RefusesHandOff"/>.
+/// has such a bug fails loudly.
+/// A test that wants a refused hand-off on purpose breaks it in <see cref="BeforeApply"/> and names it in
+/// <see cref="RefusesHandOff"/>.
 /// </summary>
 internal sealed class PhysicsHarness : IDisposable
 {
@@ -21,6 +22,8 @@ internal sealed class PhysicsHarness : IDisposable
     private readonly PhysicsOutputCheck check = new();
     // Entities whose body a test destroyed and did not create again.
     private readonly HashSet<Entity> destroyed = new();
+    // Entities whose body is a character.
+    private readonly HashSet<Entity> characters = new();
 
     public PhysicsHarness(JoltBackendOptions? options = null)
     {
@@ -37,6 +40,12 @@ internal sealed class PhysicsHarness : IDisposable
 
     /// <summary>The latest state of every body, as the transform table would hold it.</summary>
     public Dictionary<Entity, BodyState> States { get; } = new();
+
+    /// <summary>
+    /// Whether physics stood each character on walkable ground under gravity in the last step that reported it, as the
+    /// sync point keeps it.
+    /// </summary>
+    public Dictionary<Entity, bool> Standing { get; } = new();
     public List<HandOff> HandOffs { get; } = new();
     public List<ContactStarted> Contacts { get; } = new();
 
@@ -87,13 +96,17 @@ internal sealed class PhysicsHarness : IDisposable
     {
         Entity entity = owner.IsNull ? NewEntity() : owner;
         bool orbiting = driver == MotionDriver.Kepler && orbit.SemiMajorAxis > 0;
-        if (orbiting)
-            pose = new DPose(orbit.StateAt(Time).Position, orbit.RotationAt(Time));
         FrameHandle frame = Frames.Create(entity, parent, pose, bounds, driver, gravity, orbit);
         if (orbiting)
         {
-            Frames.LinearVelocity(frame) = orbit.StateAt(Time).Velocity;
-            Frames.AngularVelocity(frame) = orbit.AngularVelocity();
+            // The harness stands in for the simulation, which takes the G·M of an orbit from the point gravity of the parent.
+            double mu = Frames.KeplerMu(frame);
+            if (mu <= 0)
+                throw new ArgumentException("A Kepler frame with an orbit needs a parent with a point gravity that has a G·M above 0.", nameof(parent));
+            var (position, velocity) = orbit.StateAt(Time, mu);
+            Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(Time, mu)));
+            Frames.LinearVelocity(frame) = velocity;
+            Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(Time, mu).ToVector3();
         }
         Changes.FramesCreated.Add(frame);
         return frame;
@@ -105,6 +118,10 @@ internal sealed class PhysicsHarness : IDisposable
         Changes.BodiesCreated.Add(new BodyCreate(e, frame, desc, pose, velocity, angularVelocity));
         States[e] = new BodyState(e, frame, pose, velocity, angularVelocity);
         destroyed.Remove(e);
+        if (desc.Motion == BodyMotion.Character)
+            characters.Add(e);
+        else
+            characters.Remove(e);
         return e;
     }
 
@@ -135,7 +152,9 @@ internal sealed class PhysicsHarness : IDisposable
     {
         Changes.BodiesDestroyed.Add(entity);
         States.Remove(entity);
+        Standing.Remove(entity);
         destroyed.Add(entity);
+        characters.Remove(entity);
     }
 
     /// <summary>The intent slot of an entity for the next step.</summary>
@@ -201,7 +220,8 @@ internal sealed class PhysicsHarness : IDisposable
         CheckOutput();
 
         // The order of World.ApplyPhysicsOutput: the reparents of the hand-offs, then body states, then the states of the
-        // hand-offs, so that an entity with both keeps its hand-off's state, then frame states, then contacts.
+        // hand-offs, so that an entity with both keeps its hand-off's state, then character states, then frame states, then
+        // contacts.
         foreach (HandOff handOff in Output.HandOffs)
         {
             HandOffs.Add(handOff);
@@ -217,6 +237,11 @@ internal sealed class PhysicsHarness : IDisposable
         {
             if (!check.IsSkipped(handOff.Entity))
                 States[handOff.Entity] = new BodyState(handOff.Entity, handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity);
+        }
+        for (int i = 0; i < Output.Characters.Count; i++)
+        {
+            if (!check.IsCharacterStateSkipped(i))
+                Standing[Output.Characters[i].Entity] = Output.Characters[i].Standing;
         }
         foreach (FrameState state in Output.Frames)
         {
@@ -282,6 +307,8 @@ internal sealed class PhysicsHarness : IDisposable
 
         public bool HasBody(Entity entity) => harness.States.ContainsKey(entity);
 
+        public bool IsCharacter(Entity entity) => harness.characters.Contains(entity);
+
         public FrameHandle FrameOf(Entity entity) => harness.States[entity].Frame;
     }
 
@@ -296,10 +323,11 @@ internal sealed class PhysicsHarness : IDisposable
             KeplerOrbit orbit = Frames.Orbit(frame);
             if (orbit.SemiMajorAxis <= 0)
                 continue;
-            var (position, velocity) = orbit.StateAt(Time);
-            Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(Time)));
+            double mu = Frames.KeplerMu(frame);
+            var (position, velocity) = orbit.StateAt(Time, mu);
+            Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(Time, mu)));
             Frames.LinearVelocity(frame) = velocity;
-            Frames.AngularVelocity(frame) = orbit.AngularVelocity();
+            Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(Time, mu).ToVector3();
         }
     }
 }

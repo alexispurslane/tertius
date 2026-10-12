@@ -110,9 +110,9 @@ internal sealed class Pilot : IComponent
 }
 
 /// <summary>
-/// The real backend plus one edit of the input that the World sends it. It stands in for a bug, for the tests of what the
-/// World and the backend do with a state that only a bug produces. The real physics in every test work grows it into the
-/// only test double for physics.
+/// The real backend plus one edit of the input that the World sends it, or of the output that it gives back. It stands in
+/// for a bug, for the tests of what the World and the backend do with a state that only a bug produces. The real physics
+/// in every test work grows it into the only test double for physics.
 /// </summary>
 internal sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBackend
 {
@@ -131,7 +131,18 @@ internal sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsB
         Jolt.ApplyChanges(changes, frames);
     }
 
-    public void Step(in PhysicsStepContext context, PhysicsStepOutput output) => Jolt.Step(context, output);
+    /// <summary>Edits the output of the next step after Jolt wrote it, once. Null edits nothing.</summary>
+    public Action<PhysicsStepOutput>? EditNextOutput { get; set; }
+
+    public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
+    {
+        Jolt.Step(context, output);
+        if (EditNextOutput is { } edit)
+        {
+            EditNextOutput = null;
+            edit(output);
+        }
+    }
 
     public float BoundingRadius(ShapeDesc shape) => Jolt.BoundingRadius(shape);
 

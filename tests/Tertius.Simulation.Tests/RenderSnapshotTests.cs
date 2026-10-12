@@ -62,7 +62,6 @@ public class RenderSnapshotTests
         RenderSnapshot snapshot = test.World.Latest();
         snapshot.Instances.Should().BeEmpty();
         snapshot.Lights.Should().BeEmpty();
-        snapshot.Occluders.Should().BeEmpty();
     }
 
     [Fact]
@@ -265,6 +264,23 @@ public class RenderSnapshotTests
         test.Run(1);
 
         test.World.Latest().InstanceOf(box).Mesh.Should().Be(new MeshId(9));
+    }
+
+    [Fact]
+    public void AComponentReadsTheWorldsCameraThroughTheSnapshot()
+    {
+        using var test = new TestWorld();
+        Entity? seen = null;
+        Entity reader = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seen = self.Snapshot.Camera)],
+        });
+        test.World.Camera = reader;
+
+        test.Run(1);
+
+        seen.Should().Be(reader);
     }
 
     [Fact]

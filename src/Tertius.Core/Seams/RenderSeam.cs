@@ -53,8 +53,11 @@ public enum RenderFlags : uint
     None = 0,
     Visible = 1 << 0,
     /// <summary>
-    /// Casts sun shadow-map shadows when within 2 km of the camera, whether or not the instance is
-    /// <see cref="Visible"/>. Planets and moons shadow through <see cref="RenderOccluder"/> instead.
+    /// Casts shadows from the sun, whether or not the instance is <see cref="Visible"/>, and onto objects in any frame. A
+    /// caster whose bounding sphere comes within 2 km of the camera casts shadow-map shadows, which have its real shape, onto
+    /// what is within 2 km. Every caster also shadows as an analytic sphere of its bounding radius, a far shadow, where the
+    /// maps do not reach, when it is big enough to notice. A sphere never shadows what lies inside it, so a caster never
+    /// shadows itself. Leave it off the sun itself.
     /// </summary>
     CastsShadow = 1 << 1,
     /// <summary>Alpha-blended with <see cref="MaterialDesc.BaseColor"/>.W as opacity. Never an impostor.</summary>
@@ -64,7 +67,7 @@ public enum RenderFlags : uint
     /// change every frame.
     /// </summary>
     NoImpostor = 1 << 3,
-    /// <summary>A sky object such as a star or planet. It is drawn in the depth range that fits its distance, and it is never an impostor.</summary>
+    /// <summary>A sky object such as a star or planet. It is never an impostor.</summary>
     Celestial = 1 << 4,
 }
 
@@ -91,6 +94,11 @@ public struct RenderInstance
     public Quaternion PreviousRotation;
     /// <summary>The world-space radius around <see cref="Position"/>, scale included. 0 means "derive it from the mesh".</summary>
     public float BoundingRadius;
+    /// <summary>
+    /// Which way is up for the object's hemisphere ambient light. The simulation takes it from the gravity of the object's
+    /// own frame, so it does not depend on the frame that the camera rides in. It is not interpolated.
+    /// </summary>
+    public HemisphereUp Hemisphere;
 
     /// <summary>An instance that is not moving: the previous transform equals the current one.</summary>
     public static RenderInstance Create(
@@ -100,6 +108,7 @@ public struct RenderInstance
         Quaternion rotation,
         Vector3 scale,
         float boundingRadius,
+        HemisphereUp hemisphere,
         RenderFlags flags = RenderFlags.Visible,
         uint entityIndex = 0,
         ushort part = 0) => new()
@@ -115,6 +124,7 @@ public struct RenderInstance
         PreviousPosition = position,
         PreviousRotation = rotation,
         BoundingRadius = boundingRadius,
+        Hemisphere = hemisphere,
     };
 }
 
@@ -165,13 +175,6 @@ public struct RenderSun
     public float AngularRadius;
 }
 
-/// <summary>A sphere that can cast an eclipse or planet shadow, tested analytically in the lighting shader.</summary>
-public struct RenderOccluder
-{
-    public Vector3 Center;
-    public float Radius;
-}
-
 public struct AmbientLight
 {
     public Vector3 SkyColor;
@@ -196,15 +199,23 @@ public sealed class RenderSnapshot
     public long OriginFrameId;
     public RenderSun Sun;
     public AmbientLight Ambient;
+    /// <summary>
+    /// The axes of the root frame of the camera's frame tree, in the axes of the camera's frame: it turns a direction
+    /// in root axes into world axes. The star field is fixed to the root's axes. Identity without a camera.
+    /// </summary>
+    public Quaternion RootRotation;
+    /// <summary>
+    /// <see cref="RootRotation"/> at the previous snapshot, for interpolation, or the same rotation when the camera
+    /// changed frame or did not interpolate.
+    /// </summary>
+    public Quaternion PreviousRootRotation;
     public readonly List<RenderInstance> Instances = new();
     public readonly List<RenderLight> Lights = new();
-    public readonly List<RenderOccluder> Occluders = new();
 
     public void Clear()
     {
         Instances.Clear();
         Lights.Clear();
-        Occluders.Clear();
     }
 }
 
@@ -240,15 +251,21 @@ public sealed record MaterialDesc(
 }
 
 /// <summary>
-/// The renderer as the host sees it. The Create methods are thread-safe. Uploads happen on the render thread
-/// before the next frame. <see cref="Render"/> runs only on the render thread.
+/// The resource half of the renderer: what a scene needs to make the meshes, textures and materials that its render
+/// rows name. The Create methods are thread-safe. Uploads happen on the render thread before the next frame.
 /// </summary>
-public interface IRenderer : IDisposable
+public interface IRenderResources
 {
     MeshId CreateMesh(MeshData mesh);
     TextureId CreateTexture(TextureData texture);
     MaterialId CreateMaterial(MaterialDesc material);
+}
 
+/// <summary>
+/// The renderer as the host sees it. <see cref="Render"/> runs only on the render thread.
+/// </summary>
+public interface IRenderer : IRenderResources, IDisposable
+{
     void Resize(int width, int height);
 
     /// <summary>Draws one frame, interpolated between the previous and current transforms by <paramref name="alpha"/>.</summary>

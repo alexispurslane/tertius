@@ -5,14 +5,15 @@
 //   n  = 2^(1 + 11 · gloss), so gloss 0 gives n = 2 and gloss 1 gives n = 4096
 //   F  = Schlick: F0 + (1 − F0)(1 − L·H)^5, with F0 = 0.16 · specular² (specular 0.5 gives F0 = 0.04)
 // Lights add f · E · (N·L), where E is the irradiance of the light. Ambient light is a hemisphere: ground color
-// below, sky color above, blended by the world-space normal's y.
+// below, sky color above, blended by the normal's part along the up of the surface's own frame (skyFraction).
 //
-// The sun is also dimmed by the analytic eclipse term (occluder spheres: planets and moons) and, within 2 km, by the
-// cascaded shadow maps (shadows.glsl). The two multiply.
+// The sun is also dimmed by the far shadows (a sphere per caster, tested analytically) and, within 2 km, by the cascaded
+// shadow maps (shadows.glsl). The two multiply.
 #ifndef TERTIUS_LIGHTING_GLSL
 #define TERTIUS_LIGHTING_GLSL
 
 #include "shadows.glsl"
+#include "hemisphere.glsl"
 
 struct ShadingInput
 {
@@ -21,7 +22,9 @@ struct ShadingInput
     vec3 geometricNormal;   // interpolated vertex normal: the surface the shadow map sees
     float specular;
     float gloss;
+    float skyFraction;      // how much of the hemisphere ambient light comes from the sky, 0 to 1 (skyFraction below)
 };
+
 
 float specularExponent(float gloss)
 {
@@ -77,22 +80,30 @@ float discCoverage(float sunRadius, float occluderRadius, float separation)
     return clamp((a1 + a2 - k) / (PI * r1s), 0.0, 1.0);
 }
 
-// Analytic eclipse and planet-shadow test against every occluder sphere. The soft edge comes from the sun's
-// angular radius.
-float sunVisibility(vec3 position)
+// The far shadows: an analytic eclipse test against the bounding sphere of every caster. The soft edge comes from the
+// sun's angular radius. A sphere shadows only points outside it, so a caster never shadows its own surface; a planet's
+// ground faces away from the sun at night anyway. The first frame.counts.w spheres belong to casters that the shadow maps
+// also draw: they count by beyondMaps, the weight of the far shadow where the maps end (beyondShadowMaps). Impostor
+// captures pass 1. Eclipse.SunVisibility is the same test on the CPU.
+float sunVisibility(vec3 position, float beyondMaps)
 {
     vec3 L = frame.sunDirection.xyz;
     float sunRadius = max(frame.sunDirection.w, 1e-5);
     float visibility = 1.0;
     for (uint i = 0u; i < frame.counts.y; i++)
     {
+        float weight = i < frame.counts.w ? beyondMaps : 1.0;
+        if (weight <= 0.0)
+            continue;
         vec4 occluder = occluders[i];
         vec3 toCenter = occluder.xyz - position;
         float distanceToCenter = length(toCenter);
-        float occluderRadius = distanceToCenter > occluder.w ? asin(occluder.w / distanceToCenter) : 0.5 * PI;
+        if (distanceToCenter <= occluder.w)
+            continue;
+        float occluderRadius = asin(occluder.w / distanceToCenter);
         // atan2 of |cross| and dot keeps precision at small angles, where acos(dot) does not.
         float separation = atan(length(cross(toCenter, L)), dot(toCenter, L));
-        visibility *= 1.0 - discCoverage(sunRadius, occluderRadius, separation);
+        visibility *= 1.0 - weight * discCoverage(sunRadius, occluderRadius, separation);
     }
     return visibility;
 }
@@ -108,7 +119,7 @@ float distanceAttenuation(float distanceSq, float range)
 // Hemisphere ambient light reflected by a surface.
 vec3 ambientLight(ShadingInput s)
 {
-    return mix(frame.ambientGround.rgb, frame.ambientSky.rgb, s.normal.y * 0.5 + 0.5) * s.albedo;
+    return mix(frame.ambientGround.rgb, frame.ambientSky.rgb, s.skyFraction) * s.albedo;
 }
 
 // Sunlight reflected toward V, dimmed by the analytic eclipse term and, when shadowMaps is set, by the cascades.
@@ -121,7 +132,7 @@ vec3 sunLight(ShadingInput s, vec3 position, vec3 V, bool shadowMaps)
     float geometricNdotL = dot(s.geometricNormal, L);
     if (dot(s.normal, L) <= 0.0 || geometricNdotL <= 0.0)
         return vec3(0.0);
-    float visibility = sunVisibility(position);
+    float visibility = sunVisibility(position, shadowMaps ? beyondShadowMaps(position) : 1.0);
     if (shadowMaps && visibility > 0.0)
         visibility *= sunShadow(position, s.geometricNormal, geometricNdotL);
     return visibility > 0.0 ? blinnPhong(s, V, L) * frame.sunRadiance.rgb * visibility : vec3(0.0);

@@ -3,6 +3,9 @@
     <UsesJolt>true</UsesJolt>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Tertius.Host.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../Tertius.Core/Tertius.Core.csproj" />
     <ProjectReference Include="../Tertius.Simulation/Tertius.Simulation.csproj" />
     <ProjectReference Include="../Tertius.Physics/Tertius.Physics.csproj" />

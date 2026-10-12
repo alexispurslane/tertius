@@ -18,6 +18,8 @@ internal sealed class SceneBatcher
 
     private DrawItem[] opaque = new DrawItem[256];
     private DrawItem[] transparent = new DrawItem[64];
+    // The far shadows of casters beyond the shadow maps, which follow those of casters in the maps.
+    private Vector4[] beyond = new Vector4[8];
 
     /// <summary>Hooks that edit the visible instances before batching. See <see cref="IInstanceProcessor"/>.</summary>
     public List<IInstanceProcessor> Processors { get; } = new();
@@ -36,23 +38,25 @@ internal sealed class SceneBatcher
     {
         alpha = ClampAlpha(alpha);
         scene.Reset();
-        scene.Camera = InterpolateCamera(snapshot.Camera, alpha, width, height);
+        scene.Camera = InterpolateCamera(snapshot, alpha, width, height);
         scene.Sun = snapshot.Sun;
         scene.Ambient = snapshot.Ambient;
         for (int range = 0; range < DepthRanges.Count; range++)
             scene.RangeViewProjection[range] = scene.Camera.ViewProjection(range);
 
         CollectVisible(snapshot, alpha, meshes, materialCount, scene);
-        // Before the processors: impostor captures are lit with the sun as the occluders leave it.
+        // Before the processors: impostor captures are lit with the sun as the far shadows leave it.
         CollectLights(snapshot, scene);
+        CollectFarShadows(snapshot, alpha, meshes, scene);
         foreach (IInstanceProcessor processor in Processors)
             processor.Process(scene);
         Batch(scene, meshes);
         WriteConstants(snapshot, scene);
     }
 
-    private static CameraView InterpolateCamera(in RenderCamera camera, float alpha, int width, int height)
+    private static CameraView InterpolateCamera(RenderSnapshot snapshot, float alpha, int width, int height)
     {
+        RenderCamera camera = snapshot.Camera;
         Quaternion rotation = Interpolate(camera.PreviousRotation, camera.Rotation, alpha);
         float fov = camera.VerticalFov > 0f && camera.VerticalFov < MathF.PI ? camera.VerticalFov : DefaultVerticalFov;
         float aspect = (float)Math.Max(width, 1) / Math.Max(height, 1);
@@ -71,6 +75,7 @@ internal sealed class SceneBatcher
             Width = width,
             Height = height,
             View = Matrix4x4.CreateFromQuaternion(Quaternion.Conjugate(rotation)),
+            RootRotation = Interpolate(snapshot.PreviousRootRotation, snapshot.RootRotation, alpha),
         };
     }
 
@@ -145,6 +150,7 @@ internal sealed class SceneBatcher
             prepared.Flags = instance.Flags;
             prepared.EntityIndex = instance.EntityIndex;
             prepared.Part = instance.Part;
+            prepared.Hemisphere = instance.Hemisphere;
         }
     }
 
@@ -201,7 +207,7 @@ internal sealed class SceneBatcher
             }
 
             int gpuIndex = scene.InstanceCount++;
-            scene.Instances[gpuIndex] = GpuInstance.From(instance.Position, instance.Rotation, instance.Scale, instance.Material);
+            scene.Instances[gpuIndex] = GpuInstance.From(instance.Position, instance.Rotation, instance.Scale, instance.Material, instance.Hemisphere);
             if (instance.Mesh == currentMesh)
             {
                 scene.Commands[scene.CommandCount - 1].InstanceCount++;
@@ -250,15 +256,61 @@ internal sealed class SceneBatcher
                 Spot = new Vector4(cosInner, 0f, 0f, 0f),
             };
         }
+    }
 
-        foreach (ref readonly RenderOccluder occluder in CollectionsMarshal.AsSpan(snapshot.Occluders))
+    /// <summary>
+    /// The far shadows: every shadow caster is also a sphere of its bounding radius, from any frame, visible or not, which
+    /// shadows the sun for points outside it and never for points inside it (see <see cref="Eclipse.SunVisibility"/>). A
+    /// caster that the shadow maps also draw (see <see cref="ShadowCascades.TakesCaster"/>) comes first in the list: its
+    /// sphere counts only where the maps end. Only while the sun lights the scene, because a far shadow only blocks the sun.
+    /// Only for a sphere that can be noticed: a caster beyond the maps must cover a pixel or a fifth of the sun's angular
+    /// radius seen from the camera; a caster in the maps must hide 4% of the sun from where its far receivers start, more
+    /// than 2 km from the camera. A smaller sphere hides at most 4% of the sun near the camera, and its shadow farther away
+    /// is under a pixel too.
+    /// </summary>
+    private void CollectFarShadows(RenderSnapshot snapshot, float alpha, ReadOnlySpan<MeshInfo> meshes, PreparedScene scene)
+    {
+        if (!HasSun(snapshot.Sun))
+            return;
+        Vector3 offset = scene.Camera.Offset;
+        // A sphere of radius r at distance d covers 2 asin(r / d), which is a pixel when r / d = sin(half a pixel). A sphere
+        // r / d = a fifth of the sun's angular radius hides 4% of the sun.
+        float sunShare = 0.2f * MathF.Sin(MathF.Max(snapshot.Sun.AngularRadius, 1e-5f));
+        float smallestShare = MathF.Min(MathF.Sin(scene.Camera.PixelAngle * 0.5f), sunShare);
+        int beyondCount = 0;
+        foreach (ref readonly RenderInstance instance in CollectionsMarshal.AsSpan(snapshot.Instances))
         {
-            if (occluder.Radius <= 0f)
+            if ((instance.Flags & RenderFlags.CastsShadow) == 0)
                 continue;
-            if (scene.OccluderCount == scene.Occluders.Length)
-                Array.Resize(ref scene.Occluders, scene.Occluders.Length * 2);
-            scene.Occluders[scene.OccluderCount++] = new Vector4(occluder.Center - camera.Offset, occluder.Radius);
+            int mesh = MeshIndex(instance.Mesh, meshes.Length);
+            if (mesh < 0 || !HasVolume(instance.Scale))
+                continue;
+            Vector3 position = Vector3.Lerp(instance.PreviousPosition, instance.Position, alpha) - offset;
+            float radius = BoundingRadius(instance, meshes[mesh]);
+            float distance = position.Length();
+            if (!float.IsFinite(distance + radius))
+                continue;
+            if (ShadowCascades.TakesCaster(distance, radius))
+            {
+                // Its far receivers lie beyond the maps, at least 2 km from the camera, so at least this far from it.
+                if (radius >= MathF.Max(ShadowCascades.Distance - distance, radius) * sunShare)
+                    Append(ref scene.Occluders, ref scene.MappedOccluderCount, new Vector4(position, radius));
+            }
+            else if (radius >= distance * smallestShare)
+            {
+                Append(ref beyond, ref beyondCount, new Vector4(position, radius));
+            }
         }
+        scene.OccluderCount = scene.MappedOccluderCount;
+        for (int i = 0; i < beyondCount; i++)
+            Append(ref scene.Occluders, ref scene.OccluderCount, beyond[i]);
+    }
+
+    private static void Append(ref Vector4[] spheres, ref int count, Vector4 sphere)
+    {
+        if (count == spheres.Length)
+            Array.Resize(ref spheres, spheres.Length * 2);
+        spheres[count++] = sphere;
     }
 
     /// <summary>
@@ -297,7 +349,8 @@ internal sealed class SceneBatcher
             OccluderCount = (uint)scene.OccluderCount,
             // The shadow pass fills in the cascades when it draws them.
             ShadowCascadeCount = 0,
-            Flags = 0,
+            MappedOccluderCount = (uint)scene.MappedOccluderCount,
+            RootRotation = new Vector4(camera.RootRotation.X, camera.RootRotation.Y, camera.RootRotation.Z, camera.RootRotation.W),
         };
     }
 

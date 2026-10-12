@@ -32,9 +32,6 @@ public sealed record JoltBackendOptions
     /// <summary>The speed limit of a body, in m/s. Jolt's own default of 500 m/s is far too low for spacecraft.</summary>
     public float MaxLinearVelocity { get; init; } = 30_000f;
 
-    /// <summary>Below this effective gravity, in m/s², a character switches to zero-g movement.</summary>
-    public float ZeroGravityThreshold { get; init; } = 0.05f;
-
     /// <summary>The steepest slope that a character can stand on, in degrees.</summary>
     public float CharacterMaxSlopeDegrees { get; init; } = 50f;
 

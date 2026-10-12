@@ -13,6 +13,7 @@ layout(location = 1) out vec3 outNormal;
 layout(location = 2) out vec4 outTangent;
 layout(location = 3) out vec2 outTexCoord;
 layout(location = 4) flat out uint outMaterial;
+layout(location = 5) flat out vec4 outHemisphere;
 
 void main()
 {
@@ -27,5 +28,6 @@ void main()
     outTangent = vec4(linear * inTangent.xyz, inTangent.w);
     outTexCoord = inTexCoord;
     outMaterial = instance.material;
+    outHemisphere = instance.hemisphere;
     gl_Position = draw.viewProj * vec4(world, 1.0);
 }

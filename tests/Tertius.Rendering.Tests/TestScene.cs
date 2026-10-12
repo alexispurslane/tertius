@@ -91,9 +91,9 @@ internal sealed class TestScene
         instances.Add(Gpu.Instance(Box, Station, StationCenter, new Vector3(1_000f), Quaternion.CreateFromAxisAngle(Vector3.UnitY, -0.35f)));
 
         // Far range.
-        instances.Add(Gpu.Instance(Sphere, PlanetMaterial, PlanetCenter, new Vector3(PlanetRadius), flags: RenderFlags.Celestial));
+        // The planet casts a far shadow: an eclipse of the sun for whatever lies behind it.
+        instances.Add(Gpu.Instance(Sphere, PlanetMaterial, PlanetCenter, new Vector3(PlanetRadius), flags: RenderFlags.Celestial | RenderFlags.CastsShadow));
         instances.Add(Gpu.Instance(Sphere, StarMaterial, StarCenter, new Vector3(StarRadius), flags: RenderFlags.Celestial));
-        snapshot.Occluders.Add(new RenderOccluder { Center = PlanetCenter, Radius = PlanetRadius });
 
         snapshot.Lights.Add(new RenderLight
         {

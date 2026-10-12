@@ -16,6 +16,9 @@ public readonly struct Snapshot
     /// <summary>The tick number of the state that this snapshot shows.</summary>
     public long Tick => world.TickNumber;
 
+    /// <summary>The world's camera. Only code between ticks changes it, so it holds for the whole tick.</summary>
+    public Entity Camera => world.Camera;
+
     /// <summary>The frame tree. It does not change during a tick.</summary>
     public FrameTree Frames => world.Frames;
 
@@ -39,6 +42,12 @@ public readonly struct Snapshot
 
     /// <summary>True if the entity has a physics body.</summary>
     public bool HasBody(Entity entity) => world.Entities.Body(entity) != null;
+
+    /// <summary>
+    /// True if physics stood the character on walkable ground under gravity in its last step. False for a character in
+    /// the air, on steep ground or weightless, for any other body, and for an entity without a body.
+    /// </summary>
+    public bool IsStanding(Entity entity) => world.IsStanding(entity);
 
     /// <summary>The entity's frame and pose in it. False for a stale handle.</summary>
     public bool TryGetPose(Entity entity, out FrameHandle frame, out DPose pose)

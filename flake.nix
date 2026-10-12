@@ -37,6 +37,8 @@
               pkgs.cmake
               pkgs.ninja
               pkgs.git
+              # The coverage and Stryker helpers in tools/ are Python.
+              pkgs.python3
               pkgs.shaderc
               pkgs.glslang
               pkgs.vulkan-headers

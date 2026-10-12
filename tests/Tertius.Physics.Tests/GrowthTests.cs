@@ -121,6 +121,34 @@ public class GrowthTests
     }
 
     /// <summary>
+    /// A person stands on the floor of a hangar whose system is full: the floor, the person's inner body and six crates. A
+    /// ball flies into the hangar, and its hand-off grows the system after physics moved the person in the same step.
+    /// The growth moves the person into the new system where it stands, so physics still reports it standing.
+    /// </summary>
+    [Fact]
+    public void AStandingCharacterStillStandsInTheStepInWhichAHandOffGrowsItsSystem()
+    {
+        using var h = new PhysicsHarness(Small);
+        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static);
+        FrameHandle hangar = h.AddFrame(space, Shapes.At(1000, 0, 0), FrameBounds.Sphere(30), MotionDriver.Static,
+            GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+        h.AddBody(hangar, Shapes.Floor(10), Shapes.At(0, -0.5, 0));
+        Entity person = h.AddBody(hangar, new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70), Shapes.At(0, 0.92, 0));
+        AddCrates(h, hangar, 6);
+        h.Step(20);
+        h.Backend.CapacityOf(hangar).Should().Be(8);
+        h.Standing[person].Should().BeTrue();
+
+        h.AddBody(space, Shapes.Ball(0.5f), Shapes.At(1040, 10, 0), velocity: new Vector3(-60, 0, 0));
+        var standing = new List<(uint Capacity, bool Standing)>();
+        h.AfterStep = output => standing.Add((h.Backend.CapacityOf(hangar), output.Characters.Single(c => c.Entity == person).Standing));
+        h.StepUntil(() => h.HandOffs.Count > 0, 60);
+
+        standing[^1].Capacity.Should().Be(16, "the hand-off grew the system");
+        standing.Should().AllSatisfy(step => step.Standing.Should().BeTrue());
+    }
+
+    /// <summary>
     /// The reviewer's probe W2: a ball that sticks out of a small bubble, whose parent's system is full. The parent needs
     /// a ghost of the ball at every step.
     /// </summary>

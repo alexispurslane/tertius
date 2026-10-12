@@ -49,6 +49,19 @@ float sampleCascade(uint cascade, vec3 position, vec3 geometricNormal, float Ndo
     return lit * (1.0 / 16.0);
 }
 
+// How far a world position is beyond the shadow maps: 0 where they shadow it, 1 past their end, and a smooth step over
+// the last cascade's fade, where the maps' shadow fades out. A far shadow of a caster that the maps also draw counts by
+// this weight, so the two shadows hand over without a seam.
+float beyondShadowMaps(vec3 position)
+{
+    uint count = frame.counts.z;
+    if (count == 0u)
+        return 1.0;
+    float depth = dot(position, frame.cameraForward.xyz);
+    float start = frame.shadowBlendStart[count - 1u], end = frame.shadowSplits[count - 1u];
+    return depth >= end ? 1.0 : smoothstep(0.0, 1.0, clamp((depth - start) / (end - start), 0.0, 1.0));
+}
+
 // The fraction of the sun that the shadow maps let through at a world position. geometricNormal is the
 // interpolated vertex normal; NdotL is its cosine with the sun direction and must be positive.
 float sunShadow(vec3 position, vec3 geometricNormal, float NdotL)

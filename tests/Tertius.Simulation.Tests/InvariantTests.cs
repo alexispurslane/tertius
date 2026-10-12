@@ -195,7 +195,8 @@ public class InvariantTests(ITestOutputHelper output)
         Entity child = candidates[0];
         Entity parent = candidates.First(e => world.GetFrame(e) != world.GetFrame(child));
 
-        // Attachments.CheckParent refuses this. Skipping it is the damage.
+        // The world attaches only a new child, which it makes live in the frame that Attachments.CheckParent gives. Attaching
+        // an entity that is live in another frame skips that, and that is the damage.
         world.Attachments.Attach(child, parent, Pose.Identity);
 
         workload.FindViolations(afterTick: true).Should().Contain(p => p.Contains(child.ToString()) && p.Contains("its parent"));

@@ -20,6 +20,8 @@ internal struct CameraView
     public int Height;
     /// <summary>World to view rotation, in System.Numerics row-vector form.</summary>
     public Matrix4x4 View;
+    /// <summary>The root frame's axes in world axes, interpolated like <see cref="Rotation"/>.</summary>
+    public Quaternion RootRotation;
 
     /// <summary>The angle that one pixel covers at the center of the screen.</summary>
     public readonly float PixelAngle => 2f * TanHalfY / Math.Max(Height, 1);
@@ -62,6 +64,8 @@ internal struct PreparedInstance
     public uint EntityIndex;
     /// <summary>Which of the entity's render parts this is. With <see cref="EntityIndex"/>, it names the object from frame to frame.</summary>
     public ushort Part;
+    /// <summary>Which way is up for the hemisphere ambient light.</summary>
+    public HemisphereUp Hemisphere;
 }
 
 /// <summary>A run of indirect commands for one draw call.</summary>
@@ -103,9 +107,14 @@ internal sealed class PreparedScene
 
     public GpuLight[] Lights = new GpuLight[16];
     public int LightCount;
-    /// <summary>Occluder spheres: xyz camera-relative center, w radius.</summary>
+    /// <summary>
+    /// The far shadows: xyz camera-relative center, w the radius of the caster's bounding sphere (see
+    /// <see cref="Eclipse.SunVisibility"/>). Those of casters in the shadow maps come first.
+    /// </summary>
     public Vector4[] Occluders = new Vector4[8];
     public int OccluderCount;
+    /// <summary>How many far shadows, at the front of <see cref="Occluders"/>, belong to casters that the shadow maps also draw.</summary>
+    public int MappedOccluderCount;
 
     /// <summary>Instances in the snapshot, before any filtering.</summary>
     public int SubmittedInstances;
@@ -169,6 +178,7 @@ internal sealed class PreparedScene
         CommandCount = 0;
         LightCount = 0;
         OccluderCount = 0;
+        MappedOccluderCount = 0;
         SubmittedInstances = 0;
         Array.Clear(Opaque);
         Array.Clear(Transparent);

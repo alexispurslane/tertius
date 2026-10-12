@@ -60,8 +60,16 @@ public sealed class ImpostorManagerTests
         new(entity, part, Sphere, MaterialStore.Slot(material ?? BallMaterial));
 
     private static RenderInstance Ball(uint entity, Vector3 position, Quaternion? rotation = null, RenderFlags flags = RenderFlags.None,
-        Vector3? scale = null, ushort part = 0, MaterialId? material = null) =>
-        Gpu.Instance(new MeshId(Sphere), material ?? BallMaterial, position, scale ?? Vector3.One, rotation, flags, entity: entity, part: part);
+        Vector3? scale = null, ushort part = 0, MaterialId? material = null, HemisphereUp? hemisphere = null)
+    {
+        RenderInstance ball = Gpu.Instance(new MeshId(Sphere), material ?? BallMaterial, position, scale ?? Vector3.One, rotation, flags, entity: entity, part: part);
+        ball.Hemisphere = hemisphere ?? ball.Hemisphere;
+        return ball;
+    }
+
+    /// <summary>An invisible sphere of <paramref name="radius"/> that casts a far shadow: a moon, for an eclipse.</summary>
+    private static RenderInstance Moon(Vector3 center, float radius) =>
+        RenderInstance.Create(new MeshId(Sphere), BallMaterial, center, Quaternion.Identity, new Vector3(radius), 0, HemisphereUp.Even, RenderFlags.CastsShadow, 9_999, 0);
 
     [Fact]
     public void ProjectedHeightIsTheDiameterOfTheSpheresImageAtTheCenterOfTheScreen()
@@ -172,12 +180,12 @@ public sealed class ImpostorManagerTests
     }
 
     /// <summary>Captures an object at <paramref name="height"/> px and returns the harness and the object's distance.</summary>
-    private static (Harness Harness, float Distance) Captured(float height, Vector3? sun = null)
+    private static (Harness Harness, float Distance) Captured(float height, Vector3? sun = null, HemisphereUp? hemisphere = null)
     {
         var harness = new Harness();
         float distance = DistanceFor(height);
         RenderSnapshot snapshot = Snapshot(sun);
-        snapshot.Instances.Add(Ball(1, new Vector3(0, 0, -distance)));
+        snapshot.Instances.Add(Ball(1, new Vector3(0, 0, -distance), hemisphere: hemisphere));
         harness.Run(snapshot);
         harness.Manager.Captures.Length.Should().Be(1, "the first sight of an impostor is captured");
         return (harness, distance);
@@ -219,17 +227,18 @@ public sealed class ImpostorManagerTests
     public void TheObjectsOwnRotationCountsButARollAboutTheViewAxisDoesNot()
     {
         // The sun is behind the camera, on the view axis, so a roll about that axis leaves it unchanged in object space too.
+        // No way is up, so a roll leaves the ambient light unchanged as well: with an up, the sky would light another side.
         float height = 80f;
-        (Harness harness, float distance) = Captured(height, sun: Vector3.UnitZ);
+        (Harness harness, float distance) = Captured(height, sun: Vector3.UnitZ, hemisphere: HemisphereUp.Even);
         Vector3 position = new(0, 0, -distance);
         float limit = 2f / height;
         Quaternion Turn(float angle) => Quaternion.CreateFromAxisAngle(Vector3.UnitY, angle);
-        CapturesAfter(harness, Ball(1, position, Turn(0.9f * limit)), sun: Vector3.UnitZ).Should().Be(0);
-        CapturesAfter(harness, Ball(1, position, Turn(1.1f * limit)), sun: Vector3.UnitZ).Should().Be(1);
+        CapturesAfter(harness, Ball(1, position, Turn(0.9f * limit), hemisphere: HemisphereUp.Even), sun: Vector3.UnitZ).Should().Be(0);
+        CapturesAfter(harness, Ball(1, position, Turn(1.1f * limit), hemisphere: HemisphereUp.Even), sun: Vector3.UnitZ).Should().Be(1);
 
         // A large roll about the view axis: no recapture, and the billboard turns with the object.
         Quaternion roll = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.2f) * Turn(1.1f * limit);
-        CapturesAfter(harness, Ball(1, position, roll), sun: Vector3.UnitZ).Should().Be(0);
+        CapturesAfter(harness, Ball(1, position, roll, hemisphere: HemisphereUp.Even), sun: Vector3.UnitZ).Should().Be(0);
         ImpostorDraw draw = harness.Manager.Draws[0];
         float angle = MathF.Atan2(draw.Right.Y, draw.Right.X);
         angle.Should().BeApproximately(1.2f, 0.02f);
@@ -281,7 +290,7 @@ public sealed class ImpostorManagerTests
         // An eclipse: a moon slides in front of the sun as seen from the object.
         RenderSnapshot snapshot = Snapshot(intensity: 3f * 1.5f);
         snapshot.Instances.Add(Ball(1, position));
-        snapshot.Occluders.Add(new RenderOccluder { Center = position + SunDirection * 1_000f, Radius = 20f });
+        snapshot.Instances.Add(Moon(position + SunDirection * 50_000f, 1_000f));
         harness.Run(snapshot);
         harness.Manager.Captures.Length.Should().Be(1, "the eclipse changes the light that reaches the object");
 
@@ -295,6 +304,78 @@ public sealed class ImpostorManagerTests
         harness.Manager.Captures.Length.Should().Be(1, "the sun went out");
         harness.Run(clear);
         harness.Manager.Captures.Length.Should().Be(0, "a sun that is off stays off");
+    }
+
+    [Fact]
+    public void TheHemispheresUpIsBakedSoTurningItAgainstTheObjectRecapturesButASmallTurnDoesNot()
+    {
+        // The ball was captured with up along +Y. The sky and the ground differ by 0.14, against about 5.3 of light in all.
+        (Harness harness, float distance) = Captured(100f);
+        var position = new Vector3(0, 0, -distance);
+        RenderInstance Tilted(float angle)
+        {
+            RenderInstance ball = Ball(1, position);
+            ball.Hemisphere = HemisphereUp.Along(Vector3.Transform(Vector3.UnitY, Quaternion.CreateFromAxisAngle(Vector3.UnitZ, angle)));
+            return ball;
+        }
+
+        CapturesAfter(harness, Tilted(0.05f)).Should().Be(0);
+        CapturesAfter(harness, Tilted(MathF.PI / 2)).Should().Be(1);
+    }
+
+    [Fact]
+    public void WithAnUpARollAboutTheViewAxisTurnsTheSkyLitSideSoItRecaptures()
+    {
+        // As in the test above, but up is +Y: the roll turns the up in object space by 1.2 rad. The sky and the ground
+        // differ by 0.134 against 5.24 of light in all, so the change is 0.134 · 2 sin(0.6) / 5.24, times 80 px: about 2.3.
+        (Harness harness, float distance) = Captured(80f, sun: Vector3.UnitZ);
+        Quaternion roll = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.2f);
+
+        CapturesAfter(harness, Ball(1, new Vector3(0, 0, -distance), roll), sun: Vector3.UnitZ).Should().Be(1);
+    }
+
+    [Fact]
+    public void AnUpAwayFromAFarCenterIsBakedAsTheDirectionAwayFromItSoSwingingTheCenterAroundTheObjectRecaptures()
+    {
+        // The center is 100 m below the ball, so up is +Y at the ball. The center swings to 100 m to the left of the ball,
+        // so up is +X: a quarter turn, as in the test of a tilted direction above.
+        (Harness harness, float distance) = Captured(100f, hemisphere: HemisphereUp.AwayFrom(new Vector3(0, -100, 0)));
+        var position = new Vector3(0, 0, -distance);
+
+        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.AwayFrom(new Vector3(0, -99, 0)))).Should().Be(0, "a center that stays below leaves up where it was");
+        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.Along(Vector3.UnitY))).Should().Be(0, "up away from a center below is up along +Y");
+        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.AwayFrom(new Vector3(-100, 0, 0)))).Should().Be(1);
+    }
+
+    [Fact]
+    public void ACenterInsideTheObjectGivesEverySideItsOwnUpSoMovingItDoesNotRecapture()
+    {
+        // A planet's own center is inside it: there is no one up to bake, so the light of the capture has none. The
+        // center moves from below the middle to the right of it, still inside the ball of radius 1 m.
+        (Harness harness, float distance) = Captured(100f, hemisphere: HemisphereUp.AwayFrom(new Vector3(0, -0.5f, 0)));
+        var position = new Vector3(0, 0, -distance);
+
+        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.AwayFrom(new Vector3(0.5f, 0, 0)))).Should().Be(0);
+    }
+
+    [Fact]
+    public void WhenTheSkyAndTheGroundHaveOneColorTheUpDoesNotMatter()
+    {
+        var harness = new Harness();
+        var position = new Vector3(0, 0, -DistanceFor(100f));
+        RenderSnapshot Scene(Vector3 up)
+        {
+            RenderSnapshot snapshot = Snapshot();
+            snapshot.Ambient = new AmbientLight { SkyColor = new Vector3(0.1f), GroundColor = new Vector3(0.1f), Intensity = 1 };
+            snapshot.Instances.Add(Ball(1, position, hemisphere: HemisphereUp.Along(up)));
+            return snapshot;
+        }
+        harness.Run(Scene(Vector3.UnitY));
+        harness.Manager.Captures.Length.Should().Be(1);
+
+        harness.Run(Scene(Vector3.UnitX));
+
+        harness.Manager.Captures.Length.Should().Be(0, "every side gets the same ambient light whichever way is up");
     }
 
     [Fact]
@@ -602,11 +683,46 @@ public sealed class ImpostorManagerTests
     }
 
     [Fact]
+    public void ASphereShadowsPointsOutsideItAndNeverAPointInsideIt()
+    {
+        Vector3 sun = Vector3.UnitY;
+        const float sunRadius = 0.00467f;
+        // The sphere's center lies 5 m toward the sun from a point inside it: its own caster's surface, or the ground of a
+        // planet, which faces away from the sun at night anyway.
+        Eclipse.SunVisibility(Vector3.Zero, sun, sunRadius, [new Vector4(0, 5, 0, 10)]).Should().Be(1f);
+        Eclipse.SunVisibility(new Vector3(0, -20, 0), sun, sunRadius, [new Vector4(0, 0, 0, 10)]).Should().BeApproximately(0f, 1e-6f);
+    }
+
+    [Fact]
+    public void AFarShadowCasterThatMovesIntoAPlanetsShadowIsRecaptured()
+    {
+        var harness = new Harness();
+        // A ball of 100 m radius, about 3.1 km away and 40 px tall: an impostor, and a far-shadow caster itself.
+        var position = new Vector3(0, 0, -DistanceFor(40f, 100f));
+        RenderInstance ball = Ball(1, position, flags: RenderFlags.CastsShadow, scale: new Vector3(100f));
+        RenderSnapshot lit = Snapshot();
+        lit.Instances.Add(ball);
+        harness.Run(lit);
+        harness.Manager.Captures.Length.Should().Be(1, "the first sight of an impostor is captured");
+        harness.Run(lit);
+        harness.Manager.Captures.Length.Should().Be(0, "nothing changed");
+
+        // A planet comes between the ball and the sun.
+        RenderSnapshot dark = Snapshot();
+        dark.Instances.Add(ball);
+        dark.Instances.Add(RenderInstance.Create(new MeshId(Sphere), BallMaterial, position + SunDirection * 1e7f, Quaternion.Identity,
+            new Vector3(6e6f), 0, HemisphereUp.Even, RenderFlags.CastsShadow, 9_998, 0));
+        harness.Run(dark);
+
+        harness.Manager.Captures.Length.Should().Be(1, "the planet's shadow changes the light that reaches the ball");
+    }
+
+    [Fact]
     public void SteadyStateProcessingDoesNotAllocate()
     {
         var harness = new Harness(tiles: 16);
         RenderSnapshot snapshot = Snapshot();
-        snapshot.Occluders.Add(new RenderOccluder { Center = new Vector3(0, 1e7f, 0), Radius = 1e6f });
+        snapshot.Instances.Add(Moon(new Vector3(0, 1e7f, 0), 1e6f));
         for (uint i = 0; i < 40; i++)
             snapshot.Instances.Add(Ball(i, new Vector3((i % 8 - 3.5f) * 4f, (i / 8 - 2f) * 4f, -DistanceFor(60f + i))));
         for (int i = 0; i < 20; i++)

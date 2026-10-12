@@ -55,14 +55,15 @@ public class FrameDriverTests
     public void AFrameWithAValidOrbitTakesTheKeplerDriverAndFollowsItsOrbitFromTheNextTick()
     {
         using var test = new TestWorld();
+        test.GiveRootPointGravity(1e9);
         FrameHandle ship = SpawnShip(test);
-        test.World.SetFrameOrbit(ship, KeplerOrbit.Circular(1000, 1e9));
+        test.World.SetFrameOrbit(ship, KeplerOrbit.Circular(1000));
 
         test.World.SetFrameDriver(ship, MotionDriver.Kepler);
         test.Run(1);
 
         test.World.Frames.Driver(ship).Should().Be(MotionDriver.Kepler);
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(ship).Position, KeplerOrbit.Circular(1000, 1e9).StateAt(test.World.Time).Position);
+        PoseChecks.AssertNear(test.World.Frames.LocalPose(ship).Position, KeplerOrbit.Circular(1000).StateAt(test.World.Time, 1e9).Position);
     }
 
     // ---- Refusals -----------------------------------------------------------------------------------------------
@@ -142,9 +143,10 @@ public class FrameDriverTests
     public void AFrameWithTheKeplerDriverAndAMeshHullIsNotSpawned()
     {
         using var test = new TestWorld();
+        test.GiveRootPointGravity(1e9);
         int before = test.World.Stats.LiveEntities;
 
-        Action spawn = () => SpawnFrame(test, MotionDriver.Kepler, new BodyDesc(Ramp, BodyMotion.Static), KeplerOrbit.Circular(1000, 1e9));
+        Action spawn = () => SpawnFrame(test, MotionDriver.Kepler, new BodyDesc(Ramp, BodyMotion.Static), KeplerOrbit.Circular(1000));
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*mesh*Kepler driver*");
         test.World.Stats.LiveEntities.Should().Be(before);
@@ -202,7 +204,8 @@ public class FrameDriverTests
     public void TheKeplerDriverIsRefusedForAFrameWhoseHullIsAMesh()
     {
         using var test = new TestWorld();
-        FrameHandle dock = SpawnFrame(test, MotionDriver.Static, new BodyDesc(Ramp, BodyMotion.Static), KeplerOrbit.Circular(1000, 1e9));
+        test.GiveRootPointGravity(1e9);
+        FrameHandle dock = SpawnFrame(test, MotionDriver.Static, new BodyDesc(Ramp, BodyMotion.Static), KeplerOrbit.Circular(1000));
 
         Action set = () => test.World.SetFrameDriver(dock, MotionDriver.Kepler);
 
@@ -214,11 +217,11 @@ public class FrameDriverTests
     public static TheoryData<string, KeplerOrbit> OrbitsThatAreNotValid => new()
     {
         { "the default orbit", default },
-        { "no parent mass", KeplerOrbit.Circular(1000, 0) },
-        { "an open orbit", KeplerOrbit.Circular(1000, 1e9) with { Eccentricity = 1 } },
-        { "a negative eccentricity", KeplerOrbit.Circular(1000, 1e9) with { Eccentricity = -0.1 } },
-        { "a semi-major axis that is not a number", KeplerOrbit.Circular(double.NaN, 1e9) },
-        { "an infinite spin", KeplerOrbit.Circular(1000, 1e9, spinRate: double.PositiveInfinity) },
+        { "no semi-major axis", KeplerOrbit.Circular(0) },
+        { "an open orbit", KeplerOrbit.Circular(1000) with { Eccentricity = 1 } },
+        { "a negative eccentricity", KeplerOrbit.Circular(1000) with { Eccentricity = -0.1 } },
+        { "a semi-major axis that is not a number", KeplerOrbit.Circular(double.NaN) },
+        { "an infinite spin", KeplerOrbit.Circular(1000, spinRate: double.PositiveInfinity) },
     };
 
     [Theory]
@@ -226,6 +229,7 @@ public class FrameDriverTests
     public void TheKeplerDriverIsRefusedForAFrameWithoutAValidOrbit(string why, KeplerOrbit orbit)
     {
         using var test = new TestWorld();
+        test.GiveRootPointGravity(1e9);
         // A frame with another driver keeps the orbit that it was spawned with, valid or not, until it gets the Kepler driver.
         FrameHandle ship = SpawnFrame(test, MotionDriver.Physics, new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000), orbit);
 

@@ -451,10 +451,12 @@ public class LifecycleFrameTests
 
         public MoonScene()
         {
+            // The moon takes its G·M from the point gravity of the root frame.
+            T.GiveRootPointGravity(3.986004418e14);
             MoonOwner = T.World.Spawn(new SpawnDesc
             {
                 Frame = T.Root,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(7e6, 3.986004418e14, spinRate: 0.01)),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(7e6, spinRate: 0.01)),
             });
             FrameHandle moon = T.World.GetOwnedFrame(MoonOwner);
             Pod = T.SpawnStaticFrame(TestWorld.At(100, 20, -30), 10, moon);

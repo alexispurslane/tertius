@@ -88,10 +88,9 @@ public sealed class SceneTests
             var shadowed = new Vector3(-2.0e7f, 0, -3.0e7f);
             var lit = new Vector3(2.0e7f, 0, -3.0e7f);
             const float moonRadius = 3.0e6f;
-            snapshot.Instances.Add(Gpu.Instance(sphere, rock, planet, new Vector3(6.0e6f)));
+            snapshot.Instances.Add(Gpu.Instance(sphere, rock, planet, new Vector3(6.0e6f), flags: RenderFlags.CastsShadow));
             snapshot.Instances.Add(Gpu.Instance(sphere, rock, shadowed, new Vector3(moonRadius)));
             snapshot.Instances.Add(Gpu.Instance(sphere, rock, lit, new Vector3(moonRadius)));
-            snapshot.Occluders.Add(new RenderOccluder { Center = planet, Radius = 6.0e6f });
 
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "eclipse");
             // Sample both moons on the side that faces the sun.
@@ -108,22 +107,27 @@ public sealed class SceneTests
     }
 
     [Fact]
-    public void OccluderSphereCastsASoftShadowOnTheGround()
+    public void AFarSphereCastsASoftEdgedShadowOnTheGroundNearTheCamera()
     {
         VulkanRenderer renderer = Gpu.Headless(640, 360);
         try
         {
             MeshId plane = renderer.CreateMesh(Primitives.Plane(1f));
+            MeshId sphere = renderer.CreateMesh(Primitives.Sphere(1f, 32, 16));
             MaterialId ground = renderer.CreateMaterial(MaterialDesc.Color(new Vector4(0.7f, 0.7f, 0.7f, 1), gloss: 0.2f));
             RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0, 1, 0));
             snapshot.Instances.Add(Gpu.Instance(plane, ground, new Vector3(0, -1.5f, -20), new Vector3(20, 1, 20)));
-            // An invisible occluder 2 m above the ground, straight under the sun.
-            snapshot.Occluders.Add(new RenderOccluder { Center = new Vector3(0, 0.5f, -8f), Radius = 1f });
+            // An invisible caster of 200 m radius, 2.4 km straight up from a point 200 m to the left of the view. It stays
+            // farther than 2 km from the camera, so it casts a far shadow, whose edge crosses the ground at x = 0. The sun's
+            // disc, 4.67e-3 rad in radius, spreads that edge over 2 × 4.67e-3 × 2,400 m, about 22 m.
+            snapshot.Instances.Add(RenderInstance.Create(sphere, ground, new Vector3(-200f, 2_398.5f, -25f), Quaternion.Identity, new Vector3(200f), 0, HemisphereUp.Even, RenderFlags.CastsShadow, 0, 0));
             Capture image = Gpu.RenderAndCapture(renderer, snapshot, "occluder-shadow");
-            float shadow = image.MeanLuma(Gpu.Project(new Vector3(0, -1.5f, -8f), 640, 360), 2);
-            float sunlit = image.MeanLuma(Gpu.Project(new Vector3(3f, -1.5f, -8f), 640, 360), 2);
-            sunlit.Should().BeGreaterThan(0.3f, "the ground away from the occluder is lit");
-            shadow.Should().BeLessThan(0.5f * sunlit, "the occluder sphere shadows the ground under it");
+            float shadow = image.MeanLuma(Gpu.Project(new Vector3(-16f, -1.5f, -25f), 640, 360), 2);
+            float edge = image.MeanLuma(Gpu.Project(new Vector3(0f, -1.5f, -25f), 640, 360), 2);
+            float sunlit = image.MeanLuma(Gpu.Project(new Vector3(16f, -1.5f, -25f), 640, 360), 2);
+            sunlit.Should().BeGreaterThan(0.3f, "the ground beyond the penumbra is lit");
+            shadow.Should().BeLessThan(0.5f * sunlit, "the far sphere shadows the ground under it");
+            edge.Should().BeInRange(shadow + 0.2f * (sunlit - shadow), sunlit - 0.2f * (sunlit - shadow), "the edge is soft: half of the sun shows there");
         }
         finally
         {

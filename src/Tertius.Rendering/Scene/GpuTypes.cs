@@ -7,7 +7,7 @@ namespace Tertius.Rendering;
 // C# mirrors of the shader structs in Shaders/frame.glsl. Layouts follow std430 (storage buffers) and std140 (the
 // frame block). Change both sides together; RendererLayoutTests checks the sizes.
 
-/// <summary>One drawn instance in the instance storage buffer. 64 bytes.</summary>
+/// <summary>One drawn instance in the instance storage buffer. 80 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuInstance
 {
@@ -18,8 +18,13 @@ internal struct GpuInstance
     /// <summary>1 / scale², so the shader can form the normal matrix R · S⁻¹ from the model matrix.</summary>
     public Vector3 InverseScaleSquared;
     public uint Material;
+    /// <summary>
+    /// Which way is up for the hemisphere ambient light: xyz the up direction with w 1, or the camera-relative point that
+    /// up leads away from with w 2. All zero mixes the sky and the ground evenly.
+    /// </summary>
+    public Vector4 Hemisphere;
 
-    public static GpuInstance From(Vector3 position, Quaternion rotation, Vector3 scale, uint material)
+    public static GpuInstance From(Vector3 position, Quaternion rotation, Vector3 scale, uint material, HemisphereUp hemisphere = default)
     {
         // Rotation matrix columns from the unit quaternion, then scaled per axis: M = T · R · S.
         float x = rotation.X, y = rotation.Y, z = rotation.Z, w = rotation.W;
@@ -34,6 +39,13 @@ internal struct GpuInstance
             ModelRow2 = new Vector4(axisX.Z, axisY.Z, axisZ.Z, position.Z),
             InverseScaleSquared = new Vector3(InverseSquare(scale.X), InverseSquare(scale.Y), InverseSquare(scale.Z)),
             Material = material,
+            Hemisphere = hemisphere switch
+            {
+                UpAlong { Direction: var direction } => new Vector4(direction, 1),
+                // The center moves with the instance, so it is exact wherever the instance is interpolated to.
+                UpAwayFrom { Center: var center } => new Vector4(position + center, 2),
+                _ => Vector4.Zero,
+            },
         };
     }
 
@@ -79,7 +91,7 @@ internal struct GpuLight
     public Vector4 Spot;
 }
 
-/// <summary>The frame uniform block (std140). 704 bytes.</summary>
+/// <summary>The frame uniform block (std140). 720 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
 {
@@ -101,7 +113,8 @@ internal struct GpuFrameConstants
     public uint OccluderCount;
     /// <summary>Sun shadow cascades to sample: <see cref="ShadowCascades.Count"/>, or 0 when no cascade was drawn.</summary>
     public uint ShadowCascadeCount;
-    public uint Flags;
+    /// <summary>How many far shadows, at the front of the list, belong to casters that the shadow maps also draw.</summary>
+    public uint MappedOccluderCount;
     /// <summary>World to shadow clip space per cascade, row-vector form like the range matrices.</summary>
     public ShadowMatrices ShadowViewProj;
     /// <summary>The view depth where each cascade ends.</summary>
@@ -119,6 +132,8 @@ internal struct GpuFrameConstants
     public Vector4 ShadowAxisY;
     /// <summary>x: 1 / map size; y: normal offset in texels; z: constant depth bias; w: smallest cosine for the receiver-plane slope.</summary>
     public Vector4 ShadowParams;
+    /// <summary>The root frame's axes in world axes, interpolated, as a quaternion (x, y, z, w). The star field is fixed to them.</summary>
+    public Vector4 RootRotation;
 }
 
 /// <summary>One matrix per shadow cascade, laid out as a std140 <c>mat4[4]</c>.</summary>

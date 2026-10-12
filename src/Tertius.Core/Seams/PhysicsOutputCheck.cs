@@ -11,6 +11,9 @@ public interface IPhysicsOutputFacts
     /// <summary>True when the live entity has a physics body.</summary>
     bool HasBody(Entity entity);
 
+    /// <summary>True when the body of the live entity is a character. The check asks it only for a live entity with a body.</summary>
+    bool IsCharacter(Entity entity);
+
     /// <summary>
     /// The frame of a live entity with a body, as the step began: the frame of its transform before any output of the
     /// step lands. Every write to the transform of an entity with a body comes from physics, so this is the frame whose
@@ -26,6 +29,7 @@ public enum PhysicsOutputKind : byte
     HandOff,
     FrameState,
     Contact,
+    CharacterState,
 }
 
 /// <summary>An output that only a bug in the backend produces: where it is, and what is wrong with it.</summary>
@@ -62,12 +66,16 @@ public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Ind
 /// parent's parent. It enters a sibling only when its bubble fits in the sibling's, and fitting is a strict order of
 /// size, so the entries of one step never close a loop.</item>
 /// <item>A contact names two different entities.</item>
+/// <item>Physics reports the state of each live character once in each step. So a character state names a live entity
+/// whose body is a character, and no other character state of the step names the same entity.</item>
 /// </list>
 /// <para>
 /// An output that breaks a rule gets one <see cref="PhysicsOutputFault"/>, however many rules it breaks. The step skips
 /// the whole update of every entity that a broken output names (for a frame state, the frame's owner): its body state,
-/// its hand-off, the state of the frame that it owns, and its contacts. <see cref="IsSkipped"/> is true for those
-/// entities.
+/// its hand-off, the state of the frame that it owns, its contacts and its character state. <see cref="IsSkipped"/> is
+/// true for those entities. A broken character state is the one exception: it changes nothing but whether its character
+/// stands, so the step skips only that state. <see cref="IsCharacterStateSkipped"/> is true for each broken character
+/// state, and for each character state of an entity whose whole update the step skips.
 /// </para>
 /// </remarks>
 public sealed class PhysicsOutputCheck
@@ -77,12 +85,15 @@ public sealed class PhysicsOutputCheck
     // Entities with a hand-off in this step, and the indices of the hand-offs that the first pass found broken.
     private readonly HashSet<Entity> handedOff = new();
     private readonly HashSet<int> brokenHandOffs = new();
+    // Entities with a character state in this step, and the indices of the character states that the run skips.
+    private readonly HashSet<Entity> withCharacterState = new();
+    private readonly HashSet<int> skippedCharacterStates = new();
     // The parent of each frame that an earlier hand-off of this step moves, as the hand-offs are applied in order.
     private readonly Dictionary<FrameHandle, FrameHandle> parentsAfter = new();
 
     /// <summary>
-    /// The broken outputs of the last run: body states first, then hand-offs, frame states, contacts, and last the hand-offs
-    /// that the tree refuses. Valid until the next run.
+    /// The broken outputs of the last run: body states first, then hand-offs, frame states, contacts, the hand-offs that
+    /// the tree refuses, and last the character states. Valid until the next run.
     /// </summary>
     public ReadOnlySpan<PhysicsOutputFault> Faults => CollectionsMarshal.AsSpan(faults);
 
@@ -90,8 +101,16 @@ public sealed class PhysicsOutputCheck
     public bool IsSkipped(Entity entity) => skipped.Contains(entity);
 
     /// <summary>
+    /// True when the last run skips the character state at <paramref name="index"/> in
+    /// <see cref="PhysicsStepOutput.Characters"/>: when the state is broken, or when the run skips the whole update of its
+    /// entity.
+    /// </summary>
+    public bool IsCharacterStateSkipped(int index) => skippedCharacterStates.Contains(index);
+
+    /// <summary>
     /// Checks every output of <paramref name="output"/> against <paramref name="frames"/> and <paramref name="facts"/>,
-    /// as they are before any output lands. Sets <see cref="Faults"/> and <see cref="IsSkipped"/>. Changes nothing else.
+    /// as they are before any output lands. Sets <see cref="Faults"/>, <see cref="IsSkipped"/> and
+    /// <see cref="IsCharacterStateSkipped"/>. Changes nothing else.
     /// Allocates nothing for an output without faults, once warm.
     /// </summary>
     public void Run<TFacts>(PhysicsStepOutput output, FrameTree frames, TFacts facts) where TFacts : IPhysicsOutputFacts
@@ -102,6 +121,8 @@ public sealed class PhysicsOutputCheck
         skipped.Clear();
         handedOff.Clear();
         brokenHandOffs.Clear();
+        withCharacterState.Clear();
+        skippedCharacterStates.Clear();
         parentsAfter.Clear();
 
         for (int i = 0; i < output.Bodies.Count; i++)
@@ -153,6 +174,19 @@ public sealed class PhysicsOutputCheck
             }
             if (!skipped.Contains(handOff.Entity))
                 parentsAfter[own] = handOff.To;
+        }
+
+        // Last, once the skip of every whole update is known, the character states.
+        for (int i = 0; i < output.Characters.Count; i++)
+        {
+            Entity entity = output.Characters[i].Entity;
+            bool again = !withCharacterState.Add(entity);
+            string? fault = BodyFault(entity, facts) ?? (facts.IsCharacter(entity) ? null : $"{entity} is not a character") ??
+                (again ? $"{entity} has another character state in this step" : null);
+            if (fault != null)
+                faults.Add(new PhysicsOutputFault(PhysicsOutputKind.CharacterState, i, $"ignored the character state of {entity}, because {fault}"));
+            if (fault != null || skipped.Contains(entity))
+                skippedCharacterStates.Add(i);
         }
     }
 

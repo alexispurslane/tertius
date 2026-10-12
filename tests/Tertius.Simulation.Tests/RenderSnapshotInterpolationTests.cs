@@ -137,8 +137,9 @@ public class RenderSnapshotInterpolationTests
     public void AnObjectInAFrameThatOrbitsMovesByRoughlyTheOrbitalSpeedTimesTheTimeStep()
     {
         const double mu = 3.986004418e14, radius = 7e6;
-        var orbit = KeplerOrbit.Circular(radius, mu);
+        var orbit = KeplerOrbit.Circular(radius);
         using var test = new TestWorld();
+        test.GiveRootPointGravity(mu);
         FrameHandle moon = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
@@ -159,8 +160,9 @@ public class RenderSnapshotInterpolationTests
     public void ObjectsThatDidNotChangeHaveBitIdenticalPreviousTransformsWhileOtherFramesMove()
     {
         const double mu = 3.986004418e14;
-        var orbit = KeplerOrbit.Circular(7e6, mu, spinRate: 0.01);
+        var orbit = KeplerOrbit.Circular(7e6, spinRate: 0.01);
         using var test = new TestWorld();
+        test.GiveRootPointGravity(mu);
         FrameHandle moon = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,

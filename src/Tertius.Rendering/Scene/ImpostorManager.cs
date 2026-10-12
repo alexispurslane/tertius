@@ -34,6 +34,8 @@ internal struct ImpostorCapture
     public float Radius;
     /// <summary>The tangent of the capture frustum's half angle: the sphere's tangent cone plus the margin.</summary>
     public float TanHalfAngle;
+    /// <summary>Which way is up for the object's hemisphere ambient light, as the capture bakes it.</summary>
+    public HemisphereUp Hemisphere;
 }
 
 /// <summary>An object drawn as an impostor this frame.</summary>
@@ -375,6 +377,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
             Distance = distance,
             Radius = radius,
             TanHalfAngle = tanHalfAngle,
+            Hemisphere = instance.Hemisphere,
         };
     }
 
@@ -519,17 +522,18 @@ internal sealed class ImpostorManager : IInstanceProcessor
     }
 
     /// <summary>
-    /// The light a capture bakes in, at the object: what reaches it from the sun, the two ambient colors, and the
-    /// irradiance from the point and spot lights, with that irradiance's direction in object space.
+    /// The light a capture bakes in, at the object: what reaches it from the sun, the two ambient colors, the up of the
+    /// hemisphere ambient light at its center in object space, weighted by how much the sky and the ground differ, and
+    /// the irradiance from the point and spot lights, with that irradiance's direction in object space.
     /// </summary>
-    private readonly record struct LightSignature(Vector3 Sun, Vector3 Sky, Vector3 Ground, Vector3 Local, Vector3 LocalDirection)
+    private readonly record struct LightSignature(Vector3 Sun, Vector3 Sky, Vector3 Ground, Vector3 Up, Vector3 Local, Vector3 LocalDirection)
     {
         private float Total => Sun.Length() + Sky.Length() + Ground.Length() + Local.Length();
 
         /// <summary>The change from <paramref name="a"/> to <paramref name="b"/> as a fraction of the larger total light.</summary>
         public static float Change(in LightSignature a, in LightSignature b)
         {
-            float difference = (a.Sun - b.Sun).Length() + (a.Sky - b.Sky).Length() + (a.Ground - b.Ground).Length() +
+            float difference = (a.Sun - b.Sun).Length() + (a.Sky - b.Sky).Length() + (a.Ground - b.Ground).Length() + (a.Up - b.Up).Length() +
                                (a.Local - b.Local).Length() + (a.LocalDirection - b.LocalDirection).Length();
             return difference / MathF.Max(MathF.Max(a.Total, b.Total), 1e-6f);
         }
@@ -566,9 +570,19 @@ internal sealed class ImpostorManager : IInstanceProcessor
             Vector3 position = instance.Position;
             Vector3 sun = HasSun ? sunRadiance * Eclipse.SunVisibility(position, SunDirection, sunAngularRadius, occluders) : Vector3.Zero;
             Vector3 local = Vector3.Zero, direction = Vector3.Zero;
+            Quaternion inverse = Quaternion.Conjugate(instance.Rotation);
+            HemisphereUp hemisphere = instance.Hemisphere;
+            // A center inside the object, such as a planet's own, gives every side its own up, so there is no one up to
+            // compare.
+            Vector3 up = hemisphere switch
+            {
+                UpAlong along => along.Direction,
+                UpAwayFrom away when away.Center.Length() > instance.Radius => Vector3.Normalize(-away.Center),
+                _ => Vector3.Zero,
+            };
+            Vector3 upInObject = Vector3.Transform(up, inverse) * (sky - ground).Length();
             if (!lights.IsEmpty)
             {
-                Quaternion inverse = Quaternion.Conjugate(instance.Rotation);
                 float radius = instance.Radius;
                 foreach (ref readonly GpuLight light in lights)
                 {
@@ -594,7 +608,7 @@ internal sealed class ImpostorManager : IInstanceProcessor
                     direction += Vector3.Transform(unit, inverse) * irradiance.Length();
                 }
             }
-            return new LightSignature(sun, sky, ground, local, direction);
+            return new LightSignature(sun, sky, ground, upInObject, local, direction);
         }
 
         private static float SmoothStep(float edge0, float edge1, float x)
@@ -666,7 +680,12 @@ internal sealed class ImpostorManager : IInstanceProcessor
 /// </summary>
 internal static class Eclipse
 {
-    /// <summary>The visible fraction of the sun's disc at a camera-relative position, given occluder spheres (xyz center, w radius).</summary>
+    /// <summary>
+    /// The visible fraction of the sun's disc at a camera-relative position, given far shadows: xyz the center, w the radius
+    /// of a caster's bounding sphere. A sphere shadows only points outside it, so a caster never shadows its own surface;
+    /// a planet's ground faces away from the sun at night anyway. Impostor captures get no shadow-map shadows, so every
+    /// sphere counts here, also those of casters that the maps draw.
+    /// </summary>
     public static float SunVisibility(Vector3 position, Vector3 sunDirection, float sunAngularRadius, ReadOnlySpan<Vector4> occluders)
     {
         float sunRadius = MathF.Max(sunAngularRadius, 1e-5f);
@@ -675,7 +694,9 @@ internal static class Eclipse
         {
             Vector3 toCenter = new Vector3(occluder.X, occluder.Y, occluder.Z) - position;
             float distance = toCenter.Length();
-            float occluderRadius = distance > occluder.W ? MathF.Asin(occluder.W / distance) : 0.5f * MathF.PI;
+            if (distance <= occluder.W)
+                continue;
+            float occluderRadius = MathF.Asin(occluder.W / distance);
             float separation = MathF.Atan2(Vector3.Cross(toCenter, sunDirection).Length(), Vector3.Dot(toCenter, sunDirection));
             visibility *= 1f - DiscCoverage(sunRadius, occluderRadius, separation);
         }

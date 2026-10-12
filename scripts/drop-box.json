@@ -1,0 +1,13 @@
+{
+  "scene": "drop-box",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "capture", "name": "start" },
+    { "do": "run", "ticks": 30 },
+    { "do": "dump", "name": "falling" },
+    { "do": "capture", "name": "falling" },
+    { "do": "run", "ticks": 90 },
+    { "do": "dump", "name": "landed" },
+    { "do": "capture", "name": "landed" }
+  ]
+}

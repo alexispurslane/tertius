@@ -100,7 +100,7 @@ public sealed class BatcherTests
         snapshot.Instances.Add(Gpu.Instance(box, material, new Vector3(0, -100, -5), Vector3.One));      // far below
         snapshot.Instances.Add(Gpu.Instance(new MeshId(7), material, new Vector3(0, 0, -5), Vector3.One)); // unknown mesh
         snapshot.Instances.Add(Gpu.Instance(MeshId.None, material, new Vector3(0, 0, -5), Vector3.One)); // no mesh
-        snapshot.Instances.Add(RenderInstance.Create(box, material, new Vector3(0, 0, -5), Quaternion.Identity, Vector3.One, 0f,
+        snapshot.Instances.Add(RenderInstance.Create(box, material, new Vector3(0, 0, -5), Quaternion.Identity, Vector3.One, 0f, HemisphereUp.Even,
             RenderFlags.CastsShadow));                                                                   // not Visible
         snapshot.Instances.Add(Gpu.Instance(box, material, new Vector3(0, 0, -5), new Vector3(1, 0, 1))); // flat
         snapshot.Instances.Add(default);                                                                 // zeroed
@@ -224,7 +224,6 @@ public sealed class BatcherTests
         snapshot.Lights.Add(new RenderLight { Kind = LightKind.Spot, Position = new Vector3(0, 3, -5), Direction = new Vector3(0, -2, 0), Color = Vector3.One, Intensity = 1, Range = 8, InnerConeAngle = 0.3f, OuterConeAngle = 0.5f });
         snapshot.Lights.Add(new RenderLight { Kind = LightKind.Point, Position = new Vector3(0, 0, 50), Color = Vector3.One, Intensity = 1, Range = 10 });   // behind
         snapshot.Lights.Add(new RenderLight { Kind = LightKind.Point, Position = new Vector3(0, 0, -5), Color = Vector3.One, Intensity = 1, Range = 0 });    // no range
-        snapshot.Occluders.Add(new RenderOccluder { Center = new Vector3(0, 0, -100), Radius = 10 });
         PreparedScene scene = Prepare(snapshot, alpha: 0.5f);
 
         scene.LightCount.Should().Be(2);
@@ -235,10 +234,7 @@ public sealed class BatcherTests
         new Vector3(spot.DirectionCosOuter.X, spot.DirectionCosOuter.Y, spot.DirectionCosOuter.Z).Should().Be(new Vector3(0, -1, 0));
         spot.DirectionCosOuter.W.Should().BeApproximately(MathF.Cos(0.5f), 1e-5f);
         spot.Spot.X.Should().BeApproximately(MathF.Cos(0.3f), 1e-5f);
-        scene.OccluderCount.Should().Be(1);
-        scene.Occluders[0].Should().Be(new Vector4(0, 0, -101, 10));
         scene.Constants.LightCount.Should().Be(2u);
-        scene.Constants.OccluderCount.Should().Be(1u);
     }
 
     [Fact]
@@ -302,13 +298,65 @@ public sealed class BatcherTests
     }
 
     [Fact]
+    public void EachInstanceTakesItsHemispheresUpToTheGpuRelativeToTheInterpolatedEye()
+    {
+        RenderSnapshot snapshot = Empty();
+        // At alpha 0.5 the eye is 1 m along +X from the render origin, so every position moves 1 m along -X.
+        snapshot.Camera.PreviousPosition = new Vector3(2, 0, 0);
+        snapshot.Instances.Add(RenderInstance.Create(new MeshId(0), new MaterialId(1), new Vector3(0, 0, -10), Quaternion.Identity, Vector3.One, 1,
+            HemisphereUp.Along(Vector3.UnitX)));
+        RenderInstance moving = RenderInstance.Create(new MeshId(0), new MaterialId(1), new Vector3(0, 1, -10), Quaternion.Identity, Vector3.One, 1,
+            HemisphereUp.AwayFrom(new Vector3(0, -50, 0)));
+        moving.PreviousPosition = new Vector3(4, 1, -10);
+        snapshot.Instances.Add(moving);
+        snapshot.Instances.Add(RenderInstance.Create(new MeshId(0), new MaterialId(1), new Vector3(0, 2, -10), Quaternion.Identity, Vector3.One, 1,
+            HemisphereUp.Even));
+
+        PreparedScene scene = Prepare(snapshot, alpha: 0.5f);
+
+        // The kind is in w: 1 along a direction, 2 away from a point, 0 even. The point moves with its instance: halfway
+        // from x = 4 to x = 0 is x = 2, less the eye's 1 m, so 50 m below (1, 1, -10).
+        scene.Instances.AsSpan(0, 3).ToArray().Select(instance => instance.Hemisphere).Should().BeEquivalentTo(new[]
+        {
+            new Vector4(1, 0, 0, 1),
+            new Vector4(1, -49, -10, 2),
+            Vector4.Zero,
+        });
+    }
+
+    [Fact]
+    public void TheRootRotationBlendsFromThePreviousTickAsTheCameraDoes()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.PreviousRootRotation = Quaternion.Identity;
+        snapshot.RootRotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
+
+        Vector4 root = Prepare(snapshot, alpha: 0.25f).Constants.RootRotation;
+
+        // A quarter of the way from the previous rotation to the current one: an eighth of a turn about +Y.
+        Quaternion expected = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 8);
+        Vector4.Distance(root, new Vector4(expected.X, expected.Y, expected.Z, expected.W)).Should().BeLessThan(1e-6f);
+    }
+
+    [Fact]
+    public void AnUnsetRootRotationLeavesTheSkyInTheAxesOfTheCamerasFrame()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.RootRotation = default;
+        snapshot.PreviousRootRotation = default;
+
+        Prepare(snapshot).Constants.RootRotation.Should().Be(new Vector4(0, 0, 0, 1));
+    }
+
+    [Fact]
     public void GpuStructsMatchTheShaderLayouts()
     {
-        Unsafe.SizeOf<GpuInstance>().Should().Be(64);
+        Unsafe.SizeOf<GpuInstance>().Should().Be(80);
         Unsafe.SizeOf<GpuMaterial>().Should().Be(48);
         Unsafe.SizeOf<GpuLight>().Should().Be(64);
-        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(704);
+        Unsafe.SizeOf<GpuFrameConstants>().Should().Be(720);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.ShadowViewProj))).Should().Be(352);
+        ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(704);
         Unsafe.SizeOf<DrawPushConstants>().Should().Be(80);
         Unsafe.SizeOf<DrawIndexedIndirectCommand>().Should().Be(20);
         Unsafe.SizeOf<Vertex>().Should().Be(48);

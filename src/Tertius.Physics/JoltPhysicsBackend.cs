@@ -94,7 +94,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, a
     /// frame that the simulation reparents on its own, and a frame whose driver the game changes are handled here or at
     /// the start of the next step, whichever comes first. A hull follows its frame's driver: dynamic for the physics
-    /// driver, kinematic for the Kepler driver, static for the static driver. The simulation never gives a frame a driver
+    /// driver, kinematic for the Kepler and Spin drivers, static for the static driver. The simulation never gives a frame a driver
     /// that its hull cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>). Such a driver comes only from a bug: it
     /// breaks a contract in a Debug build, and a Release build keeps the hull's motion and reports the bug (see
     /// <see cref="ReportBug"/>).
@@ -177,7 +177,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// says, with the motion of its frame's driver, which drops the hand-offs of the last step that the simulation refused
     /// and follows changes to the tree that no change batch announced, then applies intents, drives kinematic frame
     /// hulls, applies gravity, moves characters, updates every system, then reports contacts, hands bodies between frames,
-    /// updates ghosts and writes body and frame states to <paramref name="output"/>.
+    /// updates ghosts and writes body, character and frame states to <paramref name="output"/>.
     /// </summary>
     /// <remarks>
     /// <para>Intents, in the entity's frame axes. The intent of a frame's owner acts on the frame's hull.</para>
@@ -189,14 +189,25 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// there unless the next step gives a new target or velocity. A dynamic body gets the velocities that would carry
     /// it there.</item>
     /// <item>Force, Torque, Impulse and AngularImpulse act on dynamic bodies, for this step only.</item>
-    /// <item>A character keeps the desired velocity of its last CharacterMove until the next one. Under gravity only
-    /// the part across the up direction counts; near zero gravity it is a full 3D velocity. Jump applies only on
-    /// the ground. Impulses and forces change a character's velocity by their mass. KinematicTarget does nothing to
-    /// a character.</item>
+    /// <item>A character keeps the desired velocity of its last CharacterMove until the next one. Only a character that
+    /// physics stands moves by it and can jump. Physics stands a character when the effective gravity is at least
+    /// <see cref="FrameTree.ZeroGravityThreshold"/>, there is walkable ground under it, and it does not move away from
+    /// that ground. Then only the part of the desired velocity across the up direction counts. A character that does
+    /// not stand, in the air, on steep ground or weightless, in any frame and any gravity, keeps its momentum, and
+    /// gravity changes it. (User) CharacterMove and Jump do not move it, but physics keeps the desired velocity, which
+    /// applies once the character stands. It loses its motion into each static or kinematic surface that it hits. Under
+    /// gravity, its up turns against the gravity whenever it touches anything, so a character that lands on its side or
+    /// its head turns upright, and a character in free fall that touches nothing does not turn.
+    /// Impulses and forces change a character's velocity by their mass. KinematicTarget does nothing to a
+    /// character.</item>
     /// </list>
     /// <para>
     /// Outputs: <see cref="PhysicsStepOutput.Bodies"/> holds every awake dynamic or kinematic body and every
     /// character, plus one last report for a body that fell asleep. Velocities are at the center of mass.
+    /// <see cref="PhysicsStepOutput.Characters"/> holds every character once, after the hand-offs, with whether physics
+    /// stood it in this step. A character that a hand-off moved has not stood in its new frame yet.
+    /// <see cref="PhysicsStepOutput.HandOffs"/> holds each body that moved to another frame, with its pose there. For a
+    /// character that is the rotation that it got in its new frame, which a turn to the new gravity can change.
     /// <see cref="PhysicsStepOutput.Frames"/> holds every physics-driven frame with a hull, relative to its parent
     /// after any hand-off in this step, with the velocity of the frame origin. Apply hand-offs before frame states.
     /// <see cref="PhysicsStepOutput.Contacts"/> holds each body pair that started touching, with A before B in
@@ -694,7 +705,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>
     /// The motion of a frame relative to its tree parent at <paramref name="time"/>. A Kepler frame uses its orbit
     /// when the tree pose matches the orbit at the step start; anything else extrapolates the tree pose with the
-    /// tree velocities.
+    /// tree velocities. A Spin frame turns at a steady rate in place, so that extrapolation is its exact motion.
     /// </summary>
     private FrameMotion PredictMotion(FrameHandle frame, double time)
     {
@@ -705,11 +716,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
         if (driver == MotionDriver.Kepler)
         {
+            // The same G·M as the simulation uses: the point gravity of the parent, which also pulls the bodies in the parent.
             KeplerOrbit orbit = frames.Orbit(frame);
-            if (OrbitMatchesTree(orbit, pose))
+            double parentMu = frames.KeplerMu(frame);
+            if (OrbitMatchesTree(orbit, parentMu, pose))
             {
-                var (position, velocity) = orbit.StateAt(time);
-                return new FrameMotion(new DPose(position, orbit.RotationAt(time)), velocity, orbit.AngularVelocity());
+                var (position, velocity) = orbit.StateAt(time, parentMu);
+                return new FrameMotion(new DPose(position, orbit.RotationAt(time, parentMu)), velocity, orbit.AngularVelocityAt(time, parentMu));
             }
         }
 
@@ -720,13 +733,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         return new FrameMotion(extrapolated, linear, angular);
     }
 
-    private bool OrbitMatchesTree(in KeplerOrbit orbit, in DPose treePose)
+    private bool OrbitMatchesTree(in KeplerOrbit orbit, double parentMu, in DPose treePose)
     {
-        var (position, _) = orbit.StateAt(stepTime);
+        var (position, _) = orbit.StateAt(stepTime, parentMu);
         double tolerance = 1e-3 + 1e-9 * treePose.Position.Length;
         if ((position - treePose.Position).Length > tolerance)
             return false;
-        DQuaternion rotation = orbit.RotationAt(stepTime);
+        DQuaternion rotation = orbit.RotationAt(stepTime, parentMu);
         DQuaternion q = treePose.Rotation;
         double dot = Math.Abs(rotation.X * q.X + rotation.Y * q.Y + rotation.Z * q.Z + rotation.W * q.W);
         return dot > 1 - 1e-6;

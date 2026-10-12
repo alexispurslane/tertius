@@ -17,8 +17,15 @@ internal static class Conversions
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Quaternion ToJolt(this DQuaternion q) => q.ToQuaternion();
 
+    /// <summary>
+    /// Widens a rotation that Jolt holds as a float quaternion to double precision, and normalizes it there. The length of a
+    /// float quaternion is not exactly 1: the square of it lies between -7.3E-8 and +2.1E-7 from 1, a new value every step.
+    /// The hull's rotation becomes the local pose of its frame, and a local pose that is not unit length puts the parent frame
+    /// about a meter off, seen from the frame, when the parent is millions of meters away. So every rotation that leaves
+    /// Jolt goes through here.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static DQuaternion ToDouble(this Quaternion q) => DQuaternion.FromQuaternion(q);
+    public static DQuaternion ToDouble(this Quaternion q) => DQuaternion.FromQuaternion(q).Normalized();
 }
 
 /// <summary>Rotation helpers in double precision.</summary>

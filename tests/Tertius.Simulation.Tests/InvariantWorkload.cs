@@ -64,12 +64,14 @@ internal sealed class ChaoticWorkload : IDisposable
 
         World = TestWorld.Create(out FrameHandle root, maxDegreeOfParallelism, physics, chunkSize, debugChecks);
         Root = root;
+        // The Kepler frame below orbits the root, so the root needs a point gravity to take its G·M from.
+        World.SetFrameGravity(root, GravityField.Point(1e9));
 
         West = SpawnFrame(root, TestWorld.At(-500), new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Static));
         East = SpawnFrame(root, TestWorld.At(500), new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Static));
         FrameHandle bay = SpawnFrame(East, TestWorld.At(10), new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static));
         FrameHandle orbit = SpawnFrame(root, DPose.Identity,
-            new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(2000, 1e9, spinRate: 0.1)));
+            new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(2000, spinRate: 0.1)));
 
         // The shuttle is a frame whose hull is a body: physics drives the frame, and hands the hull off between frames.
         Entity shuttleOwner = World.Spawn(new SpawnDesc

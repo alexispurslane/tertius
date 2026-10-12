@@ -160,7 +160,7 @@ public sealed partial class JoltPhysicsBackend
         record.PendingVelocityChange += (intent.Impulse + intent.Force * stepDt) / mass;
     }
 
-    /// <summary>Moves the kinematic hulls of Kepler frames to their end-of-step pose, and static hulls to the tree pose.</summary>
+    /// <summary>Moves the kinematic hulls of Kepler and Spin frames to their end-of-step pose, and static hulls to the tree pose.</summary>
     private void DriveKinematicHulls()
     {
         foreach (BodyRecord owner in frameOwners)
@@ -310,18 +310,29 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// Moves one character. Up is against the effective gravity. On the ground the character takes the ground's
-    /// velocity plus its desired horizontal velocity, and can jump. In the air it keeps its momentum. Near zero
-    /// gravity, the desired velocity is a full 3D velocity.
+    /// Moves one character, and records in <see cref="BodyRecord.Standing"/> whether it stood. The character stands
+    /// when the effective gravity is at least <see cref="FrameTree.ZeroGravityThreshold"/>, Jolt found walkable ground
+    /// under it in its last update, and it does not move away from that ground. Then it takes the ground's velocity
+    /// plus the part of its desired velocity across its up, and can jump. A character that does not stand, in the air,
+    /// on steep ground or weightless, keeps its momentum, and its desired velocity and its jump do not move it. (User)
+    /// The record keeps the desired velocity, which applies once the character stands. Gravity, forces and impulses
+    /// change the velocity of every character. After the update, a character that did not stand loses its motion into
+    /// what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Under gravity, up turns against the gravity whenever
+    /// the character touched anything in its last update, also with its side or its head, so a character that landed
+    /// tilted turns upright and can stand. A character in free fall that touches nothing keeps its last up.
     /// </summary>
     private void UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
     {
         float dt = stepDt;
         Vector3 gravity = frames.EffectiveGravity(world.Frame, character.RPosition.ToDouble3());
         float strength = gravity.Length();
-        bool zeroGravity = strength < options.ZeroGravityThreshold;
+        bool underGravity = strength >= FrameTree.ZeroGravityThreshold;
+        // The ground state comes from the last update. Any touch counts, also on steep ground and on the head or the
+        // side, so a character that landed tilted turns upright.
+        GroundState groundState = character.GroundState;
+        bool touching = groundState != GroundState.InAir;
         Vector3 up = record.Up;
-        if (!zeroGravity)
+        if (underGravity && touching)
         {
             up = -gravity / strength;
             if (Vector3.DistanceSquared(up, record.Up) > 1e-12f)
@@ -339,41 +350,76 @@ public sealed partial class JoltPhysicsBackend
         character.UpdateGroundVelocity();
         Vector3 velocity = character.LinearVelocity;
         Vector3 ground = character.GroundVelocity;
+        bool standing = underGravity && groundState == GroundState.OnGround && Vector3.Dot(velocity - ground, up) < 0.1f;
         Vector3 next;
-        if (zeroGravity)
+        if (standing)
         {
-            next = record.DesiredVelocity + (character.IsSupported ? ground : Vector3.Zero);
+            Vector3 desired = record.DesiredVelocity;
+            next = ground + desired - Vector3.Dot(desired, up) * up;
+            if (record.PendingJump > 0)
+                next += record.PendingJump * up;
         }
         else
         {
-            bool onGround = character.GroundState == GroundState.OnGround;
-            bool towardGround = Vector3.Dot(velocity - ground, up) < 0.1f;
-            if (onGround && towardGround)
-            {
-                Vector3 desired = record.DesiredVelocity;
-                next = ground + desired - Vector3.Dot(desired, up) * up;
-                if (record.PendingJump > 0)
-                    next += record.PendingJump * up;
-            }
-            else
-            {
-                // In the air the character keeps its momentum, including what it took from a moving platform.
-                next = velocity;
-            }
-            next += gravity * dt;
+            // Nothing holds the character, so it keeps its momentum, including what it took from a moving platform.
+            next = velocity;
         }
+        next += gravity * dt;
         next += record.PendingVelocityChange;
         record.PendingVelocityChange = Vector3.Zero;
         record.PendingJump = 0;
+        record.Standing = standing;
         character.LinearVelocity = next;
 
         // Jolt reads the system gravity to press the character's weight onto what it stands on.
         world.System.Gravity = gravity;
-        ExtendedUpdateSettings settings = zeroGravity
-            ? ZeroGravityUpdate
-            : new ExtendedUpdateSettings { StickToFloorStepDown = -0.5f * up, WalkStairsStepUp = 0.4f * up };
+        ExtendedUpdateSettings settings = underGravity
+            ? new ExtendedUpdateSettings { StickToFloorStepDown = -0.5f * up, WalkStairsStepUp = 0.4f * up }
+            : ZeroGravityUpdate;
         character.ExtendedUpdate(dt, settings, Layers.Moving, world.System);
         world.System.Gravity = Vector3.Zero;
+        if (!standing)
+        {
+            // Jolt slides the character along what it hits, but keeps the velocity that it was given. Only standing
+            // replaces the velocity, so a character that does not stand loses its motion into a surface here.
+            character.LinearVelocity = WithoutMotionIntoContacts(character, next);
+        }
+    }
+
+    /// <summary>
+    /// The largest angle, in radians, between Jolt's contact normal and the face's own normal at which
+    /// <see cref="WithoutMotionIntoContacts"/> takes the face's normal: 10 degrees. On a flat face Jolt's contact normal
+    /// can lean several degrees from the face. On the sill of the airlock hatch it leaned 6 degrees, and it turned the
+    /// press onto the sill into a drift upward. At an edge or a corner the two normals differ by more, and the face's
+    /// normal is the normal of only one face, so it would cancel motion that nothing blocks.
+    /// </summary>
+    private const float FaceNormalLeanLimit = 10 * MathF.PI / 180;
+
+    /// <summary>
+    /// <paramref name="velocity"/> less its part into each static or kinematic surface that <paramref name="character"/>
+    /// hit in its last update, relative to the velocity of that surface. So a kinematic wall that moves into the
+    /// character gives it the wall's velocity along the normal. A dynamic body is skipped: the character keeps its
+    /// momentum against it and pushes it. Jolt pushes a character out of a surface that it sank into by moving it, so
+    /// the push adds no velocity here.
+    /// </summary>
+    private static Vector3 WithoutMotionIntoContacts(CharacterVirtual character, Vector3 velocity)
+    {
+        float faceNormalCosine = MathF.Cos(FaceNormalLeanLimit);
+        int count = character.GetNumActiveContacts();
+        for (int i = 0; i < count; i++)
+        {
+            character.GetActiveContact(i, out CharacterContact contact);
+            if (!contact.HadCollision || contact.WasDiscarded || contact.MotionTypeB == MotionType.Dynamic)
+                continue;
+            // Both normals point out of the surface, toward the character, so motion into the surface runs against them.
+            Vector3 normal = Vector3.Dot(contact.ContactNormal, contact.SurfaceNormal) >= faceNormalCosine
+                ? contact.SurfaceNormal
+                : contact.ContactNormal;
+            float into = Vector3.Dot(velocity - contact.LinearVelocity, normal);
+            if (into < 0)
+                velocity -= into * normal;
+        }
+        return velocity;
     }
 
     // ---- Systems ----
