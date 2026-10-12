@@ -85,8 +85,11 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
     [Fact]
     public void ThrustTowardTheShipTurnsTheDriftAroundAndBringsThePersonBackOntoTheChamberFloor()
     {
-        // Four seconds at 1.5 m/s² take 6 m/s off the drift away from the ship.
-        (VelocityAt("turned-back").X - VelocityAt("drifting").X).Should().BeApproximately(6, 0.05f);
+        // A key acts from the third tick after its post: the post joins the routing at the end of the next tick, the person
+        // handles it in the tick after that, and physics moves the person in the step of the third tick. So 238 of the 240
+        // ticks between W's down post and the dump thrust at 1.5 m/s², and they take 238 · 1.5 m/s² / 60 = 5.95 m/s off
+        // the drift away from the ship. One tick of thrust adds 0.025 m/s, so the margin counts the ticks exactly.
+        (VelocityAt("turned-back").X - VelocityAt("drifting").X).Should().BeApproximately(238 * 1.5f / 60, 1e-3f);
         ExpectInTheChamber(PersonAt("returned"));
         new Vector2(VelocityAt("returned").X, VelocityAt("returned").Z).Length().Should().BeLessThan(1e-3f, "the person landed and stands still");
     }
@@ -132,11 +135,16 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
     }
 
     [Fact]
-    public void FromOutsideTheSunLightsTheHatchSillAboveTheDarkSideOfTheHull()
+    public void FromOutsideEarthShowsBelowTheHullAndTheOpenHatchShowsTheLampLitChamberFloor()
     {
-        // The sun stands above the ship, so it lights the sill's top and not the hull's port face, which looks sideways.
+        // The person looks back at the hull's port face. The sun stands straight above the ship, so it does not light that
+        // face, which looks sideways. Earth fills the bottom of the image, below the hull. Through the open hatch the person
+        // sees the chamber's floor. Point lights cast no shadows yet, so the cabin's lamps light the chamber's floor through
+        // the chamber's walls and its shut inner door. Each probe sits well inside its region: the hull ends at row 596, above
+        // Earth, and the chamber floor spans rows 479 to 512 and columns 584 to 695.
         Png hull = run.Capture("hull");
-        (int r, int g, int b) sill = hull.Average(640, 497), side = hull.Average(640, 200);
-        (sill.r + sill.g + sill.b).Should().BeGreaterThan(side.r + side.g + side.b + 150, $"the sill {sill} is brighter than the hull's side {side}");
+        (int r, int g, int b) earth = hull.Average(640, 690), floor = hull.Average(640, 495), side = hull.Average(640, 200);
+        (earth.b > earth.r + 60).Should().BeTrue($"Earth's blue shows below the hull, not {earth}");
+        (floor.r + floor.g + floor.b).Should().BeGreaterThan(side.r + side.g + side.b + 100, $"the lamp-lit chamber floor {floor} is brighter than the hull's port face {side}");
     }
 }
