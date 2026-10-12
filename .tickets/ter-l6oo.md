@@ -1,6 +1,6 @@
 ---
 id: ter-l6oo
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-11T23:58:26Z
