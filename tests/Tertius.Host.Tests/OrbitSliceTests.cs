@@ -114,14 +114,16 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
     }
 
     [Fact]
-    public void TheChaseCameraIsInsideTheShipsBubble()
+    public void TheChaseCameraRidesOutsideTheShipsBubbleAndStaysInTheShipsFrameBecauseItHasNoBody()
     {
-        // An entity outside its frame's bubble would leave the frame, if a later check covers entities without bodies.
-        FrameHandle ship = run.Frame("ship");
+        // The bubble fits just around the hull, and the camera rides 71 m from the ship's center, past the bubble and its
+        // margin. A hand-off from one frame to another is a step of physics, and it moves only bodies.
+        FrameBounds bubble = run.World.Frames.Bounds(run.Frame("ship"));
         Double3 chase = run.World.GetPose(run.Scene["chase"]).Position;
 
-        run.World.Frames.Bounds(ship).FullyOutside(chase, 0, run.World.Frames.Bounds(ship).ExitMargin(0)).Should().BeFalse();
-        run.World.Frames.Bounds(ship).SignedDistance(chase).Should().BeNegative();
+        bubble.FullyOutside(chase, 0, bubble.ExitMargin(0)).Should().BeTrue();
+        foreach (StateDump dump in run.Result.Dumps)
+            dump.Entity("chase").Pose.Frame.Should().Be("ship", $"the camera rides in the ship's frame in {dump.Name}");
     }
 
     [Fact]

@@ -24,9 +24,9 @@
     { "do": "run", "ticks": 3 },
     { "do": "dump", "name": "flying" },
     { "do": "capture", "name": "throw" },
-    { "do": "run", "ticks": 459 },
+    { "do": "run", "ticks": 58 },
     { "do": "dump", "name": "leaving" },
-    { "do": "run", "ticks": 2 },
+    { "do": "run", "ticks": 1 },
     { "do": "dump", "name": "in-earth" },
     { "do": "run", "ticks": 330 },
     { "do": "dump", "name": "beside-the-ship" }

@@ -52,10 +52,11 @@ public static class DemoScenes
     /// <item>The frame <c>earth-surface</c> sits at Earth's center and turns about Earth's pole once per sidereal day. It
     /// draws the planet: Earth's radius, with a grid of 10-degree lines, so its turn shows. It casts Earth's shadow, and
     /// it has Earth's gravity for objects on the ground.</item>
-    /// <item>The frame <c>ship</c>, a 20 by 8 by 60 m hull in a bubble of radius 100 m, falls freely in Earth's gravity:
-    /// Jolt integrates it, with no damping. It starts on a circle 400 km up, crossing the equator northward at +X, tilted
-    /// 51.64 degrees, with its belly toward Earth and its nose along its motion. Its spin, one turn per orbit, keeps it so.
-    /// At the start the sun stands straight above it. In Earth's frame its hull is a solid box. In its own frame the hull
+    /// <item>The frame <c>ship</c>, a 20 by 8 by 60 m hull, falls freely in Earth's gravity: Jolt integrates it, with no
+    /// damping. Its bubble is an ellipsoid with radii of about 20.8, 10.4 and 55.4 m along its axes, which fits just around
+    /// the hull with a shell of 2 m. It starts on a circle 400 km up, crossing the equator northward at +X, tilted 51.64
+    /// degrees, with its belly toward Earth and its nose along its motion. Its spin, one turn per orbit, keeps it so. At
+    /// the start the sun stands straight above it. In Earth's frame its hull is a solid box. In its own frame the hull
     /// is hollow: walls 0.5 m thick around a cabin 19 by 7 by 59 m. Only the cabin has gravity: 9.81 m/s² toward the
     /// belly. Five lamps under the roof light the cabin, because the hull keeps the sunlight out.</item>
     /// <item>The <c>airlock</c> is a chamber 3 by 3 m against the port wall, 10 m aft of the ship's center. The door
@@ -67,16 +68,18 @@ public static class DemoScenes
     /// faces the nose. The airlock's inner door is 6.4 m to its left. Its eye, 1.65 m above the floor, is a view. While
     /// that view is on, <see cref="PersonControl"/> steers it and turns its view from the <c>input</c> topic. Wherever
     /// physics does not stand the person on walkable ground, the person is weightless and its thrusters push it: in a jump,
-    /// outside the cabin, and past the ship's bubble. There, about 102.9 m from the ship's center, a hand-off moves the
-    /// person into <c>earth</c>, where it falls freely with the ship. It comes back into the ship's frame 100.9 m from the
-    /// ship's center. With <see cref="Carry"/>, E also picks up a crate within reach, and the left mouse button throws
-    /// it.</item>
+    /// outside the cabin, and past the ship's bubble. There, a hand-off moves the person into <c>earth</c>, where it falls
+    /// freely with the ship, once its center lies 2 m outside the bubble: its bounding sphere of 0.9 m and a margin of
+    /// 1.1 m. Straight out of the hatch, that is about 24.1 m from the ship's center. It comes back into the ship's frame
+    /// when its center lies 0.9 m outside the bubble, 23.2 m from the ship's center. With <see cref="Carry"/>, E also picks
+    /// up a crate within reach, and the left mouse button throws it.</item>
     /// <item>Four green <see cref="Crate"/>s, 0.4 m on a side and of 5 kg, lie loose on the floor. Three of them,
     /// <c>crate-1</c> to <c>crate-3</c>, lie aft of the person and to starboard, out of its reach and its way.
     /// <c>chamber-crate</c> lies in the airlock's chamber, in the corner by the hatch on the aft side. A person that
     /// presses E in the middle of the chamber cycles the airlock and picks up that crate with one press.</item>
     /// <item>The view <c>chase</c>, the camera at the start, rides in the ship's frame, 70 m behind it and 12 m above it,
-    /// and looks at the ship's center.</item>
+    /// and looks at the ship's center. It is outside the ship's bubble, but it has no body, so no hand-off moves it out of
+    /// the ship's frame.</item>
     /// <item>The view <c>far</c> stands in <c>earth</c>, three Earth radii from its center, 30 degrees north of the
     /// equator, and looks at the center. It shows Earth's surface turn. The ship is too small to see from there.</item>
     /// </list>
@@ -147,9 +150,10 @@ public static class DemoScenes
             // floor, and goes out through the airlock along its outer faces.
             Body = new BodyDesc(new BoxShapeDesc(Hull), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
                 InteriorShape: new CompoundShapeDesc([.. ShipInterior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
-            // The bubble holds the hull and the chase camera, 71 m from the ship's center. The ship falls freely, so only
-            // its own field acts inside it: one standard gravity toward its belly, in the cabin alone.
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics,
+            // The bubble fits just around the hull (see ShipBubble), so a person or a crate that leaves the ship passes into
+            // earth near it. The ship falls freely, so only its own field acts inside it: one standard gravity toward its
+            // belly, in the cabin alone.
+            AsFrame = new FrameSpec(new FrameBounds(ShipBubble), MotionDriver.Physics,
                 GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(-Cabin, Cabin))),
             Render = Drawn(resources, HullMesh(), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32),
         });
@@ -240,6 +244,21 @@ public static class DemoScenes
 
     /// <summary>The half extents of the ship's hull, in meters: 20 m wide, 8 m high and 60 m long.</summary>
     private static readonly Vector3 Hull = new(10, 4, 30);
+
+    /// <summary>
+    /// How far the ship's bubble reaches past the hull on each axis, in meters. In earth, the hull is on the layer
+    /// <see cref="BodyLayer.FrameHull"/>, and loose bodies do not collide with it. A loose body in earth has its center
+    /// outside the bubble, so more than this shell away from the hull, and a body up to 2 m in radius cannot touch the
+    /// hull from earth.
+    /// </summary>
+    private const float BubbleShell = 2;
+
+    /// <summary>
+    /// The radii of the ship's bubble along the ship's axes, in meters: about 20.8, 10.4 and 55.4. The smallest ellipsoid
+    /// that holds a box has the box's half extents times sqrt(3), and touches the box at its corners. So this ellipsoid
+    /// holds the hull with a shell of <see cref="BubbleShell"/> around it.
+    /// </summary>
+    private static readonly Vector3 ShipBubble = (Hull + new Vector3(BubbleShell)) * MathF.Sqrt(3);
 
     /// <summary>The thickness of the hull's floor, roof and walls, in meters.</summary>
     private const float HullWall = 0.5f;
