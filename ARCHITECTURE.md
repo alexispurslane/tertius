@@ -386,10 +386,11 @@ So step 2 of the sync point checks each output before any state lands:
 3. The hand-offs of a step, applied in their order, never put a frame under itself or under a frame inside it.
 4. A frame state names a live frame with the physics driver and a parent. The owner of that frame has a body, which is the hull. So a frame state never names a root frame.
 5. A contact names two different live entities that have a body, and a live frame.
+6. A character state names a live entity whose body is a character. Each entity has at most one character state in a step.
 
 The class `PhysicsOutputCheck` in `Tertius.Core` holds these checks. The sync point uses it. The physics tests use it too, in the class that stands in for the sync point. So the tests apply the same rules as the engine.
 
-The sync point checks one more output itself: a character state names a live entity whose body is a character. A character state that fails this check gets one error, and the sync point skips only that state. The character state of an entity whose update the sync point skips is part of that update, so it is skipped too.
+A broken character state is the one exception to the rule below. It changes only whether its character stands, so a Release build records one error and skips only that state. The character state of an entity whose update the sync point skips is part of that update, so it is skipped too.
 
 If an output fails a check, a Release build skips the whole physics update of each entity that the output names, for that step. For a frame state, the entity is the owner of the frame. The whole update of an entity is its body state, its hand-off, the state of its own frame, and its contacts. The sync point records exactly one error for each output that fails. An output that fails more than one check still records one error. An output whose entities another failed output skipped already still records its own error.
 

@@ -178,7 +178,8 @@ public class CharacterOrbitHandOffTests
 
         run.Entry.From.Should().Be(run.Earth);
         run.Entry.To.Should().Be(run.Ship);
-        // The person enters the bubble of 100 m on its first touch. Its radius is 0.9 m.
+        // The person enters the bubble of 100 m on its first touch. Its bounding sphere, which the hand-off uses, has a
+        // radius of 0.9 m. The capsule's own radius is 0.3 m.
         run.Entry.Pose.Position.Length.Should().BeInRange(100, 101.5);
         // It drifts forward at 3 m/s relative to the ship: along the ship's -Z.
         Vector3.Distance(run.Entry.LinearVelocity, new Vector3(0, 0, -3)).Should().BeLessThan(0.05f);

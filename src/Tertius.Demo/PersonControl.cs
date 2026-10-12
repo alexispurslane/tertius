@@ -18,13 +18,13 @@ namespace Tertius.Demo;
 /// <remarks>
 /// <para>Only a teleport turns a character, and a teleport skips the sweep that keeps the character out of walls. So the
 /// body does not turn: the turn lives in this component and in the view offset. The walk goes along the entity's own
-/// axes, turned by the turn of the view about the entity's +Y. While ground supports the person under gravity, physics
+/// axes, turned by the turn of the view about the entity's +Y. While the person touches anything under gravity, physics
 /// keeps that +Y against the effective gravity at the person, so the walk stays along the floor, and looking up or down
 /// does not tip it.</para>
 /// <para>A character that physics does not stand on walkable ground counts as weightless: in the air, on steep ground,
 /// where no gravity acts, or in free fall round a planet. (User) Physics keeps its momentum, gravity and forces change
-/// it, and a walk or a jump does not move it. Its up turns only while ground supports it under gravity, so in free fall it keeps
-/// its last up. There the person drifts or falls until a thrust changes its velocity. The person reads
+/// it, and a walk or a jump does not move it. Its up turns only while it touches anything under gravity, so in free
+/// fall it keeps its last up. There the person drifts or falls until a thrust changes its velocity. The person reads
 /// <see cref="BodyHandle.Standing"/>, which physics reports for the step of the previous tick. So its thrusters start
 /// and stop a tick late. The walk and the jump do not wait for the report: the person asks for the walk on every tick
 /// and for a jump on each press, and physics applies them only in the steps in which it stands the person.</para>
