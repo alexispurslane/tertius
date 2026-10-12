@@ -26,3 +26,9 @@ Write docs/plans/queries-and-sensors.md for the epic ter-1yed. Design each open 
 
 docs/plans/queries-and-sensors.md exists, the user approved each of its decisions, and each child ticket of ter-1yed names its section.
 
+
+## Notes
+
+**2026-10-12T00:04:33Z**
+
+The user proposes a small query language over all entities, in the fluent style of LINQ: for example With<Flammable>().Without<Wet>(), built once and then run many times with no allocation. Design it here with ter-gj55. Points to settle: a query runs on the snapshot of the previous tick, not on the live EntityTable, so that workers can run it during a tick without a race. A query that scans every entity costs O(entities) per run, so the builder picks an index first (the record of component types, the spatial grid, or a frame's members) and tests the other filters on each candidate. Run returns a ref struct enumerator, as EventList.Of does, in entity index order. The same filter object can also filter ray casts, overlaps and sensors.
