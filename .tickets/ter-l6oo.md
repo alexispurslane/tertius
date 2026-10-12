@@ -1,13 +1,14 @@
 ---
 id: ter-l6oo
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-11T23:58:26Z
 type: bug
-priority: 2
+priority: 1
 assignee: Alexis Purslane
-tags: [physics, characters]
+parent: ter-dtw2
+tags: [physics, characters, slice]
 ---
 # A person who drifts out of the ship's bubble loses all control
 
@@ -21,3 +22,9 @@ Design to decide: a character in the air with no support counts as weightless wh
 
 A person who drifts past the ship's bubble can still thrust, and comes back into the ship's frame under its own control, or the design records why it cannot.
 
+
+## Notes
+
+**2026-10-12T00:39:04Z**
+
+Moved into the vertical slice at P1, at the user's request: the hand-off from the ship's frame to its parent is the slice's big test. A trace (2026-10-11) confirmed the bug: the person left the ship's frame at about 103 m, the hand-off kept its position and its 3.14 m/s drift, and its up turned by only 0.001, but holding S in earth changed nothing.
