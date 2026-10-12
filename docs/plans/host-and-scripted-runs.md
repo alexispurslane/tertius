@@ -142,7 +142,7 @@ where
 
 So an event that the record puts after `n` ticks is handled during the tick that starts from `n + 1` completed ticks. A script has the same rule for a `post` step after `n` ticks.
 
-- The change costs less than one tick of delay, and only for an event that arrives during a tick. Before it, such an event joined the routing at the end of that tick. Now it joins one tick later. A session is the same with or without `--record`, because the recording does not change how the input reaches the world.
+- The change costs exactly one tick of delay, about 17 ms at `--speed 1`, and only for an event that arrives during a tick. Before it, such an event joined the routing at the end of that tick. Now it joins one tick later. A session is the same with or without `--record`, because the recording does not change how the input reaches the world.
 - The command writes the file when the window closes, whether you press Esc or close the window with the mouse. It also writes the file when the run ends for another reason that it can handle: an exception on the simulation thread or the render thread, and Ctrl-C, SIGTERM or SIGHUP in the terminal. The first of these signals closes the window. A second one takes its normal action, so a window that does not close can still be ended. A process that is killed with SIGKILL, or that crashes, leaves no file.
 - The record ends at the last tick that completed. If a tick throws, the tick is not in the record. To run that tick again, add a `run` step of 1 tick at the end.
 - Input that was queued but not yet posted when the window closed is not in the record, because the game never received it.
