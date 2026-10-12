@@ -44,3 +44,7 @@ The entity query uses the shared words (User): With<T>(), Without<T>(), Where, I
 **2026-10-12T00:18:00Z**
 
 The query has a stored form (see the note of ter-ziae): EntityQuery, run with Snapshot.Find(query, around), returning a ref struct run. snapshot.Entities.With<T>() stays as the shorthand chain, with no filter code of its own.
+
+**2026-10-12T00:23:33Z**
+
+See the note of ter-ziae on the user's query design: a value-type query with With and Without masks, an optional heap object for frames, radii and predicates, and four open questions. The record of component types that this ticket publishes is the per-entity mask that the query tests, possibly interned behind a component set id.
