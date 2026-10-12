@@ -52,7 +52,8 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
     /// <summary>
     /// Rotates a vector by this quaternion as if it were normalized first, for a quaternion that is not unit length. The
     /// result equals that of <c>Normalized().Rotate(v)</c>, but it takes a division and no square root, so
-    /// <see cref="DPose.Compose"/> can use it in the hot loop of a render snapshot. The zero quaternion, which has no
+    /// <see cref="DPose.Compose"/> stays cheap. Even that division shows on the hot loop of a render snapshot, which uses
+    /// <see cref="DPose.ComposeUnitParent"/> for parents that are unit length already. The zero quaternion, which has no
     /// direction, and a quaternion whose length is not a number leave the vector as it is, as <see cref="Normalized"/> turns
     /// them into the identity.
     /// </summary>

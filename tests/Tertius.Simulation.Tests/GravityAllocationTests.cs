@@ -44,14 +44,21 @@ public class GravityAllocationTests
             foreach (FrameHandle frame in frames)
                 test.World.Frames.EffectiveGravity(frame, warm % 2 == 0 ? inside : outside);
 
+        const int rounds = 10_000;
         Vector3 total = Vector3.Zero;
         long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 10_000; i++)
+        for (int i = 0; i < rounds; i++)
             foreach (FrameHandle frame in frames)
                 total += test.World.Frames.EffectiveGravity(frame, i % 2 == 0 ? inside : outside);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
-        allocated.Should().Be(0, "physics reads the effective gravity of every awake body at every step");
+        // The test counts the bytes per call, as AllocationTests counts them per tick, and not the bytes in all. While the loop
+        // runs, the runtime can compile a hot method again, and the allocation of that one compilation lands on the thread that
+        // called the method. That happens once, so it does not grow with the number of calls. An allocation in the method itself
+        // happens at every call, so it gives at least 1 byte per call. A single compilation then does not fail the test, and a
+        // method that allocates at every call does.
+        long perCall = allocated / (rounds * frames.Length);
+        perCall.Should().Be(0, "physics reads the effective gravity of every awake body at every step");
         total.Should().NotBe(Vector3.Zero, "the fields did pull, so the loop did read them");
     }
 

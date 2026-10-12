@@ -49,6 +49,8 @@ public record struct Pose(Vector3 Position, Quaternion Rotation) : IPose<Pose>
 /// is a little off unit length, such as a float quaternion from Jolt. <see cref="TransformPoint"/>, <see cref="TransformDirection"/>
 /// and the two inverse transforms use the rotation as it is, for speed. They need a unit rotation, which the frame tree keeps
 /// for the local pose of every frame (see <see cref="FrameTree.AssertInvariants"/>), and which <see cref="Compose"/> gives.
+/// <see cref="ComposeUnitParent"/> is <see cref="Compose"/> without the normalization of the parent's rotation, for a hot
+/// path where the parent is unit length already.
 /// <para>
 /// <c>new DPose()</c>, and so <c>new DPose { Position = p }</c>, has the identity rotation. The default value of the struct,
 /// <c>default(DPose)</c>, skips every constructor, so its rotation is zero, which is not a rotation: spawn refuses it.
@@ -81,6 +83,27 @@ public record struct DPose(Double3 Position, DQuaternion Rotation) : IPose<DPose
     public static DPose Compose(in DPose parent, in DPose local) => new(
         parent.Position + parent.Rotation.RotateNormalizing(local.Position),
         (parent.Rotation * local.Rotation).Normalized());
+
+    /// <summary>
+    /// <see cref="Compose"/> for a <paramref name="parent"/> whose rotation is unit length (see <see cref="DQuaternion.IsUnit"/>).
+    /// It rotates the position of the child by the rotation of the parent as it is, and so it skips the division that
+    /// <see cref="Compose"/> needs to normalize that rotation. Use it on a hot path where the parent is unit length because of
+    /// where it came from, such as a pose that <see cref="Compose"/> gave, or the local pose of a frame. The rotation of the
+    /// result is normalized, as for <see cref="Compose"/>, so it is unit length whatever the rotation of <paramref name="local"/>.
+    /// <para>
+    /// A parent that is within <see cref="DQuaternion.UnitTolerance"/> of unit length counts as unit length. The position of the
+    /// result then differs from that of <see cref="Compose"/> by at most the length of the child's position times that
+    /// tolerance. A parent that is not unit length is a bug in the caller: a build with contracts refuses it, and another build
+    /// moves the position of the child by a vector that is longer or shorter than it should be.
+    /// </para>
+    /// </summary>
+    internal static DPose ComposeUnitParent(in DPose parent, in DPose local)
+    {
+        Contract.Requires(parent.Rotation.IsUnit);
+        return new(
+            parent.Position + parent.Rotation.Rotate(local.Position),
+            (parent.Rotation * local.Rotation).Normalized());
+    }
 
     /// <summary>
     /// The pose that undoes this one. A rotation that is not unit length acts as its normalized rotation does, in the

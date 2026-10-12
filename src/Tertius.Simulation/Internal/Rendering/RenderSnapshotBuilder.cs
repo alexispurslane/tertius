@@ -315,7 +315,9 @@ internal sealed class RenderSnapshotBuilder
             if (render.Light.Enabled)
             {
                 ref readonly LightData light = ref render.Light;
-                DPose pose = DPose.Compose(current, Poses.Safe(light.Offset).ToDPose());
+                // The rotation of current is unit length, because TryGetRenderPoses gives the pose of a frame or the result of
+                // ComposeUnitParent.
+                DPose pose = DPose.ComposeUnitParent(current, Poses.Safe(light.Offset).ToDPose());
                 ref RenderLight output = ref lights.AddRef();
                 output = new RenderLight
                 {
@@ -368,11 +370,16 @@ internal sealed class RenderSnapshotBuilder
         }
         dense = denseOfFrame[row.Frame.Index];
         place = row.Pose.Position.ToVector3();
-        current = DPose.Compose(relCurrent[dense], row.Pose);
+        // The parent of each composition is the pose of a frame relative to the camera frame. ComputeRelativeTo gives the identity
+        // or a result of DPose.Compose for it, and Compose normalizes the rotation of its result, so the parent is unit length.
+        // The rotation of the entity's own pose is not always, because a program wrote it or Jolt gave it, and the result is
+        // normalized in any case. ComposeUnitParent skips the division that DPose.Compose spends on every entity to normalize
+        // the parent. In a build with contracts, it checks that the parent is unit length.
+        current = DPose.ComposeUnitParent(relCurrent[dense], row.Pose);
         previous = current;
         ref PoseMemory last = ref lastEntityPose[entity];
         if (renderInterpolate && last.Stamp == buildStamp - 1 && FrameSeen(last.Frame))
-            previous = DPose.Compose(relPrevious[denseOfFrame[last.Frame.Index]], last.Pose);
+            previous = DPose.ComposeUnitParent(relPrevious[denseOfFrame[last.Frame.Index]], last.Pose);
         last = new PoseMemory { Pose = row.Pose, Frame = row.Frame, Stamp = buildStamp };
         return true;
     }
