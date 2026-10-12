@@ -16,5 +16,5 @@ Design: docs/plans/numeric-frames.md. Step 1 of the order of the work. The row f
 
 ## Acceptance Criteria
 
-Every suite passes in Debug and Release. A body set to 7,672.123456 m/s reads back the same value to 1e-6 m/s. No gameplay surface changes its frames.
+Every suite passes in Debug and Release. A Double3 velocity set or spawned in self.Frame reads back through VelocityIn. (The 7,672.123456 m/s precision test belongs to ter-jng0, because it needs a numeric frame.) No gameplay surface changes its frames.
 
