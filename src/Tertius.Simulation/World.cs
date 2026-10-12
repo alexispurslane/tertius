@@ -306,9 +306,9 @@ public sealed partial class World : IDisposable
                 Contract.Invariant(!own.IsNull && Frames.Parent(own).IsNull);
             else
                 Contract.Invariant(Frames.IsAlive(row.Frame) && topics.MembersOf(row.Frame).BinarySearch(entity) >= 0);
-            // The physics home is the row frame or a numeric frame below it.
+            // The physics home is the row frame or a numeric frame below it, whose semantic frame is the row frame.
             Contract.Invariant(row.PhysicsHome == row.Frame ||
-                (!row.Frame.IsNull && Frames.IsAlive(row.PhysicsHome) && Frames.IsAncestorOf(row.Frame, row.PhysicsHome)));
+                (!row.Frame.IsNull && Frames.IsAlive(row.PhysicsHome) && Frames.SemanticOf(row.PhysicsHome) == row.Frame));
             if (!own.IsNull)
             {
                 Contract.Invariant(Frames.IsAlive(own) && own.Entity == entity);
@@ -322,6 +322,9 @@ public sealed partial class World : IDisposable
         for (int i = 0; i < Frames.Count; i++)
         {
             FrameHandle frame = Frames.AtDense(i);
+            // A numeric frame has no owner and no topic: nothing public can name it.
+            if (Frames.IsNumeric(frame))
+                continue;
             Contract.Invariant(entities.IsAlive(frame.Entity) && entities.OwnedFrame(frame.Entity) == frame && topics.IsLive(frame));
         }
         Frames.AssertInvariants();

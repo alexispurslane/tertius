@@ -111,7 +111,7 @@ public sealed partial class JoltPhysicsBackend
             if (world.Members.Count == 0)
                 continue;
             FrameHandle frame = world.Frame;
-            FrameHandle parent = ParentOf(frame);
+            FrameHandle parent = BubbleParentOf(frame);
             FrameBounds bounds = frames.Bounds(frame);
             List<FrameHandle> children = ChildrenOf(frame);
             PrepareChildMotions(children);
@@ -148,8 +148,9 @@ public sealed partial class JoltPhysicsBackend
                 {
                     FrameHandle child = children[i];
                     // A hull never enters its own frame. The other children are its frame's siblings, never frames
-                    // inside it: every hull starts the step in the system of its frame's parent in the tree.
-                    if (child == member.OwnedFrame)
+                    // inside it: every hull starts the step in the system of its frame's parent in the tree. A numeric
+                    // frame has no bubble: only the engine moves bodies into it.
+                    if (child == member.OwnedFrame || frames.IsNumeric(child))
                         continue;
                     FrameBounds childBounds = frames.Bounds(child);
                     if (member.IsHull && !FrameBounds.Fits(frames.Bounds(member.OwnedFrame), childBounds))
@@ -207,6 +208,13 @@ public sealed partial class JoltPhysicsBackend
         output.HandOffs.Add(new HandOff(record.Entity, plan.From, plan.To, pose, plan.LinearVelocity, plan.AngularVelocity));
     }
 
+    /// <summary>
+    /// The parent that the members of <paramref name="frame"/> leave into when they leave its bubble, and where they get
+    /// ghosts: its parent, or null for a root frame and for a numeric frame. A numeric frame has no bubble, so its members
+    /// never leave it by a hand-off: only the engine moves them out.
+    /// </summary>
+    private FrameHandle BubbleParentOf(FrameHandle frame) => frames.IsNumeric(frame) ? FrameHandle.Null : ParentOf(frame);
+
     /// <summary>Records that a frame has a new parent for the rest of the step. The sync point decides whether the tree takes it.</summary>
     private void MoveFrame(FrameHandle frame, FrameHandle from, FrameHandle to)
     {
@@ -238,7 +246,7 @@ public sealed partial class JoltPhysicsBackend
             if (world.Members.Count == 0)
                 continue;
             FrameHandle frame = world.Frame;
-            FrameHandle parent = ParentOf(frame);
+            FrameHandle parent = BubbleParentOf(frame);
             FrameBounds bounds = frames.Bounds(frame);
             List<FrameHandle> children = ChildrenOf(frame);
             PrepareChildMotions(children);
@@ -281,7 +289,7 @@ public sealed partial class JoltPhysicsBackend
                     for (int i = 0; i < siblings.Count; i++)
                     {
                         FrameHandle sibling = siblings[i];
-                        if (sibling == frame || sibling == member.OwnedFrame)
+                        if (sibling == frame || sibling == member.OwnedFrame || frames.IsNumeric(sibling))
                             continue;
                         if (!haveSiblingMotions)
                         {
@@ -302,7 +310,7 @@ public sealed partial class JoltPhysicsBackend
                 for (int i = 0; i < children.Count; i++)
                 {
                     FrameHandle child = children[i];
-                    if (child == member.OwnedFrame)
+                    if (child == member.OwnedFrame || frames.IsNumeric(child))
                         continue;
                     FrameMotion motion = childMotions[i];
                     if (frames.Bounds(child).SignedDistance(motion.Pose.InverseTransformPoint(center)) > reach)
@@ -362,8 +370,8 @@ public sealed partial class JoltPhysicsBackend
         FrameHandle home = record.Frame;
         if (home.IsNull || frame == home || frame == record.OwnedFrame || !frames.IsAlive(frame))
             return false;
-        FrameHandle homeParent = frames.Parent(home);
-        FrameHandle frameParent = frames.Parent(frame);
+        FrameHandle homeParent = frames.TreeParent(home);
+        FrameHandle frameParent = frames.TreeParent(frame);
         return frame == homeParent || frameParent == home || (!homeParent.IsNull && frameParent == homeParent);
     }
 
@@ -405,7 +413,8 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Reports every awake dynamic or kinematic body and every character, and the state of every character. A body that
     /// fell asleep during the step gets one more report, so that the simulation sees its resting pose and zero
-    /// velocity. The hand-offs of the step are done, so a character that a hand-off moved reports from its new frame,
+    /// velocity. Every body in a falling numeric frame, apart from a hull, reports in every step, because its place in its
+    /// semantic frame changes while it sleeps. The hand-offs of the step are done, so a character that a hand-off moved reports from its new frame,
     /// where it has not stood yet.
     /// </summary>
     private void WriteBodies(PhysicsStepOutput output)
@@ -435,6 +444,11 @@ public sealed partial class JoltPhysicsBackend
             foreach (BodyRecord record in world.ReportedLast)
                 if (record.ReportedStep != stepIndex && record.World == world && Find(record.Entity) == record)
                     Report(world, record, output, track: false);
+            // A falling numeric frame moves, so its sleeping and static members move in its semantic frame too.
+            if (frames.Numeric(world.Frame) == NumericMode.Falling)
+                foreach (BodyRecord member in world.Members)
+                    if (member.ReportedStep != stepIndex && !member.IsHull)
+                        Report(world, member, output, track: false);
         }
     }
 

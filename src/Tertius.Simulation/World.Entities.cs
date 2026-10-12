@@ -679,15 +679,25 @@ public sealed partial class World
 
     // ---- Frames, membership and topics ----------------------------------------------------------------------------
 
-    /// <summary>The pose, velocities and parent of a frame, as the owner's transform row.</summary>
-    private TransformRow FrameOwnerRow(FrameHandle frame) => new()
+    /// <summary>
+    /// The pose, velocities and parent of a frame, as the owner's transform row. The hull of a frame lives in the system of
+    /// the frame's tree parent, so that parent is the owner's physics home, and the row frame is its semantic frame. The
+    /// pose moves from the home into the row frame in doubles. The velocity stays relative to the home.
+    /// </summary>
+    private TransformRow FrameOwnerRow(FrameHandle frame)
     {
-        Frame = Frames.Parent(frame),
-        PhysicsHome = Frames.Parent(frame),
-        Pose = Frames.LocalPose(frame),
-        LinearVelocity = Frames.LinearVelocity(frame).ToVector3(),
-        AngularVelocity = Frames.AngularVelocity(frame),
-    };
+        FrameHandle home = Frames.TreeParent(frame);
+        FrameHandle semantic = home.IsNull ? home : Frames.SemanticOf(home);
+        DPose local = Frames.LocalPose(frame);
+        return new TransformRow
+        {
+            Frame = semantic,
+            PhysicsHome = home,
+            Pose = home == semantic ? local : new DPose(local.Position + Frames.HomeOffset(home, semantic), local.Rotation),
+            LinearVelocity = Frames.LinearVelocity(frame).ToVector3(),
+            AngularVelocity = Frames.AngularVelocity(frame),
+        };
+    }
 
     /// <summary>
     /// Puts a Kepler frame at its place on its orbit at <paramref name="time"/>. The orbit takes its G·M from the point

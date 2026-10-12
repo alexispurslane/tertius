@@ -146,15 +146,17 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Creates the primary body or character of a record in the system of <paramref name="frame"/>. For a character,
     /// <paramref name="upFromGravity"/> says where its up comes from (see <see cref="CreateCharacter"/>). A rigid body
-    /// ignores it.
+    /// ignores it. A rigid body that is not <paramref name="awake"/> starts asleep, as a sleeping body that moves to
+    /// another system does.
     /// </summary>
-    private void CreatePrimary(BodyRecord record, FrameHandle frame, in DPose pose, Vector3 linearVelocity, Vector3 angularVelocity, bool upFromGravity)
+    private void CreatePrimary(BodyRecord record, FrameHandle frame, in DPose pose, Vector3 linearVelocity, Vector3 angularVelocity, bool upFromGravity,
+        bool awake = true)
     {
         FrameWorld world = WorldFor(frame);
         if (record.Motion == BodyMotion.Character)
             record.Character = CreateCharacter(record, world, pose, linearVelocity, upFromGravity);
         else
-            record.Body = CreateRigid(world, PrimarySpec(record), pose, linearVelocity, angularVelocity);
+            record.Body = CreateRigid(world, PrimarySpec(record), pose, linearVelocity, angularVelocity, awake);
         record.Frame = frame;
         record.World = world;
         world.AddMember(record);
@@ -178,6 +180,8 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private (Vector3 Linear, Vector3 Angular) HullVelocityFromTree(BodyRecord record, in DPose pose)
     {
+        // The tree holds the frame's velocity relative to its tree parent, the hull's physics home, so it is the local
+        // velocity already: there is no frame velocity of the home to subtract.
         FrameHandle frame = record.OwnedFrame;
         Vector3 angular = frames.AngularVelocity(frame);
         Double3 centerOffset = pose.TransformDirection(shapes.Get(record.Desc.Shape).CenterOfMass);
@@ -219,12 +223,15 @@ public sealed partial class JoltPhysicsBackend
     private static RigidSpec GhostSpec(BodyRecord record) =>
         new(record.Desc.Shape, record.HasMesh ? MotionType.Static : MotionType.Kinematic, Layers.Ghost, BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc);
 
-    /// <summary>Creates a rigid body in the system of <paramref name="world"/>, which grows first if it is full.</summary>
-    private BodyID CreateRigid(FrameWorld world, in RigidSpec spec, in DPose pose, Vector3 linearVelocity, Vector3 angularVelocity)
+    /// <summary>
+    /// Creates a rigid body in the system of <paramref name="world"/>, which grows first if it is full. A body that moves is
+    /// awake unless <paramref name="awake"/> is false.
+    /// </summary>
+    private BodyID CreateRigid(FrameWorld world, in RigidSpec spec, in DPose pose, Vector3 linearVelocity, Vector3 angularVelocity, bool awake = true)
     {
         EnsureRoom(world);
         using BodyCreationSettings settings = Settings(spec, pose.Position.ToJolt(), pose.Rotation.ToJolt(), linearVelocity, angularVelocity);
-        BodyID id = world.Bodies.CreateAndAddBody(settings, spec.Motion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
+        BodyID id = world.Bodies.CreateAndAddBody(settings, spec.Motion == MotionType.Static || !awake ? Activation.DontActivate : Activation.Activate);
         if (id.IsInvalid)
             throw new InvalidOperationException($"Jolt refused to create a body in {world.Frame}, although its system had room.");
         return id;
@@ -268,8 +275,8 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Creates a character in the system of <paramref name="world"/>, which grows first if it is full. The new
-    /// character has not stood yet. With <paramref name="upFromGravity"/>, up is against the effective gravity when
-    /// that is at least <see cref="FrameTree.ZeroGravityThreshold"/>, or the record's last up below it, and the
+    /// character has not stood yet. With <paramref name="upFromGravity"/>, up is against the gravity of the semantic frame (see
+    /// <see cref="FrameTree.SemanticGravity"/>) when that is at least <see cref="FrameTree.ZeroGravityThreshold"/>, or the record's last up below it, and the
     /// rotation turns to that up. Without it, the character keeps the record's last up and the rotation of
     /// <paramref name="pose"/>, as a character in free fall does.
     /// </summary>
@@ -281,7 +288,8 @@ public sealed partial class JoltPhysicsBackend
         record.Up = Vector3.Normalize(record.Up);
         if (upFromGravity)
         {
-            Vector3 gravity = frames.EffectiveGravity(world.Frame, pose.Position);
+            // Up is against the semantic frame's gravity, which equals the effective gravity outside numeric frames.
+            Vector3 gravity = frames.SemanticGravity(world.Frame, pose.Position);
             float strength = gravity.Length();
             if (strength >= FrameTree.ZeroGravityThreshold)
                 record.Up = -gravity / strength;
@@ -453,7 +461,7 @@ public sealed partial class JoltPhysicsBackend
             return false;
         MotionDriver driver = frames.Driver(owner.OwnedFrame);
         // A root frame has no parent, so its owner has no hull, and only a hull has to follow the driver.
-        if (!frames.Parent(owner.OwnedFrame).IsNull && owner.Desc.FrameHullProblem(driver) is { } problem)
+        if (!frames.TreeParent(owner.OwnedFrame).IsNull && owner.Desc.FrameHullProblem(driver) is { } problem)
         {
             ReportBug($"Physics: {owner.OwnedFrame} has the {driver} driver, but the hull of {owner.Entity} {problem}. " +
                       $"Only a bug gives a frame that driver. The hull keeps the {owner.Driver} driver.");

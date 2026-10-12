@@ -250,8 +250,15 @@ public readonly record struct BodyCreate(
     Vector3 AngularVelocity);
 
 /// <summary>
+/// A body that moves, with its whole state, from its physics home into <see cref="To"/>: a numeric frame below the same
+/// semantic frame, or that semantic frame itself. The simulation has changed the tree first: the frame of a frame owner
+/// is under <see cref="To"/> already, because a hull lives in the system of its frame's tree parent.
+/// </summary>
+internal readonly record struct BodyMove(Entity Entity, FrameHandle To);
+
+/// <summary>
 /// The structural changes of one sync point. Physics applies them in this order: <see cref="BodiesDestroyed"/>,
-/// <see cref="FramesDestroyed"/>, <see cref="BodiesCreated"/>. <see cref="FramesCreated"/> is informational: a
+/// <see cref="FramesDestroyed"/>, <see cref="BodiesMoved"/>, <see cref="BodiesCreated"/>. <see cref="FramesCreated"/> is informational: a
 /// frame's physics system can be created lazily with its first body. A body that moves between frames outside a
 /// hand-off appears in <see cref="BodiesDestroyed"/> and then in <see cref="BodiesCreated"/> in the same batch.
 /// </summary>
@@ -265,6 +272,12 @@ public sealed class PhysicsChanges
     public readonly List<BodyCreate> BodiesCreated = new();
     /// <summary>Frames created at this sync point.</summary>
     public readonly List<FrameHandle> FramesCreated = new();
+    /// <summary>
+    /// Bodies that move between the systems of one semantic frame and its numeric frames, as groups: every pair of moved
+    /// bodies that touch and go to the same frame keeps touching, so its contact is not reported again. Sleeping bodies
+    /// stay asleep. Numeric frames are an engine detail, so only the engine fills it.
+    /// </summary>
+    internal readonly List<BodyMove> BodiesMoved = new();
 
     /// <summary>
     /// Filled by <see cref="IPhysicsBackend.ApplyChanges"/>: one message for each state that only a bug produces, which the
@@ -278,6 +291,7 @@ public sealed class PhysicsChanges
         FramesCreated.Clear();
         BodiesDestroyed.Clear();
         FramesDestroyed.Clear();
+        BodiesMoved.Clear();
         BodiesCreated.Clear();
         Errors.Clear();
     }

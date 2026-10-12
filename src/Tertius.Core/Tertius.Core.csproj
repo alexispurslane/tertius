@@ -8,5 +8,9 @@
          tests stand in for the simulation. -->
     <InternalsVisibleTo Include="Tertius.Simulation" />
     <InternalsVisibleTo Include="Tertius.Physics.Tests" />
+    <!-- Numeric frames are hidden from the public tree. Physics reads the tree as it is stored (FrameTree.TreeParent). -->
+    <InternalsVisibleTo Include="Tertius.Physics" />
+    <!-- The state dump tests make a numeric frame, whose mode is internal. -->
+    <InternalsVisibleTo Include="Tertius.Host.Tests" />
   </ItemGroup>
 </Project>

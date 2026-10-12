@@ -90,7 +90,8 @@ public sealed partial class JoltPhysicsBackend
         {
             record.World!.WakeAround(id);
             bodies.SetRPositionAndRotation(id, InHome(record, intent.TeleportPose.Position).ToJolt(), intent.TeleportPose.Rotation.ToJolt(), Activation.Activate);
-            bodies.SetLinearAndAngularVelocity(id, Vector3.Zero, Vector3.Zero);
+            // At rest in the semantic frame, which is not at rest in a falling numeric home.
+            bodies.SetLinearAndAngularVelocity(id, LocalVelocity(record, Double3.Zero), Vector3.Zero);
         }
         if ((flags & IntentFlags.SetVelocity) != 0)
         {
@@ -105,7 +106,8 @@ public sealed partial class JoltPhysicsBackend
         if ((flags & IntentFlags.KinematicTarget) != 0)
         {
             DQuaternion rotation = intent.Target.Rotation.Normalized();
-            Double3 target = InHome(record, intent.Target.Position);
+            // The body reaches the target at the end of the step, where a falling numeric home will be by then.
+            Double3 target = intent.Target.Position - HomeOffsetAfterStep(record.Frame);
             if (record.Motion == BodyMotion.Kinematic)
             {
                 bodies.MoveKinematic(id, target.ToJolt(), rotation.ToJolt(), stepDt);
@@ -147,7 +149,7 @@ public sealed partial class JoltPhysicsBackend
             world.WakeAround(character.InnerBodyID);
             character.RPosition = InHome(record, intent.TeleportPose.Position).ToJolt();
             character.Rotation = intent.TeleportPose.Rotation.ToJolt();
-            character.LinearVelocity = Vector3.Zero;
+            character.LinearVelocity = LocalVelocity(record, Double3.Zero);
             record.PendingVelocityChange = Vector3.Zero;
             world.WakeAround(character.InnerBodyID);
         }
@@ -167,9 +169,10 @@ public sealed partial class JoltPhysicsBackend
     /// Jolt's float local velocity for <paramref name="velocity"/>, which is relative to the body's semantic frame: the
     /// velocity minus the frame velocity of the body's physics home relative to that frame. Physics calls it at the moment
     /// that it applies a request or creates a body, so it uses the home of that moment. The home is the frame whose
-    /// system holds the body. No frame is numeric yet, so the semantic frame is the home itself.
+    /// system holds the body, and the semantic frame is its nearest ancestor that is not numeric, or the home itself.
+    /// The subtraction is in doubles, so only the small local velocity narrows to a float.
     /// </summary>
-    private Vector3 LocalVelocity(FrameHandle home, Double3 velocity) => (velocity - frames.HomeVelocity(home, semantic: home)).ToVector3();
+    private Vector3 LocalVelocity(FrameHandle home, Double3 velocity) => (velocity - frames.HomeVelocity(home, frames.SemanticOf(home))).ToVector3();
 
     private Vector3 LocalVelocity(BodyRecord record, Double3 velocity) => LocalVelocity(record.Frame, velocity);
 
@@ -177,7 +180,13 @@ public sealed partial class JoltPhysicsBackend
     /// <paramref name="position"/>, which is in the coordinates of the body's semantic frame, in the coordinates of its
     /// physics home. See <see cref="LocalVelocity(FrameHandle, Double3)"/>.
     /// </summary>
-    private Double3 InHome(FrameHandle home, Double3 position) => position - frames.HomeOffset(home, semantic: home);
+    private Double3 InHome(FrameHandle home, Double3 position) => position - frames.HomeOffset(home, frames.SemanticOf(home));
+
+    /// <summary>
+    /// The offset that <see cref="InHome(FrameHandle, Double3)"/> subtracts, where the numeric frames of the home will be
+    /// at the end of the current step.
+    /// </summary>
+    private Double3 HomeOffsetAfterStep(FrameHandle home) => frames.HomeOffsetAfter(home, frames.SemanticOf(home), stepDt);
 
     private Double3 InHome(BodyRecord record, Double3 position) => InHome(record.Frame, position);
 
@@ -345,7 +354,8 @@ public sealed partial class JoltPhysicsBackend
     private void UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
     {
         float dt = stepDt;
-        Vector3 gravity = frames.EffectiveGravity(world.Frame, character.RPosition.ToDouble3());
+        Double3 position = character.RPosition.ToDouble3();
+        Vector3 gravity = frames.EffectiveGravity(world.Frame, position);
         float strength = gravity.Length();
         bool underGravity = strength >= FrameTree.ZeroGravityThreshold;
         // The ground state comes from the last update. Any touch counts, also on steep ground and on the head or the
@@ -353,9 +363,13 @@ public sealed partial class JoltPhysicsBackend
         GroundState groundState = character.GroundState;
         bool touching = groundState != GroundState.InAir;
         Vector3 up = record.Up;
-        if (underGravity && touching)
+        // Up is against the semantic frame's gravity, which in a falling numeric frame is far stronger than the effective
+        // gravity. In a semantic frame the two are the same.
+        Vector3 semanticGravity = frames.SemanticGravity(world.Frame, position);
+        float semanticStrength = semanticGravity.Length();
+        if (semanticStrength >= FrameTree.ZeroGravityThreshold && touching)
         {
-            up = -gravity / strength;
+            up = -semanticGravity / semanticStrength;
             if (Vector3.DistanceSquared(up, record.Up) > 1e-12f)
             {
                 character.Up = up;

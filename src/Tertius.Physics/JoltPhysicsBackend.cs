@@ -137,6 +137,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                     ChangeFailed($"destroy the system of {frame}", ex);
                 }
             }
+            // Moves come before the reconcile: the tree already has each moved hull's frame under its new home, and the
+            // move keeps the hull's state, which a reconcile would take from the tree.
+            ApplyMoves(changes.BodiesMoved);
             ReconcileFrames();
             foreach (BodyCreate create in changes.BodiesCreated)
             {
@@ -429,7 +432,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     {
         if (parentOverrides.TryGetValue(frame.Index, out var link) && link.Frame == frame)
             return link.Parent;
-        return frames.Parent(frame);
+        return frames.TreeParent(frame);
     }
 
     private List<FrameHandle> ChildrenOf(FrameHandle frame) =>
@@ -445,7 +448,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         usedChildLists.Clear();
 
         frameScratch.Clear();
-        frames.GetAll(frameScratch);
+        frames.GetAllInTree(frameScratch);
         foreach (FrameHandle frame in frameScratch)
         {
             FrameHandle parent = ParentOf(frame);
@@ -514,7 +517,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // The hull's motion follows the frame's driver, and its system follows the frame's parent. A hull that moves
             // to another system has its new motion there from the start. Either way it starts from the tree.
             bool newDriver = FollowDriver(owner);
-            FrameHandle parent = frames.Parent(owner.OwnedFrame);
+            FrameHandle parent = frames.TreeParent(owner.OwnedFrame);
             if (owner.Frame != parent)
                 PlaceHullFromTree(owner, parent);
             else if (newDriver && owner.HasPrimary)
@@ -586,7 +589,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         foreach (BodyRecord owner in frameOwners)
         {
             Contract.Invariant(frames.IsAlive(owner.OwnedFrame));
-            FrameHandle parent = frames.Parent(owner.OwnedFrame);
+            FrameHandle parent = frames.TreeParent(owner.OwnedFrame);
             if (parent.IsNull)
                 Contract.Invariant(!owner.HasPrimary);
             else
@@ -670,7 +673,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 // made it a root) and converted its pose and velocities, so the hull takes them from the tree as they
                 // are. Physics converts nothing itself: the tree's conversion is the only one, so the destroyed
                 // frame's motion counts once and the hull and the tree agree.
-                PlaceHullFromTree(member, frames.Parent(member.OwnedFrame));
+                PlaceHullFromTree(member, frames.TreeParent(member.OwnedFrame));
             }
             else
             {

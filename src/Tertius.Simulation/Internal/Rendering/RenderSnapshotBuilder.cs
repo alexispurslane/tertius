@@ -211,7 +211,8 @@ internal sealed class RenderSnapshotBuilder
         for (int i = 0; i < n; i++)
         {
             FrameHandle frame = denseFrames[i];
-            FrameHandle parent = frames.Parent(frame);
+            // The local poses are relative to the parent in the tree as it is stored, numeric frames included.
+            FrameHandle parent = frames.TreeParent(frame);
             DPose local = locals[i];
             // A frame that is new, or that changed parent, has no usable previous local pose.
             bool known = lastFrameStamp[frame.Index] == stamp - 1 && lastFrameHandle[frame.Index] == frame && lastFrameParent[frame.Index] == parent;

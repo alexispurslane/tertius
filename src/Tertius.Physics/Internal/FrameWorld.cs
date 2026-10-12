@@ -375,6 +375,35 @@ internal sealed class FrameWorld : IDisposable
         }
     }
 
+    /// <summary>
+    /// Adds to <paramref name="pairs"/> every pair of this system, touching or held, whose two bodies are both in
+    /// <paramref name="bodies"/>, by full ID. A group of bodies that moves to another system together takes these pairs
+    /// with it (see <see cref="Hold"/>). Call it between updates, after the contacts are drained.
+    /// </summary>
+    public void PairsAmong(HashSet<uint> bodies, List<ulong> pairs)
+    {
+        lock (contactGate)
+        {
+            Contract.Requires(added.Count == 0 && removed.Count == 0);
+            foreach (ulong key in touching.Keys)
+                if (bodies.Contains((uint)(key >> 32)) && bodies.Contains((uint)key))
+                    pairs.Add(key);
+            foreach (ulong key in held)
+                if (bodies.Contains((uint)(key >> 32)) && bodies.Contains((uint)key))
+                    pairs.Add(key);
+        }
+    }
+
+    /// <summary>
+    /// Holds the pair of two bodies that came into this system together while they touched, so that Jolt finding their
+    /// contact continues it instead of starting it. The pair ends as <see cref="HeldPairEnded"/> says.
+    /// </summary>
+    public void Hold(BodyID a, BodyID b)
+    {
+        lock (contactGate)
+            held.Add(PairKey(a, b));
+    }
+
     /// <summary>Forgets every contact of a body that leaves the system, touching or held.</summary>
     public void ForgetContacts(BodyID body)
     {

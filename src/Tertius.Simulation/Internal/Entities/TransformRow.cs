@@ -11,8 +11,8 @@ internal struct TransformRow
     public FrameHandle Frame;
     /// <summary>
     /// The frame whose physics system holds the entity's body: <see cref="Frame"/> or a numeric frame below it. An entity
-    /// without a body has the home of what moves it, which is <see cref="Frame"/> unless it is attached. No frame is
-    /// numeric yet, so today the home is always <see cref="Frame"/>.
+    /// without a body has the home of what moves it, which is <see cref="Frame"/> unless it is attached. The row
+    /// frame is always the home's semantic frame (see <c>FrameTree.SemanticOf</c>).
     /// </summary>
     public FrameHandle PhysicsHome;
     /// <summary>The pose in <see cref="Frame"/>.</summary>

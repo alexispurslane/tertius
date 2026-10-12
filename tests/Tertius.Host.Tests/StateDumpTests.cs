@@ -31,6 +31,23 @@ public class StateDumpTests
     }
 
     [Fact]
+    public void ADumpShowsOnlySemanticFramesWhileABodyIsInANumericFrame()
+    {
+        using World world = NewJoltWorld();
+        SceneInstance scene = BoxOnFloor(world);
+        world.Frames.TryGetFrame(scene["ground"], out FrameHandle ground).Should().BeTrue();
+        FrameHandle numeric = world.CreateNumericFrame(ground, new Double3(2, 0, 0), Double3.Zero, NumericMode.Resting);
+        world.MoveBodies([scene["box"]], numeric);
+
+        StateDump dump = Run(world, scene, DumpNow).Dump("now");
+
+        dump.Frames.Select(record => record.Id).Should().Equal("ground");
+        dump.Entity("box").Pose.Frame.Should().Be("ground");
+        dump.Entity("box").Pose.Position.Should().Be(new Double3(0, 1.5, 0));
+        dump.Entity("box").RootPose.Frame.Should().Be("ground");
+    }
+
+    [Fact]
     public void ADumpHoldsAnEntitysPoseInTheRootFrameOfItsTree()
     {
         using World world = NewWorld();

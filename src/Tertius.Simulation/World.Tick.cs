@@ -66,6 +66,8 @@ public sealed partial class World
         // Spawns and destroys made outside the tick reach physics before the step that may touch them.
         FlushPhysicsChanges();
         Frames.Update();
+        // The falling numeric frames fix their accelerations for the step, which physics reads and the sync point follows.
+        Frames.BeginNumericStep();
         entities.BeginTick(options.SpawnPoolSize);
     }
 
@@ -74,7 +76,7 @@ public sealed partial class World
     {
         PhysicsChanges changes = physicsChanges;
         if (changes.FramesCreated.Count == 0 && changes.BodiesDestroyed.Count == 0 &&
-            changes.FramesDestroyed.Count == 0 && changes.BodiesCreated.Count == 0)
+            changes.FramesDestroyed.Count == 0 && changes.BodiesMoved.Count == 0 && changes.BodiesCreated.Count == 0)
             return;
         try
         {
