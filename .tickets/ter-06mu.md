@@ -1,7 +1,7 @@
 ---
 id: ter-06mu
 status: open
-deps: [ter-fa7j, ter-r90w]
+deps: [ter-fa7j, ter-r90w, ter-ougo]
 links: []
 created: 2026-10-12T22:20:38Z
 type: chore

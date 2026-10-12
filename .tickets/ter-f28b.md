@@ -12,7 +12,7 @@ tags: [physics, frames]
 ---
 # Cluster bodies into numeric frames automatically: create, merge, split, drain and collect
 
-Design: docs/plans/numeric-frames.md. Step 4. Rules and starting values are in the doc: a speed threshold with hysteresis, a merge test that looks ahead in time, a split margin and cooldown, drains in place that count sleepers as zero, and collection. All decisions at the sync point, in a fixed order.
+Design: docs/plans/numeric-frames.md. Step 4. Rules and starting values are in the doc: a speed threshold and a distance threshold, each with hysteresis, that choose a falling or a resting frame, the change between the two modes, a merge test that looks ahead in time, a split margin and cooldown, drains in place that count sleepers as zero, and collection. All decisions at the sync point, in a fixed order.
 
 ## Acceptance Criteria
 

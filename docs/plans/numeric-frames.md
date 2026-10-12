@@ -38,7 +38,8 @@ The user made the decisions marked (User).
 |---|---|---|
 | Where a numeric frame lives | It is a frame in the frame tree, of a numeric kind. (User) | Frames already have the pose tree, a Jolt system each, hand-offs and drivers. A second mechanism must copy all of them. |
 | What gameplay sees | Nothing. No component, script, event, query, snapshot, state dump or saved state can tell that a numeric frame exists, apart from rounding. | The frames carry no meaning. They exist only for precision. |
-| How a numeric frame moves | Integrated free fall in doubles, in the semantic frame's field. (User) | It works in any field, and numeric frames can nest later. A drift from the true orbit is harmless, as the section on motion shows. A Kepler orbit needs new code that turns a state into orbit elements, and it blocks nesting. |
+| What makes a numeric frame | Speed or distance. (User) | Speed keeps Jolt's float velocities small. Distance keeps Jolt's float bounds tight, and through nesting it lets positions grow without bound. |
+| How a numeric frame moves | Integrated free fall in doubles, in the semantic frame's field. (User) A frame made for distance alone rests in its parent. | It works in any field, and numeric frames can nest later. A drift from the true orbit is harmless, as the section on motion shows. A Kepler orbit needs new code that turns a state into orbit elements, and it blocks nesting. |
 | Reads of positions and velocities | Every read names its frame. No read without a frame remains. (User) | A read can be about any entity, so it must say in which frame it wants the answer. No read can then be ambiguous, and what the row stores becomes an engine detail. A caller can name only semantic frames, so no read answers in a numeric frame. |
 | Velocity storage | Jolt's float local velocity, plus the double frame velocity of the physics home. A read adds them in doubles. (User) | Jolt keeps its small float, and reads are exact. |
 | Writes | Relative to `self.Frame`, as today. Physics converts a write at the moment that it applies it. (User) | An entity writes only itself, so its own frame is the natural frame for a write. |
@@ -50,7 +51,14 @@ The user made the decisions marked (User).
 
 ## How a numeric frame moves
 
-A numeric frame falls freely in the field of its semantic frame. Without free fall, the 8.7 m/s² of Earth's gravity at the ship's orbit enters every member's float, and the drains never stop.
+A numeric frame moves in one of two modes, and the speed of its members chooses the mode:
+
+- A falling frame falls freely in the field of its semantic frame. Fast members get one. Without free fall, the 8.7 m/s² of Earth's gravity at the ship's orbit enters every member's float, and the drains never stop.
+- A resting frame stays at one place in its tree parent. Slow members that are far from their home's origin get one. A slow body can rest on something, such as a crate on the ground, so a falling frame is wrong for it. The frame of Earth's surface sits at Earth's center, so a crate on the ground is 6,371 km from its frame's origin. A falling frame there falls away from the ground at 9.8 m/s².
+
+A resting frame whose members become fast turns into a falling frame. Its first frame velocity is the common velocity of its members, as in a drain. A falling frame can also have slow members. If they are still far from the origin of the frame above it, the frame turns into a resting frame. Otherwise it goes away.
+
+A falling frame moves as follows.
 
 The engine steps the frame with the same scheme that Jolt uses for bodies, in doubles:
 
@@ -119,7 +127,14 @@ The poses of intents, such as a kinematic target or a teleport, stay in the sema
 
 ### Who gets a numeric frame
 
-If a body's speed relative to its semantic frame passes a threshold, the body gets a numeric frame. No content flag is needed. Inside the ship, on a planet's surface and in any slow frame, nothing changes.
+A body gets a numeric frame for either of two reasons. No content flag is needed.
+
+- Speed: the body's speed relative to its semantic frame passes a threshold. It gets a falling frame.
+- Distance: the body's distance from the origin of its physics home passes a threshold. It gets a resting frame. If it is also fast, it gets a falling frame.
+
+Distance matters to Jolt even where doubles are fine. Jolt keeps each body's bounds as floats in its system's coordinates. At 6,800 km from the origin, those bounds step by 0.5 m, and at 1 AU by 16 km. Loose bounds make the broadphase test pairs that cannot touch. Jolt's docs put floats at their best within about 5 km of the origin.
+
+Inside the ship and in other small frames, nothing changes.
 
 ### Merge before contact
 
@@ -141,6 +156,16 @@ A sleeping body has a local velocity of exactly zero, and a nonzero velocity wak
 
 A numeric frame with no members goes away. A numeric frame can also become slow relative to its semantic frame. If its speed falls below a second threshold, its members go back to the semantic frame's own system. The frame then goes away.
 
+### Nesting for vast distances
+
+The distance rule also applies to numeric frames. A numeric frame that is farther than a threshold from its tree parent's origin gets a new resting frame above it, near it. So no frame's position in its parent grows large, and every double stays fine-grained.
+
+A resting frame that nests sits on a coarse grid of a power of two meters, for example 2^20 m, which is about 1,049 km. Every multiple of 2^20 m up to about a million light-years is exact in a double. The frame below can drift far from it. The resting frame then jumps by whole grid steps, and the frame below shifts back by the same exact amount.
+
+A read between two nearby entities composes through their lowest common ancestor, as `PoseTree.Relative` does today. So no large number enters the read. Only a read in a distant frame, such as a star's, sums large numbers, and a double then rounds that read at that distance. The render snapshot's `ComputeRelativeTo` needs a look here, because it places frames through a shared root.
+
+At 1 light-year a double steps by 2 m. A frame there that moves tick by tick in its parent rounds by up to 1 m per tick. With nesting, it moves within a frame whose origin is near it.
+
 ### Starting values
 
 These values are guesses. Tests tune them.
@@ -149,6 +174,9 @@ These values are guesses. Tests tune them.
 |---|---|
 | Speed to get a numeric frame | 50 m/s |
 | Speed to give it up | 20 m/s |
+| Distance from the home's origin to get a numeric frame | 10 km |
+| Distance from the tree parent's origin to nest a numeric frame | 10^9 m |
+| Grid of a resting frame that nests | 2^20 m |
 | Lookahead time of the merge test | 2 s |
 | Split margin beyond the merge test | 10 m |
 | Split cooldown | 1 s |
@@ -192,7 +220,7 @@ The public surface reports only semantic frames. The work covers each of these s
 
 - Two bodies that pass each other at kilometers per second share one numeric frame for the encounter. One of them is fast inside it, so the old precision returns for that body during the encounter.
 - Static bodies of a semantic frame stay in its own system. A fast numeric frame that passes one needs a ghost of it, which moves fast relative to the numeric frame. This is the same limit as above.
-- Nested numeric frames, for distances between stars, are not part of this plan. The integrated free fall leaves the way open for them.
+- A read in a distant frame rounds at that distance. An example is the position of a ship near another star, read in the frame of the sun. Reads between nearby entities do not round.
 
 ## Tests
 
@@ -202,6 +230,8 @@ The public surface reports only semantic frames. The work covers each of these s
 - Every gameplay surface in the list above shows the same frames with numeric frames on and off.
 - Two runs with the same input give the same clusters, in the same order.
 - The scripted spacewalk thrusts for several seconds in earth, not only 0.4 s.
+- A crate at rest on a floor 6,371 km from its frame's origin gets a resting frame, and it stays at rest on the floor.
+- A body that drifts a light-year away from its semantic frame's origin keeps millimeter steps relative to a body next to it.
 
 ## Order of the work
 
@@ -210,5 +240,6 @@ The tickets hold the order. In short:
 1. Split the row into a semantic frame and a physics home. Replace every read without a frame by a read in a frame, make velocities `Double3`, and convert writes at apply time. Every body's home is still its semantic frame.
 2. Add numeric frames to the frame tree: ownerless, hidden from the public surface, moved by integrated free fall, with tidal effective gravity in doubles and a Jolt system each.
 3. Move groups of bodies between a semantic frame and its numeric frames, with no events. Move a frame owner's frame under the numeric frame of its hull.
-4. Cluster automatically: create, merge, split, drain and collect.
-5. Close `ter-fa7j` and `ter-r90w` with their scripted runs, and move the decisions into ARCHITECTURE.md.
+4. Cluster automatically: create, merge, split, drain and collect, with resting and falling frames.
+5. Nest numeric frames for vast distances.
+6. Close `ter-fa7j` and `ter-r90w` with their scripted runs, and move the decisions into ARCHITECTURE.md.
