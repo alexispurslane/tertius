@@ -263,12 +263,52 @@ public sealed class PersonControlTests : IDisposable
     public void SpaceMakesAStandingPersonJump()
     {
         double standing = world.Snapshot.PoseOf(person).Position.Y;
+        // Space goes up at once, so that its thrust does not add to the jump.
         Press(Key.Space);
+        Post(InputKind.KeyUp, (int)Key.Space);
         Ticks(3 + 24);
 
         // A jump at 4 m/s rises 0.82 m in 0.41 s, about 24 ticks. Physics adds each tick's gravity before the move, so
         // after 25 moves the person is 0.781 m up.
         (world.Snapshot.PoseOf(person).Position.Y - standing).Should().BeApproximately(0.781, 0.005);
+    }
+
+    [Fact]
+    public void HoldingSpaceAfterAJumpThrustsThePersonHigher()
+    {
+        double standing = world.Snapshot.PoseOf(person).Position.Y;
+        Press(Key.Space);
+        Ticks(3 + 24);
+
+        // The plain jump is 0.781 m up after its 25 moves. Physics jumps the person in the step of the third tick and
+        // reports it in the air from the step of the fourth. The person reads that report in the fifth tick and thrusts, so
+        // the thrust acts from the step of the sixth tick on: in the last 22 of the 25 moves. Physics adds each tick's
+        // thrust to the velocity before the move, so the thrust lifts the person by 1.5 m/s² · Δt² · (1 + 2 + ... + 22),
+        // 0.105 m. One tick more or less of thrust changes that by 0.01 m.
+        double lift = Thrust * world.DeltaTime * world.DeltaTime * (22 * 23 / 2);
+        (world.Snapshot.PoseOf(person).Position.Y - standing).Should().BeApproximately(0.781 + lift, 0.005);
+    }
+
+    [Fact]
+    public void APersonThatLetsGoOfWInTheAirStopsInTheFirstStepInWhichItStands()
+    {
+        Press(Key.W);
+        Ticks(20);
+        Press(Key.Space);
+        Post(InputKind.KeyUp, (int)Key.Space);
+        Ticks(10);
+        Post(InputKind.KeyUp, (int)Key.W);
+        world.Snapshot.IsStanding(person).Should().BeFalse("the person jumped");
+        world.Snapshot.VelocityOf(person).Z.Should().BeLessThan(-PersonControl.WalkSpeed, "the person keeps its walk in the air, and W thrusts it on");
+        int ticks = 0;
+        while (!world.Snapshot.IsStanding(person) && ticks++ < 120)
+            Ticks(1);
+
+        // Physics keeps the last walk that the person asked for until the person stands again. In the air the person asks
+        // for no walk, so no walk is left over when it lands.
+        world.Snapshot.IsStanding(person).Should().BeTrue();
+        Vector3 velocity = world.Snapshot.VelocityOf(person);
+        new Vector2(velocity.X, velocity.Z).Length().Should().BeLessThan(0.05f);
     }
 
     [Fact]
@@ -416,28 +456,31 @@ public sealed class PersonControlTests : IDisposable
     }
 
     [Theory]
-    [InlineData(Key.W)]
-    [InlineData(Key.D)]
-    [InlineData(Key.C)]
-    public void UnderGravityTheKeysNeverThrustThePersonThroughTheAir(Key key)
+    [InlineData(Key.W, 0, 0, -1)]
+    [InlineData(Key.Space, 0, 1, 0)]
+    [InlineData(Key.C, 0, -1, 0)]
+    public void InTheAirUnderGravityTheKeysThrustThePersonOnTopOfGravity(Key key, float x, float y, float z)
     {
         Press(Key.Space);
-        // The person handles the press in the second tick. Space goes up right after, so that it cannot cancel C.
+        // The person handles the press in the second tick. Space goes up right after, so that its thrust adds only to its
+        // own case. Physics drops the jump of a second press of Space, because the person is in the air by then.
         Ticks(2);
         Post(InputKind.KeyUp, (int)Key.Space);
         Press(key);
-        // A thrust from the key would act from the step of the third tick on. The jump lasts 49 ticks, so the person is
-        // in the air for all 35 samples.
+        // Physics jumps the person in the step of the third tick and reports it in the air from the step of the fourth.
+        // The person reads that report in the fifth tick, so the thrust acts from the step of the sixth tick on. With C the
+        // jump lasts about 42 ticks, so the person is in the air for all 35 samples.
         Ticks(3);
         Vector3 last = world.Snapshot.VelocityOf(person);
+        Vector3 acceleration = new Vector3(0, -9.81f, 0) + new Vector3(x, y, z) * Thrust;
         for (int sample = 0; sample < 35; sample++)
         {
             Ticks(1);
             Vector3 velocity = world.Snapshot.VelocityOf(person);
 
-            // Only gravity acts on the person in the air.
-            ((velocity.Y - last.Y) / world.DeltaTime).Should().BeApproximately(-9.81f, 0.05f, $"at sample {sample}");
-            new Vector2(velocity.X, velocity.Z).Length().Should().BeLessThan(1e-4f, $"at sample {sample}");
+            // The person falls freely, so it is weightless, and its thrusters push it: W along the view, Space and C along
+            // its up.
+            Vector3.Distance((velocity - last) / world.DeltaTime, acceleration).Should().BeLessThan(0.05f, $"at sample {sample}");
             last = velocity;
         }
     }
@@ -447,7 +490,8 @@ public sealed class PersonControlTests : IDisposable
     {
         double standing = world.Snapshot.PoseOf(person).Position.Y;
         Press(Key.Space);
-        // The jump lasts 0.82 s, 49 ticks.
+        // Held Space thrusts the person up in the air, so the jump lasts 55 ticks instead of 49, and the person lands in
+        // the step of the 58th tick.
         Ticks(3 + 60);
         double landed = world.Snapshot.PoseOf(person).Position.Y;
         Post(InputKind.KeyUp, (int)Key.Space);

@@ -28,3 +28,7 @@ A person who drifts past the ship's bubble can still thrust, and comes back into
 **2026-10-12T00:39:04Z**
 
 Moved into the vertical slice at P1, at the user's request: the hand-off from the ship's frame to its parent is the slice's big test. A trace (2026-10-11) confirmed the bug: the person left the ship's frame at about 103 m, the hand-off kept its position and its 3.14 m/s drift, and its up turned by only 0.001, but holding S in earth changed nothing.
+
+**2026-10-12T01:48:38Z**
+
+Design A (User): a character is weightless whenever physics does not stand it on walkable ground, in any frame and any gravity. Physics reports for each character whether it stood, and PersonControl now walks only while self.Body.Standing is true, and fires its thrusters otherwise. The script scripts/spacewalk.json and its test SpacewalkSliceTests show the fix: the person drifts out of the ship's bubble into earth, thrusts toward the ship there, comes back into the ship's frame and lands on the chamber floor through the hatch. Jolt keeps velocities as floats, so at orbital speed a thrust in earth turns a little sideways: 0.003 m/s for a thrust of 0.4 s. So the script thrusts only briefly in earth. The ticket stays open for the user's review.

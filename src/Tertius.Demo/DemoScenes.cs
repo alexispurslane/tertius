@@ -65,8 +65,11 @@ public static class DemoScenes
     /// closes in 1.5 s, and 3 s after it began to close, the other door opens.</item>
     /// <item>The <c>person</c>, a capsule character 1.8 m tall, stands on the cabin floor 10 m aft of the ship's center and
     /// faces the nose. The airlock's inner door is 6.4 m to its left. Its eye, 1.65 m above the floor, is a view. While
-    /// that view is on, <see cref="PersonControl"/> steers it and turns its view from the <c>input</c> topic. Outside the
-    /// cabin, the person is weightless and its thrusters push it.</item>
+    /// that view is on, <see cref="PersonControl"/> steers it and turns its view from the <c>input</c> topic. Wherever
+    /// physics does not stand the person on walkable ground, the person is weightless and its thrusters push it: in a jump,
+    /// outside the cabin, and past the ship's bubble. There, about 102.9 m from the ship's center, a hand-off moves the
+    /// person into <c>earth</c>, where it falls freely with the ship. It comes back into the ship's frame 100.9 m from the
+    /// ship's center.</item>
     /// <item>The view <c>chase</c>, the camera at the start, rides in the ship's frame, 70 m behind it and 12 m above it,
     /// and looks at the ship's center.</item>
     /// <item>The view <c>far</c> stands in <c>earth</c>, three Earth radii from its center, 30 degrees north of the
