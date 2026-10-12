@@ -247,6 +247,39 @@ public class WorldCharacterStandingTests
         world.Snapshot.IsStanding(person).Should().BeTrue("the skipped update did not change it");
 #endif
     }
+
+#if !TERTIUS_CONTRACTS
+    /// <summary>
+    /// What one step skips does not carry into the next step. A test breaks the update of a standing person in one step,
+    /// as above, and in the next step reports the person not standing, with nothing broken. That state lands. Only a
+    /// Release build gets past the broken step, because a Debug build fails a contract there.
+    /// </summary>
+    [Fact]
+    public void TheStepAfterABrokenStepSetsTheStandingStateThatItReports()
+    {
+        var faults = new FaultInjectingBackend(new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 }));
+        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, faults);
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, StandingHeight), Body = Person });
+        Tick(world, 30);
+        faults.EditNextOutput = output => output.Contacts.Add(new ContactStarted(person, person, ground, Double3.Zero, Vector3.UnitY, 0));
+        world.Tick();
+        world.Errors.Should().ContainSingle().Which.Should().Contain(person.ToString());
+        world.Snapshot.IsStanding(person).Should().BeTrue();
+
+        faults.EditNextOutput = output =>
+        {
+            for (int i = 0; i < output.Characters.Count; i++)
+                if (output.Characters[i].Entity == person)
+                    output.Characters[i] = new CharacterState(person, Standing: false);
+        };
+        world.Tick();
+
+        world.Errors.Should().ContainSingle("the second step broke nothing");
+        world.Snapshot.IsStanding(person).Should().BeFalse("the state of the second step landed");
+    }
+#endif
 }
 
 /// <summary>Records what <see cref="BodyHandle.Standing"/> says on every tick.</summary>

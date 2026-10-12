@@ -100,6 +100,7 @@ public class HemisphereUpTests
         (along != away).Should().BeTrue();
         along.Equals(away).Should().BeFalse();
         away.Equals(along).Should().BeFalse();
+        along.Equals((object)away).Should().BeFalse();
     }
 
     [Fact]

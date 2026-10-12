@@ -166,6 +166,7 @@ public class GravityFieldTests
         (a != b).Should().BeTrue(why);
         a.Equals(b).Should().BeFalse(why);
         b.Equals(a).Should().BeFalse(why);
+        a.Equals((object)b).Should().BeFalse(why);
     }
 
     // ---- What no field can hold -------------------------------------------------------------------------------------
