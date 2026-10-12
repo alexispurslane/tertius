@@ -4,9 +4,10 @@ using Tertius.Demo;
 namespace Tertius.Host.Tests;
 
 /// <summary>
-/// BoxMesh: meshes of boxes whose walls across X can have a doorway through them. A mesh of solids must be closed, with
-/// every edge shared by exactly two triangles that run along it in opposite directions, so it has no crack and no
-/// T-junction. Every triangle must wind counterclockwise around its normal, and the normal must point out of the solid.
+/// BoxMesh: meshes of boxes whose walls across X can have a doorway through them. The mesh of each solid, a box or a
+/// hollow box with its doorways, must be closed, with every edge shared by exactly two triangles that run along it in
+/// opposite directions, so it has no crack and no T-junction. Every triangle must wind counterclockwise around its
+/// normal, and the normal must point out of the solid.
 /// </summary>
 public sealed class BoxMeshTests
 {
@@ -114,7 +115,8 @@ public sealed class BoxMeshTests
     [Fact]
     public void AHollowBoxWithADoorwayThroughOneWallIsClosed()
     {
-        // The ship's shape: a box 0.5 m thick on every side around a room, with a doorway through the room's -X wall.
+        // The ship's hull without the airlock's chamber: a box 0.5 m thick on every side around a room, with a doorway
+        // through the room's -X wall near its floor.
         var outer = new BoundingBox(new Vector3(-10, -4, -30), new Vector3(10, 4, 30));
         var room = new BoundingBox(new Vector3(-9.5f, -3.5f, -29.5f), new Vector3(9.5f, 3.5f, 29.5f));
         var doorway = new BoundingBox(new Vector3(-10, -3.3f, 9.4f), new Vector3(-9.5f, -1.2f, 10.6f));

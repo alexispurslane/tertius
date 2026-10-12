@@ -4,10 +4,14 @@ namespace Tertius.Demo;
 
 /// <summary>
 /// Builds a mesh of axis-aligned boxes, whose faces across X can have a doorway through them, and of the faces inside
-/// those doorways. Neighboring faces share their corners, and a face with a doorway is four trapezoids between its
-/// corners and the doorway's. So the solids are closed and the mesh has no T-junction, where a vertex on another
-/// triangle's edge can leave a crack of single pixels. Front faces wind counterclockwise, as in
-/// <see cref="Primitives"/>. All positions are in the mesh's own axes, in meters.
+/// those doorways. Neighboring faces of a box share their corners, and a face with a doorway is four trapezoids between
+/// its corners and the doorway's. So a box with its doorways is closed and has no T-junction, where a vertex on another
+/// triangle's edge can leave a crack of single pixels. So is a hollow box, an outer box around an inward one, with a
+/// doorway through both. Boxes that only touch are separate solids, so a corner of one can lie on an edge of another.
+/// In the ship of <see cref="DemoScenes"/>, the walls of the airlock's chamber stand against the cabin's faces, so their
+/// corners lie on the cabin's edges, and the chamber's inner wall stands against its side walls, so its corners lie on
+/// their edges. But those faces go on behind the walls, so no crack can show there. Front faces wind counterclockwise,
+/// as in <see cref="Primitives"/>. All positions are in the mesh's own axes, in meters.
 /// </summary>
 public sealed class BoxMesh
 {
@@ -59,7 +63,12 @@ public sealed class BoxMesh
             Polygon(normal, corners[0], corners[1], corners[2], corners[3]);
             return;
         }
-        // The hole's corners lie in the face's plane, in the same order as the face's own, so each matches the nearest.
+        // The hole's corners, moved into the face's plane. Corners gives them in the same order as the face's own, so
+        // inner[i] has the same role as corners[i]: it is at the same end, the minimum or the maximum, of each of the
+        // face's two axes. So each quad joins an edge of the face to the parallel edge of the hole on the same side, and
+        // because the hole lies within the face, the quad is a convex trapezoid. The nearest face corner does not always
+        // have the same role. The hatch is near the floor, so its upper corners are nearer to the lower corners of the
+        // cabin's port face than to its upper ones. Quads between corners of different roles do not tile the face.
         Span<Vector3> inner = stackalloc Vector3[4];
         Corners(h, side, inward, inner);
         float plane = side.X > 0 ? box.Max.X : box.Min.X;

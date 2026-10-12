@@ -60,9 +60,9 @@ public static class DemoScenes
     /// belly. Five lamps under the roof light the cabin, because the hull keeps the sunlight out.</item>
     /// <item>The <c>airlock</c> is a chamber 3 by 3 m against the port wall, 10 m aft of the ship's center. The door
     /// <c>airlock-inner</c> leads from the cabin into the chamber, and the door <c>airlock-outer</c> closes a hatch from
-    /// the chamber to the outside. Both doorways are 1.2 m wide and 2.1 m tall, with a sill 0.2 m high. The airlock
-    /// starts with the inner door open. A use cycles it: the open door closes in 1.5 s, and 3 s after it began to close,
-    /// the other door opens.</item>
+    /// the chamber to the outside. Both doorways are 1.2 m wide and 2.1 m tall, with a sill 0.2 m high. The inner door
+    /// spawns shut, and the airlock opens it when the scene starts, which takes 1.5 s. A use cycles it: the open door
+    /// closes in 1.5 s, and 3 s after it began to close, the other door opens.</item>
     /// <item>The <c>person</c>, a capsule character 1.8 m tall, stands on the cabin floor 10 m aft of the ship's center and
     /// faces the nose. The airlock's inner door is 6.4 m to its left. Its eye, 1.65 m above the floor, is a view. While
     /// that view is on, <see cref="PersonControl"/> steers it and turns its view from the <c>input</c> topic. Outside the
@@ -136,7 +136,7 @@ public static class DemoScenes
             // In Earth's frame the hull is a solid box. Inside the ship's own frame it is hollow: the person walks on its
             // floor, and goes out through the airlock along its outer faces.
             Body = new BodyDesc(new BoxShapeDesc(Hull), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new CompoundShapeDesc([.. InteriorBoxes().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
+                InteriorShape: new CompoundShapeDesc([.. ShipInterior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
             // The bubble holds the hull and the chase camera, 71 m from the ship's center. The ship falls freely, so only
             // its own field acts inside it: one standard gravity toward its belly, in the cabin alone.
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics,
@@ -146,9 +146,9 @@ public static class DemoScenes
         scene.Add("ship", ship);
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
 
-        // Five lamps under the roof, 12 m apart, light the cabin, because the hull keeps the sunlight out. Local lights
-        // cast no shadows yet, but the cabin is one box, so nothing stands between a lamp and a face that it lights, and
-        // the outer faces of the hull face away from every lamp. Each lamp is a glowing panel, with its light just below.
+        // Five lamps under the roof, 12 m apart, light the cabin, because the hull keeps the sunlight out. Point lights
+        // cast no shadows yet, so a lamp also lights faces that a wall hides from it, such as the inside of the airlock's
+        // chamber and the top of the hatch's sill. Each lamp is a glowing panel, with its light just below.
         MeshId lampMesh = resources.CreateMesh(Primitives.Box(new Vector3(0.6f, 0.05f, 0.6f)));
         MaterialId lampMaterial = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(6, 5.4f, 4.5f)));
         for (int i = -2; i <= 2; i++)
@@ -232,11 +232,17 @@ public static class DemoScenes
     /// <summary>The thickness of the chamber's walls, in meters.</summary>
     private const float ChamberWall = 0.2f;
 
-    /// <summary>The hatch through the hull's port wall, from the chamber to the outside.</summary>
-    private static readonly BoundingBox Hatch = Doorway(-Hull.X, -Cabin.X);
+    /// <summary>
+    /// The hatch through the hull's port wall, from the airlock's chamber to the outside, in the ship's axes, in meters:
+    /// a doorway as thick as the hull's wall. The door <c>airlock-outer</c> closes it.
+    /// </summary>
+    public static BoundingBox Hatch { get; } = Doorway(-Hull.X, -Cabin.X);
 
-    /// <summary>The doorway through the chamber's inner wall, from the cabin into the chamber.</summary>
-    private static readonly BoundingBox InnerDoorway = Doorway(Chamber.Max.X, Chamber.Max.X + ChamberWall);
+    /// <summary>
+    /// The doorway through the chamber's inner wall, from the cabin into the airlock's chamber, in the ship's axes, in
+    /// meters: a doorway as thick as the chamber's wall. The door <c>airlock-inner</c> closes it.
+    /// </summary>
+    public static BoundingBox InnerDoorway { get; } = Doorway(Chamber.Max.X, Chamber.Max.X + ChamberWall);
 
     /// <summary>
     /// A doorway of the airlock through a wall across X, from <paramref name="x0"/> to <paramref name="x1"/>: 1.2 m wide and
@@ -256,11 +262,12 @@ public static class DemoScenes
     private static readonly BoundingBox ChamberInnerWall = new(new Vector3(InnerDoorway.Min.X, -Cabin.Y, Chamber.Min.Z), new Vector3(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z));
 
     /// <summary>
-    /// The boxes of the hull's interior shape, in the ship's axes. The floor and the roof span the whole hull, the side
-    /// walls stand between them, and the end walls close the cabin between the side walls. The port wall leaves the
-    /// hatch open. The chamber's walls stand on the cabin floor. The boxes touch without gaps or overlaps.
+    /// The boxes of the hull's interior shape, which physics uses inside the ship's own frame, in the ship's axes, in
+    /// meters. The floor and the roof span the whole hull, the side walls stand between them, and the end walls close
+    /// the cabin between the side walls. The port wall leaves <see cref="Hatch"/> open. The chamber's walls stand on the
+    /// cabin floor, and its inner wall leaves <see cref="InnerDoorway"/> open. The boxes touch without gaps or overlaps.
     /// </summary>
-    private static IEnumerable<BoundingBox> InteriorBoxes()
+    public static IEnumerable<BoundingBox> ShipInterior()
     {
         var hull = new BoundingBox(-Hull, Hull);
         yield return hull with { Max = Hull with { Y = -Cabin.Y } };
