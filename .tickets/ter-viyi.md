@@ -7,7 +7,6 @@ created: 2026-10-11T17:33:21Z
 type: task
 priority: 3
 assignee: Alexis Purslane
-parent: ter-dtw2
 tags: [host, rendering]
 ---
 # Encode captured images off the render thread, so a capture in the window does not freeze it

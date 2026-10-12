@@ -7,8 +7,8 @@ created: 2026-10-12T13:00:57Z
 type: bug
 priority: 1
 assignee: Alexis Purslane
-parent: ter-dtw2
-tags: [physics, characters, slice]
+parent: ter-s02r
+tags: [physics, characters]
 ---
 # A person in earth is pinned 128 m behind any body ahead of it along its orbit
 
@@ -20,3 +20,9 @@ The investigator's proposed fix also helps ter-fa7j: give each Jolt system a ref
 
 A person in earth behind a crate along the orbit, 1 to 100 m away, moves on as if the crate moved with it, and only touches it when they really meet.
 
+
+## Notes
+
+**2026-10-12T20:08:35Z**
+
+Moved from the vertical slice into the epic ter-s02r, at the user's request: this is a symptom of the numeric job that frames do, which the epic separates from their semantic job.

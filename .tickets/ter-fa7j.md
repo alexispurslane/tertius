@@ -7,8 +7,8 @@ created: 2026-10-12T02:04:49Z
 type: bug
 priority: 1
 assignee: Alexis Purslane
-parent: ter-dtw2
-tags: [physics, characters, slice]
+parent: ter-s02r
+tags: [physics, characters]
 ---
 # Thrust in a frame where a character moves at orbital speed drifts sideways through float rounding
 
@@ -30,3 +30,7 @@ Moved into the vertical slice at P1, at the user's request: with the ship's bubb
 **2026-10-12T13:00:58Z**
 
 Related: ter-r90w. A per-system reference velocity, subtracted from every moving body's velocity before each step and added back after it, would also fix this ticket, because float velocities would then hold the small speeds relative to the ship instead of 7.7 km/s.
+
+**2026-10-12T20:08:35Z**
+
+Moved from the vertical slice into the epic ter-s02r, at the user's request: this is a symptom of the numeric job that frames do, which the epic separates from their semantic job.
