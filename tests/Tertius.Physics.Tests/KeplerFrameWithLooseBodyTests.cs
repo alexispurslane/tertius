@@ -41,11 +41,11 @@ public class KeplerFrameWithLooseBodyTests
     /// <c>Outward</c> how far it can lie farther away. <c>Across</c> is how far it can lie off the line to the planet.
     /// <list type="number">
     /// <item>
-    /// The step. Jolt adds the pull to the velocity first, then moves the body by the new velocity. So the body moves as
-    /// if its velocity were wrong by half a step of the pull toward the planet: <c>g · dt / 2</c>, which is 0.068 m/s, and
-    /// points away from the planet's pull, so the body lies <b>inward</b>. That error in the velocity adds up to
-    /// <c>g · dt / 2 · seconds</c> in the radial position. It bends into the along-track direction by
-    /// <c>g · dt / 2 · n · seconds²</c>, where n is the angular speed of the orbit.
+    /// The step. Jolt adds the pull to the velocity first, then moves the body by the new velocity. So a body that starts
+    /// with the exact velocity moves as if its velocity were too large by half a step of the pull: <c>g · dt / 2</c>,
+    /// which is 0.068 m/s. That error points along the pull, toward the planet, so the body lies <b>inward</b>. The error
+    /// in the velocity adds up to <c>g · dt / 2 · seconds</c> in the radial position. It bends into the along-track
+    /// direction by <c>g · dt / 2 · n · seconds²</c>, where n is the angular speed of the orbit.
     /// </item>
     /// <item>
     /// The tide. The frame and the body are at different places, so the planet pulls them a little differently. The

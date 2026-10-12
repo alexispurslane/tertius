@@ -22,6 +22,10 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     private const double CrateOnTheFloor = -3.3, Eye = -1.85;
     private const float GravityPerTick = 9.81f / 60;
 
+    // The distance from the ship's center at which the crate passes into earth, in meters: the bubble's radius of 100 m, the
+    // crate's bounding sphere of 0.35 m and the margin of 2 m. The dumps around the hand-off lie within HandOffTolerance of it.
+    private const double HandOffDistance = 100 + 0.35 + 2, HandOffTolerance = 0.25;
+
     // The dumps of the run after the throw, grouped by the frame that the thrown crate is in.
     private static readonly string[] InShip = ["thrown", "flying", "leaving"];
     private static readonly string[] InEarth = ["in-earth", "beside-the-ship"];
@@ -132,10 +136,27 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         foreach (string name in InEarth)
             Dump(name).Entity(Thrown).Pose.Frame.Should().Be("earth", $"the crate is past the ship's bubble in {name}");
         // The crate's bounding sphere has a radius of 0.35 m. It leaves the ship's frame once its center is more than
-        // 100 + 0.35 + 2 m from the ship's center: the bubble's radius, that sphere's radius and a margin of 2 m.
-        RelativeToShip("leaving").Position.Length.Should().BeLessThan(102.35);
-        RelativeToShip("in-earth").Position.Length.Should().BeGreaterThan(102.35);
+        // 100 + 0.35 + 2 m from the ship's center: the bubble's radius, that sphere's radius and a margin of 2 m. The crate
+        // moves 12 m/s / 60 = 0.2 m farther from the ship's center in each tick. The script dumps "leaving" two ticks before
+        // the hand-off, 0.22 m inside the hand-off distance, and "in-earth" in the tick of the hand-off, 0.18 m outside it.
+        // So the hand-off distance, and with it the margin, is known to within 0.25 m.
+        double leavingDistance = RelativeToShip("leaving").Position.Length, inEarthDistance = RelativeToShip("in-earth").Position.Length;
+        leavingDistance.Should().BeInRange(HandOffDistance - HandOffTolerance, HandOffDistance, "the crate is still in the ship's frame");
+        inEarthDistance.Should().BeInRange(HandOffDistance, HandOffDistance + HandOffTolerance, "the crate has just passed into earth");
         Dump("in-earth").Events.Should().ContainSingle(e => e.Event == "FrameChanged" && e.To == new ToEntity(Thrown));
+    }
+
+    [Fact]
+    public void TheHandOffKeepsTheCratesPositionRelativeToTheShip()
+    {
+        (Double3 Position, Double3 Velocity) leaving = RelativeToShip("leaving"), inEarth = RelativeToShip("in-earth");
+        double seconds = Dump("in-earth").Time - Dump("leaving").Time;
+
+        // Between the two dumps, the crate is out of the cabin and goes through the hand-off. The ship's frame and earth
+        // both fall freely, so the crate moves on along a straight line at its velocity relative to the ship. A hand-off
+        // that placed the crate with the ship's pose from one tick earlier would put it 7.7 km/s / 60 = 128 m off that line.
+        seconds.Should().BeApproximately(2.0 / 60, 1e-6);
+        ExpectNear(inEarth.Position, leaving.Position + leaving.Velocity * seconds, 0.01);
     }
 
     [Fact]

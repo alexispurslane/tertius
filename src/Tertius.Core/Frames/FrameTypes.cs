@@ -213,7 +213,11 @@ public record struct KeplerOrbit(
 
     /// <summary>
     /// Position and velocity relative to the parent, in parent axes, at <paramref name="time"/>, for a parent with the G·M
-    /// <paramref name="parentMu"/>. An orbit that is not valid, or a G·M that is not above 0, gives zero.
+    /// <paramref name="parentMu"/>. Gives zero when the semi-major axis is 0 or below, or when <paramref name="parentMu"/> is
+    /// 0 or below. This is the only check. An orbit that is not valid for another reason, such as an eccentricity of 1.5 or a
+    /// semi-major axis of NaN, and a G·M of NaN or infinity, give NaN or an ordinary state. The World checks
+    /// <see cref="IsValid"/> and <see cref="GravityField.CanBeOrbited"/> before it gives a frame the Kepler driver, so a
+    /// Kepler frame never meets these cases.
     /// </summary>
     public readonly (Double3 Position, Double3 Velocity) StateAt(double time, double parentMu)
     {
