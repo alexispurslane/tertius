@@ -8,7 +8,9 @@ namespace Tertius.Demo;
 /// Lets a person carry one crate and throw it. (User) A <see cref="CrateOffer"/> that comes while the person's hands are
 /// free is taken: Carry tells the crate that it is taken, so that the crate goes, and it spawns a drawn copy of the crate,
 /// with no body, attached to the person. <see cref="HeldInView"/> keeps the copy in front of the eye, low and to the
-/// right, turned with the view. While the hands are full, Carry ignores offers, and the crate that offered stays.
+/// right, turned with the view. While the hands are full, Carry ignores offers, and the crate that offered stays. Carry
+/// also ignores an offer whose crate is gone. A crate that gets a <see cref="Use"/> and a <see cref="Destroy"/> in one
+/// tick still sends its offer, and the offer arrives after the crate has died.
 /// </summary>
 /// <remarks>
 /// <para>The throw is charged. (User) While the person carries a crate and its view is on, holding the left mouse button
@@ -77,7 +79,8 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
             ref Event e = ref events[i];
             if (e.Is<CrateOffer>())
             {
-                if (copy.IsNull)
+                // The crate can be gone by now. Then it cannot be taken, and a copy of it would be a second crate.
+                if (copy.IsNull && self.Snapshot.IsAlive(e.Sender))
                     Take(self, outbox, e.Sender, e.As<CrateOffer>().Crate);
             }
             else if (viewOn && e.Is<InputEvent>())

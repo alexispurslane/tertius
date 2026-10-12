@@ -61,6 +61,12 @@ public struct CrateTaken : IEventPayload;
 /// ignores every later order. In a tick that brings both, the crate goes and offers itself to no one. Its entity needs
 /// the body and the render row that <paramref name="spec"/> describes: <see cref="CrateSpec.Spawn"/> makes one.
 /// </summary>
+/// <remarks>
+/// A crate holds one offer at a time, so that two persons cannot take it. After it sends an offer, it ignores every
+/// <see cref="Use"/> until <see cref="AnswerTicks"/> ticks have passed. A taker answers in that time with a
+/// <see cref="CrateTaken"/>. If no answer has come by then, the person declined, and the next Use gets an offer. When one
+/// tick brings several Uses, the first of them gets the offer.
+/// </remarks>
 /// <param name="spec">
 /// What the crate is. Its size and its mass must be positive and finite, or the constructor throws
 /// <see cref="ArgumentOutOfRangeException"/>.
@@ -71,6 +77,16 @@ public sealed class Crate(CrateSpec spec) : IComponent
         IsPositiveAndFinite(spec.HalfExtents.Z) && IsPositiveAndFinite(spec.Mass)
         ? spec
         : throw new ArgumentOutOfRangeException(nameof(spec), spec, "A crate's size and mass must be positive and finite.");
+
+    /// <summary>
+    /// How many ticks after an offer its answer reaches the crate, if there is one. A message arrives one tick after the
+    /// tick that sends it. So the offer reaches the user one tick after the crate sends it, and the user's
+    /// <see cref="CrateTaken"/> reaches the crate one tick after that.
+    /// </summary>
+    public const int AnswerTicks = 2;
+
+    // The number of the tick on which the crate sent its last offer, or null if it has sent none.
+    private long? offeredOn;
 
     public int Priority => 0;
 
@@ -83,8 +99,14 @@ public sealed class Crate(CrateSpec spec) : IComponent
             self.Destroy();
             return;
         }
-        foreach (ref Use use in events.Of<Use>())
-            outbox.Send(use.User, new CrateOffer { Crate = spec });
+        // An offer is out while its answer can still come.
+        if (offeredOn is long sent && self.Tick - sent < AnswerTicks)
+            return;
+        int firstUse = events.IndexOf<Use>();
+        if (firstUse < 0)
+            return;
+        outbox.Send(events[firstUse].As<Use>().User, new CrateOffer { Crate = spec });
+        offeredOn = self.Tick;
     }
 
     private static bool IsPositiveAndFinite(float value) => value > 0 && float.IsFinite(value);
