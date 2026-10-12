@@ -28,3 +28,9 @@ The user chose to replace the special methods with the chain, so each question h
 
 EventList and EventsOf<T> offer the words above, and the special methods are gone. No query allocates, which the allocation tests show. Every caller uses the chain. The early exit on the event mask stays, so a type that the inbox does not hold costs no scan.
 
+
+## Notes
+
+**2026-10-12T00:18:00Z**
+
+The query has a stored form too (see the note of ter-ziae): EventQuery<T>, run with events.Find(query). events.Of<T>() stays as the shorthand chain, and both forms share one filter implementation.

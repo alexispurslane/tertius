@@ -40,3 +40,7 @@ A component asks Snapshot whether another entity had a component of a given type
 **2026-10-12T00:10:15Z**
 
 The entity query uses the shared words (User): With<T>(), Without<T>(), Where, In(frame), Near(center, radius), and the endings foreach, Count(), Any(), TryFirst(out Entity) and CopyTo(list). It runs on the snapshot in entity index order, and it starts from an index (component type, frame or spatial grid) instead of a scan. The inbox gets the same words first, in ter-8wmm.
+
+**2026-10-12T00:18:00Z**
+
+The query has a stored form (see the note of ter-ziae): EntityQuery, run with Snapshot.Find(query, around), returning a ref struct run. snapshot.Entities.With<T>() stays as the shorthand chain, with no filter code of its own.
