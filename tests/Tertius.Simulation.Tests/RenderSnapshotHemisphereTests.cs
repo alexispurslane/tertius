@@ -37,7 +37,7 @@ public class RenderSnapshotHemisphereTests
         using var test = new TestWorld();
         Entity box = test.Show(test.Root, DPose.Identity);
 
-        HemisphereOf(test, box).Kind.Should().Be(HemisphereKind.Even);
+        HemisphereOf(test, box).HasValue.Should().BeFalse();
     }
 
     [Fact]
@@ -50,8 +50,8 @@ public class RenderSnapshotHemisphereTests
 
         HemisphereUp up = HemisphereOf(test, box);
 
-        up.Kind.Should().Be(HemisphereKind.Along);
-        ExpectNear(up.Direction, Vector3.UnitZ);
+        up.TryGetValue(out UpAlong along).Should().BeTrue();
+        ExpectNear(along.Direction, Vector3.UnitZ);
     }
 
     [Fact]
@@ -64,8 +64,8 @@ public class RenderSnapshotHemisphereTests
 
         HemisphereUp up = HemisphereOf(test, box);
 
-        up.Kind.Should().Be(HemisphereKind.AwayFrom);
-        ExpectNear(up.Center, new Vector3(0, 10, 0));
+        up.TryGetValue(out UpAwayFrom away).Should().BeTrue();
+        ExpectNear(away.Center, new Vector3(0, 10, 0));
     }
 
     [Fact]
@@ -83,7 +83,7 @@ public class RenderSnapshotHemisphereTests
         HemisphereUp up = HemisphereOf(test, planet);
 
         // So the center moves with the planet's interpolated position, and does not wobble between ticks.
-        (up.Kind, up.Center).Should().Be((HemisphereKind.AwayFrom, Vector3.Zero));
+        up.Should().Be(HemisphereUp.AwayFrom(Vector3.Zero));
     }
 
     [Fact]
@@ -101,9 +101,11 @@ public class RenderSnapshotHemisphereTests
         test.Run(1);
         RenderSnapshot snapshot = test.World.Latest();
 
-        ExpectNear(snapshot.InstanceOf(crate).Hemisphere.Direction, -Vector3.UnitZ);
+        snapshot.InstanceOf(crate).Hemisphere.TryGetValue(out UpAlong along).Should().BeTrue();
+        ExpectNear(along.Direction, -Vector3.UnitZ);
         // The planet's center is 31 m below the rock along the root's -Y.
-        ExpectNear(snapshot.InstanceOf(rock).Hemisphere.Center, new Vector3(0, 0, 31));
+        snapshot.InstanceOf(rock).Hemisphere.TryGetValue(out UpAwayFrom away).Should().BeTrue();
+        ExpectNear(away.Center, new Vector3(0, 0, 31));
     }
 
     [Fact]
@@ -119,8 +121,8 @@ public class RenderSnapshotHemisphereTests
         test.Run(1);
         RenderSnapshot snapshot = test.World.Latest();
 
-        snapshot.InstanceOf(inside).Hemisphere.Kind.Should().Be(HemisphereKind.Along);
-        snapshot.InstanceOf(outside).Hemisphere.Kind.Should().Be(HemisphereKind.Even);
+        snapshot.InstanceOf(inside).Hemisphere.TryGetValue(out UpAlong _).Should().BeTrue();
+        snapshot.InstanceOf(outside).Hemisphere.HasValue.Should().BeFalse();
     }
 
     [Fact]
@@ -139,19 +141,19 @@ public class RenderSnapshotHemisphereTests
 
         HemisphereUp up = HemisphereOf(test, hull);
 
-        up.Kind.Should().Be(HemisphereKind.Along);
-        ExpectNear(up.Direction, Vector3.UnitZ);
+        up.TryGetValue(out UpAlong along).Should().BeTrue();
+        ExpectNear(along.Direction, Vector3.UnitZ);
     }
 
     [Theory]
-    [InlineData(GravityKind.Uniform)]
-    [InlineData(GravityKind.Point)]
-    public void AFieldThatPullsNowhereMixesTheSkyAndTheGroundEvenly(GravityKind kind)
+    [InlineData("a uniform field")]
+    [InlineData("a point field")]
+    public void AFieldThatPullsNowhereMixesTheSkyAndTheGroundEvenly(string kind)
     {
         using var test = new TestWorld();
-        FrameHandle weightless = Frame(test, DPose.Identity, kind == GravityKind.Uniform ? GravityField.Uniform(Vector3.Zero) : GravityField.Point(0));
+        FrameHandle weightless = Frame(test, DPose.Identity, kind == "a uniform field" ? GravityField.Uniform(Vector3.Zero) : GravityField.Point(0));
         Entity box = test.Show(weightless, new DPose(new Double3(0, 2, 0), DQuaternion.Identity));
 
-        HemisphereOf(test, box).Kind.Should().Be(HemisphereKind.Even);
+        HemisphereOf(test, box).HasValue.Should().BeFalse();
     }
 }

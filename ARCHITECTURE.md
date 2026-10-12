@@ -214,7 +214,7 @@ Frames form a tree. Each frame has a double-precision `DPose` relative to its pa
 | `Driver` | `MotionDriver.Kepler`, `MotionDriver.Spin`, `MotionDriver.Physics` or `MotionDriver.Static` |
 | `Orbit` | Kepler elements, for Kepler frames. They hold no G·M: the frame takes it from the gravity of its parent |
 | `Spin` | The tilt and steady turn, for Spin frames |
-| `Gravity` | The gravity field of the frame |
+| `Gravity` | The gravity field of the frame, a `GravityField` union (see "Gravity") |
 | `Velocity` | Linear and angular velocity relative to the parent |
 | `ProperAcceleration` | The acceleration that an accelerometer at the frame origin reads |
 
@@ -247,11 +247,11 @@ A game gives a frame a new orbit between ticks with `World.SetFrameOrbit`. The w
 
 ### Gravity
 
-Each frame has one gravity field: `None`, `Uniform` (artificial gravity, with an optional region box) or `Point` (a planet). An object feels only the field of the frame that it is in. This is the one-dominant-body rule.
+Each frame has one gravity field. `GravityField` is a custom C# 15 union, as `Target` is, so a field holds the values of its own case and nothing else. (User) The cases are `UniformGravity(Acceleration, Region)`, which is artificial gravity with an optional region box, and `PointGravity(Mu)`, which is a planet. The empty union is no gravity, and it is the default. So a uniform field cannot carry a G·M, and a point field cannot carry an acceleration. The factories `GravityField.None`, `GravityField.Uniform` and `GravityField.Point` make a field. Code reads a field with a `switch` over the cases or with `TryGetValue`, and neither boxes. An object feels only the field of the frame that it is in. This is the one-dominant-body rule.
 
 The effective gravity on a body inside a frame is the frame's own field minus the frame's proper acceleration, rotated into frame axes. As a result, loose objects inside an accelerating ship slide toward the stern.
 
-A game gives a frame a new gravity field between ticks with `World.SetFrameGravity`. The sleeping bodies of the frame wake at the next step. The world refuses a field that is not valid, at this call and at spawn. Such a field has a kind that `GravityKind` does not define, or a value that is not finite. A negative G·M is not valid either. `FrameTree.SetGravity` is internal to the simulation. A frame that has a Kepler child takes only a point field with the same G·M as its current one: the child orbits that G·M, and another one would make the child jump. The world refuses any other field for such a frame, with an `ArgumentException` that names the frame and the child. Its invariant check (`World.AssertInvariants`) states the rule from the other side: every Kepler frame has a parent with a point gravity whose G·M is above 0.
+A game gives a frame a new gravity field between ticks with `World.SetFrameGravity`. The sleeping bodies of the frame wake at the next step. The world refuses a field that is not valid, at this call and at spawn. Such a field has a value that is not finite. A negative G·M is not valid either. `FrameTree.SetGravity` is internal to the simulation. A frame that has a Kepler child takes only a point field with the same G·M as its current one: the child orbits that G·M, and another one would make the child jump. The world refuses any other field for such a frame, with an `ArgumentException` that names the frame and the child. Its invariant check (`World.AssertInvariants`) states the rule from the other side: every Kepler frame has a parent with a point gravity whose G·M is above 0.
 
 ### Bubbles and nesting
 
@@ -454,7 +454,7 @@ The sky is a procedural star field, fixed to the axes of the root frame of the c
 
 The hemisphere ambient light needs an up, and each instance takes it from the gravity field of its own frame, at its place. (User) Up points against a uniform field, inside the field's region, and away from the frame's origin in a point field. In a frame without gravity, every surface gets the mean of the sky and the ground color. A frame owner, such as a ship's hull, takes its own frame's field at the frame's origin. Only the field counts, not the frame's proper acceleration, so thrust never turns the up. (User) The ambient light of a surface therefore does not depend on the frame that the camera rides in, a planet sees the sky on every side, and an empty frame in space mixes evenly by itself.
 
-The snapshot gives each instance its up as a `HemisphereUp`: a direction in the axes of the camera's frame, or a point given relative to the instance, so that a planet's own center moves with it exactly. The G-buffer pass stores the sky's share in the alpha of the emissive target. The up is not interpolated between ticks. The impostor manager keeps each capture's up in object space in its record of the light, so an object that turns against its up is captured again.
+The snapshot gives each instance its up as a `HemisphereUp`. It is a custom C# 15 union, as `GravityField` is. (User) Its cases are `UpAlong(Direction)`, a direction in the axes of the camera's frame, and `UpAwayFrom(Center)`, a point given relative to the instance, so that a planet's own center moves with it exactly. The empty union is the even mix. It takes 16 bytes, one vector and a tag, because a value holds one case. `GpuInstance` still packs it into one `Vector4` for the shaders: the direction with `w` 1, the point with `w` 2, and zero for the even mix. The G-buffer pass stores the sky's share in the alpha of the emissive target. The up is not interpolated between ticks. The impostor manager keeps each capture's up in object space in its record of the light, so an object that turns against its up is captured again.
 
 The up costs about 5 ns per instance in the snapshot build. On one thread, `RenderSnapshotBenchmarks` builds a snapshot of 20,000 visible entities in 784 µs, against 675 µs without the up. Each GPU instance grows from 64 to 80 bytes. The renderer has no GPU timer to measure that yet (ticket `ter-yiii`).
 

@@ -213,7 +213,6 @@ public class KeplerParentGravityTests
     [InlineData("a point field with G·M 0", 2)]
     [InlineData("a point field with a larger G·M", 3)]
     [InlineData("a point field with a smaller G·M", 4)]
-    [InlineData("a uniform field that carries the same G·M number", 5)]
     public void TheParentOfAKeplerFrameCannotTakeAFieldThatWouldMoveTheFrameOffItsOrbit(string why, int which)
     {
         using var t = new TestWorld();
@@ -226,7 +225,7 @@ public class KeplerParentGravityTests
             2 => GravityField.Point(0),
             3 => GravityField.Point(Mu * 2),
             4 => GravityField.Point(Mu / 2),
-            _ => new GravityField(GravityKind.Uniform, new Vector3(0, -9.81f, 0), null, Mu),
+            _ => throw new ArgumentOutOfRangeException(nameof(which), which, "No such field."),
         };
 
         Action set = () => t.World.SetFrameGravity(planet, field);
@@ -286,7 +285,7 @@ public class KeplerParentGravityTests
         public PlanetScene(GravityField rootField = default, params IComponent[] planetComponents)
         {
             T.World.Log += Lines.Add;
-            if (rootField.Kind != GravityKind.None)
+            if (rootField.HasValue)
                 T.World.SetFrameGravity(T.Root, rootField);
             PlanetOwner = T.World.Spawn(new SpawnDesc
             {

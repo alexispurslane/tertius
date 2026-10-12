@@ -236,7 +236,7 @@ public sealed class FrameTree
     public double KeplerMu(FrameHandle frame)
     {
         FrameHandle parent = Parent(frame);
-        return !parent.IsNull && Gravity(parent) is { CanBeOrbited: true } field ? field.Mu : 0;
+        return !parent.IsNull && Gravity(parent) is PointGravity { CanBeOrbited: true } point ? point.Mu : 0;
     }
 
     /// <summary>

@@ -32,7 +32,7 @@ public class WorldFrameFieldTests
         "NaN region" => GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(new Vector3(float.NaN), new Vector3(1))),
         "infinite G·M" => GravityField.Point(double.PositiveInfinity),
         "negative G·M" => GravityField.Point(-1e14),
-        _ => new GravityField((GravityKind)7, Vector3.Zero, null, 0),
+        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "No such bad gravity field."),
     };
 
     private static bool Finite(Double3 p) => double.IsFinite(p.X) && double.IsFinite(p.Y) && double.IsFinite(p.Z);
@@ -212,7 +212,6 @@ public class WorldFrameFieldTests
     [InlineData("NaN region")]
     [InlineData("infinite G·M")]
     [InlineData("negative G·M")]
-    [InlineData("undefined kind")]
     public void SetFrameGravityRefusesAFieldThatPhysicsCannotApply(string kind)
     {
         using World world = NewWorld(out _);
@@ -244,11 +243,44 @@ public class WorldFrameFieldTests
         world.GetPose(box).Position.Y.Should().BeApproximately(100 - 0.5 * 9.81, 0.2, "the box fell for 1 s");
     }
 
+    /// <summary>
+    /// A box sleeps on the floor. The game changes the field of its frame to another field of the same case, with another
+    /// acceleration, region or G·M. That is not the field that the box slept under, so the box wakes at the next step.
+    /// </summary>
+    [Theory]
+    [InlineData("another acceleration")]
+    [InlineData("another region")]
+    [InlineData("another G·M")]
+    public void ASleepingBoxWakesWhenTheGameChangesTheValuesOfTheFieldOfItsFrame(string change)
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        var down = new Vector3(0, -9.81f, 0);
+        var cabin = new BoundingBox(new Vector3(-20, -1, -20), new Vector3(20, 50, 20));
+        var wideCabin = new BoundingBox(new Vector3(-30, -1, -30), new Vector3(30, 50, 30));
+        // The floor of the point field is 100 m above its center, where the field pulls straight down.
+        (GravityField before, GravityField after, double top) = change switch
+        {
+            "another acceleration" => (GravityField.Uniform(down), GravityField.Uniform(new Vector3(0, -5, 0)), 0.0),
+            "another region" => (GravityField.Uniform(down, cabin), GravityField.Uniform(down, wideCabin), 0.0),
+            "another G·M" => (GravityField.Point(PlanetMu), GravityField.Point(2 * PlanetMu), 100.0),
+            _ => throw new ArgumentOutOfRangeException(nameof(change), change, "No such change."),
+        };
+        FrameHandle frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, before));
+        Floor(world, frame, top);
+        Entity box = world.Spawn(new SpawnDesc { Frame = frame, Pose = At(0, top + 0.5), Body = Cube() });
+        world.Tick();
+        TickUntil(world, () => !IsAwake(backend, frame, box), 600).Should().BeLessThan(600, "the box rests on the floor and falls asleep");
+
+        world.SetFrameGravity(frame, after);
+        world.Tick();
+
+        IsAwake(backend, frame, box).Should().BeTrue();
+    }
+
     /// <summary>Spawn refuses a frame with a gravity field that physics cannot apply.</summary>
     [Theory]
     [InlineData("NaN acceleration")]
     [InlineData("infinite G·M")]
-    [InlineData("undefined kind")]
     public void SpawnRefusesAFrameWithAGravityFieldThatPhysicsCannotApply(string kind)
     {
         using World world = NewWorld(out _);

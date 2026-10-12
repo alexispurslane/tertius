@@ -137,7 +137,7 @@ public static class DemoScenes
 
         // The circle that the ship starts on gives its state at the world's time. From there, gravity alone moves it. The
         // circle takes the G·M of earth's own field, which is the G·M that pulls the ship.
-        double earthMu = world.Frames.Gravity(earth).Mu;
+        double earthMu = world.Frames.Gravity(earth) is PointGravity { Mu: var mu } ? mu : throw new InvalidOperationException("Earth has no point gravity.");
         KeplerOrbit start = KeplerOrbit.Circular(OrbitRadius) with { Inclination = OrbitInclination, Attitude = KeplerAttitude.FacesParent };
         (Double3 position, Double3 velocity) = start.StateAt(world.Time, earthMu);
         Entity ship = world.Spawn(new SpawnDesc

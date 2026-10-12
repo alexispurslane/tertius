@@ -335,6 +335,30 @@ public sealed class ImpostorManagerTests
     }
 
     [Fact]
+    public void AnUpAwayFromAFarCenterIsBakedAsTheDirectionAwayFromItSoSwingingTheCenterAroundTheObjectRecaptures()
+    {
+        // The center is 100 m below the ball, so up is +Y at the ball. The center swings to 100 m to the left of the ball,
+        // so up is +X: a quarter turn, as in the test of a tilted direction above.
+        (Harness harness, float distance) = Captured(100f, hemisphere: HemisphereUp.AwayFrom(new Vector3(0, -100, 0)));
+        var position = new Vector3(0, 0, -distance);
+
+        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.AwayFrom(new Vector3(0, -99, 0)))).Should().Be(0, "a center that stays below leaves up where it was");
+        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.Along(Vector3.UnitY))).Should().Be(0, "up away from a center below is up along +Y");
+        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.AwayFrom(new Vector3(-100, 0, 0)))).Should().Be(1);
+    }
+
+    [Fact]
+    public void ACenterInsideTheObjectGivesEverySideItsOwnUpSoMovingItDoesNotRecapture()
+    {
+        // A planet's own center is inside it: there is no one up to bake, so the light of the capture has none. The
+        // center moves from below the middle to the right of it, still inside the ball of radius 1 m.
+        (Harness harness, float distance) = Captured(100f, hemisphere: HemisphereUp.AwayFrom(new Vector3(0, -0.5f, 0)));
+        var position = new Vector3(0, 0, -distance);
+
+        CapturesAfter(harness, Ball(1, position, hemisphere: HemisphereUp.AwayFrom(new Vector3(0.5f, 0, 0)))).Should().Be(0);
+    }
+
+    [Fact]
     public void WhenTheSkyAndTheGroundHaveOneColorTheUpDoesNotMatter()
     {
         var harness = new Harness();

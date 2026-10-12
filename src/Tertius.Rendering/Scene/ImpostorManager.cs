@@ -574,10 +574,10 @@ internal sealed class ImpostorManager : IInstanceProcessor
             HemisphereUp hemisphere = instance.Hemisphere;
             // A center inside the object, such as a planet's own, gives every side its own up, so there is no one up to
             // compare.
-            Vector3 up = hemisphere.Kind switch
+            Vector3 up = hemisphere switch
             {
-                HemisphereKind.Along => hemisphere.Direction,
-                HemisphereKind.AwayFrom when hemisphere.Center.Length() > instance.Radius => Vector3.Normalize(-hemisphere.Center),
+                UpAlong along => along.Direction,
+                UpAwayFrom away when away.Center.Length() > instance.Radius => Vector3.Normalize(-away.Center),
                 _ => Vector3.Zero,
             };
             Vector3 upInObject = Vector3.Transform(up, inverse) * (sky - ground).Length();

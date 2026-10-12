@@ -39,11 +39,11 @@ internal struct GpuInstance
             ModelRow2 = new Vector4(axisX.Z, axisY.Z, axisZ.Z, position.Z),
             InverseScaleSquared = new Vector3(InverseSquare(scale.X), InverseSquare(scale.Y), InverseSquare(scale.Z)),
             Material = material,
-            Hemisphere = hemisphere.Kind switch
+            Hemisphere = hemisphere switch
             {
-                HemisphereKind.Along => new Vector4(hemisphere.Direction, 1),
+                UpAlong { Direction: var direction } => new Vector4(direction, 1),
                 // The center moves with the instance, so it is exact wherever the instance is interpolated to.
-                HemisphereKind.AwayFrom => new Vector4(position + hemisphere.Center, 2),
+                UpAwayFrom { Center: var center } => new Vector4(position + center, 2),
                 _ => Vector4.Zero,
             },
         };

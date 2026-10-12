@@ -88,66 +88,6 @@ public record struct FrameBounds(Vector3 Radii)
     public static bool Fits(in FrameBounds inner, in FrameBounds outer) => inner.MaxRadius < 0.5f * outer.MinRadius;
 }
 
-public enum GravityKind : byte
-{
-    None,
-    /// <summary>Artificial gravity: one acceleration vector, optionally only inside a region box.</summary>
-    Uniform,
-    /// <summary>A point mass at the frame origin, such as a planet.</summary>
-    Point,
-}
-
-/// <summary>The gravity field of one frame. An object feels only the field of the frame that it is in.</summary>
-public record struct GravityField(GravityKind Kind, Vector3 Acceleration, BoundingBox? Region, double Mu)
-{
-    public static GravityField None => default;
-
-    public static GravityField Uniform(Vector3 acceleration, BoundingBox? region = null) =>
-        new(GravityKind.Uniform, acceleration, region, 0);
-
-    /// <param name="mu">The standard gravitational parameter G·M, in m³/s².</param>
-    public static GravityField Point(double mu) => new(GravityKind.Point, Vector3.Zero, null, mu);
-
-    /// <summary>
-    /// True for a field that physics can apply: a kind that <see cref="GravityKind"/> defines; for a uniform field, a
-    /// finite acceleration, and finite corners of the region when it has one; for a point mass, a finite G·M that is not
-    /// negative. Any other field would give the bodies of the frame a force that is not finite.
-    /// </summary>
-    public readonly bool IsValid => Kind switch
-    {
-        GravityKind.None => true,
-        GravityKind.Uniform => IsFinite(Acceleration) && (Region is not { } region || (IsFinite(region.Min) && IsFinite(region.Max))),
-        GravityKind.Point => double.IsFinite(Mu) && Mu >= 0,
-        _ => false,
-    };
-
-    /// <summary>
-    /// True for a point mass with a finite G·M above 0. Only such a field gives a Kepler frame in this frame a G·M to orbit,
-    /// so the World refuses a Kepler frame under any other field.
-    /// </summary>
-    public readonly bool CanBeOrbited => Kind == GravityKind.Point && Mu > 0 && double.IsFinite(Mu);
-
-    private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
-
-    /// <summary>The acceleration at a point in frame coordinates.</summary>
-    public readonly Vector3 At(Double3 position)
-    {
-        switch (Kind)
-        {
-            case GravityKind.Uniform:
-                return Region is { } region && !region.Contains(position.ToVector3()) ? Vector3.Zero : Acceleration;
-            case GravityKind.Point:
-                double r2 = position.LengthSquared;
-                if (r2 < 1e-6)
-                    return Vector3.Zero;
-                double r = Math.Sqrt(r2);
-                return (position * (-Mu / (r2 * r))).ToVector3();
-            default:
-                return Vector3.Zero;
-        }
-    }
-}
-
 /// <summary>How a Kepler frame turns as it orbits.</summary>
 public enum KeplerAttitude : byte
 {

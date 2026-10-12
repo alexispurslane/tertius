@@ -21,7 +21,6 @@ public class KeplerParentMuTests
         { "a point field with a negative G·M", GravityField.Point(-Mu) },
         { "a point field with a G·M that is not a number", GravityField.Point(double.NaN) },
         { "a point field with an infinite G·M", GravityField.Point(double.PositiveInfinity) },
-        { "a uniform field that carries a G·M number", new GravityField(GravityKind.Uniform, new Vector3(0, -9.81f, 0), null, Mu) },
     };
 
     private sealed class Planet

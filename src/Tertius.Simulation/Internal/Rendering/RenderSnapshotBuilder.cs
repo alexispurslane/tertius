@@ -385,16 +385,15 @@ internal sealed class RenderSnapshotBuilder
     /// </summary>
     private FrameHemisphere HemisphereOfFrame(FrameHandle frame, DQuaternion rotation)
     {
-        GravityField field = frames.Gravity(frame);
-        return field.Kind switch
+        return frames.Gravity(frame) switch
         {
-            GravityKind.Uniform when field.Acceleration != Vector3.Zero => new FrameHemisphere
+            UniformGravity { Acceleration: var acceleration, Region: var region } when acceleration != Vector3.Zero => new FrameHemisphere
             {
-                Up = HemisphereUp.Along(rotation.Rotate((Double3)(-field.Acceleration)).Normalized().ToVector3()),
-                HasRegion = field.Region.HasValue,
-                Region = field.Region.GetValueOrDefault(),
+                Up = HemisphereUp.Along(rotation.Rotate((Double3)(-acceleration)).Normalized().ToVector3()),
+                HasRegion = region.HasValue,
+                Region = region.GetValueOrDefault(),
             },
-            GravityKind.Point when field.Mu > 0 => new FrameHemisphere { Up = HemisphereUp.AwayFrom(Vector3.Zero) },
+            PointGravity { Mu: > 0 } => new FrameHemisphere { Up = HemisphereUp.AwayFrom(Vector3.Zero) },
             _ => default,
         };
     }
@@ -411,7 +410,7 @@ internal sealed class RenderSnapshotBuilder
     private HemisphereUp HemisphereOf(int dense, Vector3 place, Double3 position)
     {
         ref readonly FrameHemisphere frame = ref frameHemisphere[dense];
-        if (frame.Up.Kind == HemisphereKind.AwayFrom)
+        if (frame.Up is UpAwayFrom)
             return HemisphereUp.AwayFrom((relCurrent[dense].Position - position).ToVector3());
         return frame.HasRegion && !frame.Region.Contains(place) ? HemisphereUp.Even : frame.Up;
     }

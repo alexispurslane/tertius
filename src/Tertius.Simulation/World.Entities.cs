@@ -238,10 +238,10 @@ public sealed partial class World
             throw new ArgumentException($"Cannot set the gravity of {frame}: the frame is gone.", nameof(frame));
         if (!gravity.IsValid)
             throw new ArgumentException($"Cannot give {frame} this gravity field: the field is not valid (see GravityField.IsValid).", nameof(gravity));
-        GravityField current = Frames.Gravity(frame);
-        if (!(gravity.CanBeOrbited && gravity.Mu == current.Mu) && KeplerChildOf(frame) is { IsNull: false } orbiter)
+        bool keepsTheOrbitedMu = gravity is PointGravity { CanBeOrbited: true } next && Frames.Gravity(frame) is PointGravity current && next.Mu == current.Mu;
+        if (!keepsTheOrbitedMu && KeplerChildOf(frame) is { IsNull: false } orbiter)
             throw new ArgumentException(
-                $"Cannot give {frame} this gravity field: its child {orbiter} has the Kepler driver and orbits the G·M {current.Mu} m³/s² of the current field. " +
+                $"Cannot give {frame} this gravity field: its child {orbiter} has the Kepler driver and orbits the G·M {Frames.KeplerMu(orbiter)} m³/s² of the current field. " +
                 "The new field must be a point field with the same G·M, or the child would jump.", nameof(gravity));
 
         Frames.SetGravity(frame, gravity);
