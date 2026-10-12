@@ -103,6 +103,9 @@ public sealed class Crate(CrateSpec spec) : IComponent
         if (offeredOn is long sent && self.Tick - sent < AnswerTicks)
             return;
         int firstUse = events.IndexOf<Use>();
+        // Nothing reaches this return. The crate wants only Use and CrateTaken, and a CrateTaken returned above, so the
+        // events always hold a Use. The guard stays so that a change of what the crate wants cannot read events[-1].
+        // Stryker disable once Statement : the crate wants only Use and CrateTaken, so no call without a Use gets here.
         if (firstUse < 0)
             return;
         outbox.Send(events[firstUse].As<Use>().User, new CrateOffer { Crate = spec });

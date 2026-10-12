@@ -116,6 +116,7 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
 
     private void Throw(Self self, Outbox outbox)
     {
+        // Stryker disable once Arithmetic : while ChargeSeconds is 1, dividing by it and multiplying by it give the same speed.
         float speed = MathF.Min(MaxThrowSpeed, MaxThrowSpeed * (self.Tick - chargeStart) * self.DeltaTime / ChargeSeconds);
         // The view and its direction, in the person's axes.
         Pose view = self.Render.ViewOffset;
@@ -139,6 +140,7 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
     /// </summary>
     private static float Clearance(Vector3 eye, Vector3 aim, float halfHeight, float radius)
     {
+        // Stryker disable once Equality : only an eye at exactly the clearance from the capsule reaches the boundary, and a view away from the capsule gets 0 there too.
         if (Vector3.Distance(eye, new Vector3(0, Math.Clamp(eye.Y, -halfHeight, halfHeight), 0)) >= radius)
             return 0;
         // The aim leaves the capsule through its round side, the cylinder about Y, if the point where it leaves the
@@ -149,6 +151,7 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
             float b = eye.X * aim.X + eye.Z * aim.Z, c = eye.X * eye.X + eye.Z * eye.Z - radius * radius;
             float side = (-b + MathF.Sqrt(MathF.Max(0, b * b - across * c))) / across;
             float y = eye.Y + aim.Y * side;
+            // Stryker disable once Equality : where the exit point lies exactly at the end of the cylinder, the round side and the rounded end give the same point.
             if (MathF.Abs(y) <= halfHeight)
                 return side;
             end = MathF.Sign(y) * halfHeight;

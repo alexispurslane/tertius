@@ -127,6 +127,6 @@ public sealed class DoorTests : IDisposable
     {
         Action create = () => _ = new Door(new Vector3(0, 2, 0), openSeconds);
 
-        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("openSeconds");
+        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("openSeconds").WithMessage("*time to open*positive and finite*");
     }
 }

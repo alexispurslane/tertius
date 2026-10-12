@@ -274,6 +274,21 @@ public sealed class PersonControlTests : IDisposable
     }
 
     [Fact]
+    public void ASpacePressThatComesAfterAnotherPressAndReleaseInTheSameTickStillMakesOneJump()
+    {
+        double standing = world.Snapshot.PoseOf(person).Position.Y;
+        // The person handles all four events in one tick, in the order of the posts. The press that comes second must not
+        // cancel the first one. Space goes up at the end, so that its thrust does not add to the jump.
+        Press(Key.Space);
+        Post(InputKind.KeyUp, (int)Key.Space);
+        Press(Key.Space);
+        Post(InputKind.KeyUp, (int)Key.Space);
+        Ticks(3 + 24);
+
+        (world.Snapshot.PoseOf(person).Position.Y - standing).Should().BeApproximately(0.781, 0.005);
+    }
+
+    [Fact]
     public void HoldingSpaceAfterAJumpThrustsThePersonHigher()
     {
         double standing = world.Snapshot.PoseOf(person).Position.Y;
@@ -378,6 +393,24 @@ public sealed class PersonControlTests : IDisposable
         near.Seen.Should().ContainSingle("one press is one use");
         near.Seen[0].Event.As<Use>().User.Should().Be(person);
         far.Seen.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnEPressThatComesAfterAnotherPressAndReleaseInTheSameTickStillMakesOneUse()
+    {
+        FrameHandle room = world.Snapshot.FrameOf(person);
+        Probe near = new(EventMask.Of<Use>());
+        world.Spawn(new SpawnDesc { Frame = room, Pose = world.Snapshot.PoseOf(person), Components = [near] });
+        Ticks(1);
+        // The person handles all three events in one tick, in the order of the posts. The press that comes second must
+        // not cancel the first one, and the two presses make one use between them.
+        Press(Key.E);
+        Post(InputKind.KeyUp, (int)Key.E);
+        Press(Key.E);
+        Ticks(10);
+
+        near.Seen.Should().ContainSingle("two presses in one tick are one use");
+        near.Seen[0].Event.As<Use>().User.Should().Be(person);
     }
 
     [Fact]

@@ -157,7 +157,34 @@ public sealed class AirlockTests : IDisposable
     {
         Action create = () => _ = new Airlock(inner, outer, cycleSeconds);
 
-        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("cycleSeconds");
+        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("cycleSeconds").WithMessage("*cycle time*positive and finite*");
+    }
+
+    [Theory]
+    [InlineData(Second, false)]
+    [InlineData(Second + 1, true)]
+    public void AUseStartsAnotherCycleOnlyFromTheFirstTickAfterTheCycleHasEnded(int ticksAfterTheFirstUse, bool startsACycle)
+    {
+        Ticks(Second);
+        Use();
+        // The airlock handles a use as many ticks after the first use as the test posts it after the first use. The first
+        // cycle lasts 60 ticks, from the close order to the open order, so the airlock takes a use 61 ticks after the first
+        // one, and not a use 60 ticks after it.
+        Ticks(ticksAfterTheFirstUse);
+        Use();
+        Ticks(Second * 4);
+
+        // A second cycle shuts the outer door again and opens the inner one.
+        if (startsACycle)
+        {
+            ExpectOpen(inner, "inner");
+            ExpectShut(outer, "outer");
+        }
+        else
+        {
+            ExpectShut(inner, "inner");
+            ExpectOpen(outer, "outer");
+        }
     }
 
     [Fact]

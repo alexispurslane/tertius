@@ -277,7 +277,7 @@ public sealed class BoxMeshTests
 
         Action stacked = () => new BoxMesh().Box(Slab, openings: [low, high]);
 
-        stacked.Should().Throw<ArgumentException>().WithMessage("*overlap*");
+        stacked.Should().Throw<ArgumentException>().WithParameterName("openings").WithMessage("*overlap*");
     }
 
     [Fact]
@@ -288,7 +288,7 @@ public sealed class BoxMeshTests
 
         Action cut = () => new BoxMesh().Box(Slab, openings: toTheFloor);
 
-        cut.Should().Throw<ArgumentException>().WithMessage("*inside*");
+        cut.Should().Throw<ArgumentException>().WithParameterName("openings").WithMessage("*inside*");
     }
 
     [Fact]
@@ -298,5 +298,14 @@ public sealed class BoxMeshTests
         Action cut = () => new BoxMesh().Box(Slab, openings: WindowAcrossZ);
 
         cut.Should().Throw<ArgumentException>().WithMessage("*no face*");
+    }
+
+    [Fact]
+    public void AnOpeningThatGoesThroughNoAxisCannotGetSides()
+    {
+        // The default opening has no axis, so it has no faces across it to add.
+        Action sides = () => new BoxMesh().Sides(default);
+
+        sides.Should().Throw<ArgumentException>().WithParameterName("opening").WithMessage("*no axis*");
     }
 }
