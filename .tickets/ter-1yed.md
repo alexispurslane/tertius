@@ -26,3 +26,9 @@ Design doc: docs/plans/queries-and-sensors.md. The first child ticket writes it 
 
 Order: the epic starts after the vertical slice (ter-dtw2) and the shared test helpers (ter-1j1e), so that its tests use the World on Jolt from the start. The content formats epic (ter-jwzd) waits for this epic, because the blueprint body section must carry the masks and the sensor flag, and a flag is an entry under a blueprint's components key.
 
+
+## Notes
+
+**2026-10-12T01:25:35Z**
+
+Jargon for the whole epic (User). Entity side: a body's collision groups are the bitset of groups that it is in, and an entity's component flags are the bitset of component types that it has, which the snapshot publishes. Query side: a query's collision mask names the collision groups that a body must be in and must not be in, and its component mask names the component types that an entity must have and must not have. Every filter in a query narrows, so two queries join by ORing their masks. Older text in these tickets says category for collision group.

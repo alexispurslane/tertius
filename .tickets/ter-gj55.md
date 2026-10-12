@@ -60,3 +60,7 @@ Generic component types are refused entirely (User). The startup scan, and the c
 **2026-10-12T01:17:59Z**
 
 The entity query filters by collision group membership too, not only by components (User). The query language exists to build on both flags and collision groups. So the query struct also holds group filters inline (a few bits each, no allocation), the snapshot publishes each entity's groups beside its component mask, and this ticket waits for the groups of ter-g3yp. How group filters join depends on an open point of ter-g3yp: if a body is in exactly one group, 'in any of A' and 'in any of B' join into 'in any of A and B both' by a bitwise AND; if a body can be in several groups, they do not, and a second group filter goes in the heap part.
+
+**2026-10-12T01:25:35Z**
+
+Jargon and group filters (User, supersedes the earlier note on joining group filters): a body can be in several collision groups, published as a bitset. A query's collision mask holds the groups that a body must all be in and the groups that it must not be in, inline, with no heap part. Two queries join by ORing their component masks and their collision masks, because every filter narrows. A query that wants walls or people asks for a group that both are in, such as Solid.

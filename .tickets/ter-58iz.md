@@ -10,7 +10,7 @@ assignee: Alexis Purslane
 parent: ter-1yed
 tags: [physics, simulation, gameplay]
 ---
-# Let a component read another entity's physics facts: motion, mass, shape, category and mask
+# Let a component read another entity's physics facts: motion, mass, shape and collision groups
 
 Snapshot tells a component only whether another entity has a body (HasBody). The component cannot read the other body's motion type, mass, shape, collision category and mask, or whether it is a character or a sensor. A component that decides whether it can push, lift or stand on another entity needs these facts.
 
