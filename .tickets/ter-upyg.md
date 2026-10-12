@@ -1,6 +1,6 @@
 ---
 id: ter-upyg
-status: open
+status: in_progress
 deps: [ter-f8sh, ter-7wbc]
 links: []
 created: 2026-10-11T13:52:09Z
@@ -12,5 +12,5 @@ tags: [host, slice]
 ---
 # Vertical slice: the person throws an object from one frame into another
 
-Step 3 of docs/plans/host-and-scripted-runs.md.
+Step 4 of docs/plans/host-and-scripted-runs.md.
 
