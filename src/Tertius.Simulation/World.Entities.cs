@@ -361,17 +361,20 @@ public sealed partial class World
     /// </summary>
     private void MakeLive(Entity entity, SpawnDesc desc, SpawnPlan plan, FrameHandle frame, double time)
     {
+        // The description is the caller's, and its rotation can be any rotation that spawn accepted. The local pose of a
+        // frame must be unit length (see FrameTree), so the world normalizes it here, and does not refuse it.
+        DPose pose = desc.Pose.WithUnitRotation();
         var row = new TransformRow
         {
             Frame = frame,
-            Pose = desc.Pose,
+            Pose = pose,
             LinearVelocity = desc.LinearVelocity,
             AngularVelocity = desc.AngularVelocity,
         };
         FrameHandle own = FrameHandle.Null;
         if (desc.AsFrame is { } spec)
         {
-            own = Frames.Create(entity, frame, desc.Pose, spec.Bounds, spec.Driver, spec.Gravity, spec.Orbit, spec.Spin);
+            own = Frames.Create(entity, frame, pose, spec.Bounds, spec.Driver, spec.Gravity, spec.Orbit, spec.Spin);
             topics.AddFrame(own);
             if (spec.Driver == MotionDriver.Kepler)
             {

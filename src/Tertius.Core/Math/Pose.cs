@@ -36,13 +36,23 @@ public record struct Pose(Vector3 Position, Quaternion Rotation) : IPose<Pose>
     public static Pose Lerp(in Pose a, in Pose b, float t) =>
         new(Vector3.Lerp(a.Position, b.Position, t), Quaternion.Slerp(a.Rotation, b.Rotation, t));
 
-    public readonly DPose ToDPose() => new(Position, DQuaternion.FromQuaternion(Rotation));
+    /// <summary>
+    /// The same pose in double precision, with the rotation normalized in double. A float quaternion is not exactly unit
+    /// length, and a double-precision pose composes and inverts as a rotation only when its quaternion is.
+    /// </summary>
+    public readonly DPose ToDPose() => new(Position, DQuaternion.FromQuaternion(Rotation).Normalized());
 }
 
 /// <summary>A double-precision rigid transform. Used for reference frames relative to their parents.</summary>
 /// <remarks>
+/// <see cref="Compose"/> and <see cref="Inverse"/> normalize the rotation that they use, so they stay exact for a rotation that
+/// is a little off unit length, such as a float quaternion from Jolt. <see cref="TransformPoint"/>, <see cref="TransformDirection"/>
+/// and the two inverse transforms use the rotation as it is, for speed. They need a unit rotation, which the frame tree keeps
+/// for the local pose of every frame (see <see cref="FrameTree.AssertInvariants"/>), and which <see cref="Compose"/> gives.
+/// <para>
 /// <c>new DPose()</c>, and so <c>new DPose { Position = p }</c>, has the identity rotation. The default value of the struct,
 /// <c>default(DPose)</c>, skips every constructor, so its rotation is zero, which is not a rotation: spawn refuses it.
+/// </para>
 /// </remarks>
 public record struct DPose(Double3 Position, DQuaternion Rotation) : IPose<DPose>
 {
@@ -62,15 +72,32 @@ public record struct DPose(Double3 Position, DQuaternion Rotation) : IPose<DPose
         double.IsFinite(Position.X) && double.IsFinite(Position.Y) && double.IsFinite(Position.Z) &&
         Rotation.LengthSquared is > 0 and < double.PositiveInfinity;
 
+    /// <summary>
+    /// <paramref name="parent"/> applied after <paramref name="local"/>. A rotation that is not unit length acts as its
+    /// normalized rotation does, in the position and in the rotation of the result. So the pose of a parent that Jolt gave,
+    /// whose rotation is a float quaternion, moves the position of its child by the same rotation that it composes into the
+    /// child's rotation.
+    /// </summary>
     public static DPose Compose(in DPose parent, in DPose local) => new(
-        parent.Position + parent.Rotation.Rotate(local.Position),
+        parent.Position + parent.Rotation.RotateNormalizing(local.Position),
         (parent.Rotation * local.Rotation).Normalized());
 
+    /// <summary>
+    /// The pose that undoes this one. A rotation that is not unit length acts as its normalized rotation does, in the
+    /// position and in the rotation of the result, so <see cref="Compose"/> of a pose and its inverse is the identity.
+    /// </summary>
     public readonly DPose Inverse()
     {
-        DQuaternion inverse = Rotation.Conjugate();
+        DQuaternion inverse = Rotation.Normalized().Conjugate();
         return new(-inverse.Rotate(Position), inverse);
     }
+
+    /// <summary>
+    /// This pose with its rotation normalized, unless the rotation is unit length already (see <see cref="DQuaternion.IsUnit"/>).
+    /// A rotation that is unit length stays as it is, bit for bit, so a pose that needs no change does not change by rounding.
+    /// A zero rotation becomes the identity.
+    /// </summary>
+    public readonly DPose WithUnitRotation() => Rotation.IsUnit ? this : this with { Rotation = Rotation.Normalized() };
 
     public readonly Double3 TransformPoint(Double3 point) => Position + Rotation.Rotate(point);
     public readonly Double3 TransformDirection(Double3 direction) => Rotation.Rotate(direction);

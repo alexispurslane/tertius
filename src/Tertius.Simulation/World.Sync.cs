@@ -304,10 +304,12 @@ public sealed partial class World
                     ApplySpin(frame, endTime);
                     break;
                 case MotionDriver.Static:
-                    // A static frame whose owner has no body moves when gameplay writes the owner's transform.
+                    // A static frame whose owner has no body moves when gameplay writes the owner's transform. Gameplay can
+                    // write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the world
+                    // normalizes it here, and the owner's row follows the frame (see MirrorFrameOwner).
                     Entity owner = frame.Entity;
                     if (entities.GameplayWroteTransform(owner))
-                        Frames.SetLocalPose(frame, entities.BackRow(owner).Pose);
+                        Frames.SetLocalPose(frame, entities.BackRow(owner).Pose.WithUnitRotation());
                     break;
             }
             MirrorFrameOwner(frame);

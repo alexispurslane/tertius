@@ -8,11 +8,20 @@ namespace Tertius;
 /// Mutate the tree only at the sync point, then call <see cref="Update"/>. During a tick, the tree is read-only
 /// and safe to read from any thread.
 /// <para>
-/// Invariant, checked by <see cref="AssertInvariants"/>: every frame with the <see cref="MotionDriver.Kepler"/> driver has a
-/// parent whose gravity is a point field with a G·M above 0 (see <see cref="GravityField.CanBeOrbited"/>). An orbit has no
-/// G·M of its own. A Kepler frame takes the G·M of its parent's point gravity (see <see cref="KeplerMu"/>), the same G·M
-/// that pulls the loose bodies in that parent. The tree does not keep the invariant: its setters take what they are given.
-/// The World does, because it refuses every call that would break it.
+/// Invariants, checked by <see cref="AssertInvariants"/>:
+/// <list type="bullet">
+/// <item>Every frame with the <see cref="MotionDriver.Kepler"/> driver has a parent whose gravity is a point field with a
+/// G·M above 0 (see <see cref="GravityField.CanBeOrbited"/>). An orbit has no G·M of its own. A Kepler frame takes the G·M
+/// of its parent's point gravity (see <see cref="KeplerMu"/>), the same G·M that pulls the loose bodies in that parent. The
+/// tree does not keep this invariant: its setters take what they are given. The World does, because it refuses every call
+/// that would break it.</item>
+/// <item>The rotation of every frame's local pose is a unit quaternion: the square of its length is within
+/// <see cref="DQuaternion.UnitTolerance"/> of 1. A frame whose rotation is a little long or short moves everything in its
+/// parent by that much of the distance to the parent's origin, as seen from the frame. The tree checks it in a build with
+/// contracts, when a caller creates a frame or sets a local pose, and the World keeps it: it normalizes a rotation that a
+/// caller gives it, and physics normalizes the rotation that leaves Jolt. The poses that the tree composes itself, when it
+/// moves or destroys a frame, are unit length.</item>
+/// </list>
 /// </para>
 /// </summary>
 public sealed class FrameTree
@@ -55,6 +64,7 @@ public sealed class FrameTree
             throw new ArgumentException("A frame needs an owner entity.", nameof(frameOwner));
         if (byOwner.ContainsKey(frameOwner))
             throw new InvalidOperationException($"{frameOwner} already owns a frame.");
+        Contract.Requires(localPose.Rotation.IsUnit);
 
         PoseNode node = poses.Add(parent.IsNull ? PoseNode.Null : Node(parent), localPose);
         Grow(node.Id + 1);
@@ -135,7 +145,15 @@ public sealed class FrameTree
 
     public DPose LocalPose(FrameHandle frame) => poses.GetLocal(Node(frame));
 
-    public void SetLocalPose(FrameHandle frame, in DPose pose) => poses.Local(Node(frame)) = pose;
+    /// <summary>
+    /// Sets the pose of the frame in its parent. The rotation must be unit length (see <see cref="DQuaternion.IsUnit"/>): a
+    /// caller that cannot promise it normalizes the rotation first (see <see cref="DPose.WithUnitRotation"/>).
+    /// </summary>
+    public void SetLocalPose(FrameHandle frame, in DPose pose)
+    {
+        Contract.Requires(pose.Rotation.IsUnit);
+        poses.Local(Node(frame)) = pose;
+    }
 
     /// <summary>The bubble of the frame. It never changes after the frame is created.</summary>
     public FrameBounds Bounds(FrameHandle frame) => bounds[Node(frame).Id];
@@ -240,16 +258,18 @@ public sealed class FrameTree
     }
 
     /// <summary>
-    /// Checks the invariant of the tree (see the class summary): every frame with the Kepler driver has a G·M to orbit.
-    /// O(frames). It runs only on demand, so it works in every build.
+    /// Checks the invariants of the tree (see the class summary): every frame with the Kepler driver has a G·M to orbit, and
+    /// the rotation of every frame's local pose is unit length. O(frames). It runs only on demand, so it works in every build.
     /// </summary>
     internal void AssertInvariants()
     {
+        ReadOnlySpan<DPose> locals = poses.LocalPoses;
         for (int i = 0; i < poses.Count; i++)
         {
             FrameHandle frame = AtDense(i);
             if (Driver(frame) == MotionDriver.Kepler)
                 Contract.Invariant(KeplerMu(frame) > 0);
+            Contract.Invariant(locals[i].Rotation.IsUnit);
         }
     }
 
