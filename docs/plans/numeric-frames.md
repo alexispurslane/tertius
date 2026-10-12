@@ -26,7 +26,7 @@ Distance is not the problem inside a solar system. A double steps by 0.03 mm at 
 | Physics home | The frame whose Jolt system holds a body: a numeric frame, or the body's semantic frame |
 | Local velocity | A body's velocity relative to its physics home, a float in Jolt |
 | Frame velocity | A numeric frame's velocity relative to its semantic frame, a double in the frame tree |
-| Gameplay velocity | A body's velocity relative to its semantic frame: the local velocity plus the frame velocity of its physics home |
+| Read in a frame | A read of a position or velocity that names the frame in which the caller wants the answer |
 | Drain | A move of the common part of the members' local velocities into the frame velocity, at a sync point |
 | Effective gravity | The gravity that physics applies to a body: the field at the body's true position minus the acceleration of its physics home |
 
@@ -39,7 +39,10 @@ The user made the decisions marked (User).
 | Where a numeric frame lives | It is a frame in the frame tree, of a numeric kind. (User) | Frames already have the pose tree, a Jolt system each, hand-offs and drivers. A second mechanism must copy all of them. |
 | What gameplay sees | Nothing. No component, script, event, query, snapshot, state dump or saved state can tell that a numeric frame exists, apart from rounding. | The frames carry no meaning. They exist only for precision. |
 | How a numeric frame moves | Integrated free fall in doubles, in the semantic frame's field. (User) | It works in any field, and numeric frames can nest later. A drift from the true orbit is harmless, as the section on motion shows. A Kepler orbit needs new code that turns a state into orbit elements, and it blocks nesting. |
-| Gameplay velocity | A `Double3` that the API computes from the frame velocity and the local velocity. A setter stores a `Double3`. Physics converts it at the moment that it applies the request. (User) | Jolt keeps its small float. Reads are exact, and writes lose nothing. Storage stays one float vector per body. |
+| Reads of positions and velocities | Every read names its frame. No read without a frame remains. (User) | A read can be about any entity, so it must say in which frame it wants the answer. No read can then be ambiguous, and what the row stores becomes an engine detail. A caller can name only semantic frames, so no read answers in a numeric frame. |
+| Velocity storage | Jolt's float local velocity, plus the double frame velocity of the physics home. A read adds them in doubles. (User) | Jolt keeps its small float, and reads are exact. |
+| Writes | Relative to `self.Frame`, as today. Physics converts a write at the moment that it applies it. (User) | An entity writes only itself, so its own frame is the natural frame for a write. |
+| Directions | In `self.Frame`'s axes, as today: forces, impulses, torques, the walk velocity, contact normals, gravity and up. (User) | A direction depends only on axes, and numeric frames never rotate, so a direction cannot leak a numeric frame. |
 | Rotation | None. A numeric frame keeps the axes of its semantic frame. | No Coriolis or centrifugal terms appear, and vectors need no rotation between the two frames. |
 | Bubble | None. Membership is a list of bodies. | A numeric frame never sweeps up bodies as it moves, so it leaves no wake. |
 | Owner | None. A numeric frame has no owner entity. | An owner entity shows in entity lists, broadcasts, dumps and handle numbers. |
@@ -67,20 +70,31 @@ Without the tidal gravity, the clustering changes the physics. Two bodies 100 m 
 |---|---|---|
 | Local velocity | Jolt, and the entity's row | Float `Vector3`, small |
 | Frame velocity | The frame tree | `Double3` |
-| Gameplay velocity | Computed by the API at each read | `Double3` |
+| A velocity read in a frame | Computed at each read | `Double3` |
 
 A sketch of the API (the names are not final):
 
 ```csharp
-public Double3 Velocity => world.FrameVelocity(row.PhysicsHome) + row.LocalVelocity;
-public void SetVelocity(Double3 velocity) { intent.Velocity = velocity; intent.Flags |= IntentFlags.SetVelocity; }
-// Physics, when it applies the intent:
-// local = (intent.Velocity - FrameVelocity(home)).ToVector3();
+DPose pose = self.PoseIn(self.Frame);
+Double3 velocity = self.VelocityIn(self.Frame);
+bool found = self.Snapshot.TryGetVelocityIn(crate, self.Frame, out Double3 crateVelocity);
+self.Body.SetVelocity(velocity + push);  // a Double3 relative to self.Frame
+// A velocity read in the body's semantic frame:
+//   FrameVelocity(row.PhysicsHome) + row.LocalVelocity
+// Physics, when it applies the set velocity:
+//   local = (intent.Velocity - FrameVelocity(home)).ToVector3();
 ```
 
-Physics converts a write at the moment that it applies the request. The setter does not convert it. A sync point lies between those two moments, and it can drain the frame or move the body to another numeric frame. So the request keeps the gameplay velocity, and physics subtracts the frame velocity of the body's home at that moment. Spawn velocities work the same way, because a spawn also lands at a sync point.
+A read in another frame converts through the frame tree in doubles, as `TryGetPoseIn` does today for poses. `FrameTree.ConvertVelocity` already does this for velocities, with the turn of each spinning frame on the path. A numeric frame on the path adds only its double position or velocity, because it has no rotation.
 
-These members change from `Vector3` to `Double3`: `Self.Velocity`, `Self.SetVelocity`, `SpawnDesc.LinearVelocity`, `World.GetVelocity` and `Snapshot.VelocityOf`. Angular velocity stays a `Vector3`, because numeric frames do not rotate.
+Physics converts a write at the moment that it applies the request. The setter does not convert it. A sync point lies between those two moments, and it can drain the frame or move the body to another numeric frame. So the request keeps the velocity relative to `self.Frame`, and physics subtracts the frame velocity of the body's home at that moment. Spawn velocities work the same way, because a spawn also lands at a sync point.
+
+The API changes in these ways:
+
+- The reads without a frame go away: `Self.Pose`, `Self.Velocity`, `Self.AngularVelocity`, `World.GetPose`, `World.GetVelocity`, `World.GetAngularVelocity`, `Snapshot.PoseOf`, `Snapshot.VelocityOf`, `Snapshot.AngularVelocityOf` and `Snapshot.TryGetPose`.
+- Reads in a frame replace them: `PoseIn`, `VelocityIn` and `AngularVelocityIn` on `Self` and `World`, and `TryGetPoseIn`, `TryGetVelocityIn` and `TryGetAngularVelocityIn` on `Snapshot`. A velocity read returns a `Double3`. An angular velocity read returns a `Vector3`, because numeric frames do not rotate.
+- `Self.Transform` is a writable reference, so it also reads without a frame. It becomes a setter relative to `self.Frame`.
+- `Self.SetVelocity` and `SpawnDesc.LinearVelocity` take a `Double3`.
 
 Every place in physics that narrows a double velocity to a float subtracts the frame velocity of the body's home first. Today these places are:
 
@@ -97,7 +111,7 @@ Today, physics writes into each entity's row the frame whose Jolt system holds t
 - The row frame stays the semantic frame: the nearest ancestor of the physics home that is not numeric.
 - A new field holds the physics home.
 
-The row's pose stays relative to the semantic frame. The sync point computes it in doubles from the home's position and the body's local pose. Because numeric frames do not rotate, this is one addition of positions.
+The row's pose stays relative to the semantic frame. Because every read names a frame, this is an engine detail: it makes the most common read, in `self.Frame`, free. The sync point computes it in doubles from the home's position and the body's local pose. Because numeric frames do not rotate, this is one addition of positions.
 
 The poses of intents, such as a kinematic target or a teleport, stay in the semantic frame's coordinates. Physics converts them at the moment that it applies them, as it does for velocities.
 
@@ -193,7 +207,7 @@ The public surface reports only semantic frames. The work covers each of these s
 
 The tickets hold the order. In short:
 
-1. Split the row into a semantic frame and a physics home. Make the gameplay velocity a computed `Double3`, and convert requests at apply time. Every body's home is still its semantic frame.
+1. Split the row into a semantic frame and a physics home. Replace every read without a frame by a read in a frame, make velocities `Double3`, and convert writes at apply time. Every body's home is still its semantic frame.
 2. Add numeric frames to the frame tree: ownerless, hidden from the public surface, moved by integrated free fall, with tidal effective gravity in doubles and a Jolt system each.
 3. Move groups of bodies between a semantic frame and its numeric frames, with no events. Move a frame owner's frame under the numeric frame of its hull.
 4. Cluster automatically: create, merge, split, drain and collect.
