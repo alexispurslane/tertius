@@ -48,3 +48,7 @@ The query has a stored form (see the note of ter-ziae): EntityQuery, run with Sn
 **2026-10-12T00:23:33Z**
 
 See the note of ter-ziae on the user's query design: a value-type query with With and Without masks, an optional heap object for frames, radii and predicates, and four open questions. The record of component types that this ticket publishes is the per-entity mask that the query tests, possibly interned behind a component set id.
+
+**2026-10-12T00:31:28Z**
+
+Decisions (User): each entity's snapshot row carries a 512-bit component mask (64 bytes, 12.8 MB at 100,000 entities with both buffers), and the user accepts that cost and the cap of 512 component types. Only changed masks are copied forward: add a ComponentsDirty bit to EntityTable's SlotFlags beside TransformDirty and RenderDirty, mark it where ApplyComponentChanges, World.AddComponent and World.RemoveComponent change a list (and at spawn), and let CopyDirtyRows copy the mask of those slots only. Enforce the cap at startup (User): scan the loaded assemblies for concrete types that implement IComponent and fail with a clear error past 512. Points to settle: assemblies that load later, such as mods, need the same check when they load (AppDomain.AssemblyLoad or the mod loader); a startup scan cannot count closed generic component types such as the tests' Boxed<T> and SendOnce<T>, so either refuse generic component types or count each closed type when it is first seen; sorting the types by full name gives each type the same id in every run with the same set of types.
