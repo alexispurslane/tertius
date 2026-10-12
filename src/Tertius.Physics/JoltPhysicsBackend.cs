@@ -195,8 +195,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// that ground. Then only the part of the desired velocity across the up direction counts. A character that does
     /// not stand, in the air, on steep ground or weightless, in any frame and any gravity, keeps its momentum, and
     /// gravity changes it. (User) CharacterMove and Jump do not move it, but physics keeps the desired velocity, which
-    /// applies once the character stands. It loses its motion into each static or kinematic surface that it hits. Its
-    /// up turns against the gravity only while something supports it, so a character in free fall does not turn.
+    /// applies once the character stands. It loses its motion into each static or kinematic surface that it hits. Under
+    /// gravity, its up turns against the gravity whenever it touches anything, so a character that lands on its side or
+    /// its head turns upright, and a character in free fall that touches nothing does not turn.
     /// Impulses and forces change a character's velocity by their mass. KinematicTarget does nothing to a
     /// character.</item>
     /// </list>
@@ -205,6 +206,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// character, plus one last report for a body that fell asleep. Velocities are at the center of mass.
     /// <see cref="PhysicsStepOutput.Characters"/> holds every character once, after the hand-offs, with whether physics
     /// stood it in this step. A character that a hand-off moved has not stood in its new frame yet.
+    /// <see cref="PhysicsStepOutput.HandOffs"/> holds each body that moved to another frame, with its pose there. For a
+    /// character that is the rotation that it got in its new frame, which a turn to the new gravity can change.
     /// <see cref="PhysicsStepOutput.Frames"/> holds every physics-driven frame with a hull, relative to its parent
     /// after any hand-off in this step, with the velocity of the frame origin. Apply hand-offs before frame states.
     /// <see cref="PhysicsStepOutput.Contacts"/> holds each body pair that started touching, with A before B in

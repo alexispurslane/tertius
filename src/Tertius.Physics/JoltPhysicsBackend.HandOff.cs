@@ -193,9 +193,18 @@ public sealed partial class JoltPhysicsBackend
         // A character that stood in this step takes its up from the new frame's gravity. One that did not stand falls
         // freely, so nothing turns it: it keeps its up and its rotation, turned into the new frame's axes.
         CreatePrimary(record, plan.To, plan.Pose, plan.LinearVelocity, plan.AngularVelocity, upFromGravity: record.Standing);
+        DPose pose = plan.Pose;
+        if (record.Character is { } character)
+        {
+            // Jolt starts a new character in the air. The character looks up its contacts now, as after a growth, so that
+            // its next update knows the ground under it.
+            character.RefreshContacts(Layers.Moving, target.System);
+            // The hand-off reports the rotation that the character got, which a turn to the new up can change.
+            pose = ReadPrimary(record).Pose;
+        }
         if (record.IsHull)
             MoveFrame(record.OwnedFrame, plan.From, plan.To);
-        output.HandOffs.Add(new HandOff(record.Entity, plan.From, plan.To, plan.Pose, plan.LinearVelocity, plan.AngularVelocity));
+        output.HandOffs.Add(new HandOff(record.Entity, plan.From, plan.To, pose, plan.LinearVelocity, plan.AngularVelocity));
     }
 
     /// <summary>Records that a frame has a new parent for the rest of the step. The sync point decides whether the tree takes it.</summary>

@@ -317,8 +317,9 @@ public sealed partial class JoltPhysicsBackend
     /// on steep ground or weightless, keeps its momentum, and its desired velocity and its jump do not move it. (User)
     /// The record keeps the desired velocity, which applies once the character stands. Gravity, forces and impulses
     /// change the velocity of every character. After the update, a character that did not stand loses its motion into
-    /// what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Up turns against the gravity only while something
-    /// supports the character under gravity, so a character in free fall keeps its last up.
+    /// what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Under gravity, up turns against the gravity whenever
+    /// the character touched anything in its last update, also with its side or its head, so a character that landed
+    /// tilted turns upright and can stand. A character in free fall that touches nothing keeps its last up.
     /// </summary>
     private void UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
     {
@@ -326,12 +327,12 @@ public sealed partial class JoltPhysicsBackend
         Vector3 gravity = frames.EffectiveGravity(world.Frame, character.RPosition.ToDouble3());
         float strength = gravity.Length();
         bool underGravity = strength >= FrameTree.ZeroGravityThreshold;
-        // The ground state comes from the last update. Steep ground supports the character too, though it cannot stand
-        // there.
+        // The ground state comes from the last update. Any touch counts, also on steep ground and on the head or the
+        // side, so a character that landed tilted turns upright.
         GroundState groundState = character.GroundState;
-        bool supported = groundState is GroundState.OnGround or GroundState.OnSteepGround;
+        bool touching = groundState != GroundState.InAir;
         Vector3 up = record.Up;
-        if (underGravity && supported)
+        if (underGravity && touching)
         {
             up = -gravity / strength;
             if (Vector3.DistanceSquared(up, record.Up) > 1e-12f)
