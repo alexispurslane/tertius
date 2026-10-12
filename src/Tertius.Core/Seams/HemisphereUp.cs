@@ -66,7 +66,9 @@ public readonly struct HemisphereUp : IEquatable<HemisphereUp>
         _ => null,
     };
 
-    public bool Equals(HemisphereUp other) => kind == other.kind && vector == other.vector;
+    // Vector3.Equals, not the operator ==. The operator follows IEEE 754, so it calls a NaN unequal to itself, and an up that
+    // holds a NaN would not equal itself. Equals treats a NaN as equal to a NaN, which agrees with GetHashCode.
+    public bool Equals(HemisphereUp other) => kind == other.kind && vector.Equals(other.vector);
     public override bool Equals(object? obj) => obj is HemisphereUp other && Equals(other);
     public override int GetHashCode() => HashCode.Combine(kind, vector);
     public static bool operator ==(HemisphereUp a, HemisphereUp b) => a.Equals(b);

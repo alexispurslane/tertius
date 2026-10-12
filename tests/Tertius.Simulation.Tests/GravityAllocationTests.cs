@@ -6,8 +6,10 @@ namespace Tertius.Simulation.Tests;
 /// <summary>
 /// The two hot paths that read a gravity field must not allocate: the effective gravity of a body, which physics asks for
 /// once per awake body per step, and the render snapshot build, which reads the up of every instance. A gravity field and
-/// a hemisphere up are unions, and a union that boxed its case on a pattern match would allocate on both paths. Each test
-/// warms up first and then counts the bytes that the calling thread allocates.
+/// a hemisphere up are unions, and a union that boxed its case on a pattern match would allocate on both paths. Each of
+/// the first two tests warms up first and then counts the bytes that the calling thread allocates. The third test counts
+/// nothing. It checks that a snapshot of a world like the second test's carries every kind of up, so that the second test
+/// does measure them.
 /// </summary>
 public class GravityAllocationTests
 {

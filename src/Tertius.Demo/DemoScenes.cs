@@ -264,10 +264,14 @@ public static class DemoScenes
     private static readonly Vector3 Hull = new(10, 4, 30);
 
     /// <summary>
-    /// How far the ship's bubble reaches past the hull on each axis, in meters. In earth, the hull is on the layer
+    /// The margin, in meters, of the box that the ship's bubble holds: the hull box grown by this much on each side.
+    /// The bubble is the smallest ellipsoid that holds that box (see <see cref="ShipBubble"/>), so it reaches past the box.
+    /// It reaches about 10.8, 6.4 and 25.4 m past the hull along its axes. Its surface is at least this far from the hull
+    /// everywhere, because the box holds every point that is this near the hull. It touches the box only at the box's
+    /// corners, which are about 3.5 m from the hull's corners. In earth, the hull is on the layer
     /// <see cref="BodyLayer.FrameHull"/>, and loose bodies do not collide with it. A loose body in earth has its center
-    /// outside the bubble, so more than this shell away from the hull, and a body up to 2 m in radius cannot touch the
-    /// hull from earth.
+    /// outside the bubble, so at least this far from the hull, and a body up to 2 m in radius cannot touch the hull from
+    /// earth.
     /// </summary>
     private const float BubbleShell = 2;
 

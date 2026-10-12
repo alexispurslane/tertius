@@ -116,6 +116,27 @@ public class HemisphereUpTests
     }
 
     [Fact]
+    public void AnUpThatHoldsANaNEqualsItselfAndAnyCopyAndHashesTheSame()
+    {
+        // Equals must be reflexive, even for a vector that is not a number: a value that is not equal to itself breaks
+        // every set and every dictionary that holds it. So a NaN equals a NaN here, as it does in Vector3.Equals.
+        var notANumber = new Vector3(float.NaN, 0, 1);
+        HemisphereUp[] ups = [HemisphereUp.Along(notANumber), HemisphereUp.AwayFrom(notANumber)];
+
+        foreach (HemisphereUp up in ups)
+        {
+            HemisphereUp copy = up.TryGetValue(out UpAlong along) ? HemisphereUp.Along(along.Direction) : HemisphereUp.AwayFrom(((UpAwayFrom)up.Value!).Center);
+
+            up.Equals(up).Should().BeTrue($"{up} equals itself");
+            up.Equals((object)up).Should().BeTrue($"{up} equals itself as an object");
+            (up == copy).Should().BeTrue($"{up} equals a copy of itself");
+            (up != copy).Should().BeFalse($"{up} does not differ from a copy of itself");
+            up.GetHashCode().Should().Be(copy.GetHashCode(), $"{up} and its copy are equal, so they hash the same");
+        }
+        (ups[0] == ups[1]).Should().BeFalse("a direction and a center that hold the same vector are still two ups");
+    }
+
+    [Fact]
     public void ValueBoxesTheCaseForDebugging()
     {
         HemisphereUp.Along(Sideways).Value.Should().Be(new UpAlong(Sideways));

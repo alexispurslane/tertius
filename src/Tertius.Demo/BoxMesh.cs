@@ -208,7 +208,11 @@ public sealed class BoxMesh
     /// Splits the convex polygon between <paramref name="a"/> and <paramref name="b"/> into triangles that face along
     /// <paramref name="normal"/>. The points of each lie on one line, in the same direction along it, and the two lines are
     /// parallel and apart. Each triangle joins two neighboring points of one line to a point of the other, so none is
-    /// degenerate, and the triangles move along both lines together, so that they stay close to equilateral.
+    /// degenerate. The triangles move along both lines together: each one takes the point that lies next along the lines,
+    /// from either line. So no triangle spans more of a line than the gap between two neighboring points. The triangles
+    /// are not close to equilateral. Where one line has only two points, its ends, the strip is a fan from one end of that
+    /// line, of long thin triangles. In the hull they reach about 54 m in length and 7 mm in height. The edges of the
+    /// polygon are still whole edges that the neighboring pieces share exactly, so no crack shows.
     /// </summary>
     private void Strip(Vector3 normal, ReadOnlySpan<Vector3> a, ReadOnlySpan<Vector3> b)
     {

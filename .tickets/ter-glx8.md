@@ -20,11 +20,11 @@ Today no switch in src/ gets an exhaustiveness check from the compiler. All 18 s
 - The apply chain and the validity tests of SetFrameDriver (World.Entities.cs).
 - The validity tests of PrepareSpawn and the driver chain of MakeLive (World.Entities.cs).
 
-The others are on BodyMotion, BodyKind, GravityKind, KeplerAttitude, MemoryUsage and VertexInput. More are on the Target union and on the ShapeDesc and ScriptStep hierarchies.
+The others are on BodyMotion, BodyKind, KeplerAttitude, MemoryUsage and VertexInput. More are on the unions Target, GravityField and HemisphereUp, and on the ShapeDesc and ScriptStep hierarchies.
 
 Research on 2026-10-11 used builds on SDK 11.0.100-rc.1. It found what the RC1 compiler reports:
 
-- Unions, Target and closed types: a missing case fails the build with CS8509. This holds for a switch expression with no discard arm. Target is the custom [Union] struct, and closed is a C# 15 modifier.
+- Unions and closed types: a missing case fails the build with CS8509. This holds for a switch expression with no discard arm. Target, GravityField and HemisphereUp are custom [Union] structs, and closed is a C# 15 modifier. A `null` arm covers the empty union, the all-zero value with no case. A check on 2026-10-12 in GravityField.IsValid found that it compiles with a `null` arm in place of the discard arm, and that it fails with CS8509 once an arm for PointGravity is missing.
 - Enums: the same, but only with CS8524 suppressed. CS8524 reports unnamed values such as (E)7. TreatWarningsAsErrors makes it an error, so every enum switch expression has a discard arm today. With CS8524 off, an unnamed value throws SwitchExpressionException at run time.
 - Abstract records with a private protected constructor (ShapeDesc, ScriptStep, MessageTarget): the compiler never reports a missing case. It demands a discard arm.
 - Switch statements: the compiler never reports a missing case, and no language proposal plans it.
@@ -48,13 +48,18 @@ Steps:
    - The BodyKind switch (JoltPhysicsBackend.Growth.cs).
    - MemoryUsage (DeviceAllocator.cs) and VertexInput (GraphicsPipelineDesc.cs).
    - ImageUse and BufferUse (ResourceState.cs).
-   - GravityField.IsValid (FrameTypes.cs). Its discard arm rejects forged values today, so add Enum.IsDefined first.
 
    Keep the Enum.IsDefined guards on public inputs. Do not change the flags enums (RenderFlags, IntentFlags, SlotFlags), because code tests them bitwise.
 3. Give ShapeDesc, ScriptStep, MessageTarget and ReadyStep the closed modifier. ShapeDesc is in PhysicsSeam.cs, ScriptStep and MessageTarget are in Script.cs, and ReadyStep is in ScriptRunner.cs. Write closed record, not closed abstract record, which gives error CS9384. Remove their private protected constructors. Seal every leaf record, because closed does not pass down to grandchildren. Remove the discard arms of the switch expressions over them. Keep the JsonDerivedType attributes.
 4. In Target.cs, replace the discard arm of ToString with a null arm. The null arm matches default(Target), the state with no value.
+   Do the same for the unions GravityField and HemisphereUp (src/Tertius.Core/Frames/GravityField.cs and src/Tertius.Core/Seams/HemisphereUp.cs). Their empty values are no gravity and the even mix. Each switch expression over their case types ends in a discard arm for the empty value today:
+   - GravityField.IsValid (`_ => true`) and GravityField.ToString.
+   - HemisphereUp.ToString.
+   - The switch in GpuInstance.From (GpuTypes.cs) over a HemisphereUp.
+
+   Replace each discard arm with a null arm. Two more switches have guards or property patterns, which do not count toward exhaustiveness: HemisphereOfFrame (RenderSnapshotBuilder.cs, over the frame's GravityField) and the choice of the up in ImpostorManager.cs (over a HemisphereUp). Give each an unguarded arm for the rest of each case, and a null arm.
 5. Apply the rule above to every switch statement and if/else-if chain that dispatches on an enum. These are candidates for switch expressions:
-   - GravityField.At, where every arm returns a vector.
+   - GravityField.At (GravityField.cs), where every arm returns a vector. Its default case is the empty field, so the switch expression gets a null arm.
    - ContactEntity (JoltPhysicsBackend.HandOff.cs). Its arms set an out parameter and return, so they can give a tuple.
    - PredictMotion, where every branch returns a FrameMotion.
    - The validity tests of SetFrameDriver and PrepareSpawn.
@@ -68,15 +73,16 @@ Steps:
    - DeviceAllocator.Free, over an object owner.
 
    Before you leave one as a statement, make sure that a statement really is more natural.
-7. Make sure that each new build error works. Add one member at a time to MotionDriver, BodyMotion, BodyKind, GravityKind and KeplerAttitude. Add one subtype at a time to each closed hierarchy. Each time, see the build fail at every dispatch site, and then revert. Record the result in the commit message.
+7. Make sure that each new build error works. Add one member at a time to MotionDriver, BodyMotion, BodyKind and KeplerAttitude. Add one case at a time to GravityField and to HemisphereUp: a constructor with a new case type, and its TryGetValue method. Add one subtype at a time to each closed hierarchy. Each time, see the build fail at every dispatch site, and then revert. Record the result in the commit message.
 
 Not in scope:
 
 - About 30 single-member tests such as Motion != BodyMotion.Static. They mean "anything but this one" on purpose.
 - The hand-kept copies of sets: Layers.Count = 4 and its pair table, the seven key reads in FlyCamera, and the JsonDerivedType lists. A test can guard these copies, but a switch rule cannot.
+- The private byte tag inside GravityField and HemisphereUp (`kind`), and the switches on it in Value, Equals and GetHashCode. A byte is not a closed set, so no compiler rule covers it. The tests of both unions cover each case.
 
 Speed: statements and expressions go through the same lowering code in the compiler. A switch on types tests the types in arm order, so put the hot arms first. A sealed leaf type makes each type test cheaper. A switch over a union calls TryGetValue once per arm.
 
 ## Acceptance Criteria
 
-A new member or subtype fails the build at every switch that dispatches on it. This holds for MotionDriver, BodyMotion, BodyKind, GravityKind and KeplerAttitude. It also holds for ShapeDesc, ScriptStep, MessageTarget and ReadyStep. The only exceptions are the statement switches over unions and closed types in step 6, which throw at run time. No switch expression over a closed set has a discard arm. Every suite passes.
+A new member or subtype fails the build at every switch that dispatches on it. This holds for MotionDriver, BodyMotion, BodyKind and KeplerAttitude. It also holds for a new case of GravityField or HemisphereUp, and for ShapeDesc, ScriptStep, MessageTarget and ReadyStep. The only exceptions are the statement switches over unions and closed types in step 6, which throw at run time. No switch expression over a closed set has a discard arm. Every suite passes.

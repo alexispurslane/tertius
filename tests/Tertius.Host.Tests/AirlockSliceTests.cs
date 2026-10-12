@@ -108,7 +108,8 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
     public void ThePersonStaysInTheShipsFrameAndTheRunReportsNoError()
     {
         foreach (string name in new[] { "standing", "in-chamber", "outside", "drifting", "turned-back", "returned", "home" })
-            Dump(name).Entity("person").Pose.Frame.Should().Be("ship", $"the ship's 100 m bubble holds the person in {name}");
+            Dump(name).Entity("person").Pose.Frame.Should().Be("ship",
+                $"the person has not left the ship's frame in {name}, so its center is less than 2 m outside the ship's bubble, an ellipsoid with radii of about 20.8, 10.4 and 55.4 m");
         Dump("home").Errors.Should().BeEmpty();
         Dump("home").Camera.Should().Be("person");
         run.ValidationMessages.Should().BeEmpty();
