@@ -1,6 +1,6 @@
 ---
 id: ter-s02r
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-12T20:08:35Z
