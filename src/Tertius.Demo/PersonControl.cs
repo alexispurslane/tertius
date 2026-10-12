@@ -81,8 +81,11 @@ public sealed class PersonControl(Vector3 eye) : IComponent
             // No walk is left over for the moment that the person lands.
             self.Body.MoveCharacter(Vector3.Zero);
             Vector3 thrust = Vector3.Transform(keys with { Y = 0 }, view) + new Vector3(0, keys.Y, 0);
+            // Two keys together thrust no harder than one. Keys that nearly cancel each other thrust only a little.
+            if (thrust.LengthSquared() > 1)
+                thrust = Vector3.Normalize(thrust);
             if (thrust != Vector3.Zero)
-                self.Body.AddForce(Vector3.Transform(Vector3.Normalize(thrust), body) * ThrustForce);
+                self.Body.AddForce(Vector3.Transform(thrust, body) * ThrustForce);
         }
         else
         {

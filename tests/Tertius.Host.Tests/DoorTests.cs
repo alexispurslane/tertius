@@ -117,4 +117,16 @@ public sealed class DoorTests : IDisposable
 
         (Moved(turned) - new Double3(-2, 0, 0)).Length.Should().BeLessThan(1e-4);
     }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-1f)]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    public void ADoorRefusesAnOpeningTimeThatIsNotPositiveAndFinite(float openSeconds)
+    {
+        Action create = () => _ = new Door(new Vector3(0, 2, 0), openSeconds);
+
+        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("openSeconds");
+    }
 }

@@ -16,9 +16,15 @@ public struct CloseDoor : IEventPayload;
 /// once from wherever it is when the other order comes. Its entity needs a kinematic body, and must spawn shut.
 /// </summary>
 /// <param name="slide">The way from the closed pose to the open pose, in meters, in the door's own axes.</param>
-/// <param name="openSeconds">The time that the door takes to open or to close all the way, in seconds.</param>
+/// <param name="openSeconds">
+/// The time that the door takes to open or to close all the way, in seconds. It must be positive and finite, or the
+/// constructor throws <see cref="ArgumentOutOfRangeException"/>.
+/// </param>
 public sealed class Door(Vector3 slide, float openSeconds) : IComponent
 {
+    private readonly float openSeconds = openSeconds > 0 && float.IsFinite(openSeconds)
+        ? openSeconds
+        : throw new ArgumentOutOfRangeException(nameof(openSeconds), openSeconds, "The time to open must be positive and finite.");
     private DPose closed;
     private bool started;
     // How far open the door is, from 0 (shut) to 1 (open), and whether it moves toward open.

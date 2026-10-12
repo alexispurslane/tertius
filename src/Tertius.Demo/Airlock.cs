@@ -14,9 +14,15 @@ namespace Tertius.Demo;
 /// </remarks>
 /// <param name="innerDoor">The door between the airlock and the inside.</param>
 /// <param name="outerDoor">The door between the airlock and the outside.</param>
-/// <param name="cycleSeconds">The time from the order that closes one door to the order that opens the other, in seconds.</param>
+/// <param name="cycleSeconds">
+/// The time from the order that closes one door to the order that opens the other, in seconds. It must be positive and
+/// finite, or the constructor throws <see cref="ArgumentOutOfRangeException"/>. A cycle lasts at least one tick.
+/// </param>
 public sealed class Airlock(Entity innerDoor, Entity outerDoor, float cycleSeconds) : IComponent
 {
+    private readonly float cycleSeconds = cycleSeconds > 0 && float.IsFinite(cycleSeconds)
+        ? cycleSeconds
+        : throw new ArgumentOutOfRangeException(nameof(cycleSeconds), cycleSeconds, "The cycle time must be positive and finite.");
     private bool outerOpen;
     // The first tick at which a use starts a new cycle. By then the open order of the last cycle reached its door, so a
     // new close order never reaches that door in the same tick as the open order.
@@ -36,8 +42,9 @@ public sealed class Airlock(Entity innerDoor, Entity outerDoor, float cycleSecon
             }
             else if (events[i].Is<Use>() && self.Tick >= cycleEnd)
             {
-                // The open order joins the routing cycleTicks ticks after the close order does.
-                int cycleTicks = (int)MathF.Round(cycleSeconds / self.DeltaTime);
+                // The open order joins the routing cycleTicks ticks after the close order does. A delayed send waits at
+                // least one tick.
+                int cycleTicks = Math.Max(1, (int)MathF.Round(cycleSeconds / self.DeltaTime));
                 outbox.Send(outerOpen ? outerDoor : innerDoor, new CloseDoor());
                 outerOpen = !outerOpen;
                 outbox.SendAfter(cycleTicks, outerOpen ? outerDoor : innerDoor, new OpenDoor());

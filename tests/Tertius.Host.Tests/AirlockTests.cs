@@ -15,27 +15,34 @@ public sealed class AirlockTests : IDisposable
     private const int Second = 60;
 
     private readonly World world = NewJoltWorld();
+    private readonly FrameHandle room;
     private readonly Entity inner, outer, airlock;
 
     public AirlockTests()
     {
-        FrameHandle room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static));
-        inner = SpawnDoor(room, z: 0);
-        outer = SpawnDoor(room, z: 3);
-        airlock = world.Spawn(new SpawnDesc
-        {
-            Frame = room,
-            Pose = new DPose(new Double3(0, 1, 1.5), DQuaternion.Identity),
-            Components = [new Airlock(inner, outer, cycleSeconds: 1)],
-        });
+        room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static));
+        (inner, outer, airlock) = SpawnAirlock(x: 0, cycleSeconds: 1);
     }
 
     public void Dispose() => world.Dispose();
 
-    private Entity SpawnDoor(FrameHandle room, double z) => world.Spawn(new SpawnDesc
+    /// <summary>Spawns an airlock with its inner door at z = 0 and its outer door at z = 3, at <paramref name="x"/> in the room.</summary>
+    private (Entity Inner, Entity Outer, Entity Airlock) SpawnAirlock(double x, float cycleSeconds)
+    {
+        Entity innerDoor = SpawnDoor(x, z: 0), outerDoor = SpawnDoor(x, z: 3);
+        Entity cycler = world.Spawn(new SpawnDesc
+        {
+            Frame = room,
+            Pose = new DPose(new Double3(x, 1, 1.5), DQuaternion.Identity),
+            Components = [new Airlock(innerDoor, outerDoor, cycleSeconds)],
+        });
+        return (innerDoor, outerDoor, cycler);
+    }
+
+    private Entity SpawnDoor(double x, double z) => world.Spawn(new SpawnDesc
     {
         Frame = room,
-        Pose = new DPose(new Double3(0, 1, z), DQuaternion.Identity),
+        Pose = new DPose(new Double3(x, 1, z), DQuaternion.Identity),
         Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.6f, 1, 0.05f)), BodyMotion.Kinematic),
         Components = [new Door(new Vector3(0, 2, 0), openSeconds: 0.5f)],
     });
@@ -46,9 +53,14 @@ public sealed class AirlockTests : IDisposable
             world.Tick();
     }
 
-    private void Use() => world.Post(Event.Create(airlock, Entity.Null, new Use { User = Entity.Null }));
+    private void Use() => Use(airlock);
+
+    private void Use(Entity of) => world.Post(Event.Create(of, Entity.Null, new Use { User = Entity.Null }));
 
     private double Height(Entity door) => world.Snapshot.PoseOf(door).Position.Y - 1;
+
+    /// <summary>True while the door is more than 0.5 percent of the way open: 1 cm of its 2 m slide.</summary>
+    private bool NotShut(Entity door) => Height(door) > 0.005 * 2;
 
     private void ExpectOpen(Entity door, string name) => Height(door).Should().BeApproximately(2, 1e-4, $"the {name} door is open");
 
@@ -107,5 +119,58 @@ public sealed class AirlockTests : IDisposable
 
         ExpectOpen(inner, "inner");
         ExpectShut(outer, "outer");
+    }
+
+    [Theory]
+    [InlineData(58)]
+    [InlineData(59)]
+    [InlineData(60)]
+    [InlineData(61)]
+    [InlineData(62)]
+    public void ASecondUseAtTheEndOfACycleNeverLeavesBothDoorsOpen(int ticksAfterTheFirstUse)
+    {
+        Ticks(Second);
+        Use();
+        // A use posted 60 ticks after the first one reaches the airlock in the tick whose routing carries the first
+        // cycle's open order. If the airlock took it, its close order would reach the outer door together with that
+        // open order.
+        var bothOpen = new List<int>();
+        for (int ticks = 0; ticks < Second * 4; ticks++)
+        {
+            if (ticks == ticksAfterTheFirstUse)
+                Use();
+            Ticks(1);
+            if (NotShut(inner) && NotShut(outer))
+                bothOpen.Add(ticks + 1);
+        }
+
+        // The list holds the ticks after the first use at which both doors were open.
+        bothOpen.Should().BeEmpty("one of the doors is always shut");
+    }
+
+    [Theory]
+    [InlineData(0f)]
+    [InlineData(-1f)]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    public void AnAirlockRefusesACycleTimeThatIsNotPositiveAndFinite(float cycleSeconds)
+    {
+        Action create = () => _ = new Airlock(inner, outer, cycleSeconds);
+
+        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("cycleSeconds");
+    }
+
+    [Fact]
+    public void ACycleShorterThanATickStillOpensTheOtherDoor()
+    {
+        // A quarter of a tick rounds to no tick at all, so the cycle lasts one tick.
+        (Entity quickInner, Entity quickOuter, Entity quick) = SpawnAirlock(x: 5, cycleSeconds: 0.25f / Second);
+        Ticks(Second);
+        Use(quick);
+        Ticks(Second);
+
+        world.Errors.Should().BeEmpty();
+        ExpectShut(quickInner, "inner");
+        ExpectOpen(quickOuter, "outer");
     }
 }

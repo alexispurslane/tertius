@@ -54,13 +54,19 @@ public sealed class PersonControlTests : IDisposable
     /// Floats a person at the origin of a second room, which has no gravity, and makes its view the world's camera. The
     /// person keeps the up that it spawned with, +Y.
     /// </summary>
-    private Entity FloatInSpace()
+    private Entity FloatInSpace() => FloatInSpace(DQuaternion.Identity);
+
+    /// <summary>
+    /// Floats a person turned by <paramref name="rotation"/> at the origin of a second room, which has no gravity, and
+    /// makes its view the world's camera. The person keeps the up that it spawned with, its own +Y.
+    /// </summary>
+    private Entity FloatInSpace(DQuaternion rotation)
     {
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static));
         Entity floating = world.Spawn(new SpawnDesc
         {
             Frame = space,
-            Pose = DPose.Identity,
+            Pose = new DPose(Double3.Zero, rotation),
             Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: Mass),
             Components = [new PersonControl(Eye)],
             Subscriptions = [Topics.Input],
@@ -341,6 +347,60 @@ public sealed class PersonControlTests : IDisposable
     }
 
     [Fact]
+    public void WeightlessKeysThatNearlyCancelThrustNearlyNotAtAll()
+    {
+        Entity floating = FloatInSpace();
+        // The view stops just short of straight up, so W thrusts almost along the person's up, and C against it.
+        MoveMouse(0, -100_000);
+        Press(Key.W);
+        Press(Key.C);
+
+        // W and C together leave a hundredth of one key's thrust: 0.0075 m/s in half a second, where one key adds 0.75 m/s.
+        GainInHalfASecond(floating).Length().Should().BeLessThan(0.02f);
+    }
+
+    [Fact]
+    public void WeightlessSpaceThrustsATurnedPersonAlongItsOwnUp()
+    {
+        // A quarter turn about +Z takes the person's +Y to the room's -X.
+        Entity floating = FloatInSpace(DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
+        MoveMouse(0.6f / PersonControl.TurnPerPixel, 0);
+        Press(Key.Space);
+
+        ExpectNear(GainInHalfASecond(floating), -Vector3.UnitX * Thrust * 0.5f, 1e-3f);
+    }
+
+    [Fact]
+    public void WeightlessWThrustsATurnedPersonAlongItsTurnedView()
+    {
+        Entity floating = FloatInSpace(DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
+        MoveMouse(0.6f / PersonControl.TurnPerPixel, 0);
+        Press(Key.W);
+
+        // The view's turn of 0.6 rad to the right takes forward from -Z to (sin 0.6, 0, -cos 0.6) in the person's axes.
+        // The body's quarter turn about +Z then takes the person's +X to the room's +Y, and keeps -Z where it is.
+        ExpectNear(GainInHalfASecond(floating), new Vector3(0, MathF.Sin(0.6f), -MathF.Cos(0.6f)) * Thrust * 0.5f, 1e-3f);
+    }
+
+    [Theory]
+    [InlineData(Key.Space, 1)]
+    [InlineData(Key.C, -1)]
+    public void WeightlessWhenItsViewGoesOffThePersonLetsGoOfItsThrusters(Key key, float along)
+    {
+        Entity floating = FloatInSpace();
+        Press(key);
+        Ticks(10);
+        world.Camera = world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(floating), Render = new RenderData() });
+        // The person lets go in its next tick. A force that it added in the tick before can still act in that tick's step.
+        Ticks(3);
+        Vector3 drift = world.Snapshot.VelocityOf(floating);
+        Ticks(60);
+
+        (drift.Y * along).Should().BeGreaterThan(0.1f, "the person thrust while its view was on");
+        ExpectNear(world.Snapshot.VelocityOf(floating), drift, 1e-5f);
+    }
+
+    [Fact]
     public void WeightlessThePersonKeepsDriftingAfterTheKeysAreLetGo()
     {
         Entity floating = FloatInSpace();
@@ -355,19 +415,31 @@ public sealed class PersonControlTests : IDisposable
         ExpectNear(world.Snapshot.VelocityOf(floating), drift, 1e-5f);
     }
 
-    [Fact]
-    public void UnderGravityTheKeysNeverThrustThePersonThroughTheAir()
+    [Theory]
+    [InlineData(Key.W)]
+    [InlineData(Key.D)]
+    [InlineData(Key.C)]
+    public void UnderGravityTheKeysNeverThrustThePersonThroughTheAir(Key key)
     {
         Press(Key.Space);
-        Ticks(6);
-        Press(Key.W);
-        Press(Key.C);
-        Ticks(15);
+        // The person handles the press in the second tick. Space goes up right after, so that it cannot cancel C.
+        Ticks(2);
+        Post(InputKind.KeyUp, (int)Key.Space);
+        Press(key);
+        // A thrust from the key would act from the step of the third tick on. The jump lasts 49 ticks, so the person is
+        // in the air for all 35 samples.
+        Ticks(3);
+        Vector3 last = world.Snapshot.VelocityOf(person);
+        for (int sample = 0; sample < 35; sample++)
+        {
+            Ticks(1);
+            Vector3 velocity = world.Snapshot.VelocityOf(person);
 
-        // The person jumped at 4 m/s about 19 ticks ago, so it still rises, and W and C have acted for 12 ticks.
-        Vector3 velocity = world.Snapshot.VelocityOf(person);
-        velocity.Y.Should().BeInRange(0.5f, 1.5f);
-        new Vector2(velocity.X, velocity.Z).Length().Should().BeLessThan(1e-4f);
+            // Only gravity acts on the person in the air.
+            ((velocity.Y - last.Y) / world.DeltaTime).Should().BeApproximately(-9.81f, 0.05f, $"at sample {sample}");
+            new Vector2(velocity.X, velocity.Z).Length().Should().BeLessThan(1e-4f, $"at sample {sample}");
+            last = velocity;
+        }
     }
 
     [Fact]
