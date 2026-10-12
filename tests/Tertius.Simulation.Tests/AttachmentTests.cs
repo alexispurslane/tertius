@@ -229,35 +229,171 @@ public class AttachmentTests
     }
 
     [Fact]
-    public void AChildCannotBeSpawnedAttachedToAParentInAnotherFrame()
+    public void AChildSpawnedOutsideATickIsInTheFrameOfItsParentWhateverFrameItNames()
     {
         using var test = new TestWorld();
         FrameHandle other = test.SpawnStaticFrame(TestWorld.At(500), radius: 10);
-        Entity parent = test.World.SpawnWith(other);
+        Entity parent = test.World.SpawnAt(other, new Double3(1, 0, 0));
+        var frameChanges = new Recorder(EventMask.Of<FrameChanged>());
 
-        Action spawn = () => test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent });
+        Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 3), Components = [frameChanges] });
 
-        spawn.Should().Throw<ArgumentException>();
+        test.World.GetFrame(child).Should().Be(other);
+        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(1, 3, 0));
+        test.Run(2);
+        frameChanges.Seen.Should().BeEmpty("the child was never in the frame that it named");
     }
 
     [Fact]
-    public void AChildSpawnedDuringATickForAParentInAnotherFrameIsDestroyedAndTheErrorIsReported()
+    public void AChildSpawnedDuringATickBecomesLiveInTheFrameOfItsParentWhateverFrameItNames()
     {
         using var test = new TestWorld();
         FrameHandle other = test.SpawnStaticFrame(TestWorld.At(500), radius: 10);
-        Entity parent = test.World.SpawnWith(other);
+        Entity parent = test.World.SpawnAt(other, new Double3(1, 0, 0));
+        Entity child = default;
+        var frameChanges = new Recorder(EventMask.Of<FrameChanged>());
+        test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            if (self.Tick == 0)
+                child = self.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 3), Components = [frameChanges] });
+        }));
+
+        test.Run(3);
+
+        test.World.GetFrame(child).Should().Be(other);
+        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(1, 3, 0));
+        frameChanges.Seen.Should().BeEmpty("the child was never in the frame that it named");
+        test.World.Errors.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnAttachedSpawnCanLeaveItsFrameNull(bool duringATick)
+    {
+        using var test = new TestWorld();
+        FrameHandle other = test.SpawnStaticFrame(TestWorld.At(500), radius: 10);
+        Entity parent = test.World.SpawnAt(other, new Double3(1, 0, 0));
+        var desc = new SpawnDesc { AttachTo = parent, AttachOffset = Offset(0, 3) };
+        Entity child = default;
+        if (duringATick)
+        {
+            test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (self.Tick == 0)
+                    child = self.Spawn(desc);
+            }));
+            test.Run(1);
+        }
+        else
+        {
+            child = test.World.Spawn(desc);
+        }
+
+        test.World.GetFrame(child).Should().Be(other);
+        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(1, 3, 0));
+        test.World.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AChildSpawnedInTheTickInWhichItsParentsFrameDiesBecomesLiveInTheFrameThatTheParentMovedTo()
+    {
+        using var test = new TestWorld();
+        // The ship is 100 m along +X, and it destroys itself in tick 0. Its contents then move to the root.
+        Entity shipOwner = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Pose = TestWorld.At(100),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())],
+        });
+        FrameHandle ship = test.World.GetOwnedFrame(shipOwner);
+        Entity child = default;
+        var frameChanges = new Recorder(EventMask.Of<FrameChanged>());
+        // The person sees itself in the ship during tick 0, and it names the ship as its child's frame, as Carry does.
+        Entity person = test.World.Spawn(new SpawnDesc
+        {
+            Frame = ship,
+            Pose = TestWorld.At(1),
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (self.Tick == 0)
+                    child = self.Spawn(new SpawnDesc { Frame = self.Frame, AttachTo = self.Entity, AttachOffset = Offset(0, 3), Components = [frameChanges] });
+            })],
+        });
+
+        test.Run(3);
+
+        test.World.IsAlive(child).Should().BeTrue();
+        test.World.GetFrame(person).Should().Be(test.Root);
+        test.World.GetFrame(child).Should().Be(test.Root);
+        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(101, 3, 0));
+        frameChanges.Seen.Should().BeEmpty("the child was never in the ship");
+        test.World.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AChildSpawnedDuringATickForAParentThatDiesInThatTickNeverBecomesLiveAndTheErrorIsReported()
+    {
+        using var test = new TestWorld();
+        Entity parent = test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy()));
         Entity child = default;
         test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             if (self.Tick == 0)
-                child = self.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent });
+                child = self.Spawn(new SpawnDesc { Frame = self.Frame, AttachTo = parent });
         }));
 
         test.Run(1);
 
-        // During a tick the check happens at the sync point, which reports it and removes the child.
         test.World.IsAlive(child).Should().BeFalse();
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain("attachment parent");
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain(child.ToString()).And.Contain($"{parent} is not live");
+    }
+
+    [Fact]
+    public void AChildSpawnedDuringATickForTheOwnerOfARootFrameNeverBecomesLiveAndTheErrorIsReported()
+    {
+        using var test = new TestWorld();
+        Entity child = default;
+        test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            if (self.Tick == 0)
+                child = self.Spawn(new SpawnDesc { AttachTo = test.Root.Entity });
+        }));
+
+        test.Run(1);
+
+        // The owner of a root frame is in no frame, so it has no frame to give a child.
+        test.World.IsAlive(child).Should().BeFalse();
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain(child.ToString()).And.Contain("no frame");
+    }
+
+    [Fact]
+    public void TwoSpawnsThatNameEachOtherAsParentsNeverBecomeLiveAndBothErrorsAreReported()
+    {
+        using var test = new TestWorld();
+        Entity first = default, second = default, forged = default;
+        test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            if (self.Tick != 0)
+                return;
+            // Only a bug makes such a loop: the first spawn names a handle that it guessed for the second. The slots of a
+            // new chunk pool come in order, so the guess is two slots past a probe.
+            Entity probe = self.Spawn(new SpawnDesc { Frame = self.Frame });
+            forged = new Entity(probe.Index + 2, probe.Generation);
+            first = self.Spawn(new SpawnDesc { Frame = self.Frame, AttachTo = forged });
+            second = self.Spawn(new SpawnDesc { Frame = self.Frame, AttachTo = first });
+        }));
+
+        // The second tick shows that the world goes on with its invariants whole.
+        test.Run(2);
+
+        second.Should().Be(forged, "the test must make a real loop");
+        test.World.IsAlive(first).Should().BeFalse();
+        test.World.IsAlive(second).Should().BeFalse();
+        test.World.Errors.Should().HaveCount(2);
+        test.World.Errors[0].Should().Contain(first.ToString()).And.Contain($"{second} is not live");
+        test.World.Errors[1].Should().Contain(second.ToString()).And.Contain($"{first} is not live");
     }
 
     // ---- Lifetime -------------------------------------------------------------------------------------------------

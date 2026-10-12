@@ -158,27 +158,35 @@ public class AttachmentsSubsystemTests
     // ---- What a parent accepts ------------------------------------------------------------------------------------
 
     [Fact]
-    public void ALiveParentInTheSameFrameIsAccepted()
+    public void ALiveParentIsAcceptedAndItsNewChildTakesItsFrame()
     {
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
         FrameHandle frame = FakeFrame(2);
         Entity parent = entities.SpawnLive(frame);
 
-        attachments.CheckParent(parent, frame).Should().BeNull();
+        attachments.CheckParent(parent, out FrameHandle childFrame).Should().BeNull();
+        childFrame.Should().Be(frame);
     }
 
     [Fact]
-    public void AParentInAnotherFrameIsRefusedWithAReasonThatNamesBothFrames()
+    public void ANewChildOfAnAttachedParentTakesTheFrameOfTheChainRootBeforeTheNextDerive()
     {
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
-        FrameHandle parentsFrame = FakeFrame(2), childsFrame = FakeFrame(3);
-        Entity parent = entities.SpawnLive(parentsFrame);
+        FrameHandle before = FakeFrame(2), after = FakeFrame(3);
+        Entity root = entities.SpawnLive(before);
+        Entity middle = entities.SpawnLive(before);
+        attachments.Attach(middle, root, Offset(1, 0));
+        attachments.Derive();
 
-        string? reason = attachments.CheckParent(parent, childsFrame);
+        // Physics hands the root off. The row of the middle link shows the old frame until the next Derive.
+        TransformRow row = entities.BackRow(root);
+        row.Frame = after;
+        entities.SetBackTransform(root, row);
 
-        reason.Should().Contain(parentsFrame.ToString()).And.Contain(childsFrame.ToString());
+        attachments.CheckParent(middle, out FrameHandle childFrame).Should().BeNull();
+        childFrame.Should().Be(after);
     }
 
     [Fact]
@@ -186,12 +194,13 @@ public class AttachmentsSubsystemTests
     {
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
-        Entity parent = entities.SpawnLive();
+        Entity parent = entities.SpawnLive(FakeFrame(2));
         entities.Release(parent);
 
-        string? reason = attachments.CheckParent(parent, default);
+        string? reason = attachments.CheckParent(parent, out FrameHandle childFrame);
 
         reason.Should().Contain(parent.ToString()).And.Contain("not live");
+        childFrame.IsNull.Should().BeTrue();
     }
 
     [Fact]
@@ -200,7 +209,20 @@ public class AttachmentsSubsystemTests
         EntityTable entities = TableSupport.NewTable();
         var attachments = new Attachments(entities);
 
-        attachments.CheckParent(Entity.Null, default).Should().NotBeNull();
+        attachments.CheckParent(Entity.Null, out _).Should().NotBeNull();
+    }
+
+    [Fact]
+    public void TheOwnerOfARootFrameIsRefusedBecauseItIsInNoFrame()
+    {
+        EntityTable entities = TableSupport.NewTable();
+        var attachments = new Attachments(entities);
+        Entity rootOwner = entities.SpawnLive(FrameHandle.Null);
+
+        string? reason = attachments.CheckParent(rootOwner, out FrameHandle childFrame);
+
+        reason.Should().Contain(rootOwner.ToString()).And.Contain("no frame");
+        childFrame.IsNull.Should().BeTrue();
     }
 
     // ---- Writing an offset ----------------------------------------------------------------------------------------

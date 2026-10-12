@@ -63,8 +63,8 @@ The sync point does these steps in this order:
 3. Make sure that no entity with a body wrote its own transform. This is a debug assertion.
 4. Swap the physics intent buffers, so that physics gets this tick's forces in the next step.
 5. Free dead entities. Increment the generation of each slot and return the slot to the free list. Tell physics to destroy their bodies.
-6. Make new entities live. If the tables are full, grow them. Tell physics to create the new bodies.
-7. Advance the Kepler and Spin frames to the end of the tick.
+6. Make new entities live. If the tables are full, grow them. Tell physics to create the new bodies. An attached entity becomes live in the frame of its parent at this moment, after steps 2 and 5 have moved the parent.
+7. Advance the Kepler and Spin frames to the end of the tick. Then every attached entity takes its frame, pose and velocities from the root of its chain.
 8. Route the outboxes into inboxes.
 9. Swap the snapshot. The back tables become the front tables. Copy only dirty slots forward.
 10. Build the render snapshot and publish it to the render thread through a triple buffer.
@@ -105,6 +105,8 @@ If an entity has no body, gameplay owns its transform and writes it through `sel
 `self.Spawn(...)` takes a slot at once from an atomic free list and returns the new handle. The new entity starts to run on the next tick. The tables grow only at the sync point. An entity can destroy itself with `self.Destroy()`. To destroy another entity, send it a `Destroy` message. Both take effect at the sync point.
 
 No other operation is deferred. There is no general command buffer.
+
+A spawn can attach the new entity to a parent entity with `SpawnDesc.AttachTo`. The attached entity follows its parent with a fixed offset in the parent's axes. It has no body, it cannot be a frame, and it dies with its parent. A chain of attached entities is always in the frame of its root, the one entity of the chain that is not attached. In step 7 of the sync point, each attached entity takes its frame, pose and velocities from that root. So an attached spawn becomes live in the frame of its parent at that moment, and the frame that its description names does not count. A component that spawns during a tick saw the parent in the front snapshot. In the same tick, physics can hand the parent into another frame, or the parent's frame can die and move the parent to an ancestor frame. The component cannot know that, so it is not a bug: the new entity becomes live in the parent's new frame. A parent that is not live at the sync point, or that owns a root frame and so is in no frame, cannot take the new entity. The world then drops the spawn and records an error in `World.Errors`. Outside a tick, `World.Spawn` throws for such a parent instead.
 
 ## Messages
 

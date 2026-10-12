@@ -10,6 +10,8 @@ public sealed partial class World
     private readonly EntityTable.Column<bool> dyingMarks;
     // Owners of surviving frames whose parent frame died in the batch. Their rows follow the frame tree afterwards.
     private readonly List<Entity> movedFrameOwners = new();
+    // The attached spawns of the sync point that wait for their parent to become live, in chunk order.
+    private readonly List<PendingSpawn> waitingAttachedSpawns = new();
 
     /// <summary>
     /// Creates a root frame and the entity that owns it. The owner is in no frame; its pose is the frame's pose.
@@ -30,17 +32,20 @@ public sealed partial class World
     /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>), a frame with a driver that its hull
     /// cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>), a Kepler frame whose orbit is not valid, a Kepler frame
     /// without a parent frame or in a parent whose gravity is not a point field with a G·M above 0 (see
-    /// <see cref="GravityField.CanBeOrbited"/>), a Spin frame whose spin is not valid, or a gravity field that is not valid.
+    /// <see cref="GravityField.CanBeOrbited"/>), a Spin frame whose spin is not valid, a gravity field that is not valid,
+    /// or an attachment parent that is not live or that owns a root frame. An attached entity is live in the frame of its
+    /// parent, whatever frame the description names (see <see cref="SpawnDesc.AttachTo"/>).
     /// </summary>
     public Entity Spawn(SpawnDesc desc)
     {
         ThrowIfInTick(nameof(Spawn));
         SpawnPlan plan = PrepareSpawn(desc);
-        if (!desc.AttachTo.IsNull && attachments.CheckParent(desc.AttachTo, desc.Frame) is { } problem)
+        FrameHandle frame = desc.Frame;
+        if (!desc.AttachTo.IsNull && attachments.CheckParent(desc.AttachTo, out frame) is { } problem)
             throw new ArgumentException($"Cannot attach: {problem}", nameof(desc));
 
         Entity entity = entities.Reserve();
-        MakeLive(entity, desc, plan, Time);
+        MakeLive(entity, desc, plan, frame, Time);
         if (!desc.AttachTo.IsNull)
             attachments.Attach(entity, desc.AttachTo, desc.AttachOffset);
         FinishOutsideTickChange();
@@ -254,8 +259,9 @@ public sealed partial class World
         ArgumentNullException.ThrowIfNull(desc);
         if (desc.Frame.IsNull)
         {
-            if (desc.AsFrame is null)
-                throw new ArgumentException("A spawned entity needs a frame. Only a frame entity can be a root.", nameof(desc));
+            // An attached entity takes the frame of its parent when it becomes live.
+            if (desc.AsFrame is null && desc.AttachTo.IsNull)
+                throw new ArgumentException("A spawned entity needs a frame. Only a frame entity can be a root, and only an attached entity takes the frame of its parent.", nameof(desc));
         }
         else if (!Frames.IsAlive(desc.Frame))
         {
@@ -349,12 +355,15 @@ public sealed partial class World
         return entity;
     }
 
-    /// <summary>Makes a reserved entity live: writes its rows and registers it with frames, physics and topics.</summary>
-    private void MakeLive(Entity entity, SpawnDesc desc, SpawnPlan plan, double time)
+    /// <summary>
+    /// Makes a reserved entity live in <paramref name="frame"/>: writes its rows and registers it with frames, physics and
+    /// topics. The frame is the one that the description names, or for an attached entity the frame of its parent.
+    /// </summary>
+    private void MakeLive(Entity entity, SpawnDesc desc, SpawnPlan plan, FrameHandle frame, double time)
     {
         var row = new TransformRow
         {
-            Frame = desc.Frame,
+            Frame = frame,
             Pose = desc.Pose,
             LinearVelocity = desc.LinearVelocity,
             AngularVelocity = desc.AngularVelocity,
@@ -362,7 +371,7 @@ public sealed partial class World
         FrameHandle own = FrameHandle.Null;
         if (desc.AsFrame is { } spec)
         {
-            own = Frames.Create(entity, desc.Frame, desc.Pose, spec.Bounds, spec.Driver, spec.Gravity, spec.Orbit, spec.Spin);
+            own = Frames.Create(entity, frame, desc.Pose, spec.Bounds, spec.Driver, spec.Gravity, spec.Orbit, spec.Spin);
             topics.AddFrame(own);
             if (spec.Driver == MotionDriver.Kepler)
             {
@@ -390,13 +399,22 @@ public sealed partial class World
             SubscribeEntity(entity, topic);
     }
 
-    /// <summary>Makes the spawns of every chunk live, in chunk order. Step 6 of the sync point.</summary>
+    /// <summary>
+    /// Makes the spawns of every chunk live, in chunk order. Step 6 of the sync point. The attached spawns come last, each
+    /// after its parent, because each one takes the frame of its parent. So a child can also name a parent that a later
+    /// chunk spawned in the same tick.
+    /// </summary>
     private void MakeSpawnsLive(double time)
     {
         foreach (ChunkState chunk in entities.Chunks)
         {
             foreach (PendingSpawn spawn in chunk.Spawns)
             {
+                if (!spawn.Desc.AttachTo.IsNull)
+                {
+                    waitingAttachedSpawns.Add(spawn);
+                    continue;
+                }
                 FrameHandle frame = spawn.Desc.Frame;
                 if (!frame.IsNull && !Frames.IsAlive(frame))
                 {
@@ -404,32 +422,50 @@ public sealed partial class World
                     entities.Release(spawn.Entity);
                     continue;
                 }
-                MakeLive(spawn.Entity, spawn.Desc, spawn.Plan, time);
+                MakeLive(spawn.Entity, spawn.Desc, spawn.Plan, frame, time);
             }
         }
+        MakeAttachedSpawnsLive(time);
+    }
 
-        // Attach after every spawn is live, so that a child may name a parent spawned later in the same tick.
-        foreach (ChunkState chunk in entities.Chunks)
+    /// <summary>
+    /// Makes each waiting attached spawn live in the frame of its parent at this moment, and attaches it. The spawner saw
+    /// the parent in the front snapshot, but in this sync point a hand-off or the death of a frame can have moved the parent
+    /// into another frame. So the frame that the description names does not count. A spawn waits while its parent is
+    /// itself a waiting spawn: each pass over the list, in chunk order, makes live every spawn whose parent is live. When a
+    /// pass makes none live, the rest never become live: the parent died in the destroy batch, or it was never live, or
+    /// the spawns wait for each other in a loop. The world drops each of them and records an error.
+    /// </summary>
+    private void MakeAttachedSpawnsLive(double time)
+    {
+        for (bool madeOneLive = true; madeOneLive;)
         {
-            foreach (PendingSpawn spawn in chunk.Spawns)
+            madeOneLive = false;
+            int kept = 0;
+            for (int i = 0; i < waitingAttachedSpawns.Count; i++)
             {
-                Entity parent = spawn.Desc.AttachTo;
-                if (parent.IsNull || !entities.IsAlive(spawn.Entity))
-                    continue;
-                string? problem = attachments.CheckParent(parent, spawn.Desc.Frame);
-                if (problem == null)
+                PendingSpawn spawn = waitingAttachedSpawns[i];
+                if (attachments.CheckParent(spawn.Desc.AttachTo, out FrameHandle frame) is null)
                 {
-                    attachments.Attach(spawn.Entity, parent, spawn.Desc.AttachOffset);
+                    MakeLive(spawn.Entity, spawn.Desc, spawn.Plan, frame, time);
+                    attachments.Attach(spawn.Entity, spawn.Desc.AttachTo, spawn.Desc.AttachOffset);
+                    madeOneLive = true;
                 }
                 else
                 {
-                    Report($"tick {TickNumber}: destroyed {spawn.Entity} as it became live: {problem}", isError: true);
-                    MarkDying(spawn.Entity);
+                    waitingAttachedSpawns[kept++] = spawn;
                 }
             }
+            waitingAttachedSpawns.RemoveRange(kept, waitingAttachedSpawns.Count - kept);
         }
-        if (dying.Count > 0)
-            DestroyDying();
+
+        foreach (PendingSpawn spawn in waitingAttachedSpawns)
+        {
+            string? problem = attachments.CheckParent(spawn.Desc.AttachTo, out _);
+            Report($"tick {TickNumber}: dropped the spawn of {spawn.Entity}: {problem}", isError: true);
+            entities.Release(spawn.Entity);
+        }
+        waitingAttachedSpawns.Clear();
     }
 
     // ---- Destruction ----------------------------------------------------------------------------------------------

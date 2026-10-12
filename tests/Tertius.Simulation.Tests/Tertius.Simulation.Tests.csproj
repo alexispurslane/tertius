@@ -2,10 +2,12 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
-
+    <UsesJolt>true</UsesJolt>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Tertius.Simulation/Tertius.Simulation.csproj" />
+    <!-- The tests that need physics run the World on the real backend. The engine code still does not reference it. -->
+    <ProjectReference Include="../../src/Tertius.Physics/Tertius.Physics.csproj" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />

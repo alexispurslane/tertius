@@ -14,7 +14,8 @@ namespace Tertius.Simulation;
 /// <para>
 /// Invariants, checked by <see cref="AssertInvariants"/>:
 /// <list type="bullet">
-/// <item>An attached entity is live, its parent is alive, and its node sits under its parent's node in the tree.</item>
+/// <item>An attached entity is live, its parent is alive, and its node sits under its parent's node in the tree. So
+/// chains never loop.</item>
 /// <item>A parent's child list is sorted by slot, and every child names that parent. A chain root has a node only
 /// while it has children, and the tree holds no other nodes.</item>
 /// <item><see cref="Attached"/> holds exactly the attached entities.</item>
@@ -79,16 +80,21 @@ internal sealed class Attachments
     }
 
     /// <summary>
-    /// Why <paramref name="parent"/> cannot take a child in <paramref name="frame"/>, or null if it can. A stale or null
-    /// parent is one such reason.
+    /// Why <paramref name="parent"/> cannot take a new child, or null if it can. A parent that is not live cannot, and
+    /// that includes a stale or null handle. The owner of a root frame cannot either, because it is in no frame. When the
+    /// parent can, <paramref name="childFrame"/> is the frame in which the new child must become live: the frame of the
+    /// parent's chain root in the back table. Every link of a chain is in that frame after the next <see cref="Derive"/>,
+    /// also when physics has moved the chain root into another frame since the last one.
     /// </summary>
-    public string? CheckParent(Entity parent, FrameHandle frame)
+    public string? CheckParent(Entity parent, out FrameHandle childFrame)
     {
+        childFrame = FrameHandle.Null;
         if (!entities.IsAlive(parent))
             return $"the attachment parent {parent} is not live.";
-        FrameHandle parentFrame = entities.BackRow(parent).Frame;
-        if (parentFrame != frame)
-            return $"the attachment parent {parent} is in {parentFrame}, not in {frame}.";
+        FrameHandle frame = entities.BackRow(ChainRoot(parent)).Frame;
+        if (frame.IsNull)
+            return $"the attachment parent {parent} is in no frame: it owns a root frame.";
+        childFrame = frame;
         return null;
     }
 
@@ -100,7 +106,8 @@ internal sealed class Attachments
     {
         ref Link link = ref links[child];
         ref Link parentLink = ref links[parent];
-        Contract.Requires(link.Parent.IsNull && parent != child);
+        // A child that is the root of its parent's chain would close a loop.
+        Contract.Requires(link.Parent.IsNull && ChainRoot(parent) != child);
         if (parentLink.Node.IsNull)
             parentLink.Node = tree.Add(PoseNode.Null, entities.BackRow(parent).Pose);
         List<Entity> children = parentLink.Children ??= new List<Entity>(2);
@@ -135,10 +142,7 @@ internal sealed class Attachments
 
         foreach (Entity child in children)
         {
-            Entity root = links[child].Parent;
-            while (!links[root].Parent.IsNull)
-                root = links[root].Parent;
-            ref readonly TransformRow rootRow = ref entities.BackRow(root);
+            ref readonly TransformRow rootRow = ref entities.BackRow(ChainRoot(child));
             DPose pose = tree.World(links[child].Node);
             Double3 lever = pose.Position - rootRow.Pose.Position;
             entities.SetBackTransform(child, new TransformRow
@@ -149,6 +153,18 @@ internal sealed class Attachments
                 AngularVelocity = rootRow.AngularVelocity,
             });
         }
+    }
+
+    /// <summary>
+    /// The one entity of the chain of <paramref name="entity"/> that is not attached: the entity itself if it is not
+    /// attached. Chains never loop, so the walk ends.
+    /// </summary>
+    private Entity ChainRoot(Entity entity)
+    {
+        Entity root = entity;
+        while (links[root].Parent is { IsNull: false } parent)
+            root = parent;
+        return root;
     }
 
     /// <summary>

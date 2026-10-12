@@ -5,7 +5,11 @@ namespace Tertius.Simulation;
 /// <summary>Everything needed to create an entity. The world copies the lists when it accepts the description.</summary>
 public sealed class SpawnDesc
 {
-    /// <summary>The frame to spawn in. It may be null only when <see cref="AsFrame"/> is set: the entity is then a root frame.</summary>
+    /// <summary>
+    /// The frame to spawn in. It can be null when <see cref="AsFrame"/> is set: the entity is then a root frame. The frame
+    /// that an attached entity names does not count, because it becomes live in the frame of its parent (see
+    /// <see cref="AttachTo"/>). So an attached entity can leave this null.
+    /// </summary>
     public FrameHandle Frame { get; init; }
 
     /// <summary>The pose in <see cref="Frame"/>. For a frame entity, this is the frame's local pose.</summary>
@@ -30,8 +34,15 @@ public sealed class SpawnDesc
     public FrameSpec? AsFrame { get; init; }
 
     /// <summary>
-    /// If set, the entity follows this parent with the fixed local offset <see cref="AttachOffset"/>. The parent must be
-    /// in the same frame. An attached entity has no body and is destroyed with its parent.
+    /// If set, the entity follows this parent with the fixed local offset <see cref="AttachOffset"/>. An attached entity
+    /// has no body, cannot be a frame, and is destroyed with its parent. The world derives its pose and velocities from the
+    /// parent. It becomes live in the frame that the parent is in at that time, whatever <see cref="Frame"/> names: at the
+    /// call outside a tick, and at the sync point during a tick. So if physics hands the parent into another frame in the
+    /// step of the same tick, or the parent's frame dies and the parent moves to an ancestor frame, the new entity becomes
+    /// live in the parent's new frame. The parent must be live at that time, and it must not own a root frame, because such
+    /// an owner is in no frame. For another parent, <see cref="World.Spawn(SpawnDesc)"/> throws
+    /// <see cref="ArgumentException"/> outside a tick. At the sync point, the world drops the spawn and records an error in
+    /// <see cref="World.Errors"/>.
     /// </summary>
     public Entity AttachTo { get; init; }
 
