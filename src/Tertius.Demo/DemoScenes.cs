@@ -69,7 +69,12 @@ public static class DemoScenes
     /// physics does not stand the person on walkable ground, the person is weightless and its thrusters push it: in a jump,
     /// outside the cabin, and past the ship's bubble. There, about 102.9 m from the ship's center, a hand-off moves the
     /// person into <c>earth</c>, where it falls freely with the ship. It comes back into the ship's frame 100.9 m from the
-    /// ship's center.</item>
+    /// ship's center. With <see cref="Carry"/>, E also picks up a crate within reach, and the left mouse button throws
+    /// it.</item>
+    /// <item>Four green <see cref="Crate"/>s, 0.4 m on a side and of 5 kg, lie loose on the floor. Three of them,
+    /// <c>crate-1</c> to <c>crate-3</c>, lie aft of the person and to starboard, out of its reach and its way.
+    /// <c>chamber-crate</c> lies in the airlock's chamber, in the corner by the hatch on the aft side. A person that
+    /// presses E in the middle of the chamber cycles the airlock and picks up that crate with one press.</item>
     /// <item>The view <c>chase</c>, the camera at the start, rides in the ship's frame, 70 m behind it and 12 m above it,
     /// and looks at the ship's center.</item>
     /// <item>The view <c>far</c> stands in <c>earth</c>, three Earth radii from its center, 30 degrees north of the
@@ -186,15 +191,29 @@ public static class DemoScenes
 
         // The person stands on the cabin floor, 10 m aft of the ship's center, and faces the nose. The capsule is 1.8 m
         // tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
+        var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
         scene.Add("person", world.Spawn(new SpawnDesc
         {
             Frame = shipFrame,
             Pose = new DPose(new Double3(0, -Cabin.Y + 0.95, AirlockZ), DQuaternion.Identity),
-            Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+            Body = new BodyDesc(capsule, BodyMotion.Character, Mass: 70),
             Render = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1),
-            Components = [new PersonControl(new Vector3(0, 0.75f, 0))],
+            Components = [new PersonControl(new Vector3(0, 0.75f, 0)), new Carry(capsule)],
             Subscriptions = [Topics.Input],
         }));
+
+        // Green crates, 0.4 m on a side and of 5 kg, which the person can carry and throw. Three lie loose on the cabin
+        // floor, aft of the person and to starboard, away from its ways in the other scripts and out of its reach where it
+        // presses E. One lies in the airlock's chamber, in the corner by the hatch on the aft side, beside the person's way
+        // in. The person presses E in the middle of the chamber, so it reaches that crate and the airlock with one press.
+        var crate = new CrateSpec(new Vector3(0.2f), 5, resources.CreateMesh(Primitives.Box(new Vector3(0.2f))),
+            resources.CreateMaterial(MaterialDesc.Color(new Vector4(0.3f, 0.6f, 0.25f, 1))));
+        double onTheFloor = -Cabin.Y + crate.HalfExtents.Y;
+        DPose OnTheFloor(double x, double z, double turn) => new(new Double3(x, onTheFloor, z), DQuaternion.FromAxisAngle(Double3.UnitY, turn));
+        scene.Add("crate-1", world.Spawn(crate.Spawn(shipFrame, OnTheFloor(3, 14, 0), Vector3.Zero)));
+        scene.Add("crate-2", world.Spawn(crate.Spawn(shipFrame, OnTheFloor(3.6, 14.5, 0.4), Vector3.Zero)));
+        scene.Add("crate-3", world.Spawn(crate.Spawn(shipFrame, OnTheFloor(3.1, 15.2, -0.6), Vector3.Zero)));
+        scene.Add("chamber-crate", world.Spawn(crate.Spawn(shipFrame, OnTheFloor(Chamber.Min.X + 0.6, Chamber.Max.Z - 0.5, 0), Vector3.Zero)));
 
         Entity chase = world.Spawn(new SpawnDesc
         {
