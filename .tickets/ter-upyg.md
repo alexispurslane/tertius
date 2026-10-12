@@ -1,6 +1,6 @@
 ---
 id: ter-upyg
-status: in_progress
+status: closed
 deps: [ter-f8sh, ter-7wbc]
 links: []
 created: 2026-10-11T13:52:09Z

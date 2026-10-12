@@ -1,6 +1,6 @@
 ---
 id: ter-7wbc
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-11T18:24:51Z
