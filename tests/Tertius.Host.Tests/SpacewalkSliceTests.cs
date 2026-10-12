@@ -233,16 +233,17 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
 
     /// <summary>
     /// The first and the last column of <paramref name="image"/> with a pixel whose channels add up to more than 150,
-    /// between rows 300 and 470. Those rows lie inside the hull's port face, which hides the stars. Only what the lamps
-    /// light is that bright there: the top of the hatch's sill, which reaches the port face, and the chamber's floor beyond
-    /// it, which shows through the open hatch.
+    /// between rows 300 and 470, and from column <paramref name="from"/> up to column <paramref name="to"/>. Those rows lie
+    /// inside the hull's port face, which hides the stars. Only what the lamps light is that bright there: the top of the
+    /// hatch's sill, which reaches the port face, and the chamber's floor beyond it, which shows through the open hatch.
+    /// The windows of the port wall show the lamp-lit cabin too, so the columns must leave them out.
     /// </summary>
-    private static (int First, int Last) LitThroughTheHatch(Png image)
+    private static (int First, int Last) LitThroughTheHatch(Png image, int from, int to)
     {
         int first = image.Width, last = -1;
         for (int y = 300; y < 470; y++)
         {
-            for (int x = 0; x < image.Width; x++)
+            for (int x = from; x < to; x++)
             {
                 (int r, int g, int b) = image.At(x, y);
                 if (r + g + b > 150)
@@ -266,8 +267,11 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
         double pixelsPerMeter = 360 / Math.Tan(run.World.VerticalFov / 2) / distance;
         Png image = run.Capture("ship-from-earth");
 
+        // The nearest window, 4 m forward of the hatch, ends 3 m from the hatch's center, so the search for the hatch keeps
+        // within 2.5 m of the image's middle column.
+        int reach = (int)Math.Round(2.5 * pixelsPerMeter);
         (int rows, int columns) = ShipExtent(image);
-        (int first, int last) = LitThroughTheHatch(image);
+        (int first, int last) = LitThroughTheHatch(image, image.Width / 2 - reach, image.Width / 2 + reach);
 
         distance.Should().BeLessThan(15, "the person passed into earth close to the ship");
         rows.Should().BeCloseTo((int)Math.Round(8 * pixelsPerMeter), 2, "the hull is 8 m tall");

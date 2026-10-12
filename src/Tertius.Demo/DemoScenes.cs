@@ -58,7 +58,16 @@ public static class DemoScenes
     /// degrees, with its belly toward Earth and its nose along its motion. Its spin, one turn per orbit, keeps it so. At
     /// the start the sun stands straight above it. In Earth's frame its hull is a solid box. In its own frame the hull
     /// is hollow: walls 0.5 m thick around a cabin 19 by 7 by 59 m. Only the cabin has gravity: 9.81 m/s² toward the
-    /// belly. Five lamps under the roof light the cabin, because the hull keeps the sunlight out.</item>
+    /// belly. Five lamps under the roof light the cabin, because the hull keeps the sunlight out, except through the
+    /// windows when the sun stands on their side.</item>
+    /// <item>The hull has 18 windows (see <see cref="Windows"/>). Each side wall has a row of them at eye height, 2 m wide
+    /// and 1.2 m tall, one every 6 m from 24 m ahead of the ship's center to 24 m aft of it. The port wall leaves out the
+    /// one 12 m aft, which would cut into the airlock's chamber. The nose wall has one window 6 m wide and 2 m tall. Each
+    /// window holds a pane of glass, <c>pane-port-1</c> to <c>pane-port-9</c> (with no 7), <c>pane-starboard-1</c> to
+    /// <c>pane-starboard-9</c>, numbered from the nose, and <c>pane-nose</c>. A pane is a thin box in the middle of its
+    /// wall, transparent, with a slight blue tint, and it casts no shadow. The hull casts shadows, so sunlight comes in
+    /// through a window when the sun stands on its side. Physics keeps the walls solid at the windows, so the glass stops a
+    /// thrown crate as a wall does. A person, 1.8 m tall, does not fit through a window anyway.</item>
     /// <item>The <c>airlock</c> is a chamber 3 by 3 m against the port wall, 10 m aft of the ship's center. The door
     /// <c>airlock-inner</c> leads from the cabin into the chamber, and the door <c>airlock-outer</c> closes a hatch from
     /// the chamber to the outside. Both doorways are 1.2 m wide and 2.1 m tall, with a sill 0.2 m high. The inner door
@@ -160,9 +169,10 @@ public static class DemoScenes
         scene.Add("ship", ship);
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
 
-        // Five lamps under the roof, 12 m apart, light the cabin, because the hull keeps the sunlight out. Point lights
-        // cast no shadows yet, so a lamp also lights faces that a wall hides from it, such as the inside of the airlock's
-        // chamber and the top of the hatch's sill. Each lamp is a glowing panel, with its light just below.
+        // Five lamps under the roof, 12 m apart, light the cabin, because the hull keeps the sunlight out, except through the
+        // windows when the sun stands on their side. Point lights cast no shadows yet, so a lamp also lights faces that a
+        // wall hides from it, such as the inside of the airlock's chamber and the top of the hatch's sill. Each lamp is a
+        // glowing panel, with its light just below.
         MeshId lampMesh = resources.CreateMesh(Primitives.Box(new Vector3(0.6f, 0.05f, 0.6f)));
         MaterialId lampMaterial = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(6, 5.4f, 4.5f)));
         for (int i = -2; i <= 2; i++)
@@ -179,6 +189,14 @@ public static class DemoScenes
                     Light = new LightData { Enabled = true, Color = new Vector3(1, 0.9f, 0.75f), Intensity = 100, Range = 20, Offset = new Pose(new Vector3(0, -0.1f, 0), Quaternion.Identity) },
                 },
             });
+
+        // A pane of glass in each window: mostly clear, with a slight blue tint. It casts no shadow, so sunlight comes in
+        // through a window when the sun stands on its side. It has no body, because the walls of the interior shape are
+        // solid at the windows.
+        MaterialId glass = resources.CreateMaterial(new MaterialDesc(new Vector4(0.45f, 0.65f, 1, 0.2f), SpecularIntensity: 1, Gloss: 0.9f));
+        var paneMeshes = new Dictionary<Vector3, MeshId>();
+        foreach ((string pane, Opening window) in Windows)
+            scene.Add(pane, world.Spawn(PaneIn(shipFrame, window, glass, paneMeshes, resources)));
 
         // The airlock's doors slide up into the wall above their doorways. Each is 0.1 m thick, in the middle of its wall.
         Entity innerDoor = world.Spawn(DoorIn(shipFrame, InnerDoorway, resources));
@@ -305,6 +323,33 @@ public static class DemoScenes
     private static readonly BoundingBox ChamberInnerWall = new(new Vector3(InnerDoorway.Min.X, -Cabin.Y, Chamber.Min.Z), new Vector3(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z));
 
     /// <summary>
+    /// The places of the windows along each side wall, in meters along the ship's Z: one every 6 m from 24 m ahead of the
+    /// ship's center to 24 m aft of it. A pane's scene id numbers its place from the nose, from 1 to 9.
+    /// </summary>
+    private static readonly float[] SideWindowZ = [-24, -18, -12, -6, 0, 6, 12, 18, 24];
+
+    /// <summary>
+    /// A window through a side wall across X, from <paramref name="x0"/> to <paramref name="x1"/>, centered on
+    /// <paramref name="z"/>: 2 m wide and 1.2 m tall, centered at the eye height of a person on the floor, 1.65 m.
+    /// </summary>
+    private static BoundingBox SideWindow(float x0, float x1, float z) =>
+        new(new Vector3(x0, -Cabin.Y + 1.05f, z - 1), new Vector3(x1, -Cabin.Y + 2.25f, z + 1));
+
+    /// <summary>
+    /// The windows through the hull, in the ship's axes, with the scene ids of their panes: a row in each side wall, and
+    /// one window in the nose wall, 6 m wide and 2 m tall, centered at eye height. The port wall leaves out the window that
+    /// would cut into the airlock's chamber or its walls, 12 m aft. Physics keeps the walls solid, so the interior shape
+    /// has no hole at a window, and the glass blocks a person as a wall does.
+    /// </summary>
+    public static IReadOnlyList<(string Pane, Opening Window)> Windows { get; } =
+    [
+        .. SideWindowZ.Select((z, i) => (Pane: $"pane-port-{i + 1}", Window: Opening.ThroughX(SideWindow(-Hull.X, -Cabin.X, z))))
+            .Where(port => port.Window.Bounds.Max.Z < ChamberSides[0].Min.Z || port.Window.Bounds.Min.Z > ChamberSides[1].Max.Z),
+        .. SideWindowZ.Select((z, i) => (Pane: $"pane-starboard-{i + 1}", Window: Opening.ThroughX(SideWindow(Cabin.X, Hull.X, z)))),
+        (Pane: "pane-nose", Window: Opening.ThroughZ(new BoundingBox(new Vector3(-3, -Cabin.Y + 0.65f, -Hull.Z), new Vector3(3, -Cabin.Y + 2.65f, -Cabin.Z)))),
+    ];
+
+    /// <summary>
     /// The boxes of the hull's interior shape, which physics uses inside the ship's own frame, in the ship's axes, in
     /// meters. The floor and the roof span the whole hull, the side walls stand between them, and the end walls close
     /// the cabin between the side walls. The port wall leaves <see cref="Hatch"/> open. The chamber's walls stand on the
@@ -338,16 +383,22 @@ public static class DemoScenes
         new(wall.Min with { Z = doorway.Min.Z }, wall.Max with { Y = doorway.Min.Y, Z = doorway.Max.Z }),
     ];
 
-    /// <summary>The drawn hull, in the ship's axes: the outer box and the cabin seen from inside, joined through the hatch, and the chamber's walls.</summary>
+    /// <summary>
+    /// The drawn hull, in the ship's axes: the outer box and the cabin seen from inside, joined through the hatch and the
+    /// windows, and the chamber's walls.
+    /// </summary>
     private static MeshData HullMesh()
     {
+        Opening[] openings = [Opening.ThroughX(Hatch), .. Windows.Select(window => window.Window)];
         BoxMesh mesh = new BoxMesh()
-            .Box(new BoundingBox(-Hull, Hull), doorway: Hatch)
-            .Box(new BoundingBox(-Cabin, Cabin), inward: true, doorway: Hatch)
-            .Doorway(Hatch);
+            .Box(new BoundingBox(-Hull, Hull), openings: openings)
+            .Box(new BoundingBox(-Cabin, Cabin), inward: true, openings: openings);
+        foreach (Opening opening in openings)
+            mesh.Sides(opening);
         foreach (BoundingBox side in ChamberSides)
             mesh.Box(side);
-        return mesh.Box(ChamberInnerWall, doorway: InnerDoorway).Doorway(InnerDoorway).Build();
+        var innerDoorway = Opening.ThroughX(InnerDoorway);
+        return mesh.Box(ChamberInnerWall, openings: innerDoorway).Sides(innerDoorway).Build();
     }
 
     /// <summary>
@@ -365,6 +416,31 @@ public static class DemoScenes
             Body = new BodyDesc(new BoxShapeDesc(half), BodyMotion.Kinematic),
             Render = Drawn(resources, Primitives.Box(half), new Vector4(0.85f, 0.45f, 0.1f, 1), boundingRadius: half.Length()),
             Components = [new Door(new Vector3(0, 2 * doorway.Extents.Y + 0.1f, 0), openSeconds: 1.5f)],
+        };
+    }
+
+    /// <summary>
+    /// The pane of glass in <paramref name="window"/>: a box 2 cm thick in the middle of the window's wall, 1 cm larger
+    /// than the window on each side, so that its edges hide in the wall and do not share a plane with the window's sides.
+    /// It is transparent and casts no shadow. Panes of one size share a mesh in <paramref name="meshes"/>.
+    /// </summary>
+    private static SpawnDesc PaneIn(FrameHandle frame, Opening window, MaterialId glass, Dictionary<Vector3, MeshId> meshes, IRenderResources resources)
+    {
+        Vector3 half = window.Bounds.Extents + new Vector3(0.01f);
+        half = window.Through == Vector3.UnitX ? half with { X = 0.01f } : half with { Z = 0.01f };
+        if (!meshes.TryGetValue(half, out MeshId mesh))
+            meshes[half] = mesh = resources.CreateMesh(Primitives.Box(half));
+        return new SpawnDesc
+        {
+            Frame = frame,
+            Pose = new DPose(window.Bounds.Center, DQuaternion.Identity),
+            Render = new RenderData
+            {
+                Mesh = mesh,
+                Material = glass,
+                BoundingRadius = half.Length(),
+                Flags = RenderFlags.Visible | RenderFlags.Transparent,
+            },
         };
     }
 

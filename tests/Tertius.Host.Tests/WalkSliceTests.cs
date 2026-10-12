@@ -104,13 +104,26 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
     public void FromInsideTheCabinThePersonSeesALampLitFloorAndTheNoseWallAhead()
     {
         // The person looks along the ship's -Z from 1.65 m above the floor, 39.5 m from the nose wall. The sun stands
-        // straight above the ship, but the hull keeps its light out: the lamps light the cabin in their warm white.
+        // straight above the ship, but the hull keeps its light out: the lamps light the cabin in their warm white. The nose
+        // window fills the middle of the image, rows 344 to 375, so the probe of the nose wall sits above it, where the
+        // wall spans rows 276 to 343.
         Png cabin = run.Capture("cabin");
         (int r, int g, int b) floor = cabin.Average(640, 650);
-        (int r, int g, int b) wall = cabin.Average(640, 360);
+        (int r, int g, int b) wall = cabin.Average(640, 310);
 
         (floor.r > 90 && floor.r > floor.b + 10).Should().BeTrue($"the floor ahead is lamp lit, not {floor}");
         (wall.r > 40 && wall.r > wall.b).Should().BeTrue($"the nose wall is lamp lit, not {wall}");
+    }
+
+    [Fact]
+    public void ThroughTheNoseWindowAheadThePersonSeesDarkSpace()
+    {
+        // The nose window is 6 m wide and 2 m tall, centered at eye height, so it is in the middle of the image. The ship's
+        // nose points along its motion, level, and Earth's horizon is 19.8 degrees below level, out of the window's view.
+        // Space is black, and the pane in the window adds its own lamp-lit color, a dark blue gray.
+        (int r, int g, int b) window = run.Capture("cabin").Average(640, 360);
+
+        (window.r + window.g + window.b < 90 && window.b > window.r).Should().BeTrue($"dark space shows through the pane, not {window}");
     }
 
     [Fact]

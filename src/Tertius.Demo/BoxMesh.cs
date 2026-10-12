@@ -3,15 +3,42 @@ using System.Numerics;
 namespace Tertius.Demo;
 
 /// <summary>
-/// Builds a mesh of axis-aligned boxes, whose faces across X can have a doorway through them, and of the faces inside
-/// those doorways. Neighboring faces of a box share their corners, and a face with a doorway is four trapezoids between
-/// its corners and the doorway's. So a box with its doorways is closed and has no T-junction, where a vertex on another
-/// triangle's edge can leave a crack of single pixels. So is a hollow box, an outer box around an inward one, with a
-/// doorway through both. Boxes that only touch are separate solids, so a corner of one can lie on an edge of another.
-/// In the ship of <see cref="DemoScenes"/>, the walls of the airlock's chamber stand against the cabin's faces, so their
-/// corners lie on the cabin's edges, and the chamber's inner wall stands against its side walls, so its corners lie on
-/// their edges. But those faces go on behind the walls, so no crack can show there. Front faces wind counterclockwise,
-/// as in <see cref="Primitives"/>. All positions are in the mesh's own axes, in meters.
+/// A hole through a wall: a doorway or a window. <see cref="Bounds"/> spans the wall's thickness along the axis that the
+/// opening goes through, X or Z, and its cross-section in the other two axes is the hole.
+/// </summary>
+public readonly record struct Opening
+{
+    private Opening(BoundingBox bounds, Vector3 through)
+    {
+        Bounds = bounds;
+        Through = through;
+    }
+
+    /// <summary>An opening through a wall across X.</summary>
+    public static Opening ThroughX(BoundingBox bounds) => new(bounds, Vector3.UnitX);
+
+    /// <summary>An opening through a wall across Z.</summary>
+    public static Opening ThroughZ(BoundingBox bounds) => new(bounds, Vector3.UnitZ);
+
+    public BoundingBox Bounds { get; }
+
+    /// <summary>
+    /// The axis that the opening goes through: <see cref="Vector3.UnitX"/> or <see cref="Vector3.UnitZ"/>. The default
+    /// opening has none.
+    /// </summary>
+    public Vector3 Through { get; }
+}
+
+/// <summary>
+/// Builds a mesh of axis-aligned boxes, whose faces across X or Z can have openings through them, and of the faces
+/// inside those openings. Neighboring faces of a box share their corners, and a face with openings adds vertices only
+/// inside itself, never on its edges. So a box with its openings is closed and has no T-junction, where a vertex on
+/// another triangle's edge can leave a crack of single pixels. So is a hollow box, an outer box around an inward one,
+/// with openings through both. Boxes that only touch are separate solids, so a corner of one can lie on an edge of
+/// another. In the ship of <see cref="DemoScenes"/>, the walls of the airlock's chamber stand against the cabin's faces,
+/// so their corners lie on the cabin's edges, and the chamber's inner wall stands against its side walls, so its corners
+/// lie on their edges. But those faces go on behind the walls, so no crack can show there. Front faces wind
+/// counterclockwise, as in <see cref="Primitives"/>. All positions are in the mesh's own axes, in meters.
 /// </summary>
 public sealed class BoxMesh
 {
@@ -21,28 +48,64 @@ public sealed class BoxMesh
     private readonly List<uint> indices = new();
 
     /// <summary>
-    /// Adds the six faces of <paramref name="box"/>, facing out of it, or into it if <paramref name="inward"/>. A face across
-    /// X that lies within the X range of <paramref name="doorway"/> gets a hole, the doorway's cross-section in Y and Z.
-    /// <see cref="Doorway"/> then closes the solid around the hole.
+    /// Adds the six faces of <paramref name="box"/>, facing out of it, or into it if <paramref name="inward"/>. A face
+    /// across the axis of an opening in <paramref name="openings"/> gets a hole, the opening's cross-section, when its
+    /// plane lies within the opening's range along that axis. <see cref="Sides"/> then closes the solid around the hole.
+    /// Each opening must cut a face, and must lie inside that face, clear of its edges. The openings in one face must not
+    /// overlap along the face's horizontal axis, so they stand in a row, but they can differ in height.
     /// </summary>
-    public BoxMesh Box(BoundingBox box, bool inward = false, BoundingBox? doorway = null)
+    public BoxMesh Box(BoundingBox box, bool inward = false, params ReadOnlySpan<Opening> openings)
     {
-        foreach (Vector3 normal in Normals)
+        // Every face's holes, found and checked before any face is added, so that a wrong opening adds nothing.
+        var holes = new List<BoundingBox>[Normals.Length];
+        var cut = new bool[openings.Length];
+        for (int face = 0; face < Normals.Length; face++)
         {
-            float x = normal.X > 0 ? box.Max.X : box.Min.X;
-            bool holed = normal.X != 0 && doorway is { } d && x >= d.Min.X && x <= d.Max.X;
-            Face(box, normal, inward, holed ? doorway : null);
+            Vector3 side = Normals[face];
+            holes[face] = new List<BoundingBox>();
+            for (int i = 0; i < openings.Length; i++)
+            {
+                // Only a face across the opening's axis. The default opening has no axis and cuts no face.
+                Vector3 axis = openings[i].Through;
+                if (Vector3.Dot(side, axis) == 0)
+                    continue;
+                float plane = Vector3.Dot(Vector3.Dot(side, axis) > 0 ? box.Max : box.Min, axis);
+                if (plane >= Vector3.Dot(openings[i].Bounds.Min, axis) && plane <= Vector3.Dot(openings[i].Bounds.Max, axis))
+                {
+                    holes[face].Add(openings[i].Bounds);
+                    cut[i] = true;
+                }
+            }
+            CheckHoles(box, side, holes[face]);
+        }
+        for (int i = 0; i < openings.Length; i++)
+        {
+            if (!cut[i])
+                throw new ArgumentException($"The opening {openings[i].Bounds} through {openings[i].Through} cuts no face of the box {box}.", nameof(openings));
+        }
+
+        for (int face = 0; face < Normals.Length; face++)
+        {
+            if (holes[face].Count == 0)
+                Face(box, Normals[face], inward);
+            else
+                HoledFace(box, Normals[face], inward, holes[face]);
         }
         return this;
     }
 
-    /// <summary>Adds the four faces inside <paramref name="doorway"/>, across Y and Z, facing into it. Its ends across X stay open.</summary>
-    public BoxMesh Doorway(BoundingBox doorway)
+    /// <summary>
+    /// Adds the four faces inside <paramref name="opening"/>, along the axis that it goes through, facing into it. Its ends
+    /// across that axis stay open.
+    /// </summary>
+    public BoxMesh Sides(Opening opening)
     {
+        if (opening.Through == Vector3.Zero)
+            throw new ArgumentException("The opening goes through no axis. Make it with Opening.ThroughX or Opening.ThroughZ.", nameof(opening));
         foreach (Vector3 normal in Normals)
         {
-            if (normal.X == 0)
-                Face(doorway, normal, inward: true, hole: null);
+            if (Vector3.Dot(normal, opening.Through) == 0)
+                Face(opening.Bounds, normal, inward: true);
         }
         return this;
     }
@@ -50,34 +113,120 @@ public sealed class BoxMesh
     public MeshData Build() => new([.. vertices], [.. indices]);
 
     /// <summary>
-    /// Adds the face of <paramref name="box"/> on the side of <paramref name="side"/>, an axis direction. With a hole, it is
-    /// four trapezoids, each between one edge of the face and the matching edge of the hole.
+    /// The coordinate of <paramref name="point"/> along the horizontal axis of the face on the side of
+    /// <paramref name="side"/>, across X or Z: its Z for a face across X, and its X for a face across Z. The openings in a
+    /// face stand in a row along that axis.
     /// </summary>
-    private void Face(BoundingBox box, Vector3 side, bool inward, BoundingBox? hole)
+    private static float Along(Vector3 side, Vector3 point) => side.X != 0 ? point.Z : point.X;
+
+    /// <summary>
+    /// Sorts <paramref name="holes"/> along the face of <paramref name="box"/> on the side of <paramref name="side"/>, and
+    /// checks that each lies inside the face, clear of its edges, and that no two overlap along it.
+    /// </summary>
+    private static void CheckHoles(BoundingBox box, Vector3 side, List<BoundingBox> holes)
+    {
+        holes.Sort((a, b) => Along(side, a.Min).CompareTo(Along(side, b.Min)));
+        float start = Along(side, box.Min), end = Along(side, box.Max);
+        for (int i = 0; i < holes.Count; i++)
+        {
+            BoundingBox hole = holes[i];
+            bool inside = start < Along(side, hole.Min) && Along(side, hole.Min) < Along(side, hole.Max) && Along(side, hole.Max) < end
+                && box.Min.Y < hole.Min.Y && hole.Min.Y < hole.Max.Y && hole.Max.Y < box.Max.Y;
+            if (!inside)
+                throw new ArgumentException($"The opening {hole} must lie inside the face {side} of the box {box}, clear of its edges.", "openings");
+            if (i > 0 && Along(side, holes[i - 1].Max) >= Along(side, hole.Min))
+                throw new ArgumentException($"The openings {holes[i - 1]} and {hole} overlap along the face {side} of the box {box}. Openings in one face must stand in a row.", "openings");
+        }
+    }
+
+    /// <summary>Adds the face of <paramref name="box"/> on the side of <paramref name="side"/>, an axis direction, as one quad.</summary>
+    private void Face(BoundingBox box, Vector3 side, bool inward)
     {
         Span<Vector3> corners = stackalloc Vector3[4];
         Corners(box, side, inward, corners);
         Vector3 normal = inward ? -side : side;
-        if (hole is not { } h)
+        Triangle(normal, corners[0], corners[1], corners[2]);
+        Triangle(normal, corners[0], corners[2], corners[3]);
+    }
+
+    /// <summary>
+    /// Adds the face of <paramref name="box"/> on the side of <paramref name="side"/>, across X or Z, with
+    /// <paramref name="holes"/> through it, sorted along the face. Call the face's horizontal axis h. The band is the box
+    /// around all the holes: from the first hole's start to the last hole's end along h, and from the lowest hole's bottom
+    /// to the highest hole's top. Four trapezoids join the face's edges to the band's edges. Inside the band, each hole has
+    /// a rectangle below it and one above it, as wide as the hole, and each gap between two holes is a rectangle across the
+    /// band. Each of these pieces lies between two parallel lines, and <see cref="Strip"/> splits it into triangles.
+    /// </summary>
+    /// <remarks>
+    /// The only vertices on the face's edges are its four corners, so its edges are whole edges of the neighboring faces
+    /// too. Each hole's edges are whole edges, which <see cref="Sides"/> shares. Where two pieces touch, both have a vertex
+    /// at every point where either has one: a line across h at a hole's side holds the band's bottom and top and the
+    /// hole's corners, and the band's bottom and top hold every hole's start and end. Each coordinate is the box's or a
+    /// hole's own minimum or maximum, never a sum, so pieces that share a vertex share it to the bit.
+    /// </remarks>
+    private void HoledFace(BoundingBox box, Vector3 side, bool inward, List<BoundingBox> holes)
+    {
+        Vector3 normal = inward ? -side : side;
+        bool acrossX = side.X != 0;
+        float plane = acrossX ? (side.X > 0 ? box.Max.X : box.Min.X) : (side.Z > 0 ? box.Max.Z : box.Min.Z);
+        Vector3 At(float h, float y) => acrossX ? new Vector3(plane, y, h) : new Vector3(h, y, plane);
+
+        float bottom = holes.Min(hole => hole.Min.Y), top = holes.Max(hole => hole.Max.Y);
+        // The points on the line across h at one side of a hole, from the band's bottom to its top.
+        Vector3[] Column(float h, BoundingBox hole)
         {
-            Polygon(normal, corners[0], corners[1], corners[2], corners[3]);
-            return;
+            var points = new List<Vector3> { At(h, bottom) };
+            if (hole.Min.Y > bottom)
+                points.Add(At(h, hole.Min.Y));
+            if (hole.Max.Y < top)
+                points.Add(At(h, hole.Max.Y));
+            points.Add(At(h, top));
+            return [.. points];
         }
-        // The hole's corners, moved into the face's plane. Corners gives them in the same order as the face's own, so
-        // inner[i] has the same role as corners[i]: it is at the same end, the minimum or the maximum, of each of the
-        // face's two axes. So each quad joins an edge of the face to the parallel edge of the hole on the same side, and
-        // because the hole lies within the face, the quad is a convex trapezoid. The nearest face corner does not always
-        // have the same role. The hatch is near the floor, so its upper corners are nearer to the lower corners of the
-        // cabin's port face than to its upper ones. Quads between corners of different roles do not tile the face.
-        Span<Vector3> inner = stackalloc Vector3[4];
-        Corners(h, side, inward, inner);
-        float plane = side.X > 0 ? box.Max.X : box.Min.X;
-        for (int i = 0; i < 4; i++)
-            inner[i].X = plane;
-        for (int i = 0; i < 4; i++)
+        // The points on the band's bottom or top: every hole's start and end.
+        Vector3[] Row(float y) => [.. holes.SelectMany(hole => new[] { At(Along(side, hole.Min), y), At(Along(side, hole.Max), y) })];
+
+        float start = Along(side, box.Min), end = Along(side, box.Max);
+        Strip(normal, [At(start, box.Min.Y), At(start, box.Max.Y)], Column(Along(side, holes[0].Min), holes[0]));
+        Strip(normal, Column(Along(side, holes[^1].Max), holes[^1]), [At(end, box.Min.Y), At(end, box.Max.Y)]);
+        Strip(normal, [At(start, box.Min.Y), At(end, box.Min.Y)], Row(bottom));
+        Strip(normal, Row(top), [At(start, box.Max.Y), At(end, box.Max.Y)]);
+        for (int i = 0; i < holes.Count; i++)
         {
-            int next = (i + 1) % 4;
-            Polygon(normal, corners[i], corners[next], inner[next], inner[i]);
+            BoundingBox hole = holes[i];
+            float holeStart = Along(side, hole.Min), holeEnd = Along(side, hole.Max);
+            if (hole.Min.Y > bottom)
+                Strip(normal, [At(holeStart, bottom), At(holeStart, hole.Min.Y)], [At(holeEnd, bottom), At(holeEnd, hole.Min.Y)]);
+            if (hole.Max.Y < top)
+                Strip(normal, [At(holeStart, hole.Max.Y), At(holeStart, top)], [At(holeEnd, hole.Max.Y), At(holeEnd, top)]);
+            if (i + 1 < holes.Count)
+                Strip(normal, Column(holeEnd, hole), Column(Along(side, holes[i + 1].Min), holes[i + 1]));
+        }
+    }
+
+    /// <summary>
+    /// Splits the convex polygon between <paramref name="a"/> and <paramref name="b"/> into triangles that face along
+    /// <paramref name="normal"/>. The points of each lie on one line, in the same direction along it, and the two lines are
+    /// parallel and apart. Each triangle joins two neighboring points of one line to a point of the other, so none is
+    /// degenerate, and the triangles move along both lines together, so that they stay close to equilateral.
+    /// </summary>
+    private void Strip(Vector3 normal, ReadOnlySpan<Vector3> a, ReadOnlySpan<Vector3> b)
+    {
+        Vector3 direction = a[^1] - a[0];
+        int i = 0, j = 0;
+        while (i < a.Length - 1 || j < b.Length - 1)
+        {
+            bool alongA = j == b.Length - 1 || (i < a.Length - 1 && Vector3.Dot(a[i + 1], direction) <= Vector3.Dot(b[j + 1], direction));
+            if (alongA)
+            {
+                Triangle(normal, a[i], a[i + 1], b[j]);
+                i++;
+            }
+            else
+            {
+                Triangle(normal, a[i], b[j + 1], b[j]);
+                j++;
+            }
         }
     }
 
@@ -104,15 +253,20 @@ public sealed class BoxMesh
         }
     }
 
-    /// <summary>Adds the flat convex quad <paramref name="a"/>, <paramref name="b"/>, <paramref name="c"/>, <paramref name="d"/>, counterclockwise around <paramref name="normal"/>.</summary>
-    private void Polygon(Vector3 normal, Vector3 a, Vector3 b, Vector3 c, Vector3 d)
+    /// <summary>
+    /// Adds the triangle <paramref name="a"/>, <paramref name="b"/>, <paramref name="c"/> of a face whose normal is
+    /// <paramref name="normal"/>, wound counterclockwise around it: if the three points run clockwise, two of them swap.
+    /// </summary>
+    private void Triangle(Vector3 normal, Vector3 a, Vector3 b, Vector3 c)
     {
+        if (Vector3.Dot(Vector3.Cross(b - a, c - a), normal) < 0)
+            (b, c) = (c, b);
         // The texture runs along the face in meters, with u along the tangent and v against the bitangent.
         Vector3 tangent = Vector3.Normalize(Vector3.Cross(MathF.Abs(normal.Y) > 0.5f ? Vector3.UnitX : Vector3.UnitY, normal));
         Vector3 bitangent = Vector3.Cross(normal, tangent);
-        uint first = (uint)vertices.Count;
-        foreach (Vector3 corner in (ReadOnlySpan<Vector3>)[a, b, c, d])
+        foreach (Vector3 corner in (ReadOnlySpan<Vector3>)[a, b, c])
         {
+            indices.Add((uint)vertices.Count);
             vertices.Add(new Vertex
             {
                 Position = corner,
@@ -121,6 +275,5 @@ public sealed class BoxMesh
                 TexCoord = new Vector2(Vector3.Dot(corner, tangent), -Vector3.Dot(corner, bitangent)),
             });
         }
-        indices.AddRange([first, first + 1, first + 2, first, first + 2, first + 3]);
     }
 }
