@@ -77,6 +77,7 @@ public sealed partial class World : IDisposable
         spatial = new SpatialIndex(entities, Frames);
         renderBuilder = new RenderSnapshotBuilder(entities, Frames, parallelOptions);
         dyingMarks = entities.AddColumn<bool>();
+        characterStanding = entities.AddColumn<bool>();
         if (physics != null)
             physicsWorker = new PhysicsWorker(physics, stepOutput);
     }
@@ -176,6 +177,9 @@ public sealed partial class World : IDisposable
     /// <summary>The frame that this entity is, or null. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
     public FrameHandle GetOwnedFrame(Entity entity) => entities.OwnedFrame(entity);
 
+    /// <summary>The entity's physics body, or null if it has none. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
+    public BodyDesc? GetBody(Entity entity) => entities.Body(entity);
+
     /// <summary>A copy of the entity's components, in pipeline order. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
     public IReadOnlyList<IComponent> GetComponents(Entity entity) => entities.Components(entity).ToArray();
 
@@ -233,6 +237,12 @@ public sealed partial class World : IDisposable
     /// <summary>The attachment chains, for the views over them.</summary>
     internal Attachments Attachments => attachments;
 
+    /// <summary>
+    /// True if physics stood the character on walkable ground under gravity in the step of the last tick. False for any
+    /// other entity. Throws <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    internal bool IsStanding(Entity entity) => characterStanding[entity];
+
     internal static T? FindComponent<T>(ReadOnlySpan<IComponent> components) where T : class, IComponent
     {
         foreach (IComponent component in components)
@@ -256,6 +266,7 @@ public sealed partial class World : IDisposable
     /// root frame, which is in no frame.</item>
     /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state. Every live
     /// frame's topic resolves.</item>
+    /// <item>Only a character can be standing.</item>
     /// </list>
     /// </summary>
     internal void AssertInvariants()
@@ -283,6 +294,8 @@ public sealed partial class World : IDisposable
                 Contract.Invariant(row.Frame == mirror.Frame && Poses.BitEquals(row.Pose, mirror.Pose));
                 Contract.Invariant(row.LinearVelocity.Equals(mirror.LinearVelocity) && row.AngularVelocity.Equals(mirror.AngularVelocity));
             }
+            if (characterStanding[entity])
+                Contract.Invariant(entities.Body(entity) is { Motion: BodyMotion.Character });
         }
         for (int i = 0; i < Frames.Count; i++)
         {

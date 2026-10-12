@@ -126,6 +126,17 @@ public sealed class DumpFileTests : IDisposable
     }
 
     [Fact]
+    public void ADumpFileWritesStandingForACharacterOnlyAndLeavesItOutForEveryOtherEntity()
+    {
+        JsonElement dump = RunAndRead(NewJoltWorld, StateDumpTests.PeopleOnFloor, Parse("""{ "do": "run", "ticks": 60 }""", """{ "do": "dump", "name": "now" }"""), "now");
+
+        EntityNamed(dump, "person").GetProperty("standing").GetBoolean().Should().BeTrue();
+        EntityNamed(dump, "faller").GetProperty("standing").GetBoolean().Should().BeFalse();
+        EntityNamed(dump, "box").TryGetProperty("standing", out _).Should().BeFalse("the box is not a character");
+        EntityNamed(dump, "floor").TryGetProperty("standing", out _).Should().BeFalse();
+    }
+
+    [Fact]
     public void TheSameScriptWritesByteIdenticalDumpsInTwoFreshWorlds()
     {
         Script script = Parse("""{ "do": "run", "ticks": 45 }""", """{ "do": "dump", "name": "landing" }""", """{ "do": "run", "ticks": 45 }""", """{ "do": "dump", "name": "rest" }""");

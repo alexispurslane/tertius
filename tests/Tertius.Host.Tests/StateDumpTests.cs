@@ -239,4 +239,33 @@ public class StateDumpTests
         ((Collision)hit.Payload).Other.Should().Be(scene["floor"]);
         dump.Errors.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// The scene "box-on-floor" with two characters: <c>person</c> stands on the floor 3 m from the box, and
+    /// <c>faller</c> starts 30 m above the floor, 3 m on the other side, so it is still in the air after a second.
+    /// </summary>
+    internal static SceneInstance PeopleOnFloor(World world)
+    {
+        SceneInstance scene = BoxOnFloor(world);
+        FrameHandle ground = world.GetOwnedFrame(scene["ground"]);
+        var person = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+        scene.Add("person", world.Spawn(new SpawnDesc { Frame = ground, Pose = At(3, 0.92), Body = person }));
+        scene.Add("faller", world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-3, 30), Body = person }));
+        return scene;
+    }
+
+    [Fact]
+    public void ADumpHoldsWhetherPhysicsStoodEachCharacterAndNothingOfThatForOtherEntities()
+    {
+        using World world = NewJoltWorld();
+        SceneInstance scene = PeopleOnFloor(world);
+
+        StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 60 }""", DumpNow).Dump("now");
+
+        dump.Entity("person").Standing.Should().BeTrue();
+        dump.Entity("faller").Standing.Should().BeFalse("it is still in the air");
+        dump.Entity("box").Standing.Should().BeNull("the box is not a character");
+        dump.Entity("floor").Standing.Should().BeNull();
+        dump.Entity("ground").Standing.Should().BeNull();
+    }
 }

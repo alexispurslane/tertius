@@ -67,7 +67,8 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
             new FramePose(frame.IsNull ? null : scene.IdOf(frame.Entity), pose.Position, pose.Rotation),
             rootPose,
             world.GetVelocity(entity),
-            world.GetAngularVelocity(entity));
+            world.GetAngularVelocity(entity),
+            world.GetBody(entity) is { Motion: BodyMotion.Character } ? world.Snapshot.IsStanding(entity) : null);
     }
 
     private FrameRecord FrameRecordOf(FrameHandle frame)

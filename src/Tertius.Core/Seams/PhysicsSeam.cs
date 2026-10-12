@@ -313,6 +313,14 @@ public readonly struct PhysicsStepContext
 public readonly record struct BodyState(Entity Entity, FrameHandle Frame, DPose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
 
 /// <summary>
+/// The state of one character after a step. <see cref="Standing"/> is true when physics stood the character on walkable
+/// ground under gravity in the step: the effective gravity was at least <see cref="FrameTree.ZeroGravityThreshold"/>,
+/// and the character did not move away from the ground. It is false for a character in the air, on steep ground or
+/// weightless, and for a character that a hand-off moved to another frame in the step, which has not stood there yet.
+/// </summary>
+public readonly record struct CharacterState(Entity Entity, bool Standing);
+
+/// <summary>
 /// Physics moved an entity's body to another frame during the step. <see cref="From"/> is the frame that the entity was in
 /// when the step began (for the owner of a frame, the frame's parent), and <see cref="To"/> is a different frame. Pose and
 /// velocities are in the new frame.
@@ -336,8 +344,10 @@ public readonly record struct FrameState(FrameHandle Frame, DPose LocalPose, Dou
 /// that the output names is live and has a body, and every frame that it names is alive and not null. A hand-off leaves
 /// the frame that its entity is in, each entity hands off at most once, and the owner of a frame hands off only when
 /// the frame has the physics driver. A frame state names a frame with the physics driver and a parent, whose owner has
-/// a body. A contact names two different entities. <see cref="PhysicsOutputCheck"/> holds the full rules, and the sync
-/// point treats any other output as a bug in the backend: see ARCHITECTURE.md, "Threads and the tick", step 2.
+/// a body. A contact names two different entities. A character state names a character.
+/// <see cref="PhysicsOutputCheck"/> holds the full rules for every output but the character states, which the sync
+/// point checks itself. The sync point treats any other output as a bug in the backend: see ARCHITECTURE.md, "Threads
+/// and the tick", step 2.
 /// </summary>
 public sealed class PhysicsStepOutput
 {
@@ -346,6 +356,12 @@ public sealed class PhysicsStepOutput
     public readonly List<HandOff> HandOffs = new();
     public readonly List<ContactStarted> Contacts = new();
     public readonly List<FrameState> Frames = new();
+
+    /// <summary>
+    /// The state of every character, once each, after the hand-offs of the step. So a character that a hand-off moved
+    /// reports from its new frame.
+    /// </summary>
+    public readonly List<CharacterState> Characters = new();
 
     /// <summary>
     /// One message for each state that only a bug produces, which the backend found and skipped during the step, for
@@ -360,6 +376,7 @@ public sealed class PhysicsStepOutput
         HandOffs.Clear();
         Contacts.Clear();
         Frames.Clear();
+        Characters.Clear();
         Errors.Clear();
     }
 }

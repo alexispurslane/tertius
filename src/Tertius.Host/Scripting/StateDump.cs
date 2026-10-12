@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json.Serialization;
 using Tertius.Simulation;
 
 namespace Tertius.Host.Scripting;
@@ -35,7 +36,17 @@ public sealed record StateDump(
 /// <param name="RootPose">The pose in the root frame of the entity's frame tree.</param>
 /// <param name="Velocity">Linear velocity in the axes of the entity's own frame, in m/s.</param>
 /// <param name="AngularVelocity">Angular velocity in the axes of the entity's own frame, in rad/s.</param>
-public sealed record EntityRecord(string Id, FramePose Pose, FramePose RootPose, Vector3 Velocity, Vector3 AngularVelocity);
+/// <param name="Standing">
+/// For a character: true if physics stood it on walkable ground under gravity in its last step. Null for any other
+/// entity, and a dump file leaves it out then.
+/// </param>
+public sealed record EntityRecord(
+    string Id,
+    FramePose Pose,
+    FramePose RootPose,
+    Vector3 Velocity,
+    Vector3 AngularVelocity,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Standing);
 
 /// <summary>A pose and the frame that it is relative to.</summary>
 /// <param name="Frame">The scene id of the frame's owner, or null for no frame.</param>

@@ -3,12 +3,13 @@ using System.Numerics;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Drives <see cref="JoltPhysicsBackend"/> the way the sync point does, without the simulation: it applies body
-/// states, hand-offs and frame states from the physics output, advances Kepler frames, and feeds intents. Like the sync
-/// point in a Debug build, it refuses output that only a bug in the backend produces: it runs the same
-/// <see cref="PhysicsOutputCheck"/>, and every broken output throws out of <see cref="Step"/>, so a test whose backend
-/// has such a bug fails loudly. A test that wants a refused hand-off on purpose breaks it in <see cref="BeforeApply"/>
-/// and names it in <see cref="RefusesHandOff"/>.
+/// Drives <see cref="JoltPhysicsBackend"/> the way the sync point does, without the simulation: it applies body states,
+/// hand-offs, character states and frame states from the physics output, advances Kepler frames, and feeds intents.
+/// Like the sync point in a Debug build, it refuses output that only a bug in the backend produces: it runs the same
+/// <see cref="PhysicsOutputCheck"/>, it refuses a character state for an entity without a body or a second one in a
+/// step, and every broken output throws out of <see cref="Step"/>, so a test whose backend has such a bug fails loudly.
+/// A test that wants a refused hand-off on purpose breaks it in <see cref="BeforeApply"/> and names it in
+/// <see cref="RefusesHandOff"/>.
 /// </summary>
 internal sealed class PhysicsHarness : IDisposable
 {
@@ -37,6 +38,12 @@ internal sealed class PhysicsHarness : IDisposable
 
     /// <summary>The latest state of every body, as the transform table would hold it.</summary>
     public Dictionary<Entity, BodyState> States { get; } = new();
+
+    /// <summary>
+    /// Whether physics stood each character on walkable ground under gravity in the last step that reported it, as the
+    /// sync point keeps it.
+    /// </summary>
+    public Dictionary<Entity, bool> Standing { get; } = new();
     public List<HandOff> HandOffs { get; } = new();
     public List<ContactStarted> Contacts { get; } = new();
 
@@ -135,6 +142,7 @@ internal sealed class PhysicsHarness : IDisposable
     {
         Changes.BodiesDestroyed.Add(entity);
         States.Remove(entity);
+        Standing.Remove(entity);
         destroyed.Add(entity);
     }
 
@@ -218,6 +226,11 @@ internal sealed class PhysicsHarness : IDisposable
             if (!check.IsSkipped(handOff.Entity))
                 States[handOff.Entity] = new BodyState(handOff.Entity, handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity);
         }
+        foreach (CharacterState character in Output.Characters)
+        {
+            if (!check.IsSkipped(character.Entity))
+                Standing[character.Entity] = character.Standing;
+        }
         foreach (FrameState state in Output.Frames)
         {
             if (check.IsSkipped(state.Frame.Entity))
@@ -250,6 +263,15 @@ internal sealed class PhysicsHarness : IDisposable
     /// </summary>
     private void CheckOutput()
     {
+        // The sync point skips a character state that only a bug produces. The harness refuses it loudly.
+        var characters = new HashSet<Entity>();
+        foreach (CharacterState character in Output.Characters)
+        {
+            if (!States.ContainsKey(character.Entity) || destroyed.Contains(character.Entity))
+                throw new InvalidOperationException($"Physics reported the character state of {character.Entity}, which has no body.");
+            if (!characters.Add(character.Entity))
+                throw new InvalidOperationException($"Physics reported the character state of {character.Entity} twice in one step.");
+        }
         check.Run(Output, Frames, new Facts(this));
         var brokenHandOffs = new HashSet<int>();
         foreach (PhysicsOutputFault fault in check.Faults)

@@ -80,6 +80,12 @@ internal sealed class BodyRecord
     /// <summary>Velocity change from impulses and forces on a character, applied at its next update.</summary>
     public Vector3 PendingVelocityChange;
     public Vector3 Up = Vector3.UnitY;
+    /// <summary>
+    /// For a character: true when its last update stood it on walkable ground under gravity. A new character starts
+    /// false, and so does a character that a hand-off moved to another frame. A growth of the system keeps it, because
+    /// the character stays where it stood.
+    /// </summary>
+    public bool Standing;
 
     /// <summary>The frame that this entity owns, or null.</summary>
     public FrameHandle OwnedFrame;

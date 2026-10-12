@@ -249,9 +249,10 @@ public sealed class FrameTree
     public void Update() => poses.UpdateWorld();
 
     /// <summary>
-    /// Below this effective gravity, in m/s², a character is weightless: it keeps its momentum, only forces change it,
-    /// and it keeps its last up direction. Physics and the components that steer characters both use it, so they agree
-    /// on where weightlessness begins.
+    /// Below this effective gravity, in m/s², physics never stands a character, so the character is weightless: it
+    /// keeps its momentum and its last up, and only forces and the weak gravity change its velocity. At or above it,
+    /// physics stands a character only on walkable ground. A character in the air is weightless there too, because it
+    /// falls freely. Physics reports which characters it stood, so the components that steer characters agree with it.
     /// </summary>
     public const float ZeroGravityThreshold = 0.05f;
 

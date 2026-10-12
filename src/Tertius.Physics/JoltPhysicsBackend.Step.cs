@@ -310,21 +310,28 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// Moves one character. Up is against the effective gravity. On the ground the character takes the ground's
-    /// velocity plus its desired horizontal velocity, and can jump. In the air it keeps its momentum. Where it is
-    /// weightless, below <see cref="FrameTree.ZeroGravityThreshold"/>, it keeps its momentum, as in the air, and its last
-    /// up. Its desired velocity and its jump do not move it there, but the record keeps the desired velocity, which
-    /// applies once the character stands under gravity. Gravity, forces and impulses change its velocity everywhere. A
-    /// weightless character then loses its motion into what it hit, as <see cref="WithoutMotionIntoContacts"/> says.
+    /// Moves one character, and records in <see cref="BodyRecord.Standing"/> whether it stood. The character stands
+    /// when the effective gravity is at least <see cref="FrameTree.ZeroGravityThreshold"/>, Jolt found walkable ground
+    /// under it in its last update, and it does not move away from that ground. Then it takes the ground's velocity
+    /// plus the part of its desired velocity across its up, and can jump. A character that does not stand, in the air,
+    /// on steep ground or weightless, keeps its momentum, and its desired velocity and its jump do not move it. (User)
+    /// The record keeps the desired velocity, which applies once the character stands. Gravity, forces and impulses
+    /// change the velocity of every character. After the update, a character that did not stand loses its motion into
+    /// what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Up turns against the gravity only while something
+    /// supports the character under gravity, so a character in free fall keeps its last up.
     /// </summary>
     private void UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
     {
         float dt = stepDt;
         Vector3 gravity = frames.EffectiveGravity(world.Frame, character.RPosition.ToDouble3());
         float strength = gravity.Length();
-        bool zeroGravity = strength < FrameTree.ZeroGravityThreshold;
+        bool underGravity = strength >= FrameTree.ZeroGravityThreshold;
+        // The ground state comes from the last update. Steep ground supports the character too, though it cannot stand
+        // there.
+        GroundState groundState = character.GroundState;
+        bool supported = groundState is GroundState.OnGround or GroundState.OnSteepGround;
         Vector3 up = record.Up;
-        if (!zeroGravity)
+        if (underGravity && supported)
         {
             up = -gravity / strength;
             if (Vector3.DistanceSquared(up, record.Up) > 1e-12f)
@@ -342,47 +349,38 @@ public sealed partial class JoltPhysicsBackend
         character.UpdateGroundVelocity();
         Vector3 velocity = character.LinearVelocity;
         Vector3 ground = character.GroundVelocity;
+        bool standing = underGravity && groundState == GroundState.OnGround && Vector3.Dot(velocity - ground, up) < 0.1f;
         Vector3 next;
-        if (zeroGravity)
+        if (standing)
         {
-            // Weightless, nothing holds the character to what it touches, so it keeps its momentum, as in the air. The
-            // weak gravity still acts, as on loose cargo.
-            next = velocity;
+            Vector3 desired = record.DesiredVelocity;
+            next = ground + desired - Vector3.Dot(desired, up) * up;
+            if (record.PendingJump > 0)
+                next += record.PendingJump * up;
         }
         else
         {
-            bool onGround = character.GroundState == GroundState.OnGround;
-            bool towardGround = Vector3.Dot(velocity - ground, up) < 0.1f;
-            if (onGround && towardGround)
-            {
-                Vector3 desired = record.DesiredVelocity;
-                next = ground + desired - Vector3.Dot(desired, up) * up;
-                if (record.PendingJump > 0)
-                    next += record.PendingJump * up;
-            }
-            else
-            {
-                // In the air the character keeps its momentum, including what it took from a moving platform.
-                next = velocity;
-            }
+            // Nothing holds the character, so it keeps its momentum, including what it took from a moving platform.
+            next = velocity;
         }
         next += gravity * dt;
         next += record.PendingVelocityChange;
         record.PendingVelocityChange = Vector3.Zero;
         record.PendingJump = 0;
+        record.Standing = standing;
         character.LinearVelocity = next;
 
         // Jolt reads the system gravity to press the character's weight onto what it stands on.
         world.System.Gravity = gravity;
-        ExtendedUpdateSettings settings = zeroGravity
-            ? ZeroGravityUpdate
-            : new ExtendedUpdateSettings { StickToFloorStepDown = -0.5f * up, WalkStairsStepUp = 0.4f * up };
+        ExtendedUpdateSettings settings = underGravity
+            ? new ExtendedUpdateSettings { StickToFloorStepDown = -0.5f * up, WalkStairsStepUp = 0.4f * up }
+            : ZeroGravityUpdate;
         character.ExtendedUpdate(dt, settings, Layers.Moving, world.System);
         world.System.Gravity = Vector3.Zero;
-        if (zeroGravity)
+        if (!standing)
         {
-            // Jolt slides the character along what it hits, but keeps the velocity that it was given. Weightless, no
-            // landing ends the motion into a surface, so the character loses it here.
+            // Jolt slides the character along what it hits, but keeps the velocity that it was given. Only standing
+            // replaces the velocity, so a character that does not stand loses its motion into a surface here.
             character.LinearVelocity = WithoutMotionIntoContacts(character, next);
         }
     }

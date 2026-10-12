@@ -8,6 +8,11 @@ public sealed partial class World
     // is here twice; its second entry finds its membership already moved.
     private readonly List<Entity> physicsTouched = new();
 
+    // Per entity: true when physics stood the character on walkable ground under gravity in its last step. The sync
+    // point writes it from each step's character states, and gameplay reads it in the next tick. Nothing writes it
+    // while gameplay runs, so it needs no second copy. The entity table clears it when it releases an entity.
+    private readonly EntityTable.Column<bool> characterStanding;
+
     // The check of each step's output. It skips the whole physics update of every entity that physics reported something
     // about that only a bug in the backend produces. Their body states, their hand-offs, the states of the frames they
     // own and the contacts that name them are all ignored.
@@ -104,9 +109,9 @@ public sealed partial class World
 
     /// <summary>
     /// Step 2: the check of the report and the frame owners' reparents of the hand-offs, then body states and hand-offs
-    /// into the back table, then the new states of the physics-driven frames and their owners' rows, then contacts as
-    /// Collision events. The contacts come after the frame states, so that a point converted between frames uses the
-    /// frame poses after the step, like the bodies' own poses.
+    /// into the back table, then whether physics stood each character, then the new states of the physics-driven frames
+    /// and their owners' rows, then contacts as Collision events. The contacts come after the frame states, so that a
+    /// point converted between frames uses the frame poses after the step, like the bodies' own poses.
     /// </summary>
     private void ApplyPhysicsOutput()
     {
@@ -148,6 +153,9 @@ public sealed partial class World
             });
             physicsTouched.Add(entity);
         }
+
+        foreach (CharacterState state in stepOutput.Characters)
+            ApplyCharacterState(state);
 
         // The reparents already put each frame under the parent that its state is relative to. The owner's row mirrors
         // the new state at once, so that a hull that the destroy batch moves to another physics system starts from the
@@ -193,6 +201,29 @@ public sealed partial class World
             Contract.Assert(false, fault.Message);
             Report($"tick {TickNumber}: {fault.Message}.", isError: true);
         }
+    }
+
+    /// <summary>
+    /// Keeps whether physics stood a character in this step. Physics reports the state of live characters only, so a
+    /// state of any other entity comes only from a bug in the backend. It breaks a contract in Debug builds. Release
+    /// builds skip it and record one error for it. The state of an entity whose update the check skipped is part of
+    /// that update, so it is skipped too, and the entity keeps the state of its last step.
+    /// </summary>
+    private void ApplyCharacterState(in CharacterState state)
+    {
+        Entity entity = state.Entity;
+        string? fault = !entities.IsAlive(entity) ? $"{entity} no longer exists" :
+            entities.Body(entity) is not { Motion: BodyMotion.Character } ? $"{entity} is not a character" :
+            null;
+        if (fault != null)
+        {
+            string message = $"ignored the character state of {entity}, because {fault}. Only a bug in the physics backend reports such a state";
+            Contract.Assert(false, message);
+            Report($"tick {TickNumber}: {message}.", isError: true);
+            return;
+        }
+        if (!physicsOutputCheck.IsSkipped(entity))
+            characterStanding[entity] = state.Standing;
     }
 
     /// <summary>

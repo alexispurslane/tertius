@@ -177,7 +177,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// says, with the motion of its frame's driver, which drops the hand-offs of the last step that the simulation refused
     /// and follows changes to the tree that no change batch announced, then applies intents, drives kinematic frame
     /// hulls, applies gravity, moves characters, updates every system, then reports contacts, hands bodies between frames,
-    /// updates ghosts and writes body and frame states to <paramref name="output"/>.
+    /// updates ghosts and writes body, character and frame states to <paramref name="output"/>.
     /// </summary>
     /// <remarks>
     /// <para>Intents, in the entity's frame axes. The intent of a frame's owner acts on the frame's hull.</para>
@@ -189,17 +189,22 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// there unless the next step gives a new target or velocity. A dynamic body gets the velocities that would carry
     /// it there.</item>
     /// <item>Force, Torque, Impulse and AngularImpulse act on dynamic bodies, for this step only.</item>
-    /// <item>A character keeps the desired velocity of its last CharacterMove until the next one. Under gravity only
-    /// the part across the up direction counts, and only on the ground. Jump applies only on the ground. Where the
-    /// character is weightless, below <see cref="FrameTree.ZeroGravityThreshold"/>, it keeps its momentum, and gravity
-    /// changes it as in the air. Jump does nothing there. CharacterMove does not move it there, but physics keeps the
-    /// desired velocity, which applies once the character stands under gravity. Impulses and forces change a
-    /// character's velocity by their mass.
-    /// KinematicTarget does nothing to a character.</item>
+    /// <item>A character keeps the desired velocity of its last CharacterMove until the next one. Only a character that
+    /// physics stands moves by it and can jump. Physics stands a character when the effective gravity is at least
+    /// <see cref="FrameTree.ZeroGravityThreshold"/>, there is walkable ground under it, and it does not move away from
+    /// that ground. Then only the part of the desired velocity across the up direction counts. A character that does
+    /// not stand, in the air, on steep ground or weightless, in any frame and any gravity, keeps its momentum, and
+    /// gravity changes it. (User) CharacterMove and Jump do not move it, but physics keeps the desired velocity, which
+    /// applies once the character stands. It loses its motion into each static or kinematic surface that it hits. Its
+    /// up turns against the gravity only while something supports it, so a character in free fall does not turn.
+    /// Impulses and forces change a character's velocity by their mass. KinematicTarget does nothing to a
+    /// character.</item>
     /// </list>
     /// <para>
     /// Outputs: <see cref="PhysicsStepOutput.Bodies"/> holds every awake dynamic or kinematic body and every
     /// character, plus one last report for a body that fell asleep. Velocities are at the center of mass.
+    /// <see cref="PhysicsStepOutput.Characters"/> holds every character once, after the hand-offs, with whether physics
+    /// stood it in this step. A character that a hand-off moved has not stood in its new frame yet.
     /// <see cref="PhysicsStepOutput.Frames"/> holds every physics-driven frame with a hull, relative to its parent
     /// after any hand-off in this step, with the velocity of the frame origin. Apply hand-offs before frame states.
     /// <see cref="PhysicsStepOutput.Contacts"/> holds each body pair that started touching, with A before B in
