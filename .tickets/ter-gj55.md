@@ -80,3 +80,7 @@ No query joining (User): there is no operator & or other way to build one query 
 **2026-10-12T01:46:01Z**
 
 Decided (User), closing the open any-of point: InAny(group) takes one collision group per call, and each call ORs that group into the query's one any-of set, tested with (g & AnyOf) != 0. An empty set means no condition. So .InAny(Wall).InAny(Person) means 'in Wall or in Person'. A query has exactly one any-of condition, and the one-group signature leaves no way to write two, so nothing throws. The other filters narrow with each call. An InAny call after the first widens the any-of condition, which is what any-of means.
+
+**2026-10-12T01:51:13Z**
+
+If query joining ever returns, define it as a filter merge (User): the joined query is the chain of both queries' calls, so every mask joins by OR, the all-of and none-of conditions narrow and the any-of choices widen. It is not the intersection of the two queries' results, so name it for a merge, not for 'and'.
