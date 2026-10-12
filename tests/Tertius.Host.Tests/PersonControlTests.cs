@@ -304,11 +304,63 @@ public sealed class PersonControlTests : IDisposable
         while (!world.Snapshot.IsStanding(person) && ticks++ < 120)
             Ticks(1);
 
-        // Physics keeps the last walk that the person asked for until the person stands again. In the air the person asks
-        // for no walk, so no walk is left over when it lands.
+        // Physics keeps the last walk that the person asked for until the person stands again. In the air the person
+        // asks for the walk of the keys that it holds now, and it let go of W, so no walk is left over when it lands.
         world.Snapshot.IsStanding(person).Should().BeTrue();
         Vector3 velocity = world.Snapshot.VelocityOf(person);
         new Vector2(velocity.X, velocity.Z).Length().Should().BeLessThan(0.05f);
+    }
+
+    [Fact]
+    public void APersonThatHoldsWThroughAJumpWalksOnAtWalkingSpeedInEveryStepAfterItLands()
+    {
+        Press(Key.W);
+        Ticks(20);
+        Press(Key.Space);
+        Post(InputKind.KeyUp, (int)Key.Space);
+        Ticks(10);
+        world.Snapshot.IsStanding(person).Should().BeFalse("the person jumped");
+        int ticks = 0;
+        while (!world.Snapshot.IsStanding(person) && ticks++ < 120)
+            Ticks(1);
+        world.Snapshot.IsStanding(person).Should().BeTrue();
+
+        // In the air the person asks physics for the walk of the keys that it holds now, so physics walks it on in the
+        // first step in which it stands. The person reads that it stands a tick late, so the thrust of its last two
+        // ticks in the air adds 0.025 m/s to each of its first two steps on the floor.
+        for (int step = 0; step < 10; step++)
+        {
+            Vector3 velocity = world.Snapshot.VelocityOf(person);
+            Vector3.Distance(velocity with { Y = 0 }, -Vector3.UnitZ * PersonControl.WalkSpeed)
+                .Should().BeLessThan(0.05f, $"{velocity} is a walk at 3 m/s in step {step} after the person stands");
+            Ticks(1);
+        }
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void ASpacePressPostedOneOrTwoTicksBeforeThePersonStandsAgainJumpsAgain(int ticksBefore)
+    {
+        double standing = world.Snapshot.PoseOf(person).Position.Y;
+        Press(Key.Space);
+        Post(InputKind.KeyUp, (int)Key.Space);
+        // Physics jumps the person in the step of the third tick. The person touches the floor in the step of the 50th
+        // tick, and physics stands it again from the step of the 51st. The test posts the second press ticksBefore
+        // ticks before that tick. Space goes up at once, so that its thrust does not change the jump.
+        Ticks(51 - 1 - ticksBefore);
+        Press(Key.Space);
+        Post(InputKind.KeyUp, (int)Key.Space);
+        Ticks(ticksBefore);
+        world.Snapshot.IsStanding(person).Should().BeFalse("the person is still in the air");
+        Ticks(1);
+        world.Snapshot.IsStanding(person).Should().BeTrue("the person stands again in the step of the 51st tick");
+        Ticks(24);
+
+        // The person handles the second press while it reads that it is in the air, and asks physics for a jump all
+        // the same. Physics jumps the person in the first or the second step in which it stands, so 24 ticks later the
+        // person is near the top of a second jump, 0.78 m up.
+        (world.Snapshot.PoseOf(person).Position.Y - standing).Should().BeApproximately(0.78, 0.005);
     }
 
     [Fact]
@@ -488,15 +540,21 @@ public sealed class PersonControlTests : IDisposable
     [Fact]
     public void HoldingSpaceJumpsOnceAndItsReleaseDoesNotJumpAgain()
     {
-        double standing = world.Snapshot.PoseOf(person).Position.Y;
+        double standing = world.Snapshot.PoseOf(person).Position.Y, top = standing;
         Press(Key.Space);
-        // Held Space thrusts the person up in the air, so the jump lasts 55 ticks instead of 49, and the person lands in
-        // the step of the 58th tick.
-        Ticks(3 + 60);
+        for (int i = 0; i < 3 + 60; i++)
+        {
+            Ticks(1);
+            top = Math.Max(top, world.Snapshot.PoseOf(person).Position.Y);
+        }
         double landed = world.Snapshot.PoseOf(person).Position.Y;
         Post(InputKind.KeyUp, (int)Key.Space);
         Ticks(3 + 10);
 
+        // Physics jumps the person in the step of the third tick, and held Space thrusts it up from the step of the
+        // sixth on. So the jump peaks 0.896 m up, where a plain jump peaks 0.78 m up, and the person touches the floor
+        // in the step of the 58th tick, where a plain jump touches it in the step of the 50th.
+        (top - standing).Should().BeApproximately(0.896, 0.005);
         landed.Should().BeApproximately(standing, 0.005);
         world.Snapshot.PoseOf(person).Position.Y.Should().BeApproximately(standing, 0.005);
     }

@@ -71,7 +71,9 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
             Dump(name).Entity("person").Pose.Frame.Should().Be("ship", $"the person is in the ship's frame in {name}");
         foreach (string name in InEarth)
             Dump(name).Entity("person").Pose.Frame.Should().Be("earth", $"the person is past the ship's bubble in {name}");
-        // The person leaves the bubble of 100 m once its capsule, of radius 0.9 m, is fully outside it, with a margin.
+        // The capsule's radius is 0.3 m, but the hand-off uses the radius of the capsule's bounding sphere, 0.9 m. The
+        // person leaves the ship's frame once its center is more than 100 + 0.9 + 2 m from the ship's center: the
+        // bubble's radius, that sphere's radius, and a margin of 2 percent of the bubble's radius.
         RelativeToShip("leaving").Position.Length.Should().BeLessThan(103);
         RelativeToShip("in-earth").Position.Length.Should().BeGreaterThan(103);
     }
@@ -129,10 +131,14 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     [Theory]
     [InlineData("leaving", "in-earth")]
     [InlineData("returning", "back-in-ship")]
-    public void AHandOffDoesNotTurnThePerson(string before, string after)
+    public void AHandOffTurnsThePersonsUpIntoTheAxesOfItsNewFrame(string before, string after)
     {
-        // In the ship's frame, the person's up turns with the ship. In earth, it stays where it is. So between a dump before
-        // a hand-off and a dump after it, the person's up in earth's axes turns at most as far as the ship does.
+        // In the ship's frame, the person's up turns with the ship. In earth, it stays where it is. So if a hand-off
+        // turns the person's rotation into the axes of its new frame, the person's up in earth's axes turns at most as
+        // far as the ship does between a dump before the hand-off and a dump after it. In this scene the ship's +Y
+        // points along the radius from Earth's center to within 2e-5 rad, so a hand-off that took the person's up from
+        // Earth's gravity would pass here too. The physics test CharacterOrbitHandOffTests covers that, with a ship
+        // whose +Y is not along the radius.
         Angle(UpInEarth(before), UpInEarth(after)).Should().BeLessThan(ShipTurn(before, after) + 1e-5);
     }
 

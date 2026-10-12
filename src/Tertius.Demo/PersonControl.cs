@@ -25,8 +25,9 @@ namespace Tertius.Demo;
 /// where no gravity acts, or in free fall round a planet. (User) Physics keeps its momentum, gravity and forces change
 /// it, and a walk or a jump does not move it. Its up turns only while ground supports it under gravity, so in free fall it keeps
 /// its last up. There the person drifts or falls until a thrust changes its velocity. The person reads
-/// <see cref="BodyHandle.Standing"/>, which physics reports for the step of the previous tick. So it agrees with physics
-/// on where weightlessness begins, a tick late.</para>
+/// <see cref="BodyHandle.Standing"/>, which physics reports for the step of the previous tick. So its thrusters start
+/// and stop a tick late. The walk and the jump do not wait for the report: the person asks for the walk on every tick
+/// and for a jump on each press, and physics applies them only in the steps in which it stands the person.</para>
 /// </remarks>
 /// <param name="eye">The eye's position relative to the entity, in meters, in the entity's axes.</param>
 public sealed class PersonControl(Vector3 eye) : IComponent
@@ -81,20 +82,19 @@ public sealed class PersonControl(Vector3 eye) : IComponent
         Quaternion view = turn * Quaternion.CreateFromAxisAngle(Vector3.UnitX, pitch);
         self.Render.ViewOffset = new Pose(eye, view);
         var keys = new Vector3((right ? 1 : 0) - (left ? 1 : 0), (rise ? 1 : 0) - (sink ? 1 : 0), (back ? 1 : 0) - (forward ? 1 : 0));
-        if (self.Body.Standing)
+        // The person asks for the walk of the keys held now and for a jump on a press, whether it stands or not.
+        // Physics ignores both while it does not stand the person. So a held walk goes on in the first step in which
+        // the person stands again, a key let go of in the air leaves no walk behind, and a press just before a landing
+        // still jumps.
+        Vector3 walk = keys with { Y = 0 };
+        if (walk != Vector3.Zero)
+            walk = Vector3.Normalize(walk) * WalkSpeed;
+        self.Body.MoveCharacter(Vector3.Transform(walk, body * turn));
+        if (jump)
+            self.Body.Jump(JumpSpeed);
+        jump = false;
+        if (!self.Body.Standing)
         {
-            Vector3 walk = keys with { Y = 0 };
-            if (walk != Vector3.Zero)
-                walk = Vector3.Normalize(walk) * WalkSpeed;
-            self.Body.MoveCharacter(Vector3.Transform(walk, body * turn));
-            // Physics drops a jump that starts in the air.
-            if (jump)
-                self.Body.Jump(JumpSpeed);
-        }
-        else
-        {
-            // No walk is left over for the moment that the person lands.
-            self.Body.MoveCharacter(Vector3.Zero);
             Vector3 thrust = Vector3.Transform(keys with { Y = 0 }, view) + new Vector3(0, keys.Y, 0);
             // Two keys together thrust no harder than one. Keys that nearly cancel each other thrust only a little.
             if (thrust.LengthSquared() > 1)
@@ -102,7 +102,6 @@ public sealed class PersonControl(Vector3 eye) : IComponent
             if (thrust != Vector3.Zero)
                 self.Body.AddForce(Vector3.Transform(thrust, body) * ThrustForce);
         }
-        jump = false;
 
         if (use)
         {
