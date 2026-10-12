@@ -14,13 +14,18 @@ internal static class WorldTesting
     /// <summary>
     /// A world with one gameplay thread, which owns a new backend with two Jolt threads. The backend's warnings go to
     /// <paramref name="warnings"/> when it is given. With <paramref name="debugChecks"/>, the world checks all of its
-    /// invariants at the end of every tick, which costs about 0.5 ms a tick in a Debug build.
+    /// invariants at the end of every tick, which costs about 0.5 ms a tick in a Debug build. The membership rules of
+    /// numeric frames use <paramref name="numericFrames"/>, or their starting values.
     /// </summary>
-    public static World NewWorld(out JoltPhysicsBackend backend, List<string>? warnings = null, bool debugChecks = true)
+    public static World NewWorld(out JoltPhysicsBackend backend, List<string>? warnings = null, bool debugChecks = true,
+        NumericFrameOptions? numericFrames = null)
     {
         Action<string>? log = warnings is null ? null : message => { lock (warnings) warnings.Add(message); };
         backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2, Log = log });
-        return new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = debugChecks, DisposePhysics = true }, backend);
+        var options = new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = debugChecks, DisposePhysics = true };
+        if (numericFrames is not null)
+            options.NumericFrames = numericFrames;
+        return new World(options, backend);
     }
 
     /// <summary>A root frame with uniform gravity of <paramref name="g"/> m/s² along -Y and a large bubble.</summary>

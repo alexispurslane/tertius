@@ -257,8 +257,16 @@ public readonly record struct BodyCreate(
 internal readonly record struct BodyMove(Entity Entity, FrameHandle To);
 
 /// <summary>
+/// A numeric frame that moved by <see cref="Offset"/> in its parent and gained <see cref="Velocity"/> there, both in the
+/// parent's axes, which are the frame's own. The simulation has changed the tree already. Every body in the frame's system
+/// keeps its place and velocity in the parent, so it loses the offset from its position and the velocity from its own: a
+/// sleeping body that loses no velocity stays asleep, and a static body loses only the offset.
+/// </summary>
+internal readonly record struct FrameShift(FrameHandle Frame, Double3 Offset, Double3 Velocity);
+
+/// <summary>
 /// The structural changes of one sync point. Physics applies them in this order: <see cref="BodiesDestroyed"/>,
-/// <see cref="FramesDestroyed"/>, <see cref="BodiesMoved"/>, <see cref="BodiesCreated"/>. <see cref="FramesCreated"/> is informational: a
+/// <see cref="FramesDestroyed"/>, <see cref="FramesShifted"/>, <see cref="BodiesMoved"/>, <see cref="BodiesCreated"/>. <see cref="FramesCreated"/> is informational: a
 /// frame's physics system can be created lazily with its first body. A body that moves between frames outside a
 /// hand-off appears in <see cref="BodiesDestroyed"/> and then in <see cref="BodiesCreated"/> in the same batch.
 /// </summary>
@@ -278,6 +286,12 @@ public sealed class PhysicsChanges
     /// stay asleep. Numeric frames are an engine detail, so only the engine fills it.
     /// </summary>
     internal readonly List<BodyMove> BodiesMoved = new();
+    /// <summary>
+    /// Numeric frames that moved or changed velocity in their parents, for a drain or a change of mode. Physics applies
+    /// them before <see cref="BodiesMoved"/>, while the bodies that a move takes out of a shifted frame are still in it.
+    /// Only the engine fills it.
+    /// </summary>
+    internal readonly List<FrameShift> FramesShifted = new();
 
     /// <summary>
     /// Filled by <see cref="IPhysicsBackend.ApplyChanges"/>: one message for each state that only a bug produces, which the
@@ -292,6 +306,7 @@ public sealed class PhysicsChanges
         BodiesDestroyed.Clear();
         FramesDestroyed.Clear();
         BodiesMoved.Clear();
+        FramesShifted.Clear();
         BodiesCreated.Clear();
         Errors.Clear();
     }

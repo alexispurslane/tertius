@@ -137,6 +137,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                     ChangeFailed($"destroy the system of {frame}", ex);
                 }
             }
+            ApplyShifts(changes.FramesShifted);
             // Moves come before the reconcile: the tree already has each moved hull's frame under its new home, and the
             // move keeps the hull's state, which a reconcile would take from the tree.
             ApplyMoves(changes.BodiesMoved);

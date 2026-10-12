@@ -23,6 +23,12 @@ public class WorldNumericFrameTests
 
     private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
 
+    /// <summary>
+    /// Membership rules that never take a numeric frame away for being slow or near, so that a frame that a test builds by
+    /// hand near the origin of a slow frame stays.
+    /// </summary>
+    private static readonly NumericFrameOptions KeepEveryFrame = new() { LeaveSpeed = 0, LeaveDistance = 0 };
+
     private static FrameHandle Earth(World world) =>
         world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
 
@@ -93,7 +99,7 @@ public class WorldNumericFrameTests
     [Fact]
     public void ASleepingStackThatMovesIntoANumericFrameStaysAsleepWithNoNewContactAndNoFrameChanged()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(out JoltPhysicsBackend backend, numericFrames: KeepEveryFrame);
         FrameHandle ground = Ground(world, 9.81f);
         Entity floor = Floor(world, ground);
         var lowerLog = new CollisionLog();
@@ -168,9 +174,15 @@ public class WorldNumericFrameTests
     [Fact]
     public void APersonWhoseHomeIsAFallingNumericFrameDoesNotStandOnAFloorThatFallsWithIt()
     {
-        using World world = NewWorld(out _);
+        using World world = NewWorld(out _, numericFrames: KeepEveryFrame);
         FrameHandle ground = Ground(world, 9.81f);
-        Entity floor = Floor(world, ground);
+        // A kinematic floor, which can fall with a numeric frame. A static body cannot, so it keeps its frame from falling.
+        Entity floor = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(0, -0.5),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), BodyMotion.Kinematic),
+        });
         Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.92), Body = Person });
         Tick(world, 30);
         world.Snapshot.IsStanding(person).Should().BeTrue("the person stands on the floor in the frame ground");

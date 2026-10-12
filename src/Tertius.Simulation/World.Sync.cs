@@ -77,6 +77,10 @@ public sealed partial class World
         MakeSpawnsLive(endTime);
         FlushPhysicsChanges();
 
+        // 6b. Bodies move into numeric frames and out of them, after physics output, destroys and spawns, so that every
+        //     body that is live at the end of the sync point is clustered where it is now. Its own batches reach physics.
+        numericClustering?.Run(DeltaTime);
+
         // 7. Kepler and Spin frames advance to the end of the tick, and every frame owner, then every attached entity, follows.
         AdvanceFrames(endTime);
         DeriveAttachments();

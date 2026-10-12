@@ -6,7 +6,7 @@ namespace Tertius.Simulation;
 /// <summary>Counters that describe the last tick.</summary>
 /// <param name="LiveEntities">Entities that are live now.</param>
 /// <param name="Capacity">Entity slots allocated in the tables.</param>
-/// <param name="Frames">Live reference frames.</param>
+/// <param name="Frames">Live reference frames that gameplay sees: the semantic frames, without the numeric frames of the engine.</param>
 /// <param name="RoutedEvents">Messages routed at the last sync point, each counted once.</param>
 /// <param name="Deliveries">Inbox entries written at the last sync point.</param>
 /// <param name="FallbackSpawns">Spawns, since the world was created, that ran out of their chunk's slot pool.</param>
@@ -35,7 +35,7 @@ public readonly record struct WorldStats(int LiveEntities, int Capacity, int Fra
 /// and <see cref="Unsubscribe"/>, whose goal already holds for a dead entity, return false instead.
 /// </para>
 /// </remarks>
-public sealed partial class World : IDisposable
+public sealed partial class World : IDisposable, INumericFrameHost
 {
     private readonly WorldOptions options;
     private readonly IPhysicsBackend? physics;
@@ -79,7 +79,10 @@ public sealed partial class World : IDisposable
         dyingMarks = entities.AddColumn<bool>();
         characterStanding = entities.AddColumn<bool>();
         if (physics != null)
+        {
             physicsWorker = new PhysicsWorker(physics, stepOutput);
+            numericClustering = new NumericClustering(this.options.NumericFrames, entities, attachments, Frames, physics, this);
+        }
     }
 
     /// <summary>
@@ -148,7 +151,7 @@ public sealed partial class World : IDisposable
     public ReadOnlySpan<Event> RoutedEvents => router.Routed;
 
     /// <summary>Counters of the last tick.</summary>
-    public WorldStats Stats => new(entities.LiveCount, entities.Capacity, Frames.Count, router.RoutedCount, router.DeliveryCount, fallbackSpawnTotal);
+    public WorldStats Stats => new(entities.LiveCount, entities.Capacity, Frames.Count - Frames.NumericCount, router.RoutedCount, router.DeliveryCount, fallbackSpawnTotal);
 
     /// <summary>Forgets every entry of <see cref="Errors"/>.</summary>
     public void ClearErrors() => errors.Clear();

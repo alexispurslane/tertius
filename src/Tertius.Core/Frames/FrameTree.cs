@@ -52,6 +52,9 @@ public sealed class FrameTree
 
     public int Count => poses.Count;
 
+    /// <summary>How many of the frames are numeric frames, which the engine makes and gameplay never sees.</summary>
+    internal int NumericCount { get; private set; }
+
     /// <summary>
     /// Changes on every structural change (add, remove or reparent) and on every call to <see cref="SetDriver"/>,
     /// <see cref="SetOrbit"/> and <see cref="SetSpin"/>. Physics compares it with the version that it last followed.
@@ -94,6 +97,7 @@ public sealed class FrameTree
         FrameHandle handle = AddFrame(Entity.Null, parent, new DPose(position, DQuaternion.Identity), default, MotionDriver.Static,
             GravityField.None, default, default, mode);
         linearVelocity[handle.Index] = velocity;
+        NumericCount++;
         return handle;
     }
 
@@ -117,6 +121,49 @@ public sealed class FrameTree
         return new FrameHandle(frameOwner, node.Id, node.Generation);
     }
 
+    // Scratch for ShiftNumeric: the child frames of the frame that it moves.
+    private readonly List<FrameHandle> shiftChildren = new();
+
+    /// <summary>
+    /// Moves the numeric frame <paramref name="frame"/> by <paramref name="offset"/> in its parent and adds
+    /// <paramref name="velocity"/> to its velocity there. Its child frames keep their poses and velocities relative to
+    /// the parent, so they lose the same amounts in the frame. A numeric frame does not rotate, so nothing turns. The
+    /// bodies in its system must lose them too: the caller tells physics. A resting frame takes no velocity.
+    /// </summary>
+    internal void ShiftNumeric(FrameHandle frame, Double3 offset, Double3 velocity)
+    {
+        PoseNode node = Node(frame);
+        Contract.Requires(numeric[node.Id] != NumericMode.None);
+        Contract.Requires(numeric[node.Id] == NumericMode.Falling || velocity == Double3.Zero);
+        ref DPose local = ref poses.Local(node);
+        local = new DPose(local.Position + offset, local.Rotation);
+        linearVelocity[node.Id] += velocity;
+        List<FrameHandle> children = shiftChildren;
+        children.Clear();
+        GetTreeChildren(frame, children);
+        foreach (FrameHandle child in children)
+        {
+            PoseNode childNode = Node(child);
+            ref DPose childLocal = ref poses.Local(childNode);
+            childLocal = new DPose(childLocal.Position - offset, childLocal.Rotation);
+            linearVelocity[childNode.Id] -= velocity;
+        }
+    }
+
+    /// <summary>
+    /// Changes how the numeric frame <paramref name="frame"/> moves. A frame that comes to rest must have no velocity
+    /// left in its parent, and it keeps no step acceleration.
+    /// </summary>
+    internal void SetNumericMode(FrameHandle frame, NumericMode mode)
+    {
+        PoseNode node = Node(frame);
+        Contract.Requires(numeric[node.Id] != NumericMode.None && mode is NumericMode.Falling or NumericMode.Resting);
+        Contract.Requires(mode == NumericMode.Falling || linearVelocity[node.Id] == Double3.Zero);
+        numeric[node.Id] = mode;
+        if (mode == NumericMode.Resting)
+            stepAcceleration[node.Id] = Double3.Zero;
+    }
+
     /// <summary>Destroys a frame. Its child frames move to its parent and keep their poses and velocities.</summary>
     public void Destroy(FrameHandle frame)
     {
@@ -130,6 +177,8 @@ public sealed class FrameTree
         if (!owner[node.Id].IsNull)
             byOwner.Remove(owner[node.Id]);
         owner[node.Id] = Entity.Null;
+        if (numeric[node.Id] != NumericMode.None)
+            NumericCount--;
         numeric[node.Id] = NumericMode.None;
         poses.Remove(node);
     }

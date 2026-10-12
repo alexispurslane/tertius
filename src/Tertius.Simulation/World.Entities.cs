@@ -767,6 +767,8 @@ public sealed partial class World
     /// <summary>Applies the effects of an outside-tick change that the sync point would otherwise apply.</summary>
     private void FinishOutsideTickChange()
     {
+        // A body spawned or moved outside a tick joins its numeric frame before the next step (see PrepareTick).
+        numericClusteringDue = numericClustering is not null;
         DeriveAttachments();
         SwapSnapshot();
         FlushLog();

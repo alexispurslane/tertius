@@ -54,7 +54,9 @@ public sealed partial class JoltPhysicsBackend
             Double3 velocity = frames.HomeVelocity(record.Frame, semantic) - frames.HomeVelocity(move.To, semantic);
             BodySnapshot s = ReadPrimary(record);
             uint oldId = record.Character is { } character ? character.InnerBodyID.ID : record.Body.ID;
-            bool awake = record.Character is not null || record.World!.Bodies.IsActive(record.Body);
+            // A sleeping body has no velocity in its old home, so it has the homes' difference in the new one. It sleeps
+            // on only when that is zero: else Jolt would carry it along with the new home.
+            bool awake = record.Character is not null || record.World!.Bodies.IsActive(record.Body) || velocity != Double3.Zero;
             moveByOldId[(record.World!, oldId)] = pendingMoves.Count;
             pendingMoves.Add(new PendingMove(record, record.World!, move.To, oldId, new DPose(s.Pose.Position + offset, s.Pose.Rotation),
                 ((Double3)s.Linear + velocity).ToVector3(), s.Angular, awake));

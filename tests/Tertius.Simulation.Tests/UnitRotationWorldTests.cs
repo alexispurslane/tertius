@@ -141,6 +141,6 @@ public class UnitRotationWorldTests
         }
 
         worst.Should().BeLessThan(1e-12);
-        test.World.Frames.LocalPose(ship).Position.Y.Should().BeGreaterThan(10_000, "the ship moved 2 s at 7,700 m/s along +Y");
+        test.World.PoseIn(owner, test.Root).Position.Y.Should().BeGreaterThan(10_000, "the ship moved 2 s at 7,700 m/s along +Y");
     }
 }

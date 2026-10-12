@@ -3,10 +3,60 @@ namespace Tertius.Simulation;
 /// <summary>
 /// The engine's operations on numeric frames (docs/plans/numeric-frames.md): frames that the engine makes around a group
 /// of bodies, only for precision. Gameplay never sees them. Each operation here is internal, runs outside a tick and
-/// reaches physics at once. The clustering of a later step calls the same work at the sync point.
+/// reaches physics at once. NumericClustering calls the same work at each sync point.
 /// </summary>
 public sealed partial class World
 {
+    // The membership rules of numeric frames, which run at each sync point. Null without a physics backend.
+    private readonly NumericClustering? numericClustering;
+
+    // True after a change outside a tick, until the next tick runs the membership rules for it.
+    private bool numericClusteringDue;
+
+    /// <summary>
+    /// The frame whose physics system holds the body of <paramref name="entity"/>: its frame, or a numeric frame below it.
+    /// Null for an entity that is not live.
+    /// </summary>
+    internal FrameHandle PhysicsHomeOf(Entity entity) => entities.IsAlive(entity) ? entities.BackRow(entity).PhysicsHome : FrameHandle.Null;
+
+    FrameHandle INumericFrameHost.CreateNumericFrame(FrameHandle parent, Double3 position, Double3 velocity, NumericMode mode)
+    {
+        FrameHandle frame = Frames.CreateNumeric(parent, position, velocity, mode);
+        physicsChanges.FramesCreated.Add(frame);
+        return frame;
+    }
+
+    void INumericFrameHost.ShiftNumericFrame(FrameHandle frame, Double3 offset, Double3 velocity, List<Entity> members)
+    {
+        Frames.ShiftNumeric(frame, offset, velocity);
+        foreach (Entity entity in members)
+        {
+            Contract.Requires(entities.BackRow(entity).PhysicsHome == frame);
+            FrameHandle own = entities.OwnedFrame(entity);
+            if (!own.IsNull)
+            {
+                entities.SetBackTransform(entity, FrameOwnerRow(own));
+                continue;
+            }
+            // The row's pose is in the semantic frame, which the shift does not move.
+            TransformRow row = entities.BackRow(entity);
+            if (entities.Body(entity) is not { Motion: BodyMotion.Static })
+                row.LinearVelocity = ((Double3)row.LinearVelocity - velocity).ToVector3();
+            entities.SetBackTransform(entity, row);
+        }
+        physicsChanges.FramesShifted.Add(new FrameShift(frame, offset, velocity));
+    }
+
+    void INumericFrameHost.MoveBodiesHome(List<Entity> group, FrameHandle home) =>
+        MoveGroupHome(group, home, Frames.SemanticOf(home));
+
+    void INumericFrameHost.DestroyEmptyNumericFrame(FrameHandle frame)
+    {
+        Frames.Destroy(frame);
+        physicsChanges.FramesDestroyed.Add(frame);
+    }
+
+    void INumericFrameHost.FlushPhysicsChanges() => FlushPhysicsChanges();
     /// <summary>
     /// Creates a numeric frame under the semantic frame <paramref name="parent"/>, at <paramref name="position"/> in it and
     /// moving at <paramref name="velocity"/> relative to it (zero for a resting frame). It has no bodies until

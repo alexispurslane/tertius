@@ -65,6 +65,15 @@ public sealed partial class World
     {
         // Spawns and destroys made outside the tick reach physics before the step that may touch them.
         FlushPhysicsChanges();
+        // Then the bodies that they changed join their numeric frames, as the bodies spawned in a tick do at the sync
+        // point. No time passes, so no split comes due.
+        if (numericClusteringDue)
+        {
+            numericClusteringDue = false;
+            numericClustering!.Run(0);
+            DeriveAttachments();
+            SwapSnapshot();
+        }
         Frames.Update();
         // The falling numeric frames fix their accelerations for the step, which physics reads and the sync point follows.
         Frames.BeginNumericStep();
@@ -76,7 +85,8 @@ public sealed partial class World
     {
         PhysicsChanges changes = physicsChanges;
         if (changes.FramesCreated.Count == 0 && changes.BodiesDestroyed.Count == 0 &&
-            changes.FramesDestroyed.Count == 0 && changes.BodiesMoved.Count == 0 && changes.BodiesCreated.Count == 0)
+            changes.FramesDestroyed.Count == 0 && changes.FramesShifted.Count == 0 && changes.BodiesMoved.Count == 0 &&
+            changes.BodiesCreated.Count == 0)
             return;
         try
         {

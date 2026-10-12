@@ -46,7 +46,7 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
         // One tick first, so that the ship has the rotation that Jolt keeps. The crates then start at their places in the
         // ship's axes, with the ship's velocity and a drift away from it.
         world.Tick();
-        DPose shipPose = world.Frames.LocalPose(ship);
+        DPose shipPose = world.Frames.Relative(ship, earth);
         DQuaternion shipRotation = shipPose.Rotation.Normalized();
         Vector3 shipVelocity = world.Snapshot.VelocityInOwnFrame(scene["ship"]);
         Vector3 away = shipRotation.Rotate(new Vector3(0, 0, DriftSpeed));
@@ -66,7 +66,7 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
     /// </summary>
     private Double3 TruthInShipAxes(Entity crate)
     {
-        DPose shipInEarth = world.Frames.LocalPose(ship);
+        DPose shipInEarth = world.Frames.Relative(ship, earth);
         DPose crateInEarth = world.Snapshot.PoseInOwnFrame(crate);
         return shipInEarth.Rotation.Normalized().Conjugate().Rotate(crateInEarth.Position - shipInEarth.Position);
     }
@@ -98,7 +98,7 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
         for (int tick = 0; tick < Ticks; tick++)
         {
             world.Tick();
-            DQuaternion shipTurn = world.Frames.LocalPose(ship).Rotation.Normalized().Conjugate();
+            DQuaternion shipTurn = world.Frames.Relative(ship, earth).Rotation.Normalized().Conjugate();
             foreach (Entity crate in crates)
             {
                 world.Snapshot.TryGetPoseIn(crate, ship, out DPose pose).Should().BeTrue();

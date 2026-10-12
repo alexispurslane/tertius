@@ -38,6 +38,12 @@ public sealed class WorldOptions
     /// <summary>If true, disposing the world also disposes the physics backend.</summary>
     public bool DisposePhysics { get; set; }
 
+    /// <summary>
+    /// The thresholds that decide which bodies the engine puts into numeric frames (docs/plans/numeric-frames.md,
+    /// "Membership"). Numeric frames are an engine detail, so only the engine and its tests set them.
+    /// </summary>
+    internal NumericFrameOptions NumericFrames { get; set; } = new();
+
     internal void Validate()
     {
         if (TickRate <= 0)
@@ -54,5 +60,7 @@ public sealed class WorldOptions
             throw new ArgumentOutOfRangeException(nameof(MaxErrors), MaxErrors, "The error limit cannot be negative.");
         if (!double.IsFinite(StartTime))
             throw new ArgumentOutOfRangeException(nameof(StartTime), StartTime, "The start time must be finite.");
+        ArgumentNullException.ThrowIfNull(NumericFrames, nameof(NumericFrames));
+        NumericFrames.Validate();
     }
 }

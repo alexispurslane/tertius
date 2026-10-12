@@ -175,12 +175,14 @@ These values are guesses. Tests tune them.
 | Speed to get a numeric frame | 50 m/s |
 | Speed to give it up | 20 m/s |
 | Distance from the home's origin to get a numeric frame | 10 km |
+| Distance from the semantic frame's origin below which a slow group gives it up | 5 km |
 | Distance from the tree parent's origin to nest a numeric frame | 10^9 m |
 | Grid of a resting frame that nests | 2^20 m |
 | Lookahead time of the merge test | 2 s |
 | Split margin beyond the merge test | 10 m |
 | Split cooldown | 1 s |
 | Common local speed that starts a drain | 1 m/s |
+| Distance of the members' center of mass from the frame's origin that moves the origin | 1 km |
 
 ## Moving bodies between Jolt systems
 
