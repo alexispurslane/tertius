@@ -72,3 +72,7 @@ Proposal, not yet decided: any-of group filters that still join additively. Any-
 **2026-10-12T01:41:29Z**
 
 The user's simpler variant of the any-of proposal: the collision mask is three inline masks, each joined by OR. AllOf is tested with (g & AllOf) == AllOf, NoneOf with (g & NoneOf) == 0, and AnyOf with (g & AnyOf) != 0, where an empty AnyOf means no condition. It is exact with one rule: a query holds at most one AnyOf mask, so a join of two queries that both have one throws at build time. Without the rule, the join widens: AnyOf {Wall, Person} joined with AnyOf {Person, Crate} would accept a body in Wall alone, which fails the second query.
+
+**2026-10-12T01:44:38Z**
+
+No query joining (User): there is no operator & or other way to build one query from two whole queries. That operator was only in my sketch. A chain still adds one filter at a time, so a second any-of call in one chain is the same case. Two ways to close it at compile time instead of with a throw: the any-of group filter exists only as the first call of a chain (a static start such as EntityQuery.InAnyGroup(...), and on the shorthand's starting view), so no chain can hold two; or no any-of filter at all, with umbrella groups such as Solid. Not yet decided.
