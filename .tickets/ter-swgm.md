@@ -1,6 +1,6 @@
 ---
 id: ter-swgm
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-12T13:00:57Z
