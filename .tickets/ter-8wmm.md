@@ -34,3 +34,7 @@ EventList and EventsOf<T> offer the words above, and the special methods are gon
 **2026-10-12T00:18:00Z**
 
 The query has a stored form too (see the note of ter-ziae): EventQuery<T>, run with events.Find(query). events.Of<T>() stays as the shorthand chain, and both forms share one filter implementation.
+
+**2026-10-12T00:26:52Z**
+
+Events keep only Of<T> (User): no With, Without or event type mask in an event query. EventQuery<T> holds From(sender) and Where, and the payload type is its type parameter.
