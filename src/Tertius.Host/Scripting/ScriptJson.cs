@@ -38,6 +38,47 @@ internal static class ScriptJson
         return options;
     }
 
+    /// <summary>
+    /// The options that write a recorded script: the same conventions as a script that a person writes, with each step
+    /// on one line. A recording can hold tens of thousands of steps, and a line for each step keeps it easy to search,
+    /// to cut and to compare. Writing is as lenient as for a dump, so a number that JSON cannot hold, such as NaN, becomes
+    /// a string, and the script then fails to parse at that step instead of the recording failing to write.
+    /// </summary>
+    public static readonly JsonSerializerOptions Recordings = Recording(indented: true);
+
+    private static JsonSerializerOptions Recording(bool indented)
+    {
+        JsonSerializerOptions options = Common(JsonNumberHandling.AllowNamedFloatingPointLiterals, new DefaultJsonTypeInfoResolver());
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase, allowIntegerValues: false));
+        options.WriteIndented = indented;
+        if (indented)
+            options.Converters.Add(new OneLinePerStepConverter(Recording(indented: false)));
+        return options;
+    }
+
+    /// <summary>
+    /// Writes the steps of a script as an array with each step on one line of compact JSON. The converter is for the list
+    /// and not for the step, because System.Text.Json cannot write the discriminator of a polymorphic type through a
+    /// custom converter of that type. Writing only.
+    /// </summary>
+    private sealed class OneLinePerStepConverter(JsonSerializerOptions lineOptions) : JsonConverter<IReadOnlyList<ScriptStep>>
+    {
+        public override IReadOnlyList<ScriptStep> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+            throw new NotSupportedException("The recording options only write.");
+
+        public override void Write(Utf8JsonWriter writer, IReadOnlyList<ScriptStep> value, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            // The writer adds no new line or indentation before a raw value, so each line starts with its own. The writer
+            // adds the comma before it, and the new line and the indentation of the closing bracket.
+            string indentation = "\n" + new string(options.IndentCharacter, options.IndentSize * writer.CurrentDepth);
+            foreach (ScriptStep step in value)
+                // The declared type ScriptStep makes the line options write the step's "do" key.
+                writer.WriteRawValue(indentation + JsonSerializer.Serialize(step, typeof(ScriptStep), lineOptions), skipInputValidation: true);
+            writer.WriteEndArray();
+        }
+    }
+
     private static JsonSerializerOptions Reading(World? world, SceneInstance? scene)
     {
         JsonSerializerOptions options = Common(JsonNumberHandling.Strict, new DefaultJsonTypeInfoResolver { Modifiers = { LeaveOutReadOnlyPayloadMembers } });

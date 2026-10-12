@@ -147,6 +147,9 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("positive", "--scene", "no-such-scene", "--speed", "Infinity")]
     [InlineData("--speed needs a value", "--scene", "no-such-scene", "--speed")]
     [InlineData("--scene needs a value", "--scene")]
+    [InlineData("--record needs a value", "--scene", "no-such-scene", "--record")]
+    [InlineData("--record applies to free play", "--script", "script.json", "--out", "out", "--record", "record.json")]
+    [InlineData("--record applies to free play", "--script", "script.json", "--headless", "--out", "out", "--record", "record.json")]
     public void AnOptionThatTheWindowRulesRefuseExitsWithTheCommandLineErrorCodeAndNamesTheRule(string rule, params string[] args)
     {
         int code = Run(args);
@@ -166,6 +169,25 @@ public sealed class ScriptCommandTests : IDisposable
 
         free.Should().Be(new ScriptCommand.Options(null, "drop-box", null, false, 0.5));
         played.Should().Be(new ScriptCommand.Options("s.json", null, "o", false, 1));
+    }
+
+    [Fact]
+    public void TheRecordOptionOfFreePlayCarriesItsPath()
+    {
+        ScriptCommand.Options? recorded = ScriptCommand.ReadOptions(["--scene", "drop-box", "--record", "sessions/today.json", "--speed", "2"], out _);
+
+        recorded.Should().Be(new ScriptCommand.Options(null, "drop-box", null, false, 2, "sessions/today.json"));
+    }
+
+    [Fact]
+    public void AnUnknownSceneForFreePlayWritesNoRecord()
+    {
+        string record = Path.Combine(folder, "record.json");
+
+        int code = Run("--scene", "moon-base", "--record", record);
+
+        code.Should().Be(ScriptCommand.ScriptError);
+        File.Exists(record).Should().BeFalse();
     }
 
     [Fact]

@@ -15,11 +15,18 @@ public sealed class ViewSwitch(SceneInstance scene)
 
     /// <summary>
     /// Moves <paramref name="world"/>'s camera one view on (see <see cref="SceneInstance.NextView"/>) for every press since
-    /// the last call. Call it on the ticking thread, between ticks.
+    /// the last call. Calls <paramref name="switched"/> with the new camera after each move that changed the camera, so a
+    /// scene with no views reports nothing. Call it on the ticking thread, between ticks.
     /// </summary>
-    public void Apply(World world)
+    public void Apply(World world, Action<Entity>? switched = null)
     {
         for (int changes = Interlocked.Exchange(ref presses, 0); changes > 0; changes--)
-            world.Camera = scene.NextView(world.Camera);
+        {
+            Entity next = scene.NextView(world.Camera);
+            if (next == world.Camera)
+                continue;
+            world.Camera = next;
+            switched?.Invoke(next);
+        }
     }
 }

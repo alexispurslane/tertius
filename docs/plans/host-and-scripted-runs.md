@@ -83,6 +83,7 @@ Ticket `ter-mu7k` added the window. The user chose each point marked (User).
 ```bash
 dotnet run --project src/Tertius.Demo -- --script scripts/drop-box.json --out captures/drop-box --speed 0.5
 dotnet run --project src/Tertius.Demo -- --scene drop-box
+dotnet run --project src/Tertius.Demo -- --scene orbit --record sessions/today.json
 ```
 
 - Without `--headless`, the command opens a window. With `--script`, the window plays the script and closes after the last step. With `--scene`, it runs the scene live until you close the window. (User)
@@ -91,9 +92,62 @@ dotnet run --project src/Tertius.Demo -- --scene drop-box
 - The render thread interpolates between the last two ticks. The interpolation alpha is the wall-clock time since the newest snapshot, divided by the wall-clock length of one tick.
 - A capture step works in the window. (User) The simulation thread waits while the render thread draws that tick with alpha 1 and saves it. The image has the size of the window's framebuffer. On a Retina display, that is twice the size in the `window` key. On a screen that is smaller than the `window` key, macOS makes the window smaller, and the images are smaller too.
 - Keys and mouse movement become `InputEvent` messages to the `input` topic in free play. During a script, live input reaches no entity, so a script runs the same with or without a person at the keyboard. `InputRouter` holds these rules. The game never sees Esc or F1, and every key or button down that it sees gets its release: switching the fly camera on releases the keys and buttons that the game holds.
+- The main thread does not post input to the world. It queues each event, and the simulation thread posts the queued events between two ticks. See "Recording free play" for why.
 - In free play the window captures the cursor, so that the mouse can turn the game's view. (User) During a script it captures the cursor only while the fly camera is on. To reach other apps, use Cmd-Tab.
 - F1 switches the view to a debug fly camera and back. (User) WASD moves it, Q and E move it down and up, Shift moves it ten times faster, and the mouse turns it. It starts at the world's camera and moves in the axes of that camera's frame, relative to that camera. When the camera entity moves into another frame, as when it leaves a ship's bubble, the fly camera starts again at the world's camera. The render thread sets it in the render snapshot, so it changes nothing in the world.
 - Esc closes the window. If you close the window during a script, the run stops, and the dumps and captures until then stay on disk.
+
+## Recording free play
+
+Ticket `ter-jq82` added this. A free-play session left no trace, so a problem that you saw in the window could not be run again. Now `--record` writes the session to a file as an ordinary script, and the script replays the session tick for tick.
+
+```bash
+dotnet run --project src/Tertius.Demo -- --scene orbit --record sessions/today.json
+dotnet run --project src/Tertius.Demo -- --script sessions/today.json --headless --out captures/today
+```
+
+- `--record <file>` goes with `--scene`. A script is a record already, so a run with `--script` refuses it. The command makes the folder of the file if it is missing, and it replaces a file that is there.
+- The record holds these parts. The steps are in the order in which they happened.
+  - The `scene` that you played, and the `window` size of the window.
+  - A `camera` step for the world's camera at the start, if the scene gave that camera a scene id.
+  - A `post` step for every `InputEvent` that the game received, to the `input` topic. The payload is as it was posted: `kind`, `code` and `delta`, with floats that read back to the same bits.
+  - A `camera` step for every switch of the view with V.
+  - A `run` step for the ticks between any two of these steps.
+  - At the end, a `run` step for the ticks since the last step, and a `dump` named `end`.
+- The record counts ticks, not seconds, so it does not depend on `--speed`. Each step is on one line, because a long session has tens of thousands of steps.
+- The fly camera is not in the record. It changes nothing in the world. Esc, F1 and V never reach the game, so they are not posts. But when F1 switches the fly camera on, the releases that the game gets for the keys and buttons that it holds are posts, as they must be.
+- To look at the replay, add a `dump` or a `capture` step anywhere in the file, and run it as any other script.
+
+The replay must post each event before the same tick as the session did. The main thread cannot do this when it posts at once, because the tick that such a post joins depends on how the two threads interleave. A post made during a tick joins the routing at the end of that tick, and a post made a moment later joins the next one. So the main thread only queues the event, and the simulation thread posts the queued events between two ticks:
+
+```csharp
+views.Apply(world, noteSwitch);
+while (queued.TryDequeue(out InputEvent e))
+{
+    recorder?.Post(world.TickNumber, e);
+    world.Post(Event.Create(Topics.Input, Entity.Null, e));
+}
+world.Tick();
+```
+
+where
+
+- `views` = the presses of the V key that the main thread counted since the last tick.
+- `world` = the world that the simulation thread ticks.
+- `noteSwitch` = the function that writes a `camera` step to the record, at the tick number now, for each switch of the camera that `Apply` makes. It is null if nothing is recorded.
+- `queued` = the input events that the main thread queued since the last tick, oldest first.
+- `recorder` = the record, or null if nothing is recorded.
+- `world.TickNumber` = the number of ticks that the world has completed. The recorder writes the `run` step that brings the script to this number, and then the `post` step.
+- `world.Post` = joins the event to the routing at the end of the tick that runs next.
+
+So an event that the record puts after `n` ticks is handled during the tick that starts from `n + 1` completed ticks. A script has the same rule for a `post` step after `n` ticks.
+
+- The change costs less than one tick of delay, and only for an event that arrives during a tick. Before it, such an event joined the routing at the end of that tick. Now it joins one tick later. A session is the same with or without `--record`, because the recording does not change how the input reaches the world.
+- The command writes the file when the window closes, whether you press Esc or close the window with the mouse. It also writes the file when the run ends for another reason that it can handle: an exception on the simulation thread or the render thread, and Ctrl-C, SIGTERM or SIGHUP in the terminal. The first of these signals closes the window. A second one takes its normal action, so a window that does not close can still be ended. A process that is killed with SIGKILL, or that crashes, leaves no file.
+- The record ends at the last tick that completed. If a tick throws, the tick is not in the record. To run that tick again, add a `run` step of 1 tick at the end.
+- Input that was queued but not yet posted when the window closed is not in the record, because the game never received it.
+- The command writes the path of the file to standard output. If it cannot write the file, it writes the problem to standard error and exits with code 2. If the run failed for another reason, the exit code of that reason stays.
+- The replay ends in the state of the session if the scene, the code and the machine are the same, as for any script. The test `FreePlayReplayTests` plays 300 ticks of the scene `orbit` through the input router with keys, mouse moves, a scroll and view switches. It records them, replays the record headless in a new world, and compares the final dump of the replay with the state of the session as text.
 
 ## State dumps
 
@@ -136,6 +190,7 @@ dotnet run --project src/Tertius.Demo -- --script scripts/drop-box.json --headle
 - The command builds the scene that the script names, in a new `World` on the Jolt backend, and runs the script.
 - It writes the path of each dump and each captured image to standard output. It writes each problem and the world's log to standard error.
 - With `--headless`, the ticks run back to back and no window opens. Without it, a window opens (see "The window").
+- With `--scene`, the command can also write your session as a script: `--scene <name> --record <file>`. See "Recording free play".
 - The exit codes are the codes of the `tertius` command line in the content packages design:
   - 0: the run finished, or the user closed its window.
   - 1: the command line is wrong.

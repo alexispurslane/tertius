@@ -572,6 +572,39 @@ public class ViewSwitchTests
     }
 
     [Fact]
+    public void EachSwitchIsReportedWithTheCameraItMadeInTheOrderItHappened()
+    {
+        (World world, SceneInstance scene) = Orbit();
+        using (world)
+        {
+            var views = new ViewSwitch(scene);
+            var switched = new List<Entity>();
+
+            views.Press();
+            views.Press();
+            views.Apply(world, switched.Add);
+
+            switched.Should().Equal(scene["far"], scene["person"]);
+        }
+    }
+
+    [Fact]
+    public void ASceneWithNoViewsSwitchesNothingAndReportsNothing()
+    {
+        using World world = HostTesting.NewJoltWorld();
+        SceneInstance scene = HostTesting.Probes(world);
+        world.Camera = scene["probe"];
+        var views = new ViewSwitch(scene);
+        var switched = new List<Entity>();
+
+        views.Press();
+        views.Apply(world, switched.Add);
+
+        world.Camera.Should().Be(scene["probe"]);
+        switched.Should().BeEmpty();
+    }
+
+    [Fact]
     public void APressCountsOnce()
     {
         (World world, SceneInstance scene) = Orbit();

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Silk.NET.Input;
 using Silk.NET.Maths;
 using Silk.NET.Windowing;
@@ -16,10 +17,10 @@ namespace Tertius.Host.Windowing;
 /// simulation thread runs the ticks and the script, and the render thread draws the latest render snapshot.
 /// </summary>
 /// <remarks>
-/// The threads share only thread-safe things: <see cref="World.Post"/> from input, the render snapshots' triple buffer
-/// (the simulation thread writes, the render thread reads), the <see cref="CaptureMailbox"/>, the fly camera under its
-/// lock, and the closing token. The renderer belongs to the render thread, which disposes it before the window is
-/// destroyed, as MoltenVK needs.
+/// The threads share only thread-safe things: the input queue and the view presses of <see cref="FreePlay"/> (the main
+/// thread writes, the simulation thread reads), the render snapshots' triple buffer (the simulation thread writes, the
+/// render thread reads), the <see cref="CaptureMailbox"/>, the fly camera under its lock, and the closing token. The
+/// renderer belongs to the render thread, which disposes it before the window is destroyed, as MoltenVK needs.
 /// </remarks>
 internal sealed class WindowHost : IInputTarget
 {
@@ -27,7 +28,8 @@ internal sealed class WindowHost : IInputTarget
     private readonly VulkanRenderer renderer;
     private readonly World world;
     private readonly SceneInstance scene;
-    private readonly ViewSwitch views;
+    private readonly FreePlay? freePlay;
+    private readonly RecordTo? record;
     private readonly Script? script;
     private readonly string? outputFolder;
     private readonly TickPacer pacer;
@@ -47,15 +49,18 @@ internal sealed class WindowHost : IInputTarget
     private string? scriptProblem;
     private Exception? failure;
     private int closeWanted;
+    private int signalled;
 
 
-    private WindowHost(IWindow window, VulkanRenderer renderer, World world, SceneInstance scene, Script? script, string? outputFolder, double speed)
+    private WindowHost(IWindow window, VulkanRenderer renderer, World world, SceneInstance scene, Script? script, string? outputFolder, double speed, RecordTo? record)
     {
         this.window = window;
         this.renderer = renderer;
         this.world = world;
         this.scene = scene;
-        views = new ViewSwitch(scene);
+        // In free play, the window's input reaches the world through the free play. A script takes no live input.
+        freePlay = script is null ? new FreePlay(world, scene, record) : null;
+        this.record = record;
         this.script = script;
         this.outputFolder = outputFolder;
         pacer = new TickPacer(world.DeltaTime, speed);
@@ -64,12 +69,14 @@ internal sealed class WindowHost : IInputTarget
 
     /// <summary>
     /// Opens the window, builds <paramref name="sceneToBuild"/>, and plays <paramref name="script"/>, or runs the scene
-    /// live if it is null, until the script ends or the window closes. Returns the exit code of <see cref="ScriptCommand"/>.
+    /// live if it is null, until the script ends or the window closes. With <paramref name="recordPath"/>, free play writes
+    /// the session there as a script when it ends. Returns the exit code of <see cref="ScriptCommand"/>.
     /// Call it on the main thread, which macOS needs for a window.
     /// </summary>
-    public static int Run(Scene sceneToBuild, Script? script, string? scriptPath, string? outputFolder, double speed, TextWriter output, TextWriter error)
+    public static int Run(Scene sceneToBuild, Script? script, string? scriptPath, string? outputFolder, double speed, string? recordPath, TextWriter output, TextWriter error)
     {
         ScriptWindow size = script?.Window ?? ScriptWindow.Default;
+        RecordTo? record = recordPath is null ? null : new RecordTo(recordPath, sceneToBuild.Name, size);
         IWindow? window = null;
         try
         {
@@ -108,7 +115,7 @@ internal sealed class WindowHost : IInputTarget
                 world.Log += error.WriteLine;
                 SceneInstance scene = sceneToBuild.Build(world, renderer);
                 world.PublishRenderSnapshot();
-                host = new WindowHost(window, renderer, world, scene, script, outputFolder, speed);
+                host = new WindowHost(window, renderer, world, scene, script, outputFolder, speed, record);
                 host.Play();
                 return host.Report(scriptPath, output, error);
             }
@@ -128,8 +135,46 @@ internal sealed class WindowHost : IInputTarget
         }
     }
 
-    /// <summary>Starts the simulation and render threads, runs the window's events until a thread or the user closes it, then stops both threads.</summary>
+    /// <summary>Plays the window. While a record is being written, a stop signal such as Ctrl-C in the terminal closes the window instead of ending the process, so that the record is written.</summary>
     private void Play()
+    {
+        var signals = new List<PosixSignalRegistration>();
+        if (record != null)
+        {
+            foreach (PosixSignal signal in new[] { PosixSignal.SIGINT, PosixSignal.SIGTERM, PosixSignal.SIGHUP })
+            {
+                try
+                {
+                    signals.Add(PosixSignalRegistration.Create(signal, CloseOnFirstSignal));
+                }
+                // A platform that has no such signal, such as SIGHUP on Windows, only loses that one way to stop.
+                catch (PlatformNotSupportedException)
+                {
+                }
+            }
+        }
+        try
+        {
+            RunThreads();
+        }
+        finally
+        {
+            foreach (PosixSignalRegistration registration in signals)
+                registration.Dispose();
+        }
+    }
+
+    // A second signal is not caught, so the user can still end a window that does not close.
+    private void CloseOnFirstSignal(PosixSignalContext context)
+    {
+        if (Interlocked.Exchange(ref signalled, 1) != 0)
+            return;
+        context.Cancel = true;
+        CloseWindow();
+    }
+
+    /// <summary>Starts the simulation and render threads, runs the window's events until a thread or the user closes it, then stops both threads.</summary>
+    private void RunThreads()
     {
         input = window.CreateInput();
         foreach (IKeyboard keyboard in input.Keyboards)
@@ -174,18 +219,10 @@ internal sealed class WindowHost : IInputTarget
         var playback = new WindowPlayback(pacer, captures, closing.Token, () => clock.Elapsed.TotalSeconds);
         try
         {
-            if (script is null)
-            {
-                while (playback.WaitForTick())
-                {
-                    views.Apply(world);
-                    world.Tick();
-                }
-            }
+            if (freePlay != null)
+                freePlay.Run(playback);
             else
-            {
-                result = ScriptRunner.Run(script, world, scene, outputFolder, playback);
-            }
+                result = ScriptRunner.Run(script!, world, scene, outputFolder, playback);
         }
         catch (ScriptException ex)
         {
@@ -269,7 +306,8 @@ internal sealed class WindowHost : IInputTarget
 
     // ---- Input, on the main thread: the router decides, these carry it out -----------------------------------------------
 
-    public void Post(InputEvent e) => world.Post(Event.Create(Topics.Input, Entity.Null, e));
+    // The router sends input to the game only in free play. The main thread queues it, and the simulation thread posts it.
+    public void Post(InputEvent e) => freePlay?.Post(e);
 
     public void Fly(FlyKey key, bool down)
     {
@@ -303,11 +341,35 @@ internal sealed class WindowHost : IInputTarget
 
     public void Close() => window.Close();
 
-    public void NextView() => views.Press();
+    public void NextView() => freePlay?.NextView();
 
     // ---- The outcome ---------------------------------------------------------------------------------------------------
 
     private int Report(string? scriptPath, TextWriter output, TextWriter error)
+    {
+        int code = ReportRun(scriptPath, output, error);
+        return record is null || freePlay is null ? code : ReportRecord(record, freePlay, code, output, error);
+    }
+
+    /// <summary>
+    /// Reports the record of a session that ended with the exit code <paramref name="code"/>. The record is written
+    /// whatever ended the run, so it is reported whatever ended the run. A record that was written is reported by its path
+    /// on standard output. A record that could not be written is reported on standard error, and it makes the exit code
+    /// the file error code unless the run failed for another reason already.
+    /// </summary>
+    internal static int ReportRecord(RecordTo record, FreePlay freePlay, int code, TextWriter output, TextWriter error)
+    {
+        if (freePlay.RecordFailure is { } problem)
+        {
+            error.WriteLine($"Cannot write the record {record.Path}: {problem.Message}");
+            return code == ScriptCommand.Ok ? ScriptCommand.FileError : code;
+        }
+        if (freePlay.RecordWritten)
+            output.WriteLine(record.Path);
+        return code;
+    }
+
+    private int ReportRun(string? scriptPath, TextWriter output, TextWriter error)
     {
         if (failure is IOException or UnauthorizedAccessException)
         {

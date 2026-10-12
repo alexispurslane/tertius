@@ -8,9 +8,9 @@ namespace Tertius.Host.Scripting;
 /// "Script format".
 /// </summary>
 /// <param name="Scene">The name of the scene that the program builds before the first step.</param>
-/// <param name="Steps">The steps, in the order that they run.</param>
+/// <param name="Steps">The steps, in the order that they run. A written script puts them after the window.</param>
 /// <param name="Window">The size of the captured images. A script with no <c>window</c> key has <see cref="ScriptWindow.Default"/>.</param>
-public sealed record Script(string Scene, IReadOnlyList<ScriptStep> Steps, ScriptWindow? Window = null)
+public sealed record Script(string Scene, [property: JsonPropertyOrder(1)] IReadOnlyList<ScriptStep> Steps, ScriptWindow? Window = null)
 {
     /// <summary>The size of the captured images, in pixels.</summary>
     public ScriptWindow Window { get; init; } = Window ?? ScriptWindow.Default;
@@ -48,6 +48,12 @@ public sealed record Script(string Scene, IReadOnlyList<ScriptStep> Steps, Scrip
     /// <see cref="File.ReadAllText(string)"/> for a file that cannot be read.
     /// </summary>
     public static Script Load(string path) => Parse(File.ReadAllText(path));
+
+    /// <summary>
+    /// The script as JSON text with one step on each line, ending in a new line. <see cref="Parse"/> reads it back. A
+    /// script that was built in code and cannot run, such as one with a run of no ticks, writes all the same.
+    /// </summary>
+    public string ToJson() => JsonSerializer.Serialize(this, ScriptJson.Recordings) + "\n";
 
     /// <summary>Throws <see cref="ScriptException"/> for a step that cannot run, whether the script was parsed or built in code.</summary>
     internal void CheckSteps()
