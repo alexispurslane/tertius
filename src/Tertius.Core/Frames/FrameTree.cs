@@ -248,6 +248,13 @@ public sealed class FrameTree
     /// <summary>Restores order and recomputes root-relative poses. Call it at the end of every sync point.</summary>
     public void Update() => poses.UpdateWorld();
 
+    /// <summary>
+    /// Below this effective gravity, in m/s², a character is weightless: it keeps its momentum, only forces change it,
+    /// and it keeps its last up direction. Physics and the components that steer characters both use it, so they agree
+    /// on where weightlessness begins.
+    /// </summary>
+    public const float ZeroGravityThreshold = 0.05f;
+
     /// <summary>The effective gravity on a body at <paramref name="position"/> inside the frame, in frame axes.</summary>
     public Vector3 EffectiveGravity(FrameHandle frame, Double3 position)
     {

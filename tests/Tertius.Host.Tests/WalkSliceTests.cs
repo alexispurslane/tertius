@@ -12,39 +12,7 @@ namespace Tertius.Host.Tests;
 /// turn left with the mouse, holds W for 2 s again, jumps, and holds W for 2 s more, into the port wall. Every test of the
 /// class reads that one run.
 /// </summary>
-public sealed class WalkRun : IDisposable
-{
-    public WalkRun()
-    {
-        Script script = Script.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "walk.json")));
-        World = NewJoltWorld();
-        VulkanRenderer renderer = GpuTesting.Headless(16, 16);
-        try
-        {
-            Scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(World, renderer);
-            Result = ScriptRunner.Run(script, World, Scene, Folder, new HeadlessPlayback(renderer, script.Window));
-        }
-        finally
-        {
-            renderer.Dispose();
-            ValidationMessages = renderer.ValidationMessages;
-        }
-    }
-
-    public World World { get; }
-    public SceneInstance Scene { get; }
-    public RunResult Result { get; }
-    public string Folder { get; } = NewFolder();
-    public IReadOnlyList<string> ValidationMessages { get; }
-
-    public Png Capture(string name) => Png.Load(Path.Combine(Folder, name + ".png"));
-
-    public void Dispose()
-    {
-        World.Dispose();
-        Directory.Delete(Folder, recursive: true);
-    }
-}
+public sealed class WalkRun() : CheckedInRun("walk");
 
 [Collection(GpuCollection.Name)]
 public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>

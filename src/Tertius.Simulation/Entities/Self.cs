@@ -180,7 +180,10 @@ public readonly ref struct BodyHandle
         intent.Flags |= IntentFlags.Teleport;
     }
 
-    /// <summary>Sets the desired movement velocity of a character body.</summary>
+    /// <summary>
+    /// Sets the desired movement velocity of a character body, in frame axes. Under gravity, only the part across the
+    /// character's up counts, and only while it stands on something. A weightless character ignores it.
+    /// </summary>
     public void MoveCharacter(Vector3 desiredVelocity)
     {
         ref PhysicsIntent intent = ref Intent;
@@ -188,7 +191,7 @@ public readonly ref struct BodyHandle
         intent.Flags |= IntentFlags.CharacterMove;
     }
 
-    /// <summary>Makes a character jump with this upward speed, if it stands on something.</summary>
+    /// <summary>Makes a character jump with this upward speed, if it stands on something under gravity.</summary>
     public void Jump(float speed)
     {
         ref PhysicsIntent intent = ref Intent;

@@ -311,15 +311,16 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Moves one character. Up is against the effective gravity. On the ground the character takes the ground's
-    /// velocity plus its desired horizontal velocity, and can jump. In the air it keeps its momentum. Near zero
-    /// gravity, the desired velocity is a full 3D velocity.
+    /// velocity plus its desired horizontal velocity, and can jump. In the air it keeps its momentum. Where it is
+    /// weightless, below <see cref="FrameTree.ZeroGravityThreshold"/>, it keeps its momentum and its last up, and its
+    /// desired velocity and its jump do nothing. Forces and impulses change its velocity everywhere.
     /// </summary>
     private void UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
     {
         float dt = stepDt;
         Vector3 gravity = frames.EffectiveGravity(world.Frame, character.RPosition.ToDouble3());
         float strength = gravity.Length();
-        bool zeroGravity = strength < options.ZeroGravityThreshold;
+        bool zeroGravity = strength < FrameTree.ZeroGravityThreshold;
         Vector3 up = record.Up;
         if (!zeroGravity)
         {
@@ -342,7 +343,8 @@ public sealed partial class JoltPhysicsBackend
         Vector3 next;
         if (zeroGravity)
         {
-            next = record.DesiredVelocity + (character.IsSupported ? ground : Vector3.Zero);
+            // Weightless, nothing holds the character to what it touches, so it keeps its momentum, as in the air.
+            next = velocity;
         }
         else
         {
@@ -374,6 +376,34 @@ public sealed partial class JoltPhysicsBackend
             : new ExtendedUpdateSettings { StickToFloorStepDown = -0.5f * up, WalkStairsStepUp = 0.4f * up };
         character.ExtendedUpdate(dt, settings, Layers.Moving, world.System);
         world.System.Gravity = Vector3.Zero;
+        if (zeroGravity)
+        {
+            // Jolt slides the character along what it hits, but keeps the velocity that it was given. Weightless, no
+            // landing ends the motion into a surface, so the character loses it here.
+            character.LinearVelocity = WithoutMotionIntoContacts(character, next);
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="velocity"/> less its part into each surface that <paramref name="character"/> hit in its last
+    /// update. Jolt pushes a character out of a surface that it sank into by moving it, so the push adds no velocity here.
+    /// </summary>
+    private static Vector3 WithoutMotionIntoContacts(CharacterVirtual character, Vector3 velocity)
+    {
+        int count = character.GetNumActiveContacts();
+        for (int i = 0; i < count; i++)
+        {
+            character.GetActiveContact(i, out CharacterContact contact);
+            if (!contact.HadCollision || contact.WasDiscarded)
+                continue;
+            // The surface normal points out of the surface, toward the character, so motion into the surface runs
+            // against it. Jolt's contact normal can lean away from it by several degrees on a flat face, and it would turn
+            // the motion into a face into a slide along it.
+            float into = Vector3.Dot(velocity, contact.SurfaceNormal);
+            if (into < 0)
+                velocity -= into * contact.SurfaceNormal;
+        }
+        return velocity;
     }
 
     // ---- Systems ----

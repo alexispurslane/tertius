@@ -347,7 +347,7 @@ Proper acceleration has a dead band. A component below the float resolution of t
 
 A physics-driven hull in orbit is integrated with float velocities, so its orbit drifts slowly. A frame that coasts for a long time uses a Kepler driver instead.
 
-The character controller is a capsule. It stands on whatever is below it and inherits that surface's velocity. It uses the frame's effective gravity. Near zero effective gravity, it switches to zero-g movement.
+The character controller is a capsule. It stands on whatever is below it and inherits that surface's velocity. It uses the frame's effective gravity. Below `FrameTree.ZeroGravityThreshold`, 0.05 m/s², the character is weightless. (User) It keeps its momentum, and only forces and impulses change its velocity, as in the air. Its desired velocity and its jump do nothing there, and it keeps its last up. After each weightless step, it loses the part of its velocity that goes into each surface that it hit. Jolt pushes a character out of a surface that it sank into by moving it, so that push gives the character no velocity. Components that steer a character read the same threshold, so they agree with physics on where weightlessness begins.
 
 ### Contacts
 

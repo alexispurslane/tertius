@@ -271,7 +271,7 @@ public sealed partial class JoltPhysicsBackend
         EnsureRoom(world);
         Vector3 gravity = frames.EffectiveGravity(world.Frame, pose.Position);
         float strength = gravity.Length();
-        record.Up = strength >= options.ZeroGravityThreshold ? -gravity / strength : Vector3.Normalize(record.Up);
+        record.Up = strength >= FrameTree.ZeroGravityThreshold ? -gravity / strength : Vector3.Normalize(record.Up);
         Quaternion rotation = Rotations.AlignUp(pose.Rotation.ToJolt(), record.Up);
         CharacterVirtual character = NewCharacter(record, world.System, pose.Position.ToJolt(), rotation, linearVelocity);
         world.CharacterCount++;

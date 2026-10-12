@@ -50,6 +50,40 @@ public sealed class PersonControlTests : IDisposable
         return standing;
     }
 
+    /// <summary>
+    /// Floats a person at the origin of a second room, which has no gravity, and makes its view the world's camera. The
+    /// person keeps the up that it spawned with, +Y.
+    /// </summary>
+    private Entity FloatInSpace()
+    {
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static));
+        Entity floating = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = DPose.Identity,
+            Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: Mass),
+            Components = [new PersonControl(Eye)],
+            Subscriptions = [Topics.Input],
+        });
+        world.Camera = floating;
+        Ticks(3);
+        return floating;
+    }
+
+    private const float Mass = 70;
+
+    /// <summary>The acceleration of the thrusters, in m/s².</summary>
+    private const float Thrust = PersonControl.ThrustForce / Mass;
+
+    /// <summary>The velocity that the posted input adds to <paramref name="floating"/> in half a second, once it acts.</summary>
+    private Vector3 GainInHalfASecond(Entity floating)
+    {
+        Ticks(10);
+        Vector3 early = world.Snapshot.VelocityOf(floating);
+        Ticks(30);
+        return world.Snapshot.VelocityOf(floating) - early;
+    }
+
     public void Dispose() => world.Dispose();
 
     private void Ticks(int count)
@@ -229,6 +263,111 @@ public sealed class PersonControlTests : IDisposable
         // A jump at 4 m/s rises 0.82 m in 0.41 s, about 24 ticks. Physics adds each tick's gravity before the move, so
         // after 25 moves the person is 0.781 m up.
         (world.Snapshot.PoseOf(person).Position.Y - standing).Should().BeApproximately(0.781, 0.005);
+    }
+
+    [Fact]
+    public void PressingETellsEveryEntityWithinReachThatThePersonUsesIt()
+    {
+        FrameHandle room = world.Snapshot.FrameOf(person);
+        Double3 at = world.Snapshot.PoseOf(person).Position;
+        Probe near = new(EventMask.Of<Use>()), far = new(EventMask.Of<Use>());
+        world.Spawn(new SpawnDesc { Frame = room, Pose = new DPose(at + new Double3(PersonControl.Reach - 0.1, 0, 0), DQuaternion.Identity), Components = [near] });
+        world.Spawn(new SpawnDesc { Frame = room, Pose = new DPose(at + new Double3(0, 0, PersonControl.Reach + 0.1), DQuaternion.Identity), Components = [far] });
+        Ticks(1);
+        Press(Key.E);
+        Ticks(10);
+
+        near.Seen.Should().ContainSingle("one press is one use");
+        near.Seen[0].Event.As<Use>().User.Should().Be(person);
+        far.Seen.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WhileAnotherViewIsOnPressingETellsNoOne()
+    {
+        Probe near = new(EventMask.Of<Use>());
+        world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Pose = world.Snapshot.PoseOf(person), Components = [near] });
+        world.Camera = world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Render = new RenderData() });
+        Ticks(1);
+        Press(Key.E);
+        Ticks(10);
+
+        near.Seen.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void WeightlessHoldingWThrustsThePersonAlongItsView()
+    {
+        Entity floating = FloatInSpace();
+        // Half a radian up from -Z.
+        MoveMouse(0, -0.5f / PersonControl.TurnPerPixel);
+        Press(Key.W);
+
+        ExpectNear(GainInHalfASecond(floating), new Vector3(0, MathF.Sin(0.5f), -MathF.Cos(0.5f)) * Thrust * 0.5f, 1e-3f);
+    }
+
+    [Theory]
+    [InlineData(Key.S, 0, 1)]
+    [InlineData(Key.A, -1, 0)]
+    [InlineData(Key.D, 1, 0)]
+    public void WeightlessSADThrustBackLeftAndRightOfTheView(Key key, float x, float z)
+    {
+        Entity floating = FloatInSpace();
+        Press(key);
+
+        ExpectNear(GainInHalfASecond(floating), new Vector3(x, 0, z) * Thrust * 0.5f, 1e-3f);
+    }
+
+    [Theory]
+    [InlineData(Key.Space, 1)]
+    [InlineData(Key.C, -1)]
+    public void WeightlessSpaceAndCThrustAlongThePersonsUpWhereverItLooks(Key key, float along)
+    {
+        Entity floating = FloatInSpace();
+        MoveMouse(0.6f / PersonControl.TurnPerPixel, 0.8f / PersonControl.TurnPerPixel);
+        Press(key);
+
+        ExpectNear(GainInHalfASecond(floating), Vector3.UnitY * along * Thrust * 0.5f, 1e-3f);
+    }
+
+    [Fact]
+    public void WeightlessTwoKeysTogetherThrustNoHarderThanOne()
+    {
+        Entity floating = FloatInSpace();
+        Press(Key.W);
+        Press(Key.Space);
+
+        ExpectNear(GainInHalfASecond(floating), Vector3.Normalize(new Vector3(0, 1, -1)) * Thrust * 0.5f, 1e-3f);
+    }
+
+    [Fact]
+    public void WeightlessThePersonKeepsDriftingAfterTheKeysAreLetGo()
+    {
+        Entity floating = FloatInSpace();
+        Press(Key.D);
+        Ticks(30);
+        Post(InputKind.KeyUp, (int)Key.D);
+        Ticks(5);
+        Vector3 drift = world.Snapshot.VelocityOf(floating);
+        Ticks(60);
+
+        drift.X.Should().BeGreaterThan(0.5f);
+        ExpectNear(world.Snapshot.VelocityOf(floating), drift, 1e-5f);
+    }
+
+    [Fact]
+    public void UnderGravityTheKeysNeverThrustThePersonThroughTheAir()
+    {
+        Press(Key.Space);
+        Ticks(6);
+        Press(Key.W);
+        Press(Key.C);
+        Ticks(15);
+
+        // The person jumped at 4 m/s about 19 ticks ago, so it still rises, and W and C have acted for 12 ticks.
+        Vector3 velocity = world.Snapshot.VelocityOf(person);
+        velocity.Y.Should().BeInRange(0.5f, 1.5f);
+        new Vector2(velocity.X, velocity.Z).Length().Should().BeLessThan(1e-4f);
     }
 
     [Fact]

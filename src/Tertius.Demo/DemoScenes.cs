@@ -56,11 +56,17 @@ public static class DemoScenes
     /// Jolt integrates it, with no damping. It starts on a circle 400 km up, crossing the equator northward at +X, tilted
     /// 51.64 degrees, with its belly toward Earth and its nose along its motion. Its spin, one turn per orbit, keeps it so.
     /// At the start the sun stands straight above it. In Earth's frame its hull is a solid box. In its own frame the hull
-    /// is hollow: six slabs 0.5 m thick around a cabin 19 by 7 by 59 m. Only the cabin has gravity: 9.81 m/s² toward the
+    /// is hollow: walls 0.5 m thick around a cabin 19 by 7 by 59 m. Only the cabin has gravity: 9.81 m/s² toward the
     /// belly. Five lamps under the roof light the cabin, because the hull keeps the sunlight out.</item>
+    /// <item>The <c>airlock</c> is a chamber 3 by 3 m against the port wall, 10 m aft of the ship's center. The door
+    /// <c>airlock-inner</c> leads from the cabin into the chamber, and the door <c>airlock-outer</c> closes a hatch from
+    /// the chamber to the outside. Both doorways are 1.2 m wide and 2.1 m tall, with a sill 0.2 m high. The airlock
+    /// starts with the inner door open. A use cycles it: the open door closes in 1.5 s, and 3 s after it began to close,
+    /// the other door opens.</item>
     /// <item>The <c>person</c>, a capsule character 1.8 m tall, stands on the cabin floor 10 m aft of the ship's center and
-    /// faces the nose. Its eye, 1.65 m above the floor, is a view. While that view is on, <see cref="PersonControl"/> walks
-    /// it and turns its view from the <c>input</c> topic.</item>
+    /// faces the nose. The airlock's inner door is 6.4 m to its left. Its eye, 1.65 m above the floor, is a view. While
+    /// that view is on, <see cref="PersonControl"/> steers it and turns its view from the <c>input</c> topic. Outside the
+    /// cabin, the person is weightless and its thrusters push it.</item>
     /// <item>The view <c>chase</c>, the camera at the start, rides in the ship's frame, 70 m behind it and 12 m above it,
     /// and looks at the ship's center.</item>
     /// <item>The view <c>far</c> stands in <c>earth</c>, three Earth radii from its center, 30 degrees north of the
@@ -121,8 +127,6 @@ public static class DemoScenes
         // The circle that the ship starts on gives its state at the world's time. From there, gravity alone moves it.
         KeplerOrbit start = KeplerOrbit.Circular(OrbitRadius, EarthMu) with { Inclination = OrbitInclination, Attitude = KeplerAttitude.FacesParent };
         (Double3 position, Double3 velocity) = start.StateAt(world.Time);
-        (Vector3 Center, Vector3 HalfExtents)[] slabs = HullSlabs(Hull, HullWall);
-        Vector3 cabin = Hull - new Vector3(HullWall);
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = earth,
@@ -130,14 +134,14 @@ public static class DemoScenes
             LinearVelocity = velocity.ToVector3(),
             AngularVelocity = start.AngularVelocityAt(world.Time).ToVector3(),
             // In Earth's frame the hull is a solid box. Inside the ship's own frame it is hollow: the person walks on its
-            // floor, and a later airlock lets the person out onto its outer faces.
+            // floor, and goes out through the airlock along its outer faces.
             Body = new BodyDesc(new BoxShapeDesc(Hull), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new CompoundShapeDesc([.. slabs.Select(slab => new CompoundChild(new BoxShapeDesc(slab.HalfExtents), new Pose(slab.Center, Quaternion.Identity)))])),
+                InteriorShape: new CompoundShapeDesc([.. InteriorBoxes().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
             // The bubble holds the hull and the chase camera, 71 m from the ship's center. The ship falls freely, so only
             // its own field acts inside it: one standard gravity toward its belly, in the cabin alone.
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics,
-                GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(-cabin, cabin))),
-            Render = Drawn(resources, HollowBox(Hull, cabin), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32),
+                GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(-Cabin, Cabin))),
+            Render = Drawn(resources, HullMesh(), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32),
         });
         scene.Add("ship", ship);
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
@@ -151,7 +155,7 @@ public static class DemoScenes
             world.Spawn(new SpawnDesc
             {
                 Frame = shipFrame,
-                Pose = new DPose(new Double3(0, cabin.Y - 0.05, 12 * i), DQuaternion.Identity),
+                Pose = new DPose(new Double3(0, Cabin.Y - 0.05, 12 * i), DQuaternion.Identity),
                 Render = new RenderData
                 {
                     Mesh = lampMesh,
@@ -162,12 +166,25 @@ public static class DemoScenes
                 },
             });
 
+        // The airlock's doors slide up into the wall above their doorways. Each is 0.1 m thick, in the middle of its wall.
+        Entity innerDoor = world.Spawn(DoorIn(shipFrame, InnerDoorway, resources));
+        Entity outerDoor = world.Spawn(DoorIn(shipFrame, Hatch, resources));
+        scene.Add("airlock-inner", innerDoor);
+        scene.Add("airlock-outer", outerDoor);
+        // A person uses the airlock within reach of the chamber's center, at the height of a standing person's center.
+        scene.Add("airlock", world.Spawn(new SpawnDesc
+        {
+            Frame = shipFrame,
+            Pose = new DPose(new Double3(Chamber.Center.X, -Cabin.Y + 0.95, AirlockZ), DQuaternion.Identity),
+            Components = [new Airlock(innerDoor, outerDoor, cycleSeconds: 3)],
+        }));
+
         // The person stands on the cabin floor, 10 m aft of the ship's center, and faces the nose. The capsule is 1.8 m
         // tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
         scene.Add("person", world.Spawn(new SpawnDesc
         {
             Frame = shipFrame,
-            Pose = new DPose(new Double3(0, -cabin.Y + 0.95, 10), DQuaternion.Identity),
+            Pose = new DPose(new Double3(0, -Cabin.Y + 0.95, AirlockZ), DQuaternion.Identity),
             Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
             Render = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1),
             Components = [new PersonControl(new Vector3(0, 0.75f, 0))],
@@ -203,40 +220,102 @@ public static class DemoScenes
     /// <summary>The thickness of the hull's floor, roof and walls, in meters.</summary>
     private const float HullWall = 0.5f;
 
+    /// <summary>The half extents of the cabin, in meters: the hull less its walls.</summary>
+    private static readonly Vector3 Cabin = Hull - new Vector3(HullWall);
+
+    /// <summary>How far aft of the ship's center the airlock stands, in meters: level with the person's start.</summary>
+    private const float AirlockZ = 10;
+
+    /// <summary>The airlock's chamber, in the ship's axes: against the port wall, 3 m deep and 3 m wide, as tall as the cabin.</summary>
+    private static readonly BoundingBox Chamber = new(new Vector3(-Cabin.X, -Cabin.Y, AirlockZ - 1.5f), new Vector3(-Cabin.X + 3, Cabin.Y, AirlockZ + 1.5f));
+
+    /// <summary>The thickness of the chamber's walls, in meters.</summary>
+    private const float ChamberWall = 0.2f;
+
+    /// <summary>The hatch through the hull's port wall, from the chamber to the outside.</summary>
+    private static readonly BoundingBox Hatch = Doorway(-Hull.X, -Cabin.X);
+
+    /// <summary>The doorway through the chamber's inner wall, from the cabin into the chamber.</summary>
+    private static readonly BoundingBox InnerDoorway = Doorway(Chamber.Max.X, Chamber.Max.X + ChamberWall);
+
     /// <summary>
-    /// The six slabs of a hollow box with outer half extents <paramref name="hull"/> and walls <paramref name="wall"/>
-    /// thick, as centers and half extents: the floor and the roof span the whole box, the side walls stand between them,
-    /// and the end walls close the room between the side walls. The slabs touch without gaps or overlaps.
+    /// A doorway of the airlock through a wall across X, from <paramref name="x0"/> to <paramref name="x1"/>: 1.2 m wide and
+    /// 2.1 m tall, with a sill 0.2 m high that the person steps over.
     /// </summary>
-    private static (Vector3 Center, Vector3 HalfExtents)[] HullSlabs(Vector3 hull, float wall)
+    private static BoundingBox Doorway(float x0, float x1) =>
+        new(new Vector3(x0, -Cabin.Y + 0.2f, AirlockZ - 0.6f), new Vector3(x1, -Cabin.Y + 2.3f, AirlockZ + 0.6f));
+
+    /// <summary>The chamber's two side walls, from the port wall to the cabin side of its inner wall.</summary>
+    private static readonly BoundingBox[] ChamberSides =
+    [
+        new(new Vector3(-Cabin.X, -Cabin.Y, Chamber.Min.Z - ChamberWall), new Vector3(InnerDoorway.Max.X, Cabin.Y, Chamber.Min.Z)),
+        new(new Vector3(-Cabin.X, -Cabin.Y, Chamber.Max.Z), new Vector3(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z + ChamberWall)),
+    ];
+
+    /// <summary>The chamber's inner wall, between its side walls, which the inner doorway goes through.</summary>
+    private static readonly BoundingBox ChamberInnerWall = new(new Vector3(InnerDoorway.Min.X, -Cabin.Y, Chamber.Min.Z), new Vector3(InnerDoorway.Max.X, Cabin.Y, Chamber.Max.Z));
+
+    /// <summary>
+    /// The boxes of the hull's interior shape, in the ship's axes. The floor and the roof span the whole hull, the side
+    /// walls stand between them, and the end walls close the cabin between the side walls. The port wall leaves the
+    /// hatch open. The chamber's walls stand on the cabin floor. The boxes touch without gaps or overlaps.
+    /// </summary>
+    private static IEnumerable<BoundingBox> InteriorBoxes()
     {
-        float half = wall / 2;
-        Vector3 cabin = hull - new Vector3(wall);
-        return
-        [
-            (new Vector3(0, -hull.Y + half, 0), hull with { Y = half }),
-            (new Vector3(0, hull.Y - half, 0), hull with { Y = half }),
-            (new Vector3(-hull.X + half, 0, 0), new Vector3(half, cabin.Y, hull.Z)),
-            (new Vector3(hull.X - half, 0, 0), new Vector3(half, cabin.Y, hull.Z)),
-            (new Vector3(0, 0, -hull.Z + half), new Vector3(cabin.X, cabin.Y, half)),
-            (new Vector3(0, 0, hull.Z - half), new Vector3(cabin.X, cabin.Y, half)),
-        ];
+        var hull = new BoundingBox(-Hull, Hull);
+        yield return hull with { Max = Hull with { Y = -Cabin.Y } };
+        yield return hull with { Min = (-Hull) with { Y = Cabin.Y } };
+        yield return new BoundingBox(new Vector3(Cabin.X, -Cabin.Y, -Hull.Z), new Vector3(Hull.X, Cabin.Y, Hull.Z));
+        foreach (BoundingBox part in AroundDoorway(new BoundingBox(new Vector3(-Hull.X, -Cabin.Y, -Hull.Z), new Vector3(-Cabin.X, Cabin.Y, Hull.Z)), Hatch))
+            yield return part;
+        yield return new BoundingBox(new Vector3(-Cabin.X, -Cabin.Y, -Hull.Z), new Vector3(Cabin.X, Cabin.Y, -Cabin.Z));
+        yield return new BoundingBox(new Vector3(-Cabin.X, -Cabin.Y, Cabin.Z), new Vector3(Cabin.X, Cabin.Y, Hull.Z));
+        foreach (BoundingBox side in ChamberSides)
+            yield return side;
+        foreach (BoundingBox part in AroundDoorway(ChamberInnerWall, InnerDoorway))
+            yield return part;
     }
 
     /// <summary>
-    /// The faces of a hollow box: a box of half extents <paramref name="outer"/>, seen from outside, and one of
-    /// <paramref name="inner"/>, seen from inside. Each is one closed box, so the mesh has no T-junction, where a vertex
-    /// on another triangle's edge can leave a crack of single pixels.
+    /// The four boxes of a wall across X that leave <paramref name="doorway"/> open: the parts on each side of it along Z,
+    /// as tall as the wall, and the lintel above it and the sill below it, as wide as the doorway.
     /// </summary>
-    private static MeshData HollowBox(Vector3 outer, Vector3 inner)
+    private static BoundingBox[] AroundDoorway(BoundingBox wall, BoundingBox doorway) =>
+    [
+        wall with { Max = wall.Max with { Z = doorway.Min.Z } },
+        wall with { Min = wall.Min with { Z = doorway.Max.Z } },
+        new(wall.Min with { Y = doorway.Max.Y, Z = doorway.Min.Z }, wall.Max with { Z = doorway.Max.Z }),
+        new(wall.Min with { Z = doorway.Min.Z }, wall.Max with { Y = doorway.Min.Y, Z = doorway.Max.Z }),
+    ];
+
+    /// <summary>The drawn hull, in the ship's axes: the outer box and the cabin seen from inside, joined through the hatch, and the chamber's walls.</summary>
+    private static MeshData HullMesh()
     {
-        MeshData outside = Primitives.Box(outer), inside = Primitives.Box(inner);
-        uint first = (uint)outside.Vertices.Length;
-        // The inner box's faces turn toward its center: the normals flip, and so does the winding, which decides the front
-        // face. The bitangent keeps its direction, so its sign flips with the normal.
-        Vertex[] vertices = [.. outside.Vertices, .. inside.Vertices.Select(vertex => vertex with { Normal = -vertex.Normal, Tangent = vertex.Tangent with { W = -vertex.Tangent.W } })];
-        uint[] indices = [.. outside.Indices, .. inside.Indices.Chunk(3).SelectMany(triangle => new[] { triangle[0] + first, triangle[2] + first, triangle[1] + first })];
-        return new MeshData(vertices, indices);
+        BoxMesh mesh = new BoxMesh()
+            .Box(new BoundingBox(-Hull, Hull), doorway: Hatch)
+            .Box(new BoundingBox(-Cabin, Cabin), inward: true, doorway: Hatch)
+            .Doorway(Hatch);
+        foreach (BoundingBox side in ChamberSides)
+            mesh.Box(side);
+        return mesh.Box(ChamberInnerWall, doorway: InnerDoorway).Doorway(InnerDoorway).Build();
+    }
+
+    /// <summary>
+    /// A door of the airlock that closes <paramref name="doorway"/>: a kinematic slab 0.1 m thick in the middle of the
+    /// doorway's wall, which slides up into the wall above the doorway in 1.5 s. It slides 0.1 m higher than the doorway is
+    /// tall, so that its lower edge hides in the wall and does not share a plane with the doorway's top.
+    /// </summary>
+    private static SpawnDesc DoorIn(FrameHandle frame, BoundingBox doorway, IRenderResources resources)
+    {
+        Vector3 half = doorway.Extents with { X = 0.05f };
+        return new SpawnDesc
+        {
+            Frame = frame,
+            Pose = new DPose(doorway.Center, DQuaternion.Identity),
+            Body = new BodyDesc(new BoxShapeDesc(half), BodyMotion.Kinematic),
+            Render = Drawn(resources, Primitives.Box(half), new Vector4(0.85f, 0.45f, 0.1f, 1), boundingRadius: half.Length()),
+            Components = [new Door(new Vector3(0, 2 * doorway.Extents.Y + 0.1f, 0), openSeconds: 1.5f)],
+        };
     }
 
     /// <summary>The mean anomaly of an orbit with eccentricity <paramref name="e"/> at true anomaly <paramref name="trueAnomaly"/>.</summary>
