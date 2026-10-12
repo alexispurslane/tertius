@@ -124,7 +124,8 @@ public sealed partial class JoltPhysicsBackend
             else
             {
                 record.Up = Vector3.Transform(Vector3.UnitY, create.Pose.Rotation.ToJolt());
-                CreatePrimary(record, create.Frame, create.Pose, create.LinearVelocity, create.AngularVelocity, upFromGravity: true);
+                var pose = new DPose(InHome(create.Frame, create.Pose.Position), create.Pose.Rotation);
+                CreatePrimary(record, create.Frame, pose, LocalVelocity(create.Frame, create.LinearVelocity), create.AngularVelocity, upFromGravity: true);
             }
         }
         catch

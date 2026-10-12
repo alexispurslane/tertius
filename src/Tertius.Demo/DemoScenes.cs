@@ -154,7 +154,7 @@ public static class DemoScenes
         {
             Frame = earth,
             Pose = new DPose(position, start.RotationAt(world.Time, earthMu)),
-            LinearVelocity = velocity.ToVector3(),
+            LinearVelocity = velocity,
             AngularVelocity = start.AngularVelocityAt(world.Time, earthMu).ToVector3(),
             // In Earth's frame the hull is a solid box. Inside the ship's own frame it is hollow: the person walks on its
             // floor, and goes out through the airlock along its outer faces.

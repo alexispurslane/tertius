@@ -237,7 +237,7 @@ public class PhysicsContactTests
         scene.Test.World.Errors.Should().ContainSingle().Which.Should().Contain($"stale frame {gone}");
         scene.FirstLog.Seen.Should().BeEmpty();
         scene.SecondLog.Seen.Should().BeEmpty();
-        scene.Test.World.GetPose(scene.Second).Should().Be(DPose.Identity, "the body state of the same step is part of the skipped update");
+        scene.Test.World.PoseInOwnFrame(scene.Second).Should().Be(DPose.Identity, "the body state of the same step is part of the skipped update");
     }
 
     [Fact]

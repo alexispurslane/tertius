@@ -61,11 +61,10 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
                 self.Body.AddForce(new Vector3((float)(Next() - 0.5), 0, (float)(Next() - 0.5)));
             else
             {
-                ref DPose pose = ref self.Transform;
-                pose = pose with { Position = self.Pose.Position + new Double3(Next() - 0.5, 0, Next() - 0.5) };
+                self.SetTransform(self.PoseInOwnFrame() with { Position = self.PoseInOwnFrame().Position + new Double3(Next() - 0.5, 0, Next() - 0.5) });
             }
 
-            self.Snapshot.QueryRadius(self.Frame, self.Pose.Position, 30, neighbors);
+            self.Snapshot.QueryRadius(self.Frame, self.PoseInOwnFrame().Position, 30, neighbors);
             neighbors.Remove(self.Entity);
             int value = (int)(Rng & 0xFFFF);
             if (neighbors.Count > 0 && Next() < 0.3)
@@ -88,7 +87,7 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
                 Entity child = self.Spawn(new SpawnDesc
                 {
                     Frame = self.Frame,
-                    Pose = self.Pose,
+                    Pose = self.PoseInOwnFrame(),
                     Body = withBody ? TestWorld.Ball : null,
                     Components = Next() < 0.5
                         ? [new Chatter(threads) { Rng = Rng ^ 0x9E3779B97F4A7C15UL }, new Shield()]
@@ -205,9 +204,9 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
         foreach (Entity e in live)
         {
             hash = TestWorld.Mix(hash, e.Raw);
-            hash = TestWorld.Mix(hash, world.GetPose(e));
-            hash = TestWorld.Mix(hash, world.GetVelocity(e));
-            hash = TestWorld.Mix(hash, world.GetAngularVelocity(e));
+            hash = TestWorld.Mix(hash, world.PoseInOwnFrame(e));
+            hash = TestWorld.Mix(hash, world.VelocityInOwnFrame(e));
+            hash = TestWorld.Mix(hash, world.AngularVelocityInOwnFrame(e));
             hash = TestWorld.Mix(hash, (ulong)world.GetFrame(e).Index);
             foreach (IComponent component in world.GetComponents(e))
             {

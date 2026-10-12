@@ -24,7 +24,7 @@ public sealed class AirlockSliceTests(AirlockRun run) : IClassFixture<AirlockRun
 
     private Double3 PersonAt(string dump) => Dump(dump).Entity("person").Pose.Position;
 
-    private Vector3 VelocityAt(string dump) => Dump(dump).Entity("person").Velocity;
+    private Vector3 VelocityAt(string dump) => Dump(dump).Entity("person").Velocity.ToVector3();
 
     /// <summary>How far <paramref name="door"/> is open in <paramref name="dump"/>, from 0 (shut) to 1 (open).</summary>
     private double Open(string dump, string door) => (Dump(dump).Entity(door).Pose.Position.Y - DoorShut) / DoorRise;

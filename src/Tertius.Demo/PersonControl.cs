@@ -77,7 +77,7 @@ public sealed class PersonControl(Vector3 eye) : IComponent
             forward = back = left = right = rise = sink = jump = use = false;
         }
 
-        Quaternion body = self.Pose.Rotation.ToQuaternion();
+        Quaternion body = self.PoseIn(self.Frame).Rotation.ToQuaternion();
         Quaternion turn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, yaw);
         Quaternion view = turn * Quaternion.CreateFromAxisAngle(Vector3.UnitX, pitch);
         self.Render.ViewOffset = new Pose(eye, view);
@@ -105,7 +105,7 @@ public sealed class PersonControl(Vector3 eye) : IComponent
 
         if (use)
         {
-            self.Snapshot.QueryRadius(self.Frame, self.Pose.Position, Reach, nearby);
+            self.Snapshot.QueryRadius(self.Frame, self.PoseIn(self.Frame).Position, Reach, nearby);
             foreach (Entity other in nearby)
                 if (other != self.Entity)
                     outbox.Send(other, new Use { User = self.Entity });

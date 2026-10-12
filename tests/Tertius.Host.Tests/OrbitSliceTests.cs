@@ -119,7 +119,7 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
         // The bubble fits just around the hull, and the camera rides 71 m from the ship's center, past the bubble and its
         // margin. A hand-off from one frame to another is a step of physics, and it moves only bodies.
         FrameBounds bubble = run.World.Frames.Bounds(run.Frame("ship"));
-        Double3 chase = run.World.GetPose(run.Scene["chase"]).Position;
+        Double3 chase = run.World.PoseInOwnFrame(run.Scene["chase"]).Position;
 
         bubble.FullyOutside(chase, 0, bubble.ExitMargin(0)).Should().BeTrue();
         foreach (StateDump dump in run.Result.Dumps)

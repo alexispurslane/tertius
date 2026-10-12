@@ -92,8 +92,8 @@ public class AttachmentHandOffTests
         scene.Test.Run(2);
 
         // The parent is at (-50, 0, 0) in the station. The child is 2 m along +Z and the grandchild 1 m above that.
-        PoseChecks.AssertNear(scene.World.GetPose(scene.Child).Position, new Double3(-50, 0, 2));
-        PoseChecks.AssertNear(scene.World.GetPose(scene.Grandchild).Position, new Double3(-50, 1, 2));
+        PoseChecks.AssertNear(scene.World.PoseInOwnFrame(scene.Child).Position, new Double3(-50, 0, 2));
+        PoseChecks.AssertNear(scene.World.PoseInOwnFrame(scene.Grandchild).Position, new Double3(-50, 1, 2));
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class AttachmentHandOffTests
         scene.Test.Run(2);
 
         // v + w x r = (1, 0, 0) + (0, 1, 0) x (0, 0, 2) = (3, 0, 0).
-        PoseChecks.AssertNear(scene.World.GetVelocity(scene.Child), new Vector3(3, 0, 0));
+        PoseChecks.AssertNear(scene.World.VelocityInOwnFrame(scene.Child), new Vector3(3, 0, 0));
     }
 
     [Fact]

@@ -102,7 +102,7 @@ public class StateDumpTests
 
         EntityRecord crate = Run(world, scene, DumpNow).Dump("now").Entity("crate");
 
-        crate.Velocity.Should().Be(new Vector3(1, 2, 3));
+        crate.Velocity.Should().Be(new Double3(1, 2, 3));
         crate.AngularVelocity.Should().Be(new Vector3(0.25f, 0.5f, 0.75f));
     }
 
@@ -234,7 +234,7 @@ public class StateDumpTests
         StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 90 }""", DumpNow).Dump("now");
 
         dump.Entity("box").Pose.Position.Y.Should().BeApproximately(0.5, 0.02, "the 1 m box rests on the floor whose top is at y = 0");
-        dump.Entity("box").Velocity.Length().Should().BeLessThan(0.05f);
+        dump.Entity("box").Velocity.Length.Should().BeLessThan(0.05);
         EventRecord hit = dump.Events.First(e => e.Event == "Collision" && e.To == new ToEntity("box"));
         ((Collision)hit.Payload).Other.Should().Be(scene["floor"]);
         dump.Errors.Should().BeEmpty();

@@ -34,13 +34,13 @@ public class WorldCharacterLifetimeTests
         world.Tick();
         TickUntil(world, () => !IsAwake(backend, ground, box), 600);
         IsAwake(backend, ground, box).Should().BeFalse("the box fell asleep on the character's head");
-        world.GetPose(box).Position.Y.Should().BeGreaterThan(1.9, "the box rests on the head, which is 1.82 m above the floor");
+        world.PoseInOwnFrame(box).Position.Y.Should().BeGreaterThan(1.9, "the box rests on the head, which is 1.82 m above the floor");
 
         world.Destroy(person);
         Tick(world, 60);
 
         backend.BodiesIn(ground).Should().NotContain(facts => IsInner(facts), "the destroyed character took its inner body with it");
-        DPose pose = world.GetPose(box);
+        DPose pose = world.PoseInOwnFrame(box);
         pose.Position.Y.Should().BeApproximately(0.2, 0.01, "the box fell onto the floor");
         pose.Position.X.Should().BeApproximately(0, 0.05, "nothing stood in its way");
         world.Errors.Should().BeEmpty();
@@ -88,8 +88,8 @@ public class WorldCharacterLifetimeTests
         ballLog.CountWith(person).Should().Be(0, "the character stands in the shed, far from the ball");
         personLog.CountWith(ball).Should().Be(0);
         world.GetFrame(ball).Should().Be(ground);
-        world.GetPose(ball).Position.X.Should().BeApproximately(4.6, 0.05, "the ball fell straight down");
-        world.GetPose(ball).Position.Y.Should().BeApproximately(0.2, 0.01, "the ball rests on the floor");
+        world.PoseInOwnFrame(ball).Position.X.Should().BeApproximately(4.6, 0.05, "the ball fell straight down");
+        world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(0.2, 0.01, "the ball rests on the floor");
         world.Errors.Should().BeEmpty();
     }
 
@@ -118,7 +118,7 @@ public class WorldCharacterLifetimeTests
         CollectGarbage();
         oldNatives.Should().AllSatisfy(native => native.IsAlive.Should().BeFalse("the growth freed the old native object"));
         backend.BodiesIn(ground).Count(IsInner).Should().Be(2);
-        world.GetPose(first).Position.Y.Should().BeApproximately(0.9, 0.03, "the character still stands on the floor");
+        world.PoseInOwnFrame(first).Position.Y.Should().BeApproximately(0.9, 0.03, "the character still stands on the floor");
         world.Errors.Should().BeEmpty();
     }
 

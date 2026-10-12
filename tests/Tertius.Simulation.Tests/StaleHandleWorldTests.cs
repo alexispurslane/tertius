@@ -93,7 +93,7 @@ public class StaleHandleWorldTests
         using World world = WithReusedSlot(out Entity stale, out _, out _);
         Snapshot snapshot = world.Snapshot;
 
-        ((Action)(() => snapshot.PoseOf(stale))).Should().Throw<StaleEntityException>();
+        ((Action)(() => snapshot.PoseInOwnFrame(stale))).Should().Throw<StaleEntityException>();
         ((Action)(() => snapshot.RenderOf(stale))).Should().Throw<StaleEntityException>();
         ((Action)(() => snapshot.HasBody(stale))).Should().Throw<StaleEntityException>();
     }
@@ -106,7 +106,7 @@ public class StaleHandleWorldTests
 
         try
         {
-            world.GetPose(stale);
+            world.PoseInOwnFrame(stale);
         }
         catch (InvalidOperationException ex)
         {
@@ -157,10 +157,11 @@ public class StaleHandleWorldTests
 
     private static readonly Dictionary<string, Action<World, Entity>> Throwing = new()
     {
-        [nameof(World.GetPose)] = (world, entity) => _ = world.GetPose(entity),
+        // The first live frame is the root, so the frame is live and only the entity can make a read in a frame throw.
+        [nameof(World.PoseIn)] = (world, entity) => _ = world.PoseIn(entity, world.Frames.AtDense(0)),
         [nameof(World.GetFrame)] = (world, entity) => _ = world.GetFrame(entity),
-        [nameof(World.GetVelocity)] = (world, entity) => _ = world.GetVelocity(entity),
-        [nameof(World.GetAngularVelocity)] = (world, entity) => _ = world.GetAngularVelocity(entity),
+        [nameof(World.VelocityIn)] = (world, entity) => _ = world.VelocityIn(entity, world.Frames.AtDense(0)),
+        [nameof(World.AngularVelocityIn)] = (world, entity) => _ = world.AngularVelocityIn(entity, world.Frames.AtDense(0)),
         [nameof(World.GetRender)] = (world, entity) => _ = world.GetRender(entity),
         [nameof(World.GetOwnedFrame)] = (world, entity) => _ = world.GetOwnedFrame(entity),
         [nameof(World.GetComponents)] = (world, entity) => _ = world.GetComponents(entity),
@@ -168,9 +169,6 @@ public class StaleHandleWorldTests
         [nameof(World.AddComponent)] = (world, entity) => world.AddComponent(entity, new Recorder()),
         [nameof(World.Subscribe)] = (world, entity) => world.Subscribe(entity, AnyTopic),
         [nameof(Snapshot.FrameOf)] = (world, entity) => _ = world.Snapshot.FrameOf(entity),
-        [nameof(Snapshot.PoseOf)] = (world, entity) => _ = world.Snapshot.PoseOf(entity),
-        [nameof(Snapshot.VelocityOf)] = (world, entity) => _ = world.Snapshot.VelocityOf(entity),
-        [nameof(Snapshot.AngularVelocityOf)] = (world, entity) => _ = world.Snapshot.AngularVelocityOf(entity),
         [nameof(Snapshot.RenderOf)] = (world, entity) => _ = world.Snapshot.RenderOf(entity),
         [nameof(Snapshot.HasBody)] = (world, entity) => _ = world.Snapshot.HasBody(entity),
     };
@@ -182,9 +180,10 @@ public class StaleHandleWorldTests
         [nameof(World.RemoveComponent)] = (world, entity) => world.RemoveComponent(entity, new Recorder()),
         [nameof(World.Unsubscribe)] = (world, entity) => world.Unsubscribe(entity, AnyTopic),
         ["Snapshot.IsAlive"] = (world, entity) => world.Snapshot.IsAlive(entity),
-        [nameof(Snapshot.TryGetPose)] = (world, entity) => world.Snapshot.TryGetPose(entity, out _, out _),
         // The first live frame is the root, so the frame is live and only the entity can make the answer false.
         [nameof(Snapshot.TryGetPoseIn)] = (world, entity) => world.Snapshot.TryGetPoseIn(entity, world.Frames.AtDense(0), out _),
+        [nameof(Snapshot.TryGetVelocityIn)] = (world, entity) => world.Snapshot.TryGetVelocityIn(entity, world.Frames.AtDense(0), out _),
+        [nameof(Snapshot.TryGetAngularVelocityIn)] = (world, entity) => world.Snapshot.TryGetAngularVelocityIn(entity, world.Frames.AtDense(0), out _),
     };
 
     private static TheoryData<string, string> Cross(IEnumerable<string> members)
@@ -355,7 +354,7 @@ public class StaleHandleWorldTests
             Snapshot snapshot = self.Snapshot;
             staleIsAlive = snapshot.IsAlive(stale);
             successorIsAlive = snapshot.IsAlive(successor);
-            stalePoseFound = snapshot.TryGetPose(stale, out _, out _);
+            stalePoseFound = snapshot.TryGetPoseIn(stale, self.Frame, out _);
         }));
 
         world.Tick();
@@ -367,7 +366,7 @@ public class StaleHandleWorldTests
     public void AComponentThatReadsADeadEntitysPoseGetsAnErrorThatTheSchedulerReports()
     {
         using World world = WithReusedSlot(out Entity stale, out Entity successor, out _);
-        world.SpawnWith(world.GetFrame(successor), Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Snapshot.PoseOf(stale)));
+        world.SpawnWith(world.GetFrame(successor), Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Snapshot.PoseInOwnFrame(stale)));
 
         world.Tick();
 

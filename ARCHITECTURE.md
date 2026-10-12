@@ -98,7 +98,7 @@ A frame is an entity that also has a row in the frame tree. `FrameHandle` holds 
 
 If an entity has a physics body, physics owns its transform. Gameplay moves it only through `self.Body`: forces, impulses, velocity changes and kinematic targets. These go into the entity's `PhysicsIntent` slot. Forces and impulses add up during the tick. Velocity changes and kinematic targets keep the last value written.
 
-If an entity has no body, gameplay owns its transform and writes it through `self.Transform`.
+If an entity has no body, gameplay owns its transform and writes it through `self.SetTransform`, relative to `self.Frame`.
 
 ### Creation and destruction
 

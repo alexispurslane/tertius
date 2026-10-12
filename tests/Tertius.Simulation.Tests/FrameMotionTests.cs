@@ -23,7 +23,7 @@ public class FrameMotionTests
         test.Run(3);
 
         test.World.Frames.LocalPose(frame).Position.Should().Be(new Double3(0, 6, 0));
-        test.World.GetPose(owner).Position.Should().Be(new Double3(0, 6, 0));
+        test.World.PoseInOwnFrame(owner).Position.Should().Be(new Double3(0, 6, 0));
     }
 
     [Fact]
@@ -40,7 +40,7 @@ public class FrameMotionTests
 
         test.Run(3);
 
-        test.World.GetPose(passenger).Position.Should().Be(new Double3(1, 0, 0));
+        test.World.PoseInOwnFrame(passenger).Position.Should().Be(new Double3(1, 0, 0));
         test.World.Snapshot.TryGetPoseIn(passenger, test.Root, out DPose inRoot).Should().BeTrue();
         inRoot.Position.Should().Be(new Double3(1, 6, 0));
     }
@@ -55,7 +55,7 @@ public class FrameMotionTests
             Pose = TestWorld.At(10),
             AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-                self.Transform = self.Pose with { Rotation = PoseChecks.QuarterTurnAboutY })],
+                self.SetTransform(self.PoseInOwnFrame() with { Rotation = PoseChecks.QuarterTurnAboutY }))],
         }));
         Entity passenger = test.World.SpawnAt(frame, new Double3(1, 0, 0));
 
@@ -107,7 +107,7 @@ public class FrameMotionTests
         using var test = new TestWorld();
         FrameHandle station = test.SpawnStaticFrame(new DPose(new Double3(50, 6, 7), PoseChecks.QuarterTurnAboutY));
 
-        test.World.GetPose(station.Entity).Should().Be(test.World.Frames.LocalPose(station));
-        test.World.GetPose(station.Entity).Position.Should().Be(new Double3(50, 6, 7));
+        test.World.PoseInOwnFrame(station.Entity).Should().Be(test.World.Frames.LocalPose(station));
+        test.World.PoseInOwnFrame(station.Entity).Position.Should().Be(new Double3(50, 6, 7));
     }
 }

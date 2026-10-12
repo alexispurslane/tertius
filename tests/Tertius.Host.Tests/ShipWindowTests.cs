@@ -162,6 +162,6 @@ public sealed class ShipWindowTests
             world.Tick();
 
         world.GetFrame(crate).Should().Be(ship);
-        world.GetPose(crate).Position.X.Should().BeLessThan(9.5 - 0.2, "the glass, like the wall, keeps the crate in the cabin");
+        world.PoseInOwnFrame(crate).Position.X.Should().BeLessThan(9.5 - 0.2, "the glass, like the wall, keeps the crate in the cabin");
     }
 }

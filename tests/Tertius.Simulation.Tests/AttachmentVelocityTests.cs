@@ -33,7 +33,7 @@ public class AttachmentVelocityTests
         test.Run(1);
 
         // v + w x r = (1, 0, 0) + (0, 1, 0) x (0, 0, 2) = (1, 0, 0) + (2, 0, 0) = (3, 0, 0).
-        PoseChecks.AssertNear(test.World.GetVelocity(child), new Vector3(3, 0, 0));
+        PoseChecks.AssertNear(test.World.VelocityInOwnFrame(child), new Vector3(3, 0, 0));
     }
 
     [Fact]
@@ -45,7 +45,7 @@ public class AttachmentVelocityTests
 
         test.Run(1);
 
-        test.World.GetAngularVelocity(child).Should().Be(new Vector3(0, 1, 0));
+        test.World.AngularVelocityInOwnFrame(child).Should().Be(new Vector3(0, 1, 0));
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class AttachmentVelocityTests
 
         Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 0, 2) });
 
-        PoseChecks.AssertNear(test.World.GetVelocity(child), new Vector3(3, 0, 0));
+        PoseChecks.AssertNear(test.World.VelocityInOwnFrame(child), new Vector3(3, 0, 0));
     }
 
     [Fact]
@@ -70,7 +70,7 @@ public class AttachmentVelocityTests
         test.Run(1);
 
         // The lever arm is (2, 0, 0), and (0, 1, 0) x (2, 0, 0) = (0, 0, -2).
-        PoseChecks.AssertNear(test.World.GetVelocity(child), new Vector3(1, 0, -2), 1e-5f);
+        PoseChecks.AssertNear(test.World.VelocityInOwnFrame(child), new Vector3(1, 0, -2), 1e-5f);
     }
 
     [Fact]
@@ -84,7 +84,7 @@ public class AttachmentVelocityTests
         test.Run(1);
 
         // The grandchild is at (1, 1, 0) from the root, and (0, 0, 1) x (1, 1, 0) = (-1, 1, 0).
-        PoseChecks.AssertNear(test.World.GetVelocity(grandchild), new Vector3(-1, 1, 0));
+        PoseChecks.AssertNear(test.World.VelocityInOwnFrame(grandchild), new Vector3(-1, 1, 0));
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public class AttachmentVelocityTests
         test.Run(3);
 
         // A mover changes the pose, not the velocity, and the velocity of a child comes from the velocity of its root.
-        test.World.GetVelocity(child).Should().Be(Vector3.Zero);
+        test.World.VelocityInOwnFrame(child).Should().Be(Vector3.Zero);
     }
 
     [Fact]
@@ -113,6 +113,6 @@ public class AttachmentVelocityTests
         test.Run(1);
 
         // (0, 5, 0) + (0, 1, 0) x (0, 0, 2) = (2, 5, 0).
-        PoseChecks.AssertNear(test.World.GetVelocity(child), new Vector3(2, 5, 0));
+        PoseChecks.AssertNear(test.World.VelocityInOwnFrame(child), new Vector3(2, 5, 0));
     }
 }

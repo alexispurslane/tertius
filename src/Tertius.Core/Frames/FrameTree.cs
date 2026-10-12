@@ -405,6 +405,34 @@ public sealed class FrameTree
     }
 
     /// <summary>
+    /// The velocity of the origin of a body's physics home <paramref name="home"/> relative to its semantic frame
+    /// <paramref name="semantic"/>, which is the home itself or an ancestor of it. The frames between them are numeric
+    /// frames, which never rotate, so this is the sum of their frame velocities, in doubles. No frame is numeric yet, so
+    /// today the home is always the semantic frame and the sum is zero.
+    /// </summary>
+    public Double3 HomeVelocity(FrameHandle home, FrameHandle semantic)
+    {
+        Contract.Requires(home == semantic || IsAncestorOf(semantic, home));
+        Double3 velocity = Double3.Zero;
+        for (FrameHandle f = home; f != semantic; f = Parent(f))
+            velocity += linearVelocity[Node(f).Id];
+        return velocity;
+    }
+
+    /// <summary>
+    /// The position of the origin of <paramref name="home"/> in the coordinates of <paramref name="semantic"/>, the home
+    /// itself or an ancestor of it. Like <see cref="HomeVelocity"/>, it is a sum along the numeric frames between them.
+    /// </summary>
+    public Double3 HomeOffset(FrameHandle home, FrameHandle semantic)
+    {
+        Contract.Requires(home == semantic || IsAncestorOf(semantic, home));
+        Double3 offset = Double3.Zero;
+        for (FrameHandle f = home; f != semantic; f = Parent(f))
+            offset += LocalPose(f).Position;
+        return offset;
+    }
+
+    /// <summary>
     /// The angular velocity of frame <paramref name="of"/> relative to frame <paramref name="to"/>, in
     /// <paramref name="to"/> axes. A null frame is the virtual root above every root frame.
     /// </summary>

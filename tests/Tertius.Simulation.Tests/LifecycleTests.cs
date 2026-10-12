@@ -267,7 +267,7 @@ public class LifecycleTests
         t.World.Destroy(doomed);
 
         t.World.IsAlive(bystander).Should().BeTrue();
-        t.World.GetPose(bystander).Position.Should().Be(new Double3(4, 0, 0));
+        t.World.PoseInOwnFrame(bystander).Position.Should().Be(new Double3(4, 0, 0));
     }
 
     // ---- Order ----------------------------------------------------------------------------------------------------

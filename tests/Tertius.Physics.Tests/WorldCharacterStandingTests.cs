@@ -45,7 +45,7 @@ public class WorldCharacterStandingTests
         pilot.Once = body => body.Jump(5);
         Tick(world, 12);
 
-        world.GetPose(person).Position.Y.Should().BeGreaterThan(1.2, "the character is in the air");
+        world.PoseInOwnFrame(person).Position.Y.Should().BeGreaterThan(1.2, "the character is in the air");
         world.Snapshot.IsStanding(person).Should().BeFalse();
         log.Seen[^1].Standing.Should().BeFalse();
     }
@@ -64,7 +64,7 @@ public class WorldCharacterStandingTests
 
         Tick(world, 30);
 
-        world.GetPose(person).Position.Y.Should().BeApproximately(StandingHeight, 0.03, "the character rests on the floor");
+        world.PoseInOwnFrame(person).Position.Y.Should().BeApproximately(StandingHeight, 0.03, "the character rests on the floor");
         world.Snapshot.IsStanding(person).Should().BeFalse();
         log.Seen.Should().AllSatisfy(seen => seen.Standing.Should().BeFalse());
     }
@@ -191,7 +191,7 @@ public class WorldCharacterStandingTests
         Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, StandingHeight), Body = Person, Components = [pilot] });
         Tick(world, 30);
         world.Snapshot.IsStanding(person).Should().BeTrue();
-        double x = world.GetPose(person).Position.X;
+        double x = world.PoseInOwnFrame(person).Position.X;
         faults.EditNextOutput = output =>
         {
             int first = output.Characters.FindIndex(state => state.Entity == person);
@@ -208,7 +208,7 @@ public class WorldCharacterStandingTests
 
         world.Errors.Should().ContainSingle().Which.Should().Contain($"ignored the character state of {person}");
         world.Snapshot.IsStanding(person).Should().BeFalse("the first state of the step landed, and the second did not");
-        world.GetPose(person).Position.X.Should().BeGreaterThan(x + 0.01, "the body state of the step landed");
+        world.PoseInOwnFrame(person).Position.X.Should().BeGreaterThan(x + 0.01, "the body state of the step landed");
 #endif
     }
 

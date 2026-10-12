@@ -24,9 +24,9 @@ public class PhysicsBodyStateTests
 
         test.Run(1);
 
-        test.World.GetPose(ball).Should().Be(ReportedPose);
-        test.World.GetVelocity(ball).Should().Be(ReportedVelocity);
-        test.World.GetAngularVelocity(ball).Should().Be(ReportedSpin);
+        test.World.PoseInOwnFrame(ball).Should().Be(ReportedPose);
+        test.World.VelocityInOwnFrame(ball).Should().Be(ReportedVelocity);
+        test.World.AngularVelocityInOwnFrame(ball).Should().Be(ReportedSpin);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class PhysicsBodyStateTests
 
         test.Run(1);
 
-        test.World.GetPose(ball).Position.X.Should().Be(2);
+        test.World.PoseInOwnFrame(ball).Position.X.Should().Be(2);
     }
 
     // Physics hears of every destroyed entity and frame before its next step, and an entity keeps its body for life. So
@@ -116,7 +116,7 @@ public class PhysicsBodyStateTests
         test.Run(1);
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {bodiless}").And.Contain("has no body");
-        test.World.GetPose(bodiless).Position.Should().Be(new Double3(3, 0, 0));
+        test.World.PoseInOwnFrame(bodiless).Position.Should().Be(new Double3(3, 0, 0));
     }
 
     [Fact]
@@ -132,7 +132,7 @@ public class PhysicsBodyStateTests
         test.Run(1);
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {gone}").And.Contain("no longer exists");
-        test.World.GetPose(bystander).Position.X.Should().Be(3);
+        test.World.PoseInOwnFrame(bystander).Position.X.Should().Be(3);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class PhysicsBodyStateTests
 
         test.Run(1);
 
-        test.World.GetPose(successor).Position.X.Should().Be(3);
+        test.World.PoseInOwnFrame(successor).Position.X.Should().Be(3);
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {gone}");
     }
 
@@ -169,7 +169,7 @@ public class PhysicsBodyStateTests
         test.Run(1);
 
         test.World.Errors.Should().HaveCount(2).And.OnlyContain(error => error.Contains($"body state of {ball}"));
-        test.World.GetPose(ball).Should().Be(TestWorld.At(3));
+        test.World.PoseInOwnFrame(ball).Should().Be(TestWorld.At(3));
     }
 
     [Fact]
@@ -185,7 +185,7 @@ public class PhysicsBodyStateTests
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {ball}").And.Contain("names no frame");
         test.World.GetFrame(ball).Should().Be(station);
-        test.World.GetPose(ball).Should().Be(TestWorld.At(3));
+        test.World.PoseInOwnFrame(ball).Should().Be(TestWorld.At(3));
     }
 #endif
 
@@ -205,8 +205,8 @@ public class PhysicsBodyStateTests
 
         test.Run(3);
 
-        test.World.GetPose(ball).Position.Should().Be(new Double3(1.375, 0, 0));
-        test.World.GetVelocity(ball).Should().Be(new Vector3(8, 0, 0));
+        test.World.PoseInOwnFrame(ball).Position.Should().Be(new Double3(1.375, 0, 0));
+        test.World.VelocityInOwnFrame(ball).Should().Be(new Vector3(8, 0, 0));
     }
 
     [Fact]
@@ -223,7 +223,7 @@ public class PhysicsBodyStateTests
 
         test.Run(5);
 
-        test.World.GetPose(ball).Position.X.Should().Be(2);
+        test.World.PoseInOwnFrame(ball).Position.X.Should().Be(2);
         test.World.Errors.Should().BeEmpty();
     }
 

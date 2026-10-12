@@ -60,7 +60,7 @@ public class WorldSleepTests
 
         Tick(world, ticks);
 
-        double along = Double3.Dot(world.GetPose(body).Position - start, downhill);
+        double along = Double3.Dot(world.PoseInOwnFrame(body).Position - start, downhill);
         double expected = 0.5 * a * (ticks / 60.0) * (ticks / 60.0);
         along.Should().BeGreaterThan(0.8 * expected, "gravity pulls the body down the ramp the whole time");
         world.Errors.Should().BeEmpty();
@@ -84,7 +84,7 @@ public class WorldSleepTests
 
         Tick(world, 1800);
 
-        world.GetPose(box).Position.Y.Should().BeLessThan(-5, "the box tips off the ledge and falls to the ground");
+        world.PoseInOwnFrame(box).Position.Y.Should().BeLessThan(-5, "the box tips off the ledge and falls to the ground");
     }
 
     /// <summary>
@@ -106,7 +106,7 @@ public class WorldSleepTests
 
         Tick(world, 3600);
 
-        world.GetPose(box).Position.Y.Should().BeApproximately(0.5, 0.01, "the box fell 1 m onto the floor");
+        world.PoseInOwnFrame(box).Position.Y.Should().BeApproximately(0.5, 0.01, "the box fell 1 m onto the floor");
     }
 
     /// <summary>
@@ -138,14 +138,14 @@ public class WorldSleepTests
         world.Tick();
         TickUntil(world, () => !IsAwake(backend, ship, crate), 300);
         IsAwake(backend, ship, crate).Should().BeFalse("the crate fell asleep on the deck");
-        double z0 = world.GetPose(crate).Position.Z;
+        double z0 = world.PoseInOwnFrame(crate).Position.Z;
 
         pilot.EveryTick = body => body.AddForce(new Vector3(0, 0, thrust * 1000));
         Tick(world, 600);
 
         double a = thrust - 0.5 * g;
         double expected = 0.5 * a * 10 * 10;
-        (world.GetPose(crate).Position.Z - z0).Should().BeLessThan(-0.8 * expected, "the crate slides toward the stern for 10 s");
+        (world.PoseInOwnFrame(crate).Position.Z - z0).Should().BeLessThan(-0.8 * expected, "the crate slides toward the stern for 10 s");
     }
 
     /// <summary>
@@ -166,7 +166,7 @@ public class WorldSleepTests
 
         Tick(world, 600);
 
-        world.GetPose(box).Position.X.Should().BeApproximately(0.2, 0.002, "nothing slows the box down");
+        world.PoseInOwnFrame(box).Position.X.Should().BeApproximately(0.2, 0.002, "nothing slows the box down");
     }
 
     /// <summary>
@@ -191,6 +191,6 @@ public class WorldSleepTests
         int ticks = 1 + TickUntil(world, () => boxes.All(box => !IsAwake(backend, ground, box)), 119);
 
         ticks.Should().BeLessThan(120, "the stack rests on the floor");
-        world.GetPose(boxes[^1]).Position.Y.Should().BeApproximately(4.5, 0.02, "the stack stands where it was let go");
+        world.PoseInOwnFrame(boxes[^1]).Position.Y.Should().BeApproximately(4.5, 0.02, "the stack stands where it was let go");
     }
 }

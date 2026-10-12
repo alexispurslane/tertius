@@ -129,7 +129,7 @@ public class KeplerFrameWithLooseBodyTests
             Tick(world, (int)(Seconds / Dt));
 
             Double3 shipNow = world.Frames.LocalPose(ship).Position;
-            Double3 apart = world.GetPose(ball).Position - shipNow;
+            Double3 apart = world.PoseInOwnFrame(ball).Position - shipNow;
             Double3 expected = new(30 + 2 * (world.Time - released), 0, 0);
             (world.Time - leftAt).Should().BeApproximately(Seconds, 1e-3, "the world adds up its time steps");
             AssertKeepsPace(apart - expected, shipNow.Normalized(), apart.Length);
@@ -165,7 +165,7 @@ public class KeplerFrameWithLooseBodyTests
             world.GetFrame(ball).Should().Be(planet, "200 m is outside the 50 m bubble of the frame");
             Double3 shipNow = world.Frames.LocalPose(ship).Position;
             double turned = AngleAround(shipNow) - AngleAround(shipStart);
-            Double3 offset = DQuaternion.FromAxisAngle(Double3.UnitY, -turned).Rotate(world.GetPose(ball).Position - shipNow);
+            Double3 offset = DQuaternion.FromAxisAngle(Double3.UnitY, -turned).Rotate(world.PoseInOwnFrame(ball).Position - shipNow);
             AssertKeepsPace(offset - ahead, shipStart.Normalized(), 200);
             world.Errors.Should().BeEmpty();
         }

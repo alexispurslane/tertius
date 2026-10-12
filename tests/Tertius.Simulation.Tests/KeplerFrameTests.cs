@@ -144,7 +144,7 @@ public class KeplerFrameTests
 
         test.Run(TicksPerQuarterPeriod);
 
-        test.World.GetPose(lander).Position.Should().Be(new Double3(10, 0, 0));
+        test.World.PoseInOwnFrame(lander).Position.Should().Be(new Double3(10, 0, 0));
         test.World.Snapshot.TryGetPoseIn(lander, test.Root, out DPose inRoot).Should().BeTrue();
         // The frame has no spin, so the lander's 10 m along +X stays along +X: (0, 0, -1000) + (10, 0, 0).
         PoseChecks.AssertNear(inRoot.Position, new Double3(10, 0, -1000), 1e-6);
@@ -175,9 +175,9 @@ public class KeplerFrameTests
         {
             test.Run(1);
 
-            test.World.GetPose(owner).Should().Be(test.World.Frames.LocalPose(frame));
-            test.World.GetVelocity(owner).Should().Be(test.World.Frames.LinearVelocity(frame).ToVector3());
-            test.World.GetAngularVelocity(owner).Should().Be(test.World.Frames.AngularVelocity(frame));
+            test.World.PoseInOwnFrame(owner).Should().Be(test.World.Frames.LocalPose(frame));
+            test.World.VelocityInOwnFrame(owner).Should().Be(test.World.Frames.LinearVelocity(frame).ToVector3());
+            test.World.AngularVelocityInOwnFrame(owner).Should().Be(test.World.Frames.AngularVelocity(frame));
             test.World.GetFrame(owner).Should().Be(test.Root);
         }
     }
@@ -232,7 +232,7 @@ public class KeplerFrameTests
     {
         using var test = NewWorld();
         Entity owner = SpawnKeplerFrame(test, Circle(1000),
-            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Transform = TestWorld.At(5)));
+            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(5))));
         FrameHandle moon = test.World.GetOwnedFrame(owner);
 
         test.Run(TicksPerQuarterPeriod);

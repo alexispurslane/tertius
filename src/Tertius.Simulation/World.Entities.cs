@@ -343,6 +343,8 @@ public sealed partial class World
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
+    private static bool IsFinite(Double3 v) => double.IsFinite(v.X) && double.IsFinite(v.Y) && double.IsFinite(v.Z);
+
     /// <summary>
     /// A spawn by the running entity <paramref name="spawner"/>. The slot comes from the spawner's chunk pool, so the
     /// handle is final and deterministic. Throws <see cref="StaleEntityException"/> for a stale spawner.
@@ -367,10 +369,13 @@ public sealed partial class World
         var row = new TransformRow
         {
             Frame = frame,
+            PhysicsHome = frame,
             Pose = pose,
-            LinearVelocity = desc.LinearVelocity,
+            LinearVelocity = desc.LinearVelocity.ToVector3(),
             AngularVelocity = desc.AngularVelocity,
         };
+        // The velocity relative to the entity's frame, in doubles, that physics converts when it creates the body.
+        Double3 velocity = desc.LinearVelocity;
         FrameHandle own = FrameHandle.Null;
         if (desc.AsFrame is { } spec)
         {
@@ -391,11 +396,12 @@ public sealed partial class World
             }
             physicsChanges.FramesCreated.Add(own);
             row = FrameOwnerRow(own);
+            velocity = Frames.LinearVelocity(own);
         }
 
         entities.Activate(entity, row, desc.Render ?? new RenderData(), plan.Components, plan.Wants, desc.Body, own);
         if (desc.Body != null)
-            physicsChanges.BodiesCreated.Add(new BodyCreate(entity, row.Frame, desc.Body, row.Pose, row.LinearVelocity, row.AngularVelocity));
+            physicsChanges.BodiesCreated.Add(new BodyCreate(entity, row.Frame, desc.Body, row.Pose, velocity, row.AngularVelocity));
 
         MoveMembership(entity, row.Frame, sendFrameChanged: false);
         foreach (Topic topic in plan.Subscriptions)
@@ -610,11 +616,13 @@ public sealed partial class World
     {
         ref readonly TransformRow row = ref entities.BackRow(entity);
         DPose relative = Frames.Relative(from, to);
+        Double3 velocity = Frames.ConvertVelocity(from, to, row.Pose.Position, FrameReads.VelocityIn(Frames, entity, row, from));
         var moved = new TransformRow
         {
             Frame = to,
+            PhysicsHome = to,
             Pose = DPose.Compose(relative, row.Pose),
-            LinearVelocity = Frames.ConvertVelocity(from, to, row.Pose.Position, row.LinearVelocity).ToVector3(),
+            LinearVelocity = velocity.ToVector3(),
             AngularVelocity = (relative.TransformDirection(row.AngularVelocity) + Frames.AngularVelocityRelative(from, to)).ToVector3(),
         };
         entities.SetBackTransform(entity, moved);
@@ -624,7 +632,7 @@ public sealed partial class World
         if (entities.Body(entity) is { } body)
         {
             physicsChanges.BodiesDestroyed.Add(entity);
-            physicsChanges.BodiesCreated.Add(new BodyCreate(entity, to, body, moved.Pose, moved.LinearVelocity, moved.AngularVelocity));
+            physicsChanges.BodiesCreated.Add(new BodyCreate(entity, to, body, moved.Pose, velocity, moved.AngularVelocity));
         }
     }
 
@@ -675,6 +683,7 @@ public sealed partial class World
     private TransformRow FrameOwnerRow(FrameHandle frame) => new()
     {
         Frame = Frames.Parent(frame),
+        PhysicsHome = Frames.Parent(frame),
         Pose = Frames.LocalPose(frame),
         LinearVelocity = Frames.LinearVelocity(frame).ToVector3(),
         AngularVelocity = Frames.AngularVelocity(frame),

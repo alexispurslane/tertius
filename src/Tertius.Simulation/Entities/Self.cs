@@ -36,21 +36,24 @@ public readonly ref struct Self
     /// <summary>Simulation time at the start of this tick, in seconds.</summary>
     public double Time => world.Time;
 
-    /// <summary>This entity's pose in <see cref="Frame"/>, from the front snapshot (the end of the previous tick).</summary>
-    public DPose Pose => world.Entities.FrontRow(Entity).Pose;
+    /// <summary>
+    /// This entity's pose in <paramref name="frame"/>, from the front snapshot (the end of the previous tick). Throws
+    /// <see cref="ArgumentException"/> for a stale frame.
+    /// </summary>
+    public DPose PoseIn(FrameHandle frame) => world.PoseIn(Entity, frame);
+
+    /// <summary>This entity's linear velocity relative to <paramref name="frame"/>, in its axes, from the front snapshot.</summary>
+    public Double3 VelocityIn(FrameHandle frame) => world.VelocityIn(Entity, frame);
+
+    /// <summary>This entity's angular velocity relative to <paramref name="frame"/>, in its axes, from the front snapshot.</summary>
+    public Vector3 AngularVelocityIn(FrameHandle frame) => world.AngularVelocityIn(Entity, frame);
 
     /// <summary>
-    /// This entity's back transform row, for writing. The new pose takes effect at the sync point. Throws
+    /// Sets this entity's pose in <see cref="Frame"/>. The new pose takes effect at the sync point. Throws
     /// <see cref="InvalidOperationException"/> if physics or a frame driver owns the transform, or if the entity is
     /// attached to a parent.
     /// </summary>
-    public ref DPose Transform => ref world.WritableTransform(Entity);
-
-    /// <summary>Linear velocity in frame axes, from the front snapshot.</summary>
-    public Vector3 Velocity => world.Entities.FrontRow(Entity).LinearVelocity;
-
-    /// <summary>Angular velocity in frame axes, from the front snapshot.</summary>
-    public Vector3 AngularVelocity => world.Entities.FrontRow(Entity).AngularVelocity;
+    public void SetTransform(in DPose pose) => world.WritableTransform(Entity) = pose;
 
     /// <summary>A proxy over this entity's physics intent for this tick. Physics receives it in the next step.</summary>
     public BodyHandle Body => new(world, Entity);
@@ -153,8 +156,11 @@ public readonly ref struct BodyHandle
     /// <summary>Adds an angular impulse.</summary>
     public void AddAngularImpulse(Vector3 impulse) => Intent.AngularImpulse += impulse;
 
-    /// <summary>Sets the linear velocity before the next step.</summary>
-    public void SetVelocity(Vector3 velocity)
+    /// <summary>
+    /// Sets the linear velocity before the next step, relative to the entity's frame, in its axes. Physics converts it
+    /// when it applies it.
+    /// </summary>
+    public void SetVelocity(Double3 velocity)
     {
         ref PhysicsIntent intent = ref Intent;
         intent.Velocity = velocity;

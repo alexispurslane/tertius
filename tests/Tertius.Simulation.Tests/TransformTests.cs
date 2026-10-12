@@ -21,9 +21,9 @@ public class TransformTests
         Entity mover = default;
         // Entities run in slot order on this one thread, so the first watcher runs before the mover and the second runs
         // after it. Both must see the pose from before the mover's write.
-        test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seenByEarlierWatcher.Add(self.Snapshot.PoseOf(mover).Position.X)));
+        test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seenByEarlierWatcher.Add(self.Snapshot.PoseInOwnFrame(mover).Position.X)));
         mover = test.SpawnWith(new Mover(new Double3(1, 0, 0)));
-        test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seenByLaterWatcher.Add(self.Snapshot.PoseOf(mover).Position.X)));
+        test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seenByLaterWatcher.Add(self.Snapshot.PoseInOwnFrame(mover).Position.X)));
 
         test.Run(4);
 
@@ -38,7 +38,7 @@ public class TransformTests
         var seenAfterTheWrite = new List<double>();
         // The reader's priority is higher than the mover's, so it runs after the mover has written the new pose.
         test.SpawnWith(new Mover(new Double3(1, 0, 0)),
-            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seenAfterTheWrite.Add(self.Pose.Position.X), priority: 10));
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) => seenAfterTheWrite.Add(self.PoseInOwnFrame().Position.X), priority: 10));
 
         test.Run(4);
 
@@ -55,7 +55,7 @@ public class TransformTests
         {
             test.Run(1);
 
-            test.World.GetPose(mover).Position.Should().Be(new Double3(tick, 0, 0));
+            test.World.PoseInOwnFrame(mover).Position.Should().Be(new Double3(tick, 0, 0));
         }
     }
 
@@ -76,8 +76,8 @@ public class TransformTests
             Body = TestWorld.Ball,
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
             {
-                seenThroughSelf.Add(self.Velocity.X);
-                seenThroughSnapshot.Add(self.Snapshot.VelocityOf(self.Entity).X);
+                seenThroughSelf.Add(self.VelocityInOwnFrame().X);
+                seenThroughSnapshot.Add(self.Snapshot.VelocityInOwnFrame(self.Entity).X);
             })],
         });
 
@@ -85,7 +85,7 @@ public class TransformTests
 
         seenThroughSelf.Should().Equal(0, 1, 2, 3);
         seenThroughSnapshot.Should().Equal(0, 1, 2, 3);
-        test.World.GetVelocity(ball).X.Should().Be(4);
+        test.World.VelocityInOwnFrame(ball).X.Should().Be(4);
     }
 
     // ---- Physics owns the transform of a body ---------------------------------------------------------------------
@@ -98,7 +98,7 @@ public class TransformTests
         {
             Frame = test.Root,
             Body = TestWorld.Ball,
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Transform = TestWorld.At(5))],
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(5)))],
         });
 
         test.Run(1);
@@ -116,7 +116,7 @@ public class TransformTests
         {
             Frame = test.Root,
             Body = TestWorld.Ball,
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Transform = TestWorld.At(5))],
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(5)))],
         });
 
         test.Run(1);
@@ -128,7 +128,7 @@ public class TransformTests
     public void AnEntityKeepsRunningAfterItsTransformWriteIsRefusedAndItsPoseDoesNotChange()
     {
         using var test = new TestWorld(TestPhysics.Create());
-        var refusedWriter = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Transform = TestWorld.At(5));
+        var refusedWriter = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(5)));
         // A later component of the same entity: the refused write must not end the entity's run.
         var laterComponent = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => { }, priority: 1);
         Entity ball = test.World.Spawn(new SpawnDesc
@@ -145,7 +145,7 @@ public class TransformTests
         laterComponent.Runs.Should().Be(3, "the refused write does not stop the components after it");
         test.World.Errors.Should().HaveCount(3, "each refused write is recorded once");
         test.World.IsAlive(ball).Should().BeTrue();
-        test.World.GetPose(ball).Should().Be(TestWorld.At(1));
+        test.World.PoseInOwnFrame(ball).Should().Be(TestWorld.At(1));
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class TransformTests
         {
             Frame = test.Root,
             AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: orbit),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Transform = DPose.Identity)],
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(DPose.Identity))],
         });
 
         test.Run(1);
@@ -216,6 +216,6 @@ public class TransformTests
         test.Run(1);
 
         test.World.Errors.Should().BeEmpty();
-        test.World.GetPose(owner).Position.Should().Be(new Double3(0, 2, 0));
+        test.World.PoseInOwnFrame(owner).Position.Should().Be(new Double3(0, 2, 0));
     }
 }

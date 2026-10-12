@@ -35,7 +35,7 @@ public class WorldFacingFrameTests
         {
             Tick(world, 600);
 
-            DPose pose = world.GetPose(owner);
+            DPose pose = world.PoseInOwnFrame(owner);
             Double3 belly = pose.Rotation.Rotate(new Double3(0, -1, 0));
             Double3 towardPlanet = -pose.Position.Normalized();
             Double3.Distance(belly, towardPlanet).Should().BeLessThan(1e-9);
@@ -52,7 +52,7 @@ public class WorldFacingFrameTests
             Tick(world, 600);
 
             // A round orbit turns at its mean motion, sqrt(mu / a³) = 0.2 rad/s, about the orbit normal, +Y.
-            world.GetAngularVelocity(owner).Should().Be(new Vector3(0, 0.2f, 0));
+            world.AngularVelocityInOwnFrame(owner).Should().Be(new Vector3(0, 0.2f, 0));
         }
     }
 
@@ -75,7 +75,7 @@ public class WorldFacingFrameTests
             Tick(world, 942);
 
             // Near apoapsis, 6,500 m out, the turn rate is h / r² = sqrt(mu a (1 - e²)) / 6,500² = 0.112892 rad/s.
-            world.GetAngularVelocity(owner).Y.Should().BeApproximately(0.112892f, 1e-4f);
+            world.AngularVelocityInOwnFrame(owner).Y.Should().BeApproximately(0.112892f, 1e-4f);
         }
     }
 
@@ -89,7 +89,7 @@ public class WorldFacingFrameTests
 
             Quaternion hull = backend.BodiesIn(planet)
                 .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner)).Rotation;
-            Quaternion frame = world.GetPose(owner).Rotation.ToQuaternion();
+            Quaternion frame = world.PoseInOwnFrame(owner).Rotation.ToQuaternion();
             MathF.Abs(Quaternion.Dot(hull, frame)).Should().BeGreaterThan(1 - 1e-5f, "the hull's rotation is the frame's, up to the sign of the quaternion");
             world.Errors.Should().BeEmpty();
         }

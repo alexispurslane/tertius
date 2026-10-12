@@ -1,3 +1,4 @@
+using System.Numerics;
 using Tertius.Simulation;
 
 namespace Tertius.Host.Scripting;
@@ -49,25 +50,35 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
     private EntityRecord EntityRecordOf(Entity entity)
     {
         FrameHandle frame = world.GetFrame(entity);
-        DPose pose = world.GetPose(entity);
+        DPose pose;
+        Double3 velocity;
+        Vector3 angularVelocity;
         FramePose rootPose;
         if (frame.IsNull)
         {
-            // The owner of a root frame is in no frame. It is its own root frame, at that frame's origin.
+            // The owner of a root frame is in no frame. It is its own root frame, at that frame's origin, and its pose
+            // and velocities are the frame's own.
+            FrameHandle own = world.GetOwnedFrame(entity);
+            pose = world.Frames.LocalPose(own);
+            velocity = world.Frames.LinearVelocity(own);
+            angularVelocity = world.Frames.AngularVelocity(own);
             rootPose = new FramePose(scene.IdOf(entity), Double3.Zero, DQuaternion.Identity);
         }
         else
         {
+            pose = world.PoseIn(entity, frame);
+            velocity = world.VelocityIn(entity, frame);
+            angularVelocity = world.AngularVelocityIn(entity, frame);
             FrameHandle root = RootOf(frame);
-            world.Snapshot.TryGetPoseIn(entity, root, out DPose inRoot);
+            DPose inRoot = world.PoseIn(entity, root);
             rootPose = new FramePose(scene.IdOf(root.Entity), inRoot.Position, inRoot.Rotation);
         }
         return new EntityRecord(
             scene.IdOf(entity),
             new FramePose(frame.IsNull ? null : scene.IdOf(frame.Entity), pose.Position, pose.Rotation),
             rootPose,
-            world.GetVelocity(entity),
-            world.GetAngularVelocity(entity),
+            velocity,
+            angularVelocity,
             world.GetBody(entity) is { Motion: BodyMotion.Character } ? world.Snapshot.IsStanding(entity) : null);
     }
 

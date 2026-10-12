@@ -126,7 +126,7 @@ public class PhysicsStepTests
 
         test.Run(1);
 
-        test.World.GetPose(ball).Position.X.Should().Be(1, "the world uses none of the output of a step that threw");
+        test.World.PoseInOwnFrame(ball).Position.X.Should().Be(1, "the world uses none of the output of a step that threw");
     }
 
     [Fact]
@@ -144,7 +144,7 @@ public class PhysicsStepTests
 
         test.Run(3);
 
-        test.World.GetPose(ball).Position.X.Should().Be(2, "the state of the step of tick 2 is the last one applied");
+        test.World.PoseInOwnFrame(ball).Position.X.Should().Be(2, "the state of the step of tick 2 is the last one applied");
         test.World.Errors.Should().ContainSingle();
     }
 

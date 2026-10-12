@@ -177,7 +177,7 @@ public class WorldSpawnRefusalTests
         spawn.Should().Throw<ArgumentException>(why).WithMessage($"*{word}*");
         world.Stats.LiveEntities.Should().Be(live, "nothing changed");
         Tick(world, 120);
-        world.GetPose(ball).Position.Y.Should().BeApproximately(0.5, 0.01, "the ball fell onto the floor next to nothing");
+        world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(0.5, 0.01, "the ball fell onto the floor next to nothing");
         world.Errors.Should().BeEmpty();
     }
 
@@ -225,7 +225,7 @@ public class WorldSpawnRefusalTests
         Tick(world, 120);
 
         backend.TryGetBodyFrame(ball, out _).Should().BeTrue();
-        world.GetPose(ball).Position.Y.Should().BeApproximately(0.5, 0.01, "the ball fell to the floor");
+        world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(0.5, 0.01, "the ball fell to the floor");
         world.Errors.Should().BeEmpty();
     }
 
@@ -274,7 +274,7 @@ public class WorldSpawnRefusalTests
         world.SetFrameDriver(root, MotionDriver.Physics);
         Tick(world, 10);
 
-        world.GetPose(ball).Position.Y.Should().BeApproximately(top + 0.5, 0.01, "the ball rests on the root frame's interior");
+        world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(top + 0.5, 0.01, "the ball rests on the root frame's interior");
         backend.HasInterior(owner).Should().BeTrue();
         backend.TryGetBodyFrame(owner, out _).Should().BeFalse("the owner of a root frame has no hull");
         world.Errors.Should().BeEmpty();

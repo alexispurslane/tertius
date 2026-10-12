@@ -187,7 +187,7 @@ internal static class TableSupport
     public static Entity SpawnLive(this EntityTable table, FrameHandle frame = default, double x = 0)
     {
         Entity entity = table.Reserve();
-        table.Activate(entity, new TransformRow { Frame = frame, Pose = TestWorld.At(x) }, new RenderData(), [], [], null, FrameHandle.Null);
+        table.Activate(entity, new TransformRow { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) }, new RenderData(), [], [], null, FrameHandle.Null);
         return entity;
     }
 }
@@ -330,7 +330,7 @@ public sealed class FakePhysics : IPhysicsBackend
                 Desc = create.Desc,
                 Frame = create.Frame,
                 Pose = create.Pose,
-                Velocity = create.LinearVelocity,
+                Velocity = create.LinearVelocity.ToVector3(),
                 AngularVelocity = create.AngularVelocity,
             };
         }
@@ -348,7 +348,7 @@ public sealed class FakePhysics : IPhysicsBackend
             float mass = body.Desc.Mass;
             body.Velocity += intent.Force / mass * dt + intent.Impulse / mass;
             if ((intent.Flags & IntentFlags.SetVelocity) != 0)
-                body.Velocity = intent.Velocity;
+                body.Velocity = intent.Velocity.ToVector3();
             if ((intent.Flags & IntentFlags.Teleport) != 0)
                 body.Pose = intent.TeleportPose;
             if ((intent.Flags & IntentFlags.KinematicTarget) != 0)

@@ -97,7 +97,7 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         // The person stands still and faces the ship's -X. Physics reports a standing person's velocity with one tick of
         // the cabin's gravity, which the floor takes back in the next step, and the crate starts with the person's velocity.
         // The dump comes after the crate's first step, in which the cabin's gravity pulls it for one more tick.
-        Vector3 person = Dump("carrying").Entity("person").Velocity;
+        Vector3 person = Dump("carrying").Entity("person").Velocity.ToVector3();
         EntityRecord crate = Dump("thrown").Entity(Thrown);
 
         crate.Pose.Frame.Should().Be("ship");

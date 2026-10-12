@@ -44,7 +44,7 @@ public sealed record EntityRecord(
     string Id,
     FramePose Pose,
     FramePose RootPose,
-    Vector3 Velocity,
+    Double3 Velocity,
     Vector3 AngularVelocity,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] bool? Standing);
 

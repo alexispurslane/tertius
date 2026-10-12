@@ -50,7 +50,7 @@ public class SpawnTests
         t.Run(1);
 
         t.World.GetComponent<Recorder>(child).Should().BeSameAs(childLog);
-        t.World.GetPose(child).Should().Be(TestWorld.At(3));
+        t.World.PoseInOwnFrame(child).Should().Be(TestWorld.At(3));
     }
 
     [Fact]
@@ -291,7 +291,7 @@ public class SpawnTests
 
         Entity entity = t.SpawnAt(new Double3(3, 4, 5));
 
-        t.World.GetPose(entity).Position.Should().Be(new Double3(3, 4, 5));
+        t.World.PoseInOwnFrame(entity).Position.Should().Be(new Double3(3, 4, 5));
         t.World.GetFrame(entity).Should().Be(t.Root);
     }
 

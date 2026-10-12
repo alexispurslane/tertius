@@ -135,6 +135,7 @@ public sealed partial class World
             entities.SetBackTransform(entity, new TransformRow
             {
                 Frame = state.Frame,
+                PhysicsHome = state.Frame,
                 Pose = state.Pose,
                 LinearVelocity = state.LinearVelocity,
                 AngularVelocity = state.AngularVelocity,
@@ -150,6 +151,7 @@ public sealed partial class World
             entities.SetBackTransform(entity, new TransformRow
             {
                 Frame = handOff.To,
+                PhysicsHome = handOff.To,
                 Pose = handOff.Pose,
                 LinearVelocity = handOff.LinearVelocity,
                 AngularVelocity = handOff.AngularVelocity,

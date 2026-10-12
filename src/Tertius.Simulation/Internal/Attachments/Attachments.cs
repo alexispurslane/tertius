@@ -148,6 +148,7 @@ internal sealed class Attachments
             entities.SetBackTransform(child, new TransformRow
             {
                 Frame = rootRow.Frame,
+                PhysicsHome = rootRow.PhysicsHome,
                 Pose = pose,
                 LinearVelocity = rootRow.LinearVelocity + Double3.Cross(rootRow.AngularVelocity, lever).ToVector3(),
                 AngularVelocity = rootRow.AngularVelocity,

@@ -89,12 +89,12 @@ public sealed partial class JoltPhysicsBackend
         if ((flags & IntentFlags.Teleport) != 0)
         {
             record.World!.WakeAround(id);
-            bodies.SetRPositionAndRotation(id, intent.TeleportPose.Position.ToJolt(), intent.TeleportPose.Rotation.ToJolt(), Activation.Activate);
+            bodies.SetRPositionAndRotation(id, InHome(record, intent.TeleportPose.Position).ToJolt(), intent.TeleportPose.Rotation.ToJolt(), Activation.Activate);
             bodies.SetLinearAndAngularVelocity(id, Vector3.Zero, Vector3.Zero);
         }
         if ((flags & IntentFlags.SetVelocity) != 0)
         {
-            bodies.SetLinearVelocity(id, intent.Velocity);
+            bodies.SetLinearVelocity(id, LocalVelocity(record, intent.Velocity));
             record.VelocitySetStep = stepIndex;
         }
         if ((flags & IntentFlags.SetAngularVelocity) != 0)
@@ -105,9 +105,10 @@ public sealed partial class JoltPhysicsBackend
         if ((flags & IntentFlags.KinematicTarget) != 0)
         {
             DQuaternion rotation = intent.Target.Rotation.Normalized();
+            Double3 target = InHome(record, intent.Target.Position);
             if (record.Motion == BodyMotion.Kinematic)
             {
-                bodies.MoveKinematic(id, intent.Target.Position.ToJolt(), rotation.ToJolt(), stepDt);
+                bodies.MoveKinematic(id, target.ToJolt(), rotation.ToJolt(), stepDt);
             }
             else
             {
@@ -115,7 +116,7 @@ public sealed partial class JoltPhysicsBackend
                 // still act on it.
                 BodySnapshot s = ReadPrimary(record);
                 Double3 localCenter = s.Pose.InverseTransformPoint(s.CenterOfMass);
-                Double3 targetCenter = intent.Target.Position + rotation.Rotate(localCenter);
+                Double3 targetCenter = target + rotation.Rotate(localCenter);
                 Vector3 linear = ((targetCenter - s.CenterOfMass) / stepDt).ToVector3();
                 Vector3 angular = Rotations.AngularVelocity(s.Pose.Rotation, rotation, stepDt).ToVector3();
                 bodies.SetLinearAndAngularVelocity(id, linear, angular);
@@ -144,14 +145,14 @@ public sealed partial class JoltPhysicsBackend
             // Jolt never simulates the inner body of a character, so the bodies around its old and new places wake.
             FrameWorld world = record.World!;
             world.WakeAround(character.InnerBodyID);
-            character.RPosition = intent.TeleportPose.Position.ToJolt();
+            character.RPosition = InHome(record, intent.TeleportPose.Position).ToJolt();
             character.Rotation = intent.TeleportPose.Rotation.ToJolt();
             character.LinearVelocity = Vector3.Zero;
             record.PendingVelocityChange = Vector3.Zero;
             world.WakeAround(character.InnerBodyID);
         }
         if ((flags & IntentFlags.SetVelocity) != 0)
-            character.LinearVelocity = intent.Velocity;
+            character.LinearVelocity = LocalVelocity(record, intent.Velocity);
         if ((flags & IntentFlags.CharacterMove) != 0)
             record.DesiredVelocity = intent.CharacterVelocity;
         if ((flags & IntentFlags.Jump) != 0)
@@ -159,6 +160,26 @@ public sealed partial class JoltPhysicsBackend
         float mass = record.Desc.Mass > 0 ? record.Desc.Mass : 1f;
         record.PendingVelocityChange += (intent.Impulse + intent.Force * stepDt) / mass;
     }
+
+    // ---- From the semantic frame to the physics home ----
+
+    /// <summary>
+    /// Jolt's float local velocity for <paramref name="velocity"/>, which is relative to the body's semantic frame: the
+    /// velocity minus the frame velocity of the body's physics home relative to that frame. Physics calls it at the moment
+    /// that it applies a request or creates a body, so it uses the home of that moment. The home is the frame whose
+    /// system holds the body. No frame is numeric yet, so the semantic frame is the home itself.
+    /// </summary>
+    private Vector3 LocalVelocity(FrameHandle home, Double3 velocity) => (velocity - frames.HomeVelocity(home, semantic: home)).ToVector3();
+
+    private Vector3 LocalVelocity(BodyRecord record, Double3 velocity) => LocalVelocity(record.Frame, velocity);
+
+    /// <summary>
+    /// <paramref name="position"/>, which is in the coordinates of the body's semantic frame, in the coordinates of its
+    /// physics home. See <see cref="LocalVelocity(FrameHandle, Double3)"/>.
+    /// </summary>
+    private Double3 InHome(FrameHandle home, Double3 position) => position - frames.HomeOffset(home, semantic: home);
+
+    private Double3 InHome(BodyRecord record, Double3 position) => InHome(record.Frame, position);
 
     /// <summary>Moves the kinematic hulls of Kepler and Spin frames to their end-of-step pose, and static hulls to the tree pose.</summary>
     private void DriveKinematicHulls()

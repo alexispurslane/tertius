@@ -221,7 +221,8 @@ public struct PhysicsIntent
     public Vector3 Torque;
     public Vector3 Impulse;
     public Vector3 AngularImpulse;
-    public Vector3 Velocity;
+    /// <summary>The new linear velocity relative to the entity's frame, in doubles. Physics converts it to the body's home when it applies it.</summary>
+    public Double3 Velocity;
     public Vector3 AngularVelocity;
     /// <summary>The target pose for a kinematic body, in frame coordinates. Used with <see cref="IntentFlags.KinematicTarget"/>.</summary>
     public DPose Target;
@@ -245,7 +246,7 @@ public readonly record struct BodyCreate(
     FrameHandle Frame,
     BodyDesc Desc,
     DPose Pose,
-    Vector3 LinearVelocity,
+    Double3 LinearVelocity,
     Vector3 AngularVelocity);
 
 /// <summary>

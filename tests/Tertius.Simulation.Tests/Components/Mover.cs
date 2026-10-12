@@ -9,7 +9,6 @@ public sealed class Mover(Double3 step) : IComponent
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
-        ref DPose pose = ref self.Transform;
-        pose = pose with { Position = self.Pose.Position + step };
+        self.SetTransform(self.PoseInOwnFrame() with { Position = self.PoseInOwnFrame().Position + step });
     }
 }

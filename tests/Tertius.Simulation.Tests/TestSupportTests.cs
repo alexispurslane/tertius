@@ -196,7 +196,7 @@ public class SharedComponentTests
 
         spawner.Children.Should().HaveCount(2);
         spawner.Children.Should().OnlyContain(child => t.World.IsAlive(child));
-        spawner.Children.Select(child => t.World.GetPose(child).Position.X).Should().Equal(4, 4);
+        spawner.Children.Select(child => t.World.PoseInOwnFrame(child).Position.X).Should().Equal(4, 4);
         spawner.Children.Select(child => t.World.GetFrame(child)).Should().OnlyContain(frame => frame == t.Root);
         // Each child has an instance of its own, and it ran once, on the tick after the spawn.
         var recorders = spawner.Children.Select(child => t.World.GetComponent<Recorder>(child)!).ToList();
@@ -286,7 +286,7 @@ public class TestWorldTests
         Entity entity = t.SpawnWith(new Recorder());
 
         t.World.GetFrame(entity).Should().Be(t.Root);
-        t.World.GetPose(entity).Position.Should().Be(Double3.Zero);
+        t.World.PoseInOwnFrame(entity).Position.Should().Be(Double3.Zero);
         t.World.GetComponent<Recorder>(entity).Should().NotBeNull();
     }
 
@@ -297,7 +297,7 @@ public class TestWorldTests
 
         Entity entity = t.SpawnAt(new Double3(1, 2, 3));
 
-        t.World.GetPose(entity).Position.Should().Be(new Double3(1, 2, 3));
+        t.World.PoseInOwnFrame(entity).Position.Should().Be(new Double3(1, 2, 3));
     }
 
     [Fact]

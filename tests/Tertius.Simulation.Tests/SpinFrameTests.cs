@@ -103,9 +103,9 @@ public class SpinFrameTests
         {
             test.Run(1);
 
-            test.World.GetPose(owner).Should().Be(test.World.Frames.LocalPose(frame));
-            test.World.GetVelocity(owner).Should().Be(Vector3.Zero);
-            test.World.GetAngularVelocity(owner).Should().Be(test.World.Frames.AngularVelocity(frame));
+            test.World.PoseInOwnFrame(owner).Should().Be(test.World.Frames.LocalPose(frame));
+            test.World.VelocityInOwnFrame(owner).Should().Be(Vector3.Zero);
+            test.World.AngularVelocityInOwnFrame(owner).Should().Be(test.World.Frames.AngularVelocity(frame));
         }
     }
 
@@ -114,7 +114,7 @@ public class SpinFrameTests
     {
         using var test = NewWorld();
         Entity owner = SpawnSpinFrame(test, QuarterTurnPerSecond,
-            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Transform = TestWorld.At(5)));
+            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(5))));
         FrameHandle ground = test.World.GetOwnedFrame(owner);
 
         test.Run(TicksPerSecond);
@@ -160,7 +160,7 @@ public class SpinFrameTests
 
         test.World.Frames.LocalPose(dock).Position.Should().Be(new Double3(5, 0, 0));
         PoseChecks.AssertNear(test.World.Frames.LocalPose(dock).Rotation.Rotate(Double3.UnitX), new Double3(0, 0, -1), 1e-12);
-        test.World.GetPose(dock.Entity).Should().Be(test.World.Frames.LocalPose(dock));
+        test.World.PoseInOwnFrame(dock.Entity).Should().Be(test.World.Frames.LocalPose(dock));
     }
 
     [Fact]
@@ -196,7 +196,7 @@ public class SpinFrameTests
         test.World.Frames.Spin(ground).Rate.Should().Be(Math.PI);
         PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX), new Double3(-1, 0, 0), 1e-12);
         test.World.Frames.AngularVelocity(ground).Should().Be(new Vector3(0, MathF.PI, 0));
-        test.World.GetPose(ground.Entity).Should().Be(test.World.Frames.LocalPose(ground));
+        test.World.PoseInOwnFrame(ground.Entity).Should().Be(test.World.Frames.LocalPose(ground));
     }
 
     [Fact]

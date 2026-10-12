@@ -47,7 +47,7 @@ public class WorldCharacterContactTests
 
         pilot.EveryTick = body => body.MoveCharacter(new Vector3(-1.5f, 0, 0));
         Tick(world, 120);
-        world.GetPose(person).Position.X.Should().BeLessThan(-2, "the character walked 3 m away");
+        world.PoseInOwnFrame(person).Position.X.Should().BeLessThan(-2, "the character walked 3 m away");
         IsAwake(backend, ground, box).Should().BeFalse("nothing touched the box while the character was away");
         pilot.EveryTick = body => body.MoveCharacter(new Vector3(1.5f, 0, 0));
         Tick(world, 150);
