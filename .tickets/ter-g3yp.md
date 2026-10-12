@@ -35,3 +35,9 @@ Open questions:
 
 A body's description names its category and its mask. Two bodies collide only when each mask contains the other body's category. Ghosts, frame hulls and interiors keep their current behavior. A test on the World with Jolt shows two categories that pass through each other and a third that hits both.
 
+
+## Notes
+
+**2026-10-12T01:17:59Z**
+
+Name: the user calls a category a collision group, and the queries of ter-gj55 filter by collision group membership (User). Jolt's CollisionGroup and GroupFilterTable are a different mechanism, so the code must keep the two names apart. Open point added: is a body in exactly one collision group, or in several? One group per body lets the query's group filters join by a bitwise AND.

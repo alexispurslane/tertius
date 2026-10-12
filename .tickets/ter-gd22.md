@@ -40,3 +40,7 @@ A sensor body detects dynamic, kinematic and character bodies without pushing th
 **2026-10-12T00:00:10Z**
 
 The user kept the collision masks (ter-g3yp) in the path. A sensor filters by mask and also by component type, through the record of ter-gj55.
+
+**2026-10-12T01:17:59Z**
+
+How a Sensor component finds its own touches: it picks nothing out. The sync point already sends each contact as a Collision event to both entities of the pair (World.RouteContact), so the component reads events.Of<Collision>() in its own inbox, and later the contact end event too. The relay adds one tick: a touch in the step of tick N reaches the sensor's entity in tick N+1, and the relayed message reaches the topic in tick N+2.

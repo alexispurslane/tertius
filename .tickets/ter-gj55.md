@@ -1,7 +1,7 @@
 ---
 id: ter-gj55
 status: open
-deps: [ter-ziae, ter-1j1e, ter-8wmm]
+deps: [ter-ziae, ter-1j1e, ter-8wmm, ter-g3yp]
 links: [ter-j4to]
 created: 2026-10-11T23:45:16Z
 type: feature
@@ -56,3 +56,7 @@ Decisions (User): each entity's snapshot row carries a 512-bit component mask (6
 **2026-10-12T00:35:43Z**
 
 Generic component types are refused entirely (User). The startup scan, and the check for assemblies that load later, fail with a clear error on any generic type that implements IComponent, open or closed. Two test components are generic today and must become non-generic first: Boxed<T> in tests/Tertius.Simulation.Tests/BlueprintSupport.cs and SendOnce<T> in tests/Tertius.Host.Tests/HostTesting.cs.
+
+**2026-10-12T01:17:59Z**
+
+The entity query filters by collision group membership too, not only by components (User). The query language exists to build on both flags and collision groups. So the query struct also holds group filters inline (a few bits each, no allocation), the snapshot publishes each entity's groups beside its component mask, and this ticket waits for the groups of ter-g3yp. How group filters join depends on an open point of ter-g3yp: if a body is in exactly one group, 'in any of A' and 'in any of B' join into 'in any of A and B both' by a bitwise AND; if a body can be in several groups, they do not, and a second group filter goes in the heap part.
