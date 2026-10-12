@@ -1,8 +1,8 @@
 ---
 id: ter-r90w
 status: open
-deps: [ter-fa7j]
-links: []
+deps: []
+links: [ter-fa7j]
 created: 2026-10-12T13:00:57Z
 type: bug
 priority: 1

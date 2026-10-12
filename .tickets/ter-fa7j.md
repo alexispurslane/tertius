@@ -2,7 +2,7 @@
 id: ter-fa7j
 status: open
 deps: []
-links: []
+links: [ter-r90w]
 created: 2026-10-12T02:04:49Z
 type: bug
 priority: 1
