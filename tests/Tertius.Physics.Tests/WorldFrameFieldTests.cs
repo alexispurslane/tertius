@@ -13,7 +13,7 @@ public class WorldFrameFieldTests
 {
     private const double PlanetMu = 5e5;
 
-    private static readonly KeplerOrbit StationOrbit = KeplerOrbit.Circular(5000, PlanetMu);
+    private static readonly KeplerOrbit StationOrbit = KeplerOrbit.Circular(5000);
 
     /// <summary>Orbits that the Kepler driver cannot follow, by the names that the theories use.</summary>
     private static KeplerOrbit BadOrbit(string kind) => kind switch
@@ -37,14 +37,14 @@ public class WorldFrameFieldTests
 
     private static bool Finite(Double3 p) => double.IsFinite(p.X) && double.IsFinite(p.Y) && double.IsFinite(p.Z);
 
-    /// <summary>A planet frame without gravity, a ball that flies in it, and a station with a hull on a circular orbit.</summary>
+    /// <summary>A planet frame with point gravity, a ball that flies in it, and a station with a hull on a circular orbit around it.</summary>
     private sealed class OrbitScene : IDisposable
     {
         public OrbitScene()
         {
             World = NewWorld(out JoltPhysicsBackend backend);
             Backend = backend;
-            Planet = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+            Planet = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)));
             Ball = World.Spawn(new SpawnDesc
             {
                 Frame = Planet,
@@ -112,7 +112,7 @@ public class WorldFrameFieldTests
         using var scene = new OrbitScene();
         World world = scene.World;
         Tick(world, 10);
-        KeplerOrbit larger = KeplerOrbit.Circular(6000, PlanetMu);
+        KeplerOrbit larger = KeplerOrbit.Circular(6000);
 
         world.SetFrameOrbit(scene.Station, larger);
 
@@ -133,7 +133,7 @@ public class WorldFrameFieldTests
     public void SpawnRefusesAKeplerFrameWhoseOrbitTheDriverCannotFollow(string kind)
     {
         using World world = NewWorld(out _);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)));
         int live = world.Stats.LiveEntities;
 
         Action spawn = () => world.Spawn(new SpawnDesc
@@ -145,6 +145,64 @@ public class WorldFrameFieldTests
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*orbit*not valid*");
         world.Stats.LiveEntities.Should().Be(live);
+    }
+
+    /// <summary>
+    /// The World refuses every call that would leave a Kepler frame without a G·M to orbit, so only a bug can. A bug here
+    /// takes the point gravity from the planet behind the World's back, as <c>FrameTree.SetGravity</c> does when something
+    /// other than the World calls it. The world's debug checks find the Kepler frame at the end of the tick.
+    /// </summary>
+    [Fact]
+    public void TheDebugChecksOfTheWorldFindAKeplerFrameWhoseParentLostItsPointGravity()
+    {
+        using var scene = new OrbitScene();
+        scene.World.Tick();
+        scene.World.Frames.SetGravity(scene.Planet, GravityField.None);
+
+        Action tick = () => scene.World.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage("*Invariant*");
+    }
+
+    /// <summary>
+    /// The game destroys the planet that a station orbits. The station moves up to the root frame, which has no point gravity,
+    /// so it has no G·M to orbit: the World gives it the static driver. Physics then makes the hull static where the frame
+    /// stopped, and nothing in either reports a problem.
+    /// </summary>
+    [Fact]
+    public void TheHullOfAKeplerFrameStopsWhereTheFrameStoppedWhenItsPlanetIsDestroyed()
+    {
+        var warnings = new List<string>();
+        World world = NewWorld(out JoltPhysicsBackend backend, warnings);
+        using (world)
+        {
+            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
+            Entity planetOwner = world.Spawn(new SpawnDesc
+            {
+                Frame = space,
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)),
+            });
+            Entity owner = world.Spawn(new SpawnDesc
+            {
+                Frame = world.GetOwnedFrame(planetOwner),
+                Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler, Orbit: StationOrbit),
+            });
+            FrameHandle station = world.GetOwnedFrame(owner);
+            Tick(world, 30);
+
+            world.Destroy(planetOwner);
+            Tick(world, 30);
+
+            world.Frames.Driver(station).Should().Be(MotionDriver.Static);
+            world.Frames.Parent(station).Should().Be(space);
+            JoltPhysicsBackend.BodyFacts hull = backend.BodiesIn(space)
+                .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
+            hull.Motion.Should().Be(JoltPhysicsSharp.MotionType.Static);
+            (hull.Position - world.Frames.LocalPose(station).Position).Length.Should().BeLessThan(1e-3);
+            world.Errors.Should().BeEmpty();
+            warnings.Should().BeEmpty();
+        }
     }
 
     /// <summary>The game tries to give a frame a gravity field that physics cannot apply. The World refuses it.</summary>

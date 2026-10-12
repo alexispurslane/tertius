@@ -105,7 +105,7 @@ public class DriverChangeTests
     {
         using var h = new PhysicsHarness();
         FrameHandle planet = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu));
-        var orbit = KeplerOrbit.Circular(7_000_000, EarthMu, phase: 1.0);
+        var orbit = KeplerOrbit.Circular(7_000_000, phase: 1.0);
         FrameHandle station = h.AddFrameWithBody(planet, DPose.Identity, FrameBounds.Sphere(100), MotionDriver.Kepler,
             new BodyDesc(new BoxShapeDesc(new Vector3(10)), Mass: 1000, LinearDamping: 0, AngularDamping: 0), orbit: orbit);
         h.Step(10);
@@ -118,7 +118,7 @@ public class DriverChangeTests
         Hull(h, planet, station.Entity).Motion.Should().Be(MotionType.Dynamic);
         states.Should().HaveCount(60);
         // In free fall the hull stays on the orbit that the Kepler driver gave it, up to the float rounding of its velocity.
-        (h.Frames.LocalPose(station).Position - orbit.StateAt(h.Time).Position).Length.Should().BeLessThan(0.5);
+        (h.Frames.LocalPose(station).Position - orbit.StateAt(h.Time, EarthMu).Position).Length.Should().BeLessThan(0.5);
 
         states.Clear();
         h.Frames.SetDriver(station, MotionDriver.Kepler);
@@ -126,7 +126,7 @@ public class DriverChangeTests
 
         Hull(h, planet, station.Entity).Motion.Should().Be(MotionType.Kinematic);
         states.Should().BeEmpty("the Kepler driver moves the frame again");
-        (h.Frames.LocalPose(station).Position - orbit.StateAt(h.Time).Position).Length.Should().BeLessThan(1e-6);
+        (h.Frames.LocalPose(station).Position - orbit.StateAt(h.Time, EarthMu).Position).Length.Should().BeLessThan(1e-6);
         (h[station.Entity].Pose.Position - h.Frames.LocalPose(station).Position).Length.Should().BeLessThan(1e-3,
             "the kinematic hull is where the orbit puts the frame");
     }

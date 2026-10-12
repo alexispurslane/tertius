@@ -142,12 +142,13 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
         var physics = new FakePhysics();
         // Debug checks are off: the invariant tests run them over a workload that churns more. Here they would only slow the four runs.
         var world = new World(new WorldOptions { MaxDegreeOfParallelism = maxDop, ChunkSize = 16, SpawnPoolSize = 16, DebugChecks = false }, physics);
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e12f), MotionDriver.Static));
+        // The Kepler frame below takes its G·M from the point gravity of the root.
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e12f), MotionDriver.Static, GravityField.Point(1e9)));
         FrameHandle west = world.SpawnStaticFrame(root, TestWorld.At(-1000), radius: 200);
         FrameHandle east = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(1000, 1e9, spinRate: 0.05)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(1000, spinRate: 0.05)),
         }));
 
         // Bodies that drift past x = 20 in the west frame are handed off to the east frame, and close bodies collide.

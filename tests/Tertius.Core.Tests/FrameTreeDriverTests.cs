@@ -166,7 +166,7 @@ public class FrameTreeDriverTests
         var all = new List<FrameHandle>();
         for (int i = 0; i < 100; i++)
             all.Add(frames.Create(new Entity((uint)(i + 2), 1), root, DPose.Identity, FrameBounds.Sphere(1), (MotionDriver)(i % 4),
-                kepler: KeplerOrbit.Circular(1000 + i, 1e9), spinning: new FrameSpin(DQuaternion.Identity, i)));
+                kepler: KeplerOrbit.Circular(1000 + i), spinning: new FrameSpin(DQuaternion.Identity, i)));
 
         foreach (int i in new[] { 0, 63, 64, 99 })
         {

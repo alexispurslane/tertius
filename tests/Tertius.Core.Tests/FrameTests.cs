@@ -58,11 +58,11 @@ public class FrameTests
     public void CircularOrbitKeepsRadiusAndSpeed()
     {
         const double mu = 3.986004418e14, r = 7e6;
-        var orbit = KeplerOrbit.Circular(r, mu);
+        var orbit = KeplerOrbit.Circular(r);
         double speed = Math.Sqrt(mu / r);
-        for (double t = 0; t < orbit.Period; t += orbit.Period / 17)
+        for (double t = 0; t < orbit.Period(mu); t += orbit.Period(mu) / 17)
         {
-            var (p, v) = orbit.StateAt(t);
+            var (p, v) = orbit.StateAt(t, mu);
             Assert.Equal(r, p.Length, 3);
             Assert.Equal(speed, v.Length, 6);
             Assert.True(Math.Abs(Double3.Dot(p, v)) < 1e-3 * r * speed);
@@ -73,28 +73,28 @@ public class FrameTests
     [Fact]
     public void EllipticOrbitConservesEnergyAndReturnsAfterOnePeriod()
     {
-        var orbit = new KeplerOrbit(1e7, 0.6, 0.4, 1.0, 0.5, 0.3, 0, 3.986004418e14, DQuaternion.Identity, 0, 0);
-        double mu = orbit.ParentMu;
+        var orbit = new KeplerOrbit(1e7, 0.6, 0.4, 1.0, 0.5, 0.3, 0, DQuaternion.Identity, 0, 0);
+        const double mu = 3.986004418e14;
         double energy = -mu / (2 * orbit.SemiMajorAxis);
-        var (p0, _) = orbit.StateAt(0);
-        for (double t = 0; t < orbit.Period; t += orbit.Period / 23)
+        var (p0, _) = orbit.StateAt(0, mu);
+        for (double t = 0; t < orbit.Period(mu); t += orbit.Period(mu) / 23)
         {
-            var (p, v) = orbit.StateAt(t);
+            var (p, v) = orbit.StateAt(t, mu);
             double e = v.LengthSquared / 2 - mu / p.Length;
             Assert.True(Math.Abs((e - energy) / energy) < 1e-9, $"energy drift at t={t}");
         }
-        var (p1, _) = orbit.StateAt(orbit.Period);
+        var (p1, _) = orbit.StateAt(orbit.Period(mu), mu);
         Assert.True((p1 - p0).Length < 1e-3);
     }
 
     [Fact]
     public void OrbitVelocityIsDerivativeOfPosition()
     {
-        var orbit = new KeplerOrbit(2e7, 0.3, 0.2, 0.1, 1.1, 0, 0, 3.986004418e14, DQuaternion.Identity, 0, 0);
-        const double t = 1234.5, h = 1e-3;
-        var (pa, _) = orbit.StateAt(t - h);
-        var (pb, _) = orbit.StateAt(t + h);
-        var (_, v) = orbit.StateAt(t);
+        var orbit = new KeplerOrbit(2e7, 0.3, 0.2, 0.1, 1.1, 0, 0, DQuaternion.Identity, 0, 0);
+        const double mu = 3.986004418e14, t = 1234.5, h = 1e-3;
+        var (pa, _) = orbit.StateAt(t - h, mu);
+        var (pb, _) = orbit.StateAt(t + h, mu);
+        var (_, v) = orbit.StateAt(t, mu);
         Double3 numeric = (pb - pa) / (2 * h);
         Assert.True((numeric - v).Length < 1e-3, $"{numeric} vs {v}");
     }
@@ -102,11 +102,12 @@ public class FrameTests
     [Fact]
     public void SpinRotatesAboutLocalY()
     {
-        var orbit = KeplerOrbit.Circular(0, 0, spinRate: Math.PI / 2);
-        DQuaternion q = orbit.RotationAt(1);
+        const double mu = 3.986004418e14;
+        var orbit = KeplerOrbit.Circular(0, spinRate: Math.PI / 2);
+        DQuaternion q = orbit.RotationAt(1, mu);
         Double3 x = q.Rotate(Double3.UnitX);
         Assert.True((x - new Double3(0, 0, -1)).Length < 1e-12);
-        Assert.Equal(Math.PI / 2, orbit.AngularVelocityAt(0).Y, 6);
+        Assert.Equal(Math.PI / 2, orbit.AngularVelocityAt(0, mu).Y, 6);
     }
 
     [Fact]

@@ -212,13 +212,16 @@ public static class HostTesting
     /// The scene "ship-with-crate", with no physics. The root frame <c>space</c> holds the frame <c>ship</c> at (10, 0, 0),
     /// turned 90 degrees about +Y, which takes +X to -Z. The ship holds <c>crate</c> at (1, 0, 0), moving at (1, 2, 3) m/s
     /// and turning at (0.25, 0.5, 0.75) rad/s, and the frame <c>shuttle</c> at (0, 0, 2), which holds <c>pod</c> at
-    /// (1, 0, 0). Space also holds the frame <c>moon</c> on a Kepler orbit, and one entity with no scene id at (0, 5, 0).
+    /// (1, 0, 0). Space has a point gravity with G·M 1e9 m³/s², and it also holds the frame <c>moon</c> on a Kepler orbit around
+    /// that G·M, and one entity with no scene id at (0, 5, 0).
     /// They are made in that order.
     /// </summary>
     public static SceneInstance ShipWithCrate(World world)
     {
         var scene = new SceneInstance();
         FrameHandle space = Space(world);
+        // The moon takes its G·M from the point gravity of space. There is no physics, so nothing else feels it.
+        world.SetFrameGravity(space, GravityField.Point(1e9));
         var turned = new DPose(new Double3(10, 0, 0), DQuaternion.FromAxisAngle(new Double3(0, 1, 0), Math.PI / 2));
         FrameHandle ship = ChildFrame(world, space, turned);
         scene.Add("space", space);
@@ -236,7 +239,7 @@ public static class HostTesting
         scene.Add("moon", world.Spawn(new SpawnDesc
         {
             Frame = space,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(1000, 1e9)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(1000)),
         }));
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, 5) });
         return scene;

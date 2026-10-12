@@ -107,7 +107,7 @@ public static class DemoScenes
         {
             Frame = sun,
             AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu),
-                new KeplerOrbit(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, SunMu, obliquity, 0, 0)),
+                new KeplerOrbit(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, obliquity, 0, 0)),
         });
         scene.Add("earth", earthOwner);
         FrameHandle earth = world.GetOwnedFrame(earthOwner);
@@ -127,15 +127,17 @@ public static class DemoScenes
             },
         }));
 
-        // The circle that the ship starts on gives its state at the world's time. From there, gravity alone moves it.
-        KeplerOrbit start = KeplerOrbit.Circular(OrbitRadius, EarthMu) with { Inclination = OrbitInclination, Attitude = KeplerAttitude.FacesParent };
-        (Double3 position, Double3 velocity) = start.StateAt(world.Time);
+        // The circle that the ship starts on gives its state at the world's time. From there, gravity alone moves it. The
+        // circle takes the G·M of earth's own field, which is the G·M that pulls the ship.
+        double earthMu = world.Frames.Gravity(earth).Mu;
+        KeplerOrbit start = KeplerOrbit.Circular(OrbitRadius) with { Inclination = OrbitInclination, Attitude = KeplerAttitude.FacesParent };
+        (Double3 position, Double3 velocity) = start.StateAt(world.Time, earthMu);
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = earth,
-            Pose = new DPose(position, start.RotationAt(world.Time)),
+            Pose = new DPose(position, start.RotationAt(world.Time, earthMu)),
             LinearVelocity = velocity.ToVector3(),
-            AngularVelocity = start.AngularVelocityAt(world.Time).ToVector3(),
+            AngularVelocity = start.AngularVelocityAt(world.Time, earthMu).ToVector3(),
             // In Earth's frame the hull is a solid box. Inside the ship's own frame it is hollow: the person walks on its
             // floor, and goes out through the airlock along its outer faces.
             Body = new BodyDesc(new BoxShapeDesc(Hull), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,

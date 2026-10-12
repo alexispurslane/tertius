@@ -187,8 +187,9 @@ public class TransformTests
     public void TheOwnerOfAFrameThatADriverMovesCannotWriteItsTransform(MotionDriver driver)
     {
         using var test = new TestWorld();
-        // A Kepler frame needs an orbit. A physics frame without a hull body reaches the driver check of the world.
-        var orbit = driver == MotionDriver.Kepler ? KeplerOrbit.Circular(1000, 1e9) : default;
+        // A Kepler frame needs an orbit and a G·M to orbit. A physics frame without a hull body reaches the driver check of the world.
+        test.GiveRootPointGravity(1e9);
+        var orbit = driver == MotionDriver.Kepler ? KeplerOrbit.Circular(1000) : default;
         test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,

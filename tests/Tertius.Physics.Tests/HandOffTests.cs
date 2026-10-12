@@ -66,7 +66,7 @@ public class HandOffTests
         using var h = new PhysicsHarness();
         const double mu = 3.986004418e14;
         FrameHandle planet = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(mu));
-        var orbit = KeplerOrbit.Circular(7_000_000, mu, phase: 0.3, spinRate: 0.15);
+        var orbit = KeplerOrbit.Circular(7_000_000, phase: 0.3, spinRate: 0.15);
         var hull = new BodyDesc(new BoxShapeDesc(new Vector3(4)), InteriorShape: new SphereShapeDesc(1));
         FrameHandle station = h.AddFrameWithBody(planet, DPose.Identity, FrameBounds.Sphere(25), MotionDriver.Kepler, hull, orbit: orbit);
         Entity ball = h.AddBody(station, Shapes.Ball(0.2f), Shapes.At(0, 3, 10), velocity: new Vector3(0, 1, 8));
@@ -105,7 +105,7 @@ public class HandOffTests
         FrameHandle planet = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(mu));
         // Periapsis at t = 0 and apoapsis at half the 31.4 s period. The station turns at 0.389 rad/s at periapsis and
         // at 0.113 rad/s at apoapsis.
-        var orbit = new KeplerOrbit(5000, 0.3, 0, 0, 0, 0, 0, mu, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
+        var orbit = new KeplerOrbit(5000, 0.3, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
         var hull = new BodyDesc(new BoxShapeDesc(new Vector3(4)), InteriorShape: new SphereShapeDesc(1));
         FrameHandle station = h.AddFrameWithBody(planet, DPose.Identity, FrameBounds.Sphere(25), MotionDriver.Kepler, hull, orbit: orbit);
         // The ball drifts out along +Z at 1 m/s and leaves the bubble about 15.7 s later, near apoapsis.
@@ -126,7 +126,7 @@ public class HandOffTests
             return exit is not null;
         }, 1200);
         exit.Should().NotBeNull();
-        h.Time.Should().BeInRange(orbit.Period / 2 - 0.5, orbit.Period / 2 + 0.5);
+        h.Time.Should().BeInRange(orbit.Period(mu) / 2 - 0.5, orbit.Period(mu) / 2 + 0.5);
 
         // The harness has advanced the station to the end of the hand-off step, with the turn rate of that time.
         Double3 position = before.Pose.Position + (Double3)before.LinearVelocity * PhysicsHarness.Dt;
@@ -134,7 +134,7 @@ public class HandOffTests
         (exit!.Value.LinearVelocity - expected).Length.Should().BeLessThan(0.05);
 
         // The turn rate matters: the rate at periapsis would be off by about 7 m/s.
-        FrameMotionData atPeriapsis = new(h.Frames.LocalPose(station), h.Frames.LinearVelocity(station), orbit.AngularVelocityAt(0));
+        FrameMotionData atPeriapsis = new(h.Frames.LocalPose(station), h.Frames.LinearVelocity(station), orbit.AngularVelocityAt(0, mu));
         (ToParentVelocity(atPeriapsis, position, before.LinearVelocity) - expected).Length.Should().BeGreaterThan(5);
     }
 

@@ -28,8 +28,9 @@ public sealed partial class World
     /// before anything changes, for a description that the world cannot make live: a pose that is not valid (see
     /// <see cref="DPose.IsValid"/>), a velocity that is not finite, a body that physics cannot create (see
     /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>), a frame with a driver that its hull
-    /// cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>), a Kepler frame whose orbit is not valid, a Spin frame
-    /// whose spin is not valid, or a gravity field that is not valid.
+    /// cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>), a Kepler frame whose orbit is not valid, a Kepler frame
+    /// without a parent frame or in a parent whose gravity is not a point field with a G·M above 0 (see
+    /// <see cref="GravityField.CanBeOrbited"/>), a Spin frame whose spin is not valid, or a gravity field that is not valid.
     /// </summary>
     public Entity Spawn(SpawnDesc desc)
     {
@@ -51,9 +52,10 @@ public sealed partial class World
 
     /// <summary>
     /// Destroys an entity at once, together with its attached children. If it owns a frame, the frame's contents move
-    /// to the parent frame (or are destroyed, for a root frame). Returns false, and does nothing, if the entity is not
-    /// live: a stale or null handle, or an entity destroyed before. Outside a tick only; during a tick, send a
-    /// <see cref="Tertius.Destroy"/> message or call <see cref="Self.Destroy"/>.
+    /// to the parent frame (or are destroyed, for a root frame). A Kepler frame in it moves too, and it stops with the
+    /// static driver if the new parent has no point gravity to orbit (see <see cref="GravityField.CanBeOrbited"/>).
+    /// Returns false, and does nothing, if the entity is not live: a stale or null handle, or an entity destroyed before.
+    /// Outside a tick only; during a tick, send a <see cref="Tertius.Destroy"/> message or call <see cref="Self.Destroy"/>.
     /// </summary>
     public bool Destroy(Entity entity)
     {
@@ -123,7 +125,9 @@ public sealed partial class World
     /// <exception cref="ArgumentException">
     /// A frame that is gone. The physics driver for a frame with a parent whose owner's body cannot be dynamic: it has no
     /// mass, or it is a mesh, which never moves. The Kepler driver for a frame with a parent whose owner's body is a mesh.
-    /// The Kepler driver for a frame whose orbit is not valid (see <see cref="KeplerOrbit.IsValid"/>). The Spin driver for a
+    /// The Kepler driver for a frame whose orbit is not valid (see <see cref="KeplerOrbit.IsValid"/>). The Kepler driver for a
+    /// root frame, or for a frame whose parent has no point gravity with a G·M above 0 (see
+    /// <see cref="GravityField.CanBeOrbited"/>): the orbit takes its G·M from that field. The Spin driver for a
     /// frame with a parent whose owner's body is a mesh, or for a frame whose spin is not valid (see
     /// <see cref="FrameSpin.IsValid"/>). A root frame has no hull, so any body of its owner can have any driver. The frame
     /// keeps its driver.
@@ -140,6 +144,8 @@ public sealed partial class World
             throw new ArgumentException($"Cannot give {frame} the {driver} driver: the hull of its owner {frame.Entity} {problem}.", nameof(driver));
         if (driver == MotionDriver.Kepler && !Frames.Orbit(frame).IsValid)
             throw new ArgumentException($"Cannot give {frame} the Kepler driver: its orbit is not valid. Call SetFrameOrbit first.", nameof(driver));
+        if (driver == MotionDriver.Kepler && KeplerParentProblem(Frames.Parent(frame)) is { } noGM)
+            throw new ArgumentException($"Cannot give {frame} the Kepler driver: {noGM}.", nameof(driver));
         if (driver == MotionDriver.Spin && !Frames.Spin(frame).IsValid)
             throw new ArgumentException($"Cannot give {frame} the Spin driver: its spin is not valid. Call SetFrameSpin first.", nameof(driver));
 
@@ -186,7 +192,10 @@ public sealed partial class World
     /// </summary>
     /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
     /// <exception cref="ArgumentException">
-    /// A frame that is gone, or an orbit that is not valid (see <see cref="KeplerOrbit.IsValid"/>). The frame keeps its orbit.
+    /// A frame that is gone, or an orbit that is not valid (see <see cref="KeplerOrbit.IsValid"/>). A root frame, or a frame
+    /// whose parent has no point gravity with a G·M above 0 (see <see cref="GravityField.CanBeOrbited"/>), because the orbit
+    /// takes its G·M from that field and so there is none to orbit. This holds for a frame with any driver, because the
+    /// frame can take the Kepler driver later. The frame keeps its orbit.
     /// </exception>
     public void SetFrameOrbit(FrameHandle frame, in KeplerOrbit orbit)
     {
@@ -195,6 +204,8 @@ public sealed partial class World
             throw new ArgumentException($"Cannot set the orbit of {frame}: the frame is gone.", nameof(frame));
         if (!orbit.IsValid)
             throw new ArgumentException($"Cannot give {frame} this orbit: the orbit is not valid (see KeplerOrbit.IsValid).", nameof(orbit));
+        if (KeplerParentProblem(Frames.Parent(frame)) is { } noGM)
+            throw new ArgumentException($"Cannot give {frame} this orbit: {noGM}.", nameof(orbit));
 
         Frames.SetOrbit(frame, orbit);
         if (Frames.Driver(frame) == MotionDriver.Kepler)
@@ -211,7 +222,9 @@ public sealed partial class World
     /// </summary>
     /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
     /// <exception cref="ArgumentException">
-    /// A frame that is gone, or a field that is not valid (see <see cref="GravityField.IsValid"/>). The frame keeps its field.
+    /// A frame that is gone, or a field that is not valid (see <see cref="GravityField.IsValid"/>). A field that is not a point
+    /// field with the same G·M as the current one, for a frame with a Kepler child: the child orbits that G·M, so another one
+    /// would make it jump. The frame keeps its field.
     /// </exception>
     public void SetFrameGravity(FrameHandle frame, in GravityField gravity)
     {
@@ -220,6 +233,11 @@ public sealed partial class World
             throw new ArgumentException($"Cannot set the gravity of {frame}: the frame is gone.", nameof(frame));
         if (!gravity.IsValid)
             throw new ArgumentException($"Cannot give {frame} this gravity field: the field is not valid (see GravityField.IsValid).", nameof(gravity));
+        GravityField current = Frames.Gravity(frame);
+        if (!(gravity.CanBeOrbited && gravity.Mu == current.Mu) && KeplerChildOf(frame) is { IsNull: false } orbiter)
+            throw new ArgumentException(
+                $"Cannot give {frame} this gravity field: its child {orbiter} has the Kepler driver and orbits the G·M {current.Mu} m³/s² of the current field. " +
+                "The new field must be a point field with the same G·M, or the child would jump.", nameof(gravity));
 
         Frames.SetGravity(frame, gravity);
     }
@@ -276,6 +294,8 @@ public sealed partial class World
                 throw new ArgumentException($"MotionDriver does not define the driver {spec.Driver}.", nameof(desc));
             if (spec.Driver == MotionDriver.Kepler && !spec.Orbit.IsValid)
                 throw new ArgumentException("A frame with the Kepler driver needs an orbit that it can follow: this orbit is not valid (see KeplerOrbit.IsValid).", nameof(desc));
+            if (spec.Driver == MotionDriver.Kepler && KeplerParentProblem(desc.Frame) is { } noGM)
+                throw new ArgumentException($"Cannot spawn a frame with the Kepler driver: {noGM}.", nameof(desc));
             if (spec.Driver == MotionDriver.Spin && !spec.Spin.IsValid)
                 throw new ArgumentException("A frame with the Spin driver needs a spin that it can follow: this spin is not valid (see FrameSpin.IsValid).", nameof(desc));
             if (!spec.Gravity.IsValid)
@@ -492,10 +512,49 @@ public sealed partial class World
         dying.Clear();
 
         // Every dying frame is gone now, so the frame tree holds each moved child frame under its final parent, with
-        // its pose and velocity converted. The owner's row mirrors that exactly.
+        // its pose and velocity converted. A Kepler frame can have no G·M to orbit there. The owner's row mirrors the
+        // frame exactly.
         foreach (Entity owner in movedFrameOwners)
-            MirrorFrameOwner(entities.OwnedFrame(owner));
+        {
+            FrameHandle moved = entities.OwnedFrame(owner);
+            StopKeplerFrameWithoutGM(moved);
+            MirrorFrameOwner(moved);
+        }
         movedFrameOwners.Clear();
+    }
+
+    /// <summary>
+    /// Why a Kepler frame cannot orbit in <paramref name="parent"/>, or null when it can. The Kepler motion takes its G·M
+    /// from the point gravity of the parent, so that a Kepler frame and the loose bodies in its parent fall on the same G·M.
+    /// A null parent is the virtual root above every root frame.
+    /// </summary>
+    private string? KeplerParentProblem(FrameHandle parent) =>
+        parent.IsNull ? "it is a root frame, so it has no parent and no G·M to orbit" :
+        !Frames.Gravity(parent).CanBeOrbited ? $"its parent {parent} has no point gravity with a G·M above 0, so it has no G·M to orbit" :
+        null;
+
+    /// <summary>The first child of <paramref name="frame"/> that has the Kepler driver, or null.</summary>
+    private FrameHandle KeplerChildOf(FrameHandle frame)
+    {
+        var children = new List<FrameHandle>();
+        Frames.GetChildren(frame, children);
+        foreach (FrameHandle child in children)
+            if (Frames.Driver(child) == MotionDriver.Kepler)
+                return child;
+        return FrameHandle.Null;
+    }
+
+    /// <summary>
+    /// A Kepler frame whose parent was destroyed has moved to the grandparent. If that frame has no point gravity, the
+    /// Kepler frame has no G·M to orbit, so it gets the static driver and stops where it is, as for
+    /// <see cref="SetFrameDriver"/>. The game caused this by destroying the parent, so it is a log line, not an error.
+    /// </summary>
+    private void StopKeplerFrameWithoutGM(FrameHandle frame)
+    {
+        if (Frames.Driver(frame) != MotionDriver.Kepler || KeplerParentProblem(Frames.Parent(frame)) is not { } noGM)
+            return;
+        Frames.SetDriver(frame, MotionDriver.Static);
+        Report($"tick {TickNumber}: {frame} stopped and got the Static driver, because its parent was destroyed and {noGM}.", isError: false);
     }
 
     /// <summary>The nearest ancestor of a frame whose owner is not in the destroy batch, or null.</summary>
@@ -582,13 +641,18 @@ public sealed partial class World
         AngularVelocity = Frames.AngularVelocity(frame),
     };
 
+    /// <summary>
+    /// Puts a Kepler frame at its place on its orbit at <paramref name="time"/>. The orbit takes its G·M from the point
+    /// gravity of the parent, the field that pulls the loose bodies in the parent (see <see cref="FrameTree.KeplerMu"/>).
+    /// </summary>
     private void ApplyKepler(FrameHandle frame, double time)
     {
         KeplerOrbit orbit = Frames.Orbit(frame);
-        (Double3 position, Double3 velocity) = orbit.StateAt(time);
-        Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(time)));
+        double parentMu = Frames.KeplerMu(frame);
+        (Double3 position, Double3 velocity) = orbit.StateAt(time, parentMu);
+        Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(time, parentMu)));
         Frames.LinearVelocity(frame) = velocity;
-        Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(time).ToVector3();
+        Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(time, parentMu).ToVector3();
         Frames.ProperAcceleration(frame) = Vector3.Zero;
     }
 

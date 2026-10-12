@@ -8,7 +8,8 @@ namespace Tertius.Simulation.Tests;
 /// ticks per second, which is a power of two, so the time step is exactly 1/64 s and a quarter period is exactly 64 ticks
 /// with no rounding. The expected positions come from the geometry of the orbit, not from the orbit code: for a circle
 /// of radius a, the position at mean anomaly M is (a cos M, 0, -a sin M), and the speed is a times the mean motion n.
-/// The orbit runs counterclockwise seen from +Y, from the parent's +X toward its -Z.
+/// The orbit runs counterclockwise seen from +Y, from the parent's +X toward its -Z. An orbit has no G·M of its own: the
+/// root frame has a point gravity, and the Kepler frames in it take their G·M from that field.
 /// </summary>
 public class KeplerFrameTests
 {
@@ -25,22 +26,34 @@ public class KeplerFrameTests
         return n * n * semiMajorAxis * semiMajorAxis * semiMajorAxis;
     }
 
-    private static KeplerOrbit Circle(double radius, double spinRate = 0) => KeplerOrbit.Circular(radius, MuFor(radius), spinRate: spinRate);
+    /// <summary>The semi-major axis of the orbits that go round the root, in meters.</summary>
+    private const double RootOrbitRadius = 1000;
+
+    /// <summary>The G·M of the point gravity of the root: the one that gives an orbit of <see cref="RootOrbitRadius"/> the period 4 s.</summary>
+    private static readonly double RootMu = MuFor(RootOrbitRadius);
+
+    private static KeplerOrbit Circle(double radius, double spinRate = 0) => KeplerOrbit.Circular(radius, spinRate: spinRate);
 
     private static KeplerOrbit Ellipse(double semiMajorAxis, double eccentricity) =>
-        new(semiMajorAxis, eccentricity, 0, 0, 0, 0, 0, MuFor(semiMajorAxis), DQuaternion.Identity, 0, 0);
+        new(semiMajorAxis, eccentricity, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0);
 
-    private static TestWorld NewWorld(double startTime = 0) => new(configure: options =>
+    private static TestWorld NewWorld(double startTime = 0)
     {
-        options.TickRate = 64;
-        options.StartTime = startTime;
-    });
+        var test = new TestWorld(configure: options =>
+        {
+            options.TickRate = 64;
+            options.StartTime = startTime;
+        });
+        test.GiveRootPointGravity(RootMu);
+        return test;
+    }
 
-    private static Entity SpawnKeplerFrame(TestWorld test, KeplerOrbit orbit, FrameHandle parent = default, params IComponent[] components) =>
+    private static Entity SpawnKeplerFrame(TestWorld test, KeplerOrbit orbit, FrameHandle parent = default, GravityField gravity = default,
+        params IComponent[] components) =>
         test.World.Spawn(new SpawnDesc
         {
             Frame = parent.IsNull ? test.Root : parent,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler, Orbit: orbit),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler, gravity, orbit),
             Components = components,
         });
 
@@ -184,9 +197,10 @@ public class KeplerFrameTests
     public void AMoonRidesItsPlanetAlongTheMoonsOwnOrbit()
     {
         using var test = NewWorld();
-        FrameHandle planet = test.World.GetOwnedFrame(SpawnKeplerFrame(test, Circle(1000)));
         // The moon's period is 2 s, so it is half a turn round the planet after one second, when the planet is a quarter turn round the root.
-        var moonOrbit = KeplerOrbit.Circular(10, MuFor(10, periodSeconds: 2));
+        // The planet's own point gravity has the G·M that gives a circle of 10 m the period 2 s.
+        FrameHandle planet = test.World.GetOwnedFrame(SpawnKeplerFrame(test, Circle(1000), gravity: GravityField.Point(MuFor(10, periodSeconds: 2))));
+        var moonOrbit = KeplerOrbit.Circular(10);
         FrameHandle moon = test.World.GetOwnedFrame(SpawnKeplerFrame(test, moonOrbit, planet));
         Entity base_ = test.World.SpawnAt(moon, Double3.Zero);
 

@@ -267,6 +267,8 @@ public sealed partial class World : IDisposable
     /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state. Every live
     /// frame's topic resolves.</item>
     /// <item>Only a character can be standing.</item>
+    /// <item>Every frame with the Kepler driver has a parent whose gravity is a point field with a G·M above 0
+    /// (see <see cref="FrameTree.AssertInvariants"/>).</item>
     /// </list>
     /// </summary>
     internal void AssertInvariants()
@@ -302,6 +304,7 @@ public sealed partial class World : IDisposable
             FrameHandle frame = Frames.AtDense(i);
             Contract.Invariant(entities.IsAlive(frame.Entity) && entities.OwnedFrame(frame.Entity) == frame && topics.IsLive(frame));
         }
+        Frames.AssertInvariants();
     }
 
     // ---- Helpers --------------------------------------------------------------------------------------------------

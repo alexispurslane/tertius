@@ -421,14 +421,14 @@ The frame section `asFrame` maps to `FrameSpec`.
 
 An orbit has one of two kinds:
 
-- `{"kind": "elements", ...}` holds the elements of `KeplerOrbit`: `semiMajorAxis` (m), `eccentricity`, `inclination`, `longitudeOfAscendingNode`, `argumentOfPeriapsis`, `meanAnomalyAtEpoch` (rad), `epoch` (s), `parentMu` (m³/s²), `axialTilt` (a rotation), `spinRate` (rad/s) and `spinPhaseAtEpoch` (rad).
-- `{"kind": "circular", "radius": r, "phase": p, "spinRate": s, "parentMu": μ}` calls `KeplerOrbit.Circular`.
+- `{"kind": "elements", ...}` holds the elements of `KeplerOrbit`: `semiMajorAxis` (m), `eccentricity`, `inclination`, `longitudeOfAscendingNode`, `argumentOfPeriapsis`, `meanAnomalyAtEpoch` (rad), `epoch` (s), `axialTilt` (a rotation), `spinRate` (rad/s) and `spinPhaseAtEpoch` (rad).
+- `{"kind": "circular", "radius": r, "phase": p, "spinRate": s}` calls `KeplerOrbit.Circular`.
 
-If `parentMu` is absent, the scene preparer takes μ from the point gravity of the parent frame. If the parent frame has no point gravity, that is error CT7006. So μ lives in one place. The orbit conventions are the engine's. The reference plane is the XZ plane of the parent, and +Y is the orbit normal at zero inclination. The rotation order is Ω about +Y, then i about +X, then ω about +Y.
+An orbit has no μ. (User) The Kepler motion takes μ from the point gravity of the parent frame, so μ lives in one place, and a Kepler frame and the loose bodies in its parent fall on the same G·M. If the parent frame has no point gravity with a μ above 0, that is error CT7006. The orbit conventions are the engine's. The reference plane is the XZ plane of the parent, and +Y is the orbit normal at zero inclination. The rotation order is Ω about +Y, then i about +X, then ω about +Y.
 
 A blueprint can leave out the orbit, as the corvette does, because the scene gives it. Three rules keep an incomplete orbit out of a running world:
 
-- The scene preparer makes sure that every Kepler frame has an orbit with a semi-major axis and a parent μ above 0 (CT7007).
+- The scene preparer makes sure that every Kepler frame has an orbit with a semi-major axis above 0 (CT7007), and a parent frame with point gravity (CT7006).
 - A `BlueprintId` field that names a Kepler blueprint without a complete orbit is error CT3012. A component can then never spawn a frame that stays at the origin of its parent.
 - `World.Spawn` rejects such a `FrameSpec` with an ordinary argument guard (see "Engine changes for this plan").
 
@@ -469,6 +469,7 @@ Before it spawns anything, the preparer enforces these rules. Each broken rule i
 - `frame` names a frame entity of the same scene (CT7002, CT7003).
 - The `frame` and `attachTo` references form no cycle (CT7001).
 - Every Kepler frame has a complete orbit, and no other frame has an orbit (CT7007).
+- The parent frame of every Kepler frame has a point gravity with a μ above 0 (CT7006).
 - `camera` names an entity, and `sun.frame` names a frame entity (CT7008).
 
 The spawner spawns every entity with `World.Spawn(SpawnDesc)`, root frames too. A root frame gets a `SpawnDesc` with `AsFrame` set and no `Frame`, so it keeps its components, subscriptions and render data. `World.CreateRootFrame` takes no components, so the spawner does not use it.
@@ -538,7 +539,7 @@ This example scene is `content/tertius.demo/scenes/start.scene.json`. It has a s
 In this example:
 
 - `sol` is the root frame, with no `frame` and no pose. `stars/sol` has point gravity with μ 1.32712440018e20 m³/s² and a 1e13 m bubble.
-- `planets/terra` has a Kepler driver, point gravity with μ 3.986004418e14 m³/s² and a 9e8 m bubble. Its orbit has no `parentMu`, so the preparer takes μ from `sol`. It does not turn: its tilt makes its axes follow the equator.
+- `planets/terra` has a Kepler driver, point gravity with μ 3.986004418e14 m³/s² and a 9e8 m bubble. Its orbit holds no μ: it uses the μ of the point gravity of `sol`. It does not turn: its tilt makes its axes follow the equator.
 - `planets/terra-surface` has the Spin driver, point gravity with the same μ, a bubble that ends at the top of the air, and the 6.371e6 m sphere. It turns once per sidereal day and holds the ground.
 - `corvette` orbits 400 km above the surface, in `terra`, not in `terra-surface`. A Kepler orbit is in the axes of its parent, so in the turning frame the orbit would turn once a day with the ground. The entities in the corvette's frame have poses in ship axes.
 - The doors take their poses from nodes of the ship model, and only `airlock-outer` overrides `openSeconds`. `innerDoor` and `outerDoor` are `Entity` fields with scene ids.
@@ -688,7 +689,7 @@ This plan owns the codes CT2xxx (JSON syntax), CT3xxx (values) and CT7xxx (scene
 | CT7003 | Unknown scene id |
 | CT7004 | The entry has a key that this kind of entity cannot have. |
 | CT7005 | The entry has no frame, no attachment parent and no frame section. |
-| CT7006 | A Kepler orbit has no `parentMu`, and its parent frame has no point gravity. |
+| CT7006 | A Kepler orbit's parent frame has no point gravity |
 | CT7007 | A Kepler frame has no complete orbit, or a frame with another driver has an orbit. |
 | CT7008 | `camera` or `sun.frame` names a wrong entity. |
 
@@ -924,7 +925,7 @@ Each change goes into Simulation or Core test-first, and the existing tests stay
 5. `BlueprintId`: an index into one registry plus the tag of that registry, with no public constructor. A registry tag is a number that is unique to one registry. `Blueprints.Declare(IReadOnlyList<string>)` gives every blueprint id its `BlueprintId` before any blueprint registers. The loader declares the ids in ordinal order, so a field can name a blueprint that registers later, or its own blueprint. `World.Spawn(BlueprintId, ...)` and `Self.Spawn(BlueprintId, ...)` use it. A component field of this type resolves at load time, so a typo fails at load and not in the middle of a game. A spawn with the tag of another registry throws, like a stale entity handle. `Blueprints.IdOf(string)` gives the id of a declared blueprint to engine code and tests.
 6. `Blueprints.Freeze()`: after it, `Register` throws. A content set freezes its registry, so worlds can share it safely.
 7. `WorldOptions.Blueprints`: the registry to share. Null keeps today's behavior, a fresh empty registry.
-8. `World.Spawn` rejects a Kepler `FrameSpec` whose orbit has a `SemiMajorAxis` or a `ParentMu` that is not above 0. This is an ordinary argument guard in every build. `StateAt` of a default `KeplerOrbit` returns zero, so without the guard such a frame stays at the origin of its parent with no error.
+8. `KeplerOrbit` has no `ParentMu`. (User) Each member that needs a G·M takes it as a parameter: `StateAt(time, parentMu)`, `RotationAt(time, parentMu)`, `AngularVelocityAt(time, parentMu)`, `MeanMotion(parentMu)` and `Period(parentMu)`. `KeplerOrbit.Circular(radius, phase, spinRate)` has no μ. The World and physics take μ from the point gravity of the parent frame (`FrameTree.KeplerMu`). `World.Spawn` rejects a Kepler `FrameSpec` whose orbit has a `SemiMajorAxis` that is not above 0, and a Kepler `FrameSpec` without a parent frame or in a parent whose gravity is not a point field with a G·M above 0. `SetFrameDriver` and `SetFrameOrbit` refuse the same frames, and `SetFrameGravity` refuses any field but a point field with the same G·M for a frame with a Kepler child. These are ordinary argument guards in every build. `StateAt` of a default `KeplerOrbit` returns zero, so without the guard such a frame stays at the origin of its parent with no error.
 9. `TextureSlot` in Core, and `TextureSlotAttribute` and `UnionCaseAttribute` in Simulation, as shown in "Code".
 
 The string overloads `World.Spawn(string, ...)` and `Self.Spawn(string, ...)` stay for tests and tools. The content packages work marks the `Self` overload `[EngineOnly]`, so mod code spawns only through `BlueprintId` fields that the loader checked.
@@ -980,7 +981,7 @@ Loading never runs during a tick.
 - The Blueprints section: blueprints come from files, inheritance uses the merge rule, the registry is frozen and shared per content set, and `BlueprintId` exists. Bound field values are immutable and shared by every spawn.
 - A new section, "Content files": the units, the degree and sRGB literals, the value grammar, the merge rule and the scene spawn order. It also states that content files are plain JSON, which System.Text.Json binds with one options instance per code set.
 - Projects: `src/Tertius.Content` depends on Core and Simulation.
-- Frames: `World.Spawn` rejects an incomplete Kepler orbit.
+- Frames: `World.Spawn` rejects an incomplete Kepler orbit, and a Kepler frame whose parent has no point gravity. The orbit holds no G·M.
 
 ## Steps
 
@@ -996,7 +997,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
 8. Make the Simulation and Core changes 2 to 9, one at a time, each with its tests first.
 9. Write the file model types and their mapping to engine types. Test each example section of this plan against hand-built `BodyDesc`, `RenderData` and `FrameSpec` values. Use a fake `IAssetResolver` that records its calls. The keys `render.model` and `emissiveMap` bind from step 14 of the asset pipeline design, so their tests come with that step.
 10. Load blueprints with a fake `IContentScope` that holds one package from a test folder. Test the qualification of references, inheritance, an abstract parent without required keys, topics, shared `ShapeDesc` objects, and inline primitives and materials. Test the order of the resolver calls. Done: the example blueprints without `render.model` register and spawn.
-11. Prepare and spawn scenes. Test the spawn order, root frames with components and topics, the `parentMu` default and attachments. Test `Entity` and `FrameHandle` fields, the scene-wide values and every CT7xxx code. Done: the example scene spawns, and one tick runs.
+11. Prepare and spawn scenes. Test the spawn order, root frames with components and topics, CT7006 and attachments. Test `Entity` and `FrameHandle` fields, the scene-wide values and every CT7xxx code. Done: the example scene spawns, and one tick runs.
 12. Write the schema writer. Approve the generated schemas of the example package after a review. Add `check-jsonschema` to the dev shell and write the conformance test. Open the examples in VS Code. Make sure that component names, keys, enum names and union kinds complete, and that a wrong value gets a mark.
 13. Write benchmarks for the budgets and report the numbers.
 
@@ -1008,7 +1009,7 @@ The content packages work then replaces the fake scope with real packages.
 - A corpus of files in `tests/Tertius.Content.Tests/Corpus/good/` and `bad/`. Each bad file has an `.expected.json` file with the expected code, line and column of each error. A new wording of a message does not break a test, but a new code or position does.
 - Determinism: one scene spawned into two fresh worlds gives the same handles and poses. A parallel parse of the corpus gives the same trees and diagnostics as a serial parse.
 - Lock-in tests for the decisions:
-  - The degree literal, the default render flags and the `parentMu` default.
+  - The degree literal, the default render flags and the single source of μ: an orbit has no `parentMu`, and a Kepler frame without a parent that has point gravity is CT7006.
   - The union rule of the merge: a member named `kind` outside a union merges field by field.
   - Arrays and converter values that replace, and the spawn order tie-break.
   - Two spawns of one blueprint share one `ImmutableArray`, and a mutable member type gives CT3005.

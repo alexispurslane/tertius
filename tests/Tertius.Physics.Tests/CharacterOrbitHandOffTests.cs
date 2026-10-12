@@ -63,7 +63,7 @@ public class CharacterOrbitHandOffTests
         using var h = new PhysicsHarness();
         FrameHandle sun = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e13f), MotionDriver.Static, GravityField.Point(SunMu));
         run.Earth = h.AddFrame(sun, DPose.Identity, FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu),
-            KeplerOrbit.Circular(1.496e11, SunMu));
+            KeplerOrbit.Circular(1.496e11));
         var hull = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1));
         var cabin = new BoundingBox(new Vector3(-9.5f, -3.5f, -29.5f), new Vector3(9.5f, 3.5f, 29.5f));
         run.Ship = h.AddFrameWithBody(run.Earth, new DPose(new Double3(OrbitRadius, 0, 0), ShipAttitude), FrameBounds.Sphere(100), MotionDriver.Physics, hull,

@@ -12,7 +12,7 @@ public class WorldFacingFrameTests
 {
     // A station 5 km from a planet's center that goes round in about 31 s, so 10 s of ticks turn it by 2 radians.
     private const double PlanetMu = 5e9;
-    private static readonly KeplerOrbit Facing = KeplerOrbit.Circular(5000, PlanetMu) with { Attitude = KeplerAttitude.FacesParent };
+    private static readonly KeplerOrbit Facing = KeplerOrbit.Circular(5000) with { Attitude = KeplerAttitude.FacesParent };
 
     private static (World World, JoltPhysicsBackend Backend, FrameHandle Planet, Entity Owner) Station()
     {
@@ -64,7 +64,7 @@ public class WorldFacingFrameTests
         {
             FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)));
             // Periapsis at t = 0, apoapsis at half the 31.4 s period.
-            var oval = new KeplerOrbit(5000, 0.3, 0, 0, 0, 0, 0, PlanetMu, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
+            var oval = new KeplerOrbit(5000, 0.3, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
             Entity owner = world.Spawn(new SpawnDesc
             {
                 Frame = planet,

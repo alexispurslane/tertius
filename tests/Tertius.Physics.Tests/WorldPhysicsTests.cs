@@ -119,7 +119,9 @@ public class WorldPhysicsTests
     {
         var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
         using World world = NewWorld(backend);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        // At 5 km, a parent with this gravitational parameter gives an orbital speed of 10 m/s: √(5e5 / 5000).
+        const double planetMu = 5000.0 * 100;
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(planetMu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
@@ -129,13 +131,12 @@ public class WorldPhysicsTests
         });
         FrameHandle station = world.GetOwnedFrame(owner);
         world.Tick();
-        // At 5 km, a parent with this gravitational parameter gives an orbital speed of 10 m/s.
-        KeplerOrbit orbit = KeplerOrbit.Circular(5000, 5000.0 * 100);
+        KeplerOrbit orbit = KeplerOrbit.Circular(5000);
         world.SetFrameOrbit(station, orbit);
 
         world.SetFrameDriver(station, MotionDriver.Kepler);
 
-        (Double3 onOrbit, Double3 orbitalVelocity) = orbit.StateAt(world.Time);
+        (Double3 onOrbit, Double3 orbitalVelocity) = orbit.StateAt(world.Time, planetMu);
         (world.Frames.LocalPose(station).Position - onOrbit).Length.Should().BeLessThan(1e-6, "the station moved onto its orbit at once");
         (world.Frames.LinearVelocity(station) - orbitalVelocity).Length.Should().BeLessThan(1e-6);
         world.GetPose(owner).Should().Be(world.Frames.LocalPose(station), "the owner mirrors its frame at once");
@@ -144,7 +145,7 @@ public class WorldPhysicsTests
 
         JoltPhysicsBackend.BodyFacts hull = backend.BodiesIn(planet).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
         hull.LinearVelocity.Length().Should().BeApproximately(10f, 0.01f, "the hull moves along the orbit, not across the gap");
-        (hull.Position - orbit.StateAt(world.Time).Position).Length.Should().BeLessThan(0.01, "the hull is on the orbit");
+        (hull.Position - orbit.StateAt(world.Time, planetMu).Position).Length.Should().BeLessThan(0.01, "the hull is on the orbit");
         world.Errors.Should().BeEmpty();
     }
 

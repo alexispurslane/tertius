@@ -716,11 +716,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
         if (driver == MotionDriver.Kepler)
         {
+            // The same G·M as the simulation uses: the point gravity of the parent, which also pulls the bodies in the parent.
             KeplerOrbit orbit = frames.Orbit(frame);
-            if (OrbitMatchesTree(orbit, pose))
+            double parentMu = frames.KeplerMu(frame);
+            if (OrbitMatchesTree(orbit, parentMu, pose))
             {
-                var (position, velocity) = orbit.StateAt(time);
-                return new FrameMotion(new DPose(position, orbit.RotationAt(time)), velocity, orbit.AngularVelocityAt(time));
+                var (position, velocity) = orbit.StateAt(time, parentMu);
+                return new FrameMotion(new DPose(position, orbit.RotationAt(time, parentMu)), velocity, orbit.AngularVelocityAt(time, parentMu));
             }
         }
 
@@ -731,13 +733,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         return new FrameMotion(extrapolated, linear, angular);
     }
 
-    private bool OrbitMatchesTree(in KeplerOrbit orbit, in DPose treePose)
+    private bool OrbitMatchesTree(in KeplerOrbit orbit, double parentMu, in DPose treePose)
     {
-        var (position, _) = orbit.StateAt(stepTime);
+        var (position, _) = orbit.StateAt(stepTime, parentMu);
         double tolerance = 1e-3 + 1e-9 * treePose.Position.Length;
         if ((position - treePose.Position).Length > tolerance)
             return false;
-        DQuaternion rotation = orbit.RotationAt(stepTime);
+        DQuaternion rotation = orbit.RotationAt(stepTime, parentMu);
         DQuaternion q = treePose.Rotation;
         double dot = Math.Abs(rotation.X * q.X + rotation.Y * q.Y + rotation.Z * q.Z + rotation.W * q.W);
         return dot > 1 - 1e-6;

@@ -7,6 +7,13 @@ namespace Tertius;
 /// Per-frame data lives in parallel arrays, indexed by the frame's stable index.
 /// Mutate the tree only at the sync point, then call <see cref="Update"/>. During a tick, the tree is read-only
 /// and safe to read from any thread.
+/// <para>
+/// Invariant, checked by <see cref="AssertInvariants"/>: every frame with the <see cref="MotionDriver.Kepler"/> driver has a
+/// parent whose gravity is a point field with a G·M above 0 (see <see cref="GravityField.CanBeOrbited"/>). An orbit has no
+/// G·M of its own. A Kepler frame takes the G·M of its parent's point gravity (see <see cref="KeplerMu"/>), the same G·M
+/// that pulls the loose bodies in that parent. The tree does not keep the invariant: its setters take what they are given.
+/// The World does, because it refuses every call that would break it.
+/// </para>
 /// </summary>
 public sealed class FrameTree
 {
@@ -213,8 +220,38 @@ public sealed class FrameTree
     /// Gives a frame a new gravity field. Physics wakes the frame's bodies at the start of its next step. Throws
     /// <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
-    /// <remarks>Only the simulation calls it, through <c>World.SetFrameGravity</c>, which refuses a field that is not valid.</remarks>
+    /// <remarks>
+    /// Only the simulation calls it, through <c>World.SetFrameGravity</c>, which refuses a field that is not valid, and a
+    /// field that would leave a Kepler child of the frame without the G·M that it orbits.
+    /// </remarks>
     internal void SetGravity(FrameHandle frame, in GravityField value) => gravity[Node(frame).Id] = value;
+
+    /// <summary>
+    /// The G·M that the Kepler motion of <paramref name="frame"/> uses, in m³/s²: the G·M of the point gravity of its parent
+    /// frame. The orbit has none of its own (see <see cref="KeplerOrbit"/>), so a Kepler frame and the loose bodies in its
+    /// parent fall on the same G·M. Zero for a frame without a parent, or whose parent has no point gravity with a G·M above
+    /// 0, which leaves <see cref="KeplerOrbit.StateAt"/> at zero. A frame with the Kepler driver is never in that state
+    /// (see <see cref="AssertInvariants"/>). Throws <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    public double KeplerMu(FrameHandle frame)
+    {
+        FrameHandle parent = Parent(frame);
+        return !parent.IsNull && Gravity(parent) is { CanBeOrbited: true } field ? field.Mu : 0;
+    }
+
+    /// <summary>
+    /// Checks the invariant of the tree (see the class summary): every frame with the Kepler driver has a G·M to orbit.
+    /// O(frames). It runs only on demand, so it works in every build.
+    /// </summary>
+    internal void AssertInvariants()
+    {
+        for (int i = 0; i < poses.Count; i++)
+        {
+            FrameHandle frame = AtDense(i);
+            if (Driver(frame) == MotionDriver.Kepler)
+                Contract.Invariant(KeplerMu(frame) > 0);
+        }
+    }
 
     /// <summary>Linear velocity of the frame origin relative to the parent, in parent axes.</summary>
     public ref Double3 LinearVelocity(FrameHandle frame) => ref linearVelocity[Node(frame).Id];

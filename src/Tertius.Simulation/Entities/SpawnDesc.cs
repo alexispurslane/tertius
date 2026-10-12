@@ -46,6 +46,9 @@ public sealed class SpawnDesc
 /// <param name="Bounds">The bubble that decides which objects belong to the frame.</param>
 /// <param name="Driver">What moves the frame.</param>
 /// <param name="Gravity">The gravity field that objects inside feel.</param>
-/// <param name="Orbit">The orbit around the parent, for <see cref="MotionDriver.Kepler"/>.</param>
+/// <param name="Orbit">
+/// The orbit around the parent, for <see cref="MotionDriver.Kepler"/>. It takes its G·M from the point gravity of the parent
+/// frame, so the parent must have one (see <see cref="GravityField.CanBeOrbited"/>).
+/// </param>
 /// <param name="Spin">How the frame turns in place, for <see cref="MotionDriver.Spin"/>.</param>
 public sealed record FrameSpec(FrameBounds Bounds, MotionDriver Driver, GravityField Gravity = default, KeplerOrbit Orbit = default, FrameSpin Spin = default);

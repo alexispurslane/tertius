@@ -11,7 +11,7 @@ public class FrameHullTests
     {
         using var h = new PhysicsHarness();
         FrameHandle planet = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu));
-        var orbit = KeplerOrbit.Circular(7_000_000, EarthMu, phase: 1.0, spinRate: 0.05);
+        var orbit = KeplerOrbit.Circular(7_000_000, phase: 1.0, spinRate: 0.05);
         FrameHandle station = h.AddFrameWithBody(planet, DPose.Identity, FrameBounds.Sphere(100),
             MotionDriver.Kepler, new BodyDesc(new BoxShapeDesc(new Vector3(10))), orbit: orbit);
 

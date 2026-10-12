@@ -210,7 +210,7 @@ Frames form a tree. Each frame has a double-precision `DPose` relative to its pa
 | `Owner` | The entity that is the frame |
 | `Bounds` | The ellipsoid radii of the bubble, in frame axes |
 | `Driver` | `MotionDriver.Kepler`, `MotionDriver.Spin`, `MotionDriver.Physics` or `MotionDriver.Static` |
-| `Orbit` | Kepler elements, for Kepler frames |
+| `Orbit` | Kepler elements, for Kepler frames. They hold no G·M: the frame takes it from the gravity of its parent |
 | `Spin` | The tilt and steady turn, for Spin frames |
 | `Gravity` | The gravity field of the frame |
 | `Velocity` | Linear and angular velocity relative to the parent |
@@ -224,7 +224,7 @@ The scene graph inside a frame uses the same `PoseTree`, with the float `Pose`.
 
 ### Motion drivers
 
-- Kepler: the pose is a function of time, computed in doubles from the orbital elements and the attitude. The attitude `Spin` turns the frame by its axial tilt and a steady spin about its own +Y, as a planet turns. The attitude `FacesParent` points the frame's belly (-Y) at its parent and its nose (-Z) along its motion across the horizon, as a station in low orbit flies. It turns with the true anomaly, so it is exact on an oval orbit too. The frame is in free fall, so its proper acceleration is zero.
+- Kepler: the pose is a function of time, computed in doubles from the orbital elements and the attitude. The attitude `Spin` turns the frame by its axial tilt and a steady spin about its own +Y, as a planet turns. The attitude `FacesParent` points the frame's belly (-Y) at its parent and its nose (-Z) along its motion across the horizon, as a station in low orbit flies. It turns with the true anomaly, so it is exact on an oval orbit too. The frame is in free fall, so its proper acceleration is zero. The orbit holds no G·M. It takes μ from the point gravity of the parent frame (`FrameTree.KeplerMu`), so a Kepler frame and the loose bodies in its parent fall on the same G·M. (User) G·M lives in one place only, so the two can never differ. Each `KeplerOrbit` member that needs it takes the parent's G·M as a parameter.
 - Spin: the frame stays at its place in its parent and turns in place, as the ground of a planet does. Its `FrameSpin` gives the rotation as a function of time: a tilt, then a steady turn about the frame's own +Y. The same math gives the Kepler attitude `Spin`. Like a static frame, it keeps its proper acceleration: a new frame has none, and a landed ship that starts to turn keeps its cargo's weight. No centrifugal force acts on its contents.
 - Physics: the frame's hull is a dynamic body in the parent frame's physics system. Its pose and velocity come from that body after each step. The proper acceleration is the velocity change over the step minus the gravity that the parent applied.
 - Static: the pose does not change.
@@ -233,7 +233,7 @@ A Kepler orbit is in the axes of its parent, so in a parent that turns, the orbi
 
 A game gives a frame a new driver between ticks with `World.SetFrameDriver`, for example to park a ship. `FrameTree.SetDriver` is internal to the simulation. The world refuses the call during a tick, because physics reads the frame tree on its own thread then. A frame that gets the static driver stops where it is: both of its velocities become zero. It keeps its proper acceleration, so the cargo of a ship that is parked on the ground keeps its weight. A frame that gets the Kepler driver moves to its place on its orbit at once, as it does for a new orbit. So physics never drives its hull across the gap from its old place. A frame that gets the Spin driver keeps its place and turns to its spin at once. A frame that gets the physics driver keeps its pose and velocities until physics moves it. The transform of the frame's owner follows the frame at once.
 
-The world refuses a driver that `MotionDriver` does not define, and a driver that the frame cannot follow. The physics driver needs a dynamic hull, which has mass and is not a mesh. Jolt never moves a mesh. The Kepler driver needs a hull that is not a mesh, and a valid orbit. The Spin driver needs a hull that is not a mesh, and a spin whose values are all finite. A valid orbit is closed, with a positive semi-major axis around a parent with a positive mass, and each of its elements is finite. The world refuses the same hulls and orbits at spawn.
+The world refuses a driver that `MotionDriver` does not define, and a driver that the frame cannot follow. The physics driver needs a dynamic hull, which has mass and is not a mesh. Jolt never moves a mesh. The Kepler driver needs a hull that is not a mesh, a valid orbit, and a parent frame with a point gravity whose G·M is above 0. The Spin driver needs a hull that is not a mesh, and a spin whose values are all finite. A valid orbit is closed, with a positive semi-major axis, and each of its elements is finite. It has no mass of its own, so the parent's gravity gives the G·M. The world refuses a Kepler frame that has no parent, or whose parent has no point gravity, with an `ArgumentException` that names the frame and the reason. It does so at spawn, in `SetFrameDriver` and in `SetFrameOrbit`. It refuses the same hulls and orbits at spawn.
 
 A root frame has no parent, so its owner has no hull. The body of its owner is only the static interior of the frame, so the rules for a hull do not apply to it. So if the owner of a frame that has a parent and the physics driver has a body, that body is a dynamic hull.
 
@@ -241,7 +241,7 @@ Each call to `World.SetFrameDriver` changes the version of the frame tree, also 
 
 A driver that the hull cannot follow comes only from a bug. It breaks a contract in a Debug build. A Release build keeps the motion of the hull and records the bug in `World.Errors`. "Output that only a bug produces" under "Physics" tells how.
 
-A game gives a frame a new orbit between ticks with `World.SetFrameOrbit`. The world refuses an orbit that is not valid, also for a frame with another driver. A Kepler frame moves to its place on the new orbit at once, and the transform of its owner follows. `FrameTree.SetOrbit` is internal to the simulation. Like a new driver, it changes the version of the frame tree. So physics puts the hull on the new orbit before its next step. `World.SetFrameSpin` does the same for a frame's spin.
+A game gives a frame a new orbit between ticks with `World.SetFrameOrbit`. The world refuses an orbit that is not valid, also for a frame with another driver. It also refuses an orbit for a root frame, or for a frame whose parent has no point gravity with a G·M above 0, because there is no G·M to orbit. A Kepler frame moves to its place on the new orbit at once, and the transform of its owner follows. `FrameTree.SetOrbit` is internal to the simulation. Like a new driver, it changes the version of the frame tree. So physics puts the hull on the new orbit before its next step. `World.SetFrameSpin` does the same for a frame's spin.
 
 ### Gravity
 
@@ -249,7 +249,7 @@ Each frame has one gravity field: `None`, `Uniform` (artificial gravity, with an
 
 The effective gravity on a body inside a frame is the frame's own field minus the frame's proper acceleration, rotated into frame axes. As a result, loose objects inside an accelerating ship slide toward the stern.
 
-A game gives a frame a new gravity field between ticks with `World.SetFrameGravity`. The sleeping bodies of the frame wake at the next step. The world refuses a field that is not valid, at this call and at spawn. Such a field has a kind that `GravityKind` does not define, or a value that is not finite. A negative G·M is not valid either. `FrameTree.SetGravity` is internal to the simulation.
+A game gives a frame a new gravity field between ticks with `World.SetFrameGravity`. The sleeping bodies of the frame wake at the next step. The world refuses a field that is not valid, at this call and at spawn. Such a field has a kind that `GravityKind` does not define, or a value that is not finite. A negative G·M is not valid either. `FrameTree.SetGravity` is internal to the simulation. A frame that has a Kepler child takes only a point field with the same G·M as its current one: the child orbits that G·M, and another one would make the child jump. The world refuses any other field for such a frame, with an `ArgumentException` that names the frame and the child. Its invariant check (`World.AssertInvariants`) states the rule from the other side: every Kepler frame has a parent with a point gravity whose G·M is above 0.
 
 ### Bubbles and nesting
 
@@ -261,7 +261,7 @@ Docking two frames of similar size merges them explicitly into one frame, and un
 
 ### Destroying a frame
 
-When a frame dies, its contents move to the nearest ancestor frame that survives. Pose and velocity convert through the tree, each moved entity gets `FrameChanged`, and its body moves to the new frame's physics system. Child frames move up the same way. If no ancestor survives, as with a root frame, the contents die with it.
+When a frame dies, its contents move to the nearest ancestor frame that survives. Pose and velocity convert through the tree, each moved entity gets `FrameChanged`, and its body moves to the new frame's physics system. Child frames move up the same way. If no ancestor survives, as with a root frame, the contents die with it. A Kepler child frame that moves up orbits the point gravity of its new parent. If the new parent has none, the Kepler frame has no G·M to orbit, so it gets the static driver and stops where it is, and the world logs it. The game caused it by destroying the parent, so it is not an error.
 
 ### Hand-off
 

@@ -96,13 +96,17 @@ internal sealed class PhysicsHarness : IDisposable
     {
         Entity entity = owner.IsNull ? NewEntity() : owner;
         bool orbiting = driver == MotionDriver.Kepler && orbit.SemiMajorAxis > 0;
-        if (orbiting)
-            pose = new DPose(orbit.StateAt(Time).Position, orbit.RotationAt(Time));
         FrameHandle frame = Frames.Create(entity, parent, pose, bounds, driver, gravity, orbit);
         if (orbiting)
         {
-            Frames.LinearVelocity(frame) = orbit.StateAt(Time).Velocity;
-            Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(Time).ToVector3();
+            // The harness stands in for the simulation, which takes the G·M of an orbit from the point gravity of the parent.
+            double mu = Frames.KeplerMu(frame);
+            if (mu <= 0)
+                throw new ArgumentException("A Kepler frame with an orbit needs a parent with a point gravity that has a G·M above 0.", nameof(parent));
+            var (position, velocity) = orbit.StateAt(Time, mu);
+            Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(Time, mu)));
+            Frames.LinearVelocity(frame) = velocity;
+            Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(Time, mu).ToVector3();
         }
         Changes.FramesCreated.Add(frame);
         return frame;
@@ -319,10 +323,11 @@ internal sealed class PhysicsHarness : IDisposable
             KeplerOrbit orbit = Frames.Orbit(frame);
             if (orbit.SemiMajorAxis <= 0)
                 continue;
-            var (position, velocity) = orbit.StateAt(Time);
-            Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(Time)));
+            double mu = Frames.KeplerMu(frame);
+            var (position, velocity) = orbit.StateAt(Time, mu);
+            Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(Time, mu)));
             Frames.LinearVelocity(frame) = velocity;
-            Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(Time).ToVector3();
+            Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(Time, mu).ToVector3();
         }
     }
 }

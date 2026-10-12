@@ -121,6 +121,12 @@ public record struct GravityField(GravityKind Kind, Vector3 Acceleration, Boundi
         _ => false,
     };
 
+    /// <summary>
+    /// True for a point mass with a finite G·M above 0. Only such a field gives a Kepler frame in this frame a G·M to orbit,
+    /// so the World refuses a Kepler frame under any other field.
+    /// </summary>
+    public readonly bool CanBeOrbited => Kind == GravityKind.Point && Mu > 0 && double.IsFinite(Mu);
+
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
     /// <summary>The acceleration at a point in frame coordinates.</summary>
@@ -158,6 +164,11 @@ public enum KeplerAttitude : byte
 /// <summary>
 /// Kepler elements of a frame around its parent, plus the frame's attitude. Angles are radians, distances meters,
 /// times seconds. The reference plane is the parent's XZ plane, with +Y as the orbit normal at zero inclination.
+/// <para>
+/// The orbit has no G·M of its own. A member that needs the G·M of the parent, in m³/s², takes it as a parameter, called
+/// <c>parentMu</c>. The World and physics take it from the point gravity of the parent frame (see
+/// <see cref="FrameTree.KeplerMu"/>), so a Kepler frame and the loose bodies in its parent fall on the same G·M.
+/// </para>
 /// </summary>
 public record struct KeplerOrbit(
     double SemiMajorAxis,
@@ -167,42 +178,51 @@ public record struct KeplerOrbit(
     double ArgumentOfPeriapsis,
     double MeanAnomalyAtEpoch,
     double Epoch,
-    double ParentMu,
     DQuaternion AxialTilt,
     double SpinRate,
     double SpinPhaseAtEpoch,
     KeplerAttitude Attitude = KeplerAttitude.Spin)
 {
     /// <summary>A circular orbit in the reference plane.</summary>
-    public static KeplerOrbit Circular(double radius, double parentMu, double phase = 0, double spinRate = 0) =>
-        new(radius, 0, 0, 0, 0, phase, 0, parentMu, DQuaternion.Identity, spinRate, 0);
+    public static KeplerOrbit Circular(double radius, double phase = 0, double spinRate = 0) =>
+        new(radius, 0, 0, 0, 0, phase, 0, DQuaternion.Identity, spinRate, 0);
 
     /// <summary>
-    /// True for an orbit that the Kepler driver can follow: a closed orbit, with an eccentricity from 0 up to but not
-    /// including 1, a positive semi-major axis and a parent with a positive G·M, and every element, the tilt and the spin
-    /// finite. The default orbit is not valid: it would leave the frame at its parent's origin.
+    /// True for an orbit whose own elements the Kepler driver can follow: a closed orbit, with an eccentricity from 0 up to
+    /// but not including 1 and a positive semi-major axis, and every element, the tilt and the spin finite. The default
+    /// orbit is not valid: it would leave the frame at its parent's origin. The orbit holds no G·M, so this does not check
+    /// the parent: the World does (see <see cref="GravityField.CanBeOrbited"/>).
     /// </summary>
     public readonly bool IsValid =>
-        SemiMajorAxis > 0 && double.IsFinite(SemiMajorAxis) && ParentMu > 0 && double.IsFinite(ParentMu) &&
+        SemiMajorAxis > 0 && double.IsFinite(SemiMajorAxis) &&
         Eccentricity >= 0 && Eccentricity < 1 &&
         double.IsFinite(Inclination) && double.IsFinite(LongitudeOfAscendingNode) && double.IsFinite(ArgumentOfPeriapsis) &&
         double.IsFinite(MeanAnomalyAtEpoch) && double.IsFinite(Epoch) && double.IsFinite(SpinRate) && double.IsFinite(SpinPhaseAtEpoch) &&
         double.IsFinite(AxialTilt.X) && double.IsFinite(AxialTilt.Y) && double.IsFinite(AxialTilt.Z) && double.IsFinite(AxialTilt.W) &&
         Attitude is KeplerAttitude.Spin or KeplerAttitude.FacesParent;
 
-    public readonly double MeanMotion => SemiMajorAxis > 0 ? Math.Sqrt(ParentMu / (SemiMajorAxis * SemiMajorAxis * SemiMajorAxis)) : 0;
+    /// <summary>The mean angular speed around the parent, in radians per second, for a parent with the G·M <paramref name="parentMu"/>.</summary>
+    public readonly double MeanMotion(double parentMu) => SemiMajorAxis > 0 ? Math.Sqrt(parentMu / (SemiMajorAxis * SemiMajorAxis * SemiMajorAxis)) : 0;
 
-    public readonly double Period => MeanMotion > 0 ? 2 * Math.PI / MeanMotion : double.PositiveInfinity;
-
-    /// <summary>Position and velocity relative to the parent, in parent axes, at <paramref name="time"/>.</summary>
-    public readonly (Double3 Position, Double3 Velocity) StateAt(double time)
+    /// <summary>The time for one turn, in seconds, for a parent with the G·M <paramref name="parentMu"/>. Infinite for an orbit that does not turn.</summary>
+    public readonly double Period(double parentMu)
     {
-        if (SemiMajorAxis <= 0 || ParentMu <= 0)
+        double meanMotion = MeanMotion(parentMu);
+        return meanMotion > 0 ? 2 * Math.PI / meanMotion : double.PositiveInfinity;
+    }
+
+    /// <summary>
+    /// Position and velocity relative to the parent, in parent axes, at <paramref name="time"/>, for a parent with the G·M
+    /// <paramref name="parentMu"/>. An orbit that is not valid, or a G·M that is not above 0, gives zero.
+    /// </summary>
+    public readonly (Double3 Position, Double3 Velocity) StateAt(double time, double parentMu)
+    {
+        if (SemiMajorAxis <= 0 || parentMu <= 0)
             return (Double3.Zero, Double3.Zero);
 
         double e = Eccentricity;
-        double n = MeanMotion;
-        double eccentric = EccentricAnomalyAt(time, out _);
+        double n = MeanMotion(parentMu);
+        double eccentric = EccentricAnomalyAt(time, parentMu, out _);
         double cosE = Math.Cos(eccentric), sinE = Math.Sin(eccentric);
         double a = SemiMajorAxis;
         double b = a * Math.Sqrt(1 - e * e);
@@ -223,10 +243,10 @@ public record struct KeplerOrbit(
     /// The eccentric anomaly at <paramref name="time"/>, from -π to π, and in <paramref name="turns"/> the whole orbits
     /// before it, in radians: a multiple of 2π. Their sum grows without a jump as the frame goes round.
     /// </summary>
-    private readonly double EccentricAnomalyAt(double time, out double turns)
+    private readonly double EccentricAnomalyAt(double time, double parentMu, out double turns)
     {
         double e = Eccentricity;
-        double mean = MeanAnomalyAtEpoch + MeanMotion * (time - Epoch);
+        double mean = MeanAnomalyAtEpoch + MeanMotion(parentMu) * (time - Epoch);
         double m = Math.IEEERemainder(mean, 2 * Math.PI);
         turns = mean - m;
 
@@ -247,22 +267,26 @@ public record struct KeplerOrbit(
     /// <summary>
     /// The frame's orientation relative to the parent at <paramref name="time"/>: for <see cref="KeplerAttitude.Spin"/>, the
     /// axial tilt, then the spin about local +Y; for <see cref="KeplerAttitude.FacesParent"/>, the belly toward the parent
-    /// and the nose along the motion across the horizon.
+    /// and the nose along the motion across the horizon. The G·M <paramref name="parentMu"/> of the parent counts only for
+    /// <see cref="KeplerAttitude.FacesParent"/>, which turns with the frame's place on its orbit.
     /// </summary>
-    public readonly DQuaternion RotationAt(double time)
+    public readonly DQuaternion RotationAt(double time, double parentMu)
     {
         if (Attitude == KeplerAttitude.FacesParent)
-            return FacingParentAt(time);
+            return FacingParentAt(time, parentMu);
         return Spin.RotationAt(time);
     }
 
-    /// <summary>The frame's angular velocity in parent axes at <paramref name="time"/>, in radians per second.</summary>
-    public readonly Double3 AngularVelocityAt(double time)
+    /// <summary>
+    /// The frame's angular velocity in parent axes at <paramref name="time"/>, in radians per second. The G·M
+    /// <paramref name="parentMu"/> of the parent counts only for <see cref="KeplerAttitude.FacesParent"/>.
+    /// </summary>
+    public readonly Double3 AngularVelocityAt(double time, double parentMu)
     {
         if (Attitude == KeplerAttitude.FacesParent)
         {
             // A frame that faces its parent turns with the direction to it: at h / r² about the orbit normal.
-            (Double3 position, Double3 velocity) = StateAt(time);
+            (Double3 position, Double3 velocity) = StateAt(time, parentMu);
             return Double3.Cross(position, velocity) / position.LengthSquared;
         }
         return Spin.AngularVelocity;
@@ -274,10 +298,10 @@ public record struct KeplerOrbit(
     /// about the orbit normal by the true anomaly, which keeps the belly on the parent and the nose on the horizon. The
     /// true anomaly counts whole orbits, so the quaternion never flips its sign from one tick to the next.
     /// </summary>
-    private readonly DQuaternion FacingParentAt(double time)
+    private readonly DQuaternion FacingParentAt(double time, double parentMu)
     {
         double e = Eccentricity;
-        double eccentric = EccentricAnomalyAt(time, out double turns);
+        double eccentric = EccentricAnomalyAt(time, parentMu, out double turns);
         double trueAnomaly = 2 * Math.Atan2(Math.Sqrt(1 + e) * Math.Sin(eccentric / 2), Math.Sqrt(1 - e) * Math.Cos(eccentric / 2));
         DQuaternion atPeriapsis = DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2);
         return PerifocalToParent() * DQuaternion.FromAxisAngle(Double3.UnitY, trueAnomaly + turns) * atPeriapsis;
