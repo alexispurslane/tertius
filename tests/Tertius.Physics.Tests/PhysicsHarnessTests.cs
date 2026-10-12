@@ -10,11 +10,14 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class PhysicsHarnessTests
 {
+    private static readonly BodyDesc PersonBody = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+
     /// <summary>
     /// A ship frame that physics drives, 10 m along +X in space, with a cockpit frame inside it, a ball in space, a frame
     /// with the physics driver whose owner has no body, a second root frame whose owner has a body, a third root frame with
     /// the physics driver whose owner has a body, a dock frame with a static hull and a moon frame with the Kepler driver
-    /// and a kinematic hull, both in space, a bubble frame that is gone from the tree, and a wreck whose body is gone.
+    /// and a kinematic hull, both in space, a bubble frame that is gone from the tree, a wreck whose body is gone, and a
+    /// person, whose body is a character, in space.
     /// </summary>
     private sealed class Scene : IDisposable
     {
@@ -26,6 +29,7 @@ public class PhysicsHarnessTests
             Cockpit = H.AddFrame(Ship, Shapes.At(1, 0, 0), FrameBounds.Sphere(2), MotionDriver.Static);
             Ball = H.AddBody(Space, Shapes.Ball(0.5f), Shapes.At(-100, 0, 0));
             Wreck = H.AddBody(Space, Shapes.Ball(0.5f), Shapes.At(-200, 0, 0));
+            Person = H.AddBody(Space, PersonBody, Shapes.At(0, 0, 100));
             Drifter = H.AddFrame(Space, Shapes.At(300, 0, 0), FrameBounds.Sphere(5), MotionDriver.Physics);
             Island = H.AddFrameWithBody(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(10), MotionDriver.Static,
                 new BodyDesc(new SphereShapeDesc(5), BodyMotion.Static));
@@ -46,6 +50,7 @@ public class PhysicsHarnessTests
         public FrameHandle Cockpit { get; }
         public Entity Ball { get; }
         public Entity Wreck { get; }
+        public Entity Person { get; }
         public FrameHandle Drifter { get; }
         public FrameHandle Island { get; }
         public FrameHandle Raft { get; }
@@ -259,6 +264,37 @@ public class PhysicsHarnessTests
         step.Should().Throw<InvalidOperationException>().WithMessage($"*contact of {scene.Ball} and {scene.Ball}*cannot touch itself*");
     }
 
+    [Fact]
+    public void ACharacterStateOfAnEntityWhoseBodyIsGoneThrowsOutOfTheStep()
+    {
+        using var scene = new Scene();
+
+        Action step = scene.StepWith(output => output.Characters.Add(new CharacterState(scene.Wreck, Standing: true)));
+
+        step.Should().Throw<InvalidOperationException>().WithMessage($"*character state of {scene.Wreck}*no longer exists*");
+    }
+
+    [Fact]
+    public void ACharacterStateOfABodyThatIsNotACharacterThrowsOutOfTheStep()
+    {
+        using var scene = new Scene();
+
+        Action step = scene.StepWith(output => output.Characters.Add(new CharacterState(scene.Ball, Standing: true)));
+
+        step.Should().Throw<InvalidOperationException>().WithMessage($"*character state of {scene.Ball}*is not a character*");
+    }
+
+    [Fact]
+    public void ASecondCharacterStateOfOneCharacterInOneStepThrowsOutOfTheStep()
+    {
+        using var scene = new Scene();
+        scene.H.Standing.Should().ContainKey(scene.Person, "the backend reports every character once in each step");
+
+        Action step = scene.StepWith(output => output.Characters.Add(new CharacterState(scene.Person, Standing: true)));
+
+        step.Should().Throw<InvalidOperationException>().WithMessage($"*character state of {scene.Person}*another character state in this step*");
+    }
+
     /// <summary>
     /// A carrier bubble 1 km from the origin of space, and a fighter that flies into it. A correct backend's hand-off of
     /// the fighter is legal, so a test that wants a refused one breaks it first.
@@ -347,5 +383,40 @@ public class PhysicsHarnessTests
         h.Frames.Parent(fighter).Should().Be(space);
         h.Frames.LocalPose(fighter).Should().Be(poseBefore, "the harness skips the frame state that came with the refused hand-off");
         h.Frames.LinearVelocity(fighter).Should().Be(velocityBefore);
+    }
+
+    /// <summary>
+    /// A person stands on the floor of a building under gravity and walks out of the building's bubble. The floor reaches
+    /// past the bubble, so the person stands until the step that hands it to the ground, which reports it not standing.
+    /// The test breaks that hand-off, so the harness skips the person's whole update in that step, its character state
+    /// included.
+    /// </summary>
+    [Fact]
+    public void ACharacterWhoseBrokenHandOffATestRefusesKeepsTheStandingStateOfItsLastStep()
+    {
+        using var h = new PhysicsHarness();
+        var gravity = GravityField.Uniform(new Vector3(0, -9.81f, 0));
+        FrameHandle ground = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static, gravity);
+        h.AddBody(ground, Shapes.Floor(100), Shapes.At(0, -0.5, 0));
+        FrameHandle building = h.AddFrame(ground, DPose.Identity, FrameBounds.Sphere(10), MotionDriver.Static, gravity);
+        h.AddBody(building, Shapes.Floor(15), Shapes.At(0, -0.5, 0));
+        Entity walker = h.AddBody(building, PersonBody, Shapes.At(0, 0.95, 0));
+        h.Intent(walker).Flags = IntentFlags.CharacterMove;
+        h.Intent(walker).CharacterVelocity = new Vector3(4, 0, 0);
+        bool reportedNotStanding = false;
+        h.BeforeApply = output =>
+        {
+            if (output.HandOffs.Count == 0)
+                return;
+            PhysicsHarness.ReplaceHandOffs(output, walker, handOff => handOff with { From = ground });
+            reportedNotStanding = output.Characters.Single(state => state.Entity == walker) == new CharacterState(walker, Standing: false);
+        };
+        h.RefusesHandOff = handOff => handOff.Entity == walker;
+
+        h.StepUntil(() => h.RefusedHandOffs.Count > 0, 300);
+
+        h.RefusedHandOffs.Should().ContainSingle().Which.To.Should().Be(ground);
+        reportedNotStanding.Should().BeTrue("the backend reports a character that it hands off as not standing");
+        h.Standing[walker].Should().BeTrue("the harness skips the character state that came with the refused hand-off");
     }
 }

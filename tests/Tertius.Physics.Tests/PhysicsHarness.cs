@@ -6,8 +6,8 @@ namespace Tertius.Physics.Tests;
 /// Drives <see cref="JoltPhysicsBackend"/> the way the sync point does, without the simulation: it applies body states,
 /// hand-offs, character states and frame states from the physics output, advances Kepler frames, and feeds intents.
 /// Like the sync point in a Debug build, it refuses output that only a bug in the backend produces: it runs the same
-/// <see cref="PhysicsOutputCheck"/>, it refuses a character state for an entity without a body or a second one in a
-/// step, and every broken output throws out of <see cref="Step"/>, so a test whose backend has such a bug fails loudly.
+/// <see cref="PhysicsOutputCheck"/>, and every broken output throws out of <see cref="Step"/>, so a test whose backend
+/// has such a bug fails loudly.
 /// A test that wants a refused hand-off on purpose breaks it in <see cref="BeforeApply"/> and names it in
 /// <see cref="RefusesHandOff"/>.
 /// </summary>
@@ -22,6 +22,8 @@ internal sealed class PhysicsHarness : IDisposable
     private readonly PhysicsOutputCheck check = new();
     // Entities whose body a test destroyed and did not create again.
     private readonly HashSet<Entity> destroyed = new();
+    // Entities whose body is a character.
+    private readonly HashSet<Entity> characters = new();
 
     public PhysicsHarness(JoltBackendOptions? options = null)
     {
@@ -112,6 +114,10 @@ internal sealed class PhysicsHarness : IDisposable
         Changes.BodiesCreated.Add(new BodyCreate(e, frame, desc, pose, velocity, angularVelocity));
         States[e] = new BodyState(e, frame, pose, velocity, angularVelocity);
         destroyed.Remove(e);
+        if (desc.Motion == BodyMotion.Character)
+            characters.Add(e);
+        else
+            characters.Remove(e);
         return e;
     }
 
@@ -144,6 +150,7 @@ internal sealed class PhysicsHarness : IDisposable
         States.Remove(entity);
         Standing.Remove(entity);
         destroyed.Add(entity);
+        characters.Remove(entity);
     }
 
     /// <summary>The intent slot of an entity for the next step.</summary>
@@ -209,7 +216,8 @@ internal sealed class PhysicsHarness : IDisposable
         CheckOutput();
 
         // The order of World.ApplyPhysicsOutput: the reparents of the hand-offs, then body states, then the states of the
-        // hand-offs, so that an entity with both keeps its hand-off's state, then frame states, then contacts.
+        // hand-offs, so that an entity with both keeps its hand-off's state, then character states, then frame states, then
+        // contacts.
         foreach (HandOff handOff in Output.HandOffs)
         {
             HandOffs.Add(handOff);
@@ -226,10 +234,10 @@ internal sealed class PhysicsHarness : IDisposable
             if (!check.IsSkipped(handOff.Entity))
                 States[handOff.Entity] = new BodyState(handOff.Entity, handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity);
         }
-        foreach (CharacterState character in Output.Characters)
+        for (int i = 0; i < Output.Characters.Count; i++)
         {
-            if (!check.IsSkipped(character.Entity))
-                Standing[character.Entity] = character.Standing;
+            if (!check.IsCharacterStateSkipped(i))
+                Standing[Output.Characters[i].Entity] = Output.Characters[i].Standing;
         }
         foreach (FrameState state in Output.Frames)
         {
@@ -263,15 +271,6 @@ internal sealed class PhysicsHarness : IDisposable
     /// </summary>
     private void CheckOutput()
     {
-        // The sync point skips a character state that only a bug produces. The harness refuses it loudly.
-        var characters = new HashSet<Entity>();
-        foreach (CharacterState character in Output.Characters)
-        {
-            if (!States.ContainsKey(character.Entity) || destroyed.Contains(character.Entity))
-                throw new InvalidOperationException($"Physics reported the character state of {character.Entity}, which has no body.");
-            if (!characters.Add(character.Entity))
-                throw new InvalidOperationException($"Physics reported the character state of {character.Entity} twice in one step.");
-        }
         check.Run(Output, Frames, new Facts(this));
         var brokenHandOffs = new HashSet<int>();
         foreach (PhysicsOutputFault fault in check.Faults)
@@ -303,6 +302,8 @@ internal sealed class PhysicsHarness : IDisposable
         public bool IsAlive(Entity entity) => !harness.destroyed.Contains(entity);
 
         public bool HasBody(Entity entity) => harness.States.ContainsKey(entity);
+
+        public bool IsCharacter(Entity entity) => harness.characters.Contains(entity);
 
         public FrameHandle FrameOf(Entity entity) => harness.States[entity].Frame;
     }

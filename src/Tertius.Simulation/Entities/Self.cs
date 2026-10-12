@@ -114,7 +114,8 @@ public readonly ref struct Self
 /// A proxy over the running entity's physics intent. All vectors are in frame axes. Forces, torques and impulses add
 /// up during the tick. Velocity changes, kinematic targets, teleports, character moves and jumps keep the last value
 /// written. Physics applies the intent in the next step. Every method throws <see cref="InvalidOperationException"/>
-/// when the entity has no body. <see cref="Exists"/> and <see cref="Standing"/> work for every entity.
+/// when the entity has no body. The properties work for every entity: <see cref="Pending"/> is the empty intent for an
+/// entity without a body.
 /// </summary>
 public readonly ref struct BodyHandle
 {

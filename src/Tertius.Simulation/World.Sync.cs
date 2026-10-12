@@ -15,7 +15,8 @@ public sealed partial class World
 
     // The check of each step's output. It skips the whole physics update of every entity that physics reported something
     // about that only a bug in the backend produces. Their body states, their hand-offs, the states of the frames they
-    // own and the contacts that name them are all ignored.
+    // own, the contacts that name them and their character states are all ignored. A broken character state skips only
+    // itself.
     private readonly PhysicsOutputCheck physicsOutputCheck = new();
 
     /// <summary>What the entity table knows about an entity, for the check of the physics output.</summary>
@@ -24,6 +25,8 @@ public sealed partial class World
         public bool IsAlive(Entity entity) => entities.IsAlive(entity);
 
         public bool HasBody(Entity entity) => entities.Body(entity) != null;
+
+        public bool IsCharacter(Entity entity) => entities.Body(entity) is { Motion: BodyMotion.Character };
 
         // Every write to the row of an entity with a body comes from physics, so the row is where the step began.
         public FrameHandle FrameOf(Entity entity) => entities.BackRow(entity).Frame;
@@ -154,8 +157,12 @@ public sealed partial class World
             physicsTouched.Add(entity);
         }
 
-        foreach (CharacterState state in stepOutput.Characters)
-            ApplyCharacterState(state);
+        // The check skipped every character state that is broken, and the state of every entity whose update it skipped.
+        for (int i = 0; i < stepOutput.Characters.Count; i++)
+        {
+            if (!physicsOutputCheck.IsCharacterStateSkipped(i))
+                characterStanding[stepOutput.Characters[i].Entity] = stepOutput.Characters[i].Standing;
+        }
 
         // The reparents already put each frame under the parent that its state is relative to. The owner's row mirrors
         // the new state at once, so that a hull that the destroy batch moves to another physics system starts from the
@@ -187,10 +194,11 @@ public sealed partial class World
     /// It breaks a contract in Debug builds. In Release builds the sync skips, for this step, the whole physics update of
     /// every entity that the output names, and it records exactly one error for each broken output: however many rules
     /// the output breaks, and also when another broken output skipped the same entities already. For a frame state, that
-    /// entity is the frame's owner. The skip does not change physics: the backend keeps each body where it put it. A frame
-    /// hull goes back where the tree says at the start of the next step. A plain body that physics moved into a frame that
-    /// is gone stays in that frame's system, so later outputs about it are broken too, until physics finds the frame gone
-    /// and removes the body, with a warning.
+    /// entity is the frame's owner. A broken character state skips only itself, and the rest of the entity's update lands.
+    /// The skip does not change physics: the backend keeps each body where it put it. A frame hull goes back where the
+    /// tree says at the start of the next step. A plain body that physics moved into a frame that is gone stays in that
+    /// frame's system, so later outputs about it are broken too, until physics finds the frame gone and removes the body,
+    /// with a warning.
     /// </summary>
     private void SkipBrokenPhysicsUpdates()
     {
@@ -201,29 +209,6 @@ public sealed partial class World
             Contract.Assert(false, fault.Message);
             Report($"tick {TickNumber}: {fault.Message}.", isError: true);
         }
-    }
-
-    /// <summary>
-    /// Keeps whether physics stood a character in this step. Physics reports the state of live characters only, so a
-    /// state of any other entity comes only from a bug in the backend. It breaks a contract in Debug builds. Release
-    /// builds skip it and record one error for it. The state of an entity whose update the check skipped is part of
-    /// that update, so it is skipped too, and the entity keeps the state of its last step.
-    /// </summary>
-    private void ApplyCharacterState(in CharacterState state)
-    {
-        Entity entity = state.Entity;
-        string? fault = !entities.IsAlive(entity) ? $"{entity} no longer exists" :
-            entities.Body(entity) is not { Motion: BodyMotion.Character } ? $"{entity} is not a character" :
-            null;
-        if (fault != null)
-        {
-            string message = $"ignored the character state of {entity}, because {fault}. Only a bug in the physics backend reports such a state";
-            Contract.Assert(false, message);
-            Report($"tick {TickNumber}: {message}.", isError: true);
-            return;
-        }
-        if (!physicsOutputCheck.IsSkipped(entity))
-            characterStanding[entity] = state.Standing;
     }
 
     /// <summary>

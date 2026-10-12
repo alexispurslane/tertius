@@ -165,12 +165,50 @@ public class WorldCharacterStandingTests
 #if TERTIUS_CONTRACTS
         Action tick = () => world.Tick();
 
-        tick.Should().Throw<ContractException>().WithMessage($"*{named}*");
+        tick.Should().Throw<ContractException>().WithMessage($"*character state of {named}*");
 #else
         Tick(world, 3);
 
-        world.Errors.Should().ContainSingle().Which.Should().Contain(named.ToString()).And.Contain("Only a bug");
+        world.Errors.Should().ContainSingle().Which.Should().Contain($"ignored the character state of {named}");
         world.Snapshot.IsStanding(box).Should().BeFalse();
+#endif
+    }
+
+    /// <summary>
+    /// Physics reports each character once in a step, so a second state comes only from a bug. A test stands in for that
+    /// bug: in one step it reports a walking person as not standing, then adds a second state that says that the person
+    /// stands. A Release build skips only the second state, so the person no longer stands, and the rest of its update
+    /// lands: it walks on.
+    /// </summary>
+    [Fact]
+    public void ASecondCharacterStateOfOneCharacterInOneStepIsABug()
+    {
+        var faults = new FaultInjectingBackend(new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 }));
+        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, faults);
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new Vector3(1, 0, 0)) };
+        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, StandingHeight), Body = Person, Components = [pilot] });
+        Tick(world, 30);
+        world.Snapshot.IsStanding(person).Should().BeTrue();
+        double x = world.GetPose(person).Position.X;
+        faults.EditNextOutput = output =>
+        {
+            int first = output.Characters.FindIndex(state => state.Entity == person);
+            output.Characters[first] = new CharacterState(person, Standing: false);
+            output.Characters.Add(new CharacterState(person, Standing: true));
+        };
+
+#if TERTIUS_CONTRACTS
+        Action tick = () => world.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage($"*character state of {person}*another character state in this step*");
+#else
+        world.Tick();
+
+        world.Errors.Should().ContainSingle().Which.Should().Contain($"ignored the character state of {person}");
+        world.Snapshot.IsStanding(person).Should().BeFalse("the first state of the step landed, and the second did not");
+        world.GetPose(person).Position.X.Should().BeGreaterThan(x + 0.01, "the body state of the step landed");
 #endif
     }
 
