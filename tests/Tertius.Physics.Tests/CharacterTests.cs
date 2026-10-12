@@ -198,7 +198,7 @@ public class CharacterTests
     }
 
     [Fact]
-    public void InZeroGravityACharacterIgnoresItsDesiredVelocityAndItsJump()
+    public void InZeroGravityItsDesiredVelocityAndItsJumpDoNotMoveACharacter()
     {
         var (h, _, person) = Floating();
         using (h)

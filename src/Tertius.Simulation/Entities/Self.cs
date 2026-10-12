@@ -182,7 +182,8 @@ public readonly ref struct BodyHandle
 
     /// <summary>
     /// Sets the desired movement velocity of a character body, in frame axes. Under gravity, only the part across the
-    /// character's up counts, and only while it stands on something. A weightless character ignores it.
+    /// character's up counts, and only while it stands on something. It does not move a weightless character, but
+    /// physics keeps it, and it applies once the character stands under gravity.
     /// </summary>
     public void MoveCharacter(Vector3 desiredVelocity)
     {

@@ -191,8 +191,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>Force, Torque, Impulse and AngularImpulse act on dynamic bodies, for this step only.</item>
     /// <item>A character keeps the desired velocity of its last CharacterMove until the next one. Under gravity only
     /// the part across the up direction counts, and only on the ground. Jump applies only on the ground. Where the
-    /// character is weightless, below <see cref="FrameTree.ZeroGravityThreshold"/>, it keeps its momentum, and
-    /// CharacterMove and Jump do nothing. Impulses and forces change a character's velocity by their mass.
+    /// character is weightless, below <see cref="FrameTree.ZeroGravityThreshold"/>, it keeps its momentum, and gravity
+    /// changes it as in the air. Jump does nothing there. CharacterMove does not move it there, but physics keeps the
+    /// desired velocity, which applies once the character stands under gravity. Impulses and forces change a
+    /// character's velocity by their mass.
     /// KinematicTarget does nothing to a character.</item>
     /// </list>
     /// <para>

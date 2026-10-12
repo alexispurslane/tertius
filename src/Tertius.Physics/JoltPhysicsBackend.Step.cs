@@ -312,8 +312,10 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Moves one character. Up is against the effective gravity. On the ground the character takes the ground's
     /// velocity plus its desired horizontal velocity, and can jump. In the air it keeps its momentum. Where it is
-    /// weightless, below <see cref="FrameTree.ZeroGravityThreshold"/>, it keeps its momentum and its last up, and its
-    /// desired velocity and its jump do nothing. Forces and impulses change its velocity everywhere.
+    /// weightless, below <see cref="FrameTree.ZeroGravityThreshold"/>, it keeps its momentum, as in the air, and its last
+    /// up. Its desired velocity and its jump do not move it there, but the record keeps the desired velocity, which
+    /// applies once the character stands under gravity. Gravity, forces and impulses change its velocity everywhere. A
+    /// weightless character then loses its motion into what it hit, as <see cref="WithoutMotionIntoContacts"/> says.
     /// </summary>
     private void UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
     {
@@ -343,7 +345,8 @@ public sealed partial class JoltPhysicsBackend
         Vector3 next;
         if (zeroGravity)
         {
-            // Weightless, nothing holds the character to what it touches, so it keeps its momentum, as in the air.
+            // Weightless, nothing holds the character to what it touches, so it keeps its momentum, as in the air. The
+            // weak gravity still acts, as on loose cargo.
             next = velocity;
         }
         else
@@ -362,8 +365,8 @@ public sealed partial class JoltPhysicsBackend
                 // In the air the character keeps its momentum, including what it took from a moving platform.
                 next = velocity;
             }
-            next += gravity * dt;
         }
+        next += gravity * dt;
         next += record.PendingVelocityChange;
         record.PendingVelocityChange = Vector3.Zero;
         record.PendingJump = 0;
@@ -385,23 +388,37 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// <paramref name="velocity"/> less its part into each surface that <paramref name="character"/> hit in its last
-    /// update. Jolt pushes a character out of a surface that it sank into by moving it, so the push adds no velocity here.
+    /// The largest angle, in radians, between Jolt's contact normal and the face's own normal at which
+    /// <see cref="WithoutMotionIntoContacts"/> takes the face's normal: 10 degrees. On a flat face Jolt's contact normal
+    /// can lean several degrees from the face. On the sill of the airlock hatch it leaned 6 degrees, and it turned the
+    /// press onto the sill into a drift upward. At an edge or a corner the two normals differ by more, and the face's
+    /// normal is the normal of only one face, so it would cancel motion that nothing blocks.
+    /// </summary>
+    private const float FaceNormalLeanLimit = 10 * MathF.PI / 180;
+
+    /// <summary>
+    /// <paramref name="velocity"/> less its part into each static or kinematic surface that <paramref name="character"/>
+    /// hit in its last update, relative to the velocity of that surface. So a kinematic wall that moves into the
+    /// character gives it the wall's velocity along the normal. A dynamic body is skipped: the character keeps its
+    /// momentum against it and pushes it. Jolt pushes a character out of a surface that it sank into by moving it, so
+    /// the push adds no velocity here.
     /// </summary>
     private static Vector3 WithoutMotionIntoContacts(CharacterVirtual character, Vector3 velocity)
     {
+        float faceNormalCosine = MathF.Cos(FaceNormalLeanLimit);
         int count = character.GetNumActiveContacts();
         for (int i = 0; i < count; i++)
         {
             character.GetActiveContact(i, out CharacterContact contact);
-            if (!contact.HadCollision || contact.WasDiscarded)
+            if (!contact.HadCollision || contact.WasDiscarded || contact.MotionTypeB == MotionType.Dynamic)
                 continue;
-            // The surface normal points out of the surface, toward the character, so motion into the surface runs
-            // against it. Jolt's contact normal can lean away from it by several degrees on a flat face, and it would turn
-            // the motion into a face into a slide along it.
-            float into = Vector3.Dot(velocity, contact.SurfaceNormal);
+            // Both normals point out of the surface, toward the character, so motion into the surface runs against them.
+            Vector3 normal = Vector3.Dot(contact.ContactNormal, contact.SurfaceNormal) >= faceNormalCosine
+                ? contact.SurfaceNormal
+                : contact.ContactNormal;
+            float into = Vector3.Dot(velocity - contact.LinearVelocity, normal);
             if (into < 0)
-                velocity -= into * contact.SurfaceNormal;
+                velocity -= into * normal;
         }
         return velocity;
     }
