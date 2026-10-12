@@ -1,7 +1,7 @@
 ---
 id: ter-s02r
 status: in_progress
-deps: []
+deps: [ter-06mu]
 links: []
 created: 2026-10-12T20:08:35Z
 type: epic
@@ -11,7 +11,7 @@ tags: [physics, frames, design]
 ---
 # Numeric frames: automatic free-falling frames around clusters of bodies, for precision
 
-Design doc: docs/plans/numeric-frames.md (to be written).
+Design doc: docs/plans/numeric-frames.md.
 
 The user's idea, from the end of the vertical slice: a frame today does two jobs at once. Its semantic job: a ship or a planet owns its contents through its bubble, has a hull, carries its own gravity and driver, and gameplay sees it (Self.Frame, the frame's topic, FrameChanged). Its numeric job: a local origin and a local velocity, so that Jolt's floats see small numbers. Split them: semantic frames stay explicit, as the user chose early on, and the engine creates numeric frames by itself around clusters of free-falling bodies. A numeric frame falls freely with tidal gravity, carries nothing and means nothing to gameplay, and the engine merges, splits and collects it.
 
