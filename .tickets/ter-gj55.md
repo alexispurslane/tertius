@@ -1,7 +1,7 @@
 ---
 id: ter-gj55
 status: open
-deps: [ter-ziae, ter-1j1e]
+deps: [ter-ziae, ter-1j1e, ter-8wmm]
 links: [ter-j4to]
 created: 2026-10-11T23:45:16Z
 type: feature
@@ -34,3 +34,9 @@ Open questions:
 
 A component asks Snapshot whether another entity had a component of a given type at the end of the previous tick, with no race. A component finds the entities within a radius that have a given component type. A component that is added or removed shows in the next tick. Tests on the World cover a flag that is added, one that is removed, and reads from many workers at once.
 
+
+## Notes
+
+**2026-10-12T00:10:15Z**
+
+The entity query uses the shared words (User): With<T>(), Without<T>(), Where, In(frame), Near(center, radius), and the endings foreach, Count(), Any(), TryFirst(out Entity) and CopyTo(list). It runs on the snapshot in entity index order, and it starts from an index (component type, frame or spatial grid) instead of a scan. The inbox gets the same words first, in ter-8wmm.

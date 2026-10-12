@@ -32,3 +32,7 @@ docs/plans/queries-and-sensors.md exists, the user approved each of its decision
 **2026-10-12T00:04:33Z**
 
 The user proposes a small query language over all entities, in the fluent style of LINQ: for example With<Flammable>().Without<Wet>(), built once and then run many times with no allocation. Design it here with ter-gj55. Points to settle: a query runs on the snapshot of the previous tick, not on the live EntityTable, so that workers can run it during a tick without a race. A query that scans every entity costs O(entities) per run, so the builder picks an index first (the record of component types, the spatial grid, or a frame's members) and tests the other filters on each candidate. Run returns a ref struct enumerator, as EventList.Of does, in entity index order. The same filter object can also filter ray casts, overlaps and sensors.
+
+**2026-10-12T00:10:14Z**
+
+The user chose the query words for both an inbox and entities (User). Pick by type: Of<T>() for events, With<T>() and Without<T>() for entities. Filter: Where(predicate) with a static lambda, and Where(state, predicate). Place and sender: From(sender) for events, In(frame) and Near(center, radius) for entities. Endings: foreach, Count(), Any(), TryFirst(out), CopyTo(list) for entities, Remove() for events. A query is a readonly struct value, inline or stored. The inbox's special methods (Contains<T>, CountOf<T>, IndexOf<T>, RemoveAll) go away in favor of the chain (User). ter-8wmm does the inbox part.
