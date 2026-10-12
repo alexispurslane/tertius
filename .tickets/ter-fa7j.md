@@ -26,3 +26,7 @@ A person who thrusts for a minute in earth near the ship gains no more than 1 mm
 **2026-10-12T10:57:26Z**
 
 Moved into the vertical slice at P1, at the user's request: with the ship's bubble shrunk around its hull (ter-nx32), a person outside the hull spends most of a spacewalk in earth, where this drift shows.
+
+**2026-10-12T13:00:58Z**
+
+Related: ter-r90w. A per-system reference velocity, subtracted from every moving body's velocity before each step and added back after it, would also fix this ticket, because float velocities would then hold the small speeds relative to the ship instead of 7.7 km/s.
