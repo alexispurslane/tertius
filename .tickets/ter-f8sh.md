@@ -1,6 +1,6 @@
 ---
 id: ter-f8sh
-status: in_progress
+status: closed
 deps: [ter-ai0t, ter-ujbt, ter-1zfs]
 links: [ter-juuk]
 created: 2026-10-11T13:52:09Z
