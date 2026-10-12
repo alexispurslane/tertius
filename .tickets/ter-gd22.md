@@ -1,7 +1,7 @@
 ---
 id: ter-gd22
 status: open
-deps: [ter-g3yp, ter-wu6v]
+deps: [ter-g3yp, ter-wu6v, ter-gj55]
 links: []
 created: 2026-10-11T23:45:16Z
 type: feature
@@ -34,3 +34,9 @@ Open questions:
 
 A sensor body detects dynamic, kinematic and character bodies without pushing them, and its entity gets a start and an end for each. The Sensor component on any entity relays its starts and ends to a topic or to every entity. Sleep and wake send nothing. A scripted test shows the person entering and leaving a sensor volume, and a door that opens on the relayed message.
 
+
+## Notes
+
+**2026-10-12T00:00:10Z**
+
+The user kept the collision masks (ter-g3yp) in the path. A sensor filters by mask and also by component type, through the record of ter-gj55.

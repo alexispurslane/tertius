@@ -10,7 +10,7 @@ assignee: Alexis Purslane
 parent: ter-1yed
 tags: [simulation, gameplay, content]
 ---
-# Flags as components: let a component ask whether another entity has a component, and find entities by component
+# Let a component see which components another entity has, and find entities by component
 
 A component cannot learn anything about another entity beyond its pose, velocity and render row. Rules such as "this burns", "this is metal" or "this is crew" need facts that other entities can read. The user wants such flags to be components (User). A flag is a component type, often with no state, and other entities ask whether an entity has it.
 

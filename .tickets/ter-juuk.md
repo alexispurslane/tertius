@@ -1,7 +1,7 @@
 ---
 id: ter-juuk
 status: open
-deps: [ter-g3yp]
+deps: [ter-g3yp, ter-gj55]
 links: [ter-f8sh]
 created: 2026-10-11T23:45:16Z
 type: feature
@@ -31,3 +31,9 @@ Facts:
 
 A component casts a ray from a point along a direction in its own frame, with a length and a mask. It gets the nearest hit: the entity, the point and the normal in its own frame, and the distance. A ray that crosses into a child frame or out to the parent finds the bodies there. The same world gives the same hits in every run. Tests on the World with Jolt cover a hit, a miss, a mask, a ray that starts inside a hull, and a ray across a bubble.
 
+
+## Notes
+
+**2026-10-12T00:00:10Z**
+
+The user kept the collision masks (ter-g3yp) in the path. A ray filters by mask and also by component type, through the record of ter-gj55, for example only entities with Crew.
