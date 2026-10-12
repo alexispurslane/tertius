@@ -1,6 +1,6 @@
 ---
 id: ter-zj0b
-status: open
+status: closed
 deps: [ter-7wbc]
 links: []
 created: 2026-10-12T10:54:27Z

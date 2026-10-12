@@ -53,8 +53,8 @@ public static class DemoScenes
     /// draws the planet: Earth's radius, with a grid of 10-degree lines, so its turn shows. It casts Earth's shadow, and
     /// it has Earth's gravity for objects on the ground.</item>
     /// <item>The frame <c>ship</c>, a 20 by 8 by 60 m hull, falls freely in Earth's gravity: Jolt integrates it, with no
-    /// damping. Its bubble is an ellipsoid with radii of about 20.8, 10.4 and 55.4 m along its axes, which fits just around
-    /// the hull with a shell of 2 m. It starts on a circle 400 km up, crossing the equator northward at +X, tilted 51.64
+    /// damping. Its bubble is an ellipsoid with radii of about 20.8, 10.4 and 55.4 m along its axes: the smallest that holds
+    /// the hull grown by 2 m on every side, so its surface is at least 2 m from the hull everywhere. It starts on a circle 400 km up, crossing the equator northward at +X, tilted 51.64
     /// degrees, with its belly toward Earth and its nose along its motion. Its spin, one turn per orbit, keeps it so. At
     /// the start the sun stands straight above it. In Earth's frame its hull is a solid box. In its own frame the hull
     /// is hollow: walls 0.5 m thick around a cabin 19 by 7 by 59 m. Only the cabin has gravity: 9.81 m/s² toward the
@@ -159,8 +159,8 @@ public static class DemoScenes
             // floor, and goes out through the airlock along its outer faces.
             Body = new BodyDesc(new BoxShapeDesc(Hull), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
                 InteriorShape: new CompoundShapeDesc([.. ShipInterior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
-            // The bubble fits just around the hull (see ShipBubble), so a person or a crate that leaves the ship passes into
-            // earth near it. The ship falls freely, so only its own field acts inside it: one standard gravity toward its
+            // The bubble is the smallest ellipsoid that holds the hull grown by 2 m (see ShipBubble), so a person or a crate
+            // that leaves the ship passes into earth near it. The ship falls freely, so only its own field acts inside it: one standard gravity toward its
             // belly, in the cabin alone.
             AsFrame = new FrameSpec(new FrameBounds(ShipBubble), MotionDriver.Physics,
                 GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(-Cabin, Cabin))),

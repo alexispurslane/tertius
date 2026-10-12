@@ -1,6 +1,6 @@
 ---
 id: ter-jq82
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-12T12:17:32Z

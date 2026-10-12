@@ -1,6 +1,6 @@
 ---
 id: ter-nx32
-status: open
+status: closed
 deps: [ter-upyg]
 links: []
 created: 2026-10-12T10:56:56Z

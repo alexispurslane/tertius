@@ -1,6 +1,6 @@
 ---
 id: ter-ka2o
-status: open
+status: closed
 deps: [ter-upyg]
 links: []
 created: 2026-10-12T10:49:17Z

@@ -180,7 +180,7 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         // In earth, the crate and the ship fall freely round Earth together, so the crate moves on along a straight line
         // relative to the ship. If Earth's gravity did not pull the crate as it pulls the ship, the crate would end
         // 8.7 m/s² · (5.5 s)² / 2 = 132 m off that line. The ship turns once per orbit about its own X, and in the ship's
-        // turning axes the crate's 0.98 m/s along -Y bends 0.012 m/s toward -Z in the 5.5 s, which takes it 3 cm off the
+        // turning axes the crate's 0.98 m/s along -Y bends 0.012 m/s toward -Z in the 5.5 s, which takes it 3.2 cm off the
         // line.
         seconds.Should().BeApproximately(5.5, 1e-6);
         ExpectNear(beside.Position, inEarth.Position + inEarth.Velocity * seconds, 0.05);
