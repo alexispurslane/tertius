@@ -5,9 +5,10 @@ deps: []
 links: []
 created: 2026-10-12T02:04:49Z
 type: bug
-priority: 2
+priority: 1
 assignee: Alexis Purslane
-tags: [physics, characters]
+parent: ter-dtw2
+tags: [physics, characters, slice]
 ---
 # Thrust in a frame where a character moves at orbital speed drifts sideways through float rounding
 
@@ -19,3 +20,9 @@ Design to decide: keep a character's velocity relative to its frame's local free
 
 A person who thrusts for a minute in earth near the ship gains no more than 1 mm/s of velocity across the thrust, relative to the ship.
 
+
+## Notes
+
+**2026-10-12T10:57:26Z**
+
+Moved into the vertical slice at P1, at the user's request: with the ship's bubble shrunk around its hull (ter-nx32), a person outside the hull spends most of a spacewalk in earth, where this drift shows.
