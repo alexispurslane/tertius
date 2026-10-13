@@ -553,6 +553,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// motion that <see cref="HullMotion"/> gives for it, and Jolt moves the hull with that motion.</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame (see
     /// <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
+    /// <item>The ghosts of each system (see <see cref="FrameWorld.AddGhost"/>) are the ghosts that the records keep in
+    /// it, no more and no fewer.</item>
     /// </list>
     /// The record and ghost checks visit every entity slot, so the whole check is O(entity slots + systems).
     /// </summary>
@@ -562,6 +564,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         foreach (FrameWorld world in worldList)
             Contract.Invariant(frames.IsAlive(world.Frame) && ExistingWorld(world.Frame) == world);
         int hulls = 0;
+        int recordGhosts = 0;
         foreach (BodyRecord? record in records)
         {
             if (record is null)
@@ -584,9 +587,19 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             if (record.Ghosts is not { } ghosts)
                 continue;
             foreach (GhostBody ghost in ghosts)
+            {
                 Contract.Invariant(GhostAllowed(record, ghost.Frame) && ghost.World == ExistingWorld(ghost.Frame));
+                Contract.Invariant(ghost.World.HasGhost(ghost.Body));
+            }
+            recordGhosts += ghosts.Count;
         }
         Contract.Invariant(hulls == frameOwners.Count);
+        // Every ghost of a record is in its system's ghosts, and each is a body of its own, so the systems hold as many
+        // ghosts as the records only when they hold no other.
+        int systemGhosts = 0;
+        foreach (FrameWorld world in worldList)
+            systemGhosts += world.GhostCount;
+        Contract.Invariant(systemGhosts == recordGhosts);
         foreach (BodyRecord owner in frameOwners)
         {
             Contract.Invariant(frames.IsAlive(owner.OwnedFrame));
@@ -655,7 +668,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             DestroyRecord(owner.Entity);
         }
 
-        // Ghosts that other records keep in this system go with it.
+        // Ghosts that other records keep in this system go with it, and so do the system's own ghosts.
         foreach (BodyRecord? record in records)
         {
             if (record?.Ghosts is not { } ghosts)

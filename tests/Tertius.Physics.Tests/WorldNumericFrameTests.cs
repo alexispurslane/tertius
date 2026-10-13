@@ -358,6 +358,98 @@ public class WorldNumericFrameTests
         IsAwake(backend, home, sleeper).Should().BeFalse("the ghost moved without waking the crate next to it");
         backend.HasGhostIn(wall, home).Should().BeTrue();
     }
+
+    [Fact]
+    public void AShiftOfAFallingFrameMovesEveryGhostInItAndLeavesTheGhostsOfOtherFramesWhereTheyAre()
+    {
+        // Every group falls, and a frame moves its origin when its members' center is 1 m from it. In one falling frame, two
+        // sleeping crates float 4 cm from the ghosts of two static walls, and a third crate above them puts the members'
+        // center 2.7 m above the center of the two. Far away, a second falling frame holds a crate that sleeps 4 cm from the
+        // ghost of a third wall. The ghost pass puts back a ghost that is not where its wall is relative to the frame, and so
+        // wakes the crate next to it.
+        using World world = NewWorld(out JoltPhysicsBackend backend,
+            numericFrames: new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
+        FrameHandle ground = Ground(world, 0);
+        Wall(world, ground, 0);
+        Wall(world, ground, 10);
+        Entity farWall = Wall(world, ground, 200);
+        Entity left = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1.04), Body = Crate });
+        Entity right = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(8.96), Body = Crate });
+        Entity above = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(5, 8), Body = Crate });
+        Entity far = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(201.04), Body = Crate });
+        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(209), Body = Crate });
+        Tick(world, 1);
+        FrameHandle home = world.PhysicsHomeOf(left);
+        FrameHandle farHome = world.PhysicsHomeOf(far);
+        world.PhysicsHomeOf(right).Should().Be(home);
+        farHome.Should().NotBe(home);
+        GhostsIn(backend, home).Should().HaveCount(2, "the frame keeps a ghost of each wall next to its crates");
+        TickUntil(world, () => !IsAwake(backend, home, left) && !IsAwake(backend, home, right) && !IsAwake(backend, farHome, far), 600);
+        IsAwake(backend, farHome, far).Should().BeFalse("the far crate came to rest next to its wall's ghost");
+        Double3 farOrigin = world.Frames.HomeOffset(farHome, ground);
+        Double3 farGhost = GhostPosition(backend, farHome, farWall);
+
+        world.Destroy(above);
+        Tick(world, 1);
+
+        world.Errors.Should().BeEmpty();
+        Double3 origin = world.Frames.HomeOffset(home, ground);
+        origin.X.Should().BeApproximately(5, 1e-6);
+        origin.Y.Should().BeApproximately(0, 1e-6, "the frame's origin moved down to its two crates");
+        IsAwake(backend, home, left).Should().BeFalse("the ghost of the left wall moved with the frame");
+        IsAwake(backend, home, right).Should().BeFalse("the ghost of the right wall moved with the frame");
+        world.Frames.HomeOffset(farHome, ground).Should().Be(farOrigin, "only the near frame shifted");
+        IsAwake(backend, farHome, far).Should().BeFalse("the ghost in the far frame did not move");
+        GhostPosition(backend, farHome, farWall).Should().Be(farGhost);
+        backend.Invoking(b => b.AssertInvariants()).Should().NotThrow();
+    }
+
+    [Fact]
+    public void AShiftOfAFallingFrameDoesNotTouchAGhostThatWentAwayBeforeIt()
+    {
+        // As above, without the far frame. In the tick that shifts the frame, the right wall goes away, and its ghost with it.
+        using World world = NewWorld(out JoltPhysicsBackend backend,
+            numericFrames: new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
+        FrameHandle ground = Ground(world, 0);
+        Entity leftWall = Wall(world, ground, 0);
+        Entity rightWall = Wall(world, ground, 10);
+        Entity left = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1.04), Body = Crate });
+        Entity right = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(8.96), Body = Crate });
+        Entity above = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(5, 8), Body = Crate });
+        Tick(world, 1);
+        FrameHandle home = world.PhysicsHomeOf(left);
+        backend.HasGhostIn(rightWall, home).Should().BeTrue();
+        TickUntil(world, () => !IsAwake(backend, home, left) && !IsAwake(backend, home, right), 600);
+        IsAwake(backend, home, left).Should().BeFalse("the left crate came to rest next to its wall's ghost");
+
+        world.Destroy(rightWall);
+        world.Destroy(above);
+        Tick(world, 1);
+
+        world.Errors.Should().BeEmpty();
+        world.Frames.HomeOffset(home, ground).Y.Should().BeApproximately(0, 1e-6, "the frame shifted");
+        List<JoltPhysicsBackend.BodyFacts> ghosts = GhostsIn(backend, home);
+        ghosts.Should().ContainSingle("the ghost of the right wall went with the wall");
+        BodyUserData.Names(ghosts[0].UserData, leftWall).Should().BeTrue("the ghost of the left wall stays");
+        IsAwake(backend, home, left).Should().BeFalse("the ghost of the left wall moved with the frame");
+        backend.Invoking(b => b.AssertInvariants()).Should().NotThrow();
+    }
+
+    /// <summary>A static wall 1 m thick and 10 m square, across the X axis at <paramref name="x"/>.</summary>
+    private static Entity Wall(World world, FrameHandle frame, double x) => world.Spawn(new SpawnDesc
+    {
+        Frame = frame,
+        Pose = At(x),
+        Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Static),
+    });
+
+    /// <summary>Every ghost in the system of <paramref name="frame"/>, as Jolt holds it.</summary>
+    private static List<JoltPhysicsBackend.BodyFacts> GhostsIn(JoltPhysicsBackend backend, FrameHandle frame) =>
+        backend.BodiesIn(frame).Where(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost).ToList();
+
+    /// <summary>Where Jolt has the ghost of <paramref name="entity"/> in the system of <paramref name="frame"/>.</summary>
+    private static Double3 GhostPosition(JoltPhysicsBackend backend, FrameHandle frame, Entity entity) =>
+        GhostsIn(backend, frame).Single(facts => BodyUserData.Names(facts.UserData, entity)).Position;
 }
 
 /// <summary>Records every FrameChanged that its entity hears.</summary>

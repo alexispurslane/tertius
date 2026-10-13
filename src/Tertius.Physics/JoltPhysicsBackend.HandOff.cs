@@ -392,6 +392,7 @@ public sealed partial class JoltPhysicsBackend
             return;
         }
         BodyID id = CreateRigid(world, GhostSpec(record), pose, linear, angular);
+        world.AddGhost(id);
         ghosts.Add(new GhostBody { Frame = frame, World = world, Body = id, Wanted = true });
     }
 
@@ -425,12 +426,8 @@ public sealed partial class JoltPhysicsBackend
             if (record?.Ghosts is not { Count: > 0 } ghosts)
                 continue;
             for (int i = ghosts.Count - 1; i >= 0; i--)
-            {
-                if (GhostAllowed(record, ghosts[i].Frame))
-                    continue;
-                ghosts[i].World.RemoveBody(ghosts[i].Body);
-                ghosts.RemoveAt(i);
-            }
+                if (!GhostAllowed(record, ghosts[i].Frame))
+                    RemoveGhostAt(ghosts, i);
         }
     }
 
@@ -439,12 +436,8 @@ public sealed partial class JoltPhysicsBackend
         if (record.Ghosts is not { Count: > 0 } ghosts)
             return;
         for (int i = ghosts.Count - 1; i >= 0; i--)
-        {
-            if (ghosts[i].Wanted)
-                continue;
-            ghosts[i].World.RemoveBody(ghosts[i].Body);
-            ghosts.RemoveAt(i);
-        }
+            if (!ghosts[i].Wanted)
+                RemoveGhostAt(ghosts, i);
     }
 
     // ---- Output ----
