@@ -93,6 +93,8 @@ internal sealed class RenderSnapshotBuilder
     // The camera's physics home at the last build, and its eye pose in that home.
     private FrameHandle lastCameraHome;
     private DPose lastCameraPose;
+    // The camera's eye pose in its semantic frame at the previous build, for when its physics home is gone since.
+    private DPose lastCameraInFrame;
     private long lastCameraStamp;
 
     // Inputs of the per-chunk workers for the build that is running.
@@ -143,10 +145,12 @@ internal sealed class RenderSnapshotBuilder
         renderInterpolate = interpolate;
         renderOrigin = cameraPose.Position;
 
+        // The previous pose from the previous home, which stays exact near the camera. When a numeric update collected
+        // that home, the camera's semantic frame, which is the same, places it, rounded only far from that frame's origin.
         DPose previousCamera = !interpolate ? cameraPose
             : lastCameraHome == cameraHome ? lastCameraPose
             : FrameSeen(lastCameraHome) ? DPose.ComposeUnitParent(relPrevious[denseOfFrame[lastCameraHome.Index]], lastCameraPose)
-            : cameraPose;
+            : DPose.ComposeUnitParent(relPrevious[denseOfFrame[cameraFrame.Index]], lastCameraInFrame);
         snapshot.Camera = new RenderCamera
         {
             Position = Vector3.Zero,
@@ -169,6 +173,7 @@ internal sealed class RenderSnapshotBuilder
         lastCameraFrame = cameraFrame;
         lastCameraHome = cameraHome;
         lastCameraPose = cameraPose;
+        lastCameraInFrame = eyeInFrame;
         lastCameraStamp = stamp;
     }
 

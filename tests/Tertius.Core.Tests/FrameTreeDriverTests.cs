@@ -28,7 +28,7 @@ public class FrameTreeDriverTests
         {
             Root = Frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
             Hull = Frames.Create(new Entity(2, 1), Root, ShipPose, FrameBounds.Sphere(50), MotionDriver.Physics);
-            Frames.LinearVelocity(Hull) = ShipVelocity;
+            Frames.TreeLinearVelocity(Hull) = ShipVelocity;
             Frames.AngularVelocity(Hull) = ShipSpin;
             Frames.ProperAcceleration(Hull) = ShipAcceleration;
             Frames.Update();

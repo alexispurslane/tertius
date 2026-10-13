@@ -63,10 +63,9 @@ public sealed partial class World
 
     private void PrepareTick()
     {
-        // Spawns and destroys made outside the tick reach physics before the step that may touch them.
-        FlushPhysicsChanges();
-        // Then the bodies that they changed join their numeric frames, as the bodies spawned in a tick do at the sync
-        // point. No time passes, so no split comes due.
+        // Spawns and destroys made outside the tick reach physics before the step that may touch them. The bodies that
+        // they changed join their numeric frames first, as the bodies spawned in a tick do at the sync point, so that a
+        // spawn that joins a numeric frame is created in it. No time passes, so no split comes due.
         if (numericUpdateDue)
         {
             numericUpdateDue = false;
@@ -74,6 +73,7 @@ public sealed partial class World
             DeriveAttachments();
             SwapSnapshot();
         }
+        FlushPhysicsChanges();
         Frames.Update();
         // The falling numeric frames fix their accelerations for the step, which physics reads and the sync point follows.
         Frames.BeginNumericStep();

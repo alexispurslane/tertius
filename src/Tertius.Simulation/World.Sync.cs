@@ -72,15 +72,16 @@ public sealed partial class World
         ApplySubscriptionChanges();
         DestroyRequestedEntities();
 
-        // 6. New entities, after the destroy batch, so that a spawn into a frame that just died is dropped. Then the
-        //    structural changes of this sync reach physics as one batch.
+        // 6. New entities, after the destroy batch, so that a spawn into a frame that just died is dropped.
         MakeSpawnsLive(endTime);
-        FlushPhysicsChanges();
 
         // 6b. Bodies move into numeric frames and out of them, after physics output, destroys and spawns, so that every
-        //     body that is live at the end of the sync point is clustered where it is now. Its own batches reach physics.
+        //     body that is live at the end of the sync point is clustered where it is now. The structural changes of this
+        //     sync reach physics with the update's first batch, so that a spawn that joins a numeric frame is created in
+        //     it, with its velocity converted in doubles.
         if (physics != null)
             UpdateNumericFrames(DeltaTime);
+        FlushPhysicsChanges();
 
         // 7. Kepler and Spin frames advance to the end of the tick, and every frame owner, then every attached entity, follows.
         AdvanceFrames(endTime);
@@ -166,8 +167,8 @@ public sealed partial class World
         {
             if (physicsOutputCheck.IsSkipped(state.Frame.Entity))
                 continue;
-            Frames.SetLocalPose(state.Frame, state.LocalPose);
-            Frames.LinearVelocity(state.Frame) = state.LinearVelocity;
+            Frames.SetTreeLocalPose(state.Frame, state.LocalPose);
+            Frames.TreeLinearVelocity(state.Frame) = state.LinearVelocity;
             Frames.AngularVelocity(state.Frame) = state.AngularVelocity;
             Frames.ProperAcceleration(state.Frame) = state.ProperAcceleration;
             Entity owner = state.Frame.Entity;

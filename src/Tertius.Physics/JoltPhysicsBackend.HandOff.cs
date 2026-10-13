@@ -233,10 +233,12 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Keeps a kinematic ghost of each moving body whose bounding sphere crosses a bubble boundary, in the system on
     /// the other side, and a ghost of each frame hull in the system of every sibling whose bubble overlaps its own.
-    /// Ghosts get the real body's pose and velocity, so that during the next step they move with it.
+    /// Ghosts get the real body's pose and velocity, so that during the next step they move with it. Each anchor that
+    /// the numeric update names in <see cref="FrameTree.AnchorGhosts"/> has a ghost in the falling frame that it names.
     /// </summary>
     private void UpdateGhosts()
     {
+        ReadOnlySpan<NumericGhost> anchorGhosts = frames.AnchorGhosts;
         // A new ghost can create the system of a frame that had no bodies. That world has no members, so the
         // snapshot of the count skips nothing that needs work.
         int worldCount = worldList.Count;
@@ -258,7 +260,8 @@ public sealed partial class JoltPhysicsBackend
             foreach (BodyRecord member in world.Members)
             {
                 bool movable = member.IsMovable;
-                if (!movable && !member.IsHull)
+                bool anchor = (!movable || member.IsHull) && HasAnchorGhost(anchorGhosts, member.Entity);
+                if (!movable && !member.IsHull && !anchor)
                     continue;
                 if (member.Ghosts is { Count: > 0 } existing)
                     foreach (ref GhostBody ghost in CollectionsMarshal.AsSpan(existing))
@@ -307,7 +310,7 @@ public sealed partial class JoltPhysicsBackend
                 // A body that touches a child's bubble without being in it (it lost a tie, or it is a hull that does
                 // not fit) has a ghost in the child. A hull reaches as far as its own bubble.
                 double reach = member.IsHull ? Math.Max(radius, frames.Bounds(member.OwnedFrame).MaxRadius) : radius;
-                for (int i = 0; i < children.Count; i++)
+                for (int i = 0; i < children.Count && (movable || member.IsHull); i++)
                 {
                     FrameHandle child = children[i];
                     if (child == member.OwnedFrame || frames.IsNumeric(child))
@@ -324,8 +327,40 @@ public sealed partial class JoltPhysicsBackend
                         motion.VelocityFromParent(s.CenterOfMass, s.Linear), motion.AngularFromParent(s.Angular));
                 }
 
+                if (anchor)
+                    WantAnchorGhosts(member, anchorGhosts, haveSnapshot ? s : ReadPrimary(member));
+
                 DropUnwantedGhosts(member);
             }
+        }
+    }
+
+    private static bool HasAnchorGhost(ReadOnlySpan<NumericGhost> anchorGhosts, Entity entity)
+    {
+        foreach (NumericGhost ghost in anchorGhosts)
+            if (ghost.Anchor == entity)
+                return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Keeps a ghost of the anchor <paramref name="anchor"/>, whose body is at <paramref name="s"/> at the end of the step,
+    /// in each falling frame that the numeric update names for it. The ghost goes where the anchor will be relative to the
+    /// frame at the end of the step, when the frame has moved on, with the anchor's velocity relative to the frame then.
+    /// That velocity is about the frame's speed in its semantic frame, so the ghost moves fast in the frame's system: the
+    /// limit that the doc accepts for a static body that a fast frame passes.
+    /// </summary>
+    private void WantAnchorGhosts(BodyRecord anchor, ReadOnlySpan<NumericGhost> anchorGhosts, in BodySnapshot s)
+    {
+        FrameHandle home = anchor.Frame;
+        FrameHandle semantic = frames.SemanticOf(home);
+        foreach (NumericGhost ghost in anchorGhosts)
+        {
+            if (ghost.Anchor != anchor.Entity || !frames.IsAlive(ghost.Frame))
+                continue;
+            Double3 offset = frames.OffsetAfter(home, ghost.Frame, stepDt);
+            Double3 velocity = frames.HomeVelocityAfter(home, semantic, stepDt) - frames.HomeVelocityAfter(ghost.Frame, semantic, stepDt);
+            WantGhost(anchor, ghost.Frame, new DPose(s.Pose.Position + offset, s.Pose.Rotation), (Double3)s.Linear + velocity, s.Angular);
         }
     }
 
@@ -362,7 +397,8 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// True when the frame tree allows a ghost of the record's body in <paramref name="frame"/>: the frame is the parent,
-    /// a sibling or a child of the frame whose system holds the body, and not the frame that the record owns. These are
+    /// a sibling or a child of the frame whose system holds the body, or a falling frame that keeps a ghost of the anchor
+    /// (see <see cref="FrameTree.AnchorGhosts"/>), and not the frame that the record owns. These are
     /// the only frames where <see cref="UpdateGhosts"/> puts a ghost. A record without a body has no place for a ghost.
     /// </summary>
     private bool GhostAllowed(BodyRecord record, FrameHandle frame)
@@ -370,6 +406,9 @@ public sealed partial class JoltPhysicsBackend
         FrameHandle home = record.Frame;
         if (home.IsNull || frame == home || frame == record.OwnedFrame || !frames.IsAlive(frame))
             return false;
+        foreach (NumericGhost ghost in frames.AnchorGhosts)
+            if (ghost.Anchor == record.Entity && ghost.Frame == frame)
+                return true;
         FrameHandle homeParent = frames.TreeParent(home);
         FrameHandle frameParent = frames.TreeParent(frame);
         return frame == homeParent || frameParent == home || (!homeParent.IsNull && frameParent == homeParent);

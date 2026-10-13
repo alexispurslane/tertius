@@ -104,47 +104,67 @@ public class NumericFrameRulesTests
 
     // ---- MayTouch ------------------------------------------------------------------------------------------------
 
+    /// <summary>The merge test of two bodies, with the separation that their positions in the semantic frame give.</summary>
+    private static bool Touch(in NumericBody a, in NumericBody b) => MayTouch(a, b, b.Position - a.Position, Options);
+
     [Fact]
     public void Two_still_bodies_whose_spheres_touch_may_touch() =>
-        MayTouch(Body(0, radius: 1), Body(3, radius: 2), Options).Should().BeTrue();
+        Touch(Body(0, radius: 1), Body(3, radius: 2, home: Pod)).Should().BeTrue();
 
     [Fact]
     public void Two_still_bodies_just_apart_may_not_touch() =>
-        MayTouch(Body(0, radius: 1), Body(3.001, radius: 2), Options).Should().BeFalse();
+        Touch(Body(0, radius: 1), Body(3.001, radius: 2, home: Pod)).Should().BeFalse();
 
     [Fact]
     public void The_relative_speed_times_the_lookahead_grows_the_reach()
     {
         // 10 m apart with radii 1 m: the reach is 2 m plus the relative speed times 2 s.
-        MayTouch(Body(0, vx: 4), Body(10), Options).Should().BeTrue();
-        MayTouch(Body(0, vx: 3.9), Body(10), Options).Should().BeFalse();
+        Touch(Body(0, vx: 4), Body(10, home: Pod)).Should().BeTrue();
+        Touch(Body(0, vx: 3.9), Body(10, home: Pod)).Should().BeFalse();
     }
 
     [Fact]
     public void A_common_velocity_does_not_grow_the_reach() =>
-        MayTouch(Body(0, vx: 7_700), Body(3, vx: 7_700), Options).Should().BeFalse();
+        Touch(Body(0, vx: 7_700), Body(3, vx: 7_700, home: Pod)).Should().BeFalse();
 
     [Fact]
     public void The_merge_test_is_symmetric()
     {
         NumericBody a = Body(0, vx: 4), b = Body(9.99) with { Velocity = new Double3(0, 1, 0) };
-        MayTouch(a, b, Options).Should().Be(MayTouch(b, a, Options));
+        Touch(a, b).Should().Be(Touch(b, a));
+    }
+
+    [Fact]
+    public void The_merge_test_measures_the_separation_that_it_is_given_not_the_positions_in_the_semantic_frame()
+    {
+        // Far from the semantic frame's origin, the positions round; the caller gives the separation in the homes.
+        NumericBody a = Body(1e16), b = Body(1e16, home: Pod);
+        MayTouch(a, b, X(3), Options).Should().BeFalse();
+        MayTouch(a, b, X(2), Options).Should().BeTrue();
     }
 
     [Fact]
     public void Members_of_one_numeric_frame_stay_linked_up_to_the_split_margin()
     {
-        MayTouch(Body(0, home: Pod), Body(12, home: Pod), Options).Should().BeTrue();
-        MayTouch(Body(0, home: Pod), Body(12.001, home: Pod), Options).Should().BeFalse();
+        Touch(Body(0, home: Pod), Body(12, home: Pod)).Should().BeTrue();
+        Touch(Body(0, home: Pod), Body(12.001, home: Pod)).Should().BeFalse();
     }
 
     [Fact]
-    public void Bodies_in_the_semantic_frame_get_no_split_margin() =>
-        MayTouch(Body(0), Body(5), Options).Should().BeFalse();
+    public void Bodies_in_the_system_of_the_semantic_frame_stay_linked_up_to_the_split_margin()
+    {
+        // A body that leaves a group with a fixed hull into the semantic frame's system does not go in and out at the edge.
+        Touch(Body(0), Body(12)).Should().BeTrue();
+        Touch(Body(0), Body(12.001)).Should().BeFalse();
+    }
 
     [Fact]
     public void Bodies_of_two_numeric_frames_get_no_split_margin() =>
-        MayTouch(Body(0, home: Pod), Body(5, home: Raft), Options).Should().BeFalse();
+        Touch(Body(0, home: Pod), Body(5, home: Raft)).Should().BeFalse();
+
+    [Fact]
+    public void A_body_of_a_numeric_frame_and_one_of_the_semantic_frame_get_no_split_margin() =>
+        Touch(Body(0, home: Pod), Body(5)).Should().BeFalse();
 
     // ---- SplitClock ----------------------------------------------------------------------------------------------
 

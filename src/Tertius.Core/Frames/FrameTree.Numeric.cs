@@ -9,14 +9,18 @@ namespace Tertius;
 internal readonly record struct NumericMove(Entity Entity, FrameHandle From, FrameHandle To);
 
 /// <summary>
+/// A ghost of the anchor <see cref="Anchor"/> in the system of the falling numeric frame <see cref="Frame"/>. An anchor is
+/// a static body or the hull of a frame that physics does not drive. It stays in its own system when a group of bodies
+/// near it falls, so the frame of that group keeps a ghost of it (docs/plans/numeric-frames.md, "Limits").
+/// </summary>
+internal readonly record struct NumericGhost(Entity Anchor, FrameHandle Frame);
+
+/// <summary>
 /// The numeric frames of the tree (docs/plans/numeric-frames.md): frames that the engine makes around a group of bodies,
 /// only for precision. Gameplay never sees them. <see cref="UpdateNumericFrames"/> runs their rules once per sync point.
 /// </summary>
 public sealed partial class FrameTree
 {
-    // The count of bodies of a numeric frame that no update has counted yet: one made outside UpdateNumericFrames.
-    private const int NotCounted = -1;
-
     /// <summary>The thresholds of the rules of numeric frames. The World sets them before its first update.</summary>
     internal NumericFrameOptions NumericOptions { get; set; } = new();
 
@@ -48,16 +52,30 @@ public sealed partial class FrameTree
     private readonly List<FrameHandle> frameChildren = new();
     private readonly List<Double3> nestMembers = new();
     private readonly List<(FrameHandle Nest, Double3 Place)> nestPlaces = new();
+    // True for each body, by index in sortedBodies, that is not an anchor and whose group without anchors falls.
+    private bool[] falls = [];
+    // The pairs of an anchor and a body that falls, which the merge test links, of the semantic frame that the update works on.
+    private readonly List<(Entity Anchor, Entity Body)> anchorPairs = new();
+    private readonly List<NumericGhost> anchorGhosts = new();
+
+    /// <summary>
+    /// The ghosts that the falling numeric frames keep of the anchors near their members, which the last
+    /// <see cref="UpdateNumericFrames"/> chose. Physics reads them at each step.
+    /// </summary>
+    internal ReadOnlySpan<NumericGhost> AnchorGhosts => CollectionsMarshal.AsSpan(anchorGhosts);
 
     /// <summary>
     /// Runs the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and "Nesting for
     /// vast distances") once, over a sync point of <paramref name="dt"/> seconds. <paramref name="bodies"/> holds every
     /// entity with a body that is not attached, in entity slot order. Within each semantic frame, the update links every
-    /// pair of bodies that <see cref="NumericFrameRules.MayTouch"/> links, holds the members of each numeric frame together
-    /// until <see cref="NumericFrameRules.SplitClock"/> lets them split, and gives each linked group the mode of
-    /// <see cref="NumericFrameRules.Mode"/>. A group keeps the numeric frame that holds most of its mass, which drains and
-    /// moves its origin; the bodies of the other groups move. Then far frames nest. Each frame that the update creates,
-    /// shifts or destroys goes into <paramref name="changes"/>, where physics picks it up.
+    /// pair of bodies that are not anchors (see <see cref="NumericBody.Anchor"/>) that
+    /// <see cref="NumericFrameRules.MayTouch"/> links, and holds the members of each numeric frame that are not anchors
+    /// together until <see cref="NumericFrameRules.SplitClock"/> lets them split. Then it links each anchor to the anchors
+    /// and to the groups that do not fall that the merge test links to it: an anchor never changes the mode of a group that
+    /// falls, and stays in its own system, and the frame of that group gets a ghost of it (see <see cref="AnchorGhosts"/>).
+    /// Each linked group gets the mode of <see cref="NumericFrameRules.Mode"/>. A group keeps the numeric frame that holds
+    /// most of its mass, which drains and moves its origin; the bodies of the other groups move. Then far frames nest.
+    /// Each frame that the update creates, shifts or destroys goes into <paramref name="changes"/>, where physics picks it up.
     /// <para>
     /// The update hands the moves to <paramref name="applyMoves"/>, which applies them to the rows and hands this
     /// update's changes to physics. Only then does the update destroy the numeric frames that hold no body and no frame,
@@ -76,6 +94,7 @@ public sealed partial class FrameTree
         Contract.Requires(dt >= 0);
         SortBySemanticFrame(bodies);
         moves.Clear();
+        anchorGhosts.Clear();
         for (int start = 0; start < sortedBodies.Count;)
         {
             int end = start + 1;
@@ -98,6 +117,7 @@ public sealed partial class FrameTree
             sortKeys = new long[Math.Max(bodies.Length, 2 * sortKeys.Length)];
             links = new int[sortKeys.Length];
             groupOf = new int[sortKeys.Length];
+            falls = new bool[sortKeys.Length];
         }
         for (int i = 0; i < bodies.Length; i++)
         {
@@ -130,9 +150,11 @@ public sealed partial class FrameTree
             links[i] = i;
         for (int i = start; i < end; i++)
             for (int j = i + 1; j < end; j++)
-                if (NumericFrameRules.MayTouch(bodies[i], bodies[j], NumericOptions))
+                if (!bodies[i].Anchor && !bodies[j].Anchor && MayTouch(bodies[i], bodies[j]))
                     Union(i, j);
         HoldFramesTogether(start, end, dt);
+        MarkFallingGroups(start, end);
+        LinkAnchors(start, end);
         GroupBodies(start, end);
         ChooseKeepers();
         // Every shift lands before any move: a body that leaves a shifted frame leaves it from its shifted state.
@@ -141,18 +163,30 @@ public sealed partial class FrameTree
                 DrainFrame(group, changes);
         foreach (BodyGroup group in groups)
             MoveHome(group, changes);
+        KeepAnchorGhosts(start, end);
     }
 
     /// <summary>
-    /// Keeps the members of each numeric frame in one group until they have been apart for the split cooldown. Then they
-    /// may split, and the frame's clock starts again.
+    /// The merge test of two bodies of one semantic frame, with the position of <paramref name="b"/> relative to
+    /// <paramref name="a"/> taken through the lowest common ancestor of their homes, from their positions in their homes.
+    /// So no large number enters between two bodies near each other, far from their semantic frame's origin.
+    /// </summary>
+    private bool MayTouch(in NumericBody a, in NumericBody b)
+    {
+        Double3 between = a.Home == b.Home ? Double3.Zero : Relative(b.Home, a.Home).Position;
+        return NumericFrameRules.MayTouch(a, b, between + b.HomePosition - a.HomePosition, NumericOptions);
+    }
+
+    /// <summary>
+    /// Keeps the members of each numeric frame that are not anchors in one group until they have been apart for the split
+    /// cooldown. Then they may split, and the frame's clock starts again.
     /// </summary>
     private void HoldFramesTogether(int start, int end, double dt)
     {
         Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
         numericHomes.Clear();
         for (int i = start; i < end; i++)
-            if (bodies[i].Home != bodies[i].Semantic && !numericHomes.Contains(bodies[i].Home))
+            if (!bodies[i].Anchor && bodies[i].Home != bodies[i].Semantic && !numericHomes.Contains(bodies[i].Home))
                 numericHomes.Add(bodies[i].Home);
         foreach (FrameHandle frame in numericHomes)
         {
@@ -160,7 +194,7 @@ public sealed partial class FrameTree
             bool together = true;
             for (int i = start; i < end && together; i++)
             {
-                if (bodies[i].Home != frame)
+                if (bodies[i].Home != frame || bodies[i].Anchor)
                     continue;
                 if (first < 0)
                     first = i;
@@ -172,8 +206,80 @@ public sealed partial class FrameTree
             if (!hold)
                 continue;
             for (int i = first + 1; i < end; i++)
-                if (bodies[i].Home == frame)
+                if (bodies[i].Home == frame && !bodies[i].Anchor)
                     Union(first, i);
+        }
+    }
+
+    /// <summary>
+    /// Marks each body that is not an anchor and whose group, which holds no anchor yet, gets the mode Falling by itself.
+    /// The root of a group is its body with the lowest index, so a group is summed once, from its root.
+    /// </summary>
+    private void MarkFallingGroups(int start, int end)
+    {
+        Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
+        for (int i = start; i < end; i++)
+            falls[i] = false;
+        for (int root = start; root < end; root++)
+        {
+            if (bodies[root].Anchor || Find(root) != root)
+                continue;
+            bodyScratch.Clear();
+            for (int i = root; i < end; i++)
+                if (Find(i) == root)
+                    bodyScratch.Add(bodies[i]);
+            NumericGroup motion = NumericFrameRules.Summarize(CollectionsMarshal.AsSpan(bodyScratch), homeMasses);
+            NumericMode current = motion.Frame.IsNull ? NumericMode.None : Numeric(motion.Frame);
+            if (NumericFrameRules.Mode(current, motion.Velocity, motion.Center, motion.Anchored, motion.Fixed, NumericOptions) != NumericMode.Falling)
+                continue;
+            for (int i = root; i < end; i++)
+                if (Find(i) == root)
+                    falls[i] = true;
+        }
+    }
+
+    /// <summary>
+    /// Links each anchor to every anchor and to every group that does not fall that the merge test links to it. A pair of
+    /// an anchor and a body that falls stays apart, and <see cref="KeepAnchorGhosts"/> gives the body's frame a ghost of
+    /// the anchor.
+    /// </summary>
+    private void LinkAnchors(int start, int end)
+    {
+        Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
+        anchorPairs.Clear();
+        for (int i = start; i < end; i++)
+        {
+            for (int j = i + 1; j < end; j++)
+            {
+                if (!bodies[i].Anchor && !bodies[j].Anchor || !MayTouch(bodies[i], bodies[j]))
+                    continue;
+                if (falls[i])
+                    anchorPairs.Add((bodies[j].Entity, bodies[i].Entity));
+                else if (falls[j])
+                    anchorPairs.Add((bodies[i].Entity, bodies[j].Entity));
+                else
+                    Union(i, j);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Adds a ghost of the anchor of each pair of <see cref="LinkAnchors"/> to the falling frame that is the home of its
+    /// body now, once for each frame.
+    /// </summary>
+    private void KeepAnchorGhosts(int start, int end)
+    {
+        foreach ((Entity anchor, Entity body) in anchorPairs)
+        {
+            FrameHandle home = FrameHandle.Null;
+            for (int i = start; i < end && home.IsNull; i++)
+                if (sortedBodies[i].Entity == body)
+                    home = sortedBodies[i].Home;
+            // The body's group holds no anchor and falls, so its home is the falling frame that it kept or got.
+            Contract.Assert(Numeric(home) == NumericMode.Falling);
+            var ghost = new NumericGhost(anchor, home);
+            if (!anchorGhosts.Contains(ghost))
+                anchorGhosts.Add(ghost);
         }
     }
 
@@ -256,7 +362,7 @@ public sealed partial class FrameTree
         NumericMode mode = Numeric(frame);
         // The frame's origin in the semantic frame, where the group's center is. A nesting frame between them does not move.
         Double3 position = HomeOffset(frame, sortedBodies[group.Start].Semantic);
-        Double3 velocity = LinearVelocity(frame);
+        Double3 velocity = linearVelocity[Node(frame).Id];
         Double3 newVelocity = NumericFrameRules.DrainVelocity(mode, group.Mode, velocity, group.Motion.Velocity, NumericOptions);
         Double3 newPosition = NumericFrameRules.Origin(position, group.Motion.Center, NumericOptions);
         if (group.Mode == NumericMode.Falling && mode == NumericMode.Resting)
@@ -272,7 +378,9 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Moves every body of the group that is not in its home there, making a new frame when the group needs one. The frame
-    /// that a moving body owns goes under the new home, because a hull lives in the system of its frame's tree parent.
+    /// that a moving body owns goes under the new home, because a hull lives in the system of its frame's tree parent. A
+    /// body that owns a frame that physics does not drive goes back to its semantic frame this way: its group gets the mode
+    /// None.
     /// </summary>
     private void MoveHome(in BodyGroup group, PhysicsChanges changes)
     {
@@ -281,7 +389,7 @@ public sealed partial class FrameTree
         FrameHandle home = group.Mode == NumericMode.None ? semantic : group.Keeps ? group.Motion.Frame : FrameHandle.Null;
         bool anyMoves = false;
         foreach (ref readonly NumericBody body in members)
-            anyMoves |= !body.Fixed && body.Home != home;
+            anyMoves |= body.Home != home;
         if (!anyMoves)
             return;
         if (home.IsNull)
@@ -292,8 +400,9 @@ public sealed partial class FrameTree
         }
         foreach (ref NumericBody body in members)
         {
-            if (body.Fixed || body.Home == home)
+            if (body.Home == home)
                 continue;
+            Contract.Assert(!body.Fixed || home == semantic);
             if (!body.OwnedFrame.IsNull)
                 Reparent(body.OwnedFrame, home);
             moves.Add(new NumericMove(body.Entity, body.Home, home));
@@ -320,7 +429,7 @@ public sealed partial class FrameTree
             // A nesting frame that this step makes is not in the list, and an earlier step can only have moved the frames in it.
             if (Numeric(frame) is not (NumericMode.Falling or NumericMode.Resting))
                 continue;
-            Double3 position = LocalPose(frame).Position;
+            Double3 position = TreeLocalPose(frame).Position;
             if (NumericFrameRules.NeedsNest(position, NumericOptions))
                 Nest(frame, position, changes);
         }
@@ -337,7 +446,7 @@ public sealed partial class FrameTree
             frameChildren.Clear();
             GetTreeChildren(parent, frameChildren);
             foreach (FrameHandle child in frameChildren)
-                nestMembers.Add(LocalPose(child).Position);
+                nestMembers.Add(TreeLocalPose(child).Position);
             if (NumericFrameRules.NestCanJump(CollectionsMarshal.AsSpan(nestMembers), step, NumericOptions))
             {
                 ShiftNumeric(parent, step, Double3.Zero);
@@ -348,13 +457,13 @@ public sealed partial class FrameTree
 
         // The semantic frame that holds the nesting frames, and the place of the frame's parent in it: both grid points.
         FrameHandle semantic = nested ? TreeParent(parent) : parent;
-        Double3 parentPlace = nested ? LocalPose(parent).Position : Double3.Zero;
+        Double3 parentPlace = nested ? TreeLocalPose(parent).Position : Double3.Zero;
         nestPlaces.Clear();
         frameChildren.Clear();
         GetTreeChildren(semantic, frameChildren);
         foreach (FrameHandle child in frameChildren)
             if (child != parent && Numeric(child) == NumericMode.Nesting)
-                nestPlaces.Add((child, LocalPose(child).Position));
+                nestPlaces.Add((child, TreeLocalPose(child).Position));
         FrameHandle nest = NumericFrameRules.NearestNest(CollectionsMarshal.AsSpan(nestPlaces), parentPlace, position, NumericOptions);
         if (nest.IsNull)
         {
@@ -362,7 +471,7 @@ public sealed partial class FrameTree
             changes.FramesCreated.Add(nest);
         }
         // The difference of two grid points is exact, so only the last addition rounds, at the scale of the nest distance.
-        MoveUnderNest(frame, nest, parentPlace - LocalPose(nest).Position + position);
+        MoveUnderNest(frame, nest, parentPlace - TreeLocalPose(nest).Position + position);
     }
 
     /// <summary>Counts, for each numeric frame, the bodies whose physics home it is now.</summary>
@@ -398,7 +507,7 @@ public sealed partial class FrameTree
     }
 
     /// <summary>Destroys the numeric frame <paramref name="frame"/>, which holds no frame. The caller has moved its bodies out.</summary>
-    internal void DestroyNumeric(FrameHandle frame)
+    private void DestroyNumeric(FrameHandle frame)
     {
         Contract.Requires(IsNumeric(frame) && !HoldsFrame(frame));
         int count = NumericCount;
@@ -440,7 +549,7 @@ public sealed partial class FrameTree
     /// The public members that walk the tree (<see cref="Parent"/>, <see cref="GetChildren"/> and <see cref="GetAll"/>)
     /// never show it. Throws <see cref="InvalidOperationException"/> for a stale parent.
     /// </summary>
-    internal FrameHandle CreateNumeric(FrameHandle parent, Double3 position, Double3 velocity, NumericMode mode)
+    private FrameHandle CreateNumeric(FrameHandle parent, Double3 position, Double3 velocity, NumericMode mode)
     {
         Contract.Requires(mode != NumericMode.None && Enum.IsDefined(mode));
         Contract.Requires(mode == NumericMode.Falling || velocity == Double3.Zero);
@@ -464,7 +573,7 @@ public sealed partial class FrameTree
     /// the parent, so they lose the same amounts in the frame. A numeric frame does not rotate, so nothing turns. The
     /// bodies in its system must lose them too: the caller tells physics. A resting frame takes no velocity.
     /// </summary>
-    internal void ShiftNumeric(FrameHandle frame, Double3 offset, Double3 velocity)
+    private void ShiftNumeric(FrameHandle frame, Double3 offset, Double3 velocity)
     {
         PoseNode node = Node(frame);
         Contract.Requires(numeric[node.Id] != NumericMode.None);
@@ -492,7 +601,7 @@ public sealed partial class FrameTree
     /// stays where it was relative to everything else. A nesting frame does not move in its parent, and it shares the
     /// semantic parent of the frame, so the frame keeps its velocity. No body changes system, so physics needs no change.
     /// </summary>
-    internal void MoveUnderNest(FrameHandle frame, FrameHandle nest, Double3 position)
+    private void MoveUnderNest(FrameHandle frame, FrameHandle nest, Double3 position)
     {
         PoseNode node = Node(frame), nestNode = Node(nest);
         Contract.Requires(numeric[node.Id] is NumericMode.Falling or NumericMode.Resting && numeric[nestNode.Id] == NumericMode.Nesting);
@@ -506,7 +615,7 @@ public sealed partial class FrameTree
     /// Changes how the numeric frame <paramref name="frame"/> moves. A frame that comes to rest must have no velocity
     /// left in its parent, and it keeps no step acceleration.
     /// </summary>
-    internal void SetNumericMode(FrameHandle frame, NumericMode mode)
+    private void SetNumericMode(FrameHandle frame, NumericMode mode)
     {
         PoseNode node = Node(frame);
         Contract.Requires(numeric[node.Id] != NumericMode.None && mode is NumericMode.Falling or NumericMode.Resting);
@@ -524,6 +633,8 @@ public sealed partial class FrameTree
     /// </summary>
     internal void BeginNumericStep()
     {
+        // The dense order puts parents first only after Update.
+        Contract.Requires(!poses.WorldIsStale);
         for (int i = 0; i < poses.Count; i++)
         {
             int id = poses.NodeAt(i).Id;
@@ -543,6 +654,7 @@ public sealed partial class FrameTree
     /// </summary>
     internal void AdvanceNumericFrames(double dt)
     {
+        Contract.Requires(dt >= 0 && double.IsFinite(dt));
         for (int i = 0; i < poses.Count; i++)
         {
             PoseNode node = poses.NodeAt(i);

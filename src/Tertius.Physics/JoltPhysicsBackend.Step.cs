@@ -207,7 +207,7 @@ public sealed partial class JoltPhysicsBackend
             {
                 // A static frame does not move, unless the game placed it somewhere else. Jolt does not simulate that
                 // move, so the bodies around the hull's old and new places wake.
-                DPose pose = frames.LocalPose(owner.OwnedFrame);
+                DPose pose = frames.TreeLocalPose(owner.OwnedFrame);
                 if (IsAt(bodies, owner.Body, pose))
                     continue;
                 owner.World!.WakeAround(owner.Body);

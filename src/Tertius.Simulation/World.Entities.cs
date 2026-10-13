@@ -155,6 +155,15 @@ public sealed partial class World
             throw new ArgumentException($"Cannot give {frame} the Spin driver: its spin is not valid. Call SetFrameSpin first.", nameof(driver));
 
         Frames.SetDriver(frame, driver);
+        // A frame that physics does not drive moves relative to its semantic parent: a numeric update takes its hull out of
+        // a numeric frame, with the frame, before its driver places it. The move carries the numeric frame's velocity into
+        // the frame, and a frame that gets the static driver stops where it is.
+        if (driver != MotionDriver.Physics && Frames.TreeParent(frame) is { IsNull: false } treeParent && Frames.IsNumeric(treeParent))
+        {
+            UpdateNumericFrames(0);
+            if (driver == MotionDriver.Static)
+                Frames.SetDriver(frame, driver);
+        }
         if (driver == MotionDriver.Kepler)
             ApplyKepler(frame, Time);
         else if (driver == MotionDriver.Spin)
@@ -392,7 +401,7 @@ public sealed partial class World
             }
             else
             {
-                Frames.LinearVelocity(own) = desc.LinearVelocity;
+                Frames.TreeLinearVelocity(own) = desc.LinearVelocity;
                 Frames.AngularVelocity(own) = desc.AngularVelocity;
             }
             physicsChanges.FramesCreated.Add(own);
@@ -650,8 +659,9 @@ public sealed partial class World
         {
             physicsChanges.FramesDestroyed.Add(own);
             topics.RemoveFrame(own);
-            // Moves each surviving child frame up to this frame's parent, converting its pose and velocity.
-            Frames.Destroy(own);
+            // Moves each surviving child frame up to this frame's parent, converting its pose and velocity. The numeric
+            // frames in this frame go too, and Rehome has moved their bodies out.
+            Frames.Destroy(own, physicsChanges.FramesDestroyed);
         }
         if (entities.Body(entity) != null)
             physicsChanges.BodiesDestroyed.Add(entity);
@@ -691,14 +701,14 @@ public sealed partial class World
     {
         FrameHandle home = Frames.TreeParent(frame);
         FrameHandle semantic = home.IsNull ? home : Frames.SemanticOf(home);
-        DPose local = Frames.LocalPose(frame);
+        DPose local = Frames.TreeLocalPose(frame);
         return new TransformRow
         {
             Frame = semantic,
             PhysicsHome = home,
             Pose = home == semantic ? local : new DPose(local.Position + Frames.HomeOffset(home, semantic), local.Rotation),
             HomePosition = local.Position,
-            LinearVelocity = Frames.LinearVelocity(frame).ToVector3(),
+            LinearVelocity = Frames.TreeLinearVelocity(frame).ToVector3(),
             AngularVelocity = Frames.AngularVelocity(frame),
         };
     }
@@ -713,7 +723,7 @@ public sealed partial class World
         double parentMu = Frames.KeplerMu(frame);
         (Double3 position, Double3 velocity) = orbit.StateAt(time, parentMu);
         Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(time, parentMu)));
-        Frames.LinearVelocity(frame) = velocity;
+        Frames.TreeLinearVelocity(frame) = velocity;
         Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(time, parentMu).ToVector3();
         Frames.ProperAcceleration(frame) = Vector3.Zero;
     }
@@ -727,7 +737,7 @@ public sealed partial class World
     {
         FrameSpin spin = Frames.Spin(frame);
         Frames.SetLocalPose(frame, new DPose(Frames.LocalPose(frame).Position, spin.RotationAt(time)));
-        Frames.LinearVelocity(frame) = Double3.Zero;
+        Frames.TreeLinearVelocity(frame) = Double3.Zero;
         Frames.AngularVelocity(frame) = spin.AngularVelocity.ToVector3();
     }
 

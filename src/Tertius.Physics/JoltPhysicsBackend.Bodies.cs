@@ -169,7 +169,7 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private void CreateHullFromTree(BodyRecord record, FrameHandle parent)
     {
-        DPose pose = frames.LocalPose(record.OwnedFrame);
+        DPose pose = frames.TreeLocalPose(record.OwnedFrame);
         var (linear, angular) = HullVelocityFromTree(record, pose);
         CreatePrimary(record, parent, pose, linear, angular, upFromGravity: false);
     }
@@ -185,7 +185,7 @@ public sealed partial class JoltPhysicsBackend
         FrameHandle frame = record.OwnedFrame;
         Vector3 angular = frames.AngularVelocity(frame);
         Double3 centerOffset = pose.TransformDirection(shapes.Get(record.Desc.Shape).CenterOfMass);
-        Double3 linear = frames.LinearVelocity(frame) + Double3.Cross(angular, centerOffset);
+        Double3 linear = frames.TreeLinearVelocity(frame) + Double3.Cross(angular, centerOffset);
         return (linear.ToVector3(), angular);
     }
 
@@ -487,7 +487,7 @@ public sealed partial class JoltPhysicsBackend
         BodyID hull = owner.Body;
         MotionType motion = ToMotionType(owner.Motion);
         Activation activation = motion == MotionType.Static ? Activation.DontActivate : Activation.Activate;
-        DPose pose = frames.LocalPose(owner.OwnedFrame);
+        DPose pose = frames.TreeLocalPose(owner.OwnedFrame);
         bool moves = !IsAt(bodies, hull, pose);
         if (moves)
             world.WakeAround(hull);

@@ -713,7 +713,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// </summary>
     private FrameMotion PredictMotion(FrameHandle frame, double time)
     {
-        DPose pose = frames.LocalPose(frame);
+        DPose pose = frames.TreeLocalPose(frame);
         MotionDriver driver = frames.Driver(frame);
         if (driver == MotionDriver.Static)
             return new FrameMotion(pose, Double3.Zero, Double3.Zero);
@@ -731,7 +731,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         }
 
         double ahead = time - stepTime;
-        Double3 linear = frames.LinearVelocity(frame);
+        Double3 linear = frames.TreeLinearVelocity(frame);
         Double3 angular = frames.AngularVelocity(frame);
         var extrapolated = new DPose(pose.Position + linear * ahead, Rotations.Integrate(pose.Rotation, angular, ahead));
         return new FrameMotion(extrapolated, linear, angular);

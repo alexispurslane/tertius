@@ -102,7 +102,7 @@ public class WorldNumericNestingTests
         world.Errors.Should().BeEmpty();
         FrameHandle crateHome = world.PhysicsHomeOf(scene.Crate);
         world.Frames.IsNumeric(crateHome).Should().BeTrue("the crate is fast, so it falls in a numeric frame");
-        world.Frames.LocalPose(crateHome).Position.Length.Should().BeLessThan(1e9, "its frame nests near it");
+        world.Frames.TreeLocalPose(crateHome).Position.Length.Should().BeLessThan(1e9, "its frame nests near it");
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public class WorldNumericNestingTests
         FrameHandle nest = world.Frames.TreeParent(crateHome);
         world.Frames.TreeParent(podHome).Should().Be(nest);
         world.Frames.Numeric(nest).Should().Be(NumericMode.Nesting);
-        ShouldBeOnTheGrid(world.Frames.LocalPose(nest).Position);
+        ShouldBeOnTheGrid(world.Frames.TreeLocalPose(nest).Position);
         world.Errors.Should().BeEmpty();
     }
 
@@ -130,7 +130,7 @@ public class WorldNumericNestingTests
         using World world = scene.World;
         world.Tick();
         FrameHandle nest = world.Frames.TreeParent(world.PhysicsHomeOf(scene.Crate));
-        Double3 start = world.Frames.LocalPose(nest).Position;
+        Double3 start = world.Frames.TreeLocalPose(nest).Position;
         var before = CrateX(scene);
 
         for (int tick = 0; tick < 330; tick++)
@@ -141,12 +141,12 @@ public class WorldNumericNestingTests
             before = after;
             FrameHandle crateHome = world.PhysicsHomeOf(scene.Crate);
             world.Frames.TreeParent(crateHome).Should().Be(nest, "the nest jumps instead of being replaced");
-            ShouldBeOnTheGrid(world.Frames.LocalPose(nest).Position);
-            world.Frames.LocalPose(crateHome).Position.Length.Should().BeLessThanOrEqualTo(1 << 21);
+            ShouldBeOnTheGrid(world.Frames.TreeLocalPose(nest).Position);
+            world.Frames.TreeLocalPose(crateHome).Position.Length.Should().BeLessThanOrEqualTo(1 << 21);
         }
 
         world.Errors.Should().BeEmpty();
-        (world.Frames.LocalPose(nest).Position.X - start.X).Should().BeGreaterThan(0, "the nest jumped after its frames");
+        (world.Frames.TreeLocalPose(nest).Position.X - start.X).Should().BeGreaterThan(0, "the nest jumped after its frames");
     }
 
     private static void ShouldBeOnTheGrid(Double3 position)

@@ -14,8 +14,11 @@ internal readonly record struct NumericBody
     /// <summary>The frame whose physics system holds the body: <see cref="Semantic"/>, or a numeric frame below it.</summary>
     public FrameHandle Home { get; init; }
 
-    /// <summary>The position in <see cref="Semantic"/>.</summary>
+    /// <summary>The position in <see cref="Semantic"/>. Far from its origin, it rounds.</summary>
     public Double3 Position { get; init; }
+
+    /// <summary>The position in <see cref="Home"/>, which stays exact near the home's origin.</summary>
+    public Double3 HomePosition { get; init; }
 
     /// <summary>The velocity relative to <see cref="Semantic"/>.</summary>
     public Double3 Velocity { get; init; }
@@ -34,6 +37,12 @@ internal readonly record struct NumericBody
 
     /// <summary>The frame that the entity owns, or null. A move puts that frame under the body's new home.</summary>
     public FrameHandle OwnedFrame { get; init; }
+
+    /// <summary>
+    /// True for a static body and for the hull of a frame that physics does not drive. An anchor never changes the mode of
+    /// a group that falls: it stays in its own system, and the group's frame gets a ghost of it.
+    /// </summary>
+    public bool Anchor => Static || Fixed;
 }
 
 /// <summary>
@@ -81,15 +90,17 @@ internal static class NumericFrameRules
         Mode(NumericMode.None, body.Velocity, body.Position, body.Static, body.Fixed, options);
 
     /// <summary>
-    /// The merge test: true when the bounding spheres of the two bodies, grown by their relative speed times the lookahead
-    /// time, overlap or touch. Two bodies of one numeric frame stay linked up to the split margin farther.
+    /// The merge test: true when the bounding spheres of the two bodies, <paramref name="separation"/> apart, grown by their
+    /// relative speed times the lookahead time, overlap or touch. Two bodies of one system, a numeric frame's or the
+    /// semantic frame's own, stay linked up to the split margin farther, so that a body at the edge of the reach does not
+    /// go in and out at each sync point.
     /// </summary>
-    internal static bool MayTouch(in NumericBody a, in NumericBody b, NumericFrameOptions options)
+    internal static bool MayTouch(in NumericBody a, in NumericBody b, Double3 separation, NumericFrameOptions options)
     {
         double reach = a.Radius + b.Radius + (a.Velocity - b.Velocity).Length * options.LookaheadTime;
-        if (a.Home == b.Home && a.Home != a.Semantic)
+        if (a.Home == b.Home)
             reach += options.SplitMargin;
-        return (a.Position - b.Position).LengthSquared <= reach * reach;
+        return separation.LengthSquared <= reach * reach;
     }
 
     /// <summary>

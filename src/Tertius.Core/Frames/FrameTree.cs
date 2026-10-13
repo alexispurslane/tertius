@@ -21,14 +21,17 @@ namespace Tertius;
 /// contracts, when a caller creates a frame or sets a local pose, and the World keeps it: it normalizes a rotation that a
 /// caller gives it, and physics normalizes the rotation that leaves Jolt. The poses that the tree composes itself, when it
 /// moves or destroys a frame, are unit length.</item>
-/// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner, a parent, no bubble, the identity rotation and no
-/// spin. A resting or nesting one has no velocity and no step acceleration. The chain of tree parents of a numeric frame
-/// ends at a semantic frame: a falling or resting frame lies in a semantic frame or a nesting frame, and a nesting frame
-/// lies in a semantic frame, on a whole multiple of <see cref="NumericFrameOptions.NestGrid"/>, and holds only numeric
-/// frames. At the end of <see cref="UpdateNumericFrames"/>, every numeric frame holds a body or a frame; between updates,
-/// the count of bodies is the one of the last update. A semantic frame has an owner and no step acceleration, and a
-/// semantic frame with the Kepler or Spin driver is not the child of a numeric frame, because it moves relative to its
-/// parent.</item>
+/// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner, a parent, no bubble, the identity rotation, no
+/// spin, the Static driver and no gravity. A resting or nesting one has no velocity and no step acceleration. The chain of
+/// tree parents of a numeric frame ends at a semantic frame: a falling or resting frame lies in a semantic frame or a
+/// nesting frame, and a nesting frame lies in a semantic frame, on a whole multiple of
+/// <see cref="NumericFrameOptions.NestGrid"/>, and holds only numeric frames. At the end of
+/// <see cref="UpdateNumericFrames"/>, every falling or resting frame is the home of a body or holds a frame, and every
+/// nesting frame holds a frame and is the home of no body; between updates, the count of bodies is the one of the last
+/// update. <see cref="NumericCount"/> is the number of numeric frames. A semantic frame has an owner and no step
+/// acceleration, and a semantic frame whose tree parent is a numeric frame has the Physics driver: a frame that its orbit,
+/// its spin or its owner's writes move, moves relative to its semantic parent. Every ghost of
+/// <see cref="AnchorGhosts"/> names a live falling frame.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -51,14 +54,15 @@ public sealed partial class FrameTree
     private NumericMode[] numeric = new NumericMode[64];
     private Double3[] stepAcceleration = new Double3[64];
     // How long the members of each numeric frame have been apart, in seconds, and the number of bodies whose physics home
-    // it was at the end of the last UpdateNumericFrames, or NotCounted for a frame that no update has counted yet.
+    // it was at the end of the last UpdateNumericFrames.
     private double[] apartTime = new double[64];
     private int[] numericBodies = new int[64];
     // The number of calls to SetDriver, SetOrbit and SetSpin for each frame, and for every frame together.
     private int[] driverVersion = new int[64];
     private int driverChanges;
 
-    public int Count => poses.Count;
+    /// <summary>How many frames the tree holds, numeric frames included.</summary>
+    internal int Count => poses.Count;
 
     /// <summary>How many of the frames are numeric frames, which the engine makes and gameplay never sees.</summary>
     internal int NumericCount { get; private set; }
@@ -67,7 +71,7 @@ public sealed partial class FrameTree
     /// Changes on every structural change (add, remove or reparent) and on every call to <see cref="SetDriver"/>,
     /// <see cref="SetOrbit"/> and <see cref="SetSpin"/>. Physics compares it with the version that it last followed.
     /// </summary>
-    public int Version => poses.Version + driverChanges;
+    internal int Version => poses.Version + driverChanges;
 
     public FrameHandle Create(
         Entity frameOwner,
@@ -107,21 +111,60 @@ public sealed partial class FrameTree
         numeric[node.Id] = mode;
         stepAcceleration[node.Id] = Double3.Zero;
         apartTime[node.Id] = 0;
-        numericBodies[node.Id] = NotCounted;
+        numericBodies[node.Id] = 0;
         driverVersion[node.Id] = 0;
         return new FrameHandle(frameOwner, node.Id, node.Generation);
     }
 
     /// <summary>Destroys a frame. Its child frames move to its parent and keep their poses and velocities.</summary>
-    public void Destroy(FrameHandle frame)
+    public void Destroy(FrameHandle frame) => Destroy(frame, null);
+
+    /// <summary>
+    /// Destroys a frame. Its semantic child frames move to its parent and keep their poses and velocities. Its numeric
+    /// child frames go with it, because they lie in it: the frames that they hold move to the parent in the same way, and
+    /// each numeric frame that goes is added to <paramref name="dissolved"/>. The caller has moved the bodies of those
+    /// numeric frames out.
+    /// </summary>
+    internal void Destroy(FrameHandle frame, List<FrameHandle>? dissolved)
     {
         PoseNode node = Node(frame);
         FrameHandle parent = TreeParent(frame);
         var children = new List<FrameHandle>();
         GetTreeChildren(frame, children);
-        // Reparent converts each child's velocity into the new parent's axes. A child of a root frame becomes a root.
+        // Reparent converts each child's velocity into the new parent's axes. A child of a root frame becomes a root. A
+        // numeric child that moved would keep the rotation and the spin of the frame that died, which no numeric frame has.
         foreach (FrameHandle child in children)
-            Reparent(child, parent);
+        {
+            if (IsNumeric(child))
+                Dissolve(child, parent, dissolved);
+            else
+                Reparent(child, parent);
+        }
+        RemoveNode(node);
+    }
+
+    /// <summary>
+    /// Destroys the numeric frame <paramref name="frame"/> and the numeric frames in it, and moves the semantic frames in
+    /// them to <paramref name="target"/>.
+    /// </summary>
+    private void Dissolve(FrameHandle frame, FrameHandle target, List<FrameHandle>? dissolved)
+    {
+        var children = new List<FrameHandle>();
+        GetTreeChildren(frame, children);
+        foreach (FrameHandle child in children)
+        {
+            if (IsNumeric(child))
+                Dissolve(child, target, dissolved);
+            else
+                Reparent(child, target);
+        }
+        anchorGhosts.RemoveAll(ghost => ghost.Frame == frame);
+        dissolved?.Add(frame);
+        RemoveNode(Node(frame));
+    }
+
+    private void RemoveNode(PoseNode node)
+    {
         if (!owner[node.Id].IsNull)
             byOwner.Remove(owner[node.Id]);
         owner[node.Id] = Entity.Null;
@@ -200,16 +243,26 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Adds the semantic children of a frame to <paramref name="children"/>: its children in the tree, with each numeric
-    /// child replaced by its own semantic children. Throws <see cref="InvalidOperationException"/> for a stale frame.
+    /// child replaced by its own semantic children, in the order of their indices, so that numeric frames that come and go
+    /// do not change it. Throws <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     public void GetChildren(FrameHandle frame, List<FrameHandle> children)
+    {
+        int first = children.Count;
+        AddSemanticChildren(frame, children);
+        children.Sort(first, children.Count - first, ByIndex);
+    }
+
+    private static readonly Comparer<FrameHandle> ByIndex = Comparer<FrameHandle>.Create((a, b) => a.Index.CompareTo(b.Index));
+
+    private void AddSemanticChildren(FrameHandle frame, List<FrameHandle> children)
     {
         var tree = new List<FrameHandle>();
         GetTreeChildren(frame, tree);
         foreach (FrameHandle child in tree)
         {
             if (IsNumeric(child))
-                GetChildren(child, children);
+                AddSemanticChildren(child, children);
             else
                 children.Add(child);
         }
@@ -224,13 +277,35 @@ public sealed partial class FrameTree
             children.Add(Handle(n));
     }
 
-    public DPose LocalPose(FrameHandle frame) => poses.GetLocal(Node(frame));
+    /// <summary>
+    /// The pose of the frame in its parent (see <see cref="Parent"/>). The numeric frames between them do not rotate, so
+    /// this adds their offsets to the pose in the tree parent.
+    /// </summary>
+    public DPose LocalPose(FrameHandle frame)
+    {
+        DPose local = TreeLocalPose(frame);
+        FrameHandle treeParent = TreeParent(frame);
+        return treeParent.IsNull || !IsNumeric(treeParent) ? local
+            : new DPose(local.Position + HomeOffset(treeParent, SemanticOf(treeParent)), local.Rotation);
+    }
+
+    /// <summary>The pose of the frame in its tree parent, as it is stored.</summary>
+    internal DPose TreeLocalPose(FrameHandle frame) => poses.GetLocal(Node(frame));
 
     /// <summary>
-    /// Sets the pose of the frame in its parent. The rotation must be unit length (see <see cref="DQuaternion.IsUnit"/>): a
-    /// caller that cannot promise it normalizes the rotation first (see <see cref="DPose.WithUnitRotation"/>).
+    /// Sets the pose of the frame in its parent (see <see cref="Parent"/>). The rotation must be unit length (see
+    /// <see cref="DQuaternion.IsUnit"/>): a caller that cannot promise it normalizes the rotation first (see
+    /// <see cref="DPose.WithUnitRotation"/>).
     /// </summary>
     public void SetLocalPose(FrameHandle frame, in DPose pose)
+    {
+        FrameHandle treeParent = TreeParent(frame);
+        SetTreeLocalPose(frame, treeParent.IsNull || !IsNumeric(treeParent) ? pose
+            : new DPose(pose.Position - HomeOffset(treeParent, SemanticOf(treeParent)), pose.Rotation));
+    }
+
+    /// <summary>Sets the pose of the frame in its tree parent, as it is stored. The rotation must be unit length.</summary>
+    internal void SetTreeLocalPose(FrameHandle frame, in DPose pose)
     {
         Contract.Requires(pose.Rotation.IsUnit);
         poses.Local(Node(frame)) = pose;
@@ -350,6 +425,7 @@ public sealed partial class FrameTree
         for (int i = 0; i < poses.Count; i++)
             if (poses.Parent(poses.NodeAt(i)) is { IsNull: false } parentNode)
                 holdsFrame[parentNode.Id] = true;
+        int numericFrames = 0;
         for (int i = 0; i < poses.Count; i++)
         {
             FrameHandle frame = AtDense(i);
@@ -364,13 +440,15 @@ public sealed partial class FrameTree
                 Contract.Invariant(!owner[id].IsNull && stepAcceleration[id] == Double3.Zero);
                 // A nesting frame holds only numeric frames.
                 Contract.Invariant(parentMode != NumericMode.Nesting);
-                // A frame that moves by its orbit or its spin moves relative to its parent, which must not fall or rest.
-                if (Driver(frame) is MotionDriver.Kepler or MotionDriver.Spin)
-                    Contract.Invariant(parentMode == NumericMode.None);
+                // A frame that its orbit, its spin or its owner's writes move, moves relative to its semantic parent.
+                if (parentMode != NumericMode.None)
+                    Contract.Invariant(Driver(frame) == MotionDriver.Physics);
                 continue;
             }
+            numericFrames++;
             Contract.Invariant(owner[id].IsNull && !parent.IsNull && bounds[id] == default);
             Contract.Invariant(locals[i].Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
+            Contract.Invariant(driver[id] == MotionDriver.Static && !gravity[id].HasValue);
             if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
                 Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero);
             // The chain of tree parents ends at a semantic frame: a falling or resting frame lies in one or in a nesting
@@ -379,15 +457,36 @@ public sealed partial class FrameTree
                 Contract.Invariant(parentMode == NumericMode.None && NumericFrameRules.OnGrid(locals[i].Position, NumericOptions.NestGrid));
             else
                 Contract.Invariant(parentMode is NumericMode.None or NumericMode.Nesting);
-            // The last update left no numeric frame without a body or a frame.
-            Contract.Invariant(numericBodies[id] != 0 || holdsFrame[id]);
+            // The last update left no falling or resting frame without a body or a frame, and no nesting frame without a
+            // frame or with a body.
+            if (numeric[id] == NumericMode.Nesting)
+                Contract.Invariant(numericBodies[id] == 0 && holdsFrame[id]);
+            else
+                Contract.Invariant(numericBodies[id] > 0 || holdsFrame[id]);
         }
+        Contract.Invariant(NumericCount == numericFrames);
+        foreach (NumericGhost ghost in anchorGhosts)
+            Contract.Invariant(IsAlive(ghost.Frame) && Numeric(ghost.Frame) == NumericMode.Falling);
     }
 
-    /// <summary>Linear velocity of the frame origin relative to the parent, in parent axes.</summary>
-    public ref Double3 LinearVelocity(FrameHandle frame) => ref linearVelocity[Node(frame).Id];
+    /// <summary>
+    /// Linear velocity of the frame origin relative to the parent (see <see cref="Parent"/>), in parent axes. The numeric
+    /// frames between them do not rotate, so this adds their velocities to the velocity in the tree parent.
+    /// </summary>
+    public Double3 LinearVelocity(FrameHandle frame)
+    {
+        Double3 velocity = linearVelocity[Node(frame).Id];
+        FrameHandle treeParent = TreeParent(frame);
+        return treeParent.IsNull || !IsNumeric(treeParent) ? velocity : velocity + HomeVelocity(treeParent, SemanticOf(treeParent));
+    }
 
-    /// <summary>Angular velocity of the frame relative to the parent, in parent axes.</summary>
+    /// <summary>Linear velocity of the frame origin relative to its tree parent, in its axes, as it is stored.</summary>
+    internal ref Double3 TreeLinearVelocity(FrameHandle frame) => ref linearVelocity[Node(frame).Id];
+
+    /// <summary>
+    /// Angular velocity of the frame relative to the parent, in parent axes. A numeric frame between them has the axes of
+    /// its parent and does not turn, so this is also the angular velocity relative to the tree parent.
+    /// </summary>
     public ref Vector3 AngularVelocity(FrameHandle frame) => ref angularVelocity[Node(frame).Id];
 
     /// <summary>What an accelerometer at the frame origin reads, in frame axes. Zero for a frame in free fall.</summary>
@@ -397,21 +496,21 @@ public sealed partial class FrameTree
     public DPose Relative(FrameHandle of, FrameHandle to) => poses.Relative(Node(of), Node(to));
 
     /// <summary>Writes every frame's pose relative to <paramref name="reference"/> into <paramref name="result"/>, by dense index.</summary>
-    public void ComputeRelativeTo(FrameHandle reference, Span<DPose> result) => poses.ComputeRelativeTo(Node(reference), result);
+    internal void ComputeRelativeTo(FrameHandle reference, Span<DPose> result) => poses.ComputeRelativeTo(Node(reference), result);
 
     /// <summary>
     /// Like <see cref="ComputeRelativeTo(FrameHandle, Span{DPose})"/>, but with the local poses taken from
     /// <paramref name="localPoses"/> by dense index, such as a copy of last tick's poses.
     /// </summary>
-    public void ComputeRelativeTo(FrameHandle reference, ReadOnlySpan<DPose> localPoses, Span<DPose> result) =>
+    internal void ComputeRelativeTo(FrameHandle reference, ReadOnlySpan<DPose> localPoses, Span<DPose> result) =>
         poses.ComputeRelativeTo(Node(reference), localPoses, result);
 
     /// <summary>The local poses of all frames, by dense index. Copy it to keep a tick's poses.</summary>
-    public ReadOnlySpan<DPose> LocalPosesDense => poses.LocalPoses;
+    internal ReadOnlySpan<DPose> LocalPosesDense => poses.LocalPoses;
 
-    public int DenseIndex(FrameHandle frame) => poses.DenseIndex(Node(frame));
+    internal int DenseIndex(FrameHandle frame) => poses.DenseIndex(Node(frame));
 
-    public FrameHandle AtDense(int dense) => Handle(poses.NodeAt(dense));
+    internal FrameHandle AtDense(int dense) => Handle(poses.NodeAt(dense));
 
     /// <summary>Restores order and recomputes root-relative poses. Call it at the end of every sync point.</summary>
     public void Update() => poses.UpdateWorld();
@@ -480,41 +579,75 @@ public sealed partial class FrameTree
         for (FrameHandle f = home; f != semantic; f = TreeParent(f))
         {
             int id = Node(f).Id;
-            offset += LocalPose(f).Position + (linearVelocity[id] + stepAcceleration[id] * dt) * dt;
+            offset += TreeLocalPose(f).Position + (linearVelocity[id] + stepAcceleration[id] * dt) * dt;
         }
         return offset;
     }
 
-    /// <summary>Converts a point from frame coordinates to parent coordinates.</summary>
+    /// <summary>
+    /// Like <see cref="HomeVelocity"/>, but at the end of a step of <paramref name="dt"/> seconds that starts now (see
+    /// <see cref="AdvanceNumericFrames"/>).
+    /// </summary>
+    internal Double3 HomeVelocityAfter(FrameHandle home, FrameHandle semantic, double dt) =>
+        HomeVelocity(home, semantic) + HomeAcceleration(home, semantic) * dt;
+
+    /// <summary>
+    /// The position of the origin of <paramref name="of"/> in <paramref name="to"/>, two frames of one semantic frame (the
+    /// semantic frame itself or numeric frames below it), at the end of a step of <paramref name="dt"/> seconds that starts
+    /// now. It sums through their lowest common ancestor, so no large number enters between two frames near each other.
+    /// </summary>
+    internal Double3 OffsetAfter(FrameHandle of, FrameHandle to, double dt)
+    {
+        Contract.Requires(SemanticOf(of) == SemanticOf(to));
+        FrameHandle common = of;
+        while (common != to && !IsAncestorOf(common, to))
+            common = TreeParent(common);
+        return HomeOffsetAfter(of, common, dt) - HomeOffsetAfter(to, common, dt);
+    }
+
+    /// <summary>Converts a point from frame coordinates to parent coordinates (see <see cref="Parent"/>).</summary>
     public Double3 PointToParent(FrameHandle frame, Double3 point) => LocalPose(frame).TransformPoint(point);
 
-    /// <summary>Converts a point from parent coordinates to frame coordinates.</summary>
+    /// <summary>Converts a point from parent coordinates (see <see cref="Parent"/>) to frame coordinates.</summary>
     public Double3 PointFromParent(FrameHandle frame, Double3 point) => LocalPose(frame).InverseTransformPoint(point);
 
-    /// <summary>Velocity of a point in the parent: R·v + v_frame + ω × (R·p).</summary>
-    public Double3 VelocityToParent(FrameHandle frame, Double3 positionInFrame, Double3 velocityInFrame)
-    {
-        int id = Node(frame).Id;
-        DPose pose = poses.GetLocal(Node(frame));
-        Double3 offset = pose.TransformDirection(positionInFrame);
-        return pose.TransformDirection(velocityInFrame) + linearVelocity[id] + Double3.Cross(angularVelocity[id], offset);
-    }
+    /// <summary>Velocity of a point in the parent (see <see cref="Parent"/>): R·v + v_frame + ω × (R·p).</summary>
+    public Double3 VelocityToParent(FrameHandle frame, Double3 positionInFrame, Double3 velocityInFrame) =>
+        VelocityToParent(LocalPose(frame), LinearVelocity(frame), AngularVelocity(frame), positionInFrame, velocityInFrame);
 
-    /// <summary>Velocity of a point in the frame: R⁻¹(v − v_frame − ω × (p − origin)).</summary>
-    public Double3 VelocityFromParent(FrameHandle frame, Double3 positionInParent, Double3 velocityInParent)
-    {
-        int id = Node(frame).Id;
-        DPose pose = poses.GetLocal(Node(frame));
-        Double3 offset = positionInParent - pose.Position;
-        return pose.InverseTransformDirection(velocityInParent - linearVelocity[id] - Double3.Cross(angularVelocity[id], offset));
-    }
+    /// <summary>Velocity of a point in the frame, from the parent (see <see cref="Parent"/>): R⁻¹(v − v_frame − ω × (p − origin)).</summary>
+    public Double3 VelocityFromParent(FrameHandle frame, Double3 positionInParent, Double3 velocityInParent) =>
+        VelocityFromParent(LocalPose(frame), LinearVelocity(frame), AngularVelocity(frame), positionInParent, velocityInParent);
 
-    /// <summary>Adds every live semantic frame, in dense order. Numeric frames are an engine detail, so it skips them.</summary>
+    private static Double3 VelocityToParent(in DPose pose, Double3 velocity, Double3 angular, Double3 positionInFrame, Double3 velocityInFrame) =>
+        pose.TransformDirection(velocityInFrame) + velocity + Double3.Cross(angular, pose.TransformDirection(positionInFrame));
+
+    private static Double3 VelocityFromParent(in DPose pose, Double3 velocity, Double3 angular, Double3 positionInParent, Double3 velocityInParent) =>
+        pose.InverseTransformDirection(velocityInParent - velocity - Double3.Cross(angular, positionInParent - pose.Position));
+
+    /// <summary>
+    /// Adds every live semantic frame, parents before children: the root frames in the order of their indices, each
+    /// followed by its children in the order of <see cref="GetChildren"/>. Numeric frames are an engine detail, so it skips
+    /// them, and their coming and going does not change the order.
+    /// </summary>
     public void GetAll(List<FrameHandle> frames)
     {
+        var roots = new List<FrameHandle>();
         for (int i = 0; i < poses.Count; i++)
-            if (numeric[poses.NodeAt(i).Id] == NumericMode.None)
-                frames.Add(AtDense(i));
+            if (poses.Parent(poses.NodeAt(i)).IsNull)
+                roots.Add(AtDense(i));
+        roots.Sort(ByIndex);
+        foreach (FrameHandle root in roots)
+            AddWithDescendants(root, frames);
+    }
+
+    private void AddWithDescendants(FrameHandle frame, List<FrameHandle> frames)
+    {
+        frames.Add(frame);
+        var children = new List<FrameHandle>();
+        GetChildren(frame, children);
+        foreach (FrameHandle child in children)
+            AddWithDescendants(child, frames);
     }
 
     /// <summary>Adds every live frame, numeric frames included, in dense order.</summary>
@@ -542,7 +675,7 @@ public sealed partial class FrameTree
     {
         DPose pose = DPose.Identity;
         for (FrameHandle f = frame; !f.IsNull; f = TreeParent(f))
-            pose = DPose.Compose(LocalPose(f), pose);
+            pose = DPose.Compose(TreeLocalPose(f), pose);
         return pose;
     }
 
@@ -558,8 +691,10 @@ public sealed partial class FrameTree
         Double3 p = position, vel = v;
         while (!x.IsNull && x != to && !IsAncestorOrNull(x, to))
         {
-            vel = VelocityToParent(x, p, vel);
-            p = PointToParent(x, p);
+            int id = Node(x).Id;
+            DPose pose = TreeLocalPose(x);
+            vel = VelocityToParent(pose, linearVelocity[id], angularVelocity[id], p, vel);
+            p = pose.TransformPoint(p);
             x = TreeParent(x);
         }
         if (x == to)
@@ -571,8 +706,10 @@ public sealed partial class FrameTree
         while (path.Count > 0)
         {
             FrameHandle child = path.Pop();
-            vel = VelocityFromParent(child, p, vel);
-            p = PointFromParent(child, p);
+            int id = Node(child).Id;
+            DPose pose = TreeLocalPose(child);
+            vel = VelocityFromParent(pose, linearVelocity[id], angularVelocity[id], p, vel);
+            p = pose.InverseTransformPoint(p);
         }
         return vel;
     }
@@ -583,7 +720,7 @@ public sealed partial class FrameTree
     /// frames, which never rotate, so this is the sum of their frame velocities, in doubles. It is zero when the home is the
     /// semantic frame.
     /// </summary>
-    public Double3 HomeVelocity(FrameHandle home, FrameHandle semantic)
+    internal Double3 HomeVelocity(FrameHandle home, FrameHandle semantic)
     {
         Contract.Requires(home == semantic || IsAncestorOf(semantic, home));
         Double3 velocity = Double3.Zero;
@@ -596,12 +733,12 @@ public sealed partial class FrameTree
     /// The position of the origin of <paramref name="home"/> in the coordinates of <paramref name="semantic"/>, the home
     /// itself or an ancestor of it. Like <see cref="HomeVelocity"/>, it is a sum along the numeric frames between them.
     /// </summary>
-    public Double3 HomeOffset(FrameHandle home, FrameHandle semantic)
+    internal Double3 HomeOffset(FrameHandle home, FrameHandle semantic)
     {
         Contract.Requires(home == semantic || IsAncestorOf(semantic, home));
         Double3 offset = Double3.Zero;
         for (FrameHandle f = home; f != semantic; f = TreeParent(f))
-            offset += LocalPose(f).Position;
+            offset += TreeLocalPose(f).Position;
         return offset;
     }
 
@@ -617,7 +754,7 @@ public sealed partial class FrameTree
         while (!x.IsNull && x != to && !IsAncestorOrNull(x, to))
         {
             FrameHandle parent = TreeParent(x);
-            omega = LocalPose(x).TransformDirection(omega) + angularVelocity[Node(x).Id];
+            omega = TreeLocalPose(x).TransformDirection(omega) + angularVelocity[Node(x).Id];
             x = parent;
         }
         var path = new Stack<FrameHandle>();
@@ -626,7 +763,7 @@ public sealed partial class FrameTree
         while (path.Count > 0)
         {
             FrameHandle child = path.Pop();
-            omega = LocalPose(child).InverseTransformDirection(omega - angularVelocity[Node(child).Id]);
+            omega = TreeLocalPose(child).InverseTransformDirection(omega - angularVelocity[Node(child).Id]);
         }
         return omega;
     }

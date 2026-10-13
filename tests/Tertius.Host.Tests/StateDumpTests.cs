@@ -36,14 +36,17 @@ public class StateDumpTests
         using World world = NewJoltWorld();
         SceneInstance scene = BoxOnFloor(world);
         world.Frames.TryGetFrame(scene["ground"], out FrameHandle ground).Should().BeTrue();
-        FrameHandle numeric = world.CreateNumericFrame(ground, new Double3(2, 0, 0), Double3.Zero, NumericMode.Resting);
-        world.MoveBodies([scene["box"]], numeric);
+        // Every slow group gets a resting frame, however near the origin: the box and the floor under it.
+        world.Frames.NumericOptions = new NumericFrameOptions { CreateDistance = 0, LeaveDistance = 0 };
+        // The numeric update runs at the start of the first tick, in which the box falls by 3 mm.
+        world.Tick();
 
         StateDump dump = Run(world, scene, DumpNow).Dump("now");
 
+        world.Frames.IsNumeric(world.PhysicsHomeOf(scene["box"])).Should().BeTrue();
         dump.Frames.Select(record => record.Id).Should().Equal("ground");
         dump.Entity("box").Pose.Frame.Should().Be("ground");
-        dump.Entity("box").Pose.Position.Should().Be(new Double3(0, 1.5, 0));
+        (dump.Entity("box").Pose.Position - new Double3(0, 1.5, 0)).Length.Should().BeLessThan(0.01);
         dump.Entity("box").RootPose.Frame.Should().Be("ground");
     }
 
