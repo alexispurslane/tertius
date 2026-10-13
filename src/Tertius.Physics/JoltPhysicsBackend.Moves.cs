@@ -50,7 +50,9 @@ public sealed partial class JoltPhysicsBackend
             if (record.Frame == move.To)
                 continue;
             FrameHandle semantic = frames.SemanticOf(move.To);
-            Double3 offset = frames.HomeOffset(record.Frame, semantic) - frames.HomeOffset(move.To, semantic);
+            // The old home's origin in the new home, through their lowest common ancestor: numeric frames do not rotate, and
+            // two nearby homes far from the semantic frame's origin add no large number.
+            Double3 offset = frames.Relative(record.Frame, move.To).Position;
             Double3 velocity = frames.HomeVelocity(record.Frame, semantic) - frames.HomeVelocity(move.To, semantic);
             BodySnapshot s = ReadPrimary(record);
             uint oldId = record.Character is { } character ? character.InnerBodyID.ID : record.Body.ID;

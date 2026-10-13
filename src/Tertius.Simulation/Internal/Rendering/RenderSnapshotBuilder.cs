@@ -76,7 +76,7 @@ internal sealed class RenderSnapshotBuilder
         public BoundingBox Region;
     }
 
-    /// <summary>The pose of one entity at the last build that placed it, relative to its frame then.</summary>
+    /// <summary>The pose of one entity at the last build that placed it, relative to its physics home then.</summary>
     private struct PoseMemory
     {
         public DPose Pose;
@@ -90,6 +90,8 @@ internal sealed class RenderSnapshotBuilder
     private long buildStamp;
     private Entity lastCamera;
     private FrameHandle lastCameraFrame;
+    // The camera's physics home at the last build, and its eye pose in that home.
+    private FrameHandle lastCameraHome;
     private DPose lastCameraPose;
     private long lastCameraStamp;
 
@@ -127,19 +129,24 @@ internal sealed class RenderSnapshotBuilder
         snapshot.OriginInFrame = Double3.Zero;
         snapshot.OriginFrameId = 0;
 
-        if (!TryGetCameraPose(view.Camera, out FrameHandle cameraFrame, out DPose cameraPose))
+        if (!TryGetCameraPose(view.Camera, out FrameHandle cameraFrame, out FrameHandle cameraHome, out DPose eyeInFrame, out DPose cameraPose))
         {
             lastCamera = Entity.Null;
             return;
         }
 
-        // Interpolate only when the same camera is in the same frame as at the previous build.
+        // Interpolate only when the same camera is in the same frame as at the previous build. Everything is placed relative
+        // to the camera's physics home, which has the axes of the camera's frame: far from that frame's origin, the home is
+        // near the camera, so positions near the camera stay exact.
         bool interpolate = lastCamera == view.Camera && lastCameraFrame == cameraFrame && lastCameraStamp == stamp - 1;
-        PrepareFramePoses(cameraFrame, stamp, interpolate);
+        PrepareFramePoses(cameraHome, stamp, interpolate);
         renderInterpolate = interpolate;
         renderOrigin = cameraPose.Position;
 
-        DPose previousCamera = interpolate ? lastCameraPose : cameraPose;
+        DPose previousCamera = !interpolate ? cameraPose
+            : lastCameraHome == cameraHome ? lastCameraPose
+            : FrameSeen(lastCameraHome) ? DPose.ComposeUnitParent(relPrevious[denseOfFrame[lastCameraHome.Index]], lastCameraPose)
+            : cameraPose;
         snapshot.Camera = new RenderCamera
         {
             Position = Vector3.Zero,
@@ -151,7 +158,7 @@ internal sealed class RenderSnapshotBuilder
         int root = denseOfFrame[RootOf(cameraFrame).Index];
         snapshot.RootRotation = relCurrent[root].Rotation.ToQuaternion();
         snapshot.PreviousRootRotation = interpolate ? relPrevious[root].Rotation.ToQuaternion() : snapshot.RootRotation;
-        snapshot.OriginInFrame = renderOrigin;
+        snapshot.OriginInFrame = eyeInFrame.Position;
         // Stable for the life of the frame, and new when a frame reuses the index: the generation changes.
         snapshot.OriginFrameId = ((long)cameraFrame.Generation << 32) | (uint)cameraFrame.Index;
 
@@ -160,41 +167,48 @@ internal sealed class RenderSnapshotBuilder
 
         lastCamera = view.Camera;
         lastCameraFrame = cameraFrame;
+        lastCameraHome = cameraHome;
         lastCameraPose = cameraPose;
         lastCameraStamp = stamp;
     }
 
-    /// <summary>The camera's frame, and its eye pose in that frame: the entity pose composed with its view offset.</summary>
-    private bool TryGetCameraPose(Entity camera, out FrameHandle frame, out DPose pose)
+    /// <summary>
+    /// The camera's frame and physics home, and its eye pose in each: the entity pose composed with its view offset.
+    /// </summary>
+    private bool TryGetCameraPose(Entity camera, out FrameHandle frame, out FrameHandle home, out DPose inFrame, out DPose inHome)
     {
-        frame = default;
-        pose = default;
+        frame = home = default;
+        inFrame = inHome = default;
         if (!entities.IsAlive(camera))
             return false;
         ref readonly TransformRow row = ref entities.FrontRow(camera);
         frame = row.Frame;
-        DPose entityPose = row.Pose;
+        home = row.PhysicsHome;
+        DPose entityPose = row.Pose, homePose = row.HomePose;
         if (frame.IsNull)
         {
             // The owner of a root frame looks out from its own frame's origin.
-            frame = entities.OwnedFrame(camera);
-            entityPose = DPose.Identity;
+            frame = home = entities.OwnedFrame(camera);
+            entityPose = homePose = DPose.Identity;
             if (frame.IsNull)
                 return false;
         }
-        pose = DPose.Compose(entityPose, Poses.Safe(entities.FrontRender(camera).ViewOffset).ToDPose());
+        DPose view = Poses.Safe(entities.FrontRender(camera).ViewOffset).ToDPose();
+        inFrame = DPose.Compose(entityPose, view);
+        inHome = home == frame ? inFrame : DPose.Compose(homePose, view);
         return true;
     }
 
     /// <summary>
-    /// Fills the current and previous pose of every frame relative to the camera frame, by dense index, and records
-    /// this build's local poses for the next one.
+    /// Fills the current and previous pose of every frame relative to <paramref name="reference"/>, the camera's physics
+    /// home, by dense index, and records this build's local poses for the next one. The poses compose along the tree from
+    /// the reference, so frames near it are exact however far they are from the root.
     /// </summary>
-    private void PrepareFramePoses(FrameHandle cameraFrame, long stamp, bool interpolate)
+    private void PrepareFramePoses(FrameHandle reference, long stamp, bool interpolate)
     {
         int n = frames.Count;
         EnsureDenseFrameArrays(n);
-        frames.ComputeRelativeTo(cameraFrame, relCurrent.AsSpan(0, n));
+        frames.ComputeRelativeTo(reference, relCurrent.AsSpan(0, n));
 
         for (int i = 0; i < n; i++)
         {
@@ -229,7 +243,7 @@ internal sealed class RenderSnapshotBuilder
         // The previous poses use this build's tree with last build's local poses: a frame that moved between the builds
         // carries its contents along, and equal local poses give bit-identical results.
         if (interpolate && anyMoved)
-            frames.ComputeRelativeTo(cameraFrame, localPrevious.AsSpan(0, n), relPrevious.AsSpan(0, n));
+            frames.ComputeRelativeTo(reference, localPrevious.AsSpan(0, n), relPrevious.AsSpan(0, n));
         else
             relCurrent.AsSpan(0, n).CopyTo(relPrevious);
     }
@@ -371,17 +385,21 @@ internal sealed class RenderSnapshotBuilder
         }
         dense = denseOfFrame[row.Frame.Index];
         place = row.Pose.Position.ToVector3();
-        // The parent of each composition is the pose of a frame relative to the camera frame. ComputeRelativeTo gives the identity
-        // or a result of DPose.Compose for it, and Compose normalizes the rotation of its result, so the parent is unit length.
-        // The rotation of the entity's own pose is not always, because a program wrote it or Jolt gave it, and the result is
-        // normalized in any case. ComposeUnitParent skips the division that DPose.Compose spends on every entity to normalize
-        // the parent. In a build with contracts, it checks that the parent is unit length.
-        current = DPose.ComposeUnitParent(relCurrent[dense], row.Pose);
+        // The entity is placed from its physics home, which is in the tree below its frame, so a position near the camera
+        // stays exact far from the frame's origin. Numeric frames do not rotate, so the pose in the home has the row's rotation.
+        FrameHandle home = row.PhysicsHome;
+        DPose inHome = row.HomePose;
+        // The parent of each composition is the pose of a frame relative to the camera's home. ComputeRelativeTo gives the
+        // identity or a result of DPose.Compose for it, and Compose normalizes the rotation of its result, so the parent is
+        // unit length. The rotation of the entity's own pose is not always, because a program wrote it or Jolt gave it, and
+        // the result is normalized in any case. ComposeUnitParent skips the division that DPose.Compose spends on every
+        // entity to normalize the parent. In a build with contracts, it checks that the parent is unit length.
+        current = DPose.ComposeUnitParent(relCurrent[denseOfFrame[home.Index]], inHome);
         previous = current;
         ref PoseMemory last = ref lastEntityPose[entity];
         if (renderInterpolate && last.Stamp == buildStamp - 1 && FrameSeen(last.Frame))
             previous = DPose.ComposeUnitParent(relPrevious[denseOfFrame[last.Frame.Index]], last.Pose);
-        last = new PoseMemory { Pose = row.Pose, Frame = row.Frame, Stamp = buildStamp };
+        last = new PoseMemory { Pose = inHome, Frame = home, Stamp = buildStamp };
         return true;
     }
 
@@ -413,8 +431,8 @@ internal sealed class RenderSnapshotBuilder
     /// </summary>
     /// <param name="dense">The dense index of the entity's own frame.</param>
     /// <param name="place">The entity's position in that frame.</param>
-    /// <param name="position">The entity's position relative to the camera's frame, which a point field's center is
-    /// given relative to.</param>
+    /// <param name="position">The entity's position relative to the camera's physics home, which a point field's center
+    /// is given relative to.</param>
     private HemisphereUp HemisphereOf(int dense, Vector3 place, Double3 position)
     {
         ref readonly FrameHemisphere frame = ref frameHemisphere[dense];

@@ -162,7 +162,9 @@ The distance rule also applies to numeric frames. A numeric frame that is farthe
 
 A resting frame that nests sits on a coarse grid of a power of two meters, for example 2^20 m, which is about 1,049 km. Every multiple of 2^20 m up to about a million light-years is exact in a double. The frame below can drift far from it. The resting frame then jumps by whole grid steps, and the frame below shifts back by the same exact amount.
 
-A read between two nearby entities composes through their lowest common ancestor, as `PoseTree.Relative` does today. So no large number enters the read. Only a read in a distant frame, such as a star's, sums large numbers, and a double then rounds that read at that distance. The render snapshot's `ComputeRelativeTo` needs a look here, because it places frames through a shared root.
+A read between two nearby entities composes through their lowest common ancestor, as `PoseTree.Relative` does today. So no large number enters the read. Only a read in a distant frame, such as a star's, sums large numbers, and a double then rounds that read at that distance. The row's pose in the semantic frame rounds far from that frame's origin, so the row also keeps the exact position in the physics home, and a read in another frame starts from it. The render snapshot places everything relative to the camera's physics home. `ComputeRelativeTo` composes from that reference down the tree, so frames near it stay exact. Only other trees go through the shared root.
+
+Frames near each other share one nesting frame: a far frame joins the nearest nesting frame within half the nesting distance. A nesting frame jumps only when all of its frames are then within half that distance of it. Otherwise the far frame moves to another nesting frame, or to a new one.
 
 At 1 light-year a double steps by 2 m. A frame there that moves tick by tick in its parent rounds by up to 1 m per tick. With nesting, it moves within a frame whose origin is near it.
 

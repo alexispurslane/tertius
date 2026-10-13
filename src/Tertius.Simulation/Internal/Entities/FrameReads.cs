@@ -9,13 +9,18 @@ namespace Tertius.Simulation;
 /// </summary>
 internal static class FrameReads
 {
+    /// <summary>
+    /// The pose in <paramref name="to"/>. A read in another frame starts from the physics home, through the lowest common
+    /// ancestor of the home and <paramref name="to"/>, so a read between nearby entities far from their row frame's origin
+    /// stays exact (see "Nesting for vast distances" in docs/plans/numeric-frames.md).
+    /// </summary>
     public static DPose PoseIn(FrameTree frames, Entity entity, in TransformRow row, FrameHandle to)
     {
         if (row.Frame == to)
             return row.Pose;
         if (row.Frame.IsNull)
             return frames.Relative(OwnFrame(frames, entity), to);
-        return DPose.Compose(frames.Relative(row.Frame, to), row.Pose);
+        return DPose.Compose(frames.Relative(row.PhysicsHome, to), row.HomePose);
     }
 
     public static Double3 VelocityIn(FrameTree frames, Entity entity, in TransformRow row, FrameHandle to)

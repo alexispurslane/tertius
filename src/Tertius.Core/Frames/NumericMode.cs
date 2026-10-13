@@ -17,4 +17,12 @@ internal enum NumericMode : byte
 
     /// <summary>Stays at one place in its parent. Its members feel the whole field.</summary>
     Resting = 2,
+
+    /// <summary>
+    /// A resting frame that holds only other numeric frames, on a grid of whole steps of
+    /// <c>NumericFrameOptions.NestGrid</c> in its semantic parent, so that its position is exact in a double. It keeps the
+    /// positions of numeric frames far from their semantic frame's origin small. It jumps by whole grid steps, never by a
+    /// fraction of one. See "Nesting for vast distances" in the doc.
+    /// </summary>
+    Nesting = 3,
 }

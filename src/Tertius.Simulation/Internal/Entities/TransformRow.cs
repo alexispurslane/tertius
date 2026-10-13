@@ -17,6 +17,17 @@ internal struct TransformRow
     public FrameHandle PhysicsHome;
     /// <summary>The pose in <see cref="Frame"/>.</summary>
     public DPose Pose;
+    /// <summary>
+    /// The position in <see cref="PhysicsHome"/>, in meters, when that is a numeric frame below <see cref="Frame"/>.
+    /// <see cref="Pose"/>'s position is then this plus the home's offset in <see cref="Frame"/>. Far from the row frame's
+    /// origin that sum rounds, while this stays exact, so reads between nearby entities start from it (see
+    /// <see cref="HomePose"/>). When the home is the row frame, <see cref="Pose"/> is already in the home, and nothing
+    /// keeps this field: a gameplay write of the pose leaves it as it was.
+    /// </summary>
+    public Double3 HomePosition;
+
+    /// <summary>The pose in <see cref="PhysicsHome"/>. Numeric frames do not rotate, so the rotation is that of <see cref="Pose"/>.</summary>
+    public readonly DPose HomePose => PhysicsHome == Frame ? Pose : new DPose(HomePosition, Pose.Rotation);
     /// <summary>The local linear velocity relative to <see cref="PhysicsHome"/>, in its axes, which are those of <see cref="Frame"/>.</summary>
     public Vector3 LinearVelocity;
     /// <summary>Angular velocity in the axes of <see cref="Frame"/>.</summary>

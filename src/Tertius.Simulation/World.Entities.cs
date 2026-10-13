@@ -371,6 +371,7 @@ public sealed partial class World
             Frame = frame,
             PhysicsHome = frame,
             Pose = pose,
+            HomePosition = pose.Position,
             LinearVelocity = desc.LinearVelocity.ToVector3(),
             AngularVelocity = desc.AngularVelocity,
         };
@@ -617,11 +618,13 @@ public sealed partial class World
         ref readonly TransformRow row = ref entities.BackRow(entity);
         DPose relative = Frames.Relative(from, to);
         Double3 velocity = Frames.ConvertVelocity(from, to, row.Pose.Position, FrameReads.VelocityIn(Frames, entity, row, from));
+        DPose pose = DPose.Compose(relative, row.Pose);
         var moved = new TransformRow
         {
             Frame = to,
             PhysicsHome = to,
-            Pose = DPose.Compose(relative, row.Pose),
+            Pose = pose,
+            HomePosition = pose.Position,
             LinearVelocity = velocity.ToVector3(),
             AngularVelocity = (relative.TransformDirection(row.AngularVelocity) + Frames.AngularVelocityRelative(from, to)).ToVector3(),
         };
@@ -694,6 +697,7 @@ public sealed partial class World
             Frame = semantic,
             PhysicsHome = home,
             Pose = home == semantic ? local : new DPose(local.Position + Frames.HomeOffset(home, semantic), local.Rotation),
+            HomePosition = local.Position,
             LinearVelocity = Frames.LinearVelocity(frame).ToVector3(),
             AngularVelocity = Frames.AngularVelocity(frame),
         };

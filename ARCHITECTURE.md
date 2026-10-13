@@ -290,6 +290,30 @@ While an object's bounding sphere crosses a bubble boundary, the other physics s
 
 A ghost is only in the system of a frame next to the body's frame in the tree: its parent, a sibling or a child. The ghost of a hull is never in the hull's own frame. When the tree changes, the reconcile at the start of the next step removes each ghost that the new tree does not allow. The ghost pass at the end of that step adds the ghosts that the new tree needs.
 
+### Numeric frames
+
+The engine makes and removes frames of its own around groups of bodies, only for precision. These numeric frames keep Jolt's float velocities and float bounds small. Near a ship in orbit, every body moves at about 7.7 km/s in the frame of the planet, and a float velocity there steps by 0.0005 m/s. The design is in `docs/plans/numeric-frames.md`.
+
+| Question | Rule |
+|---|---|
+| Where a numeric frame lives | In the frame tree, with the `NumericMode` `Falling`, `Resting` or `Nesting`, and a Jolt system of its own. It has no owner, no bubble, no gravity of its own and no rotation. |
+| What gameplay sees | Nothing. `Self.Frame`, `World.Frames`, `Snapshot`, `FrameChanged`, the topics, `QueryRadius`, the state dumps and the render snapshot's camera frame show only semantic frames, the frames that content or gameplay made. |
+| The entity row | `Frame` is the semantic frame. `PhysicsHome` is the frame whose Jolt system holds the body. `Pose` is in `Frame`, `HomePosition` is the position in `PhysicsHome`, and `LinearVelocity` is a float relative to `PhysicsHome`. |
+| Reads | Every read of a position or velocity names its frame. A read in another frame starts from the physics home and composes through the lowest common ancestor. |
+| Writes and directions | Relative to `self.Frame`, in its axes. Physics converts a write when it applies it. |
+| Velocity | Jolt's float local velocity plus the double frame velocity of the home, added in doubles. |
+| Who gets one | A group whose common speed reaches 50 m/s gets a falling frame. A slow group 10 km or more from its semantic frame's origin gets a resting frame. Below 20 m/s and nearer than 5 km, the group goes back to the semantic frame's own system. |
+| How a falling frame moves | It falls freely in the semantic frame's field, integrated in doubles. Each member feels the field at its true position minus the frame's acceleration, so the tidal gravity stays. |
+| Membership | At each sync point, in entity order. Two bodies that can touch within 2 s share a frame. Members split only after 1 s apart. The group with the most mass in a frame keeps it, and the smaller groups move. |
+| Drain and recenter | A frame takes over its members' common velocity above 1 m/s, and moves its origin to their center of mass beyond 1 km. Both are uniform shifts, so Jolt keeps its contact cache. |
+| Moves between systems | A whole touching group moves at once, with no `FrameChanged` and no topic change. A sleeping body stays asleep unless the move changes its velocity. |
+| Frame owners | A hull that joins a numeric frame takes its frame under that numeric frame in the tree. The frame's semantic parent does not change. |
+| Vast distances | A numeric frame more than 10^9 m from its tree parent's origin moves under a nesting frame. A nesting frame rests on a grid of 2^20 m in its semantic frame, so its position is exact in a double, and nearby frames share it. It jumps by whole grid steps after its frames, and they shift back by the same exact amount. |
+| Render snapshot | It places everything relative to the camera's physics home, which has the axes of the camera's frame. |
+| Thresholds | `NumericFrameOptions`, through `WorldOptions.NumericFrames`. |
+
+A read in a distant frame, such as the frame of a star, rounds at that distance. The merge test compares positions in the semantic frame, so it rounds at the scale of a double there: 2 m at one light-year.
+
 ## Physics
 
 Tertius uses Jolt in double-precision mode. Each frame that contains bodies has its own `PhysicsSystem`. A frame with no awake bodies is not stepped.

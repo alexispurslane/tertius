@@ -109,7 +109,7 @@ internal sealed class Attachments
         // A child that is the root of its parent's chain would close a loop.
         Contract.Requires(link.Parent.IsNull && ChainRoot(parent) != child);
         if (parentLink.Node.IsNull)
-            parentLink.Node = tree.Add(PoseNode.Null, entities.BackRow(parent).Pose);
+            parentLink.Node = tree.Add(PoseNode.Null, entities.BackRow(parent).HomePose);
         List<Entity> children = parentLink.Children ??= new List<Entity>(2);
         int at = children.BinarySearch(child);
         children.Insert(at < 0 ? ~at : at, child);
@@ -136,20 +136,22 @@ internal sealed class Attachments
             tree.Local(link.Node) = Poses.Safe(link.Offset).ToDPose();
             ref Link parentLink = ref links[link.Parent];
             if (parentLink.Parent.IsNull)
-                tree.Local(parentLink.Node) = entities.BackRow(link.Parent).Pose;
+                tree.Local(parentLink.Node) = entities.BackRow(link.Parent).HomePose;
         }
         tree.UpdateWorld();
 
         foreach (Entity child in children)
         {
             ref readonly TransformRow rootRow = ref entities.BackRow(ChainRoot(child));
-            DPose pose = tree.World(links[child].Node);
-            Double3 lever = pose.Position - rootRow.Pose.Position;
+            // The chain is placed in the root's physics home, where positions near the root stay exact.
+            DPose inHome = tree.World(links[child].Node);
+            Double3 lever = inHome.Position - rootRow.HomePose.Position;
             entities.SetBackTransform(child, new TransformRow
             {
                 Frame = rootRow.Frame,
                 PhysicsHome = rootRow.PhysicsHome,
-                Pose = pose,
+                Pose = rootRow.PhysicsHome == rootRow.Frame ? inHome : new DPose(rootRow.Pose.Position + lever, inHome.Rotation),
+                HomePosition = inHome.Position,
                 LinearVelocity = rootRow.LinearVelocity + Double3.Cross(rootRow.AngularVelocity, lever).ToVector3(),
                 AngularVelocity = rootRow.AngularVelocity,
             });

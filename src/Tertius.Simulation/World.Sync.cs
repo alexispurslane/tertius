@@ -196,6 +196,7 @@ public sealed partial class World
             Frame = semantic,
             PhysicsHome = home,
             Pose = home == semantic ? pose : new DPose(pose.Position + Frames.HomeOffset(home, semantic), pose.Rotation),
+            HomePosition = pose.Position,
             LinearVelocity = linearVelocity,
             AngularVelocity = angularVelocity,
         };

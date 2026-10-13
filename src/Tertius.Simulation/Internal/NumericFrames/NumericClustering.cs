@@ -103,6 +103,7 @@ internal sealed class NumericClustering(NumericFrameOptions options, EntityTable
     private readonly HashSet<FrameHandle> occupied = new();
     private readonly List<FrameHandle> frameScratch = new();
     private readonly List<FrameHandle> childScratch = new();
+    private readonly NumericNesting nesting = new(options, frames, host);
 
     /// <summary>Runs the membership rules once, over a sync point of <paramref name="dt"/> seconds.</summary>
     public void Run(double dt)
@@ -117,6 +118,7 @@ internal sealed class NumericClustering(NumericFrameOptions options, EntityTable
                 ClusterSemanticFrame(start, end, dt);
             start = end;
         }
+        nesting.Run();
         host.FlushPhysicsChanges();
         if (CollectEmptyFrames())
             host.FlushPhysicsChanges();
@@ -379,7 +381,8 @@ internal sealed class NumericClustering(NumericFrameOptions options, EntityTable
     {
         FrameHandle frame = cluster.Frame;
         NumericMode mode = frames.Numeric(frame);
-        Double3 position = frames.LocalPose(frame).Position;
+        // The frame's origin in the semantic frame, where the cluster's center is. A nesting frame between them does not move.
+        Double3 position = frames.HomeOffset(frame, bodies[clustered[cluster.Start]].Semantic);
         Double3 velocity = frames.LinearVelocity(frame);
         Double3 newVelocity = cluster.Mode == NumericMode.Resting ? Double3.Zero
             : mode == NumericMode.Resting || (cluster.Velocity - velocity).Length > options.DrainSpeed ? cluster.Velocity : velocity;

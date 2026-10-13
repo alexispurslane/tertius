@@ -22,7 +22,7 @@ namespace Tertius;
 /// caller gives it, and physics normalizes the rotation that leaves Jolt. The poses that the tree composes itself, when it
 /// moves or destroys a frame, are unit length.</item>
 /// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner and a parent, the identity rotation and no spin. A
-/// resting one has no velocity and no step acceleration. A semantic frame has an owner and no step acceleration, and a
+/// resting or nesting one has no velocity and no step acceleration, and a nesting one has a semantic parent. A semantic frame has an owner and no step acceleration, and a
 /// semantic frame with the Kepler or Spin driver is not the child of a numeric frame, because it moves relative to its
 /// parent.</item>
 /// </list>
@@ -148,6 +148,21 @@ public sealed class FrameTree
             childLocal = new DPose(childLocal.Position - offset, childLocal.Rotation);
             linearVelocity[childNode.Id] -= velocity;
         }
+    }
+
+    /// <summary>
+    /// Moves the numeric frame <paramref name="frame"/> under the nesting frame <paramref name="nest"/>, at
+    /// <paramref name="position"/> in it. The caller computes the position from grid offsets, which are exact, so the frame
+    /// stays where it was relative to everything else. A nesting frame does not move in its parent, and it shares the
+    /// semantic parent of the frame, so the frame keeps its velocity. No body changes system, so physics needs no change.
+    /// </summary>
+    internal void MoveUnderNest(FrameHandle frame, FrameHandle nest, Double3 position)
+    {
+        PoseNode node = Node(frame), nestNode = Node(nest);
+        Contract.Requires(numeric[node.Id] is NumericMode.Falling or NumericMode.Resting && numeric[nestNode.Id] == NumericMode.Nesting);
+        Contract.Requires(SemanticOf(TreeParent(frame)) == TreeParent(nest));
+        poses.Reparent(node, nestNode, keepWorldPose: false);
+        poses.Local(node) = new DPose(position, DQuaternion.Identity);
     }
 
     /// <summary>
@@ -414,8 +429,10 @@ public sealed class FrameTree
             }
             Contract.Invariant(owner[id].IsNull && !TreeParent(frame).IsNull);
             Contract.Invariant(locals[i].Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
-            if (numeric[id] == NumericMode.Resting)
+            if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
                 Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero);
+            if (numeric[id] == NumericMode.Nesting)
+                Contract.Invariant(!IsNumeric(TreeParent(frame)));
         }
     }
 

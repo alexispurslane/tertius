@@ -38,8 +38,9 @@ public sealed partial class World
                 entities.SetBackTransform(entity, FrameOwnerRow(own));
                 continue;
             }
-            // The row's pose is in the semantic frame, which the shift does not move.
+            // The row's pose is in the semantic frame, which the shift does not move. In the frame, the body moves back.
             TransformRow row = entities.BackRow(entity);
+            row.HomePosition -= offset;
             if (entities.Body(entity) is not { Motion: BodyMotion.Static })
                 row.LinearVelocity = ((Double3)row.LinearVelocity - velocity).ToVector3();
             entities.SetBackTransform(entity, row);
@@ -172,6 +173,8 @@ public sealed partial class World
             {
                 TransformRow row = entities.BackRow(entity);
                 Double3 velocity = Frames.HomeVelocity(row.PhysicsHome, semantic) + row.LinearVelocity;
+                // Through the homes' lowest common ancestor, so that no large number enters between two nearby homes.
+                row.HomePosition = home == semantic ? row.Pose.Position : row.HomePose.Position + Frames.Relative(row.PhysicsHome, home).Position;
                 row.PhysicsHome = home;
                 row.LinearVelocity = (velocity - Frames.HomeVelocity(home, semantic)).ToVector3();
                 entities.SetBackTransform(entity, row);

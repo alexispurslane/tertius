@@ -283,7 +283,8 @@ public sealed partial class World : IDisposable, INumericFrameHost
     /// <item>No destroy batch is open.</item>
     /// <item>Every live entity is in a live frame and is a member of exactly that frame's topic, except the owner of a
     /// root frame, which is in no frame.</item>
-    /// <item>Every live entity's physics home is its row frame or a live frame below it.</item>
+    /// <item>Every live entity's physics home is its row frame or a live frame below it. When the home is below, the home
+    /// position plus the home's offset is the pose's position, within rounding.</item>
     /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state. Every live
     /// frame's topic resolves.</item>
     /// <item>Only a character can be standing.</item>
@@ -312,11 +313,19 @@ public sealed partial class World : IDisposable, INumericFrameHost
             // The physics home is the row frame or a numeric frame below it, whose semantic frame is the row frame.
             Contract.Invariant(row.PhysicsHome == row.Frame ||
                 (!row.Frame.IsNull && Frames.IsAlive(row.PhysicsHome) && Frames.SemanticOf(row.PhysicsHome) == row.Frame));
+            if (row.PhysicsHome != row.Frame)
+            {
+                // The sums round at the scale of the larger term, a few times at most.
+                Double3 offset = Frames.HomeOffset(row.PhysicsHome, row.Frame);
+                double scale = Math.Max(offset.Length, row.HomePosition.Length);
+                Contract.Invariant((offset + row.HomePosition - row.Pose.Position).Length <= 1e-12 * scale + 1e-9);
+            }
             if (!own.IsNull)
             {
                 Contract.Invariant(Frames.IsAlive(own) && own.Entity == entity);
                 TransformRow mirror = FrameOwnerRow(own);
-                Contract.Invariant(row.Frame == mirror.Frame && row.PhysicsHome == mirror.PhysicsHome && Poses.BitEquals(row.Pose, mirror.Pose));
+                Contract.Invariant(row.Frame == mirror.Frame && row.PhysicsHome == mirror.PhysicsHome && Poses.BitEquals(row.Pose, mirror.Pose)
+                    && Poses.BitEquals(row.HomePose, mirror.HomePose));
                 Contract.Invariant(row.LinearVelocity.Equals(mirror.LinearVelocity) && row.AngularVelocity.Equals(mirror.AngularVelocity));
             }
             if (characterStanding[entity])

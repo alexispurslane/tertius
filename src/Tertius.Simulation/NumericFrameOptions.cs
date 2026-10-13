@@ -34,6 +34,18 @@ internal sealed record NumericFrameOptions
     /// <summary>The distance of the members' center of mass from their frame's origin at which the origin moves to it.</summary>
     public double RecenterDistance { get; init; } = 1_000;
 
+    /// <summary>
+    /// The distance of a numeric frame from its tree parent's origin at which it moves under a nesting frame near it
+    /// (docs/plans/numeric-frames.md, "Nesting for vast distances"). It joins a nesting frame within half this distance.
+    /// </summary>
+    public double NestDistance { get; init; } = 1e9;
+
+    /// <summary>
+    /// The grid of nesting frames, in meters: a power of two, so that every multiple of it is exact in a double up to about
+    /// a million light-years. The start is 2^20 m, about 1,049 km.
+    /// </summary>
+    public double NestGrid { get; init; } = 1 << 20;
+
     internal void Validate()
     {
         Check(CreateSpeed, nameof(CreateSpeed));
@@ -45,6 +57,12 @@ internal sealed record NumericFrameOptions
         Check(SplitCooldown, nameof(SplitCooldown));
         Check(DrainSpeed, nameof(DrainSpeed));
         Check(RecenterDistance, nameof(RecenterDistance));
+        Check(NestDistance, nameof(NestDistance));
+        if (!(NestGrid > 0) || double.IsInfinity(NestGrid) || Math.ScaleB(1, Math.ILogB(NestGrid)) != NestGrid)
+            throw new ArgumentOutOfRangeException(nameof(NestGrid), NestGrid, "The grid of nesting frames must be a power of two meters.");
+        // A frame lands within 0.87 grid steps of its nest, which must be inside half the nest distance.
+        if (NestDistance < 2 * NestGrid)
+            throw new ArgumentOutOfRangeException(nameof(NestDistance), NestDistance, "The nest distance must be at least two grid steps.");
         if (LeaveSpeed > CreateSpeed)
             throw new ArgumentOutOfRangeException(nameof(LeaveSpeed), LeaveSpeed, "The speed to leave a numeric frame cannot pass the speed to get one.");
         if (LeaveDistance > CreateDistance)
