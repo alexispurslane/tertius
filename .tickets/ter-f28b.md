@@ -1,6 +1,6 @@
 ---
 id: ter-f28b
-status: open
+status: closed
 deps: [ter-2fn5]
 links: []
 created: 2026-10-12T22:20:38Z

@@ -1,6 +1,6 @@
 ---
 id: ter-ougo
-status: open
+status: closed
 deps: [ter-f28b]
 links: []
 created: 2026-10-12T22:36:29Z

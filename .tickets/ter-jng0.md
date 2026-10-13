@@ -1,6 +1,6 @@
 ---
 id: ter-jng0
-status: open
+status: closed
 deps: [ter-gqbj]
 links: []
 created: 2026-10-12T22:20:38Z

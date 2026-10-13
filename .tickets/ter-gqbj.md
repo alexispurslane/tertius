@@ -1,6 +1,6 @@
 ---
 id: ter-gqbj
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-12T22:20:38Z

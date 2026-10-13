@@ -1,8 +1,8 @@
 ---
 id: ter-s02r
-status: in_progress
+status: closed
 deps: [ter-06mu]
-links: []
+links: [ter-sv9y, ter-mpm6]
 created: 2026-10-12T20:08:35Z
 type: epic
 priority: 1
@@ -19,3 +19,9 @@ Why: near the ship in the frame earth, everything moves at 7.7 km/s, and Jolt ke
 
 Questions for the design: what a cluster is, with hysteresis; when frames are created, merged, split and collected, and what that costs; how a numeric frame moves (a Kepler orbit fitted to its cluster, refitted when it drifts); what gameplay sees (an entity needs a semantic frame, the nearest meaningful ancestor, apart from the numeric frame that physics uses); and whether the same mechanism later covers distance.
 
+
+## Notes
+
+**2026-10-13T01:28:07Z**
+
+Merged with every suite green in Debug (Core 387, Simulation 1348, Physics 345, Rendering 189, Host 506) and Release (357, 1370, 346, 189, 506). Coverage of the changed lines, Debug and Release together: 1243/1264 lines (98.3%), 677/740 branches (91.5%). NumericFrameRules 84/84 lines and 66/66 branches. The uncovered lines are mostly the guards of NumericFrameOptions. No Stryker run, by the user's choice for this push. An Opus review found 13 issues, and all are fixed, two in part: ter-sv9y and ter-mpm6 hold the rest.

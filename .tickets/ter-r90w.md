@@ -1,6 +1,6 @@
 ---
 id: ter-r90w
-status: open
+status: closed
 deps: [ter-f28b]
 links: [ter-fa7j]
 created: 2026-10-12T13:00:57Z
