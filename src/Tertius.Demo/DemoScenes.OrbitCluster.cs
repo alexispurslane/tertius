@@ -34,6 +34,19 @@ public static partial class DemoScenes
     public static Vector3 ClusterCrateHalfExtents { get; } = new(0.5f);
 
     /// <summary>
+    /// How far orbit-cluster's view <c>watch</c> looks down from the ship's horizontal plane, in radians: 30 degrees, so
+    /// that it sees the top faces, which the sun above the ship lights.
+    /// </summary>
+    private const double WatchTilt = Math.PI / 6;
+
+    /// <summary>
+    /// The light that a marker of <paramref name="color"/> gives off, as linear radiance: half its color. That is about
+    /// half as bright as the color in full sunlight, which the scene's sun gives at 2.5 times the color over pi, so a
+    /// sunlit face still shows brighter than a face in shadow.
+    /// </summary>
+    private static Vector3 MarkerGlow(Vector4 color) => new Vector3(color.X, color.Y, color.Z) * 0.5f;
+
+    /// <summary>
     /// The pose and the velocity in earth, at <paramref name="time"/>, of a point at rest relative to the ship of the orbit
     /// scene at <paramref name="offset"/> in the ship's axes, as the ship starts on <see cref="ShipOrbit"/>. The point
     /// moves with the ship's center and turns with the ship: its velocity is the ship's plus the ship's angular velocity
@@ -62,12 +75,17 @@ public static partial class DemoScenes
     /// <item>The <c>thrown-crate</c> starts in the ship's frame just outside the hatch (see <see cref="ThrownCrateStart"/>)
     /// and moves at 5 m/s relative to the ship, out from the port wall and aft (see <see cref="ThrownCrateVelocity"/>),
     /// as if a person in the hatch had thrown it. It leaves the ship's bubble into earth and flies on.</item>
-    /// <item>The view <c>watch</c> rides in the ship's frame 150 m to port of it and 100 m ahead, and looks to starboard,
-    /// at the ship's port side. The ship's nose is to the left in its view, and up is away from Earth. It shows the hull,
-    /// the spacewalker's way along the orbit and back, the two crates above and below, and the thrown crate's start.</item>
+    /// <item>The view <c>watch</c> rides in the ship's frame, above the ship and to port of it, and looks down by
+    /// <see cref="WatchTilt"/> to starboard, at a point 95 m ahead of the ship's center. The ship's nose is to the left in
+    /// its view. At the start the sun stands straight above the ship, so it lights only top faces, and the view looks
+    /// down onto the hull's sunlit roof. Earth's limb crosses the upper third of the view, black space above it. It shows
+    /// the hull, the spacewalker's way along the orbit and back, the two crates above and below, and the thrown crate's
+    /// start.</item>
     /// </list>
-    /// The three crates are orange cubes 1 m on a side and of 50 kg. Everything else is as in the orbit scene, which
-    /// keeps its own person in the cabin.
+    /// The three crates are orange cubes 1 m on a side and of 50 kg. They and the spacewalker glow faintly in their own
+    /// color, as marker lights do (see <see cref="MarkerGlow"/>), so that the watch view shows them where the sun does not
+    /// reach: crate-below floats in the hull's shadow, and no side face gets sunlight. Everything else is as in the orbit
+    /// scene, which keeps its own person in the cabin.
     /// </summary>
     private static SceneInstance OrbitCluster(World world, IRenderResources resources)
     {
@@ -77,20 +95,28 @@ public static partial class DemoScenes
 
         var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
         (DPose walkerPose, Double3 walkerVelocity) = BesideTheShip(SpacewalkerStart, world.Time);
+        var suit = new Vector4(0.95f, 0.8f, 0.2f, 1);
         Entity spacewalker = world.Spawn(new SpawnDesc
         {
             Frame = earth,
             Pose = walkerPose,
             LinearVelocity = walkerVelocity,
             Body = new BodyDesc(capsule, BodyMotion.Character, Mass: 70),
-            Render = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.95f, 0.8f, 0.2f, 1), boundingRadius: 1),
+            Render = new RenderData
+            {
+                Mesh = resources.CreateMesh(Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f))),
+                Material = resources.CreateMaterial(new MaterialDesc(suit, Emissive: MarkerGlow(suit))),
+                BoundingRadius = 1,
+                Flags = RenderFlags.Visible | RenderFlags.CastsShadow,
+            },
             Components = [new PersonControl(new Vector3(0, 0.75f, 0)), new Carry(capsule)],
             Subscriptions = [Topics.Input],
         });
         scene.Add("spacewalker", spacewalker);
 
+        var orange = new Vector4(1, 0.45f, 0.1f, 1);
         var crate = new CrateSpec(ClusterCrateHalfExtents, 50, resources.CreateMesh(Primitives.Box(ClusterCrateHalfExtents)),
-            resources.CreateMaterial(MaterialDesc.Color(new Vector4(1, 0.45f, 0.1f, 1))));
+            resources.CreateMaterial(new MaterialDesc(orange, Emissive: MarkerGlow(orange))));
         foreach ((string id, Double3 offset) in new[] { ("crate-above", CrateAboveStart), ("crate-below", CrateBelowStart) })
         {
             (DPose pose, Double3 velocity) = BesideTheShip(offset, world.Time);
@@ -98,11 +124,15 @@ public static partial class DemoScenes
         }
         scene.Add("thrown-crate", world.Spawn(crate.Spawn(shipFrame, new DPose(ThrownCrateStart, DQuaternion.Identity), ThrownCrateVelocity)));
 
-        // A view looks along its -Z. A quarter turn about +Y turns that to +X, toward the ship's port side.
+        // A view looks along its -Z. A quarter turn about +Y turns that to +X, toward the ship's port side, after a tilt
+        // about the view's own +X has tipped it down by WatchTilt. The view stands 160 m from the point 95 m ahead of the
+        // ship's center, back along its line of sight: 138.6 m to port and 80 m up. So the spacewalker's whole way, from
+        // the hatch to 225 m ahead, and both crates fit in it.
         scene.Add("watch", world.Spawn(new SpawnDesc
         {
             Frame = shipFrame,
-            Pose = new DPose(new Double3(-150, 0, -100), DQuaternion.FromAxisAngle(Double3.UnitY, -Math.PI / 2)),
+            Pose = new DPose(new Double3(-138.6, 80, -95),
+                DQuaternion.FromAxisAngle(Double3.UnitY, -Math.PI / 2) * DQuaternion.FromAxisAngle(Double3.UnitX, -WatchTilt)),
             Render = new RenderData(),
         }));
         scene.AddView("spacewalker");

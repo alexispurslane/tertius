@@ -73,6 +73,12 @@ internal sealed class ClusterLog
     /// <summary>The thrown crate after every tick, and at tick 0.</summary>
     public List<ThrownCrateTick> ThrownCrate { get; } = new();
 
+    /// <summary>
+    /// The offset of each key body but the ship from the ship's center after every tick, and at tick 0, in the ship's
+    /// axes, in meters. The list index is the tick. The ship has none, because its own offset is zero.
+    /// </summary>
+    public Dictionary<string, List<Double3>> Offsets { get; } = Bodies.Where(id => id != "ship").ToDictionary(id => id, _ => new List<Double3>());
+
     public List<TableRow> Table { get; } = new();
 
     /// <summary>The most numeric frames that the world had at once.</summary>
@@ -92,11 +98,36 @@ internal sealed class ClusterLog
             if (changes.Count == 0 || changes[^1].Frame != place.Frame || changes[^1].Home != place.Home)
                 changes.Add(place);
         }
+        foreach ((string id, List<Double3> offsets) in Offsets)
+        {
+            if (offsets.Count != tick)
+                throw new InvalidOperationException($"The log saw tick {tick} after {offsets.Count} ticks: it must see every tick from tick 0.");
+            offsets.Add(world.PoseIn(scene[id], shipFrame).Position);
+        }
         Entity thrown = scene["thrown-crate"];
         ThrownCrate.Add(new ThrownCrateTick(tick, world.PhysicsHomeOf(thrown), world.PhysicsHomeOf(scene["ship"]),
             world.PoseIn(thrown, shipFrame).Position.Length));
         if (tick % TableTicks == 0)
             Table.Add(new TableRow(tick, world.Time, [.. Bodies.Select(id => StateOf(world, scene, id, shipFrame))], numericFrames, world.Errors.Count));
+    }
+
+    /// <summary>The last tick that the log saw.</summary>
+    public long LastTick => ThrownCrate[^1].Tick;
+
+    /// <summary>Each tick after which some key body's frame or physics home differs from the tick before, in order.</summary>
+    public IEnumerable<long> ChangeTicks =>
+        Changes.Values.SelectMany(places => places.Skip(1)).Select(place => place.Tick).Distinct().Order();
+
+    /// <summary>
+    /// How much the step of <paramref name="id"/>'s offset from the ship changes at <paramref name="tick"/>, in meters:
+    /// the offset after the next tick, less twice the offset after this one, plus the offset after the tick before. It is
+    /// the body's acceleration relative to the ship, in the ship's axes, times the square of a tick. A jump of the body
+    /// or of the ship between two ticks adds its size here, at the tick before the jump and the tick after it.
+    /// </summary>
+    public Double3 ChangeOfStep(string id, long tick)
+    {
+        List<Double3> offsets = Offsets[id];
+        return offsets[(int)tick + 1] - 2 * offsets[(int)tick] + offsets[(int)tick - 1];
     }
 
     private BodyState StateOf(World world, SceneInstance scene, string id, FrameHandle shipFrame)
@@ -146,6 +177,14 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
     // the values here: the crate's velocity in earth also has the ship's turn times its arm, about 0.06 m/s at 50 m, and
     // the orbit bends its path by under 0.5 m in its first 12 s. In meters.
     private const double SplitSlack = 1;
+
+    // How much a key body's change of step relative to the ship, less any thrust, may differ at a change of frame or
+    // physics home from two ticks later, in meters: 0.05 mm. Float rounding of a body's place in a numeric frame moves it
+    // by under a micrometer. The thrown crate's change of rule at the ship's bubble, where the Coriolis force that the
+    // ship's frame leaves out (2ωv, 0.011 m/s² at 5 m/s) starts to show in the ship's axes, changes its step by about
+    // 3 micrometers. A hand-off that went through float coordinates in earth, 6771 km from its center, would move a body
+    // by up to 0.5 m.
+    private const double JumpTolerance = 5e-5;
 
     private static readonly string[] Crates = ["crate-above", "crate-below"];
     private static readonly string[] Minutes = ["minute-1", "minute-2", "minute-3", "minute-4", "minute-5"];
@@ -238,6 +277,53 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
         run.World.Frames.IsNumeric(changes[2].Home).Should().BeTrue();
         run.World.Frames.Numeric(changes[2].Home).Should().Be(NumericMode.Falling, "the crate moves at orbital speed in earth");
         ticks[^1].Home.Should().Be(changes[2].Home, "the crate keeps its own frame to the end of the run");
+    }
+
+    [Fact]
+    public void NoKeyBodyJumpsRelativeToTheShipWhenAFrameOrPhysicsHomeChanges()
+    {
+        Jumps().Should().NotBeEmpty("the thrown crate changes its frame and its physics home");
+        foreach (Jump jump in Jumps())
+            jump.Size.Should().BeLessThan(JumpTolerance,
+                $"{jump.Id}'s step relative to the ship at tick {jump.Tick}, by the change after tick {jump.Change}, must change as two ticks after the change");
+    }
+
+    /// <summary>How much a key body's change of step relative to the ship, at a tick next to a change, differs from it two ticks after the change.</summary>
+    /// <param name="Change">The tick after which some key body's frame or physics home changed.</param>
+    /// <param name="Tick">The tick before the change or the tick of the change, where a jump would show.</param>
+    /// <param name="Size">The length of the difference, in meters.</param>
+    private sealed record Jump(long Change, string Id, long Tick, double Size);
+
+    /// <summary>
+    /// The jumps of every key body but the ship at every change. A change of physics home moves a body into another
+    /// physics system, and a change of frame states it in other axes. Neither may move the body, nor the ship when the
+    /// change is the ship's. So across the change, each body's acceleration relative to the ship, less the spacewalker's
+    /// thrust, stays nearly what it is two ticks after: earth's tide and the turn of the ship's axes change it slowly.
+    /// The thrust starts and stops by the script's keys, so it comes off first.
+    /// </summary>
+    private IEnumerable<Jump> Jumps()
+    {
+        ClusterLog log = run.Log;
+        int[] keys = KeysAlongBack(run.Script, log.LastTick);
+        Double3 Unthrust(string id, long tick) => log.ChangeOfStep(id, tick) - (id == "spacewalker" ? ThrustStep(keys[tick], tick) : Double3.Zero);
+        foreach (long change in log.ChangeTicks.Where(change => change + 3 <= log.LastTick))
+            foreach (string id in log.Offsets.Keys)
+                foreach (long tick in new[] { change - 1, change }.Where(tick => tick >= 1))
+                    yield return new Jump(change, id, tick, (Unthrust(id, tick) - Unthrust(id, change + 2)).Length);
+    }
+
+    /// <summary>
+    /// What the spacewalker's thrust adds to its change of step relative to the ship at <paramref name="tick"/> (see
+    /// <see cref="ClusterLog.ChangeOfStep"/>), in the ship's axes, in meters: the thrust over the step after the tick,
+    /// times the square of a tick. The step moves the velocity first and then the position, so that step's thrust is all
+    /// of it. <paramref name="key"/> is the step's key along the spacewalker's +Z (see <see cref="KeysAlongBack"/>). The
+    /// spacewalker keeps the axes that it starts with, the ship's at the start, while the ship's axes turn once per orbit.
+    /// </summary>
+    private Double3 ThrustStep(int key, long tick)
+    {
+        DQuaternion walker = DemoScenes.ShipOrbit.RotationAt(Start.Time, DemoScenes.EarthMu);
+        DQuaternion ship = DemoScenes.ShipOrbit.RotationAt(Start.Time + tick * TickSeconds, DemoScenes.EarthMu);
+        return ship.Conjugate().Rotate(walker.Rotate(new Double3(0, 0, key))) * (PersonControl.ThrustForce / SpacewalkerMass * TickSeconds * TickSeconds);
     }
 
     [Fact]
@@ -404,16 +490,33 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
           leave the ship's bubble into the numeric frame that holds the hull, split off into a falling numeric frame of its
           own once it is beyond the merge reach plus the split margin, and keep that frame: two changes of physics home, no
           merge and split thrashing.
+        - No key body may jump relative to the ship at a change of its frame or physics home, or of the ship's: see the
+          section on continuity below.
+
+        Two known differences from exact Newtonian motion, which no expectation checks, because each comes from a rule of
+        the engine and each moves the bodies together or only after the frames have let go of them:
+
+        - The ship's orbit is not a true circle in the run. The physics step and the step of the falling numeric frames
+          are semi-implicit Euler at 1/60 s (the velocity first, then the position), which moves the ship on a nearly
+          circular orbit whose radius swings by up to about r·n·dt/2 = 64 m over one orbit, about 21 m below 6771 km after
+          300 s; energy and angular momentum stay constant. The crates and the spacewalker fall by the same steps, so
+          their motion relative to the ship keeps to the Clohessy-Wiltshire solution to well under 1 cm, and every
+          expectation measures motion relative to the ship.
+        - Only the linear acceleration of a frame acts on its contents, with no Coriolis or centrifugal force
+          (ARCHITECTURE.md). For its first 3 s, the thrown crate is in the ship's frame, which turns once per orbit, so it
+          flies straight in the ship's turning axes and then falls freely in earth. After 5 minutes its offset from the
+          ship differs from exact Newtonian motion from the same start by about 8 m along the radius and 3 m along the
+          orbit.
         """;
 
     /// <summary>What each capture of the script must show.</summary>
     private static readonly Dictionary<string, string> CaptureMeaning = new()
     {
-        ["watch-start"] = "From 150 m to port and 100 m ahead of the ship, looking at its port side, nose to the left, Earth's limb low in the view. The hull, lit from above by the sun, in the middle right. The yellow spacewalker 15 m in front of the hull, 10 m aft of its center. Two orange crates 50 m above and 50 m below the hull's center. The orange thrown crate at the hatch, against the hull.",
+        ["watch-start"] = "From 80 m above the ship and 139 m to port, looking down 30 degrees at a point 95 m ahead of the ship's center, nose to the left. Earth's limb crosses the view at about y 250 px; black space above it, blue Earth with its light 10-degree grid below it. The sun stands straight above the ship, so top faces are sunlit and side faces dark. The hull right of the middle, from about x 880 to 1160 px: its sunlit gray roof (about y 330 to 365 px) and below it its dark port wall (to about y 395 px). The spacewalker, a small glowing yellow upright box, just below the wall near its aft end, at about (1110, 425) px. Two glowing orange crates, about 5 px across: crate-above against black space at about (1080, 160) px, crate-below against Earth at about (960, 505) px, in the hull's shadow. The thrown crate, glowing orange, at the foot of the port wall at about (1070, 390) px. Each position is about, from a pinhole view with a 60-degree vertical field.",
         ["spacewalker-start"] = "The spacewalker's view along the orbit, toward the ship's nose: the ship's port wall to the right, close, running ahead; black space above, Earth below.",
         ["spacewalker-back"] = "Nearly the same view as spacewalker-start, after the walk: the spacewalker is back within about 0.2 m of its start. The ship turns once per orbit and the spacewalker keeps its axes in earth, so the port wall shows turned by about 3.4 degrees about the spacewalker's left-right axis.",
-        ["watch-back"] = "As watch-start after 52 s: the spacewalker back in front of the hull, where it started. The thrown crate gone from the hatch, far out toward the camera and to the right, or out of the view. The crates above and below still near 50 m above and below the hull's center.",
-        ["watch-end"] = "As watch-start after 5 minutes: crate-above about 8.6 m higher and 2 m to the right (aft), crate-below as far lower and to the left (ahead). The thrown crate out of the view. The spacewalker floats near the hull. The sun has moved, so the light differs.",
+        ["watch-back"] = "As watch-start after 52 s: the spacewalker back where it started, within 1 px. The thrown crate gone from the hatch and out of the view, far off to the right: it has flown about 160 m to port and 210 m aft. The crates above and below within about 2 px of where they were.",
+        ["watch-end"] = "As watch-start after 5 minutes: crate-above about 8.6 m higher and 2 m aft, about 40 px higher and 20 px to the right, at about (1100, 120) px; crate-below about as far lower and ahead, about 20 px lower and 15 px to the left, at about (945, 525) px. The thrown crate out of the view. The spacewalker near where it was. The sun now stands about 20 degrees aft of straight above, so the roof is still sunlit and the hull's aft end gets some light.",
     };
 
     private string Report()
@@ -439,6 +542,19 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
             text.AppendLine($"### {id}").AppendLine().AppendLine("| tick | t (s) | frame | physics home |").AppendLine("|---:|---:|---|---|");
             foreach (Place place in log.Changes[id])
                 text.AppendLine(Invariant($"| {place.Tick} | {place.Tick * TickSeconds:F2} | {place.Frame} | {place.HomeName} |"));
+            text.AppendLine();
+        }
+
+        text.AppendLine("## Continuity at each change").AppendLine();
+        text.AppendLine("For each tick k after which some key body's frame or physics home changed, each body's change of step relative to the ship at the ticks around it: |o(t + 1) − 2·o(t) + o(t − 1)|, in mm, where o(t) is the body's offset from the ship's center after tick t, in the ship's axes. It is the body's acceleration relative to the ship times the square of a tick. Earth's tide gives under 0.001 mm, the turn of the ship's axes up to about 0.01 mm more for a body that moves at 15 m/s relative to the ship, and the spacewalker's thrust 0.417 mm (1.5 m/s² times (1/60 s)²). In the ship's frame no Coriolis force acts, so the thrown crate's value rises from about 0 to about 0.003 mm when it leaves the ship's frame at 5 m/s. A jump of a body, or of the ship, between ticks k − 1 and k would add its size at the rows k − 1 and k. The expectation on jumps takes the thrust off and compares each value at k − 1 and k with the one at k + 2.").AppendLine();
+        foreach (long change in log.ChangeTicks)
+        {
+            IEnumerable<string> changed = log.Changes
+                .SelectMany(c => c.Value.Where(p => p.Tick == change).Select(p => $"{c.Key} into frame {p.Frame}, home {p.HomeName}"));
+            text.AppendLine(Invariant($"### Tick {change}, {change * TickSeconds:F2} s: {string.Join("; ", changed)}")).AppendLine();
+            text.AppendLine($"| tick | {string.Join(" | ", log.Offsets.Keys)} |").AppendLine($"|---:|{string.Concat(log.Offsets.Keys.Select(_ => "---:|"))}");
+            for (long tick = Math.Max(1, change - 2); tick <= Math.Min(log.LastTick - 1, change + 2); tick++)
+                text.AppendLine(Invariant($"| {tick} | {string.Join(" | ", log.Offsets.Keys.Select(id => Invariant($"{log.ChangeOfStep(id, tick).Length * 1000:F4}")))} |"));
             text.AppendLine();
         }
 
@@ -524,6 +640,12 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
             List<ThrownCrateTick> ticks = run.Log.ThrownCrate;
             int changes = ticks.Where((t, i) => i > 0 && t.Home != ticks[i - 1].Home).Count();
             return ("2", Invariant($"{changes}"), "-", "exact", changes == 2);
+        });
+        yield return Row("No jump relative to the ship at any change of frame or physics home: the largest difference of a change of step from two ticks after the change (mm)", () =>
+        {
+            Jump largest = Jumps().MaxBy(jump => jump.Size) ?? throw new InvalidOperationException("The run has no change of frame or physics home.");
+            return ("0", Invariant($"{largest.Size * 1000:F4}, {largest.Id} at tick {largest.Tick}"), Invariant($"{largest.Size * 1000:F4} mm"),
+                Invariant($"{JumpTolerance * 1000} mm"), largest.Size < JumpTolerance);
         });
         yield return Row("World.Errors at the end", () => ("0", Invariant($"{run.World.Errors.Count}"), "-", "exact", run.World.Errors.Count == 0));
     }
