@@ -155,6 +155,15 @@ public sealed partial class World
             throw new ArgumentException($"Cannot give {frame} the Spin driver: its spin is not valid. Call SetFrameSpin first.", nameof(driver));
 
         Frames.SetDriver(frame, driver);
+        // A frame that physics does not drive moves relative to its semantic parent: a numeric update takes its hull out of
+        // a numeric frame, with the frame, before its driver places it. The move carries the numeric frame's velocity into
+        // the frame, and a frame that gets the static driver stops where it is.
+        if (driver != MotionDriver.Physics && Frames.TreeParent(frame) is { IsNull: false } treeParent && Frames.IsNumeric(treeParent))
+        {
+            UpdateNumericFrames(0);
+            if (driver == MotionDriver.Static)
+                Frames.SetDriver(frame, driver);
+        }
         if (driver == MotionDriver.Kepler)
             ApplyKepler(frame, Time);
         else if (driver == MotionDriver.Spin)
@@ -343,6 +352,8 @@ public sealed partial class World
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
+    private static bool IsFinite(Double3 v) => double.IsFinite(v.X) && double.IsFinite(v.Y) && double.IsFinite(v.Z);
+
     /// <summary>
     /// A spawn by the running entity <paramref name="spawner"/>. The slot comes from the spawner's chunk pool, so the
     /// handle is final and deterministic. Throws <see cref="StaleEntityException"/> for a stale spawner.
@@ -367,10 +378,14 @@ public sealed partial class World
         var row = new TransformRow
         {
             Frame = frame,
+            PhysicsHome = frame,
             Pose = pose,
-            LinearVelocity = desc.LinearVelocity,
+            HomePosition = pose.Position,
+            LinearVelocity = desc.LinearVelocity.ToVector3(),
             AngularVelocity = desc.AngularVelocity,
         };
+        // The velocity relative to the entity's frame, in doubles, that physics converts when it creates the body.
+        Double3 velocity = desc.LinearVelocity;
         FrameHandle own = FrameHandle.Null;
         if (desc.AsFrame is { } spec)
         {
@@ -386,16 +401,17 @@ public sealed partial class World
             }
             else
             {
-                Frames.LinearVelocity(own) = desc.LinearVelocity;
+                Frames.TreeLinearVelocity(own) = desc.LinearVelocity;
                 Frames.AngularVelocity(own) = desc.AngularVelocity;
             }
             physicsChanges.FramesCreated.Add(own);
             row = FrameOwnerRow(own);
+            velocity = Frames.LinearVelocity(own);
         }
 
         entities.Activate(entity, row, desc.Render ?? new RenderData(), plan.Components, plan.Wants, desc.Body, own);
         if (desc.Body != null)
-            physicsChanges.BodiesCreated.Add(new BodyCreate(entity, row.Frame, desc.Body, row.Pose, row.LinearVelocity, row.AngularVelocity));
+            physicsChanges.BodiesCreated.Add(new BodyCreate(entity, row.Frame, desc.Body, row.Pose, velocity, row.AngularVelocity));
 
         MoveMembership(entity, row.Frame, sendFrameChanged: false);
         foreach (Topic topic in plan.Subscriptions)
@@ -610,11 +626,15 @@ public sealed partial class World
     {
         ref readonly TransformRow row = ref entities.BackRow(entity);
         DPose relative = Frames.Relative(from, to);
+        Double3 velocity = Frames.ConvertVelocity(from, to, row.Pose.Position, FrameReads.VelocityIn(Frames, entity, row, from));
+        DPose pose = DPose.Compose(relative, row.Pose);
         var moved = new TransformRow
         {
             Frame = to,
-            Pose = DPose.Compose(relative, row.Pose),
-            LinearVelocity = Frames.ConvertVelocity(from, to, row.Pose.Position, row.LinearVelocity).ToVector3(),
+            PhysicsHome = to,
+            Pose = pose,
+            HomePosition = pose.Position,
+            LinearVelocity = velocity.ToVector3(),
             AngularVelocity = (relative.TransformDirection(row.AngularVelocity) + Frames.AngularVelocityRelative(from, to)).ToVector3(),
         };
         entities.SetBackTransform(entity, moved);
@@ -624,7 +644,7 @@ public sealed partial class World
         if (entities.Body(entity) is { } body)
         {
             physicsChanges.BodiesDestroyed.Add(entity);
-            physicsChanges.BodiesCreated.Add(new BodyCreate(entity, to, body, moved.Pose, moved.LinearVelocity, moved.AngularVelocity));
+            physicsChanges.BodiesCreated.Add(new BodyCreate(entity, to, body, moved.Pose, velocity, moved.AngularVelocity));
         }
     }
 
@@ -639,8 +659,9 @@ public sealed partial class World
         {
             physicsChanges.FramesDestroyed.Add(own);
             topics.RemoveFrame(own);
-            // Moves each surviving child frame up to this frame's parent, converting its pose and velocity.
-            Frames.Destroy(own);
+            // Moves each surviving child frame up to this frame's parent, converting its pose and velocity. The numeric
+            // frames in this frame go too, and Rehome has moved their bodies out.
+            Frames.Destroy(own, physicsChanges.FramesDestroyed);
         }
         if (entities.Body(entity) != null)
             physicsChanges.BodiesDestroyed.Add(entity);
@@ -671,14 +692,26 @@ public sealed partial class World
 
     // ---- Frames, membership and topics ----------------------------------------------------------------------------
 
-    /// <summary>The pose, velocities and parent of a frame, as the owner's transform row.</summary>
-    private TransformRow FrameOwnerRow(FrameHandle frame) => new()
+    /// <summary>
+    /// The pose, velocities and parent of a frame, as the owner's transform row. The hull of a frame lives in the system of
+    /// the frame's tree parent, so that parent is the owner's physics home, and the row frame is its semantic frame. The
+    /// pose moves from the home into the row frame in doubles. The velocity stays relative to the home.
+    /// </summary>
+    private TransformRow FrameOwnerRow(FrameHandle frame)
     {
-        Frame = Frames.Parent(frame),
-        Pose = Frames.LocalPose(frame),
-        LinearVelocity = Frames.LinearVelocity(frame).ToVector3(),
-        AngularVelocity = Frames.AngularVelocity(frame),
-    };
+        FrameHandle home = Frames.TreeParent(frame);
+        FrameHandle semantic = home.IsNull ? home : Frames.SemanticOf(home);
+        DPose local = Frames.TreeLocalPose(frame);
+        return new TransformRow
+        {
+            Frame = semantic,
+            PhysicsHome = home,
+            Pose = home == semantic ? local : new DPose(local.Position + Frames.HomeOffset(home, semantic), local.Rotation),
+            HomePosition = local.Position,
+            LinearVelocity = Frames.TreeLinearVelocity(frame).ToVector3(),
+            AngularVelocity = Frames.AngularVelocity(frame),
+        };
+    }
 
     /// <summary>
     /// Puts a Kepler frame at its place on its orbit at <paramref name="time"/>. The orbit takes its G·M from the point
@@ -690,7 +723,7 @@ public sealed partial class World
         double parentMu = Frames.KeplerMu(frame);
         (Double3 position, Double3 velocity) = orbit.StateAt(time, parentMu);
         Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(time, parentMu)));
-        Frames.LinearVelocity(frame) = velocity;
+        Frames.TreeLinearVelocity(frame) = velocity;
         Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(time, parentMu).ToVector3();
         Frames.ProperAcceleration(frame) = Vector3.Zero;
     }
@@ -704,7 +737,7 @@ public sealed partial class World
     {
         FrameSpin spin = Frames.Spin(frame);
         Frames.SetLocalPose(frame, new DPose(Frames.LocalPose(frame).Position, spin.RotationAt(time)));
-        Frames.LinearVelocity(frame) = Double3.Zero;
+        Frames.TreeLinearVelocity(frame) = Double3.Zero;
         Frames.AngularVelocity(frame) = spin.AngularVelocity.ToVector3();
     }
 
@@ -748,6 +781,8 @@ public sealed partial class World
     /// <summary>Applies the effects of an outside-tick change that the sync point would otherwise apply.</summary>
     private void FinishOutsideTickChange()
     {
+        // A body spawned or moved outside a tick joins its numeric frame before the next step (see PrepareTick).
+        numericUpdateDue = physics is not null;
         DeriveAttachments();
         SwapSnapshot();
         FlushLog();

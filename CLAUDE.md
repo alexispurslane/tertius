@@ -23,6 +23,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 - The engine must be fast. It has to handle space-scale scenes and dense immersive-sim interactions at once. Measure the cost of every rendering feature, and keep expensive ones switchable.
 - Small, focused classes are better than one large class. The user approved splitting the `World` class into subsystems as soon as it grew too big.
 - The user values determinism and wants reasons for every ordering rule.
+- Automatic engine machinery sits behind the state that it keeps coherent. The owner of that state (for numeric frames, `FrameTree`) grows one choke-point method that World calls once per sync point. That method calls internal pure predicates, which unit tests pin without physics or game objects, and then acts on its own state directly.
 
 ## Scope decisions
 
@@ -48,6 +49,9 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 | An entity table whose members take bare slot indices, with the generation check left to the caller | Handles everywhere: every way from an `Entity` to its data checks the generation, and stale handles give an explicit `null`, `false` or exception | Slots are a private storage index. No interface between modules takes or returns a bare slot. The user also rejected a "proof of liveness" marker type that lets later calls skip the check: every member that takes an `Entity` checks it, in every build. |
 | Ignore and report physics output that names a destroyed frame, in every build | A state that only a bug can produce fails a contract in Debug builds. Release builds skip it and record it in `World.Errors`. | Example: the proper destroy path rehomes every surviving body into the parent frame, in the same physics batch. So physics can never report a body in a dead frame. |
 | A hand-rolled JSON reader and type model (`TypeShape`), to keep comments and exact error positions | The built-in System.Text.Json, with its attributes and contract metadata (`JsonTypeInfo`). Content files are plain JSON with no comments. | Prefer a library with attribute-driven metaprogramming (like Serde) over a hand-rolled type model. Prefer what ships with .NET over an extra dependency, even at a small cost in features. |
+| A float gameplay velocity relative to the semantic frame, or `Double3` velocities stored in every row | A `Double3` that each read computes from the home's double frame velocity and Jolt's float local velocity | Storage stays one float vector per body, and reads are exact. |
+| Frameless reads such as `Self.Pose` and `Self.Velocity` beside reads in a frame | Every read of a position or velocity names its frame. Writes stay relative to `self.Frame`, and directions stay in its axes. | A read can be about any entity, but an entity writes only itself. |
+| A pure planner that returns a plan, plus a separate module that keeps numeric frames coherent | One choke-point method on `FrameTree` that calls internal pure predicates and acts directly | No plan object and no second module beside the owner of the state. |
 | Fake physics backends, kept in line with Jolt by a conformance suite | Every test uses the real World and the real Jolt backend. The only physics test double is a wrapper around real Jolt that injects faults. | A stand-in drifts from the code that it copies. A survey found 20 gaps between the stand-ins and the real code. See `docs/plans/real-physics-in-tests.md`. |
 
 ## Code style

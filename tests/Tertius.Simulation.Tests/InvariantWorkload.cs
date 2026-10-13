@@ -292,7 +292,7 @@ internal sealed class ChaoticWorkload : IDisposable
             if (!World.IsAlive(entity))
                 continue;
             FrameHandle frame = World.GetFrame(entity);
-            DPose pose = World.GetPose(entity);
+            DPose pose = World.PoseInOwnFrame(entity);
             // A frame's hull gets its state from the frame state above.
             if (World.GetOwnedFrame(entity).IsNull && entity != handedOff)
             {
@@ -342,7 +342,7 @@ internal sealed class ChaoticWorkload : IDisposable
             if (!events.Contains<Tick>() || self.Frame.IsNull)
                 return;
             WorkloadTally tally = workload.Tally;
-            DPose here = new(self.Pose.Position + new Double3(Next(21) - 10, 0, Next(21) - 10), DQuaternion.Identity);
+            DPose here = new(self.PoseInOwnFrame().Position + new Double3(Next(21) - 10, 0, Next(21) - 10), DQuaternion.Identity);
             int roll = Next(100);
             if (roll < 3)
             {
@@ -392,7 +392,7 @@ internal sealed class ChaoticWorkload : IDisposable
             }
             else if (roll < 17)
             {
-                self.Snapshot.QueryRadius(self.Frame, self.Pose.Position, 40, neighbors);
+                self.Snapshot.QueryRadius(self.Frame, self.PoseInOwnFrame().Position, 40, neighbors);
                 neighbors.Remove(workload.Root.Entity);
                 if (neighbors.Count > 0)
                 {
@@ -434,7 +434,7 @@ internal sealed class ChaoticWorkload : IDisposable
                 // A frame that a driver moves cannot be moved from gameplay. Only the static ones are.
                 if (!self.Snapshot.Frames.TryGetFrame(self.Entity, out FrameHandle own) || self.Snapshot.Frames.Driver(own) == MotionDriver.Static)
                 {
-                    self.Transform = here;
+                    self.SetTransform(here);
                     self.Render.Scale = new Vector3(1 + Next(3));
                     tally.Moves++;
                 }

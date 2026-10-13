@@ -6,7 +6,7 @@ namespace Tertius.Simulation;
 /// <summary>Counters that describe the last tick.</summary>
 /// <param name="LiveEntities">Entities that are live now.</param>
 /// <param name="Capacity">Entity slots allocated in the tables.</param>
-/// <param name="Frames">Live reference frames.</param>
+/// <param name="Frames">Live reference frames that gameplay sees: the semantic frames, without the numeric frames of the engine.</param>
 /// <param name="RoutedEvents">Messages routed at the last sync point, each counted once.</param>
 /// <param name="Deliveries">Inbox entries written at the last sync point.</param>
 /// <param name="FallbackSpawns">Spawns, since the world was created, that ran out of their chunk's slot pool.</param>
@@ -78,6 +78,7 @@ public sealed partial class World : IDisposable
         renderBuilder = new RenderSnapshotBuilder(entities, Frames, parallelOptions);
         dyingMarks = entities.AddColumn<bool>();
         characterStanding = entities.AddColumn<bool>();
+        Frames.NumericOptions = this.options.NumericFrames;
         if (physics != null)
             physicsWorker = new PhysicsWorker(physics, stepOutput);
     }
@@ -148,7 +149,7 @@ public sealed partial class World : IDisposable
     public ReadOnlySpan<Event> RoutedEvents => router.Routed;
 
     /// <summary>Counters of the last tick.</summary>
-    public WorldStats Stats => new(entities.LiveCount, entities.Capacity, Frames.Count, router.RoutedCount, router.DeliveryCount, fallbackSpawnTotal);
+    public WorldStats Stats => new(entities.LiveCount, entities.Capacity, Frames.Count - Frames.NumericCount, router.RoutedCount, router.DeliveryCount, fallbackSpawnTotal);
 
     /// <summary>Forgets every entry of <see cref="Errors"/>.</summary>
     public void ClearErrors() => errors.Clear();
@@ -156,8 +157,12 @@ public sealed partial class World : IDisposable
     /// <summary>True if the handle names a live entity: the slot is live and the generation matches.</summary>
     public bool IsAlive(Entity entity) => entities.IsAlive(entity);
 
-    /// <summary>The entity's pose in its frame, from the front snapshot. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
-    public DPose GetPose(Entity entity) => entities.FrontRow(entity).Pose;
+    /// <summary>
+    /// The entity's pose in <paramref name="frame"/>, from the front snapshot, through the frame tree in doubles. Throws
+    /// <see cref="StaleEntityException"/> for a stale entity and <see cref="ArgumentException"/> for a stale frame.
+    /// </summary>
+    public DPose PoseIn(Entity entity, FrameHandle frame) =>
+        FrameReads.PoseIn(Frames, entity, entities.FrontRow(entity), LiveFrame(frame));
 
     /// <summary>
     /// The frame the entity is in, from the front snapshot. Null for the owner of a root frame. Throws
@@ -165,11 +170,23 @@ public sealed partial class World : IDisposable
     /// </summary>
     public FrameHandle GetFrame(Entity entity) => entities.FrontRow(entity).Frame;
 
-    /// <summary>Linear velocity in frame axes, from the front snapshot. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
-    public Vector3 GetVelocity(Entity entity) => entities.FrontRow(entity).LinearVelocity;
+    /// <summary>
+    /// The entity's linear velocity relative to <paramref name="frame"/>, in its axes, from the front snapshot. Throws
+    /// <see cref="StaleEntityException"/> for a stale entity and <see cref="ArgumentException"/> for a stale frame.
+    /// </summary>
+    public Double3 VelocityIn(Entity entity, FrameHandle frame) =>
+        FrameReads.VelocityIn(Frames, entity, entities.FrontRow(entity), LiveFrame(frame));
 
-    /// <summary>Angular velocity in frame axes, from the front snapshot. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
-    public Vector3 GetAngularVelocity(Entity entity) => entities.FrontRow(entity).AngularVelocity;
+    /// <summary>
+    /// The entity's angular velocity relative to <paramref name="frame"/>, in its axes, from the front snapshot. Throws
+    /// <see cref="StaleEntityException"/> for a stale entity and <see cref="ArgumentException"/> for a stale frame.
+    /// </summary>
+    public Vector3 AngularVelocityIn(Entity entity, FrameHandle frame) =>
+        FrameReads.AngularVelocityIn(Frames, entity, entities.FrontRow(entity), LiveFrame(frame));
+
+    /// <summary>Returns <paramref name="frame"/> if it is live. Throws <see cref="ArgumentException"/> if it is stale or null.</summary>
+    private FrameHandle LiveFrame(FrameHandle frame) =>
+        Frames.IsAlive(frame) ? frame : throw new ArgumentException($"Cannot read in {frame}: the frame is stale.", nameof(frame));
 
     /// <summary>The render row, from the front snapshot. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
     public RenderData GetRender(Entity entity) => entities.FrontRender(entity);
@@ -264,6 +281,8 @@ public sealed partial class World : IDisposable
     /// <item>No destroy batch is open.</item>
     /// <item>Every live entity is in a live frame and is a member of exactly that frame's topic, except the owner of a
     /// root frame, which is in no frame.</item>
+    /// <item>Every live entity's physics home is its row frame or a live frame below it. When the home is below, the home
+    /// position plus the home's offset is the pose's position, within rounding.</item>
     /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state. Every live
     /// frame's topic resolves.</item>
     /// <item>Only a character can be standing.</item>
@@ -289,11 +308,22 @@ public sealed partial class World : IDisposable
                 Contract.Invariant(!own.IsNull && Frames.Parent(own).IsNull);
             else
                 Contract.Invariant(Frames.IsAlive(row.Frame) && topics.MembersOf(row.Frame).BinarySearch(entity) >= 0);
+            // The physics home is the row frame or a numeric frame below it, whose semantic frame is the row frame.
+            Contract.Invariant(row.PhysicsHome == row.Frame ||
+                (!row.Frame.IsNull && Frames.IsAlive(row.PhysicsHome) && Frames.SemanticOf(row.PhysicsHome) == row.Frame));
+            if (row.PhysicsHome != row.Frame)
+            {
+                // The sums round at the scale of the larger term, a few times at most.
+                Double3 offset = Frames.HomeOffset(row.PhysicsHome, row.Frame);
+                double scale = Math.Max(offset.Length, row.HomePosition.Length);
+                Contract.Invariant((offset + row.HomePosition - row.Pose.Position).Length <= 1e-12 * scale + 1e-9);
+            }
             if (!own.IsNull)
             {
                 Contract.Invariant(Frames.IsAlive(own) && own.Entity == entity);
                 TransformRow mirror = FrameOwnerRow(own);
-                Contract.Invariant(row.Frame == mirror.Frame && Poses.BitEquals(row.Pose, mirror.Pose));
+                Contract.Invariant(row.Frame == mirror.Frame && row.PhysicsHome == mirror.PhysicsHome && Poses.BitEquals(row.Pose, mirror.Pose)
+                    && Poses.BitEquals(row.HomePose, mirror.HomePose));
                 Contract.Invariant(row.LinearVelocity.Equals(mirror.LinearVelocity) && row.AngularVelocity.Equals(mirror.AngularVelocity));
             }
             if (characterStanding[entity])
@@ -302,6 +332,9 @@ public sealed partial class World : IDisposable
         for (int i = 0; i < Frames.Count; i++)
         {
             FrameHandle frame = Frames.AtDense(i);
+            // A numeric frame has no owner and no topic: nothing public can name it.
+            if (Frames.IsNumeric(frame))
+                continue;
             Contract.Invariant(entities.IsAlive(frame.Entity) && entities.OwnedFrame(frame.Entity) == frame && topics.IsLive(frame));
         }
         Frames.AssertInvariants();

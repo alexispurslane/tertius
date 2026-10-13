@@ -57,7 +57,7 @@ public sealed class AirlockTests : IDisposable
 
     private void Use(Entity of) => world.Post(Event.Create(of, Entity.Null, new Use { User = Entity.Null }));
 
-    private double Height(Entity door) => world.Snapshot.PoseOf(door).Position.Y - 1;
+    private double Height(Entity door) => world.Snapshot.PoseInOwnFrame(door).Position.Y - 1;
 
     /// <summary>True while the door is more than 0.5 percent of the way open: 1 cm of its 2 m slide.</summary>
     private bool NotShut(Entity door) => Height(door) > 0.005 * 2;

@@ -31,7 +31,7 @@ public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId 
     /// the frame's axes: a dynamic box with no damping, drawn by <see cref="Drawn"/>, with a <see cref="Crate"/> component.
     /// Throws <see cref="ArgumentOutOfRangeException"/> if the size or the mass is not positive and finite.
     /// </summary>
-    public SpawnDesc Spawn(FrameHandle frame, DPose pose, Vector3 velocity) => new()
+    public SpawnDesc Spawn(FrameHandle frame, DPose pose, Double3 velocity) => new()
     {
         Frame = frame,
         Pose = pose,

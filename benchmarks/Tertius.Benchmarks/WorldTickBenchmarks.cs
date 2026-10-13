@@ -25,8 +25,8 @@ public class WorldTickBenchmarks
         {
             foreach (ref Damage d in events.Of<Damage>())
                 Total += d.Amount;
-            ref DPose pose = ref self.Transform;
-            pose = pose with { Position = self.Pose.Position + new Double3(0.01, 0, 0) };
+            DPose pose = self.PoseIn(self.Frame);
+            self.SetTransform(pose with { Position = pose.Position + new Double3(0.01, 0, 0) });
             outbox.Send(neighbor, new Damage { Amount = 1 });
             if ((self.Entity.Index & 1023) == (self.Tick & 1023))
                 outbox.Send(topic, new Damage { Amount = 2 });

@@ -5,5 +5,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="Tertius.Simulation.Tests" />
     <InternalsVisibleTo Include="Tertius.Benchmarks" />
+    <!-- The tests of numeric frames make and move them through the World's internal operations. -->
+    <InternalsVisibleTo Include="Tertius.Physics.Tests" />
+    <InternalsVisibleTo Include="Tertius.Host.Tests" />
   </ItemGroup>
 </Project>

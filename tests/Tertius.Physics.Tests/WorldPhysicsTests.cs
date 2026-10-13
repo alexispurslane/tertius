@@ -97,15 +97,15 @@ public class WorldPhysicsTests
         parked.Position.X.Should().BeGreaterThan(0.5, "the ship flew for 5 ticks");
 
         world.SetFrameDriver(ship, MotionDriver.Static);
-        world.GetVelocity(owner).Should().Be(Vector3.Zero, "the owner mirrors its frame at once");
+        world.VelocityInOwnFrame(owner).Should().Be(Vector3.Zero, "the owner mirrors its frame at once");
         for (int i = 0; i < 3; i++)
             world.Tick();
 
         world.Errors.Should().BeEmpty();
         warnings.Should().BeEmpty();
         world.Frames.LocalPose(ship).Should().Be(parked);
-        world.GetPose(owner).Should().Be(parked);
-        world.GetVelocity(owner).Should().Be(Vector3.Zero);
+        world.PoseInOwnFrame(owner).Should().Be(parked);
+        world.VelocityInOwnFrame(owner).Should().Be(Vector3.Zero);
     }
 
     /// <summary>
@@ -139,7 +139,7 @@ public class WorldPhysicsTests
         (Double3 onOrbit, Double3 orbitalVelocity) = orbit.StateAt(world.Time, planetMu);
         (world.Frames.LocalPose(station).Position - onOrbit).Length.Should().BeLessThan(1e-6, "the station moved onto its orbit at once");
         (world.Frames.LinearVelocity(station) - orbitalVelocity).Length.Should().BeLessThan(1e-6);
-        world.GetPose(owner).Should().Be(world.Frames.LocalPose(station), "the owner mirrors its frame at once");
+        world.PoseInOwnFrame(owner).Should().Be(world.Frames.LocalPose(station), "the owner mirrors its frame at once");
 
         world.Tick();
 
@@ -182,7 +182,7 @@ public class WorldPhysicsTests
             world.Tick();
 
         (world.Frames.LocalPose(ship).Position - parked.Position).Length.Should().BeLessThan(1e-6, "the parked ship had no velocity left");
-        world.GetVelocity(owner).Length().Should().BeLessThan(1e-6f);
+        world.VelocityInOwnFrame(owner).Length().Should().BeLessThan(1e-6f);
         world.Errors.Should().BeEmpty();
         warnings.Should().BeEmpty();
     }

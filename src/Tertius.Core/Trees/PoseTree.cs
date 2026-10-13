@@ -167,7 +167,8 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
 
     public PoseNode Parent(PoseNode node)
     {
-        int p = parent[Dense(node)];
+        int dense = Dense(node);
+        int p = parent[dense];
         return p < 0 ? PoseNode.Null : NodeAt(p);
     }
 
@@ -175,13 +176,23 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
     public ref TPose Local(PoseNode node)
     {
         worldDirty = true;
-        return ref local[Dense(node)];
+        // Dense first: a pending reorder replaces the arrays, and an array read before it would be the old one.
+        int dense = Dense(node);
+        return ref local[dense];
     }
 
-    public TPose GetLocal(PoseNode node) => local[Dense(node)];
+    public TPose GetLocal(PoseNode node)
+    {
+        int dense = Dense(node);
+        return local[dense];
+    }
 
     /// <summary>The pose relative to the root of the node's tree, as of the last <see cref="UpdateWorld"/>.</summary>
-    public TPose World(PoseNode node) => world[Dense(node)];
+    public TPose World(PoseNode node)
+    {
+        int dense = Dense(node);
+        return world[dense];
+    }
 
     public int DenseIndex(PoseNode node) => Dense(node);
 

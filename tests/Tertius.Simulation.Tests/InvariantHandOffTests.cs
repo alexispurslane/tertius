@@ -107,7 +107,7 @@ public class InvariantHandOffTests
         scene.World.Tick();
 
         scene.World.Frames.LinearVelocity(scene.Hull).Should().Be(new Double3(1, 2, 3));
-        scene.World.GetVelocity(scene.HullOwner).Should().Be(new Vector3(1, 2, 3));
+        scene.World.VelocityInOwnFrame(scene.HullOwner).Should().Be(new Vector3(1, 2, 3));
     }
 
     [Fact]
@@ -163,9 +163,9 @@ public class InvariantHandOffTests
 
         // The pose and velocities are relative to the frame that is gone, so none of them can be used in the root frame.
         world.Errors.Should().ContainSingle(error => error.Contains("stale frame"));
-        world.GetPose(body).Should().Be(TestWorld.At(7));
-        world.GetVelocity(body).Should().Be(new Vector3(1, 2, 3));
-        world.GetAngularVelocity(body).Should().Be(Vector3.Zero);
+        world.PoseInOwnFrame(body).Should().Be(TestWorld.At(7));
+        world.VelocityInOwnFrame(body).Should().Be(new Vector3(1, 2, 3));
+        world.AngularVelocityInOwnFrame(body).Should().Be(Vector3.Zero);
     }
 
     [Fact]
@@ -204,7 +204,7 @@ public class InvariantHandOffTests
         world.Frames.LocalPose(hull).Should().Be(TestWorld.At(100));
         world.Frames.LinearVelocity(hull).Should().Be(new Double3(1, 2, 3));
         world.GetFrame(owner).Should().Be(test.Root);
-        world.GetPose(owner).Should().Be(TestWorld.At(100));
+        world.PoseInOwnFrame(owner).Should().Be(TestWorld.At(100));
         world.AssertInvariants();
     }
 #endif

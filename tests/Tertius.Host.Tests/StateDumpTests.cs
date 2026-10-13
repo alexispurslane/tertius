@@ -31,6 +31,26 @@ public class StateDumpTests
     }
 
     [Fact]
+    public void ADumpShowsOnlySemanticFramesWhileABodyIsInANumericFrame()
+    {
+        using World world = NewJoltWorld();
+        SceneInstance scene = BoxOnFloor(world);
+        world.Frames.TryGetFrame(scene["ground"], out FrameHandle ground).Should().BeTrue();
+        // Every slow group gets a resting frame, however near the origin: the box and the floor under it.
+        world.Frames.NumericOptions = new NumericFrameOptions { CreateDistance = 0, LeaveDistance = 0 };
+        // The numeric update runs at the start of the first tick, in which the box falls by 3 mm.
+        world.Tick();
+
+        StateDump dump = Run(world, scene, DumpNow).Dump("now");
+
+        world.Frames.IsNumeric(world.PhysicsHomeOf(scene["box"])).Should().BeTrue();
+        dump.Frames.Select(record => record.Id).Should().Equal("ground");
+        dump.Entity("box").Pose.Frame.Should().Be("ground");
+        (dump.Entity("box").Pose.Position - new Double3(0, 1.5, 0)).Length.Should().BeLessThan(0.01);
+        dump.Entity("box").RootPose.Frame.Should().Be("ground");
+    }
+
+    [Fact]
     public void ADumpHoldsAnEntitysPoseInTheRootFrameOfItsTree()
     {
         using World world = NewWorld();
@@ -102,7 +122,7 @@ public class StateDumpTests
 
         EntityRecord crate = Run(world, scene, DumpNow).Dump("now").Entity("crate");
 
-        crate.Velocity.Should().Be(new Vector3(1, 2, 3));
+        crate.Velocity.Should().Be(new Double3(1, 2, 3));
         crate.AngularVelocity.Should().Be(new Vector3(0.25f, 0.5f, 0.75f));
     }
 
@@ -234,7 +254,7 @@ public class StateDumpTests
         StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 90 }""", DumpNow).Dump("now");
 
         dump.Entity("box").Pose.Position.Y.Should().BeApproximately(0.5, 0.02, "the 1 m box rests on the floor whose top is at y = 0");
-        dump.Entity("box").Velocity.Length().Should().BeLessThan(0.05f);
+        dump.Entity("box").Velocity.Length.Should().BeLessThan(0.05);
         EventRecord hit = dump.Events.First(e => e.Event == "Collision" && e.To == new ToEntity("box"));
         ((Collision)hit.Payload).Other.Should().Be(scene["floor"]);
         dump.Errors.Should().BeEmpty();

@@ -184,7 +184,7 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
         at.Y.Should().BeApproximately(OnTheFloor, 0.005);
         at.Z.Should().BeInRange(HatchZ - 0.3, HatchZ + 0.3, "the capsule fits through the hatch only there");
         person.Standing.Should().BeTrue();
-        new Vector2(person.Velocity.X, person.Velocity.Z).Length().Should().BeLessThan(1e-3f, "the person landed and stands still");
+        new Vector2((float)person.Velocity.X, (float)person.Velocity.Z).Length().Should().BeLessThan(1e-3f, "the person landed and stands still");
     }
 
     [Fact]

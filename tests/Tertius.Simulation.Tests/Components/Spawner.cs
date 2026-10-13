@@ -34,7 +34,7 @@ public sealed class Spawner(Func<IComponent[]>? childComponents = null, int coun
             Children.Add(self.Spawn(new SpawnDesc
             {
                 Frame = self.Frame,
-                Pose = self.Pose,
+                Pose = self.PoseInOwnFrame(),
                 Components = childComponents?.Invoke() ?? [],
             }));
         }

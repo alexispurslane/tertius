@@ -97,7 +97,7 @@ public class WorldFrameFieldTests
         Tick(world, 30);
         world.Frames.LocalPose(scene.Station).Position.Length.Should().BeApproximately(5000, 1e-6, "the station stays on its orbit");
         Finite(scene.Hull.Position).Should().BeTrue();
-        Finite(world.GetPose(scene.Ball).Position).Should().BeTrue();
+        Finite(world.PoseInOwnFrame(scene.Ball).Position).Should().BeTrue();
         world.Errors.Should().BeEmpty();
     }
 
@@ -117,7 +117,7 @@ public class WorldFrameFieldTests
         world.SetFrameOrbit(scene.Station, larger);
 
         world.Frames.LocalPose(scene.Station).Position.Length.Should().BeApproximately(6000, 1e-6);
-        world.GetPose(scene.Owner).Should().Be(world.Frames.LocalPose(scene.Station), "the owner mirrors its frame at once");
+        world.PoseInOwnFrame(scene.Owner).Should().Be(world.Frames.LocalPose(scene.Station), "the owner mirrors its frame at once");
         world.Tick();
         double speed = Math.Sqrt(PlanetMu / 6000);
         scene.Hull.LinearVelocity.Length().Should().BeApproximately((float)speed, 0.01f, "the hull follows the new orbit");
@@ -224,8 +224,8 @@ public class WorldFrameFieldTests
         set.Should().Throw<ArgumentException>().WithMessage("*gravity*not valid*");
         world.Frames.Gravity(ground).Should().Be(GravityField.Uniform(new Vector3(0, -9.81f, 0)));
         Tick(world, 10);
-        Finite(world.GetPose(box).Position).Should().BeTrue();
-        world.GetPose(box).Position.Y.Should().BeLessThan(100, "the box still falls");
+        Finite(world.PoseInOwnFrame(box).Position).Should().BeTrue();
+        world.PoseInOwnFrame(box).Position.Y.Should().BeLessThan(100, "the box still falls");
     }
 
     /// <summary>A box rests in a frame without gravity. The game turns gravity on, and the box falls.</summary>
@@ -240,7 +240,7 @@ public class WorldFrameFieldTests
         world.SetFrameGravity(room, GravityField.Uniform(new Vector3(0, -9.81f, 0)));
         Tick(world, 60);
 
-        world.GetPose(box).Position.Y.Should().BeApproximately(100 - 0.5 * 9.81, 0.2, "the box fell for 1 s");
+        world.PoseInOwnFrame(box).Position.Y.Should().BeApproximately(100 - 0.5 * 9.81, 0.2, "the box fell for 1 s");
     }
 
     /// <summary>

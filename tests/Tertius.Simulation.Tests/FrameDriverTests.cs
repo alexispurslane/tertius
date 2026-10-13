@@ -45,9 +45,9 @@ public class FrameDriverTests
         test.World.SetFrameDriver(ship, MotionDriver.Static);
 
         test.World.Frames.Driver(ship).Should().Be(MotionDriver.Static);
-        test.World.GetVelocity(ship.Entity).Should().Be(Vector3.Zero);
-        test.World.GetAngularVelocity(ship.Entity).Should().Be(Vector3.Zero);
-        test.World.GetPose(ship.Entity).Should().Be(test.World.Frames.LocalPose(ship));
+        test.World.VelocityInOwnFrame(ship.Entity).Should().Be(Vector3.Zero);
+        test.World.AngularVelocityInOwnFrame(ship.Entity).Should().Be(Vector3.Zero);
+        test.World.PoseInOwnFrame(ship.Entity).Should().Be(test.World.Frames.LocalPose(ship));
         test.World.Invoking(world => world.AssertInvariants()).Should().NotThrow();
     }
 

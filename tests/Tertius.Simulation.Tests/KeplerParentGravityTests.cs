@@ -314,7 +314,7 @@ public class KeplerParentGravityTests
         s.T.World.Frames.Driver(s.Moon).Should().Be(MotionDriver.Static);
         ShouldBeNear(s.T.World.Frames.Relative(s.Moon, s.T.Root), s.MoonInRootBefore);
         s.T.World.Frames.LinearVelocity(s.Moon).Should().Be(Double3.Zero);
-        s.T.World.GetPose(s.Moon.Entity).Should().Be(s.T.World.Frames.LocalPose(s.Moon), "the owner mirrors its frame");
+        s.T.World.PoseInOwnFrame(s.Moon.Entity).Should().Be(s.T.World.Frames.LocalPose(s.Moon), "the owner mirrors its frame");
         s.T.World.Invoking(world => world.AssertInvariants()).Should().NotThrow();
     }
 

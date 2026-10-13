@@ -52,9 +52,9 @@ public class PhysicsFrameStateTests
 
         test.Run(1);
 
-        test.World.GetPose(owner).Position.Should().Be(new Double3(5, 6, 7));
-        test.World.GetVelocity(owner).Should().Be(new Vector3(1, 2, 3));
-        test.World.GetAngularVelocity(owner).Should().Be(new Vector3(0, 0.5f, 0));
+        test.World.PoseInOwnFrame(owner).Position.Should().Be(new Double3(5, 6, 7));
+        test.World.VelocityInOwnFrame(owner).Should().Be(new Vector3(1, 2, 3));
+        test.World.AngularVelocityInOwnFrame(owner).Should().Be(new Vector3(0, 0.5f, 0));
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class PhysicsFrameStateTests
 
         test.Run(1);
 
-        test.World.GetPose(pilot).Position.Should().Be(new Double3(0, 1, 0));
+        test.World.PoseInOwnFrame(pilot).Position.Should().Be(new Double3(0, 1, 0));
         test.World.Snapshot.TryGetPoseIn(pilot, test.Root, out DPose inRoot).Should().BeTrue();
         PoseChecks.AssertNear(inRoot.Position, new Double3(5, 7, 7));
     }
@@ -165,7 +165,7 @@ public class PhysicsFrameStateTests
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"state of {dock}").And.Contain("physics does not drive it");
         test.World.Frames.LocalPose(dock).Should().Be(TestWorld.At(100));
-        test.World.GetPose(dock.Entity).Should().Be(TestWorld.At(100));
+        test.World.PoseInOwnFrame(dock.Entity).Should().Be(TestWorld.At(100));
     }
 
     [Fact]
@@ -259,7 +259,7 @@ public class PhysicsFrameStateTests
         test.World.Frames.LocalPose(fighter).Position.Should().Be(new Double3(102, 0, 0));
         test.World.Frames.LinearVelocity(fighter).Should().Be(new Double3(3, 0, 0));
         test.World.GetFrame(fighterOwner).Should().Be(carrier);
-        test.World.GetPose(fighterOwner).Position.Should().Be(new Double3(102, 0, 0));
+        test.World.PoseInOwnFrame(fighterOwner).Position.Should().Be(new Double3(102, 0, 0));
     }
 
     [Fact]
@@ -296,7 +296,7 @@ public class PhysicsFrameStateTests
         PoseChecks.AssertNear(test.World.Frames.LocalPose(shuttle).Position, new Double3(1000, 0, -5));
         PoseChecks.AssertNear(test.World.Frames.LinearVelocity(shuttle), new Double3(0, 0, -2));
         test.World.GetFrame(shuttle.Entity).Should().Be(test.Root);
-        test.World.GetPose(shuttle.Entity).Should().Be(test.World.Frames.LocalPose(shuttle));
+        test.World.PoseInOwnFrame(shuttle.Entity).Should().Be(test.World.Frames.LocalPose(shuttle));
         test.World.Errors.Should().BeEmpty();
     }
 

@@ -29,7 +29,7 @@ public class FrameTreeReparentTests
             Root = Frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
             Hull = Frames.Create(new Entity(2, 1), Root, HullPose, FrameBounds.Sphere(50), MotionDriver.Physics);
             Cabin = Frames.Create(new Entity(3, 1), Hull, new DPose(new Double3(10, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(5), MotionDriver.Static);
-            Frames.LinearVelocity(Hull) = HullVelocity;
+            Frames.TreeLinearVelocity(Hull) = HullVelocity;
             Frames.AngularVelocity(Hull) = HullSpin;
             Frames.Update();
         }

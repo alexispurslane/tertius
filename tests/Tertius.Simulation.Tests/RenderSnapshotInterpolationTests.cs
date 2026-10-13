@@ -80,7 +80,7 @@ public class RenderSnapshotInterpolationTests
         using var test = new TestWorld();
         // The object is turned by 0.5 rad about +Y at the end of tick 0 and by 1.0 rad at the end of tick 1.
         Entity turning = test.Show(test.Root, TestWorld.At(0, 0, -10), Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            self.Transform = self.Pose with { Rotation = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * (self.Tick + 1)) }));
+            self.SetTransform(self.PoseInOwnFrame() with { Rotation = DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * (self.Tick + 1)) })));
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         test.Run(1);
         test.World.Latest();

@@ -263,8 +263,8 @@ public class MessagingTopicTests
         t.Run(4);
 
         t.World.GetFrame(body).Should().Be(b);
-        t.World.GetPose(body).Position.X.Should().Be(5);
-        t.World.GetVelocity(body).X.Should().Be(1);
+        t.World.PoseInOwnFrame(body).Position.X.Should().Be(5);
+        t.World.VelocityInOwnFrame(body).X.Should().Be(1);
         // The hand-off applies before the routing at the sync point of tick 1, so the messages sent on tick 1 are the
         // first to reach it through B and the last to reach it through A.
         traveller.PingValues().Should().Equal(0, 11, 21);

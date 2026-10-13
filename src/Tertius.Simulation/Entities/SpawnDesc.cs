@@ -15,8 +15,8 @@ public sealed class SpawnDesc
     /// <summary>The pose in <see cref="Frame"/>. For a frame entity, this is the frame's local pose.</summary>
     public DPose Pose { get; init; } = DPose.Identity;
 
-    /// <summary>Linear velocity in frame axes.</summary>
-    public Vector3 LinearVelocity { get; init; }
+    /// <summary>Linear velocity relative to <see cref="Frame"/>, in its axes. Physics converts it when it creates the body.</summary>
+    public Double3 LinearVelocity { get; init; }
 
     /// <summary>Angular velocity in frame axes.</summary>
     public Vector3 AngularVelocity { get; init; }

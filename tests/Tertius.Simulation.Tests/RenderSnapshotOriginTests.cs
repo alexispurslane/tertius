@@ -80,7 +80,7 @@ public class RenderSnapshotOriginTests
         Entity camera = test.World.Spawn(new SpawnDesc
         {
             Frame = bay,
-            Pose = TestWorld.At(1234567.25, 2, 3),
+            Pose = TestWorld.At(4567.25, 2, 3),
             Body = TestWorld.Ball,
             Render = new RenderData { ViewOffset = new Pose(new Vector3(0, 1.5f, 0), Quaternion.Identity) },
         });

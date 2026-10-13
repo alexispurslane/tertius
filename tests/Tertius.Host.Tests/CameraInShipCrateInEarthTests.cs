@@ -46,9 +46,9 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
         // One tick first, so that the ship has the rotation that Jolt keeps. The crates then start at their places in the
         // ship's axes, with the ship's velocity and a drift away from it.
         world.Tick();
-        DPose shipPose = world.Frames.LocalPose(ship);
+        DPose shipPose = world.Frames.Relative(ship, earth);
         DQuaternion shipRotation = shipPose.Rotation.Normalized();
-        Vector3 shipVelocity = world.Snapshot.VelocityOf(scene["ship"]);
+        Vector3 shipVelocity = world.Snapshot.VelocityInOwnFrame(scene["ship"]);
         Vector3 away = shipRotation.Rotate(new Vector3(0, 0, DriftSpeed));
         crates = [.. CrateOffsets.Select(offset => world.Spawn(spec.Spawn(
             earth, new DPose(shipPose.Position + shipRotation.Rotate(offset), shipRotation), shipVelocity + away)))];
@@ -57,7 +57,7 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
     public void Dispose() => world.Dispose();
 
     /// <summary>The chase camera's eye in the ship's frame, in the ship's axes: the camera has no view offset.</summary>
-    private Double3 Eye => world.Snapshot.PoseOf(scene["chase"]).Position;
+    private Double3 Eye => world.Snapshot.PoseInOwnFrame(scene["chase"]).Position;
 
     /// <summary>
     /// Where <paramref name="crate"/> is relative to the ship's center, in the ship's axes, in double precision: the crate's
@@ -66,8 +66,8 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
     /// </summary>
     private Double3 TruthInShipAxes(Entity crate)
     {
-        DPose shipInEarth = world.Frames.LocalPose(ship);
-        DPose crateInEarth = world.Snapshot.PoseOf(crate);
+        DPose shipInEarth = world.Frames.Relative(ship, earth);
+        DPose crateInEarth = world.Snapshot.PoseInOwnFrame(crate);
         return shipInEarth.Rotation.Normalized().Conjugate().Rotate(crateInEarth.Position - shipInEarth.Position);
     }
 
@@ -98,12 +98,12 @@ public sealed class CameraInShipCrateInEarthTests : IDisposable
         for (int tick = 0; tick < Ticks; tick++)
         {
             world.Tick();
-            DQuaternion shipTurn = world.Frames.LocalPose(ship).Rotation.Normalized().Conjugate();
+            DQuaternion shipTurn = world.Frames.Relative(ship, earth).Rotation.Normalized().Conjugate();
             foreach (Entity crate in crates)
             {
                 world.Snapshot.TryGetPoseIn(crate, ship, out DPose pose).Should().BeTrue();
                 worstPosition = Math.Max(worstPosition, Double3.Distance(pose.Position, TruthInShipAxes(crate)));
-                DQuaternion truth = (shipTurn * world.Snapshot.PoseOf(crate).Rotation).Normalized();
+                DQuaternion truth = (shipTurn * world.Snapshot.PoseInOwnFrame(crate).Rotation).Normalized();
                 // Two unit quaternions turn the same way when their dot product is 1 or -1.
                 double dot = pose.Rotation.X * truth.X + pose.Rotation.Y * truth.Y + pose.Rotation.Z * truth.Z + pose.Rotation.W * truth.W;
                 worstTurn = Math.Max(worstTurn, 1 - Math.Abs(dot));

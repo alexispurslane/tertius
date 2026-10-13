@@ -45,7 +45,7 @@ public class WorldWakeTests
             pilot.Once = body => body.Teleport(At(20, 1));
         Tick(world, 180);
 
-        world.GetPose(box).Position.Y.Should().BeApproximately(0.5, 0.01, "nothing holds the box up any more, so it falls to the floor");
+        world.PoseInOwnFrame(box).Position.Y.Should().BeApproximately(0.5, 0.01, "nothing holds the box up any more, so it falls to the floor");
         world.Errors.Should().BeEmpty();
     }
 
@@ -84,7 +84,7 @@ public class WorldWakeTests
         world.Frames.SetLocalPose(platform, At(20, 1));
         Tick(world, 180);
 
-        world.GetPose(lander).Position.Y.Should().BeApproximately(0.5, 0.01, "the platform went away, so the lander falls to the floor");
+        world.PoseInOwnFrame(lander).Position.Y.Should().BeApproximately(0.5, 0.01, "the platform went away, so the lander falls to the floor");
         world.Errors.Should().BeEmpty();
     }
 

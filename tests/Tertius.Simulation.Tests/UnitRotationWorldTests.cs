@@ -45,7 +45,7 @@ public class UnitRotationWorldTests
 
         FrameHandle frame = test.World.GetOwnedFrame(owner);
         ExpectSameTurn(test.World.Frames.LocalPose(frame).Rotation, given);
-        ExpectSameTurn(test.World.GetPose(owner).Rotation, given);
+        ExpectSameTurn(test.World.PoseInOwnFrame(owner).Rotation, given);
         test.World.Frames.LocalPose(frame).Position.Should().Be(new Double3(6.77e6, 0, 0), why);
     }
 
@@ -82,7 +82,7 @@ public class UnitRotationWorldTests
         FrameHandle frame = test.SpawnStaticFrame(new DPose(new Double3(10, 0, 0), rotation));
 
         test.World.Frames.LocalPose(frame).Rotation.Should().Be(rotation, why);
-        test.World.GetPose(frame.Entity).Rotation.Should().Be(rotation, why);
+        test.World.PoseInOwnFrame(frame.Entity).Rotation.Should().Be(rotation, why);
     }
 
     [Theory]
@@ -93,8 +93,8 @@ public class UnitRotationWorldTests
 
         Entity entity = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = new DPose(new Double3(1, 2, 3), given) });
 
-        ExpectSameTurn(test.World.GetPose(entity).Rotation, given);
-        test.World.GetPose(entity).Position.Should().Be(new Double3(1, 2, 3), why);
+        ExpectSameTurn(test.World.PoseInOwnFrame(entity).Rotation, given);
+        test.World.PoseInOwnFrame(entity).Position.Should().Be(new Double3(1, 2, 3), why);
     }
 
     [Theory]
@@ -107,14 +107,14 @@ public class UnitRotationWorldTests
             Frame = test.Root,
             Pose = new DPose(new Double3(6.77e6, 0, 0), DQuaternion.Identity),
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Transform = self.Pose with { Rotation = given })],
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(self.PoseInOwnFrame() with { Rotation = given }))],
         });
         FrameHandle frame = test.World.GetOwnedFrame(owner);
 
         test.Run(2);
 
         ExpectSameTurn(test.World.Frames.LocalPose(frame).Rotation, given);
-        ExpectSameTurn(test.World.GetPose(owner).Rotation, given);
+        ExpectSameTurn(test.World.PoseInOwnFrame(owner).Rotation, given);
         test.World.Frames.LocalPose(frame).Position.Should().Be(new Double3(6.77e6, 0, 0), why);
     }
 
@@ -137,10 +137,10 @@ public class UnitRotationWorldTests
         for (int tick = 0; tick < 120; tick++)
         {
             test.Run(1);
-            worst = Math.Max(worst, Math.Max(Excess(test.World.Frames.LocalPose(ship).Rotation), Excess(test.World.GetPose(owner).Rotation)));
+            worst = Math.Max(worst, Math.Max(Excess(test.World.Frames.LocalPose(ship).Rotation), Excess(test.World.PoseInOwnFrame(owner).Rotation)));
         }
 
         worst.Should().BeLessThan(1e-12);
-        test.World.Frames.LocalPose(ship).Position.Y.Should().BeGreaterThan(10_000, "the ship moved 2 s at 7,700 m/s along +Y");
+        test.World.PoseIn(owner, test.Root).Position.Y.Should().BeGreaterThan(10_000, "the ship moved 2 s at 7,700 m/s along +Y");
     }
 }

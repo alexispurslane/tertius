@@ -42,8 +42,8 @@ public class AttachmentTests
         var chain = new MovingChain(test);
 
         // The quarter turn maps the parent's +Z to the frame's +X, so the child is 2 m along +X from (10, 0, 0).
-        PoseChecks.AssertNear(test.World.GetPose(chain.Child).Position, new Double3(12, 0, 0), 1e-6);
-        PoseChecks.AssertNear(test.World.GetPose(chain.Grandchild).Position, new Double3(12, 1, 0), 1e-6);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Child).Position, new Double3(12, 0, 0), 1e-6);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Grandchild).Position, new Double3(12, 1, 0), 1e-6);
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class AttachmentTests
         test.Run(3);
 
         // The parent is at (13, 0, 0) now. Its turn has not changed, so the child is still 2 m along +X from it.
-        PoseChecks.AssertNear(test.World.GetPose(chain.Child).Position, new Double3(15, 0, 0), 1e-6);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Child).Position, new Double3(15, 0, 0), 1e-6);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public class AttachmentTests
 
         test.Run(3);
 
-        PoseChecks.AssertNear(test.World.GetPose(chain.Grandchild).Position, new Double3(15, 1, 0), 1e-6);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(chain.Grandchild).Position, new Double3(15, 1, 0), 1e-6);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class AttachmentTests
 
         test.Run(3);
 
-        PoseChecks.AssertSameRotation(test.World.GetPose(chain.Child).Rotation, PoseChecks.QuarterTurnAboutY, 1e-6);
+        PoseChecks.AssertSameRotation(test.World.PoseInOwnFrame(chain.Child).Rotation, PoseChecks.QuarterTurnAboutY, 1e-6);
     }
 
     [Fact]
@@ -97,14 +97,14 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         Entity parent = test.SpawnAt(new Double3(10, 0, 0), Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            self.Transform = self.Pose with { Rotation = PoseChecks.QuarterTurnAboutY }));
+            self.SetTransform(self.PoseInOwnFrame() with { Rotation = PoseChecks.QuarterTurnAboutY })));
         Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 0, 2) });
-        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(10, 0, 2), 1e-6);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(10, 0, 2), 1e-6);
 
         test.Run(1);
 
         // The parent turned in tick 0, and the sync point of that tick derived the child from the turned parent.
-        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(12, 0, 0), 1e-6);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(12, 0, 0), 1e-6);
     }
 
     [Fact]
@@ -121,8 +121,8 @@ public class AttachmentTests
             AttachOffset = new Pose(new Vector3(1, 0, 0), default),
         });
 
-        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(11, 0, 0));
-        PoseChecks.AssertSameRotation(test.World.GetPose(child).Rotation, DQuaternion.Identity);
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(11, 0, 0));
+        PoseChecks.AssertSameRotation(test.World.PoseInOwnFrame(child).Rotation, DQuaternion.Identity);
     }
 
     // ---- Reading the parent and changing the offset ---------------------------------------------------------------
@@ -177,7 +177,7 @@ public class AttachmentTests
 
         test.Run(1);
 
-        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(14, 0, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(14, 0, 0));
     }
 
     [Fact]
@@ -185,13 +185,13 @@ public class AttachmentTests
     {
         using var test = new TestWorld();
         Entity parent = test.SpawnAt(new Double3(10, 0, 0));
-        var writer = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Transform = TestWorld.At(0));
+        var writer = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(0)));
         Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(1, 0), Components = [writer] });
 
         test.Run(2);
 
         test.World.Errors.Should().HaveCount(2).And.OnlyContain(e => e.Contains(child.ToString()) && e.Contains("attached"));
-        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(11, 0, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(11, 0, 0));
         writer.Runs.Should().Be(2, "the refused write does not stop the entity");
     }
 
@@ -225,7 +225,7 @@ public class AttachmentTests
         test.Run(1);
 
         test.World.IsAlive(child).Should().BeTrue();
-        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(7, 3, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(7, 3, 0));
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public class AttachmentTests
         Entity child = test.World.Spawn(new SpawnDesc { Frame = test.Root, AttachTo = parent, AttachOffset = Offset(0, 3), Components = [frameChanges] });
 
         test.World.GetFrame(child).Should().Be(other);
-        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(1, 3, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(1, 3, 0));
         test.Run(2);
         frameChanges.Seen.Should().BeEmpty("the child was never in the frame that it named");
     }
@@ -261,7 +261,7 @@ public class AttachmentTests
         test.Run(3);
 
         test.World.GetFrame(child).Should().Be(other);
-        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(1, 3, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(1, 3, 0));
         frameChanges.Seen.Should().BeEmpty("the child was never in the frame that it named");
         test.World.Errors.Should().BeEmpty();
     }
@@ -291,7 +291,7 @@ public class AttachmentTests
         }
 
         test.World.GetFrame(child).Should().Be(other);
-        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(1, 3, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(1, 3, 0));
         test.World.Errors.Should().BeEmpty();
     }
 
@@ -327,7 +327,7 @@ public class AttachmentTests
         test.World.IsAlive(child).Should().BeTrue();
         test.World.GetFrame(person).Should().Be(test.Root);
         test.World.GetFrame(child).Should().Be(test.Root);
-        PoseChecks.AssertNear(test.World.GetPose(child).Position, new Double3(101, 3, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(child).Position, new Double3(101, 3, 0));
         frameChanges.Seen.Should().BeEmpty("the child was never in the ship");
         test.World.Errors.Should().BeEmpty();
     }
@@ -482,7 +482,7 @@ public class AttachmentTests
         test.Run(1);
 
         test.World.IsAlive(child).Should().BeFalse();
-        PoseChecks.AssertNear(test.World.GetPose(follower).Position, new Double3(5, 1, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(follower).Position, new Double3(5, 1, 0));
     }
 }
 
@@ -631,7 +631,7 @@ public class SpatialQueryTests
                 Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
                 {
                     var found = new List<Entity>();
-                    self.Snapshot.QueryRadius(self.Frame, self.Pose.Position, 15, found);
+                    self.Snapshot.QueryRadius(self.Frame, self.PoseInOwnFrame().Position, 15, found);
                     counts[index] = found.Count;
                 })],
             });

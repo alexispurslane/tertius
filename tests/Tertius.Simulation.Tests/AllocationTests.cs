@@ -23,8 +23,7 @@ public class AllocationTests
             foreach (ref Ping ping in events.Of<Ping>())
                 Total += ping.Value;
             events.RemoveAll(static (ref Ping p) => p.Value < 0);
-            ref DPose pose = ref self.Transform;
-            pose = pose with { Position = self.Pose.Position + new Double3(0.001, 0, 0) };
+            self.SetTransform(self.PoseInOwnFrame() with { Position = self.PoseInOwnFrame().Position + new Double3(0.001, 0, 0) });
             self.Render.Scale.X = 1;
             if (self.Snapshot.IsAlive(Neighbor))
                 outbox.Send(Neighbor, new Ping { Value = 1 });

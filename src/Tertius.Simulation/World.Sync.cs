@@ -29,7 +29,7 @@ public sealed partial class World
         public bool IsCharacter(Entity entity) => entities.Body(entity) is { Motion: BodyMotion.Character };
 
         // Every write to the row of an entity with a body comes from physics, so the row is where the step began.
-        public FrameHandle FrameOf(Entity entity) => entities.BackRow(entity).Frame;
+        public FrameHandle FrameOf(Entity entity) => entities.BackRow(entity).PhysicsHome;
     }
 
     /// <summary>
@@ -51,10 +51,12 @@ public sealed partial class World
             stepOutput.Clear();
         }
 
-        // 2. A check of the whole report and the hand-offs' reparents first, which decides the skipped updates, then body
-        //    states and hand-offs, then the physics frames' states and their owners' rows: a state is relative to the
-        //    parent after the hand-offs, and must land before step 5 can destroy that parent or move the hull. Contacts
-        //    last.
+        // 2. The falling numeric frames move over the step that physics made, with the acceleration that physics used.
+        //    Then a check of the whole report and the hand-offs' reparents, which decides the skipped updates, then body
+        //    states and hand-offs, whose rows take the new places of their numeric homes, then the physics frames' states
+        //    and their owners' rows: a state is relative to the parent after the hand-offs, and must land before step 5
+        //    can destroy that parent or move the hull. Contacts last.
+        Frames.AdvanceNumericFrames(DeltaTime);
         if (physics != null)
             ApplyPhysicsOutput();
 
@@ -70,9 +72,15 @@ public sealed partial class World
         ApplySubscriptionChanges();
         DestroyRequestedEntities();
 
-        // 6. New entities, after the destroy batch, so that a spawn into a frame that just died is dropped. Then the
-        //    structural changes of this sync reach physics as one batch.
+        // 6. New entities, after the destroy batch, so that a spawn into a frame that just died is dropped.
         MakeSpawnsLive(endTime);
+
+        // 6b. Bodies move into numeric frames and out of them, after physics output, destroys and spawns, so that every
+        //     body that is live at the end of the sync point is clustered where it is now. The structural changes of this
+        //     sync reach physics with the update's first batch, so that a spawn that joins a numeric frame is created in
+        //     it, with its velocity converted in doubles.
+        if (physics != null)
+            UpdateNumericFrames(DeltaTime);
         FlushPhysicsChanges();
 
         // 7. Kepler and Spin frames advance to the end of the tick, and every frame owner, then every attached entity, follows.
@@ -132,13 +140,7 @@ public sealed partial class World
             Entity entity = state.Entity;
             if (physicsOutputCheck.IsSkipped(entity))
                 continue;
-            entities.SetBackTransform(entity, new TransformRow
-            {
-                Frame = state.Frame,
-                Pose = state.Pose,
-                LinearVelocity = state.LinearVelocity,
-                AngularVelocity = state.AngularVelocity,
-            });
+            entities.SetBackTransform(entity, PhysicsRow(state.Frame, state.Pose, state.LinearVelocity, state.AngularVelocity));
             physicsTouched.Add(entity);
         }
 
@@ -147,13 +149,7 @@ public sealed partial class World
             Entity entity = handOff.Entity;
             if (physicsOutputCheck.IsSkipped(entity))
                 continue;
-            entities.SetBackTransform(entity, new TransformRow
-            {
-                Frame = handOff.To,
-                Pose = handOff.Pose,
-                LinearVelocity = handOff.LinearVelocity,
-                AngularVelocity = handOff.AngularVelocity,
-            });
+            entities.SetBackTransform(entity, PhysicsRow(handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity));
             physicsTouched.Add(entity);
         }
 
@@ -171,8 +167,8 @@ public sealed partial class World
         {
             if (physicsOutputCheck.IsSkipped(state.Frame.Entity))
                 continue;
-            Frames.SetLocalPose(state.Frame, state.LocalPose);
-            Frames.LinearVelocity(state.Frame) = state.LinearVelocity;
+            Frames.SetTreeLocalPose(state.Frame, state.LocalPose);
+            Frames.TreeLinearVelocity(state.Frame) = state.LinearVelocity;
             Frames.AngularVelocity(state.Frame) = state.AngularVelocity;
             Frames.ProperAcceleration(state.Frame) = state.ProperAcceleration;
             Entity owner = state.Frame.Entity;
@@ -186,6 +182,26 @@ public sealed partial class World
 
         foreach (ContactStarted contact in stepOutput.Contacts)
             RouteContact(contact);
+    }
+
+    /// <summary>
+    /// The row of a body that physics reports in the system of <paramref name="home"/>, with <paramref name="pose"/> and
+    /// the velocities relative to the home. The row frame is the home's semantic frame, and the pose moves into it in
+    /// doubles: numeric frames do not rotate, so that is one addition of positions. The linear velocity stays relative to
+    /// the home (see <see cref="TransformRow.LinearVelocity"/>).
+    /// </summary>
+    private TransformRow PhysicsRow(FrameHandle home, in DPose pose, Vector3 linearVelocity, Vector3 angularVelocity)
+    {
+        FrameHandle semantic = Frames.SemanticOf(home);
+        return new TransformRow
+        {
+            Frame = semantic,
+            PhysicsHome = home,
+            Pose = home == semantic ? pose : new DPose(pose.Position + Frames.HomeOffset(home, semantic), pose.Rotation),
+            HomePosition = pose.Position,
+            LinearVelocity = linearVelocity,
+            AngularVelocity = angularVelocity,
+        };
     }
 
     /// <summary>
@@ -295,6 +311,9 @@ public sealed partial class World
         for (int i = 0; i < n; i++)
         {
             FrameHandle frame = Frames.AtDense(i);
+            // A numeric frame moved in step 2, and it has no owner to follow it.
+            if (Frames.IsNumeric(frame))
+                continue;
             switch (Frames.Driver(frame))
             {
                 case MotionDriver.Kepler:

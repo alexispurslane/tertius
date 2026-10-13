@@ -28,15 +28,6 @@ public readonly struct Snapshot
     /// <summary>The frame the entity is in. Null for the owner of a root frame.</summary>
     public FrameHandle FrameOf(Entity entity) => world.Entities.FrontRow(entity).Frame;
 
-    /// <summary>The entity's pose in its frame.</summary>
-    public DPose PoseOf(Entity entity) => world.Entities.FrontRow(entity).Pose;
-
-    /// <summary>Linear velocity in frame axes.</summary>
-    public Vector3 VelocityOf(Entity entity) => world.Entities.FrontRow(entity).LinearVelocity;
-
-    /// <summary>Angular velocity in frame axes.</summary>
-    public Vector3 AngularVelocityOf(Entity entity) => world.Entities.FrontRow(entity).AngularVelocity;
-
     /// <summary>The entity's render row.</summary>
     public RenderData RenderOf(Entity entity) => world.Entities.FrontRender(entity);
 
@@ -49,44 +40,48 @@ public readonly struct Snapshot
     /// </summary>
     public bool IsStanding(Entity entity) => world.IsStanding(entity);
 
-    /// <summary>The entity's frame and pose in it. False for a stale handle.</summary>
-    public bool TryGetPose(Entity entity, out FrameHandle frame, out DPose pose)
-    {
-        if (!world.IsAlive(entity))
-        {
-            frame = default;
-            pose = default;
-            return false;
-        }
-        ref readonly TransformRow row = ref world.Entities.FrontRow(entity);
-        frame = row.Frame;
-        pose = row.Pose;
-        return true;
-    }
-
     /// <summary>The entity's pose in <paramref name="frame"/>, through the frame tree. False if either handle is stale.</summary>
     public bool TryGetPoseIn(Entity entity, FrameHandle frame, out DPose pose)
     {
-        pose = default;
-        if (!world.IsAlive(entity) || !world.Frames.IsAlive(frame))
+        if (!Live(entity, frame))
+        {
+            pose = default;
             return false;
-        ref readonly TransformRow row = ref world.Entities.FrontRow(entity);
-        if (row.Frame == frame)
-        {
-            pose = row.Pose;
-            return true;
         }
-        if (row.Frame.IsNull)
-        {
-            // The owner of a root frame: its pose is the frame's own pose.
-            if (!world.Frames.TryGetFrame(entity, out FrameHandle own))
-                return false;
-            pose = world.Frames.Relative(own, frame);
-            return true;
-        }
-        pose = DPose.Compose(world.Frames.Relative(row.Frame, frame), row.Pose);
+        pose = FrameReads.PoseIn(world.Frames, entity, world.Entities.FrontRow(entity), frame);
         return true;
     }
+
+    /// <summary>
+    /// The entity's linear velocity relative to <paramref name="frame"/>, in its axes, through the frame tree in doubles.
+    /// False if either handle is stale.
+    /// </summary>
+    public bool TryGetVelocityIn(Entity entity, FrameHandle frame, out Double3 velocity)
+    {
+        if (!Live(entity, frame))
+        {
+            velocity = default;
+            return false;
+        }
+        velocity = FrameReads.VelocityIn(world.Frames, entity, world.Entities.FrontRow(entity), frame);
+        return true;
+    }
+
+    /// <summary>
+    /// The entity's angular velocity relative to <paramref name="frame"/>, in its axes. False if either handle is stale.
+    /// </summary>
+    public bool TryGetAngularVelocityIn(Entity entity, FrameHandle frame, out Vector3 angularVelocity)
+    {
+        if (!Live(entity, frame))
+        {
+            angularVelocity = default;
+            return false;
+        }
+        angularVelocity = FrameReads.AngularVelocityIn(world.Frames, entity, world.Entities.FrontRow(entity), frame);
+        return true;
+    }
+
+    private bool Live(Entity entity, FrameHandle frame) => world.IsAlive(entity) && world.Frames.IsAlive(frame);
 
     /// <summary>
     /// Clears <paramref name="results"/>, then adds every live entity in <paramref name="frame"/> whose position is

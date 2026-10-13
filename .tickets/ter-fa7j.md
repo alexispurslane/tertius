@@ -1,7 +1,7 @@
 ---
 id: ter-fa7j
-status: open
-deps: []
+status: closed
+deps: [ter-f28b]
 links: [ter-r90w]
 created: 2026-10-12T02:04:49Z
 type: bug

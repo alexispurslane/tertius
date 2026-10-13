@@ -15,9 +15,10 @@ public interface IPhysicsOutputFacts
     bool IsCharacter(Entity entity);
 
     /// <summary>
-    /// The frame of a live entity with a body, as the step began: the frame of its transform before any output of the
-    /// step lands. Every write to the transform of an entity with a body comes from physics, so this is the frame whose
-    /// system held the body. The check never asks it for the owner of a frame.
+    /// The physics home of a live entity with a body, as the step began: the frame whose system held the body, before any
+    /// output of the step lands. That is the frame of its transform or a numeric frame below it. Every write to the
+    /// transform of an entity with a body comes from physics, so this is the frame that physics names. The check never
+    /// asks it for the owner of a frame.
     /// </summary>
     FrameHandle FrameOf(Entity entity);
 }
@@ -218,7 +219,7 @@ public sealed class PhysicsOutputCheck
     {
         Entity entity = handOff.Entity;
         bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle own);
-        FrameHandle current = ownsFrame ? frames.Parent(own) : facts.FrameOf(entity);
+        FrameHandle current = ownsFrame ? frames.TreeParent(own) : facts.FrameOf(entity);
         return current.IsNull ? $"{entity} is in no frame, so it leaves none" :
             ownsFrame && frames.Driver(own) != MotionDriver.Physics ? $"physics does not drive {own}, the frame that {entity} owns" :
             handOff.From != current ? $"{entity} is in {current}, not in {handOff.From}" :
@@ -233,7 +234,7 @@ public sealed class PhysicsOutputCheck
     private static string? DrivenFrameFault<TFacts>(FrameHandle frame, FrameTree frames, TFacts facts) where TFacts : IPhysicsOutputFacts =>
         !frames.IsAlive(frame) ? $"the stale frame {frame}" :
         frames.Driver(frame) != MotionDriver.Physics ? $"{frame}, because physics does not drive it" :
-        frames.Parent(frame).IsNull ? $"{frame}, because it is a root frame, so its owner has no hull" :
+        frames.TreeParent(frame).IsNull ? $"{frame}, because it is a root frame, so its owner has no hull" :
         BodyFault(frame.Entity, facts) is { } fault ? $"{frame}, because {fault}" :
         null;
 
@@ -247,5 +248,5 @@ public sealed class PhysicsOutputCheck
     }
 
     private FrameHandle ParentAfter(FrameHandle frame, FrameTree frames) =>
-        parentsAfter.TryGetValue(frame, out FrameHandle parent) ? parent : frames.Parent(frame);
+        parentsAfter.TryGetValue(frame, out FrameHandle parent) ? parent : frames.TreeParent(frame);
 }

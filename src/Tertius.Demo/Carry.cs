@@ -123,10 +123,12 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
         Vector3 aim = Vector3.Transform(-Vector3.UnitZ, view.Rotation);
         float clearance = Clearance(view.Position, aim, body.HalfHeight, body.Radius + carried.BoundingRadius + ThrowGap);
         // The person's pose at the end of this tick's step, as far as its velocity tells.
-        DPose person = self.Pose with { Position = self.Pose.Position + (Double3)(self.Velocity * self.DeltaTime) };
+        DPose pose = self.PoseIn(self.Frame);
+        Double3 velocity = self.VelocityIn(self.Frame);
+        DPose person = pose with { Position = pose.Position + velocity * self.DeltaTime };
         Vector3 throwVelocity = person.Rotation.Rotate(aim) * speed;
         DPose start = DPose.Compose(person, new Pose(view.Position + aim * clearance, view.Rotation).ToDPose());
-        self.Spawn(carried.Spawn(self.Frame, start, self.Velocity + throwVelocity));
+        self.Spawn(carried.Spawn(self.Frame, start, velocity + throwVelocity));
         self.Body.AddImpulse(-carried.Mass * throwVelocity);
         outbox.Send(copy, new Destroy());
         copy = Entity.Null;

@@ -39,7 +39,7 @@ public sealed class Door(Vector3 slide, float openSeconds) : IComponent
     {
         if (!started)
         {
-            closed = self.Pose;
+            closed = self.PoseIn(self.Frame);
             started = true;
         }
         for (int i = 0; i < events.Count; i++)

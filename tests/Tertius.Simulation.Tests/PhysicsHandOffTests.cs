@@ -61,9 +61,9 @@ public class PhysicsHandOffTests
 
         scene.Test.Run(1);
 
-        scene.World.GetPose(scene.Ball).Should().Be(TestWorld.At(-50));
-        scene.World.GetVelocity(scene.Ball).Should().Be(AnyVelocity);
-        scene.World.GetAngularVelocity(scene.Ball).Should().Be(AnySpin);
+        scene.World.PoseInOwnFrame(scene.Ball).Should().Be(TestWorld.At(-50));
+        scene.World.VelocityInOwnFrame(scene.Ball).Should().Be(AnyVelocity);
+        scene.World.AngularVelocityInOwnFrame(scene.Ball).Should().Be(AnySpin);
     }
 
     [Fact]
@@ -74,7 +74,7 @@ public class PhysicsHandOffTests
         scene.Test.Run(1);
 
         scene.World.GetFrame(scene.Ball).Should().Be(scene.Test.Root);
-        scene.World.GetPose(scene.Ball).Should().Be(TestWorld.At(450));
+        scene.World.PoseInOwnFrame(scene.Ball).Should().Be(TestWorld.At(450));
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public class PhysicsHandOffTests
 
         test.World.Frames.Parent(fighter).Should().Be(carrier);
         test.World.GetFrame(fighterOwner).Should().Be(carrier);
-        PoseChecks.AssertNear(test.World.GetPose(fighterOwner).Position, new Double3(100, 0, 0));
+        PoseChecks.AssertNear(test.World.PoseInOwnFrame(fighterOwner).Position, new Double3(100, 0, 0));
     }
 
     [Fact]
@@ -348,7 +348,7 @@ public class PhysicsHandOffTests
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {gone}").And.Contain("no longer exists");
         test.World.GetFrame(bystander).Should().Be(test.Root);
-        test.World.GetPose(bystander).Position.X.Should().Be(7);
+        test.World.PoseInOwnFrame(bystander).Position.X.Should().Be(7);
     }
 
     [Fact]
@@ -364,7 +364,7 @@ public class PhysicsHandOffTests
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {bodiless}").And.Contain("has no body");
         test.World.GetFrame(bodiless).Should().Be(test.Root);
-        test.World.GetPose(bodiless).Position.Should().Be(new Double3(3, 0, 0));
+        test.World.PoseInOwnFrame(bodiless).Position.Should().Be(new Double3(3, 0, 0));
     }
 
     [Fact]
@@ -381,7 +381,7 @@ public class PhysicsHandOffTests
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain("stale frame");
         test.World.GetFrame(ball).Should().Be(test.Root);
-        test.World.GetPose(ball).Position.X.Should().Be(3);
+        test.World.PoseInOwnFrame(ball).Position.X.Should().Be(3);
     }
 
     [Fact]
@@ -408,7 +408,7 @@ public class PhysicsHandOffTests
         // sound, but it belongs to the skipped update.
         test.World.Errors.Should().HaveCount(2).And.OnlyContain(error => error.Contains("stale frame"));
         test.World.Frames.LocalPose(fighter).Should().Be(TestWorld.At(100));
-        test.World.GetPose(fighterOwner).Should().Be(TestWorld.At(100));
+        test.World.PoseInOwnFrame(fighterOwner).Should().Be(TestWorld.At(100));
     }
 
     [Fact]
@@ -450,7 +450,7 @@ public class PhysicsHandOffTests
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {ball}").And.Contain($"{ball} is in {test.Root}, not in {dock}");
         test.World.GetFrame(ball).Should().Be(test.Root);
-        test.World.GetPose(ball).Should().Be(TestWorld.At(3));
+        test.World.PoseInOwnFrame(ball).Should().Be(TestWorld.At(3));
     }
 
     [Fact]
@@ -509,7 +509,7 @@ public class PhysicsHandOffTests
         test.Run(1);
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {ball}").And.Contain($"into {test.Root}, which it is in already");
-        test.World.GetPose(ball).Should().Be(TestWorld.At(3));
+        test.World.PoseInOwnFrame(ball).Should().Be(TestWorld.At(3));
     }
 
     [Fact]
@@ -532,7 +532,7 @@ public class PhysicsHandOffTests
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {ball}").And.Contain("another hand-off in this step");
         test.World.GetFrame(ball).Should().Be(test.Root, "the first hand-off is part of the skipped update");
-        test.World.GetPose(ball).Should().Be(TestWorld.At(3));
+        test.World.PoseInOwnFrame(ball).Should().Be(TestWorld.At(3));
     }
 
     [Fact]
@@ -708,9 +708,9 @@ public class PhysicsHandOffTests
         scene.Test.Run(1);
 
         scene.World.GetFrame(scene.Owner).Should().Be(scene.Test.Root);
-        scene.World.GetPose(scene.Owner).Should().Be(TestWorld.At(100));
-        scene.World.GetVelocity(scene.Owner).Should().Be(RefusedHandOffScene.OwnVelocity);
-        scene.World.GetAngularVelocity(scene.Owner).Should().Be(RefusedHandOffScene.OwnSpin);
+        scene.World.PoseInOwnFrame(scene.Owner).Should().Be(TestWorld.At(100));
+        scene.World.VelocityInOwnFrame(scene.Owner).Should().Be(RefusedHandOffScene.OwnVelocity);
+        scene.World.AngularVelocityInOwnFrame(scene.Owner).Should().Be(RefusedHandOffScene.OwnSpin);
     }
 
     [Theory]

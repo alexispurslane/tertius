@@ -98,7 +98,7 @@ A frame is an entity that also has a row in the frame tree. `FrameHandle` holds 
 
 If an entity has a physics body, physics owns its transform. Gameplay moves it only through `self.Body`: forces, impulses, velocity changes and kinematic targets. These go into the entity's `PhysicsIntent` slot. Forces and impulses add up during the tick. Velocity changes and kinematic targets keep the last value written.
 
-If an entity has no body, gameplay owns its transform and writes it through `self.Transform`.
+If an entity has no body, gameplay owns its transform and writes it through `self.SetTransform`, relative to `self.Frame`.
 
 ### Creation and destruction
 
@@ -289,6 +289,31 @@ If the system of the parent is full, that system grows first. "Physics systems t
 While an object's bounding sphere crosses a bubble boundary, the other physics system holds a ghost. A ghost is a kinematic body that copies the real body's pose every step. Bodies in the other system collide with the ghost, but the ghost does not push back on the real body. After the object is fully on one side, physics removes the ghost.
 
 A ghost is only in the system of a frame next to the body's frame in the tree: its parent, a sibling or a child. The ghost of a hull is never in the hull's own frame. When the tree changes, the reconcile at the start of the next step removes each ghost that the new tree does not allow. The ghost pass at the end of that step adds the ghosts that the new tree needs.
+
+### Numeric frames
+
+The engine makes and removes frames of its own around groups of bodies, only for precision. These numeric frames keep Jolt's float velocities and float bounds small. Near a ship in orbit, every body moves at about 7.7 km/s in the frame of the planet, and a float velocity there steps by 0.0005 m/s. The design is in `docs/plans/numeric-frames.md`.
+
+| Question | Rule |
+|---|---|
+| Where a numeric frame lives | In the frame tree, with the `NumericMode` `Falling`, `Resting` or `Nesting`, and a Jolt system of its own. It has no owner, no bubble, no gravity of its own and no rotation. |
+| What gameplay sees | Nothing. `Self.Frame`, `World.Frames`, `Snapshot`, `FrameChanged`, the topics, `QueryRadius`, the state dumps and the render snapshot's camera frame show only semantic frames, the frames that content or gameplay made. The public members of `FrameTree` answer relative to `Parent`, the semantic parent, and list frames in an order that numeric frames do not change. The members that show the tree as it is stored are internal. |
+| The entity row | `Frame` is the semantic frame. `PhysicsHome` is the frame whose Jolt system holds the body. `Pose` is in `Frame`, `HomePosition` is the position in `PhysicsHome`, and `LinearVelocity` is a float relative to `PhysicsHome`. |
+| Reads | Every read of a position or velocity names its frame. A read in another frame starts from the physics home and composes through the lowest common ancestor. |
+| Writes and directions | Relative to `self.Frame`, in its axes. Physics converts a write when it applies it. |
+| Velocity | Jolt's float local velocity plus the double frame velocity of the home, added in doubles. |
+| Who gets one | A group whose common speed reaches 50 m/s gets a falling frame. A slow group 10 km or more from its semantic frame's origin gets a resting frame. Below 20 m/s and nearer than 5 km, the group goes back to the semantic frame's own system. |
+| How a falling frame moves | It falls freely in the semantic frame's field, integrated in doubles. Each member feels the field at its true position minus the frame's acceleration, so the tidal gravity stays. |
+| Membership | At each sync point, in entity order, in `FrameTree.UpdateNumericFrames`, the only code that makes, shifts, moves or destroys numeric frames. Two bodies that can touch within 2 s share a frame. Two bodies of one system, a numeric frame's or the semantic frame's own, stay linked 10 m farther. Members split only after 1 s apart. The group with the most mass in a frame keeps it, and the smaller groups move. The merge test measures two bodies from their places in their homes, through the homes' lowest common ancestor. |
+| Anchors | A static body, or the hull of a frame that physics does not drive, never changes the mode of a group that falls. It stays in its own system, and the falling frame keeps a ghost of it, which moves fast in that frame's system. An anchor joins a group that does not fall: an anchored group never falls, and a group with such a hull stays in the semantic frame's own system. |
+| Drain and recenter | A frame takes over its members' common velocity above 1 m/s, and moves its origin to their center of mass beyond 1 km. Both are uniform shifts, so Jolt keeps its contact cache. The ghosts in the frame's system shift too, and wake nothing. Each velocity loses the shift in doubles before it narrows to a float. |
+| Moves between systems | A whole touching group moves at once, with no `FrameChanged` and no topic change. A sleeping body stays asleep unless the move changes its velocity. A body that physics has not created yet, such as a spawn, is created in its numeric frame, with its state converted in doubles. |
+| Frame owners | A hull that joins a numeric frame takes its frame under that numeric frame in the tree. The frame's semantic parent does not change. A frame that physics does not drive lies in its semantic parent: `World.SetFrameDriver` runs the numeric update before the new driver places the frame. A semantic frame that dies takes its numeric frames with it, and the frames in them move to its parent. |
+| Vast distances | A numeric frame more than 10^9 m from its tree parent's origin moves under a nesting frame. A nesting frame rests on a grid of 2^20 m in its semantic frame, so its position is exact in a double, and nearby frames share it. It jumps by whole grid steps after its frames, and they shift back by the same exact amount. |
+| Render snapshot | It places everything relative to the camera's physics home, which has the axes of the camera's frame. |
+| Thresholds | `NumericFrameOptions`, through `WorldOptions.NumericFrames`. |
+
+A read in a distant frame, such as the frame of a star, rounds at that distance. The merge test does not: it measures two bodies from their homes, so two bodies a light-year out keep millimeter steps relative to each other.
 
 ## Physics
 

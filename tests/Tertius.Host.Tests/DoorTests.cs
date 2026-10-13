@@ -43,7 +43,7 @@ public sealed class DoorTests : IDisposable
     private void Order<T>(Entity to) where T : unmanaged, IEventPayload => world.Post(Event.Create(to, Entity.Null, new T()));
 
     /// <summary>How far the door is from its closed pose, in meters, in the room's axes.</summary>
-    private Double3 Moved(Entity of) => world.Snapshot.PoseOf(of).Position - Closed;
+    private Double3 Moved(Entity of) => world.Snapshot.PoseInOwnFrame(of).Position - Closed;
 
     private double Height => Moved(door).Y;
 

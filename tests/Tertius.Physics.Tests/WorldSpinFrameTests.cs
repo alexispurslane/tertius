@@ -35,7 +35,7 @@ public class WorldSpinFrameTests
             JoltPhysicsBackend.BodyFacts hull = backend.BodiesIn(space)
                 .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
             hull.Motion.Should().Be(MotionType.Kinematic);
-            Quaternion frame = world.GetPose(owner).Rotation.ToQuaternion();
+            Quaternion frame = world.PoseInOwnFrame(owner).Rotation.ToQuaternion();
             MathF.Abs(Quaternion.Dot(hull.Rotation, frame)).Should().BeGreaterThan(1 - 1e-5f, "the hull's rotation is the frame's, up to the sign of the quaternion");
             world.Errors.Should().BeEmpty();
         }
@@ -58,7 +58,7 @@ public class WorldSpinFrameTests
             JoltPhysicsBackend.BodyFacts hull = backend.BodiesIn(space)
                 .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
             hull.AngularVelocity.Y.Should().BeApproximately((float)Rate, 0.01f);
-            MathF.Abs(Quaternion.Dot(hull.Rotation, world.GetPose(owner).Rotation.ToQuaternion())).Should().BeGreaterThan(1 - 1e-5f);
+            MathF.Abs(Quaternion.Dot(hull.Rotation, world.PoseInOwnFrame(owner).Rotation.ToQuaternion())).Should().BeGreaterThan(1 - 1e-5f);
             world.Errors.Should().BeEmpty();
         }
     }
@@ -87,7 +87,7 @@ public class WorldSpinFrameTests
 
             // After 1 s the platform has turned 0.5 rad, counterclockwise seen from above, so it carries the ship from +X
             // toward -Z. A static hull that only jumped to each new pose would give the ship no velocity.
-            Double3 position = world.GetPose(ship).Position;
+            Double3 position = world.PoseInOwnFrame(ship).Position;
             double angle = Math.Atan2(-position.Z, position.X);
             angle.Should().BeInRange(0.35, 0.55, $"the ship is at {position}");
             world.Errors.Should().BeEmpty();
@@ -111,12 +111,12 @@ public class WorldSpinFrameTests
                 Body = new BodyDesc(new SphereShapeDesc(0.2f), Mass: 1, LinearDamping: 0, AngularDamping: 0),
             });
 
-            DPose before = world.GetPose(ball);
-            Vector3 velocityBefore = world.GetVelocity(ball);
+            DPose before = world.PoseInOwnFrame(ball);
+            Vector3 velocityBefore = world.VelocityInOwnFrame(ball);
             for (int tick = 0; tick < 300 && world.GetFrame(ball) == carousel; tick++)
             {
-                before = world.GetPose(ball);
-                velocityBefore = world.GetVelocity(ball);
+                before = world.PoseInOwnFrame(ball);
+                velocityBefore = world.VelocityInOwnFrame(ball);
                 world.Tick();
             }
             world.GetFrame(ball).Should().Be(space);
@@ -125,7 +125,7 @@ public class WorldSpinFrameTests
             // velocity in the carousel, turned into the parent's axes, plus ω × r of the ground at the ball's place.
             Double3 position = before.Position + (Double3)velocityBefore * world.DeltaTime;
             Double3 expected = world.Frames.VelocityToParent(carousel, position, velocityBefore);
-            ((Double3)world.GetVelocity(ball) - expected).Length.Should().BeLessThan(0.01);
+            ((Double3)world.VelocityInOwnFrame(ball) - expected).Length.Should().BeLessThan(0.01);
             // The spin matters: ω × r is 0.5 rad/s times about 25 m.
             (expected - world.Frames.LocalPose(carousel).TransformDirection((Double3)velocityBefore)).Length.Should().BeGreaterThan(10);
             world.Errors.Should().BeEmpty();

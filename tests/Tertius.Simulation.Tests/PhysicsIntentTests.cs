@@ -156,7 +156,7 @@ public class PhysicsIntentTests
             body.SetVelocity(new Vector3(7, 0, 0));
         });
 
-        intent.Velocity.Should().Be(new Vector3(7, 0, 0));
+        intent.Velocity.Should().Be(new Double3(7, 0, 0));
     }
 
     [Fact]

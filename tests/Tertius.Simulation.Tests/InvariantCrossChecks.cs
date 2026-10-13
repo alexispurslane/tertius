@@ -275,10 +275,10 @@ internal static class InvariantCrossChecks
                 chain.Add(root);
                 root = attachments.ParentOf(root);
             }
-            DPose expected = world.GetPose(root);
+            DPose expected = world.PoseInOwnFrame(root);
             for (int i = chain.Count - 1; i >= 0; i--)
                 expected = DPose.Compose(expected, Poses.Safe(attachments.WritableOffset(chain[i])).ToDPose());
-            DPose actual = world.GetPose(entity);
+            DPose actual = world.PoseInOwnFrame(entity);
             if (!TestWorld.RoughlyEqual(expected.Position, actual.Position, 1e-6))
                 report($"{entity} should be at {expected.Position} by its chain from {root} and is at {actual.Position}.");
         }
@@ -313,12 +313,12 @@ internal static class InvariantCrossChecks
             FrameHandle frame = frames[sampler.Next(frames.Count)];
             Entity[] inFrame = live.Where(entity => world.GetFrame(entity) == frame).ToArray();
             Double3 center = inFrame.Length > 0 && sampler.Next(2) == 0
-                ? world.GetPose(inFrame[sampler.Next(inFrame.Length)]).Position
+                ? world.PoseInOwnFrame(inFrame[sampler.Next(inFrame.Length)]).Position
                 : new Double3(sampler.Next(-60, 61), 0, sampler.Next(-60, 61));
             double radius = sampler.Next(0, 80);
             Entity[] expected = inFrame.Where(entity =>
             {
-                Double3 position = world.GetPose(entity).Position;
+                Double3 position = world.PoseInOwnFrame(entity).Position;
                 double dx = position.X - center.X, dy = position.Y - center.Y, dz = position.Z - center.Z;
                 return dx * dx + dy * dy + dz * dz <= radius * radius;
             }).ToArray();

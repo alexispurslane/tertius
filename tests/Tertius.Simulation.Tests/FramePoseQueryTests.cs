@@ -83,12 +83,14 @@ public class FramePoseQueryTests
         Entity entity = test.SpawnAt(new Double3(7, 8, 9));
         Entity rootOwner = test.Root.Entity;
 
-        test.World.Snapshot.TryGetPose(entity, out FrameHandle frame, out DPose pose).Should().BeTrue();
-        test.World.Snapshot.TryGetPose(rootOwner, out FrameHandle ownerFrame, out _).Should().BeTrue();
+        FrameHandle frame = test.World.Snapshot.FrameOf(entity);
+        test.World.Snapshot.TryGetPoseIn(entity, frame, out DPose pose).Should().BeTrue();
+        test.World.Snapshot.TryGetPoseIn(rootOwner, test.Root, out DPose ownerPose).Should().BeTrue();
 
         frame.Should().Be(test.Root);
         pose.Position.Should().Be(new Double3(7, 8, 9));
-        ownerFrame.IsNull.Should().BeTrue("the owner of a root frame is in no frame");
+        test.World.Snapshot.FrameOf(rootOwner).IsNull.Should().BeTrue("the owner of a root frame is in no frame");
+        ownerPose.Should().Be(DPose.Identity, "the owner of a root frame is at the origin of its own frame");
     }
 
     [Fact]
@@ -112,7 +114,7 @@ public class FramePoseQueryTests
         test.World.Destroy(gone);
 
         test.World.Snapshot.TryGetPoseIn(gone, test.Root, out _).Should().BeFalse();
-        test.World.Snapshot.TryGetPose(gone, out FrameHandle frame, out _).Should().BeFalse();
-        frame.IsNull.Should().BeTrue();
+        test.World.Snapshot.TryGetVelocityIn(gone, test.Root, out Double3 velocity).Should().BeFalse();
+        velocity.Should().Be(Double3.Zero);
     }
 }

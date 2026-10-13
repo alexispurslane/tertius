@@ -112,8 +112,8 @@ public class AttachedSpawnHandOffTests
         Spawn child = scene.Children.Should().ContainSingle(c => c.Tick == handOff, "the ball still saw itself in space then").Subject;
         scene.World.IsAlive(child.Entity).Should().BeTrue();
         scene.World.GetFrame(child.Entity).Should().Be(scene.Station);
-        DPose expected = DPose.Compose(scene.World.GetPose(scene.Ball), ChildOffset.ToDPose());
-        PoseChecks.AssertNear(scene.World.GetPose(child.Entity).Position, expected.Position, 1e-9);
+        DPose expected = DPose.Compose(scene.World.PoseInOwnFrame(scene.Ball), ChildOffset.ToDPose());
+        PoseChecks.AssertNear(scene.World.PoseInOwnFrame(child.Entity).Position, expected.Position, 1e-9);
         scene.World.Errors.Should().BeEmpty();
     }
 
@@ -146,8 +146,8 @@ public class AttachedSpawnHandOffTests
         Spawn grandchild = scene.Grandchildren.Should().ContainSingle(g => g.Tick == handOff).Subject;
         scene.World.Attachments.ParentOf(grandchild.Entity).Should().Be(middle);
         scene.World.GetFrame(grandchild.Entity).Should().Be(scene.Station);
-        DPose expected = DPose.Compose(scene.World.GetPose(middle), GrandchildOffset.ToDPose());
-        PoseChecks.AssertNear(scene.World.GetPose(grandchild.Entity).Position, expected.Position, 1e-9);
+        DPose expected = DPose.Compose(scene.World.PoseInOwnFrame(middle), GrandchildOffset.ToDPose());
+        PoseChecks.AssertNear(scene.World.PoseInOwnFrame(grandchild.Entity).Position, expected.Position, 1e-9);
         grandchild.FrameChangesHeard.Should().Be(0);
         scene.World.Errors.Should().BeEmpty();
     }

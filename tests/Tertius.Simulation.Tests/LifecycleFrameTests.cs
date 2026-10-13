@@ -112,8 +112,8 @@ public class LifecycleFrameTests
         s.DestroyTheShip();
 
         // A quarter turn about +Y maps local +X to -Z and local +Z to +X. The ship is at x = 1000.
-        Double3 crew = s.T.World.GetPose(s.Crew).Position;
-        Double3 cargo = s.T.World.GetPose(s.Cargo).Position;
+        Double3 crew = s.T.World.PoseInOwnFrame(s.Crew).Position;
+        Double3 cargo = s.T.World.PoseInOwnFrame(s.Cargo).Position;
         ShouldBeNear(crew, new Double3(1000, 0, -10));
         ShouldBeNear(cargo, new Double3(1010, 0, 0));
     }
@@ -126,7 +126,7 @@ public class LifecycleFrameTests
         s.DestroyTheShip();
 
         // The pod is at x = -20 in the ship, which is (0, 0, 20) in the root frame's axes, added to the ship's origin.
-        Double3 pod = s.T.World.GetPose(s.Pod.Entity).Position;
+        Double3 pod = s.T.World.PoseInOwnFrame(s.Pod.Entity).Position;
         ShouldBeNear(pod, new Double3(1000, 0, 20));
     }
 
@@ -138,7 +138,7 @@ public class LifecycleFrameTests
         s.DestroyTheShip();
 
         // The cargo had no turn of its own in the ship, so in the root frame it is turned as the ship was.
-        DQuaternion rotation = s.T.World.GetPose(s.Cargo).Rotation;
+        DQuaternion rotation = s.T.World.PoseInOwnFrame(s.Cargo).Rotation;
         rotation.X.Should().BeApproximately(0, 1e-9);
         rotation.Y.Should().BeApproximately(Math.Sin(Math.PI / 4), 1e-9);
         rotation.Z.Should().BeApproximately(0, 1e-9);
@@ -275,7 +275,7 @@ public class LifecycleFrameTests
     {
         using var t = new TestWorld();
 
-        t.World.GetPose(t.Root.Entity).Should().Be(DPose.Identity);
+        t.World.PoseIn(t.Root.Entity, t.Root).Should().Be(DPose.Identity);
         t.World.Snapshot.TryGetPoseIn(t.Root.Entity, t.Root, out DPose pose).Should().BeTrue();
         pose.Position.Should().Be(Double3.Zero);
     }
@@ -285,7 +285,7 @@ public class LifecycleFrameTests
     {
         using var t = new TestWorld();
 
-        t.World.GetVelocity(t.Root.Entity).Should().Be(System.Numerics.Vector3.Zero);
+        t.World.VelocityIn(t.Root.Entity, t.Root).Should().Be(Double3.Zero);
     }
 
     // ---- Two frames that die together ------------------------------------------------------------------------------
@@ -330,7 +330,7 @@ public class LifecycleFrameTests
         using TestWorld t = NestedFramesAfterTheyDie(out _, out _, out Entity x);
 
         // 100 for the outer frame, 10 for the inner one, 1 for the entity.
-        Double3 position = t.World.GetPose(x).Position;
+        Double3 position = t.World.PoseInOwnFrame(x).Position;
         ShouldBeNear(position, new Double3(111, 0, 0));
     }
 
@@ -382,7 +382,7 @@ public class LifecycleFrameTests
 
         t.World.Frames.Parent(pod).Should().Be(t.Root);
         t.World.GetFrame(pod.Entity).Should().Be(t.Root);
-        t.World.GetPose(pod.Entity).Should().Be(t.World.Frames.LocalPose(pod));
+        t.World.PoseInOwnFrame(pod.Entity).Should().Be(t.World.Frames.LocalPose(pod));
     }
 
     [Theory]
@@ -393,7 +393,7 @@ public class LifecycleFrameTests
         using TestWorld t = PodInTwoDyingFrames(innerOwnerHasTheLowerSlot, out _, out FrameHandle pod, out _, out _);
 
         // The inner frame's quarter turn maps the pod's offset of z = 5 to x = 5. With the inner frame's x = 10 and the outer's 100, that is x = 115.
-        Double3 position = t.World.GetPose(pod.Entity).Position;
+        Double3 position = t.World.PoseInOwnFrame(pod.Entity).Position;
         ShouldBeNear(position, new Double3(115, 0, 0));
     }
 
@@ -524,8 +524,8 @@ public class LifecycleFrameTests
         s.DestroyTheMoon();
 
         s.T.World.GetFrame(s.Pod.Entity).Should().Be(s.T.Root);
-        s.T.World.GetPose(s.Pod.Entity).Should().Be(s.T.World.Frames.LocalPose(s.Pod));
-        s.T.World.GetVelocity(s.Pod.Entity).Should().Be(s.T.World.Frames.LinearVelocity(s.Pod).ToVector3());
+        s.T.World.PoseInOwnFrame(s.Pod.Entity).Should().Be(s.T.World.Frames.LocalPose(s.Pod));
+        s.T.World.VelocityInOwnFrame(s.Pod.Entity).Should().Be(s.T.World.Frames.LinearVelocity(s.Pod).ToVector3());
     }
 
     [Fact]

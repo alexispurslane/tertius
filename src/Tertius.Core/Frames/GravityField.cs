@@ -91,20 +91,25 @@ public readonly struct GravityField : IEquatable<GravityField>
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
     /// <summary>The acceleration at a point in frame coordinates.</summary>
-    public Vector3 At(Double3 position)
+    public Vector3 At(Double3 position) => AtPrecise(position).ToVector3();
+
+    /// <summary>
+    /// Like <see cref="At"/>, in doubles, for a caller that subtracts another acceleration before it narrows the result.
+    /// </summary>
+    public Double3 AtPrecise(Double3 position)
     {
         switch (this)
         {
             case UniformGravity { Acceleration: var acceleration, Region: var region }:
-                return region is { } box && !box.Contains(position.ToVector3()) ? Vector3.Zero : acceleration;
+                return region is { } box && !box.Contains(position.ToVector3()) ? Double3.Zero : acceleration;
             case PointGravity { Mu: var mu }:
                 double r2 = position.LengthSquared;
                 if (r2 < 1e-6)
-                    return Vector3.Zero;
+                    return Double3.Zero;
                 double r = Math.Sqrt(r2);
-                return (position * (-mu / (r2 * r))).ToVector3();
+                return position * (-mu / (r2 * r));
             default:
-                return Vector3.Zero;
+                return Double3.Zero;
         }
     }
 

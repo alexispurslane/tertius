@@ -228,7 +228,7 @@ public class BlueprintTests
         Entity soldier = t.World.Spawn("soldier", deck, TestWorld.At(3, 4, 5));
 
         t.World.GetFrame(soldier).Should().Be(deck);
-        t.World.GetPose(soldier).Should().Be(TestWorld.At(3, 4, 5));
+        t.World.PoseInOwnFrame(soldier).Should().Be(TestWorld.At(3, 4, 5));
     }
 
     [Fact]
@@ -324,7 +324,7 @@ public class BlueprintTests
 
         t.World.IsAlive(recruit).Should().BeTrue();
         t.World.GetComponent<Health>(recruit)!.Max.Should().Be(120f);
-        t.World.GetPose(recruit).Should().Be(TestWorld.At(-3));
+        t.World.PoseInOwnFrame(recruit).Should().Be(TestWorld.At(-3));
         t.World.Errors.Should().BeEmpty();
     }
 

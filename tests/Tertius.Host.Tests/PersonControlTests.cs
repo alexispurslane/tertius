@@ -85,9 +85,9 @@ public sealed class PersonControlTests : IDisposable
     private Vector3 GainInHalfASecond(Entity floating)
     {
         Ticks(10);
-        Vector3 early = world.Snapshot.VelocityOf(floating);
+        Vector3 early = world.Snapshot.VelocityInOwnFrame(floating);
         Ticks(30);
-        return world.Snapshot.VelocityOf(floating) - early;
+        return world.Snapshot.VelocityInOwnFrame(floating) - early;
     }
 
     public void Dispose() => world.Dispose();
@@ -114,7 +114,7 @@ public sealed class PersonControlTests : IDisposable
         // A post joins the routing at the end of the next tick, the person handles it in the tick after that, and physics
         // moves the person in the step of the third tick.
         Ticks(10);
-        Vector3 velocity = world.Snapshot.VelocityOf(walker.IsNull ? person : walker), along = up ?? Vector3.UnitY;
+        Vector3 velocity = world.Snapshot.VelocityInOwnFrame(walker.IsNull ? person : walker), along = up ?? Vector3.UnitY;
         return velocity - Vector3.Dot(velocity, along) * along;
     }
 
@@ -262,7 +262,7 @@ public sealed class PersonControlTests : IDisposable
     [Fact]
     public void SpaceMakesAStandingPersonJump()
     {
-        double standing = world.Snapshot.PoseOf(person).Position.Y;
+        double standing = world.Snapshot.PoseInOwnFrame(person).Position.Y;
         // Space goes up at once, so that its thrust does not add to the jump.
         Press(Key.Space);
         Post(InputKind.KeyUp, (int)Key.Space);
@@ -270,13 +270,13 @@ public sealed class PersonControlTests : IDisposable
 
         // A jump at 4 m/s rises 0.82 m in 0.41 s, about 24 ticks. Physics adds each tick's gravity before the move, so
         // after 25 moves the person is 0.781 m up.
-        (world.Snapshot.PoseOf(person).Position.Y - standing).Should().BeApproximately(0.781, 0.005);
+        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.781, 0.005);
     }
 
     [Fact]
     public void ASpacePressThatComesAfterAnotherPressAndReleaseInTheSameTickStillMakesOneJump()
     {
-        double standing = world.Snapshot.PoseOf(person).Position.Y;
+        double standing = world.Snapshot.PoseInOwnFrame(person).Position.Y;
         // The person handles all four events in one tick, in the order of the posts. The press that comes second must not
         // cancel the first one. Space goes up at the end, so that its thrust does not add to the jump.
         Press(Key.Space);
@@ -285,13 +285,13 @@ public sealed class PersonControlTests : IDisposable
         Post(InputKind.KeyUp, (int)Key.Space);
         Ticks(3 + 24);
 
-        (world.Snapshot.PoseOf(person).Position.Y - standing).Should().BeApproximately(0.781, 0.005);
+        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.781, 0.005);
     }
 
     [Fact]
     public void HoldingSpaceAfterAJumpThrustsThePersonHigher()
     {
-        double standing = world.Snapshot.PoseOf(person).Position.Y;
+        double standing = world.Snapshot.PoseInOwnFrame(person).Position.Y;
         Press(Key.Space);
         Ticks(3 + 24);
 
@@ -301,7 +301,7 @@ public sealed class PersonControlTests : IDisposable
         // thrust to the velocity before the move, so the thrust lifts the person by 1.5 m/s² · Δt² · (1 + 2 + ... + 22),
         // 0.105 m. One tick more or less of thrust changes that by 0.01 m.
         double lift = Thrust * world.DeltaTime * world.DeltaTime * (22 * 23 / 2);
-        (world.Snapshot.PoseOf(person).Position.Y - standing).Should().BeApproximately(0.781 + lift, 0.005);
+        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.781 + lift, 0.005);
     }
 
     [Fact]
@@ -314,7 +314,7 @@ public sealed class PersonControlTests : IDisposable
         Ticks(10);
         Post(InputKind.KeyUp, (int)Key.W);
         world.Snapshot.IsStanding(person).Should().BeFalse("the person jumped");
-        world.Snapshot.VelocityOf(person).Z.Should().BeLessThan(-PersonControl.WalkSpeed, "the person keeps its walk in the air, and W thrusts it on");
+        world.Snapshot.VelocityInOwnFrame(person).Z.Should().BeLessThan(-PersonControl.WalkSpeed, "the person keeps its walk in the air, and W thrusts it on");
         int ticks = 0;
         while (!world.Snapshot.IsStanding(person) && ticks++ < 120)
             Ticks(1);
@@ -322,7 +322,7 @@ public sealed class PersonControlTests : IDisposable
         // Physics keeps the last walk that the person asked for until the person stands again. In the air the person
         // asks for the walk of the keys that it holds now, and it let go of W, so no walk is left over when it lands.
         world.Snapshot.IsStanding(person).Should().BeTrue();
-        Vector3 velocity = world.Snapshot.VelocityOf(person);
+        Vector3 velocity = world.Snapshot.VelocityInOwnFrame(person);
         new Vector2(velocity.X, velocity.Z).Length().Should().BeLessThan(0.05f);
     }
 
@@ -345,7 +345,7 @@ public sealed class PersonControlTests : IDisposable
         // ticks in the air adds 0.025 m/s to each of its first two steps on the floor.
         for (int step = 0; step < 10; step++)
         {
-            Vector3 velocity = world.Snapshot.VelocityOf(person);
+            Vector3 velocity = world.Snapshot.VelocityInOwnFrame(person);
             Vector3.Distance(velocity with { Y = 0 }, -Vector3.UnitZ * PersonControl.WalkSpeed)
                 .Should().BeLessThan(0.05f, $"{velocity} is a walk at 3 m/s in step {step} after the person stands");
             Ticks(1);
@@ -357,7 +357,7 @@ public sealed class PersonControlTests : IDisposable
     [InlineData(2)]
     public void ASpacePressPostedOneOrTwoTicksBeforeThePersonStandsAgainJumpsAgain(int ticksBefore)
     {
-        double standing = world.Snapshot.PoseOf(person).Position.Y;
+        double standing = world.Snapshot.PoseInOwnFrame(person).Position.Y;
         Press(Key.Space);
         Post(InputKind.KeyUp, (int)Key.Space);
         // Physics jumps the person in the step of the third tick. The person touches the floor in the step of the 50th
@@ -375,14 +375,14 @@ public sealed class PersonControlTests : IDisposable
         // The person handles the second press while it reads that it is in the air, and asks physics for a jump all
         // the same. Physics jumps the person in the first or the second step in which it stands, so 24 ticks later the
         // person is near the top of a second jump, 0.78 m up.
-        (world.Snapshot.PoseOf(person).Position.Y - standing).Should().BeApproximately(0.78, 0.005);
+        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.78, 0.005);
     }
 
     [Fact]
     public void PressingETellsEveryEntityWithinReachThatThePersonUsesIt()
     {
         FrameHandle room = world.Snapshot.FrameOf(person);
-        Double3 at = world.Snapshot.PoseOf(person).Position;
+        Double3 at = world.Snapshot.PoseInOwnFrame(person).Position;
         Probe near = new(EventMask.Of<Use>()), far = new(EventMask.Of<Use>());
         world.Spawn(new SpawnDesc { Frame = room, Pose = new DPose(at + new Double3(PersonControl.Reach - 0.1, 0, 0), DQuaternion.Identity), Components = [near] });
         world.Spawn(new SpawnDesc { Frame = room, Pose = new DPose(at + new Double3(0, 0, PersonControl.Reach + 0.1), DQuaternion.Identity), Components = [far] });
@@ -400,7 +400,7 @@ public sealed class PersonControlTests : IDisposable
     {
         FrameHandle room = world.Snapshot.FrameOf(person);
         Probe near = new(EventMask.Of<Use>());
-        world.Spawn(new SpawnDesc { Frame = room, Pose = world.Snapshot.PoseOf(person), Components = [near] });
+        world.Spawn(new SpawnDesc { Frame = room, Pose = world.Snapshot.PoseInOwnFrame(person), Components = [near] });
         Ticks(1);
         // The person handles all three events in one tick, in the order of the posts. The press that comes second must
         // not cancel the first one, and the two presses make one use between them.
@@ -417,7 +417,7 @@ public sealed class PersonControlTests : IDisposable
     public void WhileAnotherViewIsOnPressingETellsNoOne()
     {
         Probe near = new(EventMask.Of<Use>());
-        world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Pose = world.Snapshot.PoseOf(person), Components = [near] });
+        world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Pose = world.Snapshot.PoseInOwnFrame(person), Components = [near] });
         world.Camera = world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Render = new RenderData() });
         Ticks(1);
         Press(Key.E);
@@ -518,11 +518,11 @@ public sealed class PersonControlTests : IDisposable
         world.Camera = world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(floating), Render = new RenderData() });
         // The person lets go in its next tick. A force that it added in the tick before can still act in that tick's step.
         Ticks(3);
-        Vector3 drift = world.Snapshot.VelocityOf(floating);
+        Vector3 drift = world.Snapshot.VelocityInOwnFrame(floating);
         Ticks(60);
 
         (drift.Y * along).Should().BeGreaterThan(0.1f, "the person thrust while its view was on");
-        ExpectNear(world.Snapshot.VelocityOf(floating), drift, 1e-5f);
+        ExpectNear(world.Snapshot.VelocityInOwnFrame(floating), drift, 1e-5f);
     }
 
     [Fact]
@@ -533,11 +533,11 @@ public sealed class PersonControlTests : IDisposable
         Ticks(30);
         Post(InputKind.KeyUp, (int)Key.D);
         Ticks(5);
-        Vector3 drift = world.Snapshot.VelocityOf(floating);
+        Vector3 drift = world.Snapshot.VelocityInOwnFrame(floating);
         Ticks(60);
 
         drift.X.Should().BeGreaterThan(0.5f);
-        ExpectNear(world.Snapshot.VelocityOf(floating), drift, 1e-5f);
+        ExpectNear(world.Snapshot.VelocityInOwnFrame(floating), drift, 1e-5f);
     }
 
     [Theory]
@@ -556,12 +556,12 @@ public sealed class PersonControlTests : IDisposable
         // The person reads that report in the fifth tick, so the thrust acts from the step of the sixth tick on. With C the
         // jump lasts about 42 ticks, so the person is in the air for all 35 samples.
         Ticks(3);
-        Vector3 last = world.Snapshot.VelocityOf(person);
+        Vector3 last = world.Snapshot.VelocityInOwnFrame(person);
         Vector3 acceleration = new Vector3(0, -9.81f, 0) + new Vector3(x, y, z) * Thrust;
         for (int sample = 0; sample < 35; sample++)
         {
             Ticks(1);
-            Vector3 velocity = world.Snapshot.VelocityOf(person);
+            Vector3 velocity = world.Snapshot.VelocityInOwnFrame(person);
 
             // The person falls freely, so it is weightless, and its thrusters push it: W along the view, Space and C along
             // its up.
@@ -573,14 +573,14 @@ public sealed class PersonControlTests : IDisposable
     [Fact]
     public void HoldingSpaceJumpsOnceAndItsReleaseDoesNotJumpAgain()
     {
-        double standing = world.Snapshot.PoseOf(person).Position.Y, top = standing;
+        double standing = world.Snapshot.PoseInOwnFrame(person).Position.Y, top = standing;
         Press(Key.Space);
         for (int i = 0; i < 3 + 60; i++)
         {
             Ticks(1);
-            top = Math.Max(top, world.Snapshot.PoseOf(person).Position.Y);
+            top = Math.Max(top, world.Snapshot.PoseInOwnFrame(person).Position.Y);
         }
-        double landed = world.Snapshot.PoseOf(person).Position.Y;
+        double landed = world.Snapshot.PoseInOwnFrame(person).Position.Y;
         Post(InputKind.KeyUp, (int)Key.Space);
         Ticks(3 + 10);
 
@@ -589,6 +589,6 @@ public sealed class PersonControlTests : IDisposable
         // in the step of the 58th tick, where a plain jump touches it in the step of the 50th.
         (top - standing).Should().BeApproximately(0.896, 0.005);
         landed.Should().BeApproximately(standing, 0.005);
-        world.Snapshot.PoseOf(person).Position.Y.Should().BeApproximately(standing, 0.005);
+        world.Snapshot.PoseInOwnFrame(person).Position.Y.Should().BeApproximately(standing, 0.005);
     }
 }
