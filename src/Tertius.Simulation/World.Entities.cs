@@ -772,7 +772,7 @@ public sealed partial class World
     private void FinishOutsideTickChange()
     {
         // A body spawned or moved outside a tick joins its numeric frame before the next step (see PrepareTick).
-        numericClusteringDue = numericClustering is not null;
+        numericUpdateDue = physics is not null;
         DeriveAttachments();
         SwapSnapshot();
         FlushLog();

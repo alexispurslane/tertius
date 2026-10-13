@@ -1,4 +1,4 @@
-namespace Tertius.Simulation;
+namespace Tertius;
 
 /// <summary>
 /// The thresholds of the membership rules of numeric frames (docs/plans/numeric-frames.md, "Membership"), with the

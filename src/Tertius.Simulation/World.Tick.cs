@@ -67,10 +67,10 @@ public sealed partial class World
         FlushPhysicsChanges();
         // Then the bodies that they changed join their numeric frames, as the bodies spawned in a tick do at the sync
         // point. No time passes, so no split comes due.
-        if (numericClusteringDue)
+        if (numericUpdateDue)
         {
-            numericClusteringDue = false;
-            numericClustering!.Run(0);
+            numericUpdateDue = false;
+            UpdateNumericFrames(0);
             DeriveAttachments();
             SwapSnapshot();
         }

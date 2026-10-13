@@ -1,17 +1,21 @@
+using System.Runtime.InteropServices;
+
 namespace Tertius.Simulation;
 
 /// <summary>
 /// The engine's operations on numeric frames (docs/plans/numeric-frames.md): frames that the engine makes around a group
-/// of bodies, only for precision. Gameplay never sees them. Each operation here is internal, runs outside a tick and
-/// reaches physics at once. NumericClustering calls the same work at each sync point.
+/// of bodies, only for precision. Gameplay never sees them. The tree decides and changes the frames at each sync point
+/// (<see cref="FrameTree.UpdateNumericFrames"/>); the World gathers the bodies for it and applies the moves to the rows.
+/// The internal operations below do the same work by hand, outside a tick, for tests.
 /// </summary>
 public sealed partial class World
 {
-    // The membership rules of numeric frames, which run at each sync point. Null without a physics backend.
-    private readonly NumericClustering? numericClustering;
+    // The bodies of the current numeric update, in entity slot order.
+    private readonly List<NumericBody> numericBodies = new();
+    private Action<List<NumericMove>>? applyNumericMoves;
 
-    // True after a change outside a tick, until the next tick runs the membership rules for it.
-    private bool numericClusteringDue;
+    // True after a change outside a tick, until the next tick runs the numeric update for it.
+    private bool numericUpdateDue;
 
     /// <summary>
     /// The frame whose physics system holds the body of <paramref name="entity"/>: its frame, or a numeric frame below it.
@@ -19,45 +23,74 @@ public sealed partial class World
     /// </summary>
     internal FrameHandle PhysicsHomeOf(Entity entity) => entities.IsAlive(entity) ? entities.BackRow(entity).PhysicsHome : FrameHandle.Null;
 
-    FrameHandle INumericFrameHost.CreateNumericFrame(FrameHandle parent, Double3 position, Double3 velocity, NumericMode mode)
+    /// <summary>
+    /// Runs the rules of numeric frames once, over a sync point of <paramref name="dt"/> seconds, after the physics output,
+    /// the destroys and the spawns have reached physics, on one thread. Its changes reach physics in two batches.
+    /// </summary>
+    private void UpdateNumericFrames(double dt)
     {
-        FrameHandle frame = Frames.CreateNumeric(parent, position, velocity, mode);
-        physicsChanges.FramesCreated.Add(frame);
-        return frame;
-    }
-
-    void INumericFrameHost.ShiftNumericFrame(FrameHandle frame, Double3 offset, Double3 velocity, List<Entity> members)
-    {
-        Frames.ShiftNumeric(frame, offset, velocity);
-        foreach (Entity entity in members)
+        // The update's shifts are the only ones in the batch, so that ApplyNumericMoves finds them there.
+        Contract.Requires(physicsChanges.FramesShifted.Count == 0);
+        numericBodies.Clear();
+        foreach (Entity entity in entities.LiveEntities)
         {
-            Contract.Requires(entities.BackRow(entity).PhysicsHome == frame);
-            FrameHandle own = entities.OwnedFrame(entity);
-            if (!own.IsNull)
-            {
-                entities.SetBackTransform(entity, FrameOwnerRow(own));
+            if (entities.Body(entity) is not { } desc || !attachments.ParentOf(entity).IsNull)
                 continue;
-            }
-            // The row's pose is in the semantic frame, which the shift does not move. In the frame, the body moves back.
-            TransformRow row = entities.BackRow(entity);
-            row.HomePosition -= offset;
-            if (entities.Body(entity) is not { Motion: BodyMotion.Static })
-                row.LinearVelocity = ((Double3)row.LinearVelocity - velocity).ToVector3();
-            entities.SetBackTransform(entity, row);
+            ref readonly TransformRow row = ref entities.BackRow(entity);
+            if (row.Frame.IsNull)
+                continue;
+            FrameHandle own = entities.OwnedFrame(entity);
+            numericBodies.Add(new NumericBody
+            {
+                Entity = entity,
+                Semantic = row.Frame,
+                Home = row.PhysicsHome,
+                Position = row.Pose.Position,
+                Velocity = Frames.HomeVelocity(row.PhysicsHome, row.Frame) + row.LinearVelocity,
+                Radius = physics!.BoundingRadius(desc.Shape),
+                Mass = desc.Mass > 0 ? desc.Mass : 1,
+                Static = desc.Motion == BodyMotion.Static,
+                Fixed = !own.IsNull && Frames.Driver(own) != MotionDriver.Physics,
+                OwnedFrame = own,
+            });
         }
-        physicsChanges.FramesShifted.Add(new FrameShift(frame, offset, velocity));
+        Frames.UpdateNumericFrames(CollectionsMarshal.AsSpan(numericBodies), dt, physicsChanges, applyNumericMoves ??= ApplyNumericMoves);
+        FlushPhysicsChanges();
     }
 
-    void INumericFrameHost.MoveBodiesHome(List<Entity> group, FrameHandle home) =>
-        MoveGroupHome(group, home, Frames.SemanticOf(home));
-
-    void INumericFrameHost.DestroyEmptyNumericFrame(FrameHandle frame)
+    /// <summary>
+    /// Applies the frame shifts and the moves of a numeric update to the rows, then hands them to physics, while the frames
+    /// that the moves leave are still in the tree. A member of a shifted frame keeps its place and velocity in the frame's
+    /// parent, so its row loses the shift; a moved body's row converts into its new home.
+    /// </summary>
+    private void ApplyNumericMoves(List<NumericMove> moves)
     {
-        Frames.Destroy(frame);
-        physicsChanges.FramesDestroyed.Add(frame);
+        foreach (FrameShift shift in physicsChanges.FramesShifted)
+            foreach (NumericBody body in numericBodies)
+                if (body.Home == shift.Frame)
+                    ShiftRow(body.Entity, shift);
+        foreach (NumericMove move in moves)
+            MoveBodyHome(move.Entity, move.To, Frames.SemanticOf(move.To));
+        FlushPhysicsChanges();
     }
 
-    void INumericFrameHost.FlushPhysicsChanges() => FlushPhysicsChanges();
+    /// <summary>The row of an entity whose physics home moved by <paramref name="shift"/>.</summary>
+    private void ShiftRow(Entity entity, in FrameShift shift)
+    {
+        FrameHandle own = entities.OwnedFrame(entity);
+        if (!own.IsNull)
+        {
+            entities.SetBackTransform(entity, FrameOwnerRow(own));
+            return;
+        }
+        // The row's pose is in the semantic frame, which the shift does not move. In the frame, the body moves back.
+        TransformRow row = entities.BackRow(entity);
+        row.HomePosition -= shift.Offset;
+        if (entities.Body(entity) is not { Motion: BodyMotion.Static })
+            row.LinearVelocity = ((Double3)row.LinearVelocity - shift.Velocity).ToVector3();
+        entities.SetBackTransform(entity, row);
+    }
+
     /// <summary>
     /// Creates a numeric frame under the semantic frame <paramref name="parent"/>, at <paramref name="position"/> in it and
     /// moving at <paramref name="velocity"/> relative to it (zero for a resting frame). It has no bodies until
@@ -106,7 +139,8 @@ public sealed partial class World
             if (MoveProblem(entity, home, semantic) is { } problem)
                 throw new ArgumentException($"Cannot move {entity} into {home}: {problem}.", nameof(group));
         }
-        MoveGroupHome(group, home, semantic);
+        foreach (Entity entity in group)
+            MoveBodyHome(entity, home, semantic);
         FlushPhysicsChanges();
         FinishOutsideTickChange();
     }
@@ -129,7 +163,7 @@ public sealed partial class World
             if (entities.BackRow(entity).PhysicsHome == frame)
                 throw new ArgumentException($"{frame} still holds {entity}.", nameof(frame));
         }
-        Frames.Destroy(frame);
+        Frames.DestroyNumeric(frame);
         physicsChanges.FramesDestroyed.Add(frame);
         FlushPhysicsChanges();
         SwapSnapshot();
@@ -155,31 +189,29 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// The work of <see cref="MoveBodies"/> once the group is checked: the rows, the tree and the change for physics. A
-    /// row keeps its frame and its pose in that frame. Its linear velocity, which is relative to its physics home, gains
-    /// the frame velocity of the old home and loses that of the new one, in doubles.
+    /// Moves the body of <paramref name="entity"/>, which <see cref="MoveBodies"/> or a numeric update checked, into
+    /// <paramref name="home"/>: the row and the change for physics. The owner of a frame moves its frame under the home,
+    /// unless the update did that already. A row keeps its frame and its pose in that frame. Its linear velocity, which is
+    /// relative to its physics home, gains the frame velocity of the old home and loses that of the new one, in doubles.
     /// </summary>
-    private void MoveGroupHome(IReadOnlyList<Entity> group, FrameHandle home, FrameHandle semantic)
+    private void MoveBodyHome(Entity entity, FrameHandle home, FrameHandle semantic)
     {
-        foreach (Entity entity in group)
+        FrameHandle own = entities.OwnedFrame(entity);
+        if (!own.IsNull)
         {
-            FrameHandle own = entities.OwnedFrame(entity);
-            if (!own.IsNull)
-            {
-                Frames.Reparent(own, home);
-                entities.SetBackTransform(entity, FrameOwnerRow(own));
-            }
-            else
-            {
-                TransformRow row = entities.BackRow(entity);
-                Double3 velocity = Frames.HomeVelocity(row.PhysicsHome, semantic) + row.LinearVelocity;
-                // Through the homes' lowest common ancestor, so that no large number enters between two nearby homes.
-                row.HomePosition = home == semantic ? row.Pose.Position : row.HomePose.Position + Frames.Relative(row.PhysicsHome, home).Position;
-                row.PhysicsHome = home;
-                row.LinearVelocity = (velocity - Frames.HomeVelocity(home, semantic)).ToVector3();
-                entities.SetBackTransform(entity, row);
-            }
-            physicsChanges.BodiesMoved.Add(new BodyMove(entity, home));
+            Frames.Reparent(own, home);
+            entities.SetBackTransform(entity, FrameOwnerRow(own));
         }
+        else
+        {
+            TransformRow row = entities.BackRow(entity);
+            Double3 velocity = Frames.HomeVelocity(row.PhysicsHome, semantic) + row.LinearVelocity;
+            // Through the homes' lowest common ancestor, so that no large number enters between two nearby homes.
+            row.HomePosition = home == semantic ? row.Pose.Position : row.HomePose.Position + Frames.Relative(row.PhysicsHome, home).Position;
+            row.PhysicsHome = home;
+            row.LinearVelocity = (velocity - Frames.HomeVelocity(home, semantic)).ToVector3();
+            entities.SetBackTransform(entity, row);
+        }
+        physicsChanges.BodiesMoved.Add(new BodyMove(entity, home));
     }
 }

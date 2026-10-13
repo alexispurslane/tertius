@@ -21,14 +21,18 @@ namespace Tertius;
 /// contracts, when a caller creates a frame or sets a local pose, and the World keeps it: it normalizes a rotation that a
 /// caller gives it, and physics normalizes the rotation that leaves Jolt. The poses that the tree composes itself, when it
 /// moves or destroys a frame, are unit length.</item>
-/// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner and a parent, the identity rotation and no spin. A
-/// resting or nesting one has no velocity and no step acceleration, and a nesting one has a semantic parent. A semantic frame has an owner and no step acceleration, and a
+/// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner, a parent, no bubble, the identity rotation and no
+/// spin. A resting or nesting one has no velocity and no step acceleration. The chain of tree parents of a numeric frame
+/// ends at a semantic frame: a falling or resting frame lies in a semantic frame or a nesting frame, and a nesting frame
+/// lies in a semantic frame, on a whole multiple of <see cref="NumericFrameOptions.NestGrid"/>, and holds only numeric
+/// frames. At the end of <see cref="UpdateNumericFrames"/>, every numeric frame holds a body or a frame; between updates,
+/// the count of bodies is the one of the last update. A semantic frame has an owner and no step acceleration, and a
 /// semantic frame with the Kepler or Spin driver is not the child of a numeric frame, because it moves relative to its
 /// parent.</item>
 /// </list>
 /// </para>
 /// </summary>
-public sealed class FrameTree
+public sealed partial class FrameTree
 {
     private readonly PoseTree<DPose> poses = new(64);
     private readonly Dictionary<Entity, FrameHandle> byOwner = new();
@@ -46,6 +50,10 @@ public sealed class FrameTree
     // parent. A semantic frame has the mode None and no step acceleration.
     private NumericMode[] numeric = new NumericMode[64];
     private Double3[] stepAcceleration = new Double3[64];
+    // How long the members of each numeric frame have been apart, in seconds, and the number of bodies whose physics home
+    // it was at the end of the last UpdateNumericFrames, or NotCounted for a frame that no update has counted yet.
+    private double[] apartTime = new double[64];
+    private int[] numericBodies = new int[64];
     // The number of calls to SetDriver, SetOrbit and SetSpin for each frame, and for every frame together.
     private int[] driverVersion = new int[64];
     private int driverChanges;
@@ -82,25 +90,6 @@ public sealed class FrameTree
         return handle;
     }
 
-    /// <summary>
-    /// Creates a numeric frame under <paramref name="parent"/>, at <paramref name="position"/> in the parent and with the
-    /// axes of the parent, moving at <paramref name="velocity"/> relative to it. A numeric frame has no owner, no bubble,
-    /// no gravity of its own and no rotation. A resting frame does not move in its parent, so its velocity must be zero.
-    /// The public members that walk the tree (<see cref="Parent"/>, <see cref="GetChildren"/> and <see cref="GetAll"/>)
-    /// never show it. Throws <see cref="InvalidOperationException"/> for a stale parent.
-    /// </summary>
-    internal FrameHandle CreateNumeric(FrameHandle parent, Double3 position, Double3 velocity, NumericMode mode)
-    {
-        Contract.Requires(mode != NumericMode.None && Enum.IsDefined(mode));
-        Contract.Requires(mode == NumericMode.Falling || velocity == Double3.Zero);
-        Node(parent);
-        FrameHandle handle = AddFrame(Entity.Null, parent, new DPose(position, DQuaternion.Identity), default, MotionDriver.Static,
-            GravityField.None, default, default, mode);
-        linearVelocity[handle.Index] = velocity;
-        NumericCount++;
-        return handle;
-    }
-
     private FrameHandle AddFrame(Entity frameOwner, FrameHandle parent, in DPose localPose, FrameBounds frameBounds, MotionDriver motion,
         GravityField field, in KeplerOrbit kepler, in FrameSpin spinning, NumericMode mode)
     {
@@ -117,66 +106,10 @@ public sealed class FrameTree
         properAcceleration[node.Id] = Vector3.Zero;
         numeric[node.Id] = mode;
         stepAcceleration[node.Id] = Double3.Zero;
+        apartTime[node.Id] = 0;
+        numericBodies[node.Id] = NotCounted;
         driverVersion[node.Id] = 0;
         return new FrameHandle(frameOwner, node.Id, node.Generation);
-    }
-
-    // Scratch for ShiftNumeric: the child frames of the frame that it moves.
-    private readonly List<FrameHandle> shiftChildren = new();
-
-    /// <summary>
-    /// Moves the numeric frame <paramref name="frame"/> by <paramref name="offset"/> in its parent and adds
-    /// <paramref name="velocity"/> to its velocity there. Its child frames keep their poses and velocities relative to
-    /// the parent, so they lose the same amounts in the frame. A numeric frame does not rotate, so nothing turns. The
-    /// bodies in its system must lose them too: the caller tells physics. A resting frame takes no velocity.
-    /// </summary>
-    internal void ShiftNumeric(FrameHandle frame, Double3 offset, Double3 velocity)
-    {
-        PoseNode node = Node(frame);
-        Contract.Requires(numeric[node.Id] != NumericMode.None);
-        Contract.Requires(numeric[node.Id] == NumericMode.Falling || velocity == Double3.Zero);
-        ref DPose local = ref poses.Local(node);
-        local = new DPose(local.Position + offset, local.Rotation);
-        linearVelocity[node.Id] += velocity;
-        List<FrameHandle> children = shiftChildren;
-        children.Clear();
-        GetTreeChildren(frame, children);
-        foreach (FrameHandle child in children)
-        {
-            PoseNode childNode = Node(child);
-            ref DPose childLocal = ref poses.Local(childNode);
-            childLocal = new DPose(childLocal.Position - offset, childLocal.Rotation);
-            linearVelocity[childNode.Id] -= velocity;
-        }
-    }
-
-    /// <summary>
-    /// Moves the numeric frame <paramref name="frame"/> under the nesting frame <paramref name="nest"/>, at
-    /// <paramref name="position"/> in it. The caller computes the position from grid offsets, which are exact, so the frame
-    /// stays where it was relative to everything else. A nesting frame does not move in its parent, and it shares the
-    /// semantic parent of the frame, so the frame keeps its velocity. No body changes system, so physics needs no change.
-    /// </summary>
-    internal void MoveUnderNest(FrameHandle frame, FrameHandle nest, Double3 position)
-    {
-        PoseNode node = Node(frame), nestNode = Node(nest);
-        Contract.Requires(numeric[node.Id] is NumericMode.Falling or NumericMode.Resting && numeric[nestNode.Id] == NumericMode.Nesting);
-        Contract.Requires(SemanticOf(TreeParent(frame)) == TreeParent(nest));
-        poses.Reparent(node, nestNode, keepWorldPose: false);
-        poses.Local(node) = new DPose(position, DQuaternion.Identity);
-    }
-
-    /// <summary>
-    /// Changes how the numeric frame <paramref name="frame"/> moves. A frame that comes to rest must have no velocity
-    /// left in its parent, and it keeps no step acceleration.
-    /// </summary>
-    internal void SetNumericMode(FrameHandle frame, NumericMode mode)
-    {
-        PoseNode node = Node(frame);
-        Contract.Requires(numeric[node.Id] != NumericMode.None && mode is NumericMode.Falling or NumericMode.Resting);
-        Contract.Requires(mode == NumericMode.Falling || linearVelocity[node.Id] == Double3.Zero);
-        numeric[node.Id] = mode;
-        if (mode == NumericMode.Resting)
-            stepAcceleration[node.Id] = Double3.Zero;
     }
 
     /// <summary>Destroys a frame. Its child frames move to its parent and keep their poses and velocities.</summary>
@@ -407,11 +340,16 @@ public sealed class FrameTree
 
     /// <summary>
     /// Checks the invariants of the tree (see the class summary): every frame with the Kepler driver has a G·M to orbit, and
-    /// the rotation of every frame's local pose is unit length. O(frames). It runs only on demand, so it works in every build.
+    /// the rotation of every frame's local pose is unit length, and the numeric frames keep the rules of the class summary.
+    /// O(frames). It runs only on demand, so it works in every build.
     /// </summary>
     internal void AssertInvariants()
     {
         ReadOnlySpan<DPose> locals = poses.LocalPoses;
+        var holdsFrame = new bool[owner.Length];
+        for (int i = 0; i < poses.Count; i++)
+            if (poses.Parent(poses.NodeAt(i)) is { IsNull: false } parentNode)
+                holdsFrame[parentNode.Id] = true;
         for (int i = 0; i < poses.Count; i++)
         {
             FrameHandle frame = AtDense(i);
@@ -419,20 +357,30 @@ public sealed class FrameTree
                 Contract.Invariant(KeplerMu(frame) > 0);
             Contract.Invariant(locals[i].Rotation.IsUnit);
             int id = poses.NodeAt(i).Id;
+            FrameHandle parent = TreeParent(frame);
+            NumericMode parentMode = parent.IsNull ? NumericMode.None : numeric[parent.Index];
             if (numeric[id] == NumericMode.None)
             {
                 Contract.Invariant(!owner[id].IsNull && stepAcceleration[id] == Double3.Zero);
+                // A nesting frame holds only numeric frames.
+                Contract.Invariant(parentMode != NumericMode.Nesting);
                 // A frame that moves by its orbit or its spin moves relative to its parent, which must not fall or rest.
                 if (Driver(frame) is MotionDriver.Kepler or MotionDriver.Spin)
-                    Contract.Invariant(TreeParent(frame).IsNull || !IsNumeric(TreeParent(frame)));
+                    Contract.Invariant(parentMode == NumericMode.None);
                 continue;
             }
-            Contract.Invariant(owner[id].IsNull && !TreeParent(frame).IsNull);
+            Contract.Invariant(owner[id].IsNull && !parent.IsNull && bounds[id] == default);
             Contract.Invariant(locals[i].Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
             if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
                 Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero);
+            // The chain of tree parents ends at a semantic frame: a falling or resting frame lies in one or in a nesting
+            // frame, and a nesting frame lies in one, on an exact grid point.
             if (numeric[id] == NumericMode.Nesting)
-                Contract.Invariant(!IsNumeric(TreeParent(frame)));
+                Contract.Invariant(parentMode == NumericMode.None && NumericFrameRules.OnGrid(locals[i].Position, NumericOptions.NestGrid));
+            else
+                Contract.Invariant(parentMode is NumericMode.None or NumericMode.Nesting);
+            // The last update left no numeric frame without a body or a frame.
+            Contract.Invariant(numericBodies[id] != 0 || holdsFrame[id]);
         }
     }
 
@@ -535,45 +483,6 @@ public sealed class FrameTree
             offset += LocalPose(f).Position + (linearVelocity[id] + stepAcceleration[id] * dt) * dt;
         }
         return offset;
-    }
-
-    /// <summary>
-    /// Fixes the acceleration that each falling numeric frame keeps for the step that starts now: the field of its semantic
-    /// frame at its origin, relative to its parent. That is the field minus the acceleration of the numeric frames above
-    /// it, which the dense order, parents first, has fixed already. A resting frame has none. Call it after
-    /// <see cref="Update"/> and before the physics step, which reads it through <see cref="EffectiveGravity"/>.
-    /// </summary>
-    internal void BeginNumericStep()
-    {
-        for (int i = 0; i < poses.Count; i++)
-        {
-            int id = poses.NodeAt(i).Id;
-            if (numeric[id] != NumericMode.Falling)
-                continue;
-            FrameHandle frame = AtDense(i);
-            FrameHandle semantic = SemanticOf(frame);
-            FrameHandle parent = TreeParent(frame);
-            stepAcceleration[id] = FieldOf(semantic.Index, HomeOffset(frame, semantic)) - HomeAcceleration(parent, semantic);
-        }
-    }
-
-    /// <summary>
-    /// Moves each falling numeric frame over a step of <paramref name="dt"/> seconds, in doubles, with the scheme that Jolt
-    /// uses for bodies: the velocity gains the step acceleration times the step, then the position gains the new velocity
-    /// times the step. A resting frame does not move.
-    /// </summary>
-    internal void AdvanceNumericFrames(double dt)
-    {
-        for (int i = 0; i < poses.Count; i++)
-        {
-            PoseNode node = poses.NodeAt(i);
-            int id = node.Id;
-            if (numeric[id] != NumericMode.Falling)
-                continue;
-            linearVelocity[id] += stepAcceleration[id] * dt;
-            ref DPose local = ref poses.Local(node);
-            local = new DPose(local.Position + linearVelocity[id] * dt, local.Rotation);
-        }
     }
 
     /// <summary>Converts a point from frame coordinates to parent coordinates.</summary>
@@ -738,6 +647,8 @@ public sealed class FrameTree
         Array.Resize(ref properAcceleration, size);
         Array.Resize(ref numeric, size);
         Array.Resize(ref stepAcceleration, size);
+        Array.Resize(ref apartTime, size);
+        Array.Resize(ref numericBodies, size);
         Array.Resize(ref driverVersion, size);
     }
 }

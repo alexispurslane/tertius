@@ -35,7 +35,7 @@ public readonly record struct WorldStats(int LiveEntities, int Capacity, int Fra
 /// and <see cref="Unsubscribe"/>, whose goal already holds for a dead entity, return false instead.
 /// </para>
 /// </remarks>
-public sealed partial class World : IDisposable, INumericFrameHost
+public sealed partial class World : IDisposable
 {
     private readonly WorldOptions options;
     private readonly IPhysicsBackend? physics;
@@ -78,11 +78,9 @@ public sealed partial class World : IDisposable, INumericFrameHost
         renderBuilder = new RenderSnapshotBuilder(entities, Frames, parallelOptions);
         dyingMarks = entities.AddColumn<bool>();
         characterStanding = entities.AddColumn<bool>();
+        Frames.NumericOptions = this.options.NumericFrames;
         if (physics != null)
-        {
             physicsWorker = new PhysicsWorker(physics, stepOutput);
-            numericClustering = new NumericClustering(this.options.NumericFrames, entities, attachments, Frames, physics, this);
-        }
     }
 
     /// <summary>
