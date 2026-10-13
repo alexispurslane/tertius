@@ -194,14 +194,94 @@ public class FrameTreeNumericUpdateTests
         Update(0.1, hull, Body(10, x: 20_007));
         moves.Should().BeEmpty();
 
-        // 13 m apart: it leaves into a resting frame of its own.
-        NumericBody[] after = Update(0.1, hull, Body(10, x: 20_013));
+        // 13 m apart for a whole split cooldown: it leaves into a resting frame of its own.
+        NumericBody[] after = Update(1, hull, Body(10, x: 20_013));
         FrameHandle own = after[1].Home;
         frames.Numeric(own).Should().Be(NumericMode.Resting);
 
         // Back to 7 m apart: the two systems differ, so there is no margin, and it stays in its frame.
         Update(0.1, hull, Body(10, x: 20_007, home: own));
         moves.Should().BeEmpty();
+    }
+
+    /// <summary>A fixed hull 20 km out, at rest.</summary>
+    private NumericBody FarHull() => Body(20, x: 20_000) with { Fixed = true };
+
+    /// <summary>
+    /// A slow body 15 m from <see cref="FarHull"/>. At 7 m/s its reach is 16 m, which links it to the hull from any system.
+    /// At rest its reach is 2 m, and 12 m with the split margin, which does not. Alone, it needs a resting frame.
+    /// </summary>
+    private NumericBody EdgeBody(double vx = 0, FrameHandle home = default) => Body(10, x: 20_015, vx: vx, home: home);
+
+    [Fact]
+    public void A_body_that_crosses_the_edge_of_a_fixed_hulls_reach_every_update_changes_its_home_at_most_once_per_cooldown()
+    {
+        FrameHandle home = ground;
+        var changedAt = new List<int>();
+        for (int update = 0; update < 40; update++)
+        {
+            home = Update(0.1, FarHull(), EdgeBody(vx: update % 2 == 0 ? 7 : 0, home: home))[1].Home;
+            if (moves.Count > 0)
+                changedAt.Add(update);
+        }
+        changedAt.Zip(changedAt.Skip(1), (first, next) => next - first).Should().OnlyContain(gap => gap >= 10,
+            "a split cooldown of 1 s is 10 updates of 0.1 s");
+    }
+
+    [Fact]
+    public void A_body_that_stays_beyond_the_edge_of_a_fixed_hulls_reach_leaves_after_the_cooldown()
+    {
+        Update(0.25, FarHull(), EdgeBody(vx: 7));
+        for (int update = 1; update <= 3; update++)
+        {
+            Update(0.25, FarHull(), EdgeBody());
+            moves.Should().BeEmpty("the body has been beyond the reach for {0} s only", 0.25 * update);
+        }
+
+        NumericBody[] after = Update(0.25, FarHull(), EdgeBody());
+        moves.Should().Equal(new NumericMove(new Entity(10, 1), ground, after[1].Home));
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Resting);
+    }
+
+    [Fact]
+    public void A_body_that_was_gone_from_the_input_comes_back_without_its_old_clock()
+    {
+        Update(0.25, FarHull(), EdgeBody(vx: 7));
+        Update(0.25, FarHull(), EdgeBody());
+        Update(0.25, FarHull(), EdgeBody());
+        moves.Should().BeEmpty("the body has been beyond the reach for 0.5 s");
+
+        Update(0.25, FarHull());
+        NumericBody[] after = Update(0.25, FarHull(), EdgeBody());
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Resting, "nothing keeps it in the system of ground any more");
+    }
+
+    [Fact]
+    public void A_held_body_that_a_member_of_a_numeric_frame_reaches_joins_that_frame_at_once()
+    {
+        FrameHandle raft = Update(0.25, FarHull(), EdgeBody(vx: 7), Body(11, x: 20_100))[2].Home;
+        Update(0.25, FarHull(), EdgeBody(), Body(11, x: 20_100, home: raft));
+        moves.Should().BeEmpty("the body is held in the system of ground");
+
+        Update(0.25, FarHull(), EdgeBody(), Body(11, x: 20_017, home: raft));
+        moves.Should().Equal(new NumericMove(new Entity(10, 1), ground, raft));
+    }
+
+    [Fact]
+    public void A_body_kept_with_a_fixed_hull_that_speeds_up_to_fall_leaves_at_once()
+    {
+        Update(0.25, FarHull(), EdgeBody(vx: 7));
+        NumericBody[] after = Update(0.25, FarHull(), EdgeBody(vx: 60));
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
+    }
+
+    [Fact]
+    public void A_near_body_that_moves_far_gets_its_frame_at_once()
+    {
+        // The far body makes the update work on the semantic frame, so that it sees the near one.
+        FrameHandle raft = Update(0.25, Body(11, x: 50_000), Body(10, x: 100))[0].Home;
+        NumericBody[] after = Update(0.25, Body(11, x: 50_000, home: raft), Body(10, x: 20_000));
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Resting);
     }
 
     [Fact]

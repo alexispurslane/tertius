@@ -118,6 +118,25 @@ internal static class NumericFrameRules
     }
 
     /// <summary>
+    /// The leave clock of a body that the last update kept in its semantic frame's own system although it needs a frame by
+    /// itself, over a sync point of <paramref name="dt"/> seconds. <paramref name="mode"/> is the mode that the body's group
+    /// gets, and <paramref name="frame"/> the numeric frame that holds most of the group's mass, or null. The body is about
+    /// to leave when its group would rest in a new frame: then Apart is <paramref name="apart"/>, the time it has been about
+    /// to leave before, plus <paramref name="dt"/>, and Hold is true while that is below the split cooldown. Apart keeps
+    /// counting past the cooldown, so that a member that another member holds does not start again. Else the clock is zero
+    /// and holds nothing: a group that stays needs no hold, a group that joins a numeric frame merges at once, as numeric
+    /// frames do, and a group that falls leaves at once, because the speed thresholds give falling its own hysteresis and an
+    /// anchor never changes the mode of a group that falls.
+    /// </summary>
+    internal static (bool Hold, double Apart) LeaveClock(NumericMode mode, FrameHandle frame, double apart, double dt, NumericFrameOptions options)
+    {
+        if (mode != NumericMode.Resting || !frame.IsNull)
+            return (false, 0);
+        double time = apart + dt;
+        return (time < options.SplitCooldown, time);
+    }
+
+    /// <summary>
     /// The motion of the group <paramref name="members"/>, which is not empty. <paramref name="homeMasses"/> is scratch:
     /// it ends with each numeric home of the group and the mass in it, in the order of the members.
     /// </summary>

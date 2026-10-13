@@ -192,6 +192,44 @@ public class NumericFrameRulesTests
     public void A_zero_cooldown_splits_at_once() =>
         SplitClock(together: false, apart: 0, dt: 0, Options with { SplitCooldown = 0 }).Should().Be((false, 0.0));
 
+    // ---- LeaveClock ----------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void A_body_whose_group_stays_in_the_semantic_system_needs_no_hold_and_resets_its_clock() =>
+        LeaveClock(NumericMode.None, FrameHandle.Null, apart: 0.5, dt: 0.25, Options).Should().Be((false, 0.0));
+
+    [Fact]
+    public void A_body_whose_group_would_rest_in_a_new_frame_is_held_before_the_cooldown() =>
+        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 0, dt: 0.25, Options).Should().Be((true, 0.25));
+
+    [Fact]
+    public void The_leave_clock_adds_up_over_sync_points() =>
+        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 0.5, dt: 0.25, Options).Should().Be((true, 0.75));
+
+    [Fact]
+    public void A_body_is_held_just_below_the_cooldown() =>
+        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 0.5, dt: 0.4990234375, Options).Should().Be((true, 0.9990234375));
+
+    [Fact]
+    public void A_body_leaves_when_its_clock_reaches_the_cooldown() =>
+        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 0.75, dt: 0.25, Options).Should().Be((false, 1.0));
+
+    [Fact]
+    public void A_clock_past_the_cooldown_keeps_counting_so_that_another_member_cannot_restart_it() =>
+        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 1.5, dt: 0.25, Options).Should().Be((false, 1.75));
+
+    [Fact]
+    public void A_sync_point_without_time_holds_a_body_about_to_leave() =>
+        LeaveClock(NumericMode.Resting, FrameHandle.Null, apart: 0, dt: 0, Options).Should().Be((true, 0.0));
+
+    [Fact]
+    public void A_body_whose_group_falls_leaves_at_once() =>
+        LeaveClock(NumericMode.Falling, FrameHandle.Null, apart: 0.5, dt: 0.25, Options).Should().Be((false, 0.0));
+
+    [Fact]
+    public void A_body_whose_group_joins_a_numeric_frame_merges_at_once() =>
+        LeaveClock(NumericMode.Resting, Pod, apart: 0.5, dt: 0.25, Options).Should().Be((false, 0.0));
+
     // ---- Summarize -----------------------------------------------------------------------------------------------
 
     private static NumericGroup Summary(params NumericBody[] members) => Summarize(members, new());
