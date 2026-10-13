@@ -146,6 +146,8 @@ A numeric frame also takes in a body of its semantic frame by the same test. Exa
 
 Two conditions split a member, or a group of members that touch or are joined, off into a new numeric frame. First, it is farther from the other members than the merge test reaches, plus a margin. Second, this stays true for a cooldown time. The margin and the cooldown stop merge and split thrashing, a problem that Kitten Space Agency reported with a plain sphere test.
 
+The semantic frame's own system gets the same cooldown, with a clock for each body instead of each frame. A body that the system keeps although it needs a frame by itself, for example a slow body far out next to a hull that stays in the system, leaves for a new resting frame only after it has been apart for the cooldown. A merge into a numeric frame never waits, and a group that starts to fall leaves at once, because the speed thresholds already give falling its own hysteresis. A new body that nothing keeps in the system gets its frame at once.
+
 ### Drain
 
 At each sync point, the engine looks at the members' local velocities. If their common part, weighted by mass, passes a limit, the engine adds it to the frame velocity and subtracts it from each member. Jolt has no call that shifts a whole system, so the drain sets each body's velocity, one body at a time.

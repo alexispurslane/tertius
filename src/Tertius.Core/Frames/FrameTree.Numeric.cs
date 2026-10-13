@@ -36,7 +36,8 @@ public sealed partial class FrameTree
     }
 
     // Scratch of UpdateNumericFrames. The bodies sorted by semantic frame, then in the order of the caller, and within the
-    // semantic frame that the update works on, in the order of their groups.
+    // semantic frame that the update works on, in the order of their groups. Between updates, they are the bodies of the
+    // last update with their new homes, which the invariants read.
     private readonly List<NumericBody> sortedBodies = new();
     private readonly List<NumericBody> bodyScratch = new();
     private long[] sortKeys = [];
@@ -57,6 +58,11 @@ public sealed partial class FrameTree
     // The pairs of an anchor and a body that falls, which the merge test links, of the semantic frame that the update works on.
     private readonly List<(Entity Anchor, Entity Body)> anchorPairs = new();
     private readonly List<NumericGhost> anchorGhosts = new();
+    // The leave clock of each body that the last update kept in its semantic frame's own system although it needs a frame by
+    // itself (see NumericFrameRules.LeaveClock), and the clocks that the current update builds. An update keeps only the
+    // clocks of its own bodies, so the clock of a body that is gone from its input goes with it.
+    private Dictionary<Entity, double> leaveClocks = new();
+    private Dictionary<Entity, double> nextLeaveClocks = new();
 
     /// <summary>
     /// The ghosts that the falling numeric frames keep of the anchors near their members, which the last
@@ -73,8 +79,10 @@ public sealed partial class FrameTree
     /// together until <see cref="NumericFrameRules.SplitClock"/> lets them split. Then it links each anchor to the anchors
     /// and to the groups that do not fall that the merge test links to it: an anchor never changes the mode of a group that
     /// falls, and stays in its own system, and the frame of that group gets a ghost of it (see <see cref="AnchorGhosts"/>).
-    /// Each linked group gets the mode of <see cref="NumericFrameRules.Mode"/>. A group keeps the numeric frame that holds
-    /// most of its mass, which drains and moves its origin; the bodies of the other groups move. Then far frames nest.
+    /// Each linked group gets the mode of <see cref="NumericFrameRules.Mode"/>, but a group that would rest in a new frame
+    /// stays in its semantic frame's own system until <see cref="NumericFrameRules.LeaveClock"/> lets a member that the last
+    /// update kept there leave. A group keeps the numeric frame that holds most of its mass, which drains and moves its
+    /// origin; the bodies of the other groups move. Then far frames nest.
     /// Each frame that the update creates, shifts or destroys goes into <paramref name="changes"/>, where physics picks it up.
     /// <para>
     /// The update hands the moves to <paramref name="applyMoves"/>, which applies them to the rows and hands this
@@ -95,6 +103,7 @@ public sealed partial class FrameTree
         SortBySemanticFrame(bodies);
         moves.Clear();
         anchorGhosts.Clear();
+        nextLeaveClocks.Clear();
         for (int start = 0; start < sortedBodies.Count;)
         {
             int end = start + 1;
@@ -104,6 +113,7 @@ public sealed partial class FrameTree
                 UpdateSemanticFrame(start, end, dt, changes);
             start = end;
         }
+        (leaveClocks, nextLeaveClocks) = (nextLeaveClocks, leaveClocks);
         NestFarFrames(changes);
         CountBodies();
         applyMoves(moves);
@@ -156,6 +166,7 @@ public sealed partial class FrameTree
         MarkFallingGroups(start, end);
         LinkAnchors(start, end);
         GroupBodies(start, end);
+        HoldInSemanticSystem(dt);
         ChooseKeepers();
         // Every shift lands before any move: a body that leaves a shifted frame leaves it from its shifted state.
         foreach (BodyGroup group in groups)
@@ -325,6 +336,37 @@ public sealed partial class FrameTree
             NumericMode current = group.Motion.Frame.IsNull ? NumericMode.None : Numeric(group.Motion.Frame);
             group.Mode = NumericFrameRules.Mode(current, group.Motion.Velocity, group.Motion.Center, group.Motion.Anchored,
                 group.Motion.Fixed, NumericOptions);
+        }
+    }
+
+    /// <summary>
+    /// Keeps each group that would rest in a new frame in its semantic frame's own system while a member that the last update
+    /// kept there has been about to leave for less than the split cooldown (see <see cref="NumericFrameRules.LeaveClock"/>).
+    /// Then it gives a clock to each body that is not an anchor, that needs a frame by itself and whose group stays in the
+    /// system. A body that the system did not keep before, such as a new one, gets its frame at once.
+    /// </summary>
+    private void HoldInSemanticSystem(double dt)
+    {
+        Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
+        foreach (ref BodyGroup group in CollectionsMarshal.AsSpan(groups))
+        {
+            ReadOnlySpan<NumericBody> members = bodies[group.Start..group.End];
+            NumericMode wanted = group.Mode;
+            bool hold = false;
+            foreach (ref readonly NumericBody body in members)
+                if (!body.Anchor && leaveClocks.TryGetValue(body.Entity, out double apart))
+                    hold |= NumericFrameRules.LeaveClock(wanted, group.Motion.Frame, apart, dt, NumericOptions).Hold;
+            if (hold)
+                group.Mode = NumericMode.None;
+            if (group.Mode != NumericMode.None)
+                continue;
+            foreach (ref readonly NumericBody body in members)
+            {
+                if (body.Anchor || NumericFrameRules.BodyMode(body, NumericOptions) == NumericMode.None)
+                    continue;
+                leaveClocks.TryGetValue(body.Entity, out double apart);
+                nextLeaveClocks[body.Entity] = NumericFrameRules.LeaveClock(wanted, group.Motion.Frame, apart, dt, NumericOptions).Apart;
+            }
         }
     }
 
