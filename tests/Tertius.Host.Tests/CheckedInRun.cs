@@ -13,7 +13,11 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public abstract class CheckedInRun : IDisposable
 {
-    protected CheckedInRun(string name)
+    /// <summary>
+    /// Runs the script <paramref name="name"/>. If <paramref name="beforeEachTick"/> is given, the run calls it with the
+    /// world and the scene before each tick, so it sees the state after every tick but the last.
+    /// </summary>
+    protected CheckedInRun(string name, Action<World, SceneInstance>? beforeEachTick = null)
     {
         Script script = Script.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", name + ".json")));
         World = NewJoltWorld();
@@ -21,7 +25,9 @@ public abstract class CheckedInRun : IDisposable
         try
         {
             Scene = DemoScenes.All.Single(s => s.Name == script.Scene).Build(World, renderer);
-            Result = ScriptRunner.Run(script, World, Scene, Folder, new HeadlessPlayback(renderer, script.Window));
+            IPlayback playback = new HeadlessPlayback(renderer, script.Window);
+            Result = ScriptRunner.Run(script, World, Scene, Folder,
+                beforeEachTick == null ? playback : new Watched(playback, () => beforeEachTick(World, Scene)));
         }
         finally
         {
@@ -43,5 +49,17 @@ public abstract class CheckedInRun : IDisposable
         World.Dispose();
         Directory.Delete(Folder, recursive: true);
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>A playback that calls <paramref name="watch"/> each time before it lets a tick run.</summary>
+    private sealed class Watched(IPlayback playback, Action watch) : IPlayback
+    {
+        public bool WaitForTick()
+        {
+            watch();
+            return playback.WaitForTick();
+        }
+
+        public bool Capture(World world, string path) => playback.Capture(world, path);
     }
 }
