@@ -11,8 +11,9 @@ public sealed partial class JoltPhysicsBackend
     /// place and velocity in the frame's parent stay the same. Jolt has no call that shifts a whole system, so this sets
     /// each body, one at a time. A body that loses no velocity keeps sleeping, and a static body loses only the offset.
     /// Nothing turns, because numeric frames do not rotate. The ghosts in the system move the same way, without waking
-    /// what is near them. Each velocity loses the frame's velocity change in doubles and only then narrows to a float, so
-    /// that the system and the rows agree at orbital speed.
+    /// what is near them (see <see cref="FrameWorld.ShiftGhosts"/>). The system keeps its own ghosts, so a shift visits
+    /// only the members and the ghosts of the shifted system. Each velocity loses the frame's velocity change in doubles
+    /// and only then narrows to a float, so that the system and the rows agree at orbital speed.
     /// </summary>
     private void ApplyShifts(List<FrameShift> shifts)
     {
@@ -41,27 +42,7 @@ public sealed partial class JoltPhysicsBackend
                 if (record.IsMovable && velocity != Double3.Zero)
                     bodies.SetLinearVelocity(record.Body, ((Double3)s.Linear - velocity).ToVector3());
             }
-            foreach (BodyRecord? record in records)
-            {
-                if (record?.Ghosts is not { Count: > 0 } ghosts)
-                    continue;
-                foreach (GhostBody ghost in ghosts)
-                    if (ghost.World == world)
-                        ShiftGhost(bodies, ghost.Body, shift);
-            }
+            world.ShiftGhosts(shift.Offset, velocity);
         }
-    }
-
-    /// <summary>
-    /// Moves a ghost by the shift of its system's frame, like a member: its place and velocity in the frame's parent stay
-    /// the same. Jolt does not simulate the move, and the ghost moves with the bodies around it, so nothing wakes.
-    /// </summary>
-    private static void ShiftGhost(BodyInterface bodies, BodyID ghost, in FrameShift shift)
-    {
-        bodies.GetRPosition(ghost, out RVector3 position);
-        Quaternion rotation = bodies.GetRotation(ghost);
-        bodies.SetRPositionAndRotation(ghost, (position.ToDouble3() - shift.Offset).ToJolt(), rotation, Activation.DontActivate);
-        if (shift.Velocity != Double3.Zero && bodies.GetMotionType(ghost) != MotionType.Static)
-            bodies.SetLinearVelocity(ghost, ((Double3)bodies.GetLinearVelocity(ghost) - shift.Velocity).ToVector3());
     }
 }

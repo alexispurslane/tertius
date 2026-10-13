@@ -129,6 +129,51 @@ internal sealed class FrameWorld : IDisposable
         record.MemberIndex = -1;
     }
 
+    // The ghosts in this system: copies of bodies whose own system is another frame's (see GhostBody). It holds the body of
+    // every ghost that a record keeps in this system, and nothing else. The backend's AssertInvariants checks that.
+    private readonly HashSet<BodyID> ghosts = new();
+
+    /// <summary>The number of ghosts in this system.</summary>
+    public int GhostCount => ghosts.Count;
+
+    /// <summary>True when <paramref name="body"/> is a ghost in this system.</summary>
+    public bool HasGhost(BodyID body) => ghosts.Contains(body);
+
+    /// <summary>Counts <paramref name="body"/>, a new body of this system, as a ghost.</summary>
+    public void AddGhost(BodyID body)
+    {
+        Contract.Requires(!ghosts.Contains(body));
+        ghosts.Add(body);
+    }
+
+    /// <summary>Removes and destroys the ghost <paramref name="body"/>, after it wakes the bodies around it (see <see cref="WakeAround"/>).</summary>
+    public void RemoveGhost(BodyID body)
+    {
+        Contract.Requires(ghosts.Contains(body));
+        ghosts.Remove(body);
+        RemoveBody(body);
+    }
+
+    /// <summary>
+    /// Moves every ghost in this system by a shift of the frame, like a member: each ghost loses <paramref name="offset"/>
+    /// from its position and <paramref name="velocity"/> from its velocity, so that its place and velocity in the frame's
+    /// parent stay the same. A static ghost loses only the offset. Jolt does not simulate the move, and the ghosts move
+    /// with the members around them, so nothing wakes. Each ghost moves on its own, so the order of the visits does not
+    /// change the result. Costs time in proportion to the number of ghosts in this system.
+    /// </summary>
+    public void ShiftGhosts(Double3 offset, Double3 velocity)
+    {
+        BodyInterface bodies = Bodies;
+        foreach (BodyID ghost in ghosts)
+        {
+            bodies.GetRPosition(ghost, out RVector3 position);
+            Quaternion rotation = bodies.GetRotation(ghost);
+            bodies.SetRPositionAndRotation(ghost, (position.ToDouble3() - offset).ToJolt(), rotation, Activation.DontActivate);
+            if (velocity != Double3.Zero && bodies.GetMotionType(ghost) != MotionType.Static)
+                bodies.SetLinearVelocity(ghost, ((Double3)bodies.GetLinearVelocity(ghost) - velocity).ToVector3());
+        }
+    }
+
     /// <summary>
     /// Creates an empty system with its own filter tables, this frame's settings and the given limits. Nothing listens to its
     /// contacts until <see cref="ReplaceSystem"/> makes it this frame's system.

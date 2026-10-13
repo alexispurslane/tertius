@@ -379,7 +379,7 @@ public sealed partial class JoltPhysicsBackend
         if (record.Ghosts is not { } ghosts)
             return;
         foreach (GhostBody ghost in ghosts)
-            ghost.World.RemoveBody(ghost.Body);
+            ghost.World.RemoveGhost(ghost.Body);
         ghosts.Clear();
     }
 
@@ -388,12 +388,19 @@ public sealed partial class JoltPhysicsBackend
         if (record.Ghosts is not { } ghosts)
             return;
         for (int i = ghosts.Count - 1; i >= 0; i--)
-        {
-            if (ghosts[i].World != world)
-                continue;
-            world.RemoveBody(ghosts[i].Body);
-            ghosts.RemoveAt(i);
-        }
+            if (ghosts[i].World == world)
+                RemoveGhostAt(ghosts, i);
+    }
+
+    /// <summary>
+    /// Removes and destroys the ghost at <paramref name="index"/> of <paramref name="ghosts"/>, a record's ghosts, and takes
+    /// it out of its system's ghosts, after it wakes the bodies around it.
+    /// </summary>
+    private static void RemoveGhostAt(List<GhostBody> ghosts, int index)
+    {
+        GhostBody ghost = ghosts[index];
+        ghost.World.RemoveGhost(ghost.Body);
+        ghosts.RemoveAt(index);
     }
 
     // ---- Moving frame hulls after the tree changed ----

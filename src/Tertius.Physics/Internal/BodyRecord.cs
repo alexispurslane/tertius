@@ -92,6 +92,10 @@ internal sealed class BodyRecord
     public FrameWorld? InteriorWorld;
     public BodyID InteriorBody = BodyID.Invalid;
 
+    /// <summary>
+    /// The ghosts of this record's body in other systems, at most one in each. Each one is also among the ghosts of its
+    /// system (see <see cref="FrameWorld.AddGhost"/>), which a shift of the system's frame moves.
+    /// </summary>
     public List<GhostBody>? Ghosts;
 
     // Per-step bookkeeping.

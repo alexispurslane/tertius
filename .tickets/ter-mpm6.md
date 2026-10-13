@@ -1,6 +1,6 @@
 ---
 id: ter-mpm6
-status: open
+status: closed
 deps: []
 links: [ter-s02r]
 created: 2026-10-13T01:26:00Z
