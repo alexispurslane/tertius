@@ -527,6 +527,19 @@ public class FrameTreeNumericUpdateTests
     }
 
     [Fact]
+    public void A_position_in_a_nested_frame_a_light_year_out_rounds_once_in_the_semantic_frame()
+    {
+        FrameHandle pod = Update(0.1, Body(10, x: LightYear, vx: 64))[0].Home;
+        frames.Numeric(frames.TreeParent(pod)).Should().Be(NumericMode.Nesting);
+        // 3/256 s at 64 m/s moves the pod 0.75 m in its nest, exactly.
+        Advance(3.0 / 256);
+
+        // The exact place is a light-year plus 1.25 m, and a double there steps by 2 m. Rounded once, that is a light-year
+        // plus 2 m. Rounding the pod's place first gives a light-year, and adding 0.5 m to it rounds back to a light-year.
+        frames.InSemantic(pod, ground, X(0.5)).Should().Be(X(LightYear + 2));
+    }
+
+    [Fact]
     public void A_semantic_frame_that_dies_takes_its_numeric_frames_with_it_and_its_ship_frames_keep_their_places()
     {
         DQuaternion turned = DQuaternion.FromAxisAngle(new Double3(0, 1, 0), 0.5);

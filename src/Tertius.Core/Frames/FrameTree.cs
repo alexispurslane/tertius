@@ -288,7 +288,7 @@ public sealed partial class FrameTree
         DPose local = TreeLocalPose(frame);
         FrameHandle treeParent = TreeParent(frame);
         return treeParent.IsNull || !IsNumeric(treeParent) ? local
-            : new DPose(local.Position + HomeOffset(treeParent, SemanticOf(treeParent)), local.Rotation);
+            : new DPose(InSemantic(treeParent, SemanticOf(treeParent), local.Position), local.Rotation);
     }
 
     /// <summary>The pose of the frame in its tree parent, as it is stored.</summary>
@@ -746,13 +746,22 @@ public sealed partial class FrameTree
     /// The position of the origin of <paramref name="home"/> in the coordinates of <paramref name="semantic"/>, the home
     /// itself or an ancestor of it. Like <see cref="HomeVelocity"/>, it is a sum along the numeric frames between them.
     /// </summary>
-    internal Double3 HomeOffset(FrameHandle home, FrameHandle semantic)
+    internal Double3 HomeOffset(FrameHandle home, FrameHandle semantic) => InSemantic(home, semantic, Double3.Zero);
+
+    /// <summary>
+    /// <paramref name="position"/>, in the coordinates of <paramref name="home"/>, in the coordinates of
+    /// <paramref name="semantic"/>, the home itself or an ancestor of it. The sum starts from the position and adds the
+    /// place of each numeric frame on the way up, the nearest first. Below a nesting frame those are small numbers, so only
+    /// the last addition, of the nest's place, rounds at the scale of the distance: a light-year out, the result is the
+    /// exact position rounded once to the 2 m step of a double. Adding the position to <see cref="HomeOffset"/> instead
+    /// rounds twice, and can miss by a whole step.
+    /// </summary>
+    internal Double3 InSemantic(FrameHandle home, FrameHandle semantic, Double3 position)
     {
         Contract.Requires(home == semantic || IsAncestorOf(semantic, home));
-        Double3 offset = Double3.Zero;
         for (FrameHandle f = home; f != semantic; f = TreeParent(f))
-            offset += TreeLocalPose(f).Position;
-        return offset;
+            position += TreeLocalPose(f).Position;
+        return position;
     }
 
     /// <summary>
