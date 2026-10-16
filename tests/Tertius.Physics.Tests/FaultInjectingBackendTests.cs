@@ -138,4 +138,43 @@ public class FaultInjectingBackendTests
         faults.Jolt.TryGetBodyFrame(ball, out FrameHandle frame).Should().BeTrue();
         frame.Should().Be(ground);
     }
+
+    [Fact]
+    public void EveryStepIsRecordedWithItsTickItsTimeAndTheThreadThatRanIt()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.TickRate = 64);
+        Scenes.FloorWithBall(world);
+
+        Tick(world, 3);
+
+        faults.Steps.Select(step => step.Tick).Should().Equal(0L, 1, 2);
+        faults.Steps.Select(step => step.Time).Should().Equal(0, 1.0 / 64, 2.0 / 64);
+        faults.Steps.Select(step => step.ThreadId).Distinct().Should().ContainSingle().Which.Should().NotBe(Environment.CurrentManagedThreadId, "the World steps physics on a thread of its own");
+    }
+
+    [Fact]
+    public void AStepThatThrowsIsRecordedBecauseTheWorldStartedIt()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        Scenes.FloorWithBall(world);
+        faults.ThrowFromStep = new InvalidOperationException("the step broke");
+
+        Tick(world, 2);
+
+        faults.Steps.Select(step => step.Tick).Should().Equal(0L, 1);
+        faults.Outputs.Should().HaveCount(1, "the step that threw has no output");
+    }
+
+    [Fact]
+    public void TheIntentOfAnEntityIsRecordedInTheStepAfterTheTickThatWroteItAsACopy()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        var pilot = new Pilot { EveryTick = body => body.AddForce(new Vector3(0, 0, 4)) };
+        Scenes.FloorAndBall scene = Scenes.FloorWithBall(world, ballComponents: pilot);
+
+        Tick(world, 4);
+
+        faults.Intents.Select(record => (record.Tick, record.Entity)).Should().Equal((1L, scene.Ball), (2L, scene.Ball), (3L, scene.Ball));
+        faults.Intents.Should().OnlyContain(record => record.Intent.Force == new Vector3(0, 0, 4), "the intent of one tick does not pile up on the next");
+    }
 }

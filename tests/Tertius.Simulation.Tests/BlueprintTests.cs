@@ -256,9 +256,8 @@ public class BlueprintTests
     [Fact]
     public void ASpawnedBlueprintsBodyIsHandedToPhysics()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<ChangeBatch> batches = physics.RecordChanges();
-        using var t = new TestWorld(physics);
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<PhysicsChanges> batches = faults.AppliedChanges;
         Soldiers(t.World.Blueprints);
         Entity soldier = t.World.Spawn("soldier", t.Root, TestWorld.At(7));
 

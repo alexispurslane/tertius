@@ -62,30 +62,30 @@ public class TransformTests
     [Fact]
     public void AnEntityReadsAnotherEntitysVelocityAsItWasAtTheEndOfThePreviousTick()
     {
-        // Physics reports the velocity tick + 1 for the step of each tick, so the velocity at the end of tick t is t + 1.
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        Entity ball = default;
-        physics.OnStep((context, output) =>
-            output.Bodies.Add(new BodyState(ball, test.Root, TestWorld.At(0), new Vector3(context.Tick + 1, 0, 0), Vector3.Zero)));
+        // A ball falls under gravity, so Jolt reports a new velocity in every step. The velocity at the end of tick t is
+        // the one that the step of tick t reported.
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        test.World.SetFrameGravity(test.Root, GravityField.Uniform(new Vector3(0, -9.81f, 0)));
         var seenThroughSelf = new List<float>();
         var seenThroughSnapshot = new List<float>();
-        ball = test.World.Spawn(new SpawnDesc
+        Entity ball = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            Body = TestWorld.Ball,
+            Body = WorldTesting.Ball(),
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
             {
-                seenThroughSelf.Add(self.VelocityInOwnFrame().X);
-                seenThroughSnapshot.Add(self.Snapshot.VelocityInOwnFrame(self.Entity).X);
+                seenThroughSelf.Add(self.VelocityInOwnFrame().Y);
+                seenThroughSnapshot.Add(self.Snapshot.VelocityInOwnFrame(self.Entity).Y);
             })],
         });
 
         test.Run(4);
 
-        seenThroughSelf.Should().Equal(0, 1, 2, 3);
-        seenThroughSnapshot.Should().Equal(0, 1, 2, 3);
-        test.World.VelocityInOwnFrame(ball).X.Should().Be(4);
+        float[] reported = [.. faults.Outputs.Select(output => output.Bodies.Single(state => state.Entity == ball).LinearVelocity.Y)];
+        reported.Should().HaveCount(4).And.BeInDescendingOrder().And.OnlyHaveUniqueItems("the ball speeds up in every step, or the test cannot tell one tick from the next");
+        seenThroughSelf.Should().Equal(0, reported[0], reported[1], reported[2]);
+        seenThroughSnapshot.Should().Equal(0, reported[0], reported[1], reported[2]);
+        test.World.VelocityInOwnFrame(ball).Y.Should().Be(reported[3]);
     }
 
     // ---- Physics owns the transform of a body ---------------------------------------------------------------------
@@ -93,7 +93,7 @@ public class TransformTests
     [Fact]
     public void AnEntityWithABodyCannotWriteItsTransformBecausePhysicsOwnsIt()
     {
-        using var test = new TestWorld(TestPhysics.Create());
+        using var test = TestWorld.OnJolt(out _);
         Entity ball = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
@@ -127,7 +127,7 @@ public class TransformTests
     [Fact]
     public void AnEntityKeepsRunningAfterItsTransformWriteIsRefusedAndItsPoseDoesNotChange()
     {
-        using var test = new TestWorld(TestPhysics.Create());
+        using var test = TestWorld.OnJolt(out _);
         var refusedWriter = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(5)));
         // A later component of the same entity: the refused write must not end the entity's run.
         var laterComponent = Lambda.OnTick((self, scoped ref events, scoped ref outbox) => { }, priority: 1);
@@ -171,7 +171,7 @@ public class TransformTests
     [Fact]
     public void ABodilessEntityCannotWriteAPhysicsIntent()
     {
-        using var test = new TestWorld(TestPhysics.Create());
+        using var test = TestWorld.OnJolt(out _);
         test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Body.AddForce(Vector3.UnitX)));
 
         test.Run(1);

@@ -349,9 +349,8 @@ public class SpawnTests
     [Fact]
     public void ABodySpawnedDuringATickReachesPhysicsAtTheSyncPointOfThatTick()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<ChangeBatch> batches = physics.RecordChanges();
-        using var t = new TestWorld(physics);
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity child = default;
         t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
@@ -369,11 +368,10 @@ public class SpawnTests
     [Fact]
     public void ABodySpawnedOutsideATickReachesPhysicsBeforeTheFirstStep()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<ChangeBatch> batches = physics.RecordChanges();
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<PhysicsChanges> batches = faults.AppliedChanges;
         var batchesAppliedAtEachStep = new List<int>();
-        physics.OnStep((_, _) => batchesAppliedAtEachStep.Add(batches.Count));
-        using var t = new TestWorld(physics);
+        faults.EditOutput = _ => batchesAppliedAtEachStep.Add(batches.Count);
         Entity ball = t.World.Spawn(new SpawnDesc { Frame = t.Root, Body = TestWorld.Ball });
 
         t.Run(1);
@@ -386,9 +384,8 @@ public class SpawnTests
     [Fact]
     public void AnEntityWithoutABodyIsNeverCreatedInPhysics()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<ChangeBatch> batches = physics.RecordChanges();
-        using var t = new TestWorld(physics);
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<PhysicsChanges> batches = faults.AppliedChanges;
         t.SpawnWith(new Recorder());
 
         t.Run(2);

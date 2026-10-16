@@ -1,6 +1,5 @@
 using System.Numerics;
 using AwesomeAssertions;
-using NSubstitute;
 
 namespace Tertius.Simulation.Tests;
 
@@ -244,27 +243,27 @@ public class MessagingTopicTests
     [Fact]
     public void ABodyHandedOffToAnotherFrameHearsTheNewFramesTopicFromThatSyncPointOn()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var t = new TestWorld(physics);
-        FrameHandle a = t.SpawnStaticFrame(TestWorld.At(0), radius: 50);
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        FrameHandle a = t.Root;
         FrameHandle b = t.SpawnStaticFrame(TestWorld.At(1000), radius: 50);
         var traveller = new Recorder(EventMask.Of<Ping>().And<FrameChanged>());
-        Entity body = t.World.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Components = [traveller] });
+        // Jolt hands the traveller off from the root into the frame b in the step of tick 1. The stayer rests in the root.
+        Entity body = Scenes.BallApproachingBubble(t.World, a, b, tick: 1, traveller);
         var stayer = new Recorder(EventMask.Of<Ping>());
-        t.World.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Components = [stayer] });
-        physics.OnStep((context, output) =>
-        {
-            if (context.Tick == 1)
-                output.HandOffs.Add(new HandOff(body, a, b, TestWorld.At(5), new Vector3(1, 0, 0), default));
-        });
+        t.World.Spawn(new SpawnDesc { Frame = a, Pose = TestWorld.At(0, 20), Body = WorldTesting.Ball(), Components = [stayer] });
         // Every tick: a message to frame A with the value tick * 10, and one to frame B with the value tick * 10 + 1.
         t.SpawnWith(SendEvery.Of(a.Topic, tick => new Ping { Value = (int)tick * 10 }), SendEvery.Of(b.Topic, tick => new Ping { Value = (int)tick * 10 + 1 }));
 
         t.Run(4);
 
+        HandOff handOff = faults.Outputs[1].HandOffs.Should().ContainSingle().Subject;
+        handOff.Entity.Should().Be(body);
         t.World.GetFrame(body).Should().Be(b);
-        t.World.PoseInOwnFrame(body).Position.X.Should().Be(5);
-        t.World.VelocityInOwnFrame(body).X.Should().Be(1);
+        PoseChecks.AssertNear(handOff.LinearVelocity, new Vector3(12, 0, 0));
+        BodyState latest = faults.Outputs[^1].Bodies.Single(state => state.Entity == body);
+        latest.Frame.Should().Be(b);
+        t.World.PoseInOwnFrame(body).Should().Be(latest.Pose, "the ball kept flying in the frame b after the hand-off");
+        t.World.VelocityInOwnFrame(body).Should().Be(latest.LinearVelocity);
         // The hand-off applies before the routing at the sync point of tick 1, so the messages sent on tick 1 are the
         // first to reach it through B and the last to reach it through A.
         traveller.PingValues().Should().Equal(0, 11, 21);
@@ -275,22 +274,15 @@ public class MessagingTopicTests
     [Fact]
     public void FrameChangedIsDeliveredToAMovedEntityOnlyIfItWantsIt()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var t = new TestWorld(physics);
-        FrameHandle a = t.SpawnStaticFrame(TestWorld.At(0), radius: 50);
+        using var t = TestWorld.OnJolt(out _);
+        FrameHandle a = t.Root;
         FrameHandle b = t.SpawnStaticFrame(TestWorld.At(1000), radius: 50);
         var wants = new Recorder(EventMask.Of<FrameChanged>());
         var deaf = new Recorder(EventMask.Of<Ping>());
-        Entity moved = t.World.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Components = [wants] });
-        Entity alsoMoved = t.World.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Components = [deaf] });
-        physics.OnStep((context, output) =>
-        {
-            if (context.Tick == 1)
-            {
-                output.HandOffs.Add(new HandOff(moved, a, b, TestWorld.At(5), default, default));
-                output.HandOffs.Add(new HandOff(alsoMoved, a, b, TestWorld.At(6), default, default));
-            }
-        });
+        // Jolt hands both balls off from the root into the frame b in the step of tick 1. They fly side by side.
+        Entity moved = Scenes.BallApproachingBubble(t.World, a, b, tick: 1, wants);
+        Scenes.Approach beside = Scenes.ApproachToBubble(t.World, b, tick: 1, lateral: 5);
+        t.World.Spawn(new SpawnDesc { Frame = a, Pose = beside.Pose, LinearVelocity = beside.Velocity, Body = WorldTesting.Ball(), Components = [deaf] });
 
         t.Run(4);
 
@@ -299,6 +291,7 @@ public class MessagingTopicTests
         heard.Event.As<FrameChanged>().From.Should().Be(a);
         heard.Event.As<FrameChanged>().To.Should().Be(b);
         deaf.Seen.Should().BeEmpty();
+        t.World.GetFrame(moved).Should().Be(b);
     }
 
     [Fact]

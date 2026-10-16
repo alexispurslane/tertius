@@ -94,9 +94,8 @@ public class SpawnValidationTests
     [Fact]
     public void ARefusedSpawnTellsPhysicsNothing()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<ChangeBatch> batches = physics.RecordChanges();
-        using var t = new TestWorld(physics);
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<PhysicsChanges> batches = faults.AppliedChanges;
         Record.Exception(() => t.World.Spawn(new SpawnDesc { Frame = default, Body = TestWorld.Ball }));
 
         t.Run(1);

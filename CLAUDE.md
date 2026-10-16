@@ -6,7 +6,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 
 - Run every build and test command in the dev shell: `nix develop --command bash -c '<command>'`.
 - Build: `dotnet build Tertius.slnx`. Test one module: `dotnet test --project tests/Tertius.<Module>.Tests`.
-- The tests use xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions and NSubstitute.
+- The tests use xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions.
 - The double-precision Jolt library comes from `native/joltc.nix`. Read the Jolt pitfalls in project memory before you touch Jolt interop.
 - This project uses a CLI ticket system for task management. When you need it, run `tk help`. The tickets in `.tickets/` track what to do and in which order, and `tk ready` lists the work whose dependencies are done. Design docs live in `docs/plans/`, and each epic ticket names its design doc. When you start a ticket, run `tk start`. When its work is merged, run `tk close`. Commit ticket changes together with the work.
 - Do each epic or ticket on its own branch, named after the ticket, for example `ter-dtw2-vertical-slice`. Never commit work straight to main. The diff pane of the Claude desktop app shows a branch's changes against main, and the user reads the code there. When the ticket closes, merge the branch into main in this checkout. Then leave the checkout on main until the next epic branches off. Other sessions commit ticket notes in this checkout, and the user wants those commits on main.
@@ -74,7 +74,8 @@ Follow the global contracts rule. In this repository, the helper is `Tertius.Con
   - Stryker.NET (MTP runner) runs on the core modules (Tertius.Core, Simulation, Physics) in the test-hardening epic ter-7e55, scoped to files, not on Host, Demo or the renderer.
   - When an epic changes core logic a lot, a Stryker run on the changed lines of that core module only is fine. It takes minutes, not hours.
   - The helpers in `tools/` run coverage and Stryker on changed lines or on whole files. `tools/README.md` gives the commands and the Stryker pitfalls.
-- NSubstitute cannot substitute interfaces with ref struct parameters, such as `IComponent`. Use small hand-written test components for those.
+- Every test of physics runs the real World on the real Jolt backend. The shared project `tests/Tertius.Testing` holds the helpers: `FaultInjectingBackend` (real Jolt, plus edits of its input and output, exceptions on request, and records of the steps, the intents and the change batches), `WorldTesting`, and `Scenes`. That wrapper is the only physics test double. A test of a state that only a bug produces edits the output of one step with `EditOutput`. A test of a valid hand-off flies a ball into a bubble (`Scenes.ApproachToBubble`).
+- Use small hand-written test components for `IComponent`. Its methods take ref struct parameters, which no mocking library can substitute.
 - Most tests run single-threaded, so that they are deterministic and fast under mutation testing. A separate test covers parallel determinism.
 - Renderer tests are snapshot tests plus CPU tests. A snapshot test renders a scene headlessly and compares it with an approved reference image through the FLIP perceptual metric. A failure writes the actual image and a FLIP heat map next to the reference. An environment variable re-approves on purpose.
 - A snapshot proves only that nothing changed. So the first approval of every reference image is a real review against the scene description.

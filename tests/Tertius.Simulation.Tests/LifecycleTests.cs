@@ -294,9 +294,8 @@ public class LifecycleTests
     [Fact]
     public void DestroyingAnEntityWithABodyOutsideATickTellsPhysicsToDropTheBody()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<ChangeBatch> batches = physics.RecordChanges();
-        using var t = new TestWorld(physics);
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity ball = t.World.Spawn(new SpawnDesc { Frame = t.Root, Body = TestWorld.Ball });
         t.Run(1);
         batches.Clear();
@@ -309,9 +308,8 @@ public class LifecycleTests
     [Fact]
     public void AnEntityWithABodyThatDestroysItselfIsDroppedFromPhysicsAtTheSyncPoint()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<ChangeBatch> batches = physics.RecordChanges();
-        using var t = new TestWorld(physics);
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity ball = t.World.Spawn(new SpawnDesc
         {
             Frame = t.Root,
@@ -331,9 +329,8 @@ public class LifecycleTests
     [Fact]
     public void DestroyingAnEntityWithoutABodyTellsPhysicsNothingAboutBodies()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<ChangeBatch> batches = physics.RecordChanges();
-        using var t = new TestWorld(physics);
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<PhysicsChanges> batches = faults.AppliedChanges;
         Entity plain = t.SpawnWith();
         t.Run(1);
 

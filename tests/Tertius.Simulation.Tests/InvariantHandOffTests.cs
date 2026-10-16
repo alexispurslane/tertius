@@ -1,6 +1,5 @@
 using System.Numerics;
 using AwesomeAssertions;
-using NSubstitute;
 
 namespace Tertius.Simulation.Tests;
 
@@ -8,7 +7,9 @@ namespace Tertius.Simulation.Tests;
 /// Physics follows the frame tree, so it never reports a hand-off that would put a frame inside itself, a hand-off into a
 /// frame that is gone, or a body state in a frame that is gone. Only a bug in the backend reports one. In Debug builds
 /// that breaks a contract. In Release builds the world skips the whole update of that entity for the step, says so once
-/// in <see cref="World.Errors"/>, and stays coherent: every invariant holds, and nothing about the entity changes.
+/// in <see cref="World.Errors"/>, and stays coherent: every invariant holds, and nothing about the entity changes. The tests
+/// run the world on real Jolt and add the report that only a bug produces to the output of the first step, through
+/// <see cref="FaultInjectingBackend"/>.
 /// </summary>
 public class InvariantHandOffTests
 {
@@ -16,13 +17,11 @@ public class InvariantHandOffTests
     [Fact]
     public void ABodyStateInAFrameThatIsGoneBreaksAContract()
     {
-        FrameHandle gone = default;
-        Entity body = default;
-        using var test = new TestWorld(TestPhysics.Create((context, output) =>
-            output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), Vector3.Zero, Vector3.Zero))));
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         World world = test.World;
-        gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
-        body = world.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
+        FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
+        Entity body = world.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
+        faults.EditNextOutput = output => output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), Vector3.Zero, Vector3.Zero));
         world.Destroy(gone.Entity).Should().BeTrue();
 
         Action tick = () => world.Tick();
@@ -44,18 +43,10 @@ public class InvariantHandOffTests
         /// <param name="handOffTo">Chooses where physics hands the hull off at the first step. It gets the hull and the inner frame.</param>
         public HullWorld(Func<FrameHandle, FrameHandle, FrameHandle> handOffTo)
         {
-            bool reported = false;
-            FrameHandle root = default;
-            // The script runs on the physics thread during the first tick, after the constructor has set the fields it reads.
-            IPhysicsBackend physics = TestPhysics.Create((context, output) =>
-            {
-                if (reported)
-                    return;
-                reported = true;
-                output.HandOffs.Add(new HandOff(HullOwner, root, handOffTo(Hull, Inner), TestWorld.At(1), Vector3.Zero, Vector3.Zero));
-            });
-            Test = new TestWorld(physics);
-            root = Test.Root;
+            Test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+            // The edit runs on the physics thread during the first tick, after the constructor has set the fields it reads.
+            faults.EditNextOutput = output =>
+                output.HandOffs.Add(new HandOff(HullOwner, Test.Root, handOffTo(Hull, Inner), TestWorld.At(1), Vector3.Zero, Vector3.Zero));
             HullOwner = Test.World.Spawn(new SpawnDesc
             {
                 Frame = Test.Root,
@@ -131,13 +122,11 @@ public class InvariantHandOffTests
     [Fact]
     public void ABodyStateInAFrameThatIsGoneDoesNotPutTheBodyInThatFrame()
     {
-        FrameHandle gone = default;
-        Entity body = default;
-        using var test = new TestWorld(TestPhysics.Create((context, output) =>
-            output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), Vector3.Zero, Vector3.Zero))));
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         World world = test.World;
-        gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
-        body = world.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
+        FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
+        Entity body = world.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
+        faults.EditNextOutput = output => output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), Vector3.Zero, Vector3.Zero));
         world.Destroy(gone.Entity).Should().BeTrue();
 
         Action tick = () => world.Tick();
@@ -150,13 +139,11 @@ public class InvariantHandOffTests
     [Fact]
     public void ABodyStateInAFrameThatIsGoneIsReportedAndLeavesTheBodyWhereItWas()
     {
-        FrameHandle gone = default;
-        Entity body = default;
-        using var test = new TestWorld(TestPhysics.Create((context, output) =>
-            output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), new Vector3(4, 5, 6), new Vector3(0, 1, 0)))));
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         World world = test.World;
-        gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
-        body = world.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), LinearVelocity = new Vector3(1, 2, 3), Body = TestWorld.Ball });
+        FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 5);
+        Entity body = world.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(7), LinearVelocity = new Vector3(1, 2, 3), Body = TestWorld.Ball });
+        faults.EditNextOutput = output => output.Bodies.Add(new BodyState(body, gone, TestWorld.At(3), new Vector3(4, 5, 6), new Vector3(0, 1, 0)));
         world.Destroy(gone.Entity).Should().BeTrue();
 
         world.Tick();
@@ -171,21 +158,11 @@ public class InvariantHandOffTests
     [Fact]
     public void ABodyStateInAFrameThatIsGoneAlsoSkipsTheHandOffAndTheFrameStateOfItsEntity()
     {
-        FrameHandle root = default, gone = default, station = default, hull = default;
-        Entity owner = default;
-        using var test = new TestWorld(TestPhysics.Create((context, output) =>
-        {
-            if (context.Tick != 0)
-                return;
-            output.Bodies.Add(new BodyState(owner, gone, TestWorld.At(1), Vector3.Zero, Vector3.Zero));
-            output.HandOffs.Add(new HandOff(owner, root, station, TestWorld.At(1), Vector3.Zero, Vector3.Zero));
-            output.Frames.Add(new FrameState(hull, TestWorld.At(1), Double3.Zero, Vector3.Zero, Vector3.Zero));
-        }));
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         World world = test.World;
-        root = test.Root;
-        station = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 100);
-        gone = world.SpawnStaticFrame(test.Root, TestWorld.At(500), radius: 5);
-        owner = world.Spawn(new SpawnDesc
+        FrameHandle station = world.SpawnStaticFrame(test.Root, TestWorld.At(-500), radius: 100);
+        FrameHandle gone = world.SpawnStaticFrame(test.Root, TestWorld.At(500), radius: 5);
+        Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = test.Root,
             Pose = TestWorld.At(100),
@@ -193,12 +170,21 @@ public class InvariantHandOffTests
             Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
             LinearVelocity = new Vector3(1, 2, 3),
         });
-        hull = world.GetOwnedFrame(owner);
+        FrameHandle hull = world.GetOwnedFrame(owner);
+        // Jolt sends the state of the hull's frame in this step, because the hull moves. The edit adds the broken body
+        // state and a legal hand-off next to it.
+        faults.EditNextOutput = output =>
+        {
+            output.Bodies.Add(new BodyState(owner, gone, TestWorld.At(1), Vector3.Zero, Vector3.Zero));
+            output.HandOffs.Add(new HandOff(owner, test.Root, station, TestWorld.At(1), Vector3.Zero, Vector3.Zero));
+        };
         world.Destroy(gone.Entity).Should().BeTrue();
 
         world.Tick();
 
-        // The hand-off to the station is legal, but it comes from the same broken report as the body state.
+        // Jolt did send the state of the hull's frame. The hand-off to the station is legal, but it comes from the same
+        // broken report as the body state.
+        faults.Outputs[0].Frames.Should().Contain(state => state.Frame == hull);
         world.Errors.Should().ContainSingle().Which.Should().Contain("stale frame");
         world.Frames.Parent(hull).Should().Be(test.Root);
         world.Frames.LocalPose(hull).Should().Be(TestWorld.At(100));
