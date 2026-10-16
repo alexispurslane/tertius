@@ -19,7 +19,6 @@ public sealed class DeepYardRun : CheckedInRun
 
     private DeepYardRun(List<YardSample> samples) : base("deep-yard", (world, scene) => samples.Add(YardSample.Take(world, scene)))
     {
-        samples.Add(YardSample.Take(World, Scene));
         Samples = samples;
     }
 
@@ -33,7 +32,7 @@ public sealed class DeepYardRun : CheckedInRun
 /// <param name="Bodies">The yard's bodies, crate-a, crate-b and person, by scene id.</param>
 /// <param name="NumericFrames">Every numeric frame below space, in the order of the tree.</param>
 /// <param name="Errors"><c>World.Errors</c>.</param>
-internal sealed record YardSample(long Tick, double Time, IReadOnlyDictionary<string, BodySample> Bodies,
+internal sealed record YardSample(long Tick, double Time, IReadOnlyDictionary<string, DeepYardBody> Bodies,
     IReadOnlyList<NumericFrameSample> NumericFrames, IReadOnlyList<string> Errors)
 {
     public static readonly string[] BodyIds = ["crate-a", "crate-b", "person"];
@@ -41,7 +40,7 @@ internal sealed record YardSample(long Tick, double Time, IReadOnlyDictionary<st
     /// <summary>
     /// The position of body <paramref name="id"/> in the yard, in meters: relative to the yard's center, which moves at
     /// <see cref="DeepYard.Drift"/> from <see cref="DeepYard.Center"/>, in space's axes. It is the read through the nest
-    /// (<see cref="BodySample.FromCenter"/>) minus the drift since the start, so only small numbers enter it.
+    /// (<see cref="DeepYardBody.FromCenter"/>) minus the drift since the start, so only small numbers enter it.
     /// </summary>
     public Double3 InYard(string id) => Bodies[id].FromCenter - DeepYard.Drift * Time;
 
@@ -52,7 +51,7 @@ internal sealed record YardSample(long Tick, double Time, IReadOnlyDictionary<st
     {
         var numericFrames = new List<NumericFrameSample>();
         AddNumericFrames(world.Frames, world.GetOwnedFrame(scene["space"]), numericFrames);
-        return new YardSample(world.TickNumber, world.Time, BodyIds.ToDictionary(id => id, id => BodySample.Take(world, scene[id])),
+        return new YardSample(world.TickNumber, world.Time, BodyIds.ToDictionary(id => id, id => DeepYardBody.Take(world, scene[id])),
             numericFrames, [.. world.Errors]);
     }
 
@@ -84,7 +83,7 @@ internal sealed record NumericFrameSample(FrameHandle Frame, NumericMode Mode, F
 /// <param name="Nest">The nearest nesting frame above the home, or null.</param>
 /// <param name="NestPlace">The nest's position in its tree parent, in meters, or zero without a nest.</param>
 /// <param name="InNest">The body's position in the nest, in meters, or zero without a nest.</param>
-internal sealed record BodySample(Double3 Position, Double3 Velocity, FrameHandle Home, NumericMode HomeMode, Double3 InHome,
+internal sealed record DeepYardBody(Double3 Position, Double3 Velocity, FrameHandle Home, NumericMode HomeMode, Double3 InHome,
     FrameHandle Nest, Double3 NestPlace, Double3 InNest)
 {
     /// <summary>
@@ -95,12 +94,12 @@ internal sealed record BodySample(Double3 Position, Double3 Velocity, FrameHandl
     /// </summary>
     public Double3 FromCenter => Nest.IsNull ? Position - DeepYard.Center : NestPlace - DeepYard.Center + InNest;
 
-    public static BodySample Take(World world, Entity entity)
+    public static DeepYardBody Take(World world, Entity entity)
     {
         FrameHandle frame = world.GetFrame(entity), home = world.PhysicsHomeOf(entity), nest = home;
         while (!nest.IsNull && world.Frames.Numeric(nest) != NumericMode.Nesting)
             nest = world.Frames.TreeParent(nest);
-        return new BodySample(world.PoseIn(entity, frame).Position, world.VelocityIn(entity, frame), home, world.Frames.Numeric(home),
+        return new DeepYardBody(world.PoseIn(entity, frame).Position, world.VelocityIn(entity, frame), home, world.Frames.Numeric(home),
             world.PoseIn(entity, home).Position, nest,
             nest.IsNull ? Double3.Zero : world.Frames.TreeLocalPose(nest).Position,
             nest.IsNull ? Double3.Zero : world.PoseIn(entity, nest).Position);
@@ -213,7 +212,7 @@ internal static class DeepYardExpectations
     /// </summary>
     public static double MergeGap(YardSample sample, string id)
     {
-        BodySample person = sample.Bodies["person"], crate = sample.Bodies[id];
+        DeepYardBody person = sample.Bodies["person"], crate = sample.Bodies[id];
         double reach = PersonRadius + CrateRadius + (person.Velocity - crate.Velocity).Length * LookaheadTime;
         return (crate.FromCenter - person.FromCenter).Length - reach;
     }
@@ -321,7 +320,7 @@ public sealed class DeepYardSliceTests(DeepYardRun run) : IClassFixture<DeepYard
     public void AReadInSpaceIsTheExactPositionRoundedToTheTwoMeterStepOfADouble()
     {
         foreach (YardSample sample in Samples)
-            foreach ((string id, BodySample body) in sample.Bodies)
+            foreach ((string id, DeepYardBody body) in sample.Bodies)
             {
                 Double3 rounding = body.Position - DeepYard.Center - body.FromCenter;
                 Math.Abs(rounding.Z).Should().BeLessThanOrEqualTo(1, $"{id}'s Z in space rounds to the nearest 2 m, after tick {sample.Tick}");
@@ -351,7 +350,7 @@ public sealed class DeepYardSliceTests(DeepYardRun run) : IClassFixture<DeepYard
             sample.NumericFrames.Where(frame => frame.Mode != NumericMode.Nesting).Should().OnlyContain(
                 frame => frame.Mode == NumericMode.Falling && frame.TreeParent == nest.Frame,
                 $"every other numeric frame falls with the yard, in the nest, after tick {sample.Tick}");
-            foreach ((string id, BodySample body) in sample.Bodies)
+            foreach ((string id, DeepYardBody body) in sample.Bodies)
             {
                 body.HomeMode.Should().Be(NumericMode.Falling, $"{id} moves at 100 m/s in space after tick {sample.Tick}");
                 body.Nest.Should().Be(nest.Frame, $"{id}'s frame lies in the nest after tick {sample.Tick}");
@@ -482,7 +481,7 @@ internal static class DeepYardReport
         foreach (int t in ticks)
         {
             YardSample sample = samples[t];
-            foreach ((string id, BodySample body) in sample.Bodies)
+            foreach ((string id, DeepYardBody body) in sample.Bodies)
                 Line(report, $"| {sample.Tick} | {sample.Time:F3} | {id} | {Vector(body.Position, "F4")} | {Vector(sample.InYard(id), "F6")} | {Vector(body.InHome, "F4")} | {Vector(body.Velocity, "F6")} | {Vector(sample.VelocityInYard(id), "F6")} | {Home(body)} | {Count(sample)} | {sample.Errors.Count} |");
         }
         Line(report, $"");
@@ -690,7 +689,7 @@ internal static class DeepYardReport
 
     private static string Handle(FrameHandle frame) => Invariant($"#{frame.Index}v{frame.Generation}");
 
-    private static string Home(BodySample body) =>
+    private static string Home(DeepYardBody body) =>
         body.HomeMode == NumericMode.None ? "space (semantic)" : Invariant($"{Lower(body.HomeMode)} {Handle(body.Home)}{(body.Nest.IsNull ? ", no nest" : $", in nest {Handle(body.Nest)}")}");
 
     private static string Count(YardSample sample) =>

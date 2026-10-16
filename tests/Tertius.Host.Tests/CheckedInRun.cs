@@ -18,8 +18,10 @@ public abstract class CheckedInRun : IDisposable
     }
 
     /// <summary>
-    /// With <paramref name="beforeEachTick"/>, the run calls it before each tick, with the world and the scene, so that a
-    /// test can watch what no dump shows, such as the physics homes of numeric frames.
+    /// With <paramref name="beforeEachTick"/>, the run calls it with the world and the scene at every tick from tick 0 to
+    /// the end of the run, exactly once for each tick, so that a test can watch what no dump shows, such as the physics
+    /// homes of numeric frames. The playback asks before each tick, and after the last one only when the script ends with
+    /// a step that renders, so the run adds the last tick itself when the playback did not.
     /// </summary>
     protected CheckedInRun(string name, Action<World, SceneInstance>? beforeEachTick)
     {
@@ -30,11 +32,19 @@ public abstract class CheckedInRun : IDisposable
         {
             Scene = DemoScenes.All.Single(s => s.Name == Script.Scene).Build(World, renderer);
             IPlayback playback = new HeadlessPlayback(renderer, Script.Window);
+            long lastWatched = -1;
+            void Watch()
+            {
+                if (World.TickNumber == lastWatched)
+                    return;
+                lastWatched = World.TickNumber;
+                beforeEachTick!(World, Scene);
+            }
             if (beforeEachTick != null)
-                playback = new WatchedPlayback(playback, () => beforeEachTick(World, Scene));
+                playback = new WatchedPlayback(playback, Watch);
             Result = ScriptRunner.Run(Script, World, Scene, Folder, playback);
-            // One more call after the last tick, so that a test also sees the state at the end of the run.
-            beforeEachTick?.Invoke(World, Scene);
+            if (beforeEachTick != null)
+                Watch();
         }
         finally
         {

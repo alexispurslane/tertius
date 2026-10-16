@@ -22,8 +22,6 @@ public sealed class OrbitClusterRun : CheckedInRun
 
     private OrbitClusterRun(ClusterLog log) : base("orbit-cluster", log.Record)
     {
-        // The run calls the log before each tick, so this adds the state after the last tick.
-        log.Record(World, Scene);
         Log = log;
     }
 
