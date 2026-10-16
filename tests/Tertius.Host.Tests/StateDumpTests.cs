@@ -235,7 +235,7 @@ public class StateDumpTests
         scene.Add("sender", world.Spawn(new SpawnDesc
         {
             Frame = world.GetOwnedFrame(scene["space"]),
-            Components = [new SendOnce<Nudge>(scene["probe"], new Nudge { Amount = 4 })],
+            Components = [SendOnce.Of(scene["probe"], new Nudge { Amount = 4 })],
         }));
 
         StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 1 }""", DumpNow).Dump("now");

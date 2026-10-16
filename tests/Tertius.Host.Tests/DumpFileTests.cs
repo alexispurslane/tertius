@@ -161,7 +161,7 @@ public sealed class DumpFileTests : IDisposable
             world.Spawn(new SpawnDesc
             {
                 Frame = world.GetOwnedFrame(scene["space"]),
-                Components = [new SendOnce<Nudge>(probe, new Nudge { Amount = float.NaN }), new SendOnce<Aim>(probe, new Aim { Direction = new System.Numerics.Vector3(float.PositiveInfinity, 0, 0) })],
+                Components = [SendOnce.Of(probe, new Nudge { Amount = float.NaN }), SendOnce.Of(probe, new Aim { Direction = new System.Numerics.Vector3(float.PositiveInfinity, 0, 0) })],
             });
             return scene;
         }, Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""), "now");
@@ -181,7 +181,7 @@ public sealed class DumpFileTests : IDisposable
             world.Spawn(new SpawnDesc
             {
                 Frame = world.GetOwnedFrame(scene["space"]),
-                Components = [new SendOnce<Aim>(probe, new Aim { Direction = new System.Numerics.Vector3(-0f, 1, -0f) })],
+                Components = [SendOnce.Of(probe, new Aim { Direction = new System.Numerics.Vector3(-0f, 1, -0f) })],
             });
             return scene;
         }, Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""), "now");

@@ -44,6 +44,9 @@ internal sealed class EntitySet
         }
     }
 
+    /// <summary>True while a change is queued: the next read of <see cref="Items"/> merges, so it writes the set.</summary>
+    public bool HasQueuedChanges => pending.Count > 0;
+
     /// <summary>Queues adding (<paramref name="member"/> true) or removing an entity.</summary>
     public void Queue(Entity entity, bool member) => pending[SortKey(entity)] = member;
 

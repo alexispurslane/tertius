@@ -21,7 +21,10 @@ namespace Tertius.Simulation;
 /// <item>Changes apply before the next read, and readers see every set in slot order, so expansion does not depend
 /// on the order in which the changes were made.</item>
 /// </list>
-/// Only the sync point, or the ticking thread outside a tick, calls this class. The gameplay workers never do.
+/// Only the sync point, or the ticking thread outside a tick, calls this class. The one exception is
+/// <see cref="MembersOf"/>, which the gameplay workers call to run entity queries: the world calls
+/// <see cref="SettleMembers"/> before the gameplay part of each tick, and then nothing changes the member sets until it
+/// ends, so the workers only read them.
 /// </para>
 /// </remarks>
 internal sealed class TopicSets
@@ -93,7 +96,8 @@ internal sealed class TopicSets
 
     /// <summary>
     /// The members of a frame, in slot order. Never a dead entity. Empty for a frame that is not live. The span stays
-    /// valid while changes are made, until this class is read again.
+    /// valid while changes are made, until this class is read again. Worker-safe during gameplay, after
+    /// <see cref="SettleMembers"/>.
     /// </summary>
     public ReadOnlySpan<Entity> MembersOf(FrameHandle frame) =>
         IsLive(frame) && frameMembers[frame.Index] is { } members ? members.Items : default;
@@ -116,6 +120,29 @@ internal sealed class TopicSets
             (frameMembers[to.Index] ??= new EntitySet()).Queue(entity, true);
         entry.Member = to;
         return true;
+    }
+
+    /// <summary>True when no member set has a queued change.</summary>
+    public bool MembersSettled
+    {
+        get
+        {
+            foreach (EntitySet? members in frameMembers)
+                if (members is { HasQueuedChanges: true })
+                    return false;
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Applies the queued changes of every member set, so that the gameplay workers can read the sets with
+    /// <see cref="MembersOf"/> without a race.
+    /// </summary>
+    public void SettleMembers()
+    {
+        foreach (EntitySet? members in frameMembers)
+            if (members is { HasQueuedChanges: true })
+                _ = members.Items;
     }
 
     /// <summary>

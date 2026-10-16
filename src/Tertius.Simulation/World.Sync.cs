@@ -44,6 +44,7 @@ public sealed partial class World
         // 1. The gameplay chunks and the physics step are done: Tick waited for both.
         int fallbackSpawns = entities.EndGameplay();
         ReportChunkMessages(fallbackSpawns);
+        InitializeAddedComponentTypes();
         if (physicsError != null)
         {
             // A step that threw may have written only part of its output. Use none of it.
@@ -65,7 +66,10 @@ public sealed partial class World
         if (options.DebugChecks)
             entities.AssertInvariants();
 
-        // 4. This tick's intents become the input of the next physics step.
+        // 4. The step applied the intents of the previous tick, so their collision groups and masks become the bodies' rows,
+        //    which step 9 publishes. Then this tick's intents become the input of the next physics step.
+        if (physics != null)
+            entities.ApplyCollisionIntents();
         entities.SwapIntents(keep: physics != null);
 
         // 5. Subscriptions first, while every entity that asked is still live, then the destroy batch.

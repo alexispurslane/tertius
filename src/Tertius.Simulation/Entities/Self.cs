@@ -70,8 +70,11 @@ public readonly ref struct Self
     /// <summary>The attachment parent, or null.</summary>
     public Entity AttachedTo => world.Attachments.ParentOf(Entity);
 
-    /// <summary>A read-only view of the front snapshot, for reading other entities.</summary>
-    public Snapshot Snapshot => new(world);
+    /// <summary>
+    /// A read-only view of the front snapshot, for reading other entities. Its entity queries run around this entity,
+    /// for <see cref="EntityQuery.Near(double)"/>.
+    /// </summary>
+    public Snapshot Snapshot => new(world, Entity);
 
     /// <summary>Creates an entity. The handle is final and valid at once. The entity becomes live at the sync point and runs from the next tick.</summary>
     public Entity Spawn(SpawnDesc desc) => world.SpawnDuringTick(chunk, Entity, desc);
