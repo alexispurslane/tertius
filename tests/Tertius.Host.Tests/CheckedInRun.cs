@@ -33,6 +33,8 @@ public abstract class CheckedInRun : IDisposable
             if (beforeEachTick != null)
                 playback = new WatchedPlayback(playback, () => beforeEachTick(World, Scene));
             Result = ScriptRunner.Run(Script, World, Scene, Folder, playback);
+            // One more call after the last tick, so that a test also sees the state at the end of the run.
+            beforeEachTick?.Invoke(World, Scene);
         }
         finally
         {

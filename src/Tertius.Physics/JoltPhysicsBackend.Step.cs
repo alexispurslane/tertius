@@ -333,8 +333,8 @@ public sealed partial class JoltPhysicsBackend
             {
                 if (member.Character is not { } character)
                     continue;
-                UpdateCharacter(world, member, character);
-                world.NoteCharacterContacts(character);
+                Vector3 velocity = UpdateCharacter(world, member, character);
+                world.NoteCharacterContacts(character, velocity);
             }
         }
     }
@@ -345,13 +345,15 @@ public sealed partial class JoltPhysicsBackend
     /// under it in its last update, and it does not move away from that ground. Then it takes the ground's velocity
     /// plus the part of its desired velocity across its up, and can jump. A character that does not stand, in the air,
     /// on steep ground or weightless, keeps its momentum, and its desired velocity and its jump do not move it. (User)
-    /// The record keeps the desired velocity, which applies once the character stands. Gravity, forces and impulses
-    /// change the velocity of every character. After the update, a character that did not stand loses its motion into
-    /// what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Under gravity, up turns against the gravity whenever
+    /// The record keeps the desired velocity, which applies once the character stands. Gravity changes the velocity of
+    /// a character that does not stand, and of one that jumps, because the ground holds a standing character against
+    /// it. Forces and impulses change the velocity of every character. After the update, a character that did not stand
+    /// loses its motion into what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Under gravity, up turns against the gravity whenever
     /// the character touched anything in its last update, also with its side or its head, so a character that landed
-    /// tilted turns upright and can stand. A character in free fall that touches nothing keeps its last up.
+    /// tilted turns upright and can stand. A character in free fall that touches nothing keeps its last up. Returns the
+    /// velocity that the character moved with in the update.
     /// </summary>
-    private void UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
+    private Vector3 UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
     {
         float dt = stepDt;
         Double3 position = character.RPosition.ToDouble3();
@@ -399,7 +401,13 @@ public sealed partial class JoltPhysicsBackend
             // Nothing holds the character, so it keeps its momentum, including what it took from a moving platform.
             next = velocity;
         }
-        next += gravity * dt;
+        // The ground holds a standing character against gravity, until the step in which it jumps off. Gravity in the
+        // velocity of a standing character would press it into its ground in every step. Jolt then reported a false
+        // velocity of gravity times the step, and pushed every dynamic body that the character leaned on a little in
+        // every step, so a stack that the character stood against woke each time that it fell asleep.
+        bool held = standing && record.PendingJump == 0;
+        if (!held)
+            next += gravity * dt;
         next += record.PendingVelocityChange;
         record.PendingVelocityChange = Vector3.Zero;
         record.PendingJump = 0;
@@ -419,6 +427,7 @@ public sealed partial class JoltPhysicsBackend
             // replaces the velocity, so a character that does not stand loses its motion into a surface here.
             character.LinearVelocity = WithoutMotionIntoContacts(character, next);
         }
+        return next;
     }
 
     /// <summary>

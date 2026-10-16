@@ -51,6 +51,74 @@ public class WorldCharacterStandingTests
     }
 
     [Fact]
+    public void ACharacterThatStandsStillOnAFloorHasNoVelocity()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, StandingHeight), Body = Person });
+        Tick(world, 30);
+        double height = world.PoseInOwnFrame(person).Position.Y;
+
+        world.Tick();
+
+        world.Snapshot.IsStanding(person).Should().BeTrue();
+        world.PoseInOwnFrame(person).Position.Y.Should().Be(height, "the floor holds the character");
+        world.VelocityInOwnFrame(person).Length().Should().BeLessThan(1e-6f, "the floor holds the character against gravity");
+    }
+
+    [Fact]
+    public void GravityActsOnACharacterFromTheStepInWhichItJumps()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        var pilot = new Pilot();
+        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, StandingHeight), Body = Person, Components = [pilot] });
+        Tick(world, 30);
+
+        pilot.Once = body => body.Jump(5);
+        TickUntil(world, () => world.VelocityInOwnFrame(person).Y > 1, 5).Should().BeLessThan(5, "the character jumps");
+
+        world.VelocityInOwnFrame(person).Y.Should().BeApproximately(5 - 9.81f / 60, 1e-4f,
+            "the character leaves the floor in the step of its jump, so gravity acts on it for that whole step");
+    }
+
+    [Fact]
+    public void ACharacterThatStandsAgainstASleepingStackDoesNotWakeIt()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        var crate = new BodyDesc(new BoxShapeDesc(new Vector3(0.25f)), Mass: 40);
+        Entity bottom = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.25), Body = crate });
+        Entity middle = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.75), Body = crate });
+        var pilot = new Pilot();
+        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, StandingHeight, 3), Body = Person, Components = [pilot] });
+        Tick(world, 60);
+        // The person walks into the stack at 3 m/s and stops against it.
+        pilot.EveryTick = body => body.MoveCharacter(new Vector3(0, 0, -3));
+        Tick(world, 50);
+        pilot.EveryTick = body => body.MoveCharacter(Vector3.Zero);
+        bool Asleep() => !IsAwake(backend, ground, bottom) && !IsAwake(backend, ground, middle);
+        TickUntil(world, Asleep, 300).Should().BeLessThan(300, "the stack falls asleep");
+        world.PoseInOwnFrame(person).Position.Z.Should().BeLessThan(0.6, "the person leans on the stack");
+        Double3 bottomStart = world.PoseInOwnFrame(bottom).Position, middleStart = world.PoseInOwnFrame(middle).Position;
+
+        int awakeTicks = 0;
+        for (int i = 0; i < 300; i++)
+        {
+            world.Tick();
+            if (!Asleep())
+                awakeTicks++;
+        }
+
+        awakeTicks.Should().Be(0, "nothing pushes the stack");
+        (world.PoseInOwnFrame(bottom).Position - bottomStart).Length.Should().Be(0);
+        (world.PoseInOwnFrame(middle).Position - middleStart).Length.Should().Be(0);
+    }
+
+    [Fact]
     public void ACharacterThatAForcePressesOntoAFloorInZeroGravityDoesNotStand()
     {
         using World world = NewWorld(out _);
