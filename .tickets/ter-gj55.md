@@ -1,6 +1,6 @@
 ---
 id: ter-gj55
-status: open
+status: closed
 deps: [ter-ziae, ter-1j1e, ter-8wmm, ter-g3yp]
 links: [ter-j4to]
 created: 2026-10-11T23:45:16Z
