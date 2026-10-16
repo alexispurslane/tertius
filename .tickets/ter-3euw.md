@@ -12,6 +12,8 @@ tags: [physics, simulation, gameplay]
 ---
 # Shape casts and overlap queries from components
 
+Design: docs/plans/queries-and-sensors.md, section Physics queries.
+
 After ray casts, a component needs two more questions. A shape cast asks which bodies a moving shape would hit, for example along a thrown crate's path. An overlap query asks which bodies overlap a shape now, for example an explosion's sphere or a grab volume. Snapshot.QueryRadius answers only which entity origins lie within a radius, with no shapes and no filter.
 
 Facts:

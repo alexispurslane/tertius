@@ -12,6 +12,8 @@ tags: [physics, simulation, gameplay]
 ---
 # Sensors: trigger bodies, and a Sensor component that tells a topic or every entity what touches its entity
 
+Design: docs/plans/queries-and-sensors.md, section Sensors.
+
 Nothing can notice that a body entered or left a volume without stopping that body. The user wants a sensor to be a component on any entity (User). When something touches the entity, the component sends a message, either to every entity or to a topic. A trigger volume also needs a body that detects touches but does not push, which Jolt calls a sensor body.
 
 Facts:

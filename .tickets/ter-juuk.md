@@ -12,6 +12,8 @@ tags: [physics, simulation, gameplay]
 ---
 # Ray casts from components, within a frame and across frame bubbles
 
+Design: docs/plans/queries-and-sensors.md, section Physics queries.
+
 A component cannot ask what lies along a line. Aiming, line of sight, a use key that acts on what the person looks at, and placing objects all need a ray cast. The airlock step of the slice (ter-f8sh) works around the gap: its use key sends Use to every entity within reach, which it finds with Snapshot.QueryRadius. That query tests entity origins only.
 
 Facts:
