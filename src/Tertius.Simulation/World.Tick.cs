@@ -168,7 +168,7 @@ public sealed partial class World
         }
 
         // A Destroy that no component removed destroys the entity at the sync point.
-        if (events.Contains<DestroyEvent>())
+        if (events.Of<DestroyEvent>().Any())
             RequestDestroy(chunk, entity);
         if (chunk.ComponentChanges.Count > 0)
             ApplyComponentChanges(chunk);

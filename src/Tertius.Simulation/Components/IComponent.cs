@@ -28,3 +28,9 @@ public interface IComponent
 
 /// <summary>A predicate that takes its argument by reference, so that it can read a payload in place without a copy.</summary>
 public delegate bool RefPredicate<T>(ref T item);
+
+/// <summary>
+/// A predicate that takes its argument by reference and one value of state. A static lambda gets the value it needs
+/// through <paramref name="state"/> instead of a capture, so that it allocates nothing.
+/// </summary>
+public delegate bool RefPredicate<T, in TState>(ref T item, TState state);

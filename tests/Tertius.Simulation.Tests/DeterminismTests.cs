@@ -55,7 +55,7 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
                 Hash = WorldHash.MixPayload(Hash, e);
                 Received++;
             }
-            if (!events.Contains<Tick>())
+            if (!events.Of<Tick>().Any())
                 return;
 
             if (self.Body.Exists)
@@ -122,7 +122,7 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
             if (++Refused % 2 == 1)
-                events.RemoveAll(static (ref Destroy _) => true);
+                events.Of<Destroy>().Remove();
         }
     }
 

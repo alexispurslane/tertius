@@ -10,9 +10,14 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class AllocationTests
 {
-    /// <summary>Moves, sends a direct message and a topic message every tick, and reads its inbox. It allocates nothing.</summary>
+    /// <summary>
+    /// Moves, sends a direct message and a topic message every tick, and reads its inbox with every query word and
+    /// ending. It allocates nothing.
+    /// </summary>
     private sealed class Busy(Entity neighbor, Topic topic) : IComponent
     {
+        private static readonly EventQuery<Ping> Delayed = new EventQuery<Ping>().Where(static (ref Ping p) => p.Value == 3);
+
         public Entity Neighbor = neighbor;
         public float Total;
         public int Priority => 0;
@@ -22,7 +27,13 @@ public class AllocationTests
         {
             foreach (ref Ping ping in events.Of<Ping>())
                 Total += ping.Value;
-            events.RemoveAll(static (ref Ping p) => p.Value < 0);
+            Total += events.Of<Ping>().From(Neighbor).Count() + events.From(Entity.Null).Count();
+            if (events.Of<Ping>().Where(2, static (ref Ping p, int value) => p.Value == value).TryFirst(out Ping fromTopic))
+                Total += fromTopic.Value;
+            if (events.Find(Delayed).Any())
+                Total += 3;
+            events.Of<Ping>().Where(static (ref Ping p) => p.Value < 0).Remove();
+            events.Where(static (ref Event e) => e.Is<Ping>() && e.As<Ping>().Value < 0).Remove();
             self.SetTransform(self.PoseInOwnFrame() with { Position = self.PoseInOwnFrame().Position + new Double3(0.001, 0, 0) });
             self.Render.Scale.X = 1;
             if (self.Snapshot.IsAlive(Neighbor))

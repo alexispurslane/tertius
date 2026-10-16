@@ -17,5 +17,5 @@ public sealed class Invulnerable(int priority = 10) : IComponent
     public int Blocked { get; private set; }
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
-        Blocked += events.RemoveAll(static (ref Destroy _) => true);
+        Blocked += events.Of<Destroy>().Remove();
 }
