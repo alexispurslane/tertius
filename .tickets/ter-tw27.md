@@ -1,6 +1,6 @@
 ---
 id: ter-tw27
-status: open
+status: closed
 deps: [ter-4h9w, ter-jjtf]
 links: []
 created: 2026-10-11T13:52:10Z
