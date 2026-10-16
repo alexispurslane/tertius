@@ -1,5 +1,6 @@
 using System.Numerics;
 using Tertius.Demo;
+using Tertius.Host.Scripting;
 
 namespace Tertius.Host.Tests;
 
@@ -10,8 +11,9 @@ namespace Tertius.Host.Tests;
 /// <param name="LargestMove">The largest distance of the crate from where it rested when the walk started, over the 60 s after that, in meters.</param>
 /// <param name="OffsetFromWhereStacked">The distance of the crate at the end from where the scene stacked it, in meters.</param>
 /// <param name="SleepChanges">The first twelve ticks at which the crate fell asleep or woke, with true for asleep. No test asserts them.</param>
+/// <param name="WakesAfterThePush">How many times the crate woke after the dump "pushed", while the person stands against the stack.</param>
 internal sealed record StackedCrate(string Id, bool AsleepWhenTheWalkStarts, bool AsleepAtTheEnd, double LargestMove, double OffsetFromWhereStacked,
-    IReadOnlyList<(long Tick, bool Asleep)> SleepChanges);
+    IReadOnlyList<(long Tick, bool Asleep)> SleepChanges, int WakesAfterThePush);
 
 /// <summary>The person during its two walks: toward the stack before the jump, and into the top crate after it.</summary>
 /// <param name="TicksChecked">How many ticks the walks span, including the ticks in which the person stands still between them and the jump.</param>
@@ -19,7 +21,7 @@ internal sealed record StackedCrate(string Id, bool AsleepWhenTheWalkStarts, boo
 /// <param name="LargestHeightError">The largest distance of the person's center from 0.9 m above the floor, in meters.</param>
 /// <param name="LargestVerticalSpeed">The largest vertical speed of the person, from the change of its height over each tick, in m/s.</param>
 /// <param name="FirstWalkDistance">How far the first walk took the person, in meters.</param>
-/// <param name="LargestReportedVerticalSpeed">The largest vertical part of the velocity that the world reports for the person, in m/s. No test asserts it.</param>
+/// <param name="LargestReportedVerticalSpeed">The largest vertical part of the velocity that the world reports for the person, in m/s.</param>
 internal sealed record PersonWalk(int TicksChecked, IReadOnlyList<long> TicksNotStanding, double LargestHeightError, double LargestVerticalSpeed,
     double FirstWalkDistance, double LargestReportedVerticalSpeed);
 
@@ -37,14 +39,36 @@ internal sealed record FreeFlightTick(long Tick, Double3 Acceleration, Double3 E
 
 /// <summary>The top crate's fall from the stack to the floor.</summary>
 /// <param name="FreeFlightTicks">The steps of the fall in which the crate was clear of the stack and of the floor by <see cref="YardMeasurements.Clearance"/> at both ends.</param>
-/// <param name="MeanAcceleration">The mean magnitude of the crate's acceleration over those steps, in m/s².</param>
-/// <param name="FallTimeAtMeasuredGravity">The time that a fall of <see cref="YardMeasurements.DropHeight"/> from rest takes at <paramref name="MeanAcceleration"/>, in seconds.</param>
-/// <param name="ExpectedFallTime">sqrt(2h/g) with h = <see cref="YardMeasurements.DropHeight"/> and g = μ/R², in seconds.</param>
+/// <param name="MeanAcceleration">The mean magnitude of the crate's acceleration over those steps, in m/s². No test asserts it.</param>
 /// <param name="PushTick">The first tick after the person landed from its jump at which the crate had moved more than 1 mm.</param>
-/// <param name="TipTick">The first tick at which the crate's center was past the far edge of the stack, where it starts to tip and fall.</param>
+/// <param name="TipTick">The first tick at which the crate's center was past the far edge of the stack, where it starts to tip.</param>
+/// <param name="LeaveTick">
+/// The first tick after the push at which every corner of the crate was past the far face of the stack's lower crates,
+/// at z = -0.25 m: nothing of the stack is under the crate any more, and it falls freely.
+/// </param>
+/// <param name="Leaving">The crate after <paramref name="LeaveTick"/>.</param>
+/// <param name="FloorTick">The first tick after <paramref name="LeaveTick"/> at which the crate's lowest corner was within <see cref="YardMeasurements.FloorReach"/> of the floor's top or below it.</param>
+/// <param name="MeasuredFallTime">
+/// The time from <paramref name="LeaveTick"/> to the moment at which the lowest corner reached the floor, in seconds: the
+/// height of the lowest corner is interpolated between the tick before <paramref name="FloorTick"/> and that tick.
+/// </param>
+/// <param name="PredictedFallTime">
+/// The time in which a free fall from the state of <paramref name="Leaving"/>, under the surface gravity μ/R² and with
+/// its spin kept, brings the crate's lowest corner down to the floor, in seconds. For a crate that left at rest and
+/// without spin, it is sqrt(2h/g), with h the height of its lowest corner above the floor.
+/// </param>
+/// <param name="PredictedCenterDrop">How far the crate's center falls in <paramref name="PredictedFallTime"/>, in meters.</param>
 /// <param name="LandingTick">The first tick after the free flight whose step changed the crate's velocity by more than half of free fall: the floor stopped it.</param>
-internal sealed record CrateFall(IReadOnlyList<FreeFlightTick> FreeFlightTicks, double MeanAcceleration, double FallTimeAtMeasuredGravity,
-    double ExpectedFallTime, long? PushTick, long? TipTick, long? LandingTick);
+/// <param name="DeepestBelowFloor">The deepest that a corner of the crate went below the floor's top in the 60 ticks from <paramref name="FloorTick"/>, in meters. No test asserts it.</param>
+internal sealed record CrateFall(IReadOnlyList<FreeFlightTick> FreeFlightTicks, double MeanAcceleration, long? PushTick, long? TipTick,
+    long? LeaveTick, BodySample? Leaving, long? FloorTick, double? MeasuredFallTime, double? PredictedFallTime, double? PredictedCenterDrop,
+    long? LandingTick, double? DeepestBelowFloor);
+
+/// <summary>One Collision that the dump "pushed" recorded between the person and the top crate.</summary>
+/// <param name="Tick">The tick of the sync point that routed it.</param>
+/// <param name="To">The scene id of the entity that heard it.</param>
+/// <param name="Impulse">The impulse that physics estimated for the contact, in N·s.</param>
+internal sealed record PushCollision(long Tick, string To, float Impulse);
 
 /// <summary>A body over the last 40 s of the run, when the whole yard should rest.</summary>
 /// <param name="Id">The body's scene id.</param>
@@ -65,7 +89,9 @@ internal sealed record HomeChange(long Tick, double Time, FrameHandle Home, Nume
 /// <param name="TicksNotResting">How many ticks from the first on ended with a frame other than a resting numeric frame holding the body.</param>
 /// <param name="FirstTicksNotResting">The first ten of those ticks.</param>
 /// <param name="Changes">Each change of the body's home, from tick 0 on.</param>
-internal sealed record BodyHomes(string Id, int TicksNotResting, IReadOnlyList<long> FirstTicksNotResting, IReadOnlyList<HomeChange> Changes);
+/// <param name="LargestDistanceFromHomeOrigin">The largest distance of the body from its home's origin, from tick 1 on, in meters: its largest position in its Jolt system.</param>
+internal sealed record BodyHomes(string Id, int TicksNotResting, IReadOnlyList<long> FirstTicksNotResting, IReadOnlyList<HomeChange> Changes,
+    double LargestDistanceFromHomeOrigin);
 
 /// <summary>The person's jump, which the report shows and no test asserts.</summary>
 /// <param name="TakeOffTick">The first tick after the first walk at which physics did not stand the person.</param>
@@ -101,8 +127,14 @@ internal sealed class YardMeasurements
     /// <summary>Half of one tick of walking, in meters.</summary>
     public const double WalkDistanceTolerance = 0.5 * PersonControl.WalkSpeed / 60.0;
 
-    /// <summary>The fewest steps of free flight that the fall must have. It lasts about 27 ticks, from the stack's edge to the floor.</summary>
+    /// <summary>The fewest steps of free flight that the fall must have. It lasts about 25 ticks, from the stack's edge to the floor.</summary>
     public const int LeastFreeFlightTicks = 10;
+
+    /// <summary>How close to the floor's top the crate's lowest corner must come to have reached the floor, in meters: 1 mm.</summary>
+    public const double FloorReach = 1e-3;
+
+    /// <summary>The step of the search for the time of the predicted fall, in seconds.</summary>
+    private const double PredictionStep = 1e-5;
 
     /// <summary>The largest error of the crate's acceleration in free flight, as a share of μ/r².</summary>
     public const double FreeFallRelativeTolerance = 1e-3;
@@ -125,6 +157,12 @@ internal sealed class YardMeasurements
     /// <summary>The span at the end of the run in which every body of the yard should rest, in ticks: 40 s.</summary>
     public const int RestTicks = 40 * 60;
 
+    /// <summary>
+    /// How far a body may be from the origin of its home's Jolt system: the distance beyond which a numeric frame moves
+    /// its origin to its members' center of mass, 1 km. The yard is 6,371 km from the origin of earth-surface.
+    /// </summary>
+    public static double NearJoltOrigin => new NumericFrameOptions().RecenterDistance;
+
     /// <summary>The height of the floor's top above Earth's center, in meters.</summary>
     public const double FloorTop = DemoScenes.EarthRadius;
 
@@ -143,10 +181,11 @@ internal sealed class YardMeasurements
             if (Ticks[i].Tick != i)
                 throw new InvalidOperationException($"The sample at index {i} is of tick {Ticks[i].Tick}: the run sampled a tick twice or skipped one.");
         TickSeconds = run.World.DeltaTime;
+        StateDump pushed = run.Result.Dump("pushed");
         SettledTick = run.Result.Dump("settled").Tick;
         WalkedTick = run.Result.Dump("walked").Tick;
         LandedTick = run.Result.Dump("landed").Tick;
-        PushedTick = run.Result.Dump("pushed").Tick;
+        PushedTick = pushed.Tick;
         EndTick = run.Result.Dump("end").Tick;
         RestFromTick = EndTick - RestTicks;
         Stacked = [StackedCrateAt(YardRecord.BottomCrate, 0), StackedCrateAt(YardRecord.MiddleCrate, 1)];
@@ -155,6 +194,7 @@ internal sealed class YardMeasurements
         AtRest = [.. new[] { YardRecord.BottomCrate, YardRecord.MiddleCrate, YardRecord.TopCrate, YardRecord.Person }.Select(MeasureRest)];
         Homes = [.. Enumerable.Range(0, YardRecord.Bodies.Length).Select(MeasureHomes)];
         Jump = MeasureJump();
+        PushCollisions = MeasurePushCollisions(pushed, run.Scene);
     }
 
     public IReadOnlyList<TickSample> Ticks { get; }
@@ -198,6 +238,15 @@ internal sealed class YardMeasurements
 
     public JumpFacts Jump { get; }
 
+    /// <summary>Every Collision between the person and the top crate that the dump "pushed" recorded, from the dump "landed" on.</summary>
+    public IReadOnlyList<PushCollision> PushCollisions { get; }
+
+    /// <summary>
+    /// The largest impulse that physics may estimate when the person walks into the resting top crate: the walk speed
+    /// times the reduced mass of the two, which stops a head-on approach.
+    /// </summary>
+    public static double HeadOnPushImpulse => PersonControl.WalkSpeed / (1.0 / DemoScenes.YardPersonMass + 1.0 / DemoScenes.LightCrateMass);
+
     /// <summary>Where the scene stacks the crate at <paramref name="level"/>, 0 at the bottom, on the Y axis.</summary>
     public static Double3 StackedPosition(int level) => new(0, FloorTop + Half * (2 * level + 1), 0);
 
@@ -219,8 +268,12 @@ internal sealed class YardMeasurements
         for (long tick = 1; tick <= EndTick && sleep.Count < 12; tick++)
             if (Asleep(At(tick, body)) != Asleep(At(tick - 1, body)))
                 sleep.Add((tick, Asleep(At(tick, body))));
+        int wakes = 0;
+        for (long tick = PushedTick + 1; tick <= EndTick; tick++)
+            if (Asleep(At(tick - 1, body)) && !Asleep(At(tick, body)))
+                wakes++;
         return new StackedCrate(YardRecord.Bodies[body], Asleep(At(SettledTick, body)), Asleep(At(EndTick, body)), largest,
-            (At(EndTick, body).Pose.Position - StackedPosition(level)).Length, sleep);
+            (At(EndTick, body).Pose.Position - StackedPosition(level)).Length, sleep, wakes);
     }
 
     private PersonWalk MeasureWalk()
@@ -244,22 +297,56 @@ internal sealed class YardMeasurements
     }
 
     /// <summary>
+    /// The largest Z of the corners of a crate at <paramref name="pose"/>, the corner nearest the stack once the crate
+    /// moves off it toward -Z, and the smallest Y, its lowest corner.
+    /// </summary>
+    public static (double HighestZ, double LowestY) CornerExtremes(DPose pose)
+    {
+        double highestZ = double.MinValue, lowestY = double.MaxValue;
+        foreach (double x in Corners)
+            foreach (double y in Corners)
+                foreach (double z in Corners)
+                {
+                    Double3 corner = pose.Position + pose.Rotation.Rotate(new Double3(x, y, z));
+                    highestZ = Math.Max(highestZ, corner.Z);
+                    lowestY = Math.Min(lowestY, corner.Y);
+                }
+        return (highestZ, lowestY);
+    }
+
+    /// <summary>
     /// True if every corner of the top crate is farther than <see cref="Clearance"/> past the far face of the stack's
     /// lower crates, at z = -0.25 m, and higher than <see cref="Clearance"/> above the floor. Jolt makes contacts only
     /// between shapes closer than 2 cm at the start of a step, so a step that starts and ends so placed touches nothing.
     /// </summary>
     public static bool ClearOfStackAndFloor(BodySample crate)
     {
-        double farthestZ = double.MinValue, lowestY = double.MaxValue;
-        foreach (double x in Corners)
-            foreach (double y in Corners)
-                foreach (double z in Corners)
-                {
-                    Double3 corner = crate.Pose.Position + crate.Pose.Rotation.Rotate(new Double3(x, y, z));
-                    farthestZ = Math.Max(farthestZ, corner.Z);
-                    lowestY = Math.Min(lowestY, corner.Y);
-                }
-        return farthestZ < -Half - Clearance && lowestY > FloorTop + Clearance;
+        (double highestZ, double lowestY) = CornerExtremes(crate.Pose);
+        return highestZ < -Half - Clearance && lowestY > FloorTop + Clearance;
+    }
+
+    /// <summary>
+    /// The time in which a free fall from the state of <paramref name="crate"/> brings the crate's lowest corner within
+    /// <see cref="FloorReach"/> of the floor's top, in seconds, and how far its center falls in that time. The fall is
+    /// the exact one of a body that nothing touches, in the surface gravity μ/R² along -Y, which is the field at the yard
+    /// to 1 part in 10^6 over the 1.25 m of the fall. The crate is a cube, so its spin stays as it is. Null if the corner
+    /// does not come down within 2 s.
+    /// </summary>
+    public static (double Time, double CenterDrop)? PredictFall(BodySample crate)
+    {
+        var spin = (Double3)crate.AngularVelocity;
+        double rate = spin.Length;
+        Double3 axis = rate > 0 ? spin / rate : Double3.UnitY;
+        double level = FloorTop + FloorReach;
+        for (double time = 0; time < 2; time += PredictionStep)
+        {
+            double drop = -crate.Velocity.Y * time + 0.5 * SurfaceGravity * time * time;
+            var pose = new DPose(new Double3(crate.Pose.Position.X, crate.Pose.Position.Y - drop, crate.Pose.Position.Z),
+                DQuaternion.FromAxisAngle(axis, rate * time) * crate.Pose.Rotation);
+            if (CornerExtremes(pose).LowestY <= level)
+                return (time, drop);
+        }
+        return null;
     }
 
     private FreeFlightTick StepOf(long tick)
@@ -273,15 +360,20 @@ internal sealed class YardMeasurements
     private CrateFall MeasureFall()
     {
         Double3 resting = At(LandedTick, YardRecord.TopCrate).Pose.Position;
-        long? push = null, tip = null, landing = null;
+        long? push = null, tip = null, leave = null, floor = null, landing = null;
         var flight = new List<FreeFlightTick>();
         for (long tick = LandedTick + 1; tick <= EndTick; tick++)
         {
             BodySample crate = At(tick, YardRecord.TopCrate);
+            (double highestZ, double lowestY) = CornerExtremes(crate.Pose);
             if (push is null && (crate.Pose.Position - resting).Length > 1e-3)
                 push = tick;
             if (tip is null && crate.Pose.Position.Z < -Half)
                 tip = tick;
+            if (push is not null && leave is null && highestZ < -Half)
+                leave = tick;
+            if (leave is not null && floor is null && lowestY <= FloorTop + FloorReach)
+                floor = tick;
             bool free = ClearOfStackAndFloor(At(tick - 1, YardRecord.TopCrate)) && ClearOfStackAndFloor(crate);
             if (free && landing is null)
             {
@@ -290,14 +382,25 @@ internal sealed class YardMeasurements
             }
             // The first step after the free flight in which the crate's velocity changed by more than half of free fall.
             if (flight.Count > 0 && landing is null && StepOf(tick).AccelerationError > 0.5 * SurfaceGravity)
-            {
                 landing = tick;
+            if (landing is not null && floor is not null)
                 break;
-            }
         }
         double mean = flight.Count > 0 ? flight.Average(step => step.Acceleration.Length) : 0;
-        return new CrateFall(flight, mean, mean > 0 ? Math.Sqrt(2 * DropHeight / mean) : double.PositiveInfinity,
-            Math.Sqrt(2 * DropHeight / SurfaceGravity), push, tip, landing);
+        BodySample? leaving = leave is long left ? At(left, YardRecord.TopCrate) : null;
+        (double Time, double CenterDrop)? predicted = leaving is { } state ? PredictFall(state) : null;
+        double? measured = null, deepest = null;
+        if (leave is long from && floor is long reached)
+        {
+            // The lowest corner moves at a nearly steady 4 m/s in the last tick, so a linear interpolation finds the moment.
+            double above = CornerExtremes(At(reached - 1, YardRecord.TopCrate).Pose).LowestY - FloorTop - FloorReach;
+            double below = CornerExtremes(At(reached, YardRecord.TopCrate).Pose).LowestY - FloorTop - FloorReach;
+            double share = above > 0 ? above / (above - below) : 0;
+            measured = (reached - 1 - from + share) * TickSeconds;
+            deepest = Enumerable.Range(0, 60).Select(i => reached + i).Where(tick => tick <= EndTick)
+                .Max(tick => FloorTop - CornerExtremes(At(tick, YardRecord.TopCrate).Pose).LowestY);
+        }
+        return new CrateFall(flight, mean, push, tip, leave, leaving, floor, measured, predicted?.Time, predicted?.CenterDrop, landing, deepest);
     }
 
     private RestingBody MeasureRest(int body)
@@ -316,15 +419,18 @@ internal sealed class YardMeasurements
     {
         var notResting = new List<long>();
         var changes = new List<HomeChange>();
+        double farthest = 0;
         for (int tick = 0; tick < Ticks.Count; tick++)
         {
             BodySample sample = Ticks[tick].Bodies[body];
+            if (tick >= 1)
+                farthest = Math.Max(farthest, sample.PositionInHome.Length);
             if (tick >= 1 && sample.HomeMode != NumericMode.Resting)
                 notResting.Add(tick);
             if (tick == 0 || sample.Home != Ticks[tick - 1].Bodies[body].Home || sample.HomeMode != Ticks[tick - 1].Bodies[body].HomeMode)
                 changes.Add(new HomeChange(tick, Ticks[tick].Time, sample.Home, sample.HomeMode));
         }
-        return new BodyHomes(YardRecord.Bodies[body], notResting.Count, [.. notResting.Take(10)], changes);
+        return new BodyHomes(YardRecord.Bodies[body], notResting.Count, [.. notResting.Take(10)], changes, farthest);
     }
 
     private JumpFacts MeasureJump()
@@ -341,5 +447,21 @@ internal sealed class YardMeasurements
             apex = Math.Max(apex, At(tick, YardRecord.Person).Pose.Position.Y - standing);
         }
         return new JumpFacts(takeOff, landing, takeOff is null ? null : apex);
+    }
+
+    private static List<PushCollision> MeasurePushCollisions(StateDump pushed, SceneInstance scene)
+    {
+        Entity person = scene["person"], crate = scene["top-crate"];
+        var collisions = new List<PushCollision>();
+        foreach (EventRecord record in pushed.Events)
+        {
+            if (record.Payload is not Collision collision)
+                continue;
+            if (record.To == new ToEntity("person") && collision.Other == crate)
+                collisions.Add(new PushCollision(record.Tick, "person", collision.Impulse));
+            else if (record.To == new ToEntity("top-crate") && collision.Other == person)
+                collisions.Add(new PushCollision(record.Tick, "top-crate", collision.Impulse));
+        }
+        return collisions;
     }
 }

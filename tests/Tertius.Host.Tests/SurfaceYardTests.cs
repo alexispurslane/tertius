@@ -41,7 +41,10 @@ public sealed class SurfaceYardRun : CheckedInRun
 /// <param name="AngularVelocity">The body's angular velocity in earth-surface's axes, in rad/s.</param>
 /// <param name="Home">The frame whose Jolt system holds the body: earth-surface, or a numeric frame below it.</param>
 /// <param name="HomeMode">How the home moves as a numeric frame, or <see cref="NumericMode.None"/> for earth-surface.</param>
-internal readonly record struct BodySample(DPose Pose, Double3 Velocity, Vector3 AngularVelocity, FrameHandle Home, NumericMode HomeMode);
+/// <param name="PositionInHome">The body's position in its home, in meters: its position in the home's Jolt system.</param>
+/// <param name="HomeOrigin">The origin of the home in earth-surface, in meters.</param>
+internal readonly record struct BodySample(DPose Pose, Double3 Velocity, Vector3 AngularVelocity, FrameHandle Home, NumericMode HomeMode,
+    Double3 PositionInHome, Double3 HomeOrigin);
 
 /// <summary>The yard after one tick.</summary>
 /// <param name="Tick">The number of ticks run so far: 0 for the scene as built.</param>
@@ -72,7 +75,8 @@ internal sealed class YardRecord
             Entity entity = scene[Bodies[i]];
             FrameHandle home = world.PhysicsHomeOf(entity);
             bodies[i] = new BodySample(world.PoseIn(entity, surface), world.VelocityIn(entity, surface),
-                world.AngularVelocityIn(entity, surface), home, home.IsNull ? NumericMode.None : world.Frames.Numeric(home));
+                world.AngularVelocityIn(entity, surface), home, home.IsNull ? NumericMode.None : world.Frames.Numeric(home),
+                world.PoseIn(entity, home).Position, world.Frames.Relative(home, surface).Position);
         }
         Ticks.Add(new TickSample(world.TickNumber, world.Time, bodies, world.IsStanding(scene["person"]), world.Frames.NumericCount, world.Errors.Count));
     }
@@ -94,6 +98,8 @@ public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<Surface
                 $"the {crate.Id} stays where it rests, from {Measured.SettledTime:F2} s to {Measured.EndTime:F2} s, a span of 60 s, through the push");
             crate.OffsetFromWhereStacked.Should().BeLessThan(YardMeasurements.StackSinkLimit,
                 $"the {crate.Id} is where the scene stacked it, apart from sinking into its contacts by Jolt's slop of 5 mm");
+            crate.WakesAfterThePush.Should().Be(0,
+                $"nothing pushes the {crate.Id} while the person stands against the stack after the push (it fell asleep or woke at: {string.Join(", ", crate.SleepChanges)})");
         }
     }
 
@@ -106,19 +112,22 @@ public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<Surface
         walk.LargestHeightError.Should().BeLessThan(YardMeasurements.StandingHeightTolerance,
             "a standing person's center stays 0.9 m above the floor, half its capsule's height");
         walk.LargestVerticalSpeed.Should().BeLessThan(YardMeasurements.StandingVerticalSpeedLimit, "a standing person neither sinks nor bounces");
+        walk.LargestReportedVerticalSpeed.Should().BeLessThan(YardMeasurements.StandingVerticalSpeedLimit,
+            "the floor holds a standing person against gravity, so the world reports no vertical velocity for it");
         walk.FirstWalkDistance.Should().BeApproximately(YardMeasurements.WalkDistance, YardMeasurements.WalkDistanceTolerance,
             "W held for 200 ticks walks the person 200 ticks times 3 m/s, 10 m, toward the stack");
     }
 
     /// <remarks>
-    /// A crate pushed off an edge tips over it while the edge still holds part of its weight, and it lands on a corner, so
-    /// the time from the edge to the floor is not the time of a free fall from rest: a simple simulation puts it 0 to 3
-    /// ticks above sqrt(2h/g) for a box that slides off at 2 to 3 m/s. So the test checks the free fall itself: in every
-    /// step in which the crate touches nothing, it gains μ/r² toward Earth's center times the step. A fall of h from rest
-    /// at the acceleration measured so then takes sqrt(2h/g) within one tick.
+    /// A crate pushed off an edge tips over it while the edge still holds part of its weight. It leaves the edge spinning
+    /// and lands on a corner, so the time from the edge to the floor is not the time of a free fall of 1 m from rest, and
+    /// no test asserts that time. The test checks the free fall itself. In every step in which the crate touches nothing,
+    /// it gains μ/r² toward Earth's center times the step, and its spin stays. And from the tick at which the crate has
+    /// left the stack, its lowest corner reaches the floor within one tick of the time that a free fall from that state
+    /// takes, with g = μ/R² the surface gravity. For a crate that leaves at rest without spin, that time is sqrt(2h/g).
     /// </remarks>
     [Fact]
-    public void ThePushedCrateFallsOneMeterInTheTimeOfAFreeFallWithTheSurfaceGravity()
+    public void ThePushedCrateFallsFromTheStackToTheFloorInTheTimeOfAFreeFallWithTheSurfaceGravity()
     {
         CrateFall fall = Measured.Fall;
         fall.FreeFlightTicks.Count.Should().BeGreaterThanOrEqualTo(YardMeasurements.LeastFreeFlightTicks,
@@ -130,8 +139,27 @@ public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<Surface
             tick.AngularVelocityChange.Should().BeLessThan(YardMeasurements.SpinChangeLimit,
                 $"in the step of tick {tick.Tick}, nothing turns the crate, a cube, so its spin stays");
         }
-        fall.FallTimeAtMeasuredGravity.Should().BeApproximately(fall.ExpectedFallTime, Measured.TickSeconds,
-            "a fall of h = 1 m from rest takes sqrt(2h/g), with g = μ/R² the surface gravity in earth-surface");
+        fall.LeaveTick.Should().NotBeNull("the crate leaves the stack");
+        fall.FloorTick.Should().NotBeNull("the crate reaches the floor");
+        fall.PredictedFallTime.Should().NotBeNull("a free fall from where the crate left the stack reaches the floor");
+        fall.MeasuredFallTime!.Value.Should().BeApproximately(fall.PredictedFallTime!.Value, Measured.TickSeconds,
+            $"from tick {fall.LeaveTick}, when it has left the stack, the crate falls freely with g = μ/R² until its lowest corner reaches the floor");
+    }
+
+    [Fact]
+    public void ThePersonAndTheTopCrateHearEachOtherWhenThePersonPushesIt()
+    {
+        CrateFall fall = Measured.Fall;
+        fall.PushTick.Should().NotBeNull("the person pushes the top crate");
+        foreach (string hearer in new[] { "person", "top-crate" })
+        {
+            PushCollision? first = Measured.PushCollisions.FirstOrDefault(collision => collision.To == hearer);
+            first.Should().NotBeNull($"the {hearer} hears the push");
+            first!.Tick.Should().BeInRange(fall.PushTick!.Value - 1, fall.PushTick.Value + 1, "the contact starts in the step in which the crate starts to move");
+            first.Impulse.Should().BeGreaterThan(0, "the person walks into the resting crate");
+            first.Impulse.Should().BeLessThanOrEqualTo((float)(YardMeasurements.HeadOnPushImpulse * 1.001),
+                "the approach along the contact's normal is at most the walk speed");
+        }
     }
 
     [Fact]
@@ -151,8 +179,12 @@ public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<Surface
     public void OnlyRestingNumericFramesHoldTheYardsBodies()
     {
         foreach (BodyHomes homes in Measured.Homes)
+        {
             homes.TicksNotResting.Should().Be(0,
                 $"the {homes.Id} is slow and 6,371 km from the origin of earth-surface, so a resting numeric frame holds it after every tick from the first (the first ticks without one: {string.Join(", ", homes.FirstTicksNotResting)})");
+            homes.LargestDistanceFromHomeOrigin.Should().BeLessThan(YardMeasurements.NearJoltOrigin,
+                $"the resting numeric frame keeps the {homes.Id} near the origin of its Jolt system");
+        }
     }
 
     [Fact]

@@ -79,6 +79,11 @@ internal static class SurfaceYardReport
 
     private static string Yes(bool value) => value ? "yes" : "no";
 
+    private static string Tick(long? tick) => tick?.ToString(CultureInfo.InvariantCulture) ?? "never";
+
+    /// <summary>sqrt(2h/g) for h = 1 m, the stack's height, and g = μ/R²: the time of a fall from the stack's top to the floor from rest.</summary>
+    private static double RestFallTime => Math.Sqrt(2 * YardMeasurements.DropHeight / YardMeasurements.SurfaceGravity);
+
     /// <summary>A short name for each physics home: earth-surface, or N1, N2 and so on in the order that the run first used them.</summary>
     private static Dictionary<FrameHandle, string> Labels(YardMeasurements m, FrameHandle surface)
     {
@@ -103,7 +108,10 @@ internal static class SurfaceYardReport
             + $"{F(YardMeasurements.SurfaceGravity, 6)} m/s².");
         Line(text, "- `floor`: a static gray slab, 50 by 50 m and 1 m thick, top at y = R. The planet has no ground (ticket ter-7u6t).");
         Line(text, "- A stack of three crates, cubes 0.5 m on a side, on the Y axis: `bottom-crate` and `middle-crate`, brown, 100 kg each, "
-            + "and `top-crate`, orange, 5 kg, friction 0.1, which sticks out 0.2 m toward +Z. The top crate's bottom is 1 m above the floor.");
+            + "and `top-crate`, orange, 5 kg, friction 0.1, which sticks out 0.2 m toward +Z. The top crate's bottom is 1 m above the floor. "
+            + "The lower crates are heavy so that the push's friction moves the middle crate well under 1 mm. With 40 kg crates, an earlier "
+            + "backend woke the stack every 0.5 s while the person stood against it; the physics test "
+            + "`WorldCharacterStandingTests.ACharacterThatStandsAgainstASleepingStackDoesNotWakeIt` keeps that case, with 40 kg crates.");
         Line(text, "- `person`: a capsule character 1.8 m tall, center 0.9 m above the floor when it stands, starting 12.25 m along +Z from "
             + "the stack and facing it (-Z). It walks at 3 m/s with W and jumps at 4 m/s with Space.");
         Line(text, "- The script: 2 s of rest; W for 200 ticks (a 10 m walk); 30 ticks still; one jump; 90 ticks; W for 40 ticks, in which "
@@ -117,10 +125,13 @@ internal static class SurfaceYardReport
         Line(text);
         Line(text, "1. The two crates that stay on the stack fall asleep and move less than 1 mm over the 60 s from the walk's start to the end.");
         Line(text, "2. The person stands while it walks.");
-        Line(text, $"3. The pushed crate falls 1 m as a free fall with g = μ/r²: in free flight its velocity changes by g times each step, "
-            + $"so a fall of h = 1 m from rest takes sqrt(2h/g) = {F(m.Fall.ExpectedFallTime, 4)} s, within one tick.");
+        Line(text, "3. The pushed crate falls freely with g = μ/r² the surface gravity: in free flight its velocity changes by g times each step, "
+            + "and from the tick at which it has left the stack, its lowest corner reaches the floor within one tick of the time of a free fall "
+            + $"from that state. For a crate that left at rest and without spin, that time is sqrt(2h/g); for h = 1 m it is {F(RestFallTime, 4)} s. "
+            + "The crate tips over the stack's edge and leaves it spinning, so the time from the edge to the floor is not that of a fall of 1 m from rest.");
         Line(text, "4. No body jitters: over the last 40 s, no tick moves any body by 0.1 mm or more.");
-        Line(text, "5. A resting numeric frame holds every body after every tick, and World.Errors stays empty.");
+        Line(text, "5. A resting numeric frame holds every body after every tick, within 1 km of the origin of its Jolt system, and World.Errors stays empty.");
+        Line(text, "6. The person and the top crate hear each other (a Collision event) when the person pushes the crate.");
         Line(text);
     }
 
@@ -135,15 +146,25 @@ internal static class SurfaceYardReport
         foreach (TickSample tick in Sampled(m))
             Line(text, $"| {F(tick.Time, 3)} | {tick.Tick} | {tick.NumericFrames} | {tick.Errors} | {Yes(tick.PersonStanding)} |");
         Line(text);
-        Line(text, "| t (s) | body | position x, y, z (m) | height (m) | velocity (m/s) | asleep | physics home |");
-        Line(text, "|---:|---|---|---:|---|:---:|---|");
+        Line(text, "Position in home is the body's position in its physics home, which is its position in that home's Jolt system.");
+        Line(text);
+        Line(text, "| t (s) | body | position x, y, z (m) | height (m) | velocity (m/s) | asleep | physics home | position in home (m) |");
+        Line(text, "|---:|---|---|---:|---|:---:|---|---|");
         foreach (TickSample tick in Sampled(m))
             for (int i = 0; i < YardRecord.Bodies.Length; i++)
             {
                 BodySample body = tick.Bodies[i];
                 Line(text, $"| {F(tick.Time, 3)} | {YardRecord.Bodies[i]} | {V(body.Pose.Position)} | {F(body.Pose.Position.Y - YardMeasurements.FloorTop)} "
-                    + $"| {V(body.Velocity)} | {Yes(YardMeasurements.Asleep(body))} | {Home(body, labels)} |");
+                    + $"| {V(body.Velocity)} | {Yes(YardMeasurements.Asleep(body))} | {Home(body, labels)} | {V(body.PositionInHome)} |");
             }
+        Line(text);
+        Line(text, "The origin of each physics home in `earth-surface`, at the same ticks:");
+        Line(text);
+        Line(text, "| t (s) | home | origin x, y, z (m) | distance from Earth's center (m) |");
+        Line(text, "|---:|---|---|---:|");
+        foreach (TickSample tick in Sampled(m))
+            foreach (BodySample body in tick.Bodies.DistinctBy(body => body.Home))
+                Line(text, $"| {F(tick.Time, 3)} | {Home(body, labels)} | {V(body.HomeOrigin)} | {F(body.HomeOrigin.Length)} |");
         Line(text);
     }
 
@@ -160,15 +181,18 @@ internal static class SurfaceYardReport
         CrateFall fall = m.Fall;
         Line(text, "## The push and the fall, tick by tick");
         Line(text);
-        Line(text, $"The walk into the crate starts at tick {m.LandedTick}. The crate first moves (more than 1 mm) at tick {fall.PushTick?.ToString(CultureInfo.InvariantCulture) ?? "never"}, "
-            + $"its center passes the far edge of the stack (z < -0.25 m) at tick {fall.TipTick?.ToString(CultureInfo.InvariantCulture) ?? "never"}, "
-            + $"and the floor first stops it at tick {fall.LandingTick?.ToString(CultureInfo.InvariantCulture) ?? "never"}. "
+        Line(text, $"The walk into the crate starts at tick {m.LandedTick}. The crate first moves (more than 1 mm) at tick {Tick(fall.PushTick)}, "
+            + $"its center passes the far edge of the stack (z < -0.25 m) at tick {Tick(fall.TipTick)}, "
+            + $"every corner of it is past the stack's far face, so that it has left the stack, at tick {Tick(fall.LeaveTick)}, "
+            + $"its lowest corner reaches the floor's top (within 1 mm) at tick {Tick(fall.FloorTick)}, "
+            + $"and the floor first changes its velocity by more than half of free fall at tick {Tick(fall.LandingTick)}. "
             + "Free flight means that the crate was more than 5 cm past the stack's far face and above the floor at both ends of the tick's step. "
             + "Acceleration is the change of velocity over the step divided by the step; expected is Earth's field at the crate's center, "
-            + "μ/r² toward Earth's center, which is -Y here.");
+            + "μ/r² toward Earth's center, which is -Y here. Lowest corner is the height of the crate's lowest corner above the floor's top, "
+            + "and nearest z is the largest z of its corners, the corner nearest the stack, whose far face is at z = -0.25 m.");
         Line(text);
-        Line(text, "| tick | t (s) | top crate position (m) | height (m) | velocity (m/s) | spin (rad/s) | free flight | acceleration (m/s²) | expected (m/s²) | person z (m) | person standing | crate's home |");
-        Line(text, "|---:|---:|---|---:|---|---:|:---:|---|---|---:|:---:|---|");
+        Line(text, "| tick | t (s) | top crate position (m) | height (m) | lowest corner (m) | nearest z (m) | velocity (m/s) | spin (rad/s) | free flight | acceleration (m/s²) | expected (m/s²) | person z (m) | person standing | crate's home |");
+        Line(text, "|---:|---:|---|---:|---:|---:|---|---:|:---:|---|---|---:|:---:|---|");
         long from = Math.Max(m.LandedTick + 1, (fall.PushTick ?? m.LandedTick) - 3);
         long to = Math.Min(m.EndTick, (fall.LandingTick ?? m.PushedTick + 40) + 5);
         var free = fall.FreeFlightTicks.ToDictionary(step => step.Tick);
@@ -178,7 +202,9 @@ internal static class SurfaceYardReport
             BodySample crate = sample.Bodies[YardRecord.TopCrate], person = sample.Bodies[YardRecord.Person];
             BodySample before = m.Ticks[(int)tick - 1].Bodies[YardRecord.TopCrate];
             Double3 acceleration = (crate.Velocity - before.Velocity) / m.TickSeconds;
-            Line(text, $"| {tick} | {F(sample.Time, 3)} | {V(crate.Pose.Position)} | {F(crate.Pose.Position.Y - YardMeasurements.FloorTop)} | {V(crate.Velocity)} "
+            (double nearestZ, double lowest) = YardMeasurements.CornerExtremes(crate.Pose);
+            Line(text, $"| {tick} | {F(sample.Time, 3)} | {V(crate.Pose.Position)} | {F(crate.Pose.Position.Y - YardMeasurements.FloorTop)} "
+                + $"| {F(lowest - YardMeasurements.FloorTop)} | {F(nearestZ)} | {V(crate.Velocity)} "
                 + $"| {F(crate.AngularVelocity.Length(), 3)} | {Yes(free.ContainsKey(tick))} | {V(acceleration, 5)} | {V(YardMeasurements.Field(before.Pose.Position), 5)} "
                 + $"| {F(person.Pose.Position.Z, 3)} | {Yes(sample.PersonStanding)} | {Home(crate, labels)} |");
         }
@@ -203,6 +229,26 @@ internal static class SurfaceYardReport
         int fewest = m.Ticks.Skip(1).Min(tick => tick.NumericFrames), most = m.Ticks.Skip(1).Max(tick => tick.NumericFrames);
         Line(text, $"From tick 1 on, the frame tree holds between {fewest} and {most} numeric frames.");
         Line(text);
+        Line(text, "Each home's origin in `earth-surface` when the run first used it and at the end, and how far each body got from its home's origin "
+            + "from tick 1 on, which is how far it got from the origin of the Jolt system that held it:");
+        Line(text);
+        Line(text, "| home | first tick | origin then (m) | origin at the end (m) |");
+        Line(text, "|---|---:|---|---|");
+        foreach (FrameHandle home in labels.Keys)
+        {
+            int first = m.Ticks.Select((tick, index) => (tick, index)).FirstOrDefault(pair => pair.tick.Bodies.Any(body => body.Home == home), (null!, -1)).index;
+            if (first < 0)
+                continue;
+            BodySample then = m.Ticks[first].Bodies.First(body => body.Home == home);
+            BodySample? last = m.Ticks[^1].Bodies.Cast<BodySample?>().FirstOrDefault(body => body!.Value.Home == home);
+            Line(text, $"| {Home(then, labels)} | {first} | {V(then.HomeOrigin)} | {(last is { } end ? V(end.HomeOrigin) : "not used at the end")} |");
+        }
+        Line(text);
+        Line(text, "| body | largest distance from its home's origin, from tick 1 on (m) |");
+        Line(text, "|---|---:|");
+        foreach (BodyHomes homes in m.Homes)
+            Line(text, $"| {homes.Id} | {F(homes.LargestDistanceFromHomeOrigin, 3)} |");
+        Line(text);
     }
 
     private static void Expectations(StringBuilder text, SurfaceYardRun run, YardMeasurements m)
@@ -225,6 +271,8 @@ internal static class SurfaceYardReport
                 $"{G(crate.LargestMove * 1e3)} mm", crate.LargestMove < YardMeasurements.StackDriftLimit);
             Row(stack, $"{crate.Id}: distance at the end from where the scene stacked it", "below 2 cm (contacts sink up to 5 mm each)",
                 $"{G(crate.OffsetFromWhereStacked * 1e3)} mm", crate.OffsetFromWhereStacked < YardMeasurements.StackSinkLimit);
+            Row(stack, $"{crate.Id}: times it woke after the dump 'pushed' (tick {m.PushedTick}), while the person stands against the stack", "0",
+                crate.WakesAfterThePush.ToString(CultureInfo.InvariantCulture), crate.WakesAfterThePush == 0);
         }
 
         const string walk = "ThePersonStandsWhileItWalks";
@@ -235,10 +283,12 @@ internal static class SurfaceYardReport
             w.LargestHeightError < YardMeasurements.StandingHeightTolerance);
         Row(walk, "largest vertical speed of the person, from the change of its height over each tick", "below 0.05 m/s", $"{G(w.LargestVerticalSpeed)} m/s",
             w.LargestVerticalSpeed < YardMeasurements.StandingVerticalSpeedLimit);
+        Row(walk, "largest vertical part of the velocity that the world reports for the person", "0, below 0.05 m/s", $"{G(w.LargestReportedVerticalSpeed)} m/s",
+            w.LargestReportedVerticalSpeed < YardMeasurements.StandingVerticalSpeedLimit);
         Row(walk, "distance of the first walk: 200 ticks at 3 m/s", $"{F(YardMeasurements.WalkDistance, 3)} m ± {F(YardMeasurements.WalkDistanceTolerance, 3)} m",
             $"{F(w.FirstWalkDistance, 4)} m", Math.Abs(w.FirstWalkDistance - YardMeasurements.WalkDistance) <= YardMeasurements.WalkDistanceTolerance);
 
-        const string fallTest = "ThePushedCrateFallsOneMeterInTheTimeOfAFreeFallWithTheSurfaceGravity";
+        const string fallTest = "ThePushedCrateFallsFromTheStackToTheFloorInTheTimeOfAFreeFallWithTheSurfaceGravity";
         CrateFall fall = m.Fall;
         double worstShare = fall.FreeFlightTicks.Count == 0 ? double.NaN : fall.FreeFlightTicks.Max(step => step.AccelerationError / step.ExpectedGravity);
         double worstSpin = fall.FreeFlightTicks.Count == 0 ? double.NaN : fall.FreeFlightTicks.Max(step => step.AngularVelocityChange);
@@ -247,10 +297,27 @@ internal static class SurfaceYardReport
         Row(fallTest, "largest error of the crate's acceleration in free flight, as a share of μ/r²", "0, below 0.001", G(worstShare),
             worstShare < YardMeasurements.FreeFallRelativeTolerance);
         Row(fallTest, "largest change of the crate's spin in one step of free flight", "0, below 1e-4 rad/s", $"{G(worstSpin)} rad/s", worstSpin < YardMeasurements.SpinChangeLimit);
-        Row(fallTest, "mean magnitude of the crate's acceleration in free flight", $"μ/R² = {F(YardMeasurements.SurfaceGravity, 6)} m/s²", $"{F(fall.MeanAcceleration, 6)} m/s²",
-            Math.Abs(fall.MeanAcceleration - YardMeasurements.SurfaceGravity) < YardMeasurements.FreeFallRelativeTolerance * YardMeasurements.SurfaceGravity);
-        Row(fallTest, "time of a fall of h = 1 m from rest at that acceleration", $"sqrt(2h/g) = {F(fall.ExpectedFallTime, 5)} s ± one tick ({F(m.TickSeconds, 5)} s)",
-            $"{F(fall.FallTimeAtMeasuredGravity, 5)} s", Math.Abs(fall.FallTimeAtMeasuredGravity - fall.ExpectedFallTime) <= m.TickSeconds);
+        string leaving = fall.Leaving is { } state
+            ? $"at height {F(state.Pose.Position.Y - YardMeasurements.FloorTop)} m, lowest corner {F(YardMeasurements.CornerExtremes(state.Pose).LowestY - YardMeasurements.FloorTop)} m, "
+                + $"vertical speed {F(state.Velocity.Y)} m/s, spin {F(state.AngularVelocity.Length(), 3)} rad/s"
+            : "never";
+        Row(fallTest, $"time from tick {Tick(fall.LeaveTick)}, when the crate has left the stack ({leaving}), until its lowest corner reaches the floor",
+            fall.PredictedFallTime is double predicted
+                ? $"a free fall from that state with g = μ/R² and the spin kept: {F(predicted, 5)} s, in which its center falls {F(fall.PredictedCenterDrop ?? double.NaN)} m; ± one tick ({F(m.TickSeconds, 5)} s)"
+                : "a free fall from that state, which does not reach the floor",
+            fall.MeasuredFallTime is double measured ? $"{F(measured, 5)} s" : "never",
+            fall.MeasuredFallTime is double a && fall.PredictedFallTime is double b && Math.Abs(a - b) <= m.TickSeconds);
+
+        const string push = "ThePersonAndTheTopCrateHearEachOtherWhenThePersonPushesIt";
+        foreach (string hearer in new[] { "person", "top-crate" })
+        {
+            PushCollision? first = m.PushCollisions.FirstOrDefault(collision => collision.To == hearer);
+            Row(push, $"the first Collision between the person and the top crate that the {hearer} hears", $"at tick {Tick(fall.PushTick)} ± 1, the crate's first move, "
+                + $"with an impulse above 0 and at most the head-on {F(YardMeasurements.HeadOnPushImpulse, 3)} N·s (3 m/s times the reduced mass)",
+                first is null ? "none" : $"tick {first.Tick}, impulse {F(first.Impulse, 3)} N·s",
+                first is not null && fall.PushTick is long pushTick && Math.Abs(first.Tick - pushTick) <= 1 && first.Impulse > 0
+                    && first.Impulse <= YardMeasurements.HeadOnPushImpulse * 1.001);
+        }
 
         const string jitter = "NoBodyJittersOnceTheYardIsAtRest";
         foreach (RestingBody body in m.AtRest)
@@ -265,8 +332,12 @@ internal static class SurfaceYardReport
 
         const string homes = "OnlyRestingNumericFramesHoldTheYardsBodies";
         foreach (BodyHomes body in m.Homes)
+        {
             Row(homes, $"{body.Id}: ticks from 1 on without a resting numeric frame as its home", "0",
                 body.TicksNotResting == 0 ? "0" : $"{body.TicksNotResting} (first: {string.Join(", ", body.FirstTicksNotResting)})", body.TicksNotResting == 0);
+            Row(homes, $"{body.Id}: largest distance from its home's origin, from tick 1 on", $"below {F(YardMeasurements.NearJoltOrigin, 0)} m",
+                $"{F(body.LargestDistanceFromHomeOrigin, 3)} m", body.LargestDistanceFromHomeOrigin < YardMeasurements.NearJoltOrigin);
+        }
 
         const string errors = "TheRunRecordsNoErrors";
         Row(errors, "World.Errors at the end", "0", run.World.Errors.Count.ToString(CultureInfo.InvariantCulture), run.World.Errors.Count == 0);
@@ -279,17 +350,28 @@ internal static class SurfaceYardReport
         CrateFall fall = m.Fall;
         Line(text, "## Measured, not asserted");
         Line(text);
-        if (fall.TipTick is long tip && fall.LandingTick is long landing)
-            Line(text, $"- From the tick at which the crate's center passed the stack's far edge ({tip}) to the tick at which the floor first stopped it ({landing}): "
-                + $"{F((landing - tip) * m.TickSeconds, 4)} s, against sqrt(2h/g) = {F(fall.ExpectedFallTime, 4)} s. No test asserts this time: a crate pushed off "
-                + "an edge tips over the edge while the edge still holds part of its weight, then lands on a corner, so its fall from the edge to "
-                + "the floor is not a free fall from rest. A simple simulation of a box that slides off an edge at 2 to 3 m/s puts this time "
-                + "between 0 and 3 ticks above sqrt(2h/g). The test checks the free fall itself, tick by tick, instead.");
+        if (fall.TipTick is long tip && fall.FloorTick is long floor)
+            Line(text, $"- From the tick at which the crate's center passed the stack's far edge ({tip}) to the tick at which its lowest corner reached the floor ({floor}): "
+                + $"{F((floor - tip) * m.TickSeconds, 4)} s, against sqrt(2h/g) = {F(RestFallTime, 4)} s for a fall of h = 1 m from rest. No test asserts this time: a crate "
+                + "pushed off an edge tips over the edge while the edge still holds part of its weight, then leaves it spinning and lands on a corner, "
+                + "so its fall from the edge to the floor is not a free fall of 1 m from rest. The test times the free fall from the tick at which "
+                + "the crate has left the stack instead.");
         else
-            Line(text, "- The crate did not both tip over the stack's edge and land, so the run has no time of fall.");
-        Line(text, $"- While the person stands in the walks, the world reports a vertical velocity of up to {F(m.Walk.LargestReportedVerticalSpeed, 4)} m/s for it, "
-            + $"though its height changes at most at {F(m.Walk.LargestVerticalSpeed, 6)} m/s. One tick of the surface gravity is {F(YardMeasurements.SurfaceGravity * m.TickSeconds, 4)} m/s: "
-            + "the physics backend adds gravity times the step to a standing character's velocity, and the floor stops the motion but leaves the velocity.");
+            Line(text, "- The crate did not both tip over the stack's edge and reach the floor, so the run has no time of fall.");
+        if (fall.PushTick is long pushed && fall.LeaveTick is long left)
+        {
+            IEnumerable<BodySample> onStack = Enumerable.Range((int)pushed, (int)(left - pushed)).Select(tick => m.Ticks[tick].Bodies[YardRecord.TopCrate]);
+            Line(text, $"- From the push (tick {pushed}) until the crate left the stack (tick {left}), its largest upward speed was "
+                + $"{F(onStack.Max(body => body.Velocity.Y), 4)} m/s and its largest spin {F(onStack.Max(body => body.AngularVelocity.Length()), 3)} rad/s. "
+                + "The person's capsule touches the crate's face above the crate's center, so the push also tips the crate a little on the stack.");
+        }
+        if (fall.DeepestBelowFloor is double deepest)
+            Line(text, $"- In the 60 ticks from the tick at which its lowest corner reached the floor, a corner of the crate went at most {F(deepest * 100, 2)} cm below "
+                + "the floor's top. The crate moves about 7 cm a tick when it lands, more than Jolt's speculative contact distance of 2 cm, so Jolt can find "
+                + "the contact only after the corner sank in; it then pushes the crate back out. Jolt's continuous collision starts only at a move of "
+                + "about 0.19 m a tick for this crate.");
+        foreach (PushCollision collision in m.PushCollisions)
+            Line(text, $"- Collision between the person and the top crate, heard by the {collision.To}, at tick {collision.Tick}, impulse {F(collision.Impulse, 3)} N·s.");
         foreach (StackedCrate crate in m.Stacked)
             Line(text, $"- {crate.Id} fell asleep (s) or woke (w) at the ticks: "
                 + (crate.SleepChanges.Count == 0 ? "never" : string.Join(", ", crate.SleepChanges.Select(change => $"{change.Tick} {(change.Asleep ? "s" : "w")}"))) + ".");

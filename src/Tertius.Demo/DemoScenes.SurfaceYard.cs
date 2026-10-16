@@ -24,6 +24,9 @@ public static partial class DemoScenes
     /// <summary>The mass of the yard's top crate, in kilograms.</summary>
     public const float LightCrateMass = 5;
 
+    /// <summary>The mass of the person in the yard, in kilograms.</summary>
+    public const float YardPersonMass = 70;
+
     /// <summary>The friction of the yard's top crate. Jolt combines two frictions by their geometric mean.</summary>
     public const float TopCrateFriction = 0.1f;
 
@@ -94,7 +97,7 @@ public static partial class DemoScenes
         {
             Frame = surface,
             Pose = new DPose(new Double3(0, EarthRadius + 0.95, YardPersonStartZ), DQuaternion.Identity),
-            Body = new BodyDesc(capsule, BodyMotion.Character, Mass: 70),
+            Body = new BodyDesc(capsule, BodyMotion.Character, Mass: YardPersonMass),
             Render = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1),
             Components = [new PersonControl(new Vector3(0, 0.75f, 0)), new Carry(capsule)],
             Subscriptions = [Topics.Input],

@@ -66,10 +66,10 @@ internal static class WorldTesting
     }
 }
 
-/// <summary>Records the tick and the other entity of every Collision that its entity hears.</summary>
+/// <summary>Records the tick, the other entity and the impulse of every Collision that its entity hears.</summary>
 internal sealed class CollisionLog : IComponent
 {
-    public List<(long Tick, Entity Other)> Seen { get; } = new();
+    public List<(long Tick, Entity Other, float Impulse)> Seen { get; } = new();
 
     public int Priority => 0;
 
@@ -79,7 +79,10 @@ internal sealed class CollisionLog : IComponent
     {
         for (int i = 0; i < events.Count; i++)
             if (events[i].Is<Collision>())
-                Seen.Add((self.Tick, events[i].As<Collision>().Other));
+            {
+                Collision collision = events[i].As<Collision>();
+                Seen.Add((self.Tick, collision.Other, collision.Impulse));
+            }
     }
 
     public int CountWith(Entity other) => Seen.Count(seen => seen.Other == other);
