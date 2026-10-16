@@ -7,8 +7,8 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// Hand-offs of bodies and frames between the physics systems of frames, on the World and the real backend. A test reads
 /// the hand-offs that Jolt really sent from <see cref="FaultInjectingBackend.Outputs"/>, and checks that the World applied
-/// them. A test whose scene is fast (60 m/s and more) or orbital turns the numeric frames of the World off, because it
-/// checks hand-offs between the frames of the scene, and a numeric frame would be the frame that Jolt names.
+/// them. A fast test (60 m/s and more) that checks which system a hull leaves or lands in turns the numeric frames of the
+/// World off, because a numeric frame would be the frame that Jolt names. The comment at the start of such a test says so.
 /// </summary>
 public class HandOffTests
 {
@@ -132,7 +132,7 @@ public class HandOffTests
     [Fact]
     public void BallLeavingOrbitingSpinningKeplerFrameKeepsItsParentVelocity()
     {
-        using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         const double mu = 3.986004418e14;
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(mu)));
         var orbit = KeplerOrbit.Circular(7_000_000, phase: 0.3, spinRate: 0.15);
@@ -166,7 +166,7 @@ public class HandOffTests
     [Fact]
     public void ABallThatLeavesAStationFacingItsPlanetNearApoapsisTakesTheStationsTurnRateThere()
     {
-        using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         const double mu = 5e9;
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(mu)));
         // Periapsis at t = 0 and apoapsis at half the 31.4 s period. The station turns at 0.389 rad/s at periapsis and
@@ -287,6 +287,7 @@ public class HandOffTests
     [Fact]
     public void SmallFrameEntersBigFrameButSimilarFramesStaySiblingsAndCollide()
     {
+        // Numeric frames off: the test checks that the fighter's hull leaves the system of space.
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         var carrierHull = new BodyDesc(new BoxShapeDesc(new Vector3(20, 10, 60)), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0);
@@ -473,6 +474,7 @@ public class HandOffTests
     [Fact]
     public void AHullWhoseHandOffTheSimulationRefusedIsBackInTheTreesParentOnTheNextStep()
     {
+        // Numeric frames off: the Release branch checks that the system of space holds the fighter's hull.
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         // The fighter stops once the next step would take its hull to the carrier's bubble. The stop is an intent, which
         // acts in the step of the tick after the one that writes it. So the tick that sees the hull one step short of
@@ -522,6 +524,7 @@ public class HandOffTests
     [Fact]
     public void PhysicsFollowsAFrameThatTheGameReparentsRightAfterItsHandOff()
     {
+        // Numeric frames off: the test checks that the fighter's hull is in the system of space after the reparent.
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         var (space, carrier, fighterOwner, fighter) = FighterApproachingCarrier(world);
         TickUntil(world, () => HandOffsSent(faults).Count > 0, 120);
@@ -549,6 +552,7 @@ public class HandOffTests
     [Fact]
     public void AHullThatTheGameMovesOutOfTheFrameItEnteredNeverLeavesThatFrameForItsOwnFrame()
     {
+        // Numeric frames off: the test checks that the ship's hull stays in the system of space.
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         FrameHandle hangar = Bubble(world, space, At(1000), 30);
