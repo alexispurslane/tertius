@@ -1,21 +1,40 @@
 using System.Numerics;
+using Tertius.Simulation;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
+/// <summary>
+/// The contacts that Jolt reports when two bodies start to touch, and the Collision events that the World makes of them,
+/// on the World and the real backend. A test reads the contacts that Jolt really sent from <see cref="FaultInjectingBackend.Outputs"/>.
+/// </summary>
 public class ContactTests
 {
+    /// <summary>A body of a box with sides of 2 · <paramref name="half"/> m that nothing slows down, and that does not bounce.</summary>
+    private static BodyDesc BoxBody(float half, float mass = 1f) =>
+        new(new BoxShapeDesc(new Vector3(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+
+    private static List<ContactStarted> ContactsSent(FaultInjectingBackend faults) => faults.Outputs.SelectMany(output => output.Contacts).ToList();
+
     [Fact]
     public void ContactIsReportedOnceWhenItStartsWithEntitiesMapped()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle ground = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static,
-            GravityField.Uniform(new Vector3(0, -9.81f, 0)));
-        Entity floor = h.AddBody(ground, Shapes.Floor(10), Shapes.At(0, -0.5, 0));
-        Entity box = h.AddBody(ground, Shapes.Box(0.5f, mass: 2), Shapes.At(0, 0.7, 0));
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle ground = Ground(world, 9.81f);
+        var floorLog = new CollisionLog();
+        Entity floor = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(0, -0.5),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 0.5f, 10)), BodyMotion.Static),
+            Components = [floorLog],
+        });
+        var boxLog = new CollisionLog();
+        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.7), Body = BoxBody(0.5f, mass: 2), Components = [boxLog] });
 
-        h.Step(120);
+        Tick(world, 120);
 
-        ContactStarted contact = h.Contacts.Should().ContainSingle().Which;
+        ContactStarted contact = ContactsSent(faults).Should().ContainSingle().Which;
         // Canonical order: the lower entity first. The normal points from A to B.
         contact.A.Should().Be(floor);
         contact.B.Should().Be(box);
@@ -26,41 +45,69 @@ public class ContactTests
         Math.Abs(contact.Point.Z).Should().BeLessThan(0.6);
         // It fell 0.2 m: about 2 m/s, times the reduced mass (2 kg against a static floor).
         contact.Impulse.Should().BeInRange(3f, 4.5f);
+
+        // The World made one Collision of the contact for each of the two entities, with the entity of the other body.
+        var heardByBox = boxLog.Seen.Should().ContainSingle().Which;
+        heardByBox.Other.Should().Be(floor);
+        heardByBox.Impulse.Should().Be(contact.Impulse);
+        var heardByFloor = floorLog.Seen.Should().ContainSingle().Which;
+        heardByFloor.Other.Should().Be(box);
+        heardByFloor.Impulse.Should().Be(contact.Impulse);
+        world.Errors.Should().BeEmpty();
     }
 
     [Fact]
     public void ContactWithFrameInteriorNamesTheFrameOwner()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
         var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(5, 0.25f, 5)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
-        FrameHandle ship = h.AddFrameWithBody(space, DPose.Identity, FrameBounds.Sphere(30), MotionDriver.Static,
-            new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), InteriorShape: deck), GravityField.Uniform(new Vector3(0, -9.81f, 0)));
-        Entity crate = h.AddBody(ship, Shapes.Box(0.5f), Shapes.At(0, 0, 0));
+        var shipLog = new CollisionLog();
+        Entity shipOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = DPose.Identity,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), InteriorShape: deck),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            Components = [shipLog],
+        });
+        FrameHandle ship = world.GetOwnedFrame(shipOwner);
+        var crateLog = new CollisionLog();
+        Entity crate = world.Spawn(new SpawnDesc { Frame = ship, Pose = At(0, 0, 0), Body = BoxBody(0.5f), Components = [crateLog] });
 
-        h.Step(90);
+        Tick(world, 90);
 
-        ContactStarted contact = h.Contacts.Should().ContainSingle().Which;
+        ContactStarted contact = ContactsSent(faults).Should().ContainSingle().Which;
         contact.Frame.Should().Be(ship);
-        contact.A.Should().Be(ship.Entity);
+        contact.A.Should().Be(shipOwner);
         contact.B.Should().Be(crate);
         contact.Point.Y.Should().BeInRange(-2.05, -1.95);
+        // The World made one Collision of the contact for each of the two entities, with the entity of the other body.
+        crateLog.Seen.Should().ContainSingle().Which.Other.Should().Be(shipOwner);
+        shipLog.Seen.Should().ContainSingle().Which.Other.Should().Be(crate);
+        world.Errors.Should().BeEmpty();
     }
 
     [Fact]
     public void SeparateContactsAreEachReportedAndInDeterministicOrder()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle ground = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static,
-            GravityField.Uniform(new Vector3(0, -9.81f, 0)));
-        Entity floor = h.AddBody(ground, Shapes.Floor(10), Shapes.At(0, -0.5, 0));
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle ground = Ground(world, 9.81f);
+        Entity floor = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(0, -0.5),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 0.5f, 10)), BodyMotion.Static),
+        });
         var boxes = new List<Entity>();
         for (int i = 0; i < 5; i++)
-            boxes.Add(h.AddBody(ground, Shapes.Box(0.25f), Shapes.At(i * 2 - 4, 0.5, 0)));
+            boxes.Add(world.Spawn(new SpawnDesc { Frame = ground, Pose = At(i * 2 - 4, 0.5), Body = BoxBody(0.25f) }));
 
-        h.Step(60);
+        Tick(world, 60);
 
-        h.Contacts.Should().HaveCount(5).And.OnlyContain(c => c.A == floor);
-        h.Contacts.Select(c => c.B).Should().Equal(boxes);
+        List<ContactStarted> contacts = ContactsSent(faults);
+        contacts.Should().HaveCount(5).And.OnlyContain(c => c.A == floor);
+        contacts.Select(c => c.B).Should().Equal(boxes);
+        world.Errors.Should().BeEmpty();
     }
 }

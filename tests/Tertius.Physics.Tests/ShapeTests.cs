@@ -1,4 +1,6 @@
 using System.Numerics;
+using Tertius.Simulation;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -47,12 +49,11 @@ public class ShapeTests
     [Fact]
     public void EveryShapeKindBuildsInJolt()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle ground = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static,
-            GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
         // A mesh floor: two triangles, wound so that they face up.
         var meshFloor = new MeshShapeDesc([new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)], [0, 2, 1, 0, 3, 2]);
-        h.AddBody(ground, new BodyDesc(meshFloor, BodyMotion.Static), DPose.Identity);
+        world.Spawn(new SpawnDesc { Frame = ground, Pose = DPose.Identity, Body = new BodyDesc(meshFloor, BodyMotion.Static) });
 
         var shapes = new ShapeDesc[]
         {
@@ -71,17 +72,23 @@ public class ShapeTests
         {
             // Lay the capsule on its side, so that it does not topple and roll away.
             DQuaternion rotation = shapes[i] is CapsuleShapeDesc ? DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2) : DQuaternion.Identity;
-            bodies.Add(h.AddBody(ground, new BodyDesc(shapes[i], Mass: 2), new DPose(new Double3(i * 3 - 6, 2, 0), rotation)));
+            bodies.Add(world.Spawn(new SpawnDesc
+            {
+                Frame = ground,
+                Pose = new DPose(new Double3(i * 3 - 6, 2, 0), rotation),
+                Body = new BodyDesc(shapes[i], Mass: 2),
+            }));
         }
 
-        h.Step(150);
+        Tick(world, 150);
 
         // Everything fell onto the mesh and came to rest above it.
         foreach (Entity body in bodies)
         {
-            h[body].Pose.Position.Y.Should().BeInRange(-0.02, 1);
-            h[body].LinearVelocity.Length().Should().BeLessThan(0.1f);
+            world.PoseInOwnFrame(body).Position.Y.Should().BeInRange(-0.02, 1);
+            world.VelocityInOwnFrame(body).Length().Should().BeLessThan(0.1f);
         }
+        world.Errors.Should().BeEmpty();
     }
 
     [Fact]
