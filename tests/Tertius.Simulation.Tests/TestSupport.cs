@@ -40,7 +40,7 @@ public sealed class TestWorld : IDisposable
     /// <summary>A dynamic ball of radius 0.5, the body that most tests give an entity.</summary>
     public static readonly BodyDesc Ball = new(new SphereShapeDesc(0.5f));
 
-    /// <param name="physics">The physics backend, or null for none. See <see cref="TestPhysics.Create"/> and <see cref="FakePhysics"/>.</param>
+    /// <param name="physics">The physics backend, or null for none. See <see cref="TestPhysics.Create"/>.</param>
     /// <param name="maxDegreeOfParallelism">The most gameplay workers. 1 runs every chunk on the ticking thread.</param>
     /// <param name="chunkSize">Entity slots per chunk. A small chunk size makes entities share fewer outboxes.</param>
     /// <param name="debugChecks">Runs the invariant checks of every subsystem at the end of every sync point. Turn it off for tests that measure allocations or time.</param>
@@ -180,8 +180,7 @@ public readonly record struct ChangeBatch(Entity[] BodiesDestroyed, FrameHandle[
 /// <summary>
 /// Physics backends made with NSubstitute. A substitute does nothing: it moves no body and reports nothing, except what
 /// a test scripts with <see cref="OnStep"/>. That suits a test that says "physics reported this" and then checks what the
-/// world did with it. A test that needs bodies that move, or that needs the backend to remember what it was told to
-/// create, uses <see cref="FakePhysics"/> instead.
+/// world did with it.
 /// </summary>
 /// <remarks>
 /// Each method here adds a callback with <c>When(...).Do(...)</c>, and NSubstitute runs every callback of a call, in the
@@ -252,104 +251,4 @@ public static class TestPhysics
 
     /// <summary>The intent that <paramref name="entity"/> wrote during the previous tick. Meaningful only for an entity in <see cref="PhysicsStepContext.IntentEntities"/>.</summary>
     public static PhysicsIntent IntentOf(this PhysicsStepContext context, Entity entity) => context.Intents.Span[(int)entity.Index];
-}
-
-// ---- Physics fake: hand-written ----------------------------------------------------------------------------------------
-
-/// <summary>
-/// A deterministic, single-threaded stand-in for the Jolt backend that keeps state: it remembers the bodies it was told
-/// to create, moves every non-static body each step by its velocity, and moves a body to its new frame when the step
-/// hands it off. It stays hand-written because NSubstitute cannot express that. A substitute only records calls and
-/// returns what it is told to return; it holds no bodies between calls. A test that needs bodies to move, or that reads a
-/// body back after a step, would have to re-implement all of this inside <c>When(...).Do(...)</c>. A test that only scripts
-/// what physics reports, or only checks what the world told the backend, uses <see cref="TestPhysics"/>.
-/// </summary>
-public sealed class FakePhysics : IPhysicsBackend
-{
-    public sealed class Body
-    {
-        public required BodyDesc Desc;
-        public FrameHandle Frame;
-        public DPose Pose;
-        public Vector3 Velocity;
-        public Vector3 AngularVelocity;
-    }
-
-    /// <summary>The bodies it holds, by entity, in entity order so that every step visits them in the same order.</summary>
-    public readonly SortedDictionary<Entity, Body> Bodies = new();
-
-    /// <summary>Called at the end of each step, on the physics thread, to add scripted results.</summary>
-    public Action<PhysicsStepContext, PhysicsStepOutput>? OnStep;
-
-    public void ApplyChanges(PhysicsChanges changes, FrameTree frames)
-    {
-        foreach (Entity entity in changes.BodiesDestroyed)
-            Bodies.Remove(entity);
-        foreach (BodyCreate create in changes.BodiesCreated)
-        {
-            Bodies[create.Entity] = new Body
-            {
-                Desc = create.Desc,
-                Frame = create.Frame,
-                Pose = create.Pose,
-                Velocity = create.LinearVelocity.ToVector3(),
-                AngularVelocity = create.AngularVelocity,
-            };
-        }
-    }
-
-    public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
-    {
-        float dt = context.DeltaTime;
-        ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
-        foreach (Entity entity in context.IntentEntities.Span)
-        {
-            PhysicsIntent intent = intents[(int)entity.Index];
-            if (!Bodies.TryGetValue(entity, out Body? body))
-                continue;
-            float mass = body.Desc.Mass;
-            body.Velocity += intent.Force / mass * dt + intent.Impulse / mass;
-            if ((intent.Flags & IntentFlags.SetVelocity) != 0)
-                body.Velocity = intent.Velocity.ToVector3();
-            if ((intent.Flags & IntentFlags.Teleport) != 0)
-                body.Pose = intent.TeleportPose;
-            if ((intent.Flags & IntentFlags.KinematicTarget) != 0)
-                body.Pose = intent.Target;
-        }
-        foreach ((Entity entity, Body body) in Bodies)
-        {
-            if (body.Desc.Motion == BodyMotion.Static)
-                continue;
-            body.Pose = body.Pose with { Position = body.Pose.Position + (Double3)(body.Velocity * dt) };
-            output.Bodies.Add(new BodyState(entity, body.Frame, body.Pose, body.Velocity, body.AngularVelocity));
-        }
-        OnStep?.Invoke(context, output);
-
-        // Like a real backend, move handed-off bodies to their new frame and report them there.
-        foreach (HandOff handOff in output.HandOffs)
-        {
-            if (!Bodies.TryGetValue(handOff.Entity, out Body? moved))
-                continue;
-            moved.Frame = handOff.To;
-            moved.Pose = handOff.Pose;
-            moved.Velocity = handOff.LinearVelocity;
-            moved.AngularVelocity = handOff.AngularVelocity;
-            int index = output.Bodies.FindIndex(b => b.Entity == handOff.Entity);
-            if (index >= 0)
-                output.Bodies[index] = new BodyState(handOff.Entity, handOff.To, handOff.Pose, handOff.LinearVelocity, handOff.AngularVelocity);
-        }
-    }
-
-    public float BoundingRadius(ShapeDesc shape) => shape switch
-    {
-        SphereShapeDesc s => s.Radius,
-        BoxShapeDesc b => b.HalfExtents.Length(),
-        _ => 1,
-    };
-
-    public string? ShapeProblem(ShapeDesc shape) => shape.Problem();
-
-    public void Dispose()
-    {
-    }
 }

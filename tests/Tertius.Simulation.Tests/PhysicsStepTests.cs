@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using AwesomeAssertions;
 using Tertius.Physics;
 using static Tertius.Testing.WorldTesting;
@@ -206,39 +205,6 @@ public class PhysicsStepTests
 
         world.Errors.Should().ContainSingle().Which.Should().Contain("cannot create the body");
         world.TickNumber.Should().Be(2);
-    }
-
-    /// <summary>
-    /// A backend with a bug: it breaks a contract in a step or in a change batch. No test uses this class since the port to
-    /// <see cref="FaultInjectingBackend"/>, which throws a <see cref="ContractException"/> on request. The ticket that
-    /// deletes the stand-ins removes it.
-    /// </summary>
-    private sealed class ContractBreakingBackend(bool inStep) : IPhysicsBackend
-    {
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public void ApplyChanges(PhysicsChanges changes, FrameTree frames)
-        {
-            if (!inStep)
-                BreakContract();
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
-        {
-            if (inStep)
-                BreakContract();
-        }
-
-        public float BoundingRadius(ShapeDesc shape) => 1;
-
-        public string? ShapeProblem(ShapeDesc shape) => shape.Problem();
-
-        public void Dispose()
-        {
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void BreakContract() => throw new ContractException("Invariant failed: the backend is broken");
     }
 
     [Fact]
