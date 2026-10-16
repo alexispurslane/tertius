@@ -64,10 +64,10 @@ public abstract class AbstractComponent : IComponent
     }
 }
 
-/// <summary>A generic component. Its open form cannot be built; a closed form such as <c>Boxed&lt;int&gt;</c> can.</summary>
-public sealed class Boxed<T> : IComponent
+/// <summary>A component with one field that a blueprint sets.</summary>
+public sealed class Boxed : IComponent
 {
-    public T? Content;
+    public int Content;
     public int Priority => 0;
     public EventMask Wants => default;
 

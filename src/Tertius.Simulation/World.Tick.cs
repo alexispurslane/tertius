@@ -77,6 +77,8 @@ public sealed partial class World
         Frames.Update();
         // The falling numeric frames fix their accelerations for the step, which physics reads and the sync point follows.
         Frames.BeginNumericStep();
+        // The indexes that entity queries start from apply their queued changes, so that the workers only read them.
+        topics.SettleMembers();
         entities.BeginTick(options.SpawnPoolSize);
     }
 
@@ -151,20 +153,30 @@ public sealed partial class World
         ReadOnlySpan<EventMask> wants = entities.ComponentWants(entity);
         var self = new Self(this, chunk, entity);
         var outbox = new Outbox(chunk, entity, TickNumber);
-        for (int c = 0; c < components.Length; c++)
+        // The marker lets the code that must not run in a component's Handle call, such as building the heap part of an
+        // entity query, refuse to.
+        GameplayThread.BeginEntityRun();
+        try
         {
-            if (!wants[c].Overlaps(buffer.Mask))
-                continue;
-            try
+            for (int c = 0; c < components.Length; c++)
             {
-                components[c].Handle(self, ref events, ref outbox);
+                if (!wants[c].Overlaps(buffer.Mask))
+                    continue;
+                try
+                {
+                    components[c].Handle(self, ref events, ref outbox);
+                }
+                // A broken contract is a bug in the engine, not in the component, so it is not survived like one.
+                catch (Exception ex) when (ex is not ContractException)
+                {
+                    chunk.Messages.Add(new ChunkMessage(
+                        $"tick {TickNumber}: {entity} {components[c].GetType().FullName}: {ex.GetType().Name}: {ex.Message}", true));
+                }
             }
-            // A broken contract is a bug in the engine, not in the component, so it is not survived like one.
-            catch (Exception ex) when (ex is not ContractException)
-            {
-                chunk.Messages.Add(new ChunkMessage(
-                    $"tick {TickNumber}: {entity} {components[c].GetType().FullName}: {ex.GetType().Name}: {ex.Message}", true));
-            }
+        }
+        finally
+        {
+            GameplayThread.EndEntityRun();
         }
 
         // A Destroy that no component removed destroys the entity at the sync point.

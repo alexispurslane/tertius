@@ -73,26 +73,67 @@ internal sealed class SpatialIndex
         if (frame.Index >= grids.Length || grids[frame.Index] is not { } grid)
             return;
 
-        double r2 = radius * radius;
-        long x0 = SpatialGrid.Coordinate(center.X - radius), x1 = SpatialGrid.Coordinate(center.X + radius);
-        long y0 = SpatialGrid.Coordinate(center.Y - radius), y1 = SpatialGrid.Coordinate(center.Y + radius);
-        long z0 = SpatialGrid.Coordinate(center.Z - radius), z1 = SpatialGrid.Coordinate(center.Z + radius);
-        double boxCells = (double)(x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1);
-        if (boxCells > grid.CellCount)
+        CellBox box = new(center, radius);
+        if (box.CellCount > grid.CellCount)
         {
             // A large radius: visiting the occupied cells is cheaper than visiting the box.
             foreach (KeyValuePair<CellKey, List<Entity>> cell in grid.Cells)
-                CollectWithin(cell.Value, center, r2, results);
+                CollectWithin(cell.Value, center, radius * radius, results);
         }
         else
         {
-            for (long x = x0; x <= x1; x++)
-                for (long y = y0; y <= y1; y++)
-                    for (long z = z0; z <= z1; z++)
+            for (long x = box.X0; x <= box.X1; x++)
+                for (long y = box.Y0; y <= box.Y1; y++)
+                    for (long z = box.Z0; z <= box.Z1; z++)
                         if (grid.TryGetCell(new CellKey(x, y, z), out List<Entity>? cell))
-                            CollectWithin(cell, center, r2, results);
+                            CollectWithin(cell, center, radius * radius, results);
         }
         results.Sort();
+    }
+
+    /// <summary>
+    /// How many entities the cells of the grid of <paramref name="frame"/> that a sphere around <paramref name="center"/>
+    /// touches hold: an upper bound of the entities within <paramref name="radius"/>. -1 when the box around the sphere
+    /// has more cells than the grid has occupied ones: then the frame's members are the cheaper index. The frame must be
+    /// alive. Thread-safe during a tick.
+    /// </summary>
+    public int CountNear(FrameHandle frame, Double3 center, double radius)
+    {
+        if (frame.Index >= grids.Length || grids[frame.Index] is not { } grid)
+            return 0;
+        CellBox box = new(center, radius);
+        if (box.CellCount > grid.CellCount)
+            return -1;
+        int count = 0;
+        for (long x = box.X0; x <= box.X1; x++)
+            for (long y = box.Y0; y <= box.Y1; y++)
+                for (long z = box.Z0; z <= box.Z1; z++)
+                    if (grid.TryGetCell(new CellKey(x, y, z), out List<Entity>? cell))
+                        count += cell.Count;
+        return count;
+    }
+
+    /// <summary>
+    /// Writes every entity of the grid of <paramref name="frame"/> whose front position is within
+    /// <paramref name="radius"/> of <paramref name="center"/> into <paramref name="into"/>, in no order, and returns how
+    /// many. <paramref name="into"/> must hold at least <see cref="CountNear"/> entries, and that count must not be -1.
+    /// Thread-safe during a tick.
+    /// </summary>
+    public int CollectNear(FrameHandle frame, Double3 center, double radius, Span<Entity> into)
+    {
+        if (frame.Index >= grids.Length || grids[frame.Index] is not { } grid)
+            return 0;
+        double r2 = radius * radius;
+        CellBox box = new(center, radius);
+        int count = 0;
+        for (long x = box.X0; x <= box.X1; x++)
+            for (long y = box.Y0; y <= box.Y1; y++)
+                for (long z = box.Z0; z <= box.Z1; z++)
+                    if (grid.TryGetCell(new CellKey(x, y, z), out List<Entity>? cell))
+                        foreach (Entity entity in cell)
+                            if ((entities.FrontRow(entity).Pose.Position - center).LengthSquared <= r2)
+                                into[count++] = entity;
+        return count;
     }
 
     /// <summary>Checks every invariant in the class comment. O(capacity + entries).</summary>
@@ -151,4 +192,28 @@ internal sealed class SpatialIndex
             if ((entities.FrontRow(entity).Pose.Position - center).LengthSquared <= r2)
                 results.Add(entity);
     }
+}
+
+/// <summary>The cells of a <see cref="SpatialGrid"/> that the axis-aligned box around a sphere covers, from corner to corner.</summary>
+internal readonly struct CellBox
+{
+    public CellBox(Double3 center, double radius)
+    {
+        X0 = SpatialGrid.Coordinate(center.X - radius);
+        X1 = SpatialGrid.Coordinate(center.X + radius);
+        Y0 = SpatialGrid.Coordinate(center.Y - radius);
+        Y1 = SpatialGrid.Coordinate(center.Y + radius);
+        Z0 = SpatialGrid.Coordinate(center.Z - radius);
+        Z1 = SpatialGrid.Coordinate(center.Z + radius);
+    }
+
+    public long X0 { get; }
+    public long X1 { get; }
+    public long Y0 { get; }
+    public long Y1 { get; }
+    public long Z0 { get; }
+    public long Z1 { get; }
+
+    /// <summary>The number of cells, as a double, because a large box has more than a long can count.</summary>
+    public double CellCount => (double)(X1 - X0 + 1) * (Y1 - Y0 + 1) * (Z1 - Z0 + 1);
 }

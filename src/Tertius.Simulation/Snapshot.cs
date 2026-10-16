@@ -5,13 +5,30 @@ namespace Tertius.Simulation;
 /// <summary>
 /// A read-only view of the front snapshot: the state at the end of the previous tick. During a tick, any thread may
 /// read it. Lookups with a stale or null handle throw <see cref="StaleEntityException"/>, an
-/// <see cref="InvalidOperationException"/>. The <c>Try</c> methods return false instead.
+/// <see cref="InvalidOperationException"/>. The <c>Try</c> methods and <see cref="HasComponent{T}"/> return false
+/// instead.
 /// </summary>
+/// <remarks>
+/// The snapshot of <see cref="Self.Snapshot"/> knows the entity that reads it, the asker, which entity queries with
+/// <see cref="EntityQuery.Near(double)"/> run around. The snapshot of <see cref="World.Snapshot"/> has none.
+/// </remarks>
 public readonly struct Snapshot
 {
     private readonly World world;
+    private readonly Entity asker;
 
     internal Snapshot(World world) => this.world = world;
+
+    internal Snapshot(World world, Entity asker)
+    {
+        this.world = world;
+        this.asker = asker;
+    }
+
+    internal World World => world;
+
+    /// <summary>The entity that reads this snapshot, or null for the snapshot of the world.</summary>
+    internal Entity Asker => asker;
 
     /// <summary>The tick number of the state that this snapshot shows.</summary>
     public long Tick => world.TickNumber;
@@ -33,6 +50,32 @@ public readonly struct Snapshot
 
     /// <summary>True if the entity has a physics body.</summary>
     public bool HasBody(Entity entity) => world.Entities.Body(entity) != null;
+
+    /// <summary>
+    /// True if the entity had a <typeparamref name="T"/> component at the end of the previous tick. False for an entity
+    /// that is not live: a dead entity has no components.
+    /// </summary>
+    public bool HasComponent<T>(Entity entity) where T : IComponent =>
+        world.Entities.IsAlive(entity) && world.Entities.FrontComponents(entity).Contains(ComponentType<T>.Id);
+
+    /// <summary>
+    /// The collision groups and mask of the entity's body that physics used in the step of the previous tick, or null for
+    /// an entity without a body (see <see cref="BodyCollision"/>).
+    /// </summary>
+    public BodyCollision? CollisionOf(Entity entity) =>
+        world.Entities.Body(entity) is null ? null : world.Entities.FrontCollision(entity);
+
+    /// <summary>
+    /// Binds a stored query to this snapshot. An ending such as <c>foreach</c> or <see cref="FoundEntities.Count"/> runs
+    /// it, and yields the matching entities in entity index order.
+    /// </summary>
+    public FoundEntities Find(in EntityQuery query) => new(this, query, default);
+
+    /// <summary>
+    /// Every live entity, the start of the shorthand chain, such as <c>Entities.With&lt;Flammable&gt;().Near(5)</c>. Its words
+    /// build the same query as <see cref="EntityQuery"/>'s and run it, and it allocates nothing.
+    /// </summary>
+    public FoundEntities Entities => new(this, default, default);
 
     /// <summary>
     /// True if physics stood the character on walkable ground under gravity in its last step. False for a character in

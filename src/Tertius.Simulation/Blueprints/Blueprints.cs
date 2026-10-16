@@ -167,6 +167,8 @@ public sealed class Blueprints
             throw new ArgumentException($"Blueprint '{blueprint}': {type.FullName} does not implement IComponent.");
         if (!type.IsClass || type.IsAbstract || type.ContainsGenericParameters)
             throw new ArgumentException($"Blueprint '{blueprint}': {type.FullName} must be a concrete class.");
+        if (type.IsGenericType)
+            throw new ArgumentException($"Blueprint '{blueprint}': {type.FullName} is generic, and generic component types are refused (see ComponentTypes).");
         if (type.GetConstructor(BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes) is null)
             throw new ArgumentException($"Blueprint '{blueprint}': {type.FullName} needs a public parameterless constructor.");
     }
