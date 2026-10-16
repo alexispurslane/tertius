@@ -1,79 +1,112 @@
 using System.Numerics;
 using AwesomeAssertions;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// Physics owns the transform of every entity with a body. After each step it reports a <see cref="BodyState"/> for each
-/// body that moved, and the world copies the state into the entity's transform at the sync point. A physics double
-/// reports the states, so the tests decide exactly what physics said.
+/// body that moved, and the world copies the state into the entity's transform at the sync point. These tests run the
+/// world on real Jolt. The wrapper <see cref="FaultInjectingBackend"/> records the output that Jolt really sent, and the
+/// tests compare the world with it. A test of an output that Jolt never produces (two states for one body, a state
+/// for a body that is gone) edits the output of one step.
 /// </summary>
 public class PhysicsBodyStateTests
 {
-    private static readonly DPose ReportedPose = TestWorld.At(7, 8, 9);
-    private static readonly Vector3 ReportedVelocity = new(1, 0, -1);
-    private static readonly Vector3 ReportedSpin = new(0, 2, 0);
+    /// <summary>How far the edits below push the pose of a state that they add, in meters along +X.</summary>
+    private const double Shift = 100;
+
+    /// <summary>The world on the wrapper, with a ground frame whose gravity of 9.81 m/s² along -Y makes every ball fall, so that Jolt reports it in every step.</summary>
+    private static World NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground)
+    {
+        World world = NewWorldWithFaults(out faults);
+        ground = Ground(world, 9.81f);
+        return world;
+    }
+
+    private static BodyState StateOf(PhysicsStepOutput output, Entity entity) => output.Bodies.Single(state => state.Entity == entity);
+
+    /// <summary>The same state with its pose moved by <see cref="Shift"/>, so that a world that applied it would show.</summary>
+    private static BodyState Shifted(BodyState state) =>
+        state with { Pose = state.Pose with { Position = state.Pose.Position + new Double3(Shift, 0, 0) } };
 
     [Fact]
     public void ABodyStateBecomesThePoseAndVelocitiesOfTheEntityAtTheEndOfTheTick()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        physics.OnStep((context, output) => output.Bodies.Add(new BodyState(ball, test.Root, ReportedPose, ReportedVelocity, ReportedSpin)));
+        using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
+        var spawnPose = At(0, 10);
+        Entity ball = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = spawnPose,
+            LinearVelocity = new Double3(1, 0, -1),
+            AngularVelocity = new Vector3(0, 2, 0),
+            Body = Ball(),
+        });
 
-        test.Run(1);
+        world.Run(1);
 
-        test.World.PoseInOwnFrame(ball).Should().Be(ReportedPose);
-        test.World.VelocityInOwnFrame(ball).Should().Be(ReportedVelocity);
-        test.World.AngularVelocityInOwnFrame(ball).Should().Be(ReportedSpin);
+        BodyState sent = StateOf(faults.Outputs.Single(), ball);
+        sent.Pose.Should().NotBe(spawnPose, "Jolt moved the falling and spinning ball in its step");
+        sent.AngularVelocity.Should().NotBe(Vector3.Zero);
+        world.PoseInOwnFrame(ball).Should().Be(sent.Pose);
+        world.VelocityInOwnFrame(ball).Should().Be(sent.LinearVelocity);
+        world.AngularVelocityInOwnFrame(ball).Should().Be(sent.AngularVelocity);
     }
 
+    // Jolt reports a body in the frame that holds its physics system. The World takes any live frame in a state as the
+    // frame of the entity, so a state in another frame moves the entity, with no hand-off. Jolt never sends that on its
+    // own, so the test edits the output: it puts the real state of the ball into the station frame in every step.
     [Fact]
     public void ABodyStateThatNamesAnotherFrameMovesTheEntityToIt()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
+        FrameHandle station = world.SpawnStaticFrame(ground, At(500), radius: 100);
         var log = new Recorder(EventMask.Of<FrameChanged>());
-        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball, Components = [log] });
-        physics.OnStep((context, output) => output.Bodies.Add(new BodyState(ball, station, ReportedPose, ReportedVelocity, ReportedSpin)));
+        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball(), Components = [log] });
+        faults.EditOutput = output =>
+        {
+            int index = output.Bodies.FindIndex(state => state.Entity == ball);
+            output.Bodies[index] = output.Bodies[index] with { Frame = station };
+        };
 
-        test.Run(3);
+        world.Run(3);
 
-        test.World.GetFrame(ball).Should().Be(station);
-        log.Seen.Should().ContainSingle("the move is told once, though physics reports the body in the station every step");
+        world.GetFrame(ball).Should().Be(station);
+        log.Seen.Should().ContainSingle("the move is told once, though the output names the station in every step");
+        BodyState sent = StateOf(faults.Outputs[^1], ball);
+        sent.Frame.Should().Be(station);
+        world.PoseInOwnFrame(ball).Should().Be(sent.Pose);
     }
 
     [Fact]
     public void WhenPhysicsReportsOneBodyTwiceInAStepTheLaterStateWins()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        physics.OnStep((context, output) =>
-        {
-            output.Bodies.Add(new BodyState(ball, test.Root, TestWorld.At(1), Vector3.Zero, Vector3.Zero));
-            output.Bodies.Add(new BodyState(ball, test.Root, TestWorld.At(2), Vector3.Zero, Vector3.Zero));
-        });
+        using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        faults.EditNextOutput = output => output.Bodies.Add(Shifted(StateOf(output, ball)));
 
-        test.Run(1);
+        world.Run(1);
 
-        test.World.PoseInOwnFrame(ball).Position.X.Should().Be(2);
+        BodyState[] sent = [.. faults.Outputs.Single().Bodies.Where(state => state.Entity == ball)];
+        sent.Should().HaveCount(2);
+        sent[1].Pose.Should().NotBe(sent[0].Pose, "the two states must differ, or the test cannot tell which one the world took");
+        world.PoseInOwnFrame(ball).Should().Be(sent[1].Pose);
     }
 
     // Physics hears of every destroyed entity and frame before its next step, and an entity keeps its body for life. So
-    // a body state names a live entity with a body and a live frame, unless the backend has a bug.
+    // a body state names a live entity with a body and a live frame, unless the backend has a bug. Jolt never sends one
+    // that does not, so each test below adds the broken state to the output of the first step.
 #if TERTIUS_CONTRACTS
     [Fact]
     public void ABodyStateForAnEntityWithoutABodyBreaksAContract()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        Entity bodiless = test.SpawnAt(new Double3(3, 0, 0));
-        physics.OnStep((context, output) => output.Bodies.Add(new BodyState(bodiless, test.Root, ReportedPose, ReportedVelocity, ReportedSpin)));
+        using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        Entity bodiless = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(3) });
+        faults.EditNextOutput = output => output.Bodies.Add(StateOf(output, ball) with { Entity = bodiless });
 
-        Action tick = () => test.World.Tick();
+        Action tick = () => world.Tick();
 
         tick.Should().Throw<ContractException>();
     }
@@ -81,13 +114,13 @@ public class PhysicsBodyStateTests
     [Fact]
     public void ABodyStateForAnEntityThatNoLongerExistsBreaksAContract()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        Entity gone = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        test.World.Destroy(gone);
-        physics.OnStep((context, output) => output.Bodies.Add(new BodyState(gone, test.Root, ReportedPose, ReportedVelocity, ReportedSpin)));
+        using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
+        Entity gone = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        Entity bystander = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(3, 10), Body = Ball() });
+        world.Destroy(gone);
+        faults.EditNextOutput = output => output.Bodies.Add(StateOf(output, bystander) with { Entity = gone });
 
-        Action tick = () => test.World.Tick();
+        Action tick = () => world.Tick();
 
         tick.Should().Throw<ContractException>();
     }
@@ -95,12 +128,11 @@ public class PhysicsBodyStateTests
     [Fact]
     public void ABodyStateThatNamesNoFrameBreaksAContract()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        physics.OnStep((context, output) => output.Bodies.Add(new BodyState(ball, FrameHandle.Null, ReportedPose, ReportedVelocity, ReportedSpin)));
+        using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        faults.EditNextOutput = output => output.Bodies[output.Bodies.FindIndex(state => state.Entity == ball)] = StateOf(output, ball) with { Frame = FrameHandle.Null };
 
-        Action tick = () => test.World.Tick();
+        Action tick = () => world.Tick();
 
         tick.Should().Throw<ContractException>();
     }
@@ -108,105 +140,111 @@ public class PhysicsBodyStateTests
     [Fact]
     public void ABodyStateForAnEntityWithoutABodyIsReportedOnceAndChangesNothing()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        Entity bodiless = test.SpawnAt(new Double3(3, 0, 0));
-        physics.OnStep((context, output) => output.Bodies.Add(new BodyState(bodiless, test.Root, ReportedPose, ReportedVelocity, ReportedSpin)));
+        using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        Entity bodiless = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(3) });
+        faults.EditNextOutput = output => output.Bodies.Add(Shifted(StateOf(output, ball)) with { Entity = bodiless });
 
-        test.Run(1);
+        world.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {bodiless}").And.Contain("has no body");
-        test.World.PoseInOwnFrame(bodiless).Position.Should().Be(new Double3(3, 0, 0));
+        world.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {bodiless}").And.Contain("has no body");
+        world.PoseInOwnFrame(bodiless).Position.Should().Be(new Double3(3, 0, 0));
+        world.PoseInOwnFrame(ball).Should().Be(StateOf(faults.Outputs.Single(), ball).Pose, "the state of the ball is not part of the broken output");
     }
 
     [Fact]
     public void ABodyStateForAnEntityThatNoLongerExistsIsReportedOnceAndChangesNothing()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        Entity gone = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        Entity bystander = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
-        test.World.Destroy(gone);
-        physics.OnStep((context, output) => output.Bodies.Add(new BodyState(gone, test.Root, ReportedPose, ReportedVelocity, ReportedSpin)));
+        using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
+        Entity gone = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        Entity bystander = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(3, 10), Body = Ball() });
+        world.Destroy(gone);
+        faults.EditNextOutput = output => output.Bodies.Add(Shifted(StateOf(output, bystander)) with { Entity = gone });
 
-        test.Run(1);
+        world.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {gone}").And.Contain("no longer exists");
-        test.World.PoseInOwnFrame(bystander).Position.X.Should().Be(3);
+        world.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {gone}").And.Contain("no longer exists");
+        world.PoseInOwnFrame(bystander).Should().Be(StateOf(faults.Outputs.Single(), bystander).Pose, "the bystander takes the state that Jolt sent for it");
     }
 
     [Fact]
     public void ABodyStateWithAStaleHandleDoesNotMoveTheEntityThatReusedTheSlot()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        Entity gone = test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = TestWorld.Ball });
-        test.World.Destroy(gone);
-        Entity successor = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
+        using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
+        Entity gone = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 10), Body = Ball() });
+        world.Destroy(gone);
+        Entity successor = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(3, 10), Body = Ball() });
         successor.Index.Should().Be(gone.Index, "the test needs the successor to sit in the slot of the entity that was destroyed");
-        physics.OnStep((context, output) => output.Bodies.Add(new BodyState(gone, test.Root, ReportedPose, ReportedVelocity, ReportedSpin)));
+        faults.EditNextOutput = output => output.Bodies.Add(Shifted(StateOf(output, successor)) with { Entity = gone });
 
-        test.Run(1);
+        world.Run(1);
 
-        test.World.PoseInOwnFrame(successor).Position.X.Should().Be(3);
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {gone}");
+        world.PoseInOwnFrame(successor).Should().Be(StateOf(faults.Outputs.Single(), successor).Pose, "the stale state came last, and the world did not apply it to the successor");
+        world.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {gone}");
     }
 
     [Fact]
     public void EachBrokenOutputAboutOneBodyIsReportedOnce()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        FrameHandle gone = test.SpawnStaticFrame(TestWorld.At(500), radius: 10);
-        test.World.Destroy(gone.Entity);
-        Entity ball = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(3), Body = TestWorld.Ball });
-        physics.OnStep((context, output) =>
+        using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
+        FrameHandle goneFrame = world.SpawnStaticFrame(ground, At(500), radius: 10);
+        world.Destroy(goneFrame.Entity);
+        DPose spawnPose = At(3, 10);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = spawnPose, Body = Ball() });
+        BodyState real = default;
+        faults.EditNextOutput = output =>
         {
-            output.Bodies.Add(new BodyState(ball, gone, ReportedPose, ReportedVelocity, ReportedSpin));
-            output.Bodies.Add(new BodyState(ball, FrameHandle.Null, ReportedPose, ReportedVelocity, ReportedSpin));
-        });
+            real = StateOf(output, ball);
+            output.Bodies.Add(Shifted(real) with { Frame = goneFrame });
+            output.Bodies.Add(Shifted(real) with { Frame = FrameHandle.Null });
+        };
 
-        test.Run(1);
+        world.Run(1);
 
-        test.World.Errors.Should().HaveCount(2).And.OnlyContain(error => error.Contains($"body state of {ball}"));
-        test.World.PoseInOwnFrame(ball).Should().Be(TestWorld.At(3));
+        world.Errors.Should().HaveCount(2).And.OnlyContain(error => error.Contains($"body state of {ball}"));
+        real.Pose.Should().NotBe(spawnPose, "Jolt moved the ball, so only a skipped update can leave it at the spawn pose");
+        world.PoseInOwnFrame(ball).Should().Be(spawnPose, "a broken output skips the whole update of the body, also the real state of it");
     }
 
     [Fact]
     public void ABodyStateThatNamesNoFrameIsReportedOnceAndChangesNothing()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
-        Entity ball = test.World.Spawn(new SpawnDesc { Frame = station, Pose = TestWorld.At(3), Body = TestWorld.Ball });
-        physics.OnStep((context, output) => output.Bodies.Add(new BodyState(ball, FrameHandle.Null, ReportedPose, ReportedVelocity, ReportedSpin)));
+        using World world = NewFallingWorld(out FaultInjectingBackend faults, out FrameHandle ground);
+        FrameHandle station = world.SpawnStaticFrame(ground, At(500), radius: 100);
+        DPose spawnPose = At(3, 10);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = spawnPose, LinearVelocity = new Double3(0, 2, 0), Body = Ball() });
+        BodyState real = default;
+        faults.EditNextOutput = output =>
+        {
+            real = StateOf(output, ball);
+            output.Bodies.Add(real with { Frame = FrameHandle.Null });
+        };
 
-        test.Run(1);
+        world.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {ball}").And.Contain("names no frame");
-        test.World.GetFrame(ball).Should().Be(station);
-        test.World.PoseInOwnFrame(ball).Should().Be(TestWorld.At(3));
+        world.Errors.Should().ContainSingle().Which.Should().Contain($"body state of {ball}").And.Contain("names no frame");
+        world.GetFrame(ball).Should().Be(station);
+        real.Pose.Should().NotBe(spawnPose, "Jolt moved the ball, so only a skipped update can leave it at the spawn pose");
+        world.PoseInOwnFrame(ball).Should().Be(spawnPose);
     }
 #endif
 
     [Fact]
     public void AnIntegratingBackendMovesABodyByItsVelocityAndTheResultReachesTheSnapshot()
     {
-        // At 64 ticks per second a step is exactly 1/64 s, so three steps at 8 m/s move the ball 24/64 = 0.375 m exactly.
-        var physics = new FakePhysics();
-        using var test = new TestWorld(physics, configure: options => options.TickRate = 64);
-        Entity ball = test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(1),
-            LinearVelocity = new Vector3(8, 0, 0),
-            Body = TestWorld.Ball,
-        });
+        // At 64 ticks per second a step is exactly 1/64 s, so three steps at 8 m/s move the ball 24/64 = 0.375 m. The ground has no gravity.
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.TickRate = 64);
+        FrameHandle space = Ground(world, 0);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = At(1), LinearVelocity = new Double3(8, 0, 0), Body = Ball() });
 
-        test.Run(3);
+        world.Run(3);
 
-        test.World.PoseInOwnFrame(ball).Position.Should().Be(new Double3(1.375, 0, 0));
-        test.World.VelocityInOwnFrame(ball).Should().Be(new Vector3(8, 0, 0));
+        BodyState sent = StateOf(faults.Outputs[^1], ball);
+        faults.Outputs.Should().HaveCount(3);
+        world.PoseInOwnFrame(ball).Should().Be(sent.Pose, "the world holds the pose that Jolt sent in the last step");
+        world.VelocityInOwnFrame(ball).Should().Be(sent.LinearVelocity);
+        sent.Pose.Position.X.Should().Be(1.375, "Jolt moved the ball by its velocity in three steps of 1/64 s");
+        sent.LinearVelocity.X.Should().Be(8f);
     }
 
     [Fact]

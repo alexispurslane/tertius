@@ -1,46 +1,35 @@
 using System.Numerics;
 using Tertius.Simulation;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The simulation's World on the real Jolt backend. The other physics tests stand in for the sync point with the
-/// <see cref="PhysicsHarness"/>. These tests run the real sync point, so they show what a game sees: its events, its
-/// frames and <see cref="World.Errors"/>.
+/// The simulation's World on the real Jolt backend: what a game sees, which is its events, its frames and
+/// <see cref="World.Errors"/>. Each test that reads what the backend reported does so through the
+/// <see cref="FaultInjectingBackend"/>, which records every step output that the World received.
 /// </summary>
 public class WorldPhysicsTests
 {
-    private static DPose At(double x, double y = 0, double z = 0) => new(new Double3(x, y, z), DQuaternion.Identity);
-
-    /// <summary>A world with one gameplay thread and its debug checks on, which owns <paramref name="backend"/>.</summary>
-    private static World NewWorld(JoltPhysicsBackend backend) =>
-        new(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, backend);
-
-    /// <summary>Records the tick and the other entity of every Collision that its entity hears.</summary>
-    private sealed class CollisionLog : IComponent
+    /// <summary>The contacts, in the order of the steps, that Jolt reported between <paramref name="a"/> and <paramref name="b"/>, with the index of the step that reported each.</summary>
+    private static List<int> StepsThatReportedContactBetween(FaultInjectingBackend faults, Entity a, Entity b)
     {
-        public List<(long Tick, Entity Other)> Seen { get; } = new();
-
-        public int Priority => 0;
-
-        public EventMask Wants => EventMask.Of<Collision>();
-
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-        {
-            for (int i = 0; i < events.Count; i++)
-                if (events[i].Is<Collision>())
-                    Seen.Add((self.Tick, events[i].As<Collision>().Other));
-        }
+        var steps = new List<int>();
+        for (int step = 0; step < faults.Outputs.Count; step++)
+            foreach (ContactStarted contact in faults.Outputs[step].Contacts)
+                if ((contact.A == a && contact.B == b) || (contact.A == b && contact.B == a))
+                    steps.Add(step);
+        return steps;
     }
 
     [Fact]
     public void ABallThatRollsOnTheFloorHearsOneCollisionAcrossTwoGrowthsOfItsSystem()
     {
         var warnings = new List<string>();
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { MaxBodiesPerFrame = 8, WorkerThreads = 2, Log = warnings.Add });
-        using World world = NewWorld(backend);
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static,
-            GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        // The backend holds 8 bodies in a frame's system at first, so the level load below makes it grow.
+        var faults = new FaultInjectingBackend(new JoltPhysicsBackend(new JoltBackendOptions { MaxBodiesPerFrame = 8, WorkerThreads = 2, Log = warnings.Add }));
+        using var world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, faults);
+        FrameHandle ground = Ground(world, 9.81f);
         Entity floor = world.Spawn(new SpawnDesc
         {
             Frame = ground,
@@ -48,26 +37,28 @@ public class WorldPhysicsTests
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(100, 0.5f, 100)), BodyMotion.Static),
         });
         var log = new CollisionLog();
-        world.Spawn(new SpawnDesc
+        Entity ball = world.Spawn(new SpawnDesc
         {
             Frame = ground,
             Pose = At(0, 0.5),
-            LinearVelocity = new Vector3(1, 0, 0),
-            Body = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 2, LinearDamping: 0, AngularDamping: 0),
+            LinearVelocity = new Double3(1, 0, 0),
+            Body = Ball(0.5f, mass: 2),
             Components = [log],
         });
-        for (int i = 0; i < 30; i++)
-            world.Tick();
+        Tick(world, 30);
         log.Seen.Should().ContainSingle().Which.Other.Should().Be(floor);
 
         // A level load: one batch of 15 static crates, far below the floor, grows the ground's system twice.
         for (int i = 0; i < 15; i++)
             world.Spawn(new SpawnDesc { Frame = ground, Pose = At(3 * i, -100), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
-        for (int i = 0; i < 10; i++)
-            world.Tick();
+        Tick(world, 10);
 
         warnings.Count(warning => warning.Contains("so it grew")).Should().Be(2);
         log.Seen.Should().ContainSingle("the ball never left the floor, so its collision did not start again");
+        // The World made the one event from the one contact that Jolt reported, and delivered it in the tick after the step.
+        List<int> reported = StepsThatReportedContactBetween(faults, ball, floor);
+        reported.Should().ContainSingle("Jolt reported one contact between the ball and the floor, and none after the growths");
+        log.Seen.Single().Tick.Should().Be(reported.Single() + 1);
         world.Errors.Should().BeEmpty();
     }
 
@@ -80,29 +71,28 @@ public class WorldPhysicsTests
     public void AShipThatTheGameParksStopsWhereItIsWithNoError()
     {
         var warnings = new List<string>();
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2, Log = warnings.Add });
-        using World world = NewWorld(backend);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
-            LinearVelocity = new Vector3(10, 0, 0),
+            LinearVelocity = new Double3(10, 0, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
-        for (int i = 0; i < 5; i++)
-            world.Tick();
+        Tick(world, 5);
         DPose parked = world.Frames.LocalPose(ship);
         parked.Position.X.Should().BeGreaterThan(0.5, "the ship flew for 5 ticks");
+        faults.Outputs.Should().OnlyContain(output => output.Frames.Any(state => state.Frame == ship), "while the ship flies, Jolt reports the state of its frame in every step");
 
         world.SetFrameDriver(ship, MotionDriver.Static);
         world.VelocityInOwnFrame(owner).Should().Be(Vector3.Zero, "the owner mirrors its frame at once");
-        for (int i = 0; i < 3; i++)
-            world.Tick();
+        Tick(world, 3);
 
         world.Errors.Should().BeEmpty();
         warnings.Should().BeEmpty();
+        faults.Outputs.Skip(5).SelectMany(output => output.Frames).Should().BeEmpty("Jolt reports no state for a parked frame");
         world.Frames.LocalPose(ship).Should().Be(parked);
         world.PoseInOwnFrame(owner).Should().Be(parked);
         world.VelocityInOwnFrame(owner).Should().Be(Vector3.Zero);
@@ -117,8 +107,7 @@ public class WorldPhysicsTests
     [Fact]
     public void AFrameThatGetsTheKeplerDriverMovesOntoItsOrbitAtOnceSoItsHullNeverCrossesTheGap()
     {
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
-        using World world = NewWorld(backend);
+        using World world = NewWorld(out JoltPhysicsBackend backend);
         // At 5 km, a parent with this gravitational parameter gives an orbital speed of 10 m/s: √(5e5 / 5000).
         const double planetMu = 5000.0 * 100;
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(planetMu)));
@@ -143,6 +132,7 @@ public class WorldPhysicsTests
 
         world.Tick();
 
+        // The state of Jolt's hull after the tick: no tick has changed it since the step that read it.
         JoltPhysicsBackend.BodyFacts hull = backend.BodiesIn(planet).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
         hull.LinearVelocity.Length().Should().BeApproximately(10f, 0.01f, "the hull moves along the orbit, not across the gap");
         (hull.Position - orbit.StateAt(world.Time, planetMu).Position).Length.Should().BeLessThan(0.01, "the hull is on the orbit");
@@ -159,27 +149,24 @@ public class WorldPhysicsTests
     public void AShipThatTheGameParksAndUnparksStaysWhereItWasParked(bool tickBetween)
     {
         var warnings = new List<string>();
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2, Log = warnings.Add });
-        using World world = NewWorld(backend);
+        using World world = NewWorld(out _, warnings);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
-            LinearVelocity = new Vector3(10, 0, 0),
+            LinearVelocity = new Double3(10, 0, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
-        for (int i = 0; i < 5; i++)
-            world.Tick();
+        Tick(world, 5);
         DPose parked = world.Frames.LocalPose(ship);
 
         world.SetFrameDriver(ship, MotionDriver.Static);
         if (tickBetween)
             world.Tick();
         world.SetFrameDriver(ship, MotionDriver.Physics);
-        for (int i = 0; i < 60; i++)
-            world.Tick();
+        Tick(world, 60);
 
         (world.Frames.LocalPose(ship).Position - parked.Position).Length.Should().BeLessThan(1e-6, "the parked ship had no velocity left");
         world.VelocityInOwnFrame(owner).Length().Should().BeLessThan(1e-6f);
@@ -195,10 +182,8 @@ public class WorldPhysicsTests
     [Fact]
     public void ACrateThatSleepsOnTheFloorAndWakesWhenABallHitsItHearsTheFloorOnlyOnce()
     {
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
-        using World world = NewWorld(backend);
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static,
-            GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle ground = Ground(world, 9.81f);
         Entity floor = world.Spawn(new SpawnDesc
         {
             Frame = ground,
@@ -206,22 +191,26 @@ public class WorldPhysicsTests
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(500, 0.5f, 500)), BodyMotion.Static),
         });
         var log = new CollisionLog();
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10), Components = [log] });
+        Entity crate = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10), Components = [log] });
         world.Spawn(new SpawnDesc
         {
             Frame = ground,
             Pose = At(-100, 0.5),
-            LinearVelocity = new Vector3(2, 0, 0),
-            Body = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 2, LinearDamping: 0, AngularDamping: 0),
+            LinearVelocity = new Double3(2, 0, 0),
+            Body = Ball(0.5f, mass: 2),
         });
-        for (int i = 0; i < 300; i++)
-            world.Tick();
+        Tick(world, 300);
 
         Entity dropped = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 2.5), Body = new BodyDesc(new SphereShapeDesc(0.25f), Mass: 0.5f) });
-        for (int i = 0; i < 120; i++)
-            world.Tick();
+        Tick(world, 120);
 
         log.Seen.Select(seen => seen.Other).Should().Equal([floor, dropped], "the crate never left the floor");
+        // Each event came from one contact that Jolt reported, and arrived in the tick after its step.
+        List<int> withFloor = StepsThatReportedContactBetween(faults, crate, floor);
+        List<int> withDropped = StepsThatReportedContactBetween(faults, crate, dropped);
+        withFloor.Should().ContainSingle("Jolt reported the floor once, when the crate arrived");
+        withDropped.Should().ContainSingle();
+        log.Seen.Select(seen => seen.Tick).Should().Equal([withFloor.Single() + 1, withDropped.Single() + 1]);
         world.Errors.Should().BeEmpty();
     }
 }

@@ -6,9 +6,10 @@ namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// The same inputs must give the same world, bit for bit, whether the gameplay chunks run on one thread or on eight.
-/// This is the one place where the tests run the world in parallel. The workload sends messages in every delivery
-/// mode, spawns, destroys, moves bodies between frames and reports contacts, so a change in the order of anything shows
-/// in the hash. The four runs are made once, by <see cref="Runs"/>, and each test reads what it needs.
+/// This is the one place where the tests run the world in parallel. The world runs on real Jolt, so the hand-offs and
+/// the contacts are the ones that Jolt really sends. The workload sends messages in every delivery mode, spawns,
+/// destroys, moves bodies between frames and hears contacts, so a change in the order of anything shows in the hash. The
+/// four runs are made once, by <see cref="Runs"/>, and each test reads what it needs.
 /// </summary>
 public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper output) : IClassFixture<DeterminismTests.Runs>
 {
@@ -129,20 +130,33 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
     /// <param name="Hash">A hash of every live entity's handle, pose, velocities, frame and component state, the render snapshot, and the number of errors.</param>
     /// <param name="Stats">The counters of the last tick.</param>
     /// <param name="Messages">The sum, over the ticks, of the messages routed at each sync point.</param>
-    /// <param name="HandOffs">The hand-offs that the physics double reported.</param>
-    /// <param name="Contacts">The contacts that the physics double reported.</param>
-    public sealed record RunResult(ulong Hash, WorldStats Stats, long Messages, int HandOffs, int Contacts);
+    /// <param name="HandOffs">The hand-offs that Jolt sent, summed over the steps.</param>
+    /// <param name="Contacts">The contacts that Jolt sent, summed over the steps.</param>
+    /// <param name="Errors">The number of errors that the world recorded.</param>
+    public sealed record RunResult(ulong Hash, WorldStats Stats, long Messages, int HandOffs, int Contacts, int Errors);
 
-    /// <summary>Runs the workload on <paramref name="maxDop"/> workers and returns what it ended in, and how many different threads ran gameplay.</summary>
+    /// <summary>
+    /// How far from the planet at the origin of the root frame the bodies of the root group start, in meters. The planet
+    /// pulls them with the G·M of the root's point gravity, so that its pull on them is 1e8 / 1e4² = 1 m/s².
+    /// </summary>
+    private const double RootGroupDistance = 1e4;
+
+    /// <summary>
+    /// Runs the workload on <paramref name="maxDop"/> workers and returns what it ended in, and how many different threads
+    /// ran gameplay. The world runs on real Jolt, in the wrapper that records every step output.
+    /// </summary>
     private static (RunResult Result, int GameplayThreads) Run(int maxDop, int seed = Seed, int ticks = Ticks)
     {
-        int handOffs = 0, contacts = 0;
         var threads = new ConcurrentDictionary<int, byte>();
-        var physics = new FakePhysics();
         // Debug checks are off: the invariant tests run them over a workload that churns more. Here they would only slow the four runs.
-        var world = new World(new WorldOptions { MaxDegreeOfParallelism = maxDop, ChunkSize = 16, SpawnPoolSize = 16, DebugChecks = false }, physics);
-        // The Kepler frame below takes its G·M from the point gravity of the root.
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e12f), MotionDriver.Static, GravityField.Point(1e9)));
+        using World world = WorldTesting.NewWorldWithFaults(out FaultInjectingBackend faults, debugChecks: false, configure: options =>
+        {
+            options.MaxDegreeOfParallelism = maxDop;
+            options.ChunkSize = 16;
+            options.SpawnPoolSize = 16;
+        });
+        // The Kepler frame below takes its G·M from the point gravity of the root, which also pulls the bodies in the root.
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e12f), MotionDriver.Static, GravityField.Point(1e8)));
         FrameHandle west = world.SpawnStaticFrame(root, TestWorld.At(-1000), radius: 200);
         FrameHandle east = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
@@ -150,44 +164,45 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
             AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(1000, spinRate: 0.05)),
         }));
 
-        // Bodies that drift past x = 20 in the west frame are handed off to the east frame, and close bodies collide.
-        physics.OnStep = (context, output) =>
-        {
-            Entity previous = default;
-            DPose previousPose = default;
-            foreach ((Entity entity, FakePhysics.Body body) in physics.Bodies)
-            {
-                if (body.Frame == west && body.Pose.Position.X > 20)
-                {
-                    output.HandOffs.Add(new HandOff(entity, west, east, body.Pose with { Position = body.Pose.Position - new Double3(40, 0, 0) }, body.Velocity, default));
-                    handOffs++;
-                }
-                if (!previous.IsNull && (previousPose.Position - body.Pose.Position).Length < 1.5)
-                {
-                    output.Contacts.Add(new ContactStarted(previous, entity, body.Frame, body.Pose.Position, Vector3.UnitY, 1));
-                    contacts++;
-                }
-                previous = entity;
-                previousPose = body.Pose;
-            }
-        };
-
         var random = new Random(seed);
         for (int i = 0; i < 160; i++)
         {
             FrameHandle frame = (i % 3) switch { 0 => west, 1 => east, _ => root };
+            bool hasBody = i % 4 == 0;
+            // Every other body is shot along +X at 120 to 160 m/s, so that it leaves the bubble of its frame, which has a radius
+            // of 200 m, within the run. Jolt then hands it off to the parent frame.
+            double speed = hasBody && i % 8 == 0 ? 120 + random.NextDouble() * 40 : random.NextDouble();
+            double distance = frame == root ? RootGroupDistance : 0;
             world.Spawn(new SpawnDesc
             {
                 Frame = frame,
-                Pose = TestWorld.At(random.NextDouble() * 60 - 30, 0, random.NextDouble() * 60 - 30),
-                Body = i % 4 == 0 ? TestWorld.Ball : null,
+                Pose = TestWorld.At(random.NextDouble() * 60 - 30, 0, random.NextDouble() * 60 - 30 + distance),
+                Body = hasBody ? TestWorld.Ball : null,
                 Render = new RenderData { Mesh = new MeshId(i % 3), Flags = RenderFlags.Visible },
-                LinearVelocity = new Vector3((float)random.NextDouble(), 0, 0),
+                LinearVelocity = new Double3(speed, 0, 0),
                 Components = i % 5 == 0
                     ? [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }, new Shield()]
                     : [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }],
                 Subscriptions = i % 2 == 0 ? [Chat] : [],
             });
+        }
+
+        // In each frame, two balls on a collision course 45 m beside the scatter, so that Jolt sends contacts whatever the
+        // random scatter does. They close at 8 m/s from 10 m apart, so they touch after about 1.1 s.
+        foreach (FrameHandle frame in new[] { west, east, root })
+        {
+            double distance = frame == root ? RootGroupDistance : 0;
+            foreach (int side in new[] { -1, 1 })
+            {
+                world.Spawn(new SpawnDesc
+                {
+                    Frame = frame,
+                    Pose = TestWorld.At(5 * side, 0, 45 + distance),
+                    LinearVelocity = new Double3(-4 * side, 0, 0),
+                    Body = TestWorld.Ball,
+                    Components = [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }],
+                });
+            }
         }
         world.Camera = world.Spawn(new SpawnDesc { Frame = west, Render = new RenderData() });
 
@@ -204,9 +219,9 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
             Shield s => WorldHash.Mix(soFar, (ulong)s.Refused),
             _ => soFar,
         });
-        WorldStats stats = world.Stats;
-        world.Dispose();
-        return (new RunResult(hash, stats, messages, handOffs, contacts), threads.Count);
+        int handOffs = faults.Outputs.Sum(output => output.HandOffs.Count);
+        int contacts = faults.Outputs.Sum(output => output.Contacts.Count);
+        return (new RunResult(hash, world.Stats, messages, handOffs, contacts, world.Errors.Count), threads.Count);
     }
 
     /// <summary>The four runs, made once for the whole class: two on one worker and two on eight, alternating.</summary>
@@ -278,6 +293,15 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
     {
         runs.OneWorker.Stats.LiveEntities.Should().BeGreaterThan(150);
         runs.OneWorker.Messages.Should().BeGreaterThan(10_000);
+    }
+
+    [Fact]
+    public void TheWorkloadRunsOnRealPhysicsWithoutErrors()
+    {
+        // A Debug build breaks a contract on a broken output, so only a Release build can reach an error here. Equal hashes of
+        // runs that went wrong in the same way would prove less.
+        runs.OneWorker.Errors.Should().Be(0);
+        runs.EightWorkers.Errors.Should().Be(0);
     }
 
     [Fact]
