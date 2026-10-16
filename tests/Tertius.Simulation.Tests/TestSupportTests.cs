@@ -264,10 +264,35 @@ public class TestWorldTests
     [Fact]
     public void ATestWorldKeepsTheBackendItIsGiven()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var t = new TestWorld(physics);
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
 
-        t.World.Physics.Should().BeSameAs(physics);
+        t.World.Physics.Should().BeSameAs(faults);
+    }
+
+    [Fact]
+    public void ATestWorldOnJoltStepsRealPhysicsOnABackendThatTheWorldDisposes()
+    {
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults, configure: options => options.TickRate = 32);
+        Entity ball = t.World.Spawn(new SpawnDesc { Frame = t.Root, LinearVelocity = new Double3(3, 0, 0), Body = WorldTesting.Ball() });
+
+        t.Run(2);
+
+        faults.Steps.Select(step => step.Time).Should().Equal(0, 1.0 / 32);
+        t.World.Options.DisposePhysics.Should().BeTrue();
+        t.World.PoseInOwnFrame(ball).Position.X.Should().BeApproximately(0.1875, 1e-6, "Jolt moved the ball by 3 m/s over two steps of 1/32 s");
+    }
+
+    [Fact]
+    public void AnEditOfOneTickTouchesTheOutputOfThatTickOnly()
+    {
+        using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        t.World.Spawn(new SpawnDesc { Frame = t.Root, LinearVelocity = new Double3(3, 0, 0), Body = WorldTesting.Ball() });
+        var ticksEdited = new List<long>();
+        faults.EditOutputOfTick(1, output => ticksEdited.Add(faults.Steps[^1].Tick));
+
+        t.Run(3);
+
+        ticksEdited.Should().Equal(1L);
     }
 
     [Fact]
@@ -331,82 +356,5 @@ public class TestWorldTests
         world.Options.MaxDegreeOfParallelism.Should().Be(1);
         world.Options.DebugChecks.Should().BeFalse();
         world.Frames.IsAlive(root).Should().BeTrue();
-    }
-}
-
-/// <summary><see cref="TestPhysics"/>: the scripts and recorders on an NSubstitute backend.</summary>
-public class TestPhysicsTests
-{
-    [Fact]
-    public void AScriptAndTheRecordersOfOneBackendAllRunAtEveryStep()
-    {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<StepRecord> steps = physics.RecordSteps();
-        int scripted = 0;
-        physics.OnStep((context, output) => scripted++);
-        using var t = new TestWorld(physics);
-
-        t.Run(3);
-
-        steps.Select(step => step.Tick).Should().Equal(0L, 1L, 2L);
-        scripted.Should().Be(3);
-    }
-
-    [Fact]
-    public void AScriptAddsToTheOutputThatTheWorldReads()
-    {
-        var a = new Recorder(EventMask.Of<Collision>());
-        var b = new Recorder(EventMask.Of<Collision>());
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var t = new TestWorld(physics);
-        Entity ballA = t.World.Spawn(new SpawnDesc { Frame = t.Root, Body = TestWorld.Ball, Components = [a] });
-        Entity ballB = t.World.Spawn(new SpawnDesc { Frame = t.Root, Body = TestWorld.Ball, Components = [b] });
-        physics.OnStep((context, output) =>
-        {
-            if (context.Tick == 0)
-                output.Contacts.Add(new ContactStarted(ballA, ballB, t.Root, new Double3(1, 0, 0), Vector3.UnitY, 2));
-        });
-
-        t.Run(2);
-
-        a.Seen.Single().Event.As<Collision>().Other.Should().Be(ballB);
-        b.Seen.Single().Event.As<Collision>().Other.Should().Be(ballA);
-    }
-
-    [Fact]
-    public void ARecordedBatchOfChangesSurvivesTheWorldClearingItsOwn()
-    {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<ChangeBatch> batches = physics.RecordChanges();
-        using var t = new TestWorld(physics);
-        Entity ball = t.World.Spawn(new SpawnDesc { Frame = t.Root, Body = TestWorld.Ball });
-
-        t.Run(1);
-
-        batches.SelectMany(batch => batch.BodiesCreated).Select(create => create.Entity).Should().Equal(ball);
-        batches.SelectMany(batch => batch.FramesCreated).Should().Equal(t.Root);
-    }
-
-    [Fact]
-    public void RecordedIntentsAreCopiesOfWhatTheEntityWroteInThePreviousTick()
-    {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<IntentRecord> intents = physics.RecordIntents();
-        using var t = new TestWorld(physics);
-        Entity ball = t.World.Spawn(new SpawnDesc
-        {
-            Frame = t.Root,
-            Body = TestWorld.Ball,
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (self.Tick == 0)
-                    self.Body.AddForce(new Vector3(0, 4, 0));
-            })],
-        });
-
-        t.Run(3);
-
-        intents.Select(record => (record.Tick, record.Entity)).Should().Equal((1L, ball));
-        intents[0].Intent.Force.Should().Be(new Vector3(0, 4, 0));
     }
 }

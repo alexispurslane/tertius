@@ -1,13 +1,12 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using NSubstitute;
 using Tertius.Physics;
 
 namespace Tertius.Simulation.Tests;
 
 // The shared helpers of this test project that are not components. The components are in Components/, one class per
-// file. This file holds, in order: the payload types, TestWorld, the extensions over World, the entity table helper
-// for the subsystem tests, the NSubstitute physics doubles, and the one hand-written physics fake.
+// file. This file holds, in order: the payload types, TestWorld, the extensions over World, and the entity table helper
+// for the subsystem tests. The physics is real Jolt: see TestWorld.OnJolt and FaultInjectingBackend.
 
 // ---- Payloads ---------------------------------------------------------------------------------------------------
 
@@ -41,7 +40,7 @@ public sealed class TestWorld : IDisposable
     /// <summary>A dynamic ball of radius 0.5, the body that most tests give an entity.</summary>
     public static readonly BodyDesc Ball = new(new SphereShapeDesc(0.5f));
 
-    /// <param name="physics">The physics backend, or null for none. See <see cref="TestPhysics.Create"/>.</param>
+    /// <param name="physics">The physics backend, or null for none. See <see cref="OnJolt"/>.</param>
     /// <param name="maxDegreeOfParallelism">The most gameplay workers. 1 runs every chunk on the ticking thread.</param>
     /// <param name="chunkSize">Entity slots per chunk. A small chunk size makes entities share fewer outboxes.</param>
     /// <param name="debugChecks">Runs the invariant checks of every subsystem at the end of every sync point. Turn it off for tests that measure allocations or time.</param>
@@ -180,90 +179,4 @@ internal static class TableSupport
         table.Activate(entity, new TransformRow { Frame = frame, PhysicsHome = frame, Pose = TestWorld.At(x) }, new RenderData(), [], [], null, FrameHandle.Null);
         return entity;
     }
-}
-
-// ---- Physics doubles: NSubstitute --------------------------------------------------------------------------------------
-
-/// <summary>
-/// A copy of one <see cref="PhysicsChanges"/> batch, made when the world handed it to the backend. The world clears and
-/// reuses its batch object right after the call, so a <c>Received()</c> check made later would see an empty batch.
-/// The fields are those of <see cref="PhysicsChanges"/>. The backend applies a batch in this order: bodies destroyed,
-/// frames destroyed, bodies created.
-/// </summary>
-public readonly record struct ChangeBatch(Entity[] BodiesDestroyed, FrameHandle[] FramesDestroyed, BodyCreate[] BodiesCreated, FrameHandle[] FramesCreated);
-
-/// <summary>
-/// Physics backends made with NSubstitute. A substitute does nothing: it moves no body and reports nothing, except what
-/// a test scripts with <see cref="OnStep"/>. That suits a test that says "physics reported this" and then checks what the
-/// world did with it.
-/// </summary>
-/// <remarks>
-/// Each method here adds a callback with <c>When(...).Do(...)</c>, and NSubstitute runs every callback of a call, in the
-/// order they were added. A script added with <see cref="OnStep"/> therefore runs together with the recorders, not
-/// instead of them. Add each one once. The callbacks run on the physics thread. A test reads what they recorded after
-/// <see cref="World.Tick"/> has returned, which waits for the step to end.
-/// </remarks>
-public static class TestPhysics
-{
-    /// <summary>
-    /// A backend that does nothing. It can build every shape that <see cref="ShapeDesc.Problem"/> accepts. With
-    /// <paramref name="onStep"/>, it runs that script at every step.
-    /// </summary>
-    public static IPhysicsBackend Create(Action<PhysicsStepContext, PhysicsStepOutput>? onStep = null)
-    {
-        IPhysicsBackend physics = Substitute.For<IPhysicsBackend>();
-        physics.ShapeProblem(Arg.Any<ShapeDesc>()).Returns(call => call.Arg<ShapeDesc>().Problem());
-        if (onStep != null)
-            physics.OnStep(onStep);
-        return physics;
-    }
-
-    /// <summary>
-    /// Runs <paramref name="script"/> at every step, on the physics thread. It adds to the output that the world reads
-    /// at the sync point, which starts empty. An exception that it throws is what the world sees as a failed step.
-    /// </summary>
-    public static void OnStep(this IPhysicsBackend physics, Action<PhysicsStepContext, PhysicsStepOutput> script) =>
-        physics.When(p => p.Step(Arg.Any<PhysicsStepContext>(), Arg.Any<PhysicsStepOutput>()))
-            .Do(call => script(call.Arg<PhysicsStepContext>(), call.Arg<PhysicsStepOutput>()));
-
-    /// <summary>Records the tick, time and thread of every step.</summary>
-    public static List<StepRecord> RecordSteps(this IPhysicsBackend physics)
-    {
-        var steps = new List<StepRecord>();
-        physics.OnStep((context, _) => steps.Add(new StepRecord(
-            context.Tick, context.Time, Environment.CurrentManagedThreadId, Thread.CurrentThread.IsThreadPoolThread)));
-        return steps;
-    }
-
-    /// <summary>Records, at every step, the intent of each entity that wrote one during the previous tick.</summary>
-    public static List<IntentRecord> RecordIntents(this IPhysicsBackend physics)
-    {
-        var intents = new List<IntentRecord>();
-        physics.OnStep((context, _) =>
-        {
-            foreach (Entity entity in context.IntentEntities.Span)
-                intents.Add(new IntentRecord(context.Tick, entity, context.IntentOf(entity)));
-        });
-        return intents;
-    }
-
-    /// <summary>
-    /// Records a copy of every batch of structural changes that the world applies. The first batch also holds the
-    /// root frame and everything spawned before the first tick.
-    /// </summary>
-    public static List<ChangeBatch> RecordChanges(this IPhysicsBackend physics)
-    {
-        var batches = new List<ChangeBatch>();
-        physics.When(p => p.ApplyChanges(Arg.Any<PhysicsChanges>(), Arg.Any<FrameTree>()))
-            .Do(call =>
-            {
-                var changes = call.Arg<PhysicsChanges>();
-                batches.Add(new ChangeBatch(
-                    [.. changes.BodiesDestroyed], [.. changes.FramesDestroyed], [.. changes.BodiesCreated], [.. changes.FramesCreated]));
-            });
-        return batches;
-    }
-
-    /// <summary>The intent that <paramref name="entity"/> wrote during the previous tick. Meaningful only for an entity in <see cref="PhysicsStepContext.IntentEntities"/>.</summary>
-    public static PhysicsIntent IntentOf(this PhysicsStepContext context, Entity entity) => context.Intents.Span[(int)entity.Index];
 }

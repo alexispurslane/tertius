@@ -13,7 +13,6 @@
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
-    <PackageReference Include="NSubstitute" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Tertius.Testing" />

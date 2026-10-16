@@ -1,6 +1,6 @@
 using System.Numerics;
 using AwesomeAssertions;
-using NSubstitute;
+using Tertius.Physics;
 
 namespace Tertius.Simulation.Tests;
 
@@ -23,8 +23,10 @@ internal sealed class WorkloadTally
 /// A seeded workload that churns every subsystem of a <see cref="Simulation.World"/> at once: entities spawn (plain,
 /// attached to a parent, with a body, or as a frame) and die, move, change frame (through hand-offs that a physics
 /// backend reports, and through the death of the frame they are in), subscribe and unsubscribe, gain and lose
-/// components, and send each other messages of every delivery mode. The physics backend is an NSubstitute double that
-/// reports hand-offs, body states, contacts and the state of a physics-driven frame.
+/// components, and send each other messages of every delivery mode. The physics is real Jolt, behind the recording wrapper
+/// <see cref="FaultInjectingBackend"/>. Bodies that spawn in a frame whose bubble does not hold them, or beside a child
+/// frame, make Jolt hand them off, and bodies that spawn close together make contacts. A shuttle that physics drives sends
+/// the state of its frame in every step.
 /// </summary>
 /// <remarks>
 /// The same seed gives the same run on one worker. On more workers the invariants must hold all the same, but the counts
@@ -36,14 +38,11 @@ internal sealed class ChaoticWorkload : IDisposable
     private static readonly Topic Chatter = Topics.Get("tests.invariants.chatter");
 
     private readonly Random random;
-    private readonly IPhysicsBackend physics;
-    // The bodies that the physics double was told to create, by entity, kept by its ApplyChanges callback. The step
-    // script reads them on the physics thread, which never overlaps with ApplyChanges.
-    private readonly SortedDictionary<Entity, BodyDesc> bodies = new();
+    private readonly FaultInjectingBackend faults;
     private readonly List<FrameHandle> frameScratch = new();
     private readonly List<Entity> liveScratch = new();
     private readonly CrossCheckHistory history = new();
-    private readonly FrameHandle shuttle;
+    private readonly FrameHandle star;
     private readonly Random sampler;
 
     public ChaoticWorkload(int seed, int chunkSize = 8, bool debugChecks = true, int initialEntities = 40, int maxDegreeOfParallelism = 1)
@@ -51,39 +50,34 @@ internal sealed class ChaoticWorkload : IDisposable
         Seed = seed;
         random = new Random(seed);
         sampler = new Random(seed ^ 0x5EED);
-        physics = TestPhysics.Create();
-        physics.When(p => p.ApplyChanges(Arg.Any<PhysicsChanges>(), Arg.Any<FrameTree>())).Do(call =>
-        {
-            var changes = call.Arg<PhysicsChanges>();
-            foreach (Entity entity in changes.BodiesDestroyed)
-                bodies.Remove(entity);
-            foreach (BodyCreate create in changes.BodiesCreated)
-                bodies[create.Entity] = create.Desc;
-        });
-        physics.OnStep(StepPhysics);
-
-        World = TestWorld.Create(out FrameHandle root, maxDegreeOfParallelism, physics, chunkSize, debugChecks);
+        faults = new FaultInjectingBackend(new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 }));
+        World = TestWorld.Create(out FrameHandle root, maxDegreeOfParallelism, faults, chunkSize, debugChecks, options => options.DisposePhysics = true);
         Root = root;
-        // The Kepler frame below orbits the root, so the root needs a point gravity to take its G·M from.
-        World.SetFrameGravity(root, GravityField.Point(1e9));
+        // A frame that loses its parent moves to the next frame up, and a Kepler frame takes its G·M from the point gravity of
+        // its parent, so the root has one too. It is so weak that it moves nothing: 1e-3 m³/s² pulls a body at 15 m with 4e-6 m/s².
+        World.SetFrameGravity(root, GravityField.Point(1e-3));
 
         West = SpawnFrame(root, TestWorld.At(-500), new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Static));
         East = SpawnFrame(root, TestWorld.At(500), new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Static));
         FrameHandle bay = SpawnFrame(East, TestWorld.At(10), new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static));
-        FrameHandle orbit = SpawnFrame(root, DPose.Identity,
+        // The Kepler frame orbits a star, far from every other frame. The star's gravity is strong, and nothing is spawned in it.
+        star = SpawnFrame(root, TestWorld.At(0, 0, -30000), new FrameSpec(FrameBounds.Sphere(10000), MotionDriver.Static, GravityField.Point(1e6)));
+        FrameHandle orbit = SpawnFrame(star, DPose.Identity,
             new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(2000, spinRate: 0.1)));
 
-        // The shuttle is a frame whose hull is a body: physics drives the frame, and hands the hull off between frames.
+        // The shuttle is a frame whose hull is a body: physics drives the frame, and hands the hull off between frames. It
+        // flies at 6 m/s, so that Jolt sends the state of its frame in every step.
         Entity shuttleOwner = World.Spawn(new SpawnDesc
         {
             Frame = root,
             Pose = TestWorld.At(50),
+            LinearVelocity = new Vector3(6, 0, 0),
             AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
-            Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
+            Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull, LinearDamping: 0, AngularDamping: 0),
             // It refuses Destroy messages, so that the frame that physics drives lives through the run and gets its state every step.
             Components = [new Invulnerable()],
         });
-        shuttle = World.GetOwnedFrame(shuttleOwner);
+        FrameHandle shuttle = World.GetOwnedFrame(shuttleOwner);
         World.Camera = shuttleOwner;
 
         FrameHandle[] startFrames = [root, West, East, bay, orbit, shuttle];
@@ -116,9 +110,6 @@ internal sealed class ChaoticWorkload : IDisposable
             ChangeBetweenTicks();
             Check("after the changes between ticks", afterTick: false);
 
-            // The double keeps every call it receives, which a long soak would pile up.
-            if (World.TickNumber % 64 == 0)
-                physics.ClearReceivedCalls();
         }
     }
 
@@ -137,7 +128,26 @@ internal sealed class ChaoticWorkload : IDisposable
             throw new InvalidOperationException($"seed {Seed}: tick {World.TickNumber} threw {ex.GetType().Name}: {ex.Message}", ex);
         }
         Tally.EntityTicks += World.Stats.LiveEntities;
+        CountPhysicsOutput();
         Check("after the tick", afterTick: true);
+    }
+
+    /// <summary>
+    /// Adds what Jolt sent in the last tick to the tally, and drops the records of the wrapper, which a long soak would
+    /// pile up. A hand-off, a frame state and a contact are counted when Jolt sends them.
+    /// </summary>
+    private void CountPhysicsOutput()
+    {
+        foreach (PhysicsStepOutput output in faults.Outputs)
+        {
+            Tally.HandOffs += output.HandOffs.Count;
+            Tally.FrameStates += output.Frames.Count;
+            Tally.Contacts += output.Contacts.Count;
+        }
+        faults.Outputs.Clear();
+        faults.AppliedChanges.Clear();
+        faults.Steps.Clear();
+        faults.Intents.Clear();
     }
 
     /// <summary>The violations that the cross-checks find in the state as it is now. Empty if it is sound.</summary>
@@ -189,6 +199,7 @@ internal sealed class ChaoticWorkload : IDisposable
             int count = liveScratch.Count < 50 ? 15 : 4;
             frameScratch.Clear();
             World.Frames.GetAll(frameScratch);
+            frameScratch.Remove(star);
             FrameHandle[] frames = [.. frameScratch];
             for (int i = 0; i < count; i++)
                 SpawnIntoRandomFrame(frames);
@@ -224,10 +235,12 @@ internal sealed class ChaoticWorkload : IDisposable
         if (!World.Frames.IsAlive(frame))
             frame = Root;
         bool withBody = random.Next(4) == 0;
+        // Bodies spawn on a smaller square than the other entities, so that they land close to each other and touch.
+        int reach = withBody ? 4 : 15;
         World.Spawn(new SpawnDesc
         {
             Frame = frame,
-            Pose = TestWorld.At(random.Next(-15, 16), 0, random.Next(-15, 16)),
+            Pose = TestWorld.At(random.Next(-reach, reach + 1), 0, random.Next(-reach, reach + 1)),
             Body = withBody ? TestWorld.Ball : null,
             LinearVelocity = new Vector3(random.Next(-1, 2), 0, 0),
             Render = random.Next(2) == 0 ? new RenderData { Mesh = new MeshId(1 + random.Next(3)), Flags = RenderFlags.Visible } : null,
@@ -242,74 +255,6 @@ internal sealed class ChaoticWorkload : IDisposable
         World.GetOwnedFrame(World.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = spec }));
 
     private Churn NewChurn() => new((ulong)random.NextInt64(), this);
-
-    // ---- The physics double ---------------------------------------------------------------------------------------------
-
-    /// <summary>
-    /// One step of the double, on the physics thread: it reports a new state for the shuttle frame, drifts the bodies, hands
-    /// one body off to another frame every third step, and reports a contact between two neighbors every fifth.
-    /// The body list comes from the world's own calls to <c>ApplyChanges</c>; where a body is comes from the front state.
-    /// </summary>
-    private void StepPhysics(PhysicsStepContext context, PhysicsStepOutput output)
-    {
-        long tick = context.Tick;
-        var frames = new List<FrameHandle>();
-        context.Frames.GetAll(frames);
-
-        if (context.Frames.IsAlive(shuttle))
-        {
-            output.Frames.Add(new FrameState(shuttle, TestWorld.At(50 + 0.1 * (tick % 100)), new Double3(6, 0, 0), Vector3.Zero, Vector3.Zero));
-            Tally.FrameStates++;
-        }
-
-        Entity handedOff = default;
-        if (tick % 3 == 0 && bodies.Count > 0 && frames.Count > 0)
-        {
-            Entity pick = bodies.Keys.ElementAt((int)((ulong)tick * 2654435761UL % (ulong)bodies.Count));
-            FrameHandle to = frames[(int)((ulong)tick * 40503UL % (ulong)frames.Count)];
-            if (World.IsAlive(pick))
-            {
-                FrameHandle from = World.GetFrame(pick);
-                FrameHandle own = World.GetOwnedFrame(pick);
-                // A frame cannot go inside itself or inside a frame it contains.
-                bool cycle = !own.IsNull && (to == own || context.Frames.IsAncestorOf(own, to));
-                if (to != from && !cycle)
-                {
-                    output.HandOffs.Add(new HandOff(pick, from, to, TestWorld.At(tick % 11, 0, tick % 7), Vector3.Zero, Vector3.Zero));
-                    Tally.HandOffs++;
-                    handedOff = pick;
-                }
-            }
-        }
-
-        Entity previous = default;
-        FrameHandle previousFrame = default;
-        DPose previousPose = default;
-        bool contactReported = false;
-        double drift = (tick / 50) % 2 == 0 ? 0.05 : -0.05;
-        foreach (Entity entity in bodies.Keys)
-        {
-            if (!World.IsAlive(entity))
-                continue;
-            FrameHandle frame = World.GetFrame(entity);
-            DPose pose = World.PoseInOwnFrame(entity);
-            // A frame's hull gets its state from the frame state above.
-            if (World.GetOwnedFrame(entity).IsNull && entity != handedOff)
-            {
-                pose = pose with { Position = pose.Position + new Double3(drift, 0, 0.02 * ((tick + entity.Index) % 5 - 2)) };
-                output.Bodies.Add(new BodyState(entity, frame, pose, Vector3.Zero, Vector3.Zero));
-            }
-            if (tick % 5 == 0 && !contactReported && !previous.IsNull && previousFrame == frame)
-            {
-                output.Contacts.Add(new ContactStarted(previous, entity, frame, previousPose.Position, Vector3.UnitY, 1));
-                Tally.Contacts++;
-                contactReported = true;
-            }
-            previous = entity;
-            previousFrame = frame;
-            previousPose = pose;
-        }
-    }
 
     // ---- The entity that does the churning ---------------------------------------------------------------------------
 
