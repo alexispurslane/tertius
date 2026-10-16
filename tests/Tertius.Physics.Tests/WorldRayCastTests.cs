@@ -282,6 +282,108 @@ public class WorldRayCastTests
     }
 
     [Fact]
+    public void CastRayAllMergesTheHitsOfEveryFrameItCrossesByDistanceWithEachEntityOnce()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        // A turned frame at (100, 0, 0) whose owner's static hull is a cube with faces 2 m from its center. Its interior is
+        // the same cube in the frame's own system, so the ray meets the owner in both systems at the same face.
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(100, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)),
+            Body = StaticBox(2),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+        });
+        FrameHandle child = world.GetOwnedFrame(owner);
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 200, default, Tag: 5, All: true));
+        Spawn(world, ground, Double3.Zero, null, aim);
+        Entity near = Spawn(world, ground, new Double3(50, 0, 0), StaticBox());
+        Entity far = Spawn(world, ground, new Double3(150, 0, 0), StaticBox());
+        // At (0, 0, 5) in the child: (105, 0, 0) in the ground, between the hull and the far box.
+        Entity inside = Spawn(world, child, new Double3(0, 0, 5), StaticBox());
+
+        Tick(world, 2);
+
+        RayHit[] hits = aim.AnswersTo(5);
+        hits.Select(h => h.Entity).Should().Equal(near, owner, inside, far);
+        ShouldBeAt(hits[1], owner, new Double3(98, 0, 0), -Vector3.UnitX, 98);
+        ShouldBeAt(hits[2], inside, new Double3(104.5, 0, 0), -Vector3.UnitX, 104.5);
+        ShouldBeAt(hits[3], far, new Double3(149.5, 0, 0), -Vector3.UnitX, 149.5);
+    }
+
+    [Fact]
+    public void ARayFromInsideAShipPassesOutThroughItsSolidHullToTheBodiesBeyond()
+    {
+        // The hull is a solid box in the ground's system, and the ray starts inside it. The ground's part of the ray starts
+        // where the ray leaves the ship's bubble, so the hull does not stop it.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, ground);
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 100, default, Tag: 1));
+        Spawn(world, ship.Interior, Double3.Zero, null, aim);
+        Entity beyond = Spawn(world, ground, new Double3(80, 0, 0), StaticBox());
+
+        Tick(world, 2);
+
+        ShouldBeAt(aim.AnswersTo(1).Single(), beyond, new Double3(79.5, 0, 0), -Vector3.UnitX, 79.5);
+    }
+
+    /// <summary>Destroys its own entity on tick <paramref name="onTick"/>.</summary>
+    private sealed class DestroySelf(long onTick) : IComponent
+    {
+        public int Priority => 1;
+        public EventMask Wants => EventMask.Of<Tertius.Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (self.Tick == onTick)
+                self.Destroy();
+        }
+    }
+
+    [Fact]
+    public void AnAskerThatIsDestroyedInTheTickItAsksGetsNoAnswerAndCausesNoError()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 50, default, Tag: 1));
+        Spawn(world, ground, Double3.Zero, null, aim, new DestroySelf(0));
+        Spawn(world, ground, new Double3(10, 0, 0), StaticBox());
+
+        Tick(world, 3);
+
+        aim.Answers.Should().BeEmpty();
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ARayWhoseFrameDiesInTheTickItAsksAnswersWithAMissAtAZeroPoint()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(100, 0, 0), DQuaternion.Identity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+            Components = [new DestroySelf(0)],
+        });
+        FrameHandle child = world.GetOwnedFrame(owner);
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 50, default, Tag: 1));
+        Entity asker = Spawn(world, child, Double3.Zero, null, aim);
+        Spawn(world, child, new Double3(10, 0, 0), StaticBox());
+
+        Tick(world, 3);
+
+        world.Snapshot.FrameOf(asker).Should().Be(ground, "the asker moved up when its frame died");
+        RayHit miss = aim.AnswersTo(1).Should().ContainSingle().Subject;
+        miss.IsHit.Should().BeFalse();
+        miss.Point.Should().Be(Double3.Zero);
+        miss.Distance.Should().Be(50);
+    }
+
+    [Fact]
     public void AnAnswerArrivesInTheFrameThatTheAskerIsInWhenItArrives()
     {
         // A ball asks on tick 2, from the ground, and physics hands it into the turned child frame in the step of that tick.
