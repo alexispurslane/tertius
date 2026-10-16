@@ -1,6 +1,6 @@
 ---
 id: ter-84co
-status: open
+status: closed
 deps: [ter-dtw2]
 links: []
 created: 2026-10-11T14:29:38Z
