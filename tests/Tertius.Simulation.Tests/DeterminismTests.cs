@@ -49,9 +49,9 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
             for (int i = 0; i < events.Count; i++)
             {
                 ref Event e = ref events[i];
-                Hash = TestWorld.Mix(Hash, (ulong)e.Type);
-                Hash = TestWorld.Mix(Hash, e.Sender.Raw);
-                Hash = TestWorld.MixPayload(Hash, e);
+                Hash = WorldHash.Mix(Hash, (ulong)e.Type);
+                Hash = WorldHash.Mix(Hash, e.Sender.Raw);
+                Hash = WorldHash.MixPayload(Hash, e);
                 Received++;
             }
             if (!events.Contains<Tick>())
@@ -198,33 +198,12 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
             messages += world.Stats.RoutedEvents;
         }
 
-        ulong hash = 0;
-        var live = new List<Entity>();
-        world.CopyLiveEntities(live);
-        foreach (Entity e in live)
+        ulong hash = WorldHash.Of(world, static (soFar, component) => component switch
         {
-            hash = TestWorld.Mix(hash, e.Raw);
-            hash = TestWorld.Mix(hash, world.PoseInOwnFrame(e));
-            hash = TestWorld.Mix(hash, world.VelocityInOwnFrame(e));
-            hash = TestWorld.Mix(hash, world.AngularVelocityInOwnFrame(e));
-            hash = TestWorld.Mix(hash, (ulong)world.GetFrame(e).Index);
-            foreach (IComponent component in world.GetComponents(e))
-            {
-                switch (component)
-                {
-                    case Chatter c:
-                        hash = TestWorld.Mix(TestWorld.Mix(TestWorld.Mix(hash, c.Hash), c.Rng), (ulong)(c.Children * 1000 + c.Received));
-                        break;
-                    case Shield s:
-                        hash = TestWorld.Mix(hash, (ulong)s.Refused);
-                        break;
-                }
-            }
-        }
-        world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot).Should().BeTrue("the sync point publishes a render snapshot every tick");
-        foreach (RenderInstance instance in snapshot.Instances)
-            hash = TestWorld.Mix(TestWorld.Mix(TestWorld.Mix(hash, instance.EntityIndex), instance.Position), instance.PreviousPosition);
-        hash = TestWorld.Mix(hash, (ulong)world.Errors.Count);
+            Chatter c => WorldHash.Mix(WorldHash.Mix(WorldHash.Mix(soFar, c.Hash), c.Rng), (ulong)(c.Children * 1000 + c.Received)),
+            Shield s => WorldHash.Mix(soFar, (ulong)s.Refused),
+            _ => soFar,
+        });
         WorldStats stats = world.Stats;
         world.Dispose();
         return (new RunResult(hash, stats, messages, handOffs, contacts), threads.Count);

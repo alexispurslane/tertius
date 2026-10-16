@@ -1,14 +1,14 @@
 using System.Numerics;
 using Tertius.Simulation;
 
-namespace Tertius.Simulation.Tests;
+namespace Tertius.Testing;
 
 /// <summary>
 /// Reads of an entity in its own frame, the frame that most tests check against. Every read in the engine names a frame;
 /// these name the entity's own, so that a test stays short. The owner of a root frame is in no frame, so its reads
 /// are in the frame that it owns. A velocity comes back as a float vector, as the test values are.
 /// </summary>
-internal static class OwnFrameReads
+public static class OwnFrameReads
 {
     public static DPose PoseInOwnFrame(this World world, Entity entity) => world.PoseIn(entity, OwnFrame(world, entity));
 

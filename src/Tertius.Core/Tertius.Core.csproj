@@ -14,5 +14,7 @@
     <InternalsVisibleTo Include="Tertius.Physics" />
     <!-- The state dump tests make a numeric frame, whose mode is internal. -->
     <InternalsVisibleTo Include="Tertius.Host.Tests" />
+    <!-- The fault-injecting backend copies every PhysicsChanges batch that it applies, the internal lists included. -->
+    <InternalsVisibleTo Include="Tertius.Testing" />
   </ItemGroup>
 </Project>

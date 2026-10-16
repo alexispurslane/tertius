@@ -8,12 +8,15 @@
     <ProjectReference Include="../../src/Tertius.Simulation/Tertius.Simulation.csproj" />
     <!-- The tests that need physics run the World on the real backend. The engine code still does not reference it. -->
     <ProjectReference Include="../../src/Tertius.Physics/Tertius.Physics.csproj" />
+    <!-- The physics test double, the scene builders and the test components that the test projects share. -->
+    <ProjectReference Include="../Tertius.Testing/Tertius.Testing.csproj" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
     <PackageReference Include="NSubstitute" />
   </ItemGroup>
   <ItemGroup>
+    <Using Include="Tertius.Testing" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

@@ -1,4 +1,6 @@
-namespace Tertius.Simulation.Tests;
+using Tertius.Simulation;
+
+namespace Tertius.Testing;
 
 /// <summary>
 /// Records what the scheduler hands it: every event it handles, and one <see cref="RunRecord"/> for each run. It does

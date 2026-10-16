@@ -8,12 +8,15 @@
     <ProjectReference Include="../../src/Tertius.Host/Tertius.Host.csproj" />
     <!-- The tests run the Demo's scene table on its script, as the command line does. -->
     <ProjectReference Include="../../src/Tertius.Demo/Tertius.Demo.csproj" />
+    <!-- The physics test double, the scene builders and the test components that the test projects share. -->
+    <ProjectReference Include="../Tertius.Testing/Tertius.Testing.csproj" />
     <PackageReference Include="StbImageSharp" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="AwesomeAssertions" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
   </ItemGroup>
   <ItemGroup>
+    <Using Include="Tertius.Testing" />
     <Using Include="Xunit" />
     <Using Include="AwesomeAssertions" />
   </ItemGroup>

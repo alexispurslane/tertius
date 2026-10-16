@@ -1,6 +1,6 @@
 using System.Numerics;
 using Tertius.Simulation;
-using static Tertius.Physics.Tests.WorldTesting;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -43,7 +43,7 @@ public class WorldNumericFrameTests
     {
         // The lookahead links the crate to a heavy block 100 m away, so their frame's origin stays near the block and the
         // crate drifts away from it, where tidal gravity acts.
-        using World world = NewWorld(out _, debugChecks: false, numericFrames: new NumericFrameOptions { LookaheadTime = 1e4 });
+        using World world = NewWorld(out _, debugChecks: false, configure: o => o.NumericFrames = new NumericFrameOptions { LookaheadTime = 1e4 });
         FrameHandle earth = Earth(world);
         world.Spawn(new SpawnDesc
         {
@@ -177,7 +177,7 @@ public class WorldNumericFrameTests
     [Fact]
     public void TheFramesThatGameplaySeesAreOnlySemanticFramesWhileANumericFrameExists()
     {
-        using World world = NewWorld(out _, numericFrames: RestEverywhere);
+        using World world = NewWorld(out _, configure: o => o.NumericFrames = RestEverywhere);
         FrameHandle ground = Ground(world, 0);
         Entity crate = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(2), Body = Cube() });
         Entity owner = world.Spawn(new SpawnDesc
@@ -333,7 +333,7 @@ public class WorldNumericFrameTests
         // 4 cm from the ghost of a static wall, inside the margin in which a removed ghost wakes bodies, and beyond the
         // distance at which Jolt makes a contact. A second crate in its frame puts the members' center 4 m away.
         using World world = NewWorld(out JoltPhysicsBackend backend,
-            numericFrames: new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
+            configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
         FrameHandle ground = Ground(world, 0);
         Entity wall = world.Spawn(new SpawnDesc
         {
@@ -368,7 +368,7 @@ public class WorldNumericFrameTests
         // ghost of a third wall. The ghost pass puts back a ghost that is not where its wall is relative to the frame, and so
         // wakes the crate next to it.
         using World world = NewWorld(out JoltPhysicsBackend backend,
-            numericFrames: new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
+            configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
         FrameHandle ground = Ground(world, 0);
         Wall(world, ground, 0);
         Wall(world, ground, 10);
@@ -409,7 +409,7 @@ public class WorldNumericFrameTests
     {
         // As above, without the far frame. In the tick that shifts the frame, the right wall goes away, and its ghost with it.
         using World world = NewWorld(out JoltPhysicsBackend backend,
-            numericFrames: new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
+            configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
         FrameHandle ground = Ground(world, 0);
         Entity leftWall = Wall(world, ground, 0);
         Entity rightWall = Wall(world, ground, 10);

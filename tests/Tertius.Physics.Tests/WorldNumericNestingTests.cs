@@ -40,7 +40,11 @@ public class WorldNumericNestingTests
     /// </summary>
     private static Scene PodAndCrate(double speed, NumericFrameOptions? options = null)
     {
-        World world = WorldTesting.NewWorld(out _, numericFrames: options);
+        World world = WorldTesting.NewWorld(out _, configure: o =>
+        {
+            if (options is not null)
+                o.NumericFrames = options;
+        });
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e18f), MotionDriver.Static, GravityField.None));
         Entity hull = world.Spawn(new SpawnDesc
         {
