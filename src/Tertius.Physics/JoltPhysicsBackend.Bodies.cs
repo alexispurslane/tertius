@@ -92,7 +92,7 @@ public sealed partial class JoltPhysicsBackend
             record.OwnedFrame = owned;
             record.Driver = frames.Driver(owned);
             record.DriverVersion = frames.DriverVersion(owned);
-            record.Motion = HullMotion(record.Driver);
+            record.Motion = BodyDesc.FrameHullMotion(record.Driver);
             // A root frame has no parent, so its owner has no hull, and only a hull has to follow the driver.
             if (!ParentOf(owned).IsNull && desc.FrameHullProblem(record.Driver) is { } hull)
                 throw new ArgumentException($"{entity} owns {owned}, which has the {record.Driver} driver, but its hull {hull}.");
@@ -453,18 +453,8 @@ public sealed partial class JoltPhysicsBackend
     }
 
     // ---- Following a frame's driver ----
-
-    /// <summary>
-    /// The motion that the hull of a frame with <paramref name="driver"/> has: dynamic for the physics driver, kinematic for
-    /// the Kepler and Spin drivers, which move on rails, and static for the static driver. The simulation gives a frame only a driver that its hull can
-    /// follow (see <see cref="BodyDesc.FrameHullProblem"/>), and the backend refuses to create a hull that cannot.
-    /// </summary>
-    private static BodyMotion HullMotion(MotionDriver driver) => driver switch
-    {
-        MotionDriver.Physics => BodyMotion.Dynamic,
-        MotionDriver.Kepler or MotionDriver.Spin => BodyMotion.Kinematic,
-        _ => BodyMotion.Static,
-    };
+    // A hull gets the motion of BodyDesc.FrameHullMotion. The simulation gives a frame only a driver that its hull can
+    // follow (see BodyDesc.FrameHullProblem), and the backend refuses to create a hull that cannot.
 
     /// <summary>
     /// Makes the record of a frame owner follow its frame's driver, after the simulation gave the frame a driver (see
@@ -493,7 +483,7 @@ public sealed partial class JoltPhysicsBackend
         }
         owner.DriverVersion = version;
         owner.Driver = driver;
-        owner.Motion = HullMotion(driver);
+        owner.Motion = BodyDesc.FrameHullMotion(driver);
         return true;
     }
 

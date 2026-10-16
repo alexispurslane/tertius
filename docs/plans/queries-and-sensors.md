@@ -203,7 +203,7 @@ From the snapshot, a component reads these facts of another entity's body:
 - its collision groups and mask,
 - whether it is a character or a sensor.
 
-A body's description is fixed at spawn, with two exceptions: a frame hull's motion, and the groups and mask that an intent can change. The snapshot publishes those parts beside the component flags. A read for a stale entity gives an explicit `false`. Whether the snapshot also publishes the set of entities that an entity touches now stays open until a feature needs it. Ticket: `ter-58iz`.
+A body's description is fixed at spawn, with two exceptions: a frame hull's motion, and the groups and mask that an intent can change. The snapshot publishes the groups and mask beside the component flags. A frame hull's motion follows its frame's driver, which the snapshot's frame tree already shows and which changes only between ticks, so it needs no second copy. `Snapshot.TryGetBody(entity, out BodyFacts facts)` gives the facts. A read for a stale entity, or for an entity without a body, gives an explicit `false`. Whether the snapshot also publishes the set of entities that an entity touches now stays open until a feature needs it. Ticket: `ter-58iz`.
 
 ## Static query fields
 
