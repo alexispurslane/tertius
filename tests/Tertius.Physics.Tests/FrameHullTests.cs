@@ -1,277 +1,410 @@
 using System.Numerics;
+using Tertius.Simulation;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 
+/// <summary>
+/// The hull of a frame's owner and the system of its interior, on the World and the real backend: how they follow the
+/// frame tree, and what happens to them when a frame is destroyed or moved. The World rewrites the owner's state from the
+/// frame state, so a test reads the hull that Jolt reported in the outputs that <see cref="FaultInjectingBackend"/> records.
+/// </summary>
 public class FrameHullTests
 {
-    private const double EarthMu = 3.986004418e14;
+    private const double EarthMu = Scenes.EarthMu;
+
+    /// <summary>A dynamic box with sides of 2 · <paramref name="half"/> m that nothing slows down on its own and that does not bounce.</summary>
+    private static BodyDesc BoxBody(float half, float mass) =>
+        new(new BoxShapeDesc(new Vector3(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+
+    private static FrameHandle SpaceFrame(World world) =>
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+
+    /// <summary>A frame with the static driver and no body, with a bubble of <paramref name="radius"/> m.</summary>
+    private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius) =>
+        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static) }));
+
+    /// <summary>The latest body state of <paramref name="entity"/> that Jolt sent, or null when Jolt never sent one.</summary>
+    private static BodyState? LastReport(FaultInjectingBackend faults, Entity entity) =>
+        faults.Outputs.SelectMany(output => output.Bodies).Where(state => state.Entity == entity).Cast<BodyState?>().LastOrDefault();
 
     [Fact]
     public void KinematicHullOfKeplerFrameFollowsTheTreePose()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle planet = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu));
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
         var orbit = KeplerOrbit.Circular(7_000_000, phase: 1.0, spinRate: 0.05);
-        FrameHandle station = h.AddFrameWithBody(planet, DPose.Identity, FrameBounds.Sphere(100),
-            MotionDriver.Kepler, new BodyDesc(new BoxShapeDesc(new Vector3(10))), orbit: orbit);
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = planet,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler, Orbit: orbit),
+        });
+        FrameHandle station = world.GetOwnedFrame(owner);
 
         for (int i = 0; i < 60; i++)
         {
-            h.Step();
-            // The harness has advanced the tree to the end of the step, where the hull must be.
-            BodyState hull = h[station.Entity];
-            DPose tree = h.Frames.LocalPose(station);
+            world.Tick();
+            // The sync point has advanced the tree to the end of the step, where the hull must be.
+            BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
+            DPose tree = world.Frames.LocalPose(station);
             hull.Frame.Should().Be(planet);
             (hull.Pose.Position - tree.Position).Length.Should().BeLessThan(1e-3, "the hull is at the tree pose after tick {0}", i);
             Math.Abs(Dot(hull.Pose.Rotation, tree.Rotation)).Should().BeGreaterThan(1 - 1e-6);
             // The kinematic velocity is the chord over one step, close to the orbital velocity.
-            ((Double3)hull.LinearVelocity - h.Frames.LinearVelocity(station)).Length.Should().BeLessThan(0.1);
+            ((Double3)hull.LinearVelocity - world.Frames.LinearVelocity(station)).Length.Should().BeLessThan(0.1);
+            world.PoseIn(owner, planet).Should().Be(tree, "the World rewrites the owner's state from the frame, not from the hull");
         }
-        h.HandOffs.Should().BeEmpty();
+        faults.Outputs.SelectMany(output => output.HandOffs).Should().BeEmpty();
+        world.Errors.Should().BeEmpty();
     }
 
     [Fact]
     public void FrameOwnerGetsHullInParentAndInteriorInItsOwnFrame()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
-        FrameHandle ship = h.AddFrameWithBody(space, Shapes.At(10, 0, 0), FrameBounds.Sphere(30), MotionDriver.Physics,
-            new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100));
-        h.Sync();
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle space = SpaceFrame(world);
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(10),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+        });
+        world.Tick();
 
-        h.Backend.TryGetBodyFrame(ship.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        backend.TryGetBodyFrame(ship, out FrameHandle hullFrame).Should().BeTrue();
         hullFrame.Should().Be(space);
-        h.Backend.HasInterior(ship.Entity).Should().BeTrue();
-        h.Backend.SystemCount.Should().Be(2);
+        backend.HasInterior(ship).Should().BeTrue();
+        backend.SystemCount.Should().Be(2);
 
         // A root frame has no parent, so its owner only has the interior.
-        FrameHandle root = h.AddFrameWithBody(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(5), MotionDriver.Static,
-            new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static));
-        h.Sync();
-        h.Backend.TryGetBodyFrame(root.Entity, out _).Should().BeFalse();
-        h.Backend.HasInterior(root.Entity).Should().BeTrue();
+        Entity root = world.Spawn(new SpawnDesc
+        {
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static),
+        });
+        world.Tick();
+        backend.TryGetBodyFrame(root, out _).Should().BeFalse();
+        backend.HasInterior(root).Should().BeTrue();
+        world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The World moves every body that survives a dying frame into the parent frame, so it never forgets a body in a frame
+    /// that it destroys. A bug could, so a test stands in for it: it takes the rehome of the stray box out of the change
+    /// batch that destroys the ship, and Jolt then holds the stray box in the system of a frame that is gone.
+    /// </summary>
     [Fact]
     public void DestroyedBodiesAndFramesReleaseTheirSystems()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
-        FrameHandle ship = h.AddFrameWithBody(space, Shapes.At(10, 0, 0), FrameBounds.Sphere(30), MotionDriver.Physics,
-            new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100, InteriorShape: new BoxShapeDesc(new Vector3(0.5f))));
-        Entity crate = h.AddBody(ship, Shapes.Box(0.25f), Shapes.At(0, 2, 0));
-        Entity stray = h.AddBody(ship, Shapes.Box(0.25f), Shapes.At(0, -2, 0));
-        h.Step(5);
+        var warnings = new List<string>();
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        FrameHandle space = SpaceFrame(world);
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(10),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100, InteriorShape: new BoxShapeDesc(new Vector3(0.5f))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+        });
+        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+        Entity crate = world.Spawn(new SpawnDesc { Frame = shipFrame, Pose = At(0, 2), Body = BoxBody(0.25f, 1) });
+        Entity stray = world.Spawn(new SpawnDesc { Frame = shipFrame, Pose = At(0, -2), Body = BoxBody(0.25f, 1) });
+        Tick(world, 5);
 
-        // The simulation destroys the crate and the ship together, but forgets the stray box.
-        h.Destroy(crate);
-        h.Destroy(ship.Entity);
-        h.Frames.Destroy(ship);
-        h.Changes.FramesDestroyed.Add(ship);
-        h.Step();
+        // The simulation destroys the crate and the ship, but the batch of the ship forgets the stray box.
+        world.Destroy(crate);
+        faults.EditNextChanges = changes =>
+        {
+            changes.BodiesDestroyed.Remove(stray);
+            changes.BodiesCreated.RemoveAll(create => create.Entity == stray);
+        };
+        world.Destroy(ship);
+        world.Tick();
 
-        h.Backend.TryGetBodyFrame(crate, out _).Should().BeFalse();
-        h.Backend.TryGetBodyFrame(stray, out _).Should().BeFalse();
-        h.Backend.TryGetBodyFrame(ship.Entity, out _).Should().BeFalse();
-        h.Backend.SystemCount.Should().Be(1);
+        faults.Jolt.TryGetBodyFrame(crate, out _).Should().BeFalse();
+        faults.Jolt.TryGetBodyFrame(stray, out _).Should().BeFalse();
+        faults.Jolt.TryGetBodyFrame(ship, out _).Should().BeFalse();
+        faults.Jolt.SystemCount.Should().Be(1);
         // Only the forgotten box is worth a warning. The crate and the ship went in the documented order.
-        h.Warnings.Should().ContainSingle().Which.Should().Contain(stray.ToString());
+        warnings.Should().ContainSingle().Which.Should().Contain(stray.ToString());
+        world.Errors.Should().BeEmpty();
     }
 
     [Fact]
     public void ChildFrameHullMovesToGrandparentWhenParentFrameIsDestroyed()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
-        FrameHandle carrier = h.AddFrameWithBody(space, Shapes.At(100, 0, 0), FrameBounds.Sphere(200), MotionDriver.Static,
-            new BodyDesc(new BoxShapeDesc(new Vector3(20)), BodyMotion.Static, InteriorShape: new BoxShapeDesc(new Vector3(1))));
-        FrameHandle fighter = h.AddFrameWithBody(carrier, Shapes.At(0, 50, 0), FrameBounds.Sphere(10), MotionDriver.Physics,
-            new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0), velocity: new Vector3(1, 0, 0));
-        h.Step(3);
-        Double3 fighterInSpace = h.Frames.PointToParent(carrier, h.Frames.LocalPose(fighter).Position);
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle space = SpaceFrame(world);
+        Entity carrier = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(100),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(20)), BodyMotion.Static, InteriorShape: new BoxShapeDesc(new Vector3(1))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Static),
+        });
+        FrameHandle carrierFrame = world.GetOwnedFrame(carrier);
+        Entity fighter = world.Spawn(new SpawnDesc
+        {
+            Frame = carrierFrame,
+            Pose = At(0, 50),
+            LinearVelocity = new Double3(1, 0, 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+        });
+        FrameHandle fighterFrame = world.GetOwnedFrame(fighter);
+        Tick(world, 3);
+        Double3 fighterInSpace = world.Frames.PointToParent(carrierFrame, world.Frames.LocalPose(fighterFrame).Position);
 
-        h.Destroy(carrier.Entity);
-        h.Frames.Destroy(carrier);
-        h.Changes.FramesDestroyed.Add(carrier);
-        h.Step();
+        world.Destroy(carrier);
+        world.Tick();
 
-        h.Frames.Parent(fighter).Should().Be(space);
-        h.Backend.TryGetBodyFrame(fighter.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        world.Frames.Parent(fighterFrame).Should().Be(space);
+        backend.TryGetBodyFrame(fighter, out FrameHandle hullFrame).Should().BeTrue();
         hullFrame.Should().Be(space);
-        (h.Frames.LocalPose(fighter).Position - fighterInSpace).Length.Should().BeLessThan(0.1);
-        h.Frames.LinearVelocity(fighter).X.Should().BeApproximately(1, 5e-4);
+        (world.Frames.LocalPose(fighterFrame).Position - fighterInSpace).Length.Should().BeLessThan(0.1);
+        world.Frames.LinearVelocity(fighterFrame).X.Should().BeApproximately(1, 5e-4);
+        world.Errors.Should().BeEmpty();
     }
 
     [Fact]
     public void ChildFrameKeepsItsMotionWhenItsMovingParentFrameIsDestroyed()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle space = SpaceFrame(world);
         // A drifting, spinning carrier with a fighter inside that flies and spins on its own. Sphere hulls keep their
         // spin constant and nothing is damped, so every velocity stays exact.
         var carrierHull = new BodyDesc(new SphereShapeDesc(20), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1));
-        FrameHandle carrier = h.AddFrameWithBody(space, Shapes.At(100, 0, 0), FrameBounds.Sphere(200), MotionDriver.Physics, carrierHull,
-            velocity: new Vector3(0, 0, 20), angularVelocity: new Vector3(0, 0.2f, 0));
+        Entity carrier = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(100),
+            LinearVelocity = new Double3(0, 0, 20),
+            AngularVelocity = new Vector3(0, 0.2f, 0),
+            Body = carrierHull,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics),
+        });
+        FrameHandle carrierFrame = world.GetOwnedFrame(carrier);
         var fighterHull = new BodyDesc(new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(0.5f));
-        FrameHandle fighter = h.AddFrameWithBody(carrier, Shapes.At(60, 0, 0), FrameBounds.Sphere(10), MotionDriver.Physics, fighterHull,
-            velocity: new Vector3(1, 0, 0), angularVelocity: new Vector3(0, 0, 0.5f));
-        h.Step(10);
+        Entity fighter = world.Spawn(new SpawnDesc
+        {
+            Frame = carrierFrame,
+            Pose = At(60),
+            LinearVelocity = new Double3(1, 0, 0),
+            AngularVelocity = new Vector3(0, 0, 0.5f),
+            Body = fighterHull,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+        });
+        FrameHandle fighterFrame = world.GetOwnedFrame(fighter);
+        Tick(world, 10);
 
         // The fighter's motion in space: v' = R·v + v_carrier + ω × (R·p), and ω' = R·ω_fighter + ω_carrier.
-        DPose carrierPose = h.Frames.LocalPose(carrier);
-        Double3 carrierSpin = h.Frames.AngularVelocity(carrier);
-        Double3 inCarrier = h.Frames.LocalPose(fighter).Position;
+        DPose carrierPose = world.Frames.LocalPose(carrierFrame);
+        Double3 carrierSpin = world.Frames.AngularVelocity(carrierFrame);
+        Double3 inCarrier = world.Frames.LocalPose(fighterFrame).Position;
         Double3 position = carrierPose.TransformPoint(inCarrier);
-        Double3 velocity = carrierPose.TransformDirection(h.Frames.LinearVelocity(fighter)) + h.Frames.LinearVelocity(carrier) +
+        Double3 velocity = carrierPose.TransformDirection(world.Frames.LinearVelocity(fighterFrame)) + world.Frames.LinearVelocity(carrierFrame) +
             Double3.Cross(carrierSpin, carrierPose.TransformDirection(inCarrier));
-        Double3 spin = carrierPose.TransformDirection(h.Frames.AngularVelocity(fighter)) + carrierSpin;
+        Double3 spin = carrierPose.TransformDirection(world.Frames.AngularVelocity(fighterFrame)) + carrierSpin;
 
-        h.Destroy(carrier.Entity);
-        h.Frames.Destroy(carrier);
-        h.Changes.FramesDestroyed.Add(carrier);
+        world.Destroy(carrier);
         // The tree has already moved the fighter into space and converted its velocities.
-        (h.Frames.LinearVelocity(fighter) - velocity).Length.Should().BeLessThan(1e-6);
-        h.Step();
+        (world.Frames.LinearVelocity(fighterFrame) - velocity).Length.Should().BeLessThan(1e-6);
+        world.Tick();
 
         // The hull took the tree's motion as it was. Converting it again through the carrier would add the carrier's
         // 20 m/s and the 12 m/s of ω × r a second time; turning the body's own velocity would drop them.
-        h.Backend.TryGetBodyFrame(fighter.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        backend.TryGetBodyFrame(fighter, out FrameHandle hullFrame).Should().BeTrue();
         hullFrame.Should().Be(space);
-        h.Frames.Parent(fighter).Should().Be(space);
-        (h.Frames.LinearVelocity(fighter) - velocity).Length.Should().BeLessThan(1e-4 * velocity.Length);
-        ((Double3)h.Frames.AngularVelocity(fighter) - spin).Length.Should().BeLessThan(1e-5);
-        (h.Frames.LocalPose(fighter).Position - (position + velocity * PhysicsHarness.Dt)).Length.Should().BeLessThan(1e-3);
-        h.Frames.ProperAcceleration(fighter).Length().Should().BeLessThan(1e-6f);
+        world.Frames.Parent(fighterFrame).Should().Be(space);
+        (world.Frames.LinearVelocity(fighterFrame) - velocity).Length.Should().BeLessThan(1e-4 * velocity.Length);
+        ((Double3)world.Frames.AngularVelocity(fighterFrame) - spin).Length.Should().BeLessThan(1e-5);
+        (world.Frames.LocalPose(fighterFrame).Position - (position + velocity * (double)world.DeltaTime)).Length.Should().BeLessThan(1e-3);
+        world.Frames.ProperAcceleration(fighterFrame).Length().Should().BeLessThan(1e-6f);
+        world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The World destroys a frame together with its owner and sends physics both deaths, so an owner whose body outlives its
+    /// frame in physics comes only from a bug. A test stands in for that bug: it takes the owner's body out of the change
+    /// batch that destroys the owner and its frame. A hull without its frame has nothing to stand for, so the backend drops
+    /// the hull and the interior, and warns.
+    /// </summary>
     [Fact]
     public void OwnerThatOutlivesItsFrameLosesItsHull()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
-        FrameHandle ship = h.AddFrameWithBody(space, Shapes.At(10, 0, 0), FrameBounds.Sphere(30), MotionDriver.Physics,
-            new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100));
-        FrameHandle tower = h.AddFrameWithBody(space, Shapes.At(-50, 0, 0), FrameBounds.Sphere(20), MotionDriver.Static,
-            new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static));
-        h.Step();
+        var warnings = new List<string>();
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        FrameHandle space = SpaceFrame(world);
+        Entity shipOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(10),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+        });
+        Entity towerOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(-50),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+        });
+        world.Tick();
+        faults.Jolt.HasInterior(shipOwner).Should().BeTrue();
+        faults.Jolt.SystemCount.Should().Be(3);
 
-        // Both frames go, but their owners keep their bodies. A hull without its frame has nothing to stand for.
-        h.Frames.Destroy(ship);
-        h.Frames.Destroy(tower);
-        h.Changes.FramesDestroyed.Add(ship);
-        h.Changes.FramesDestroyed.Add(tower);
-        h.Step(3);
+        // Both frames go, but their owners keep their bodies in physics.
+        foreach (Entity owner in new[] { shipOwner, towerOwner })
+        {
+            faults.EditNextChanges = changes => changes.BodiesDestroyed.Remove(owner);
+            world.Destroy(owner);
+        }
+        Tick(world, 3);
 
-        h.Backend.TryGetBodyFrame(ship.Entity, out _).Should().BeFalse();
-        h.Backend.TryGetBodyFrame(tower.Entity, out _).Should().BeFalse();
-        h.Backend.HasInterior(ship.Entity).Should().BeFalse();
-        h.Backend.SystemCount.Should().Be(1);
-        h.Warnings.Should().Contain(w => w.Contains(ship.Entity.ToString()));
-        h.Warnings.Should().Contain(w => w.Contains(tower.Entity.ToString()));
-        h.Output.Frames.Should().BeEmpty();
+        faults.Jolt.TryGetBodyFrame(shipOwner, out _).Should().BeFalse();
+        faults.Jolt.TryGetBodyFrame(towerOwner, out _).Should().BeFalse();
+        faults.Jolt.HasInterior(shipOwner).Should().BeFalse();
+        faults.Jolt.SystemCount.Should().Be(1);
+        warnings.Should().Contain(w => w.Contains(shipOwner.ToString()));
+        warnings.Should().Contain(w => w.Contains(towerOwner.ToString()));
+        faults.Outputs[^1].Frames.Should().BeEmpty();
+        world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The World sends a change batch that names a frame only when the frame dies with its owner, so a batch that names a
+    /// frame that the tree still has, and a frame that leaves the tree with no change in the batch, come only from a bug. A
+    /// test stands in for each: it adds the frame to the next batch, and it empties the batch that destroys the frame.
+    /// </summary>
     [Fact]
     public void FrameSystemStaysUntilTheFrameLeavesTheTree()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
-        FrameHandle bubble = h.AddFrame(space, Shapes.At(50, 0, 0), FrameBounds.Sphere(20), MotionDriver.Static);
+        var warnings = new List<string>();
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        FrameHandle space = SpaceFrame(world);
+        Entity bubbleOwner = world.Spawn(new SpawnDesc { Frame = space, Pose = At(50), AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static) });
+        FrameHandle bubble = world.GetOwnedFrame(bubbleOwner);
         // The ball sticks out of the bubble, so space holds a ghost of it.
-        Entity ball = h.AddBody(bubble, Shapes.Ball(0.5f), Shapes.At(19.8, 0, 0));
-        h.Step();
-        h.Backend.HasGhostIn(ball, space).Should().BeTrue();
+        Entity ball = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(19.8), Body = Ball() });
+        world.Tick();
+        faults.Jolt.HasGhostIn(ball, space).Should().BeTrue();
 
-        // FramesDestroyed names a frame that the tree still has. Physics keeps following the tree.
-        h.Changes.FramesDestroyed.Add(bubble);
-        h.Step();
-        h.Warnings.Should().Contain(w => w.Contains(bubble.ToString()) && w.Contains("still in the frame tree"));
-        h.Backend.TryGetBodyFrame(ball, out FrameHandle ballFrame).Should().BeTrue();
+        // A batch names a frame that the tree still has. Physics keeps following the tree. The World sends a batch only when
+        // it holds a change, so the test spawns a box far away to make one.
+        faults.EditNextChanges = changes => changes.FramesDestroyed.Add(bubble);
+        world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, -1000), Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static) });
+        world.Tick();
+        warnings.Should().Contain(w => w.Contains(bubble.ToString()) && w.Contains("still in the frame tree"));
+        faults.Jolt.TryGetBodyFrame(ball, out FrameHandle ballFrame).Should().BeTrue();
         ballFrame.Should().Be(bubble);
-        h.Backend.SystemCount.Should().Be(2);
+        faults.Jolt.SystemCount.Should().Be(2);
 
-        // The frame then leaves the tree with no change batch at all, so the step itself drops the system, and the
-        // ball and its ghost with it.
-        h.Frames.Destroy(bubble);
-        h.Step();
-        h.Warnings.Should().Contain(w => w.Contains(bubble.ToString()) && w.Contains("left the frame tree"));
-        h.Warnings.Should().Contain(w => w.Contains(ball.ToString()));
-        h.Backend.TryGetBodyFrame(ball, out _).Should().BeFalse();
-        h.Backend.GhostCount(ball).Should().Be(0);
-        h.Backend.SystemCount.Should().Be(1);
+        // The frame then leaves the tree with nothing in the batch about it, so the step itself drops the system, and the
+        // ball and its ghost with it. The World destroys the bubble with its owner, and the edit empties the batch that
+        // would have told physics.
+        faults.EditNextChanges = changes => changes.Clear();
+        world.Destroy(bubbleOwner);
+        world.Tick();
+        warnings.Should().Contain(w => w.Contains(bubble.ToString()) && w.Contains("left the frame tree"));
+        warnings.Should().Contain(w => w.Contains(ball.ToString()));
+        faults.Jolt.TryGetBodyFrame(ball, out _).Should().BeFalse();
+        faults.Jolt.GhostCount(ball).Should().Be(0);
+        faults.Jolt.SystemCount.Should().Be(1);
+        world.Errors.Should().BeEmpty();
     }
 
     [Fact]
     public void SimulationReparentingAFrameMovesItsHull()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = SpaceFrame(world);
         // The shuttle's bubble does not fit in the station's, so it never enters on its own.
-        FrameHandle station = h.AddFrame(space, Shapes.At(500, 0, 0), FrameBounds.Sphere(15), MotionDriver.Static);
-        FrameHandle shuttle = h.AddFrameWithBody(space, Shapes.At(505, 0, 0), FrameBounds.Sphere(10), MotionDriver.Physics,
-            new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000));
-        h.Step();
-        h.HandOffs.Should().BeEmpty();
+        FrameHandle station = EmptyFrame(world, space, At(500), 15);
+        Entity shuttleOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(505),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+        });
+        FrameHandle shuttle = world.GetOwnedFrame(shuttleOwner);
+        world.Tick();
+        faults.Outputs.SelectMany(output => output.HandOffs).Should().BeEmpty();
 
         // Docking: the simulation moves the shuttle into the station on its own, with no physics changes. The step
         // sees the new tree and moves the hull.
-        h.Frames.Reparent(shuttle, station);
-        h.Frames.Update();
-        h.Step();
+        world.Frames.Reparent(shuttle, station);
+        world.Tick();
 
-        h.Backend.TryGetBodyFrame(shuttle.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        faults.Jolt.TryGetBodyFrame(shuttleOwner, out FrameHandle hullFrame).Should().BeTrue();
         hullFrame.Should().Be(station);
-        h[shuttle.Entity].Frame.Should().Be(station);
-        (h[shuttle.Entity].Pose.Position - new Double3(5, 0, 0)).Length.Should().BeLessThan(1e-6);
-        h.HandOffs.Should().BeEmpty();
+        world.GetFrame(shuttleOwner).Should().Be(station);
+        (world.PoseIn(shuttleOwner, station).Position - new Double3(5, 0, 0)).Length.Should().BeLessThan(1e-6);
+        BodyState hull = LastReport(faults, shuttleOwner)!.Value;
+        hull.Frame.Should().Be(station, "Jolt reports the hull in the system that now holds it");
+        (hull.Pose.Position - new Double3(5, 0, 0)).Length.Should().BeLessThan(1e-6);
+        faults.Outputs.SelectMany(output => output.HandOffs).Should().BeEmpty();
+        world.Errors.Should().BeEmpty();
     }
 
     [Fact]
     public void SimulationCanDockAFrameThatPhysicsHandedOffBefore()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
-        FrameHandle hangar = h.AddFrame(space, Shapes.At(400, 0, 0), FrameBounds.Sphere(30), MotionDriver.Static);
+        var warnings = new List<string>();
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        FrameHandle space = SpaceFrame(world);
+        FrameHandle hangar = EmptyFrame(world, space, At(400), 30);
         // The shuttle's bubble does not fit in the station's, so it never enters on its own.
-        FrameHandle station = h.AddFrame(space, Shapes.At(500, 0, 0), FrameBounds.Sphere(15), MotionDriver.Static);
-        FrameHandle shuttle = h.AddFrameWithBody(hangar, Shapes.At(25, 0, 0), FrameBounds.Sphere(10), MotionDriver.Physics,
-            new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000), velocity: new Vector3(10, 0, 0));
+        FrameHandle station = EmptyFrame(world, space, At(500), 15);
+        var pilot = new Pilot();
+        Entity shuttleOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = hangar,
+            Pose = At(25),
+            LinearVelocity = new Double3(10, 0, 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            Components = [pilot],
+        });
+        FrameHandle shuttle = world.GetOwnedFrame(shuttleOwner);
 
         // Physics hands the shuttle's frame out of the hangar into space.
-        h.StepUntil(() => h.HandOffs.Count > 0, 120);
-        HandOff exit = h.HandOffs.Should().ContainSingle().Which;
+        TickUntil(world, () => faults.Outputs.Any(output => output.HandOffs.Count > 0), 120);
+        HandOff exit = faults.Outputs.SelectMany(output => output.HandOffs).Should().ContainSingle().Which;
         exit.To.Should().Be(space);
-        h.Frames.Parent(shuttle).Should().Be(space);
+        world.Frames.Parent(shuttle).Should().Be(space);
 
-        // It stops at the station's center. The bubbles overlap, so the station's system holds a ghost of the hull.
-        h.Intent(shuttle.Entity).Flags = IntentFlags.Teleport;
-        h.Intent(shuttle.Entity).TeleportPose = Shapes.At(500, 0, 0);
-        h.Step();
-        h.Backend.HasGhostIn(shuttle.Entity, station).Should().BeTrue();
+        // It stops at the station's center. The bubbles overlap, so the station's system holds a ghost of the hull. A
+        // command that a component gives in one tick acts in the step of the next, so two ticks.
+        pilot.Once = body => body.Teleport(At(500));
+        Tick(world, 2);
+        faults.Jolt.HasGhostIn(shuttleOwner, station).Should().BeTrue();
 
         // The simulation docks it, at a sync point that has other changes too. The earlier hand-off must not hold the
-        // hull in space: ApplyChanges moves it into the station at once, and the real hull replaces its ghost there.
-        h.Frames.Reparent(shuttle, station);
+        // hull in space: the backend moves it into the station, and the real hull replaces its ghost there. The check
+        // reads the backend after the tick that applies the batch and runs the step.
+        world.Frames.Reparent(shuttle, station);
         // Cargo for the station, outside the shuttle's bubble.
-        h.AddBody(station, Shapes.Box(0.25f), Shapes.At(0, 12, 0));
-        h.Sync();
-        h.Backend.TryGetBodyFrame(shuttle.Entity, out FrameHandle hullFrame).Should().BeTrue();
+        world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 12), Body = BoxBody(0.25f, 1) });
+        world.Tick();
+        faults.Jolt.TryGetBodyFrame(shuttleOwner, out FrameHandle hullFrame).Should().BeTrue();
         hullFrame.Should().Be(station);
-        h.Backend.HasGhostIn(shuttle.Entity, station).Should().BeFalse();
+        faults.Jolt.HasGhostIn(shuttleOwner, station).Should().BeFalse();
 
-        h.Step();
-        h[shuttle.Entity].Frame.Should().Be(station);
-        h[shuttle.Entity].Pose.Position.Length.Should().BeLessThan(1e-6);
-        h.HandOffs.Should().ContainSingle();
+        world.Tick();
+        world.GetFrame(shuttleOwner).Should().Be(station);
+        world.PoseIn(shuttleOwner, station).Position.Length.Should().BeLessThan(1e-6);
+        faults.Outputs.SelectMany(output => output.HandOffs).Should().ContainSingle();
 
         // Later the shuttle is scrapped. Nothing of it stays behind in space or in the station.
-        h.Destroy(shuttle.Entity);
-        h.Frames.Destroy(shuttle);
-        h.Changes.FramesDestroyed.Add(shuttle);
-        h.Step(2);
-        h.Backend.TryGetBodyFrame(shuttle.Entity, out _).Should().BeFalse();
-        h.Backend.GhostCount(shuttle.Entity).Should().Be(0);
-        h.Warnings.Should().BeEmpty();
+        world.Destroy(shuttleOwner);
+        Tick(world, 2);
+        faults.Jolt.TryGetBodyFrame(shuttleOwner, out _).Should().BeFalse();
+        faults.Jolt.GhostCount(shuttleOwner).Should().Be(0);
+        warnings.Should().BeEmpty();
+        world.Errors.Should().BeEmpty();
     }
 
     private static double Dot(DQuaternion a, DQuaternion b) => a.X * b.X + a.Y * b.Y + a.Z * b.Z + a.W * b.W;
