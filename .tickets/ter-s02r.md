@@ -2,7 +2,7 @@
 id: ter-s02r
 status: closed
 deps: [ter-06mu]
-links: [ter-sv9y, ter-mpm6, ter-3pho]
+links: [ter-sv9y, ter-mpm6, ter-3pho, ter-gsvv]
 created: 2026-10-12T20:08:35Z
 type: epic
 priority: 1
