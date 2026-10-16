@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The code that several test projects share: the physics test double, the scene builders and the test components.
+         It references the engine modules that the tests run together. The engine code does not reference it, and
+         Tertius.Simulation still does not reference Tertius.Physics. -->
+    <ProjectReference Include="../../src/Tertius.Core/Tertius.Core.csproj" />
+    <ProjectReference Include="../../src/Tertius.Simulation/Tertius.Simulation.csproj" />
+    <ProjectReference Include="../../src/Tertius.Physics/Tertius.Physics.csproj" />
+  </ItemGroup>
+</Project>

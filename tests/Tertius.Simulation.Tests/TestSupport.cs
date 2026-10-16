@@ -21,11 +21,6 @@ public struct Heal : IEventPayload
     public float Amount;
 }
 
-public struct Ping : IEventPayload
-{
-    public int Value;
-}
-
 public struct Note : IEventPayload
 {
     public int Value;
@@ -38,7 +33,7 @@ public struct Note : IEventPayload
 /// mutation testing), no physics unless the test gives a backend, <see cref="WorldOptions.DebugChecks"/> on, and a
 /// root frame in which <see cref="SpawnWith"/> and <see cref="SpawnAt"/> spawn. Dispose it at the end of the test.
 /// Take <see cref="World"/> for the members of the world itself. The static members are the helpers that need no
-/// instance: <see cref="Create"/> for a test that wants a plain <see cref="Simulation.World"/>, and the pose and hash helpers.
+/// instance: <see cref="Create"/> for a test that wants a plain <see cref="Simulation.World"/>, and the pose helpers.
 /// </summary>
 public sealed class TestWorld : IDisposable
 {
@@ -99,43 +94,10 @@ public sealed class TestWorld : IDisposable
         return world;
     }
 
-    // ---- Poses and hashes -------------------------------------------------------------------------------------
+    // ---- Poses ------------------------------------------------------------------------------------------------
 
     /// <summary>A pose at this position with no rotation.</summary>
     public static DPose At(double x, double y = 0, double z = 0) => new(new Double3(x, y, z), DQuaternion.Identity);
-
-    public static ulong Bits(double value) => (ulong)BitConverter.DoubleToInt64Bits(value);
-
-    // The Mix functions fold values into a hash. The determinism and invariant tests compare hashes of whole runs, so
-    // a change of one bit in one value, or of the order of two values, changes the result.
-    public static ulong Mix(ulong hash, ulong value)
-    {
-        hash ^= value + 0x9E3779B97F4A7C15UL + (hash << 6) + (hash >> 2);
-        return hash * 0xBF58476D1CE4E5B9UL;
-    }
-
-    public static ulong Mix(ulong hash, double value) => Mix(hash, Bits(value));
-
-    public static ulong Mix(ulong hash, in DPose pose)
-    {
-        hash = Mix(hash, pose.Position.X);
-        hash = Mix(hash, pose.Position.Y);
-        hash = Mix(hash, pose.Position.Z);
-        hash = Mix(hash, pose.Rotation.X);
-        hash = Mix(hash, pose.Rotation.Y);
-        hash = Mix(hash, pose.Rotation.Z);
-        return Mix(hash, pose.Rotation.W);
-    }
-
-    public static ulong Mix(ulong hash, Vector3 v) => Mix(Mix(Mix(hash, v.X), v.Y), v.Z);
-
-    public static ulong MixPayload(ulong hash, in Event e)
-    {
-        ReadOnlySpan<ulong> words = e.Payload;
-        foreach (ulong word in words)
-            hash = Mix(hash, word);
-        return hash;
-    }
 
     /// <summary>True if the two positions are at most <paramref name="tolerance"/> metres apart.</summary>
     public static bool RoughlyEqual(Double3 a, Double3 b, double tolerance = 1e-9) => (a - b).Length <= tolerance;

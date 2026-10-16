@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using JoltPhysicsSharp;
 using Tertius.Simulation;
-using static Tertius.Physics.Tests.WorldTesting;
+using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
 

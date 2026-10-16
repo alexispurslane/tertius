@@ -13,6 +13,7 @@
     <Project Path="tests/Tertius.Physics.Tests/Tertius.Physics.Tests.csproj" />
     <Project Path="tests/Tertius.Rendering.Tests/Tertius.Rendering.Tests.csproj" />
     <Project Path="tests/Tertius.Host.Tests/Tertius.Host.Tests.csproj" />
+    <Project Path="tests/Tertius.Testing/Tertius.Testing.csproj" />
   </Folder>
   <Folder Name="/benchmarks/">
     <Project Path="benchmarks/Tertius.Benchmarks/Tertius.Benchmarks.csproj" />

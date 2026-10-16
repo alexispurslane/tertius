@@ -8,5 +8,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Tertius.Physics.Tests" />
+    <!-- The shared test helpers read which bodies Jolt simulates, for example whether a body is awake. -->
+    <InternalsVisibleTo Include="Tertius.Testing" />
   </ItemGroup>
 </Project>
