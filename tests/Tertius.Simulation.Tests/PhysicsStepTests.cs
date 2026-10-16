@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using AwesomeAssertions;
 using Tertius.Physics;
 using static Tertius.Testing.WorldTesting;
@@ -13,88 +12,50 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class PhysicsStepTests
 {
-    /// <summary>
-    /// Real Jolt, with a record of what each step received. It forwards every call and changes nothing. It exists because
-    /// <see cref="FaultInjectingBackend"/> records the output of a step but not the context that the world handed in, and
-    /// four tests below are about that context: the tick, the time and the thread.
-    /// </summary>
-    private sealed class StepRecorder(JoltPhysicsBackend jolt) : IPhysicsBackend
-    {
-        public List<StepRecord> Steps { get; } = [];
-
-        public void ApplyChanges(PhysicsChanges changes, FrameTree frames) => jolt.ApplyChanges(changes, frames);
-
-        public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
-        {
-            Steps.Add(new StepRecord(context.Tick, context.Time, Environment.CurrentManagedThreadId, Thread.CurrentThread.IsThreadPoolThread));
-            jolt.Step(context, output);
-        }
-
-        public float BoundingRadius(ShapeDesc shape) => jolt.BoundingRadius(shape);
-
-        public string? ShapeProblem(ShapeDesc shape) => jolt.ShapeProblem(shape);
-
-        public void Dispose() => jolt.Dispose();
-    }
-
-    /// <summary>A world with one gameplay thread on a recorder around a new Jolt backend. The world disposes the backend.</summary>
-    private static World NewWorldRecording(out List<StepRecord> steps, Action<WorldOptions>? configure = null)
-    {
-        var recorder = new StepRecorder(new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 }));
-        steps = recorder.Steps;
-        var options = new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true };
-        configure?.Invoke(options);
-        return new World(options, recorder);
-    }
-
     [Fact]
     public void PhysicsStepsOncePerTickWithTheNumberOfTheTick()
     {
-        using World world = NewWorldRecording(out List<StepRecord> steps);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         Ground(world, 9.81f);
 
         world.Run(5);
 
-        steps.Select(s => s.Tick).Should().Equal(0L, 1, 2, 3, 4);
+        faults.Steps.Select(s => s.Tick).Should().Equal(0L, 1, 2, 3, 4);
     }
 
     [Fact]
     public void ThePhysicsTimeOfAStepIsTheSimulationTimeAtTheStartOfItsTick()
     {
         // 64 ticks per second is a power of two, so every time is exact: the step of tick 4 starts 4/64 s = 0.0625 s in.
-        using World world = NewWorldRecording(out List<StepRecord> steps, options => options.TickRate = 64);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.TickRate = 64);
         Ground(world, 9.81f);
 
         world.Run(5);
 
-        steps.Select(s => s.Time).Should().Equal(0, 1.0 / 64, 2.0 / 64, 3.0 / 64, 4.0 / 64);
+        faults.Steps.Select(s => s.Time).Should().Equal(0, 1.0 / 64, 2.0 / 64, 3.0 / 64, 4.0 / 64);
     }
 
     [Fact]
     public void AllStepsRunOnTheSameThread()
     {
-        List<StepRecord> steps;
-        using (World world = NewWorldRecording(out steps))
-        {
-            Scenes.FloorWithBall(world);
-            world.Run(5);
-        }
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        Scenes.FloorWithBall(world);
 
-        steps.Should().HaveCount(5);
-        steps.Select(s => s.ThreadId).Distinct().Should().ContainSingle();
+        world.Run(5);
+
+        faults.Steps.Should().HaveCount(5);
+        faults.Steps.Select(s => s.ThreadId).Distinct().Should().ContainSingle();
     }
 
     [Fact]
     public void TheStepThreadIsNeitherTheTickingThreadNorAThreadPoolThread()
     {
-        List<StepRecord> steps;
-        using (World world = NewWorldRecording(out steps))
-        {
-            Scenes.FloorWithBall(world);
-            world.Run(5);
-        }
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        Scenes.FloorWithBall(world);
 
-        steps.Should().HaveCount(5).And.OnlyContain(s => s.ThreadId != Environment.CurrentManagedThreadId && !s.OnPoolThread);
+        world.Run(5);
+
+        faults.Steps.Should().HaveCount(5).And.OnlyContain(s => s.ThreadId != Environment.CurrentManagedThreadId && !s.OnPoolThread);
     }
 
     [Fact]
@@ -206,39 +167,6 @@ public class PhysicsStepTests
 
         world.Errors.Should().ContainSingle().Which.Should().Contain("cannot create the body");
         world.TickNumber.Should().Be(2);
-    }
-
-    /// <summary>
-    /// A backend with a bug: it breaks a contract in a step or in a change batch. No test uses this class since the port to
-    /// <see cref="FaultInjectingBackend"/>, which throws a <see cref="ContractException"/> on request. The ticket that
-    /// deletes the stand-ins removes it.
-    /// </summary>
-    private sealed class ContractBreakingBackend(bool inStep) : IPhysicsBackend
-    {
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public void ApplyChanges(PhysicsChanges changes, FrameTree frames)
-        {
-            if (!inStep)
-                BreakContract();
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
-        {
-            if (inStep)
-                BreakContract();
-        }
-
-        public float BoundingRadius(ShapeDesc shape) => 1;
-
-        public string? ShapeProblem(ShapeDesc shape) => shape.Problem();
-
-        public void Dispose()
-        {
-        }
-
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void BreakContract() => throw new ContractException("Invariant failed: the backend is broken");
     }
 
     [Fact]

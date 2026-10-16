@@ -220,17 +220,11 @@ public class MessagingTests
     [Fact]
     public void AnEngineEventStandsAheadOfTheMessagesOfEntitiesInAnInbox()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var t = new TestWorld(physics);
-        FrameHandle a = t.SpawnStaticFrame(TestWorld.At(0), radius: 50);
+        using var t = TestWorld.OnJolt(out _);
         FrameHandle b = t.SpawnStaticFrame(TestWorld.At(1000), radius: 50);
         var traveller = new Recorder(EventMask.Of<Ping>().And<FrameChanged>());
-        Entity body = t.World.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Components = [traveller] });
-        physics.OnStep((context, output) =>
-        {
-            if (context.Tick == 1)
-                output.HandOffs.Add(new HandOff(body, a, b, TestWorld.At(5), default, default));
-        });
+        // Jolt hands the ball off from the root into the frame b in the step of tick 1.
+        Entity body = Scenes.BallApproachingBubble(t.World, t.Root, b, tick: 1, traveller);
         t.SpawnWith(SendEvery.Of(body, new Ping { Value = 1 }));
 
         t.Run(4);
