@@ -94,7 +94,7 @@ public sealed class Crate(CrateSpec spec) : IComponent
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
-        if (events.Contains<CrateTaken>())
+        if (events.Of<CrateTaken>().Any())
         {
             self.Destroy();
             return;
@@ -102,13 +102,12 @@ public sealed class Crate(CrateSpec spec) : IComponent
         // An offer is out while its answer can still come.
         if (offeredOn is long sent && self.Tick - sent < AnswerTicks)
             return;
-        int firstUse = events.IndexOf<Use>();
         // Nothing reaches this return. The crate wants only Use and CrateTaken, and a CrateTaken returned above, so the
-        // events always hold a Use. The guard stays so that a change of what the crate wants cannot read events[-1].
+        // events always hold a Use. The guard stays so that a change of what the crate wants cannot offer to nobody.
         // Stryker disable once Statement : the crate wants only Use and CrateTaken, so no call without a Use gets here.
-        if (firstUse < 0)
+        if (!events.Of<Use>().TryFirst(out Use firstUse))
             return;
-        outbox.Send(events[firstUse].As<Use>().User, new CrateOffer { Crate = spec });
+        outbox.Send(firstUse.User, new CrateOffer { Crate = spec });
         offeredOn = self.Tick;
     }
 

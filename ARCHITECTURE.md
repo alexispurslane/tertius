@@ -173,7 +173,7 @@ An entity runs in a tick only in two cases: its inbox is not empty, or its mask 
 ```csharp
 foreach (ref var damage in events.Of<Damage>())
     damage.Amount = MathF.Max(0, damage.Amount - rating);
-events.RemoveAll(static (ref Damage d) => d.Amount == 0);
+events.Of<Damage>().Where(static (ref Damage d) => d.Amount == 0).Remove();
 ```
 
 Use normal LINQ outside hot paths.

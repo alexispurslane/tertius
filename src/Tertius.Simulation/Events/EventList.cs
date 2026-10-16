@@ -46,16 +46,113 @@ public sealed class EventBuffer
         Version++;
         return ref Items[Count++];
     }
+
+    // ---- The scans that every event query runs ---------------------------------------------------------------------
+
+    /// <summary>The index of the first event that <paramref name="filter"/> matches, or -1.</summary>
+    internal int FirstMatch<TFilter>(TFilter filter) where TFilter : struct, IEventFilter
+    {
+        if (!filter.MayMatch(Mask))
+            return -1;
+        Span<Event> items = Items.AsSpan(0, Count);
+        for (int i = 0; i < items.Length; i++)
+            if (filter.Matches(ref items[i]))
+                return i;
+        return -1;
+    }
+
+    /// <summary>Copies the payload of the first event that <paramref name="filter"/> matches. False, with a default payload, if none matches.</summary>
+    internal bool TryFirst<TFilter, T>(TFilter filter, out T payload)
+        where TFilter : struct, IEventFilter where T : unmanaged, IEventPayload
+    {
+        int index = FirstMatch(filter);
+        payload = index >= 0 ? Unsafe.As<PayloadBytes, T>(ref Items[index].Payload) : default;
+        return index >= 0;
+    }
+
+    /// <summary>Copies the first event that <paramref name="filter"/> matches. False, with a default event, if none matches.</summary>
+    internal bool TryFirst<TFilter>(TFilter filter, out Event e) where TFilter : struct, IEventFilter
+    {
+        int index = FirstMatch(filter);
+        e = index >= 0 ? Items[index] : default;
+        return index >= 0;
+    }
+
+    /// <summary>The number of events that <paramref name="filter"/> matches.</summary>
+    internal int CountMatches<TFilter>(TFilter filter) where TFilter : struct, IEventFilter
+    {
+        if (!filter.MayMatch(Mask))
+            return 0;
+        int n = 0;
+        Span<Event> items = Items.AsSpan(0, Count);
+        for (int i = 0; i < items.Length; i++)
+            if (filter.Matches(ref items[i]))
+                n++;
+        return n;
+    }
+
+    /// <summary>
+    /// Removes the events that <paramref name="filter"/> matches and returns their number. The other events keep their
+    /// order. If the filter throws, the events from the one it threw on are kept unchanged.
+    /// </summary>
+    internal int RemoveMatches<TFilter>(TFilter filter) where TFilter : struct, IEventFilter
+    {
+        if (!filter.MayMatch(Mask))
+            return 0;
+        Event[] items = Items;
+        int count = Count, write = 0, read = 0;
+        try
+        {
+            for (; read < count; read++)
+            {
+                ref Event e = ref items[read];
+                if (filter.Matches(ref e))
+                    continue;
+                if (write != read)
+                    items[write] = e;
+                write++;
+            }
+        }
+        finally
+        {
+            Compact(count, read, write);
+        }
+        return count - Count;
+    }
+
+    // Finishes a removal pass. If the filter threw at 'read', the events from there on are kept unchanged.
+    private void Compact(int count, int read, int write)
+    {
+        if (read < count && write != read)
+            Array.Copy(Items, read, Items, write, count - read);
+        int newCount = write + (count - read);
+        if (newCount < count)
+        {
+            Array.Clear(Items, newCount, count - newCount);
+            Count = newCount;
+            RecomputeMask();
+        }
+        Version++;
+    }
+
+    internal void RecomputeMask()
+    {
+        EventMask mask = default;
+        for (int i = 0; i < Count; i++)
+            mask.Add(Items[i].Type);
+        Mask = mask;
+    }
 }
 
 /// <summary>
 /// The events of one entity run, in delivery order. Components edit the list in place: they change payloads, remove
 /// events and add events. An added event is visible only to the components after the one that added it.
-/// The list never allocates in steady state. Enumerating with <see cref="Of{T}"/> gives references into the payloads:
+/// The list never allocates in steady state. A query picks events with <see cref="Of{T}"/>, <c>From</c> and
+/// <c>Where</c>, and an ending runs it. Enumerating gives references into the payloads:
 /// <code>
 /// foreach (ref var damage in events.Of&lt;Damage&gt;())
 ///     damage.Amount = MathF.Max(0, damage.Amount - rating);
-/// events.RemoveAll(static (ref Damage d) =&gt; d.Amount == 0);
+/// events.Of&lt;Damage&gt;().Where(static (ref Damage d) =&gt; d.Amount == 0).Remove();
 /// </code>
 /// </summary>
 public ref struct EventList
@@ -131,187 +228,30 @@ public ref struct EventList
         items[count - 1] = default;
         buffer.Count = count - 1;
         buffer.Version++;
-        RecomputeMask();
+        buffer.RecomputeMask();
     }
 
-    /// <summary>The payloads of type <typeparamref name="T"/>, as references. Do not add or remove events while enumerating.</summary>
+    /// <summary>
+    /// The events of type <typeparamref name="T"/>, as a query: <c>From</c> and <c>Where</c> narrow it, and an ending runs
+    /// it. A query for a type that <see cref="Mask"/> lacks scans nothing. Do not add or remove events while enumerating.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public readonly EventsOf<T> Of<T>() where T : unmanaged, IEventPayload => new(buffer);
+    public readonly EventsOf<T> Of<T>() where T : unmanaged, IEventPayload => Find(new EventQuery<T>());
 
-    /// <summary>Removes every event of type <typeparamref name="T"/> whose payload matches. Returns the number removed.</summary>
-    public readonly int RemoveAll<T>(RefPredicate<T> match) where T : unmanaged, IEventPayload
-    {
-        ArgumentNullException.ThrowIfNull(match);
-        int type = EventType<T>.Id;
-        if (!buffer.Mask.Contains(type))
-            return 0;
+    /// <summary>The events that a stored query matches. It gives the same chain as <see cref="Of{T}"/> with the same words.</summary>
+    public readonly EventsOf<T> Find<T>(EventQuery<T> query) where T : unmanaged, IEventPayload => new(buffer, query);
 
-        Event[] items = buffer.Items;
-        int count = buffer.Count, write = 0, read = 0;
-        try
-        {
-            for (; read < count; read++)
-            {
-                ref Event e = ref items[read];
-                if (e.Type == type && match(ref Unsafe.As<PayloadBytes, T>(ref e.Payload)))
-                    continue;
-                if (write != read)
-                    items[write] = e;
-                write++;
-            }
-        }
-        finally
-        {
-            Compact(items, count, read, write);
-        }
-        return count - buffer.Count;
-    }
+    /// <summary>The events that a stored query with a state predicate matches.</summary>
+    public readonly EventsOf<T, TState> Find<T, TState>(EventQuery<T, TState> query) where T : unmanaged, IEventPayload =>
+        new(buffer, query);
 
-    /// <summary>Removes every event that matches. Returns the number removed.</summary>
-    public readonly int RemoveAll(RefPredicate<Event> match)
-    {
-        ArgumentNullException.ThrowIfNull(match);
-        Event[] items = buffer.Items;
-        int count = buffer.Count, write = 0, read = 0;
-        try
-        {
-            for (; read < count; read++)
-            {
-                ref Event e = ref items[read];
-                if (match(ref e))
-                    continue;
-                if (write != read)
-                    items[write] = e;
-                write++;
-            }
-        }
-        finally
-        {
-            Compact(items, count, read, write);
-        }
-        return count - buffer.Count;
-    }
+    /// <summary>The events of every type that pass <paramref name="predicate"/>. Use a static lambda, so that it allocates nothing.</summary>
+    public readonly EventsOfAnyType Where(RefPredicate<Event> predicate) => new(buffer, new AnyTypeFilter().Where(predicate));
 
-    /// <summary>True if the list holds an event of type <typeparamref name="T"/>.</summary>
-    public readonly bool Contains<T>() where T : unmanaged, IEventPayload => IndexOf<T>() >= 0;
-
-    /// <summary>The index of the first event of type <typeparamref name="T"/> at or after <paramref name="start"/>, or -1.</summary>
-    public readonly int IndexOf<T>(int start = 0) where T : unmanaged, IEventPayload
-    {
-        int type = EventType<T>.Id;
-        if (!buffer.Mask.Contains(type))
-            return -1;
-        Event[] items = buffer.Items;
-        for (int i = Math.Max(start, 0); i < buffer.Count; i++)
-            if (items[i].Type == type)
-                return i;
-        return -1;
-    }
-
-    /// <summary>The number of events of type <typeparamref name="T"/>.</summary>
-    public readonly int CountOf<T>() where T : unmanaged, IEventPayload
-    {
-        int type = EventType<T>.Id;
-        if (!buffer.Mask.Contains(type))
-            return 0;
-        int n = 0;
-        Event[] items = buffer.Items;
-        for (int i = 0; i < buffer.Count; i++)
-            if (items[i].Type == type)
-                n++;
-        return n;
-    }
-
-    // Finishes a removal pass. If the predicate threw at 'read', the events from there on are kept unchanged.
-    private readonly void Compact(Event[] items, int count, int read, int write)
-    {
-        if (read < count && write != read)
-            Array.Copy(items, read, items, write, count - read);
-        int newCount = write + (count - read);
-        if (newCount < count)
-        {
-            Array.Clear(items, newCount, count - newCount);
-            buffer.Count = newCount;
-            RecomputeMask();
-        }
-        buffer.Version++;
-    }
-
-    private readonly void RecomputeMask()
-    {
-        EventMask mask = default;
-        Event[] items = buffer.Items;
-        for (int i = 0; i < buffer.Count; i++)
-            mask.Add(items[i].Type);
-        buffer.Mask = mask;
-    }
+    /// <summary>The events of every type that <paramref name="sender"/> sent. <see cref="Entity.Null"/> keeps the events without a sender.</summary>
+    public readonly EventsOfAnyType From(Entity sender) => new(buffer, new AnyTypeFilter().From(sender));
 
     [DoesNotReturn]
     private readonly void ThrowIndex(int index) =>
         throw new ArgumentOutOfRangeException(nameof(index), index, $"The event list has {buffer.Count} events.");
-}
-
-/// <summary>The payloads of one type in an <see cref="EventList"/>. Its enumerator yields references, so <c>foreach (ref var p in ...)</c> edits in place.</summary>
-public readonly ref struct EventsOf<T> where T : unmanaged, IEventPayload
-{
-    private readonly EventBuffer buffer;
-
-    internal EventsOf(EventBuffer buffer) => this.buffer = buffer;
-
-    /// <summary>Returns the enumerator that <c>foreach</c> uses.</summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public Enumerator GetEnumerator() => new(buffer);
-
-    /// <summary>The number of events of type <typeparamref name="T"/>.</summary>
-    public int Count()
-    {
-        int n = 0;
-        foreach (ref T _ in this)
-            n++;
-        return n;
-    }
-
-    /// <summary>Enumerates references to the payloads of type <typeparamref name="T"/>.</summary>
-    public ref struct Enumerator
-    {
-        private readonly EventBuffer buffer;
-        private readonly Span<Event> items;
-        private readonly int type;
-        private readonly int version;
-        private int index;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal Enumerator(EventBuffer buffer)
-        {
-            this.buffer = buffer;
-            type = EventType<T>.Id;
-            items = buffer.Mask.Contains(type) ? buffer.Items.AsSpan(0, buffer.Count) : default;
-            version = buffer.Version;
-            index = -1;
-        }
-
-        /// <summary>Moves to the next event of type <typeparamref name="T"/>. Throws if the list changed.</summary>
-        // Inlined into the foreach loop: the JIT does not inline a method with a loop on its own.
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool MoveNext()
-        {
-            if (buffer.Version != version)
-                ThrowModified();
-            while (++index < items.Length)
-                if (items[index].Type == type)
-                    return true;
-            return false;
-        }
-
-        /// <summary>A reference to the current payload. Writes go straight into the list.</summary>
-        public readonly ref T Current
-        {
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            get => ref Unsafe.As<PayloadBytes, T>(ref items[index].Payload);
-        }
-
-        [DoesNotReturn]
-        private static void ThrowModified() =>
-            throw new InvalidOperationException("The event list changed during enumeration. Use RemoveAll to remove events by payload.");
-    }
 }

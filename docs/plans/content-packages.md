@@ -462,7 +462,7 @@ public sealed class Shield : IComponent
     {
         if (charge < 0)
             charge = Capacity;
-        if (events.Contains<Tick>())
+        if (events.Of<Tick>().Any())
             charge = MathF.Min(Capacity, charge + RechargeRate * self.DeltaTime);
         foreach (ref Damage damage in events.Of<Damage>())
         {
@@ -470,7 +470,7 @@ public sealed class Shield : IComponent
             damage.Amount -= soaked;
             charge -= soaked;
         }
-        events.RemoveAll(static (ref Damage damage) => damage.Amount <= 0);
+        events.Of<Damage>().Where(static (ref Damage damage) => damage.Amount <= 0).Remove();
     }
 }
 ```
@@ -480,7 +480,7 @@ In this example:
 - `Capacity` and `RechargeRate` are the fields that the patch sets as `capacity` and `rechargeRate`. They are `init` properties, because every spawn of a blueprint shares the bound values (see the content formats design).
 - `Damage` is the event payload of `tertius.base`, a declared dependency of the mod.
 - `events.Of<Damage>()` gives each `Damage` payload by reference, so the shield lowers its amount in place. `Health` then sees only what the shield did not soak up.
-- `RemoveAll` takes out every `Damage` that nothing is left of, so `Health` never runs for it.
+- `Where(...).Remove()` takes out every `Damage` that nothing is left of, so `Health` never runs for it.
 
 Authors of base packages make mods easier with two habits:
 

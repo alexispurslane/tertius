@@ -339,7 +339,7 @@ internal sealed class ChaoticWorkload : IDisposable
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
-            if (!events.Contains<Tick>() || self.Frame.IsNull)
+            if (!events.Of<Tick>().Any() || self.Frame.IsNull)
                 return;
             WorkloadTally tally = workload.Tally;
             DPose here = new(self.PoseInOwnFrame().Position + new Double3(Next(21) - 10, 0, Next(21) - 10), DQuaternion.Identity);

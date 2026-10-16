@@ -92,7 +92,7 @@ public class PipelineEventsTests
     {
         using var t = new TestWorld();
         var before = new Recorder(EventMask.Of<Ping>(), priority: -1);
-        var remover = new Lambda(EventMask.Of<Ping>(), (self, scoped ref events, scoped ref outbox) => events.RemoveAll(static (ref Ping _) => true));
+        var remover = new Lambda(EventMask.Of<Ping>(), (self, scoped ref events, scoped ref outbox) => events.Of<Ping>().Remove());
         var after = new Recorder(EventMask.Of<Ping>(), priority: 1);
         Entity e = t.SpawnWith(before, remover, after);
         t.World.Post(Event.Create(e, Entity.Null, new Ping { Value = 1 }));
@@ -152,7 +152,7 @@ public class PipelineEventsTests
     public void ARemovalFromTheListOfOneEntityDoesNotTakeTheEventAwayFromAnother()
     {
         using var t = new TestWorld();
-        var remover = new Lambda(EventMask.Of<Ping>(), (self, scoped ref events, scoped ref outbox) => events.RemoveAll(static (ref Ping _) => true));
+        var remover = new Lambda(EventMask.Of<Ping>(), (self, scoped ref events, scoped ref outbox) => events.Of<Ping>().Remove());
         var keeper = new Recorder(EventMask.Of<Ping>());
         t.SpawnWith(remover);
         t.SpawnWith(keeper);
