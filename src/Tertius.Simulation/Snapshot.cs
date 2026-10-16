@@ -59,11 +59,32 @@ public readonly struct Snapshot
         world.Entities.IsAlive(entity) && world.Entities.FrontComponents(entity).Contains(ComponentType<T>.Id);
 
     /// <summary>
-    /// The collision groups and mask of the entity's body that physics used in the step of the previous tick, or null for
-    /// an entity without a body (see <see cref="BodyCollision"/>).
+    /// The physics facts of the entity's body: its motion, mass, shape kind, bounding radius, collision groups and mask,
+    /// and whether it is a sensor (see <see cref="BodyFacts"/>). False, with the default facts, for an entity that was not
+    /// live at the end of the previous tick and for an entity without a body. It allocates nothing.
     /// </summary>
-    public BodyCollision? CollisionOf(Entity entity) =>
-        world.Entities.Body(entity) is null ? null : world.Entities.FrontCollision(entity);
+    public bool TryGetBody(Entity entity, out BodyFacts facts)
+    {
+        EntityTable entities = world.Entities;
+        if (!entities.IsAlive(entity) || entities.Body(entity) is not { } body)
+        {
+            facts = default;
+            return false;
+        }
+        ref readonly BodyCollision collision = ref entities.FrontCollision(entity);
+        facts = new BodyFacts(MotionOf(body, entities.OwnedFrame(entity)), body.Mass, body.Shape.Kind, entities.BodyBoundingRadius(entity),
+            collision.Groups, collision.Mask, IsSensor: false);
+        return true;
+    }
+
+    /// <summary>
+    /// The motion of a body with the description <paramref name="body"/> whose entity owns <paramref name="ownedFrame"/>,
+    /// or no frame when it is null. The frame tree does not change during a tick, so any worker may read the driver.
+    /// </summary>
+    private BodyMotion MotionOf(BodyDesc body, FrameHandle ownedFrame) =>
+        ownedFrame.IsNull ? body.Motion :
+        world.Frames.Parent(ownedFrame).IsNull ? BodyMotion.Static :
+        BodyDesc.FrameHullMotion(world.Frames.Driver(ownedFrame));
 
     /// <summary>
     /// Binds a stored query to this snapshot. An ending such as <c>foreach</c> or <see cref="FoundEntities.Count"/> runs

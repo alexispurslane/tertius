@@ -36,7 +36,8 @@ namespace Tertius.Simulation;
 /// <item>A live slot whose back row differs from its front row is dirty and in a dirty list, so
 /// <see cref="CopyDirtyRows"/> never misses a change. Gameplay never writes the transform of a slot with a body.</item>
 /// <item>A live slot's back component flags are the types of its components. Its collision rows are the default for an
-/// entity without a body.</item>
+/// entity without a body. Its kept body bounding radius is the <see cref="ShapeDesc.BoundingRadius"/> of its body's
+/// shape, or 0 without a body.</item>
 /// <item>The component index lists exactly the live entities whose front flags hold each type. Nothing changes it
 /// during the gameplay part of a tick, which starts with it settled, so the workers read it without a race.</item>
 /// <item>A back intent is set only for a live entity in its chunk's list of intent writers, and a front intent only
@@ -94,6 +95,8 @@ internal sealed class EntityTable
         /// <summary>The cached <see cref="IComponent.Wants"/> of each component.</summary>
         public EventMask[]? Wants;
         public BodyDesc? Body;
+        /// <summary>The <see cref="ShapeDesc.BoundingRadius"/> of the body's shape, or 0 without a body. Kept from the spawn, because it costs a pass over the shape.</summary>
+        public float BodyBoundingRadius;
         /// <summary>The frame this entity is, if any.</summary>
         public FrameHandle OwnedFrame;
     }
@@ -489,7 +492,10 @@ internal sealed class EntityTable
         Contract.Requires(components.Length == wants.Length);
         ComponentFlags types = ComponentFlags.Of(components);
         BodyCollision collision = body is null ? default : new BodyCollision(body.CollisionGroups, body.CollisionMask);
-        records[slot] = new Record { Components = components, Wants = wants, Body = body, OwnedFrame = ownedFrame };
+        records[slot] = new Record
+        {
+            Components = components, Wants = wants, Body = body, BodyBoundingRadius = body?.Shape.BoundingRadius() ?? 0, OwnedFrame = ownedFrame,
+        };
         frontTransform[slot] = row;
         backTransform[slot] = row;
         frontRender[slot] = render;
@@ -575,6 +581,12 @@ internal sealed class EntityTable
     /// so null always means "no body". Worker-safe.
     /// </summary>
     public BodyDesc? Body(Entity entity) => records[LiveSlot(entity)].Body;
+
+    /// <summary>
+    /// The <see cref="ShapeDesc.BoundingRadius"/> of the body's shape, kept from the spawn, or 0 for an entity without a
+    /// body. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe.
+    /// </summary>
+    public float BodyBoundingRadius(Entity entity) => records[LiveSlot(entity)].BodyBoundingRadius;
 
     /// <summary>The frame this entity is, or null. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe.</summary>
     public FrameHandle OwnedFrame(Entity entity) => records[LiveSlot(entity)].OwnedFrame;
@@ -967,6 +979,7 @@ internal sealed class EntityTable
             Contract.Invariant(backComponents[slot] == ComponentFlags.Of(rec.Components));
             if (rec.Body == null)
                 Contract.Invariant(frontCollision[slot] == default && backCollision[slot] == default);
+            Contract.Invariant(rec.BodyBoundingRadius == (rec.Body?.Shape.BoundingRadius() ?? 0));
             var live = new Entity((uint)slot, generation[slot]);
             foreach (int id in frontComponents[slot])
             {

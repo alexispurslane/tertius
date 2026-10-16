@@ -268,10 +268,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     }
 
     /// <inheritdoc/>
+    /// <remarks>The backend keeps the answer of <see cref="ShapeDesc.BoundingRadius"/> for each shape description.</remarks>
     public float BoundingRadius(ShapeDesc shape)
     {
         ArgumentNullException.ThrowIfNull(shape);
-        return radii.GetOrAdd(shape, static s => ShapeBounds.Radius(s));
+        return radii.GetOrAdd(shape, static s => s.BoundingRadius());
     }
 
     /// <inheritdoc/>
@@ -561,7 +562,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
     /// and the owner of a root frame has no hull.</item>
     /// <item>Every frame owner follows its frame's driver: the record has the frame's driver version and driver, and the
-    /// motion that <see cref="HullMotion"/> gives for it, and Jolt moves the hull with that motion.</item>
+    /// motion that <see cref="BodyDesc.FrameHullMotion"/> gives for it, and Jolt moves the hull with that motion.</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame (see
     /// <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
     /// <item>The ghosts of each system (see <see cref="FrameWorld.AddGhost"/>) are the ghosts that the records keep in
@@ -627,7 +628,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             else
                 Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
             Contract.Invariant(owner.DriverVersion == frames.DriverVersion(owner.OwnedFrame) && owner.Driver == frames.Driver(owner.OwnedFrame));
-            Contract.Invariant(owner.Motion == HullMotion(owner.Driver));
+            Contract.Invariant(owner.Motion == BodyDesc.FrameHullMotion(owner.Driver));
             if (owner.HasPrimary)
                 Contract.Invariant(owner.World!.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
         }

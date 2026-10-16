@@ -90,7 +90,7 @@ A frame is an entity that also has a row in the frame tree. `FrameHandle` holds 
 
 - A component changes only its own state and the tables of its own entity.
 - An entity never changes another entity. It sends a message.
-- An entity reads other entities only through the front snapshot of the previous tick. It never reads another entity's components. The snapshot publishes each entity's component flags, the types of the components that it had, and each body's collision groups, so a component can ask whether another entity has a component, or find entities with an entity query (see docs/plans/queries-and-sensors.md).
+- An entity reads other entities only through the front snapshot of the previous tick. It never reads another entity's components. The snapshot publishes each entity's component flags, the types of the components that it had, and each body's collision groups, so a component can ask whether another entity has a component, or find entities with an entity query (see docs/plans/queries-and-sensors.md). `Snapshot.TryGetBody` gives the physics facts of another entity's body: its motion, mass, shape kind, bounding radius, collision groups and mask, and whether it is a sensor. A body's description does not change after spawn, so only the collision groups and mask, which an intent can change, have double-buffered rows. The motion of a frame's hull follows the frame's driver in the frame tree, which changes only between ticks.
 - A component never stores a `ref`, a span, an `EventList`, an `Outbox` or a `Self` beyond the call that received it. The compiler enforces this for ref structs.
 - `Handle` never awaits. For a delay, a component sends a message to itself with a delay.
 

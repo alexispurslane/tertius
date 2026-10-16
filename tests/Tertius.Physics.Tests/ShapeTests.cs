@@ -7,43 +7,16 @@ namespace Tertius.Physics.Tests;
 public class ShapeTests
 {
     [Fact]
-    public void BoundingRadiusOfEachShape()
+    public void TheBackendGivesEachShapeTheBoundingRadiusOfItsDescription()
     {
+        // ShapeDescFactsTests in Tertius.Core.Tests covers the radius of each kind of shape.
         using var backend = new JoltPhysicsBackend();
-        backend.BoundingRadius(new BoxShapeDesc(new Vector3(1, 2, 2))).Should().BeApproximately(3f, 5e-6f);
-        backend.BoundingRadius(new SphereShapeDesc(1.5f)).Should().Be(1.5f);
-        backend.BoundingRadius(new CapsuleShapeDesc(1, 0.5f)).Should().BeApproximately(1.5f, 5e-6f);
-        backend.BoundingRadius(new CapsuleShapeDesc(0, 0.5f)).Should().BeApproximately(0.5f, 5e-6f);
-
+        var box = new BoxShapeDesc(new Vector3(1, 2, 2));
         var hull = new ConvexHullShapeDesc([new(1, 0, 0), new(-1, 0, 0), new(0, 2, 0), new(0, 0, -3)]);
-        backend.BoundingRadius(hull).Should().BeApproximately(3f, 5e-6f);
 
-        // A vertex that no triangle uses is not part of the shape.
-        var mesh = new MeshShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0), new(100, 100, 100)], [0, 1, 2]);
-        backend.BoundingRadius(mesh).Should().BeApproximately(1f, 5e-6f);
-
-        // Children with poses: a unit sphere at x = 3, and a unit cube at y = -3 turned 45° about Z. The cube's
-        // farthest corner is at (0, -3 - √2, ±1).
-        var compound = new CompoundShapeDesc(
-        [
-            new CompoundChild(new SphereShapeDesc(1), new Pose(new Vector3(3, 0, 0), Quaternion.Identity)),
-            new CompoundChild(new BoxShapeDesc(new Vector3(1)), new Pose(new Vector3(0, -3, 0), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 4))),
-        ]);
-        double expected = Math.Sqrt((3 + Math.Sqrt(2)) * (3 + Math.Sqrt(2)) + 1);
-        ((double)backend.BoundingRadius(compound)).Should().BeApproximately(expected, 5e-5);
-
-        // Nested compounds compose their poses.
-        var nested = new CompoundShapeDesc([new CompoundChild(compound, new Pose(new Vector3(0, 0, 10), Quaternion.Identity))]);
-        ((double)backend.BoundingRadius(nested)).Should().BeApproximately(Math.Sqrt((3 + Math.Sqrt(2)) * (3 + Math.Sqrt(2)) + 121), 5e-5);
-    }
-
-    [Fact]
-    public void BoundingRadiusIsAnUpperBound()
-    {
-        using var backend = new JoltPhysicsBackend();
-        var box = new BoxShapeDesc(new Vector3(0.1f, 0.2f, 0.3f));
-        float radius = backend.BoundingRadius(box);
-        ((double)radius).Should().BeGreaterThanOrEqualTo(Math.Sqrt(0.1f * 0.1f + 0.2f * 0.2f + 0.3f * 0.3f));
+        backend.BoundingRadius(box).Should().Be(box.BoundingRadius());
+        backend.BoundingRadius(hull).Should().Be(hull.BoundingRadius());
+        backend.BoundingRadius(box).Should().Be(box.BoundingRadius(), "the backend keeps the answer");
     }
 
     [Fact]

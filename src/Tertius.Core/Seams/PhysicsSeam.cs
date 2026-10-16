@@ -23,6 +23,17 @@ public enum BodyLayer : byte
     Ghost,
 }
 
+/// <summary>The kind of a <see cref="ShapeDesc"/>: one for each of the six shape records.</summary>
+public enum ShapeKind : byte
+{
+    Box,
+    Sphere,
+    Capsule,
+    ConvexHull,
+    Mesh,
+    Compound,
+}
+
 /// <summary>
 /// A collision shape. Shape descriptions are immutable and shared. Backends cache native shapes by reference. The set of
 /// shapes is closed: only the six records below derive from it.
@@ -31,6 +42,96 @@ public abstract record ShapeDesc
 {
     private protected ShapeDesc()
     {
+    }
+
+    /// <summary>Which of the six shape records this is.</summary>
+    public ShapeKind Kind => this switch
+    {
+        BoxShapeDesc => ShapeKind.Box,
+        SphereShapeDesc => ShapeKind.Sphere,
+        CapsuleShapeDesc => ShapeKind.Capsule,
+        ConvexHullShapeDesc => ShapeKind.ConvexHull,
+        MeshShapeDesc => ShapeKind.Mesh,
+        CompoundShapeDesc => ShapeKind.Compound,
+        _ => throw new NotSupportedException($"The shape type {GetType().Name} is not one of the six shape records."),
+    };
+
+    /// <summary>
+    /// The radius, in m, of the smallest sphere about the body's origin that holds the shape, rounded up to the next float.
+    /// It is exact for every shape, also for a compound, whose children it places at their poses. A mesh counts only the
+    /// vertices that a triangle uses. The cost grows with the number of points, vertices and children, so a caller that
+    /// asks often keeps the answer. Throws <see cref="ArgumentException"/> for a convex hull, mesh or compound without its
+    /// arrays, and for a mesh index outside its vertices.
+    /// </summary>
+    public float BoundingRadius()
+    {
+        double radius = BoundingRadius(this, DPose.Identity);
+        // Round up, so that the float radius still bounds the shape.
+        float result = (float)radius;
+        return result < radius ? MathF.BitIncrement(result) : result;
+    }
+
+    private static double BoundingRadius(ShapeDesc shape, in DPose pose)
+    {
+        switch (shape)
+        {
+            case BoxShapeDesc box:
+            {
+                double max = 0;
+                Vector3 h = box.HalfExtents;
+                for (int corner = 0; corner < 8; corner++)
+                {
+                    var p = new Double3((corner & 1) != 0 ? h.X : -h.X, (corner & 2) != 0 ? h.Y : -h.Y, (corner & 4) != 0 ? h.Z : -h.Z);
+                    max = Math.Max(max, pose.TransformPoint(p).Length);
+                }
+                return max;
+            }
+            case SphereShapeDesc sphere:
+                return pose.Position.Length + sphere.Radius;
+            case CapsuleShapeDesc capsule:
+            {
+                double top = pose.TransformPoint(new Double3(0, capsule.HalfHeight, 0)).Length;
+                double bottom = pose.TransformPoint(new Double3(0, -capsule.HalfHeight, 0)).Length;
+                return Math.Max(top, bottom) + capsule.Radius;
+            }
+            case ConvexHullShapeDesc hull:
+            {
+                if (hull.Points is null)
+                    throw new ArgumentException("A convex hull needs points.");
+                double max = 0;
+                foreach (Vector3 p in hull.Points)
+                    max = Math.Max(max, pose.TransformPoint(p).Length);
+                return max;
+            }
+            case MeshShapeDesc mesh:
+            {
+                if (mesh.Vertices is null || mesh.Indices is null)
+                    throw new ArgumentException("A mesh needs vertices and indices.");
+                // Only vertices that a triangle uses are part of the collision shape.
+                double max = 0;
+                foreach (int index in mesh.Indices)
+                {
+                    if ((uint)index >= (uint)mesh.Vertices.Length)
+                        throw new ArgumentException($"Mesh index {index} is outside the {mesh.Vertices.Length} vertices.");
+                    max = Math.Max(max, pose.TransformPoint(mesh.Vertices[index]).Length);
+                }
+                return max;
+            }
+            case CompoundShapeDesc compound:
+            {
+                if (compound.Children is null)
+                    throw new ArgumentException("A compound shape needs children.");
+                double max = 0;
+                foreach (CompoundChild child in compound.Children)
+                {
+                    var local = new DPose(child.Pose.Position, DQuaternion.FromQuaternion(Quaternion.Normalize(child.Pose.Rotation)));
+                    max = Math.Max(max, BoundingRadius(child.Shape, DPose.Compose(pose, local)));
+                }
+                return max;
+            }
+            default:
+                throw new NotSupportedException($"The shape type {shape.GetType().Name} is not one of the six shape records.");
+        }
     }
 
     /// <summary>
@@ -199,6 +300,18 @@ public sealed record BodyDesc(
     }
 
     private static string? NotFinite(string name, float value) => float.IsFinite(value) ? null : $"has the {name} {value}, which must be finite";
+
+    /// <summary>
+    /// The motion that the hull of a frame with <paramref name="driver"/> has: dynamic for the physics driver, kinematic for
+    /// the Kepler and Spin drivers, which move it on rails, and static for the static driver. Only a frame with a parent
+    /// has a hull. The description's own <see cref="Motion"/> does not count for a hull.
+    /// </summary>
+    public static BodyMotion FrameHullMotion(MotionDriver driver) => driver switch
+    {
+        MotionDriver.Physics => BodyMotion.Dynamic,
+        MotionDriver.Kepler or MotionDriver.Spin => BodyMotion.Kinematic,
+        _ => BodyMotion.Static,
+    };
 
     /// <summary>
     /// Why the hull of a frame with this description cannot move the way that <paramref name="driver"/> needs, or null
