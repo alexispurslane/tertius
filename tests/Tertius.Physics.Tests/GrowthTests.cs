@@ -23,8 +23,8 @@ public class GrowthTests
 {
     /// <summary>
     /// The thresholds of numeric frames, set so that the World never makes one. A numeric frame is a frame that the engine
-    /// makes around fast or far bodies (the default speed to get one is 50 m/s). It has no bubble, so a body inside one never
-    /// hands off by the rules of bubbles. These tests are about the systems of bubbles, and some bodies fly at 60 m/s.
+    /// makes around fast or far bodies (the default speed to get one is 50 m/s), with a system of its own. A test that checks
+    /// which system holds a body that flies at 60 m/s needs them off.
     /// </summary>
     private static readonly NumericFrameOptions NoNumericFrames = new()
     {
@@ -34,9 +34,14 @@ public class GrowthTests
         LeaveDistance = double.PositiveInfinity,
     };
 
-    /// <summary>A world on the wrapper, whose systems start with room for <paramref name="maxBodiesPerFrame"/> bodies.</summary>
-    private static World NewWorldOfSmallSystems(int maxBodiesPerFrame, out FaultInjectingBackend faults, List<string>? warnings = null) =>
-        NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame, out faults, warnings, configure: options => options.NumericFrames = NoNumericFrames);
+    /// <summary>
+    /// A world on the wrapper, whose systems start with room for <paramref name="maxBodiesPerFrame"/> bodies, with the
+    /// default numeric frames or, when <paramref name="numericFrames"/> is false, with none.
+    /// </summary>
+    private static World NewWorldOfSmallSystems(int maxBodiesPerFrame, out FaultInjectingBackend faults, List<string>? warnings = null,
+        bool numericFrames = true) =>
+        NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame, out faults, warnings,
+            configure: numericFrames ? null : options => options.NumericFrames = NoNumericFrames);
 
     private static readonly BodyDesc Crate = new(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static);
 
@@ -198,7 +203,8 @@ public class GrowthTests
     [InlineData(true)]
     public void AHandOffIntoAFullSystemGrowsTheSystemAndTheBodyFliesOnInIt(bool frameHull)
     {
-        using World world = NewWorldOfSmallSystems(8, out FaultInjectingBackend faults);
+        // Numeric frames off: the test checks that the hangar's own system holds the body after the hand-off.
+        using World world = NewWorldOfSmallSystems(8, out FaultInjectingBackend faults, numericFrames: false);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
         FrameHandle hangar = EmptyFrame(world, space, At(1000), 30);
         AddCrates(world, hangar, 8);
@@ -721,8 +727,7 @@ public class GrowthTests
         var times = new List<double>();
         for (int run = 0; run < 3; run++)
         {
-            using World world = NewWorldWithFaults(out FaultInjectingBackend faults, debugChecks: false,
-                configure: options => options.NumericFrames = NoNumericFrames);
+            using World world = NewWorldWithFaults(out FaultInjectingBackend faults, debugChecks: false);
             FrameHandle hold = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
             // Half static crates and half balls, 2 m apart, so that nothing touches.
             BodyDesc ball = BallDesc(0.4f);

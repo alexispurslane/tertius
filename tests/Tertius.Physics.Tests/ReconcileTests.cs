@@ -19,8 +19,8 @@ public class ReconcileTests
 {
     /// <summary>
     /// The thresholds of numeric frames, set so that the World never makes one. A numeric frame is a frame that the engine
-    /// makes around fast or far bodies (the default speed to get one is 50 m/s). It has no bubble, so a body inside one never
-    /// hands off by the rules of bubbles, which are what these tests are about. The ships here fly at 60 m/s.
+    /// makes around fast or far bodies (the default speed to get one is 50 m/s), with a system of its own. The ships here fly
+    /// at 60 m/s, so a test that checks which system holds a ship's hull needs them off.
     /// </summary>
     private static readonly NumericFrameOptions NoNumericFrames = new()
     {
@@ -29,9 +29,6 @@ public class ReconcileTests
         CreateDistance = double.PositiveInfinity,
         LeaveDistance = double.PositiveInfinity,
     };
-
-    private static World NewWorldOfBubbles(out FaultInjectingBackend faults) =>
-        NewWorldWithFaults(out faults, configure: options => options.NumericFrames = NoNumericFrames);
 
     /// <summary>A hull of 4 m by 4 m by 4 m with a mass of 1000 kg, and no damping or bounce.</summary>
     private static BodyDesc ShipHull() =>
@@ -54,13 +51,15 @@ public class ReconcileTests
     /// Probe P1 of the review, with physics systems of at most 8 bodies. A hangar bubble of radius 30 m, 1 km along +X,
     /// and a ship 40 m beyond the hangar's center that flies into it at 60 m/s. Far along -X, a storage frame whose
     /// system is full with 8 static crates, and a static skiff. The backend reconciles frame owners from the last one
-    /// created, so it reaches the skiff's hull before the ship's.
+    /// created, so it reaches the skiff's hull before the ship's. With <paramref name="numericFrames"/> false, the World makes
+    /// no numeric frames.
     /// </summary>
     private sealed class FullStorage : IDisposable
     {
-        public FullStorage()
+        public FullStorage(bool numericFrames)
         {
-            World = NewWorldWithFaultsAndSmallSystems(8, out FaultInjectingBackend faults, configure: options => options.NumericFrames = NoNumericFrames);
+            World = NewWorldWithFaultsAndSmallSystems(8, out FaultInjectingBackend faults,
+                configure: numericFrames ? null : options => options.NumericFrames = NoNumericFrames);
             Faults = faults;
             Space = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
             Hangar = EmptyFrame(World, Space, At(1000), 30);
@@ -117,7 +116,8 @@ public class ReconcileTests
     [Fact]
     public void EveryHullFollowsTheTreeWhenTheGameMovesAFrameIntoAFullSystem()
     {
-        using var scene = new FullStorage();
+        // Numeric frames off: the test checks that the system of the ship's semantic parent holds its hull.
+        using var scene = new FullStorage(numericFrames: false);
         scene.MoveFramesAfterTheShipEntersTheHangar();
 
         // At 60 m/s the ship's hull needs about 70 steps to cross the hangar's bubble. A hull that the reconcile left in
@@ -145,7 +145,7 @@ public class ReconcileTests
     [Fact]
     public void TheInvariantsHoldRightAfterTheReconcileThatMovesAHullIntoAFullSystem()
     {
-        using var scene = new FullStorage();
+        using var scene = new FullStorage(numericFrames: true);
         scene.MoveFramesAfterTheShipEntersTheHangar();
 
         scene.World.Tick();
@@ -171,7 +171,8 @@ public class ReconcileTests
     [Fact]
     public void AfterARefusedHandOffTheReconcileRestoresTheInvariants()
     {
-        using World world = NewWorldOfBubbles(out FaultInjectingBackend faults);
+        // Numeric frames off: the Release branch checks that the system of space holds the fighter's hull.
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.NumericFrames = NoNumericFrames);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
         FrameHandle carrier = EmptyFrame(world, space, At(1000), 200);
         FrameHandle fighter = world.GetOwnedFrame(world.Spawn(new SpawnDesc
@@ -253,7 +254,7 @@ public class ReconcileTests
     [Fact]
     public void AHullHasNoGhostInAFrameThatTheGameMovedInsideItsOwnFrame()
     {
-        using World world = NewWorldOfBubbles(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         var (_, hangar, ship) = ShipBesideHangar(world, faults);
 
         // Between ticks, with no change batch, the game moves the hangar into the ship.
@@ -276,7 +277,7 @@ public class ReconcileTests
     [Fact]
     public void ABodyHasNoGhostInAFrameThatTheGameMovedAwayFromItsFrame()
     {
-        using World world = NewWorldOfBubbles(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
         FrameHandle bubble = EmptyFrame(world, space, At(50), 20);
         FrameHandle station = EmptyFrame(world, space, At(-500), 200);
@@ -311,7 +312,7 @@ public class ReconcileTests
     [Fact]
     public void AGhostThatTheTreeStillAllowsSurvivesTheReconcile()
     {
-        using World world = NewWorldOfBubbles(out FaultInjectingBackend faults);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         var (space, hangar, ship) = ShipBesideHangar(world, faults);
         FrameHandle buoy = EmptyFrame(world, space, At(-5000), 5);
         FrameHandle depot = EmptyFrame(world, space, At(5000), 50);

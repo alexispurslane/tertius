@@ -70,14 +70,16 @@ public class CharacterOrbitHandOffTests
     /// hands it to <c>earth</c> after about 2 s. After 30 steps in <c>earth</c>, a push of one step reverses its drift
     /// relative to the ship, and it drifts back into the ship's bubble.
     /// <para>
-    /// The World has no numeric frames in this run. The test checks the hand-offs between the ship and <c>earth</c>, in
-    /// the coordinates of those two frames, and a falling numeric frame around the ship would be the frame that Jolt names.
+    /// With <paramref name="numericFrames"/> false, the World has no numeric frames in this run. A test that checks which
+    /// frames the hand-offs between the ship and <c>earth</c> name needs that, because a falling numeric frame around the
+    /// ship, or around the person, would be the frame that Jolt names.
     /// </para>
     /// </summary>
-    private static Drift Run()
+    private static Drift Run(bool numericFrames)
     {
         var run = new Drift();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.NumericFrames = WithoutNumericFrames);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
+            configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
         FrameHandle sun = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e13f), MotionDriver.Static, GravityField.Point(SunMu)));
         run.Earth = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
@@ -165,7 +167,8 @@ public class CharacterOrbitHandOffTests
     [Fact]
     public void ThePersonLeavesTheShipIntoEarthWithItsPositionAndVelocity()
     {
-        Drift run = Run();
+        // Numeric frames off: the test checks that the hand-off out names earth.
+        Drift run = Run(numericFrames: false);
 
         run.Exit.From.Should().Be(run.Ship);
         run.Exit.To.Should().Be(run.Earth);
@@ -181,7 +184,7 @@ public class CharacterOrbitHandOffTests
     [Fact]
     public void InEarthThePersonKeepsTheUpAndTheRotationThatItHadInTheShip()
     {
-        Drift run = Run();
+        Drift run = Run(numericFrames: true);
 
         // The person never turned in the ship, so its rotation in earth is the ship's attitude.
         Quaternion attitude = ShipAttitude.ToQuaternion();
@@ -196,7 +199,7 @@ public class CharacterOrbitHandOffTests
     [Fact]
     public void InEarthGravityBendsThePersonsPathAndAForceChangesItsVelocity()
     {
-        Drift run = Run();
+        Drift run = Run(numericFrames: true);
 
         // Over the 30 steps before the push, gravity adds g · 0.5 s, about 4.35 m/s toward Earth's center.
         BodyState first = run.InEarth[0];
@@ -215,7 +218,8 @@ public class CharacterOrbitHandOffTests
     [Fact]
     public void ThePersonComesBackIntoTheShipWithItsPositionVelocityAndUp()
     {
-        Drift run = Run();
+        // Numeric frames off: the test checks that the hand-off back names earth, and converts from earth's coordinates.
+        Drift run = Run(numericFrames: false);
 
         run.Entry.From.Should().Be(run.Earth);
         run.Entry.To.Should().Be(run.Ship);
@@ -233,7 +237,7 @@ public class CharacterOrbitHandOffTests
     [Fact]
     public void ThePersonNeverStandsOnTheWayOutAndBack()
     {
-        Drift run = Run();
+        Drift run = Run(numericFrames: true);
 
         run.Standing.Should().NotBeEmpty().And.AllSatisfy(standing => standing.Should().Be(false));
     }
