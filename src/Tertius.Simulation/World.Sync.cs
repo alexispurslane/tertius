@@ -67,7 +67,7 @@ public sealed partial class World
             entities.AssertInvariants();
 
         // 4. The step applied the intents of the previous tick, so their collision groups and masks become the bodies' rows,
-        //    which step 9 publishes. Then this tick's intents become the input of the next physics step.
+        //    which step 8 publishes. Then this tick's intents become the input of the next physics step.
         if (physics != null)
             entities.ApplyCollisionIntents();
         entities.SwapIntents(keep: physics != null);
@@ -91,18 +91,23 @@ public sealed partial class World
         AdvanceFrames(endTime);
         DeriveAttachments();
 
-        // 8. Messages, after every membership and subscription change of this sync.
-        router.Route(TickNumber);
-
-        // 9. The back tables become the front tables.
+        // 8. The back tables become the front tables.
         SwapSnapshot();
 
-        // 10. The render snapshot of the new state.
+        // 9. The ray casts of this tick, against Jolt at the end of the step with this sync's destroys and spawns, and
+        //    against the new front snapshot, which describes the same moment: its component flags, collision groups,
+        //    poses and frames. Their answers join the routing as engine events.
+        rayQueries.Run(entities.Chunks, TickNumber);
+
+        // 10. Messages, after every membership and subscription change of this sync, and after the answers of step 9.
+        router.Route(TickNumber);
+
+        // 11. The render snapshot of the new state.
         TickNumber++;
         Time = endTime;
         BuildRenderSnapshot();
 
-        // 11. Ready for the next tick.
+        // 12. Ready for the next tick.
         entities.EndTick();
         if (options.DebugChecks)
             AssertInvariants();
@@ -356,7 +361,7 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Step 9, and the end of an outside-tick change: the back rows become the front rows, and the frame tree and the
+    /// Step 8, and the end of an outside-tick change: the back rows become the front rows, and the frame tree and the
     /// spatial grids catch up with the new front state.
     /// </summary>
     private void SwapSnapshot()

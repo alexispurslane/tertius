@@ -324,6 +324,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             Array.Clear(worlds);
             Array.Clear(records);
             frameOwners.Clear();
+            queryBodyFilter?.Dispose();
             shapes.Dispose();
             jobs.Dispose();
         }
@@ -718,6 +719,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         worlds[frame.Index] = null;
         worldList.Remove(world);
         world.Dispose();
+        queryBodyFilter?.ForgetBodies();
     }
 
     /// <summary>Predicted motion of a frame that physics does not drive, at the end of the current step, relative to its tree parent.</summary>

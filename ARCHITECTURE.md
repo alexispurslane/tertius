@@ -65,10 +65,11 @@ The sync point does these steps in this order:
 5. Free dead entities. Increment the generation of each slot and return the slot to the free list. Tell physics to destroy their bodies.
 6. Make new entities live. If the tables are full, grow them. Tell physics to create the new bodies. An attached entity becomes live in the frame of its parent at this moment, after steps 2 and 5 have moved the parent.
 7. Advance the Kepler and Spin frames to the end of the tick. Then every attached entity takes its frame, pose and velocities from the root of its chain.
-8. Route the outboxes into inboxes.
-9. Swap the snapshot. The back tables become the front tables. Copy only dirty slots forward.
-10. Build the render snapshot and publish it to the render thread through a triple buffer.
-11. Start the next tick.
+8. Swap the snapshot. The back tables become the front tables. Copy only dirty slots forward.
+9. Run the physics queries that components asked for during the tick, such as ray casts, in entity order. Jolt is at the end of the step, with the destroys and spawns of steps 5 and 6, and the new front snapshot describes the same moment: its component flags, collision groups, poses and frames. Queue each answer as an engine event.
+10. Route the outboxes, and the answers of step 9, into inboxes.
+11. Build the render snapshot and publish it to the render thread through a triple buffer.
+12. Start the next tick.
 
 Gameplay intents written during tick N reach physics in step N+1. That is one tick of latency, and it is acceptable.
 
@@ -194,6 +195,7 @@ The engine defines these payload types in `Tertius.Core`:
 | `FrameChanged` | After a hand-off moved the entity to another frame |
 | `Collision` | Physics reported a contact that started |
 | `CollisionEnded` | Physics reported that a contact which started ended |
+| `RayHit` | The answer to a ray cast that the entity asked for in the previous tick: the entity hit, or a miss |
 | `InputEvent` | The host forwards input to the entities that subscribe to the input topic |
 
 ## Snapshots

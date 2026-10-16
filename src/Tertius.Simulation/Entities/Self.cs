@@ -58,6 +58,9 @@ public readonly ref struct Self
     /// <summary>A proxy over this entity's physics intent for this tick. Physics receives it in the next step.</summary>
     public BodyHandle Body => new(world, Entity);
 
+    /// <summary>This entity's physics queries, such as ray casts. Each answer arrives as an event in the next tick.</summary>
+    public PhysicsQueries Physics => new(world, chunk, Entity);
+
     /// <summary>This entity's own render row (back buffer). Changes reach the renderer after the sync point.</summary>
     public ref RenderData Render => ref world.Entities.WritableRender(Entity);
 

@@ -568,6 +568,21 @@ public interface IPhysicsBackend : IDisposable
 
     void Step(in PhysicsStepContext context, PhysicsStepOutput output);
 
+    /// <summary>
+    /// Casts a ray in the physics system of <paramref name="frame"/> alone, in that frame's coordinates: from
+    /// <paramref name="origin"/> + <paramref name="direction"/> · <paramref name="start"/> to <paramref name="origin"/> +
+    /// <paramref name="direction"/> · <paramref name="end"/>, where <paramref name="direction"/> is a unit vector. It adds
+    /// to <paramref name="hits"/> the hits whose entity <paramref name="filter"/> accepts, with their distances from
+    /// <paramref name="origin"/>: for <see cref="RayCastKind.Nearest"/> the nearest one, and for
+    /// <see cref="RayCastKind.All"/> every one, by distance. Any body of an entity can be hit: its own body, a frame's
+    /// hull and interior, a character's inner body and a ghost. The frame may be a numeric frame, and a frame without a
+    /// system has nothing to hit. It runs at the sync point, never during a step. A ray ignores the back faces of a mesh,
+    /// so a ray that starts inside a mesh passes out of it, and it treats a convex shape as solid, so a ray that starts
+    /// inside one hits it at once.
+    /// </summary>
+    void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end, IPhysicsQueryFilter filter,
+        RayCastKind kind, List<RayCastHit> hits);
+
     /// <summary>The radius of the bounding sphere of a shape. Used for hand-off and rendering.</summary>
     float BoundingRadius(ShapeDesc shape);
 

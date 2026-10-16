@@ -24,7 +24,7 @@ internal readonly record struct ChunkMessage(string Text, bool IsError);
 
 /// <summary>
 /// Everything that the entities of one chunk produce during a tick for the rest of the world: messages, spawns,
-/// destroy and subscription requests, component changes and log lines. Only the worker that runs the chunk writes it,
+/// destroy and subscription requests, component changes, ray casts and log lines. Only the worker that runs the chunk writes it,
 /// so the hot path needs no locks. The sync point reads chunks in chunk order, which makes the result independent of
 /// which thread ran which chunk. The entity table keeps its own per-chunk bookkeeping (dirty rows, intents, spawn
 /// pools) to itself.
@@ -44,6 +44,8 @@ internal sealed class ChunkState(int index)
     /// <summary>The types of the components that this chunk's entities added this tick, for their class constructors.</summary>
     public readonly List<Type> AddedComponentTypes = new();
     public readonly List<ChunkMessage> Messages = new();
+    /// <summary>The ray casts that this chunk's entities asked for, in the order they asked. The sync point runs them.</summary>
+    public readonly RefList<RayRequest> RayRequests = new(4);
 
     /// <summary>Empties the lists of this tick. The router empties the outbox and the delayed list itself.</summary>
     public void EndTick()
@@ -54,5 +56,6 @@ internal sealed class ChunkState(int index)
         ComponentChanges.Clear();
         AddedComponentTypes.Clear();
         Messages.Clear();
+        RayRequests.Clear();
     }
 }

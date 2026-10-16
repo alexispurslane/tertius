@@ -110,6 +110,7 @@ public sealed partial class JoltPhysicsBackend
         // Jolt builds a better broad-phase tree at once than one body at a time.
         larger.OptimizeBroadPhase();
         world.ReplaceSystem(larger, limits, renamedBodies);
+        queryBodyFilter?.ForgetBodies();
         foreach (BodyRecord member in growthCharacters)
             member.Character!.RefreshContacts(PrimaryLayer(member), larger);
         growthCharacters.Clear();

@@ -73,7 +73,7 @@ internal sealed class Router
     public void Post(in Event e) => posted.Enqueue(e);
 
     /// <summary>
-    /// Step 8 of the sync point. Moves the chunks' delayed sends into the timer queue, joins the sources in routing
+    /// Step 10 of the sync point. Moves the chunks' delayed sends into the timer queue, joins the sources in routing
     /// order, expands the targets and builds the inboxes. The chunk outboxes and delayed lists are left empty.
     /// </summary>
     /// <param name="tick">The tick that is ending. Delayed sends due at this tick join this routing.</param>
