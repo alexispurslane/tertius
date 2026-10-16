@@ -57,9 +57,14 @@ public sealed partial class JoltPhysicsBackend
         ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
         foreach (Entity entity in context.IntentEntities.Span)
         {
-            if (entity.Index >= (uint)intents.Length || Find(entity) is not { HasPrimary: true } record)
+            if (entity.Index >= (uint)intents.Length || Find(entity) is not { } record)
                 continue;
             ref readonly PhysicsIntent intent = ref intents[(int)entity.Index];
+            // A static body and the owner of a root frame, which has only an interior, can change their groups too.
+            if ((intent.Flags & IntentFlags.SetCollision) != 0)
+                SetCollision(record, intent.CollisionGroups, intent.CollisionMask);
+            if (!record.HasPrimary)
+                continue;
             if (record.Character is not null)
                 ApplyCharacterIntent(record, intent);
             else if (record.Motion != BodyMotion.Static)
@@ -76,6 +81,47 @@ public sealed partial class JoltPhysicsBackend
             record.World!.Bodies.SetLinearAndAngularVelocity(record.Body, Vector3.Zero, Vector3.Zero);
         }
         kinematicMoversLast.Clear();
+    }
+
+    /// <summary>
+    /// Gives every Jolt body of a record the layer for new collision groups and a new mask: the primary body or the
+    /// character's inner body, the interior of the frame that it owns, and its ghosts. A frame's hull keeps its layer.
+    /// Jolt wakes nothing when a layer changes. So the bodies around each body wake under its old layer, which wakes what
+    /// rested on it, and under its new one, which wakes what it now overlaps. The primary body wakes too when it can
+    /// move, so that it falls through what it no longer meets.
+    /// </summary>
+    private static void SetCollision(BodyRecord record, CollisionGroups groups, CollisionMask mask)
+    {
+        Contract.Requires(mask.AllOf.IsEmpty && mask.NoneOf.IsEmpty);
+        if (groups == record.CollisionGroups && mask == record.CollisionMask)
+            return;
+        record.CollisionGroups = groups;
+        record.CollisionMask = mask;
+        if (record.World is { } world && !record.IsHull)
+        {
+            if (record.Character is { } character)
+            {
+                SetLayer(world, character.InnerBodyID, PrimaryLayer(record));
+            }
+            else
+            {
+                SetLayer(world, record.Body, PrimaryLayer(record));
+                if (record.IsMovable)
+                    world.Bodies.ActivateBody(record.Body);
+            }
+        }
+        if (record.InteriorWorld is { } interior)
+            SetLayer(interior, record.InteriorBody, InteriorLayer(record));
+        if (record.Ghosts is { } ghosts)
+            foreach (GhostBody ghost in ghosts)
+                SetLayer(ghost.World, ghost.Body, GhostLayer(record));
+    }
+
+    private static void SetLayer(FrameWorld world, BodyID body, ObjectLayer layer)
+    {
+        world.WakeAround(body);
+        world.Bodies.SetObjectLayer(body, layer);
+        world.WakeAround(body);
     }
 
     private void ApplyBodyIntent(BodyRecord record, in PhysicsIntent intent)
@@ -419,7 +465,7 @@ public sealed partial class JoltPhysicsBackend
         ExtendedUpdateSettings settings = underGravity
             ? new ExtendedUpdateSettings { StickToFloorStepDown = -0.5f * up, WalkStairsStepUp = 0.4f * up }
             : ZeroGravityUpdate;
-        character.ExtendedUpdate(dt, settings, Layers.Moving, world.System);
+        character.ExtendedUpdate(dt, settings, PrimaryLayer(record), world.System);
         world.System.Gravity = Vector3.Zero;
         if (!standing)
         {

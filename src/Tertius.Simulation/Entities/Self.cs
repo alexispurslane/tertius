@@ -218,5 +218,22 @@ public readonly ref struct BodyHandle
         intent.Flags |= IntentFlags.Jump;
     }
 
+    /// <summary>
+    /// Puts the body in the collision groups <paramref name="groups"/> with the collision mask <paramref name="mask"/>,
+    /// from the next step on. Two bodies collide only when each body's mask matches the other body's groups. Every Jolt
+    /// body of the entity takes them, except the hull of a frame that it owns: its own body, a character's movement, the
+    /// frame's interior and its ghosts. Throws <see cref="ArgumentException"/> when <paramref name="mask"/> has an all-of
+    /// or a none-of part, which a body's mask cannot have (see <see cref="BodyDesc.CollisionMask"/>).
+    /// </summary>
+    public void SetCollision(CollisionGroups groups, CollisionMask mask)
+    {
+        if (mask.BodyProblem() is { } problem)
+            throw new ArgumentException($"{entity} cannot take the collision mask {mask}: it {problem}.", nameof(mask));
+        ref PhysicsIntent intent = ref Intent;
+        intent.CollisionGroups = groups;
+        intent.CollisionMask = mask;
+        intent.Flags |= IntentFlags.SetCollision;
+    }
+
     private ref PhysicsIntent Intent => ref world.WritableIntent(entity);
 }

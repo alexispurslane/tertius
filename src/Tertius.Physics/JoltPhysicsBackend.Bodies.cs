@@ -40,12 +40,30 @@ public sealed partial class JoltPhysicsBackend
     };
 
     /// <summary>
-    /// The object layer of an ordinary body. A static body on the Moving layer (the <see cref="BodyDesc"/> default)
-    /// goes on the Static layer instead: it collides with the same layers that matter, and Jolt keeps static bodies
-    /// out of the moving broad-phase tree.
+    /// The role of an ordinary body's layer, which is the description's layer with two exceptions. A static body on the
+    /// Moving layer (the <see cref="BodyDesc"/> default) gets the Static role: it collides with the same bodies that
+    /// matter, and Jolt keeps static bodies out of the moving broad-phase tree. A character always has the Moving role,
+    /// as its inner body and its movement always had the Moving layer.
     /// </summary>
-    private static ObjectLayer LayerFor(BodyDesc desc) =>
-        desc.Motion == BodyMotion.Static && desc.Layer == BodyLayer.Moving ? Layers.Static : (uint)desc.Layer;
+    private static BodyLayer RoleFor(BodyDesc desc) => desc.Motion switch
+    {
+        BodyMotion.Character => BodyLayer.Moving,
+        BodyMotion.Static when desc.Layer == BodyLayer.Moving => BodyLayer.Static,
+        _ => desc.Layer,
+    };
+
+    /// <summary>
+    /// The object layer of a record's primary body, which is also the layer that a character moves with. A frame's hull
+    /// ignores the owner's collision groups (see <see cref="Layers"/>).
+    /// </summary>
+    private static ObjectLayer PrimaryLayer(BodyRecord record) =>
+        record.IsHull ? Layers.FrameHull : Layers.For(RoleFor(record.Desc), record.CollisionGroups, record.CollisionMask);
+
+    /// <summary>The object layer of the static interior of the frame that a record owns.</summary>
+    private static ObjectLayer InteriorLayer(BodyRecord record) => Layers.For(BodyLayer.Static, record.CollisionGroups, record.CollisionMask);
+
+    /// <summary>The object layer of each ghost of a record's body.</summary>
+    private static ObjectLayer GhostLayer(BodyRecord record) => Layers.For(BodyLayer.Ghost, record.CollisionGroups, record.CollisionMask);
 
     // ---- Creation ----
 
@@ -68,14 +86,13 @@ public sealed partial class JoltPhysicsBackend
         if (desc.Problem(ownsFrame) is { } problem)
             throw new ArgumentException($"{entity} cannot get a body: it {problem}.");
 
-        var record = new BodyRecord { Entity = entity, Desc = desc };
+        var record = new BodyRecord { Entity = entity, Desc = desc, CollisionGroups = desc.CollisionGroups, CollisionMask = desc.CollisionMask };
         if (ownsFrame)
         {
             record.OwnedFrame = owned;
             record.Driver = frames.Driver(owned);
             record.DriverVersion = frames.DriverVersion(owned);
             record.Motion = HullMotion(record.Driver);
-            record.Layer = Layers.FrameHull;
             // A root frame has no parent, so its owner has no hull, and only a hull has to follow the driver.
             if (!ParentOf(owned).IsNull && desc.FrameHullProblem(record.Driver) is { } hull)
                 throw new ArgumentException($"{entity} owns {owned}, which has the {record.Driver} driver, but its hull {hull}.");
@@ -88,7 +105,6 @@ public sealed partial class JoltPhysicsBackend
                 return;
             }
             record.Motion = desc.Motion;
-            record.Layer = LayerFor(desc);
         }
 
         // Build every native shape before any state changes, so that a shape that Jolt cannot build throws cleanly.
@@ -209,19 +225,19 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>The spec of a record's primary rigid body: its own body, or the hull of the frame that it owns.</summary>
     private static RigidSpec PrimarySpec(BodyRecord record) =>
-        new(record.Desc.Shape, ToMotionType(record.Motion), record.Layer, BodyUserData.Encode(BodyKind.Primary, record.Entity), record.Desc,
+        new(record.Desc.Shape, ToMotionType(record.Motion), PrimaryLayer(record), BodyUserData.Encode(BodyKind.Primary, record.Entity), record.Desc,
             MotionChanges: record.IsHull && !record.HasMesh);
 
     /// <summary>The spec of the static interior of the frame that a record owns, in the frame's own system.</summary>
     private static RigidSpec InteriorSpec(BodyRecord record) =>
-        new(record.Desc.InteriorShape ?? record.Desc.Shape, MotionType.Static, Layers.Static, BodyUserData.Encode(BodyKind.Interior, record.Entity), record.Desc);
+        new(record.Desc.InteriorShape ?? record.Desc.Shape, MotionType.Static, InteriorLayer(record), BodyUserData.Encode(BodyKind.Interior, record.Entity), record.Desc);
 
     /// <summary>
     /// The spec of a ghost of a record's body. Meshes are static-only, so the ghost of a mesh hull (a static frame's) is a
     /// static body that physics repositions. The other ghosts are kinematic and carry the real body's velocity.
     /// </summary>
     private static RigidSpec GhostSpec(BodyRecord record) =>
-        new(record.Desc.Shape, record.HasMesh ? MotionType.Static : MotionType.Kinematic, Layers.Ghost, BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc);
+        new(record.Desc.Shape, record.HasMesh ? MotionType.Static : MotionType.Kinematic, GhostLayer(record), BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc);
 
     /// <summary>
     /// Creates a rigid body in the system of <paramref name="world"/>, which grows first if it is full. A body that moves is
@@ -314,7 +330,7 @@ public sealed partial class JoltPhysicsBackend
             Shape = shape,
             // The inner body lets rigid bodies collide with the character and lets it report contacts.
             InnerBodyShape = shape,
-            InnerBodyLayer = Layers.Moving,
+            InnerBodyLayer = PrimaryLayer(record),
             Up = record.Up,
             MaxSlopeAngle = options.CharacterMaxSlopeDegrees * (MathF.PI / 180f),
             Mass = record.Desc.Mass,

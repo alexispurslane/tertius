@@ -3,38 +3,81 @@ using JoltPhysicsSharp;
 namespace Tertius.Physics;
 
 /// <summary>
-/// Object layers and broad-phase layers. Each <see cref="BodyLayer"/> is one Jolt object layer and one broad-phase
-/// layer with the same number. The collision table is the one in ARCHITECTURE.md.
+/// Object layers and broad-phase layers. Each object layer is Jolt's pair of 16-bit sets in
+/// <see cref="ObjectLayerPairFilterMask"/> (joltc builds with 32-bit object layers): the body's groups in the low half and
+/// its mask in the high half. Two bodies collide when the groups of each one meet the mask of the other, which is Jolt's
+/// own pair test:
+/// <code>
+/// (group1 &amp; mask2) != 0 &amp;&amp; (group2 &amp; mask1) != 0
+/// </code>
+/// Bits 0 to 11 of each half are content's collision groups (see <see cref="CollisionGroup"/>), and bits 12 to 15 are the
+/// engine's roles: static, moving, frame hull and ghost. A body's groups are its role and its collision groups. Its mask is
+/// the any-of set of its collision mask, and a static body's mask also names the frame hull role. So between two bodies
+/// that are not hulls, only their collision groups and masks decide. A hull is in the frame hull role alone, and its mask
+/// names the static and frame hull roles, so it meets every static body and every other hull, and nothing else.
+/// <para>
+/// With the default groups this gives the table in ARCHITECTURE.md for every pair in which a body can be dynamic. The
+/// pairs of two bodies that never are (static with static, static with ghost, ghost with ghost) pass the filter when
+/// their groups allow it, but Jolt makes no contact between two bodies that are not dynamic.
+/// </para>
 /// </summary>
 internal static class Layers
 {
-    public const uint Count = 4;
+    private const int RoleShift = CollisionGroup.Capacity;
+    private const uint StaticRole = 1u << RoleShift;
+    private const uint MovingRole = 1u << (RoleShift + 1);
+    private const uint HullRole = 1u << (RoleShift + 2);
+    private const uint GhostRole = 1u << (RoleShift + 3);
+    private const uint AllGroups = (1u << CollisionGroup.Capacity) - 1;
+    private const uint AllRoles = StaticRole | MovingRole | HullRole | GhostRole;
 
-    public static readonly ObjectLayer Static = (uint)BodyLayer.Static;
-    public static readonly ObjectLayer Moving = (uint)BodyLayer.Moving;
-    public static readonly ObjectLayer FrameHull = (uint)BodyLayer.FrameHull;
-    public static readonly ObjectLayer Ghost = (uint)BodyLayer.Ghost;
+    /// <summary>
+    /// The mask half of an any-of set that is empty, which is no condition: every collision group, and the role of every
+    /// body that is not a hull, so that a body in no collision group matches too.
+    /// </summary>
+    private const uint MatchesAnything = AllGroups | StaticRole | MovingRole | GhostRole;
 
-    /// <summary>The layer pairs that collide. Every other pair does not.</summary>
-    private static readonly (BodyLayer A, BodyLayer B)[] Pairs =
-    [
-        (BodyLayer.Static, BodyLayer.Moving),
-        (BodyLayer.Static, BodyLayer.FrameHull),
-        (BodyLayer.Moving, BodyLayer.Moving),
-        (BodyLayer.Moving, BodyLayer.Ghost),
-        (BodyLayer.FrameHull, BodyLayer.FrameHull),
-    ];
+    /// <summary>The layer of every frame hull, whatever the groups and the mask of its owner.</summary>
+    public static ObjectLayer FrameHull { get; } = Encode(HullRole, HullRole | StaticRole);
 
-    public static bool Collide(BodyLayer a, BodyLayer b)
+    /// <summary>
+    /// The object layer of a body in <paramref name="role"/> with <paramref name="groups"/> and <paramref name="mask"/>.
+    /// The static role is for static bodies and the interiors of frames. The moving role is for dynamic and kinematic
+    /// bodies and for characters, whose movement also uses the layer. The ghost role is for ghosts, which carry the groups
+    /// and the mask of their body. A frame hull ignores both (see <see cref="FrameHull"/>). The mask holds only an any-of
+    /// set (see <see cref="BodyDesc.Problem"/>).
+    /// </summary>
+    public static ObjectLayer For(BodyLayer role, CollisionGroups groups, CollisionMask mask)
     {
-        foreach ((BodyLayer x, BodyLayer y) in Pairs)
-            if ((x == a && y == b) || (x == b && y == a))
-                return true;
-        return false;
+        Contract.Requires(mask.AllOf.IsEmpty && mask.NoneOf.IsEmpty);
+        uint anyOf = mask.AnyOf.IsEmpty ? MatchesAnything : mask.AnyOf.Bits;
+        return role switch
+        {
+            BodyLayer.Static => Encode(StaticRole | groups.Bits, anyOf | HullRole),
+            BodyLayer.Moving => Encode(MovingRole | groups.Bits, anyOf),
+            BodyLayer.Ghost => Encode(GhostRole | groups.Bits, anyOf),
+            _ => FrameHull,
+        };
+    }
+
+    /// <summary>Jolt's <c>ObjectLayerPairFilterMask::sGetObjectLayer</c> for 32-bit object layers.</summary>
+    private static ObjectLayer Encode(uint groups, uint mask) => groups | (mask << 16);
+
+    /// <summary>
+    /// The broad-phase layers, one for each role. A body goes into the layer of its role. A body looks in a layer only
+    /// when its mask meets the groups that the layer admits, except the last one, the ghosts' layer, in which Jolt lets
+    /// every body look.
+    /// </summary>
+    private enum BroadPhaseLayers : byte
+    {
+        Static,
+        Moving,
+        FrameHull,
+        Ghost,
     }
 
     /// <summary>
-    /// The Jolt filter tables of one physics system. joltc's <c>JPH_PhysicsSystem_Destroy</c> deletes the three tables that
+    /// The Jolt filters of one physics system. joltc's <c>JPH_PhysicsSystem_Destroy</c> deletes the three filters that
     /// the system was created with. So each system gets its own set, the system frees it, and the managed objects here
     /// never free it.
     /// </summary>
@@ -42,19 +85,26 @@ internal static class Layers
     {
         public Tables()
         {
-            Pairs = NativeOwnership.Disowned(new ObjectLayerPairFilterTable(Count));
-            foreach ((BodyLayer a, BodyLayer b) in Layers.Pairs)
-                Pairs.EnableCollision((uint)a, (uint)b);
+            Pairs = NativeOwnership.Disowned(new ObjectLayerPairFilterMask());
 
-            BroadPhase = NativeOwnership.Disowned(new BroadPhaseLayerInterfaceTable(Count, Count));
-            for (uint layer = 0; layer < Count; layer++)
-                BroadPhase.MapObjectToBroadPhaseLayer(layer, (byte)layer);
+            BroadPhase = NativeOwnership.Disowned(new BroadPhaseLayerInterfaceMask(4));
+            // A layer admits the bodies of its role, and it lists every collision group too, because a body looks in it
+            // only when its mask meets one of those groups. The hull layer lists no collision group, since only the mask
+            // of a hull or of a static body names the hull role.
+            Admit(BroadPhaseLayers.Static, StaticRole | AllGroups);
+            Admit(BroadPhaseLayers.Moving, MovingRole | AllGroups);
+            Admit(BroadPhaseLayers.FrameHull, HullRole);
+            Admit(BroadPhaseLayers.Ghost, GhostRole | AllGroups);
 
-            ObjectVsBroadPhase = NativeOwnership.Disowned(new ObjectVsBroadPhaseLayerFilterTable(BroadPhase, Count, Pairs, Count));
+            ObjectVsBroadPhase = NativeOwnership.Disowned(new ObjectVsBroadPhaseLayerFilterMask(BroadPhase));
         }
 
-        public ObjectLayerPairFilterTable Pairs { get; }
-        public BroadPhaseLayerInterfaceTable BroadPhase { get; }
-        public ObjectVsBroadPhaseLayerFilterTable ObjectVsBroadPhase { get; }
+        /// <summary>Makes <paramref name="layer"/> hold the bodies whose groups meet <paramref name="admits"/> and have no other role.</summary>
+        private void Admit(BroadPhaseLayers layer, uint admits) =>
+            BroadPhase.ConfigureLayer((byte)layer, admits, AllRoles & ~admits);
+
+        public ObjectLayerPairFilterMask Pairs { get; }
+        public BroadPhaseLayerInterfaceMask BroadPhase { get; }
+        public ObjectVsBroadPhaseLayerFilterMask ObjectVsBroadPhase { get; }
     }
 }

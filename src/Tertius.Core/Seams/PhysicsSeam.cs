@@ -11,7 +11,10 @@ public enum BodyMotion : byte
     Character,
 }
 
-/// <summary>Object layers. See the collision table in ARCHITECTURE.md.</summary>
+/// <summary>
+/// Object layers, which the physics backend calls roles. See the collision table in ARCHITECTURE.md. Collision groups
+/// refine the table: see <see cref="BodyDesc.CollisionGroups"/> and <see cref="BodyDesc.CollisionMask"/>.
+/// </summary>
 public enum BodyLayer : byte
 {
     Static,
@@ -144,6 +147,16 @@ public sealed record BodyDesc(
     float AngularDamping = 0.05f,
     ShapeDesc? InteriorShape = null)
 {
+    /// <summary>The collision groups that the body is in. Every body starts in <see cref="CollisionGroup.Solid"/>.</summary>
+    public CollisionGroups CollisionGroups { get; init; } = CollisionGroups.Of(CollisionGroup.Solid);
+
+    /// <summary>
+    /// The groups that the body collides with. Two bodies collide only when each body's mask matches the other body's
+    /// groups. Jolt tests only an any-of set, so a body's mask may hold only one: spawn refuses an all-of or a none-of
+    /// part. Every body starts with <c>InAny(Solid)</c>.
+    /// </summary>
+    public CollisionMask CollisionMask { get; init; } = CollisionMask.Empty.InAny(CollisionGroup.Solid);
+
     /// <summary>
     /// Why no physics backend can create a body from this description, or null when one can. The message completes a
     /// sentence that names the body. <paramref name="ownsFrame"/> is true for the owner of a frame. Its body is the frame's
@@ -160,6 +173,8 @@ public sealed record BodyDesc(
             return $"has the motion {Motion}, which BodyMotion does not define";
         if (!Enum.IsDefined(Layer))
             return $"has the layer {Layer}, which BodyLayer does not define";
+        if (CollisionMask.BodyProblem() is { } mask)
+            return $"has a collision mask that {mask}";
         if (Shape.Problem() is { } shape)
             return $"has a shape that {shape}";
         // Jolt divides by the mass, so a subnormal mass gives an infinite inverse mass. A body that does not need a mass can have 0.
@@ -209,6 +224,7 @@ public enum IntentFlags : ushort
     Teleport = 1 << 3,
     CharacterMove = 1 << 4,
     Jump = 1 << 5,
+    SetCollision = 1 << 6,
 }
 
 /// <summary>
@@ -231,6 +247,10 @@ public struct PhysicsIntent
     /// <summary>The desired movement velocity of a character.</summary>
     public Vector3 CharacterVelocity;
     public float JumpSpeed;
+    /// <summary>The body's new collision groups. Used with <see cref="IntentFlags.SetCollision"/>.</summary>
+    public CollisionGroups CollisionGroups;
+    /// <summary>The body's new collision mask, which holds only an any-of set. Used with <see cref="IntentFlags.SetCollision"/>.</summary>
+    public CollisionMask CollisionMask;
     public IntentFlags Flags;
 
     public readonly bool IsEmpty =>
