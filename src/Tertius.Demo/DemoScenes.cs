@@ -8,9 +8,9 @@ namespace Tertius.Demo;
 /// The scenes that scripts can name. The vertical slice adds its scenes here, and the content packages work later moves
 /// them into the first content package.
 /// </summary>
-public static class DemoScenes
+public static partial class DemoScenes
 {
-    public static IReadOnlyList<Scene> All { get; } = [new Scene("drop-box", DropBox), new Scene("orbit", Orbit)];
+    public static IReadOnlyList<Scene> All { get; } = [new Scene("drop-box", DropBox), new Scene("orbit", Orbit), new Scene("deep-yard", DeepYard.Build)];
 
     /// <summary>Earth's mean radius, in meters.</summary>
     public const double EarthRadius = 6.371e6;
