@@ -1,6 +1,6 @@
 ---
 id: ter-8wmm
-status: open
+status: closed
 deps: [ter-ziae]
 links: []
 created: 2026-10-12T00:10:14Z

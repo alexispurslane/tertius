@@ -1,6 +1,6 @@
 ---
 id: ter-wu6v
-status: open
+status: closed
 deps: [ter-ziae, ter-1j1e, ter-84co]
 links: []
 created: 2026-10-11T23:45:16Z

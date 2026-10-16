@@ -35,3 +35,9 @@ Open questions:
 
 From Snapshot, a component reads another entity's motion, mass, shape kind, bounding radius, collision groups and the groups that it collides with, and whether it is a character or a sensor. A read for a stale entity gives an explicit false or null. Tests cover each fact.
 
+
+## Notes
+
+**2026-10-16T13:36:33Z**
+
+From ter-g3yp: World.GetBody still returns the BodyDesc from spawn, so after a SetCollision intent it shows the old groups and mask, and nothing outside physics can read an entity's current groups yet. This ticket and ter-gj55 need the current groups in the snapshot.

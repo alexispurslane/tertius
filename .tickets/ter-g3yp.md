@@ -1,6 +1,6 @@
 ---
 id: ter-g3yp
-status: open
+status: closed
 deps: [ter-ziae, ter-1j1e]
 links: []
 created: 2026-10-11T23:45:16Z

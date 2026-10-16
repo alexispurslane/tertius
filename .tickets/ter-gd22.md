@@ -50,3 +50,7 @@ How a Sensor component finds its own touches: it picks nothing out. The sync poi
 **2026-10-16T12:38:02Z**
 
 Decided (User, 2026-10-16): the Sensor component relays its entity's Collision and CollisionEnded events as two event types, Entered and Left, each naming the sensor and the other entity. Content names the recipients: a topic, or every entity. The component takes an EntityQuery as its filter, so that, for example, a plate reacts to crew only.
+
+**2026-10-16T13:36:33Z**
+
+From ter-g3yp: a ghost now carries its body's groups both ways, so a kinematic ghost can touch a sensor body when their groups allow it. Make sure that a sensor does not report a ghost's touch as a second touch of the same entity.
