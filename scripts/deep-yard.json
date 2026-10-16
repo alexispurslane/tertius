@@ -19,6 +19,8 @@
     { "do": "dump", "name": "touching" },
     { "do": "capture", "name": "touching" },
     { "do": "run", "ticks": 60 },
+    { "do": "dump", "name": "approach" },
+    { "do": "run", "ticks": 180 },
     { "do": "dump", "name": "end" }
   ]
 }
