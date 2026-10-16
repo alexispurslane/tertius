@@ -9,9 +9,8 @@ public static partial class DemoScenes
     /// <summary>
     /// The scene <c>deep-yard</c>: a small cargo yard one light-year from the origin of its frame, where a double steps by
     /// 2 m. Its bodies are slow and far from the origin, so the engine holds them in resting numeric frames, and those
-    /// frames lie farther than 10^9 m from the origin, so a nesting frame on the grid of 2^20 m holds them. Only through
-    /// that nesting frame do the reads between the yard's bodies, and the moves of a body from one numeric frame to
-    /// another, keep millimeter steps. See docs/plans/numeric-frames.md, "Nesting for vast distances".
+    /// frames lie farther than 10^9 m from the origin, so the engine nests them under a nesting frame on the grid of
+    /// 2^20 m. See docs/plans/numeric-frames.md, "Nesting for vast distances".
     /// <list type="bullet">
     /// <item>The root frame <c>space</c> has no gravity. Its origin is where the light comes from.</item>
     /// <item>The yard's center, <see cref="Center"/>, lies one light-year from space's origin along -Z.</item>
@@ -22,9 +21,20 @@ public static partial class DemoScenes
     /// +Z, and faces the crates, along -Z. Space has no gravity, so W thrusts it toward them (see
     /// <see cref="PersonControl"/>). It is the camera, and its view sees the crates with the light behind it.</item>
     /// </list>
-    /// The yard lies a light-year out along Z, and the crates are apart along X. A double steps by 2 m along Z there, so
-    /// the scene could not place two crates 3 m apart along Z: its spawn positions are in space's coordinates. Along X the
-    /// coordinates are small, so the crates sit exactly 3 m apart, and the person exactly 24 m from the center.
+    /// The yard lies a light-year out along Z, and the crates are apart along X. Spawn positions are in space's
+    /// coordinates, and a double steps by 2 m along Z there, so no spawn can place two crates 3 m apart along Z. A semantic
+    /// frame at the yard's center could, but its crates would then lie near their semantic frame's origin, and the engine
+    /// would give them no numeric frame at all. Along X the coordinates are small, so the crates sit exactly 3 m apart, and
+    /// the person's 24 m along Z is even, so it is exact too. In either axis the crates' contact runs in the small numbers
+    /// of their one resting frame.
+    /// <para>
+    /// What the nest changes in this scene: nothing that its run measures. Each body moves in small numbers in its resting
+    /// frame. No numeric frame moves, because every body stays far below the 50 m/s that makes a frame fall, and none
+    /// moves 1 km from its frame's origin, which recenters a frame. Every frame's place in space is an even number of
+    /// meters, which a double holds exactly a light-year out. The scene shows where the engine puts the nest, that it stays
+    /// on its grid without a jump, and that the reads through it are exact. A numeric frame that moves a light-year out
+    /// would need the nest.
+    /// </para>
     /// </summary>
     public static class DeepYard
     {
