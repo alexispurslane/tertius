@@ -31,6 +31,7 @@ public enum PhysicsOutputKind : byte
     FrameState,
     Contact,
     CharacterState,
+    ContactEnd,
 }
 
 /// <summary>An output that only a bug in the backend produces: where it is, and what is wrong with it.</summary>
@@ -67,6 +68,9 @@ public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Ind
 /// parent's parent. It enters a sibling only when its bubble fits in the sibling's, and fitting is a strict order of
 /// size, so the entries of one step never close a loop.</item>
 /// <item>A contact names two different entities.</item>
+/// <item>An ended contact names two different entities too. Destroying a body ends its contacts, and physics hears of
+/// the destroy at the sync point before its step, so an ended contact can name an entity that is gone or that has no
+/// body. The sync point sends its event only to the entities that are still live.</item>
 /// <item>Physics reports the state of each live character once in each step. So a character state names a live entity
 /// whose body is a character, and no other character state of the step names the same entity.</item>
 /// </list>
@@ -93,8 +97,8 @@ public sealed class PhysicsOutputCheck
     private readonly Dictionary<FrameHandle, FrameHandle> parentsAfter = new();
 
     /// <summary>
-    /// The broken outputs of the last run: body states first, then hand-offs, frame states, contacts, the hand-offs that
-    /// the tree refuses, and last the character states. Valid until the next run.
+    /// The broken outputs of the last run: body states first, then hand-offs, frame states, contacts, ended contacts, the
+    /// hand-offs that the tree refuses, and last the character states. Valid until the next run.
     /// </summary>
     public ReadOnlySpan<PhysicsOutputFault> Faults => CollectionsMarshal.AsSpan(faults);
 
@@ -157,6 +161,12 @@ public sealed class PhysicsOutputCheck
             if ((BodyFault(contact.A, facts) ?? BodyFault(contact.B, facts) ??
                  (contact.A == contact.B ? $"{contact.A} cannot touch itself" : null) ?? FrameFault(contact.Frame, frames)) is { } fault)
                 Add(PhysicsOutputKind.Contact, i, $"ignored the contact of {contact.A} and {contact.B}, because {fault}", contact.A, contact.B);
+        }
+        for (int i = 0; i < output.ContactsEnded.Count; i++)
+        {
+            ContactEnded ended = output.ContactsEnded[i];
+            if (ended.A == ended.B)
+                Add(PhysicsOutputKind.ContactEnd, i, $"ignored the end of the contact of {ended.A} and {ended.B}, because {ended.A} cannot touch itself", ended.A);
         }
 
         // Last, once every other skip is known, the hand-offs of frame owners in their order, each against the tree as

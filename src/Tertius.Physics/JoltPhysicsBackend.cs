@@ -218,9 +218,16 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <see cref="PhysicsStepOutput.Frames"/> holds every physics-driven frame with a hull, relative to its parent
     /// after any hand-off in this step, with the velocity of the frame origin. Apply hand-offs before frame states.
     /// <see cref="PhysicsStepOutput.Contacts"/> holds each body pair that started touching, with A before B in
-    /// entity order and the normal from A to B. Contacts with ghosts are not reported. A pair that separates reports again
-    /// when it touches again. A pair that never separates reports once, also when a body falls asleep and wakes, when a
-    /// hull becomes static and moves again, and when the system grows.
+    /// entity order and the normal from A to B. A pair starts at a real touch: the first step in which its bodies are at
+    /// most <see cref="FrameWorld.TouchTolerance"/> apart or approach fast enough to close their gap, and not when Jolt
+    /// finds them within its speculative contact distance. Contacts with ghosts are not reported. A pair that separates
+    /// reports again when it touches again. A pair that never separates reports once, also when a body falls asleep and
+    /// wakes, when a hull becomes static and moves again, and when the system grows.
+    /// <see cref="PhysicsStepOutput.ContactsEnded"/> holds each pair that started and then ended, once, in entity order:
+    /// Jolt no longer finds it in a step that simulates one of its bodies (for a character, its own contact list no
+    /// longer has the other body), or one of its bodies was destroyed, or one of its bodies left its system for one where
+    /// the other entity has no primary body. So a contact goes on when two touching bodies move to another system
+    /// together, by a hand-off or a move between numeric frames.
     /// </para>
     /// </remarks>
     public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
@@ -253,6 +260,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             ComputeProperAccelerations();
             CollectContacts(output);
             HandOffBodies(output);
+            WriteEndedContacts(output);
             UpdateGhosts();
             WriteBodies(output);
             WriteFrames(output);

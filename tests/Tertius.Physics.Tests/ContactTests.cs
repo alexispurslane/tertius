@@ -110,4 +110,48 @@ public class ContactTests
         contacts.Select(c => c.B).Should().Equal(boxes);
         world.Errors.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// The body of a frame's owner is destroyed while a crate rests on the owner's interior, and nothing else changes. The
+    /// interior goes with the body, which ends its contact with the crate.
+    /// </summary>
+    [Fact]
+    public void DestroyingTheBodyOfAFrameOwnerEndsTheContactsOfItsInterior()
+    {
+        using var h = new PhysicsHarness();
+        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
+        var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(5, 0.25f, 5)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
+        FrameHandle ship = h.AddFrameWithBody(space, DPose.Identity, FrameBounds.Sphere(30), MotionDriver.Static,
+            new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), InteriorShape: deck), GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+        Entity crate = h.AddBody(ship, Shapes.Box(0.5f), Shapes.At(0, -1.5, 0));
+        h.Step(30);
+        h.Contacts.Should().ContainSingle();
+
+        h.Destroy(ship.Entity);
+        h.Step();
+
+        h.ContactsEnded.Should().Equal(new ContactEnded(ship.Entity, crate));
+    }
+
+    /// <summary>
+    /// The box's entity comes before the floor's, but its body comes after the floor's body, so Jolt names the floor first.
+    /// The end of their contact still names the box first.
+    /// </summary>
+    [Fact]
+    public void AnEndedContactNamesItsEntitiesInEntityOrder()
+    {
+        using var h = new PhysicsHarness();
+        FrameHandle ground = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static,
+            GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+        Entity box = h.NewEntity();
+        Entity floor = h.AddBody(ground, Shapes.Floor(10), Shapes.At(0, -0.5, 0));
+        h.AddBody(ground, Shapes.Box(0.5f), Shapes.At(0, 0.5, 0), entity: box);
+        h.Step(10);
+        h.Contacts.Should().ContainSingle();
+
+        h.Destroy(floor);
+        h.Step();
+
+        h.ContactsEnded.Should().Equal(new ContactEnded(box, floor));
+    }
 }

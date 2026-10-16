@@ -48,6 +48,7 @@ internal sealed class PhysicsHarness : IDisposable
     public Dictionary<Entity, bool> Standing { get; } = new();
     public List<HandOff> HandOffs { get; } = new();
     public List<ContactStarted> Contacts { get; } = new();
+    public List<ContactEnded> ContactsEnded { get; } = new();
 
     /// <summary>Runs after each step, before the outputs are cleared.</summary>
     public Action<PhysicsStepOutput>? AfterStep { get; set; }
@@ -256,6 +257,11 @@ internal sealed class PhysicsHarness : IDisposable
         {
             if (!check.IsSkipped(contact.A) && !check.IsSkipped(contact.B))
                 Contacts.Add(contact);
+        }
+        foreach (ContactEnded ended in Output.ContactsEnded)
+        {
+            if (!check.IsSkipped(ended.A) && !check.IsSkipped(ended.B))
+                ContactsEnded.Add(ended);
         }
         AfterStep?.Invoke(Output);
 

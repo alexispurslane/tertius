@@ -384,6 +384,14 @@ public readonly record struct HandOff(Entity Entity, FrameHandle From, FrameHand
 public readonly record struct ContactStarted(Entity A, Entity B, FrameHandle Frame, Double3 Point, Vector3 Normal, float Impulse);
 
 /// <summary>
+/// A contact that a <see cref="ContactStarted"/> of an earlier step, or of the same step, reported and that ended during
+/// the step: the two bodies stopped touching, or one of them was destroyed or left for a system where the other entity
+/// has no body. <see cref="A"/> comes before <see cref="B"/> in entity order. An entity whose body was destroyed at the
+/// last sync point may no longer exist.
+/// </summary>
+public readonly record struct ContactEnded(Entity A, Entity B);
+
+/// <summary>
 /// The new state of a physics-driven frame, relative to its parent after this step. If the step also handed the
 /// frame off, the parent is the hand-off's <see cref="HandOff.To"/>, so the sync point applies hand-offs first.
 /// </summary>
@@ -391,7 +399,9 @@ public readonly record struct FrameState(FrameHandle Frame, DPose LocalPose, Dou
 
 /// <summary>
 /// Results of one step. The backend fills it on the physics thread. The sync point reads and clears it. Every entity
-/// that the output names is live and has a body, and every frame that it names is alive and not null. A hand-off leaves
+/// that the output names is live and has a body, except in an ended contact, and every frame that it names is alive and
+/// not null. An ended contact names two different entities, and one of them may be gone, because destroying a body ends
+/// its contacts. A hand-off leaves
 /// the frame that its entity is in, each entity hands off at most once, and the owner of a frame hands off only when
 /// the frame has the physics driver. A frame state names a frame with the physics driver and a parent, whose owner has
 /// a body. A contact names two different entities. A character state names a live character, and each character has
@@ -404,6 +414,10 @@ public sealed class PhysicsStepOutput
     public readonly List<BodyState> Bodies = new();
     public readonly List<HandOff> HandOffs = new();
     public readonly List<ContactStarted> Contacts = new();
+
+    /// <summary>The contacts that ended in the step, after the contacts that started, in entity order.</summary>
+    public readonly List<ContactEnded> ContactsEnded = new();
+
     public readonly List<FrameState> Frames = new();
 
     /// <summary>
@@ -424,6 +438,7 @@ public sealed class PhysicsStepOutput
         Bodies.Clear();
         HandOffs.Clear();
         Contacts.Clear();
+        ContactsEnded.Clear();
         Frames.Clear();
         Characters.Clear();
         Errors.Clear();

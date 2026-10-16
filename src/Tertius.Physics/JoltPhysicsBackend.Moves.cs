@@ -6,17 +6,10 @@ namespace Tertius.Physics;
 public sealed partial class JoltPhysicsBackend
 {
     /// <summary>A body of a move batch, with its state read before any body of the batch left its system.</summary>
-    private readonly record struct PendingMove(BodyRecord Record, FrameWorld From, FrameHandle To, uint OldId, DPose Pose,
-        Vector3 Linear, Vector3 Angular, bool Awake);
+    private readonly record struct PendingMove(BodyRecord Record, FrameHandle To, DPose Pose, Vector3 Linear, Vector3 Angular, bool Awake);
 
-    // Scratch for a batch of moves: the moves, each move's index by its source system and old body ID, the old IDs of
-    // one source system, and the pairs that the moved bodies carry.
+    // Scratch for a batch of moves.
     private readonly List<PendingMove> pendingMoves = new();
-    private readonly Dictionary<(FrameWorld World, uint Id), int> moveByOldId = new();
-    private readonly HashSet<uint> movedIds = new();
-    private readonly List<ulong> carriedPairs = new();
-    private readonly List<(int A, int B)> carriedMoves = new();
-    private readonly List<FrameWorld> moveSources = new();
 
     /// <summary>
     /// Applies the <see cref="PhysicsChanges.BodiesMoved"/> of a batch: each body leaves the system of its physics home for
@@ -24,19 +17,16 @@ public sealed partial class JoltPhysicsBackend
     /// velocity move by the difference of the two homes' offsets and frame velocities, in doubles; numeric frames do not
     /// rotate, so nothing turns. A sleeping rigid body stays asleep. A character is created again, as in a hand-off, and
     /// looks up its contacts. A frame's hull keeps its body state too, and the simulation has already put the frame under
-    /// the new home. Every pair of moved bodies that touched, or that the old system held, and that go to the same system
-    /// is held there, so its contact goes on without a new report. The bodies left behind around a moved body wake, and
-    /// so do the moved bodies that Jolt simulated. A moved body's ghosts go: the ghost pass of the next step makes the
-    /// ones that its new place wants.
+    /// the new home. Every contact of a moved body with another moved body that goes to the same system goes on there
+    /// without a new report, and every other contact of a moved body ends (see <see cref="ResolveLooseContacts"/>). The
+    /// bodies left behind around a moved body wake, and so do the moved bodies that Jolt simulated. A moved body's ghosts
+    /// go: the ghost pass of the next step makes the ones that its new place wants.
     /// </summary>
     private void ApplyMoves(List<BodyMove> moves)
     {
         if (moves.Count == 0)
             return;
         pendingMoves.Clear();
-        moveByOldId.Clear();
-        carriedPairs.Clear();
-        carriedMoves.Clear();
 
         // Every state is read before any body leaves, because a removal wakes the bodies around it.
         foreach (BodyMove move in moves)
@@ -55,16 +45,12 @@ public sealed partial class JoltPhysicsBackend
             Double3 offset = frames.Relative(record.Frame, move.To).Position;
             Double3 velocity = frames.HomeVelocity(record.Frame, semantic) - frames.HomeVelocity(move.To, semantic);
             BodySnapshot s = ReadPrimary(record);
-            uint oldId = record.Character is { } character ? character.InnerBodyID.ID : record.Body.ID;
             // A sleeping body has no velocity in its old home, so it has the homes' difference in the new one. It sleeps
             // on only when that is zero: else Jolt would carry it along with the new home.
             bool awake = record.Character is not null || record.World!.Bodies.IsActive(record.Body) || velocity != Double3.Zero;
-            moveByOldId[(record.World!, oldId)] = pendingMoves.Count;
-            pendingMoves.Add(new PendingMove(record, record.World!, move.To, oldId, new DPose(s.Pose.Position + offset, s.Pose.Rotation),
+            pendingMoves.Add(new PendingMove(record, move.To, new DPose(s.Pose.Position + offset, s.Pose.Rotation),
                 ((Double3)s.Linear + velocity).ToVector3(), s.Angular, awake));
         }
-
-        CollectCarriedPairs();
 
         for (int i = 0; i < pendingMoves.Count; i++)
         {
@@ -77,44 +63,7 @@ public sealed partial class JoltPhysicsBackend
                 character.RefreshContacts(PrimaryLayer(record), record.World!.System);
         }
 
-        foreach ((int a, int b) in carriedMoves)
-        {
-            BodyRecord first = pendingMoves[a].Record, second = pendingMoves[b].Record;
-            first.World!.Hold(PrimaryId(first), PrimaryId(second));
-        }
         pendingMoves.Clear();
-        moveByOldId.Clear();
-        carriedMoves.Clear();
-    }
-
-    /// <summary>
-    /// Finds, in each system that bodies leave, the pairs whose two bodies both move to the same system, as pairs of move
-    /// indices in <see cref="carriedMoves"/>.
-    /// </summary>
-    private void CollectCarriedPairs()
-    {
-        moveSources.Clear();
-        foreach (PendingMove move in pendingMoves)
-            if (!moveSources.Contains(move.From))
-                moveSources.Add(move.From);
-        foreach (FrameWorld world in moveSources)
-        {
-            movedIds.Clear();
-            foreach (PendingMove move in pendingMoves)
-                if (move.From == world)
-                    movedIds.Add(move.OldId);
-            carriedPairs.Clear();
-            world.PairsAmong(movedIds, carriedPairs);
-            foreach (ulong key in carriedPairs)
-            {
-                int a = moveByOldId[(world, (uint)(key >> 32))], b = moveByOldId[(world, (uint)key)];
-                if (pendingMoves[a].To == pendingMoves[b].To)
-                    carriedMoves.Add((a, b));
-            }
-        }
-        moveSources.Clear();
-        movedIds.Clear();
-        carriedPairs.Clear();
     }
 
     /// <summary>The ID of the body that stands for a record in contact pairs: its rigid body, or its character's inner body.</summary>

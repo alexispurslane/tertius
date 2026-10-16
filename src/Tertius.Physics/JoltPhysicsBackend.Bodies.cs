@@ -357,21 +357,21 @@ public sealed partial class JoltPhysicsBackend
         records[entity.Index] = null;
     }
 
-    private static void RemovePrimary(BodyRecord record)
+    private void RemovePrimary(BodyRecord record)
     {
         if (record.World is not { } world)
             return;
         if (record.Character is { } character)
         {
             world.WakeAround(character.InnerBodyID);
-            world.ForgetContacts(character.InnerBodyID);
+            LoosenContacts(world, character.InnerBodyID);
             character.Dispose();
             record.Character = null;
             world.CharacterCount--;
         }
         else if (record.Body.IsValid)
         {
-            world.ForgetContacts(record.Body);
+            LoosenContacts(world, record.Body);
             world.RemoveBody(record.Body);
         }
         record.Body = BodyID.Invalid;
@@ -380,11 +380,11 @@ public sealed partial class JoltPhysicsBackend
         record.Frame = FrameHandle.Null;
     }
 
-    private static void RemoveInterior(BodyRecord record)
+    private void RemoveInterior(BodyRecord record)
     {
         if (record.InteriorWorld is not { } world)
             return;
-        world.ForgetContacts(record.InteriorBody);
+        LoosenContacts(world, record.InteriorBody);
         world.RemoveBody(record.InteriorBody);
         record.InteriorWorld = null;
         record.InteriorBody = BodyID.Invalid;

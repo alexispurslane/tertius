@@ -187,7 +187,7 @@ A contact starts at a real touch (User): the first step with an applied impulse 
 
 Starts and ends are two event types, `Collision` and `CollisionEnded`, so that each reader picks its type with `Of<T>()` (User). Each start ends with exactly one end, and both entities get both events. Sleep and wake send nothing. A move between numeric frames sends nothing. A destroyed body ends all of its contacts.
 
-The `Impulse` of a `Collision` is an estimate from the approach speed today. The build step checks whether the backend can read the impulse that Jolt's solver applied. Ticket: `ter-wu6v`.
+The `Impulse` of a `Collision` is an estimate from the approach speed today. The build step checks whether the backend can read the impulse that Jolt's solver applied. Ticket: `ter-wu6v`. It cannot: the pinned joltc exports no impulse of a contact constraint, and Jolt calls its contact listener before the solver runs. So the estimate stays.
 
 ## Sensors
 

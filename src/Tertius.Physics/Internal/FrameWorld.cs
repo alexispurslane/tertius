@@ -3,7 +3,11 @@ using JoltPhysicsSharp;
 
 namespace Tertius.Physics;
 
-/// <summary>A contact that Jolt reported on a worker thread, before it is mapped to entities.</summary>
+/// <summary>
+/// A contact that Jolt reported on a worker thread, before it is mapped to entities. <see cref="Touches"/> is true when
+/// the bodies really touch in the step (see <see cref="FrameWorld.Touches"/>), not only when Jolt found them within its
+/// speculative contact distance.
+/// </summary>
 internal readonly record struct RawContact(
     BodyID Body1,
     BodyID Body2,
@@ -11,10 +15,14 @@ internal readonly record struct RawContact(
     ulong UserData2,
     Double3 Point,
     Vector3 Normal,
-    float NormalVelocity)
+    float NormalVelocity,
+    bool Touches)
 {
     public ulong PairKey => FrameWorld.PairKey(Body1, Body2);
 }
+
+/// <summary>A contact that started and then ended, by the user data of its two bodies, before it is mapped to entities.</summary>
+internal readonly record struct RawEnd(ulong UserData1, ulong UserData2);
 
 /// <summary>
 /// The limits by which Jolt sizes the buffers of a physics system when it creates the system. A system never holds more
@@ -48,18 +56,28 @@ internal sealed class FrameWorld : IDisposable
     private readonly float penetrationSlop;
     private readonly Lock contactGate = new();
     private readonly List<RawContact> added = new(64);
+    // The contacts that Jolt reported again in the last update for a pair in pending, when they really touch.
+    private readonly List<RawContact> persistedTouches = new(16);
     private readonly List<ulong> removed = new(64);
-    // Body pairs in contact as Jolt's contact cache holds them, with the number of touching sub-shape pairs. A pair starts
-    // when this goes from 0 to 1, unless it is held.
+    // Body pairs in contact as Jolt's contact cache holds them, with the number of touching sub-shape pairs. A pair that
+    // Jolt adds starts at once if it really touches, unless it is held. Otherwise it waits in pending.
     private readonly Dictionary<ulong, int> touching = new();
+    // The pairs of touching that have not started: Jolt found them within its speculative contact distance, but they have
+    // not touched yet. A pair leaves at its first real touch, which starts it, or when Jolt drops it, which reports nothing.
+    // Only the physics thread changes it, between updates, so Jolt's worker threads read it during an update without the gate.
+    private readonly HashSet<ulong> pending = new();
+    // True while the system's reports of persisting contacts reach OnContactPersisted: while pending has a pair.
+    private bool listensForTouches;
     // Body pairs that touch as far as the backend knows, but that Jolt's contact cache no longer holds. Jolt finds contacts
     // only for a body that it simulates. So it drops the pair of two bodies that it does not simulate (a body fell asleep
     // or a hull became static, on something static or asleep) while the system keeps stepping. A growth drops every pair,
     // because the new system starts with an empty cache. Jolt reports a held pair as added when it finds it again: the
-    // contact continues. A held pair ends as HeldPairEnded says.
+    // contact continues. A held pair ends as HeldPairEnded says. A pair is never in touching and held at once.
     private readonly HashSet<ulong> held = new();
     // True from an update until the contacts that it reported are drained.
     private bool updatedSinceDrain;
+    // The length of the last update, in seconds, by which a contact's approach speed closes its gap (see Touches).
+    private float updateDeltaTime;
     // The inner bodies of this system's characters, and each pair of an inner body with a body that the character's own
     // contact list holds, from the characters' last update. Jolt never simulates an inner body, and the character keeps a
     // gap from what it touches as wide as Jolt's speculative contact distance, so for these pairs the character decides.
@@ -221,9 +239,10 @@ internal sealed class FrameWorld : IDisposable
 
     /// <summary>
     /// Makes <paramref name="larger"/>, which already holds every body of the current system, this frame's system, and
-    /// disposes the current one. Every pair that touches now becomes held: the new system finds it again in the first
-    /// update that simulates one of its bodies, and <see cref="DrainContacts"/> does not take that for a new contact. A
-    /// pair that was held already stays held, so any number of growths keeps every pair that touched before the first.
+    /// disposes the current one. Every pair that started and touches now becomes held: the new system finds it again in
+    /// the first update that simulates one of its bodies, and <see cref="DrainContacts"/> does not take that for a new
+    /// contact. A pair that was held already stays held, so any number of growths keeps every pair that touched before the
+    /// first. A pending pair is forgotten: the new system finds it again, and it starts at its first real touch.
     /// </summary>
     /// <param name="larger">The new system, with <paramref name="limits"/>.</param>
     /// <param name="limits">The limits of <paramref name="larger"/>.</param>
@@ -233,9 +252,8 @@ internal sealed class FrameWorld : IDisposable
     public void ReplaceSystem(PhysicsSystem larger, SystemLimits limits, IReadOnlyDictionary<uint, uint> renamed)
     {
         // Contacts are drained after every update, and only an update reports them.
-        Contract.Requires(added.Count == 0 && removed.Count == 0);
-        System.OnContactAdded -= OnContactAdded;
-        System.OnContactRemoved -= OnContactRemoved;
+        Contract.Requires(added.Count == 0 && persistedTouches.Count == 0 && removed.Count == 0);
+        Unlisten(System);
         System.Dispose();
         System = larger;
         Bodies = larger.BodyInterface;
@@ -248,11 +266,14 @@ internal sealed class FrameWorld : IDisposable
         {
             heldScratch.Clear();
             heldScratch.AddRange(held);
-            heldScratch.AddRange(touching.Keys);
+            foreach (ulong key in touching.Keys)
+                if (!pending.Contains(key))
+                    heldScratch.Add(key);
             held.Clear();
             foreach (ulong key in heldScratch)
                 held.Add(PairKey(Renamed(First(key), renamed), Renamed(Second(key), renamed)));
             touching.Clear();
+            pending.Clear();
         }
     }
 
@@ -299,6 +320,7 @@ internal sealed class FrameWorld : IDisposable
     public PhysicsUpdateError Update(float deltaTime, JobSystem jobs)
     {
         updatedSinceDrain = true;
+        updateDeltaTime = deltaTime;
         return System.Update(deltaTime, 1, jobs);
     }
 
@@ -306,6 +328,33 @@ internal sealed class FrameWorld : IDisposable
     {
         system.OnContactAdded += OnContactAdded;
         system.OnContactRemoved += OnContactRemoved;
+    }
+
+    private void Unlisten(PhysicsSystem system)
+    {
+        system.OnContactAdded -= OnContactAdded;
+        system.OnContactRemoved -= OnContactRemoved;
+        if (listensForTouches)
+            system.OnContactPersisted -= OnContactPersisted;
+        listensForTouches = false;
+    }
+
+    /// <summary>
+    /// Listens to Jolt's reports of contacts that persist only while a pair waits in pending, which is the only pair that
+    /// needs them. Jolt reports every contact of a simulated body in every update, and each report is a call from native
+    /// code into managed code: in a heap of 300 awake boxes, listening made the tick 15 % slower, also with a handler that
+    /// does nothing. Call it on the physics thread between updates, after pending changed.
+    /// </summary>
+    private void FollowPending()
+    {
+        bool wanted = pending.Count > 0;
+        if (wanted == listensForTouches)
+            return;
+        listensForTouches = wanted;
+        if (wanted)
+            System.OnContactPersisted += OnContactPersisted;
+        else
+            System.OnContactPersisted -= OnContactPersisted;
     }
 
     public static ulong PairKey(BodyID a, BodyID b)
@@ -334,8 +383,8 @@ internal sealed class FrameWorld : IDisposable
     /// Records what <paramref name="character"/> touches after its update, by its own contact list: every body within its
     /// predictive contact distance, asleep or awake. <see cref="DrainContacts"/> ends a held pair of the character's inner
     /// body only when that list no longer has the other body. It also records each body of the list that the character
-    /// hit in the update, which starts a pair. <paramref name="velocity"/> is the velocity that the character moved with
-    /// in the update, which gives the speed of the hit.
+    /// hit in the update, which is a real touch and starts a pair. <paramref name="velocity"/> is the velocity that the
+    /// character moved with in the update, which gives the speed of the hit.
     /// </summary>
     public void NoteCharacterContacts(CharacterVirtual character, Vector3 velocity)
     {
@@ -354,7 +403,7 @@ internal sealed class FrameWorld : IDisposable
             // its first body, here the inner body, to its second.
             Vector3 normal = -contact.ContactNormal;
             characterHits.Add(new RawContact(inner, contact.BodyB, character.UserData, contact.UserData, contact.RPosition.ToDouble3(),
-                normal, Vector3.Dot(contact.LinearVelocity - velocity, normal)));
+                normal, Vector3.Dot(contact.LinearVelocity - velocity, normal), Touches: true));
         }
     }
 
@@ -375,36 +424,38 @@ internal sealed class FrameWorld : IDisposable
     private bool IsAwake(BodyID body) => BodiesNoLock.IsActive(body);
 
     /// <summary>
-    /// Moves the contacts that Jolt reported during the last update into the touching-pair table, and appends the
-    /// ones that started a new body pair contact to <paramref name="started"/>. A pair that Jolt drops becomes held, and a
-    /// held pair that Jolt finds again continues. A pair that a character hit in its last update and that neither touches
-    /// nor is held starts too, as a held pair. A held pair ends as <see cref="HeldPairEnded"/> says. Call it on the
-    /// physics thread after the update, with no update running. Visits every held pair after an update, so it costs
-    /// O(held pairs) for a system that steps.
+    /// Moves the contacts that Jolt reported during the last update into the touching-pair table. Appends to
+    /// <paramref name="started"/> each body pair that really touched for the first time: a pair that Jolt adds and that
+    /// touches, or a pending pair that touches now (see <see cref="Touches"/>). A pair that Jolt adds without a touch
+    /// waits in pending. A pair that Jolt drops becomes held if it started, and a held pair that Jolt finds again
+    /// continues. A pair that a character hit in its last update starts too, unless it started already: a pending pair
+    /// at once, and a pair that Jolt does not hold as a held pair. A held pair ends as <see cref="HeldPairEnded"/> says,
+    /// and goes to <paramref name="ended"/>. Call it on the physics thread after the update, with no update running.
+    /// Visits every held pair after an update, so it costs O(held pairs) for a system that steps.
     /// </summary>
-    public void DrainContacts(List<RawContact> started)
+    public void DrainContacts(List<RawContact> started, List<RawEnd> ended)
     {
         lock (contactGate)
         {
             // Jolt reports from several threads, so sort for a deterministic choice when one pair has many points.
-            added.Sort(static (a, b) =>
-            {
-                int c = a.PairKey.CompareTo(b.PairKey);
-                if (c != 0) return c;
-                c = a.Point.X.CompareTo(b.Point.X);
-                if (c != 0) return c;
-                c = a.Point.Y.CompareTo(b.Point.Y);
-                return c != 0 ? c : a.Point.Z.CompareTo(b.Point.Z);
-            });
+            added.Sort(ByPairAndPoint);
+            persistedTouches.Sort(ByPairAndPoint);
             // Additions first: a pair that gains one sub-shape contact and loses another in the same step continues.
             foreach (RawContact contact in added)
             {
                 ulong key = contact.PairKey;
                 touching.TryGetValue(key, out int count);
                 touching[key] = count + 1;
-                if (count == 0 && !held.Remove(key))
+                if (count == 0 && held.Remove(key))
+                    continue;
+                if (count == 0 && !contact.Touches)
+                    pending.Add(key);
+                else if (contact.Touches && (count == 0 || pending.Remove(key)))
                     started.Add(contact);
             }
+            foreach (RawContact contact in persistedTouches)
+                if (pending.Remove(contact.PairKey))
+                    started.Add(contact);
             foreach (ulong key in removed)
             {
                 if (!touching.TryGetValue(key, out int count))
@@ -414,18 +465,21 @@ internal sealed class FrameWorld : IDisposable
                     touching[key] = count - 1;
                     continue;
                 }
-                // The pair ended, or Jolt dropped it because it simulates neither body. The check below tells which.
+                // A pair that never touched leaves without a report. A pair that started ended, or Jolt dropped it because
+                // it simulates neither body. The check below tells which.
                 touching.Remove(key);
-                held.Add(key);
+                if (!pending.Remove(key))
+                    held.Add(key);
             }
             added.Clear();
+            persistedTouches.Clear();
             removed.Clear();
-            // A pair that a character hit starts unless it touches or is held. It starts held, because Jolt may never
-            // find it, and the character's contact list ends it.
+            // A hit is a real touch. A pending pair starts at once. A pair that Jolt does not hold starts held, because Jolt
+            // may never find it, and the character's contact list ends it.
             foreach (RawContact hit in characterHits)
             {
                 ulong key = hit.PairKey;
-                if (!touching.ContainsKey(key) && held.Add(key))
+                if (pending.Remove(key) || (!touching.ContainsKey(key) && held.Add(key)))
                     started.Add(hit);
             }
 
@@ -437,43 +491,51 @@ internal sealed class FrameWorld : IDisposable
                     if (HeldPairEnded(key))
                         heldScratch.Add(key);
                 foreach (ulong key in heldScratch)
+                {
                     held.Remove(key);
+                    ended.Add(EndOf(key));
+                }
             }
             updatedSinceDrain = false;
+            FollowPending();
         }
     }
 
-    /// <summary>
-    /// Adds to <paramref name="pairs"/> every pair of this system, touching or held, whose two bodies are both in
-    /// <paramref name="bodies"/>, by full ID. A group of bodies that moves to another system together takes these pairs
-    /// with it (see <see cref="Hold"/>). Call it between updates, after the contacts are drained.
-    /// </summary>
-    public void PairsAmong(HashSet<uint> bodies, List<ulong> pairs)
+    private static readonly Comparison<RawContact> ByPairAndPoint = static (a, b) =>
     {
-        lock (contactGate)
-        {
-            Contract.Requires(added.Count == 0 && removed.Count == 0);
-            foreach (ulong key in touching.Keys)
-                if (bodies.Contains((uint)(key >> 32)) && bodies.Contains((uint)key))
-                    pairs.Add(key);
-            foreach (ulong key in held)
-                if (bodies.Contains((uint)(key >> 32)) && bodies.Contains((uint)key))
-                    pairs.Add(key);
-        }
-    }
+        int c = a.PairKey.CompareTo(b.PairKey);
+        if (c != 0) return c;
+        c = a.Point.X.CompareTo(b.Point.X);
+        if (c != 0) return c;
+        c = a.Point.Y.CompareTo(b.Point.Y);
+        return c != 0 ? c : a.Point.Z.CompareTo(b.Point.Z);
+    };
+
+    /// <summary>The end of the pair <paramref name="key"/>, whose two bodies are still in the system.</summary>
+    private RawEnd EndOf(ulong key) => new(BodiesNoLock.GetUserData(First(key)), BodiesNoLock.GetUserData(Second(key)));
 
     /// <summary>
-    /// Holds the pair of two bodies that came into this system together while they touched, so that Jolt finding their
-    /// contact continues it instead of starting it. The pair ends as <see cref="HeldPairEnded"/> says.
+    /// Holds the pair of two bodies whose entities were in contact when one or both of the bodies came into this system,
+    /// so that Jolt finding their contact continues it instead of starting it. The pair ends as
+    /// <see cref="HeldPairEnded"/> says.
     /// </summary>
     public void Hold(BodyID a, BodyID b)
     {
+        ulong key = PairKey(a, b);
         lock (contactGate)
-            held.Add(PairKey(a, b));
+        {
+            // Both bodies are new in this system, so Jolt has not found their pair yet.
+            Contract.Requires(!touching.ContainsKey(key));
+            held.Add(key);
+        }
     }
 
-    /// <summary>Forgets every contact of a body that leaves the system, touching or held.</summary>
-    public void ForgetContacts(BodyID body)
+    /// <summary>
+    /// Forgets every contact of a body that leaves the system, touching, pending or held, and appends to
+    /// <paramref name="ended"/> each one that started: every one but the pending ones. Call it while the body is still
+    /// in the system.
+    /// </summary>
+    public void ForgetContacts(BodyID body, List<RawEnd> ended)
     {
         if (body.IsInvalid)
             return;
@@ -483,27 +545,75 @@ internal sealed class FrameWorld : IDisposable
             foreach (ulong key in touching.Keys)
                 if (Involves(key, body))
                     purgeScratch.Add(key);
+            foreach (ulong key in held)
+                if (Involves(key, body))
+                    purgeScratch.Add(key);
             foreach (ulong key in purgeScratch)
+            {
+                if (!pending.Remove(key))
+                    ended.Add(EndOf(key));
                 touching.Remove(key);
-            if (held.Count > 0)
-                held.RemoveWhere(key => Involves(key, body));
+                held.Remove(key);
+            }
+            FollowPending();
         }
     }
 
     public void Dispose()
     {
-        System.OnContactAdded -= OnContactAdded;
-        System.OnContactRemoved -= OnContactRemoved;
+        Unlisten(System);
         System.Dispose();
     }
 
+    /// <summary>
+    /// How far apart two bodies can be and still touch, in meters: ten times Jolt's collision tolerance, so that the
+    /// rounding of Jolt's contact search hides no touch, and a twentieth of Jolt's speculative contact distance.
+    /// </summary>
+    public const float TouchTolerance = 0.001f;
+
+    /// <summary>
+    /// True when a contact that Jolt found in a step is a real touch: the bodies are at most <see cref="TouchTolerance"/>
+    /// apart, or they approach fast enough to close their gap within the step, so that the solver pushes them apart. Jolt
+    /// finds a pair as soon as its bodies are within its speculative contact distance of 0.02 m, and such a pair can
+    /// touch many steps later, or never.
+    /// </summary>
+    /// <param name="penetrationDepth">How far the bodies overlap, in meters. Below zero, how far apart they are.</param>
+    /// <param name="normalVelocity">How fast the bodies move apart along the contact's normal, in m/s. Below zero, how fast they approach.</param>
+    /// <param name="deltaTime">The length of the step, in seconds.</param>
+    internal static bool Touches(float penetrationDepth, float normalVelocity, float deltaTime)
+    {
+        float gap = -penetrationDepth;
+        return gap <= TouchTolerance || -normalVelocity * deltaTime >= gap;
+    }
+
     // Runs on Jolt worker threads with the bodies locked. It must not use any locking body interface.
-    private unsafe void OnContactAdded(PhysicsSystem system, in Body body1, in Body body2, in ContactManifold manifold, ref ContactSettings settings)
+    private void OnContactAdded(PhysicsSystem system, in Body body1, in Body body2, in ContactManifold manifold, ref ContactSettings settings)
     {
         ulong data1 = body1.GetUserData(), data2 = body2.GetUserData();
         if (!IsReportable(data1) || !IsReportable(data2))
             return;
+        RawContact contact = Describe(body1, body2, data1, data2, manifold);
+        lock (contactGate)
+            added.Add(contact);
+    }
 
+    // Runs on Jolt worker threads with the bodies locked, for every contact that Jolt found again, while pending has a pair
+    // (see FollowPending). Only a pending pair needs it, and nothing changes pending during an update, so the other calls
+    // end at the lookup, without the gate.
+    private void OnContactPersisted(PhysicsSystem system, in Body body1, in Body body2, in ContactManifold manifold, ref ContactSettings settings)
+    {
+        if (!pending.Contains(PairKey(body1.ID, body2.ID)))
+            return;
+        RawContact contact = Describe(body1, body2, body1.GetUserData(), body2.GetUserData(), manifold);
+        if (!contact.Touches)
+            return;
+        lock (contactGate)
+            persistedTouches.Add(contact);
+    }
+
+    /// <summary>The contact of a manifold that Jolt found in this update, at the mean of its points on the first body.</summary>
+    private unsafe RawContact Describe(in Body body1, in Body body2, ulong data1, ulong data2, in ContactManifold manifold)
+    {
         uint count = manifold.PointCount;
         Double3 point = Double3.Zero;
         if (count > 0)
@@ -524,9 +634,9 @@ internal sealed class FrameWorld : IDisposable
 
         Vector3 normal = manifold.WorldSpaceNormal;
         Vector3 v1 = PointVelocity(body1, point), v2 = PointVelocity(body2, point);
-        var contact = new RawContact(body1.ID, body2.ID, data1, data2, point, normal, Vector3.Dot(v2 - v1, normal));
-        lock (contactGate)
-            added.Add(contact);
+        float normalVelocity = Vector3.Dot(v2 - v1, normal);
+        return new RawContact(body1.ID, body2.ID, data1, data2, point, normal, normalVelocity,
+            Touches(manifold.PenetrationDepth, normalVelocity, updateDeltaTime));
     }
 
     private void OnContactRemoved(PhysicsSystem system, ref SubShapeIDPair pair)

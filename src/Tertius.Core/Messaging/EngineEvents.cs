@@ -22,13 +22,27 @@ public struct FrameChanged : IEventPayload
     public FrameHandle To;
 }
 
-/// <summary>Physics reported a contact that started. Point and normal are in the recipient's frame.</summary>
+/// <summary>
+/// Physics reported a contact that started: the first step in which the two bodies really touched, by a solver impulse
+/// or zero separation. Point and normal are in the recipient's frame. Each Collision ends later with exactly one
+/// <see cref="CollisionEnded"/> with the same <see cref="Other"/>.
+/// </summary>
 public struct Collision : IEventPayload
 {
     public Entity Other;
     public Double3 Point;
     public Vector3 Normal;
     public float Impulse;
+}
+
+/// <summary>
+/// Physics reported that a contact which started with a <see cref="Collision"/> ended: the two bodies stopped touching,
+/// or the body of <see cref="Other"/> was destroyed, in which case <see cref="Other"/> may name an entity that no
+/// longer exists. Sleep, wake and moves between numeric frames end nothing.
+/// </summary>
+public struct CollisionEnded : IEventPayload
+{
+    public Entity Other;
 }
 
 public enum InputKind : byte
@@ -63,5 +77,6 @@ public static class EngineEvents
         EventTypeRegistry.Register<FrameChanged>();
         EventTypeRegistry.Register<Collision>();
         EventTypeRegistry.Register<InputEvent>();
+        EventTypeRegistry.Register<CollisionEnded>();
     }
 }

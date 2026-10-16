@@ -170,6 +170,8 @@ public class WorldNumericFrameTests
         IsAwake(backend, numeric, upper).Should().BeTrue("the nudge woke the upper box");
         lowerLog.Seen.Should().HaveCount(lowerContacts, "the contacts go on");
         upperLog.Seen.Should().HaveCount(upperContacts, "the contacts go on");
+        lowerLog.Ended.Should().BeEmpty("a move between numeric frames ends no contact");
+        upperLog.Ended.Should().BeEmpty("a move between numeric frames ends no contact");
         lowerFrames.Seen.Should().BeEmpty();
         upperFrames.Seen.Should().BeEmpty();
     }
