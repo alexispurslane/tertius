@@ -83,4 +83,71 @@ public class WorldCharacterContactTests
         personLog.CountWith(box).Should().Be(1, "the character never left the box");
         world.Errors.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// A character that walks slowly into a light box pushes it, and the two hear each other once. The character keeps
+    /// its gap of 2 cm from the box, so the contact does not depend on Jolt finding one for the inner body.
+    /// </summary>
+    [Fact]
+    public void ACharacterThatPushesALightBoxSlowlyHearsIt()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        var boxLog = new CollisionLog();
+        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1, 0.5), Body = Cube(10), Components = [boxLog] });
+        var pilot = new Pilot();
+        var personLog = new CollisionLog();
+        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.95), Body = Person, Components = [pilot, personLog] });
+
+        pilot.EveryTick = body => body.MoveCharacter(new Vector3(0.2f, 0, 0));
+        Tick(world, 180);
+
+        world.PoseInOwnFrame(box).Position.X.Should().BeGreaterThan(1.1, "the character pushed the box");
+        personLog.CountWith(box).Should().Be(1);
+        boxLog.CountWith(person).Should().Be(1);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>A character that drops onto a heavy box and stands on it hears the box once, and the box hears it.</summary>
+    [Fact]
+    public void ACharacterThatLandsOnABoxHearsIt()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        var boxLog = new CollisionLog();
+        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.5), Body = HeavyBox, Components = [boxLog] });
+        var personLog = new CollisionLog();
+        // The bottom of the capsule starts 0.3 m above the top of the box.
+        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 2.2), Body = Person, Components = [personLog] });
+
+        Tick(world, 90);
+
+        world.Snapshot.IsStanding(person).Should().BeTrue("the character stands on the box");
+        personLog.CountWith(box).Should().Be(1);
+        boxLog.CountWith(person).Should().Be(1);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A character that falls 1 m onto a floor hears the floor once. The floor does not move, so the impulse that stops
+    /// the fall is the character's mass times its speed at the floor, sqrt(2gh).
+    /// </summary>
+    [Fact]
+    public void ACharacterThatFallsOntoAFloorHearsItWithTheImpulseThatStopsIt()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Entity floor = Floor(world, ground);
+        var personLog = new CollisionLog();
+        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.9 + 1), Body = Person, Components = [personLog] });
+
+        Tick(world, 60);
+
+        (long _, Entity other, float impulse) = personLog.Seen.Should().ContainSingle().Subject;
+        other.Should().Be(floor);
+        float stopping = Person.Mass * MathF.Sqrt(2 * 9.81f * 1);
+        impulse.Should().BeApproximately(stopping, stopping * 0.05f);
+    }
 }

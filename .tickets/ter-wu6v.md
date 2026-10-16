@@ -34,3 +34,9 @@ Open questions:
 
 Each contact that starts ends later with exactly one end event to each of its two entities. This holds when a body sleeps, wakes, leaves its frame or is destroyed. Sleep and wake alone send no end and no new start. Tests on the World with Jolt cover each case, with a character among the bodies.
 
+
+## Notes
+
+**2026-10-16T12:28:54Z**
+
+Decided (User, 2026-10-16): a contact start is reported at a real touch, the first step with an applied impulse or zero separation, and at an overlap for a sensor, not when Jolt adds the pair at its speculative contact distance (up to 2 cm early, found by the deep-yard scene). Starts and ends are two event types, Collision and CollisionEnded, so that each reader picks its type with Of<T>(). Each start ends with exactly one end to both entities; sleep, wake and moves between numeric frames send nothing; a destroyed body ends all of its contacts; sensors use the same events. Impulse is an estimate from the approach speed today; check whether the backend can read Jolt's solved impulses.

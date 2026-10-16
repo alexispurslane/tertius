@@ -65,6 +65,9 @@ internal sealed class FrameWorld : IDisposable
     // gap from what it touches as wide as Jolt's speculative contact distance, so for these pairs the character decides.
     private readonly HashSet<uint> characterBodies = new();
     private readonly HashSet<ulong> characterTouches = new();
+    // Each body that a character hit in its last update, as a contact of its inner body. For the same reason, Jolt can miss
+    // the contact of the inner body, so a hit starts the pair as a held pair (see DrainContacts).
+    private readonly List<RawContact> characterHits = new();
     private readonly List<ulong> purgeScratch = new();
     // The pairs that a growth holds, before they take the new IDs, and the held pairs that a drain ends.
     private readonly List<ulong> heldScratch = new();
@@ -324,14 +327,17 @@ internal sealed class FrameWorld : IDisposable
     {
         characterBodies.Clear();
         characterTouches.Clear();
+        characterHits.Clear();
     }
 
     /// <summary>
     /// Records what <paramref name="character"/> touches after its update, by its own contact list: every body within its
     /// predictive contact distance, asleep or awake. <see cref="DrainContacts"/> ends a held pair of the character's inner
-    /// body only when that list no longer has the other body.
+    /// body only when that list no longer has the other body. It also records each body of the list that the character
+    /// hit in the update, which starts a pair. <paramref name="velocity"/> is the velocity that the character moved with
+    /// in the update, which gives the speed of the hit.
     /// </summary>
-    public void NoteCharacterContacts(CharacterVirtual character)
+    public void NoteCharacterContacts(CharacterVirtual character, Vector3 velocity)
     {
         BodyID inner = character.InnerBodyID;
         characterBodies.Add(inner.ID);
@@ -339,8 +345,16 @@ internal sealed class FrameWorld : IDisposable
         for (int i = 0; i < count; i++)
         {
             character.GetActiveContact(i, out CharacterContact contact);
-            if (!contact.WasDiscarded && contact.BodyB.IsValid)
-                characterTouches.Add(PairKey(inner, contact.BodyB));
+            if (contact.WasDiscarded || !contact.BodyB.IsValid)
+                continue;
+            characterTouches.Add(PairKey(inner, contact.BodyB));
+            if (!contact.HadCollision || !IsReportable(contact.UserData))
+                continue;
+            // Jolt's contact normal points out of the other body, toward the character. A contact's normal points from
+            // its first body, here the inner body, to its second.
+            Vector3 normal = -contact.ContactNormal;
+            characterHits.Add(new RawContact(inner, contact.BodyB, character.UserData, contact.UserData, contact.RPosition.ToDouble3(),
+                normal, Vector3.Dot(contact.LinearVelocity - velocity, normal)));
         }
     }
 
@@ -363,7 +377,8 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>
     /// Moves the contacts that Jolt reported during the last update into the touching-pair table, and appends the
     /// ones that started a new body pair contact to <paramref name="started"/>. A pair that Jolt drops becomes held, and a
-    /// held pair that Jolt finds again continues. A held pair ends as <see cref="HeldPairEnded"/> says. Call it on the
+    /// held pair that Jolt finds again continues. A pair that a character hit in its last update and that neither touches
+    /// nor is held starts too, as a held pair. A held pair ends as <see cref="HeldPairEnded"/> says. Call it on the
     /// physics thread after the update, with no update running. Visits every held pair after an update, so it costs
     /// O(held pairs) for a system that steps.
     /// </summary>
@@ -405,6 +420,14 @@ internal sealed class FrameWorld : IDisposable
             }
             added.Clear();
             removed.Clear();
+            // A pair that a character hit starts unless it touches or is held. It starts held, because Jolt may never
+            // find it, and the character's contact list ends it.
+            foreach (RawContact hit in characterHits)
+            {
+                ulong key = hit.PairKey;
+                if (!touching.ContainsKey(key) && held.Add(key))
+                    started.Add(hit);
+            }
 
             // Stryker disable once all : the test only saves work; without an update Jolt simulates no body, so no pair ends.
             if (updatedSinceDrain && held.Count > 0)

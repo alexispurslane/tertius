@@ -44,3 +44,7 @@ The user kept the collision masks (ter-g3yp) in the path. A sensor filters by ma
 **2026-10-12T01:17:59Z**
 
 How a Sensor component finds its own touches: it picks nothing out. The sync point already sends each contact as a Collision event to both entities of the pair (World.RouteContact), so the component reads events.Of<Collision>() in its own inbox, and later the contact end event too. The relay adds one tick: a touch in the step of tick N reaches the sensor's entity in tick N+1, and the relayed message reaches the topic in tick N+2.
+
+**2026-10-16T12:38:02Z**
+
+Decided (User, 2026-10-16): the Sensor component relays its entity's Collision and CollisionEnded events as two event types, Entered and Left, each naming the sensor and the other entity. Content names the recipients: a topic, or every entity. The component takes an EntityQuery as its filter, so that, for example, a plate reacts to crew only.

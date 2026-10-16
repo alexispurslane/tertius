@@ -94,12 +94,13 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     [Fact]
     public void AFullChargeThrowsTheCrateOutAt12MetersPerSecondAlongTheView()
     {
-        // The person stands still and faces the ship's -X. Physics reports a standing person's velocity with one tick of
-        // the cabin's gravity, which the floor takes back in the next step, and the crate starts with the person's velocity.
-        // The dump comes after the crate's first step, in which the cabin's gravity pulls it for one more tick.
+        // The person stands still and faces the ship's -X. The floor holds a standing person against the cabin's gravity,
+        // so its velocity is zero, and the crate starts with the person's velocity. The dump comes after the crate's first
+        // step, in which the cabin's gravity pulls it for one tick.
         Vector3 person = Dump("carrying").Entity("person").Velocity.ToVector3();
         EntityRecord crate = Dump("thrown").Entity(Thrown);
 
+        person.Length().Should().BeLessThan(1e-6f, "the floor holds the standing person");
         crate.Pose.Frame.Should().Be("ship");
         ExpectNear(crate.Velocity - person, new Double3(-Carry.MaxThrowSpeed, -GravityPerTick, 0), 1e-3);
         // It starts on the view, level with the eye and in the middle of the hatch's width, 10 m aft of the ship's center.
@@ -170,17 +171,17 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         (Double3 Position, Double3 Velocity) leaving = RelativeToShip("leaving"), inEarth = RelativeToShip("in-earth"), beside = RelativeToShip("beside-the-ship");
         double seconds = Dump("beside-the-ship").Time - Dump("in-earth").Time;
 
-        // Out of the cabin, the crate moves at the 12 m/s of the throw along the ship's -X. It took the 0.16 m/s of the
-        // person's reported velocity, and the cabin's gravity pulled it in its five steps before it left the cabin's box.
+        // Out of the cabin, the crate moves at the 12 m/s of the throw along the ship's -X. It took the velocity of the
+        // standing person, zero, and the cabin's gravity pulled it in its five steps before it left the cabin's box.
         leaving.Velocity.X.Should().BeApproximately(-Carry.MaxThrowSpeed, 1e-3);
-        leaving.Velocity.Y.Should().BeApproximately(-6 * GravityPerTick, 1e-3);
+        leaving.Velocity.Y.Should().BeApproximately(-5 * GravityPerTick, 1e-3);
         leaving.Velocity.Z.Should().BeApproximately(0, 1e-3);
         // The hand-off keeps the crate's motion relative to the ship.
         ExpectNear(inEarth.Velocity, leaving.Velocity, 1e-3);
         // In earth, the crate and the ship fall freely round Earth together, so the crate moves on along a straight line
         // relative to the ship. If Earth's gravity did not pull the crate as it pulls the ship, the crate would end
         // 8.7 m/s² · (5.5 s)² / 2 = 132 m off that line. The ship turns once per orbit about its own X, and in the ship's
-        // turning axes the crate's 0.98 m/s along -Y bends 0.012 m/s toward -Z in the 5.5 s, which takes it 3.2 cm off the
+        // turning axes the crate's 0.82 m/s along -Y bends 0.010 m/s toward -Z in the 5.5 s, which takes it 2.7 cm off the
         // line.
         seconds.Should().BeApproximately(5.5, 1e-6);
         ExpectNear(beside.Position, inEarth.Position + inEarth.Velocity * seconds, 0.05);
