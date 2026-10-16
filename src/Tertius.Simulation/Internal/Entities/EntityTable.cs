@@ -6,8 +6,9 @@ namespace Tertius.Simulation;
 
 /// <summary>
 /// The entity slots and everything stored per entity: the slot lifecycle and generations, the deterministic spawn
-/// pools, the double-buffered transform, render and intent tables, the component lists with their cached mask, and the
-/// dirty tracking that copies changed back rows forward. Other subsystems keep their per-entity state in columns that
+/// pools, the double-buffered transform, render, component flag, collision and intent tables, the component lists with
+/// their cached mask, the index of the entities by component type, and the dirty tracking that copies changed back rows
+/// forward. Other subsystems keep their per-entity state in columns that
 /// they add with <see cref="AddColumn{T}"/>: the table grows every column together with its own tables, and clears an
 /// entity's entry in every column when it releases the entity.
 /// </summary>
@@ -34,6 +35,10 @@ namespace Tertius.Simulation;
 /// <item>A live slot's mask is <see cref="DestroyEvent"/> plus the OR of its components' cached wants.</item>
 /// <item>A live slot whose back row differs from its front row is dirty and in a dirty list, so
 /// <see cref="CopyDirtyRows"/> never misses a change. Gameplay never writes the transform of a slot with a body.</item>
+/// <item>A live slot's back component flags are the types of its components. Its collision rows are the default for an
+/// entity without a body.</item>
+/// <item>The component index lists exactly the live entities whose front flags hold each type. Nothing changes it
+/// during the gameplay part of a tick, which starts with it settled, so the workers read it without a race.</item>
 /// <item>A back intent is set only for a live entity in its chunk's list of intent writers, and a front intent only
 /// for an entity in <see cref="IntentEntities"/>. A writer that died since it wrote stays in the list until the swap,
 /// which skips it: releasing it cleared its slot.</item>
@@ -72,7 +77,14 @@ internal sealed class EntityTable
         GameplayWroteTransform = 1 << 4,
         /// <summary>The entity is in the moved list.</summary>
         FrontMoved = 1 << 5,
+        /// <summary>The back component flags may differ from the front flags, and the slot is in a dirty list.</summary>
+        ComponentsDirty = 1 << 6,
+        /// <summary>The back collision row may differ from the front row, and the slot is in a dirty list.</summary>
+        CollisionDirty = 1 << 7,
     }
+
+    /// <summary>The bits that put a slot in a dirty list: one for each double-buffered row that <see cref="CopyRow"/> copies.</summary>
+    private const SlotFlags RowsDirty = SlotFlags.TransformDirty | SlotFlags.RenderDirty | SlotFlags.ComponentsDirty | SlotFlags.CollisionDirty;
 
     /// <summary>The per-entity data that is cold, or that changes only through a component change or a spawn.</summary>
     private struct Record
@@ -235,6 +247,12 @@ internal sealed class EntityTable
     private readonly SlotColumn<RenderData> backRender;
     private readonly SlotColumn<PhysicsIntent> frontIntent;
     private readonly SlotColumn<PhysicsIntent> backIntent;
+    private readonly SlotColumn<ComponentFlags> frontComponents;
+    private readonly SlotColumn<ComponentFlags> backComponents;
+    private readonly SlotColumn<BodyCollision> frontCollision;
+    private readonly SlotColumn<BodyCollision> backCollision;
+    // The live entities by the types in their front component flags.
+    private readonly ComponentIndex componentIndex = new();
 
     private readonly RefList<Entity> frontIntentEntities = new(64);
     // Set when a live slot is released after the intent swap: the intent list may name it until the list is next read.
@@ -261,6 +279,10 @@ internal sealed class EntityTable
         backRender = AddSlotColumn<RenderData>();
         frontIntent = AddSlotColumn<PhysicsIntent>();
         backIntent = AddSlotColumn<PhysicsIntent>();
+        frontComponents = AddSlotColumn<ComponentFlags>();
+        backComponents = AddSlotColumn<ComponentFlags>();
+        frontCollision = AddSlotColumn<BodyCollision>();
+        backCollision = AddSlotColumn<BodyCollision>();
         Grow(initialCapacity);
     }
 
@@ -272,6 +294,9 @@ internal sealed class EntityTable
 
     /// <summary>Entities that are live now.</summary>
     public int LiveCount => liveCount;
+
+    /// <summary>True during the gameplay part of a tick: from <see cref="BeginTick"/> to <see cref="EndGameplay"/>. Worker-safe.</summary>
+    public bool GameplayRunning => gameplayRunning;
 
     /// <summary>
     /// The chunks of the slots handed out so far, in chunk order: what each chunk's entities produced during the tick.
@@ -323,11 +348,13 @@ internal sealed class EntityTable
     /// <summary>
     /// Starts the gameplay part of a tick. Reserves free slots for each chunk with live entities, in chunk order, so
     /// that spawns during the tick get the same handles in every run. A chunk with no live entities returns its pool.
+    /// The component index applies its queued changes, so that the workers only read it.
     /// </summary>
     /// <param name="spawnPoolSize">The smallest pool; a chunk that spawned more last tick gets twice that many.</param>
     public void BeginTick(int spawnPoolSize)
     {
         Contract.Requires(!gameplayRunning);
+        componentIndex.Settle();
         int count = ChunkCountFor(slotCount);
         for (int c = 0; c < count; c++)
         {
@@ -443,10 +470,11 @@ internal sealed class EntityTable
     }
 
     /// <summary>
-    /// Makes a reserved entity live: writes both copies of every row and the cached mask. The entity runs its first tick
-    /// after the next sync point. Throws <see cref="InvalidOperationException"/> for a handle to a live entity, which
-    /// is current but names no reservation, and <see cref="StaleEntityException"/> for any other handle that does not
-    /// name its slot's current reservation.
+    /// Makes a reserved entity live: writes both copies of every row and the cached mask, and lists the entity in the
+    /// component index. The entity runs its first tick after the next sync point. Throws
+    /// <see cref="InvalidOperationException"/> for a handle to a live entity, which is current but names no reservation,
+    /// and <see cref="StaleEntityException"/> for any other handle that does not name its slot's current reservation. A
+    /// component type that has no id throws as <see cref="ComponentTypes.IdOf"/> does, before anything changes.
     /// </summary>
     public void Activate(Entity entity, in TransformRow row, in RenderData render, IComponent[] components, EventMask[] wants, BodyDesc? body, FrameHandle ownedFrame)
     {
@@ -459,11 +487,18 @@ internal sealed class EntityTable
         }
         uint slot = entity.Index;
         Contract.Requires(components.Length == wants.Length);
+        ComponentFlags types = ComponentFlags.Of(components);
+        BodyCollision collision = body is null ? default : new BodyCollision(body.CollisionGroups, body.CollisionMask);
         records[slot] = new Record { Components = components, Wants = wants, Body = body, OwnedFrame = ownedFrame };
         frontTransform[slot] = row;
         backTransform[slot] = row;
         frontRender[slot] = render;
         backRender[slot] = render;
+        frontComponents[slot] = types;
+        backComponents[slot] = types;
+        frontCollision[slot] = collision;
+        backCollision[slot] = collision;
+        componentIndex.Add(entity, types);
         masks[slot] = MaskOf(wants);
         flags[slot] = SlotFlags.FirstTick;
         state[slot] = SlotState.Live;
@@ -489,6 +524,7 @@ internal sealed class EntityTable
         {
             foreach (Action<Entity> release in releaseHooks)
                 release(entity);
+            componentIndex.Remove(entity, frontComponents[slot]);
             foreach (IColumn column in columns)
                 column.Clear(slot);
             liveCount--;
@@ -544,13 +580,16 @@ internal sealed class EntityTable
     public FrameHandle OwnedFrame(Entity entity) => records[LiveSlot(entity)].OwnedFrame;
 
     /// <summary>
-    /// Inserts a component after every component with the same or lower priority, and updates the mask. Throws
-    /// <see cref="StaleEntityException"/> for a stale handle, and <see cref="InvalidOperationException"/> if the entity
-    /// already has this instance. Worker-safe for the running entity, right after its run.
+    /// Inserts a component after every component with the same or lower priority, and updates the mask and the back
+    /// component flags, which the next <see cref="CopyDirtyRows"/> copies forward. Throws
+    /// <see cref="StaleEntityException"/> for a stale handle, <see cref="InvalidOperationException"/> if the entity
+    /// already has this instance, and as <see cref="ComponentTypes.IdOf"/> does for a type that has no id, before
+    /// anything changes. Worker-safe for the running entity, right after its run.
     /// </summary>
     public void AddComponent(Entity entity, IComponent component)
     {
-        ref Record rec = ref records[LiveSlot(entity)];
+        uint slot = LiveSlot(entity);
+        ref Record rec = ref records[slot];
         IComponent[] old = rec.Components!;
         foreach (IComponent existing in old)
             if (ReferenceEquals(existing, component))
@@ -562,14 +601,19 @@ internal sealed class EntityTable
         EventMask[] oldWants = rec.Wants!;
         IComponent[] components = [.. old.AsSpan(0, at), component, .. old.AsSpan(at)];
         EventMask[] wants = [.. oldWants.AsSpan(0, at), component.Wants, .. oldWants.AsSpan(at)];
+        int typeId = ComponentTypes.IdOf(component.GetType());
         rec.Components = components;
         rec.Wants = wants;
-        masks[entity.Index] = MaskOf(wants);
+        masks[slot] = MaskOf(wants);
+        backComponents[slot].Add(typeId);
+        MarkDirty(slot, SlotFlags.ComponentsDirty);
     }
 
     /// <summary>
-    /// Removes a component instance and updates the mask. Returns false, and does nothing, if the entity does not have
-    /// it, which includes a stale handle: a dead entity has no components.
+    /// Removes a component instance and updates the mask and the back component flags, which the next
+    /// <see cref="CopyDirtyRows"/> copies forward. Returns false, and does nothing, if the entity does not have it,
+    /// which includes a stale handle: a dead entity has no components. Worker-safe for the running entity, right after
+    /// its run.
     /// </summary>
     public bool RemoveComponent(Entity entity, IComponent component)
     {
@@ -585,8 +629,34 @@ internal sealed class EntityTable
         rec.Components = [.. old.AsSpan(0, at), .. old.AsSpan(at + 1)];
         rec.Wants = [.. oldWants.AsSpan(0, at), .. oldWants.AsSpan(at + 1)];
         masks[slot] = MaskOf(rec.Wants);
+        // Another instance of the same type keeps the type in the flags.
+        backComponents[slot] = ComponentFlags.Of(rec.Components);
+        MarkDirty(slot, SlotFlags.ComponentsDirty);
         return true;
     }
+
+    /// <summary>
+    /// The front component flags: the types of the entity's components at the end of the previous tick. Throws
+    /// <see cref="StaleEntityException"/> for a stale handle. Worker-safe.
+    /// </summary>
+    public ref readonly ComponentFlags FrontComponents(Entity entity) => ref frontComponents[LiveSlot(entity)];
+
+    /// <summary>
+    /// The live entities whose front component flags hold the type <paramref name="typeId"/>, in slot order. Worker-safe
+    /// during gameplay, when the index is settled.
+    /// </summary>
+    public ReadOnlySpan<Entity> WithComponent(int typeId)
+    {
+        // A read of a set with queued changes merges them, which races with a read on another worker.
+        Contract.Requires(!gameplayRunning || componentIndex.IsSettled);
+        return componentIndex.With(typeId);
+    }
+
+    /// <summary>
+    /// The front collision row: the collision groups and mask that physics used in the step of the previous tick, or the
+    /// default for an entity without a body. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe.
+    /// </summary>
+    public ref readonly BodyCollision FrontCollision(Entity entity) => ref frontCollision[LiveSlot(entity)];
 
     // ---- Rows -----------------------------------------------------------------------------------------------------
     // A ref cannot say "no entity", so every row accessor throws for a stale handle.
@@ -614,7 +684,7 @@ internal sealed class EntityTable
     {
         uint slot = LiveSlot(entity);
         Contract.Requires(gameplayRunning && records[slot].Body == null);
-        MarkGameplayDirty(slot, SlotFlags.TransformDirty | SlotFlags.GameplayWroteTransform);
+        MarkDirty(slot, SlotFlags.TransformDirty | SlotFlags.GameplayWroteTransform);
         return ref backTransform[slot].Pose;
     }
 
@@ -626,7 +696,7 @@ internal sealed class EntityTable
     {
         uint slot = LiveSlot(entity);
         Contract.Requires(gameplayRunning);
-        MarkGameplayDirty(slot, SlotFlags.RenderDirty);
+        MarkDirty(slot, SlotFlags.RenderDirty);
         return ref backRender[slot];
     }
 
@@ -669,10 +739,28 @@ internal sealed class EntityTable
         if (BitEquals(back, row))
             return;
         back = row;
-        ref SlotFlags f = ref flags[slot];
-        if ((f & (SlotFlags.TransformDirty | SlotFlags.RenderDirty)) == 0)
-            syncDirty.Add(slot);
-        f |= SlotFlags.TransformDirty;
+        MarkDirty(slot, SlotFlags.TransformDirty);
+    }
+
+    /// <summary>
+    /// Publishes the collision groups and masks that the front intents set, which the physics step that just ended
+    /// applied: each entity whose front intent has <see cref="IntentFlags.SetCollision"/> gets them as its back collision
+    /// row, which the next <see cref="CopyDirtyRows"/> copies forward. Outside the gameplay part of a tick, before
+    /// <see cref="SwapIntents"/> replaces the front intents.
+    /// </summary>
+    public void ApplyCollisionIntents()
+    {
+        Contract.Requires(!gameplayRunning);
+        foreach (Entity entity in IntentEntities.Span)
+        {
+            uint slot = LiveSlot(entity);
+            ref readonly PhysicsIntent intent = ref frontIntent[slot];
+            if ((intent.Flags & IntentFlags.SetCollision) == 0)
+                continue;
+            Contract.Assert(records[slot].Body != null);
+            backCollision[slot] = new BodyCollision(intent.CollisionGroups, intent.CollisionMask);
+            MarkDirty(slot, SlotFlags.CollisionDirty);
+        }
     }
 
     // ---- The swap -------------------------------------------------------------------------------------------------
@@ -842,7 +930,7 @@ internal sealed class EntityTable
             if (IsAlive(entity))
                 movedListed[entity.Index] = true;
 
-        int liveSlots = 0, reserved = 0;
+        int liveSlots = 0, reserved = 0, indexed = 0;
         for (int slot = 0; slot < capacity; slot++)
         {
             SlotState s = state[slot];
@@ -870,8 +958,21 @@ internal sealed class EntityTable
                 Contract.Invariant(BitEquals(frontTransform[slot], backTransform[slot]));
             if ((f & SlotFlags.RenderDirty) == 0)
                 Contract.Invariant(BitEquals(frontRender[slot], backRender[slot]));
-            if ((f & (SlotFlags.TransformDirty | SlotFlags.RenderDirty)) != 0)
+            if ((f & SlotFlags.ComponentsDirty) == 0)
+                Contract.Invariant(frontComponents[slot] == backComponents[slot]);
+            if ((f & SlotFlags.CollisionDirty) == 0)
+                Contract.Invariant(frontCollision[slot] == backCollision[slot]);
+            if ((f & RowsDirty) != 0)
                 Contract.Invariant(dirtyListed[slot]);
+            Contract.Invariant(backComponents[slot] == ComponentFlags.Of(rec.Components));
+            if (rec.Body == null)
+                Contract.Invariant(frontCollision[slot] == default && backCollision[slot] == default);
+            var live = new Entity((uint)slot, generation[slot]);
+            foreach (int id in frontComponents[slot])
+            {
+                Contract.Invariant(componentIndex.With(id).BinarySearch(live) >= 0);
+                indexed++;
+            }
             if ((f & SlotFlags.GameplayWroteTransform) != 0)
                 Contract.Invariant((f & SlotFlags.TransformDirty) != 0 && rec.Body == null);
             if ((f & SlotFlags.IntentRegistered) == 0)
@@ -885,6 +986,11 @@ internal sealed class EntityTable
         }
         Contract.Invariant(liveSlots == liveCount);
         Contract.Invariant(reserved == pooledCount + reservationsOut);
+        // Each live entity is in the set of every type of its front flags, so equal totals leave no other entries.
+        int listed = 0;
+        for (int id = 0; id < ComponentTypes.Capacity; id++)
+            listed += componentIndex.With(id).Length;
+        Contract.Invariant(listed == indexed);
     }
 
     // ---- Private --------------------------------------------------------------------------------------------------
@@ -979,12 +1085,16 @@ internal sealed class EntityTable
         return mask;
     }
 
+    /// <summary>
+    /// Sets dirty bits on a slot, and lists it the first time: in its chunk's list during gameplay, where only the worker
+    /// of the chunk writes, or in the list of the sync point outside it.
+    /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void MarkGameplayDirty(uint slot, SlotFlags bits)
+    private void MarkDirty(uint slot, SlotFlags bits)
     {
         ref SlotFlags f = ref flags[slot];
-        if ((f & (SlotFlags.TransformDirty | SlotFlags.RenderDirty)) == 0)
-            books[slot / chunkSize].DirtySlots.Add(slot);
+        if ((f & RowsDirty) == 0)
+            (gameplayRunning ? books[slot / chunkSize].DirtySlots : syncDirty).Add(slot);
         f |= bits;
     }
 
@@ -1001,9 +1111,9 @@ internal sealed class EntityTable
     {
         ref SlotFlags f = ref flags[slot];
         SlotFlags dirty = f;
-        if ((dirty & (SlotFlags.TransformDirty | SlotFlags.RenderDirty)) == 0)
+        if ((dirty & RowsDirty) == 0)
             return;
-        f = dirty & ~(SlotFlags.TransformDirty | SlotFlags.RenderDirty | SlotFlags.GameplayWroteTransform);
+        f = dirty & ~(RowsDirty | SlotFlags.GameplayWroteTransform);
         if ((dirty & SlotFlags.TransformDirty) != 0)
         {
             frontTransform[slot] = backTransform[slot];
@@ -1011,6 +1121,13 @@ internal sealed class EntityTable
         }
         if ((dirty & SlotFlags.RenderDirty) != 0)
             frontRender[slot] = backRender[slot];
+        if ((dirty & SlotFlags.ComponentsDirty) != 0)
+        {
+            componentIndex.Change(new Entity(slot, generation[slot]), frontComponents[slot], backComponents[slot]);
+            frontComponents[slot] = backComponents[slot];
+        }
+        if ((dirty & SlotFlags.CollisionDirty) != 0)
+            frontCollision[slot] = backCollision[slot];
     }
 
     /// <summary>True if two values are equal bit for bit. Unlike <c>==</c>, it tells 0 from -0 and treats NaN as equal to itself.</summary>

@@ -112,20 +112,33 @@ public sealed class ThrowsOnce : IComponent
     }
 }
 
-/// <summary>Sends <paramref name="payload"/> to <paramref name="target"/> through its outbox on its first tick.</summary>
-public sealed class SendOnce<T>(Target target, T payload) : IComponent where T : unmanaged, IEventPayload
+/// <summary>Puts one message into the outbox. A delegate of our own, because <see cref="Outbox"/> is a ref struct.</summary>
+public delegate void SendFn(scoped ref Outbox outbox);
+
+/// <summary>
+/// Sends one message through its outbox on its first tick. It is not generic, because the engine refuses generic
+/// component types: make one with <see cref="Of{T}"/>, which takes any payload type.
+/// </summary>
+public sealed class SendOnce : IComponent
 {
+    private readonly SendFn send;
     private bool sent;
+
+    private SendOnce(SendFn send) => this.send = send;
 
     public int Priority => 0;
     public EventMask Wants => EventMask.Of<Tick>();
+
+    /// <summary>A component that sends <paramref name="payload"/> to <paramref name="target"/> on its first tick.</summary>
+    public static SendOnce Of<T>(Target target, T payload) where T : unmanaged, IEventPayload =>
+        new((scoped ref Outbox outbox) => outbox.Send(target, payload));
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
         if (sent)
             return;
         sent = true;
-        outbox.Send(target, payload);
+        send(ref outbox);
     }
 }
 

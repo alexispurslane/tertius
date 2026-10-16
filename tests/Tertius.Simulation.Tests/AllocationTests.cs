@@ -137,6 +137,89 @@ public class AllocationTests
         t.World.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Runs entity queries on every tick: a type-only stored query, a stored query whose filters all sit inline, and
+    /// shorthand chains with filters on the stack, one of which starts from the spatial grid and sorts its candidates.
+    /// </summary>
+    private sealed class Searcher : IComponent
+    {
+        private static readonly EntityQuery TypeOnly = EntityQuery.With<Flammable>().Without<Wet>();
+        private static readonly EntityQuery Inline = EntityQuery.With<Flammable>().Near(6).Where(static (s, e) => (e.Index & 1) == 0);
+
+        public long Total;
+        public int GridRuns;
+        public int Priority => 0;
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            foreach (Entity entity in self.Snapshot.Find(TypeOnly))
+                Total += entity.Index;
+            Total += self.Snapshot.Find(Inline).Count();
+            FoundEntities chain = self.Snapshot.Entities.With<Flammable>().Near(3).Near(4)
+                .Where(static (s, e) => (e.Index & 3) != 0).Where(static (s, e) => true).In(self.Frame).In(self.Frame);
+            FoundEntities.Enumerator run = chain.GetEnumerator();
+            if (run.Index == QueryIndex.Grid)
+                GridRuns++;
+            while (run.MoveNext())
+                Total += run.Current.Index;
+            run.Dispose();
+            if (self.Snapshot.Entities.With<Metal>().TryFirst(out Entity metal))
+                Total += metal.Index;
+            if (self.Snapshot.HasComponent<Flammable>(self.Entity))
+                Total++;
+        }
+    }
+
+    /// <summary>600 entities with flags on a line, 2 m apart, so that a small Near touches few grid cells; one in six of them searches.</summary>
+    private static (TestWorld World, List<Searcher> Searchers) SearchingWorld()
+    {
+        var t = new TestWorld(debugChecks: false);
+        var searchers = new List<Searcher>();
+        for (int i = 0; i < 600; i++)
+        {
+            var components = new List<IComponent> { i % 3 == 0 ? new Wet() : new Flammable() };
+            if (i % 7 == 0)
+                components.Add(new Metal());
+            if (i % 6 == 0)
+            {
+                var searcher = new Searcher();
+                searchers.Add(searcher);
+                components.Add(searcher);
+            }
+            t.SpawnAt(new Double3(i * 2, 0, 0), [.. components]);
+        }
+        return (t, searchers);
+    }
+
+    [Fact]
+    public void EntityQueryRunsAllocateNothingOnceTheWorldIsWarm()
+    {
+        (TestWorld t, _) = SearchingWorld();
+        using TestWorld world = t;
+        world.Run(30);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        world.Run(100);
+        long perTick = (GC.GetAllocatedBytesForCurrentThread() - before) / 100;
+
+        perTick.Should().Be(0, "a type-only or inline query run must not allocate");
+        world.World.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void TheSearchScenarioReallyFindsEntitiesAndStartsRunsFromTheGrid()
+    {
+        // Guards the test above against passing for the wrong reason: the searchers find entities, and the chain with
+        // a small Near starts from the grid, the path that takes a buffer.
+        (TestWorld t, List<Searcher> searchers) = SearchingWorld();
+        using TestWorld world = t;
+
+        world.Run(2);
+
+        searchers.Should().OnlyContain(s => s.Total > 0 && s.GridRuns == 2);
+    }
+
     [Fact]
     public void TheBusyScenarioReallyDeliversMessagesEveryTick()
     {

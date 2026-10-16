@@ -41,6 +41,8 @@ internal sealed class ChunkState(int index)
     public readonly List<SubscriptionChange> SubscriptionChanges = new();
     /// <summary>Component changes of the entity that is running. Applied right after its run.</summary>
     public readonly List<ComponentChange> ComponentChanges = new();
+    /// <summary>The types of the components that this chunk's entities added this tick, for their class constructors.</summary>
+    public readonly List<Type> AddedComponentTypes = new();
     public readonly List<ChunkMessage> Messages = new();
 
     /// <summary>Empties the lists of this tick. The router empties the outbox and the delayed list itself.</summary>
@@ -50,6 +52,7 @@ internal sealed class ChunkState(int index)
         Destroys.Clear();
         SubscriptionChanges.Clear();
         ComponentChanges.Clear();
+        AddedComponentTypes.Clear();
         Messages.Clear();
     }
 }

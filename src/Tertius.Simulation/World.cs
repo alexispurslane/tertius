@@ -57,12 +57,18 @@ public sealed partial class World : IDisposable
     private readonly SpatialIndex spatial;
     private readonly RenderSnapshotBuilder renderBuilder;
 
-    /// <summary>Creates an empty world. With no physics backend, bodies do not move and their intents are dropped.</summary>
+    /// <summary>
+    /// Creates an empty world. With no physics backend, bodies do not move and their intents are dropped. The first world
+    /// of a process scans the loaded assemblies for component types (see <see cref="ComponentTypes"/>), and throws
+    /// <see cref="InvalidOperationException"/> when they define a generic one or more than
+    /// <see cref="ComponentTypes.Capacity"/>.
+    /// </summary>
     public World(WorldOptions? options = null, IPhysicsBackend? physics = null)
     {
         this.options = options ?? new WorldOptions();
         this.options.Validate();
         EngineEvents.Register();
+        ComponentTypes.ScanLoadedAssemblies();
         this.physics = physics;
         DeltaTime = 1f / this.options.TickRate;
         Time = this.options.StartTime;
@@ -253,6 +259,17 @@ public sealed partial class World : IDisposable
 
     /// <summary>The attachment chains, for the views over them.</summary>
     internal Attachments Attachments => attachments;
+
+    /// <summary>The members of a frame, in slot order, for the entity queries that start from them. Worker-safe during gameplay.</summary>
+    internal ReadOnlySpan<Entity> FrameMembers(FrameHandle frame)
+    {
+        // A read of a set with queued changes merges them, which races with a read on another worker.
+        Contract.Requires(!entities.GameplayRunning || topics.MembersSettled);
+        return topics.MembersOf(frame);
+    }
+
+    /// <summary>The spatial grids, for the entity queries with a Near.</summary>
+    internal SpatialIndex Spatial => spatial;
 
     /// <summary>
     /// True if physics stood the character on walkable ground under gravity in the step of the last tick. False for any

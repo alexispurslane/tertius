@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 
 namespace Tertius.Simulation;
 
@@ -12,6 +13,8 @@ public sealed partial class World
     private readonly List<Entity> movedFrameOwners = new();
     // The attached spawns of the sync point that wait for their parent to become live, in chunk order.
     private readonly List<PendingSpawn> waitingAttachedSpawns = new();
+    // The component types whose class constructor the world has run (see InitializeComponentType).
+    private readonly HashSet<Type> initializedComponentTypes = new();
 
     /// <summary>
     /// Creates a root frame and the entity that owns it. The owner is in no frame; its pose is the frame's pose.
@@ -77,23 +80,33 @@ public sealed partial class World
         return true;
     }
 
-    /// <summary>Adds a component to an entity. Throws <see cref="StaleEntityException"/> for a stale handle. Outside a tick only.</summary>
+    /// <summary>
+    /// Adds a component to an entity. The snapshot shows it at once, so the next tick sees it. Throws
+    /// <see cref="StaleEntityException"/> for a stale handle, and as <see cref="ComponentTypes.IdOf"/> does for a
+    /// component type that cannot have an id. Outside a tick only.
+    /// </summary>
     public void AddComponent(Entity entity, IComponent component)
     {
         ThrowIfInTick(nameof(AddComponent));
         ArgumentNullException.ThrowIfNull(component);
+        InitializeComponentType(component.GetType());
         entities.AddComponent(entity, component);
+        SwapSnapshot();
+        FlushLog();
     }
 
     /// <summary>
-    /// Removes a component from an entity. Returns false, and does nothing, if the entity does not have it, which
-    /// includes an entity that is not live. Outside a tick only.
+    /// Removes a component from an entity. The snapshot shows it at once, so the next tick sees it. Returns false, and
+    /// does nothing, if the entity does not have it, which includes an entity that is not live. Outside a tick only.
     /// </summary>
     public bool RemoveComponent(Entity entity, IComponent component)
     {
         ThrowIfInTick(nameof(RemoveComponent));
         ArgumentNullException.ThrowIfNull(component);
-        return entities.RemoveComponent(entity, component);
+        if (!entities.RemoveComponent(entity, component))
+            return false;
+        SwapSnapshot();
+        return true;
     }
 
     /// <summary>Subscribes an entity to a topic. Throws <see cref="StaleEntityException"/> for a stale handle. Outside a tick only.</summary>
@@ -331,6 +344,8 @@ public sealed partial class World
             for (int j = 0; j < i; j++)
                 if (ReferenceEquals(components[j], component))
                     throw new ArgumentException($"The same {component.GetType().Name} instance appears twice. Each entity needs its own component instances.", nameof(desc));
+            // The type needs an id for the component flags: a generic type, or one past the cap, fails the spawn here.
+            ComponentTypes.IdOf(component.GetType());
             // Stable insertion sort by priority: equal priorities keep the order in which they were given.
             int priority = component.Priority;
             EventMask mask = component.Wants;
@@ -409,6 +424,8 @@ public sealed partial class World
             velocity = Frames.LinearVelocity(own);
         }
 
+        foreach (IComponent component in plan.Components)
+            InitializeComponentType(component.GetType());
         entities.Activate(entity, row, desc.Render ?? new RenderData(), plan.Components, plan.Wants, desc.Body, own);
         if (desc.Body != null)
             physicsChanges.BodiesCreated.Add(new BodyCreate(entity, row.Frame, desc.Body, row.Pose, velocity, row.AngularVelocity));
@@ -678,7 +695,11 @@ public sealed partial class World
             try
             {
                 if (change.Add)
+                {
                     entities.AddComponent(change.Entity, change.Component);
+                    // Its class constructor runs at the sync point, before the component's first run in the next tick.
+                    chunk.AddedComponentTypes.Add(change.Component.GetType());
+                }
                 else if (!entities.RemoveComponent(change.Entity, change.Component))
                     chunk.Messages.Add(new ChunkMessage($"tick {TickNumber}: {change.Entity}: RemoveComponent: the entity has no such {change.Component.GetType().Name} instance.", false));
             }
@@ -688,6 +709,36 @@ public sealed partial class World
             }
         }
         chunk.ComponentChanges.Clear();
+    }
+
+    /// <summary>
+    /// Runs the class constructor of a component type the first time the world sees it, outside the gameplay part of a
+    /// tick. C# runs a static field initializer at the first use of its class, which could otherwise be a Handle call on
+    /// a worker during a tick, where building the heap part of an entity query throws. A class constructor that throws
+    /// is reported, and the component's calls then fail as they would have.
+    /// </summary>
+    private void InitializeComponentType(Type type)
+    {
+        Contract.Requires(!GameplayThread.InEntityRun);
+        if (initializedComponentTypes.Contains(type))
+            return;
+        try
+        {
+            RuntimeHelpers.RunClassConstructor(type.TypeHandle);
+        }
+        catch (TypeInitializationException ex)
+        {
+            Report($"tick {TickNumber}: the class constructor of the component type {type.FullName} failed: {ex.InnerException?.GetType().Name}: {ex.InnerException?.Message}", isError: true);
+        }
+        initializedComponentTypes.Add(type);
+    }
+
+    /// <summary>Step 1 of the sync point: the class constructors of the component types that the entities added during the tick.</summary>
+    private void InitializeAddedComponentTypes()
+    {
+        foreach (ChunkState chunk in entities.Chunks)
+            foreach (Type type in chunk.AddedComponentTypes)
+                InitializeComponentType(type);
     }
 
     // ---- Frames, membership and topics ----------------------------------------------------------------------------

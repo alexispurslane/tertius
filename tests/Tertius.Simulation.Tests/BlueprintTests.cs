@@ -147,12 +147,22 @@ public class BlueprintTests
     }
 
     [Fact]
-    public void ABlueprintWithAClosedGenericComponentTypeBuildsIt()
+    public void ABlueprintSetsAFieldOfItsComponent()
     {
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("box", [new ComponentSpec(typeof(Boxed<int>), Fields(("Content", 42)))]));
+        blueprints.Register(new Blueprint("box", [new ComponentSpec(typeof(Boxed), Fields(("Content", 42)))]));
 
-        ((Boxed<int>)blueprints.Instantiate("box")[0]).Content.Should().Be(42);
+        ((Boxed)blueprints.Instantiate("box")[0]).Content.Should().Be(42);
+    }
+
+    [Fact]
+    public void ABlueprintWithAClosedGenericComponentTypeIsRefusedBecauseTheEngineRefusesGenericComponentTypes()
+    {
+        var blueprints = new Blueprints();
+
+        Action register = () => blueprints.Register(new Blueprint("box", [new ComponentSpec(EmittedComponents.OpenGeneric.MakeGenericType(typeof(int)))]));
+
+        register.Should().Throw<ArgumentException>().WithMessage("*generic component types are refused*");
     }
 
     // ---- The compiled factories -------------------------------------------------------------------------------

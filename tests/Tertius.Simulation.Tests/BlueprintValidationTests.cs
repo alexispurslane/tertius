@@ -34,7 +34,7 @@ public class BlueprintValidationTests
         "type that is not a component" => (new Blueprint("x", [new ComponentSpec(typeof(string))]), "IComponent"),
         "abstract component" => (new Blueprint("x", [new ComponentSpec(typeof(AbstractComponent))]), "concrete class"),
         "struct component" => (new Blueprint("x", [new ComponentSpec(typeof(ValueComponent))]), "concrete class"),
-        "open generic component" => (new Blueprint("x", [new ComponentSpec(typeof(Boxed<>))]), "concrete class"),
+        "open generic component" => (new Blueprint("x", [new ComponentSpec(EmittedComponents.OpenGeneric)]), "concrete class"),
         "component with no parameterless constructor" => (new Blueprint("x", [new ComponentSpec(typeof(NeedsArgument))]), "parameterless constructor"),
         "component with no public constructor" => (new Blueprint("x", [new ComponentSpec(typeof(HiddenConstructor))]), "parameterless constructor"),
         "same component type twice" => (new Blueprint("x", [new ComponentSpec(typeof(Radio)), new ComponentSpec(typeof(Radio))]), "Radio"),
