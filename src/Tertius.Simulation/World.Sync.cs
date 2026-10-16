@@ -182,6 +182,9 @@ public sealed partial class World
 
         foreach (ContactStarted contact in stepOutput.Contacts)
             RouteContact(contact);
+        // After the starts, so that a contact that starts and ends in one step reaches each entity in that order.
+        foreach (ContactEnded ended in stepOutput.ContactsEnded)
+            RouteContactEnd(ended);
     }
 
     /// <summary>
@@ -272,6 +275,19 @@ public sealed partial class World
             normal = toRecipient.Rotation.Rotate(normal);
         }
         router.AddEngineEvent(Event.Create(new Target(recipient), Entity.Null, new Collision { Other = other, Point = point, Normal = normal, Impulse = impulse }));
+    }
+
+    /// <summary>
+    /// Sends a CollisionEnded to each entity of an ended contact. Destroying a body ends its contacts, so one of the two
+    /// can be gone, and routing drops the event of an entity that is gone, as it drops every event to a stale handle. Like
+    /// a start, an end is part of the update of both entities, so an end that names a skipped update reaches neither.
+    /// </summary>
+    private void RouteContactEnd(in ContactEnded ended)
+    {
+        if (physicsOutputCheck.IsSkipped(ended.A) || physicsOutputCheck.IsSkipped(ended.B))
+            return;
+        router.AddEngineEvent(Event.Create(new Target(ended.A), Entity.Null, new CollisionEnded { Other = ended.B }));
+        router.AddEngineEvent(Event.Create(new Target(ended.B), Entity.Null, new CollisionEnded { Other = ended.A }));
     }
 
     /// <summary>Applies the subscribe and unsubscribe requests of the chunks, in chunk order, for entities that are still live.</summary>
