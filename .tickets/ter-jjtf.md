@@ -1,6 +1,6 @@
 ---
 id: ter-jjtf
-status: open
+status: closed
 deps: [ter-1j1e]
 links: []
 created: 2026-10-11T13:52:10Z
