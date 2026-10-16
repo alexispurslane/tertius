@@ -31,5 +31,5 @@ Open questions:
 
 ## Acceptance Criteria
 
-From Snapshot, a component reads another entity's motion, mass, shape kind, bounding radius, category and mask, and whether it is a character or a sensor. A read for a stale entity gives an explicit false or null. Tests cover each fact.
+From Snapshot, a component reads another entity's motion, mass, shape kind, bounding radius, collision groups and the groups that it collides with, and whether it is a character or a sensor. A read for a stale entity gives an explicit false or null. Tests cover each fact.
 

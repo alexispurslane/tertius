@@ -84,3 +84,15 @@ Decided (User), closing the open any-of point: InAny(group) takes one collision 
 **2026-10-12T01:51:13Z**
 
 If query joining ever returns, define it as a filter merge (User): the joined query is the chain of both queries' calls, so every mask joins by OR, the all-of and none-of conditions narrow and the any-of choices widen. It is not the intersection of the two queries' results, so name it for a merge, not for 'and'.
+
+**2026-10-16T12:06:51Z**
+
+Current state of the entity query, which supersedes the earlier notes where they differ (consolidated on 2026-10-16 from the design talk of 2026-10-12):
+- EntityQuery is a readonly record struct (User). Inline, with no allocation: the component mask (With and Without, 512 bits each), the collision mask (AllOf and NoneOf, plus one AnyOf set), and one Where with a static lambda.
+- Collision filters: all-of and none-of filters narrow. InAny(group) takes one group per call and ORs it into the single AnyOf set, tested with (groups & AnyOf) != 0, and an empty set means no condition (User).
+- QueryExtras, an optional immutable heap object, holds what does not fit inline: several frames, several radii, several predicates (User). Building it on a gameplay worker during a tick throws, and the message says to build the query once as a static member (User).
+- No query joining (User). The note of 01:25 that says two queries join by ORing their masks is superseded. If joining ever returns, it is a filter merge, named as one.
+- Two forms (User): a stored description run with Snapshot.Find(query, ...), and the shorthand chain snapshot.Entities.With<T>() with the same filter code.
+- Each entity's component flags: 512 bits in its snapshot row, copied forward only for slots with the new ComponentsDirty bit (User). No interning: the user accepts 64 bytes per entity.
+- At most 512 component types, checked at startup and for each assembly that loads later. Generic component types are refused (User).
+Still open: where each Near filter takes its center (the caller's pose, another entity, a fixed point, or an argument of Find); how the World runs each component type's static initializer outside the gameplay phase, and the ThreadStatic marker for the in-tick ban; whether a flag can carry read-only data ('public facts'); any-of over component types (it would go in QueryExtras); and an optional 'as group X' filter that also checks the body's collides-with set ('hit what a bullet hits').

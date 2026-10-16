@@ -23,5 +23,5 @@ Facts:
 
 ## Acceptance Criteria
 
-A component casts a sphere, a box or a capsule along a direction and gets the first hit. It also asks which bodies overlap a sphere, a box or a capsule. Both filter by mask, work in the component's own frame and across bubbles, and give the same results in every run. Tests on the World with Jolt cover each query.
+A component casts a sphere, a box or a capsule along a direction and gets the first hit. It also asks which bodies overlap a sphere, a box or a capsule. Both take an entity query as their filter (collision mask and component mask, ter-gj55), work in the component's own frame and across bubbles, and give the same results in every run. Tests on the World with Jolt cover each query.
 

@@ -33,7 +33,7 @@ Open questions:
 
 ## Acceptance Criteria
 
-A body's description names its category and its mask. Two bodies collide only when each mask contains the other body's category. Ghosts, frame hulls and interiors keep their current behavior. A test on the World with Jolt shows two categories that pass through each other and a third that hits both.
+A body's description names its collision groups (several are allowed) and the groups that it collides with. Two bodies collide only when each body collides with at least one of the other body's groups, which is Jolt's own pair test. Ghosts, frame hulls and interiors keep their current behavior. A test on the World with Jolt shows two collision groups that pass through each other and a third that hits both.
 
 
 ## Notes

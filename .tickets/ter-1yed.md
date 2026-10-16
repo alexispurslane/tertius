@@ -15,7 +15,8 @@ A component can learn very little about the world around it. It reads other enti
 
 This epic adds:
 
-- collision categories and masks that content can name,
+- collision groups that content can name, with several groups per body, and the set of groups that each body collides with,
+- one allocation-free query language over an inbox and over the snapshot's entities (ter-8wmm, ter-gj55) (User),
 - an event when a contact ends,
 - ray casts, shape casts and overlap queries from components, also across frame bubbles,
 - sensor bodies, and a Sensor component that tells a topic or every entity what touches its entity (User),

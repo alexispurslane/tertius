@@ -29,7 +29,7 @@ Facts:
 
 ## Acceptance Criteria
 
-A component casts a ray from a point along a direction in its own frame, with a length and a mask. It gets the nearest hit: the entity, the point and the normal in its own frame, and the distance. A ray that crosses into a child frame or out to the parent finds the bodies there. The same world gives the same hits in every run. Tests on the World with Jolt cover a hit, a miss, a mask, a ray that starts inside a hull, and a ray across a bubble.
+A component casts a ray from a point along a direction in its own frame, with a length and an entity query as its filter: a collision mask and a component mask (ter-gj55). It gets the nearest hit: the entity, the point and the normal in its own frame, and the distance. A ray that crosses into a child frame or out to the parent finds the bodies there. The same world gives the same hits in every run. Tests on the World with Jolt cover a hit, a miss, a mask, a ray that starts inside a hull, and a ray across a bubble.
 
 
 ## Notes
