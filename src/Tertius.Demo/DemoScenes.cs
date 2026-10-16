@@ -8,9 +8,9 @@ namespace Tertius.Demo;
 /// The scenes that scripts can name. The vertical slice adds its scenes here, and the content packages work later moves
 /// them into the first content package.
 /// </summary>
-public static class DemoScenes
+public static partial class DemoScenes
 {
-    public static IReadOnlyList<Scene> All { get; } = [new Scene("drop-box", DropBox), new Scene("orbit", Orbit)];
+    public static IReadOnlyList<Scene> All { get; } = [new Scene("drop-box", DropBox), new Scene("orbit", Orbit), new Scene("orbit-cluster", OrbitCluster)];
 
     /// <summary>Earth's mean radius, in meters.</summary>
     public const double EarthRadius = 6.371e6;
@@ -23,6 +23,13 @@ public static class DemoScenes
 
     /// <summary>The tilt of the ship's orbit to Earth's equator, as the ISS flies: 51.64 degrees, in radians.</summary>
     public const double OrbitInclination = 51.64 * Math.PI / 180;
+
+    /// <summary>
+    /// The circle that the ship of the orbit scene starts on, in earth: radius <see cref="OrbitRadius"/>, tilted by
+    /// <see cref="OrbitInclination"/>. Its state at the world's time places the ship. The ship faces Earth with its belly
+    /// and turns once per orbit, so its axes stay those of the orbit: +Y up from Earth, -Z along the motion.
+    /// </summary>
+    public static KeplerOrbit ShipOrbit { get; } = KeplerOrbit.Circular(OrbitRadius) with { Inclination = OrbitInclination, Attitude = KeplerAttitude.FacesParent };
 
     /// <summary>The sun's G·M, in m³/s².</summary>
     public const double SunMu = 1.32712440018e20;
@@ -148,7 +155,7 @@ public static class DemoScenes
         // circle takes the G·M of earth's own field, which is the G·M that pulls the ship.
         // Stryker disable once String : the scene gives earth point gravity above, so nothing reaches this guard of its own construction.
         double earthMu = world.Frames.Gravity(earth) is PointGravity { Mu: var mu } ? mu : throw new InvalidOperationException("Earth has no point gravity.");
-        KeplerOrbit start = KeplerOrbit.Circular(OrbitRadius) with { Inclination = OrbitInclination, Attitude = KeplerAttitude.FacesParent };
+        KeplerOrbit start = ShipOrbit;
         (Double3 position, Double3 velocity) = start.StateAt(world.Time, earthMu);
         Entity ship = world.Spawn(new SpawnDesc
         {
