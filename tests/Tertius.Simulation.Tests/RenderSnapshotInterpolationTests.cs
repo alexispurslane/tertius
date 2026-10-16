@@ -190,30 +190,47 @@ public class RenderSnapshotInterpolationTests
     // ---- When interpolation is turned off ------------------------------------------------------------------------
 
     /// <summary>
-    /// A camera with a body in frame <c>A</c>, at the origin of A, and a frame <c>B</c> 500 m away. At tick 2 physics hands the camera
-    /// off to B at the same place in the root frame. An object in A moves 1 m along +X in each tick.
+    /// A camera that is a ball with a render row. It flies along +X from the root frame towards a frame <c>B</c> that is 500 m
+    /// from the origin of the root, and Jolt hands it off to B in the step of tick 2. An object in the root moves 1 m along
+    /// +X in each tick, and starts 10 m to the side of the camera's line.
     /// </summary>
     private sealed class HandOffScene : IDisposable
     {
         public HandOffScene()
         {
-            Test = new TestWorld(Physics);
-            FrameHandle a = Test.SpawnStaticFrame(TestWorld.At(0), radius: 100);
-            FrameHandle b = Test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
-            Camera = Test.World.Spawn(new SpawnDesc { Frame = a, Body = TestWorld.Ball, Render = new RenderData() });
-            Moving = Test.Show(a, TestWorld.At(0, 0, -10), new Mover(new Double3(1, 0, 0)));
-            Test.World.Camera = Camera;
-            Physics.OnStep((context, output) =>
+            Test = TestWorld.OnJolt(out _);
+            B = Test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+            Scenes.Approach flight = Scenes.ApproachToBubble(Test.World, B, tick: 2);
+            Camera = Test.World.Spawn(new SpawnDesc
             {
-                if (context.Tick == 2)
-                    output.HandOffs.Add(new HandOff(Camera, a, b, TestWorld.At(-500), default, default));
+                Frame = Test.Root,
+                Pose = flight.Pose,
+                LinearVelocity = flight.Velocity,
+                Body = WorldTesting.Ball(),
+                Render = new RenderData(),
             });
+            StartOfMoving = new Double3(flight.Pose.Position.X, 0, -10);
+            Moving = Test.Show(Test.Root, new DPose(StartOfMoving, DQuaternion.Identity), new Mover(new Double3(1, 0, 0)));
+            Test.World.Camera = Camera;
         }
 
-        public IPhysicsBackend Physics { get; } = TestPhysics.Create();
         public TestWorld Test { get; }
+        public FrameHandle B { get; }
         public Entity Camera { get; }
         public Entity Moving { get; }
+
+        /// <summary>Where the moving object started in the root frame, in meters.</summary>
+        public Double3 StartOfMoving { get; }
+
+        /// <summary>
+        /// Where the moving object is after it has moved <paramref name="ticksOfMovement"/> times, relative to the camera as the
+        /// camera is now, in the axes of the root frame. The camera flies, so the test cannot name this position by hand.
+        /// </summary>
+        public Vector3 MovingRelativeToCamera(int ticksOfMovement)
+        {
+            Test.World.Snapshot.TryGetPoseIn(Camera, Test.Root, out DPose camera).Should().BeTrue();
+            return (StartOfMoving + new Double3(ticksOfMovement, 0, 0) - camera.Position).ToVector3();
+        }
 
         public void Dispose() => Test.Dispose();
     }
@@ -226,8 +243,8 @@ public class RenderSnapshotInterpolationTests
         scene.Test.Run(2);
 
         RenderInstance instance = scene.Test.World.Latest().InstanceOf(scene.Moving);
-        instance.Position.Should().Be(new Vector3(2, 0, -10));
-        instance.PreviousPosition.Should().Be(new Vector3(1, 0, -10));
+        PoseChecks.AssertNear(instance.Position, scene.MovingRelativeToCamera(2), 1e-3f);
+        PoseChecks.AssertNear(instance.PreviousPosition, scene.MovingRelativeToCamera(1), 1e-3f);
     }
 
     [Fact]
@@ -255,8 +272,10 @@ public class RenderSnapshotInterpolationTests
 
         scene.Test.Run(1);
 
-        // The camera is at the same place in the root frame as before the hand-off, and the object is 3 m along +X and 10 m ahead.
-        PoseChecks.AssertNear(scene.Test.World.Latest().InstanceOf(scene.Moving).Position, new Vector3(3, 0, -10), 1e-3f);
+        // The camera flew into B, and the object moved three times. Seen from the camera, the object is where the camera
+        // and the object are in the root frame.
+        PoseChecks.AssertNear(scene.Test.World.Latest().InstanceOf(scene.Moving).Position, scene.MovingRelativeToCamera(3), 1e-3f);
+        scene.Test.World.GetFrame(scene.Camera).Should().Be(scene.B);
     }
 
     [Fact]
@@ -315,32 +334,34 @@ public class RenderSnapshotInterpolationTests
     [Fact]
     public void AnObjectHandedOffBetweenFramesInterpolatesFromItsPoseInTheOldFrame()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        FrameHandle a = test.SpawnStaticFrame(TestWorld.At(0), radius: 100);
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         FrameHandle b = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         Entity camera = test.SpawnCamera(test.Root, DPose.Identity);
+        // The ball flies from the root into the frame b. Jolt hands it off in the step of tick 2.
+        Scenes.Approach flight = Scenes.ApproachToBubble(test.World, b, tick: 2);
         Entity ball = test.World.Spawn(new SpawnDesc
         {
-            Frame = a,
-            Pose = TestWorld.At(3, 0, -10),
-            Body = TestWorld.Ball,
+            Frame = test.Root,
+            Pose = flight.Pose,
+            LinearVelocity = flight.Velocity,
+            Body = WorldTesting.Ball(),
             Render = RenderSnapshotSupport.Visible(),
         });
         test.World.Camera = camera;
-        physics.OnStep((context, output) =>
-        {
-            // The ball moves 1 m along +X and into frame b in the same step: (3 + 1, 0, -10) in a is (-496, 0, -10) in b.
-            if (context.Tick == 2)
-                output.HandOffs.Add(new HandOff(ball, a, b, TestWorld.At(-496, 0, -10), default, default));
-        });
         test.Run(2);
         test.World.Latest();
 
         test.Run(1);
 
+        // The camera rests at the origin of the root. The ball was in the root at the end of tick 1, and in b at the end
+        // of tick 2, where the origin of b is 500 m along +X in the root.
+        HandOff handOff = faults.Outputs[2].HandOffs.Should().ContainSingle().Subject;
+        handOff.Entity.Should().Be(ball);
+        Double3 before = faults.Outputs[1].Bodies.Single(state => state.Entity == ball).Pose.Position;
+        Double3 after = handOff.Pose.Position + new Double3(500, 0, 0);
         RenderInstance instance = test.World.Latest().InstanceOf(ball);
-        instance.PreviousPosition.Should().Be(new Vector3(3, 0, -10));
-        instance.Position.Should().Be(new Vector3(4, 0, -10));
+        PoseChecks.AssertNear(instance.PreviousPosition, before.ToVector3(), 1e-3f);
+        PoseChecks.AssertNear(instance.Position, after.ToVector3(), 1e-3f);
+        (after - before).Length.Should().BeGreaterThan(0.1, "the ball moved between the two snapshots, or the test cannot tell the old pose from the new one");
     }
 }

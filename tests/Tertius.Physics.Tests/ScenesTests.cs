@@ -63,10 +63,11 @@ public class ScenesTests
     }
 
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(4)]
-    public void ABallApproachingABubbleIsHandedOffInTheStepOfTheTickThatWasAskedFor(int tick)
+    [InlineData(0, 0)]
+    [InlineData(1, 0)]
+    [InlineData(4, 0)]
+    [InlineData(1, 20)]
+    public void ABallApproachingABubbleIsHandedOffInTheStepOfTheTickThatWasAskedFor(int tick, double lateral)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
@@ -76,7 +77,8 @@ public class ScenesTests
             Pose = At(500, 3, -2),
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
         }));
-        Entity ball = Scenes.BallApproachingBubble(world, space, station, tick);
+        Scenes.Approach approach = Scenes.ApproachToBubble(world, station, tick, lateral: lateral);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Ball() });
 
         Tick(world, tick + 3);
 

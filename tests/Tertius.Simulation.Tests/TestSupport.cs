@@ -150,6 +150,17 @@ public static class WorldTestExtensions
         for (int i = 0; i < ticks; i++)
             world.Tick();
     }
+
+    /// <summary>
+    /// Edits the output of the step of tick <paramref name="tick"/> only, after Jolt wrote it. The wrapper runs the edit on the
+    /// physics thread, in the step that its <see cref="FaultInjectingBackend.Steps"/> list names last.
+    /// </summary>
+    public static void EditOutputOfTick(this FaultInjectingBackend faults, long tick, Action<PhysicsStepOutput> edit) =>
+        faults.EditOutput = output =>
+        {
+            if (faults.Steps[^1].Tick == tick)
+                edit(output);
+        };
 }
 
 // ---- Entity table for the subsystem tests ---------------------------------------------------------------------------

@@ -73,33 +73,31 @@ public class RenderSnapshotOriginTests
     [Fact]
     public void TheOriginFrameIdFollowsTheCameraWhenPhysicsHandsItToAnotherFrame()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
-        FrameHandle bay = test.SpawnStaticFrame(TestWorld.At(0), radius: 100);
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
+        // The camera is a ball that flies from the root into the station. Jolt hands it off in the step of tick 1.
+        Scenes.Approach approach = Scenes.ApproachToBubble(test.World, station, tick: 1);
         Entity camera = test.World.Spawn(new SpawnDesc
         {
-            Frame = bay,
-            Pose = TestWorld.At(4567.25, 2, 3),
-            Body = TestWorld.Ball,
+            Frame = test.Root,
+            Pose = approach.Pose,
+            LinearVelocity = approach.Velocity,
+            Body = WorldTesting.Ball(),
             Render = new RenderData { ViewOffset = new Pose(new Vector3(0, 1.5f, 0), Quaternion.Identity) },
         });
         test.World.Camera = camera;
-        physics.OnStep((context, output) =>
-        {
-            if (context.Tick == 1)
-                output.HandOffs.Add(new HandOff(camera, bay, station, TestWorld.At(7, 8, 9), default, default));
-        });
 
         test.Run(1);
         RenderSnapshot before = test.World.Latest();
         test.Run(1);
         RenderSnapshot after = test.World.Latest();
 
-        before.OriginFrameId.Should().Be(IdOf(bay));
+        HandOff handOff = faults.Outputs[1].HandOffs.Should().ContainSingle().Subject;
+        handOff.Entity.Should().Be(camera);
+        before.OriginFrameId.Should().Be(IdOf(test.Root));
         after.OriginFrameId.Should().Be(IdOf(station));
         // The origin is now the camera's position in the station, with the eye 1.5 m above it.
-        PoseChecks.AssertNear(after.OriginInFrame, new Double3(7, 9.5, 9));
+        PoseChecks.AssertNear(after.OriginInFrame, handOff.Pose.Position + new Double3(0, 1.5, 0));
     }
 
     [Fact]
