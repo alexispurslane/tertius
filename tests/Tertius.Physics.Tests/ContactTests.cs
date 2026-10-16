@@ -118,19 +118,29 @@ public class ContactTests
     [Fact]
     public void DestroyingTheBodyOfAFrameOwnerEndsTheContactsOfItsInterior()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle space = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
         var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(5, 0.25f, 5)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
-        FrameHandle ship = h.AddFrameWithBody(space, DPose.Identity, FrameBounds.Sphere(30), MotionDriver.Static,
-            new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), InteriorShape: deck), GravityField.Uniform(new Vector3(0, -9.81f, 0)));
-        Entity crate = h.AddBody(ship, Shapes.Box(0.5f), Shapes.At(0, -1.5, 0));
-        h.Step(30);
-        h.Contacts.Should().ContainSingle();
+        Entity shipOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = DPose.Identity,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), InteriorShape: deck),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+        });
+        var crateLog = new CollisionLog();
+        Entity crate = world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(shipOwner), Pose = At(0, -1.5), Body = BoxBody(0.5f), Components = [crateLog] });
+        Tick(world, 30);
+        ContactsSent(faults).Should().ContainSingle();
+        faults.Outputs.SelectMany(output => output.ContactsEnded).Should().BeEmpty("nothing has changed yet");
 
-        h.Destroy(ship.Entity);
-        h.Step();
+        world.Destroy(shipOwner);
+        world.Tick();
 
-        h.ContactsEnded.Should().Equal(new ContactEnded(ship.Entity, crate));
+        faults.Outputs.SelectMany(output => output.ContactsEnded).Should().Equal(new ContactEnded(shipOwner, crate));
+        Tick(world, 2);
+        crateLog.Ended.Should().ContainSingle().Which.Other.Should().Be(shipOwner);
+        world.Errors.Should().BeEmpty();
     }
 
     /// <summary>
@@ -140,18 +150,33 @@ public class ContactTests
     [Fact]
     public void AnEndedContactNamesItsEntitiesInEntityOrder()
     {
-        using var h = new PhysicsHarness();
-        FrameHandle ground = h.AddFrame(FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static,
-            GravityField.Uniform(new Vector3(0, -9.81f, 0)));
-        Entity box = h.NewEntity();
-        Entity floor = h.AddBody(ground, Shapes.Floor(10), Shapes.At(0, -0.5, 0));
-        h.AddBody(ground, Shapes.Box(0.5f), Shapes.At(0, 0.5, 0), entity: box);
-        h.Step(10);
-        h.Contacts.Should().ContainSingle();
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle ground = Ground(world, 9.81f);
+        // The World gives a new entity the slot that was freed first. Freeing the higher slot first makes the floor, which
+        // is spawned first, take the higher slot, and the box, which is spawned next, take the lower one.
+        Entity lowerSlot = world.Spawn(new SpawnDesc { Frame = ground });
+        Entity higherSlot = world.Spawn(new SpawnDesc { Frame = ground });
+        world.Destroy(higherSlot);
+        world.Destroy(lowerSlot);
+        var boxLog = new CollisionLog();
+        Entity floor = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(0, -0.5),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 0.5f, 10)), BodyMotion.Static),
+        });
+        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.5), Body = BoxBody(0.5f), Components = [boxLog] });
+        box.Should().BeLessThan(floor, "the box has the lower entity");
+        Tick(world, 10);
+        faults.AppliedChanges.SelectMany(changes => changes.BodiesCreated).Select(create => create.Entity).Should().Equal([floor, box], "the floor's body is the first one created");
+        ContactsSent(faults).Should().ContainSingle();
 
-        h.Destroy(floor);
-        h.Step();
+        world.Destroy(floor);
+        world.Tick();
 
-        h.ContactsEnded.Should().Equal(new ContactEnded(box, floor));
+        faults.Outputs.SelectMany(output => output.ContactsEnded).Should().Equal(new ContactEnded(box, floor));
+        world.Tick();
+        boxLog.Ended.Should().ContainSingle().Which.Other.Should().Be(floor);
+        world.Errors.Should().BeEmpty();
     }
 }

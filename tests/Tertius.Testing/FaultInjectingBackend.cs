@@ -144,6 +144,7 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
         copy.Bodies.AddRange(output.Bodies);
         copy.HandOffs.AddRange(output.HandOffs);
         copy.Contacts.AddRange(output.Contacts);
+        copy.ContactsEnded.AddRange(output.ContactsEnded);
         copy.Frames.AddRange(output.Frames);
         copy.Characters.AddRange(output.Characters);
         copy.Errors.AddRange(output.Errors);

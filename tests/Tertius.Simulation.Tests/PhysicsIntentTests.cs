@@ -235,9 +235,8 @@ public class PhysicsIntentTests
     [InlineData("none-of")]
     public void ABodyCannotTakeAMaskWithAnAllOfOrANoneOfPartAndTheErrorIsReported(string part)
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<IntentRecord> intents = physics.RecordIntents();
-        using var test = new TestWorld(physics);
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<IntentRecord> intents = faults.Intents;
         CollisionMask mask = part == "all-of" ? CollisionMask.Empty.InAll(CollisionGroup.Solid) : CollisionMask.Empty.InNone(CollisionGroup.Solid);
         Entity ball = test.World.Spawn(new SpawnDesc
         {

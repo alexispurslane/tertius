@@ -106,6 +106,22 @@ public class FaultInjectingBackendTests
     }
 
     [Fact]
+    public void EveryContactThatEndsIsRecordedInTheOutputOfTheStepThatSentIt()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        var pilot = new Pilot();
+        Scenes.FloorAndBall scene = Scenes.FloorWithBall(world, height: 0, ballComponents: pilot);
+        Tick(world, 10);
+        faults.Outputs.SelectMany(output => output.ContactsEnded).Should().BeEmpty("the ball rests on the floor");
+
+        pilot.Once = body => body.SetVelocity(new Double3(0, 3, 0));
+        Tick(world, 10);
+
+        faults.Outputs.SelectMany(output => output.ContactsEnded).Should().Equal([new ContactEnded(scene.Floor, scene.Ball)],
+            "the ball left the floor once, and the record keeps the ended contact as the World received it");
+    }
+
+    [Fact]
     public void AnExceptionFromTheStepIsThrownOnceAndTheWorldRecordsAFailedStep()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
