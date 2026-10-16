@@ -96,3 +96,7 @@ Current state of the entity query, which supersedes the earlier notes where they
 - Each entity's component flags: 512 bits in its snapshot row, copied forward only for slots with the new ComponentsDirty bit (User). No interning: the user accepts 64 bytes per entity.
 - At most 512 component types, checked at startup and for each assembly that loads later. Generic component types are refused (User).
 Still open: where each Near filter takes its center (the caller's pose, another entity, a fixed point, or an argument of Find); how the World runs each component type's static initializer outside the gameplay phase, and the ThreadStatic marker for the in-tick ban; whether a flag can carry read-only data ('public facts'); any-of over component types (it would go in QueryExtras); and an optional 'as group X' filter that also checks the body's collides-with set ('hit what a bullet hits').
+
+**2026-10-16T12:38:02Z**
+
+Decided (User, 2026-10-16): Near takes its center from the asker, another entity or a fixed point: Near(radius) is around the entity that runs the query, Near(other, radius) around another entity's snapshot pose, Near(frame, point, radius) around a fixed point in a frame. A stored query needs no run arguments. A flag carries no data that other entities read for now: it says only whether an entity has the component, and data travels by messages (User).
