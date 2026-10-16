@@ -53,6 +53,7 @@ public class WorldSpawnRefusalTests
         "a body whose angular damping is infinite" => (new BodyDesc(new SphereShapeDesc(1), AngularDamping: float.NegativeInfinity), "angular damping"),
         "a body whose collision mask has an all-of part" => (new BodyDesc(new SphereShapeDesc(1)) { CollisionMask = CollisionMask.Empty.InAny(CollisionGroup.Solid).InAll(CollisionGroup.Solid) }, "all-of"),
         "a body whose collision mask has a none-of part" => (new BodyDesc(new SphereShapeDesc(1)) { CollisionMask = CollisionMask.Empty.InNone(CollisionGroup.Solid) }, "none-of"),
+        "a character that is a sensor" => (new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70) { IsSensor = true }, "sensor"),
         _ => throw new ArgumentOutOfRangeException(nameof(why), why, null),
     };
 
@@ -92,6 +93,7 @@ public class WorldSpawnRefusalTests
     [InlineData("a body whose angular damping is infinite")]
     [InlineData("a body whose collision mask has an all-of part")]
     [InlineData("a body whose collision mask has a none-of part")]
+    [InlineData("a character that is a sensor")]
     public void SpawnRefusesABodyThatPhysicsCannotCreate(string why)
     {
         using World world = NewWorld(out _);
@@ -231,6 +233,28 @@ public class WorldSpawnRefusalTests
         backend.TryGetBodyFrame(ball, out _).Should().BeTrue();
         world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(0.5, 0.01, "the ball fell to the floor");
         world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>The owner of a frame cannot be a sensor: its hull and its interior push, whatever its driver.</summary>
+    [Theory]
+    [InlineData(MotionDriver.Static)]
+    [InlineData(MotionDriver.Physics)]
+    public void SpawnRefusesAFrameOwnerWhoseBodyIsASensor(MotionDriver driver)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        int live = world.Stats.LiveEntities;
+
+        Action spawn = () => world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(0, 5),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5), driver),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 10) { IsSensor = true },
+        });
+
+        spawn.Should().Throw<ArgumentException>().WithMessage("*sensor*");
+        world.Stats.LiveEntities.Should().Be(live, "nothing changed");
     }
 
     /// <summary>A static frame may have a mesh as its interior.</summary>

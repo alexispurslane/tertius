@@ -259,6 +259,15 @@ public sealed record BodyDesc(
     public CollisionMask CollisionMask { get; init; } = CollisionMask.Empty.InAny(CollisionGroup.Solid);
 
     /// <summary>
+    /// True for a sensor body, which detects touches but does not push: Jolt's sensor. Bodies pass through it. A touch
+    /// of a sensor starts when the two bodies overlap and ends when they stop overlapping, with a
+    /// <see cref="ContactStarted"/> whose impulse is zero and a <see cref="ContactEnded"/>. A sensor detects dynamic and
+    /// kinematic bodies and characters when the collision groups and masks of both match. Sleep and wake end no touch,
+    /// and a ghost's touch is no touch of its entity. A character or the owner of a frame cannot be a sensor.
+    /// </summary>
+    public bool IsSensor { get; init; }
+
+    /// <summary>
     /// Why no physics backend can create a body from this description, or null when one can. The message completes a
     /// sentence that names the body. <paramref name="ownsFrame"/> is true for the owner of a frame. Its body is the frame's
     /// static interior, and when the frame has a parent, also a hull in the parent frame. The hull's motion comes from the
@@ -288,8 +297,12 @@ public sealed record BodyDesc(
         {
             if (Motion == BodyMotion.Character)
                 return "owns a frame, so it cannot be a character";
+            if (IsSensor)
+                return "owns a frame, so it cannot be a sensor";
             return InteriorShape?.Problem() is { } interior ? $"has an interior shape that {interior}" : null;
         }
+        if (Motion == BodyMotion.Character && IsSensor)
+            return "is a character, so it cannot be a sensor";
         if (Motion == BodyMotion.Character && Shape is not CapsuleShapeDesc)
             return $"is a character, so its shape must be a CapsuleShapeDesc, not a {Shape.GetType().Name}";
         if (Motion != BodyMotion.Static && Shape.ContainsMesh())

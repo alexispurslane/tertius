@@ -270,6 +270,8 @@ public sealed partial class JoltPhysicsBackend
             MaxLinearVelocity = options.MaxLinearVelocity,
             // Jolt changes the motion type only of a body that it created to allow the change.
             AllowDynamicOrKinematic = spec.MotionChanges,
+            // A ghost of a sensor is a sensor too, so that it pushes nothing in the other frame either.
+            IsSensor = material.IsSensor,
         });
         // A body whose motion can change keeps its mass while it is static or kinematic, for the time that it is dynamic.
         // A body without mass never becomes dynamic.

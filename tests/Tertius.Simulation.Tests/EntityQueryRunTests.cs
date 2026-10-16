@@ -76,6 +76,33 @@ public class EntityQueryRunTests
         Found(t.World.Snapshot.Find(EntityQuery.With<Crew>())).Should().Equal(kept);
     }
 
+    [Fact]
+    public void MatchesSaysWhetherARunOfTheQueryWouldFindTheEntity()
+    {
+        using var t = new TestWorld();
+        Entity crew = t.SpawnAt(new Double3(9, 0, 0), new Crew());
+        Entity near = t.SpawnAt(new Double3(1, 0, 0), new Crew());
+        Entity cargo = t.SpawnAt(new Double3(9, 0, 0));
+        EntityQuery query = EntityQuery.With<Crew>().Where(static (snapshot, entity) => X(snapshot, entity) > 5);
+
+        Snapshot snapshot = t.World.Snapshot;
+
+        snapshot.Matches(query, crew).Should().BeTrue();
+        snapshot.Matches(query, near).Should().BeFalse("the predicate drops it");
+        snapshot.Matches(query, cargo).Should().BeFalse("it is not crew");
+    }
+
+    [Fact]
+    public void NoQueryMatchesAnEntityThatIsNotLive()
+    {
+        using var t = new TestWorld();
+        Entity doomed = t.SpawnWith(new Crew());
+        t.World.Destroy(doomed);
+
+        t.World.Snapshot.Matches(default, doomed).Should().BeFalse();
+        t.World.Snapshot.Matches(default, Entity.Null).Should().BeFalse();
+    }
+
     // ---- Places --------------------------------------------------------------------------------------------------
 
     [Fact]

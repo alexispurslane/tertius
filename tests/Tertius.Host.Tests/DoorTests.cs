@@ -118,6 +118,69 @@ public sealed class DoorTests : IDisposable
         (Moved(turned) - new Double3(-2, 0, 0)).Length.Should().BeLessThan(1e-4);
     }
 
+    // ---- A door that hears a sensor ----
+
+    private const string Doorway = "door-tests/doorway";
+
+    /// <summary>
+    /// A static sensor 6 m from the door, at (-5, 2, 3), 1 m tall and deep and <paramref name="width"/> m wide along X,
+    /// which relays to the topic <see cref="Doorway"/>, and the door subscribes to that topic.
+    /// </summary>
+    private void SensorThatTheDoorHears(float width)
+    {
+        world.Subscribe(door, Topics.Get(Doorway));
+        world.Spawn(new SpawnDesc
+        {
+            Frame = room,
+            Pose = new DPose(new Double3(-5, 2, 3), DQuaternion.Identity),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(width / 2, 0.5f, 0.5f)), BodyMotion.Static) { IsSensor = true },
+            Components = [new Sensor { Topic = Doorway }],
+        });
+    }
+
+    /// <summary>A ball with a radius of 0.25 m at (<paramref name="x"/>, 2, 2) that drifts along +Z at <paramref name="speed"/> m/s.</summary>
+    private void DriftingBall(double x, float speed) => world.Spawn(new SpawnDesc
+    {
+        Frame = room,
+        Pose = new DPose(new Double3(x, 2, 2), DQuaternion.Identity),
+        LinearVelocity = new Vector3(0, 0, speed),
+        Body = new BodyDesc(new SphereShapeDesc(0.25f), Mass: 1, LinearDamping: 0, AngularDamping: 0),
+    });
+
+    /// <summary>
+    /// A ball drifts at 0.5 m/s through the sensor. It overlaps the sensor while its center is less than 0.75 m from the
+    /// sensor's center along Z: from 0.5 s to 3.5 s. The door opens in one second on the relayed Entered and shuts in one
+    /// second on the relayed Left.
+    /// </summary>
+    [Fact]
+    public void ADoorOpensWhenASensorThatItHearsRelaysAnEnteredAndShutsWhenTheSensorRelaysTheLeft()
+    {
+        SensorThatTheDoorHears(width: 1);
+        DriftingBall(-5, 0.5f);
+
+        Ticks(150);
+        Height.Should().BeApproximately(2, 1e-4, "the ball is in the sensor at 2.5 s, and the door opened");
+        Ticks(210);
+        Height.Should().BeApproximately(0, 1e-4, "the ball left the sensor at 3.5 s, and the door shut");
+    }
+
+    /// <summary>
+    /// Two balls drift through a sensor 2 m wide, side by side: one at 1 m/s, inside from 0.25 s to 1.75 s, and one at
+    /// 0.25 m/s, inside from 1 s to 7 s. The door stays open until the last of them left.
+    /// </summary>
+    [Fact]
+    public void ADoorThatHearsTwoBodiesInASensorStaysOpenUntilBothLeft()
+    {
+        SensorThatTheDoorHears(width: 2);
+        DriftingBall(-5.5, 1);
+        DriftingBall(-4.5, 0.25f);
+
+        Ticks(180);
+        Height.Should().BeApproximately(2, 1e-4, "the slow ball is still in the sensor at 3 s");
+        Ticks(360);
+        Height.Should().BeApproximately(0, 1e-4, "both balls left the sensor by 7 s, and the door shut");
+    }
+
     [Theory]
     [InlineData(0f)]
     [InlineData(-1f)]

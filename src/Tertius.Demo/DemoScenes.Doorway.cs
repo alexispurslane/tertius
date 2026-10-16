@@ -1,0 +1,120 @@
+using System.Numerics;
+using Tertius.Host;
+using Tertius.Simulation;
+
+namespace Tertius.Demo;
+
+public static partial class DemoScenes
+{
+    /// <summary>The name of the topic that the doorway's sensor relays to, and that its door hears.</summary>
+    public const string DoorwayTopic = "doorway";
+
+    /// <summary>Where the person of the doorway scene starts, in meters along +Z from the door.</summary>
+    public const double DoorwayPersonStartZ = 6;
+
+    /// <summary>The center of the doorway's sensor volume, in meters along +Z from the door.</summary>
+    public const double DoorwaySensorZ = 2.5;
+
+    /// <summary>The half depth of the doorway's sensor volume along Z, in meters.</summary>
+    public const float DoorwaySensorHalfDepth = 0.75f;
+
+    /// <summary>The height of the center of the doorway's door when it is shut, in meters above the floor.</summary>
+    public const double DoorwayDoorShutY = 1.25;
+
+    /// <summary>How far the doorway's door rises when it opens, in meters.</summary>
+    public const float DoorwayDoorRise = 2.5f;
+
+    /// <summary>
+    /// A door that opens for a person who walks up to it, in a root frame with gravity.
+    /// <list type="bullet">
+    /// <item>The root frame <c>ground</c> has uniform gravity of 9.81 m/s² along -Y. A static gray <c>floor</c>, 50 by 50 m
+    /// and 1 m thick, has its top at y = 0.</item>
+    /// <item>The <c>door</c> is a kinematic slab 2 m wide, 2.5 m tall and 0.1 m thick, standing on the floor at the origin
+    /// across the Z axis. It is a <see cref="Door"/> that rises 2.5 m in one second, and it subscribes to the topic
+    /// <see cref="DoorwayTopic"/>.</item>
+    /// <item>The <c>doorway-sensor</c> is an invisible static sensor box in front of the door, 2 m wide, 2 m tall and 1.5 m
+    /// deep, from z = 1.75 m to 3.25 m. Its <see cref="Sensor"/> relays to <see cref="DoorwayTopic"/>, so the door opens
+    /// while something is inside it. A blue <c>mat</c> on the floor marks it.</item>
+    /// <item>The <c>person</c>, the capsule character of the orbit scene, 1.8 m tall, stands on the floor 6 m from the
+    /// door along +Z and faces it, along -Z. With W it walks at 3 m/s toward the door, and with S away from it.</item>
+    /// <item>The view <c>camera</c>, the camera at the start, stands 8 m to the side along +X, 3 m up, and looks at the
+    /// sensor and the door.</item>
+    /// <item>The frame <c>sun</c>, 50 m up and to the side, is where the light comes from.</item>
+    /// </list>
+    /// </summary>
+    private static SceneInstance Doorway(World world, IRenderResources resources)
+    {
+        var scene = new SceneInstance();
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        scene.Add("ground", ground);
+        scene.Add("floor", world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(0, -0.5, 0), DQuaternion.Identity),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(25, 0.5f, 25)), BodyMotion.Static),
+            Render = Drawn(resources, Primitives.Box(new Vector3(25, 0.5f, 25)), new Vector4(0.4f, 0.4f, 0.38f, 1), boundingRadius: 36),
+        }));
+
+        var doorHalf = new Vector3(1, (float)DoorwayDoorShutY, 0.05f);
+        scene.Add("door", world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(0, DoorwayDoorShutY, 0), DQuaternion.Identity),
+            Body = new BodyDesc(new BoxShapeDesc(doorHalf), BodyMotion.Kinematic),
+            Render = Drawn(resources, Primitives.Box(doorHalf), new Vector4(0.6f, 0.35f, 0.2f, 1), boundingRadius: 1.6f),
+            Components = [new Door(new Vector3(0, DoorwayDoorRise, 0), openSeconds: 1)],
+            Subscriptions = [Topics.Get(DoorwayTopic)],
+        }));
+
+        var sensorHalf = new Vector3(1, 1, DoorwaySensorHalfDepth);
+        scene.Add("doorway-sensor", world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(0, 1, DoorwaySensorZ), DQuaternion.Identity),
+            Body = new BodyDesc(new BoxShapeDesc(sensorHalf), BodyMotion.Static) { IsSensor = true },
+            Components = [new Sensor { Topic = DoorwayTopic }],
+        }));
+        // The mat is only drawn: it has no body, so nothing touches it.
+        var matHalf = new Vector3(1, 0.005f, DoorwaySensorHalfDepth);
+        scene.Add("mat", world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(0, 0.005, DoorwaySensorZ), DQuaternion.Identity),
+            Render = Drawn(resources, Primitives.Box(matHalf), new Vector4(0.2f, 0.4f, 0.8f, 1), boundingRadius: 1.3f),
+        }));
+
+        // The capsule is 1.8 m tall, and its center rests 0.9 m above the floor. The eye is 1.65 m above the floor.
+        var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
+        scene.Add("person", world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(0, 0.95, DoorwayPersonStartZ), DQuaternion.Identity),
+            Body = new BodyDesc(capsule, BodyMotion.Character, Mass: YardPersonMass),
+            Render = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1),
+            Components = [new PersonControl(new Vector3(0, 0.75f, 0))],
+            Subscriptions = [Topics.Input],
+        }));
+
+        Entity camera = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = LookingAt(new Double3(8, 3, 3), new Double3(0, 1, 2)),
+            Render = new RenderData(),
+        });
+        scene.Add("camera", camera);
+
+        Entity sun = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(30, 50, 20), DQuaternion.Identity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Static),
+        });
+        scene.Add("sun", sun);
+        world.SunFrame = world.GetOwnedFrame(sun);
+
+        scene.AddView("camera");
+        scene.AddView("person");
+        world.Camera = camera;
+        return scene;
+    }
+}
