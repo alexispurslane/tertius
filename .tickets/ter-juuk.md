@@ -39,3 +39,7 @@ A component casts a ray from a point along a direction in its own frame, with a 
 **2026-10-12T00:00:10Z**
 
 The user kept the collision masks (ter-g3yp) in the path. A ray filters by mask and also by component type, through the record of ter-gj55, for example only entities with Crew.
+
+**2026-10-16T13:42:52Z**
+
+Two details to settle when building (2026-10-16): (1) Requests run after the snapshot swap at the sync point, so that Jolt (end of step N) and the snapshot's component flags and current collision groups describe the same moment. (2) The plan runs the query inside Jolt: an ObjectLayerFilter decodes the 12 content group bits of each candidate's object layer and calls CollisionMask.Matches, and a BodyFilter maps the body's user data to its entity, skips the asker's own body, and tests the component mask, Near, In and Where against the snapshot row, so that a closest-hit collector returns the nearest matching body. Each filter call is a managed callback through JoltPhysicsSharp; ter-wu6v measured that such callbacks are costly (the persisted-contact callback cost about 15% of a tick for 300 boxes). Measure it against the fallback: cast with only the role filter natively, collect all hits sorted by distance, and test the query on the hits in managed code. Choose by the numbers.
