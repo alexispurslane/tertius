@@ -6,22 +6,21 @@ namespace Tertius.Simulation.Tests;
 /// <summary>
 /// An entity with a body asks physics for things through <see cref="Self.Body"/>: forces, impulses, a new velocity. The
 /// asks of one tick, the intent, reach physics at the start of the next step, so a force written in tick 0 acts in the
-/// step of tick 1. Forces, torques and impulses add up. Every other ask keeps the last value written. A physics double
-/// records the intent that each step receives.
+/// step of tick 1. Forces, torques and impulses add up. Every other ask keeps the last value written. The tests run the
+/// world on real Jolt, and the wrapper <see cref="FaultInjectingBackend"/> records the intent that each step receives.
 /// </summary>
 public class PhysicsIntentTests
 {
     private delegate void WriteIntent(BodyHandle body);
 
     /// <summary>
-    /// A world with a physics double that records intents, and a ball whose component runs <paramref name="write"/> in
-    /// tick 0 and then does nothing. The world has run two ticks, so physics has received the intent once.
+    /// A world on real Jolt behind the wrapper that records intents, and a ball whose component runs <paramref name="write"/> in
+    /// tick 0 and then does nothing. The world has run three ticks, so physics has received the intent once.
     /// </summary>
     private static List<IntentRecord> IntentsReceivedAfterWriting(WriteIntent write, out Entity ball)
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<IntentRecord> intents = physics.RecordIntents();
-        using var test = new TestWorld(physics);
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<IntentRecord> intents = faults.Intents;
         ball = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
@@ -54,9 +53,8 @@ public class PhysicsIntentTests
     [Fact]
     public void PhysicsReceivesAnIntentOnlyFromTheEntitiesThatWroteOne()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<IntentRecord> intents = physics.RecordIntents();
-        using var test = new TestWorld(physics);
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<IntentRecord> intents = faults.Intents;
         Entity pusher = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
@@ -73,9 +71,8 @@ public class PhysicsIntentTests
     [Fact]
     public void TheIntentsOfTwoEntitiesStaySeparate()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<IntentRecord> intents = physics.RecordIntents();
-        using var test = new TestWorld(physics);
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<IntentRecord> intents = faults.Intents;
         Entity left = SpawnPusher(test, new Vector3(-1, 0, 0));
         Entity right = SpawnPusher(test, new Vector3(1, 0, 0));
 
@@ -88,9 +85,8 @@ public class PhysicsIntentTests
     [Fact]
     public void AnIntentDoesNotPileUpFromOneTickToTheNext()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        List<IntentRecord> intents = physics.RecordIntents();
-        using var test = new TestWorld(physics);
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        List<IntentRecord> intents = faults.Intents;
         SpawnPusher(test, Vector3.UnitY);
 
         test.Run(4);
@@ -227,8 +223,7 @@ public class PhysicsIntentTests
     [Fact]
     public void AnEntityCanReadWhatItHasWrittenSoFarInTheSameTick()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
+        using var test = TestWorld.OnJolt(out _);
         PhysicsIntent pendingAtTheEnd = default;
         test.World.Spawn(new SpawnDesc
         {
@@ -250,8 +245,7 @@ public class PhysicsIntentTests
     [Fact]
     public void AnEntityWithoutABodyCannotWriteAnIntentAndTheErrorIsReported()
     {
-        IPhysicsBackend physics = TestPhysics.Create();
-        using var test = new TestWorld(physics);
+        using var test = TestWorld.OnJolt(out _);
         Entity ghost = test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Body.AddForce(Vector3.UnitX)));
 
         test.Run(1);

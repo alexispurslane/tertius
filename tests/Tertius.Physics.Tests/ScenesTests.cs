@@ -61,4 +61,33 @@ public class ScenesTests
         world.Frames.LocalPose(scene.Moon).Position.Length.Should().BeApproximately(7e6, 1e-3);
         world.Frames.LinearVelocity(scene.Moon).Length.Should().BeApproximately(Math.Sqrt(Scenes.EarthMu / 7e6), 1e-3, "a circular orbit has the speed of √(G·M / r)");
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(4)]
+    public void ABallApproachingABubbleIsHandedOffInTheStepOfTheTickThatWasAskedFor(int tick)
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(500, 3, -2),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
+        }));
+        Entity ball = Scenes.BallApproachingBubble(world, space, station, tick);
+
+        Tick(world, tick + 3);
+
+        int stepsWithAHandOff = faults.Outputs.FindIndex(output => output.HandOffs.Count > 0);
+        stepsWithAHandOff.Should().Be(tick);
+        HandOff handOff = faults.Outputs[tick].HandOffs.Should().ContainSingle().Subject;
+        handOff.Entity.Should().Be(ball);
+        handOff.From.Should().Be(space);
+        handOff.To.Should().Be(station);
+        world.GetFrame(ball).Should().Be(station);
+        faults.Outputs.SelectMany(output => output.HandOffs).Should().ContainSingle("the ball enters the bubble once and stays in it");
+        world.Errors.Should().BeEmpty();
+    }
 }

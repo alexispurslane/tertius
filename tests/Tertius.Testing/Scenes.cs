@@ -86,4 +86,39 @@ public static class Scenes
         }));
         return new MoonScene(planet, moon);
     }
+
+    /// <summary>Where a ball starts and how fast it flies, so that it enters a bubble in a chosen tick. See <see cref="BallApproachingBubble"/>.</summary>
+    /// <param name="Pose">The pose of the ball in the frame of the bubble's parent, in meters.</param>
+    /// <param name="Velocity">The velocity of the ball in that frame, in meters per second.</param>
+    public readonly record struct Approach(DPose Pose, Double3 Velocity);
+
+    /// <summary>
+    /// The start of a straight flight along +X into the bubble of the frame <paramref name="into"/>, which must be a child of
+    /// the frame that the ball starts in, with no turn, and the bubble of a sphere. The ball flies at <paramref name="speed"/>
+    /// m/s, aimed at the center of the bubble, in a parent frame without gravity. Jolt hands a body to a child frame in the
+    /// first step that ends with the body touching the bubble (the distance of its center from the bubble's surface is at
+    /// most its radius). The flight is timed so that the step of tick <paramref name="tick"/> is that step, with half a step
+    /// of margin on both sides: the step before ends half a step short of the bubble, and the step of the hand-off ends half
+    /// a step inside it. Tick 0 is the first tick of the world.
+    /// </summary>
+    /// <param name="ballRadius">The radius of the ball in meters. 0.5 is the radius of <see cref="WorldTesting.Ball"/>.</param>
+    public static Approach ApproachToBubble(World world, FrameHandle into, long tick, float ballRadius = 0.5f, double speed = 12)
+    {
+        DPose bubble = world.Frames.LocalPose(into);
+        double metersPerStep = speed * world.DeltaTime;
+        double centerWhenTouching = bubble.Position.X - world.Frames.Bounds(into).MaxRadius - ballRadius;
+        double start = centerWhenTouching + metersPerStep / 2 - (tick + 1) * metersPerStep;
+        return new Approach(At(start, bubble.Position.Y, bubble.Position.Z), new Double3(speed, 0, 0));
+    }
+
+    /// <summary>
+    /// Spawns a ball of <see cref="WorldTesting.Ball"/> in <paramref name="from"/> that Jolt hands off into the bubble of
+    /// <paramref name="into"/> in the step of tick <paramref name="tick"/>, and in no step before it (see <see cref="ApproachToBubble"/>
+    /// for the conditions). The ball has <paramref name="components"/>.
+    /// </summary>
+    public static Entity BallApproachingBubble(World world, FrameHandle from, FrameHandle into, long tick, params IComponent[] components)
+    {
+        Approach approach = ApproachToBubble(world, into, tick);
+        return world.Spawn(new SpawnDesc { Frame = from, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Ball(), Components = components });
+    }
 }

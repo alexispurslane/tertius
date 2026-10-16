@@ -26,7 +26,7 @@ public class LifecycleFrameTests
     private sealed class ShipScene : IDisposable
     {
         public TestWorld T { get; }
-        public List<ChangeBatch> Batches { get; }
+        public List<PhysicsChanges> Batches { get; }
         public Recorder CrewLog { get; } = new(EventMask.Of<FrameChanged>());
         public Entity ShipOwner { get; }
         public FrameHandle Ship { get; }
@@ -37,9 +37,8 @@ public class LifecycleFrameTests
 
         public ShipScene()
         {
-            IPhysicsBackend physics = TestPhysics.Create();
-            Batches = physics.RecordChanges();
-            T = new TestWorld(physics);
+            T = TestWorld.OnJolt(out FaultInjectingBackend faults);
+            Batches = faults.AppliedChanges;
             ShipOwner = T.World.Spawn(new SpawnDesc
             {
                 Frame = T.Root,
@@ -165,7 +164,7 @@ public class LifecycleFrameTests
         s.DestroyTheShip();
 
         // Physics hears of it as one batch, which applies destroys before creates.
-        ChangeBatch batch = s.Batches.Should().ContainSingle().Subject;
+        PhysicsChanges batch = s.Batches.Should().ContainSingle().Subject;
         batch.BodiesDestroyed.Should().Contain(s.Crew);
         batch.BodiesCreated.Should().Contain(create => create.Entity == s.Crew && create.Frame == s.T.Root);
     }

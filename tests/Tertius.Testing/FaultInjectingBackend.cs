@@ -2,6 +2,19 @@ using Tertius.Physics;
 
 namespace Tertius.Testing;
 
+/// <summary>One physics step, as the backend saw it. It was recorded on the physics thread.</summary>
+/// <param name="Tick">The number of the tick the step belongs to.</param>
+/// <param name="Time">The simulation time at the start of the step, in seconds.</param>
+/// <param name="ThreadId">The managed id of the thread that ran the step.</param>
+/// <param name="OnPoolThread">Whether that thread is a thread-pool thread.</param>
+public readonly record struct StepRecord(long Tick, double Time, int ThreadId, bool OnPoolThread);
+
+/// <summary>The intent that one entity had written when a step began.</summary>
+/// <param name="Tick">The number of the tick the step belongs to.</param>
+/// <param name="Entity">The entity that wrote the intent during the previous tick.</param>
+/// <param name="Intent">A copy of what it wrote.</param>
+public readonly record struct IntentRecord(long Tick, Entity Entity, PhysicsIntent Intent);
+
 /// <summary>
 /// The real Jolt backend plus the power to edit what the World sends it, edit what it sends back, or make a call throw.
 /// It is the only test double for physics. It stands in for a bug, for the tests of what the World does with a state that
@@ -33,6 +46,18 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
     /// <see cref="ThrowFromStep"/> cut short has no entry.
     /// </summary>
     public List<PhysicsStepOutput> Outputs { get; } = [];
+
+    /// <summary>
+    /// What each step received from the World, in order: its tick, its simulation time and the thread that ran it. A step
+    /// that <see cref="ThrowFromStep"/> cut short has an entry, because the World started it.
+    /// </summary>
+    public List<StepRecord> Steps { get; } = [];
+
+    /// <summary>
+    /// The intent of each entity that wrote one during the previous tick, as every step received it, in the order of the
+    /// steps. The World hands the backend one table of intents and reuses it, so these are copies.
+    /// </summary>
+    public List<IntentRecord> Intents { get; } = [];
 
     /// <summary>Edits the next change batch before Jolt applies it, once. Null edits nothing.</summary>
     public Action<PhysicsChanges>? EditNextChanges { get; set; }
@@ -75,6 +100,10 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
 
     public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
     {
+        Steps.Add(new StepRecord(context.Tick, context.Time, Environment.CurrentManagedThreadId, Thread.CurrentThread.IsThreadPoolThread));
+        ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
+        foreach (Entity entity in context.IntentEntities.Span)
+            Intents.Add(new IntentRecord(context.Tick, entity, intents[(int)entity.Index]));
         if (ThrowFromStep is { } fault)
         {
             ThrowFromStep = null;

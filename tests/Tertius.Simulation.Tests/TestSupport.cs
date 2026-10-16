@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using NSubstitute;
+using Tertius.Physics;
 
 namespace Tertius.Simulation.Tests;
 
@@ -50,6 +51,22 @@ public sealed class TestWorld : IDisposable
     {
         World = Create(out FrameHandle root, maxDegreeOfParallelism, physics, chunkSize, debugChecks, configure);
         Root = root;
+    }
+
+    /// <summary>
+    /// A test world whose physics is the real Jolt backend behind a <see cref="FaultInjectingBackend"/>, with a root frame
+    /// that has no gravity. With no edit set on <paramref name="faults"/>, the world behaves as it does on bare Jolt. The
+    /// world disposes the backend. The other parameters are those of the constructor.
+    /// </summary>
+    public static TestWorld OnJolt(out FaultInjectingBackend faults, int maxDegreeOfParallelism = 1, int chunkSize = 64, bool debugChecks = true,
+        Action<WorldOptions>? configure = null)
+    {
+        faults = new FaultInjectingBackend(new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 }));
+        return new TestWorld(faults, maxDegreeOfParallelism, chunkSize, debugChecks, options =>
+        {
+            options.DisposePhysics = true;
+            configure?.Invoke(options);
+        });
     }
 
     /// <summary>The world under test.</summary>
@@ -155,19 +172,6 @@ internal static class TableSupport
 }
 
 // ---- Physics doubles: NSubstitute --------------------------------------------------------------------------------------
-
-/// <summary>One physics step, as the backend saw it. It was recorded on the physics thread.</summary>
-/// <param name="Tick">The number of the tick the step belongs to.</param>
-/// <param name="Time">The simulation time at the start of the step, in seconds.</param>
-/// <param name="ThreadId">The managed id of the thread that ran the step.</param>
-/// <param name="OnPoolThread">Whether that thread is a thread-pool thread.</param>
-public readonly record struct StepRecord(long Tick, double Time, int ThreadId, bool OnPoolThread);
-
-/// <summary>The intent that one entity had written when a step began.</summary>
-/// <param name="Tick">The number of the tick the step belongs to.</param>
-/// <param name="Entity">The entity that wrote the intent during the previous tick.</param>
-/// <param name="Intent">A copy of what it wrote.</param>
-public readonly record struct IntentRecord(long Tick, Entity Entity, PhysicsIntent Intent);
 
 /// <summary>
 /// A copy of one <see cref="PhysicsChanges"/> batch, made when the world handed it to the backend. The world clears and
