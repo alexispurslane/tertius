@@ -210,10 +210,54 @@ public class PhysicsIntentTests
             body.Teleport(TestWorld.At(2));
             body.MoveCharacter(Vector3.UnitZ);
             body.Jump(1);
+            body.SetCollision(CollisionGroups.None, CollisionMask.Empty);
         });
 
         intent.Flags.Should().Be(IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity | IntentFlags.KinematicTarget |
-                                 IntentFlags.Teleport | IntentFlags.CharacterMove | IntentFlags.Jump);
+                                 IntentFlags.Teleport | IntentFlags.CharacterMove | IntentFlags.Jump | IntentFlags.SetCollision);
+    }
+
+    [Fact]
+    public void ACollisionChangeWrittenTwiceInOneTickKeepsTheLastGroupsAndMask()
+    {
+        var registry = new CollisionGroupRegistry();
+        CollisionGroup debris = registry.Register("Debris"), wall = registry.Register("Wall");
+
+        PhysicsIntent intent = TheOneIntentReceivedAfterWriting(body =>
+        {
+            body.SetCollision(CollisionGroups.Of(wall), CollisionMask.Empty.InAny(wall));
+            body.SetCollision(CollisionGroups.Of(debris).And(CollisionGroup.Solid), CollisionMask.Empty.InAny(wall));
+        });
+
+        intent.Flags.Should().Be(IntentFlags.SetCollision);
+        intent.CollisionGroups.Should().Be(CollisionGroups.Of(debris).And(CollisionGroup.Solid));
+        intent.CollisionMask.Should().Be(CollisionMask.Empty.InAny(wall));
+    }
+
+    [Theory]
+    [InlineData("all-of")]
+    [InlineData("none-of")]
+    public void ABodyCannotTakeAMaskWithAnAllOfOrANoneOfPartAndTheErrorIsReported(string part)
+    {
+        IPhysicsBackend physics = TestPhysics.Create();
+        List<IntentRecord> intents = physics.RecordIntents();
+        using var test = new TestWorld(physics);
+        CollisionMask mask = part == "all-of" ? CollisionMask.Empty.InAll(CollisionGroup.Solid) : CollisionMask.Empty.InNone(CollisionGroup.Solid);
+        Entity ball = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Body = TestWorld.Ball,
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (self.Tick == 0)
+                    self.Body.SetCollision(CollisionGroups.None, mask);
+            })],
+        });
+
+        test.Run(3);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain(ball.ToString()).And.Contain(part);
+        intents.Should().BeEmpty();
     }
 
     [Fact]

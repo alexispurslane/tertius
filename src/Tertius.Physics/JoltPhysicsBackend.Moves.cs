@@ -74,7 +74,7 @@ public sealed partial class JoltPhysicsBackend
             RemovePrimary(record);
             CreatePrimary(record, move.To, move.Pose, move.Linear, move.Angular, upFromGravity: record.Standing, awake: move.Awake);
             if (record.Character is { } character)
-                character.RefreshContacts(Layers.Moving, record.World!.System);
+                character.RefreshContacts(PrimaryLayer(record), record.World!.System);
         }
 
         foreach ((int a, int b) in carriedMoves)

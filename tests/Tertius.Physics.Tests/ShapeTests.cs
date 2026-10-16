@@ -83,21 +83,4 @@ public class ShapeTests
             h[body].LinearVelocity.Length().Should().BeLessThan(0.1f);
         }
     }
-
-    [Fact]
-    public void LayerTableMatchesTheArchitecture()
-    {
-        BodyLayer[] layers = [BodyLayer.Static, BodyLayer.Moving, BodyLayer.FrameHull, BodyLayer.Ghost];
-        bool[,] expected =
-        {
-            //            Static  Moving  Hull   Ghost
-            /* Static */ { false, true,   true,  false },
-            /* Moving */ { true,  true,   false, true },
-            /* Hull   */ { true,  false,  true,  false },
-            /* Ghost  */ { false, true,   false, false },
-        };
-        for (int a = 0; a < 4; a++)
-            for (int b = 0; b < 4; b++)
-                Layers.Collide(layers[a], layers[b]).Should().Be(expected[a, b], "the table says so for {0} against {1}", layers[a], layers[b]);
-    }
 }

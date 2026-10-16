@@ -51,6 +51,8 @@ public class WorldSpawnRefusalTests
         "a body whose restitution is infinite" => (new BodyDesc(new SphereShapeDesc(1), Restitution: float.PositiveInfinity), "restitution"),
         "a body whose linear damping is not a number" => (new BodyDesc(new SphereShapeDesc(1), LinearDamping: float.NaN), "linear damping"),
         "a body whose angular damping is infinite" => (new BodyDesc(new SphereShapeDesc(1), AngularDamping: float.NegativeInfinity), "angular damping"),
+        "a body whose collision mask has an all-of part" => (new BodyDesc(new SphereShapeDesc(1)) { CollisionMask = CollisionMask.Empty.InAny(CollisionGroup.Solid).InAll(CollisionGroup.Solid) }, "all-of"),
+        "a body whose collision mask has a none-of part" => (new BodyDesc(new SphereShapeDesc(1)) { CollisionMask = CollisionMask.Empty.InNone(CollisionGroup.Solid) }, "none-of"),
         _ => throw new ArgumentOutOfRangeException(nameof(why), why, null),
     };
 
@@ -88,6 +90,8 @@ public class WorldSpawnRefusalTests
     [InlineData("a body whose restitution is infinite")]
     [InlineData("a body whose linear damping is not a number")]
     [InlineData("a body whose angular damping is infinite")]
+    [InlineData("a body whose collision mask has an all-of part")]
+    [InlineData("a body whose collision mask has a none-of part")]
     public void SpawnRefusesABodyThatPhysicsCannotCreate(string why)
     {
         using World world = NewWorld(out _);

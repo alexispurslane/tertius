@@ -193,6 +193,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// there unless the next step gives a new target or velocity. A dynamic body gets the velocities that would carry
     /// it there.</item>
     /// <item>Force, Torque, Impulse and AngularImpulse act on dynamic bodies, for this step only.</item>
+    /// <item>SetCollision gives every body of the entity new collision groups and a new mask, before anything else moves,
+    /// and they stay. It works for every entity with a body, a static body and the owner of a root frame too. A frame's
+    /// hull ignores them (see <see cref="Layers"/>).</item>
     /// <item>A character keeps the desired velocity of its last CharacterMove until the next one. Only a character that
     /// physics stands moves by it and can jump. Physics stands a character when the effective gravity is at least
     /// <see cref="FrameTree.ZeroGravityThreshold"/>, there is walkable ground under it, and it does not move away from
@@ -555,6 +558,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
     /// <item>The ghosts of each system (see <see cref="FrameWorld.AddGhost"/>) are the ghosts that the records keep in
     /// it, no more and no fewer.</item>
+    /// <item>Every Jolt body of a record has the layer that the record's collision groups and mask give it: the primary
+    /// body or the character's inner body, the interior and every ghost (see <see cref="Layers"/>).</item>
     /// </list>
     /// The record and ghost checks visit every entity slot, so the whole check is O(entity slots + systems).
     /// </summary>
@@ -583,13 +588,18 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             {
                 Contract.Invariant(record.Character is not null || record.Body.IsValid);
                 Contract.Invariant(home.Members[record.MemberIndex] == record);
+                BodyID primary = record.Character?.InnerBodyID ?? record.Body;
+                Contract.Invariant(home.Bodies.GetObjectLayer(primary) == PrimaryLayer(record));
             }
+            if (record.InteriorWorld is { } interior)
+                Contract.Invariant(interior.Bodies.GetObjectLayer(record.InteriorBody) == InteriorLayer(record));
             if (record.Ghosts is not { } ghosts)
                 continue;
             foreach (GhostBody ghost in ghosts)
             {
                 Contract.Invariant(GhostAllowed(record, ghost.Frame) && ghost.World == ExistingWorld(ghost.Frame));
                 Contract.Invariant(ghost.World.HasGhost(ghost.Body));
+                Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == GhostLayer(record));
             }
             recordGhosts += ghosts.Count;
         }

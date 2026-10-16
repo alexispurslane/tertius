@@ -199,7 +199,7 @@ public sealed partial class JoltPhysicsBackend
         {
             // Jolt starts a new character in the air. The character looks up its contacts now, as after a growth, so that
             // its next update knows the ground under it.
-            character.RefreshContacts(Layers.Moving, target.System);
+            character.RefreshContacts(PrimaryLayer(record), target.System);
             // The hand-off reports the rotation that the character got, which a turn to the new up can change.
             pose = ReadPrimary(record).Pose;
         }

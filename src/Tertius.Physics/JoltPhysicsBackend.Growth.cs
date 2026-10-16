@@ -111,7 +111,7 @@ public sealed partial class JoltPhysicsBackend
         larger.OptimizeBroadPhase();
         world.ReplaceSystem(larger, limits, renamedBodies);
         foreach (BodyRecord member in growthCharacters)
-            member.Character!.RefreshContacts(Layers.Moving, larger);
+            member.Character!.RefreshContacts(PrimaryLayer(member), larger);
         growthCharacters.Clear();
 
         log($"Physics: the system of {world.Frame} was full with {count} bodies, so it grew to hold {limits.MaxBodies}. " +
