@@ -1,6 +1,6 @@
 ---
 id: ter-gsvv
-status: open
+status: closed
 deps: []
 links: [ter-s02r]
 created: 2026-10-16T13:12:27Z
