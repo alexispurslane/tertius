@@ -12,6 +12,8 @@ tags: [simulation]
 ---
 # Give the inbox the shared query words, and replace its special methods
 
+Design: docs/plans/queries-and-sensors.md, section Event queries.
+
 The user chose one set of query words for an inbox (EventList) and for entities (User). The inbox gets the words now, and the entity query of ter-gj55 uses the same ones.
 
 Words that the user chose:

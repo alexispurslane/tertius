@@ -17,6 +17,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Host and scripted runs](host-and-scripted-runs.md) | `ter-dtw2` |
 | [Numeric frames](numeric-frames.md) | `ter-s02r` |
 | [Point and spot light shadows](local-light-shadows.md) | `ter-s9cv` |
+| [Queries and sensors](queries-and-sensors.md) | `ter-1yed` |
 | [Real physics in every test](real-physics-in-tests.md) | `ter-se84` |
 | [Renderer snapshot tests](renderer-snapshot-tests.md) | `ter-rtxu` |
 | [Test hardening](test-hardening.md) | `ter-7e55` |

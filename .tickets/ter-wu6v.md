@@ -12,6 +12,8 @@ tags: [physics, simulation]
 ---
 # Report when a contact ends, not only when it starts
 
+Design: docs/plans/queries-and-sensors.md, section Contacts.
+
 The only contact event is Collision, which means that physics reported a contact that started (ARCHITECTURE.md, the engine events). A component cannot learn that a contact ended. So it cannot tell that something left a pressure plate or stopped touching a door.
 
 Facts:

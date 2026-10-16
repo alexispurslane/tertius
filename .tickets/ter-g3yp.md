@@ -12,6 +12,8 @@ tags: [physics, content]
 ---
 # Collision groups: a body can be in several groups, and content chooses which groups collide
 
+Design: docs/plans/queries-and-sensors.md, section Collision groups and masks.
+
 Every body has one of four fixed object layers today: Static, Moving, FrameHull and Ghost (BodyLayer in src/Tertius.Core/Seams/PhysicsSeam.cs). A private pair table in src/Tertius.Physics/Internal/Layers.cs says which layers collide. Content cannot add a category, such as debris that passes through people. No code can ask what a body collides with.
 
 Facts:

@@ -337,6 +337,7 @@ The mod API in `Tertius.Simulation`:
 - Spawning: `SpawnDesc`, `FrameSpec`, `RenderData`, `LightData`, `BlueprintId` and `Self.Spawn(BlueprintId, ...)`.
 - Attributes: `ComponentNameAttribute`, `TextureSlotAttribute` and `UnionCaseAttribute` (from content formats), and `ColorAttribute` (from the editor).
 - Other types: `StaleEntityException`.
+- Queries and sensors (from [queries-and-sensors.md](queries-and-sensors.md)): `EntityQuery`, `EventQuery<T>` and their runs, the physics query requests and their answer events, `CollisionEnded`, `Entered`, `Left`, the `Sensor` component and the collision group names.
 
 Engine only, in `Tertius.Core`:
 

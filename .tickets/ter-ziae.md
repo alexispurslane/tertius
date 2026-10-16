@@ -1,6 +1,6 @@
 ---
 id: ter-ziae
-status: open
+status: closed
 deps: [ter-dtw2]
 links: []
 created: 2026-10-11T23:45:16Z

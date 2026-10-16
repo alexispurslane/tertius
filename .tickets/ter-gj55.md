@@ -12,6 +12,8 @@ tags: [simulation, gameplay, content]
 ---
 # Let a component see which components another entity has, and find entities by component
 
+Design: docs/plans/queries-and-sensors.md, section Entity queries, Near centers, Component flags.
+
 A component cannot learn anything about another entity beyond its pose, velocity and render row. Rules such as "this burns", "this is metal" or "this is crew" need facts that other entities can read. The user wants such flags to be components (User). A flag is a component type, often with no state, and other entities ask whether an entity has it.
 
 Facts:
