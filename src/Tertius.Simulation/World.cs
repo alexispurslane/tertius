@@ -24,8 +24,8 @@ public readonly record struct WorldStats(int LiveEntities, int Capacity, int Fra
 /// <para>
 /// The world is the orchestrator. The state lives in internal subsystems, each of which keeps its own invariants:
 /// <see cref="EntityTable"/> (slots, every per-slot table, the double-buffered rows), <see cref="Router"/> (outboxes
-/// to inboxes), <see cref="TopicSets"/> (who hears each topic), <see cref="Attachments"/>, <see cref="SpatialIndex"/>
-/// and <see cref="RenderSnapshotBuilder"/>. The world owns the public API, the tick, the order in which the sync point
+/// to inboxes), <see cref="TopicSets"/> (who hears each topic), <see cref="Attachments"/>, <see cref="SpatialIndex"/>,
+/// <see cref="RayQueries"/> and <see cref="RenderSnapshotBuilder"/>. The world owns the public API, the tick, the order in which the sync point
 /// calls the subsystems, and the invariants that span them, which <see cref="AssertInvariants"/> lists.
 /// </para>
 /// <para>
@@ -56,6 +56,7 @@ public sealed partial class World : IDisposable
     private readonly Attachments attachments;
     private readonly SpatialIndex spatial;
     private readonly RenderSnapshotBuilder renderBuilder;
+    private readonly RayQueries rayQueries;
 
     /// <summary>
     /// Creates an empty world. With no physics backend, bodies do not move and their intents are dropped. The first world
@@ -82,6 +83,7 @@ public sealed partial class World : IDisposable
         attachments = new Attachments(entities);
         spatial = new SpatialIndex(entities, Frames);
         renderBuilder = new RenderSnapshotBuilder(entities, Frames, parallelOptions);
+        rayQueries = new RayQueries(this, physics, router, message => Report(message, isError: true));
         dyingMarks = entities.AddColumn<bool>();
         characterStanding = entities.AddColumn<bool>();
         Frames.NumericOptions = this.options.NumericFrames;

@@ -171,7 +171,17 @@ where
 
 The sync point runs every request of a tick after the physics output lands, against Jolt at the end of the step. The answers go out as events, so they arrive in tick N+1, with the snapshot that matches them. The requests run in one batch in entity order. They run serially at first. Whether they can spread over cores depends on joltc's process-wide temp allocator (`JoltRuntime.NativeGate`), which the build step measures.
 
-The query's collision mask runs inside Jolt, in an `ObjectLayerFilter` on Jolt's own group bits. Its component mask runs in a `BodyFilter` against the snapshot's component flags.
+The whole query runs inside Jolt, in one `BodyFilter`: Jolt asks it about each candidate body before it tests the body's shape, and it maps the body to its entity and calls `EntityQuery.Matches` against the snapshot, collision mask included. So Jolt's closest-hit collector returns the nearest match. The build step (`ter-juuk`) measured three plans with `benchmarks/Tertius.Benchmarks/RayFilterBenchmarks.cs`, one nearest-hit ray along 256 boxes:
+
+| Plan | Every box matches | Only the farthest box matches |
+|---|---|---|
+| One `BodyFilter` with the whole query (chosen) | 3.4 µs | 10.6 µs |
+| An `ObjectLayerFilter` for the collision mask, and a `BodyFilter` for the rest | 3.4 µs | 13.4 µs |
+| No filter in Jolt, every hit sorted, then the query on the hits | 17.3 µs | 20.4 µs |
+
+An `ObjectLayerFilter` adds a managed callback for each candidate and never saves one, and a frame's hull carries no content groups in its object layer. Testing only the hits after an unfiltered cast is slower, because Jolt then tests the shape of every body along the ray.
+
+The tag is an `int`, so a component names its tags as constants, for example `static class RayTag { public const int Aim = 1; }`. A payload holds 48 bytes, and the entity, the point, the distance (a float) and the tag take 40 of them, so `RayHit` stores the normal in the octahedral form of two floats.
 
 The kinds of query:
 

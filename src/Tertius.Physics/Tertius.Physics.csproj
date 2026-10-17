@@ -10,5 +10,7 @@
     <InternalsVisibleTo Include="Tertius.Physics.Tests" />
     <!-- The shared test helpers read which bodies Jolt simulates, for example whether a body is awake. -->
     <InternalsVisibleTo Include="Tertius.Testing" />
+    <!-- The benchmark of ray-cast filtering casts on a backend's own Jolt system. -->
+    <InternalsVisibleTo Include="Tertius.Benchmarks" />
   </ItemGroup>
 </Project>

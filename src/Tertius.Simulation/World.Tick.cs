@@ -208,6 +208,26 @@ public sealed partial class World
     }
 
     /// <summary>
+    /// Queues a ray cast of the running entity for this tick's sync point, in the frame that the entity is in. See
+    /// <see cref="PhysicsQueries"/> for the arguments and the answer.
+    /// </summary>
+    internal void RequestRay(ChunkState chunk, Entity entity, Double3 from, Double3 direction, double length, in EntityQuery query, int tag,
+        RayCastKind kind)
+    {
+        FrameHandle frame = entities.FrontRow(entity).Frame;
+        if (frame.IsNull)
+            throw new InvalidOperationException($"{entity} owns a root frame and is in no frame, so it has no frame to cast a ray in.");
+        if (!double.IsFinite(from.X) || !double.IsFinite(from.Y) || !double.IsFinite(from.Z))
+            throw new ArgumentException($"A ray needs a finite origin, not {from}.", nameof(from));
+        double size = direction.Length;
+        if (!(size > 0) || !double.IsFinite(size))
+            throw new ArgumentException($"A ray needs a finite direction that is not zero, not {direction}.", nameof(direction));
+        if (!(length > 0) || !double.IsFinite(length))
+            throw new ArgumentOutOfRangeException(nameof(length), length, "A ray needs a finite length of more than 0 m.");
+        chunk.RayRequests.Add(new RayRequest(entity, frame, from, direction / size, length, query, tag, kind));
+    }
+
+    /// <summary>
     /// The running entity's intent for the next physics step, for writing. Throws <see cref="InvalidOperationException"/>
     /// if the entity has no body, and <see cref="StaleEntityException"/> for a stale handle.
     /// </summary>

@@ -86,6 +86,33 @@ public record struct FrameBounds(Vector3 Radii)
 
     /// <summary>True when <paramref name="inner"/> fits inside <paramref name="outer"/>, so that it can enter it as a child.</summary>
     public static bool Fits(in FrameBounds inner, in FrameBounds outer) => inner.MaxRadius < 0.5f * outer.MinRadius;
+
+    /// <summary>
+    /// Where the line <paramref name="origin"/> + t · <paramref name="direction"/>, in frame coordinates, crosses the
+    /// bubble: it is inside for every t from <paramref name="entry"/> to <paramref name="exit"/>, and outside for every
+    /// other t. The parameter t counts in lengths of <paramref name="direction"/>, so for a unit direction it is the
+    /// distance from <paramref name="origin"/> in meters, and it is negative behind the origin. False, with both values 0,
+    /// when the line passes beside the bubble or <paramref name="direction"/> is zero.
+    /// </summary>
+    public readonly bool TryIntersectLine(Double3 origin, Double3 direction, out double entry, out double exit)
+    {
+        // Scaled by the radii, the ellipsoid is the unit sphere: |o + t·d|² = 1, or a·t² + b·t + c = 0.
+        var radii = (Double3)Radii;
+        Double3 o = origin / radii, d = direction / radii;
+        double a = Double3.Dot(d, d), b = 2 * Double3.Dot(o, d), c = Double3.Dot(o, o) - 1;
+        double discriminant = b * b - 4 * a * c;
+        if (!(a > 0) || discriminant < 0)
+        {
+            entry = exit = 0;
+            return false;
+        }
+        // The form that never subtracts two nearly equal numbers: q has the sign of b, and the roots are q/a and c/q.
+        double q = -0.5 * (b + (b >= 0 ? Math.Sqrt(discriminant) : -Math.Sqrt(discriminant)));
+        double t0 = q / a, t1 = q != 0 ? c / q : -t0;
+        entry = Math.Min(t0, t1);
+        exit = Math.Max(t0, t1);
+        return true;
+    }
 }
 
 /// <summary>How a Kepler frame turns as it orbits.</summary>

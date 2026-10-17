@@ -119,6 +119,10 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
         Outputs.Add(Copy(output));
     }
 
+    public void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end, IPhysicsQueryFilter filter,
+        RayCastKind kind, List<RayCastHit> hits) =>
+        Jolt.CastRay(frame, origin, direction, start, end, filter, kind, hits);
+
     public float BoundingRadius(ShapeDesc shape) => Jolt.BoundingRadius(shape);
 
     public string? ShapeProblem(ShapeDesc shape) => Jolt.ShapeProblem(shape);
