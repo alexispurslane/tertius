@@ -10,8 +10,10 @@ internal readonly record struct NumericMove(Entity Entity, FrameHandle From, Fra
 
 /// <summary>
 /// A ghost of the anchor <see cref="Anchor"/> in the system of the falling numeric frame <see cref="Frame"/>. An anchor is
-/// a static body or the hull of a frame that physics does not drive. It stays in its own system when a group of bodies
-/// near it falls, so the frame of that group keeps a ghost of it (docs/plans/numeric-frames.md, "Limits").
+/// a static body or the hull of a frame that physics does not drive. Since ticket ter-dhkf, the merge test links every
+/// anchor that rests in its home to the groups near it, also to one that falls, so only the hull of a Kepler frame, which
+/// moves fast in its own system, stays there when a group of bodies near it falls, and the frame of that group keeps a
+/// ghost of it (docs/plans/numeric-frames.md, "Anchors" and "Limits").
 /// </summary>
 internal readonly record struct NumericGhost(Entity Anchor, FrameHandle Frame);
 
@@ -62,9 +64,9 @@ public sealed partial class FrameTree
     private readonly List<FrameHandle> frameChildren = new();
     private readonly List<Double3> nestMembers = new();
     private readonly List<(FrameHandle Nest, Double3 Place)> nestPlaces = new();
-    // True for each body, by index in sortedBodies, that is not an anchor and whose group without anchors falls.
+    // True for each body, by index in sortedBodies, whose group falls before the Kepler hulls link (see LinkOrbitingHulls).
     private bool[] falls = [];
-    // The pairs of an anchor and a body that falls, which the merge test links, of the semantic frame that the update works on.
+    // The pairs of a Kepler hull and a body that falls, which the merge test links, of the semantic frame that the update works on.
     private readonly List<(Entity Anchor, Entity Body)> anchorPairs = new();
     private readonly List<NumericGhost> anchorGhosts = new();
     private readonly List<StickOutGhost> stickOutGhosts = new();
@@ -87,7 +89,7 @@ public sealed partial class FrameTree
     private Dictionary<Entity, double> nextLeaveClocks = new();
 
     /// <summary>
-    /// The ghosts that the falling numeric frames keep of the anchors near their members, which the last
+    /// The ghosts that the falling numeric frames keep of the Kepler hulls near their members, which the last
     /// <see cref="UpdateNumericFrames"/> chose. Physics reads them at each step.
     /// </summary>
     internal ReadOnlySpan<NumericGhost> AnchorGhosts => CollectionsMarshal.AsSpan(anchorGhosts);
@@ -102,11 +104,13 @@ public sealed partial class FrameTree
     /// Runs the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and "Nesting for
     /// vast distances") once, over a sync point of <paramref name="dt"/> seconds. <paramref name="bodies"/> holds every
     /// entity with a body that is not attached, in entity slot order. Within each semantic frame, the update links every
-    /// pair of bodies that are not anchors (see <see cref="NumericBody.Anchor"/>) that
-    /// <see cref="NumericFrameRules.MayTouch"/> links, and holds the members of each numeric frame that are not anchors
-    /// together until <see cref="NumericFrameRules.SplitClock"/> lets them split. Then it links each anchor to the anchors
-    /// and to the groups that do not fall that the merge test links to it: an anchor never changes the mode of a group that
-    /// falls, and stays in its own system, and the frame of that group gets a ghost of it (see <see cref="AnchorGhosts"/>).
+    /// pair of bodies that <see cref="NumericFrameRules.MayTouch"/> links, also an anchor (see <see cref="NumericBody.Anchor"/>)
+    /// and a group that falls, but not a Kepler hull (see <see cref="NumericFrameRules.JoinsEveryGroup"/>). It holds the
+    /// members of each numeric frame that are not anchors together until <see cref="NumericFrameRules.SplitClock"/> lets
+    /// them split. Then it links each Kepler hull to the bodies and to the groups that do not fall that the merge test links
+    /// to it: such a hull stays in its own system, and the frame of a group that falls gets a ghost of it (see
+    /// <see cref="AnchorGhosts"/>). A static body counts as infinitely heavy (see <see cref="NumericFrameRules.Summarize"/>),
+    /// so a group with one takes its home (docs/plans/numeric-frames.md, "Anchors").
     /// Each linked group gets the mode of <see cref="NumericFrameRules.Mode"/>, but a group that would rest in a new frame
     /// stays in its semantic frame's own system until <see cref="NumericFrameRules.LeaveClock"/> lets a member that the last
     /// update kept there leave. A group keeps the numeric frame that holds most of its mass, which drains and moves its
@@ -206,13 +210,17 @@ public sealed partial class FrameTree
         Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
         for (int i = start; i < end; i++)
             links[i] = i;
+        // Every body but a Kepler hull links to every group, also to one that falls, so a static wall is a real body of a
+        // fast crate's system (docs/plans/numeric-frames.md, "Anchors"). This comes before the hold, so that members that
+        // an anchor links count as together.
         for (int i = start; i < end; i++)
             for (int j = i + 1; j < end; j++)
-                if (!bodies[i].Anchor && !bodies[j].Anchor && MayTouch(bodies[i], bodies[j]))
+                if (NumericFrameRules.JoinsEveryGroup(bodies[i]) && NumericFrameRules.JoinsEveryGroup(bodies[j]) && MayTouch(bodies[i], bodies[j]))
                     Union(i, j);
         HoldFramesTogether(start, end, dt);
-        MarkFallingGroups(start, end);
-        LinkAnchors(start, end);
+        // A Kepler hull joins only a group that does not fall, so it links after every link that can stop a group from
+        // falling: the links above, and the hold.
+        LinkOrbitingHulls(start, end);
         GroupBodies(start, end);
         HoldInSemanticSystem(dt);
         ChooseKeepers();
@@ -274,8 +282,9 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Marks each body that is not an anchor and whose group, which holds no anchor yet, gets the mode Falling by itself.
-    /// The root of a group is its body with the lowest index, so a group is summed once, from its root.
+    /// Marks each body whose group gets the mode Falling. A group with an anchor never falls: a static body anchors it, and
+    /// a hull of a frame that physics does not drive fixes it. So a group whose root is an anchor is not summed. The root of
+    /// a group is its body with the lowest index, so a group is summed once, from its root.
     /// </summary>
     private void MarkFallingGroups(int start, int end)
     {
@@ -301,19 +310,26 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Links each anchor to every anchor and to every group that does not fall that the merge test links to it. A pair of
-    /// an anchor and a body that falls stays apart, and <see cref="KeepAnchorGhosts"/> gives the body's frame a ghost of
-    /// the anchor.
+    /// Links each hull that <see cref="NumericBody.Orbits"/> to every body and every group that does not fall that the
+    /// merge test links to it, as every anchor was linked before ticket ter-dhkf. A pair of such a hull and a body that
+    /// falls stays apart, and <see cref="KeepAnchorGhosts"/> gives the body's frame a ghost of the hull. A semantic frame
+    /// without such a hull needs no summary of its groups here.
     /// </summary>
-    private void LinkAnchors(int start, int end)
+    private void LinkOrbitingHulls(int start, int end)
     {
         Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
         anchorPairs.Clear();
+        bool anyOrbits = false;
+        for (int i = start; i < end && !anyOrbits; i++)
+            anyOrbits = bodies[i].Orbits;
+        if (!anyOrbits)
+            return;
+        MarkFallingGroups(start, end);
         for (int i = start; i < end; i++)
         {
             for (int j = i + 1; j < end; j++)
             {
-                if (!bodies[i].Anchor && !bodies[j].Anchor || !MayTouch(bodies[i], bodies[j]))
+                if (NumericFrameRules.JoinsEveryGroup(bodies[i]) && NumericFrameRules.JoinsEveryGroup(bodies[j]) || !MayTouch(bodies[i], bodies[j]))
                     continue;
                 if (falls[i])
                     anchorPairs.Add((bodies[j].Entity, bodies[i].Entity));
@@ -326,8 +342,8 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Adds a ghost of the anchor of each pair of <see cref="LinkAnchors"/> to the falling frame that is the home of its
-    /// body now, once for each frame.
+    /// Adds a ghost of the Kepler hull of each pair of <see cref="LinkOrbitingHulls"/> to the falling frame that is the home
+    /// of its body now, once for each frame.
     /// </summary>
     private void KeepAnchorGhosts(int start, int end)
     {

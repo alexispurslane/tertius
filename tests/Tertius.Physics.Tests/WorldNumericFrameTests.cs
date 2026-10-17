@@ -308,10 +308,15 @@ public class WorldNumericFrameTests
         world.VelocityIn(owner, earth).Length.Should().BeLessThan(1e-6);
     }
 
+    /// <summary>
+    /// With no gravity, a crate of 10 kg flies at 60 m/s at a static wall 10 m away. The merge test links the crate to the
+    /// wall, an anchor, so the crate never gets a falling frame: the group takes the wall's home, the system of ground, and
+    /// the wall is a real body there (ter-dhkf). Before, the crate fell in a frame of its own and hit the wall's ghost.
+    /// </summary>
     [Fact]
-    public void AFastCrateNearAStaticWallFallsInItsOwnFrameAndHitsTheWallsGhost()
+    public void AFastCrateNearAStaticWallJoinsTheWallsSystemAndStopsAtTheRealWall()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 0);
         Entity wall = world.Spawn(new SpawnDesc
         {
@@ -322,25 +327,24 @@ public class WorldNumericFrameTests
 
         Tick(world, 1);
 
-        InFallingFrame(world, crate).Should().BeTrue("a static body never stops a group that falls");
+        world.PhysicsHomeOf(crate).Should().Be(ground, "the group of the crate and the wall takes the wall's home");
         world.PhysicsHomeOf(wall).Should().Be(ground, "a static body stays in its own system");
-        backend.HasGhostIn(wall, world.PhysicsHomeOf(crate)).Should().BeTrue("the falling frame keeps a ghost of the wall");
+        world.Frames.AnchorGhosts.IsEmpty.Should().BeTrue("the wall is a real body of the crate's system, so no frame keeps a ghost of it");
 
         Tick(world, 60);
         world.Errors.Should().BeEmpty();
-        world.PoseIn(crate, ground).Position.X.Should().BeLessThan(0, "the crate hit the wall's ghost and did not pass through");
+        world.PoseIn(crate, ground).Position.X.Should().BeLessThan(0, "the crate hit the wall and did not pass through");
     }
 
     /// <summary>
-    /// The scene of <see cref="AFastCrateNearAStaticWallFallsInItsOwnFrameAndHitsTheWallsGhost"/>: with no gravity, a crate
-    /// of 10 kg flies at 60 m/s at a static wall. It falls in a numeric frame of its own, and the wall stays in its own
-    /// system, with a ghost in the crate's frame. A contact with a ghost is a contact of the two entities, so the crate and
-    /// the wall each hear one Collision when the crate hits the ghost, and no end while the crate rests against the wall,
-    /// also when the slow crate goes back to the system of the wall. A ghost stands for its real body, which is static, so
-    /// the impulse is the crate's mass times its approach speed.
+    /// The scene of <see cref="AFastCrateNearAStaticWallJoinsTheWallsSystemAndStopsAtTheRealWall"/>: with no gravity, a
+    /// crate of 10 kg flies at 60 m/s at a static wall. The crate joins the wall's system, so the crate and the wall each
+    /// hear one Collision when the crate hits the wall, and no end while the crate rests against it. The impulse is the
+    /// crate's mass times its approach speed. Before ter-dhkf, the crate fell in a numeric frame of its own and hit the
+    /// wall's ghost there, with the same events: a contact with a ghost is a contact of the two entities.
     /// </summary>
     [Fact]
-    public void AFastCrateInAFallingFrameAndTheStaticWallThatItHitsEachHearOneCollision()
+    public void AFastCrateAndTheStaticWallThatItHitsEachHearOneCollision()
     {
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 0);
@@ -354,57 +358,40 @@ public class WorldNumericFrameTests
         var crateLog = new CollisionLog();
         Entity crate = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-10), LinearVelocity = new Double3(60, 0, 0), Body = Crate, Components = [crateLog] });
         Tick(world, 1);
-        InFallingFrame(world, crate).Should().BeTrue("a static body never stops a group that falls");
+        world.PhysicsHomeOf(crate).Should().Be(ground, "the merge test links the crate to the wall");
 
         Tick(world, 180);
 
         world.Errors.Should().BeEmpty();
-        world.PoseIn(crate, ground).Position.X.Should().BeLessThan(0, "the crate hit the wall's ghost and did not pass through");
+        world.PoseIn(crate, ground).Position.X.Should().BeLessThan(0, "the crate hit the wall and did not pass through");
         crateLog.NewsOf(wall).Should().Equal([Started], "the crate rests against the wall");
         wallLog.NewsOf(crate).Should().Equal([Started]);
         crateLog.Seen.Single().Impulse.Should().BeApproximately(600f, 30f, "the crate of 10 kg approached the static wall at 60 m/s");
     }
 
     /// <summary>
-    /// With no gravity, a crate drifts at 0.2 m/s into a static wall and stops there, with one contact. Then every group
-    /// falls (<see cref="FallEverywhere"/>): the crate moves into a falling frame of its own, and the wall stays in its own
-    /// system, with a ghost in the crate's frame. That ghost appears only at the end of the first step in the new frame.
-    /// The contact goes on through it: the crate and the wall hear no end, and no second start. The order of the two
-    /// entities does not matter.
+    /// With no gravity, a crate rests against a static wall, and then every group falls (<see cref="FallEverywhere"/>). The
+    /// merge test links the crate to the wall, and a group with a static body never falls, so the crate stays in the wall's
+    /// system, and the contact goes on there (ter-dhkf).
     /// </summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void ACrateThatMovesIntoAFallingFrameKeepsItsContactWithTheWallThatItRestsAgainst(bool wallFirst)
+    [Fact]
+    public void ACrateThatRestsAgainstAStaticWallStaysInTheWallsSystemWhenEveryGroupFalls()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend);
+        using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 0);
-        var wallLog = new CollisionLog();
-        var wallSpawn = new SpawnDesc
-        {
-            Frame = ground,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Static),
-            Components = [wallLog],
-        };
         var crateLog = new CollisionLog();
-        var crateSpawn = new SpawnDesc { Frame = ground, Pose = At(-1.1), LinearVelocity = new Double3(0.2, 0, 0), Body = Crate, Components = [crateLog] };
-        Entity wall = wallFirst ? world.Spawn(wallSpawn) : Entity.Null;
-        Entity crate = world.Spawn(crateSpawn);
-        if (!wallFirst)
-            wall = world.Spawn(wallSpawn);
+        Entity wall = world.Spawn(new SpawnDesc { Frame = ground, Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Static) });
+        Entity crate = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-1.1), LinearVelocity = new Double3(0.2, 0, 0), Body = Crate, Components = [crateLog] });
         Tick(world, 60);
-        world.VelocityIn(crate, ground).Length.Should().BeLessThan(0.01, "the crate stopped at the wall");
-        world.PhysicsHomeOf(crate).Should().Be(ground);
         crateLog.NewsOf(wall).Should().Equal([Started]);
 
         world.Frames.NumericOptions = FallEverywhere;
         Tick(world, 120);
 
         world.Errors.Should().BeEmpty();
-        InFallingFrame(world, crate).Should().BeTrue();
-        backend.HasGhostIn(wall, world.PhysicsHomeOf(crate)).Should().BeTrue("the falling frame keeps a ghost of the wall");
-        crateLog.NewsOf(wall).Should().Equal([Started], "the contact went on through the wall's ghost");
-        wallLog.NewsOf(crate).Should().Equal([Started]);
+        world.PhysicsHomeOf(crate).Should().Be(ground);
+        world.Frames.NumericCount.Should().Be(0);
+        crateLog.NewsOf(wall).Should().Equal([Started], "the crate still rests against the wall");
     }
 
     /// <summary>
@@ -448,24 +435,23 @@ public class WorldNumericFrameTests
 
     /// <summary>
     /// With no gravity and every group falling (<see cref="FallEverywhere"/>), a crate of 10 kg flies at 3 m/s at a static
-    /// cube of triangles. The crate falls in a frame of its own, which takes over its velocity, so in that frame the crate
-    /// rests and the ghost of the cube comes at it at 3 m/s. Jolt never moves a mesh, so the ghost is static, and the
-    /// backend puts it at the cube's place after every step. A ghost stands for its real body, so the test of the touch and
-    /// the impulse use the cube's velocity in the crate's frame: each hears one Collision, whose impulse is the crate's mass
-    /// times 3 m/s.
+    /// cube of triangles. The merge test links the crate to the cube, an anchor, and a group with a static body never falls,
+    /// so the crate stays in the cube's system and meets the real cube (ter-dhkf). Each hears one Collision, whose impulse
+    /// is the crate's mass times 3 m/s. Before, the crate fell in a frame of its own, and the ghost of the cube came at it at
+    /// 3 m/s, with the same events.
     /// </summary>
     [Fact]
-    public void ACrateInAFallingFrameThatTheGhostOfAMeshHitsHearsTheImpulseOfTheMeshsVelocity()
+    public void ACrateThatFliesAtAStaticMeshJoinsItsSystemAndHearsTheImpulseOfItsApproach()
     {
-        using World world = NewWorld(out JoltPhysicsBackend backend, configure: o => o.NumericFrames = FallEverywhere);
+        using World world = NewWorld(out _, configure: o => o.NumericFrames = FallEverywhere);
         FrameHandle ground = Ground(world, 0);
         var wallLog = new CollisionLog();
         Entity wall = world.Spawn(new SpawnDesc { Frame = ground, Body = new BodyDesc(MeshCube(0.5f), BodyMotion.Static), Components = [wallLog] });
         var crateLog = new CollisionLog();
         Entity crate = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-3), LinearVelocity = new Double3(3, 0, 0), Body = Crate, Components = [crateLog] });
         Tick(world, 2);
-        InFallingFrame(world, crate).Should().BeTrue();
-        backend.HasGhostIn(wall, world.PhysicsHomeOf(crate)).Should().BeTrue();
+        world.PhysicsHomeOf(crate).Should().Be(ground, "the group with the static cube takes the cube's home");
+        world.Frames.AnchorGhosts.IsEmpty.Should().BeTrue();
 
         Tick(world, 60);
 
@@ -475,22 +461,22 @@ public class WorldNumericFrameTests
         crateLog.Seen.Single().Impulse.Should().BeApproximately(30f, 3f, "the cube came at the crate of 10 kg at 3 m/s");
     }
 
+    // The scenes of the shifts need ghosts in a falling frame. Since ter-dhkf, a static wall joins the group of the crates
+    // near it, so it has no ghost in their frame. A still Kepler hull (see Scenes.KeplerHull) keeps the older rule: the
+    // falling frame of the crates near it keeps a ghost of it. Space is a StillSpace, and every wall lies 1 km along +X.
+
     [Fact]
     public void AShiftOfAFallingFrameMovesTheGhostsInItWithoutWakingTheBodiesNearThem()
     {
         // Every group falls, and a frame moves its origin when its members' center is 1 m from it. A sleeping crate floats
-        // 4 cm from the ghost of a static wall, inside the margin in which a removed ghost wakes bodies, and beyond the
+        // 4 cm from the ghost of a still wall, inside the margin in which a removed ghost wakes bodies, and beyond the
         // distance at which Jolt makes a contact. A second crate in its frame puts the members' center 4 m away.
         using World world = NewWorld(out JoltPhysicsBackend backend,
             configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
-        FrameHandle ground = Ground(world, 0);
-        Entity wall = world.Spawn(new SpawnDesc
-        {
-            Frame = ground,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Static),
-        });
-        Entity sleeper = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1.04), Body = Crate });
-        Entity other = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(9), Body = Crate });
+        FrameHandle ground = Scenes.StillSpace(world);
+        Entity wall = Wall(world, ground, 1000);
+        Entity sleeper = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1001.04), Body = Crate });
+        Entity other = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1009), Body = Crate });
         Tick(world, 1);
         FrameHandle home = world.PhysicsHomeOf(sleeper);
         world.PhysicsHomeOf(other).Should().Be(home);
@@ -503,7 +489,7 @@ public class WorldNumericFrameTests
 
         world.Errors.Should().BeEmpty();
         world.PhysicsHomeOf(sleeper).Should().Be(home);
-        world.Frames.HomeOffset(home, ground).X.Should().BeApproximately(1.04, 1e-6, "the frame's origin moved to the crate");
+        world.Frames.HomeOffset(home, ground).X.Should().BeApproximately(1001.04, 1e-6, "the frame's origin moved to the crate");
         IsAwake(backend, home, sleeper).Should().BeFalse("the ghost moved without waking the crate next to it");
         backend.HasGhostIn(wall, home).Should().BeTrue();
     }
@@ -512,21 +498,21 @@ public class WorldNumericFrameTests
     public void AShiftOfAFallingFrameMovesEveryGhostInItAndLeavesTheGhostsOfOtherFramesWhereTheyAre()
     {
         // Every group falls, and a frame moves its origin when its members' center is 1 m from it. In one falling frame, two
-        // sleeping crates float 4 cm from the ghosts of two static walls, and a third crate above them puts the members'
+        // sleeping crates float 4 cm from the ghosts of two still walls, and a third crate above them puts the members'
         // center 2.7 m above the center of the two. Far away, a second falling frame holds a crate that sleeps 4 cm from the
         // ghost of a third wall. The ghost pass puts back a ghost that is not where its wall is relative to the frame, and so
         // wakes the crate next to it.
         using World world = NewWorld(out JoltPhysicsBackend backend,
             configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
-        FrameHandle ground = Ground(world, 0);
-        Wall(world, ground, 0);
-        Wall(world, ground, 10);
-        Entity farWall = Wall(world, ground, 200);
-        Entity left = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1.04), Body = Crate });
-        Entity right = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(8.96), Body = Crate });
-        Entity above = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(5, 8), Body = Crate });
-        Entity far = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(201.04), Body = Crate });
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(209), Body = Crate });
+        FrameHandle ground = Scenes.StillSpace(world);
+        Wall(world, ground, 1000);
+        Wall(world, ground, 1010);
+        Entity farWall = Wall(world, ground, 1200);
+        Entity left = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1001.04), Body = Crate });
+        Entity right = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1008.96), Body = Crate });
+        Entity above = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1005, 8), Body = Crate });
+        Entity far = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1201.04), Body = Crate });
+        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1209), Body = Crate });
         Tick(world, 1);
         FrameHandle home = world.PhysicsHomeOf(left);
         FrameHandle farHome = world.PhysicsHomeOf(far);
@@ -543,13 +529,13 @@ public class WorldNumericFrameTests
 
         world.Errors.Should().BeEmpty();
         Double3 origin = world.Frames.HomeOffset(home, ground);
-        origin.X.Should().BeApproximately(5, 1e-6);
+        origin.X.Should().BeApproximately(1005, 1e-6);
         origin.Y.Should().BeApproximately(0, 1e-6, "the frame's origin moved down to its two crates");
         IsAwake(backend, home, left).Should().BeFalse("the ghost of the left wall moved with the frame");
         IsAwake(backend, home, right).Should().BeFalse("the ghost of the right wall moved with the frame");
         world.Frames.HomeOffset(farHome, ground).Should().Be(farOrigin, "only the near frame shifted");
         IsAwake(backend, farHome, far).Should().BeFalse("the ghost in the far frame did not move");
-        GhostPosition(backend, farHome, farWall).Should().Be(farGhost);
+        (GhostPosition(backend, farHome, farWall) - farGhost).Length.Should().BeLessThan(1e-6, "the far wall moves 1 µm/s, and its ghost with it");
         backend.Invoking(b => b.AssertInvariants()).Should().NotThrow();
     }
 
@@ -559,12 +545,12 @@ public class WorldNumericFrameTests
         // As above, without the far frame. In the tick that shifts the frame, the right wall goes away, and its ghost with it.
         using World world = NewWorld(out JoltPhysicsBackend backend,
             configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
-        FrameHandle ground = Ground(world, 0);
-        Entity leftWall = Wall(world, ground, 0);
-        Entity rightWall = Wall(world, ground, 10);
-        Entity left = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1.04), Body = Crate });
-        Entity right = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(8.96), Body = Crate });
-        Entity above = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(5, 8), Body = Crate });
+        FrameHandle ground = Scenes.StillSpace(world);
+        Entity leftWall = Wall(world, ground, 1000);
+        Entity rightWall = Wall(world, ground, 1010);
+        Entity left = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1001.04), Body = Crate });
+        Entity right = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1008.96), Body = Crate });
+        Entity above = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1005, 8), Body = Crate });
         Tick(world, 1);
         FrameHandle home = world.PhysicsHomeOf(left);
         backend.HasGhostIn(rightWall, home).Should().BeTrue();
@@ -584,13 +570,12 @@ public class WorldNumericFrameTests
         backend.Invoking(b => b.AssertInvariants()).Should().NotThrow();
     }
 
-    /// <summary>A static wall 1 m thick and 10 m square, across the X axis at <paramref name="x"/>.</summary>
-    private static Entity Wall(World world, FrameHandle frame, double x) => world.Spawn(new SpawnDesc
-    {
-        Frame = frame,
-        Pose = At(x),
-        Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Static),
-    });
+    /// <summary>
+    /// A still wall 1 m thick and 10 m square, across the X axis at <paramref name="x"/> in <paramref name="space"/>, a
+    /// StillSpace: the kinematic hull of a Kepler frame (see <see cref="Scenes.KeplerHull"/>).
+    /// </summary>
+    private static Entity Wall(World world, FrameHandle space, double x) =>
+        Scenes.KeplerHull(world, space, x, new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Kinematic));
 
     /// <summary>Every ghost in the system of <paramref name="frame"/>, as Jolt holds it.</summary>
     private static List<JoltPhysicsBackend.BodyFacts> GhostsIn(JoltPhysicsBackend backend, FrameHandle frame) =>

@@ -44,7 +44,7 @@ public partial class NumericFrameStickOutGhostTests
 
     /// <summary>
     /// Space is a frame with a bubble of 1,000 km inside a root frame, and the scene of
-    /// <see cref="Layout.StationAndFastRock"/> lies in space. Destroying the owner of space outside a tick dissolves the
+    /// <see cref="Layout.StationAndFastRock"/>, with a station without a hull, lies in space. Destroying the owner of space outside a tick dissolves the
     /// rock's falling frame, a numeric frame of space, and moves the station to the root frame. So the update's pair of the
     /// station and the rock's frame goes, and the invariants hold before the next tick.
     /// </summary>
@@ -59,7 +59,6 @@ public partial class NumericFrameStickOutGhostTests
         {
             Frame = space,
             Pose = At(1000),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
             AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static),
         });
         FrameHandle station = world.GetOwnedFrame(stationOwner);
@@ -80,11 +79,13 @@ public partial class NumericFrameStickOutGhostTests
     }
 
     /// <summary>
-    /// The rock of <see cref="Layout.StationAndFastRock"/> passes 2 m higher, so it misses the crate. It flies on past the
+    /// The rock of <see cref="Layout.StationAndFastRock"/> passes 2 m higher, so it misses the crate. The station has a
+    /// Kepler hull, an anchor that the merge test does not link to a group that falls. The rock flies on past the
     /// station, and the numeric update stops naming the station's hull an anchor of the rock's falling frame, and later
     /// stops naming that frame for the bodies that stick out of the station, while the frame lives on. Each time, the
     /// ghost there goes at the same sync point, so the backend keeps its invariants after every tick. The rock meets
-    /// nothing, with numeric frames or without.
+    /// nothing, with numeric frames or without. Before ter-dhkf the station's hull was static, which now joins the rock's
+    /// group instead.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -92,7 +93,7 @@ public partial class NumericFrameStickOutGhostTests
     public void AGhostWhosePlaceTheNumericUpdateStopsNamingGoesAtTheSameSyncPoint(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
-        Scene scene = Build(world, Layout.StationAndFastRock, rockOffset: 2);
+        Scene scene = Build(world, Layout.StationAndFastRock, rockOffset: 2, keplerStation: true);
         world.Tick();
         FrameHandle home = world.PhysicsHomeOf(scene.Rock);
         bool namedAnchor = false, namedStickOut = false, keptAnchorGhost = false, keptStickOutGhost = false, lostStickOutGhost = false;

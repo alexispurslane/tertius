@@ -45,6 +45,19 @@ public class NumericFrameGhostTests
     private static World NewWorld(bool numericFrames, out FaultInjectingBackend faults) =>
         NewWorldWithFaults(out faults, configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
 
+    /// <summary>
+    /// A world on the wrapper for the scenes of a ship that passes a parked station: with the default numeric frames, but a
+    /// lookahead of <paramref name="lookahead"/> s, or, when <paramref name="numericFrames"/> is false, with none. The
+    /// station's hull is an anchor at rest, so the merge test links a fast body to it, and the body joins the hull's system
+    /// (ter-dhkf, docs/plans/numeric-frames.md, "Anchors"). With the default lookahead of 2 s, the ship's hull would join the
+    /// system of space 127 m before it reaches the station's hull, before the bubbles overlap, so no ghost of these scenes
+    /// would be in a numeric frame. At 0.2 s the merge test reaches 19 m between the two hulls: the ship falls past the
+    /// station while their bubbles overlap, except within 16 m of the station's center in the lane y = 10.
+    /// </summary>
+    private static World NewStationWorld(bool numericFrames, out FaultInjectingBackend faults, double lookahead = 0.2) =>
+        NewWorldWithFaults(out faults, configure: options =>
+            options.NumericFrames = numericFrames ? new NumericFrameOptions { LookaheadTime = lookahead } : WithoutNumericFrames);
+
     /// <summary>A hull of 4 m by 4 m by 4 m and 1000 kg that nothing slows down and that does not bounce.</summary>
     private static readonly BodyDesc ShipHull = new(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
@@ -72,15 +85,17 @@ public class NumericFrameGhostTests
     /// has the field <paramref name="gravity"/>, or none.
     /// </summary>
     private static StationScene CratesPassingAStation(World world, double lane, DPose? stationCrate, DPose? shipCrate,
-        double shipX = 1100, GravityField gravity = default)
+        double shipX = 1100, GravityField gravity = default, bool keplerStation = false)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, gravity));
+        FrameHandle space = keplerStation ? Scenes.StillSpace(world) : world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, gravity));
         Entity stationOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = new DPose(StationCenter, DQuaternion.Identity),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius), MotionDriver.Static),
+            AsFrame = keplerStation
+                ? new FrameSpec(FrameBounds.Sphere(StationRadius), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(StationCenter.X))
+                : new FrameSpec(FrameBounds.Sphere(StationRadius), MotionDriver.Static),
         });
         FrameHandle station = world.GetOwnedFrame(stationOwner);
         Entity crate = stationCrate is { } inStation ? world.Spawn(new SpawnDesc { Frame = station, Pose = inStation, Body = CrateBody }) : Entity.Null;
@@ -101,7 +116,10 @@ public class NumericFrameGhostTests
     private static double ShipDistance(World world, StationScene scene) =>
         (world.PoseIn(scene.ShipOwner, scene.Space).Position - StationCenter).Length;
 
-    /// <summary>Checks that the ship's hull is in a falling numeric frame with numeric frames, and in the system of space without.</summary>
+    /// <summary>
+    /// Checks that the ship's hull is in a falling numeric frame with numeric frames, and in the system of space without.
+    /// The scenes check it after the first tick, when the ship's hull is about 100 m from the station's.
+    /// </summary>
     private static void ShipHomeShouldBe(World world, StationScene scene, bool numericFrames)
     {
         FrameHandle home = world.PhysicsHomeOf(scene.ShipOwner);
@@ -121,7 +139,7 @@ public class NumericFrameGhostTests
     [InlineData(false)]
     public void AShipThatDoesNotFitInAParkedStationHasAGhostThereExactlyWhileTheirBubblesOverlap(bool numericFrames)
     {
-        using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
+        using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults);
         StationScene scene = ShipPassingAStation(world, lane: 10);
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
@@ -151,7 +169,7 @@ public class NumericFrameGhostTests
     /// </summary>
     private static (int Ticks, Double3 Position, Double3 Velocity, Double3 ShipPosition) PushTheCrate(bool numericFrames)
     {
-        using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
+        using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults);
         StationScene scene = ShipPassingAStation(world, lane: 10);
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
@@ -190,7 +208,7 @@ public class NumericFrameGhostTests
     [InlineData(false)]
     public void TheGhostOfAFallingShipMovesInAParkedStationWithTheShipsVelocityOverTheLastStep(bool numericFrames)
     {
-        using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
+        using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static,
             GravityField.Uniform(new Vector3(0, -9.81f, 0))));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
@@ -269,7 +287,7 @@ public class NumericFrameGhostTests
     [InlineData(false)]
     public void AShipWhoseBubbleStaysAwayFromAParkedStationsHasNoGhost(bool numericFrames)
     {
-        using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
+        using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults);
         // At its closest the ship's center is 75 m from the station's: its bubble stays 5 m away from the station's.
         StationScene scene = ShipPassingAStation(world, lane: 75);
         world.Tick();
@@ -292,20 +310,22 @@ public class NumericFrameGhostTests
     /// The station's hull is an anchor: a hull of a frame that physics does not drive, which never enters a bubble. A ghost
     /// is about touching, not entering, so the hull has a ghost in each semantic child of its semantic frame that its own
     /// bubble overlaps, wherever that child hangs among numeric frames, as it has without them. So it has a ghost in the
-    /// ship, which hangs in the ship's falling frame, exactly while their bubbles overlap. The falling frame also keeps the
-    /// ghost of the anchor that the numeric update names, because the ship's hull falls in it.
+    /// ship, which hangs in the ship's falling frame, exactly while their bubbles overlap. The ship's falling frame keeps
+    /// no ghost of the hull: an anchor at rest joins the group of a fast body that the merge test links to it, so within
+    /// that reach the ship's hull joins the system of space instead (ter-dhkf). Before, the falling frame kept a ghost of
+    /// the station's hull while the ship's hull passed it.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void AParkedStationsHullHasAGhostInAFastShipExactlyWhileTheirBubblesOverlap(bool numericFrames)
+    public void AParkedStationsHullHasAGhostInAFastShipExactlyWhileTheirBubblesOverlapAndNoneInTheShipsFallingFrame(bool numericFrames)
     {
-        using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
+        using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults);
         StationScene scene = ShipPassingAStation(world, lane: 10);
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
 
-        int overlapping = 0;
+        int overlapping = 0, falling = 0, inSpace = 0;
         bool ghostInTheFallingFrame = false;
         for (int tick = 0; tick < 200; tick++)
         {
@@ -319,10 +339,19 @@ public class NumericFrameGhostTests
             FrameHandle home = world.PhysicsHomeOf(scene.ShipOwner);
             if (home != scene.Space)
                 ghostInTheFallingFrame |= faults.Jolt.HasGhostIn(scene.StationOwner, home);
+            if (overlap && home != scene.Space)
+                falling++;
+            if (overlap && home == scene.Space)
+                inSpace++;
         }
 
         overlapping.Should().BeInRange(130, 145, "the bubbles overlap along 138 m of the ship's path");
-        ghostInTheFallingFrame.Should().Be(numericFrames, "the ship's falling frame keeps a ghost of the station's hull while the ship's hull passes it");
+        ghostInTheFallingFrame.Should().BeFalse("the station's hull, an anchor at rest, never has a ghost in the ship's falling frame");
+        if (numericFrames)
+        {
+            falling.Should().BeGreaterThan(90, "the ship falls past the station while the bubbles overlap, beyond the reach of the merge test");
+            inSpace.Should().BeInRange(25, 45, "within 19 m of the station's hull, the ship's hull joins its system, along 32 m of its path");
+        }
         world.Errors.Should().BeEmpty();
     }
 
@@ -334,7 +363,7 @@ public class NumericFrameGhostTests
     /// </summary>
     private static (int Ticks, Double3 Position, Double3 Velocity) StopTheShipsCrate(bool numericFrames)
     {
-        using World world = NewWorld(numericFrames, out _);
+        using World world = NewStationWorld(numericFrames, out _);
         StationScene scene = CratesPassingAStation(world, lane: 10, stationCrate: null, shipCrate: At(0, -10));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
@@ -371,7 +400,7 @@ public class NumericFrameGhostTests
     /// </summary>
     private static (int Ticks, Double3 Position, Double3 Velocity, Double3 PusherPosition) PushTheStationsCrate(bool numericFrames)
     {
-        using World world = NewWorld(numericFrames, out _);
+        using World world = NewStationWorld(numericFrames, out _);
         StationScene scene = CratesPassingAStation(world, lane: 45, stationCrate: At(15, 15), shipCrate: At(0, -30));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
@@ -410,7 +439,7 @@ public class NumericFrameGhostTests
     /// </summary>
     private static (int Ticks, Double3 Position, Double3 Velocity) StopTheShipsCrateAtTheStationsCrate(bool numericFrames)
     {
-        using World world = NewWorld(numericFrames, out _);
+        using World world = NewStationWorld(numericFrames, out _);
         StationScene scene = CratesPassingAStation(world, lane: 50, stationCrate: At(0, 40), shipCrate: At(0, -10));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
@@ -460,7 +489,7 @@ public class NumericFrameGhostTests
     [Fact]
     public void TheGhostsOfAStationsHullAndOfCratesThatStickOutBesideAFallingShipSurviveAReconcile()
     {
-        using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
+        using World world = NewStationWorld(numericFrames: true, out FaultInjectingBackend faults);
         StationScene scene = CratesThatStickOut(world);
         FrameHandle buoy = EmptyFrame(world, scene.Space, At(-5000), 5);
         FrameHandle depot = EmptyFrame(world, scene.Space, At(5000), 50);
@@ -493,17 +522,20 @@ public class NumericFrameGhostTests
     }
 
     /// <summary>
-    /// Physics keeps a ghost only in the frames where the ghost pass can put one. A falling frame keeps a ghost of the
-    /// station's hull, an anchor, only while the numeric update names it: while the merge test links the ship's hull to the
-    /// station's, which reaches the two hulls' bounding spheres plus 2 s of their relative speed, about 127 m. The falling
-    /// frame is a child of space, the frame of the station's hull, but it has no bubble. So the sync point whose update
-    /// stops naming the ghost drops it, and the next step does not run with it. A later reconcile allows none there.
+    /// Physics keeps a ghost only in the frames where the ghost pass can put one. The station here has the Kepler driver,
+    /// on an orbit that barely moves (see <see cref="Scenes.KeplerHull"/>), so its hull is an anchor that the merge test
+    /// links only to a group that does not fall (ter-dhkf). A falling frame keeps a ghost of the hull only while the
+    /// numeric update names it: while the merge test links the ship's hull to the station's, which reaches the two hulls'
+    /// bounding spheres plus 2 s of their relative speed, about 127 m. The falling frame is a child of space, the frame of
+    /// the station's hull, but it has no bubble. So the sync point whose update stops naming the ghost drops it, and the
+    /// next step does not run with it. A later reconcile allows none there. Before ter-dhkf, the scene used a parked
+    /// station, whose static hull now joins the ship's group instead.
     /// </summary>
     [Fact]
     public void TheSyncPointDropsTheGhostOfAnAnchorThatTheNumericUpdateNoLongerNames()
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
-        StationScene scene = CratesPassingAStation(world, lane: 10, stationCrate: null, shipCrate: null);
+        StationScene scene = CratesPassingAStation(world, lane: 10, stationCrate: null, shipCrate: null, keplerStation: true);
         FrameHandle buoy = EmptyFrame(world, scene.Space, At(-5000), 5);
         FrameHandle depot = EmptyFrame(world, scene.Space, At(5000), 50);
         world.Tick();
@@ -537,7 +569,7 @@ public class NumericFrameGhostTests
     [InlineData(false)]
     public void NoSystemHoldsTwoBodiesOfOneEntityWhileCratesThatStickOutPassEachOther(bool numericFrames)
     {
-        using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
+        using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults);
         StationScene scene = CratesThatStickOut(world);
         Entity[] entities = [scene.StationOwner, scene.Crate, scene.ShipOwner, scene.ShipCrate];
         world.Tick();
@@ -571,14 +603,15 @@ public class NumericFrameGhostTests
     /// frame's parent: the ship's crate in the ship's falling frame and in space, the ship's semantic parent, which are one
     /// frame without numeric frames. The station's crate has a ghost in space, and while the ship's hull may touch it, one in
     /// the hull's falling frame, a numeric frame of space, whose member meets the ghost in space without numeric frames
-    /// (ticket ter-2gg0).
+    /// (ticket ter-2gg0). The lookahead is 0.8 s: the merge test then reaches 55 m between the two hulls, short of the lane,
+    /// and the test of the bodies that stick out of the station reaches about 97 m from its center, past the lane.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void BodiesThatStayAwayFromABubbleHaveNoGhostThereButOneInEachSystemOfTheirFramesParent(bool numericFrames)
     {
-        using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
+        using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults, lookahead: 0.8);
         StationScene scene = CratesPassingAStation(world, lane: 75, stationCrate: At(0, 40), shipCrate: At(0, -30));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
@@ -603,7 +636,7 @@ public class NumericFrameGhostTests
                 "the station's crate has a ghost in space, and one in the falling frame of the ship's hull while the hull may touch it");
         }
 
-        sawGhostInHullsFrame.Should().Be(numericFrames, "the ship's hull passes within 2 s at 60 m/s of the station's crate");
+        sawGhostInHullsFrame.Should().Be(numericFrames, "the ship's hull passes within 0.8 s at 60 m/s of the station's crate");
 
         closest.Should().BeInRange(75, 75.01, "the ship passed the station");
         world.VelocityIn(scene.Crate, scene.Station).Length.Should().BeLessThan(1e-3, "nothing touched the station's crate");
@@ -624,7 +657,7 @@ public class NumericFrameGhostTests
     [InlineData(false)]
     public void TheGhostsOfCratesThatStickOutBesideAFallingShipMoveWithTheirVelocitiesOverTheLastStep(bool numericFrames)
     {
-        using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
+        using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults);
         StationScene scene = CratesPassingAStation(world, lane: 30, stationCrate: At(24, 32), shipCrate: At(-30), shipX: 1040,
             gravity: GravityField.Uniform(new Vector3(0, -9.81f, 0)));
         Tick(world, 3);

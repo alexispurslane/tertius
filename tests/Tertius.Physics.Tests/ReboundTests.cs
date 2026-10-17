@@ -289,20 +289,19 @@ public class ReboundTests
 
     /// <summary>
     /// Numeric frames are an engine detail, so the rule keeps or removes a bounce as it does without them. A ball of
-    /// restitution 0.5 skims a long floor at 60 m/s under 1 g, so with numeric frames it falls in a frame of its own,
-    /// which falls with gravity, and the floor is an anchor with a ghost in that frame. There the backend adds only the
-    /// gravity that the falling frame leaves, about none, and the ghost comes up at the ball through the ghost pass,
-    /// which Jolt does not see as a pull. After a fall of 10 steps the ball lands at about 1.7 m/s. Its bounce of
-    /// 0.5 × (1.7 − 0.16) m/s = 0.78 m/s would rise 3.1 cm under the real pull of 1 g, so it does not bounce, with numeric
-    /// frames or without. A rule that read only Jolt's pull in the falling frame saw none, kept the bounce, and the ball
-    /// landed twice. After a fall of 30 steps it lands at 5 m/s and bounces 30 cm and then 7 cm, both ways.
+    /// restitution 0.5 skims a long floor at 60 m/s under 1 g. With numeric frames the merge test links the ball to the
+    /// floor, an anchor, so the ball joins the floor's system, where it lands on the real floor (ter-dhkf). After a fall of
+    /// 10 steps the ball lands at about 1.7 m/s. Its bounce of 0.5 × (1.7 − 0.16) m/s = 0.78 m/s would rise 3.1 cm under
+    /// the pull of 1 g, so it does not bounce, with numeric frames or without. After a fall of 30 steps it lands at 5 m/s
+    /// and bounces 30 cm and then 7 cm, both ways. Before ter-dhkf, the ball fell in a frame of its own, where the floor's
+    /// ghost came up at it through the ghost pass, and the rule had to read the real pull of 1 g, not Jolt's pull there.
     /// </summary>
     [Theory]
     [InlineData(true, 10, 1)]
     [InlineData(false, 10, 1)]
     [InlineData(true, 30, 3)]
     [InlineData(false, 30, 3)]
-    public void AFastBallThatLandsOnAFloorBouncesAsItDoesWithoutNumericFrames(bool numericFrames, int fallSteps, int landings)
+    public void AFastBallThatSkimsAFloorJoinsItsSystemAndBouncesAsItDoesWithoutNumericFrames(bool numericFrames, int fallSteps, int landings)
     {
         using World world = NewWorld(out _, configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
         FrameHandle ground = Ground(world, G);
@@ -325,7 +324,7 @@ public class ReboundTests
             Components = [ballLog],
         });
         Tick(world, 2);
-        (world.Frames.Numeric(world.PhysicsHomeOf(ball)) == NumericMode.Falling).Should().Be(numericFrames);
+        world.PhysicsHomeOf(ball).Should().Be(ground, "the ball joins the home of the floor, with numeric frames or without");
 
         Tick(world, fallSteps + 90);
 

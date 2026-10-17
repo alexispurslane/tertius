@@ -61,6 +61,7 @@ public sealed partial class World
                 // The body of a frame owner is its frame's hull, which moves as the frame's driver says.
                 Static = (own.IsNull ? desc.Motion : BodyDesc.FrameHullMotion(Frames.Driver(own))) == BodyMotion.Static,
                 Fixed = !own.IsNull && Frames.Driver(own) != MotionDriver.Physics,
+                Orbits = !own.IsNull && Frames.Driver(own) == MotionDriver.Kepler,
                 Sensor = desc.IsSensor,
                 OwnedFrame = own,
             });

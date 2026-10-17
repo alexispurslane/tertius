@@ -16,8 +16,18 @@ public class NumericFrameEntryTests
 {
     private const float Dt = 1f / 60f;
 
-    /// <summary>The radius of the station's bubble, in meters.</summary>
-    private const float StationRadius = 40;
+    /// <summary>
+    /// The radius of the station's bubble, in meters. It is wider than the reach of the merge test between a body at
+    /// 60 m/s and the station's hull, about 124 m, so the body still falls in its numeric frame when it enters. A body
+    /// within that reach joins the system of the hull, an anchor (ter-dhkf).
+    /// </summary>
+    private const float StationRadius = 200;
+
+    /// <summary>How far along +X from the station's center the crate floats, in meters: 25 m inside the bubble.</summary>
+    private const double CrateX = 175;
+
+    /// <summary>Where the bodies start along +X in space, in meters: 60 m outside the station's bubble.</summary>
+    private const double StartX = 1260;
 
     /// <summary>How far along +Y from the station's center the crate floats and the bodies fly, in meters, so that they miss the hull.</summary>
     private const double Lane = 10;
@@ -30,9 +40,9 @@ public class NumericFrameEntryTests
     private sealed record Scene(FrameHandle Space, FrameHandle Station, Entity Crate);
 
     /// <summary>
-    /// Space, and 1 km along +X in it a parked station: a frame that physics does not drive, with a bubble of radius 40 m
+    /// Space, and 1 km along +X in it a parked station: a frame that physics does not drive, with a bubble of radius 200 m
     /// around a hull of 4 m by 4 m by 4 m at its center. The hull is an anchor in the system of space. A crate of
-    /// 2 m by 2 m by 2 m and 2 kg floats in the station at (15, 10, 0).
+    /// 2 m by 2 m by 2 m and 2 kg floats in the station at (175, 10, 0).
     /// </summary>
     private static Scene ParkedStation(World world, BodyMotion hullMotion)
     {
@@ -47,7 +57,7 @@ public class NumericFrameEntryTests
         Entity crate = world.Spawn(new SpawnDesc
         {
             Frame = station,
-            Pose = At(15, Lane),
+            Pose = At(CrateX, Lane),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
         });
         return new Scene(space, station, crate);
@@ -78,13 +88,13 @@ public class NumericFrameEntryTests
         faults.Outputs.SelectMany(output => output.Contacts).Any(c => (c.A == a && c.B == b) || (c.A == b && c.B == a));
 
     /// <summary>
-    /// Flies <paramref name="body"/> from (1100, 10, 0) in space at 60 m/s along -X into the station, and checks that it
+    /// Flies <paramref name="body"/> from (1260, 10, 0) in space at 60 m/s along -X into the station, and checks that it
     /// gets a falling numeric frame and then enters the station on the first touch of its bubble, with its pose and
     /// velocity relative to the station.
     /// </summary>
     private static Entity FlyFastIntoTheStation(World world, FaultInjectingBackend faults, Scene scene, BodyDesc body)
     {
-        Entity flier = world.Spawn(new SpawnDesc { Frame = scene.Space, Pose = At(1100, Lane), LinearVelocity = new Vector3(-60, 0, 0), Body = body });
+        Entity flier = world.Spawn(new SpawnDesc { Frame = scene.Space, Pose = At(StartX, Lane), LinearVelocity = new Vector3(-60, 0, 0), Body = body });
         world.Tick();
         FrameHandle home = world.PhysicsHomeOf(flier);
         world.Frames.Numeric(home).Should().Be(NumericMode.Falling, "at 60 m/s the body gets a falling numeric frame");
@@ -228,7 +238,7 @@ public class NumericFrameEntryTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         Scene scene = ParkedStation(world, BodyMotion.Static);
-        Entity ball = world.Spawn(new SpawnDesc { Frame = scene.Space, Pose = At(1045, Lane), LinearVelocity = new Vector3(-5, 0, 0), Body = Ball });
+        Entity ball = world.Spawn(new SpawnDesc { Frame = scene.Space, Pose = At(1000 + StationRadius + 5, Lane), LinearVelocity = new Vector3(-5, 0, 0), Body = Ball });
         world.Tick();
         world.PhysicsHomeOf(ball).Should().Be(scene.Space, "at 5 m/s the ball gets no numeric frame");
 

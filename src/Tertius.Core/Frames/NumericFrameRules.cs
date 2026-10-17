@@ -40,6 +40,14 @@ internal readonly record struct NumericBody
     public bool Fixed { get; init; }
 
     /// <summary>
+    /// It owns a frame whose Kepler driver moves it along an orbit, so it moves in its semantic frame's own system, where
+    /// every other anchor rests. Such a hull joins only a group that does not fall, and the frame of a falling group that
+    /// may touch it keeps a ghost of it, until rule 3 of "Anchors" in docs/plans/numeric-frames.md gives it a numeric frame
+    /// that follows its orbit.
+    /// </summary>
+    public bool Orbits { get; init; }
+
+    /// <summary>
     /// A sensor, which detects touches but does not push. Jolt makes a contact between a kinematic body and a static one
     /// only when one of them is a sensor, so a static sensor meets the kinematic ghost of a body that moves.
     /// </summary>
@@ -49,8 +57,9 @@ internal readonly record struct NumericBody
     public FrameHandle OwnedFrame { get; init; }
 
     /// <summary>
-    /// True for a static body and for the hull of a frame that physics does not drive. An anchor never changes the mode of
-    /// a group that falls: it stays in its own system, and the group's frame gets a ghost of it.
+    /// True for a static body and for the hull of a frame that physics does not drive. No force moves an anchor, so it
+    /// counts as infinitely heavy: a group that the merge test links to it takes its home (docs/plans/numeric-frames.md,
+    /// "Anchors"). A hull that <see cref="Orbits"/> keeps the older rule: it joins only a group that does not fall.
     /// </summary>
     public bool Anchor => Static || Fixed;
 }
@@ -60,11 +69,14 @@ internal readonly record struct NumericBody
 /// </summary>
 /// <param name="Velocity">The mass-weighted mean velocity of the bodies that are not static, relative to the semantic
 /// frame. Zero when a body is static, because then the group cannot fall.</param>
-/// <param name="Center">The center of mass of all the bodies, in the semantic frame.</param>
+/// <param name="Center">The center of mass of the bodies, in the semantic frame: of the static bodies alone when the group
+/// has one, because a static body counts as infinitely heavy.</param>
 /// <param name="Anchored">True when a body of the group is static.</param>
 /// <param name="Fixed">True when a body of the group stays in the semantic frame's own system, so the whole group does.</param>
-/// <param name="Frame">The numeric frame that holds the most of the group's mass, the first one on a tie, or null.</param>
-/// <param name="FrameMass">The mass of the group's bodies in <paramref name="Frame"/>, in kg.</param>
+/// <param name="Frame">The numeric frame that holds the most of the group's mass, the first one on a tie, or null. For an
+/// anchored group, the numeric frame that holds one of its static bodies, the first one on a tie, or null.</param>
+/// <param name="FrameMass">The mass of the group's bodies in <paramref name="Frame"/>, in kg: +∞ when a static body of the
+/// group is there, and 0 when the frame is null.</param>
 internal readonly record struct NumericGroup(Double3 Velocity, Double3 Center, bool Anchored, bool Fixed, FrameHandle Frame, double FrameMass);
 
 /// <summary>
@@ -98,6 +110,15 @@ internal static class NumericFrameRules
     /// <summary>The mode that a body alone, outside a numeric frame, needs: None when it needs no frame.</summary>
     internal static NumericMode BodyMode(in NumericBody body, NumericFrameOptions options) =>
         Mode(NumericMode.None, body.Velocity, body.Position, body.Static, body.Fixed, options);
+
+    /// <summary>
+    /// True when the merge test links the body to every group that it may touch, also to a group that falls: every body
+    /// but a hull that <see cref="NumericBody.Orbits"/>. A static body, or the hull of a frame with the Static or Spin
+    /// driver, rests in its home, so a group that joins it there is as slow there as the group's own motion
+    /// (docs/plans/numeric-frames.md, "Anchors", rule 1). A Kepler hull moves fast in its home, the semantic frame's own
+    /// system, so a group that falls stays apart from it and keeps a ghost of it.
+    /// </summary>
+    internal static bool JoinsEveryGroup(in NumericBody body) => !body.Orbits;
 
     /// <summary>
     /// The merge test: true when the bounding spheres of the two bodies, <paramref name="separation"/> apart, grown by their
@@ -182,8 +203,7 @@ internal static class NumericFrameRules
     /// to leave before, plus <paramref name="dt"/>, and Hold is true while that is below the split cooldown. Apart keeps
     /// counting past the cooldown, so that a member that another member holds does not start again. Else the clock is zero
     /// and holds nothing: a group that stays needs no hold, a group that joins a numeric frame merges at once, as numeric
-    /// frames do, and a group that falls leaves at once, because the speed thresholds give falling its own hysteresis and an
-    /// anchor never changes the mode of a group that falls.
+    /// frames do, and a group that falls leaves at once, because the speed thresholds give falling its own hysteresis.
     /// </summary>
     internal static (bool Hold, double Apart) LeaveClock(NumericMode mode, FrameHandle frame, double apart, double dt, NumericFrameOptions options)
     {
@@ -194,13 +214,20 @@ internal static class NumericFrameRules
     }
 
     /// <summary>
-    /// The motion of the group <paramref name="members"/>, which is not empty. <paramref name="homeMasses"/> is scratch:
-    /// it ends with each numeric home of the group and the mass in it, in the order of the members.
+    /// The motion of the group <paramref name="members"/>, which is not empty. A static body counts as infinitely heavy
+    /// (docs/plans/numeric-frames.md, "Anchors", rule 2), so a group with one gets the motion of its static bodies alone:
+    /// the velocity zero, their center of mass, and as its frame the numeric frame that holds one of them, the first on a
+    /// tie, or none when they all lie in the semantic frame's own system. Then <see cref="Mode"/> gives the group the mode
+    /// that its static bodies get alone, so the group takes their home. A frame that holds a static body of the group has
+    /// the mass +∞, which only comparisons read. Those motions are the limits of the mass-weighted means as the static
+    /// bodies' mass grows without bound, and no sum multiplies or divides by the infinite mass, which would give NaN.
+    /// <paramref name="homeMasses"/> is scratch: it ends with each numeric home of the group and the mass in it, in the
+    /// order of the members.
     /// </summary>
     internal static NumericGroup Summarize(ReadOnlySpan<NumericBody> members, List<(FrameHandle Frame, double Mass)> homeMasses)
     {
-        Double3 momentum = Double3.Zero, moment = Double3.Zero;
-        double movingMass = 0, mass = 0;
+        Double3 momentum = Double3.Zero, moment = Double3.Zero, staticMoment = Double3.Zero;
+        double movingMass = 0, mass = 0, staticMass = 0;
         bool anchored = false, isFixed = false;
         homeMasses.Clear();
         foreach (ref readonly NumericBody body in members)
@@ -209,28 +236,39 @@ internal static class NumericFrameRules
             isFixed |= body.Fixed;
             mass += body.Mass;
             moment += body.Position * body.Mass;
-            if (!body.Static)
+            if (body.Static)
+            {
+                staticMass += body.Mass;
+                staticMoment += body.Position * body.Mass;
+            }
+            else
             {
                 movingMass += body.Mass;
                 momentum += body.Velocity * body.Mass;
             }
             if (body.Home == body.Semantic)
                 continue;
+            // ∞ + m and ∞ + ∞ are exact, so the sum stays +∞ once a static body is in it.
+            double weight = body.Static ? double.PositiveInfinity : body.Mass;
             int h = 0;
             while (h < homeMasses.Count && homeMasses[h].Frame != body.Home)
                 h++;
             if (h == homeMasses.Count)
-                homeMasses.Add((body.Home, body.Mass));
+                homeMasses.Add((body.Home, weight));
             else
-                homeMasses[h] = (body.Home, homeMasses[h].Mass + body.Mass);
+                homeMasses[h] = (body.Home, homeMasses[h].Mass + weight);
         }
         FrameHandle frame = FrameHandle.Null;
         double frameMass = 0;
         foreach ((FrameHandle home, double homeMass) in homeMasses)
             if (homeMass > frameMass)
                 (frame, frameMass) = (home, homeMass);
+        // A frame without a static body is not the home of an anchored group, however much of its mass is there.
+        if (anchored && !double.IsPositiveInfinity(frameMass))
+            (frame, frameMass) = (FrameHandle.Null, 0);
         Double3 velocity = anchored || movingMass == 0 ? Double3.Zero : momentum / movingMass;
-        return new NumericGroup(velocity, moment / mass, anchored, isFixed, frame, frameMass);
+        Double3 center = anchored ? staticMoment / staticMass : moment / mass;
+        return new NumericGroup(velocity, center, anchored, isFixed, frame, frameMass);
     }
 
     /// <summary>

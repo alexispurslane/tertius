@@ -189,7 +189,8 @@ public sealed partial class JoltPhysicsBackend
     /// pair, which ends as a held pair does, when Jolt does not find it again. So a contact goes on when two touching
     /// bodies move together, by a hand-off or a move between numeric frames, and when one of them moves on while the
     /// other touches its ghost, or the other way round. A move between numeric frames happens at the sync point, and the
-    /// ghosts that the body's new place wants appear only at the end of the next step, so its contacts wait until then.
+    /// ghost pass puts the moved body's ghosts at its new state only at the end of the next step, and makes the ones that
+    /// its new place wants then, so its contacts wait until then.
     /// Each loose contact counts down in the ledger, and each system that takes it over counts up. A contact that no
     /// system holds then ends.
     /// </summary>
@@ -211,9 +212,9 @@ public sealed partial class JoltPhysicsBackend
     /// parent's own system takes the contact over.</item>
     /// </list>
     /// <para>
-    /// The next sync point's numeric update links the touching bodies, which puts them in one system, or names a static
-    /// body an anchor of the numeric frame or the numeric frame for the bodies that stick out of the frame, whose ghost the
-    /// next ghost pass makes. So the rule is: a contact that no system takes over waits for the next call with its count,
+    /// The next sync point's numeric update links the touching bodies, which puts them in one system, also a static body
+    /// and a body that falls, or names a Kepler hull an anchor of the numeric frame or the numeric frame for the bodies that
+    /// stick out of the frame, whose ghost the next ghost pass makes. So the rule is: a contact that no system takes over waits for the next call with its count,
     /// as the contacts of a move between numeric frames do, when a hand-off of the step moved a body of it and a body of it
     /// is in a numeric frame. That call settles it for good. A contact that really ended at the hand-off then ends one step
     /// late. Without numeric frames no body is in a numeric frame, so no contact waits.

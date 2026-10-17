@@ -315,8 +315,12 @@ public class NumericFrameRulesTests
     private static NumericGroup Summary(params NumericBody[] members) => Summarize(members, new());
 
     [Fact]
-    public void The_center_is_the_mass_weighted_mean_of_every_body() =>
-        Summary(Body(0, mass: 3), Body(8, mass: 1) with { Static = true }).Center.Should().Be(X(2));
+    public void The_center_of_a_group_without_a_static_body_is_the_mass_weighted_mean_of_every_body() =>
+        Summary(Body(0, mass: 3), Body(8, mass: 1)).Center.Should().Be(X(2));
+
+    [Fact]
+    public void A_static_body_is_infinitely_heavy_so_its_group_is_centered_on_the_static_bodies() =>
+        Summary(Body(0, mass: 3), Body(8, mass: 1) with { Static = true }, Body(12, mass: 3) with { Static = true }).Center.Should().Be(X(11));
 
     [Fact]
     public void The_velocity_is_the_mass_weighted_mean_of_the_bodies() =>
@@ -353,6 +357,46 @@ public class NumericFrameRulesTests
     [Fact]
     public void On_a_tie_the_group_keeps_the_frame_of_its_first_body() =>
         Summary(Body(0, mass: 2, home: Raft), Body(1, mass: 2, home: Pod)).Frame.Should().Be(Raft);
+
+    [Fact]
+    public void A_frame_that_holds_a_static_body_of_the_group_outweighs_every_frame_without_one()
+    {
+        NumericGroup group = Summary(Body(0, vx: 7_700, mass: 1e9, home: Pod), Body(1, mass: 1, home: Raft) with { Static = true });
+        group.Frame.Should().Be(Raft);
+        group.FrameMass.Should().Be(double.PositiveInfinity, "only comparisons read the mass of a frame");
+        group.Center.Should().Be(X(1));
+        group.Velocity.Should().Be(Double3.Zero);
+    }
+
+    [Fact]
+    public void A_group_whose_static_bodies_lie_in_the_semantic_frames_own_system_keeps_no_numeric_frame()
+    {
+        // The fast body's falling frame holds most of the group's mass, but the static body lives in the system of ground.
+        NumericGroup group = Summary(Body(0, vx: 60, mass: 5, home: Pod), Body(7_000) with { Static = true });
+        group.Frame.IsNull.Should().BeTrue();
+        group.FrameMass.Should().Be(0);
+        group.Center.Should().Be(X(7_000));
+    }
+
+    [Fact]
+    public void Between_two_frames_that_hold_static_bodies_of_the_group_the_first_wins_whatever_the_masses() =>
+        Summary(Body(0, mass: 1, home: Pod) with { Static = true }, Body(1, mass: 9, home: Raft) with { Static = true },
+            Body(2, mass: 9, home: Raft)).Frame.Should().Be(Pod);
+
+    // ---- Which groups take in a body ---------------------------------------------------------------------------
+
+    [Fact]
+    public void A_body_that_moves_and_every_anchor_at_rest_join_every_group_that_they_may_touch()
+    {
+        JoinsEveryGroup(Body(0, vx: 60)).Should().BeTrue();
+        JoinsEveryGroup(Body(0) with { Static = true }).Should().BeTrue("a static body, also a mesh wall");
+        JoinsEveryGroup(Body(0) with { Static = true, Fixed = true }).Should().BeTrue("the hull of a Static frame");
+        JoinsEveryGroup(Body(0) with { Fixed = true }).Should().BeTrue("the hull of a Spin frame, which turns in place");
+    }
+
+    [Fact]
+    public void A_hull_on_a_Kepler_orbit_joins_only_a_group_that_does_not_fall() =>
+        JoinsEveryGroup(Body(0, vx: 7_700) with { Fixed = true, Orbits = true }).Should().BeFalse();
 
     // ---- Drain and origin ----------------------------------------------------------------------------------------
 

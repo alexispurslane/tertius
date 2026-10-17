@@ -144,41 +144,127 @@ public class FrameTreeNumericUpdateTests
     }
 
     [Fact]
-    public void A_fast_body_near_a_static_body_falls_and_its_frame_keeps_a_ghost_of_the_static_body()
+    public void A_fast_body_near_a_static_body_joins_the_static_bodys_system_and_keeps_no_ghost()
     {
         NumericBody[] after = Update(0.1, Body(10, x: 0) with { Static = true }, Body(11, x: 2, vx: 60));
         after[0].Home.Should().Be(ground, "a static body stays in its own system");
-        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
-        frames.LinearVelocity(after[1].Home).Should().Be(X(60), "the static body does not slow the group down");
-        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(new Entity(10, 1), after[1].Home));
+        after[1].Home.Should().Be(ground, "the static body is infinitely heavy, so the group takes its home");
+        moves.Should().BeEmpty();
+        frames.NumericCount.Should().Be(0);
+        frames.AnchorGhosts.IsEmpty.Should().BeTrue("the static body is a real body of the group's system");
     }
 
     [Fact]
-    public void A_fast_body_near_a_fixed_hull_falls_and_the_hull_stays_in_its_semantic_frame()
+    public void A_fast_body_near_the_hull_of_a_Static_or_Spin_frame_joins_the_hulls_system()
     {
-        NumericBody[] after = Update(0.1, Body(10, x: 0, vx: 60) with { Fixed = true }, Body(11, x: 2, vx: 60));
+        NumericBody[] after = Update(0.1, Body(10, x: 0) with { Fixed = true }, Body(11, x: 2, vx: 60));
+        after[0].Home.Should().Be(ground);
+        after[1].Home.Should().Be(ground, "the hull's center rests in the system of ground");
+        frames.AnchorGhosts.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_fast_body_near_a_hull_on_a_Kepler_orbit_falls_and_its_frame_keeps_a_ghost_of_the_hull()
+    {
+        NumericBody[] after = Update(0.1, KeplerHull(10, x: 0, vx: 60), Body(11, x: 2, vx: 60));
         after[0].Home.Should().Be(ground);
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(new Entity(10, 1), after[1].Home));
     }
 
+    /// <summary>The hull of a frame whose Kepler driver moves it, at <paramref name="x"/>, flying at <paramref name="vx"/>.</summary>
+    private NumericBody KeplerHull(uint id, double x, double vx = 0) => Body(id, x, vx) with { Fixed = true, Orbits = true };
+
     [Fact]
-    public void A_static_body_that_a_falling_frame_reaches_does_not_stop_the_frame()
+    public void A_falling_frame_that_reaches_a_static_body_hands_its_body_to_the_static_bodys_system()
     {
         FrameHandle pod = Update(0.1, Body(11, x: 0, vx: 7_700))[0].Home;
         NumericBody[] after = Update(0.1, Body(10, x: 3) with { Static = true }, Body(11, x: 0, vx: 7_700, home: pod));
-        after[1].Home.Should().Be(pod);
-        frames.Numeric(pod).Should().Be(NumericMode.Falling);
-        frames.LinearVelocity(pod).Should().Be(X(7_700), "no orbital velocity drains into the bodies' floats");
-        changes.FramesShifted.Should().BeEmpty();
-        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(new Entity(10, 1), pod));
+        after[1].Home.Should().Be(ground);
+        moves.Should().Equal(new NumericMove(new Entity(11, 1), pod, ground));
+        frames.IsAlive(pod).Should().BeFalse("the falling frame lost its only member");
+        frames.AnchorGhosts.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_fast_body_that_passes_a_static_body_joins_it_within_the_lookahead_lets_go_and_falls_again()
+    {
+        // Reach: radii of 1 m each plus 60 m/s for 2 s, 122 m, and 10 m more while both share a system.
+        NumericBody wall = Body(10, x: 0) with { Static = true };
+        FrameHandle pod = Update(0.1, wall, Body(11, x: -133, vx: 60))[1].Home;
+        frames.Numeric(pod).Should().Be(NumericMode.Falling, "the body is beyond the reach and the split margin");
+
+        Update(0.1, wall, Body(11, x: -121, vx: 60, home: pod))[1].Home.Should().Be(ground, "the merge test reaches the wall");
+        Update(0.1, wall, Body(11, x: 131, vx: 60))[1].Home.Should().Be(ground, "the split margin holds the body");
+
+        FrameHandle again = Update(0.1, wall, Body(11, x: 133, vx: 60))[1].Home;
+        frames.Numeric(again).Should().Be(NumericMode.Falling, "the body falls again as soon as the merge test lets go");
+        frames.LinearVelocity(again).Should().Be(X(60));
+        frames.AnchorGhosts.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_fast_body_near_a_far_static_body_joins_its_resting_frame()
+    {
+        FrameHandle raft = Update(0.1, Body(10, x: 20_000) with { Static = true })[0].Home;
+        frames.Numeric(raft).Should().Be(NumericMode.Resting);
+
+        NumericBody[] after = Update(0.1, Body(10, x: 20_000, home: raft) with { Static = true }, Body(11, x: 20_050, vx: 60));
+        after[1].Home.Should().Be(raft);
+        frames.Numeric(raft).Should().Be(NumericMode.Resting);
+        frames.LinearVelocity(raft).Should().Be(Double3.Zero);
+        frames.LocalPose(raft).Position.Should().Be(X(20_000), "the static body alone decides where its frame rests");
+        frames.NumericCount.Should().Be(1);
+    }
+
+    [Fact]
+    public void A_falling_frame_cannot_pull_a_static_body_out_of_the_semantic_frames_own_system()
+    {
+        // 7 km out, the wall is nearer than the create distance, so it lives in the system of ground. Measured from the
+        // group's own center and with the mode of its falling frame, the group would come to rest there and take the wall.
+        FrameHandle pod = Update(0.1, Body(11, x: 6_800, vx: 60, mass: 1_000))[0].Home;
+        NumericBody[] after = Update(0.1, Body(10, x: 7_000) with { Static = true }, Body(11, x: 6_900, vx: 60, home: pod, mass: 1_000));
+        after[0].Home.Should().Be(ground);
+        after[1].Home.Should().Be(ground);
+        frames.NumericCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void A_fast_body_that_links_two_static_bodies_in_different_homes_takes_them_into_the_resting_frame()
+    {
+        // The near rock lies within the create distance, so it stays in the system of ground; the far rock rests in a frame.
+        NumericBody[] before = Update(0.1, Body(10, x: 9_980) with { Static = true }, Body(12, x: 10_020) with { Static = true });
+        FrameHandle raft = before[1].Home;
+        before[0].Home.Should().Be(ground);
+        frames.Numeric(raft).Should().Be(NumericMode.Resting);
+
+        NumericBody[] after = Update(0.1, before[0], before[1], Body(11, x: 10_000, vx: 60));
+        after.Select(body => body.Home).Should().OnlyContain(home => home == raft);
+        moves.Should().Equal(new NumericMove(new Entity(10, 1), ground, raft), new NumericMove(new Entity(11, 1), ground, raft));
+        frames.AnchorGhosts.IsEmpty.Should().BeTrue("every anchor is a real body of the group's system");
+
+        Update(0.1, after);
+        moves.Should().BeEmpty("the next sync point makes the same choice");
+    }
+
+    [Fact]
+    public void A_group_with_a_static_body_keeps_its_frame_when_a_heavier_group_without_one_splits_off()
+    {
+        NumericBody[] together = Update(0.1, Body(10, x: 20_000) with { Static = true }, Body(11, x: 20_001, mass: 1_000));
+        FrameHandle raft = together[0].Home;
+        together[1].Home.Should().Be(raft);
+
+        NumericBody[] after = Update(0.1, together[0], together[1] with { Position = X(20_500), HomePosition = X(20_500) - frames.HomeOffset(raft, ground) });
+        after[0].Home.Should().Be(raft, "a static body outweighs any mass");
+        after[1].Home.Should().NotBe(raft);
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Resting);
     }
 
     [Fact]
     public void An_anchor_ghost_goes_when_the_falling_frame_passes()
     {
-        FrameHandle pod = Update(0.1, Body(10, x: 0) with { Static = true }, Body(11, x: 2, vx: 60))[1].Home;
-        Update(0.1, Body(10, x: 0) with { Static = true }, Body(11, x: 500, vx: 60, home: pod));
+        FrameHandle pod = Update(0.1, KeplerHull(10, x: 0), Body(11, x: 2, vx: 60))[1].Home;
+        Update(0.1, KeplerHull(10, x: 0), Body(11, x: 500, vx: 60, home: pod));
         frames.AnchorGhosts.IsEmpty.Should().BeTrue();
         changes.GhostPlacesWithdrawn.Should().Equal([pod], "physics drops the anchor's ghost there at once");
     }
@@ -289,10 +375,10 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void A_frame_that_loses_two_places_at_once_is_withdrawn_once()
     {
-        // The pod passes the static body beside it and the station at once.
+        // The pod passes the Kepler hull beside it and the station at once.
         FrameHandle station = Station(100);
-        FrameHandle pod = Update(0.1, Body(12, x: -2) with { Static = true }, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[1].Home;
-        Update(0.1, Body(12, x: -2) with { Static = true }, Body(10, x: 400, vx: 60, home: pod), BodyOf(station, 11, new Double3(0, 40, 0)));
+        FrameHandle pod = Update(0.1, KeplerHull(12, x: -2), Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[1].Home;
+        Update(0.1, KeplerHull(12, x: -2), Body(10, x: 400, vx: 60, home: pod), BodyOf(station, 11, new Double3(0, 40, 0)));
         frames.AnchorGhosts.IsEmpty.Should().BeTrue();
         frames.StickOutGhosts.IsEmpty.Should().BeTrue();
         changes.GhostPlacesWithdrawn.Should().Equal([pod]);
@@ -332,9 +418,9 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void Destroying_a_numeric_frame_drops_the_places_of_ghosts_that_name_it()
     {
-        // The pod keeps a ghost of the static body beside it and the ghosts of the bodies that stick out of the station.
+        // The pod keeps a ghost of the Kepler hull beside it and the ghosts of the bodies that stick out of the station.
         FrameHandle station = Station(100);
-        FrameHandle pod = Update(0.1, Body(12, x: -2) with { Static = true }, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[1].Home;
+        FrameHandle pod = Update(0.1, KeplerHull(12, x: -2), Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[1].Home;
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(new Entity(12, 1), pod));
         frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(station, pod));
 
@@ -349,10 +435,10 @@ public class FrameTreeNumericUpdateTests
     public void Destroying_a_semantic_frame_drops_the_places_of_ghosts_in_its_numeric_frames()
     {
         // Space is a semantic child of ground. A fast body in space falls in a numeric frame of space, which keeps a ghost of
-        // the static body beside it and the ghosts of the bodies that stick out of a station in space.
+        // the Kepler hull beside it and the ghosts of the bodies that stick out of a station in space.
         FrameHandle space = frames.Create(new Entity(3, 1), ground, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
         FrameHandle station = frames.Create(new Entity(2, 1), space, new DPose(X(100), DQuaternion.Identity), FrameBounds.Sphere(40), MotionDriver.Static);
-        NumericBody[] after = Update(0.1, BodyOf(space, 12, X(-2)) with { Static = true }, BodyOf(space, 10, X(0)) with { Velocity = X(60) },
+        NumericBody[] after = Update(0.1, BodyOf(space, 12, X(-2)) with { Fixed = true, Orbits = true }, BodyOf(space, 10, X(0)) with { Velocity = X(60) },
             BodyOf(station, 11, new Double3(0, 40, 0)));
         FrameHandle pod = after[1].Home;
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(new Entity(12, 1), pod));
@@ -532,11 +618,12 @@ public class FrameTreeNumericUpdateTests
     }
 
     [Fact]
-    public void A_body_kept_with_a_fixed_hull_that_speeds_up_to_fall_leaves_at_once()
+    public void A_body_kept_with_a_fixed_hull_that_flies_off_fast_leaves_at_once()
     {
         Update(0.25, FarHull(), EdgeBody(vx: 7));
-        NumericBody[] after = Update(0.25, FarHull(), EdgeBody(vx: 60));
-        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
+        // At 60 m/s the merge test reaches 122 m, and 132 m in one system: a fast body nearer than that joins the hull.
+        NumericBody[] after = Update(0.25, FarHull(), Body(10, x: 20_200, vx: 60));
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling, "falling has its own hysteresis, so no cooldown holds it");
     }
 
     [Fact]
