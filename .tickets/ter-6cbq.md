@@ -1,6 +1,6 @@
 ---
 id: ter-6cbq
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-16T22:57:50Z
