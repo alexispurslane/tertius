@@ -1,6 +1,6 @@
 ---
 id: ter-3xs6
-status: in_progress
+status: closed
 deps: [ter-dhkf]
 links: []
 created: 2026-10-17T14:34:17Z
@@ -20,3 +20,9 @@ Part of the epic on fewer, more reliable numeric frames. Read the epic first.
 - Replace "These values are guesses. Tests tune them." in the doc with the measured table and the float model (rules A, B and C) that explains it.
 - Tests that throw at 60 m/s to get a falling frame must throw faster, or use a character.
 
+
+## Notes
+
+**2026-10-17T22:20:15Z**
+
+Merged 2026-10-17 (cf5b489). Free groups fall from 1,000 m/s down to 400 m/s, groups with a body that thrusts from 50 down to 20 m/s, resting frames from 2^23 m down to 2^22 m. A character always thrusts. Any other dynamic body thrusts after 0.5 s of thrust ticks (force and impulse intents of at least 1e-3/60 m/s^2) within a 20 s window. Tests run on the real defaults (user decision): Core tests mark fast bodies as characters, World tests use tests/Tertius.Testing/Components/Thruster.cs with a 30-tick warm-up, faster bodies or scenes past 8,389 km. Docs: docs/plans/numeric-frames.md 'Thresholds from measured precision'. Coverage of changed lines 99/99. Review: three low findings, fixed in 3636095.
