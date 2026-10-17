@@ -1,6 +1,6 @@
 # Rails components
 
-Epic: `ter-ozm8`. The design ticket `ter-skca` wrote this plan. The work tickets are `ter-k8cg`, `ter-6r8c`, a new ticket for changes of motion, and `ter-zg77` (see "Order of the work").
+Epic: `ter-ozm8`. The design ticket `ter-skca` wrote this plan. The work tickets are `ter-k8cg`, `ter-6r8c`, `ter-ru5u` for changes of motion, and `ter-zg77` (see "Order of the work").
 
 ## Goal
 
@@ -20,6 +20,7 @@ Every frame with an owner follows its owner. A frame whose owner has a dynamic h
 | Rails motion | Motion that is an exact function of time: a Kepler orbit or a steady spin |
 | Rails component | A component that moves its entity on rails: `KeplerMotion` or `SpinMotion` |
 | Motion sample | One step of rails motion, the struct `MotionSample`: the pose at the end of a step, and the velocities and accelerations that go with it |
+| Sample table | The table of motion samples, indexed by the frame's index, with three buffers (see "The motion sample") |
 | Step N | The physics step that runs during tick N, from `t_N` to `t_{N+1}`. Gameplay of tick N reads `self.Time = t_N`. |
 | Follow | At the sync point, a frame takes its pose and velocities from its owner |
 | Hull | The body of a frame's owner, in the Jolt system of the frame's tree parent. A root frame has no hull. Its owner's body is only the frame's static interior. |
@@ -42,7 +43,7 @@ The user made the decisions marked (User).
 | A frame without a body | It takes the same intent, on its entity's transform. (User) | Planets and rooms follow the same rule as hulls. |
 | A static frame | It needs no component. Gameplay moves its owner. (User) | A static frame moves only when gameplay moves it. |
 | What replaces `MotionDriver` | Nothing. The enum and `BodyDesc.FrameHullMotion` go. The motion of the owner's body says how a frame follows. (User) | A second value beside the body's motion can disagree with it. |
-| A change of motion | It needs a way to change a body's motion after spawn. (User) It is a swap of components plus that change. The way to change the body's motion is open question 2. | Today only a frame driver changes a body's motion after spawn. |
+| A change of motion | A swap of components plus a change of the body's motion. (User) The row "How a body changes its motion after spawn" below says how the body's motion changes. | Today only a frame driver changes a body's motion after spawn. |
 | The rails math | A public library of static methods in the namespace `Tertius.Frames.Rails`, in `src/Tertius.Core/Frames/Rails/`. (User) | Components and engine code call one copy. It is public, because the Demo and the Host cannot see the internals of Core. |
 | The reverse path | `DriveKinematicHulls` and step 6b (`AdvanceDrivenFrames`) go. (User) | The tree no longer moves a frame on rails, so nothing pushes a hull after it. |
 | Which epic comes first | This epic, then spin gravity (`ter-s9m0`). (User) | Spin gravity reads the exact angular velocity and angular acceleration from the sample. |
@@ -51,6 +52,12 @@ The user made the decisions marked (User).
 | The velocity that the tree keeps for a frame on rails | The instant velocity, as today. A frame with a dynamic hull keeps the hull's chord, as today. | Reads in a frame do not change. Physics reads the sample, so it needs no conversion. |
 | A transform write to a bodyless owner on rails | Allowed. It moves the frame at the sync point of the tick, and the next sample puts the frame back on its rails. | No driver owns the pose, and the entity's own components decide. Today the World refuses the write and records an error. |
 | How a component reads the time of its sample | A new `Self.TimeAt(long tick)` returns the World's time of a tick, the same double that `World.Time` holds then. | A sum such as `self.Time + 2 * self.DeltaTime` can differ from the World's time in the last bit, and a place on an orbit must match it exactly. |
+| How rails motion starts | The new frame holds still at the pose of its spawn description for its first step, as a frame without a sample does. The first run of the component puts it on its rails with its first sample. Nothing writes a first sample. (User) | No new API, and it works for blueprints, content and a mod's own component. The engine still never calls into components, and a swap of components has no gap. |
+| How a body changes its motion after spawn | An intent, `self.Body.SetMotion(BodyMotion)`, that the entity's own components write in a tick. The motion row changes at step 4 of the sync point, as a collision change does, and physics changes the Jolt motion type at the start of the next step (`ApplyHullMotion`). (User) | Gameplay can start a station's engines, and the hull keeps its body id, its system and its contacts. An entity changes only itself. |
+| Where the checks of rails motion live | In the components. A property setter refuses an orbit or a spin that is not valid, with an `ArgumentException`. A `KeplerMotion` whose parent has no G·M holds its frame still and logs once. A rails component on a body that is not kinematic logs once and writes no sample. The World checks nothing. (User) | One place for each rule, and the same rules for a mod's own component. Without a driver, the World does not know which frames orbit. |
+| The proper acceleration of a frame on rails | A field of the sample, `ProperAcceleration`, a `Vector3` in the frame's axes. `KeplerMotion` gives zero. `SpinMotion` gives its property `ProperAcceleration`, zero by default, and a component that starts a turntable copies the frame's value into it. (User) | Today's results: a Kepler frame has zero proper acceleration, and a landed ship that starts to turn keeps its cargo's weight (`SpinFrameTests`). Every rails component fills one more field. |
+| Where the motion sample lives | In the sample table: a table of its own, indexed by the frame's index, with three buffers. Physics gets the buffer that its step applies in `PhysicsStepContext`. | Only frames pay, a frame without a body needs nothing special, and step 6c reads the third buffer. The table moves its buffers on at step 4 and converts at steps 5 and 7b. |
+| What a state dump records about a frame | `FrameRecord(Id, Parent, Follows)`. `Follows` is `"rails"`, `"physics"` or `"static"`: how the frame followed its owner at the dump's sync point. | A dump still shows which frames move on rails. The tree reports one new value. |
 
 ## The rails library
 
@@ -71,8 +78,8 @@ The namespace `Tertius.Frames.Rails` holds the data types `KeplerOrbit`, `Kepler
 New functions:
 
 - `KeplerRails.AngularAccelerationAt(in KeplerOrbit orbit, double time, double mu)`. It is zero for the attitude `Spin`. For `FacesParent` it is the change of `Cross(position, velocity) / position.LengthSquared`.
-- `KeplerRails.Sample(in KeplerOrbit orbit, double mu, double stepEnd, double step)`. It solves Kepler's equation once, at `stepEnd`, for the pose, the instant velocity and the angular velocity. The chord comes from `Chord`. The acceleration is `Acceleration` at the place where the step starts, the end place minus the chord times the step. That is the step acceleration of an orbit frame today, to rounding. The angular acceleration comes from `AngularAccelerationAt`, at the start of the step.
-- `SpinRails.Sample(in FrameSpin spin, Double3 place, double stepEnd, double step)`. The pose is the place with `RotationAt(stepEnd)`. The chord, the velocity, the acceleration and the angular acceleration are zero. The angular velocity is the spin's.
+- `KeplerRails.Sample(in KeplerOrbit orbit, double mu, double stepEnd, double step)`. It solves Kepler's equation once, at `stepEnd`, for the pose, the instant velocity and the angular velocity. The chord comes from `Chord`. The acceleration is `Acceleration` at the place where the step starts, the end place minus the chord times the step. That is the step acceleration of an orbit frame today, to rounding. The angular acceleration comes from `AngularAccelerationAt`, at the start of the step. The proper acceleration is zero.
+- `SpinRails.Sample(in FrameSpin spin, Double3 place, Vector3 properAcceleration, double stepEnd, double step)`. The pose is the place with `RotationAt(stepEnd)`. The chord, the velocity, the acceleration and the angular acceleration are zero. The angular velocity is the spin's. The proper acceleration is the argument.
 
 ## The rails components
 
@@ -104,9 +111,12 @@ where
 - `stepEnd` = the end of the step in which this tick's intent acts, in seconds.
 - `self.DeltaTime` = the step length in seconds, a float that widens to the same double that the World uses.
 - `self.MoveOnRails` = new: writes the sample as the entity's rails intent.
-- `...` = the case without G·M (open question 3) and the first run (open question 1).
+- `...` = three rules that come before the last two lines:
+  - When `mu` is 0, the parent has no point gravity with a G·M above 0. The component logs once, writes no sample and returns, so the frame holds still.
+  - When the owner has a body that is not kinematic, the component logs once, writes no sample and returns.
+  - On its first run, the component teleports the owner's hull onto its rails, so that the hull jumps to its orbit and does not sweep through the bodies in between. A frame without a body needs no teleport, because its first sample alone puts it on its rails.
 
-`SpinMotion` holds a `FrameSpin` and does the same with `SpinRails.Sample(Spin, place, stepEnd, self.DeltaTime)`. It reads its place from its own frame: `self.Snapshot.Frames.LocalPose(self.OwnedFrame).Position`, where the new `Self.OwnedFrame` is the frame that the entity owns. A spin frame does not move, so the place stays the same from tick to tick. A destroy of the parent moves the frame up, and the component reads the new place.
+`SpinMotion` holds a `FrameSpin` and a property `ProperAcceleration`, a `Vector3` that is zero by default. A component that starts a turntable copies the frame's proper acceleration into it. `SpinMotion` does the same with `SpinRails.Sample(Spin, place, ProperAcceleration, stepEnd, self.DeltaTime)`. It needs no G·M, so it has only the second and the third rule of the `...`. It reads its place from its own frame: `self.Snapshot.Frames.LocalPose(self.OwnedFrame).Position`, where the new `Self.OwnedFrame` is the frame that the entity owns. A spin frame does not move, so the place stays the same from tick to tick. A destroy of the parent moves the frame up, and the component reads the new place.
 
 The timing:
 
@@ -123,17 +133,19 @@ Other rules:
 
 - G·M stays in one place: the component reads the parent's gravity from the front snapshot in each tick.
 - A rails component runs first in its entity (`Priority` -1000). So another component of the entity can stop it in the same tick: a later `MoveOnRails` wins, and a change of motion clears the sample.
-- When the parent dies, the frame moves up as today, and the component reads the new parent's G·M in the next tick. It keeps its elements, so a Kepler frame jumps to the same orbit around the new parent, as today. `ter-e30t` and `ter-f620` become questions of what the components do then.
+- When the parent dies, the frame moves up as today, and the component reads the new parent's G·M in the next tick. It keeps its elements, so a Kepler frame jumps to the same orbit around the new parent, as today. When the new parent has no G·M, the component holds the frame still and logs once. `ter-e30t` and `ter-f620` become questions of what the components do then.
+- A new frame on rails starts one tick late. A component that is new on an entity runs first in the tick after it arrives, and its first sample acts one step later. A new frame goes live at a sync point, and its first step runs before any of its components runs, so that step has no sample. The new frame holds still at the pose of its spawn description for that step, as a frame without a sample does. At the next sync point it still stands at that pose. At the one after that, it stands on its rails. Until then, the frame is one step of its motion behind its rails: 500 m for Earth around the sun. A fast hull is closer, about 1.2 mm in low orbit, because it holds still in the following frame that the numeric update gives it at spawn, and that frame falls along the orbit. A swap of components has no gap.
+- The checks of rails motion live in the components, not in the World. The World keeps none of today's checks of Kepler frames: its refusals of a Kepler frame whose parent has no point gravity with a G·M above 0, at spawn and in `SetFrameDriver`, and the refusal in `SetFrameGravity` of a new G·M for the parent of a Kepler frame. So a spawn of a Kepler frame without G·M does not throw. A new G·M of a parent changes the orbits in it at once, so the frames on them jump. `World.AssertInvariants` loses its rule for Kepler frames. The setters of the properties of the two components refuse an orbit or a spin that is not valid, with an `ArgumentException`.
 
 ## The motion sample
 
 ```csharp
 public readonly record struct MotionSample(
     DPose Pose, Double3 ChordVelocity, Double3 Velocity, Double3 Acceleration,
-    Double3 AngularVelocity, Double3 AngularAcceleration);
+    Double3 AngularVelocity, Double3 AngularAcceleration, Vector3 ProperAcceleration);
 ```
 
-Every field is relative to the frame's semantic parent, `self.Frame`, in its axes. A root frame has no parent, so its sample is in the root's own space, as its local pose is today.
+Every field except `ProperAcceleration` is relative to the frame's semantic parent, `self.Frame`, in its axes. `ProperAcceleration` is in the frame's own axes, as the tree keeps it. A root frame has no parent, so its sample is in the root's own space, as its local pose is today.
 
 | Field | Meaning | Physics | Frame tree at the sync point | Numeric update | Reads and render |
 |---|---|---|---|---|---|
@@ -143,16 +155,16 @@ Every field is relative to the frame's semantic parent, `self.Frame`, in its axe
 | `Acceleration` | The frame's acceleration during the step, in m/s² | The effective gravity in the following frame, through its step acceleration | None | The step acceleration of the following frame | None |
 | `AngularVelocity` | The angular velocity at the end of the step, in rad/s | The angular velocity of the frame for ghosts and hand-offs | The frame's angular velocity, narrowed to the tree's float field | None | `AngularVelocityIn` gives it, as today |
 | `AngularAcceleration` | The angular acceleration during the step, in rad/s² | Nothing yet. Spin gravity reads it. | None | None | None |
-
-Open question 4 adds a field for the proper acceleration, or not.
+| `ProperAcceleration` | The frame's proper acceleration in its own axes, in m/s². The effective gravity of the frame's contents is the frame's field minus this value. `KeplerMotion` gives zero. `SpinMotion` gives its property `ProperAcceleration`, zero by default. | Through the tree, for the effective gravity of the contents and the wake test, as today | The frame's proper acceleration, in place of the value that physics measures for a frame with a dynamic hull | None | None |
 
 `self.MoveOnRails(in MotionSample sample)` is a new member of `Self`. Its rules:
 
 - The last write in a tick wins, as for `MoveKinematic`.
 - It needs an entity that owns a frame. When the frame has a parent and the owner has a body, that body is a hull, and the hull must be kinematic. Else the call throws an `InvalidOperationException`. A plain kinematic body that owns no frame cannot write a sample. It does not need one yet.
 - A frame without a body can write a sample. The sample acts on its transform.
-- The samples swap with the intents in step 4. Before a frame dies in step 5, each sample that names it converts into the frame's new parent. Step 7b converts the samples as it converts intents: the pose as a pose, the velocities with the motion of one frame relative to the other, and the accelerations as directions. A sample that converts misses for one step by the relative motion of the two frames, as a kinematic target does.
-- Where the samples live is open question 5.
+- The samples live in the sample table: a table of its own, indexed by the frame's index, with three buffers. The written buffer holds the samples that gameplay writes in the tick. The applied buffer holds the samples that the physics step of the tick applies, which gameplay wrote one tick before. The followed buffer holds the samples of the step that ended, which the frame follows now. Physics gets the applied buffer in `PhysicsStepContext`. Only frames pay: a frame without a body needs no intent row.
+- In step 4, the table moves its buffers on, as the intents swap: the applied buffer becomes the followed buffer, the written buffer becomes the applied buffer, and the written buffer starts empty. So a frame whose component writes no sample in a tick has no sample in the step that follows.
+- Before a frame dies in step 5, each sample that names it converts into the frame's new parent. Step 7b converts the samples as it converts intents: the pose as a pose, the velocities with the motion of one frame relative to the other, and the accelerations as directions. A sample that converts misses for one step by the relative motion of the two frames, as a kinematic target does.
 
 A kinematic hull takes `MoveOnRails` and `Teleport`, and the teleport applies first. `MoveKinematic` and `SetVelocity` throw for a kinematic hull, because only a sample tells its frame how to follow. In a step without a sample, a kinematic hull holds still in its tree parent: physics sets its velocity to zero, as it stops a kinematic body after its last target today.
 
@@ -172,10 +184,10 @@ The cost of a frame without a body is one component call per tick, in a parallel
 
 | Step | Today | After |
 |---|---|---|
-| 2 | `AdvanceNumericFrames` integrates the falling frames and the orbit frames. `ApplyPhysicsOutput` applies the hand-offs, the body states and the states of `Physics` frames. | `AdvanceNumericFrames` integrates the falling frames and puts each following frame on its anchor's sample. `ApplyPhysicsOutput` applies the hand-offs, the body states and the states of frames with a dynamic hull. Then `FollowOwners`: each frame with a sample in the step takes it, each frame whose static hull took a teleport in the step takes the teleport's pose, and each frame without a body whose owner wrote its transform in the tick takes that pose. Each owner then mirrors its frame. A body state of a hull never writes its owner's row. |
-| 4 | The collision intents, then the swap of the intents | The collision intents and the motion intents change their rows, then the intents and the samples swap |
-| 5 | The destroys. A frame that is not a `Physics` frame moves to the semantic parent. `StopKeplerFrameWithoutGM` stops a Kepler frame whose new parent has no G·M. | The destroys. A frame without a dynamic hull moves to the semantic parent. A sample that names a dying frame converts first. Nothing stops a Kepler frame (open question 3). |
-| 6 | The spawns. `MakeLive` places each Kepler and Spin frame by its driver. | The spawns. A new frame stands at the pose of its spawn description (open question 1). |
+| 2 | `AdvanceNumericFrames` integrates the falling frames and the orbit frames. `ApplyPhysicsOutput` applies the hand-offs, the body states and the states of `Physics` frames. | `AdvanceNumericFrames` integrates the falling frames and puts each following frame on its anchor's sample. `ApplyPhysicsOutput` applies the hand-offs, the body states and the states of frames with a dynamic hull. Then `FollowOwners`: each frame with a sample in the step takes it (its pose, its velocities and its proper acceleration), each frame whose static hull took a teleport in the step takes the teleport's pose, and each frame without a body whose owner wrote its transform in the tick takes that pose. Each owner then mirrors its frame. A body state of a hull never writes its owner's row. |
+| 4 | The collision intents, then the swap of the intents | The collision intents and the `SetMotion` intents change their rows, then the intents swap and the sample table moves its buffers on |
+| 5 | The destroys. A frame that is not a `Physics` frame moves to the semantic parent. `StopKeplerFrameWithoutGM` stops a Kepler frame whose new parent has no G·M. | The destroys. A frame without a dynamic hull moves to the semantic parent. A sample that names a dying frame converts first. Nothing stops a Kepler frame. A `KeplerMotion` whose new parent has no G·M writes no sample from the next tick on, and logs once. |
+| 6 | The spawns. `MakeLive` places each Kepler and Spin frame by its driver. | The spawns. A new frame stands at the pose of its spawn description. It holds still there for its first step, because it has no sample yet. |
 | 6b | `AdvanceDrivenFrames` places the Kepler and Spin frames and the moved static frames at the end of the tick. | Gone. Step 2 does this work. |
 | 6c | The numeric update. `NumericBody.Fixed` and `Orbits` come from the driver. A new orbit frame starts from the orbit. | The numeric update. `Fixed` and `Follows` come from the hull's motion. A new following frame starts from the frame's sample of the step that ended. |
 | 7 | The owners of `Physics` frames mirror their frames. | Every frame owner mirrors its frame. |
@@ -231,7 +243,7 @@ The orbit frame becomes a following frame. It follows any kinematic hull that mo
 
 ## Changes of motion
 
-A change of motion is a swap of components and a change of the body's motion. Open question 2 settles how the body's motion changes. With its recommendation, the entity's own components do it in one tick with `self.Body.SetMotion(BodyMotion)`:
+A change of motion is a swap of components and a change of the body's motion. The entity's own components change the body's motion in one tick with the intent `self.Body.SetMotion(BodyMotion)`. The motion row changes at step 4 of the sync point, as a collision change does, and physics changes the Jolt motion type at the start of the next step (`ApplyHullMotion`). So the body's motion is a double-buffered row, as the collision groups are. Only a hull can change its motion, because only a hull asks Jolt for `AllowDynamicOrKinematic` today. The table shows the changes:
 
 | Change | What gameplay does in one tick | What happens |
 |---|---|---|
@@ -249,13 +261,13 @@ A swap has no gap: the old component's last sample covers the step before the ne
 ## Content and scenes
 
 - `FrameSpec` becomes `FrameSpec(FrameBounds Bounds, GravityField Gravity = default)`. `FrameTree.Create` loses its driver, orbit and spin. About 517 lines in about 120 test files and 6 benchmark files change by rote.
-- The Demo scenes: `earth` gets a `KeplerMotion`, `earth-surface` a `SpinMotion`, and the `station` a `KeplerMotion` with a hull whose `BodyDesc.Motion` is `Kinematic`. The hulls of the `ship` and of the cargo pods say `Dynamic`. Today a hull's description did not count, so each hull description must now state its motion. A scene gives a new frame on rails its spawn pose and velocities from the library, so that it starts on its rails.
+- The Demo scenes: `earth` gets a `KeplerMotion`, `earth-surface` a `SpinMotion`, and the `station` a `KeplerMotion` with a hull whose `BodyDesc.Motion` is `Kinematic`. The hulls of the `ship` and of the cargo pods say `Dynamic`. Today a hull's description did not count, so each hull description must now state its motion. A scene gives a new frame on rails its spawn pose and velocities from the library, so that it starts near its rails. The frame holds still there for its first step, and the first sample of its component puts it on its rails.
 - The scripts in `scripts/` name no driver, so they do not change.
-- `docs/plans/content-formats.md`: `asFrame` loses `driver`, `orbit` and `spin`. A Kepler frame lists `KeplerMotion` among its components, with the two orbit kinds `elements` and `circular` as values of its `orbit` field. The diagnostics CT7006 and CT7007 follow open question 3. `docs/plans/editor.md` (lines 406, 612, 759 and 935) and `docs/plans/content-packages.md` (lines 331 and 806) follow too.
+- `docs/plans/content-formats.md`: `asFrame` loses `driver`, `orbit` and `spin`. A Kepler frame lists `KeplerMotion` among its components, with the two orbit kinds `elements` and `circular` as values of its `orbit` field. The diagnostics CT7006 and CT7007 go with the driver, because the components check themselves (see "The rails components"). The text on them in this file (lines 419, 427, 431, 471, 472, 692 and 693) goes too. `docs/plans/editor.md` (lines 406, 612, 759 and 935) and `docs/plans/content-packages.md` (lines 331 and 806) follow too.
 
 ## State dumps and saved state
 
-`StateDump.FrameRecord(string Id, string? Parent, MotionDriver Driver)` loses its driver. Open question 6 settles what takes its place. The entities in a dump do not change: a frame owner's row still mirrors its frame, so its pose and velocities are those of its sample.
+`StateDump.FrameRecord(string Id, string? Parent, MotionDriver Driver)` becomes `FrameRecord(string Id, string? Parent, string Follows)`. `Follows` is `"rails"` when the frame took a sample in the step, `"physics"` when it has a dynamic hull, and `"static"` for every other frame. So a dump still shows which frames move on rails. The entities in a dump do not change: a frame owner's row still mirrors its frame, so its pose and velocities are those of its sample.
 
 No save of a running world exists (`ter-72wp`). A rails component holds only its description, and the tree holds only the sample of the last step, which the next sample replaces. So a future save stores the components' properties, and the motion goes on exactly after a load.
 
@@ -270,18 +282,19 @@ What changes:
 - `DriverChangeTests` keeps its eight scenarios as changes of motion and swaps of components (see "Changes of motion"): park, park and unpark, static to dynamic, Kepler to dynamic and back, the body id across a change, and growth after a change. Its two tests of a hull that does not match its driver become tests of `SetMotion`'s refusals.
 - `FrameDriverTests` becomes a test of `SetMotion`. `FrameTreeDriverTests`, `FrameHullMotionTests` and `KeplerParentMuTests` go with the driver. The G·M rule moves to the library's tests.
 - `FrameTreeOrbitFrameTests` gives samples to the tree and tests following frames.
-- `KeplerParentGravityTests`, `WorldSpawnRefusalTests` and the refusals in `SpinFrameTests` follow open question 3. `KeplerFrameTests.AKeplerFrameStaysOnItsOrbitWhenItsOwnerTriesToMoveIt` and `SpinFrameTests` line 113 become tests that a write moves the frame for one tick.
-- `StateDumpTests`, `OrbitSliceTests` and `DumpFileTests` follow open question 6.
+- About 30 refusal tests change from an `ArgumentException` of the World to the log of the component: `KeplerParentGravityTests`, `WorldSpawnRefusalTests` and the refusals in `SpinFrameTests`. A spawn of a Kepler frame without G·M no longer throws, so these tests check that the frame holds still and logs once. The tests of an orbit or a spin that is not valid check the setter of the component. `KeplerFrameTests.AKeplerFrameStaysOnItsOrbitWhenItsOwnerTriesToMoveIt` and `SpinFrameTests` line 113 become tests that a write moves the frame for one tick.
+- `StateDumpTests`, `OrbitSliceTests` and `DumpFileTests` follow the new `FrameRecord`. `OrbitSliceTests` checks `Follows` of the orbit frames in place of their driver.
+- A test that expects a frame on its orbit as soon as it exists waits for the second sync point after the spawn (see "Other rules" in "The rails components").
 - The helpers `Scenes.MoonOnKeplerOrbit`, `Scenes.FastKeplerHull`, `SpawnKeplerFrame`, `SpawnSpinFrame`, the moon in `HostTesting`, `DeterminismTests` line 169 and `InvariantWorkload` lines 65 and 66 spawn components. The churn of `InvariantWorkload` (line 378) writes the transform of any frame owner without a body.
 - The tests of poses over time stay as they are: `KeplerFrameTests`, `SpinFrameTests` lines 37 to 128, `WorldFacingFrameTests`, the scenarios of `NumericFrameOrbitTests`, `StationSliceTests` with `HullOffEarthOrbit` below 1e-6 m, and both determinism tests.
 
 What the new tests prove:
 
 1. The library's sample matches the orbit: its chord equals the change of place over the step to rounding, and its angular acceleration equals the change of the angular velocity.
-2. A frame on rails stands at `KeplerRails.StateAt(orbit, World.Time, mu)` to the last bit at every sync point after its first sample, for ten minutes, with a body and without, in its semantic parent and in a following frame.
+2. A frame on rails stands at `KeplerRails.StateAt(orbit, World.Time, mu)` to the last bit at every sync point from the second one after its spawn, for ten minutes, with a body and without, in its semantic parent and in a following frame.
 3. After each step, the hull's place in Jolt equals its target exactly.
 4. A body that sticks out of a frame on rails has a ghost with the sample's chord, and a body that leaves the bubble hands off with the sample's instant velocity.
-5. A new frame on rails and a swap of components behave as open question 1 says.
+5. A new frame on rails holds still at its spawn pose for its first step, and stands on its rails at the second sync point after its spawn. A swap of components has no gap.
 6. A static hull follows a teleport and wakes the bodies around it. A frame without a body follows its owner's write, also when its parent dies at the same sync point.
 7. A frame on rails whose samples stop holds still, and its following frame falls on.
 8. A test component that drives a kinematic hull at 2 km/s along a straight line gives the hull a following frame, and the hull rests in it. A crate that drifts out of the hull's frame joins that following frame (`ter-zg77`).
@@ -291,40 +304,11 @@ Every implementation brief asks for hand mutations, as `CLAUDE.md` says.
 
 ## Order of the work
 
-The epic listed three work tickets. This plan keeps their order and adds one ticket, so that each ticket ends green and stays small enough for a few agents in a row.
+The epic listed three work tickets. This plan keeps their order and adds `ter-ru5u`, so that each ticket ends green and stays small enough for a few agents in a row.
 
 1. `ter-k8cg`, the library. No change of behavior. The functions in "The rails library" move, with their tests (`KeplerOrbitTests`, `KeplerAttitudeTests`, `FrameSpinTests`, and the chord and acceleration cases of `NumericFrameRulesTests`). The new functions and `MotionSample` come with tests against today's `PlaceOnOrbit`, `FrameTree.KeplerMotion` and `ApplySpin`. The tree and the Demo call the library.
-2. `ter-6r8c`, the samples and the components. The sample table, `Self.MoveOnRails`, `Self.TimeAt` and `Self.OwnedFrame`. `KeplerMotion` and `SpinMotion`, with the rules of open questions 1, 3, 4 and 5. `FollowOwners` in step 2, and the end of step 6b. Physics reads the samples for targets and predictions, and snaps bodies on rails. `DriveKinematicHulls`, `PredictMotion` and `OrbitMatchesTree` go. The orbit frame follows its anchor's samples, and `Orbits` reads "the hull is kinematic". The tree's orbit and spin, `PlaceOnOrbit`, `MoveOnOrbit`, `KeplerMotion`, `SetFrameOrbit` and `SetFrameSpin` go. Static hulls take teleports, and owners without a body write their transforms. The scenes, the benchmark, and the sections of `ARCHITECTURE.md` that this changes. In this ticket the enum stays only to choose a hull's motion, so `Kepler` and `Spin` both mean a kinematic hull. Until the next ticket, a change of motion is `SetFrameDriver` plus a swap of components with `World.AddComponent` and `World.RemoveComponent`.
-3. New ticket, "A body's motion changes after spawn, and the MotionDriver enum goes". It depends on `ter-6r8c`. The change of motion by open question 2, the hull's motion from its body, `FrameTree.HullMotion`, `Heir` and the tree's invariants, `NumericBody.Fixed` from the body's motion. `MotionDriver`, `FrameHullMotion`, `FrameHullProblem`, `SetFrameDriver`, `FollowDriver` and the driver in `FrameSpec` and `FrameTree.Create` go, with the rote test edits. The rewrite of `DriverChangeTests` and `FrameDriverTests`, the state dumps by open question 6, and a row in the table "Where the user changed my proposals" in `CLAUDE.md`.
-4. `ter-zg77`, now "A following frame follows every fast kinematic hull". It depends on the new ticket. `ter-6r8c` already gives every kinematic hull a following frame. This ticket proves it for motion that is no orbit (test 8), renames `NumericMode.Orbiting` to `Following` and `Orbits` to `Follows`, and rewrites the sections "Orbit frames", "Anchors" (rule 3), "Frame owners in a numeric frame", "Bubbles and ghosts" and "Limits" of [Numeric frames](numeric-frames.md), and the numeric rows of `ARCHITECTURE.md`.
+2. `ter-6r8c`, the samples and the components. The sample table, `Self.MoveOnRails`, `Self.TimeAt` and `Self.OwnedFrame`. `KeplerMotion` and `SpinMotion`, with their checks, their first run and the proper acceleration of the sample. `FollowOwners` in step 2, and the end of step 6b. Physics reads the samples for targets and predictions, and snaps bodies on rails. `DriveKinematicHulls`, `PredictMotion` and `OrbitMatchesTree` go. The orbit frame follows its anchor's samples, and `Orbits` reads "the hull is kinematic". The tree's orbit and spin, `PlaceOnOrbit`, `MoveOnOrbit`, `KeplerMotion`, `SetFrameOrbit` and `SetFrameSpin` go. Static hulls take teleports, and owners without a body write their transforms. The scenes, the benchmark, and the sections of `ARCHITECTURE.md` that this changes. In this ticket the enum stays only to choose a hull's motion, so `Kepler` and `Spin` both mean a kinematic hull. Until the next ticket, a change of motion is `SetFrameDriver` plus a swap of components with `World.AddComponent` and `World.RemoveComponent`.
+3. `ter-ru5u`, "A body's motion changes after spawn, and the MotionDriver enum goes". It depends on `ter-6r8c`. The change of motion with the intent `SetMotion`, the hull's motion from its body, `FrameTree.HullMotion`, `Heir` and the tree's invariants, `NumericBody.Fixed` from the body's motion. `MotionDriver`, `FrameHullMotion`, `FrameHullProblem`, `SetFrameDriver`, `FollowDriver` and the driver in `FrameSpec` and `FrameTree.Create` go, with the rote test edits. The rewrite of `DriverChangeTests` and `FrameDriverTests`, the state dumps with `FrameRecord(Id, Parent, Follows)`, and a row in the table "Where the user changed my proposals" in `CLAUDE.md`.
+4. `ter-zg77`, now "A following frame follows every fast kinematic hull". It depends on `ter-ru5u`. `ter-6r8c` already gives every kinematic hull a following frame. This ticket proves it for motion that is no orbit (test 8), renames `NumericMode.Orbiting` to `Following` and `Orbits` to `Follows`, and rewrites the sections "Orbit frames", "Anchors" (rule 3), "Frame owners in a numeric frame", "Bubbles and ghosts" and "Limits" of [Numeric frames](numeric-frames.md), and the numeric rows of `ARCHITECTURE.md`.
 
 `ter-e30t` and `ter-f620` stay open outside this epic, as questions of what `KeplerMotion` and `SpinMotion` do when the parent dies.
-
-## Open questions
-
-1. How rails motion starts. A component that is new on an entity runs first in the tick after it arrives, and its first sample acts one step later. A new frame becomes live at a sync point, and its first step runs before any of its components runs. So that step has no sample.
-   - (a) The code that starts the motion writes the first sample, with a static helper of the component. A spawn description takes it as the sample of the first step, and a swap writes it in the tick of the swap. Gives: exact from the first sync point. Costs: a blueprint or a content file cannot give a first sample, because their loader does not know the component, so each rails component needs a hook in the loader. Outside a tick, the World needs a new method that writes a sample.
-   - (b) The World knows the two engine components. When one arrives, at a spawn or through `AddComponent`, the World reads its description and writes the first sample with the library. Gives: exact from the first sync point, also for blueprints and content. Costs: the World reads the state of a component at the sync point. That is a special case that a mod's own rails component does not get.
-   - (c) Nothing writes a first sample. The new frame holds still at the pose of its spawn description for its first step, as a frame without a sample does, and the component's first run teleports it onto its rails with its first sample. Gives: no new API, and it works for blueprints, content and a mod's own component. Costs: for its first tick, the frame is one step of its motion behind its rails, 500 m for Earth around the sun. A fast hull is closer, about 1.2 mm in low orbit, because it holds still in the following frame that the numeric update gives it at spawn, and that frame falls along the orbit. The tests that place a frame on its orbit "as soon as it exists" move to the second sync point.
-   - Recommendation: (c). It keeps the rule that the engine never calls into components, it works for every way to spawn, and one tick off the rails at spawn does not show in the scenes. A swap has no gap with any option.
-2. How a body changes its motion after spawn.
-   - (a) An intent, `self.Body.SetMotion(BodyMotion)`, that the entity's own components write in a tick. The motion row changes at step 4 of the sync point, as a collision change does, and physics changes the Jolt motion type at the start of the next step (`ApplyHullMotion`). Gives: gameplay can start a station's engines, and the hull keeps its body id, its system and its contacts. Costs: the body's motion becomes a double-buffered row, as the collision groups are. Only a hull can change its motion, because only a hull asks Jolt for `AllowDynamicOrKinematic` today.
-   - (b) A World method between ticks, `World.SetBodyMotion`, as `SetFrameDriver` is today. It runs the numeric update at once, as `SetFrameDriver` does. Gives: today's timing, and no row changes during a tick. Costs: gameplay cannot change a motion. Only the game, between ticks, can.
-   - (c) A respawn of the body from a new description (`EntityTable.BodyToRecreate`). Gives: the least new code in physics. Costs: the hull gets a new Jolt body and loses its contacts and its warm start, and the test that a hull keeps its body id goes.
-   - Recommendation: (a). An entity changes only itself, and a component that swaps rails motion changes the body's motion in the same tick.
-3. Where the world checks a frame on rails. Today the World refuses a Kepler frame whose parent has no point gravity with a G·M above 0, at spawn and in `SetFrameDriver`, and `SetFrameGravity` refuses a new G·M for the parent of a Kepler frame. Without a driver, the World does not know which frames orbit. With either option, the property setters of the components refuse an orbit or a spin that is not valid, and a `KeplerMotion` whose parent loses its G·M later, because the parent dies, holds its frame still and logs once, as a Kepler frame does today.
-   - (a) The components check themselves. A `KeplerMotion` whose parent has no G·M at spawn takes the same path: it holds its frame still and logs once. A rails component on a body that is not kinematic logs once and writes no sample. Gives: one place for each rule, and the same rules for a mod's own component. Costs: a spawn of a Kepler frame without G·M no longer throws. A new G·M of a parent changes the orbits in it at once, so the frames on them jump. `World.AssertInvariants` loses its rule for Kepler frames. About 30 refusal tests change from an `ArgumentException` to the log.
-   - (b) The World knows the two engine components. It keeps today's refusals at spawn and in `AddComponent`, and `SetFrameGravity` finds a Kepler child through the component flags of the children. Gives: today's errors at today's places. Costs: the World reads the types and the state of components, a special case that a mod's own component does not get.
-   - Recommendation: (a). The state lives in the component, so its rules live there too, and a parent's G·M can change after spawn anyway when the parent dies.
-4. The proper acceleration of a frame on rails. Physics gives the frame of a dynamic hull its proper acceleration. Today `PlaceOnOrbit` sets a Kepler frame's proper acceleration to zero, and a `Spin` frame keeps its own, so a landed ship that starts to turn keeps its cargo's weight (`SpinFrameTests`).
-   - (a) A field of the sample, `ProperAcceleration`, a `Vector3` in the frame's axes. `KeplerMotion` gives zero. `SpinMotion` gives its property `ProperAcceleration`, zero by default, and a component that starts a turntable copies the frame's value into it. Gives: today's results. Costs: one more field that every rails component fills.
-   - (b) The sync point computes it: the sample's acceleration minus the parent's field at the frame's origin, in the frame's axes. Gives: no field, and a correct value for any motion on rails. Costs: a Kepler frame gets a value that is near zero but not exactly zero, unless the component takes the field at the same place with the same formula. A frame on rails in a field gives its contents the parent's pull, which a new `Spin` frame does not do today.
-   - Recommendation: (a).
-5. Where the motion sample lives.
-   - (a) Inside `PhysicsIntent`, with a new flag `IntentFlags.OnRails`. Gives: one intent for each entity, one swap and one conversion, and physics reads the sample with the other intents. Costs: both intent rows of every entity grow by about 130 bytes, from about 240. A frame without a body needs intent rows that physics skips, and the tree needs a field for the chord that step 6c reads after step 4.
-   - (b) A table of its own, indexed by the frame's index, with three buffers: the sample that gameplay writes, the sample that the next step applies, and the sample that the frame follows now. Physics gets the second buffer in `PhysicsStepContext`. Gives: only frames pay, a frame without a body needs nothing special, and step 6c reads the third buffer. Costs: one more table to swap at step 4 and to convert at steps 5 and 7b.
-   - Recommendation: (b).
-6. What a state dump records about a frame. Today it is `FrameRecord(Id, Parent, Driver)`.
-   - (a) `FrameRecord(Id, Parent, Follows)`, where `Follows` is `"rails"`, `"physics"` or `"static"`: how the frame followed its owner at the dump's sync point. Gives: a dump still shows which frames move on rails. Costs: a new value that the tree reports.
-   - (b) `FrameRecord(Id, Parent)`. Gives: a dump shows only the tree. Costs: a dump no longer tells a Kepler frame from a static one, and `OrbitSliceTests` checks less.
-   - Recommendation: (a).

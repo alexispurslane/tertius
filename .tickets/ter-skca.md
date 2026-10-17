@@ -25,3 +25,7 @@ Part of the epic on frames that follow their owners. Read the epic first. Write 
 - Jolt reaches a kinematic target only to the float rounding of its velocity (about 4 um per step at 7.6 km/s), so the sync point puts a body on rails exactly on its target. The place then still follows the orbit to the last bit.
 - A frame without a body takes the same intent on its entity's transform. A static frame needs no component: gameplay teleports its owner. The MotionDriver enum and BodyDesc.FrameHullMotion go: a frame follows its owner, and the owner body's motion says how.
 - New point 7: today no API changes a body's motion after spawn, except through frame drivers (BodyDesc.FrameHullMotion). A driver change, such as a station that starts its engines and goes from kinematic on rails to dynamic, then needs a SetMotion on the body or a respawn of it.
+
+**2026-10-17T22:38:46Z**
+
+2026-10-17: the design doc docs/plans/rails-components.md is written and final. The user decided questions 1 to 4 (how rails motion starts, how a body changes its motion after spawn, where the checks of rails motion live, the proper acceleration of a frame on rails). Questions 5 and 6 (where the motion sample lives, what a state dump records about a frame) took the doc's recommendation. The epic's tickets are adjusted: ter-k8cg, ter-6r8c, the new ticket ter-ru5u (a body's motion changes after spawn, and the MotionDriver enum goes) and ter-zg77.

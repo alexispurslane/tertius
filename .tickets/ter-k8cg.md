@@ -12,5 +12,11 @@ tags: [frames, refactor]
 ---
 # Move the rails math into a library of static methods under the frame tree
 
-Part of the epic on frames that follow their owners. Read the epic and its design doc first. A refactor without a change of behavior: the Kepler orbit's place, velocity and angular velocity at a time (KeplerOrbit, AngularVelocityAt), the orbit's chord and acceleration (NumericFrameRules.OrbitChord, OrbitAcceleration), a spin's turn (FrameSpin), and the prediction of a rails frame at the end of a step (FrameTree.KeplerMotion) move into static methods in one namespace under the frame tree code. Their tests move with them. Every suite stays green.
+Part of the epic on frames that follow their owners. Read the epic and its design doc first (docs/plans/rails-components.md, section 'The rails library'). A refactor without a change of behavior.
 
+Scope:
+- Create the namespace Tertius.Frames.Rails in src/Tertius.Core/Frames/Rails/. It holds the data types KeplerOrbit, KeplerAttitude, FrameSpin and MotionSample, and two static classes, KeplerRails and SpinRails. Everything is public and pure. The records keep their IsValid checks.
+- Move the functions in the table of 'The rails library': KeplerOrbit.StateAt, RotationAt, AngularVelocityAt, MeanMotion and Period, NumericFrameRules.OrbitChord and OrbitAcceleration, the body of FrameTree.KeplerMu, and FrameSpin.RotationAt and AngularVelocity. Their tests move with them: KeplerOrbitTests, KeplerAttitudeTests, FrameSpinTests, and the chord and acceleration cases of NumericFrameRulesTests.
+- Add the new functions KeplerRails.AngularAccelerationAt, KeplerRails.Sample and SpinRails.Sample, and the record MotionSample (the pose, the chord velocity, the velocity, the acceleration, the angular velocity, the angular acceleration and the proper acceleration of the frame). They come with tests against today's FrameTree.PlaceOnOrbit, FrameTree.KeplerMotion and ApplySpin.
+- The tree and the Demo call the library. FrameTree.KeplerMotion stays until ter-6r8c, and calls KeplerRails.Sample.
+- Every suite stays green.
