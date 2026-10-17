@@ -657,8 +657,9 @@ public sealed partial class World
         entities.SetBackTransform(entity, moved);
         MoveMembership(entity, to, sendFrameChanged: true);
 
-        // The body moves to the other physics system: physics destroys it before it creates the new one.
-        if (entities.Body(entity) is { } body)
+        // The body moves to the other physics system: physics destroys it before it creates the new one, with the
+        // collision groups and mask that it has now.
+        if (entities.BodyToRecreate(entity) is { } body)
         {
             physicsChanges.BodiesDestroyed.Add(entity);
             physicsChanges.BodiesCreated.Add(new BodyCreate(entity, to, body, moved.Pose, velocity, moved.AngularVelocity));

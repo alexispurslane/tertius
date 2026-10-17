@@ -214,6 +214,155 @@ public class WorldCollisionGroupTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A ball floats in a bubble without gravity, 8 m above a floor in the ground frame that meets only Solid. An intent
+    /// moves the ball from Glass into Solid, or from Solid into Glass, each with a mask that names only that group. Then
+    /// the bubble dies, so the ball moves into the ground frame, where physics creates its body again, and falls. It meets
+    /// the floor by the groups and mask of the intent, not by those of its spawn.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ABodyKeepsTheGroupsThatAnIntentGaveItWhenItsFrameDies(bool theBallJoinsSolid)
+    {
+        CollisionGroup glass = registry.Register("Glass");
+        (CollisionGroups Groups, CollisionMask Mask) solid = (CollisionGroups.Of(CollisionGroup.Solid), InAnySolid);
+        (CollisionGroups Groups, CollisionMask Mask) glassy = (CollisionGroups.Of(glass), CollisionMask.Empty.InAny(glass));
+        var (spawned, changed) = theBallJoinsSolid ? (glassy, solid) : (solid, glassy);
+        using World world = NewWorld(out _);
+        var pilot = new Pilot();
+        (FrameHandle ground, Entity owner, Entity ball) = BallInABubble(world, spawned.Groups, spawned.Mask, pilot);
+
+        pilot.Once = body => body.SetCollision(changed.Groups, changed.Mask);
+        Tick(world, 3);
+        FactsOf(world, ball).CollisionGroups.Should().Be(changed.Groups, "the step after the intent applied it");
+        Height(world, ball, ground).Should().BeApproximately(8, 1e-6, "the ball floats in the bubble");
+
+        world.Destroy(owner).Should().BeTrue();
+        world.Tick();
+        world.GetFrame(ball).Should().Be(ground);
+        BodyFacts moved = FactsOf(world, ball);
+        Tick(world, 150);
+
+        moved.CollisionGroups.Should().Be(changed.Groups);
+        moved.CollisionMask.Should().Be(changed.Mask);
+        if (theBallJoinsSolid)
+            Height(world, ball, ground).Should().BeApproximately(0.5, 0.02, "the ball, now Solid, rests on the floor");
+        else
+            Height(world, ball, ground).Should().BeLessThan(-2, "the ball, now Glass, fell through the floor");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The scene of <see cref="ABodyKeepsTheGroupsThatAnIntentGaveItWhenItsFrameDies"/>, but the bubble's owner destroys
+    /// itself during a tick, so the ball moves at the sync point, while the snapshot does not show the intent yet. With no
+    /// tick between the intent and the death, physics creates the ball's body again before its step applies the intent.
+    /// With one tick, the step has applied the intent, and its groups land in the sync point where the bubble dies.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void ABodyKeepsTheGroupsOfAnIntentThatIsInFlightWhenItsFrameDies(int ticksFromIntentToDeath)
+    {
+        CollisionGroup glass = registry.Register("Glass");
+        using World world = NewWorld(out _);
+        var pilot = new Pilot();
+        var doom = new DestroySelf();
+        (FrameHandle ground, _, Entity ball) = BallInABubble(world, CollisionGroups.Of(CollisionGroup.Solid), InAnySolid, pilot, doom);
+
+        pilot.Once = body => body.SetCollision(CollisionGroups.Of(glass), CollisionMask.Empty.InAny(glass));
+        Tick(world, ticksFromIntentToDeath);
+        doom.Now = true;
+        world.Tick();
+        world.GetFrame(ball).Should().Be(ground);
+        Tick(world, 150);
+
+        FactsOf(world, ball).CollisionGroups.Should().Be(CollisionGroups.Of(glass));
+        Height(world, ball, ground).Should().BeLessThan(-2, "the ball, now Glass, fell through the floor");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A ship floats in a carrier's frame, and a deck is its interior. An intent gives the ship's owner a mask that names
+    /// only Hull, so the deck stays in Solid but no longer meets Solid bodies. Then the carrier dies, so the ship's frame
+    /// moves into the ground frame, and physics creates the owner's hull and interior again. A Solid ball dropped onto the
+    /// deck afterwards falls through it.
+    /// </summary>
+    [Fact]
+    public void AFrameOwnerKeepsTheMaskThatAnIntentGaveItWhenItsParentFrameDies()
+    {
+        CollisionGroup hull = registry.Register("Hull");
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Entity carrier = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 50), AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Static) });
+        var pilot = new Pilot();
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = world.GetOwnedFrame(carrier),
+            Body = StaticBox(new Vector3(5, 0.5f, 5)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            Components = [pilot],
+        });
+        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+        world.Tick();
+
+        pilot.Once = body => body.SetCollision(CollisionGroups.Of(CollisionGroup.Solid), CollisionMask.Empty.InAny(hull));
+        Tick(world, 3);
+        world.Destroy(carrier).Should().BeTrue();
+        world.Tick();
+        world.Frames.Parent(shipFrame).Should().Be(ground);
+        FactsOf(world, ship).CollisionMask.Should().Be(CollisionMask.Empty.InAny(hull));
+
+        Entity ball = Spawn(world, shipFrame, At(0, 2), Ball());
+        Tick(world, 90);
+
+        Height(world, ball, shipFrame).Should().BeLessThan(-2, "the ball fell through the deck");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The scene of the tests of a frame's death: a ground frame with gravity and a floor that meets only Solid, a bubble
+    /// without gravity whose center floats 8 m above the floor, and a ball at rest at that center. One tick has run.
+    /// </summary>
+    private static (FrameHandle Ground, Entity Owner, Entity Ball) BallInABubble(World world, CollisionGroups groups, CollisionMask mask,
+        Pilot pilot, params IComponent[] ownerComponents)
+    {
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(0, 8),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(4), MotionDriver.Static),
+            Components = ownerComponents,
+        });
+        Entity ball = Spawn(world, world.GetOwnedFrame(owner), At(0), Ball() with { CollisionGroups = groups, CollisionMask = mask }, pilot);
+        world.Tick();
+        return (ground, owner, ball);
+    }
+
+    private static BodyFacts FactsOf(World world, Entity entity)
+    {
+        world.Snapshot.TryGetBody(entity, out BodyFacts facts).Should().BeTrue($"{entity} has a body");
+        return facts;
+    }
+
+    /// <summary>Destroys its own entity on every tick after the test sets <see cref="Now"/>.</summary>
+    private sealed class DestroySelf : IComponent
+    {
+        public bool Now { get; set; }
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tertius.Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (Now)
+                self.Destroy();
+        }
+    }
+
     /// <summary>The owner of a root frame has no hull. Its body is the frame's static interior: here a deck whose top is at 0.5 m.</summary>
     [Theory]
     [InlineData(true)]

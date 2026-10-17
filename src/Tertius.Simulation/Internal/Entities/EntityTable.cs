@@ -583,6 +583,24 @@ internal sealed class EntityTable
     public BodyDesc? Body(Entity entity) => records[LiveSlot(entity)].Body;
 
     /// <summary>
+    /// The description that physics creates the entity's body again from, or null for an entity without a body: the
+    /// description of its spawn with the collision groups and mask of the back collision row, which a
+    /// <see cref="IntentFlags.SetCollision"/> may have changed. After <see cref="ApplyCollisionIntents"/>, the back row holds
+    /// the groups and mask that the body has in physics. It allocates only when they differ from the spawn's. Throws
+    /// <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    public BodyDesc? BodyToRecreate(Entity entity)
+    {
+        uint slot = LiveSlot(entity);
+        if (records[slot].Body is not { } body)
+            return null;
+        ref readonly BodyCollision collision = ref backCollision[slot];
+        return collision.Groups == body.CollisionGroups && collision.Mask == body.CollisionMask
+            ? body
+            : body with { CollisionGroups = collision.Groups, CollisionMask = collision.Mask };
+    }
+
+    /// <summary>
     /// The <see cref="ShapeDesc.BoundingRadius"/> of the body's shape, kept from the spawn, or 0 for an entity without a
     /// body. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe.
     /// </summary>

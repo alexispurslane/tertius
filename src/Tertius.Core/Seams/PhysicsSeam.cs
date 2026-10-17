@@ -386,7 +386,10 @@ public struct PhysicsIntent
     public void Clear() => this = default;
 }
 
-/// <summary>A body that physics must create at the sync point.</summary>
+/// <summary>
+/// A body that physics must create at the sync point. <see cref="Desc"/> holds the collision groups and mask that the body
+/// has now: a body created again after a move holds those of its last SetCollision intent, not those of its spawn.
+/// </summary>
 public readonly record struct BodyCreate(
     Entity Entity,
     FrameHandle Frame,
