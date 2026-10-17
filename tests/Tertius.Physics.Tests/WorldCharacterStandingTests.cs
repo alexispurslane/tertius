@@ -80,7 +80,8 @@ public class WorldCharacterStandingTests
         pilot.Once = body => body.Jump(5);
         TickUntil(world, () => world.VelocityInOwnFrame(person).Y > 1, 5).Should().BeLessThan(5, "the character jumps");
 
-        world.VelocityInOwnFrame(person).Y.Should().BeApproximately(5 - 9.81f / 60, 1e-4f,
+        // The jump speed is an instant velocity, and the velocity after the step is the chord of the step.
+        world.VelocityInOwnFrame(person).Y.Should().BeApproximately(5 - 9.81f / 120, 1e-4f,
             "the character leaves the floor in the step of its jump, so gravity acts on it for that whole step");
     }
 

@@ -268,9 +268,9 @@ public sealed class PersonControlTests : IDisposable
         Post(InputKind.KeyUp, (int)Key.Space);
         Ticks(3 + 24);
 
-        // A jump at 4 m/s rises 0.82 m in 0.41 s, about 24 ticks. Physics adds each tick's gravity before the move, so
-        // after 25 moves the person is 0.781 m up.
-        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.781, 0.005);
+        // A jump at 4 m/s rises 0.82 m in 0.41 s, about 24 ticks. The jump speed is an instant velocity and physics moves
+        // the person by the chord of each step, so after 25 moves it is 4 m/s · t - g t² / 2 = 0.815 m up, t = 25/60 s.
+        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.815, 0.005);
     }
 
     [Fact]
@@ -285,7 +285,8 @@ public sealed class PersonControlTests : IDisposable
         Post(InputKind.KeyUp, (int)Key.Space);
         Ticks(3 + 24);
 
-        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.781, 0.005);
+        // The plain jump of an instant 4 m/s, after 25 chords (see SpaceMakesAStandingPersonJump).
+        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.815, 0.005);
     }
 
     [Fact]
@@ -295,13 +296,13 @@ public sealed class PersonControlTests : IDisposable
         Press(Key.Space);
         Ticks(3 + 24);
 
-        // The plain jump is 0.781 m up after its 25 moves. Physics jumps the person in the step of the third tick and
+        // The plain jump of an instant 4 m/s is 0.815 m up after its 25 chords. Physics jumps the person in the step of the third tick and
         // reports it in the air from the step of the fourth. The person reads that report in the fifth tick and thrusts, so
         // the thrust acts from the step of the sixth tick on: in the last 22 of the 25 moves. Physics adds each tick's
         // thrust to the velocity before the move, so the thrust lifts the person by 1.5 m/s² · Δt² · (1 + 2 + ... + 22),
         // 0.105 m. One tick more or less of thrust changes that by 0.01 m.
         double lift = Thrust * world.DeltaTime * world.DeltaTime * (22 * 23 / 2);
-        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.781 + lift, 0.005);
+        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.815 + lift, 0.005);
     }
 
     [Fact]
@@ -360,22 +361,23 @@ public sealed class PersonControlTests : IDisposable
         double standing = world.Snapshot.PoseInOwnFrame(person).Position.Y;
         Press(Key.Space);
         Post(InputKind.KeyUp, (int)Key.Space);
-        // Physics jumps the person in the step of the third tick. The person touches the floor in the step of the 50th
-        // tick, and physics stands it again from the step of the 51st. The test posts the second press ticksBefore
-        // ticks before that tick. Space goes up at once, so that its thrust does not change the jump.
-        Ticks(51 - 1 - ticksBefore);
+        // Physics jumps the person in the step of the third tick. The person touches the floor in the step of the 51st
+        // tick, after 49 chords of its instant 4 m/s, and physics stands it again from the step of the 52nd. The test
+        // posts the second press ticksBefore ticks before that tick. Space goes up at once, so that its thrust does not
+        // change the jump.
+        Ticks(52 - 1 - ticksBefore);
         Press(Key.Space);
         Post(InputKind.KeyUp, (int)Key.Space);
         Ticks(ticksBefore);
         world.Snapshot.IsStanding(person).Should().BeFalse("the person is still in the air");
         Ticks(1);
-        world.Snapshot.IsStanding(person).Should().BeTrue("the person stands again in the step of the 51st tick");
+        world.Snapshot.IsStanding(person).Should().BeTrue("the person stands again in the step of the 52nd tick");
         Ticks(24);
 
         // The person handles the second press while it reads that it is in the air, and asks physics for a jump all
         // the same. Physics jumps the person in the first or the second step in which it stands, so 24 ticks later the
-        // person is near the top of a second jump, 0.78 m up.
-        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.78, 0.005);
+        // person is near the top of a second jump, 0.814 m up: 0.815 m after 24 chords, 0.813 m after 23.
+        (world.Snapshot.PoseInOwnFrame(person).Position.Y - standing).Should().BeApproximately(0.814, 0.005);
     }
 
     [Fact]
@@ -585,9 +587,10 @@ public sealed class PersonControlTests : IDisposable
         Ticks(3 + 10);
 
         // Physics jumps the person in the step of the third tick, and held Space thrusts it up from the step of the
-        // sixth on. So the jump peaks 0.896 m up, where a plain jump peaks 0.78 m up, and the person touches the floor
-        // in the step of the 58th tick, where a plain jump touches it in the step of the 50th.
-        (top - standing).Should().BeApproximately(0.896, 0.005);
+        // sixth on. The jump speed is an instant velocity, and physics moves the person by the chord of each step. So the
+        // jump peaks 0.934 m up, where a plain jump peaks 0.815 m up, and the person touches the floor in the step of the
+        // 59th tick, where a plain jump touches it in the step of the 51st.
+        (top - standing).Should().BeApproximately(0.934, 0.005);
         landed.Should().BeApproximately(standing, 0.005);
         world.Snapshot.PoseInOwnFrame(person).Position.Y.Should().BeApproximately(standing, 0.005);
     }

@@ -132,21 +132,25 @@ public sealed partial class JoltPhysicsBackend
 
         // Teleport first, so that a kinematic target in the same intent moves the body on from the new pose. Jolt does not
         // simulate the jump, so the bodies around the old place wake. Jolt wakes those that the body touches at the new place.
+        // Each velocity here is an instant velocity, and Jolt gets its chord.
         if ((flags & IntentFlags.Teleport) != 0)
         {
             record.World!.WakeAround(id);
             bodies.SetRPositionAndRotation(id, InHome(record, intent.TeleportPose.Position).ToJolt(), intent.TeleportPose.Rotation.ToJolt(), Activation.Activate);
             // At rest in the semantic frame, which is not at rest in a falling numeric home.
-            bodies.SetLinearAndAngularVelocity(id, LocalVelocity(record, Double3.Zero), Vector3.Zero);
+            bodies.SetLinearAndAngularVelocity(id, LinearChord(record, CenterOfMass(bodies, id), LocalVelocity(record, Double3.Zero)), Vector3.Zero);
         }
         if ((flags & IntentFlags.SetVelocity) != 0)
         {
-            bodies.SetLinearVelocity(id, LocalVelocity(record, intent.Velocity));
+            Double3 velocity = LocalVelocity(record, intent.Velocity);
+            // A sleeping body that gets no velocity sleeps on, so the step gives it no acceleration either.
+            bool sleeps = velocity == Double3.Zero && !bodies.IsActive(id);
+            bodies.SetLinearVelocity(id, sleeps ? Vector3.Zero : LinearChord(record, CenterOfMass(bodies, id), velocity));
             record.VelocitySetStep = stepIndex;
         }
         if ((flags & IntentFlags.SetAngularVelocity) != 0)
         {
-            bodies.SetAngularVelocity(id, intent.AngularVelocity);
+            bodies.SetAngularVelocity(id, AngularChord(record, intent.AngularVelocity));
             record.VelocitySetStep = stepIndex;
         }
         if ((flags & IntentFlags.KinematicTarget) != 0)
@@ -195,12 +199,17 @@ public sealed partial class JoltPhysicsBackend
             world.WakeAround(character.InnerBodyID);
             character.RPosition = InHome(record, intent.TeleportPose.Position).ToJolt();
             character.Rotation = intent.TeleportPose.Rotation.ToJolt();
-            character.LinearVelocity = LocalVelocity(record, Double3.Zero);
+            character.LinearVelocity = LocalVelocity(record, Double3.Zero).ToVector3();
+            record.InstantVelocityStep = stepIndex;
             record.PendingVelocityChange = Vector3.Zero;
             world.WakeAround(character.InnerBodyID);
         }
         if ((flags & IntentFlags.SetVelocity) != 0)
-            character.LinearVelocity = LocalVelocity(record, intent.Velocity);
+        {
+            // An instant velocity, which the character's update in this step turns into the chord of the step.
+            character.LinearVelocity = LocalVelocity(record, intent.Velocity).ToVector3();
+            record.InstantVelocityStep = stepIndex;
+        }
         if ((flags & IntentFlags.CharacterMove) != 0)
             record.DesiredVelocity = intent.CharacterVelocity;
         if ((flags & IntentFlags.Jump) != 0)
@@ -212,15 +221,16 @@ public sealed partial class JoltPhysicsBackend
     // ---- From the semantic frame to the physics home ----
 
     /// <summary>
-    /// Jolt's float local velocity for <paramref name="velocity"/>, which is relative to the body's semantic frame: the
-    /// velocity minus the frame velocity of the body's physics home relative to that frame. Physics calls it at the moment
-    /// that it applies a request or creates a body, so it uses the home of that moment. The home is the frame whose
+    /// The local velocity for <paramref name="velocity"/>, which is relative to the body's semantic frame: the velocity
+    /// minus the frame velocity of the body's physics home relative to that frame, in the step. Physics calls it at the
+    /// moment that it applies a request or creates a body, so it uses the home of that moment. The home is the frame whose
     /// system holds the body, and the semantic frame is its nearest ancestor that is not numeric, or the home itself.
-    /// The subtraction is in doubles, so only the small local velocity narrows to a float.
+    /// The subtraction is in doubles, so only the small local velocity narrows to a float, when Jolt gets it. For an
+    /// instant velocity Jolt gets its chord (see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>).
     /// </summary>
-    private Vector3 LocalVelocity(FrameHandle home, Double3 velocity) => (velocity - frames.HomeVelocity(home, frames.SemanticOf(home))).ToVector3();
+    private Double3 LocalVelocity(FrameHandle home, Double3 velocity) => velocity - frames.HomeVelocity(home, frames.SemanticOf(home));
 
-    private Vector3 LocalVelocity(BodyRecord record, Double3 velocity) => LocalVelocity(record.Frame, velocity);
+    private Double3 LocalVelocity(BodyRecord record, Double3 velocity) => LocalVelocity(record.Frame, velocity);
 
     /// <summary>
     /// <paramref name="position"/>, which is in the coordinates of the body's semantic frame, in the coordinates of its
@@ -453,7 +463,20 @@ public sealed partial class JoltPhysicsBackend
         // every step, so a stack that the character stood against woke each time that it fell asleep.
         bool held = standing && record.PendingJump == 0;
         if (!held)
+        {
+            // A jump, and a velocity that the game gave since the last update, are instant velocities. The
+            // character moves by the chord of the step, which is half a step of its acceleration less (see LinearChord).
+            // A jump is relative to the ground, so to the home's instant velocity: its acceleration is the effective
+            // gravity. A velocity that the game gave is relative to the home's frame velocity in the step, as
+            // LocalVelocity gives it, so it also loses half a step of a numeric home's acceleration: together that is
+            // the semantic frame's gravity.
+            if (standing)
+                next -= gravity * (dt * 0.5f);
+            else if (record.InstantVelocityStep == stepIndex)
+                next -= semanticGravity * (dt * 0.5f);
             next += gravity * dt;
+        }
+        record.GravityApplied = held ? Vector3.Zero : gravity;
         next += record.PendingVelocityChange;
         record.PendingVelocityChange = Vector3.Zero;
         record.PendingJump = 0;
@@ -535,8 +558,10 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     /// <remarks>
     /// Jolt keeps velocities in float. At orbital speed one float step of velocity, divided by the time step, is
-    /// about 0.03 m/s², so a hull in free fall would read that much noise and its loose contents would drift. Each
-    /// component smaller than the float resolution of the velocity along that axis reads as zero.
+    /// about 0.03 m/s², so a hull in free fall would read that much noise and its loose contents would drift. Jolt also
+    /// turns the gravity into a velocity change in float, through the force, the inverse mass and the step. Each
+    /// component smaller than the float resolution of the velocity along that axis, or of the gravity along it, reads
+    /// as zero.
     /// </remarks>
     private void ComputeProperAccelerations()
     {
@@ -547,20 +572,26 @@ public sealed partial class JoltPhysicsBackend
             BodyInterface bodies = owner.World!.Bodies;
             Vector3 before = owner.VelocityBefore;
             Vector3 after = bodies.GetLinearVelocity(owner.Body);
-            Vector3 acceleration = (after - before) / stepDt - owner.GravityApplied;
+            Vector3 gravity = owner.GravityApplied;
+            Vector3 acceleration = (after - before) / stepDt - gravity;
             acceleration = new Vector3(
-                AboveResolution(acceleration.X, before.X, after.X, stepDt),
-                AboveResolution(acceleration.Y, before.Y, after.Y, stepDt),
-                AboveResolution(acceleration.Z, before.Z, after.Z, stepDt));
+                AboveResolution(acceleration.X, before.X, after.X, gravity.X, stepDt),
+                AboveResolution(acceleration.Y, before.Y, after.Y, gravity.Y, stepDt),
+                AboveResolution(acceleration.Z, before.Z, after.Z, gravity.Z, stepDt));
             owner.ProperAcceleration = Vector3.Transform(acceleration, Quaternion.Conjugate(bodies.GetRotation(owner.Body)));
         }
     }
 
-    /// <summary>Zero when <paramref name="acceleration"/> is within the rounding of a float velocity change.</summary>
-    private static float AboveResolution(float acceleration, float before, float after, float dt)
+    /// <summary>
+    /// Zero when <paramref name="acceleration"/> is within the rounding of a float velocity change, or within two float
+    /// steps of the <paramref name="gravity"/> along the same axis, which Jolt rounds on the way to the velocity change.
+    /// </summary>
+    private static float AboveResolution(float acceleration, float before, float after, float gravity, float dt)
     {
         float magnitude = MathF.Max(MathF.Abs(before), MathF.Abs(after));
         float resolution = (MathF.BitIncrement(magnitude) - magnitude) / dt;
-        return MathF.Abs(acceleration) <= resolution ? 0f : acceleration;
+        float strength = MathF.Abs(gravity);
+        float gravityResolution = 2 * (MathF.BitIncrement(strength) - strength);
+        return MathF.Abs(acceleration) <= MathF.Max(resolution, gravityResolution) ? 0f : acceleration;
     }
 }

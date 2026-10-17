@@ -58,8 +58,9 @@ public class WorldNumericFrameTests
 
         // The orbit of the spawn's state, stepped in doubles with the scheme that Jolt uses for every body. A float of
         // 7,672 m/s steps by 488 µm/s, which would move the crate by up to 3 cm in the two minutes.
-        Double3 position = start, velocity = startVelocity;
         double dt = world.DeltaTime;
+        // Jolt steps a chord, so the scheme starts from the chord of the spawn's instant velocity: half a step of gravity behind it.
+        Double3 position = start, velocity = startVelocity - GravityField.Point(EarthMu).AtPrecise(start) * (dt / 2);
         const int ticks = 120 * 60;
         for (int i = 0; i < ticks; i++)
         {
@@ -102,7 +103,8 @@ public class WorldNumericFrameTests
 
         // A float of 7,672 m/s steps by 488 µm/s.
         world.Errors.Should().BeEmpty();
-        world.VelocityIn(crate, earth).X.Should().BeApproximately(7672.123456 + field.X * world.DeltaTime, 1e-6);
+        // The set velocity is an instant velocity, and the velocity after the step is the chord of the step.
+        world.VelocityIn(crate, earth).X.Should().BeApproximately(7672.123456 + field.X * world.DeltaTime / 2, 1e-6);
     }
 
     [Fact]
