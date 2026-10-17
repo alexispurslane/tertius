@@ -1,6 +1,6 @@
 ---
 id: ter-dhkf
-status: in_progress
+status: closed
 deps: []
 links: [ter-ykqs, ter-s02r, ter-kugq, ter-jwzd, ter-uu1x]
 created: 2026-10-17T12:22:14Z
@@ -31,3 +31,7 @@ Known consequences: a group that links two anchors that move differently cannot 
 **2026-10-17T18:04:57Z**
 
 Merged main (ter-1w06, the two character forms, and the precision measurements) into this branch. One textual conflict: the scene list in src/Tertius.Demo/DemoScenes.cs, which now holds both station and weightless-push. Every other shared file merged by itself, and the reads found no clash: a form switch and a numeric move both use RemovePrimary and CreatePrimary, which keep ghosts, and the form follows EffectiveGravity of the physics home, which is the tidal pull in an orbit frame K. New tests on the real World and Jolt, tests/Tertius.Physics.Tests/CharacterFormNumericFrameTests.cs: a character beside a Kepler hull is rigid in K and walks in earth's own system; a rigid character that drifts out of a Kepler station has ghosts while it sticks out and stays rigid in K or in its own falling frame; an impulse of the hand-off tick into a ship with gravity converts at step 7b and pushes the walking form along the named frame's axes. Hand mutations: skipping the impulse conversion and reading the semantic gravity in SwitchCharacterForms each fail them. All suites green in Debug and Release.
+
+**2026-10-17T20:01:35Z**
+
+Merged 2026-10-17. Review: one Opus reviewer found three defects (interiors were not anchors, a still kinematic door did not stop a fast crate, a bodiless room stayed in a dying station's orbit frame). Each was confirmed by a failing test and fixed. User decision: a kinematic body counts as infinitely heavy for its group's velocity and center, but it is not an anchor, because it can move between frames, and a fast kinematic platform belongs in a semantic frame anyway. Coverage of the changed lines (Core, Simulation, Physics, Debug and Release): 333 of 336 lines (99.1 %), 263 of 288 branches. Uncovered: FrameTree.Numeric.cs 101, an early return when placing an orbit frame moves its parent by exactly nothing (the shift that it skips would shift by zero), and 483-484, the unreachable end of GroupHome after Contract.Assert(false). Stryker on the changed Core lines: 100 % (230 killed, 65 timeouts, 0 survived). Of the 8 mutants in changed spans that did not compile, 5 are contract or invariant lines (judgment call: contracts are not behavior). The other 3 were broken by hand: LeaveOrbit skipping the last anchor ghost (killed by FrameTreeOrbitFrameTests), and the two Orbiting rows of NumericFrameRules.Mode (killed by the new test An_orbit_frame_whose_group_no_longer_orbits_leaves_with_the_hysteresis_of_a_falling_frame).
