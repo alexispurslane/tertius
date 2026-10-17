@@ -10,9 +10,10 @@ namespace Tertius.Physics.Tests;
 /// a frame whose Kepler driver moves it fast or far in its semantic frame lives in a numeric frame K of its own that
 /// follows the orbit, and the frame hangs at K's origin, as a ship's frame hangs under its hull's numeric frame. So the
 /// hull rests in K, and the bodies near it join K, where they are slow, and where the hull is a real body that Jolt
-/// sweeps them against. Each scene runs with the default numeric frames, under which a body that flies at 50 m/s or more
-/// relative to its frame gets a numeric frame and a slow body 10 km or more from its frame's origin gets one too, and
-/// without numeric frames, and it must give the same events and the same motion either way, apart from rounding.
+/// sweeps them against. Each scene runs with the default numeric frames, under which a hull on rails or a group of free
+/// bodies that flies at 1,000 m/s or more relative to its frame gets a numeric frame, a group with a body that thrusts from
+/// 50 m/s, and a slow body 2^23 m (8,389 km) or more from its frame's origin gets one too, and without numeric frames, and
+/// it must give the same events and the same motion either way, apart from rounding.
 /// </summary>
 public partial class NumericFrameOrbitTests
 {
@@ -344,26 +345,54 @@ public partial class NumericFrameOrbitTests
     private sealed record HullScene(FrameHandle Space, Entity Hull, Entity Rock, Entity Pod);
 
     /// <summary>
-    /// An <see cref="Scenes.AsteroidSpace"/>, and in it a frame on a circular orbit of 5 km (see
-    /// <see cref="Scenes.FastKeplerHull"/>), whose hull is a box of 4 m, which passes along -Z at 63 m/s. 100 m ahead on its
-    /// path a cargo pod (see <see cref="PodFrame"/>) floats, and 8 m to its outer side a static rock of radius 1 m, which
-    /// the hull misses.
+    /// The radius of the orbit of <see cref="HullAndRock"/>, in meters: 10,000 km, beyond the 2^23 m (8,389 km) from its
+    /// frame's origin at which a slow hull on rails gets an orbit frame of its own and a slow static body a resting frame
+    /// (see <see cref="NumericFrameOptions.CreateDistance"/>).
+    /// </summary>
+    private const double FarOrbitRadius = 1e7;
+
+    /// <summary>
+    /// The G·M of the space of <see cref="HullAndRock"/>, in m³/s². A circular orbit of <see cref="FarOrbitRadius"/> in it
+    /// moves at 63 m/s, and the pull there is 0.4 mm/s². The 5 km orbit of <see cref="Scenes.FastKeplerHull"/> would need a
+    /// pull of at least 200 m/s² for the 1 km/s at which a hull on rails nearer than 8,389 km gets an orbit frame, and a
+    /// ghost that lags the hull by one step of that pull, 3.3 m/s, would push the pod off the hull's path.
+    /// </summary>
+    private const double FarOrbitMu = 4e10;
+
+    /// <summary>
+    /// A root frame with a point gravity of <see cref="FarOrbitMu"/>, and in it a frame on a circular orbit of
+    /// <see cref="FarOrbitRadius"/> at phase 0, with a bubble of 1 cm, whose hull is a box of 4 m, which starts at
+    /// (10,000 km, 0, 0) and passes along -Z at 63 m/s. It lies beyond the resting distance, so it lives in an orbit frame of
+    /// its own (docs/plans/numeric-frames.md, "Anchors", rule 3). 100 m ahead on its path a cargo pod (see
+    /// <see cref="PodFrame"/>) floats, and 8 m to its outer side a static rock of radius 1 m, which the hull misses, and
+    /// which rests in a resting frame of its own.
     /// </summary>
     private static HullScene HullAndRock(World world, CollisionLog log)
     {
-        FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity hull = Scenes.FastKeplerHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f, Restitution: 0));
-        Entity rock = world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
-        Entity pod = world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_000, 0, -100), Body = Crate, AsFrame = PodFrame, Components = [log] });
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(2e7f), MotionDriver.Static, GravityField.Point(FarOrbitMu)));
+        Entity hull = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f, Restitution: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(FarOrbitRadius)),
+        });
+        Entity rock = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(FarOrbitRadius + 8, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static),
+        });
+        Entity pod = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(FarOrbitRadius, 0, -100), Body = Crate, AsFrame = PodFrame, Components = [log],
+        });
         return new HullScene(space, hull, rock, pod);
     }
 
     /// <summary>
     /// The hull on its orbit at 63 m/s and a static rock that it passes are anchors that move differently, so no home holds
-    /// both at rest. The anchor at rest wins: the group that links them lives in the rock's home, space's own system, and
-    /// the hull stays in its orbit frame and keeps a ghost there, which meets only what the hull meets: static bodies and
-    /// other hulls. The ghost hits the pod's hull in space's own system as the hull does without numeric frames, and the
-    /// pod, which then flies with the hull, joins the hull's orbit frame once the merge test lets go of the rock.
+    /// both at rest. The anchor at rest wins: the group that links them lives in the rock's home, a resting frame, and the
+    /// hull stays in its orbit frame and keeps a ghost there, which meets only what the hull meets: static bodies and other
+    /// hulls. The ghost hits the pod's hull in the rock's home as the hull does without numeric frames, and the pod, which
+    /// then flies with the hull, joins the hull's orbit frame once the merge test lets go of the rock.
     /// </summary>
     [Fact]
     public void AGroupThatLinksAKeplerHullAndAStaticRockLivesInTheRocksHomeAndKeepsAGhostOfTheHull()
@@ -373,25 +402,27 @@ public partial class NumericFrameOrbitTests
         HullScene scene = HullAndRock(world, withLog);
         world.Tick();
         FrameHandle orbit = world.PhysicsHomeOf(scene.Hull);
-        world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting, "the hull is fast in space");
-        world.PhysicsHomeOf(scene.Rock).Should().Be(scene.Space, "the rock rests 5 km from the origin");
-        world.PhysicsHomeOf(scene.Pod).Should().Be(scene.Space, "the group of the hull, the rock and the pod lives in the rock's home");
-        world.Frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(scene.Hull, scene.Space));
+        world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting, "the hull's orbit lies beyond the resting distance");
+        FrameHandle rockHome = world.PhysicsHomeOf(scene.Rock);
+        world.Frames.Numeric(rockHome).Should().Be(NumericMode.Resting, "the rock rests 10,000 km from the origin");
+        world.PhysicsHomeOf(scene.Pod).Should().Be(rockHome, "the group of the hull, the rock and the pod lives in the rock's home");
+        world.Frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(scene.Hull, rockHome));
         Tick(world, 1);
-        faults.Jolt.HasGhostIn(scene.Hull, scene.Space).Should().BeTrue();
+        faults.Jolt.HasGhostIn(scene.Hull, rockHome).Should().BeTrue();
 
-        var homes = new List<string> { "space" };
+        var homes = new List<string> { "rock" };
         for (int tick = 0; tick < 400; tick++)
         {
             world.Tick();
             FrameHandle home = world.PhysicsHomeOf(scene.Pod);
-            string kind = home == scene.Space ? "space" : home == orbit ? "orbit" : world.Frames.Numeric(home).ToString();
+            string kind = home == rockHome ? "rock" : home == orbit ? "orbit" : world.Frames.Numeric(home).ToString();
             if (homes[^1] != kind)
                 homes.Add(kind);
         }
-        homes.Should().Equal(["space", "orbit"], "the pod flies with the hull after the hit, and joins its orbit frame");
+        homes.Should().Equal(["rock", "orbit"], "the pod flies with the hull after the hit, and joins its orbit frame");
+        world.PhysicsHomeOf(scene.Rock).Should().Be(rockHome, "the rock keeps its resting frame");
         world.Frames.AnchorGhosts.IsEmpty.Should().BeTrue("no group links the hull and the rock any more");
-        faults.Jolt.HasGhostIn(scene.Hull, scene.Space).Should().BeFalse();
+        faults.Jolt.HasGhostIn(scene.Hull, rockHome).Should().BeFalse();
         world.Errors.Should().BeEmpty();
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
 
@@ -403,7 +434,7 @@ public partial class NumericFrameOrbitTests
             "the ghost hits the pod as the hull does without numeric frames");
         withLog.Seen.Should().NotBeEmpty();
         // A ghost moves with the chord of its body's last step, so during the push it lags the hull by one step of the
-        // orbit's 0.8 m/s², 1.3 cm/s, and the pod leaves the hit that much slower: 7 cm in the 5 s after it.
+        // orbit's pull of 0.4 mm/s², 7 µm/s, and the pod leaves the hit that much slower.
         (world.VelocityIn(scene.Pod, scene.Space) - plain.VelocityIn(other.Pod, other.Space)).Length.Should().BeLessThan(0.02);
         (world.PoseIn(scene.Pod, scene.Space).Position - plain.PoseIn(other.Pod, other.Space).Position).Length.Should().BeLessThan(0.1);
     }
