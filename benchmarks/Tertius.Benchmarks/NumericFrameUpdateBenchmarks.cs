@@ -80,7 +80,7 @@ public class NumericFrameUpdateBenchmarks
         Update();
         if (frames.NumericCount != Rocks)
             throw new InvalidOperationException($"Expected {Rocks} falling frames, found {frames.NumericCount}.");
-        Console.WriteLine($"// {frames.NumericCount} numeric frames; the update names {frames.StickOutGhosts.Length} frames for the bodies that stick out.");
+        Console.WriteLine($"// {frames.NumericCount} numeric frames.");
     }
 
     [Benchmark]

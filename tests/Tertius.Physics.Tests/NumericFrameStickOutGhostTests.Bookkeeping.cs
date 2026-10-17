@@ -28,7 +28,7 @@ public partial class NumericFrameStickOutGhostTests
 
         world.Destroy(scene.Owner);
 
-        world.Frames.StickOutGhosts.IsEmpty.Should().BeTrue("the station is gone");
+        NoStickOutGhosts(world).Should().BeTrue("the station is gone");
         world.Invoking(w => w.AssertInvariants()).Should().NotThrow();
         world.Tick();
         world.Errors.Should().BeEmpty();
@@ -74,7 +74,7 @@ public partial class NumericFrameStickOutGhostTests
 
         world.Frames.IsAlive(home).Should().BeFalse("the rock's numeric frame dissolved with space");
         world.Frames.Parent(station).Should().Be(root);
-        world.Frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+        NoStickOutGhosts(world).Should().BeTrue();
         world.Invoking(w => w.AssertInvariants()).Should().NotThrow();
         world.Tick();
         world.Errors.Should().BeEmpty();
@@ -119,7 +119,7 @@ public partial class NumericFrameStickOutGhostTests
         namedStickOut.Should().Be(numericFrames, "the rock flies past the crate that sticks out of the station");
         keptStickOutGhost.Should().BeFalse("the ghost of the crate goes when its place goes");
         lostStickOutGhost.Should().BeFalse("the ghost of the crate stays while its place stays");
-        world.Frames.StickOutGhosts.IsEmpty.Should().BeTrue("the rock is far past the station");
+        NoStickOutGhosts(world).Should().BeTrue("the rock is far past the station");
         scene.RockLog.NewsOf(scene.Crate).Should().BeEmpty("the rock passes above the crate");
         // In 431 ticks, 7.2 s, the gentle thrust of 1e-4 m/s² changes the rock's velocity by at most 0.72 mm/s.
         (world.VelocityIn(scene.Rock, scene.Space) - new Double3(-60, 0, 0)).Length.Should().BeLessThan(1e-3, "nothing but its gentle thrust touched the rock");

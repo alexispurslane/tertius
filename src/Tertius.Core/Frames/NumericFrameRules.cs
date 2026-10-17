@@ -91,6 +91,14 @@ internal readonly record struct NumericBody
     /// </summary>
     public bool Thrusts { get; init; }
 
+    /// <summary>
+    /// The merge test links the body to the place of a ghost that is fixed in its semantic frame's own system (see
+    /// <see cref="GhostPlace"/>), so its group stays in that system, as a group with a fixed hull does (see
+    /// <see cref="NumericFrameRules.Summarize"/>). The update fills it in, as it fills <see cref="HomeMode"/>, so the World
+    /// leaves it unset.
+    /// </summary>
+    public bool MayTouchFixedGhost { get; init; }
+
     /// <summary>The frame that the entity owns, or null. A move puts that frame under the body's new home.</summary>
     public FrameHandle OwnedFrame { get; init; }
 
@@ -103,6 +111,20 @@ internal readonly record struct NumericBody
 }
 
 /// <summary>
+/// The place of a ghost that physics may keep in a frame of the semantic frame P that <see cref="FrameTree.UpdateNumericFrames"/>
+/// works on: the ghost of a body of another semantic frame, which the merge test takes as an input, because no body of P can
+/// move it (ticket ter-4psc). A place is not a body: it never moves, keeps no frame and gets no move or clock.
+/// </summary>
+/// <param name="Home">The frame whose system holds the ghost: the tree parent of the child bubble that the body sticks out
+/// of, or P itself.</param>
+/// <param name="HomePosition">The place of the ghost's center in <paramref name="Home"/>.</param>
+/// <param name="Velocity">The velocity of the ghost relative to P, in P's axes.</param>
+/// <param name="Radius">The radius of the bounding sphere of the ghost's body, in meters.</param>
+/// <param name="Target">The index among the bodies of the update of the hull whose home holds the ghost, which a body that
+/// may touch the ghost joins, or -1 when the ghost is fixed in P's own system.</param>
+internal readonly record struct GhostPlace(FrameHandle Home, Double3 HomePosition, Double3 Velocity, double Radius, int Target);
+
+/// <summary>
 /// The motion of a group of bodies of one semantic frame that the merge test links.
 /// </summary>
 /// <param name="Velocity">The mass-weighted mean velocity of the bodies that are not static, relative to the semantic
@@ -111,7 +133,8 @@ internal readonly record struct NumericBody
 /// <param name="Center">The center of mass of the bodies, in the semantic frame: of the static bodies alone when the group
 /// has one, and else of the kinematic bodies alone when it has one, because both count as infinitely heavy.</param>
 /// <param name="Anchored">True when a body of the group is static.</param>
-/// <param name="Fixed">True when a body of the group stays in the semantic frame's own system, so the whole group does.</param>
+/// <param name="Fixed">True when a body of the group stays in the semantic frame's own system, so the whole group does: a
+/// fixed body, or one that may touch a ghost fixed there (see <see cref="NumericBody.MayTouchFixedGhost"/>).</param>
 /// <param name="Frame">The numeric frame that holds the most of the group's mass, the first one on a tie, or null. For an
 /// anchored group, the numeric frame that holds one of its static bodies, the first one on a tie, or null.</param>
 /// <param name="FrameMass">The mass of the group's bodies in <paramref name="Frame"/>, in kg: +∞ when a static body of the
@@ -127,8 +150,8 @@ internal readonly record struct NumericGroup(Double3 Velocity, Double3 Center, b
 
 /// <summary>
 /// The decisions of the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and
-/// "Nesting for vast distances"), and of the numeric frames that keep ghosts ("Bubbles and ghosts"), as pure functions of
-/// plain data. <see cref="FrameTree.UpdateNumericFrames"/> calls them and acts on the tree.
+/// "Nesting for vast distances"), and of the places of the ghosts that the merge test takes as inputs ("Bubbles and
+/// ghosts"), as pure functions of plain data. <see cref="FrameTree.UpdateNumericFrames"/> calls them and acts on the tree.
 /// </summary>
 internal static class NumericFrameRules
 {
@@ -228,60 +251,52 @@ internal static class NumericFrameRules
     /// semantic frame's own, stay linked up to the split margin farther, so that a body at the edge of the reach does not
     /// go in and out at each sync point.
     /// </summary>
-    internal static bool MayTouch(in NumericBody a, in NumericBody b, Double3 separation, NumericFrameOptions options)
+    internal static bool MayTouch(in NumericBody a, in NumericBody b, Double3 separation, NumericFrameOptions options) =>
+        MayTouch(a.Radius + b.Radius, a.Velocity - b.Velocity, a.Home == b.Home, separation, options);
+
+    /// <summary>
+    /// The merge test of <paramref name="body"/> and the place of a ghost (see <see cref="GhostPlace"/>), the same as the test
+    /// of two bodies: true when the body's bounding sphere and the ghost's, <paramref name="separation"/> apart, grown by
+    /// their relative speed times the lookahead time, overlap or touch. A body in the system that holds the ghost stays
+    /// linked up to the split margin farther, so that a body at the edge of the reach does not go in and out at each sync
+    /// point.
+    /// </summary>
+    internal static bool MayTouch(in NumericBody body, in GhostPlace place, Double3 separation, NumericFrameOptions options) =>
+        MayTouch(body.Radius + place.Radius, body.Velocity - place.Velocity, body.Home == place.Home, separation, options);
+
+    private static bool MayTouch(double radii, Double3 relativeVelocity, bool oneSystem, Double3 separation, NumericFrameOptions options)
     {
-        double reach = a.Radius + b.Radius + (a.Velocity - b.Velocity).Length * options.LookaheadTime;
-        if (a.Home == b.Home)
+        double reach = radii + relativeVelocity.Length * options.LookaheadTime;
+        if (oneSystem)
             reach += options.SplitMargin;
         return separation.LengthSquared <= reach * reach;
     }
 
     /// <summary>
-    /// The radius of the sphere around a frame's origin that holds every body that sticks out of the frame's bubble
-    /// <paramref name="bubble"/>, when the largest body of the frame that can move has a bounding sphere of radius
-    /// <paramref name="largestRadius"/>. A body sticks out until its center is farther outside the bubble than its radius
-    /// plus the exit margin, so its far side reaches at most two radii plus that margin past the bubble's longest radius.
+    /// True when <paramref name="body"/>, a body of the frame whose bubble is <paramref name="bubble"/>, may stick out of that
+    /// bubble before the next update, so that physics may give it a ghost in the frame's tree parent: it can move, and its
+    /// bounding sphere, grown by its speed relative to the frame times the lookahead time, reaches outside the bubble. A
+    /// static body never moves, and a static body that is not a hull has no such ghost. The hull of a frame that its driver
+    /// moves is not static, and it never leaves the bubble, so it sticks out by as far as it lies.
     /// </summary>
-    internal static double StickOutRadius(FrameBounds bubble, double largestRadius) =>
-        bubble.MaxRadius + 2 * largestRadius + bubble.ExitMargin(largestRadius);
+    internal static bool MayStickOut(FrameBounds bubble, in NumericBody body, NumericFrameOptions options) =>
+        !body.Static && bubble.SignedDistance(body.Position) > -(body.Radius + body.Velocity.Length * options.LookaheadTime);
 
     /// <summary>
-    /// How far from a frame's origin <paramref name="body"/>, a body of the frame's own system that can move, reaches while
-    /// it sticks out of the frame's bubble <paramref name="bubble"/>. A body that leaves the bubble when it is fully outside
-    /// reaches <see cref="StickOutRadius"/> for its radius. A hull of a frame that its driver moves on rails (see
-    /// <see cref="NumericBody.Fixed"/>) never leaves, so it sticks out by as far as it lies: it reaches its distance from the
-    /// origin plus its radius, and its speed relative to the frame times the lookahead time, for its move until the next
-    /// update.
+    /// True when a body outside a frame's bubble <paramref name="bubble"/>, at <paramref name="position"/> in the frame and
+    /// moving at <paramref name="velocity"/> relative to it, may touch the bubble before the next update, so that physics
+    /// may give it a ghost in the frame's own system: the body reaches <paramref name="reach"/>, grown by its speed times the
+    /// lookahead time, and the bubble is within that reach.
     /// </summary>
-    internal static double StickOutReach(FrameBounds bubble, in NumericBody body, NumericFrameOptions options) =>
-        body.Fixed
-            ? body.Position.Length + body.Radius + body.Velocity.Length * options.LookaheadTime
-            : StickOutRadius(bubble, body.Radius);
+    internal static bool MayTouchBubble(FrameBounds bubble, Double3 position, Double3 velocity, double reach, NumericFrameOptions options) =>
+        bubble.SignedDistance(position) <= reach + velocity.Length * options.LookaheadTime;
 
     /// <summary>
-    /// The merge test of a body and the bodies that stick out of the bubble of a frame, which lie in the sphere of
-    /// <paramref name="stickOutRadius"/> around the frame's origin (see <see cref="StickOutRadius"/>): true when the body's
-    /// bounding sphere, grown by its speed relative to the frame's origin times the lookahead time, overlaps or touches that
-    /// sphere. <paramref name="separation"/> is the place of the frame's origin relative to the body, and
-    /// <paramref name="frameVelocity"/> the velocity of that origin relative to the body's semantic frame. The frame's
-    /// rotation does not move the sphere. The test has no split margin: it moves no body, it only names the numeric frame
-    /// of the body to keep the ghosts of the bodies that stick out.
+    /// True when Jolt makes a contact between <paramref name="body"/> and a kinematic ghost: the body is dynamic or a
+    /// character, or it is a sensor. Jolt makes no contact between a kinematic body and a static or kinematic one unless one
+    /// of them is a sensor, and the engine never asks it to. So only such a body links to the place of a ghost.
     /// </summary>
-    internal static bool MayTouchStickOut(in NumericBody body, Double3 separation, Double3 frameVelocity, double stickOutRadius,
-        NumericFrameOptions options)
-    {
-        double reach = body.Radius + stickOutRadius + (body.Velocity - frameVelocity).Length * options.LookaheadTime;
-        return separation.LengthSquared <= reach * reach;
-    }
-
-    /// <summary>
-    /// How far the separation of two places <paramref name="a"/> and <paramref name="b"/> in a semantic frame's coordinates
-    /// can be from the true one, in meters. Far from the frame's origin, each place rounds to a step of a double, about
-    /// 2.2e-16 of its distance from the origin, and a sum along the numeric frames rounds a few times more. The slack is
-    /// 1e-12 of the two distances, thousands of such steps. So a first test in those coordinates whose reach grows by the
-    /// slack drops no pair that the test through the homes links.
-    /// </summary>
-    internal static double PlaceSlack(Double3 a, Double3 b) => 1e-12 * (a.Length + b.Length);
+    internal static bool MeetsGhost(in NumericBody body) => !(body.Static || body.Kinematic) || body.Sensor;
 
     /// <summary>
     /// The split clock of one numeric frame over a sync point of <paramref name="dt"/> seconds. <paramref name="together"/>
@@ -351,9 +366,10 @@ internal static class NumericFrameRules
     /// says, so it adds nothing to the group's motion, and the first such hull among the members is the group's
     /// <see cref="NumericGroup.Orbiter"/>. Any other Kepler hull is fixed in the semantic frame's own system, as the hull of
     /// a Static or Spin frame is.</item>
-    /// <item>A fixed hull fixes the group, and a static body anchors it, with the motion of its static bodies alone: the
-    /// velocity zero, their center of mass, and as its frame the numeric frame that holds one of them, the first on a tie,
-    /// or none when they all lie in the semantic frame's own system. Then <see cref="Mode"/> gives the group the mode that
+    /// <item>A fixed hull, or a body that may touch a ghost fixed in the semantic frame's own system, fixes the group, and a
+    /// static body anchors it, with the motion of its static bodies alone: the velocity zero, their center of mass, and as
+    /// its frame the numeric frame that holds one of them, the first on a tie, or none when they all lie in the semantic
+    /// frame's own system. Then <see cref="Mode"/> gives the group the mode that
     /// its static bodies get alone, so the group takes their home. These anchors rest in the semantic frame, so they win
     /// over an orbit frame, and each orbiting hull of the group keeps its own frame and a ghost in the group's home.</item>
     /// <item>A group with an orbiter and no anchor at rest <see cref="NumericGroup.Orbits"/>: it takes the orbiter's orbit
@@ -387,7 +403,7 @@ internal static class NumericFrameRules
                 continue;
             }
             anchored |= body.Static;
-            isFixed |= body.Fixed;
+            isFixed |= body.Fixed || body.MayTouchFixedGhost;
             thrusts |= body.Thrusts && !body.Anchor;
             mass += body.Mass;
             moment += body.Position * body.Mass;

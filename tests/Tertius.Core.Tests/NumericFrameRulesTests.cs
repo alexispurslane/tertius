@@ -346,84 +346,83 @@ public class NumericFrameRulesTests
     public void A_body_of_a_numeric_frame_and_one_of_the_semantic_frame_get_no_split_margin() =>
         Touch(Body(0, home: Pod), Body(5)).Should().BeFalse();
 
-    // ---- StickOutRadius and MayTouchStickOut ---------------------------------------------------------------------
+    // ---- Places of ghosts ----------------------------------------------------------------------------------------
 
     [Fact]
-    public void A_body_sticks_out_of_a_bubble_by_at_most_its_diameter_plus_the_exit_margin()
+    public void A_body_whose_sphere_reaches_out_of_its_bubble_may_stick_out()
     {
-        // A body leaves a bubble when its center is farther outside than its radius plus the exit margin, the larger of 2 %
-        // of the bubble and the body's radius. So its far side reaches at most two radii plus that margin past the bubble.
-        StickOutRadius(FrameBounds.Sphere(200), largestRadius: 1).Should().Be(200 + 2 + 4, "2 % of 200 m is more than 1 m");
-        StickOutRadius(FrameBounds.Sphere(40), largestRadius: 1).Should().Be(40 + 2 + 1, "1 m is more than 2 % of 40 m");
+        // 39.5 m from the origin of a bubble of 40 m, the body's radius of 1 m reaches 0.5 m out of it.
+        MayStickOut(FrameBounds.Sphere(40), Body(39.5), Options).Should().BeTrue();
+        MayStickOut(FrameBounds.Sphere(40), Body(38.9), Options).Should().BeFalse();
     }
 
     [Fact]
-    public void The_sphere_that_holds_the_bodies_that_stick_out_of_an_ellipsoid_starts_at_its_longest_radius() =>
-        StickOutRadius(new FrameBounds(new System.Numerics.Vector3(10, 50, 20)), largestRadius: 2).Should().Be(50 + 4 + 2);
-
-    [Fact]
-    public void A_body_that_leaves_its_bubble_reaches_as_far_from_its_frames_origin_as_the_stick_out_radius() =>
-        // The body is 39 m from the origin, so it lies inside the bubble, and its distance does not count.
-        StickOutReach(FrameBounds.Sphere(40), Body(39, vx: 5, radius: 1), Options).Should().Be(StickOutRadius(FrameBounds.Sphere(40), 1));
-
-    [Fact]
-    public void A_hull_on_rails_reaches_its_distance_from_its_frames_origin_plus_its_radius_and_its_lookahead()
+    public void The_speed_relative_to_its_frame_times_the_lookahead_grows_how_far_a_body_may_stick_out()
     {
-        // A hull that its frame's driver moves never leaves the bubble, so it can stick out by any amount: 60 m out, with a
-        // radius of 5 m and 2 s at 3 m/s, it reaches 71 m, past the 55 m of a body of its radius that leaves.
-        StickOutReach(FrameBounds.Sphere(40), Body(60, vx: 3, radius: 5) with { Fixed = true }, Options).Should().Be(60 + 5 + 3 * 2);
-        StickOutReach(FrameBounds.Sphere(40), Body(10, radius: 5) with { Fixed = true }, Options).Should().Be(15,
-            "a hull on rails deep inside its bubble reaches less far than a body that leaves");
-    }
-
-    /// <summary>
-    /// The merge test of a body and the bodies that stick out of a bubble whose sphere of <paramref name="stickOut"/> m
-    /// around the frame's origin, which is at <paramref name="frameX"/> on X and moves at <paramref name="frameVx"/>.
-    /// </summary>
-    private static bool TouchStickOut(in NumericBody body, double frameX, double stickOut, double frameVx = 0) =>
-        MayTouchStickOut(body, X(frameX) - body.Position, X(frameVx), stickOut, Options);
-
-    [Fact]
-    public void A_still_body_whose_sphere_touches_the_sphere_of_the_bodies_that_stick_out_may_touch_them()
-    {
-        TouchStickOut(Body(0, radius: 1), frameX: 44, stickOut: 43).Should().BeTrue();
-        TouchStickOut(Body(0, radius: 1), frameX: 44.001, stickOut: 43).Should().BeFalse();
+        // 10 m inside the bubble: the body reaches its radius plus its speed times 2 s, and it must pass the bubble.
+        MayStickOut(FrameBounds.Sphere(40), Body(30, vx: 5), Options).Should().BeTrue();
+        MayStickOut(FrameBounds.Sphere(40), Body(30, vx: 4.5), Options).Should().BeFalse();
+        MayStickOut(FrameBounds.Sphere(40), Body(30) with { Velocity = new Double3(0, -5, 0) }, Options).Should().BeTrue(
+            "the body may move anywhere before the next update");
     }
 
     [Fact]
-    public void The_speed_relative_to_the_bubbles_frame_times_the_lookahead_grows_the_reach()
+    public void A_static_body_never_sticks_out() =>
+        MayStickOut(FrameBounds.Sphere(40), Body(45) with { Static = true }, Options).Should().BeFalse();
+
+    [Fact]
+    public void A_body_touches_a_bubble_from_outside_within_its_reach()
     {
-        // 54 m from the frame's origin: the reach is 44 m plus the speed relative to the frame times 2 s.
-        TouchStickOut(Body(0, vx: 5), frameX: 54, stickOut: 43).Should().BeTrue();
-        TouchStickOut(Body(0, vx: 4.9), frameX: 54, stickOut: 43).Should().BeFalse();
-        TouchStickOut(Body(0, vx: 60), frameX: 54, stickOut: 43, frameVx: 55).Should().BeTrue();
-        TouchStickOut(Body(0, vx: 60), frameX: 54, stickOut: 43, frameVx: 55.1).Should().BeFalse();
+        MayTouchBubble(FrameBounds.Sphere(40), X(41), Double3.Zero, reach: 1, Options).Should().BeTrue();
+        MayTouchBubble(FrameBounds.Sphere(40), X(41.001), Double3.Zero, reach: 1, Options).Should().BeFalse();
     }
 
     [Fact]
-    public void A_body_that_moves_with_the_bubbles_frame_gets_no_lookahead() =>
-        TouchStickOut(Body(0, vx: 7_700), frameX: 45, stickOut: 43, frameVx: 7_700).Should().BeFalse();
-
-    [Fact]
-    public void A_body_gets_no_split_margin_against_the_bodies_that_stick_out_of_a_bubble() =>
-        TouchStickOut(Body(0, home: Pod), frameX: 50, stickOut: 43).Should().BeFalse("the reach is 44 m, without the 10 m split margin");
-
-    [Fact]
-    public void The_slack_of_two_places_in_a_semantic_frame_covers_their_rounding_far_from_its_origin()
+    public void The_speed_relative_to_the_bubbles_frame_times_the_lookahead_grows_the_reach_to_the_bubble()
     {
-        // A light-year out, a double steps by 2 m; 1 km out, by about 1e-13 m.
-        double step = Math.BitIncrement(1e16) - 1e16;
-        PlaceSlack(X(1e16), X(-1e16)).Should().BeGreaterThan(1000 * step);
-        PlaceSlack(X(1_000), X(0)).Should().BeLessThan(1e-6, "near the origin the first test reaches almost exactly as far as the second");
+        // 11 m outside the bubble: the reach of 1 m plus the speed times 2 s.
+        MayTouchBubble(FrameBounds.Sphere(40), X(51), X(5), reach: 1, Options).Should().BeTrue();
+        MayTouchBubble(FrameBounds.Sphere(40), X(51), X(4.9), reach: 1, Options).Should().BeFalse();
     }
 
     [Fact]
-    public void The_test_of_the_bodies_that_stick_out_measures_the_separation_that_it_is_given()
+    public void A_dynamic_body_and_a_character_meet_a_ghost()
     {
-        // Far from the semantic frame's origin, the positions round; the caller gives the separation through the homes.
-        NumericBody body = Body(1e16, home: Pod);
-        MayTouchStickOut(body, X(44.001), Double3.Zero, 43, Options).Should().BeFalse();
-        MayTouchStickOut(body, X(44), Double3.Zero, 43, Options).Should().BeTrue();
+        MeetsGhost(Body(0)).Should().BeTrue();
+        MeetsGhost(Body(0) with { Character = true }).Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_static_or_kinematic_body_meets_a_ghost_only_as_a_sensor()
+    {
+        // A ghost is kinematic, and Jolt makes no contact between a kinematic body and a static or kinematic one unless one
+        // of them is a sensor.
+        MeetsGhost(Body(0) with { Static = true }).Should().BeFalse();
+        MeetsGhost(Body(0) with { Kinematic = true }).Should().BeFalse();
+        MeetsGhost(Body(0) with { Static = true, Sensor = true }).Should().BeTrue();
+        MeetsGhost(Body(0) with { Kinematic = true, Sensor = true }).Should().BeTrue();
+    }
+
+    /// <summary>The place of a ghost of radius 1 m in <paramref name="home"/>, moving at <paramref name="vx"/> along X.</summary>
+    private static GhostPlace Place(double vx = 0, FrameHandle home = default, double radius = 1) =>
+        new(home.IsNull ? Ground : home, Double3.Zero, X(vx), radius, Target: -1);
+
+    [Fact]
+    public void A_body_may_touch_the_place_of_a_ghost_by_the_merge_test_of_two_bodies()
+    {
+        // 10 m apart with radii 1 m and 2 m in two systems: the reach is 3 m plus the relative speed times 2 s.
+        MayTouch(Body(0, home: Pod), Place(radius: 2), X(3), Options).Should().BeTrue();
+        MayTouch(Body(0, home: Pod), Place(radius: 2), X(3.001), Options).Should().BeFalse();
+        MayTouch(Body(0, vx: 4, home: Pod), Place(radius: 2), X(11), Options).Should().BeTrue();
+        MayTouch(Body(0, vx: 4, home: Pod), Place(vx: 4, radius: 2), X(11), Options).Should().BeFalse("a common velocity does not grow the reach");
+    }
+
+    [Fact]
+    public void A_body_in_the_system_of_a_ghost_stays_linked_to_its_place_up_to_the_split_margin()
+    {
+        MayTouch(Body(0, home: Pod), Place(home: Pod), X(12), Options).Should().BeTrue();
+        MayTouch(Body(0, home: Pod), Place(home: Pod), X(12.001), Options).Should().BeFalse();
+        MayTouch(Body(0, home: Pod), Place(home: Raft), X(5), Options).Should().BeFalse("a ghost in another system gets no split margin");
     }
 
     // ---- SplitClock ----------------------------------------------------------------------------------------------

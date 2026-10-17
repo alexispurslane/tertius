@@ -34,12 +34,9 @@ namespace Tertius;
 /// that frame: a frame that its spin or its owner's writes move moves relative to its semantic parent, and a frame that
 /// its orbit moves hangs in its semantic parent or in its orbit frame, which follows the orbit. Every ghost of
 /// <see cref="AnchorGhosts"/> names the hull of the orbiter of a live orbit frame and a live frame of that orbiter's
-/// semantic parent other than the orbit frame. Every pair of <see cref="StickOutGhosts"/> names a live semantic frame and a
-/// live falling, resting or orbit frame of that frame's semantic parent, which is not its tree parent. These two hold
-/// between updates too: a frame that leaves the tree takes the places of ghosts that name it (see
-/// <see cref="RemoveNode"/>), an orbit frame that loses its orbiter takes the ghosts of its hull (see
-/// <see cref="LeaveOrbit"/>), and a frame that moves to another parent drops the pairs of its bubble that no longer hold
-/// (see <see cref="Reparent"/>). Every leave clock (see <see cref="NumericFrameRules.LeaveClock"/>)
+/// semantic parent other than the orbit frame. This holds between updates too: a frame that leaves the tree takes the
+/// ghosts that name it (see <see cref="RemoveNode"/>), and an orbit frame that loses its orbiter takes the ghosts of its
+/// hull (see <see cref="LeaveOrbit"/>). Every leave clock (see <see cref="NumericFrameRules.LeaveClock"/>)
 /// is at least zero and names a body of the last update that is not an anchor, needs a frame by itself and stays in its
 /// semantic frame's own system, so no clock outlives its body's place in the input. Every thrust clock (see
 /// <see cref="NumericFrameRules.ThrustClock"/>) names a body of the last update that is not static, with a thrust time above
@@ -189,9 +186,8 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Removes <paramref name="frame"/>, whose node is <paramref name="node"/>, from the tree. The places of ghosts that
-    /// name it go with it: the home of a group that keeps a ghost of an anchor, and the bubble or the numeric frame of a pair
-    /// of <see cref="StickOutGhosts"/> (see the invariants of the class). An orbit frame whose orbiter goes falls on.
+    /// Removes <paramref name="frame"/>, whose node is <paramref name="node"/>, from the tree. The ghosts of anchors that a
+    /// group whose home it is keeps go with it (see the invariants of the class). An orbit frame whose orbiter goes falls on.
     /// </summary>
     private void RemoveNode(FrameHandle frame, PoseNode node)
     {
@@ -200,9 +196,6 @@ public sealed partial class FrameTree
         for (int i = anchorGhosts.Count - 1; i >= 0; i--)
             if (anchorGhosts[i].Frame == frame)
                 anchorGhosts.RemoveAt(i);
-        for (int i = stickOutGhosts.Count - 1; i >= 0; i--)
-            if (stickOutGhosts[i].Bubble == frame || stickOutGhosts[i].Frame == frame)
-                stickOutGhosts.RemoveAt(i);
         if (!owner[node.Id].IsNull)
             byOwner.Remove(owner[node.Id]);
         owner[node.Id] = Entity.Null;
@@ -214,10 +207,8 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Moves a frame under a new parent. Its pose and velocity relative to everything else stay the same. A pair of
-    /// <see cref="StickOutGhosts"/> whose bubble is the frame goes when its numeric frame is no longer a numeric frame of the
-    /// frame's semantic parent, or is now the frame's tree parent (see the invariants of the class). A frame that leaves its
-    /// orbit frame leaves it falling (see <see cref="NumericMode.Orbiting"/>). Throws
+    /// Moves a frame under a new parent. Its pose and velocity relative to everything else stay the same. A frame that
+    /// leaves its orbit frame leaves it falling (see <see cref="NumericMode.Orbiting"/>). Throws
     /// <see cref="InvalidOperationException"/>, and changes nothing, if the new parent is the frame itself or one of
     /// its descendants.
     /// </summary>
@@ -242,14 +233,6 @@ public sealed partial class FrameTree
         linearVelocity[node.Id] = ConvertVelocity(oldParent, newParent, oldPose.Position, linearVelocity[node.Id]);
         angularVelocity[node.Id] = (oldToNew.Rotate(w) + AngularVelocityRelative(oldParent, newParent)).ToVector3();
         poses.Reparent(node, newParent.IsNull ? PoseNode.Null : Node(newParent), keepWorldPose: true);
-
-        FrameHandle semanticParent = Parent(frame);
-        for (int i = stickOutGhosts.Count - 1; i >= 0; i--)
-        {
-            StickOutGhost ghost = stickOutGhosts[i];
-            if (ghost.Bubble == frame && (ghost.Frame == newParent || SemanticOf(ghost.Frame) != semanticParent))
-                stickOutGhosts.RemoveAt(i);
-        }
     }
 
     public bool IsAlive(FrameHandle frame) => !frame.IsNull && poses.IsAlive(new PoseNode(frame.Index, frame.Generation)) && owner[frame.Index] == frame.Entity;
@@ -537,12 +520,6 @@ public sealed partial class FrameTree
         {
             Contract.Invariant(TryGetFrame(ghost.Anchor, out FrameHandle hullFrame) && InOrbitFrame(hullFrame) && IsAlive(ghost.Frame));
             Contract.Invariant(ghost.Frame != TreeParent(hullFrame) && SemanticOf(ghost.Frame) == Parent(hullFrame));
-        }
-        foreach (StickOutGhost ghost in stickOutGhosts)
-        {
-            Contract.Invariant(IsAlive(ghost.Bubble) && !IsNumeric(ghost.Bubble) && IsAlive(ghost.Frame));
-            Contract.Invariant(Numeric(ghost.Frame) is NumericMode.Falling or NumericMode.Resting or NumericMode.Orbiting);
-            Contract.Invariant(SemanticOf(ghost.Frame) == Parent(ghost.Bubble) && ghost.Frame != TreeParent(ghost.Bubble));
         }
         if (thrustClocks.Count > 0)
         {

@@ -300,14 +300,17 @@ public partial class NumericFrameStickOutGhostTests
         withNumericFrames.RockNews.Should().StartWith(ContactNews.Started);
     }
 
-    /// <summary>True when the last numeric update named the frame <paramref name="frame"/> to keep the ghosts of the bodies that stick out of <paramref name="bubble"/>.</summary>
-    private static bool NamesStickOutGhosts(World world, FrameHandle bubble, FrameHandle frame)
-    {
-        foreach (StickOutGhost ghost in world.Frames.StickOutGhosts)
-            if (ghost.Bubble == bubble && ghost.Frame == frame)
-                return true;
-        return false;
-    }
+    /// <summary>
+    /// Stands for the list of numeric frames that kept the ghosts of the bodies that stick out of a bubble, which ter-4psc
+    /// removed: the merge test now links each body that may touch such a ghost to the bubble's hull. It fails each test that
+    /// still reads that list, until the test is rewritten.
+    /// </summary>
+    private static bool NamesStickOutGhosts(World world, FrameHandle bubble, FrameHandle frame) =>
+        throw new NotSupportedException("ter-4psc removed FrameTree.StickOutGhosts; rewrite this test for the places of ghosts.");
+
+    /// <summary>Stands for an empty list of the removed stick-out ghosts (see <see cref="NamesStickOutGhosts"/>).</summary>
+    private static bool NoStickOutGhosts(World world) =>
+        throw new NotSupportedException("ter-4psc removed FrameTree.StickOutGhosts; rewrite this test for the places of ghosts.");
 
     /// <summary>A frame with no body, in <paramref name="parent"/>, at <paramref name="pose"/>, with a bubble of <paramref name="radius"/> m.</summary>
     private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius) =>
@@ -524,7 +527,7 @@ public partial class NumericFrameStickOutGhostTests
         for (int tick = 0; tick < 120; tick++)
         {
             world.Tick();
-            world.Frames.StickOutGhosts.IsEmpty.Should().BeTrue($"after tick {tick} the rock is 800 m beyond the reach of the bodies that stick out of the ship");
+            NoStickOutGhosts(world).Should().BeTrue($"after tick {tick} the rock is 800 m beyond the reach of the bodies that stick out of the ship");
             faults.Jolt.GhostCount(scene.Crate).Should().Be(numericFrames ? 2 : 1,
                 "the crate has a ghost in the ship's tree parent and one in space, which are one frame without numeric frames");
             faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeTrue();
