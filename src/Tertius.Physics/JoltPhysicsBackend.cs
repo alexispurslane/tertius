@@ -591,8 +591,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// frame that the body owns or inside it.</item>
     /// <item>The ghosts of each system (see <see cref="FrameWorld.AddGhost"/>) are the ghosts that the records keep in
     /// it, no more and no fewer. A system marks exactly the ghosts of static bodies as such (see
-    /// <see cref="FrameWorld.StandsForStaticBody"/>), and records the motion of the real body of exactly the ghosts of
-    /// meshes, which are static in Jolt (see <see cref="FrameWorld.SetStaticGhostMotion"/>).</item>
+    /// <see cref="FrameWorld.StandsForStaticBody"/>). Every ghost is kinematic, except a ghost of a mesh, which is static
+    /// while it holds still (see <see cref="GhostMotion"/>). Jolt can move every ghost of a mesh as a kinematic body, with
+    /// a finite mass (see <see cref="FrameWorld.CanMove"/>), so the ghost pass and the shifts can turn it kinematic when
+    /// it starts to move.</item>
     /// <item>Every Jolt body of a record has the layer that the record's collision groups and mask give it: the primary
     /// body or the character's inner body, the interior and every ghost (see <see cref="Layers"/>).</item>
     /// <item>The contact ledger counts, for each pair of entities, the body pairs that hold their contact as started in
@@ -640,7 +642,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(ghost.World.HasGhost(ghost.Body));
                 Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == GhostLayer(record));
                 Contract.Invariant(ghost.World.StandsForStaticBody(ghost.Body) == !record.IsMovable);
-                Contract.Invariant(ghost.World.HasStaticGhostMotion(ghost.Body) == record.HasMesh);
+                Contract.Invariant(record.HasMesh || ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic);
+                Contract.Invariant(!record.HasMesh || ghost.World.CanMove(ghost.Body));
                 if (!record.IsMovable)
                     staticBodyGhosts++;
             }

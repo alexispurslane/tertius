@@ -468,10 +468,11 @@ public class GhostContactTests
     /// <summary>
     /// With no gravity, a ship of 1000 kg and a probe, a ball of radius 1 m, fly at 60 m/s along -X, 3 m apart, past a
     /// static mesh cube of 2 m by 2 m by 2 m at the origin. With numeric frames, both fall in one numeric frame, which keeps
-    /// a ghost of the cube while the numeric update names it an anchor. The ghost of a mesh is static, so Jolt never moves
-    /// it. When the probe is 120 m past the cube, it stops and drifts down at 1.5 m/s across the lane of the cube, while
-    /// its frame flies on, so the place in that frame where the ghost of the cube stood comes past the probe. The ghost has
-    /// gone by then, so nothing hits the probe, as without numeric frames.
+    /// a ghost of the cube while the numeric update names it an anchor. That ghost moves in the frame, so it is a kinematic
+    /// body that Jolt moves with the cube's velocity in the frame (ter-dq92). When the probe is 120 m past the cube, it
+    /// stops and drifts down at 1.5 m/s across the lane of the cube, while its frame flies on, so the place in that frame
+    /// where the ghost of the cube stood comes past the probe. The ghost has gone by then, so nothing hits the probe, as
+    /// without numeric frames.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -497,7 +498,7 @@ public class GhostContactTests
         {
             NamesAnchor(world, cube, world.PhysicsHomeOf(probe)).Should().BeTrue("the probe's falling frame keeps a ghost of the cube");
             faults.Jolt.HasGhostIn(cube, world.PhysicsHomeOf(probe)).Should().BeTrue();
-            // The new static ghost has the recorded motion of the cube from the start.
+            // The new ghost of the mesh is kinematic, with a mass that Jolt can use.
             faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         }
         TickUntil(world, () => world.PoseIn(probe, space).Position.X < -120, 600);
@@ -514,13 +515,12 @@ public class GhostContactTests
     /// <summary>
     /// With no gravity, a crate of 10 kg flies at 3 m/s at a static wall, a cube of 1 m at the origin, a mesh or a box.
     /// With numeric frames that make every moving body fall in a frame of its own, the crate's falling frame keeps a ghost
-    /// of the wall, its anchor, which is static for a mesh and kinematic for a box. 40 cm before the wall, the crate speeds
-    /// up to v₁ ≈ 20 m/s, so that it is 1.2 cm from the wall at the next sync point, which drains the frame: the frame
-    /// takes on the crate's change of velocity, and every member and ghost of the frame loses it. The contact starts in the
-    /// step after the drain, and its impulse is the crate's mass times v₁, the approach speed of the crate and the real
-    /// wall. Jolt never moves a static ghost, so the contact reads its real body's velocity, which the drain changes too.
-    /// The test reads only the start: Jolt does not stop a crate at a static ghost that the ghost pass moves 34 cm into
-    /// it in each step, so with numeric frames the crate passes into the hollow mesh.
+    /// of the wall, its anchor, which moves in the frame, so it is kinematic for a mesh as for a box. 40 cm before the
+    /// wall, the crate speeds up to v₁ ≈ 20 m/s, so that it is 1.2 cm from the wall at the next sync point, which drains
+    /// the frame: the frame takes on the crate's change of velocity, and every member and ghost of the frame loses it. The
+    /// contact starts in the step after the drain, and its impulse is the crate's mass times v₁, the approach speed of the
+    /// crate and the real wall, which Jolt simulates as the approach to the ghost. The test reads only the start; that
+    /// the crate then stops at the wall as without numeric frames is the test of MeshGhostTests (ter-dq92).
     /// </summary>
     [Theory]
     [InlineData(false, true)]

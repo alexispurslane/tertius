@@ -286,13 +286,13 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// True when a ghost of <paramref name="ghostOf"/> and the primary body of <paramref name="other"/> can touch in one
     /// system: their layers meet, so that the ghost never meets the hull of a frame (see <see cref="Layers"/>), and their
-    /// motions meet (see <see cref="MotionsMeet"/>). A ghost is kinematic, or static for a mesh. A ghost of a static body
-    /// meets only what that body meets (see <see cref="FrameWorld.StandsForStaticBody"/>), so it counts as static too.
+    /// motions meet (see <see cref="MotionsMeet"/>). A ghost is kinematic, or static for a mesh that holds still. A ghost
+    /// of a static body, such as every ghost of a mesh, meets only what that body meets (see
+    /// <see cref="FrameWorld.StandsForStaticBody"/>), so it counts as static too.
     /// </summary>
     private static bool GhostTouches(BodyRecord ghostOf, BodyRecord other) =>
         Layers.Meet(GhostLayer(ghostOf), PrimaryLayer(other)) &&
-        MotionsMeet(ghostOf.HasMesh || !ghostOf.IsMovable ? BodyMotion.Static : BodyMotion.Kinematic, ghostOf.Desc.IsSensor,
-            other.Motion, other.Desc.IsSensor);
+        MotionsMeet(ghostOf.IsMovable ? BodyMotion.Kinematic : BodyMotion.Static, ghostOf.Desc.IsSensor, other.Motion, other.Desc.IsSensor);
 
     /// <summary>
     /// True when Jolt makes a contact between two bodies of these motions whose layers meet: when one of them is dynamic,

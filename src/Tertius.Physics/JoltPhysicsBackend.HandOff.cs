@@ -494,39 +494,46 @@ public sealed partial class JoltPhysicsBackend
         }
     }
 
+    /// <summary>
+    /// Keeps a ghost of the record's body in the system of <paramref name="frame"/> at <paramref name="pose"/>, moving
+    /// with <paramref name="linearVelocity"/> and <paramref name="angularVelocity"/> in that frame, and marks it wanted.
+    /// The ghost has the motion of <see cref="GhostMotion"/>, so a ghost of a mesh turns kinematic when it starts to move
+    /// and static when it holds still.
+    /// </summary>
     private void WantGhost(BodyRecord record, FrameHandle frame, in DPose pose, Double3 linearVelocity, Double3 angularVelocity)
     {
         FrameWorld world = WorldFor(frame);
         Vector3 linear = linearVelocity.ToVector3(), angular = angularVelocity.ToVector3();
+        MotionType motion = GhostMotion(record, linear, angular);
         List<GhostBody> ghosts = record.Ghosts ??= new List<GhostBody>(2);
         foreach (ref GhostBody ghost in CollectionsMarshal.AsSpan(ghosts))
         {
             if (ghost.World != world)
                 continue;
+            BodyInterface bodies = world.Bodies;
             // Jolt does not simulate the move of a ghost, so the bodies around its old and new places wake.
-            bool moves = !IsAt(world.Bodies, ghost.Body, pose);
+            bool moves = !IsAt(bodies, ghost.Body, pose);
             if (moves)
                 world.WakeAround(ghost.Body);
-            if (record.HasMesh)
+            // Jolt stops a body that becomes static, and a kinematic body moves only while it is awake.
+            if (record.HasMesh && bodies.GetMotionType(ghost.Body) != motion)
+                bodies.SetMotionType(ghost.Body, motion, motion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
+            if (motion == MotionType.Static)
             {
                 if (moves)
-                    world.Bodies.SetRPositionAndRotation(ghost.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(), Activation.DontActivate);
-                world.SetStaticGhostMotion(ghost.Body, linear, angular);
+                    bodies.SetRPositionAndRotation(ghost.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(), Activation.DontActivate);
             }
             else
             {
-                world.Bodies.SetRPositionRotationAndVelocity(ghost.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(), linear, angular);
+                bodies.SetRPositionRotationAndVelocity(ghost.Body, pose.Position.ToJolt(), pose.Rotation.ToJolt(), linear, angular);
             }
             if (moves)
                 world.WakeAround(ghost.Body);
             ghost.Wanted = true;
             return;
         }
-        BodyID id = CreateRigid(world, GhostSpec(record), pose, linear, angular);
+        BodyID id = CreateRigid(world, GhostSpec(record, motion), pose, linear, angular);
         world.AddGhost(id, ofStaticBody: !record.IsMovable);
-        // Jolt never moves a mesh, so the ghost of a mesh is static, and contacts read its real body's velocity.
-        if (record.HasMesh)
-            world.SetStaticGhostMotion(id, linear, angular);
         ghosts.Add(new GhostBody { Frame = frame, World = world, Body = id, Wanted = true });
     }
 
