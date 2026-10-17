@@ -235,6 +235,29 @@ public class WorldRayCastTests
         return world.GetOwnedFrame(owner);
     }
 
+    /// <summary>
+    /// A static frame at <paramref name="at"/> in <paramref name="parent"/>, not turned, with a bubble of
+    /// <paramref name="radius"/> m. Its owner has no body, so the parent's system holds nothing of it.
+    /// </summary>
+    private static FrameHandle Bubble(World world, FrameHandle parent, Double3 at, float radius) =>
+        world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = parent,
+            Pose = new DPose(at, DQuaternion.Identity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static),
+        }));
+
+    /// <summary>
+    /// A predicate for <see cref="EntityQuery.Where"/> that accepts every entity and writes down each entity that it was
+    /// asked about, in order. Jolt asks it about the bodies that a cast reaches, so the list shows which frames the cast
+    /// looked in.
+    /// </summary>
+    private static EntityQuery Recording(List<Entity> asked) => EntityQuery.Where((_, entity) =>
+    {
+        asked.Add(entity);
+        return true;
+    });
+
     [Fact]
     public void ARayThatCrossesIntoTheBubbleOfAChildFrameHitsABodyInThatFrame()
     {
@@ -383,6 +406,115 @@ public class WorldRayCastTests
         ShouldBeAt(hits[1], owner, new Double3(98, 0, 0), -Vector3.UnitX, 98);
         ShouldBeAt(hits[2], inside, new Double3(104.5, 0, 0), -Vector3.UnitX, 104.5);
         ShouldBeAt(hits[3], far, new Double3(149.5, 0, 0), -Vector3.UnitX, 149.5);
+    }
+
+    [Fact]
+    public void ARayThatMeetsAFarBodyInTheParentAndANearerBodyInAChildFrameNamesTheNearerBody()
+    {
+        // The ground's system answers first, with the far box. The child's system then answers with a nearer box, and the
+        // nearer one is the ray's hit.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        FrameHandle child = TurnedChildFrame(world, ground);
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 200, default, Tag: 1));
+        Spawn(world, ground, Double3.Zero, null, aim);
+        Spawn(world, ground, new Double3(150, 0, 0), StaticBox());
+        // At (0, 0, 5) in the child, which is (105, 0, 0) in the ground.
+        Entity nearer = Spawn(world, child, new Double3(0, 0, 5), StaticBox());
+
+        Tick(world, 2);
+
+        ShouldBeAt(aim.AnswersTo(1).Single(), nearer, new Double3(104.5, 0, 0), -Vector3.UnitX, 104.5);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ARayDoesNotLookInAChildFrameThatLiesBeyondTheNearestHitItHasAlreadyFound()
+    {
+        // Three places along +X: the ground's box at x = 150, a near frame around x = 40, and a far frame around x = 120.
+        // The far frame is made first, so the ray's walk visits it after the near frame. The ground's system answers with
+        // the box at x = 150, the near frame's system then answers with a nearer hit, and the far frame's part of the ray,
+        // from about x = 110, starts beyond that hit. So Jolt is never asked about the far frame's body.
+        var asked = new List<Entity>();
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        FrameHandle farFrame = Bubble(world, ground, new Double3(120, 0, 0), 10);
+        FrameHandle nearFrame = Bubble(world, ground, new Double3(40, 0, 0), 10);
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 200, Recording(asked), Tag: 1));
+        Spawn(world, ground, Double3.Zero, null, aim);
+        Entity groundBox = Spawn(world, ground, new Double3(150, 0, 0), StaticBox());
+        Entity farBody = Spawn(world, farFrame, Double3.Zero, StaticBox());
+        Entity nearBody = Spawn(world, nearFrame, Double3.Zero, StaticBox());
+
+        Tick(world, 2);
+
+        ShouldBeAt(aim.AnswersTo(1).Single(), nearBody, new Double3(39.5, 0, 0), -Vector3.UnitX, 39.5);
+        asked.Should().Contain([groundBox, nearBody], "the ray looked in the ground and in the near frame");
+        asked.Should().NotContain(farBody, "the near frame's hit ends the ray's search before the far frame");
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ARayThatPassesBesideTheBubbleOfAChildFrameDoesNotHitItsBodiesAndFindsTheBodyBeyondInTheParent()
+    {
+        // The ray runs along +X, 25 m above the child's center, while the child's bubble has a radius of 20 m.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        FrameHandle child = TurnedChildFrame(world, ground);
+        var aim = new Aim(new Ray(new Double3(0, 25, 0), Double3.UnitX, 300, default, Tag: 1));
+        Spawn(world, ground, new Double3(0, 25, 0), null, aim);
+        Spawn(world, child, new Double3(0, 0, 5), StaticBox());
+        Entity beyond = Spawn(world, ground, new Double3(200, 25, 0), StaticBox());
+
+        Tick(world, 2);
+
+        ShouldBeAt(aim.AnswersTo(1).Single(), beyond, new Double3(199.5, 25, 0), -Vector3.UnitX, 199.5);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CastRayAllThatPassesBesideOneChildFrameGoesOnToTheNextChildFrameAndTheParent()
+    {
+        // The beside frame is made first, so the ray's walk meets it first among the ground's child frames. Passing beside
+        // its bubble must not end the walk: the ray still crosses the bubble of the frame after it.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        FrameHandle beside = Bubble(world, ground, new Double3(100, 40, 0), 20);
+        FrameHandle crossed = Bubble(world, ground, new Double3(140, 0, 0), 20);
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 300, default, Tag: 1, All: true));
+        Spawn(world, ground, Double3.Zero, null, aim);
+        Spawn(world, beside, Double3.Zero, StaticBox());
+        Entity inCrossed = Spawn(world, crossed, Double3.Zero, StaticBox());
+        Entity inGround = Spawn(world, ground, new Double3(200, 0, 0), StaticBox());
+
+        Tick(world, 2);
+
+        RayHit[] hits = aim.AnswersTo(1);
+        hits.Select(h => h.Entity).Should().Equal(inCrossed, inGround);
+        ShouldBeAt(hits[0], inCrossed, new Double3(139.5, 0, 0), -Vector3.UnitX, 139.5);
+        ShouldBeAt(hits[1], inGround, new Double3(199.5, 0, 0), -Vector3.UnitX, 199.5);
+    }
+
+    [Fact]
+    public void ARayCrossesIntoAChildFrameWhenTheWorldHasMoreFramesThanTheFirstTableOfContentScalesHolds()
+    {
+        // The runner keeps the content scale of each frame in a table of 16 entries, by the frame's slot, and grows it
+        // when a frame past the end is looked at. The ray looks at every child of the ground, so it reaches the frames
+        // that come after the 16th while it walks. These frames lie far above the ray, and the child comes after them.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        for (int i = 0; i < 20; i++)
+            Bubble(world, ground, new Double3(0, 1000 + 100 * i, 0), 10);
+        FrameHandle child = TurnedChildFrame(world, ground);
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 200, default, Tag: 1));
+        Spawn(world, ground, Double3.Zero, null, aim);
+        Entity inside = Spawn(world, child, new Double3(0, 0, 5), StaticBox());
+
+        Tick(world, 2);
+
+        child.Index.Should().BeGreaterThan(16, "the child must come after the 16th frame for this test to mean anything");
+        ShouldBeAt(aim.AnswersTo(1).Single(), inside, new Double3(104.5, 0, 0), -Vector3.UnitX, 104.5);
+        world.Errors.Should().BeEmpty();
     }
 
     [Fact]
