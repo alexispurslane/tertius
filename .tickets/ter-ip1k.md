@@ -1,6 +1,6 @@
 ---
 id: ter-ip1k
-status: open
+status: closed
 deps: []
 links: [ter-s02r]
 created: 2026-10-16T13:45:02Z

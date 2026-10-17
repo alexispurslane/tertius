@@ -23,3 +23,7 @@ Every allocation test measures per call or per tick, or warms up past the runtim
 **2026-10-17T00:20:12Z**
 
 2026-10-16: EventQueryTests.NoQueryAllocates failed once in a full Debug run of Simulation during ter-gd22, and passed alone and in later runs. Another exact-zero allocation test that flakes.
+
+**2026-10-17T01:30:01Z**
+
+2026-10-17: ContactAllocationTests.StepsWithManyPersistingContactsAndAPendingPairAllocateNothingOnAnyThread (ter-pnco) fails under tools/coverage/run.sh in Debug and in Release, and passes without coverage (558 and 559 Physics tests, 0 failed). It counts bytes on every thread, and the coverage instrumentation allocates on Jolt's worker threads when they first run managed code. Read a failure of this test under coverage as a tool artifact, or make the test detect the coverage collector.
