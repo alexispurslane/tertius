@@ -255,6 +255,10 @@ public class NumericFrameRulesTests
         ["a thrust leave speed that is not a number"] = (Options with { ThrustLeaveSpeed = double.NaN }, nameof(NumericFrameOptions.ThrustLeaveSpeed)),
         ["a negative minimum thrust acceleration"] = (Options with { MinThrustAcceleration = -1e-9 }, nameof(NumericFrameOptions.MinThrustAcceleration)),
         ["a negative thrust onset"] = (Options with { ThrustOnset = -0.1 }, nameof(NumericFrameOptions.ThrustOnset)),
+        // With an onset of zero, the thrust clock says that every body thrusts, also one with no intents.
+        ["a thrust onset of zero"] = (Options with { ThrustOnset = 0 }, nameof(NumericFrameOptions.ThrustOnset)),
+        // With a minimum of zero, every tick is a thrust tick, also a tick without intents, so every body thrusts after the onset.
+        ["a minimum thrust acceleration of zero"] = (Options with { MinThrustAcceleration = 0 }, nameof(NumericFrameOptions.MinThrustAcceleration)),
         ["a thrust window of zero"] = (Options with { ThrustWindow = 0 }, nameof(NumericFrameOptions.ThrustWindow)),
         ["a thrust window that is not a number"] = (Options with { ThrustWindow = double.NaN }, nameof(NumericFrameOptions.ThrustWindow)),
     };

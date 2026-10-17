@@ -398,9 +398,13 @@ public partial class NumericFrameOrbitTests
     public void AGroupThatLinksAKeplerHullAndAStaticRockLivesInTheRocksHomeAndKeepsAGhostOfTheHull()
     {
         var withLog = new CollisionLog();
+        var withoutLog = new CollisionLog();
         using World world = NewWorld(numericFrames: true, threads: 1, out FaultInjectingBackend faults);
+        using World plain = NewWorld(numericFrames: false, threads: 1, out _);
         HullScene scene = HullAndRock(world, withLog);
+        HullScene other = HullAndRock(plain, withoutLog);
         world.Tick();
+        plain.Tick();
         FrameHandle orbit = world.PhysicsHomeOf(scene.Hull);
         world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting, "the hull's orbit lies beyond the resting distance");
         FrameHandle rockHome = world.PhysicsHomeOf(scene.Rock);
@@ -408,16 +412,26 @@ public partial class NumericFrameOrbitTests
         world.PhysicsHomeOf(scene.Pod).Should().Be(rockHome, "the group of the hull, the rock and the pod lives in the rock's home");
         world.Frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(scene.Hull, rockHome));
         Tick(world, 1);
+        Tick(plain, 1);
         faults.Jolt.HasGhostIn(scene.Hull, rockHome).Should().BeTrue();
 
+        // The ghost pushes the pod while the pod lives in the rock's home, and the hull itself pushes it again once it
+        // joins the orbit frame. So the two worlds tick together and are compared at every tick, not only at the end.
+        // The differences are between the two pods' velocities in space, in m/s, and their places in space, in meters.
+        double largestVelocityDifference = 0, largestPlaceDifference = 0;
         var homes = new List<string> { "rock" };
         for (int tick = 0; tick < 400; tick++)
         {
             world.Tick();
+            plain.Tick();
             FrameHandle home = world.PhysicsHomeOf(scene.Pod);
             string kind = home == rockHome ? "rock" : home == orbit ? "orbit" : world.Frames.Numeric(home).ToString();
             if (homes[^1] != kind)
                 homes.Add(kind);
+            largestVelocityDifference = Math.Max(largestVelocityDifference,
+                (world.VelocityIn(scene.Pod, scene.Space) - plain.VelocityIn(other.Pod, other.Space)).Length);
+            largestPlaceDifference = Math.Max(largestPlaceDifference,
+                (world.PoseIn(scene.Pod, scene.Space).Position - plain.PoseIn(other.Pod, other.Space).Position).Length);
         }
         homes.Should().Equal(["rock", "orbit"], "the pod flies with the hull after the hit, and joins its orbit frame");
         world.PhysicsHomeOf(scene.Rock).Should().Be(rockHome, "the rock keeps its resting frame");
@@ -426,17 +440,15 @@ public partial class NumericFrameOrbitTests
         world.Errors.Should().BeEmpty();
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
 
-        var withoutLog = new CollisionLog();
-        using World plain = NewWorld(numericFrames: false, threads: 1, out _);
-        HullScene other = HullAndRock(plain, withoutLog);
-        Tick(plain, 402);
         withLog.Seen.Select(s => (s.Tick, s.Other.Index)).Should().Equal(withoutLog.Seen.Select(s => (s.Tick, s.Other.Index)),
             "the ghost hits the pod as the hull does without numeric frames");
         withLog.Seen.Should().NotBeEmpty();
         // A ghost moves with the chord of its body's last step, so during the push it lags the hull by one step of the
-        // orbit's pull of 0.4 mm/s², 7 µm/s, and the pod leaves the hit that much slower.
-        (world.VelocityIn(scene.Pod, scene.Space) - plain.VelocityIn(other.Pod, other.Space)).Length.Should().BeLessThan(0.02);
-        (world.PoseIn(scene.Pod, scene.Space).Position - plain.PoseIn(other.Pod, other.Space).Position).Length.Should().BeLessThan(0.1);
+        // orbit's pull of 0.4 mm/s², about 7 µm/s, and the pod leaves the hit about that much slower. A run measured at
+        // most 10.4 µm/s of velocity and 19.8 µm of place between the two pods. The bounds are about three times those, so
+        // a ghost that lags more, for example one that pushes 1.5 cm/s slower, fails them.
+        largestVelocityDifference.Should().BeLessThan(3e-5, "the ghost pushes the pod as the hull does, but for its lag");
+        largestPlaceDifference.Should().BeLessThan(6e-5, "the ghost pushes the pod to the same place, but for its lag");
     }
 
     // ---- Driver changes ------------------------------------------------------------------------------------------

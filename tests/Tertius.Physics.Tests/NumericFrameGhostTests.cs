@@ -238,7 +238,8 @@ public class NumericFrameGhostTests
     /// A ghost follows the chord of its real body: Jolt's velocity over the last step, which is also the velocity that the
     /// World reports. In uniform gravity of 9.81 m/s² along -Y, the ship's falling frame accelerates, so its instant
     /// velocity at the end of a step is half a step of gravity, about 0.08 m/s, faster than its chord. The test reads the
-    /// ghost 3 ticks after the warm-up, when the ship's hull has fallen in its numeric frame for 3 ticks.
+    /// ghost 3 ticks after the warm-up. The ship's hull gets its falling frame at the sync point of the first of them, so
+    /// it has fallen in its numeric frame for the 2 steps after it.
     /// </summary>
     [Theory]
     [InlineData(true)]

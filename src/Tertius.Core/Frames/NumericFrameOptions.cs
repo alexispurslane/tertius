@@ -99,8 +99,6 @@ internal sealed record NumericFrameOptions
         Check(LeaveSpeed, nameof(LeaveSpeed));
         Check(ThrustCreateSpeed, nameof(ThrustCreateSpeed));
         Check(ThrustLeaveSpeed, nameof(ThrustLeaveSpeed));
-        Check(MinThrustAcceleration, nameof(MinThrustAcceleration));
-        Check(ThrustOnset, nameof(ThrustOnset));
         Check(CreateDistance, nameof(CreateDistance));
         Check(LeaveDistance, nameof(LeaveDistance));
         Check(LookaheadTime, nameof(LookaheadTime));
@@ -111,6 +109,13 @@ internal sealed record NumericFrameOptions
         Check(NestDistance, nameof(NestDistance));
         if (!(ThrustWindow > 0))
             throw new ArgumentOutOfRangeException(nameof(ThrustWindow), ThrustWindow, "The thrust window must be longer than zero.");
+        // At zero, the thrust clock counts every body as one that thrusts, also a body without intents.
+        if (!(MinThrustAcceleration > 0))
+            throw new ArgumentOutOfRangeException(nameof(MinThrustAcceleration), MinThrustAcceleration,
+                "The minimum thrust acceleration must be more than zero, or every tick is a thrust tick.");
+        if (!(ThrustOnset > 0))
+            throw new ArgumentOutOfRangeException(nameof(ThrustOnset), ThrustOnset,
+                "The thrust onset must be longer than zero, or every body thrusts.");
         if (!(NestGrid > 0) || double.IsInfinity(NestGrid) || Math.ScaleB(1, Math.ILogB(NestGrid)) != NestGrid)
             throw new ArgumentOutOfRangeException(nameof(NestGrid), NestGrid, "The grid of nesting frames must be a power of two meters.");
         // A frame lands within 0.87 grid steps of its nest, which must be inside half the nest distance.
