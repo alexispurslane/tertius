@@ -14,10 +14,18 @@ public class WorldFacingFrameTests
     private const double PlanetMu = 5e9;
     private static readonly KeplerOrbit Facing = KeplerOrbit.Circular(5000) with { Attitude = KeplerAttitude.FacesParent };
 
-    private static (World World, JoltPhysicsBackend Backend, FrameHandle Planet, Entity Owner) Station()
+    /// <summary>
+    /// The G·M of a heavier planet, in m³/s², round which the station of <see cref="Station"/> moves at 2 km/s, twice the
+    /// 1 km/s from which a hull on rails nearer than 8,389 km to its frame's origin gets an orbit frame of its own (see
+    /// <see cref="NumericFrameOptions.CreateSpeed"/>). Round <see cref="PlanetMu"/> it moves at exactly that 1 km/s.
+    /// </summary>
+    private const double HeavyPlanetMu = 2e10;
+
+    /// <summary>A planet with a G·M of <paramref name="mu"/> m³/s², and the station's owner on <see cref="Facing"/> round it.</summary>
+    private static (World World, JoltPhysicsBackend Backend, FrameHandle Planet, Entity Owner) Station(double mu = PlanetMu)
     {
         World world = NewWorld(out JoltPhysicsBackend backend);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(mu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
@@ -80,14 +88,14 @@ public class WorldFacingFrameTests
     }
 
     /// <summary>
-    /// The station's hull moves at about 1 km/s on its orbit, so it rests in an orbit frame of its own (ter-dhkf,
-    /// docs/plans/numeric-frames.md, "Anchors", rule 3), which never rotates, and the hull turns there with the frame.
-    /// Before rule 3, the hull lived in the planet's own system.
+    /// Round a heavier planet (see <see cref="HeavyPlanetMu"/>), the station's hull moves at 2 km/s on its orbit, so it rests
+    /// in an orbit frame of its own (ter-dhkf, docs/plans/numeric-frames.md, "Anchors", rule 3), which never rotates, and
+    /// the hull turns there with the frame, at 0.4 rad/s. Before rule 3, the hull lived in the planet's own system.
     /// </summary>
     [Fact]
     public void TheStationsHullTurnsWithTheFrameInTheOrbitFrameWhereItRests()
     {
-        (World world, JoltPhysicsBackend backend, FrameHandle planet, Entity owner) = Station();
+        (World world, JoltPhysicsBackend backend, FrameHandle planet, Entity owner) = Station(HeavyPlanetMu);
         using (world)
         {
             Tick(world, 600);

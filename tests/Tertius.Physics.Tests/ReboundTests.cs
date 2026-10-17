@@ -282,12 +282,14 @@ public class ReboundTests
 
     /// <summary>
     /// Numeric frames are an engine detail, so the rule keeps or removes a bounce as it does without them. A ball of
-    /// restitution 0.5 skims a long floor at 60 m/s under 1 g. With numeric frames the merge test links the ball to the
-    /// floor, an anchor, so the ball joins the floor's system, where it lands on the real floor (ter-dhkf). After a fall of
-    /// 10 steps the ball lands at about 1.7 m/s. Its bounce of 0.5 × (1.7 − 0.16) m/s = 0.78 m/s would rise 3.1 cm under
-    /// the pull of 1 g, so it does not bounce, with numeric frames or without. After a fall of 30 steps it lands at 5 m/s
-    /// and bounces 30 cm and then 7 cm, both ways. Before ter-dhkf, the ball fell in a frame of its own, where the floor's
-    /// ghost came up at it through the ghost pass, and the rule had to read the real pull of 1 g, not Jolt's pull there.
+    /// restitution 0.5 skims a floor 3 km long at 1,200 m/s under 1 g, 20 m per step, fast enough for a falling frame of its
+    /// own under the default rules, as a twin of it with the same velocity, 5 km to the side of the floor, shows. With
+    /// numeric frames the merge test links the ball to the floor, an anchor, so the ball stays in the floor's system, where
+    /// it lands on the real floor (ter-dhkf). After a fall of 10 steps the ball lands at about 1.7 m/s. Its bounce of
+    /// 0.5 × (1.7 − 0.16) m/s = 0.78 m/s would rise 3.1 cm under the pull of 1 g, so it does not bounce, with numeric frames
+    /// or without. After a fall of 30 steps it lands at 5 m/s and bounces 30 cm and then 7 cm, both ways. Before ter-dhkf,
+    /// the ball fell in a frame of its own, where the floor's ghost came up at it through the ghost pass, and the rule had to
+    /// read the real pull of 1 g, not Jolt's pull there.
     /// </summary>
     [Theory]
     [InlineData(true, 10, 1)]
@@ -302,21 +304,22 @@ public class ReboundTests
         Entity floor = world.Spawn(new SpawnDesc
         {
             Frame = ground,
-            Pose = At(900, -0.5),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1000, 0.5f, 10)), BodyMotion.Static),
+            Pose = At(1_400, -0.5),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1_500, 0.5f, 10)), BodyMotion.Static),
             Components = [floorLog],
         });
         var ballLog = new CollisionLog();
         double fall = 0.5 * G * Math.Pow(fallSteps * world.DeltaTime, 2);
+        var skim = new Vector3(1_200, 0, 0);
+        var ballBody = new BodyDesc(new SphereShapeDesc(Radius), Mass: 1, Restitution: 0.5f, LinearDamping: 0, AngularDamping: 0);
         Entity ball = world.Spawn(new SpawnDesc
         {
-            Frame = ground,
-            Pose = At(0, Radius + fall + 0.01),
-            LinearVelocity = new Vector3(60, 0, 0),
-            Body = new BodyDesc(new SphereShapeDesc(Radius), Mass: 1, Restitution: 0.5f, LinearDamping: 0, AngularDamping: 0),
-            Components = [ballLog],
+            Frame = ground, Pose = At(0, Radius + fall + 0.01), LinearVelocity = skim, Body = ballBody, Components = [ballLog],
         });
+        Entity twin = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, Radius + fall + 0.01, 5_000), LinearVelocity = skim, Body = ballBody });
         Tick(world, 2);
+        world.Frames.Numeric(world.PhysicsHomeOf(twin)).Should().Be(numericFrames ? NumericMode.Falling : NumericMode.None,
+            "the twin of the ball, which no anchor links, falls in a numeric frame of its own, when there are numeric frames");
         world.PhysicsHomeOf(ball).Should().Be(ground, "the ball joins the home of the floor, with numeric frames or without");
 
         Tick(world, fallSteps + 90);
