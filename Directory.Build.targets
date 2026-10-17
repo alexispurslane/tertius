@@ -25,4 +25,20 @@
     <None Include="$(_JoltcDir)libjoltc_double.so" Condition="Exists('$(_JoltcDir)libjoltc_double.so')"
           Link="libjoltc_double.so" CopyToOutputDirectory="Always" Visible="false" />
   </ItemGroup>
+
+  <!--
+    Projects that set UsesVulkan=true get the Vulkan loader copied next to their output, under the names that Silk.NET
+    tries, so that it loads without DYLD_FALLBACK_LIBRARY_PATH. macOS removes DYLD_* variables in /usr/bin/env and in
+    apps with the hardened runtime, such as Rider. The dev shell sets TERTIUS_VULKAN_DIR. Without it, nothing is copied,
+    and the loader must be on the library search path. The loader still finds MoltenVK through VK_ICD_FILENAMES, which
+    is not a DYLD_* variable.
+  -->
+  <ItemGroup Condition="'$(UsesVulkan)' == 'true' And '$(TERTIUS_VULKAN_DIR)' != '' And Exists('$(TERTIUS_VULKAN_DIR)')">
+    <None Include="$(TERTIUS_VULKAN_DIR)/libvulkan.1.dylib" Condition="Exists('$(TERTIUS_VULKAN_DIR)/libvulkan.1.dylib')"
+          Link="libvulkan.1.dylib" CopyToOutputDirectory="Always" Visible="false" />
+    <None Include="$(TERTIUS_VULKAN_DIR)/libvulkan.1.dylib" Condition="Exists('$(TERTIUS_VULKAN_DIR)/libvulkan.1.dylib')"
+          Link="libvulkan.dylib" CopyToOutputDirectory="Always" Visible="false" />
+    <None Include="$(TERTIUS_VULKAN_DIR)/libvulkan.so.1" Condition="Exists('$(TERTIUS_VULKAN_DIR)/libvulkan.so.1')"
+          Link="libvulkan.so.1" CopyToOutputDirectory="Always" Visible="false" />
+  </ItemGroup>
 </Project>

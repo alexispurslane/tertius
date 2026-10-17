@@ -1,8 +1,26 @@
-# Test tools
+# Tools
 
-These helpers run code coverage and Stryker.NET mutation testing on the lines that a branch changed. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
+These helpers start JetBrains Rider inside the dev shell, and run code coverage and Stryker.NET mutation testing on the lines that a branch changed. For the rules on which helper to run, read the Testing section of CLAUDE.md. The scripts are tool code: they never ship, so they skip polish.
 
-Run every command in the dev shell, from the repository root. Start the shell scripts with `bash`, as below. If you start one through its `#!` line, macOS removes the `DYLD_*` variables, and the GPU tests cannot find `libvulkan`. The scripts stop with a message in that case. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
+Run every command in the dev shell, from the repository root. The build copies the Jolt library and the Vulkan loader next to each output, so the tests need no `DYLD_*` variable. Outside the dev shell, the GPU tests cannot find `libvulkan`, and the scripts stop with a message. Write the output to a folder outside the repository, for example `/tmp/tertius-coverage`.
+
+## JetBrains Rider
+
+Rider must use the dev shell's .NET SDK and variables. If you open the project from the Dock, Rider uses an SDK of its own and cannot find the Jolt library or Vulkan. `tools/rider.sh` starts Rider inside the dev shell. It also keeps `.nix/dotnet-sdk`, a stable link to the dev shell's SDK. The link is also a root for the Nix garbage collector, so the SDK stays in the store.
+
+1. Quit Rider. A running Rider opens the folder with its own variables, and the script stops with a message.
+2. Start Rider from the repository root:
+
+   ```bash
+   bash tools/rider.sh
+   ```
+
+3. Do this step once. In Rider, open Settings > Build, Execution, Deployment > Toolset and Build. Set ".NET CLI executable path" to `.nix/dotnet-sdk/share/dotnet/dotnet` in the repository, as an absolute path. Then set "MSBuild version" to the MSBuild of that SDK.
+4. Do this step once. In Settings > Build, Execution, Deployment > Unit Testing, turn on the support for Microsoft.Testing.Platform. The test projects use it (see `global.json`).
+
+Start Rider with the script every time. When the flake changes the SDK, the script moves the link, and the setting of step 3 stays correct.
+
+The build copies the Jolt library and the Vulkan loader next to each output, from `TERTIUS_JOLTC_DIR` and `TERTIUS_VULKAN_DIR`. macOS removes `DYLD_*` variables from Rider, because Rider has the hardened runtime, so a test that Rider starts never sees `DYLD_FALLBACK_LIBRARY_PATH`. The loader finds MoltenVK through `VK_ICD_FILENAMES`, which Rider keeps.
 
 ## Coverage on changed lines
 

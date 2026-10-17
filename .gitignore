@@ -18,3 +18,9 @@ result
 
 # Bytecode from the Python helpers in tools/.
 __pycache__/
+
+# The stable link to the dev shell SDK that tools/rider.sh keeps for Rider, and its log.
+/.nix/
+
+# Rider's own project files.
+/.idea/

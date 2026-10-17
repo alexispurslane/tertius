@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
-
+    <UsesVulkan>true</UsesVulkan>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Tertius.Rendering/Tertius.Rendering.csproj" />
