@@ -265,6 +265,91 @@ public class WorldRayCastTests
     }
 
     [Fact]
+    public void ARayFromTheParentHitsABodyOfAChildFrameThatLiesJustOutsideTheChildsBubble()
+    {
+        // A static box of the turned child, 21 m along the child's -Z: (79, 0, 0) in the ground. Its near face, at x = 78.5,
+        // is 1.5 m outside the bubble, which starts at x = 80. A static body never leaves its frame and has no ghost, so
+        // only the child's system holds it.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        FrameHandle child = TurnedChildFrame(world, ground);
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 200, default, Tag: 1));
+        Spawn(world, ground, Double3.Zero, null, aim);
+        Entity outside = Spawn(world, child, new Double3(0, 0, -21), StaticBox());
+
+        Tick(world, 2);
+
+        ShouldBeAt(aim.AnswersTo(1).Single(), outside, new Double3(78.5, 0, 0), -Vector3.UnitX, 78.5);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CastRayAllReportsABodyOfAChildFrameThatStraddlesTheBubbleOnceAtItsNearFace()
+    {
+        // A static box with faces 1 m from its center, 20 m along the child's -Z: (80, 0, 0) in the ground, across the edge
+        // of the bubble. Its near face is at x = 79, outside the bubble, and a ray that starts inside a box hits it at once.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        FrameHandle child = TurnedChildFrame(world, ground);
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 200, default, Tag: 1, All: true));
+        Spawn(world, ground, Double3.Zero, null, aim);
+        Entity straddler = Spawn(world, child, new Double3(0, 0, -20), StaticBox(1));
+        Entity inside = Spawn(world, child, new Double3(0, 0, 5), StaticBox());
+
+        Tick(world, 2);
+
+        RayHit[] hits = aim.AnswersTo(1);
+        hits.Select(h => h.Entity).Should().Equal(straddler, inside);
+        ShouldBeAt(hits[0], straddler, new Double3(79, 0, 0), -Vector3.UnitX, 79);
+    }
+
+    [Fact]
+    public void AMovingBodyThatStraddlesTheBubbleIsInBothSystemsAndCastRayAllReportsItOnce()
+    {
+        // A cube at rest across the edge of the child's bubble, with no gravity: the child's system holds it, and from the
+        // first step on the ground's system holds its ghost.
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle ground = Ground(world, 0);
+        FrameHandle child = TurnedChildFrame(world, ground);
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 200, default, Tag: 1, All: true, OnTick: 2));
+        Spawn(world, ground, Double3.Zero, null, aim);
+        Entity cube = Spawn(world, child, new Double3(0, 0, -20), Cube());
+
+        Tick(world, 4);
+
+        world.Snapshot.FrameOf(cube).Should().Be(child);
+        backend.BodiesIn(ground).Should().Contain(f => BodyUserData.Kind(f.UserData) == BodyKind.Ghost && BodyUserData.Names(f.UserData, cube),
+            "the ground must hold a ghost of the cube for this test to mean anything");
+        RayHit hit = aim.AnswersTo(1).Should().ContainSingle().Subject;
+        ShouldBeAt(hit, cube, new Double3(79.5, 0, 0), -Vector3.UnitX, 79.5);
+    }
+
+    [Fact]
+    public void ARayFromAFrameHitsABodyOfASiblingFrameThatLiesInsideTheBubbleTheRayStartsIn()
+    {
+        // Two frames side by side in the ground: the asker's at (100, 0, 0), with its bubble from x = 80 to x = 120, and a
+        // sibling at (150, 0, 0). The sibling's static box at (-35, 0, 0) in the sibling is (115, 0, 0) in the ground,
+        // inside the asker's bubble, and its near face is 14.5 m from the asker.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        FrameHandle home = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = ground, Pose = At(100), AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+        }));
+        FrameHandle sibling = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = ground, Pose = At(150), AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+        }));
+        var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 100, default, Tag: 1));
+        Spawn(world, home, Double3.Zero, null, aim);
+        Entity box = Spawn(world, sibling, new Double3(-35, 0, 0), StaticBox());
+
+        Tick(world, 2);
+
+        ShouldBeAt(aim.AnswersTo(1).Single(), box, new Double3(14.5, 0, 0), -Vector3.UnitX, 14.5);
+    }
+
+    [Fact]
     public void ARayThatLeavesTheBubbleOfItsFrameHitsABodyInTheParentFrameInTheAxesOfTheAsker()
     {
         using World world = NewWorld(out _);

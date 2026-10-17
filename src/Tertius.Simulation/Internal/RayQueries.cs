@@ -15,8 +15,9 @@ namespace Tertius.Simulation;
 /// </para>
 /// <list type="bullet">
 /// <item>F gets the whole ray.</item>
-/// <item>A child frame gets the part of its parent's range that lies in its bubble. Its own interior and contents exist
-/// only in its own system.</item>
+/// <item>A child frame gets the part of the ray that lies in its content: its bubble, grown to hold every body of its
+/// members (see <see cref="ContentOf"/>). Its own interior and contents exist only in its own system, which holds a moving
+/// body until it is past the hand-off margin outside the bubble, and a static body wherever it is.</item>
 /// <item>The parent of a frame that the ray started in, or came up from, gets the rest of the range after the ray leaves
 /// that frame's bubble, so its cast never starts inside that frame's hull. The parent does not go back down into it.</item>
 /// </list>
@@ -53,6 +54,12 @@ internal sealed class RayQueries
     private readonly RefList<Visit> visits = new(8);
     private readonly RefList<FrameLink> links = new(16);
 
+    /// <summary>The content scale of each frame, by frame slot, and the sync point that worked it out: see <see cref="ContentOf"/>.</summary>
+    private (int Stamp, double Scale)[] contentScales = new (int, double)[16];
+
+    /// <summary>Counts the sync points that ran requests, so that a content scale of an earlier one is never read as current.</summary>
+    private int syncStamp;
+
     private static readonly Comparison<Hit> ByDistanceThenEntity = static (a, b) =>
         a.Distance != b.Distance ? a.Distance.CompareTo(b.Distance) : a.Entity.CompareTo(b.Entity);
 
@@ -81,6 +88,7 @@ internal sealed class RayQueries
                 if (!linked)
                 {
                     LinkFrames();
+                    syncStamp++;
                     linked = true;
                 }
                 try
@@ -137,7 +145,7 @@ internal sealed class RayQueries
             Visit visit = visits[visits.Count - 1];
             visits.Truncate(visits.Count - 1);
             // The nearest hit so far ends every later part of the ray that would only find farther ones.
-            double end = nearest && hits.Count > 0 ? Math.Min(visit.End, hits[0].Distance) : visit.End;
+            double end = Math.Min(visit.End, Reach(request, nearest));
             if (visit.Start > end)
                 continue;
 
@@ -145,6 +153,7 @@ internal sealed class RayQueries
             Double3 origin = toVisit.TransformPoint(request.From), direction = toVisit.Rotation.Rotate(request.Direction);
             Cast(visit.Frame, origin, direction, visit.Start, end, toVisit.Rotation, request.Kind);
 
+            double reach = Reach(request, nearest);
             foreach (ref readonly FrameLink link in links.AsSpan())
             {
                 if (link.Parent != visit.Frame || link.Child == visit.CameFrom)
@@ -157,9 +166,11 @@ internal sealed class RayQueries
                     Cast(link.Child, childOrigin, childDirection, visit.Start, end, toChild.Rotation, request.Kind);
                     continue;
                 }
-                if (!frames.Bounds(link.Child).TryIntersectLine(childOrigin, childDirection, out double entry, out double exit))
+                // A child's system can hold a body anywhere in its content, and the ray meets it there wherever the ray
+                // came from, so only the ray itself bounds the part.
+                if (!ContentOf(link.Child).TryIntersectLine(childOrigin, childDirection, out double entry, out double exit))
                     continue;
-                double start = Math.Max(visit.Start, entry), stop = Math.Min(end, exit);
+                double start = Math.Max(0, entry), stop = Math.Min(reach, exit);
                 if (start < stop)
                     visits.Add(new Visit(link.Child, start, stop, visit.Frame, GoesUp: false));
             }
@@ -176,6 +187,39 @@ internal sealed class RayQueries
             }
         }
         hits.AsSpan().Sort(ByDistanceThenEntity);
+    }
+
+    /// <summary>The farthest distance along the ray at which a hit can still count: the nearest hit so far, or the end of the ray.</summary>
+    private double Reach(in RayRequest request, bool nearest) =>
+        nearest && hits.Count > 0 ? Math.Min(request.Length, hits[0].Distance) : request.Length;
+
+    /// <summary>
+    /// The content of <paramref name="frame"/>: its bubble, grown until it holds the bounding sphere of every body of the
+    /// frame's members, which the frame's system or one of its numeric frames holds. A moving body leaves a frame only past
+    /// the hand-off margin, and a static body never leaves it, so a body can lie anywhere outside the bubble. Each frame's
+    /// content is worked out once per sync point, from the snapshot, which matches Jolt after the swap.
+    /// </summary>
+    /// <remarks>
+    /// The content is the bubble scaled by a factor k of at least 1. A body with its origin at p and a bounding radius r fits
+    /// in the bubble scaled by |p / radii| + r / (smallest radius): p lies on the bubble scaled by |p / radii|, and scaling an
+    /// ellipsoid by one more unit of s / (smallest radius) moves its surface out by at least s in every direction.
+    /// </remarks>
+    private FrameBounds ContentOf(FrameHandle frame)
+    {
+        FrameBounds bubble = frames.Bounds(frame);
+        if (frame.Index >= contentScales.Length)
+            Array.Resize(ref contentScales, Math.Max(frame.Index + 1, 2 * contentScales.Length));
+        ref (int Stamp, double Scale) known = ref contentScales[frame.Index];
+        if (known.Stamp != syncStamp)
+        {
+            var radii = (Double3)bubble.Radii;
+            double smallest = bubble.MinRadius, scale = 1;
+            foreach (Entity member in world.FrameMembers(frame))
+                if (entities.Body(member) is not null)
+                    scale = Math.Max(scale, (entities.FrontRow(member).Pose.Position / radii).Length + entities.BodyBoundingRadius(member) / smallest);
+            known = (syncStamp, scale);
+        }
+        return new FrameBounds(bubble.Radii * (float)known.Scale);
     }
 
     /// <summary>
