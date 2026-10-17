@@ -5,12 +5,6 @@ namespace Tertius.Physics;
 
 public sealed partial class JoltPhysicsBackend
 {
-    private static readonly ExtendedUpdateSettings ZeroGravityUpdate = new()
-    {
-        StickToFloorStepDown = Vector3.Zero,
-        WalkStairsStepUp = Vector3.Zero,
-    };
-
     // Bodies that a kinematic target moved in the current and the previous step.
     private List<BodyRecord> kinematicMovers = new();
     private List<BodyRecord> kinematicMoversLast = new();
@@ -67,8 +61,10 @@ public sealed partial class JoltPhysicsBackend
                 continue;
             if (record.Character is not null)
                 ApplyCharacterIntent(record, intent);
+            else if (record.IsCharacter)
+                ApplyRigidCharacterIntent(record, intent);
             else if (record.Motion != BodyMotion.Static)
-                ApplyBodyIntent(record, intent);
+                ApplyBodyIntent(record, intent, intent.Flags);
         }
 
         // A body that a target moved last step stops at the target, unless it got a new target or velocity.
@@ -124,11 +120,14 @@ public sealed partial class JoltPhysicsBackend
         world.WakeAround(body);
     }
 
-    private void ApplyBodyIntent(BodyRecord record, in PhysicsIntent intent)
+    /// <summary>
+    /// Applies the intent of a rigid body, with the flags <paramref name="flags"/>, which are those of the intent or a part
+    /// of them. Impulses and forces act on a dynamic body whatever the flags say.
+    /// </summary>
+    private void ApplyBodyIntent(BodyRecord record, in PhysicsIntent intent, IntentFlags flags)
     {
         BodyInterface bodies = record.World!.Bodies;
         BodyID id = record.Body;
-        IntentFlags flags = intent.Flags;
 
         // Teleport first, so that a kinematic target in the same intent moves the body on from the new pose. Jolt does not
         // simulate the jump, so the bodies around the old place wake. Jolt wakes those that the body touches at the new place.
@@ -188,6 +187,20 @@ public sealed partial class JoltPhysicsBackend
         }
     }
 
+    /// <summary>
+    /// Applies the intent of a character in its rigid form, a dynamic body that cannot turn. A teleport, a velocity that the
+    /// game sets, impulses and forces act on it as on any dynamic body. A walk and a jump do not move it, the same as in the
+    /// walking form while it does not stand: physics keeps the desired velocity of the walk, which applies once the
+    /// character stands, and drops the jump. A kinematic target does nothing to a character, and the rigid form cannot turn,
+    /// so an angular velocity, an angular impulse and a torque change nothing either.
+    /// </summary>
+    private void ApplyRigidCharacterIntent(BodyRecord record, in PhysicsIntent intent)
+    {
+        if ((intent.Flags & IntentFlags.CharacterMove) != 0)
+            record.DesiredVelocity = intent.CharacterVelocity;
+        ApplyBodyIntent(record, intent, intent.Flags & (IntentFlags.Teleport | IntentFlags.SetVelocity));
+    }
+
     private void ApplyCharacterIntent(BodyRecord record, in PhysicsIntent intent)
     {
         CharacterVirtual character = record.Character!;
@@ -214,8 +227,7 @@ public sealed partial class JoltPhysicsBackend
             record.DesiredVelocity = intent.CharacterVelocity;
         if ((flags & IntentFlags.Jump) != 0)
             record.PendingJump = MathF.Max(record.PendingJump, intent.JumpSpeed);
-        float mass = record.Desc.Mass > 0 ? record.Desc.Mass : 1f;
-        record.PendingVelocityChange += (intent.Impulse + intent.Force * stepDt) / mass;
+        record.PendingVelocityChange += (intent.Impulse + intent.Force * stepDt) / CharacterMass(record.Desc);
     }
 
     // ---- From the semantic frame to the physics home ----
@@ -343,7 +355,7 @@ public sealed partial class JoltPhysicsBackend
         Vector3 gravity = frames.EffectiveGravity(frame, center.ToDouble3());
         record.GravityApplied = gravity;
         if (gravity != Vector3.Zero)
-            body.AddForce(gravity * record.Desc.Mass);
+            body.AddForce(gravity * record.Material.Mass);
         return gravity.Length();
     }
 
@@ -379,12 +391,13 @@ public sealed partial class JoltPhysicsBackend
 
     // ---- Characters ----
 
+    /// <summary>Moves every character in the walking form. Jolt moves a character in the rigid form in the update of its system.</summary>
     private void UpdateCharacters()
     {
         foreach (FrameWorld world in worldList)
         {
             world.ClearCharacterContacts();
-            if (world.CharacterCount == 0)
+            if (world.WalkingCharacterCount == 0)
                 continue;
             foreach (BodyRecord member in world.Members)
             {
@@ -397,18 +410,23 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// Moves one character, and records in <see cref="BodyRecord.Standing"/> whether it stood. The character stands
-    /// when the effective gravity is at least <see cref="FrameTree.ZeroGravityThreshold"/>, Jolt found walkable ground
-    /// under it in its last update, and it does not move away from that ground. Then it takes the ground's velocity
-    /// plus the part of its desired velocity across its up, and can jump. A character that does not stand, in the air,
-    /// on steep ground or weightless, keeps its momentum, and its desired velocity and its jump do not move it. (User)
-    /// The record keeps the desired velocity, which applies once the character stands. Gravity changes the velocity of
-    /// a character that does not stand, and of one that jumps, because the ground holds a standing character against
-    /// it. Forces and impulses change the velocity of every character. After the update, a character that did not stand
-    /// loses its motion into what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Under gravity, up turns against the gravity whenever
-    /// the character touched anything in its last update, also with its side or its head, so a character that landed
-    /// tilted turns upright and can stand. A character in free fall that touches nothing keeps its last up. Returns the
-    /// velocity that the character moved with in the update.
+    /// Moves one character in the walking form, and records in <see cref="BodyRecord.Standing"/> whether it stood. A
+    /// character in the rigid form is a dynamic body, which Jolt moves in the update of its system (see
+    /// <see cref="NextCharacterMotion"/>), so a walking character nearly always has the gravity to stand. The character
+    /// stands when the effective gravity is at least <see cref="FrameTree.ZeroGravityThreshold"/>, Jolt found walkable
+    /// ground under it in its last update, and it does not move away from that ground. Then it takes the ground's velocity
+    /// plus the part of its desired velocity across its up, and can jump, and Jolt's ExtendedUpdate moves it, which sticks
+    /// it to the floor and climbs stairs. A character that does not stand, in the air or on steep ground, keeps its
+    /// momentum, and its desired velocity and its jump do not move it. (User) The record keeps the desired velocity, which
+    /// applies once the character stands. Jolt's plain Update moves it: ExtendedUpdate would first cancel its velocity
+    /// into each steep surface that it touched (see the Jolt pitfalls in project memory), which held it back from a body
+    /// that gives way, and its stick to the floor pulled it down when it lost a touch. Gravity changes the velocity of a
+    /// character that does not stand, and of one that jumps, because the ground holds a standing character against it.
+    /// Forces and impulses change the velocity of every character. After the update, a character that did not stand loses
+    /// its motion into what it hit, as <see cref="WithoutMotionIntoContacts"/> says. Under gravity, up turns against the
+    /// gravity whenever the character touched anything in its last update, also with its side or its head, so a character
+    /// that landed tilted turns upright and can stand. A character in free fall that touches nothing keeps its last up.
+    /// Returns the velocity that the character moved with in the update.
     /// </summary>
     private Vector3 UpdateCharacter(FrameWorld world, BodyRecord record, CharacterVirtual character)
     {
@@ -486,10 +504,19 @@ public sealed partial class JoltPhysicsBackend
 
         // Jolt reads the system gravity to press the character's weight onto what it stands on.
         world.System.Gravity = gravity;
-        ExtendedUpdateSettings settings = underGravity
-            ? new ExtendedUpdateSettings { StickToFloorStepDown = -0.5f * up, WalkStairsStepUp = 0.4f * up }
-            : ZeroGravityUpdate;
-        character.ExtendedUpdate(dt, settings, PrimaryLayer(record), world.System);
+        if (standing)
+        {
+            // A standing character sticks to the floor and climbs stairs.
+            character.ExtendedUpdate(dt, new ExtendedUpdateSettings { StickToFloorStepDown = -0.5f * up, WalkStairsStepUp = 0.4f * up },
+                PrimaryLayer(record), world.System);
+        }
+        else
+        {
+            // ExtendedUpdate starts by cancelling the velocity into each steep surface that the character touched in its
+            // last update, which held it back from a body that gives way, and its stick to the floor pulled a character in
+            // the air that lost a touch down by up to half a meter. A character that does not stand gets neither.
+            character.Update(dt, PrimaryLayer(record), world.System);
+        }
         world.System.Gravity = Vector3.Zero;
         if (!standing)
         {
@@ -513,8 +540,9 @@ public sealed partial class JoltPhysicsBackend
     /// <paramref name="velocity"/> less its part into each static or kinematic surface that <paramref name="character"/>
     /// hit in its last update, relative to the velocity of that surface. So a kinematic wall that moves into the
     /// character gives it the wall's velocity along the normal. A dynamic body is skipped: the character keeps its
-    /// momentum against it and pushes it. Jolt pushes a character out of a surface that it sank into by moving it, so
-    /// the push adds no velocity here.
+    /// momentum against it and pushes it, with Jolt's capped push, which takes no reaction from the character (ticket
+    /// ter-w7cw). Only a walking character in the air under gravity does that now, because a weightless character is
+    /// rigid. Jolt pushes a character out of a surface that it sank into by moving it, so the push adds no velocity here.
     /// </summary>
     private static Vector3 WithoutMotionIntoContacts(CharacterVirtual character, Vector3 velocity)
     {
@@ -542,7 +570,7 @@ public sealed partial class JoltPhysicsBackend
     {
         foreach (FrameWorld world in worldList)
         {
-            if (world.CharacterCount == 0 && world.System.GetNumActiveBodies(BodyType.Rigid) == 0)
+            if (world.WalkingCharacterCount == 0 && world.System.GetNumActiveBodies(BodyType.Rigid) == 0)
                 continue;
             PhysicsUpdateError error = world.Update(stepDt, jobs);
             if (error != PhysicsUpdateError.None && !world.ReportedOverflow)

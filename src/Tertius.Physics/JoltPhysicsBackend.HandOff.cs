@@ -262,9 +262,9 @@ public sealed partial class JoltPhysicsBackend
     private void ExecuteHandOff(in HandOffPlan plan, PhysicsStepOutput output)
     {
         BodyRecord record = plan.Record;
-        if (record.Character is not null)
+        if (record.IsCharacter)
         {
-            // A character's input state is in frame axes. Turn it with the axes.
+            // A character's input state is in frame axes, in both forms. Turn it with the axes.
             record.Up = plan.Turn.Rotate(record.Up);
             record.DesiredVelocity = plan.Turn.Rotate(record.DesiredVelocity);
             record.PendingVelocityChange = plan.Turn.Rotate(record.PendingVelocityChange);
@@ -274,7 +274,8 @@ public sealed partial class JoltPhysicsBackend
         RemoveGhostIn(record, target);
         RemovePrimary(record);
         // A character that stood in this step takes its up from the new frame's gravity. One that did not stand falls
-        // freely, so nothing turns it: it keeps its up and its rotation, turned into the new frame's axes.
+        // freely, so nothing turns it: it keeps its up and its rotation, turned into the new frame's axes. A character
+        // keeps its form, which the next step changes if the new frame's gravity asks for the other one.
         CreatePrimary(record, plan.To, plan.Pose, plan.LinearVelocity, plan.AngularVelocity, upFromGravity: record.Standing);
         DPose pose = plan.Pose;
         if (record.Character is { } character)
@@ -689,7 +690,8 @@ public sealed partial class JoltPhysicsBackend
     // ---- Output ----
 
     /// <summary>
-    /// Reports every awake dynamic or kinematic body and every character, and the state of every character. A body that
+    /// Reports every awake dynamic or kinematic body and every character in either form, also one in the rigid form that
+    /// sleeps, and the state of every character. A body that
     /// fell asleep during the step gets one more report, so that the simulation sees its resting pose and zero
     /// velocity. Every body in a falling numeric frame, apart from a hull, reports in every step, because its place in its
     /// semantic frame changes while it sleeps. The hand-offs of the step are done, so a character that a hand-off moved reports from its new frame,
@@ -712,12 +714,17 @@ public sealed partial class JoltPhysicsBackend
                     continue;
                 Report(world, record, output, track: true);
             }
-            foreach (BodyRecord member in world.Members)
+            // A character reports in every step. The loop above reported a character in the rigid form while it is awake.
+            if (world.CharacterCount > 0)
             {
-                if (member.Character is null)
-                    continue;
-                Report(world, member, output, track: true);
-                output.Characters.Add(new CharacterState(member.Entity, member.Standing));
+                foreach (BodyRecord member in world.Members)
+                {
+                    if (!member.IsCharacter)
+                        continue;
+                    if (member.ReportedStep != stepIndex)
+                        Report(world, member, output, track: true);
+                    output.Characters.Add(new CharacterState(member.Entity, member.Standing));
+                }
             }
             foreach (BodyRecord record in world.ReportedLast)
                 if (record.ReportedStep != stepIndex && record.World == world && Find(record.Entity) == record)

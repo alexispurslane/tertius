@@ -81,9 +81,10 @@ internal sealed class FrameWorld : IDisposable
     private bool updatedSinceDrain;
     // The length of the last update, in seconds, by which a contact's approach speed closes its gap (see Touches).
     private float updateDeltaTime;
-    // The inner bodies of this system's characters, and each pair of an inner body with a body that the character's own
-    // contact list holds, from the characters' last update. Jolt never simulates an inner body, and the character keeps a
-    // gap from what it touches as wide as Jolt's speculative contact distance, so for these pairs the character decides.
+    // The inner bodies of this system's characters in the walking form, and each pair of an inner body with a body that the
+    // character's own contact list holds, from the characters' last update. Jolt never simulates an inner body, and the
+    // character keeps a gap from what it touches as wide as Jolt's speculative contact distance, so for these pairs the
+    // character decides. A character in the rigid form is a dynamic body, whose pairs Jolt finds as it finds any others.
     private readonly HashSet<uint> characterBodies = new();
     private readonly HashSet<ulong> characterTouches = new();
     // Each body that a character hit in its last update, as a contact of its inner body. For the same reason, Jolt can miss
@@ -123,7 +124,15 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>Records whose primary body or character lives in this system.</summary>
     public List<BodyRecord> Members { get; } = new();
 
-    public int CharacterCount { get; set; }
+    /// <summary>The number of members that are characters, in either form. <see cref="AddMember"/> and <see cref="RemoveMember"/> keep it.</summary>
+    public int CharacterCount { get; private set; }
+
+    /// <summary>
+    /// The number of members that are characters in the walking form, each with a Jolt CharacterVirtual in this system. The
+    /// backend keeps it where it creates and disposes those characters. Such a character moves in its own update, so the
+    /// system updates in every step while it has one.
+    /// </summary>
+    public int WalkingCharacterCount { get; set; }
 
     /// <summary>Set after the first update that overflowed a Jolt limit, so the warning appears once.</summary>
     public bool ReportedOverflow { get; set; }
@@ -151,6 +160,8 @@ internal sealed class FrameWorld : IDisposable
     {
         record.MemberIndex = Members.Count;
         Members.Add(record);
+        if (record.IsCharacter)
+            CharacterCount++;
     }
 
     public void RemoveMember(BodyRecord record)
@@ -162,6 +173,8 @@ internal sealed class FrameWorld : IDisposable
         moved.MemberIndex = index;
         Members.RemoveAt(last);
         record.MemberIndex = -1;
+        if (record.IsCharacter)
+            CharacterCount--;
     }
 
     // The ghosts in this system: copies of bodies whose own system is another frame's (see GhostBody). It holds the body of
@@ -450,10 +463,11 @@ internal sealed class FrameWorld : IDisposable
     }
 
     /// <summary>
-    /// True when a held pair has ended. A pair with the inner body of a character ends when the character's contact list no
-    /// longer has the other body. Any other pair ends when the last update simulated one of its bodies and Jolt did not find
-    /// the pair: Jolt finds the contacts of every body that it simulates, also of one that woke during the update, while
-    /// two bodies that Jolt did not simulate did not move apart.
+    /// True when a held pair has ended. A pair with the inner body of a character in its walking form ends when the
+    /// character's contact list no longer has the other body. Any other pair, also one of a character in its rigid form,
+    /// ends when the last update simulated one of its bodies and Jolt did not find the pair: Jolt finds the contacts of
+    /// every body that it simulates, also of one that woke during the update, while two bodies that Jolt did not simulate
+    /// did not move apart.
     /// </summary>
     private bool HeldPairEnded(ulong key)
     {

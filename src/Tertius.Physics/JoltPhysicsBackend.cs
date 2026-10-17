@@ -180,9 +180,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>
     /// Runs one physics step for every frame with awake bodies or characters: puts every frame hull where the frame tree
     /// says, with the motion of its frame's driver, which drops the hand-offs of the last step that the simulation refused
-    /// and follows changes to the tree that no change batch announced, then applies intents, drives kinematic frame
-    /// hulls, applies gravity, moves characters, updates every system, then reports contacts, hands bodies between frames,
-    /// updates ghosts and writes body, character and frame states to <paramref name="output"/>.
+    /// and follows changes to the tree that no change batch announced, then gives every character the form that the
+    /// gravity at it asks for, applies intents, drives kinematic frame hulls, applies gravity, moves the characters in the
+    /// walking form, updates every system, then reports contacts, hands bodies between frames, updates ghosts and writes
+    /// body, character and frame states to <paramref name="output"/>.
     /// </summary>
     /// <remarks>
     /// <para>Intents, in the entity's frame axes. The intent of a frame's owner acts on the frame's hull.</para>
@@ -206,18 +207,25 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// that ground. Then only the part of the desired velocity across the up direction counts. A character that does
     /// not stand, in the air, on steep ground or weightless, in any frame and any gravity, keeps its momentum, and
     /// gravity changes it. (User) CharacterMove and Jump do not move it, but physics keeps the desired velocity, which
-    /// applies once the character stands. It loses its motion into each static or kinematic surface that it hits. Under
-    /// gravity, its up turns against the gravity whenever it touches anything, so a character that lands on its side or
-    /// its head turns upright, and a character in free fall that touches nothing does not turn.
-    /// Impulses and forces change a character's velocity by their mass. KinematicTarget does nothing to a
-    /// character.</item>
+    /// applies once the character stands. Impulses and forces change a character's velocity by their mass.
+    /// KinematicTarget does nothing to a character.</item>
+    /// <item>A character has two forms (see <see cref="NextCharacterMotion"/>). Below the threshold it is weightless, and
+    /// physics makes it a rigid body with its rotation locked, the rigid form, whose contacts Jolt solves as it solves
+    /// those of any rigid body: it pushes a dynamic body as hard as its momentum says, takes the reaction, and slides on a
+    /// surface with friction. It keeps its up and its rotation. From twice the threshold on it is a Jolt character again,
+    /// the walking form. A walking character that does not stand loses its motion into each static or kinematic surface
+    /// that it hits. Under gravity, the walking form's up turns against the gravity whenever it touches anything, so a
+    /// character that lands on its side or its head turns upright, and a character in free fall that touches nothing does
+    /// not turn. A switch of form keeps the character's pose, velocity, up and contacts.</item>
     /// </list>
     /// <para>
     /// Outputs: <see cref="PhysicsStepOutput.Bodies"/> holds every awake dynamic or kinematic body and every
-    /// character, plus one last report for a body that fell asleep. Velocities are at the center of mass, and each is
-    /// Jolt's: the chord of the last step, its displacement divided by the step, which is the velocity half a step earlier.
-    /// <see cref="PhysicsStepOutput.Characters"/> holds every character once, after the hand-offs, with whether physics
-    /// stood it in this step. A character that a hand-off moved has not stood in its new frame yet.
+    /// character in either form, also one in the rigid form that sleeps, plus one last report for a body that fell asleep.
+    /// Velocities are at the center of mass, and each is Jolt's: the chord of the last step, its displacement divided by
+    /// the step, which is the velocity half a step earlier. Both forms of a character store that chord.
+    /// <see cref="PhysicsStepOutput.Characters"/> holds every character once, in either form, after the hand-offs, with
+    /// whether physics stood it in this step. A character that a hand-off moved has not stood in its new frame yet, and a
+    /// character in the rigid form never stands.
     /// <see cref="PhysicsStepOutput.HandOffs"/> holds each body that moved to another frame, with its pose there. For a
     /// character that is the rotation that it got in its new frame, which a turn to the new gravity can change.
     /// <see cref="PhysicsStepOutput.Frames"/> holds every physics-driven frame with a hull, relative to its parent
@@ -234,7 +242,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// systems through ghosts.
     /// <see cref="PhysicsStepOutput.ContactsEnded"/> holds each contact that started and then ended, once, in entity
     /// order, when the last system drops it. A system drops a body pair when Jolt no longer finds it in a step that
-    /// simulates one of its bodies (for a character, its own contact list no longer has the other body), or when one of
+    /// simulates one of its bodies (for a character in the walking form, its own contact list no longer has the other
+    /// body), or when one of
     /// its bodies was destroyed or left the system, a ghost too. A body pair that leaves goes on in every system that
     /// holds a body of each entity that can touch the other one there, after the hand-offs and the ghosts of the step. So
     /// a contact goes on when two touching bodies move to another system together, by a hand-off or a move between
@@ -265,6 +274,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // the hand-offs of the last step, and it can also have changed the tree on its own, for example to dock a ship.
             ReconcileFrames();
             RefreshFrameStructure();
+            // Before the intents and the gravity, which act on the form that a character has for the whole step, and before
+            // the spawn velocities, which a spawned character that turns rigid needs as chords too.
+            SwitchCharacterForms();
             // Before the hull velocities, so that a new hull's accelerometer starts from its chord.
             ConvertSpawnVelocities();
             CaptureHullVelocities();
@@ -376,6 +388,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>The native character of <paramref name="entity"/>, or null when it has none. Tests check that the backend frees it.</summary>
     internal CharacterVirtual? CharacterOf(Entity entity) => Find(entity)?.Character;
+
+    /// <summary>
+    /// True when <paramref name="entity"/> is a character in its rigid form: its body is a dynamic Jolt body, not a Jolt
+    /// character. Tests check which form a character has.
+    /// </summary>
+    internal bool HasRigidForm(Entity entity) => Find(entity) is { Desc.Motion: BodyMotion.Character, Character: null, HasPrimary: true };
 
     /// <summary>The physics system of <paramref name="frame"/>, or null when the frame has none. Tests check that the backend frees it.</summary>
     internal PhysicsSystem? SystemOf(FrameHandle frame) => ExistingWorld(frame)?.System;
@@ -586,6 +604,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>Every record that must have a body has one. A plain body or a character is a member of the system of its
     /// frame. The owner of a frame has its interior in the frame's own system, and it is in the list of frame
     /// owners.</item>
+    /// <item>A character has one of its two forms (see <see cref="NextCharacterMotion"/>): the walking form, a Jolt
+    /// character, or the rigid form, a dynamic Jolt body that cannot turn and does not stand. No other record has a Jolt
+    /// character. Each system counts its members that are characters, and those in the walking form.</item>
     /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
     /// and the owner of a root frame has no hull.</item>
     /// <item>Every frame owner follows its frame's driver: the record has the frame's driver version and driver, and the
@@ -612,7 +633,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     {
         Contract.Invariant(parentOverrides.Count == 0);
         foreach (FrameWorld world in worldList)
+        {
             Contract.Invariant(frames.IsAlive(world.Frame) && ExistingWorld(world.Frame) == world);
+            AssertCharacterCounts(world);
+        }
         int hulls = 0;
         int recordGhosts = 0;
         int staticBodyGhosts = 0;
@@ -621,6 +645,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             if (record is null)
                 continue;
             Contract.Invariant(Find(record.Entity) == record);
+            AssertFormInvariants(record);
             if (record.IsHull)
             {
                 hulls++;
