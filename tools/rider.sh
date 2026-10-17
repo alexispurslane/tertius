@@ -7,11 +7,12 @@
 # Tool code: it never ships.
 #
 # Usage, from anywhere: bash tools/rider.sh
-# Set RIDER to the app bundle when Rider is not in /Applications, for example RIDER=~/Applications/Rider.app.
+# It starts Rider EAP by default, because the stable Rider 2026.2 does not understand C# 15 unions and marks every
+# pattern match on a union as an error. Set RIDER to start another Rider, for example RIDER=/Applications/Rider.app.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-rider="${RIDER:-/Applications/Rider.app}/Contents/MacOS/rider"
+rider="${RIDER:-/Applications/Rider EAP.app}/Contents/MacOS/rider"
 
 if [[ ! -x "$rider" ]]; then
   echo "Rider is not at $rider. Set RIDER to the Rider app bundle." >&2
