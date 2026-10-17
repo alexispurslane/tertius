@@ -208,23 +208,65 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Queues a ray cast of the running entity for this tick's sync point, in the frame that the entity is in. See
-    /// <see cref="PhysicsQueries"/> for the arguments and the answer.
+    /// Queues a ray cast or a shape cast of the running entity for this tick's sync point, in the frame that the entity is
+    /// in. A ray passes the default shape and a start pose with the identity rotation. See <see cref="PhysicsQueries"/> for
+    /// the arguments and the answer.
     /// </summary>
-    internal void RequestRay(ChunkState chunk, Entity entity, Double3 from, Double3 direction, double length, in EntityQuery query, int tag,
-        RayCastKind kind)
+    internal void RequestCast(ChunkState chunk, Entity entity, PhysicsRequestKind kind, in QueryShape shape, in DPose start, Double3 direction,
+        double length, in EntityQuery query, int tag)
+    {
+        bool ray = kind is PhysicsRequestKind.Ray or PhysicsRequestKind.RayAll;
+        string what = ray ? "A ray" : "A shape cast";
+        FrameHandle frame = QueryFrame(entity, ray ? "cast a ray" : "cast a shape");
+        DPose pose = ray ? CheckedOrigin(start.Position) : CheckedPose(shape, start, what, nameof(start));
+        double size = direction.Length;
+        if (!(size > 0) || !double.IsFinite(size))
+            throw new ArgumentException($"{what} needs a finite direction that is not zero, not {direction}.", nameof(direction));
+        if (!(length > 0) || !double.IsFinite(length))
+            throw new ArgumentOutOfRangeException(nameof(length), length, $"{what} needs a finite length of more than 0 m.");
+        chunk.PhysicsRequests.Add(new PhysicsRequest(entity, frame, kind, shape, pose, direction / size, length, query, tag));
+    }
+
+    /// <summary>
+    /// Queues an overlap query of the running entity for this tick's sync point, in the frame that the entity is in. See
+    /// <see cref="PhysicsQueries.Overlap"/> for the arguments and the answer.
+    /// </summary>
+    internal void RequestOverlap(ChunkState chunk, Entity entity, in QueryShape shape, in DPose pose, in EntityQuery query, int tag)
+    {
+        FrameHandle frame = QueryFrame(entity, "test an overlap");
+        DPose checkedPose = CheckedPose(shape, pose, "An overlap query", nameof(pose));
+        chunk.PhysicsRequests.Add(new PhysicsRequest(entity, frame, PhysicsRequestKind.Overlap, shape, checkedPose, Double3.Zero, 0, query, tag));
+    }
+
+    /// <summary>The frame that a query of <paramref name="entity"/> works in: the frame the entity is in.</summary>
+    private FrameHandle QueryFrame(Entity entity, string toDo)
     {
         FrameHandle frame = entities.FrontRow(entity).Frame;
         if (frame.IsNull)
-            throw new InvalidOperationException($"{entity} owns a root frame and is in no frame, so it has no frame to cast a ray in.");
+            throw new InvalidOperationException($"{entity} owns a root frame and is in no frame, so it has no frame to {toDo} in.");
+        return frame;
+    }
+
+    private static DPose CheckedOrigin(Double3 from)
+    {
         if (!double.IsFinite(from.X) || !double.IsFinite(from.Y) || !double.IsFinite(from.Z))
             throw new ArgumentException($"A ray needs a finite origin, not {from}.", nameof(from));
-        double size = direction.Length;
-        if (!(size > 0) || !double.IsFinite(size))
-            throw new ArgumentException($"A ray needs a finite direction that is not zero, not {direction}.", nameof(direction));
-        if (!(length > 0) || !double.IsFinite(length))
-            throw new ArgumentOutOfRangeException(nameof(length), length, "A ray needs a finite length of more than 0 m.");
-        chunk.RayRequests.Add(new RayRequest(entity, frame, from, direction / size, length, query, tag, kind));
+        return new DPose(from, DQuaternion.Identity);
+    }
+
+    /// <summary>The pose of a shape query with a unit rotation, after the checks of its shape and pose.</summary>
+    private static DPose CheckedPose(in QueryShape shape, in DPose pose, string what, string parameter)
+    {
+        if (shape.Problem() is { } problem)
+            throw new ArgumentException($"{what} needs a sphere, a box or a capsule of a usable size, and its shape {problem}.", nameof(shape));
+        Double3 p = pose.Position;
+        DQuaternion q = pose.Rotation;
+        if (!double.IsFinite(p.X) || !double.IsFinite(p.Y) || !double.IsFinite(p.Z))
+            throw new ArgumentException($"{what} needs a finite position, not {p}.", parameter);
+        double rotationSize = q.LengthSquared;
+        if (!(rotationSize > 0) || !double.IsFinite(rotationSize))
+            throw new ArgumentException($"{what} needs a finite rotation that is not zero, not {q}.", parameter);
+        return new DPose(p, q.Normalized());
     }
 
     /// <summary>

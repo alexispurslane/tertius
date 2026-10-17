@@ -599,6 +599,28 @@ public interface IPhysicsBackend : IDisposable
     void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end, IPhysicsQueryFilter filter,
         RayCastKind kind, List<RayCastHit> hits);
 
+    /// <summary>
+    /// Moves <paramref name="shape"/>, turned by the rotation of <paramref name="start"/>, in the physics system of
+    /// <paramref name="frame"/> alone, in that frame's coordinates: from <paramref name="start"/>'s position +
+    /// <paramref name="direction"/> · <paramref name="startDistance"/> to that position + <paramref name="direction"/> ·
+    /// <paramref name="endDistance"/>, where <paramref name="direction"/> is a unit vector. It adds to
+    /// <paramref name="hits"/> the first hit whose entity <paramref name="filter"/> accepts, if any, with its distance from
+    /// <paramref name="start"/>. Any body of an entity can be hit, as for <see cref="CastRay"/>. A shape that overlaps a
+    /// convex body where its part of the cast starts hits it there. It ignores the back faces of a mesh, so a shape that
+    /// starts inside a mesh passes out of it. It runs at the sync point, never during a step.
+    /// </summary>
+    void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction, double startDistance, double endDistance,
+        IPhysicsQueryFilter filter, List<ShapeCastHit> hits);
+
+    /// <summary>
+    /// Adds to <paramref name="entities"/> the entity of each body in the physics system of <paramref name="frame"/> alone
+    /// that overlaps <paramref name="shape"/> at <paramref name="pose"/>, in that frame's coordinates, and that
+    /// <paramref name="filter"/> accepts, in no fixed order. An entity whose bodies or parts overlap the shape more than
+    /// once can be added more than once. A convex body is solid, and a mesh counts only where the shape meets the front of
+    /// a triangle. It runs at the sync point, never during a step.
+    /// </summary>
+    void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter, List<Entity> entities);
+
     /// <summary>The radius of the bounding sphere of a shape. Used for hand-off and rendering.</summary>
     float BoundingRadius(ShapeDesc shape);
 

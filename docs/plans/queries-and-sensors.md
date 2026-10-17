@@ -186,10 +186,36 @@ The tag is an `int`, so a component names its tags as constants, for example `st
 The kinds of query:
 
 - `CastRay` gives the nearest hit. `CastRayAll` gives every hit, by distance.
-- A shape cast moves a sphere, a box or a capsule along a direction, and gives the first hit.
-- An overlap test gives every body that overlaps a sphere, a box or a capsule.
+- `CastShape` moves a sphere, a box or a capsule from a start pose along a direction, without turning it, and gives the first hit as a `ShapeHit`.
+- `Overlap` gives every entity whose body overlaps a sphere, a box or a capsule at a pose, as one `OverlapHit` each.
 
-Results come in a fixed order: by distance, then by entity index. A query works in the asker's frame and crosses frame bubbles. It tests the bubble, casts again in the other frame's axes, maps the hits back, and merges them by distance, with one hit per entity. Numeric frames stay hidden: a query names only semantic frames, and its answer is in the asker's frame. A ray that starts inside a mesh hull passes through it, because Jolt ignores back faces. "Cast as a group", which also tests each body's own mask, waits until a feature needs it (User). Tickets: `ter-juuk`, `ter-3euw`.
+```csharp
+static readonly QueryShape Blast = QueryShape.Sphere(5);
+// Tick N: ask. The pose and the direction are in self.Frame.
+self.Physics.CastShape(QueryShape.Capsule(0.5f, 0.3f), start, direction, 20, Targets, ShapeTag.Path);
+self.Physics.Overlap(Blast, new DPose(center, DQuaternion.Identity), Targets, ShapeTag.Blast);
+// Tick N+1: one ShapeHit for the cast, and one OverlapHit for each entity in the blast.
+foreach (ref OverlapHit hit in events.Of<OverlapHit>())
+    if (hit.Tag == ShapeTag.Blast && hit.IsHit)
+        outbox.Send(hit.Entity, new Burn());
+```
+
+where
+
+- `QueryShape` = a sphere, a box or a capsule, as a value, so that a request allocates nothing. Its center is at the pose's position, and its axes are the pose's axes.
+- `start`, `direction`, `20` = the shape's start pose, the direction of its move, and the length of the move, in meters.
+- `ShapeHit` = the answer to a cast: the entity hit, the point where the shape touched it, the surface normal there, how far the shape moved before it touched, and the tag. A shape that overlaps a body at its start touches it at a distance of 0.
+- `OverlapHit` = one answer to an overlap: an entity and the tag. An overlap that finds nothing answers once, with no entity.
+
+Results come in a fixed order: by distance, then by entity index, and an overlap's by entity index. A convex body is solid, so a ray or a shape that starts inside one hits it at once, even moving away from it. A mesh counts only from the front of its triangles, so a ray or a shape that starts inside a mesh hull passes out of it. A query box has sharp edges. The backend keeps a native shape for each query shape that components ask with, by value, up to 64, and frees them all when a new one would pass that.
+
+A query works in the asker's frame and crosses frame bubbles, but numeric frames stay hidden: a query names only semantic frames, and its answer is in the asker's frame. A cast is a line from its start, and an overlap is the point at its shape's center. A shape reaches its bounding radius from that line or point, and a ray reaches 0. Each frame's system gets the part of the line where the query can meet its bodies:
+
+- The asker's frame gets the whole line.
+- A child frame gets the part within reach of its content. The content is the bubble, grown until it holds the bounding sphere of every body of the frame's members, because a moving body leaves a frame only past the hand-off margin, and a static body never leaves it. The sync point works out each frame's content once, from the snapshot. Only the line bounds the part, so a sibling's body inside the bubble that a query starts in is found too (ticket `ter-hcwx`).
+- The parent gets the rest of the line from where the query first reaches out of the bubble of the frame it came from. For a ray that is where it leaves the bubble, and for a shape where the shape first sticks out of it. The parent's system holds the hull of that frame around the query, so the parent's query skips that hull. A query that starts inside a frame meets the frame's interior instead, never its hull.
+
+Each part is queried in its frame's axes, and the hits are mapped back and merged, with the nearest hit of each entity. A query that starts inside a bubble does not meet the static bodies of the parent that lie inside that bubble: a known limit, which no feature has met yet. "Cast as a group", which also tests each body's own mask, waits until a feature needs it (User). Tickets: `ter-juuk`, `ter-3euw`, `ter-hcwx`.
 
 ## Contacts
 

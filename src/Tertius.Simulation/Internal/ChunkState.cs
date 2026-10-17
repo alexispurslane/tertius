@@ -44,8 +44,8 @@ internal sealed class ChunkState(int index)
     /// <summary>The types of the components that this chunk's entities added this tick, for their class constructors.</summary>
     public readonly List<Type> AddedComponentTypes = new();
     public readonly List<ChunkMessage> Messages = new();
-    /// <summary>The ray casts that this chunk's entities asked for, in the order they asked. The sync point runs them.</summary>
-    public readonly RefList<RayRequest> RayRequests = new(4);
+    /// <summary>The physics queries that this chunk's entities asked for, in the order they asked. The sync point runs them.</summary>
+    public readonly RefList<PhysicsRequest> PhysicsRequests = new(4);
 
     /// <summary>Empties the lists of this tick. The router empties the outbox and the delayed list itself.</summary>
     public void EndTick()
@@ -56,6 +56,6 @@ internal sealed class ChunkState(int index)
         ComponentChanges.Clear();
         AddedComponentTypes.Clear();
         Messages.Clear();
-        RayRequests.Clear();
+        PhysicsRequests.Clear();
     }
 }

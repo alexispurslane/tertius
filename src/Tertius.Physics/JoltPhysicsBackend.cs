@@ -331,6 +331,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             Array.Clear(records);
             frameOwners.Clear();
             queryBodyFilter?.Dispose();
+            queryShapes.Dispose();
             shapes.Dispose();
             jobs.Dispose();
         }
