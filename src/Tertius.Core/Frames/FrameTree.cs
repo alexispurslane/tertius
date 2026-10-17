@@ -41,7 +41,9 @@ namespace Tertius;
 /// <see cref="LeaveOrbit"/>), and a frame that moves to another parent drops the pairs of its bubble that no longer hold
 /// (see <see cref="Reparent"/>). Every leave clock (see <see cref="NumericFrameRules.LeaveClock"/>)
 /// is at least zero and names a body of the last update that is not an anchor, needs a frame by itself and stays in its
-/// semantic frame's own system, so no clock outlives its body's place in the input.</item>
+/// semantic frame's own system, so no clock outlives its body's place in the input. Every thrust clock (see
+/// <see cref="NumericFrameRules.ThrustClock"/>) names a body of the last update that is not static, with a thrust time above
+/// zero and a quiet time from zero to below <see cref="NumericFrameOptions.ThrustWindow"/>.</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -541,6 +543,20 @@ public sealed partial class FrameTree
             Contract.Invariant(IsAlive(ghost.Bubble) && !IsNumeric(ghost.Bubble) && IsAlive(ghost.Frame));
             Contract.Invariant(Numeric(ghost.Frame) is NumericMode.Falling or NumericMode.Resting or NumericMode.Orbiting);
             Contract.Invariant(SemanticOf(ghost.Frame) == Parent(ghost.Bubble) && ghost.Frame != TreeParent(ghost.Bubble));
+        }
+        if (thrustClocks.Count > 0)
+        {
+            // Only a body that is not static has a thrust clock. A frame owner has two bodies, its interior, which is static,
+            // and its hull.
+            var moving = new HashSet<Entity>();
+            foreach (NumericBody body in sortedBodies)
+                if (!body.Static)
+                    moving.Add(body.Entity);
+            foreach ((Entity entity, (double thrustTime, double quietTime)) in thrustClocks)
+            {
+                Contract.Invariant(moving.Contains(entity));
+                Contract.Invariant(thrustTime > 0 && quietTime >= 0 && quietTime < NumericOptions.ThrustWindow);
+            }
         }
         if (leaveClocks.Count == 0)
             return;

@@ -72,6 +72,25 @@ internal readonly record struct NumericBody
     /// </summary>
     public bool Sensor { get; init; }
 
+    /// <summary>A character, which always thrusts (see <see cref="Thrusts"/>): the game can walk it on any tick, and a walk is a thrust.</summary>
+    public bool Character { get; init; }
+
+    /// <summary>
+    /// The acceleration in m/s² that the force and impulse intents of the entity ask of the body in the step after the sync
+    /// point: (|force| + |impulse| / step) / mass. Gravity is no intent, and a torque does not move the body, so neither
+    /// counts. Zero for a body that physics gives no force, which is any body that is neither dynamic nor a character, and
+    /// for the interior of a frame owner. Its thrust clock reads it (see <see cref="NumericFrameRules.ThrustClock"/>).
+    /// </summary>
+    public double ThrustAcceleration { get; init; }
+
+    /// <summary>
+    /// The body thrusts, so its group gets a falling frame from the lower speeds of
+    /// <see cref="NumericFrameOptions.ThrustCreateSpeed"/> and <see cref="NumericFrameOptions.ThrustLeaveSpeed"/>: it is a
+    /// <see cref="Character"/>, or its thrust clock says so (see <see cref="NumericFrameRules.ThrustClock"/>). The update fills
+    /// it in, as it fills <see cref="HomeMode"/>, so the World leaves it unset.
+    /// </summary>
+    public bool Thrusts { get; init; }
+
     /// <summary>The frame that the entity owns, or null. A move puts that frame under the body's new home.</summary>
     public FrameHandle OwnedFrame { get; init; }
 
@@ -101,8 +120,10 @@ internal readonly record struct NumericBody
 /// <see cref="NumericFrameRules.OrbitsInFrame"/>), or -1.</param>
 /// <param name="Orbits">True when the group takes the orbit frame of <paramref name="Orbiter"/>: no anchor of the group rests
 /// in the semantic frame.</param>
+/// <param name="Thrusts">True when a body of the group that is not an anchor thrusts (see <see cref="NumericBody.Thrusts"/>), so
+/// the group uses the speeds of a group that thrusts. A Kepler hull is an anchor, so it never counts.</param>
 internal readonly record struct NumericGroup(Double3 Velocity, Double3 Center, bool Anchored, bool Fixed, FrameHandle Frame, double FrameMass,
-    int Orbiter = -1, bool Orbits = false);
+    int Orbiter = -1, bool Orbits = false, bool Thrusts = false);
 
 /// <summary>
 /// The decisions of the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and
@@ -115,18 +136,23 @@ internal static class NumericFrameRules
     /// The mode that a group's frame gets, or <see cref="NumericMode.None"/> for the semantic frame's own system.
     /// <paramref name="current"/> is the mode of the group's frame now, or None when it has none: an orbit frame counts as
     /// a falling one. A group leaves a numeric frame only below the lower thresholds, and a resting frame starts to fall
-    /// only at the speed to get a falling frame. A fixed group never gets a frame, and an anchored group never falls.
+    /// only at the speed to get a falling frame. A group that <paramref name="thrusts"/> uses the speeds of
+    /// <see cref="NumericFrameOptions.ThrustCreateSpeed"/> and <see cref="NumericFrameOptions.ThrustLeaveSpeed"/>, and any
+    /// other group those of <see cref="NumericFrameOptions.CreateSpeed"/> and <see cref="NumericFrameOptions.LeaveSpeed"/>.
+    /// A fixed group never gets a frame, and an anchored group never falls.
     /// </summary>
     internal static NumericMode Mode(NumericMode current, Double3 velocity, Double3 center, bool anchored, bool isFixed,
-        NumericFrameOptions options)
+        bool thrusts, NumericFrameOptions options)
     {
         if (isFixed)
             return NumericMode.None;
         double speed = velocity.Length, distance = center.Length;
-        bool fast = !anchored && speed >= options.CreateSpeed;
+        double createSpeed = thrusts ? options.ThrustCreateSpeed : options.CreateSpeed;
+        double leaveSpeed = thrusts ? options.ThrustLeaveSpeed : options.LeaveSpeed;
+        bool fast = !anchored && speed >= createSpeed;
         return current switch
         {
-            NumericMode.Falling or NumericMode.Orbiting when !anchored && speed >= options.LeaveSpeed => NumericMode.Falling,
+            NumericMode.Falling or NumericMode.Orbiting when !anchored && speed >= leaveSpeed => NumericMode.Falling,
             NumericMode.Falling or NumericMode.Resting or NumericMode.Orbiting =>
                 fast ? NumericMode.Falling : distance >= options.LeaveDistance ? NumericMode.Resting : NumericMode.None,
             _ => fast ? NumericMode.Falling : distance >= options.CreateDistance ? NumericMode.Resting : NumericMode.None,
@@ -138,15 +164,22 @@ internal static class NumericFrameRules
     /// <see cref="NumericGroup.Orbits"/>), and else the mode of <see cref="Mode"/>.
     /// </summary>
     internal static NumericMode GroupMode(NumericMode current, in NumericGroup group, NumericFrameOptions options) =>
-        group.Orbits ? NumericMode.Orbiting : Mode(current, group.Velocity, group.Center, group.Anchored, group.Fixed, options);
+        group.Orbits ? NumericMode.Orbiting : Mode(current, group.Velocity, group.Center, group.Anchored, group.Fixed, group.Thrusts, options);
 
     /// <summary>
-    /// The mode that a body alone, outside a numeric frame, needs: None when it needs no frame. A Kepler hull that the
-    /// speed and distance rules give a frame needs an orbit frame (see <see cref="OrbitsInFrame"/>).
+    /// The mode that a body alone, outside a numeric frame, needs: None when it needs no frame. It uses the speeds of a body
+    /// that thrusts when the body does (see <see cref="NumericBody.Thrusts"/>).
     /// </summary>
-    internal static NumericMode BodyMode(in NumericBody body, NumericFrameOptions options) =>
-        !body.Orbits ? Mode(NumericMode.None, body.Velocity, body.Position, body.Static, body.Fixed, options)
-        : Mode(NumericMode.None, body.Velocity, body.Position, false, false, options) == NumericMode.None ? NumericMode.None
+    internal static NumericMode BodyMode(in NumericBody body, NumericFrameOptions options) => BodyMode(body, body.Thrusts, options);
+
+    /// <summary>
+    /// The mode that a body alone, outside a numeric frame, needs, with the speeds of a body that thrusts when
+    /// <paramref name="thrusts"/> is true: None when it needs no frame. A Kepler hull never thrusts, and when the speed and
+    /// distance rules give it a frame, it needs an orbit frame (see <see cref="OrbitsInFrame"/>).
+    /// </summary>
+    internal static NumericMode BodyMode(in NumericBody body, bool thrusts, NumericFrameOptions options) =>
+        !body.Orbits ? Mode(NumericMode.None, body.Velocity, body.Position, body.Static, body.Fixed, thrusts, options)
+        : Mode(NumericMode.None, body.Velocity, body.Position, false, false, false, options) == NumericMode.None ? NumericMode.None
         : NumericMode.Orbiting;
 
     /// <summary>
@@ -154,11 +187,12 @@ internal static class NumericFrameRules
     /// (docs/plans/numeric-frames.md, "Anchors", rule 3): when the speed and distance rules that give any body a numeric
     /// frame give one to the hull alone, by its velocity and its place in its semantic frame. A hull in a numeric frame
     /// keeps it down to the thresholds to leave one, as any group does. The orbit moves the hull, so its own motion decides,
-    /// never the group that the merge test links it to.
+    /// never the group that the merge test links it to. Its orbit moves it, so it never thrusts: it uses the speeds of free
+    /// bodies.
     /// </summary>
     internal static bool OrbitsInFrame(in NumericBody body, NumericFrameOptions options) =>
         body.Orbits && Mode(body.HomeMode == NumericMode.None ? NumericMode.None : NumericMode.Falling, body.Velocity, body.Position,
-            anchored: false, isFixed: false, options) != NumericMode.None;
+            anchored: false, isFixed: false, thrusts: false, options) != NumericMode.None;
 
     /// <summary>
     /// The pull of a point gravity of <paramref name="mu"/> m³/s² at <paramref name="position"/>, in m/s²: the acceleration
@@ -264,6 +298,34 @@ internal static class NumericFrameRules
     }
 
     /// <summary>
+    /// The thrust clock of one body over a tick of <paramref name="dt"/> seconds, whose force and impulse intents ask for
+    /// <paramref name="acceleration"/> m/s² (see <see cref="NumericBody.ThrustAcceleration"/>). <paramref name="thrustTime"/>
+    /// is the time of the thrust ticks so far and <paramref name="quietTime"/> the time since the last one, both in seconds.
+    /// A tick whose acceleration reaches <see cref="NumericFrameOptions.MinThrustAcceleration"/> is a thrust tick: it adds
+    /// <paramref name="dt"/> to the thrust time and clears the quiet time. Any other tick adds <paramref name="dt"/> to the
+    /// quiet time, and when that reaches <see cref="NumericFrameOptions.ThrustWindow"/>, the clock starts again at zero.
+    /// Thrusts is true while the thrust time is at least <see cref="NumericFrameOptions.ThrustOnset"/>. So a single impulse
+    /// never counts, pulses less than the window apart add up, and a body that thrusts keeps counting for the window after
+    /// its last thrust tick.
+    /// </summary>
+    internal static (bool Thrusts, double ThrustTime, double QuietTime) ThrustClock(double acceleration, double thrustTime, double quietTime,
+        double dt, NumericFrameOptions options)
+    {
+        if (acceleration >= options.MinThrustAcceleration)
+        {
+            thrustTime += dt;
+            quietTime = 0;
+        }
+        else
+        {
+            quietTime += dt;
+            if (quietTime >= options.ThrustWindow)
+                return (false, 0, 0);
+        }
+        return (thrustTime >= options.ThrustOnset, thrustTime, quietTime);
+    }
+
+    /// <summary>
     /// The leave clock of a body that the last update kept in its semantic frame's own system although it needs a frame by
     /// itself, over a sync point of <paramref name="dt"/> seconds. <paramref name="mode"/> is the mode that the body's group
     /// gets, and <paramref name="frame"/> the numeric frame that holds most of the group's mass, or null. The body is about
@@ -312,7 +374,7 @@ internal static class NumericFrameRules
     {
         Double3 momentum = Double3.Zero, moment = Double3.Zero, staticMoment = Double3.Zero, kinematicMomentum = Double3.Zero, kinematicMoment = Double3.Zero;
         double movingMass = 0, mass = 0, staticMass = 0, kinematicMass = 0;
-        bool anchored = false, isFixed = false;
+        bool anchored = false, isFixed = false, thrusts = false;
         int orbiter = -1;
         homeMasses.Clear();
         for (int i = 0; i < members.Length; i++)
@@ -326,6 +388,7 @@ internal static class NumericFrameRules
             }
             anchored |= body.Static;
             isFixed |= body.Fixed;
+            thrusts |= body.Thrusts && !body.Anchor;
             mass += body.Mass;
             moment += body.Position * body.Mass;
             if (body.Static)
@@ -360,7 +423,7 @@ internal static class NumericFrameRules
         {
             ref readonly NumericBody hull = ref members[orbiter];
             FrameHandle orbit = hull.HomeMode == NumericMode.Orbiting ? hull.Home : FrameHandle.Null;
-            return new NumericGroup(Double3.Zero, hull.Position, false, false, orbit, orbit.IsNull ? 0 : double.PositiveInfinity, orbiter, true);
+            return new NumericGroup(Double3.Zero, hull.Position, false, false, orbit, orbit.IsNull ? 0 : double.PositiveInfinity, orbiter, true, thrusts);
         }
         FrameHandle frame = FrameHandle.Null;
         double frameMass = 0;
@@ -372,7 +435,7 @@ internal static class NumericFrameRules
             (frame, frameMass) = (FrameHandle.Null, 0);
         Double3 velocity = anchored || movingMass == 0 ? Double3.Zero : kinematicMass > 0 ? kinematicMomentum / kinematicMass : momentum / movingMass;
         Double3 center = anchored ? staticMoment / staticMass : kinematicMass > 0 ? kinematicMoment / kinematicMass : moment / mass;
-        return new NumericGroup(velocity, center, anchored, isFixed, frame, frameMass, orbiter);
+        return new NumericGroup(velocity, center, anchored, isFixed, frame, frameMass, orbiter, Thrusts: thrusts);
     }
 
     /// <summary>

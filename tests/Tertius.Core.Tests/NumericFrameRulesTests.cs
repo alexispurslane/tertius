@@ -4,9 +4,11 @@ using static Tertius.NumericFrameRules;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The decisions of the membership and nesting rules of numeric frames, on plain data, at the starting values of
-/// <see cref="NumericFrameOptions"/>: create speed 50 m/s, leave speed 20 m/s, create distance 10 km, leave distance 5 km,
-/// lookahead 2 s, split margin 10 m, split cooldown 1 s, drain speed 1 m/s, recenter distance 1 km, nest distance 1e9 m.
+/// The decisions of the membership and nesting rules of numeric frames, on plain data, at the default values of
+/// <see cref="NumericFrameOptions"/>: create speed 1,000 m/s and leave speed 400 m/s for a group of free bodies, 50 m/s and
+/// 20 m/s for a group with a body that thrusts, create distance 2^23 m (8,388,608 m), leave distance 2^22 m, a body thrusts
+/// after 0.5 s of ticks of at least 1 mm/s per minute within a window of 20 s, lookahead 2 s, split margin 10 m, split
+/// cooldown 1 s, drain speed 1 m/s, recenter distance 1 km, nest distance 1e9 m.
 /// </summary>
 public class NumericFrameRulesTests
 {
@@ -30,76 +32,250 @@ public class NumericFrameRulesTests
 
     // ---- Mode ----------------------------------------------------------------------------------------------------
 
-    [Fact]
-    public void A_slow_near_group_needs_no_frame() =>
-        Mode(NumericMode.None, X(49.9), X(9_999), false, false, Options).Should().Be(NumericMode.None);
+    /// <summary>
+    /// The mode of a group of free bodies only, which flies at <paramref name="speed"/> m/s with its center
+    /// <paramref name="distance"/> m from the origin, both along X.
+    /// </summary>
+    private static NumericMode Free(NumericMode current, double speed, double distance, bool anchored = false, bool isFixed = false) =>
+        Mode(current, X(speed), X(distance), anchored, isFixed, thrusts: false, Options);
 
     [Fact]
-    public void A_group_at_the_create_speed_gets_a_falling_frame() =>
-        Mode(NumericMode.None, X(50), X(0), false, false, Options).Should().Be(NumericMode.Falling);
+    public void A_slow_near_group_needs_no_frame() =>
+        Free(NumericMode.None, speed: 999.9, distance: 8_388_607).Should().Be(NumericMode.None);
+
+    [Fact]
+    public void A_group_of_free_bodies_gets_a_falling_frame_only_at_the_create_speed()
+    {
+        Free(NumericMode.None, speed: 999, distance: 0).Should().Be(NumericMode.None);
+        Free(NumericMode.None, speed: 1_000, distance: 0).Should().Be(NumericMode.Falling);
+    }
 
     [Fact]
     public void A_group_at_the_create_distance_gets_a_resting_frame() =>
-        Mode(NumericMode.None, X(0), X(10_000), false, false, Options).Should().Be(NumericMode.Resting);
+        Free(NumericMode.None, speed: 0, distance: 8_388_608).Should().Be(NumericMode.Resting, "2^23 m");
 
     [Fact]
     public void A_fast_far_group_gets_a_falling_frame() =>
-        Mode(NumericMode.None, X(50), X(10_000), false, false, Options).Should().Be(NumericMode.Falling);
+        Free(NumericMode.None, speed: 1_000, distance: 8_388_608).Should().Be(NumericMode.Falling);
 
     [Fact]
     public void An_anchored_group_never_falls() =>
-        Mode(NumericMode.None, X(500), X(0), true, false, Options).Should().Be(NumericMode.None);
+        Free(NumericMode.None, speed: 5_000, distance: 0, anchored: true).Should().Be(NumericMode.None);
 
     [Fact]
     public void A_far_anchored_group_gets_a_resting_frame() =>
-        Mode(NumericMode.None, X(500), X(10_000), true, false, Options).Should().Be(NumericMode.Resting);
+        Free(NumericMode.None, speed: 5_000, distance: 8_388_608, anchored: true).Should().Be(NumericMode.Resting);
 
     [Fact]
     public void A_fixed_group_never_gets_a_frame() =>
-        Mode(NumericMode.None, X(500), X(1e6), false, true, Options).Should().Be(NumericMode.None);
+        Free(NumericMode.None, speed: 5_000, distance: 1e9, isFixed: true).Should().Be(NumericMode.None);
 
     [Fact]
     public void A_fixed_group_leaves_its_falling_frame() =>
-        Mode(NumericMode.Falling, X(500), X(1e6), false, true, Options).Should().Be(NumericMode.None);
+        Free(NumericMode.Falling, speed: 5_000, distance: 1e9, isFixed: true).Should().Be(NumericMode.None);
 
     [Fact]
     public void A_falling_frame_keeps_falling_down_to_the_leave_speed() =>
-        Mode(NumericMode.Falling, X(20), X(0), false, false, Options).Should().Be(NumericMode.Falling);
+        Free(NumericMode.Falling, speed: 400, distance: 0).Should().Be(NumericMode.Falling);
 
     [Fact]
     public void A_falling_frame_below_the_leave_speed_comes_to_rest_when_it_is_far() =>
-        Mode(NumericMode.Falling, X(19.99), X(5_000), false, false, Options).Should().Be(NumericMode.Resting);
+        Free(NumericMode.Falling, speed: 399.99, distance: 4_194_304).Should().Be(NumericMode.Resting, "2^22 m");
 
     [Fact]
     public void A_falling_frame_below_the_leave_speed_and_near_goes_back_to_the_semantic_frame() =>
-        Mode(NumericMode.Falling, X(19.99), X(4_999.99), false, false, Options).Should().Be(NumericMode.None);
+        Free(NumericMode.Falling, speed: 399.99, distance: 4_194_303.99).Should().Be(NumericMode.None);
 
     [Fact]
     public void An_anchored_falling_frame_comes_to_rest_when_it_is_far() =>
-        Mode(NumericMode.Falling, X(500), X(6_000), true, false, Options).Should().Be(NumericMode.Resting);
+        Free(NumericMode.Falling, speed: 5_000, distance: 5e6, anchored: true).Should().Be(NumericMode.Resting);
 
     [Fact]
     public void A_resting_frame_stays_down_to_the_leave_distance() =>
-        Mode(NumericMode.Resting, X(0), X(5_000), false, false, Options).Should().Be(NumericMode.Resting);
+        Free(NumericMode.Resting, speed: 0, distance: 4_194_304).Should().Be(NumericMode.Resting);
 
     [Fact]
     public void A_resting_frame_nearer_than_the_leave_distance_goes_back_to_the_semantic_frame() =>
-        Mode(NumericMode.Resting, X(0), X(4_999.99), false, false, Options).Should().Be(NumericMode.None);
+        Free(NumericMode.Resting, speed: 0, distance: 4_194_303.99).Should().Be(NumericMode.None);
 
     [Fact]
     public void A_resting_frame_starts_to_fall_only_at_the_create_speed()
     {
-        Mode(NumericMode.Resting, X(49.99), X(6_000), false, false, Options).Should().Be(NumericMode.Resting);
-        Mode(NumericMode.Resting, X(50), X(6_000), false, false, Options).Should().Be(NumericMode.Falling);
+        Free(NumericMode.Resting, speed: 999.99, distance: 5e6).Should().Be(NumericMode.Resting);
+        Free(NumericMode.Resting, speed: 1_000, distance: 5e6).Should().Be(NumericMode.Falling);
     }
 
     [Fact]
     public void A_body_alone_uses_the_create_thresholds_with_its_own_motion()
     {
-        BodyMode(Body(0, vx: 50), Options).Should().Be(NumericMode.Falling);
-        BodyMode(Body(10_000) with { Static = true }, Options).Should().Be(NumericMode.Resting);
-        BodyMode(Body(10_000, vx: 50) with { Fixed = true }, Options).Should().Be(NumericMode.None);
-        BodyMode(Body(9_999, vx: 49), Options).Should().Be(NumericMode.None);
+        BodyMode(Body(0, vx: 1_000), Options).Should().Be(NumericMode.Falling);
+        BodyMode(Body(8_388_608) with { Static = true }, Options).Should().Be(NumericMode.Resting);
+        BodyMode(Body(8_388_608, vx: 1_000) with { Fixed = true }, Options).Should().Be(NumericMode.None);
+        BodyMode(Body(8_388_607, vx: 999), Options).Should().Be(NumericMode.None);
+    }
+
+    // ---- The thrust pair ------------------------------------------------------------------------------------------
+
+    /// <summary>The mode of a group with a body that thrusts, as <see cref="Free"/> gives it for a group of free bodies only.</summary>
+    private static NumericMode Thrusting(NumericMode current, double speed, double distance) =>
+        Mode(current, X(speed), X(distance), anchored: false, isFixed: false, thrusts: true, Options);
+
+    [Fact]
+    public void A_group_with_a_body_that_thrusts_gets_a_falling_frame_at_the_thrust_create_speed()
+    {
+        Thrusting(NumericMode.None, speed: 49.99, distance: 0).Should().Be(NumericMode.None);
+        Thrusting(NumericMode.None, speed: 50, distance: 0).Should().Be(NumericMode.Falling);
+    }
+
+    [Fact]
+    public void A_falling_group_that_thrusts_keeps_falling_down_to_the_thrust_leave_speed()
+    {
+        Thrusting(NumericMode.Falling, speed: 20, distance: 0).Should().Be(NumericMode.Falling);
+        Thrusting(NumericMode.Falling, speed: 19.99, distance: 0).Should().Be(NumericMode.None);
+    }
+
+    [Fact]
+    public void A_falling_group_whose_members_stop_thrusting_at_60_m_s_leaves_its_frame_once_they_no_longer_count()
+    {
+        Thrusting(NumericMode.Falling, speed: 60, distance: 0).Should().Be(NumericMode.Falling, "while a member counts as thrusting");
+        Free(NumericMode.Falling, speed: 60, distance: 0).Should().Be(NumericMode.None, "60 m/s is below the leave speed of free bodies, 400 m/s");
+    }
+
+    [Fact]
+    public void A_group_of_a_free_body_and_a_body_that_thrusts_uses_the_thrust_pair()
+    {
+        // Neither body reaches the create speed of its own pair, 1,000 m/s for the free body and 50 m/s for the other.
+        NumericGroup group = Summary(Body(0, vx: 60), Body(1, vx: 40) with { Thrusts = true });
+        group.Thrusts.Should().BeTrue();
+        GroupMode(NumericMode.None, group, Options).Should().Be(NumericMode.Falling, "the common speed is 50 m/s");
+    }
+
+    [Fact]
+    public void An_anchor_never_makes_its_group_thrust() =>
+        Summary(Body(0, vx: 30), Body(1) with { Static = true, Thrusts = true }, Body(2) with { Fixed = true, Thrusts = true })
+            .Thrusts.Should().BeFalse();
+
+    [Fact]
+    public void A_body_alone_uses_the_thrust_pair_when_it_thrusts()
+    {
+        BodyMode(Body(0, vx: 50) with { Thrusts = true }, Options).Should().Be(NumericMode.Falling);
+        BodyMode(Body(0, vx: 50), Options).Should().Be(NumericMode.None);
+    }
+
+    [Fact]
+    public void A_Kepler_hull_never_thrusts()
+    {
+        NumericBody hull = KeplerHull(0, vx: 60) with { Thrusts = true };
+        BodyMode(hull, Options).Should().Be(NumericMode.None, "60 m/s is below the create speed of free bodies");
+        OrbitsInFrame(hull, Options).Should().BeFalse();
+        OrbitsInFrame(KeplerHull(0, vx: 60, Orbit, NumericMode.Orbiting) with { Thrusts = true }, Options)
+            .Should().BeFalse("60 m/s is below the leave speed of free bodies");
+    }
+
+    // ---- ThrustClock ---------------------------------------------------------------------------------------------
+
+    /// <summary>One tick of the engine at 60 Hz: a float, a little longer than a sixtieth of a second.</summary>
+    private const double FloatTick = 1f / 60;
+
+    /// <summary>
+    /// Runs the thrust clock from zero over one tick of <paramref name="dt"/> seconds for each acceleration of
+    /// <paramref name="accelerations"/>, in m/s², and returns what it says after each tick.
+    /// </summary>
+    private static List<(bool Thrusts, double ThrustTime, double QuietTime)> RunClock(double dt, IEnumerable<double> accelerations)
+    {
+        var after = new List<(bool Thrusts, double ThrustTime, double QuietTime)>();
+        (bool Thrusts, double ThrustTime, double QuietTime) clock = (false, 0, 0);
+        foreach (double acceleration in accelerations)
+        {
+            clock = ThrustClock(acceleration, clock.ThrustTime, clock.QuietTime, dt, Options);
+            after.Add(clock);
+        }
+        return after;
+    }
+
+    private static IEnumerable<double> Ticks(double acceleration, int count) => Enumerable.Repeat(acceleration, count);
+
+    [Fact]
+    public void A_body_that_thrusts_on_every_tick_counts_from_the_thirtieth_tick_at_60_Hz() =>
+        // Half a second of thrust: 29 ticks of a float sixtieth are 0.4833 s, and 30 are a hair over 0.5 s.
+        RunClock(FloatTick, Ticks(1, 40)).FindIndex(clock => clock.Thrusts).Should().Be(29);
+
+    [Fact]
+    public void A_single_tick_of_thrust_never_counts_however_strong() =>
+        // An impulse lasts one tick: 1,000 m/s² over 1/60 s is a kick of 17 m/s.
+        RunClock(FloatTick, Ticks(1_000, 1).Concat(Ticks(0, 60 * 25))).Should().NotContain(clock => clock.Thrusts);
+
+    [Fact]
+    public void Thrust_in_pulses_less_than_the_window_apart_adds_up()
+    {
+        // Two ticks of a quarter second, 19.75 s apart: half a second of thrust within the window of 20 s.
+        var after = RunClock(0.25, Ticks(1, 1).Concat(Ticks(0, 79)).Concat(Ticks(1, 1)));
+        after[^2].Should().Be((false, 0.25, 19.75));
+        after[^1].Should().Be((true, 0.5, 0.0));
+    }
+
+    [Fact]
+    public void A_quiet_window_starts_the_clock_again()
+    {
+        var after = RunClock(0.25, Ticks(1, 1).Concat(Ticks(0, 80)).Concat(Ticks(1, 1)));
+        after[^2].Should().Be((false, 0.0, 0.0), "the quiet time reached the window of 20 s");
+        after[^1].Should().Be((false, 0.25, 0.0), "the next pulse starts from zero");
+    }
+
+    [Fact]
+    public void A_body_keeps_counting_for_the_window_after_its_last_thrust_tick()
+    {
+        var after = RunClock(0.25, Ticks(1, 2).Concat(Ticks(0, 80)));
+        after[1].Thrusts.Should().BeTrue("half a second of thrust");
+        after[80].Should().Be((true, 0.5, 19.75));
+        after[81].Should().Be((false, 0.0, 0.0));
+    }
+
+    [Fact]
+    public void A_tick_below_the_minimum_acceleration_is_quiet()
+    {
+        // The minimum is 1 mm/s per minute.
+        const double minimum = 1e-3 / 60;
+        RunClock(0.25, Ticks(Math.BitDecrement(minimum), 10)).Should().OnlyContain(clock => clock.ThrustTime == 0);
+        RunClock(0.25, Ticks(minimum, 1)).Single().ThrustTime.Should().Be(0.25);
+    }
+
+    // ---- Options -------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void The_default_options_are_valid() => Options.Invoking(options => options.Validate()).Should().NotThrow();
+
+    /// <summary>Options that break one rule of the thrust pair each, by why, with the member that the refusal names.</summary>
+    private static readonly Dictionary<string, (NumericFrameOptions Options, string Member)> InvalidOptions = new()
+    {
+        ["a thrust leave speed above the thrust create speed"] = (Options with { ThrustLeaveSpeed = 51 }, nameof(NumericFrameOptions.ThrustLeaveSpeed)),
+        ["a thrust leave speed above the leave speed of free bodies"] = (Options with { LeaveSpeed = 19 }, nameof(NumericFrameOptions.ThrustLeaveSpeed)),
+        ["a thrust create speed above the create speed of free bodies"] = (Options with { ThrustCreateSpeed = 1_001 }, nameof(NumericFrameOptions.ThrustCreateSpeed)),
+        ["a thrust create speed that is not a number"] = (Options with { ThrustCreateSpeed = double.NaN }, nameof(NumericFrameOptions.ThrustCreateSpeed)),
+        ["a thrust leave speed that is not a number"] = (Options with { ThrustLeaveSpeed = double.NaN }, nameof(NumericFrameOptions.ThrustLeaveSpeed)),
+        ["a negative minimum thrust acceleration"] = (Options with { MinThrustAcceleration = -1e-9 }, nameof(NumericFrameOptions.MinThrustAcceleration)),
+        ["a negative thrust onset"] = (Options with { ThrustOnset = -0.1 }, nameof(NumericFrameOptions.ThrustOnset)),
+        ["a thrust window of zero"] = (Options with { ThrustWindow = 0 }, nameof(NumericFrameOptions.ThrustWindow)),
+        ["a thrust window that is not a number"] = (Options with { ThrustWindow = double.NaN }, nameof(NumericFrameOptions.ThrustWindow)),
+    };
+
+    public static TheoryData<string> InvalidOptionCases
+    {
+        get
+        {
+            var cases = new TheoryData<string>();
+            foreach (string why in InvalidOptions.Keys)
+                cases.Add(why);
+            return cases;
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(InvalidOptionCases))]
+    public void Options_that_break_a_rule_of_the_thrust_pair_are_refused(string why)
+    {
+        (NumericFrameOptions options, string member) = InvalidOptions[why];
+        options.Invoking(o => o.Validate()).Should().Throw<ArgumentOutOfRangeException>(why).Which.ParamName.Should().Be(member);
     }
 
     // ---- MayTouch ------------------------------------------------------------------------------------------------
@@ -415,18 +591,18 @@ public class NumericFrameRulesTests
     public void A_Kepler_hull_that_its_orbit_moves_fast_or_far_lives_in_an_orbit_frame_of_its_own()
     {
         OrbitsInFrame(KeplerHull(6.8e6, vx: 7_700), Options).Should().BeTrue("at the create speed or above");
-        OrbitsInFrame(KeplerHull(0, vx: 50), Options).Should().BeTrue();
-        OrbitsInFrame(KeplerHull(10_000, vx: 0), Options).Should().BeTrue("at the create distance or beyond");
-        OrbitsInFrame(KeplerHull(9_999, vx: 49), Options).Should().BeFalse("a slow, near hull stays in its semantic frame's own system");
+        OrbitsInFrame(KeplerHull(0, vx: 1_000), Options).Should().BeTrue();
+        OrbitsInFrame(KeplerHull(8_388_608, vx: 0), Options).Should().BeTrue("at the create distance or beyond");
+        OrbitsInFrame(KeplerHull(8_388_607, vx: 999), Options).Should().BeFalse("a slow, near hull stays in its semantic frame's own system");
     }
 
     [Fact]
     public void A_Kepler_hull_in_its_orbit_frame_keeps_it_down_to_the_thresholds_to_leave_one()
     {
-        OrbitsInFrame(KeplerHull(0, vx: 30, Orbit, NumericMode.Orbiting), Options).Should().BeTrue("above the leave speed");
-        OrbitsInFrame(KeplerHull(0, vx: 30), Options).Should().BeFalse("below the create speed, outside a numeric frame");
-        OrbitsInFrame(KeplerHull(6_000, vx: 0, Orbit, NumericMode.Orbiting), Options).Should().BeTrue("beyond the leave distance");
-        OrbitsInFrame(KeplerHull(4_999, vx: 19, Orbit, NumericMode.Orbiting), Options).Should().BeFalse();
+        OrbitsInFrame(KeplerHull(0, vx: 500, Orbit, NumericMode.Orbiting), Options).Should().BeTrue("above the leave speed");
+        OrbitsInFrame(KeplerHull(0, vx: 500), Options).Should().BeFalse("below the create speed, outside a numeric frame");
+        OrbitsInFrame(KeplerHull(5e6, vx: 0, Orbit, NumericMode.Orbiting), Options).Should().BeTrue("beyond the leave distance");
+        OrbitsInFrame(KeplerHull(4_194_303, vx: 399, Orbit, NumericMode.Orbiting), Options).Should().BeFalse();
     }
 
     [Fact]
@@ -440,17 +616,17 @@ public class NumericFrameRulesTests
     public void A_fast_Kepler_hull_alone_needs_an_orbit_frame()
     {
         BodyMode(KeplerHull(0, vx: 7_700), Options).Should().Be(NumericMode.Orbiting);
-        BodyMode(KeplerHull(0, vx: 49), Options).Should().Be(NumericMode.None);
+        BodyMode(KeplerHull(0, vx: 999), Options).Should().Be(NumericMode.None);
     }
 
     [Fact]
     public void An_orbit_frame_whose_group_no_longer_orbits_leaves_with_the_hysteresis_of_a_falling_frame()
     {
-        Mode(NumericMode.Orbiting, new Double3(30, 0, 0), Double3.Zero, anchored: false, isFixed: false, Options)
+        Free(NumericMode.Orbiting, speed: 500, distance: 0)
             .Should().Be(NumericMode.Falling, "a group above the leave speed keeps falling, as it would in a falling frame");
-        Mode(NumericMode.Orbiting, Double3.Zero, new Double3(6_000, 0, 0), anchored: false, isFixed: false, Options)
+        Free(NumericMode.Orbiting, speed: 0, distance: 5e6)
             .Should().Be(NumericMode.Resting, "a slow group beyond the leave distance rests, as it would in a falling frame");
-        Mode(NumericMode.Orbiting, new Double3(19, 0, 0), new Double3(4_999, 0, 0), anchored: false, isFixed: false, Options)
+        Free(NumericMode.Orbiting, speed: 399, distance: 4_194_303)
             .Should().Be(NumericMode.None, "below both leave thresholds the frame goes");
     }
 
