@@ -231,6 +231,29 @@ public class CharacterFormTests
     }
 
     [Fact]
+    public void ACharacterThatFellAsleepOnAFloorWhenAWeakGravityComesStandsAndWalks()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle ship = Space(world);
+        Floor(world, ship);
+        var pilot = new Pilot();
+        Entity person = SpawnPerson(world, ship, At(0, StandingHeight), components: [pilot]);
+        Tick(world, 120);
+        backend.HasRigidForm(person).Should().BeTrue("the ship has no gravity yet, so the character lies weightless on the floor");
+        backend.BodiesIn(ship).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, person))
+            .Active.Should().BeFalse("a rigid character that lies still falls asleep");
+
+        world.SetFrameGravity(ship, BandGravity);
+        Tick(world, 1);
+        backend.HasRigidForm(person).Should().BeFalse("its contact with the floor counts while it sleeps, so it walks again in the first step, as an awake character does");
+        Tick(world, 119);
+
+        world.Snapshot.IsStanding(person).Should().BeTrue();
+        WalkedPath(world, person, pilot, ship).Should().BeApproximately(1, 0.05);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
     public void ACharacterThatSpawnedInAWeakGravityStandsAndWalks()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
