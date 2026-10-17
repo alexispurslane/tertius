@@ -578,6 +578,8 @@ public sealed partial class JoltPhysicsBackend
                 world.ReportedOverflow = true;
                 log($"Physics: the system of {world.Frame} reported {error}. Some contacts were dropped. Raise the per-frame limits in JoltBackendOptions.");
             }
+            // Only a system that updated ends a held pair, so the rigid characters of the others need no contact list.
+            NoteRigidCharacterContacts(world);
         }
     }
 

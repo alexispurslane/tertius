@@ -212,11 +212,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>A character has two forms (see <see cref="NextCharacterMotion"/>). Below the threshold it is weightless, and
     /// physics makes it a rigid body with its rotation locked, the rigid form, whose contacts Jolt solves as it solves
     /// those of any rigid body: it pushes a dynamic body as hard as its momentum says, takes the reaction, and slides on a
-    /// surface with friction. It keeps its up and its rotation. From twice the threshold on it is a Jolt character again,
-    /// the walking form. A walking character that does not stand loses its motion into each static or kinematic surface
-    /// that it hits. Under gravity, the walking form's up turns against the gravity whenever it touches anything, so a
-    /// character that lands on its side or its head turns upright, and a character in free fall that touches nothing does
-    /// not turn. A switch of form keeps the character's pose, velocity, up and contacts.</item>
+    /// surface with friction. It keeps its up and its rotation. From twice the threshold on, or from the threshold on
+    /// while it touches something, it is a Jolt character again, the walking form. A walking character that does not
+    /// stand loses its motion into each static or kinematic surface that it hits. Under gravity, the walking form's up
+    /// turns against the gravity whenever it touches anything, so a character that lands on its side or its head turns
+    /// upright, and a character in free fall that touches nothing does not turn. A switch of form keeps the character's
+    /// pose, velocity, up and contacts.</item>
     /// </list>
     /// <para>
     /// Outputs: <see cref="PhysicsStepOutput.Bodies"/> holds every awake dynamic or kinematic body and every
@@ -242,7 +243,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// systems through ghosts.
     /// <see cref="PhysicsStepOutput.ContactsEnded"/> holds each contact that started and then ended, once, in entity
     /// order, when the last system drops it. A system drops a body pair when Jolt no longer finds it in a step that
-    /// simulates one of its bodies (for a character in the walking form, its own contact list no longer has the other
+    /// simulates one of its bodies (for a character, in either form, its own contact list no longer has the other
     /// body), or when one of
     /// its bodies was destroyed or left the system, a ghost too. A body pair that leaves goes on in every system that
     /// holds a body of each entity that can touch the other one there, after the hand-offs and the ghosts of the step. So

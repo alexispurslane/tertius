@@ -16,7 +16,8 @@ namespace Tertius.Physics;
 // the rigid form takes the path of an ordinary dynamic body everywhere: gravity, intents, hand-offs, moves, shifts,
 // growth, ghosts, collision groups, contacts, queries and the outputs. Only a few places know characters: the record's
 // input state (up, desired velocity) turns with the axes in a hand-off, the outputs report a character state for both
-// forms, and the intents of a walk, a jump, a kinematic target and a spin do not move the rigid form.
+// forms, the intents of a walk, a jump, a kinematic target and a spin do not move the rigid form, and a held contact of
+// the rigid form ends by the walking form's contact list (see NoteRigidCharacterContacts).
 
 public sealed partial class JoltPhysicsBackend
 {
@@ -27,6 +28,14 @@ public sealed partial class JoltPhysicsBackend
     private const float CharacterPadding = 0.02f;
 
     /// <summary>
+    /// How far beyond <see cref="CharacterPadding"/> a Jolt character looks for its contacts, in m: Jolt's own default, set
+    /// on every character. A character's contact list holds each body within this distance of its padded capsule, asleep
+    /// or awake, and it decides the end of a held contact of the character in either form (see
+    /// <see cref="NoteRigidCharacterContacts"/>).
+    /// </summary>
+    private const float CharacterContactReach = 0.1f;
+
+    /// <summary>
     /// Below this effective gravity, in m/s², a character in the walking form takes the rigid form:
     /// <see cref="FrameTree.ZeroGravityThreshold"/>, below which physics never stands a character. So every character that
     /// gravity cannot stand is rigid, and the walking form always has enough gravity to stand.
@@ -34,22 +43,27 @@ public sealed partial class JoltPhysicsBackend
     internal const float RigidBelow = FrameTree.ZeroGravityThreshold;
 
     /// <summary>
-    /// From this effective gravity on, in m/s², a character in the rigid form takes the walking form again: twice
-    /// <see cref="RigidBelow"/>, 0.1 m/s². Between the two numbers a character keeps its form, so a character whose gravity
-    /// hovers near the threshold switches once, not in every step.
+    /// From this effective gravity on, in m/s², a character in the rigid form takes the walking form again, whatever it
+    /// touches: twice <see cref="RigidBelow"/>, 0.1 m/s². Between the two numbers, a rigid character that touches nothing
+    /// keeps its form, so a floating character whose gravity hovers near the threshold switches once, not in every step.
+    /// A rigid character that touches something walks again from <see cref="RigidBelow"/> on (see
+    /// <see cref="NextCharacterMotion"/>).
     /// </summary>
     /// <remarks>
     /// <para>
     /// The band is 0.05 m/s² wide, more than the noise of a frame's proper acceleration, which the backend measures from
     /// float velocities: one float step of velocity per step is about 0.03 m/s² at orbital speed (see
-    /// <see cref="ComputeProperAccelerations"/>), so a ship that thrusts at about the threshold does not flip its crew
-    /// between the forms. The effective gravity in a spin frame grows in proportion to the distance from the axis, so a
-    /// character that floats near the hub must reach twice its distance from the axis before it walks again.
+    /// <see cref="ComputeProperAccelerations"/>), so a ship that thrusts at about the threshold does not flip its floating
+    /// crew between the forms. The effective gravity in a spin frame grows in proportion to the distance from the axis, so
+    /// a character that floats near the hub must reach twice its distance from the axis before it walks again.
     /// </para>
     /// <para>
-    /// The number stays small, 1 % of standard gravity, so a character that drifts into a ship's gravity, or onto a
-    /// planet, walks again long before it lands. A rigid character in a gravity between the two numbers falls like
-    /// loose cargo, which is what a character in so weak a gravity does in the walking form too.
+    /// The band holds only a character that touches nothing, because there the two forms move alike: each keeps its
+    /// momentum, and the weak gravity and the forces change its velocity in the same way. So in the band, where the
+    /// walking form stands, a character that touches something has the walking form, whether it came from below or from
+    /// above. A character that lies on a floor when a weak gravity comes stands and walks, as one that spawned in that
+    /// gravity does. A ship whose thrust dips below the threshold by noise turns its standing crew rigid for that step,
+    /// because nothing can stand them below it, and walks them again in the next step.
     /// </para>
     /// <para>
     /// The band holds against a gravity that changes slowly or by noise. It does not hold a character at the edge of a
@@ -63,28 +77,31 @@ public sealed partial class JoltPhysicsBackend
     /// The form that a character in the form <paramref name="current"/> takes in a step that starts with the effective
     /// gravity <paramref name="gravity"/> at it, in m/s²: <see cref="BodyMotion.Dynamic"/> for the rigid form and
     /// <see cref="BodyMotion.Character"/> for the walking form. A walking character turns rigid below
-    /// <see cref="RigidBelow"/>, and a rigid one walks again from <see cref="WalkingFrom"/> on. A pure rule, which
-    /// <see cref="SwitchCharacterForms"/> applies.
+    /// <see cref="RigidBelow"/>. A rigid one walks again from <see cref="WalkingFrom"/> on, or from
+    /// <see cref="RigidBelow"/> on when <paramref name="touches"/> is true: it holds a contact that started and has not
+    /// ended. A pure rule, which <see cref="SwitchCharacterForms"/> applies.
     /// </summary>
-    internal static BodyMotion NextCharacterMotion(BodyMotion current, float gravity) => current switch
+    internal static BodyMotion NextCharacterMotion(BodyMotion current, float gravity, bool touches) => current switch
     {
         BodyMotion.Character when gravity < RigidBelow => BodyMotion.Dynamic,
-        BodyMotion.Dynamic when gravity >= WalkingFrom => BodyMotion.Character,
+        BodyMotion.Dynamic when gravity >= WalkingFrom || (touches && gravity >= RigidBelow) => BodyMotion.Character,
         _ => current,
     };
 
     /// <summary>The mass of a character in kg: its description's, or 1 kg for a description without one, in both forms.</summary>
     private static float CharacterMass(BodyDesc desc) => desc.Mass > 0 ? desc.Mass : 1f;
 
-    // The description of the rigid form of each character description, by reference, so that the characters of one
-    // description share one native capsule (see RigidForm).
-    private readonly Dictionary<BodyDesc, BodyDesc> rigidForms = new(ReferenceEqualityComparer.Instance);
+    // The capsule of the rigid form for each capsule of the walking form, by reference, as the shape cache keeps native
+    // shapes. So the characters of one walking capsule share one native rigid capsule, whatever body descriptions they
+    // have, and the table holds one entry for each walking capsule, which the shape cache keeps anyway (see RigidForm).
+    private readonly Dictionary<CapsuleShapeDesc, CapsuleShapeDesc> rigidCapsules = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>
     /// The description of the rigid form of a character with the description <paramref name="desc"/>: a dynamic body with
     /// the character's material and mass (see <see cref="CharacterMass"/>), no damping, as a Jolt character has none, and a
     /// capsule that reaches as far as the walking form does: <see cref="CharacterPadding"/> wider, and its cylinder as much
-    /// shorter, so that its ends stay where the walking form's ends are.
+    /// shorter, so that its ends stay where the walking form's ends are. Each character's record holds its own description,
+    /// but every character of one walking capsule gets the same rigid capsule, so one native capsule.
     /// </summary>
     /// <remarks>
     /// A Jolt character keeps <see cref="CharacterPadding"/> from a wall at its side, but rests its capsule on a floor
@@ -96,20 +113,21 @@ public sealed partial class JoltPhysicsBackend
     /// </remarks>
     private BodyDesc RigidForm(BodyDesc desc)
     {
-        if (rigidForms.TryGetValue(desc, out BodyDesc? form))
-            return form;
         var capsule = (CapsuleShapeDesc)desc.Shape;
-        form = desc with
+        if (!rigidCapsules.TryGetValue(capsule, out CapsuleShapeDesc? rigid))
         {
             // A capsule whose half height is 0 is a sphere (see ShapeCache), so a very short capsule loses its cylinder.
-            Shape = new CapsuleShapeDesc(MathF.Max(0, capsule.HalfHeight - CharacterPadding), capsule.Radius + CharacterPadding),
+            rigid = new CapsuleShapeDesc(MathF.Max(0, capsule.HalfHeight - CharacterPadding), capsule.Radius + CharacterPadding);
+            rigidCapsules.Add(capsule, rigid);
+        }
+        return desc with
+        {
+            Shape = rigid,
             Motion = BodyMotion.Dynamic,
             Mass = CharacterMass(desc),
             LinearDamping = 0,
             AngularDamping = 0,
         };
-        rigidForms.Add(desc, form);
-        return form;
     }
 
     // Scratch for SwitchCharacterForms: the characters that change form in this step.
@@ -117,10 +135,11 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The choke point of the forms: gives every character the form that <see cref="NextCharacterMotion"/> asks for, from
-    /// the effective gravity at the character at the start of the step. It runs before the step applies intents and
-    /// gravity, so that both act on the form that the character has for the whole step, and before the spawn velocities
-    /// turn into chords. A switch keeps the character's frame, pose, velocity, up and contacts (see
-    /// <see cref="BecomeRigid"/> and <see cref="BecomeWalking"/>). It visits the members of each system that has a character.
+    /// the effective gravity at the character at the start of the step and, for a rigid character, whether it touches
+    /// something in its system. It runs before the step applies intents and gravity, so that both act on the form that
+    /// the character has for the whole step, and before the spawn velocities turn into chords. A switch keeps the
+    /// character's frame, pose, velocity, up and contacts (see <see cref="BecomeRigid"/> and <see cref="BecomeWalking"/>).
+    /// It visits the members of each system that has a character.
     /// </summary>
     private void SwitchCharacterForms()
     {
@@ -134,7 +153,10 @@ public sealed partial class JoltPhysicsBackend
                 if (!member.IsCharacter)
                     continue;
                 float gravity = frames.EffectiveGravity(world.Frame, PrimaryPosition(member)).Length();
-                if (NextCharacterMotion(member.Motion, gravity) != member.Motion)
+                // The rule reads the touch only of a rigid character from RigidBelow on, and the test costs time in
+                // proportion to the pairs of the system, so it runs only then.
+                bool touches = member.Motion == BodyMotion.Dynamic && gravity >= RigidBelow && world.HasStartedPair(member.Body);
+                if (NextCharacterMotion(member.Motion, gravity, touches) != member.Motion)
                     formSwitches.Add(member);
             }
         }
@@ -152,8 +174,9 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Replaces the Jolt character of a character in the walking form with its rigid form, in the same system, at the same
     /// pose, with the same velocity. The character does not stand in the rigid form, and keeps its up. Its contacts loosen
-    /// and the rigid form carries them on at the end of the step (see <see cref="ResolveLooseContacts"/>), so no contact
-    /// ends or starts by the switch. Both forms store the chord of the last step, so the velocity carries over as it is,
+    /// and the rigid form carries them on at the end of the step (see <see cref="ResolveLooseContacts"/>), and both forms
+    /// end a held contact by the same contact list (see <see cref="NoteRigidCharacterContacts"/>), so no contact ends or
+    /// starts by the switch. Both forms store the chord of the last step, so the velocity carries over as it is,
     /// except the instant velocity of a spawn since the last step, which turns into a chord as for a spawned rigid body.
     /// </summary>
     private void BecomeRigid(BodyRecord record)
@@ -190,6 +213,53 @@ public sealed partial class JoltPhysicsBackend
         CreatePrimary(record, frame, s.Pose, s.Linear, Vector3.Zero, upFromGravity: false);
         record.Character!.RefreshContacts(PrimaryLayer(record), record.World!.System);
         Contract.Ensures(record.Motion == BodyMotion.Character && record.Character is not null && !record.Body.IsValid && record.Frame == frame);
+    }
+
+    // Scratch for NoteRigidCharacterContacts: the bodies that the contact list of one rigid character holds.
+    private readonly List<CollideShapeResult> rigidCharacterContacts = new(16);
+
+    // Made with the first query, because the binding fills it from joltc, which Foundation.Init loads.
+    private CollideShapeSettings? characterContactSettings;
+
+    /// <summary>
+    /// Gives each character in the rigid form in <paramref name="world"/> the contact list that its walking form would
+    /// have at its pose, after the update of the system: every body within <see cref="CharacterContactReach"/> of the
+    /// padded capsule, by the shape query with which a Jolt character finds its contacts. The drain then ends a held
+    /// contact of the rigid form as it ends one of the walking form, when the list no longer has the other body (see
+    /// <see cref="FrameWorld.NoteRigidCharacterContacts"/>). So a switch of form ends no contact, though the rigid form
+    /// alone would end a contact as Jolt does, beyond Jolt's speculative contact distance of 0.02 m. Costs one shape
+    /// query for each character in the rigid form in each step in which its system updates, about what the contact
+    /// search of a walking character costs.
+    /// </summary>
+    /// <remarks>
+    /// The query takes the walking form's capsule at the rigid body's pose, which is the walking form's pose (see
+    /// <see cref="RigidForm"/>), and Jolt's settings for the contacts of a character (CharacterVirtual::CheckCollision).
+    /// It filters no layer: a body that the character cannot touch never starts a contact with it, so its place in the
+    /// list changes nothing.
+    /// </remarks>
+    private void NoteRigidCharacterContacts(FrameWorld world)
+    {
+        if (world.CharacterCount == world.WalkingCharacterCount)
+            return;
+        CollideShapeSettings settings = characterContactSettings ??= new CollideShapeSettings
+        {
+            MaxSeparationDistance = CharacterPadding + CharacterContactReach,
+            BackFaceMode = BackFaceMode.CollideWithBackFaces,
+            ActiveEdgeMode = ActiveEdgeMode.CollideOnlyWithActive,
+        };
+        BodyInterface bodies = world.System.BodyInterfaceNoLock;
+        foreach (BodyRecord member in world.Members)
+        {
+            if (!member.IsCharacter || member.Character is not null)
+                continue;
+            bodies.GetRPosition(member.Body, out RVector3 position);
+            RMatrix4x4 transform = Matrix4x4.CreateFromQuaternion(bodies.GetRotation(member.Body));
+            transform.Translation = position;
+            rigidCharacterContacts.Clear();
+            world.System.NarrowPhaseQuery.CollideShape(shapes.Get(member.Desc.Shape), Vector3.One, transform, settings, position,
+                CollisionCollectorType.AllHit, rigidCharacterContacts);
+            world.NoteRigidCharacterContacts(member.Body, rigidCharacterContacts);
+        }
     }
 
     /// <summary>

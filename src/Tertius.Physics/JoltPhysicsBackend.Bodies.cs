@@ -397,6 +397,8 @@ public sealed partial class JoltPhysicsBackend
             MaxStrength = options.CharacterMaxStrength,
             // Jolt's own padding, which the rigid form's capsule includes (see RigidForm).
             CharacterPadding = CharacterPadding,
+            // Jolt's own reach, which the rigid form's contact list has too (see NoteRigidCharacterContacts).
+            PredictiveContactDistance = CharacterContactReach,
             // Contacts below the center of the lower hemisphere support the character.
             SupportingVolume = new Plane(Vector3.UnitY, -capsule.Radius),
         };

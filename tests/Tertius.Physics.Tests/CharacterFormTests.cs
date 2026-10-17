@@ -11,7 +11,8 @@ namespace Tertius.Physics.Tests;
 /// character is a Jolt CharacterVirtual. When the effective gravity at it falls below
 /// <see cref="FrameTree.ZeroGravityThreshold"/>, physics turns it into the rigid form: a dynamic Jolt body with the
 /// character's capsule and mass, whose rotation is locked, so that Jolt's solver handles its contacts as it handles those of
-/// any rigid body. When the gravity rises well above the threshold again, the character walks again. A force or a command
+/// any rigid body. When the gravity rises well above the threshold again, or above it while the character touches
+/// something, the character walks again. A force or a command
 /// that a component writes during a tick acts in the physics step of the next tick, and a change of a frame's gravity
 /// between two ticks acts from the step of the next tick on.
 /// </summary>
@@ -196,6 +197,116 @@ public class CharacterFormTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>A uniform gravity of 0.08 m/s² along -Y, between the two thresholds of the forms, about that of a small moon.</summary>
+    private static readonly GravityField BandGravity = GravityField.Uniform(new Vector3(0, -0.08f, 0));
+
+    /// <summary>The path in m along X of a character that walks at 1 m/s on a floor for 60 ticks, from the tick after the walk.</summary>
+    private static double WalkedPath(World world, Entity person, Pilot pilot, FrameHandle frame)
+    {
+        pilot.Once = body => body.MoveCharacter(new Vector3(1, 0, 0));
+        world.Tick();
+        double start = world.PoseIn(person, frame).Position.X;
+        Tick(world, 60);
+        return world.PoseIn(person, frame).Position.X - start;
+    }
+
+    [Fact]
+    public void ACharacterThatLiesOnAFloorWhenAWeakGravityComesStandsAndWalksAsOneThatSpawnedInThatGravity()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle ship = Space(world);
+        Floor(world, ship);
+        var pilot = new Pilot();
+        Entity person = SpawnPerson(world, ship, At(0, StandingHeight), components: [pilot]);
+        Tick(world, 10);
+        backend.HasRigidForm(person).Should().BeTrue("the ship has no gravity yet, so the character lies weightless on the floor");
+
+        // The drive starts with a thrust whose gravity lies between the two thresholds.
+        world.SetFrameGravity(ship, BandGravity);
+        Tick(world, 120);
+
+        world.Snapshot.IsStanding(person).Should().BeTrue("the gravity is strong enough to stand a character, and the character lies on the floor");
+        WalkedPath(world, person, pilot, ship).Should().BeApproximately(1, 0.05, "it walks at 1 m/s, as one that spawned in this gravity does");
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ACharacterThatSpawnedInAWeakGravityStandsAndWalks()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle moon = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, BandGravity));
+        Floor(world, moon);
+        var pilot = new Pilot();
+        Entity person = SpawnPerson(world, moon, At(0, StandingHeight), components: [pilot]);
+        Tick(world, 120);
+
+        backend.HasRigidForm(person).Should().BeFalse("a walking character keeps its form between the two thresholds");
+        world.Snapshot.IsStanding(person).Should().BeTrue();
+        WalkedPath(world, person, pilot, moon).Should().BeApproximately(1, 0.05);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ASwitchToTheRigidFormEndsNoContactWithAWallThatTheWalkingFormStillHeld()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        // A wall whose face is at x = 1.5.
+        Entity wall = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(2, 2), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 2, 5)), BodyMotion.Static) });
+        var pilot = new Pilot();
+        var log = new CollisionLog();
+        Entity person = SpawnPerson(world, ground, At(0.5, StandingHeight + 0.03), components: [pilot, log]);
+        Tick(world, 20);
+        pilot.Once = body => body.MoveCharacter(new Vector3(1, 0, 0));
+        Tick(world, 60);
+        // The character steps back from the wall, 0.05 m in three steps at 1 m/s, and stands.
+        pilot.Once = body => body.MoveCharacter(new Vector3(-1, 0, 0));
+        Tick(world, 3);
+        pilot.Once = body => body.MoveCharacter(Vector3.Zero);
+        Tick(world, 10);
+        double gap = 1.5 - 0.3 - world.PoseIn(person, ground).Position.X;
+        gap.Should().BeInRange(0.06, 0.08, "the character stands about 0.07 m from the wall");
+        log.NewsOf(wall).Should().Equal([Started], "the walking form holds the contact of each body within 0.1 m of it");
+
+        world.SetFrameGravity(ground, GravityField.None);
+        Tick(world, 30);
+        backend.HasRigidForm(person).Should().BeTrue();
+
+        log.NewsOf(wall).Should().Equal([Started], "the switch moved nothing, so the contact goes on");
+        (1.5 - 0.3 - world.PoseIn(person, ground).Position.X).Should().BeApproximately(gap, 1e-4, "the character has not moved");
+
+        // An impulse sends the rigid form away from the wall at 0.5 m/s. Its side is 0.05 m from the wall, and the contact
+        // ends once it is 0.1 m away, as for the walking form, which takes about six ticks.
+        pilot.Once = body => body.AddImpulse(new Vector3(-0.5f * PersonMass, 0, 0));
+        world.Tick();
+        Tick(world, 2);
+        log.NewsOf(wall).Should().Equal([Started], "the character is still within 0.1 m of the wall");
+        Tick(world, 27);
+        (1.5 - 0.3 - world.PoseIn(person, ground).Position.X).Should().BeGreaterThan(0.2);
+        log.NewsOf(wall).Should().Equal([Started, Ended], "the character left the wall, so the contact ended once");
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void CharactersOfTwoDescriptionsWithOneCapsuleShareOneNativeCapsuleInTheRigidForm()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle space = Space(world);
+        // A game that builds a new body description for each spawn around one shared capsule, as the demo scenes do.
+        var capsule = new CapsuleShapeDesc(0.6f, 0.3f);
+        Entity first = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0), Body = new BodyDesc(capsule, BodyMotion.Character, Mass: PersonMass) });
+        Entity second = world.Spawn(new SpawnDesc { Frame = space, Pose = At(5), Body = new BodyDesc(capsule, BodyMotion.Character, Mass: PersonMass) });
+        world.Tick();
+        backend.HasRigidForm(first).Should().BeTrue();
+        backend.HasRigidForm(second).Should().BeTrue();
+
+        List<JoltPhysicsBackend.BodyFacts> bodies = backend.BodiesIn(space);
+        nint ShapeOf(Entity person) => bodies.Single(body => BodyUserData.Names(body.UserData, person)).Shape;
+        ShapeOf(second).Should().Be(ShapeOf(first), "the two characters have one capsule, so their rigid forms share one native capsule");
+        world.Errors.Should().BeEmpty();
+    }
+
     [Fact]
     public void ACharacterWhoseGravityHoversAroundTheThresholdSwitchesOnceAndKeepsItsForm()
     {
@@ -220,18 +331,25 @@ public class CharacterFormTests
     }
 
     [Theory]
-    [InlineData(BodyMotion.Character, 0.0f, BodyMotion.Dynamic)]
-    [InlineData(BodyMotion.Character, 0.0499f, BodyMotion.Dynamic)]
-    [InlineData(BodyMotion.Character, 0.05f, BodyMotion.Character)]
-    [InlineData(BodyMotion.Character, 9.81f, BodyMotion.Character)]
-    [InlineData(BodyMotion.Dynamic, 0.0f, BodyMotion.Dynamic)]
-    [InlineData(BodyMotion.Dynamic, 0.05f, BodyMotion.Dynamic)]
-    [InlineData(BodyMotion.Dynamic, 0.0999f, BodyMotion.Dynamic)]
-    [InlineData(BodyMotion.Dynamic, 0.1f, BodyMotion.Character)]
-    [InlineData(BodyMotion.Dynamic, 9.81f, BodyMotion.Character)]
-    public void AWalkingCharacterBecomesRigidBelowTheThresholdAndARigidOneWalksAgainFromTwiceTheThreshold(BodyMotion form, float gravity, BodyMotion next)
+    [InlineData(BodyMotion.Character, 0.0f, false, BodyMotion.Dynamic)]
+    [InlineData(BodyMotion.Character, 0.0f, true, BodyMotion.Dynamic)]
+    [InlineData(BodyMotion.Character, 0.0499f, true, BodyMotion.Dynamic)]
+    [InlineData(BodyMotion.Character, 0.05f, false, BodyMotion.Character)]
+    [InlineData(BodyMotion.Character, 9.81f, false, BodyMotion.Character)]
+    [InlineData(BodyMotion.Dynamic, 0.0f, false, BodyMotion.Dynamic)]
+    [InlineData(BodyMotion.Dynamic, 0.05f, false, BodyMotion.Dynamic)]
+    [InlineData(BodyMotion.Dynamic, 0.0999f, false, BodyMotion.Dynamic)]
+    [InlineData(BodyMotion.Dynamic, 0.1f, false, BodyMotion.Character)]
+    [InlineData(BodyMotion.Dynamic, 9.81f, false, BodyMotion.Character)]
+    [InlineData(BodyMotion.Dynamic, 0.0f, true, BodyMotion.Dynamic)]
+    [InlineData(BodyMotion.Dynamic, 0.0499f, true, BodyMotion.Dynamic)]
+    [InlineData(BodyMotion.Dynamic, 0.05f, true, BodyMotion.Character)]
+    [InlineData(BodyMotion.Dynamic, 0.0999f, true, BodyMotion.Character)]
+    [InlineData(BodyMotion.Dynamic, 9.81f, true, BodyMotion.Character)]
+    public void AWalkingCharacterBecomesRigidBelowTheThresholdAndARigidOneWalksAgainFromTheThresholdWhenItTouchesSomethingAndFromTwiceTheThresholdOtherwise(
+        BodyMotion form, float gravity, bool touches, BodyMotion next)
     {
-        JoltPhysicsBackend.NextCharacterMotion(form, gravity).Should().Be(next);
+        JoltPhysicsBackend.NextCharacterMotion(form, gravity, touches).Should().Be(next);
     }
 
     [Fact]
