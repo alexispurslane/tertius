@@ -444,6 +444,17 @@ public class NumericFrameRulesTests
     }
 
     [Fact]
+    public void An_orbit_frame_whose_group_no_longer_orbits_leaves_with_the_hysteresis_of_a_falling_frame()
+    {
+        Mode(NumericMode.Orbiting, new Double3(30, 0, 0), Double3.Zero, anchored: false, isFixed: false, Options)
+            .Should().Be(NumericMode.Falling, "a group above the leave speed keeps falling, as it would in a falling frame");
+        Mode(NumericMode.Orbiting, Double3.Zero, new Double3(6_000, 0, 0), anchored: false, isFixed: false, Options)
+            .Should().Be(NumericMode.Resting, "a slow group beyond the leave distance rests, as it would in a falling frame");
+        Mode(NumericMode.Orbiting, new Double3(19, 0, 0), new Double3(4_999, 0, 0), anchored: false, isFixed: false, Options)
+            .Should().Be(NumericMode.None, "below both leave thresholds the frame goes");
+    }
+
+    [Fact]
     public void A_group_with_a_fast_Kepler_hull_and_no_anchor_at_rest_takes_the_hulls_orbit_frame()
     {
         NumericGroup group = Summary(Body(0, vx: 7_701, home: Pod), KeplerHull(5, vx: 7_700, Orbit, NumericMode.Orbiting));
