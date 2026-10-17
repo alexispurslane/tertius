@@ -1,6 +1,6 @@
 ---
 id: ter-1w06
-status: open
+status: in_progress
 deps: []
 links: [ter-kugq, ter-tftg]
 created: 2026-10-17T13:44:29Z
