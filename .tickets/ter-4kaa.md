@@ -1,6 +1,6 @@
 ---
 id: ter-4kaa
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-17T00:20:12Z
@@ -19,3 +19,7 @@ From ter-ediu: when a landing step starts within Jolt's 2 cm speculative contact
 **2026-10-17T01:25:16Z**
 
 Decided with the user (2026-10-17), from two designs: (1) A minimum rebound speed. Both contact callbacks set a contact's combined restitution to 0 when restitution times the approach speed is below 1 m/s, so every bounce that remains rises at least 5 cm and leaves Jolt's 2 cm speculative band, and a drop reports the same number of landings wherever its landing step begins. Ends still arrive at once. Rejected: merging an end and a restart within 0.25 s, which delays every end and still varies for some heights. (2) The default restitution of a body becomes 0, as in Jolt, so default content never bounces and costs nothing in the check.
+
+**2026-10-17T05:13:32Z**
+
+Merged with the contact sweep. After the review, the rule computes the rebound that Jolt will produce, u = e * (approach - a * dt), at the fastest contact point, and keeps the restitution when nothing pulls the bodies together (a <= 0) or when the bounce rises at least 4 cm, twice Jolt's speculative distance (u^2 >= 2 * a * 0.04). At 1 g that is about 0.89 m/s. A fixed 1 m/s failed above about 1.5 g and removed bounces in zero gravity. Follow-up: ter-h78w.

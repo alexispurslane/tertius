@@ -1,6 +1,6 @@
 ---
 id: ter-wllb
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-17T01:25:16Z
