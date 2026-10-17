@@ -1,6 +1,6 @@
 ---
 id: ter-3xs6
-status: open
+status: in_progress
 deps: [ter-dhkf]
 links: []
 created: 2026-10-17T14:34:17Z

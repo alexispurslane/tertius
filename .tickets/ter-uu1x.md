@@ -1,6 +1,6 @@
 ---
 id: ter-uu1x
-status: open
+status: in_progress
 deps: []
 links: [ter-kugq, ter-jwzd, ter-dhkf]
 created: 2026-10-17T14:34:17Z
