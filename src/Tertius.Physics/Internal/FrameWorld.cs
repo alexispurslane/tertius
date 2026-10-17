@@ -69,8 +69,8 @@ internal sealed class FrameWorld : IDisposable
     // not touched yet. A pair leaves at its first real touch, which starts it, or when Jolt drops it, which reports nothing.
     // Only the physics thread changes it, between updates, so Jolt's worker threads read it during an update without the gate.
     private readonly HashSet<ulong> pending = new();
-    // True while the system's reports of persisting contacts reach OnContactPersisted: while pending has a pair.
-    private bool listensForTouches;
+    // Jolt's reports of this frame's contacts arrive through it, from every system of the frame.
+    private readonly ContactListener listener;
     // Body pairs that touch as far as the backend knows, but that Jolt's contact cache no longer holds. Jolt finds contacts
     // only for a body that it simulates. So it drops the pair of two bodies that it does not simulate (a body fell asleep
     // or a hull became static, on something static or asleep) while the system keeps stepping. A growth drops every pair,
@@ -98,10 +98,10 @@ internal sealed class FrameWorld : IDisposable
         Frame = frame;
         penetrationSlop = options.PenetrationSlop;
         Limits = SystemLimits.From(options);
+        listener = new ContactListener(this);
         System = CreateSystem(Limits);
         Bodies = System.BodyInterface;
         BodiesNoLock = System.BodyInterfaceNoLock;
-        Listen(System);
     }
 
     public FrameHandle Frame { get; }
@@ -113,6 +113,9 @@ internal sealed class FrameWorld : IDisposable
 
     /// <summary>The limits of <see cref="System"/>.</summary>
     public SystemLimits Limits { get; private set; }
+
+    /// <summary>The number of pairs that Jolt found within its speculative contact distance and that have not touched yet.</summary>
+    public int PendingPairCount => pending.Count;
 
     /// <summary>True when <see cref="System"/> holds as many bodies as it can, so that Jolt refuses one more.</summary>
     public bool IsFull => System.BodiesCount >= System.MaxBodies;
@@ -199,8 +202,9 @@ internal sealed class FrameWorld : IDisposable
     }
 
     /// <summary>
-    /// Creates an empty system with its own filter tables, this frame's settings and the given limits. Nothing listens to its
-    /// contacts until <see cref="ReplaceSystem"/> makes it this frame's system.
+    /// Creates an empty system with its own filter tables, this frame's settings and the given limits. Its contacts go to
+    /// this frame's contact listener from its first update, but only <see cref="System"/> updates, so they arrive only
+    /// after <see cref="ReplaceSystem"/> makes it this frame's system.
     /// </summary>
     public PhysicsSystem CreateSystem(SystemLimits limits)
     {
@@ -215,6 +219,9 @@ internal sealed class FrameWorld : IDisposable
             BroadPhaseLayerInterface = layers.BroadPhase,
             ObjectVsBroadPhaseLayerFilter = layers.ObjectVsBroadPhase,
         }));
+        // JoltPhysicsSharp gave the system a listener of its own, which would now call the backend's callbacks with its
+        // own user data. Replace it before anything can update the system.
+        listener.Attach(system);
         system.Gravity = Vector3.Zero;
         PhysicsSettings settings = system.Settings;
         settings.PenetrationSlop = penetrationSlop;
@@ -256,13 +263,11 @@ internal sealed class FrameWorld : IDisposable
     {
         // Contacts are drained after every update, and only an update reports them.
         Contract.Requires(added.Count == 0 && persistedTouches.Count == 0 && removed.Count == 0);
-        Unlisten(System);
         System.Dispose();
         System = larger;
         Bodies = larger.BodyInterface;
         BodiesNoLock = larger.BodyInterfaceNoLock;
         Limits = limits;
-        Listen(larger);
         ReportedOverflow = false;
 
         lock (contactGate)
@@ -327,44 +332,9 @@ internal sealed class FrameWorld : IDisposable
         return System.Update(deltaTime, 1, jobs);
     }
 
-    private void Listen(PhysicsSystem system)
-    {
-        system.OnContactAdded += OnContactAdded;
-        system.OnContactRemoved += OnContactRemoved;
-    }
+    public static ulong PairKey(BodyID a, BodyID b) => PairKey(a.ID, b.ID);
 
-    private void Unlisten(PhysicsSystem system)
-    {
-        system.OnContactAdded -= OnContactAdded;
-        system.OnContactRemoved -= OnContactRemoved;
-        if (listensForTouches)
-            system.OnContactPersisted -= OnContactPersisted;
-        listensForTouches = false;
-    }
-
-    /// <summary>
-    /// Listens to Jolt's reports of contacts that persist only while a pair waits in pending, which is the only pair that
-    /// needs them. Jolt reports every contact of a simulated body in every update, and each report is a call from native
-    /// code into managed code: in a heap of 300 awake boxes, listening made the tick 15 % slower, also with a handler that
-    /// does nothing. Call it on the physics thread between updates, after pending changed.
-    /// </summary>
-    private void FollowPending()
-    {
-        bool wanted = pending.Count > 0;
-        if (wanted == listensForTouches)
-            return;
-        listensForTouches = wanted;
-        if (wanted)
-            System.OnContactPersisted += OnContactPersisted;
-        else
-            System.OnContactPersisted -= OnContactPersisted;
-    }
-
-    public static ulong PairKey(BodyID a, BodyID b)
-    {
-        uint x = a.ID, y = b.ID;
-        return x < y ? ((ulong)x << 32) | y : ((ulong)y << 32) | x;
-    }
+    private static ulong PairKey(uint x, uint y) => x < y ? ((ulong)x << 32) | y : ((ulong)y << 32) | x;
 
     /// <summary>The body of a pair key with the lower ID.</summary>
     private static BodyID First(ulong key) => new((uint)(key >> 32));
@@ -500,7 +470,6 @@ internal sealed class FrameWorld : IDisposable
                 }
             }
             updatedSinceDrain = false;
-            FollowPending();
         }
     }
 
@@ -558,14 +527,14 @@ internal sealed class FrameWorld : IDisposable
                 touching.Remove(key);
                 held.Remove(key);
             }
-            FollowPending();
         }
     }
 
     public void Dispose()
     {
-        Unlisten(System);
+        // The system holds a pointer to the listener, so it goes first.
         System.Dispose();
+        listener.Dispose();
     }
 
     /// <summary>
@@ -589,67 +558,78 @@ internal sealed class FrameWorld : IDisposable
         return gap <= TouchTolerance || -normalVelocity * deltaTime >= gap;
     }
 
-    // Runs on Jolt worker threads with the bodies locked. It must not use any locking body interface.
-    private void OnContactAdded(PhysicsSystem system, in Body body1, in Body body2, in ContactManifold manifold, ref ContactSettings settings)
+    // ---- Jolt's reports, through the contact listener ----
+    //
+    // Each runs on a Jolt worker thread during an update, with the bodies locked, so it must not use any locking body
+    // interface. Each reads the bodies and the manifold through the pointers that Jolt passes (see ContactListener).
+
+    /// <summary>Jolt's report of a contact that it found in this update and did not hold before.</summary>
+    /// <param name="sensor">True when one of the bodies is a sensor, as Jolt's contact settings say.</param>
+    public void OnContactAdded(nint body1, nint body2, nint manifold, bool sensor)
     {
-        ulong data1 = body1.GetUserData(), data2 = body2.GetUserData();
+        ulong data1 = JoltNative.BodyUserData(body1), data2 = JoltNative.BodyUserData(body2);
         if (!IsReportable(data1) || !IsReportable(data2))
             return;
-        RawContact contact = Describe(body1, body2, data1, data2, manifold, settings.IsSensor);
+        RawContact contact = Describe(body1, body2, data1, data2, manifold, sensor);
         lock (contactGate)
             added.Add(contact);
     }
 
-    // Runs on Jolt worker threads with the bodies locked, for every contact that Jolt found again, while pending has a pair
-    // (see FollowPending). Only a pending pair needs it, and nothing changes pending during an update, so the other calls
-    // end at the lookup, without the gate.
-    private void OnContactPersisted(PhysicsSystem system, in Body body1, in Body body2, in ContactManifold manifold, ref ContactSettings settings)
+    /// <summary>
+    /// Jolt's report of a contact that it held before and found again in this update: every contact of every body that it
+    /// simulates, in every update. Only a pending pair needs it, and nothing changes pending during an update, so nearly
+    /// every call ends at the test of pending, without the gate.
+    /// </summary>
+    public unsafe void OnContactPersisted(nint body1, nint body2, nint manifold, ContactSettings* settings)
     {
-        if (!pending.Contains(PairKey(body1.ID, body2.ID)))
+        if (pending.Count == 0 || !pending.Contains(PairKey(JoltNative.BodyId(body1), JoltNative.BodyId(body2))))
             return;
-        RawContact contact = Describe(body1, body2, body1.GetUserData(), body2.GetUserData(), manifold, settings.IsSensor);
+        RawContact contact = Describe(body1, body2, JoltNative.BodyUserData(body1), JoltNative.BodyUserData(body2), manifold, settings->IsSensor);
         if (!contact.Touches)
             return;
         lock (contactGate)
             persistedTouches.Add(contact);
     }
 
+    /// <summary>Jolt's report that it no longer holds a contact between a sub-shape of each of two bodies.</summary>
+    public void OnContactRemoved(BodyID body1, BodyID body2)
+    {
+        ulong key = PairKey(body1, body2);
+        lock (contactGate)
+            removed.Add(key);
+    }
+
     /// <summary>
     /// The contact of a manifold that Jolt found in this update, at the mean of its points on the first body.
     /// <paramref name="sensor"/> is true when one of the bodies is a sensor.
     /// </summary>
-    private unsafe RawContact Describe(in Body body1, in Body body2, ulong data1, ulong data2, in ContactManifold manifold, bool sensor)
+    private unsafe RawContact Describe(nint body1, nint body2, ulong data1, ulong data2, nint manifold, bool sensor)
     {
-        uint count = manifold.PointCount;
+        uint count = JoltNative.ManifoldPointCount(manifold);
         Double3 point = Double3.Zero;
         if (count > 0)
         {
             RVector3 p;
             for (uint i = 0; i < count; i++)
             {
-                JoltNative.ContactPointOn1(manifold.Handle, i, &p);
+                JoltNative.ContactPointOn1(manifold, i, &p);
                 point += p.ToDouble3();
             }
             point /= count;
         }
         else
         {
-            body1.GetRCenterOfMassPosition(out RVector3 com);
+            RVector3 com;
+            JoltNative.BodyCenterOfMass(body1, &com);
             point = com.ToDouble3();
         }
 
-        Vector3 normal = manifold.WorldSpaceNormal;
+        Vector3 normal;
+        JoltNative.ManifoldNormal(manifold, &normal);
         Vector3 v1 = PointVelocity(body1, point), v2 = PointVelocity(body2, point);
         float normalVelocity = Vector3.Dot(v2 - v1, normal);
-        return new RawContact(body1.ID, body2.ID, data1, data2, point, normal, normalVelocity,
-            Touches(manifold.PenetrationDepth, normalVelocity, updateDeltaTime), sensor);
-    }
-
-    private void OnContactRemoved(PhysicsSystem system, ref SubShapeIDPair pair)
-    {
-        ulong key = PairKey(pair.Body1ID, pair.Body2ID);
-        lock (contactGate)
-            removed.Add(key);
+        return new RawContact(new BodyID(JoltNative.BodyId(body1)), new BodyID(JoltNative.BodyId(body2)), data1, data2, point, normal,
+            normalVelocity, Touches(JoltNative.ManifoldPenetrationDepth(manifold), normalVelocity, updateDeltaTime), sensor);
     }
 
     private static bool IsReportable(ulong data)
@@ -658,10 +638,14 @@ internal sealed class FrameWorld : IDisposable
         return kind is BodyKind.Primary or BodyKind.Interior or BodyKind.CharacterInner;
     }
 
-    private static Vector3 PointVelocity(Body body, Double3 point)
+    private static unsafe Vector3 PointVelocity(nint body, Double3 point)
     {
-        body.GetRCenterOfMassPosition(out RVector3 com);
+        RVector3 com;
+        Vector3 linear, angular;
+        JoltNative.BodyCenterOfMass(body, &com);
+        JoltNative.BodyLinearVelocity(body, &linear);
+        JoltNative.BodyAngularVelocity(body, &angular);
         Vector3 offset = (point - com.ToDouble3()).ToVector3();
-        return body.GetLinearVelocity() + Vector3.Cross(body.GetAngularVelocity(), offset);
+        return linear + Vector3.Cross(angular, offset);
     }
 }

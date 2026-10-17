@@ -5,8 +5,8 @@ using JoltPhysicsSharp;
 namespace Tertius.Physics;
 
 /// <summary>
-/// joltc entry points that JoltPhysicsSharp 2.23.0 binds with the wrong signature for double precision, or binds only in a
-/// form that allocates.
+/// joltc entry points that JoltPhysicsSharp 2.23.0 binds with the wrong signature for double precision, binds only in a
+/// form that allocates, or binds only behind its own contact events (see <see cref="ContactListener"/>).
 /// </summary>
 internal static unsafe class JoltNative
 {
@@ -31,4 +31,61 @@ internal static unsafe class JoltNative
     // allocate. This takes the body pointer of a BodyLockRead instead, so a ray cast allocates nothing.
     [DllImport(Library, EntryPoint = "JPH_Body_GetWorldSpaceSurfaceNormal", CallingConvention = CallingConvention.Cdecl)]
     public static extern void SurfaceNormal(nint body, uint subShapeId, RVector3* position, Vector3* normal);
+
+    // ---- The contact listener ----
+
+    // joltc keeps one table of contact callbacks for the whole process and calls them for every listener. It keeps the
+    // pointer, not a copy, so the table must live as long as the process.
+    [DllImport(Library, EntryPoint = "JPH_ContactListener_SetProcs", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void ContactListenerSetProcs(ContactListenerProcs* procs);
+
+    [DllImport(Library, EntryPoint = "JPH_ContactListener_Create", CallingConvention = CallingConvention.Cdecl)]
+    public static extern nint ContactListenerCreate(nint userData);
+
+    [DllImport(Library, EntryPoint = "JPH_ContactListener_Destroy", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void ContactListenerDestroy(nint listener);
+
+    [DllImport(Library, EntryPoint = "JPH_PhysicsSystem_SetContactListener", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void PhysicsSystemSetContactListener(nint system, nint listener);
+
+    // ---- What a contact callback reads, on the body and manifold pointers that Jolt passes ----
+
+    // JoltPhysicsSharp binds these only on its managed Body, which each callback would have to look up for both bodies.
+
+    [DllImport(Library, EntryPoint = "JPH_Body_GetID", CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint BodyId(nint body);
+
+    [DllImport(Library, EntryPoint = "JPH_Body_GetUserData", CallingConvention = CallingConvention.Cdecl)]
+    public static extern ulong BodyUserData(nint body);
+
+    [DllImport(Library, EntryPoint = "JPH_Body_GetCenterOfMassPosition", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void BodyCenterOfMass(nint body, RVector3* result);
+
+    [DllImport(Library, EntryPoint = "JPH_Body_GetLinearVelocity", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void BodyLinearVelocity(nint body, Vector3* result);
+
+    [DllImport(Library, EntryPoint = "JPH_Body_GetAngularVelocity", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void BodyAngularVelocity(nint body, Vector3* result);
+
+    [DllImport(Library, EntryPoint = "JPH_ContactManifold_GetPointCount", CallingConvention = CallingConvention.Cdecl)]
+    public static extern uint ManifoldPointCount(nint manifold);
+
+    [DllImport(Library, EntryPoint = "JPH_ContactManifold_GetWorldSpaceNormal", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void ManifoldNormal(nint manifold, Vector3* result);
+
+    [DllImport(Library, EntryPoint = "JPH_ContactManifold_GetPenetrationDepth", CallingConvention = CallingConvention.Cdecl)]
+    public static extern float ManifoldPenetrationDepth(nint manifold);
+}
+
+/// <summary>
+/// joltc's <c>JPH_ContactListener_Procs</c>: the four contact callbacks, in its order. A null callback is not called. For
+/// a null <see cref="OnContactValidate"/>, joltc accepts every contact, as JoltPhysicsSharp does without a handler.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct ContactListenerProcs
+{
+    public nint OnContactValidate;
+    public delegate* unmanaged[Cdecl]<nint, nint, nint, nint, ContactSettings*, void> OnContactAdded;
+    public delegate* unmanaged[Cdecl]<nint, nint, nint, nint, ContactSettings*, void> OnContactPersisted;
+    public delegate* unmanaged[Cdecl]<nint, SubShapeIDPair*, void> OnContactRemoved;
 }
