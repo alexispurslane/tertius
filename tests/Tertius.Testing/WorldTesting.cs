@@ -64,6 +64,18 @@ public static class WorldTesting
     /// <summary>A dynamic cube with sides of 1 m.</summary>
     public static BodyDesc Cube(float mass = 10) => new(new BoxShapeDesc(new Vector3(0.5f)), Mass: mass);
 
+    /// <summary>A closed cube of triangles with <paramref name="half"/> m from its center to each face, every face toward the outside.</summary>
+    public static MeshShapeDesc MeshCube(float half)
+    {
+        Vector3[] v =
+        [
+            new(-half, -half, -half), new(half, -half, -half), new(half, half, -half), new(-half, half, -half),
+            new(-half, -half, half), new(half, -half, half), new(half, half, half), new(-half, half, half),
+        ];
+        int[] faces = [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5, 0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2];
+        return new MeshShapeDesc(v, faces);
+    }
+
     /// <summary>A dynamic ball that nothing slows down on its own, with a radius of <paramref name="radius"/> m.</summary>
     public static BodyDesc Ball(float radius = 0.5f, float mass = 1) =>
         new(new SphereShapeDesc(radius), Mass: mass, LinearDamping: 0, AngularDamping: 0);

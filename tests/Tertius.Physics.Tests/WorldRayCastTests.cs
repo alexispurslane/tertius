@@ -166,18 +166,6 @@ public class WorldRayCastTests
         ShouldBeAt(aim.AnswersTo(1).Single(), target, new Double3(9.5, 0, 0), -Vector3.UnitX, 9.5);
     }
 
-    /// <summary>A closed cube of triangles with <paramref name="half"/> m from its center to each face, every face toward the outside.</summary>
-    private static MeshShapeDesc MeshCube(float half)
-    {
-        Vector3[] v =
-        [
-            new(-half, -half, -half), new(half, -half, -half), new(half, half, -half), new(-half, half, -half),
-            new(-half, -half, half), new(half, -half, half), new(half, half, half), new(-half, half, half),
-        ];
-        int[] faces = [0, 2, 1, 0, 3, 2, 4, 5, 6, 4, 6, 7, 0, 4, 7, 0, 7, 3, 1, 2, 6, 1, 6, 5, 0, 1, 5, 0, 5, 4, 3, 7, 6, 3, 6, 2];
-        return new MeshShapeDesc(v, faces);
-    }
-
     [Fact]
     public void ARayThatStartsInsideAMeshHullPassesOutThroughItButARayFromOutsideHitsIt()
     {

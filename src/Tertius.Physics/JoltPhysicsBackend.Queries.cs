@@ -10,6 +10,12 @@ public sealed partial class JoltPhysicsBackend
     // classes leave OwnsHandle false, so NativeOwnership makes Dispose free the native filter.
     private QueryBodyFilter? queryBodyFilter;
     private readonly List<RayCastResult> rayResults = new(16);
+    private readonly List<ShapeCastResult> shapeCastResults = new(4);
+    private readonly List<CollideShapeResult> collideResults = new(16);
+    private readonly QueryShapeCache queryShapes = new();
+
+    // Made with the first shape cast, because the binding fills it from joltc, which Foundation.Init loads.
+    private ShapeCastSettings? shapeCastSettings;
 
     /// <inheritdoc/>
     /// <remarks>
@@ -56,6 +62,108 @@ public sealed partial class JoltPhysicsBackend
                 hits.Add(new RayCastHit(entity, distance, SurfaceNormal(locks, result, origin + direction * distance)));
             }
         }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The whole query runs inside Jolt, in the same <see cref="BodyFilter"/> as a ray's, so Jolt's closest-hit collector
+    /// returns the first body that the filter accepts. Jolt gives the contact point as floats relative to a base offset, so
+    /// the cast passes its own start as that offset, and the point stays exact near the cast. The surface normal is the
+    /// opposite of Jolt's penetration axis, which points from the moving shape into the body. The cast collects no faces:
+    /// joltc allocates face arrays that the binding never frees.
+    /// </remarks>
+    public void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction, double startDistance, double endDistance,
+        IPhysicsQueryFilter filter, List<ShapeCastHit> hits)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(hits);
+        if (shape.Problem() is { } problem)
+            throw new ArgumentException($"The shape {problem}.", nameof(shape));
+        if (!(endDistance > startDistance) || ExistingWorld(frame) is not { } world)
+            return;
+        lock (JoltRuntime.NativeGate)
+        {
+            QueryBodyFilter bodyFilter = queryBodyFilter ??= NativeOwnership.Owned(new QueryBodyFilter(this));
+            ShapeCastSettings settings = shapeCastSettings ??= ShapeCastSettingsOfQueries();
+            double length = endDistance - startDistance;
+            Double3 from = start.Position + direction * startDistance;
+            shapeCastResults.Clear();
+            bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
+            try
+            {
+                world.System.NarrowPhaseQuery.CastShape(queryShapes.Get(shape), Transform(from, start.Rotation), (direction * length).ToVector3(), settings,
+                    from.ToJolt(), CollisionCollectorType.ClosestHit, shapeCastResults, bodyFilter: bodyFilter);
+            }
+            finally
+            {
+                bodyFilter.End();
+            }
+
+            BodyInterface bodies = world.System.BodyInterfaceNoLock;
+            foreach (ShapeCastResult result in shapeCastResults)
+            {
+                Vector3 axis = result.PenetrationAxis;
+                Vector3 normal = axis.LengthSquared() > 0 ? -Vector3.Normalize(axis) : Vector3.Zero;
+                hits.Add(new ShapeCastHit(EntityOf(bodies.GetUserData(result.BodyID2)), startDistance + result.Fraction * length,
+                    from + (Double3)result.ContactPointOn2, normal));
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The whole query runs inside Jolt, in the same <see cref="BodyFilter"/> as a ray's, with Jolt's all-hit collector,
+    /// which reports each pair of touching parts, so one body can come more than once. Jolt's default settings for it
+    /// collect no faces and ignore the back faces of a mesh.
+    /// </remarks>
+    public void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter, List<Entity> entities)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(entities);
+        if (shape.Problem() is { } problem)
+            throw new ArgumentException($"The shape {problem}.", nameof(shape));
+        if (ExistingWorld(frame) is not { } world)
+            return;
+        lock (JoltRuntime.NativeGate)
+        {
+            QueryBodyFilter bodyFilter = queryBodyFilter ??= NativeOwnership.Owned(new QueryBodyFilter(this));
+            collideResults.Clear();
+            bodyFilter.Begin(world.System.BodyInterfaceNoLock, filter);
+            try
+            {
+                world.System.NarrowPhaseQuery.CollideShape(queryShapes.Get(shape), Vector3.One, Transform(pose.Position, pose.Rotation), pose.Position.ToJolt(),
+                    CollisionCollectorType.AllHit, collideResults, bodyFilter: bodyFilter);
+            }
+            finally
+            {
+                bodyFilter.End();
+            }
+
+            BodyInterface bodies = world.System.BodyInterfaceNoLock;
+            foreach (CollideShapeResult result in collideResults)
+                entities.Add(EntityOf(bodies.GetUserData(result.BodyID2)));
+        }
+    }
+
+    /// <summary>
+    /// The settings of every shape cast: Jolt's defaults, which collect no faces and ignore the back faces of a mesh, except
+    /// that a convex body is solid: a shape that starts inside one hits it at once, as a ray does, even moving away from it.
+    /// </summary>
+    private static ShapeCastSettings ShapeCastSettingsOfQueries()
+    {
+        var settings = new ShapeCastSettings { BackFaceModeConvex = BackFaceMode.CollideWithBackFaces };
+        Contract.Assert(settings.CollectFacesMode == CollectFacesMode.NoFaces && settings.BackFaceModeTriangles == BackFaceMode.IgnoreBackFaces);
+        return settings;
+    }
+
+    /// <summary>The transform of a query shape at <paramref name="position"/>, turned by <paramref name="rotation"/>.</summary>
+    private static RMatrix4x4 Transform(Double3 position, DQuaternion rotation)
+    {
+        RMatrix4x4 transform = Matrix4x4.CreateFromQuaternion(Quaternion.Normalize(rotation.ToJolt()));
+        transform.Translation = position.ToJolt();
+        return transform;
     }
 
     /// <summary>The entity that a body's user data names, or null when no live record of the backend matches it.</summary>

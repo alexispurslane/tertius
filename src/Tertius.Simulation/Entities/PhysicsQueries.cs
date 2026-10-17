@@ -8,18 +8,19 @@ namespace Tertius.Simulation;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A ray works in the frame that the entity is in now, <see cref="Self.Frame"/>: its origin and its direction are in that
-/// frame's coordinates and axes. It crosses frame bubbles: into the frames whose bubbles it passes through, and out to the
-/// parent frame when it leaves the bubble of its own. It skips every body of the entity that asked, and it can hit any body
-/// of another entity that the query accepts: its own body, a frame's hull or interior, and a character. It ignores the
-/// back faces of a mesh, so a ray that starts inside a mesh passes out of it, and it treats a convex shape as solid, so a
-/// ray that starts inside one hits it at once.
+/// A query works in the frame that the entity is in now, <see cref="Self.Frame"/>: its points, poses and directions are in
+/// that frame's coordinates and axes. It crosses frame bubbles: into the frames whose bodies it can meet, and out to the
+/// parent frame where it reaches out of the bubble of its own. It skips every body of the entity that asked, and it can hit
+/// any body of another entity that the query accepts: its own body, a frame's hull or interior, and a character. A query
+/// that starts inside a frame meets that frame's interior, never its hull. A query ignores the back faces of a mesh, so a
+/// ray or a shape that starts inside a mesh passes out of it, and it treats a convex shape as solid, so a ray or a shape
+/// that starts inside one hits it at once.
 /// </para>
 /// <para>
-/// The answer is a <see cref="RayHit"/> with <c>tag</c>, in the frame that the entity is in when the answer arrives.
-/// A ray that hits nothing answers with a miss. The sync point runs the requests of a tick in entity order, and each
-/// entity's in the order it made them, so the answers reach the inbox in that order. Hits at the same distance come in
-/// entity order. If the frame of the ray is gone by the sync point, the answer is a miss with a zero point.
+/// The answers are in the frame that the entity is in when they arrive. A cast that hits nothing answers with a miss, and
+/// an overlap that finds nothing answers once with no entity. The sync point runs the requests of a tick in entity order,
+/// and each entity's in the order it made them, so the answers reach the inbox in that order. Hits at the same distance
+/// come in entity order. If the frame of a query is gone by the sync point, the answer is a miss with a zero point.
 /// </para>
 /// </remarks>
 public readonly ref struct PhysicsQueries
@@ -43,16 +44,60 @@ public readonly ref struct PhysicsQueries
     /// <see cref="InvalidOperationException"/> for an entity in no frame, the owner of a root frame.
     /// </summary>
     public void CastRay(Double3 from, Double3 direction, double length, in EntityQuery query, int tag) =>
-        world.RequestRay(chunk, entity, from, direction, length, query, tag, RayCastKind.Nearest);
+        world.RequestCast(chunk, entity, PhysicsRequestKind.Ray, default, new DPose(from, DQuaternion.Identity), direction, length, query, tag);
 
     /// <summary>
     /// Like <see cref="CastRay"/>, but answers with one <see cref="RayHit"/> for every entity along the ray that
     /// <paramref name="query"/> matches, nearest first, each entity once. A ray that hits nothing answers with one miss.
     /// </summary>
     public void CastRayAll(Double3 from, Double3 direction, double length, in EntityQuery query, int tag) =>
-        world.RequestRay(chunk, entity, from, direction, length, query, tag, RayCastKind.All);
+        world.RequestCast(chunk, entity, PhysicsRequestKind.RayAll, default, new DPose(from, DQuaternion.Identity), direction, length, query, tag);
+
+    /// <summary>
+    /// Moves <paramref name="shape"/> from <paramref name="start"/> along <paramref name="direction"/> for
+    /// <paramref name="length"/> meters, without turning it, and answers in the next tick with one <see cref="ShapeHit"/>:
+    /// the first entity that the shape touches and that <paramref name="query"/> matches, or a miss. The shape's center is
+    /// at <paramref name="start"/>'s position and its axes are <paramref name="start"/>'s axes. The direction need not be
+    /// unit length, nor the rotation. Throws <see cref="ArgumentException"/> for a shape that
+    /// <see cref="QueryShape.Problem"/> refuses, a pose or a direction that is not finite, a zero direction or rotation, or
+    /// a length that is not finite and positive, and <see cref="InvalidOperationException"/> for an entity in no frame.
+    /// </summary>
+    public void CastShape(in QueryShape shape, in DPose start, Double3 direction, double length, in EntityQuery query, int tag) =>
+        world.RequestCast(chunk, entity, PhysicsRequestKind.ShapeCast, shape, start, direction, length, query, tag);
+
+    /// <summary>
+    /// Asks which entities have a body that overlaps <paramref name="shape"/> at <paramref name="pose"/>, and answers in
+    /// the next tick with one <see cref="OverlapHit"/> for each entity that <paramref name="query"/> matches, in entity
+    /// order, or with one <see cref="OverlapHit"/> with no entity when there is none. Throws
+    /// <see cref="ArgumentException"/> for a shape that <see cref="QueryShape.Problem"/> refuses or a pose that is not
+    /// finite or has a zero rotation, and <see cref="InvalidOperationException"/> for an entity in no frame.
+    /// </summary>
+    public void Overlap(in QueryShape shape, in DPose pose, in EntityQuery query, int tag) =>
+        world.RequestOverlap(chunk, entity, shape, pose, query, tag);
 }
 
-/// <summary>A ray cast that an entity asked for during a tick, in the coordinates of <see cref="Frame"/>, with a unit direction.</summary>
-internal readonly record struct RayRequest(
-    Entity Asker, FrameHandle Frame, Double3 From, Double3 Direction, double Length, EntityQuery Query, int Tag, RayCastKind Kind);
+/// <summary>The kind of a physics query that an entity asked for, and so the kind of its answer.</summary>
+internal enum PhysicsRequestKind : byte
+{
+    /// <summary>The nearest hit of a ray: one <see cref="RayHit"/>.</summary>
+    Ray,
+    /// <summary>Every hit of a ray: a <see cref="RayHit"/> for each entity.</summary>
+    RayAll,
+    /// <summary>The first hit of a moving shape: one <see cref="ShapeHit"/>.</summary>
+    ShapeCast,
+    /// <summary>Every entity that a shape overlaps: an <see cref="OverlapHit"/> for each.</summary>
+    Overlap,
+}
+
+/// <summary>
+/// A physics query that an entity asked for during a tick, in the coordinates of <see cref="Frame"/>. A cast starts at
+/// <see cref="Pose"/>'s position and moves along the unit vector <see cref="Direction"/> for <see cref="Length"/> meters. An
+/// overlap has a zero direction and length. A shape has <see cref="Pose"/>'s rotation, which is a unit quaternion. A ray
+/// has no shape and the identity rotation.
+/// </summary>
+internal readonly record struct PhysicsRequest(
+    Entity Asker, FrameHandle Frame, PhysicsRequestKind Kind, QueryShape Shape, DPose Pose, Double3 Direction, double Length, EntityQuery Query, int Tag)
+{
+    /// <summary>True for a query that moves a shape or tests one in place, false for a ray.</summary>
+    public bool HasShape => Kind is PhysicsRequestKind.ShapeCast or PhysicsRequestKind.Overlap;
+}

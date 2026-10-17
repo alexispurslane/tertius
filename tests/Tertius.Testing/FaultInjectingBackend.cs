@@ -123,6 +123,13 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
         RayCastKind kind, List<RayCastHit> hits) =>
         Jolt.CastRay(frame, origin, direction, start, end, filter, kind, hits);
 
+    public void CastShape(FrameHandle frame, in QueryShape shape, in DPose start, Double3 direction, double startDistance, double endDistance,
+        IPhysicsQueryFilter filter, List<ShapeCastHit> hits) =>
+        Jolt.CastShape(frame, shape, start, direction, startDistance, endDistance, filter, hits);
+
+    public void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter, List<Entity> entities) =>
+        Jolt.Overlap(frame, shape, pose, filter, entities);
+
     public float BoundingRadius(ShapeDesc shape) => Jolt.BoundingRadius(shape);
 
     public string? ShapeProblem(ShapeDesc shape) => Jolt.ShapeProblem(shape);

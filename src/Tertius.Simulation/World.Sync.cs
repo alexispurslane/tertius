@@ -94,10 +94,10 @@ public sealed partial class World
         // 8. The back tables become the front tables.
         SwapSnapshot();
 
-        // 9. The ray casts of this tick, against Jolt at the end of the step with this sync's destroys and spawns, and
+        // 9. The physics queries of this tick, against Jolt at the end of the step with this sync's destroys and spawns, and
         //    against the new front snapshot, which describes the same moment: its component flags, collision groups,
         //    poses and frames. Their answers join the routing as engine events.
-        rayQueries.Run(entities.Chunks, TickNumber);
+        queryRunner.Run(entities.Chunks, TickNumber);
 
         // 10. Messages, after every membership and subscription change of this sync, and after the answers of step 9.
         router.Route(TickNumber);
