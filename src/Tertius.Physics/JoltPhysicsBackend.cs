@@ -577,8 +577,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// and the owner of a root frame has no hull.</item>
     /// <item>Every frame owner follows its frame's driver: the record has the frame's driver version and driver, and the
     /// motion that <see cref="BodyDesc.FrameHullMotion"/> gives for it, and Jolt moves the hull with that motion.</item>
-    /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame (see
-    /// <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
+    /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame among the semantic
+    /// frames, or in a falling frame that keeps a ghost of an anchor (see <see cref="GhostAllowed"/>), so never in the
+    /// frame that the body owns or inside it.</item>
     /// <item>The ghosts of each system (see <see cref="FrameWorld.AddGhost"/>) are the ghosts that the records keep in
     /// it, no more and no fewer.</item>
     /// <item>Every Jolt body of a record has the layer that the record's collision groups and mask give it: the primary
