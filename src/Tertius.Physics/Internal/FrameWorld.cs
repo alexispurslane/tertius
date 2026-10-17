@@ -6,7 +6,9 @@ namespace Tertius.Physics;
 /// <summary>
 /// A contact that Jolt reported on a worker thread, before it is mapped to entities. <see cref="Touches"/> is true when
 /// the bodies really touch in the step (see <see cref="FrameWorld.Touches"/>), not only when Jolt found them within its
-/// speculative contact distance.
+/// speculative contact distance. <see cref="Sensor"/> is true when one of the bodies is a sensor, as Jolt's
+/// <c>ContactSettings.IsSensor</c> says, so that the touch pushes nothing. Jolt reports such a pair only while the two
+/// bodies overlap, so its touch is the overlap.
 /// </summary>
 internal readonly record struct RawContact(
     BodyID Body1,
@@ -16,7 +18,8 @@ internal readonly record struct RawContact(
     Double3 Point,
     Vector3 Normal,
     float NormalVelocity,
-    bool Touches)
+    bool Touches,
+    bool Sensor = false)
 {
     public ulong PairKey => FrameWorld.PairKey(Body1, Body2);
 }
@@ -592,7 +595,7 @@ internal sealed class FrameWorld : IDisposable
         ulong data1 = body1.GetUserData(), data2 = body2.GetUserData();
         if (!IsReportable(data1) || !IsReportable(data2))
             return;
-        RawContact contact = Describe(body1, body2, data1, data2, manifold);
+        RawContact contact = Describe(body1, body2, data1, data2, manifold, settings.IsSensor);
         lock (contactGate)
             added.Add(contact);
     }
@@ -604,15 +607,18 @@ internal sealed class FrameWorld : IDisposable
     {
         if (!pending.Contains(PairKey(body1.ID, body2.ID)))
             return;
-        RawContact contact = Describe(body1, body2, body1.GetUserData(), body2.GetUserData(), manifold);
+        RawContact contact = Describe(body1, body2, body1.GetUserData(), body2.GetUserData(), manifold, settings.IsSensor);
         if (!contact.Touches)
             return;
         lock (contactGate)
             persistedTouches.Add(contact);
     }
 
-    /// <summary>The contact of a manifold that Jolt found in this update, at the mean of its points on the first body.</summary>
-    private unsafe RawContact Describe(in Body body1, in Body body2, ulong data1, ulong data2, in ContactManifold manifold)
+    /// <summary>
+    /// The contact of a manifold that Jolt found in this update, at the mean of its points on the first body.
+    /// <paramref name="sensor"/> is true when one of the bodies is a sensor.
+    /// </summary>
+    private unsafe RawContact Describe(in Body body1, in Body body2, ulong data1, ulong data2, in ContactManifold manifold, bool sensor)
     {
         uint count = manifold.PointCount;
         Double3 point = Double3.Zero;
@@ -636,7 +642,7 @@ internal sealed class FrameWorld : IDisposable
         Vector3 v1 = PointVelocity(body1, point), v2 = PointVelocity(body2, point);
         float normalVelocity = Vector3.Dot(v2 - v1, normal);
         return new RawContact(body1.ID, body2.ID, data1, data2, point, normal, normalVelocity,
-            Touches(manifold.PenetrationDepth, normalVelocity, updateDeltaTime));
+            Touches(manifold.PenetrationDepth, normalVelocity, updateDeltaTime), sensor);
     }
 
     private void OnContactRemoved(PhysicsSystem system, ref SubShapeIDPair pair)

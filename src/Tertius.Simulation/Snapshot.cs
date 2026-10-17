@@ -73,7 +73,7 @@ public readonly struct Snapshot
         }
         ref readonly BodyCollision collision = ref entities.FrontCollision(entity);
         facts = new BodyFacts(MotionOf(body, entities.OwnedFrame(entity)), body.Mass, body.Shape.Kind, entities.BodyBoundingRadius(entity),
-            collision.Groups, collision.Mask, IsSensor: false);
+            collision.Groups, collision.Mask, body.IsSensor);
         return true;
     }
 
@@ -91,6 +91,13 @@ public readonly struct Snapshot
     /// it, and yields the matching entities in entity index order.
     /// </summary>
     public FoundEntities Find(in EntityQuery query) => new(this, query, default);
+
+    /// <summary>
+    /// True if <paramref name="query"/> matches <paramref name="entity"/>: the entity was live at the end of the previous
+    /// tick and passes every filter of the query, as a run of <see cref="Find"/> would find it. False for an entity that
+    /// was not live. It allocates nothing.
+    /// </summary>
+    public bool Matches(in EntityQuery query, Entity entity) => world.Entities.IsAlive(entity) && query.Matches(this, entity, default);
 
     /// <summary>
     /// Every live entity, the start of the shorthand chain, such as <c>Entities.With&lt;Flammable&gt;().Near(5)</c>. Its words

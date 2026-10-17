@@ -181,14 +181,16 @@ public class BodyFactsTests
     }
 
     [Fact]
-    public void NoBodyIsASensorYet()
+    public void TheFactsOfASensorBodySayThatItIsASensorAndThoseOfASolidBodyDoNot()
     {
         using World world = NewWorld(out FrameHandle space);
         Entity ball = Spawn(world, space, new BodyDesc(new SphereShapeDesc(0.5f)));
         Entity wall = Spawn(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static), x: 10);
+        Entity plate = Spawn(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) { IsSensor = true }, x: 20);
 
         FactsOf(world, ball).IsSensor.Should().BeFalse();
         FactsOf(world, wall).IsSensor.Should().BeFalse();
+        FactsOf(world, plate).IsSensor.Should().BeTrue();
     }
 
     // ---- Collision groups and mask ----

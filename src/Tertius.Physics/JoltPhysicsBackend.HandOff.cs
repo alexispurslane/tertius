@@ -87,9 +87,9 @@ public sealed partial class JoltPhysicsBackend
                     ContactEntity(raw.UserData2, out float inverseMass2) is not { } b ||
                     a == b)
                     continue;
-                // Relative normal speed times the reduced mass: the impulse that stops the approach.
+                // Relative normal speed times the reduced mass: the impulse that stops the approach. A sensor stops nothing.
                 float inverseMassSum = inverseMass1 + inverseMass2;
-                float reducedMass = inverseMassSum > 0 ? 1f / inverseMassSum : 0f;
+                float reducedMass = inverseMassSum > 0 && !raw.Sensor ? 1f / inverseMassSum : 0f;
                 float impulse = MathF.Max(0f, -raw.NormalVelocity) * reducedMass;
                 // Jolt's normal points from body 1 to body 2. Keep it pointing from A to B.
                 Vector3 normal = raw.Normal;

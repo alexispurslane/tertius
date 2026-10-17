@@ -24,7 +24,7 @@ namespace Tertius.Simulation;
 /// <see cref="BodyHandle.SetCollision"/> in tick N reaches physics in the step of tick N + 1, so these facts show the new
 /// groups and mask from tick N + 2 on.
 /// </param>
-/// <param name="IsSensor">True for a sensor body, which detects touches but does not push. No body is a sensor yet.</param>
+/// <param name="IsSensor">True for a sensor body, which detects touches but does not push (see <see cref="BodyDesc.IsSensor"/>).</param>
 public readonly record struct BodyFacts(
     BodyMotion Motion,
     float Mass,

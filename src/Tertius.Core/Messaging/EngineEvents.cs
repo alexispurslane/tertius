@@ -24,8 +24,9 @@ public struct FrameChanged : IEventPayload
 
 /// <summary>
 /// Physics reported a contact that started: the first step in which the two bodies really touched, by a solver impulse
-/// or zero separation. Point and normal are in the recipient's frame. Each Collision ends later with exactly one
-/// <see cref="CollisionEnded"/> with the same <see cref="Other"/>.
+/// or zero separation, or for a sensor body (<see cref="BodyDesc.IsSensor"/>) by an overlap. Point and normal are in the
+/// recipient's frame. <see cref="Impulse"/> is zero for the touch of a sensor, which pushes nothing. Each Collision ends
+/// later with exactly one <see cref="CollisionEnded"/> with the same <see cref="Other"/>.
 /// </summary>
 public struct Collision : IEventPayload
 {
