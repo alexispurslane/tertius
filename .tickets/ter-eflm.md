@@ -1,6 +1,6 @@
 ---
 id: ter-eflm
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-17T11:35:06Z
