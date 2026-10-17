@@ -2,7 +2,7 @@
 id: ter-ykqs
 status: open
 deps: []
-links: []
+links: [ter-dhkf]
 created: 2026-10-17T07:05:17Z
 type: bug
 priority: 1
