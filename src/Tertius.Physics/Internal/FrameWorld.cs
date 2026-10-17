@@ -81,9 +81,11 @@ internal sealed class FrameWorld : IDisposable
     private bool updatedSinceDrain;
     // The length of the last update, in seconds, by which a contact's approach speed closes its gap (see Touches).
     private float updateDeltaTime;
-    // The inner bodies of this system's characters, and each pair of an inner body with a body that the character's own
-    // contact list holds, from the characters' last update. Jolt never simulates an inner body, and the character keeps a
-    // gap from what it touches as wide as Jolt's speculative contact distance, so for these pairs the character decides.
+    // The bodies of this system's characters, and each pair of such a body with a body that the character's own contact
+    // list holds, from the last update: the inner body of a character in the walking form, and the body of one in the
+    // rigid form. Jolt never simulates an inner body, and the walking form keeps a gap from what it touches as wide as
+    // Jolt's speculative contact distance, so for these pairs the character decides. The rigid form gets the same list
+    // from a query, so that a switch of form ends no contact (see NoteRigidCharacterContacts).
     private readonly HashSet<uint> characterBodies = new();
     private readonly HashSet<ulong> characterTouches = new();
     // Each body that a character hit in its last update, as a contact of its inner body. For the same reason, Jolt can miss
@@ -123,7 +125,15 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>Records whose primary body or character lives in this system.</summary>
     public List<BodyRecord> Members { get; } = new();
 
-    public int CharacterCount { get; set; }
+    /// <summary>The number of members that are characters, in either form. <see cref="AddMember"/> and <see cref="RemoveMember"/> keep it.</summary>
+    public int CharacterCount { get; private set; }
+
+    /// <summary>
+    /// The number of members that are characters in the walking form, each with a Jolt CharacterVirtual in this system. The
+    /// backend keeps it where it creates and disposes those characters. Such a character moves in its own update, so the
+    /// system updates in every step while it has one.
+    /// </summary>
+    public int WalkingCharacterCount { get; set; }
 
     /// <summary>Set after the first update that overflowed a Jolt limit, so the warning appears once.</summary>
     public bool ReportedOverflow { get; set; }
@@ -151,6 +161,8 @@ internal sealed class FrameWorld : IDisposable
     {
         record.MemberIndex = Members.Count;
         Members.Add(record);
+        if (record.IsCharacter)
+            CharacterCount++;
     }
 
     public void RemoveMember(BodyRecord record)
@@ -162,6 +174,8 @@ internal sealed class FrameWorld : IDisposable
         moved.MemberIndex = index;
         Members.RemoveAt(last);
         record.MemberIndex = -1;
+        if (record.IsCharacter)
+            CharacterCount--;
     }
 
     // The ghosts in this system: copies of bodies whose own system is another frame's (see GhostBody). It holds the body of
@@ -450,10 +464,24 @@ internal sealed class FrameWorld : IDisposable
     }
 
     /// <summary>
-    /// True when a held pair has ended. A pair with the inner body of a character ends when the character's contact list no
-    /// longer has the other body. Any other pair ends when the last update simulated one of its bodies and Jolt did not find
-    /// the pair: Jolt finds the contacts of every body that it simulates, also of one that woke during the update, while
-    /// two bodies that Jolt did not simulate did not move apart.
+    /// Records what a character in the rigid form, whose body is <paramref name="body"/>, touches after the update: each
+    /// body of <paramref name="contacts"/>, the result of the query that gives the rigid form the contact list of its
+    /// walking form. <see cref="DrainContacts"/> then ends a held pair of the body as it ends one of a walking
+    /// character's inner body, only when that list no longer has the other body.
+    /// </summary>
+    public void NoteRigidCharacterContacts(BodyID body, List<CollideShapeResult> contacts)
+    {
+        characterBodies.Add(body.ID);
+        foreach (CollideShapeResult contact in contacts)
+            if (contact.BodyID2.ID != body.ID)
+                characterTouches.Add(PairKey(body, contact.BodyID2));
+    }
+
+    /// <summary>
+    /// True when a held pair has ended. A pair with the body of a character, in either form, ends when the character's
+    /// contact list no longer has the other body. Any other pair ends when the last update simulated one of its bodies
+    /// and Jolt did not find the pair: Jolt finds the contacts of every body that it simulates, also of one that woke
+    /// during the update, while two bodies that Jolt did not simulate did not move apart.
     /// </summary>
     private bool HeldPairEnded(ulong key)
     {
@@ -567,6 +595,24 @@ internal sealed class FrameWorld : IDisposable
         ulong key = PairKey(a, b);
         lock (contactGate)
             return touching.ContainsKey(key) ? pending.Remove(key) : held.Add(key);
+    }
+
+    /// <summary>
+    /// True when a body pair of <paramref name="body"/> in this system has started and not ended: a pair of
+    /// <c>touching</c> that is not pending, or a held pair. Costs time in proportion to the number of pairs in the system.
+    /// </summary>
+    public bool HasStartedPair(BodyID body)
+    {
+        lock (contactGate)
+        {
+            foreach (ulong key in touching.Keys)
+                if (Involves(key, body) && !pending.Contains(key))
+                    return true;
+            foreach (ulong key in held)
+                if (Involves(key, body))
+                    return true;
+        }
+        return false;
     }
 
     /// <summary>

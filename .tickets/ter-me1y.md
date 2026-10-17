@@ -2,7 +2,7 @@
 id: ter-me1y
 status: open
 deps: []
-links: []
+links: [ter-4psc, ter-tenw]
 created: 2026-10-17T07:05:17Z
 type: chore
 priority: 4

@@ -279,6 +279,11 @@ public class CharacterTests
         }
     }
 
+    /// <summary>
+    /// A weightless character is a rigid body (its rigid form), so friction acts on it as on any body: against a wall with
+    /// friction, the hit takes friction times the stopping impulse from its slide. The wall here has none, so the slide
+    /// goes on whole.
+    /// </summary>
     [Fact]
     public void InZeroGravityACharacterThatHitsAWallLosesTheMotionIntoItAndSlidesAlongIt()
     {
@@ -286,7 +291,7 @@ public class CharacterTests
         using (world)
         {
             // A wall whose face is at x = 1.5. The capsule's side touches it when its center reaches x = 1.2.
-            world.Spawn(new SpawnDesc { Frame = space, Pose = At(2, 0, 0), Body = StaticBox(new Vector3(0.5f, 5, 5)) });
+            world.Spawn(new SpawnDesc { Frame = space, Pose = At(2, 0, 0), Body = StaticBox(new Vector3(0.5f, 5, 5)) with { Friction = 0 } });
             Send(world, pilot, body => body.AddImpulse(new Vector3(140, 0, 70)));
             Tick(world, 60);
 
@@ -353,19 +358,25 @@ public class CharacterTests
         }
     }
 
+    /// <summary>
+    /// A weightless character is a rigid body (its rigid form), so a hit conserves momentum. Neither body bounces, so the two
+    /// move on together: 70 kg at 1 m/s into 5 kg at rest leaves both at 70/75 m/s. Before the rigid form, the character kept
+    /// its whole momentum and the crate gained some from nothing.
+    /// </summary>
     [Fact]
-    public void InZeroGravityACharacterKeepsItsMomentumAgainstALightDynamicBody()
+    public void InZeroGravityACharacterThatHitsALightDynamicBodySharesItsMomentumWithIt()
     {
         var (world, space, person, pilot) = Floating();
         using (world)
         {
-            // A 5 kg crate 1 m ahead. The character pushes it out of the way as it does in the air.
+            // A 5 kg crate 1 m ahead.
             Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(1.5, 0, 0), Body = Box(0.25f, mass: 5) });
             Send(world, pilot, body => body.AddImpulse(new Vector3(70, 0, 0)));
             Tick(world, 120);
 
-            world.VelocityInOwnFrame(person).X.Should().BeApproximately(1, 0.01f);
-            world.VelocityInOwnFrame(crate).X.Should().BeGreaterThan(0.9f);
+            const float shared = 70f / 75f;
+            world.VelocityInOwnFrame(person).X.Should().BeApproximately(shared, 0.01f);
+            world.VelocityInOwnFrame(crate).X.Should().BeApproximately(shared, 0.01f);
             world.Errors.Should().BeEmpty();
         }
     }

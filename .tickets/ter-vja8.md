@@ -2,7 +2,7 @@
 id: ter-vja8
 status: open
 deps: [ter-1bnq]
-links: []
+links: [ter-9yvr]
 created: 2026-10-16T23:00:45Z
 type: feature
 priority: 1

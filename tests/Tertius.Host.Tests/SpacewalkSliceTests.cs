@@ -109,15 +109,22 @@ public sealed class SpacewalkSliceTests(SpacewalkRun run) : IClassFixture<Spacew
     }
 
     [Fact]
-    public void ThePersonMovesOnlyAlongTheShipsXAxisAtTheHeightOfTheHatchsSill()
+    public void ThePersonMovesAlongTheShipsXAxisFromTheHatchsSillWithOnlyASmallSteadyDriftAcrossIt()
     {
         // The ship's X axis is the normal of its orbit. Along it, the motion relative to the ship in earth has no sideways
-        // drift. The hand-offs keep the person's motion relative to the ship too.
+        // drift. The hand-offs keep the person's motion relative to the ship too. The person leaves the sill with a small
+        // upward drift, which the sill's rounded inner edge gave its rigid form (ticket ter-1w06, see
+        // AirlockSliceTests.OutsideTheHullThePersonIsWeightlessAndDriftsAwayFromTheShip). Nothing changes that drift, so
+        // the person's height grows by it in proportion to the time since the dump "outside", at 60 ticks a second.
+        (Double3 start, Double3 drift) = RelativeToShip("outside");
+        start.Y.Should().BeApproximately(OnTheSill, 0.02);
+        drift.Y.Should().BeInRange(0, 0.01);
         foreach (string name in InShipGoingOut.Concat(InEarth).Append("back-in-ship"))
         {
             Double3 at = RelativeToShip(name).Position;
+            double seconds = (Dump(name).Tick - Dump("outside").Tick) / 60.0;
 
-            at.Y.Should().BeApproximately(OnTheSill, 0.01, $"in {name}");
+            at.Y.Should().BeApproximately(start.Y + drift.Y * seconds, 0.01, $"in {name}");
             at.Z.Should().BeApproximately(HatchZ, 0.05, $"in {name}");
         }
     }

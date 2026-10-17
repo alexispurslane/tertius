@@ -605,9 +605,11 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Below this effective gravity, in m/s², physics never stands a character, so the character is weightless: it
-    /// keeps its momentum and its last up, and only forces and the weak gravity change its velocity. At or above it,
-    /// physics stands a character only on walkable ground. A character in the air is weightless there too, because it
-    /// falls freely. Physics reports which characters it stood, so the components that steer characters agree with it.
+    /// keeps its momentum and its last up, and only forces, the weak gravity and what it touches change its velocity. The
+    /// physics backend then makes it a rigid body that cannot turn, until the gravity at it reaches twice this value, or
+    /// this value while it touches something. At or above it, physics stands a character only on walkable ground. A
+    /// character in the air is weightless there too, because it falls freely. Physics reports which characters it stood,
+    /// so the components that steer characters agree with it.
     /// </summary>
     public const float ZeroGravityThreshold = 0.05f;
 

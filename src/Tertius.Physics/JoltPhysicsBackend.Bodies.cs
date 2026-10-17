@@ -86,7 +86,14 @@ public sealed partial class JoltPhysicsBackend
         if (desc.Problem(ownsFrame) is { } problem)
             throw new ArgumentException($"{entity} cannot get a body: it {problem}.");
 
-        var record = new BodyRecord { Entity = entity, Desc = desc, CollisionGroups = desc.CollisionGroups, CollisionMask = desc.CollisionMask };
+        var record = new BodyRecord
+        {
+            Entity = entity,
+            Desc = desc,
+            Material = desc.Motion == BodyMotion.Character ? RigidForm(desc) : desc,
+            CollisionGroups = desc.CollisionGroups,
+            CollisionMask = desc.CollisionMask,
+        };
         if (ownsFrame)
         {
             record.OwnedFrame = owned;
@@ -110,6 +117,8 @@ public sealed partial class JoltPhysicsBackend
         // Build every native shape before any state changes, so that a shape that Jolt cannot build throws cleanly.
         record.HasMesh = desc.Shape.ContainsMesh();
         shapes.Get(desc.Shape);
+        // A character's rigid form has a shape of its own.
+        shapes.Get(record.Material.Shape);
         if (ownsFrame)
             shapes.Get(desc.InteriorShape ?? desc.Shape);
         record.Radius = BoundingRadius(desc.Shape);
@@ -235,12 +244,20 @@ public sealed partial class JoltPhysicsBackend
     /// True when the backend can change the body's motion type: the hull of a frame, unless it is a mesh, which never
     /// moves, and a ghost of a mesh.
     /// </param>
-    private readonly record struct RigidSpec(ShapeDesc Shape, MotionType Motion, ObjectLayer Layer, ulong UserData, BodyDesc Material, bool MotionChanges = false);
+    /// <param name="Freedom">How the body can move: freely, or only along the three axes, for the rigid form of a character.</param>
+    private readonly record struct RigidSpec(ShapeDesc Shape, MotionType Motion, ObjectLayer Layer, ulong UserData, BodyDesc Material, bool MotionChanges = false,
+        AllowedDOFs Freedom = AllowedDOFs.All);
 
-    /// <summary>The spec of a record's primary rigid body: its own body, or the hull of the frame that it owns.</summary>
+    /// <summary>How the rigid form of a character can move: along the three axes, but it never turns.</summary>
+    private const AllowedDOFs TranslationOnly = AllowedDOFs.TranslationX | AllowedDOFs.TranslationY | AllowedDOFs.TranslationZ;
+
+    /// <summary>
+    /// The spec of a record's primary rigid body: its own body, the rigid form of a character, or the hull of the frame that
+    /// it owns. Its shape and material come from <see cref="BodyRecord.Material"/>.
+    /// </summary>
     private static RigidSpec PrimarySpec(BodyRecord record) =>
-        new(record.Desc.Shape, ToMotionType(record.Motion), PrimaryLayer(record), BodyUserData.Encode(BodyKind.Primary, record.Entity), record.Desc,
-            MotionChanges: record.IsHull && !record.HasMesh);
+        new(record.Material.Shape, ToMotionType(record.Motion), PrimaryLayer(record), BodyUserData.Encode(BodyKind.Primary, record.Entity), record.Material,
+            MotionChanges: record.IsHull && !record.HasMesh, Freedom: record.IsCharacter ? TranslationOnly : AllowedDOFs.All);
 
     /// <summary>The spec of the static interior of the frame that a record owns, in the frame's own system.</summary>
     private static RigidSpec InteriorSpec(BodyRecord record) =>
@@ -306,6 +323,7 @@ public sealed partial class JoltPhysicsBackend
             AllowDynamicOrKinematic = spec.MotionChanges,
             // A ghost of a sensor is a sensor too, so that it pushes nothing in the other frame either.
             IsSensor = material.IsSensor,
+            AllowedDOFs = spec.Freedom,
         });
         // Jolt gives a body that is or can become kinematic motion properties from its mass, but it cannot compute the mass
         // of a mesh, and would divide by zero. A mesh is never dynamic, and Jolt reads the mass only of a dynamic body, so
@@ -357,7 +375,7 @@ public sealed partial class JoltPhysicsBackend
         }
         record.Standing = false;
         CharacterVirtual character = NewCharacter(record, world.System, pose.Position.ToJolt(), rotation, linearVelocity);
-        world.CharacterCount++;
+        world.WalkingCharacterCount++;
         return character;
     }
 
@@ -379,6 +397,10 @@ public sealed partial class JoltPhysicsBackend
             MaxSlopeAngle = options.CharacterMaxSlopeDegrees * (MathF.PI / 180f),
             Mass = record.Desc.Mass,
             MaxStrength = options.CharacterMaxStrength,
+            // Jolt's own padding, which the rigid form's capsule includes (see RigidForm).
+            CharacterPadding = CharacterPadding,
+            // Jolt's own reach, which the rigid form's contact list has too (see NoteRigidCharacterContacts).
+            PredictiveContactDistance = CharacterContactReach,
             // Contacts below the center of the lower hemisphere support the character.
             SupportingVolume = new Plane(Vector3.UnitY, -capsule.Radius),
         };
@@ -411,7 +433,7 @@ public sealed partial class JoltPhysicsBackend
             LoosenContacts(world, character.InnerBodyID);
             character.Dispose();
             record.Character = null;
-            world.CharacterCount--;
+            world.WalkingCharacterCount--;
         }
         else if (record.Body.IsValid)
         {

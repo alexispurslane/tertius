@@ -2,7 +2,7 @@
 id: ter-tenw
 status: open
 deps: []
-links: []
+links: [ter-4psc, ter-me1y]
 created: 2026-10-17T07:05:17Z
 type: bug
 priority: 3
