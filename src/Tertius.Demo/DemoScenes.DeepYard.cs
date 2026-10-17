@@ -15,7 +15,7 @@ public static partial class DemoScenes
     /// <list type="bullet">
     /// <item>The root frame <c>space</c> has no gravity. Its origin is where the light comes from.</item>
     /// <item>The yard's center, <see cref="Center"/> at the start, lies one light-year from space's origin along -Z. The
-    /// whole yard moves at <see cref="Drift"/>, 100 m/s along -Z, away from the light. All positions and velocities below
+    /// whole yard moves at <see cref="Drift"/>, 2,000 m/s along -Z, away from the light. All positions and velocities below
     /// are relative to the yard.</item>
     /// <item><c>crate-a</c>, orange, and <c>crate-b</c>, green, are crates of 1 m and 50 kg, 3 m apart center to center
     /// along X, 1.5 m on either side of the yard's center. crate-a moves toward crate-b at 0.1 m/s, and crate-b rests.
@@ -24,9 +24,9 @@ public static partial class DemoScenes
     /// +Z, and faces the crates, along -Z. Space has no gravity, so W thrusts it toward them (see
     /// <see cref="PersonControl"/>). It is the camera, and its view sees the crates with the light behind it.</item>
     /// </list>
-    /// What the nest does here: each falling frame moves 100 m/s × 1/60 s = 1.67 m along -Z in each tick. A frame whose
-    /// place were a double in space, a light-year out, would round each such step to 2 m, so it would move at 120 m/s
-    /// while its members' velocities say 100 m/s. Under the nest, each frame's place is its offset from a grid point,
+    /// What the nest does here: each falling frame moves 2,000 m/s × 1/60 s = 33.33 m along -Z in each tick. A frame whose
+    /// place were a double in space, a light-year out, would round each such step to a multiple of 2 m, 34 m, so it would
+    /// move at 2,040 m/s while its members' velocities say 2,000 m/s. Under the nest, each frame's place is its offset from a grid point,
     /// less than 2^20 m, where a double steps by about 1e-10 m, so every step adds without a visible rounding. The merge test between the person's frame and the crates' frame also
     /// reads their places through the nest, in small numbers.
     /// <para>
@@ -55,10 +55,12 @@ public static partial class DemoScenes
         public const double CrateSpeed = 0.1;
 
         /// <summary>
-        /// How fast the whole yard drifts through space along -Z, in m/s. It is twice the 50 m/s at which the engine gives a
-        /// group of bodies a falling numeric frame, so the yard's frames fall with it.
+        /// How fast the whole yard drifts through space along -Z, in m/s. It is twice the 1,000 m/s at which the engine gives
+        /// a group of free bodies a falling numeric frame (<c>NumericFrameOptions.CreateSpeed</c>), so the crates' frame
+        /// falls with the yard. The person is a character, which always thrusts, so its frame falls from 50 m/s
+        /// (<c>NumericFrameOptions.ThrustCreateSpeed</c>).
         /// </summary>
-        public const double DriftSpeed = 100;
+        public const double DriftSpeed = 2_000;
 
         /// <summary>
         /// How far the person floats from the yard's center along +Z at the start, in meters. It is even, so that the
