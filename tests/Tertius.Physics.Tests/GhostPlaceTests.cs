@@ -228,6 +228,39 @@ public class GhostPlaceTests
         });
     }
 
+    /// <summary>
+    /// The ship of <see cref="RunShipOverARock"/> without the rock. Before the 30 ticks of onset, the hull flies at 60 m/s
+    /// in the system of space, so the crate's ghost lives there. At the sync point of the 30th tick, the hull moves into a
+    /// falling frame of its own, and the ship's frame with it. From then on the tree allows the crate a ghost in that frame
+    /// and none in the system of space, so the reconcile of that sync point drops the ghost in space at once. The ghost pass
+    /// makes the one in the falling frame at the end of the next step.
+    /// </summary>
+    [Fact]
+    public void TheSyncPointThatMovesAShipsHullIntoAFallingFrameDropsTheGhostInSpaceOfACrateThatSticksOutOfTheShip()
+    {
+        using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
+        FrameHandle space = Space(world);
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(180), LinearVelocity = new Double3(-60, 0, 0), Body = ShipHull,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics), Components = [new Thruster(ShipHull.Mass)],
+        });
+        FrameHandle bubble = world.GetOwnedFrame(ship);
+        Entity crate = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(0, -200), Body = CrateBody });
+        Tick(world, 2);
+        faults.Jolt.HasGhostIn(crate, space).Should().BeTrue("the hull flies in the system of space, and the crate sticks out of the ship");
+
+        int ticks = TickUntil(world, () => world.Frames.IsNumeric(world.Frames.TreeParent(bubble)), 40);
+
+        ticks.Should().Be(OnsetTicks - 2, "the hull thrusts from its 30th tick of thrust");
+        FrameHandle falling = world.Frames.TreeParent(bubble);
+        faults.Jolt.HasGhostIn(crate, space).Should().BeFalse("the ship's frame hangs in the hull's falling frame now");
+        world.Tick();
+        faults.Jolt.HasGhostIn(crate, falling).Should().BeTrue();
+        faults.Jolt.HasGhostIn(crate, space).Should().BeFalse();
+        world.Errors.Should().BeEmpty();
+    }
+
     // ---- A ghost that is fixed in a frame's own system (ter-tenw) -------------------------------------------------------
 
     /// <summary>
