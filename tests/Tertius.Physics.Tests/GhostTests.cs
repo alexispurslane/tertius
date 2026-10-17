@@ -1,5 +1,6 @@
 using System.Numerics;
 using Tertius.Simulation;
+using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
@@ -78,8 +79,16 @@ public class GhostTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// With no gravity, a kinematic block in a child frame sticks 1 m out of the bubble, and a ball of 1 kg in the parent
+    /// flies at the part that sticks out at 5 m/s. The ball hits the block's ghost, which stops it and does not move the
+    /// block. A contact with a ghost is a contact of the two entities: physics reports one contact of the ball and the block,
+    /// in the parent frame, and each hears one Collision. A ghost stands for its real body, which is kinematic, so the
+    /// impulse is the ball's mass times its approach speed. When the block moves fully inside, its ghost goes, which ends
+    /// the contact, and each hears one CollisionEnded.
+    /// </summary>
     [Fact]
-    public void BodyInParentCollidesWithGhostOfBodyStickingOutOfChild()
+    public void ABodyInTheParentAndABodyThatSticksOutOfTheChildEachHearTheirContactThroughTheGhost()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
@@ -90,12 +99,14 @@ public class GhostTests
         var blockLog = new CollisionLog();
         Entity block = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(10), Body = blockDesc, Components = [pilot, blockLog] });
         // A ball in the parent flies at the part that sticks out. It never touches the child's bubble.
+        var ballLog = new CollisionLog();
         Entity ball = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(16),
             LinearVelocity = new Vector3(-5, 0, 0),
             Body = BallBody(0.25f),
+            Components = [ballLog],
         });
 
         world.Tick();
@@ -110,14 +121,19 @@ public class GhostTests
         faults.Outputs.SelectMany(output => output.HandOffs).Should().BeEmpty();
         // The ghost pushed, but the block did not move: ghosts never push back on the real body.
         (world.PoseInOwnFrame(block).Position - new Double3(10, 0, 0)).Length.Should().BeLessThan(1e-6);
-        // Ghost contacts are not reported as collisions.
-        faults.Outputs.SelectMany(output => output.Contacts).Should().NotContain(c => c.A == block || c.B == block);
-        blockLog.Seen.Should().BeEmpty("the block hears no collision from its ghost");
+        ContactStarted contact = faults.Outputs.SelectMany(output => output.Contacts).Should().ContainSingle().Subject;
+        new[] { contact.A, contact.B }.Should().BeEquivalentTo([block, ball]);
+        contact.Frame.Should().Be(space, "the parent's system holds the ghost and the ball");
+        contact.Impulse.Should().BeApproximately(5f, 0.25f, "the ball of 1 kg approached the kinematic block at 5 m/s");
+        blockLog.NewsOf(ball).Should().Equal([Started], "the block hears the contact of its ghost");
+        ballLog.NewsOf(block).Should().Equal([Started]);
 
-        // Move the block fully inside: the ghost goes away.
+        // Move the block fully inside: the ghost goes away, and with it the contact.
         pilot.Once = body => body.Teleport(new DPose(new Double3(5, 0, 0), DQuaternion.Identity));
-        Tick(world, 2);
+        Tick(world, 3);
         faults.Jolt.GhostCount(block).Should().Be(0);
+        blockLog.NewsOf(ball).Should().Equal(Started, Ended);
+        ballLog.NewsOf(block).Should().Equal(Started, Ended);
         world.Errors.Should().BeEmpty();
     }
 

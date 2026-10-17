@@ -10,15 +10,9 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class ContactTests
 {
-    /// <summary>
-    /// A body of a box with sides of 2 · <paramref name="half"/> m that nothing slows down, and that does not bounce off
-    /// a surface that does not bounce. Jolt combines two restitutions by taking the larger, so on the default restitution
-    /// of 0.1 the box bounces a little. Jolt starts such a bounce where the box is when the step begins, up to its
-    /// speculative contact distance of 0.02 m above the surface, so the bounce can carry the box out of that distance,
-    /// and it lands a second time. Whether it does depends only on where the landing step begins.
-    /// </summary>
+    /// <summary>A body of a box with sides of 2 · <paramref name="half"/> m that nothing slows down.</summary>
     private static BodyDesc BoxBody(float half, float mass = 1f) =>
-        new(new BoxShapeDesc(new Vector3(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        new(new BoxShapeDesc(new Vector3(half)), Mass: mass, LinearDamping: 0, AngularDamping: 0);
 
     private static List<ContactStarted> ContactsSent(FaultInjectingBackend faults) => faults.Outputs.SelectMany(output => output.Contacts).ToList();
 
@@ -73,8 +67,7 @@ public class ContactTests
         {
             Frame = space,
             Pose = DPose.Identity,
-            // The deck does not bounce either: Jolt takes the larger restitution of the two (see BoxBody).
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), Restitution: 0, InteriorShape: deck),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), InteriorShape: deck),
             AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
             Components = [shipLog],
         });
@@ -104,8 +97,7 @@ public class ContactTests
         {
             Frame = ground,
             Pose = At(0, -0.5),
-            // The floor does not bounce either: Jolt takes the larger restitution of the two (see BoxBody).
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 0.5f, 10)), BodyMotion.Static, Restitution: 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 0.5f, 10)), BodyMotion.Static),
         });
         var boxes = new List<Entity>();
         for (int i = 0; i < 5; i++)

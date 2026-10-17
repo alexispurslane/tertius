@@ -246,7 +246,9 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The spec of a ghost of a record's body. Meshes are static-only, so the ghost of a mesh hull (a static frame's) is a
-    /// static body that physics repositions. The other ghosts are kinematic and carry the real body's velocity.
+    /// static body that physics repositions. The other ghosts are kinematic and carry the real body's velocity. A ghost of
+    /// a static body is kinematic too, but its system reports only the contacts that the static body would make (see
+    /// <see cref="FrameWorld.StandsForStaticBody"/>).
     /// </summary>
     private static RigidSpec GhostSpec(BodyRecord record) =>
         new(record.Desc.Shape, record.HasMesh ? MotionType.Static : MotionType.Kinematic, GhostLayer(record), BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc);
@@ -404,16 +406,16 @@ public sealed partial class JoltPhysicsBackend
         record.InteriorBody = BodyID.Invalid;
     }
 
-    private static void RemoveGhosts(BodyRecord record)
+    private void RemoveGhosts(BodyRecord record)
     {
         if (record.Ghosts is not { } ghosts)
             return;
         foreach (GhostBody ghost in ghosts)
-            ghost.World.RemoveGhost(ghost.Body);
+            RemoveGhostBody(ghost);
         ghosts.Clear();
     }
 
-    private static void RemoveGhostIn(BodyRecord record, FrameWorld world)
+    private void RemoveGhostIn(BodyRecord record, FrameWorld world)
     {
         if (record.Ghosts is not { } ghosts)
             return;
@@ -423,14 +425,24 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// Removes and destroys the ghost at <paramref name="index"/> of <paramref name="ghosts"/>, a record's ghosts, and takes
-    /// it out of its system's ghosts, after it wakes the bodies around it.
+    /// Removes and destroys the ghost at <paramref name="index"/> of <paramref name="ghosts"/>, a record's ghosts, as
+    /// <see cref="RemoveGhostBody"/> does.
     /// </summary>
-    private static void RemoveGhostAt(List<GhostBody> ghosts, int index)
+    private void RemoveGhostAt(List<GhostBody> ghosts, int index)
     {
-        GhostBody ghost = ghosts[index];
-        ghost.World.RemoveGhost(ghost.Body);
+        RemoveGhostBody(ghosts[index]);
         ghosts.RemoveAt(index);
+    }
+
+    /// <summary>
+    /// Removes and destroys a ghost and takes it out of its system's ghosts, after it wakes the bodies around it. A ghost's
+    /// contacts are contacts of its entity, so they loosen as those of a real body do (see <see cref="LoosenContacts"/>).
+    /// Call it while the ghost's record still exists.
+    /// </summary>
+    private void RemoveGhostBody(in GhostBody ghost)
+    {
+        LoosenContacts(ghost.World, ghost.Body);
+        ghost.World.RemoveGhost(ghost.Body);
     }
 
     // ---- Moving frame hulls after the tree changed ----
@@ -498,6 +510,10 @@ public sealed partial class JoltPhysicsBackend
         owner.DriverVersion = version;
         owner.Driver = driver;
         owner.Motion = BodyDesc.FrameHullMotion(driver);
+        // A ghost meets what its real body meets, and a static body meets less (see FrameWorld.StandsForStaticBody).
+        if (owner.Ghosts is { } ghosts)
+            foreach (GhostBody ghost in ghosts)
+                ghost.World.SetGhostOfStaticBody(ghost.Body, !owner.IsMovable);
         return true;
     }
 

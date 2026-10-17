@@ -237,13 +237,19 @@ public readonly record struct CompoundChild(ShapeDesc Shape, Pose Pose);
 /// the parent frame, and <see cref="InteriorShape"/> (or <see cref="Shape"/> if null) is static geometry in the
 /// frame's own system.
 /// </summary>
+/// <param name="Restitution">
+/// How much of its approach speed a contact gives back as a rebound. A contact takes the larger restitution of its two
+/// bodies, and does not bounce when its bounce would rise less than 4 cm against the pull toward the surface: about a
+/// rebound of 0.89 m/s at 1 g, more under a stronger pull, and any rebound without one. The default is 0, as in Jolt, so
+/// a body bounces only when its content names a restitution.
+/// </param>
 public sealed record BodyDesc(
     ShapeDesc Shape,
     BodyMotion Motion = BodyMotion.Dynamic,
     BodyLayer Layer = BodyLayer.Moving,
     float Mass = 1f,
     float Friction = 0.5f,
-    float Restitution = 0.1f,
+    float Restitution = 0f,
     float LinearDamping = 0.05f,
     float AngularDamping = 0.05f,
     ShapeDesc? InteriorShape = null)
@@ -262,8 +268,9 @@ public sealed record BodyDesc(
     /// True for a sensor body, which detects touches but does not push: Jolt's sensor. Bodies pass through it. A touch
     /// of a sensor starts when the two bodies overlap and ends when they stop overlapping, with a
     /// <see cref="ContactStarted"/> whose impulse is zero and a <see cref="ContactEnded"/>. A sensor detects dynamic and
-    /// kinematic bodies and characters when the collision groups and masks of both match. Sleep and wake end no touch,
-    /// and a ghost's touch is no touch of its entity. A character or the owner of a frame cannot be a sensor.
+    /// kinematic bodies and characters when the collision groups and masks of both match. Sleep and wake end no touch. A
+    /// ghost's touch is a touch of its entity, and an entity's body and its ghosts make one touch. A character or the owner
+    /// of a frame cannot be a sensor.
     /// </summary>
     public bool IsSensor { get; init; }
 
@@ -507,16 +514,20 @@ public readonly record struct CharacterState(Entity Entity, bool Standing);
 public readonly record struct HandOff(Entity Entity, FrameHandle From, FrameHandle To, DPose Pose, Vector3 LinearVelocity, Vector3 AngularVelocity);
 
 /// <summary>
-/// A contact that started during the step between two different entities. Point and normal are in <see cref="Frame"/>,
-/// the frame whose physics system holds both bodies, and the normal points from <see cref="A"/> toward <see cref="B"/>.
+/// A contact that started during the step between two different entities, once for each pair of entities. Point and
+/// normal are in <see cref="Frame"/>, the frame whose physics system found the touch, and the normal points from
+/// <see cref="A"/> toward <see cref="B"/>. That system holds a body of each entity: both real bodies, or the real body
+/// of one and the ghost of the other's body, which stands for its real body. When the systems of several frames start
+/// the contact in the same step, <see cref="Frame"/> is the one with the lowest index.
 /// </summary>
 public readonly record struct ContactStarted(Entity A, Entity B, FrameHandle Frame, Double3 Point, Vector3 Normal, float Impulse);
 
 /// <summary>
 /// A contact that a <see cref="ContactStarted"/> of an earlier step, or of the same step, reported and that ended during
-/// the step: the two bodies stopped touching, or one of them was destroyed or left for a system where the other entity
-/// has no body. <see cref="A"/> comes before <see cref="B"/> in entity order. An entity whose body was destroyed at the
-/// last sync point may no longer exist.
+/// the step: no system holds it any more. The two bodies stopped touching, or one of them was destroyed or left for a
+/// system where nothing carries the contact on: no body of the other entity there, real or ghost, that can touch it.
+/// <see cref="A"/> comes before <see cref="B"/> in entity order. An entity whose body was destroyed at the last sync
+/// point may no longer exist.
 /// </summary>
 public readonly record struct ContactEnded(Entity A, Entity B);
 

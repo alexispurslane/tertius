@@ -135,14 +135,12 @@ public class PhysicsContactTests
         {
             Frame = test.Root,
             Pose = shipPose,
-            // The deck does not bounce either. Jolt takes the larger restitution of the two, and starts a bounce up to
-            // 0.02 m above the deck, which can carry the crate out of contact so that it lands twice.
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), Restitution: 0, InteriorShape: deck),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), InteriorShape: deck),
             AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
             Components = [ownerLog],
         });
         FrameHandle ship = test.World.GetOwnedFrame(owner);
-        var crateBody = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+        var crateBody = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), LinearDamping: 0, AngularDamping: 0);
         Entity crate = test.World.Spawn(new SpawnDesc { Frame = ship, Pose = TestWorld.At(0, 0, 0), Body = crateBody, Components = [crateLog] });
 
         test.Run(90);

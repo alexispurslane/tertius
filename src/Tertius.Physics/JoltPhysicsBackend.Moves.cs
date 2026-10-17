@@ -17,10 +17,12 @@ public sealed partial class JoltPhysicsBackend
     /// velocity move by the difference of the two homes' offsets and frame velocities, in doubles; numeric frames do not
     /// rotate, so nothing turns. A sleeping rigid body stays asleep. A character is created again, as in a hand-off, and
     /// looks up its contacts. A frame's hull keeps its body state too, and the simulation has already put the frame under
-    /// the new home. Every contact of a moved body with another moved body that goes to the same system goes on there
-    /// without a new report, and every other contact of a moved body ends (see <see cref="ResolveLooseContacts"/>). The
-    /// bodies left behind around a moved body wake, and so do the moved bodies that Jolt simulated. A moved body's ghosts
-    /// go: the ghost pass of the next step makes the ones that its new place wants.
+    /// the new home. A moved body's ghosts go: the ghost pass of the next step makes the ones that its new place wants.
+    /// So the contacts of a moved body wait until then (see <see cref="ResolveLooseContacts"/>). A contact goes on without
+    /// a new report where a body of each entity can still touch the other, such as two touching bodies that move to the
+    /// same system, or a body that moves into a falling frame and the ghost there of the anchor that it rests on. Every
+    /// other contact of a moved body ends. The bodies left behind around a moved body wake, and so do the moved bodies that
+    /// Jolt simulated.
     /// </summary>
     private void ApplyMoves(List<BodyMove> moves)
     {

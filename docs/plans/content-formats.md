@@ -342,7 +342,7 @@ The body section maps to `BodyDesc`.
 | `layer` | `"static"` or `"moving"` | `"moving"` | The engine sets the frame hull and ghost layers itself, so files cannot. |
 | `mass` | kg | 1 | |
 | `friction` | 0 to 1 | 0.5 | |
-| `restitution` | 0 to 1 | 0.1 | |
+| `restitution` | 0 to 1 | 0 | A contact takes the larger restitution of its two bodies. It does not bounce when its bounce would rise less than 4 cm against the pull toward the surface: about a rebound of 0.89 m/s at 1 g, more under a stronger pull, and any rebound without one. |
 | `linearDamping` | 1/s | 0.05 | |
 | `angularDamping` | 1/s | 0.05 | |
 | `interiorShape` | A shape | None | The static shape inside the frame of a frame owner |

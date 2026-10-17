@@ -56,7 +56,7 @@ A body's velocity drifts by float rounding over long runs. A velocity shadow in 
 
 A velocity that gameplay sets, at spawn, through `SetVelocity` or at a hand-off, is an instant velocity. Jolt reads a stored velocity as a chord, half a tick behind. So the engine gives Jolt the chord: the instant velocity minus the body's acceleration times half a tick, and the same for angular velocity. Without this, a thrown crate lands 2.5 cm off at 60 Hz, with or without spin. A body at rest in inertial space inside a station also drifts by up to 8 cm/s.
 
-This changes all physics, not only spin. Seven existing tests encode Jolt's convention and change on purpose, each with its reason. Two of them also reported each box's landing twice. That is a bug of the conversion, not a convention, and the conversion must not change how contacts are reported.
+This changes all physics, not only spin. Seven existing tests encode Jolt's convention and change on purpose, each with its reason. Two of them also reported each box's landing twice. That was not the conversion. At the old default restitution of 0.1, Jolt bounced each box from within its speculative contact distance, so whether a box landed twice depended on where its landing step began. Since `ter-4kaa` a contact whose rebound is below 1 m/s does not bounce, and the default restitution is 0.
 
 ## Characters
 

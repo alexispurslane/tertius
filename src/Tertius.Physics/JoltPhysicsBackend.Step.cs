@@ -298,6 +298,7 @@ public sealed partial class JoltPhysicsBackend
                 world.WakeProperAcceleration = properAcceleration;
             world.HasGravityState = true;
             world.LastGravity = field;
+            world.HomeAcceleration = frames.IsNumeric(frame) ? frames.HomeAcceleration(frame, frames.SemanticOf(frame)).ToVector3() : Vector3.Zero;
 
             // BodyInterface.AddForce resets the sleep timer of the body, so a body under gravity would never sleep. The
             // force goes on the locked body instead, which changes nothing else.

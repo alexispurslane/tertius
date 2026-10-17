@@ -10,6 +10,10 @@ namespace Tertius.Physics;
 /// goes straight to the world's handler with the body and manifold pointers that Jolt passes. JoltPhysicsSharp's contact
 /// events instead look up a managed wrapper for both bodies in a table behind a lock that only one thread holds at a time,
 /// which made the reports of persisting contacts cost 15 % of a tick in a heap of 300 awake boxes (ter-wu6v, ter-pnco).
+/// The added and persisted callbacks also pass Jolt's contact settings, through which the world's handlers apply the
+/// minimum rebound (see <see cref="FrameWorld.MinReboundHeight"/>). JoltPhysicsSharp's <see cref="ContactSettings"/>
+/// has the layout of joltc's <c>JPH_ContactSettings</c> (52 bytes, the combined restitution a float at offset 4), and
+/// joltc copies the settings back to Jolt when a callback returns.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -85,7 +89,7 @@ internal sealed unsafe class ContactListener : IDisposable
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void OnContactAdded(nint userData, nint body1, nint body2, nint manifold, ContactSettings* settings) =>
-        WorldOf(userData)?.OnContactAdded(body1, body2, manifold, settings->IsSensor);
+        WorldOf(userData)?.OnContactAdded(body1, body2, manifold, settings);
 
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static void OnContactPersisted(nint userData, nint body1, nint body2, nint manifold, ContactSettings* settings) =>
