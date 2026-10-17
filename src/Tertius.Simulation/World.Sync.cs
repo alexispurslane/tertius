@@ -105,6 +105,12 @@ public sealed partial class World
         MirrorPhysicsFrameOwners();
         DeriveAttachments();
 
+        // 7b. The intents that the next step applies convert into the frames of the entities that this sync point moved:
+        //     after the hand-offs of step 2 and the rehomes of step 5, which move entities, and after step 7, so that every
+        //     entity is in the frame of the next tick; after 6b, so that every frame stands where the next step starts.
+        //     The destroy batch of step 5 converted the intents that name its dying frames, which are gone by now.
+        ConvertMovedIntents();
+
         // 8. The back tables become the front tables.
         SwapSnapshot();
 
@@ -392,6 +398,59 @@ public sealed partial class World
             if (!Frames.IsNumeric(frame) && Frames.Driver(frame) == MotionDriver.Physics)
                 MirrorFrameOwner(frame);
         }
+    }
+
+    /// <summary>
+    /// Step 7b: gameplay wrote each intent that the next step applies relative to the frame that its entity was in during
+    /// the tick, which the intent names, and this sync point may have moved the entity since: a hand-off of the step that
+    /// ran during the tick, or a rehome out of a frame that died. Physics applies an intent in the entity's frame, so each
+    /// such intent converts into it here, for a body where its row is now. Without this, a kinematic body that gameplay
+    /// moved in every tick and that a passing bubble took in got a target of its old frame in the new one, jumped out of
+    /// the bubble and back, and changed frames in every tick (ter-dhkf).
+    /// </summary>
+    private void ConvertMovedIntents()
+    {
+        foreach (Entity entity in entities.IntentEntities.Span)
+        {
+            ref PhysicsIntent intent = ref entities.NextStepIntent(entity);
+            ref readonly TransformRow row = ref entities.BackRow(entity);
+            if (intent.Frame != row.Frame)
+                ConvertIntent(ref intent, row.Frame, row.Pose.Position);
+        }
+    }
+
+    /// <summary>
+    /// Converts <paramref name="intent"/> from the frame that it names into <paramref name="to"/>, with the frames' relation
+    /// now, for a body at <paramref name="position"/> in <paramref name="to"/>, and makes it name <paramref name="to"/>. The
+    /// poses convert as poses, the velocities of SetVelocity and SetAngularVelocity with the motion of one frame relative
+    /// to the other, and forces, torques, impulses and a character's walk as directions. The velocities are instant
+    /// velocities at the start of the next step, the moment of the relation, so they convert exactly. A kinematic target
+    /// is a place at the end of the step, so it misses by how far the two frames move relative to each other in a step.
+    /// </summary>
+    private void ConvertIntent(ref PhysicsIntent intent, FrameHandle to, Double3 position)
+    {
+        FrameHandle from = intent.Frame;
+        Contract.Requires(Frames.IsAlive(from) && Frames.IsAlive(to));
+        DPose relative = Frames.Relative(from, to);
+        IntentFlags flags = intent.Flags;
+        if ((flags & IntentFlags.SetVelocity) != 0)
+        {
+            // A teleport in the same intent puts the body at its pose before the velocity applies.
+            Double3 at = (flags & IntentFlags.Teleport) != 0 ? intent.TeleportPose.Position : relative.InverseTransformPoint(position);
+            intent.Velocity = Frames.ConvertVelocity(from, to, at, intent.Velocity);
+        }
+        if ((flags & IntentFlags.SetAngularVelocity) != 0)
+            intent.AngularVelocity = (relative.TransformDirection(intent.AngularVelocity) + Frames.AngularVelocityRelative(from, to)).ToVector3();
+        if ((flags & IntentFlags.KinematicTarget) != 0)
+            intent.Target = DPose.Compose(relative, intent.Target);
+        if ((flags & IntentFlags.Teleport) != 0)
+            intent.TeleportPose = DPose.Compose(relative, intent.TeleportPose);
+        intent.Force = relative.TransformDirection(intent.Force).ToVector3();
+        intent.Torque = relative.TransformDirection(intent.Torque).ToVector3();
+        intent.Impulse = relative.TransformDirection(intent.Impulse).ToVector3();
+        intent.AngularImpulse = relative.TransformDirection(intent.AngularImpulse).ToVector3();
+        intent.CharacterVelocity = relative.TransformDirection(intent.CharacterVelocity).ToVector3();
+        intent.Frame = to;
     }
 
     /// <summary>

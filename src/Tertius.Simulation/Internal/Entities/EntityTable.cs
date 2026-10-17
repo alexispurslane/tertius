@@ -731,7 +731,8 @@ internal sealed class EntityTable
     }
 
     /// <summary>
-    /// The running entity's intent for the next physics step, for writing. The entity must have a body. Throws
+    /// The running entity's intent for the next physics step, for writing. The entity must have a body. The intent names
+    /// the frame that the entity is in during the tick, which its poses, velocities and directions are relative to. Throws
     /// <see cref="StaleEntityException"/> for a stale handle. Worker-safe for the running entity.
     /// </summary>
     public ref PhysicsIntent WritableIntent(Entity entity)
@@ -743,8 +744,21 @@ internal sealed class EntityTable
         {
             f |= SlotFlags.IntentRegistered;
             books[slot / chunkSize].IntentWriters.Add(entity);
+            backIntent[slot].Frame = frontTransform[slot].Frame;
         }
         return ref backIntent[slot];
+    }
+
+    /// <summary>
+    /// The intent of <paramref name="entity"/> that the next physics step applies, for the sync point after
+    /// <see cref="SwapIntents"/> and for a change outside a tick: its front intent, which is empty when the entity wrote
+    /// none. Throws <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    public ref PhysicsIntent NextStepIntent(Entity entity)
+    {
+        uint slot = LiveSlot(entity);
+        Contract.Requires(!gameplayRunning && (flags[slot] & SlotFlags.IntentRegistered) == 0);
+        return ref frontIntent[slot];
     }
 
     /// <summary>

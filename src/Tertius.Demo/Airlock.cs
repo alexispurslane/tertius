@@ -9,7 +9,8 @@ namespace Tertius.Demo;
 /// a cycle does nothing. The airlock's position is where a person must reach to use it.
 /// </summary>
 /// <remarks>
-/// The doors are <see cref="Door"/> entities that spawn shut. The airlock talks to them only by messages. For the doors
+/// The doors are <see cref="Door"/> entities that spawn shut, except that the outer door of an airlock that starts open to
+/// the outside may spawn open, so that it does not move at the start. The airlock talks to them only by messages. For the doors
 /// never to stand open together, <paramref name="cycleSeconds"/> must be at least the time that a door takes to close.
 /// </remarks>
 /// <param name="innerDoor">The door between the airlock and the inside.</param>

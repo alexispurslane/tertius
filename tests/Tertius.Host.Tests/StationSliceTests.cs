@@ -193,9 +193,31 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
         StationBody flying = Samples[Launched + 10].Bodies["crate"], end = Samples[^1].Bodies["crate"];
 
         Double3.Distance(flying.VelocityInStation, Station.CrateVelocity).Should().BeLessThan(1e-3, "the crate flies at 60 m/s before it reaches the wall");
-        end.InStation.Z.Should().BeApproximately(Station.ThinWall.Max.Z + Station.CrateHalfSize, 0.03, "the crate stops with its front at the wall's aft face");
+        // Jolt pushes two bodies apart only as far as they sink beyond the penetration slop, so the crate may rest that far in.
+        double sink = Station.ThinWall.Max.Z + Station.CrateHalfSize - end.InStation.Z;
+        sink.Should().BeInRange(-2e-3, new JoltBackendOptions().PenetrationSlop + 2e-3, "the crate stops with its front at the wall's aft face");
         end.VelocityInStation.Length.Should().BeLessThan(0.05, "the crate stopped at the wall");
         CollisionsOf("crate").Should().ContainSingle("the crate hears one Collision").Which.Other.Should().Be(wall);
+    }
+
+    /// <summary>
+    /// A body enters a frame's bubble when its bounding sphere touches the bubble, so a door that a pod passed close by
+    /// would enter the pod's frame. The doors do not move and stay out of the pods' reach (see <see cref="Station"/>).
+    /// Before, the outer door slid open as the pods set off, entered pod-2's frame, got its target in the station's frame
+    /// applied in the pod's, and changed frames in every tick for more than a second.
+    /// </summary>
+    [Fact]
+    public void TheAirlocksDoorsStayStillInTheStationsFrameAndHearNoFrameChanged()
+    {
+        foreach (string id in new[] { "airlock-outer", "airlock-inner" })
+        {
+            run.Result.Dumps.SelectMany(dump => dump.Events).Where(e => e.To == new ToEntity(id) && e.Payload is FrameChanged)
+                .Should().BeEmpty($"{id} never enters a pod's bubble");
+            FramePose first = run.Result.Dumps[0].Entity(id).Pose;
+            first.Frame.Should().Be("station");
+            run.Result.Dumps.Should().OnlyContain(dump => dump.Entity(id).Pose.Frame == "station" && Double3.Distance(dump.Entity(id).Pose.Position, first.Position) < 1e-9,
+                $"{id} stays where it spawned");
+        }
     }
 
     /// <summary>

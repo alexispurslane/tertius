@@ -604,6 +604,7 @@ public sealed partial class World
                     movedFrameOwners.Add(member);
             }
         }
+        ConvertIntentsOfDyingFrames();
 
         foreach (Entity entity in dying)
             FreeEntity(entity);
@@ -662,6 +663,26 @@ public sealed partial class World
             if (!dyingMarks[parent.Entity])
                 return parent;
         return FrameHandle.Null;
+    }
+
+    /// <summary>
+    /// Converts each intent that the next step applies and that names a frame of the destroy batch into the frame of its
+    /// entity, which survives: a body that a rehome moved, or one that a hand-off of the step moved out of the frame before
+    /// it died. Step 7b of the sync point converts every other intent of an entity that moved (see
+    /// <see cref="ConvertMovedIntents"/>), but by then these frames are gone, so these intents convert here, after the
+    /// rehomes and before the frames die.
+    /// </summary>
+    private void ConvertIntentsOfDyingFrames()
+    {
+        foreach (Entity entity in entities.IntentEntities.Span)
+        {
+            if (dyingMarks[entity])
+                continue;
+            ref PhysicsIntent intent = ref entities.NextStepIntent(entity);
+            ref readonly TransformRow row = ref entities.BackRow(entity);
+            if (!intent.Frame.IsNull && dyingMarks[intent.Frame.Entity])
+                ConvertIntent(ref intent, row.Frame, row.Pose.Position);
+        }
     }
 
     /// <summary>Moves an entity from a dying frame into an ancestor frame, keeping its pose and velocity relative to everything else.</summary>

@@ -15,19 +15,29 @@ public struct CloseDoor : IEventPayload;
 /// subscribes to the topic of a <see cref="Sensor"/> also opens when the sensor relays an <see cref="Entered"/>, and shuts
 /// when every entity whose Entered it heard has <see cref="Left"/>. The door moves at a steady speed that takes
 /// <paramref name="openSeconds"/> from one end to the other, and it turns back at once from wherever it is when the other
-/// order comes. Its entity needs a kinematic body, and must spawn shut.
+/// order comes. Its entity needs a kinematic body, and must spawn shut, or open with <paramref name="openAtStart"/>. Its
+/// way lies in the frame that it spawned in, also while a bubble that touches it holds it in another frame. A target that
+/// a tick writes is reached two steps after the moment that the tick reads, so in a frame that moves relative to the
+/// door's own, the door lags its way by two steps of that motion. When the door's own frame dies, the way is gone, and the
+/// door stays where it is.
 /// </summary>
 /// <param name="slide">The way from the closed pose to the open pose, in meters, in the door's own axes.</param>
 /// <param name="openSeconds">
 /// The time that the door takes to open or to close all the way, in seconds. It must be positive and finite, or the
 /// constructor throws <see cref="ArgumentOutOfRangeException"/>.
 /// </param>
-public sealed class Door(Vector3 slide, float openSeconds) : IComponent
+/// <param name="openAtStart">
+/// True for a door that spawns at its open pose, and stays open until an order or a sensor closes it. Its closed pose is
+/// then <paramref name="slide"/> back from where it spawned.
+/// </param>
+public sealed class Door(Vector3 slide, float openSeconds, bool openAtStart = false) : IComponent
 {
     private readonly float openSeconds = openSeconds > 0 && float.IsFinite(openSeconds)
         ? openSeconds
         : throw new ArgumentOutOfRangeException(nameof(openSeconds), openSeconds, "The time to open must be positive and finite.");
     private DPose closed;
+    // The frame that the closed pose is relative to.
+    private FrameHandle closedFrame;
     private bool started;
     // How far open the door is, from 0 (shut) to 1 (open), and whether it moves toward open.
     private float openness;
@@ -44,7 +54,15 @@ public sealed class Door(Vector3 slide, float openSeconds) : IComponent
     {
         if (!started)
         {
-            closed = self.PoseIn(self.Frame);
+            closedFrame = self.Frame;
+            closed = self.PoseIn(closedFrame);
+            if (openAtStart)
+            {
+                // The door spawned at its open pose, its slide on from the closed pose.
+                closed = new DPose(closed.Position - closed.Rotation.Rotate((Double3)slide), closed.Rotation);
+                openness = 1;
+                opening = true;
+            }
             started = true;
         }
         for (int i = 0; i < events.Count; i++)
@@ -65,9 +83,15 @@ public sealed class Door(Vector3 slide, float openSeconds) : IComponent
         float target = opening ? 1 : 0;
         if (openness == target)
             return;
+        // A door whose way died with its frame stays where it is.
+        FrameTree frames = self.Snapshot.Frames;
+        if (!frames.IsAlive(closedFrame))
+            return;
         float step = self.DeltaTime / openSeconds;
         openness = opening ? MathF.Min(openness + step, 1) : MathF.Max(openness - step, 0);
-        // A kinematic target moves the body there over the next step, and stops it there.
-        self.Body.MoveKinematic(new DPose(closed.Position + closed.Rotation.Rotate((Double3)(slide * openness)), closed.Rotation));
+        // A kinematic target moves the body there over the next step, and stops it there. It is relative to the frame that
+        // the door is in.
+        var place = new DPose(closed.Position + closed.Rotation.Rotate((Double3)(slide * openness)), closed.Rotation);
+        self.Body.MoveKinematic(closedFrame == self.Frame ? place : DPose.Compose(frames.Relative(closedFrame, self.Frame), place));
     }
 }

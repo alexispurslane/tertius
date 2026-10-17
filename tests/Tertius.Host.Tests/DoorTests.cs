@@ -26,9 +26,11 @@ public sealed class DoorTests : IDisposable
 
     public void Dispose() => world.Dispose();
 
-    private Entity SpawnDoor(DQuaternion rotation) => world.Spawn(new SpawnDesc
+    private Entity SpawnDoor(DQuaternion rotation) => SpawnDoor(room, rotation);
+
+    private Entity SpawnDoor(FrameHandle frame, DQuaternion rotation) => world.Spawn(new SpawnDesc
     {
-        Frame = room,
+        Frame = frame,
         Pose = new DPose(Closed, rotation),
         Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.05f, 1, 0.5f)), BodyMotion.Kinematic),
         Components = [new Door(new Vector3(0, 2, 0), openSeconds: 1)],
@@ -116,6 +118,99 @@ public sealed class DoorTests : IDisposable
         Ticks(80);
 
         (Moved(turned) - new Double3(-2, 0, 0)).Length.Should().BeLessThan(1e-4);
+    }
+
+    [Fact]
+    public void ADoorThatStartsOpenStaysWhereItSpawnedUntilACloseOrderSlidesItShutByItsSlide()
+    {
+        Entity open = world.Spawn(new SpawnDesc
+        {
+            Frame = room,
+            Pose = new DPose(new Double3(5, 4, 3), DQuaternion.Identity),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.05f, 1, 0.5f)), BodyMotion.Kinematic),
+            Components = [new Door(new Vector3(0, 2, 0), openSeconds: 1, openAtStart: true)],
+        });
+        Ticks(30);
+        Order<OpenDoor>(open);
+        Ticks(30);
+        (world.PoseIn(open, room).Position - new Double3(5, 4, 3)).Length.Should().BeLessThan(1e-6, "an open door stays open, also when an open order comes");
+
+        Order<CloseDoor>(open);
+        Ticks(80);
+
+        (world.PoseIn(open, room).Position - new Double3(5, 2, 3)).Length.Should().BeLessThan(1e-4, "the door's closed pose lies its slide back from where it spawned");
+    }
+
+    // ---- A door that changes frames ----
+
+    /// <summary>
+    /// A static frame without a body in the room at (1, 5, 3), turned a quarter about +X, with a bubble of 0.5 m. The door's
+    /// bounding sphere of 1.12 m touches the bubble when the door has slid 1.38 m up, after 0.69 s, and the door's open pose
+    /// lies inside the bubble, so the door ends in the booth's frame.
+    /// </summary>
+    private Entity Booth() => world.Spawn(new SpawnDesc
+    {
+        Frame = room,
+        Pose = new DPose(new Double3(1, 5, 3), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(0.5f), MotionDriver.Static),
+    });
+
+    /// <summary>
+    /// Ticks <paramref name="count"/> times and returns how far <paramref name="of"/> strayed at the worst tick from its way
+    /// in the room, from <paramref name="closed"/> to <paramref name="closed"/> plus <paramref name="slide"/>: from the line
+    /// of the slide, or past its ends.
+    /// </summary>
+    private double WorstStray(Entity of, Double3 closed, Double3 slide, int count)
+    {
+        double worst = 0;
+        Double3 along = slide / slide.Length;
+        for (int i = 0; i < count; i++)
+        {
+            world.Tick();
+            Double3 moved = world.PoseIn(of, room).Position - closed;
+            double distance = Double3.Dot(moved, along);
+            double stray = Math.Max((moved - along * distance).Length, Math.Max(-distance, distance - slide.Length));
+            worst = Math.Max(worst, stray);
+        }
+        return worst;
+    }
+
+    [Fact]
+    public void ADoorThatABubbleTakesInMidwaySlidesOnAlongItsWayInTheFrameThatItSpawnedIn()
+    {
+        FrameHandle booth = world.GetOwnedFrame(Booth());
+        Order<OpenDoor>(door);
+
+        double stray = WorstStray(door, Closed, new Double3(0, 2, 0), 90);
+
+        stray.Should().BeLessThan(1e-4, "the door slides on along its way in the room in the booth's frame");
+        world.GetFrame(door).Should().Be(booth, "the door's bounding sphere touched the booth's bubble on its way up");
+        (world.PoseIn(door, room).Position - Closed - new Double3(0, 2, 0)).Length.Should().BeLessThan(1e-4, "the door reaches its open pose");
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ADoorWhoseFrameDiesMidwayStopsOnItsWayInTheFrameThatTakesItIn()
+    {
+        // A cabin in the room, far from the other door, turned a quarter about +Z, so that the door's +Y is the room's -X there.
+        var cabinPose = new DPose(new Double3(100, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
+        Entity cabin = world.Spawn(new SpawnDesc { Frame = room, Pose = cabinPose, AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static) });
+        Entity inCabin = SpawnDoor(world.GetOwnedFrame(cabin), DQuaternion.Identity);
+        Ticks(5);
+        Order<OpenDoor>(inCabin);
+        Ticks(30);
+        world.Destroy(cabin);
+        // The next step applies the last target, which the destroy converted into the room.
+        world.Tick();
+        Double3 stopped = world.PoseIn(inCabin, room).Position;
+
+        Double3 closed = cabinPose.TransformPoint(Closed), slide = cabinPose.TransformDirection(new Double3(0, 2, 0));
+        double stray = WorstStray(inCabin, closed, slide, 60);
+
+        (world.PoseIn(inCabin, room).Position - stopped).Length.Should().BeLessThan(1e-9, "the door's way died with the cabin, so it stays where it is");
+        stray.Should().BeLessThan(1e-4, "the door stopped on its way");
+        world.GetFrame(inCabin).Should().Be(room, "the room took the door in when the cabin died");
+        world.Errors.Should().BeEmpty();
     }
 
     // ---- A door that hears a sensor ----
