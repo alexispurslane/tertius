@@ -77,21 +77,12 @@ internal sealed record PushCollision(long Tick, string To, float Impulse);
 /// <param name="AsleepAtTheEnd">True if the body's velocity and angular velocity are exactly zero at the end: Jolt holds it asleep.</param>
 internal sealed record RestingBody(string Id, double LargestStep, double LargestMove, bool AsleepAtTheEnd);
 
-/// <summary>A change of a body's physics home.</summary>
-/// <param name="Tick">The tick after which the body had the new home.</param>
-/// <param name="Time">The world's time then, in seconds.</param>
-/// <param name="Home">The new home.</param>
-/// <param name="Mode">How the new home moves as a numeric frame, or None for earth-surface itself.</param>
-internal sealed record HomeChange(long Tick, double Time, FrameHandle Home, NumericMode Mode);
-
 /// <summary>The physics homes of one body over the run.</summary>
 /// <param name="Id">The body's scene id.</param>
-/// <param name="TicksNotResting">How many ticks from the first on ended with a frame other than a resting numeric frame holding the body.</param>
-/// <param name="FirstTicksNotResting">The first ten of those ticks.</param>
-/// <param name="Changes">Each change of the body's home, from tick 0 on.</param>
-/// <param name="LargestDistanceFromHomeOrigin">The largest distance of the body from its home's origin, from tick 1 on, in meters: its largest position in its Jolt system.</param>
-internal sealed record BodyHomes(string Id, int TicksNotResting, IReadOnlyList<long> FirstTicksNotResting, IReadOnlyList<HomeChange> Changes,
-    double LargestDistanceFromHomeOrigin);
+/// <param name="TicksNotInEarthSurface">How many ticks, from the scene as built (tick 0) on, ended with a physics home other
+/// than earth-surface itself holding the body: a numeric frame, or another frame.</param>
+/// <param name="FirstTicksNotInEarthSurface">The first ten of those ticks.</param>
+internal sealed record BodyHomes(string Id, int TicksNotInEarthSurface, IReadOnlyList<long> FirstTicksNotInEarthSurface);
 
 /// <summary>The person's jump, which the report shows and no test asserts.</summary>
 /// <param name="TakeOffTick">The first tick after the first walk at which physics did not stand the person.</param>
@@ -157,12 +148,6 @@ internal sealed class YardMeasurements
     /// <summary>The span at the end of the run in which every body of the yard should rest, in ticks: 40 s.</summary>
     public const int RestTicks = 40 * 60;
 
-    /// <summary>
-    /// How far a body may be from the origin of its home's Jolt system: the distance beyond which a numeric frame moves
-    /// its origin to its members' center of mass, 1 km. The yard is 6,371 km from the origin of earth-surface.
-    /// </summary>
-    public static double NearJoltOrigin => new NumericFrameOptions().RecenterDistance;
-
     /// <summary>The height of the floor's top above Earth's center, in meters.</summary>
     public const double FloorTop = DemoScenes.EarthRadius;
 
@@ -192,7 +177,9 @@ internal sealed class YardMeasurements
         Walk = MeasureWalk();
         Fall = MeasureFall();
         AtRest = [.. new[] { YardRecord.BottomCrate, YardRecord.MiddleCrate, YardRecord.TopCrate, YardRecord.Person }.Select(MeasureRest)];
-        Homes = [.. Enumerable.Range(0, YardRecord.Bodies.Length).Select(MeasureHomes)];
+        FrameHandle surface = run.World.GetOwnedFrame(run.Scene["earth-surface"]);
+        Homes = [.. Enumerable.Range(0, YardRecord.Bodies.Length).Select(body => MeasureHomes(body, surface))];
+        MostNumericFrames = Ticks.Max(tick => tick.NumericFrames);
         Jump = MeasureJump();
         PushCollisions = MeasurePushCollisions(pushed, run.Scene);
     }
@@ -235,6 +222,9 @@ internal sealed class YardMeasurements
     public IReadOnlyList<RestingBody> AtRest { get; }
 
     public IReadOnlyList<BodyHomes> Homes { get; }
+
+    /// <summary>The most numeric frames that the frame tree held after a tick, from the scene as built (tick 0) on.</summary>
+    public int MostNumericFrames { get; }
 
     public JumpFacts Jump { get; }
 
@@ -415,22 +405,10 @@ internal sealed class YardMeasurements
         return new RestingBody(YardRecord.Bodies[body], step, move, Asleep(At(EndTick, body)));
     }
 
-    private BodyHomes MeasureHomes(int body)
+    private BodyHomes MeasureHomes(int body, FrameHandle surface)
     {
-        var notResting = new List<long>();
-        var changes = new List<HomeChange>();
-        double farthest = 0;
-        for (int tick = 0; tick < Ticks.Count; tick++)
-        {
-            BodySample sample = Ticks[tick].Bodies[body];
-            if (tick >= 1)
-                farthest = Math.Max(farthest, sample.PositionInHome.Length);
-            if (tick >= 1 && sample.HomeMode != NumericMode.Resting)
-                notResting.Add(tick);
-            if (tick == 0 || sample.Home != Ticks[tick - 1].Bodies[body].Home || sample.HomeMode != Ticks[tick - 1].Bodies[body].HomeMode)
-                changes.Add(new HomeChange(tick, Ticks[tick].Time, sample.Home, sample.HomeMode));
-        }
-        return new BodyHomes(YardRecord.Bodies[body], notResting.Count, [.. notResting.Take(10)], changes, farthest);
+        List<long> elsewhere = [.. Ticks.Where(tick => tick.Bodies[body].Home != surface).Select(tick => tick.Tick)];
+        return new BodyHomes(YardRecord.Bodies[body], elsewhere.Count, [.. elsewhere.Take(10)]);
     }
 
     private JumpFacts MeasureJump()

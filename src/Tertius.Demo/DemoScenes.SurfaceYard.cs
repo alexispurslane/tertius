@@ -34,8 +34,8 @@ public static partial class DemoScenes
     private static readonly Vector3 YardFloorHalfExtents = new(25, 0.5f, 25);
 
     /// <summary>
-    /// A yard on the ground, 6,371 km from the origin of its frame, where only resting numeric frames keep the bodies near
-    /// a Jolt origin.
+    /// A yard on the ground, 6,371 km from the origin of its frame. That is nearer than the 8,389 km from which a slow group
+    /// gets a resting numeric frame, so the Jolt system of the frame itself holds the bodies, in double precision.
     /// <list type="bullet">
     /// <item>The root frame <c>earth-surface</c> has its origin at Earth's center and Earth's point gravity, μ =
     /// <see cref="EarthMu"/>. It does not turn. The scene leaves out the sun, Earth's orbit round it and Earth's spin,
