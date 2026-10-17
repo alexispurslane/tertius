@@ -1,6 +1,6 @@
 ---
 id: ter-4psc
-status: open
+status: in_progress
 deps: [ter-dhkf, ter-3xs6]
 links: [ter-tenw, ter-me1y]
 created: 2026-10-17T14:34:17Z
