@@ -1,6 +1,6 @@
 ---
 id: ter-kugq
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-17T13:17:17Z
