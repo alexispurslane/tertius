@@ -9,7 +9,8 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// Numeric frames (docs/plans/numeric-frames.md): frames that the engine makes around a group of bodies, which fall freely
 /// in doubles or rest in their parent, with a Jolt system each. Only the numeric update at each sync point makes and moves
-/// them, so a test that needs one tunes the membership rules (<see cref="NumericFrameOptions"/>) to make it.
+/// them, so a test that needs one builds a scene that is fast or far enough for the default membership rules
+/// (<see cref="NumericFrameOptions"/>), or uses one of the rule sets of <see cref="NumericFrameTesting"/> on purpose.
 /// </summary>
 public class WorldNumericFrameTests
 {
@@ -20,6 +21,18 @@ public class WorldNumericFrameTests
     private const double OrbitRadius = 6.371e6 + 400e3;
 
     private static readonly double OrbitSpeed = Math.Sqrt(EarthMu / OrbitRadius);
+
+    /// <summary>
+    /// A distance from a frame's origin, in meters, at which a slow group rests in a numeric frame: 10,000 km, beyond the
+    /// 2^23 m (8,389 km) of <see cref="NumericFrameOptions.CreateDistance"/>.
+    /// </summary>
+    private const double FarOut = 1e7;
+
+    /// <summary>
+    /// How many ticks of thrust at 60 Hz a body needs before it thrusts: the first count of ticks of 1/60 s that reaches the
+    /// 0.5 s of <see cref="NumericFrameOptions.ThrustOnset"/>.
+    /// </summary>
+    private const int OnsetTicks = 30;
 
     private static readonly BodyDesc Crate = new(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
 
@@ -106,14 +119,15 @@ public class WorldNumericFrameTests
     [Fact]
     public void AGroupThatStartsToFallAtOrbitalSpeedKeepsTheVelocityOfEachBodyToAMicrometerPerSecond()
     {
-        // Two crates 20 km out rest in one numeric frame, then speed up to orbital speed. The frame takes over their
-        // mass-weighted mean velocity, which no float holds, and each body loses it.
+        // Two crates 10,000 km out rest in one numeric frame, then speed up to orbital speed, far above the 1,000 m/s from
+        // which a group of free bodies falls. The frame takes over their mass-weighted mean velocity, which no float holds,
+        // and each body loses it.
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 0);
         var lighter = new Pilot();
         var heavier = new Pilot();
-        Entity a = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(20_000), Body = Crate, Components = [lighter] });
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(20_000, 0, 1.5), Body = Crate with { Mass = 20 }, Components = [heavier] });
+        Entity a = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(FarOut), Body = Crate, Components = [lighter] });
+        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(FarOut, 0, 1.5), Body = Crate with { Mass = 20 }, Components = [heavier] });
         Tick(world, 2);
         world.Frames.Numeric(world.PhysicsHomeOf(a)).Should().Be(NumericMode.Resting);
 
@@ -304,39 +318,68 @@ public class WorldNumericFrameTests
     }
 
     /// <summary>
-    /// With no gravity, a crate of 10 kg flies at 60 m/s at a static wall 10 m away. The merge test links the crate to the
-    /// wall, an anchor, so the crate never gets a falling frame: the group takes the wall's home, the system of ground, and
-    /// the wall is a real body there (ter-dhkf). Before, the crate fell in a frame of its own and hit the wall's ghost.
+    /// With no gravity, a static wall 1 m thick and 10 m square across the X axis at the origin of <paramref name="ground"/>,
+    /// with <paramref name="wallComponents"/>, and a crate of 10 kg 200 m before it that flies at it along +X at 60 m/s, with
+    /// a gentle thrust along +X from its first tick (<see cref="Thruster"/>) and <paramref name="crateComponents"/>. A free
+    /// crate at 60 m/s needs no numeric frame, but after 0.5 s of thrust the crate thrusts, and a group that thrusts falls
+    /// from 50 m/s (<see cref="NumericFrameOptions.ThrustCreateSpeed"/>). The merge test reaches 128 m from the wall's
+    /// center: the bounding spheres of the wall (7.09 m) and the crate (0.87 m), plus their relative speed times the
+    /// lookahead time of 2 s. So at the sync point of its thirtieth tick of thrust the crate is 170 m from the wall's center
+    /// and falls, and about 43 ticks later the wall comes within the reach, about 2 s before the crate hits it.
+    /// </summary>
+    private static (Entity Wall, Entity Crate) CrateThatThrustsAtAWall(World world, FrameHandle ground, IComponent[] wallComponents,
+        IComponent[] crateComponents)
+    {
+        Entity wall = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Static),
+            Components = wallComponents,
+        });
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = ground, Pose = At(-200), LinearVelocity = new Double3(60, 0, 0), Body = Crate,
+            Components = [new Thruster(Crate.Mass), .. crateComponents],
+        });
+        return (wall, crate);
+    }
+
+    /// <summary>
+    /// A crate flies at 60 m/s with a gentle thrust at a static wall (<see cref="CrateThatThrustsAtAWall"/>). Far from the
+    /// wall, it falls in a numeric frame of its own. When the wall comes within the reach of the merge test, the test links
+    /// the crate to the wall, an anchor, and a group with an anchor never falls: the group takes the wall's home, the system
+    /// of ground, and the wall is a real body there (ter-dhkf). Before, the crate kept falling in its own frame and hit the
+    /// wall's ghost.
     /// </summary>
     [Fact]
     public void AFastCrateNearAStaticWallJoinsTheWallsSystemAndStopsAtTheRealWall()
     {
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 0);
-        Entity wall = world.Spawn(new SpawnDesc
-        {
-            Frame = ground,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Static),
-        });
-        Entity crate = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-10), LinearVelocity = new Double3(60, 0, 0), Body = Crate });
+        (Entity wall, Entity crate) = CrateThatThrustsAtAWall(world, ground, [], []);
+        Tick(world, OnsetTicks);
+        InFallingFrame(world, crate).Should().BeTrue("the crate thrusts at 60 m/s, and the wall is beyond the reach of the merge test");
 
-        Tick(world, 1);
+        TickUntil(world, () => world.PhysicsHomeOf(crate) == ground, 60);
 
         world.PhysicsHomeOf(crate).Should().Be(ground, "the group of the crate and the wall takes the wall's home");
+        world.PoseIn(crate, ground).Position.X.Should().BeLessThan(-100, "the crate joins the wall's system about 2 s before it hits the wall");
         world.PhysicsHomeOf(wall).Should().Be(ground, "a static body stays in its own system");
         world.Frames.AnchorGhosts.IsEmpty.Should().BeTrue("the wall is a real body of the crate's system, so no frame keeps a ghost of it");
 
-        Tick(world, 60);
+        Tick(world, 180);
         world.Errors.Should().BeEmpty();
+        world.PhysicsHomeOf(crate).Should().Be(ground);
         world.PoseIn(crate, ground).Position.X.Should().BeLessThan(0, "the crate hit the wall and did not pass through");
     }
 
     /// <summary>
-    /// The scene of <see cref="AFastCrateNearAStaticWallJoinsTheWallsSystemAndStopsAtTheRealWall"/>: with no gravity, a
-    /// crate of 10 kg flies at 60 m/s at a static wall. The crate joins the wall's system, so the crate and the wall each
-    /// hear one Collision when the crate hits the wall, and no end while the crate rests against it. The impulse is the
-    /// crate's mass times its approach speed. Before ter-dhkf, the crate fell in a numeric frame of its own and hit the
-    /// wall's ghost there, with the same events: a contact with a ghost is a contact of the two entities.
+    /// The scene of <see cref="AFastCrateNearAStaticWallJoinsTheWallsSystemAndStopsAtTheRealWall"/>: a crate flies at
+    /// 60 m/s with a gentle thrust at a static wall, falls in a numeric frame of its own while the wall is far, and joins the
+    /// wall's system when the wall comes within the reach of the merge test. So the crate and the wall each hear one
+    /// Collision when the crate hits the wall, and no end while the crate rests against it. The impulse is the crate's mass
+    /// times its approach speed. Before ter-dhkf, the crate kept falling in its numeric frame and hit the wall's ghost
+    /// there, with the same events: a contact with a ghost is a contact of the two entities.
     /// </summary>
     [Fact]
     public void AFastCrateAndTheStaticWallThatItHitsEachHearOneCollision()
@@ -344,18 +387,16 @@ public class WorldNumericFrameTests
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 0);
         var wallLog = new CollisionLog();
-        Entity wall = world.Spawn(new SpawnDesc
-        {
-            Frame = ground,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Static),
-            Components = [wallLog],
-        });
         var crateLog = new CollisionLog();
-        Entity crate = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-10), LinearVelocity = new Double3(60, 0, 0), Body = Crate, Components = [crateLog] });
-        Tick(world, 1);
+        (Entity wall, Entity crate) = CrateThatThrustsAtAWall(world, ground, [wallLog], [crateLog]);
+        Tick(world, OnsetTicks);
+        InFallingFrame(world, crate).Should().BeTrue("the crate thrusts at 60 m/s, and the wall is beyond the reach of the merge test");
+        TickUntil(world, () => world.PhysicsHomeOf(crate) == ground, 60);
         world.PhysicsHomeOf(crate).Should().Be(ground, "the merge test links the crate to the wall");
+        crateLog.Seen.Should().BeEmpty("the crate has not reached the wall yet");
 
-        Tick(world, 180);
+        // The crate hits the wall about 2 s later, and then rests against it for about 3 s.
+        Tick(world, 300);
 
         world.Errors.Should().BeEmpty();
         world.PoseIn(crate, ground).Position.X.Should().BeLessThan(0, "the crate hit the wall and did not pass through");
