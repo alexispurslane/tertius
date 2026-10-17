@@ -311,14 +311,14 @@ public partial class NumericFrameOrbitTests
     /// <summary>
     /// A crate that drifts inside the station at 0.5 m/s, and another at rest that sticks out of its bubble at the far side,
     /// stay in the station's own system for ten seconds, with the same motion with numeric frames as without. The crate
-    /// that sticks out has a ghost in the station's tree parent, which is the orbit frame with numeric frames and earth
-    /// without, and with numeric frames one in earth too, whose own system holds the bodies that the merge test does not
-    /// link to the hull.
+    /// that sticks out has its one ghost outside the station in the station's tree parent, the home of the station's hull,
+    /// which is the orbit frame with numeric frames and earth without. With numeric frames, no body of earth may touch the
+    /// ghost, so earth's own system keeps none (ticket ter-4psc).
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void TheBodiesInTheStationsOwnFrameMoveAsBeforeAndTheOnesThatStickOutHaveGhostsInItsTreeParentAndInEarth(bool numericFrames)
+    public void TheBodiesInTheStationsOwnFrameMoveAsBeforeAndTheOnesThatStickOutHaveAGhostInItsTreeParent(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, threads: 1, out FaultInjectingBackend faults);
         Station station = KeplerStation(world);
@@ -329,7 +329,7 @@ public partial class NumericFrameOrbitTests
         FrameHandle parent = world.Frames.TreeParent(station.Frame);
         world.Frames.Numeric(parent).Should().Be(numericFrames ? NumericMode.Orbiting : NumericMode.None);
         faults.Jolt.HasGhostIn(stickOut, parent).Should().BeTrue("a body that sticks out of a bubble is partly in the frame's tree parent");
-        faults.Jolt.HasGhostIn(stickOut, station.Earth).Should().BeTrue();
+        faults.Jolt.GhostCount(stickOut).Should().Be(1, "earth's own system keeps no ghost of the crate when it is not the station's tree parent");
 
         Tick(world, 598);
         world.PhysicsHomeOf(drifter).Should().Be(station.Frame);
