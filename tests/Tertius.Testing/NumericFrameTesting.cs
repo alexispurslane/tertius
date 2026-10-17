@@ -3,8 +3,8 @@ namespace Tertius.Testing;
 /// <summary>
 /// Membership rules of numeric frames (<see cref="NumericFrameOptions"/>) for tests that need other rules than the
 /// defaults on purpose. A test that only needs a fast or far scene uses the defaults and builds the scene for them. Each
-/// value here sets both speed pairs, the one for groups of free bodies and the one for groups with a body that thrusts,
-/// so that no character and no body that thrusts slips through the rule.
+/// value here that changes a speed changes both speed pairs, the one for groups of free bodies and the one for groups
+/// with a body that thrusts, so that no character and no body that thrusts slips through the rule.
 /// </summary>
 internal static class NumericFrameTesting
 {
