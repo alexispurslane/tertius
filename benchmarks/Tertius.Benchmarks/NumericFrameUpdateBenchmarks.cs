@@ -4,8 +4,10 @@ namespace Tertius.Benchmarks;
 
 /// <summary>
 /// The cost of one <see cref="FrameTree.UpdateNumericFrames"/> in a space with many numeric frames and many child bubbles
-/// (ter-2gg0). Space holds <see cref="Rocks"/> rocks of radius 1 m that fly at 60 m/s along X, 100 m apart along X, so
-/// each one falls in a numeric frame of its own. Beside their line, 50 m away, hang <see cref="Bubbles"/> parked
+/// (ter-2gg0). Space holds <see cref="Rocks"/> rocks of radius 1 m that fly at 60 m/s along X, 100 m apart along X. Each
+/// rock counts as a character (<see cref="NumericBody.Character"/>), which always thrusts, so each one is above the 50 m/s
+/// from which a group that thrusts falls (<see cref="NumericFrameOptions.ThrustCreateSpeed"/>), and falls in a numeric
+/// frame of its own from the first update. Beside their line, 50 m away, hang <see cref="Bubbles"/> parked
 /// stations, 100 m apart, each with a bubble of radius 40 m and 10 crates of radius 1 m at rest in it. Each rock may touch
 /// a body that sticks out of the three stations nearest it, so the update names its frame for those three. The update
 /// runs in a steady state: the bodies keep their homes, and nothing moves between updates.
@@ -43,6 +45,7 @@ public class NumericFrameUpdateBenchmarks
                 Velocity = new Double3(60, 0, 0),
                 Radius = 1,
                 Mass = 1,
+                Character = true,
             });
         }
         for (int b = 0; b < Bubbles; b++)
