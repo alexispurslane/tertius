@@ -59,8 +59,8 @@ internal readonly record struct NumericGroup(Double3 Velocity, Double3 Center, b
 
 /// <summary>
 /// The decisions of the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and
-/// "Nesting for vast distances"), as pure functions of plain data. <see cref="FrameTree.UpdateNumericFrames"/> calls them
-/// and acts on the tree.
+/// "Nesting for vast distances"), and of the numeric frames that keep ghosts ("Bubbles and ghosts"), as pure functions of
+/// plain data. <see cref="FrameTree.UpdateNumericFrames"/> calls them and acts on the tree.
 /// </summary>
 internal static class NumericFrameRules
 {
@@ -102,6 +102,40 @@ internal static class NumericFrameRules
             reach += options.SplitMargin;
         return separation.LengthSquared <= reach * reach;
     }
+
+    /// <summary>
+    /// The radius of the sphere around a frame's origin that holds every body that sticks out of the frame's bubble
+    /// <paramref name="bubble"/>, when the largest body of the frame that can move has a bounding sphere of radius
+    /// <paramref name="largestRadius"/>. A body sticks out until its center is farther outside the bubble than its radius
+    /// plus the exit margin, so its far side reaches at most two radii plus that margin past the bubble's longest radius.
+    /// </summary>
+    internal static double StickOutRadius(FrameBounds bubble, double largestRadius) =>
+        bubble.MaxRadius + 2 * largestRadius + bubble.ExitMargin(largestRadius);
+
+    /// <summary>
+    /// The merge test of a body and the bodies that stick out of the bubble of a frame, which lie in the sphere of
+    /// <paramref name="stickOutRadius"/> around the frame's origin (see <see cref="StickOutRadius"/>): true when the body's
+    /// bounding sphere, grown by its speed relative to the frame's origin times the lookahead time, overlaps or touches that
+    /// sphere. <paramref name="separation"/> is the place of the frame's origin relative to the body, and
+    /// <paramref name="frameVelocity"/> the velocity of that origin relative to the body's semantic frame. The frame's
+    /// rotation does not move the sphere. The test has no split margin: it moves no body, it only names the numeric frame
+    /// of the body to keep the ghosts of the bodies that stick out.
+    /// </summary>
+    internal static bool MayTouchStickOut(in NumericBody body, Double3 separation, Double3 frameVelocity, double stickOutRadius,
+        NumericFrameOptions options)
+    {
+        double reach = body.Radius + stickOutRadius + (body.Velocity - frameVelocity).Length * options.LookaheadTime;
+        return separation.LengthSquared <= reach * reach;
+    }
+
+    /// <summary>
+    /// How far the separation of two places <paramref name="a"/> and <paramref name="b"/> in a semantic frame's coordinates
+    /// can be from the true one, in meters. Far from the frame's origin, each place rounds to a step of a double, about
+    /// 2.2e-16 of its distance from the origin, and a sum along the numeric frames rounds a few times more. The slack is
+    /// 1e-12 of the two distances, thousands of such steps. So a first test in those coordinates whose reach grows by the
+    /// slack drops no pair that the test through the homes links.
+    /// </summary>
+    internal static double PlaceSlack(Double3 a, Double3 b) => 1e-12 * (a.Length + b.Length);
 
     /// <summary>
     /// The split clock of one numeric frame over a sync point of <paramref name="dt"/> seconds. <paramref name="together"/>

@@ -182,6 +182,134 @@ public class FrameTreeNumericUpdateTests
         frames.AnchorGhosts.IsEmpty.Should().BeTrue();
     }
 
+    // ---- The numeric frames that keep the ghosts of the bodies that stick out of a bubble -------------------------
+
+    /// <summary>A parked station: a semantic child of ground at <paramref name="x"/>, with a bubble of radius 40 m.</summary>
+    private FrameHandle Station(double x) =>
+        frames.Create(new Entity(2, 1), ground, new DPose(X(x), DQuaternion.Identity), FrameBounds.Sphere(40), MotionDriver.Static);
+
+    /// <summary>A body of radius 1 m of the frame <paramref name="frame"/>, at <paramref name="position"/> in its own system.</summary>
+    private static NumericBody BodyOf(FrameHandle frame, uint id, Double3 position) => new()
+    {
+        Entity = new Entity(id, 1),
+        Semantic = frame,
+        Home = frame,
+        Position = position,
+        HomePosition = position,
+        Radius = 1,
+        Mass = 1,
+    };
+
+    [Fact]
+    public void A_falling_frame_whose_member_may_touch_a_body_that_sticks_out_of_a_child_bubble_keeps_the_ghosts_of_such_bodies()
+    {
+        // A body that sticks out of the station reaches at most 43 m from its origin; the fast body, 1 m plus 2 s at 60 m/s.
+        FrameHandle station = Station(100);
+        NumericBody[] after = Update(0.1, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)));
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
+        frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(station, after[0].Home));
+    }
+
+    [Fact]
+    public void A_falling_frame_whose_members_cannot_reach_a_child_bubble_keeps_no_ghosts_of_its_bodies()
+    {
+        FrameHandle station = Station(1_000);
+        NumericBody[] after = Update(0.1, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)));
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_bubble_whose_bodies_cannot_move_needs_no_frame_to_keep_their_ghosts()
+    {
+        // A static body that is not a hull has no ghost in a bubble, so nothing of the station sticks out.
+        FrameHandle station = Station(100);
+        Update(0.1, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)) with { Static = true });
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_body_that_stays_in_its_semantic_frames_own_system_needs_no_frame_to_keep_the_ghosts()
+    {
+        // The system of ground holds the ghost of each body that sticks out of the station already. The fast body 5 km away
+        // gets a falling frame, so the update works on ground.
+        FrameHandle station = Station(100);
+        NumericBody[] after = Update(0.1, Body(10, x: 50, vx: 10), Body(12, x: 5_000, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)));
+        after[0].Home.Should().Be(ground);
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void An_anchor_in_a_resting_frame_needs_no_ghosts_of_the_bodies_that_stick_out()
+    {
+        // A ghost is kinematic, and Jolt makes no contact between a kinematic body and a static one. The static body lies
+        // 30 m from the station's origin, within the 44 m that its sphere and those that stick out of the station reach.
+        FrameHandle station = Station(20_030);
+        NumericBody[] after = Update(0.1, Body(10, x: 20_000) with { Static = true }, BodyOf(station, 11, new Double3(0, 40, 0)));
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Resting);
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void The_ghosts_of_the_bodies_that_stick_out_go_when_the_falling_frame_passes()
+    {
+        FrameHandle station = Station(100);
+        FrameHandle pod = Update(0.1, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[0].Home;
+        Update(0.1, Body(10, x: 300, vx: 60, home: pod), BodyOf(station, 11, new Double3(0, 40, 0)));
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void The_frame_of_a_ships_hull_keeps_no_second_ghosts_of_the_bodies_that_stick_out_of_the_ship_but_a_frame_beside_it_does()
+    {
+        // A body that sticks out of the ship reaches at most 206 m from its origin. The rock flies 150 m from the hull, with
+        // it, so the merge test reaches only their bounding spheres, and the rock gets a frame of its own.
+        FrameHandle ship = frames.Create(new Entity(20, 1), ground, new DPose(X(1_000), DQuaternion.Identity), FrameBounds.Sphere(200), MotionDriver.Physics);
+        frames.TreeLinearVelocity(ship) = X(60);
+        NumericBody[] after = Update(0.1, Body(20, x: 1_000, vx: 60, radius: 2) with { OwnedFrame = ship }, Body(10, x: 1_150, vx: 60),
+            BodyOf(ship, 11, X(200)));
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
+        after[1].Home.Should().NotBe(after[0].Home);
+        frames.TreeParent(ship).Should().Be(after[0].Home, "a body that sticks out of the ship has a ghost in the ship's tree parent already");
+        frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(ship, after[1].Home));
+    }
+
+    /// <summary>
+    /// A station 1e13 m out in ground, and a rock that flies at 60 m/s 160 m or 175 m from it, whose place in ground the
+    /// input gives 15 m off the place that its home gives. A double rounds by about 2 mm there, so the place in ground is
+    /// off by more than any rounding, but within the 20 m slack of the first test in ground's coordinates. The reach is
+    /// 164 m: the rock's 1 m, the 43 m of the bodies that stick out of the station, and 2 s at 60 m/s.
+    /// </summary>
+    [Theory]
+    [InlineData(160, 175, true)]
+    [InlineData(175, 160, false)]
+    public void Far_out_the_test_of_the_bodies_that_stick_out_measures_a_member_from_its_place_in_its_home(double inHome, double inGround,
+        bool keeps)
+    {
+        FrameHandle station = frames.Create(new Entity(2, 1), ground, new DPose(X(1e13), DQuaternion.Identity), FrameBounds.Sphere(40),
+            MotionDriver.Static);
+        NumericBody rock = Body(10, x: 1e13 + inGround, vx: 60) with { HomePosition = X(1e13 + inHome) };
+        NumericBody[] after = Update(0.1, rock, BodyOf(station, 11, new Double3(0, 40, 0)));
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
+        frames.StickOutGhosts.ToArray().Should().Equal(keeps ? [new StickOutGhost(station, after[0].Home)] : []);
+    }
+
+    [Fact]
+    public void The_reach_of_the_bodies_that_stick_out_of_a_ship_moves_with_the_ship()
+    {
+        // The rock 250 m from the ship's origin reaches the bodies that stick out of it only through 2 s of their relative speed.
+        FrameHandle ship = frames.Create(new Entity(20, 1), ground, new DPose(X(1_000), DQuaternion.Identity), FrameBounds.Sphere(200), MotionDriver.Physics);
+        NumericBody[] after = Update(0.1, Body(20, x: 1_000, radius: 2) with { OwnedFrame = ship }, Body(10, x: 1_250, vx: 60), BodyOf(ship, 11, X(200)));
+        frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(ship, after[1].Home));
+
+        frames.TreeLinearVelocity(ship) = X(60);
+        Update(0.1, Body(20, x: 1_000, vx: 60, radius: 2, home: after[0].Home) with { OwnedFrame = ship },
+            Body(10, x: 1_250, vx: 60, home: after[1].Home), BodyOf(ship, 11, X(200)));
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue("the rock flies with the ship, 250 m from it");
+    }
+
     [Fact]
     public void A_body_at_the_edge_of_the_reach_of_a_fixed_hull_does_not_go_in_and_out_of_the_semantic_frames_system()
     {

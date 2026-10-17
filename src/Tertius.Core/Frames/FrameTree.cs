@@ -31,7 +31,9 @@ namespace Tertius;
 /// update. <see cref="NumericCount"/> is the number of numeric frames. A semantic frame has an owner and no step
 /// acceleration, and a semantic frame whose tree parent is a numeric frame has the Physics driver: a frame that its orbit,
 /// its spin or its owner's writes move, moves relative to its semantic parent. Every ghost of
-/// <see cref="AnchorGhosts"/> names a live falling frame. Every leave clock (see <see cref="NumericFrameRules.LeaveClock"/>)
+/// <see cref="AnchorGhosts"/> names a live falling frame. Every pair of <see cref="StickOutGhosts"/> names a live
+/// semantic frame and a live falling or resting frame of that frame's semantic parent, which is not its tree parent. Every
+/// leave clock (see <see cref="NumericFrameRules.LeaveClock"/>)
 /// is at least zero and names a body of the last update that is not an anchor, needs a frame by itself and stays in its
 /// semantic frame's own system, so no clock outlives its body's place in the input.</item>
 /// </list>
@@ -469,6 +471,12 @@ public sealed partial class FrameTree
         Contract.Invariant(NumericCount == numericFrames);
         foreach (NumericGhost ghost in anchorGhosts)
             Contract.Invariant(IsAlive(ghost.Frame) && Numeric(ghost.Frame) == NumericMode.Falling);
+        foreach (StickOutGhost ghost in stickOutGhosts)
+        {
+            Contract.Invariant(IsAlive(ghost.Bubble) && !IsNumeric(ghost.Bubble) && IsAlive(ghost.Frame));
+            Contract.Invariant(Numeric(ghost.Frame) is NumericMode.Falling or NumericMode.Resting);
+            Contract.Invariant(SemanticOf(ghost.Frame) == Parent(ghost.Bubble) && ghost.Frame != TreeParent(ghost.Bubble));
+        }
         if (leaveClocks.Count == 0)
             return;
         var lastBodies = new Dictionary<Entity, NumericBody>();

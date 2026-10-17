@@ -166,6 +166,71 @@ public class NumericFrameRulesTests
     public void A_body_of_a_numeric_frame_and_one_of_the_semantic_frame_get_no_split_margin() =>
         Touch(Body(0, home: Pod), Body(5)).Should().BeFalse();
 
+    // ---- StickOutRadius and MayTouchStickOut ---------------------------------------------------------------------
+
+    [Fact]
+    public void A_body_sticks_out_of_a_bubble_by_at_most_its_diameter_plus_the_exit_margin()
+    {
+        // A body leaves a bubble when its center is farther outside than its radius plus the exit margin, the larger of 2 %
+        // of the bubble and the body's radius. So its far side reaches at most two radii plus that margin past the bubble.
+        StickOutRadius(FrameBounds.Sphere(200), largestRadius: 1).Should().Be(200 + 2 + 4, "2 % of 200 m is more than 1 m");
+        StickOutRadius(FrameBounds.Sphere(40), largestRadius: 1).Should().Be(40 + 2 + 1, "1 m is more than 2 % of 40 m");
+    }
+
+    [Fact]
+    public void The_sphere_that_holds_the_bodies_that_stick_out_of_an_ellipsoid_starts_at_its_longest_radius() =>
+        StickOutRadius(new FrameBounds(new System.Numerics.Vector3(10, 50, 20)), largestRadius: 2).Should().Be(50 + 4 + 2);
+
+    /// <summary>
+    /// The merge test of a body and the bodies that stick out of a bubble whose sphere of <paramref name="stickOut"/> m
+    /// around the frame's origin, which is at <paramref name="frameX"/> on X and moves at <paramref name="frameVx"/>.
+    /// </summary>
+    private static bool TouchStickOut(in NumericBody body, double frameX, double stickOut, double frameVx = 0) =>
+        MayTouchStickOut(body, X(frameX) - body.Position, X(frameVx), stickOut, Options);
+
+    [Fact]
+    public void A_still_body_whose_sphere_touches_the_sphere_of_the_bodies_that_stick_out_may_touch_them()
+    {
+        TouchStickOut(Body(0, radius: 1), frameX: 44, stickOut: 43).Should().BeTrue();
+        TouchStickOut(Body(0, radius: 1), frameX: 44.001, stickOut: 43).Should().BeFalse();
+    }
+
+    [Fact]
+    public void The_speed_relative_to_the_bubbles_frame_times_the_lookahead_grows_the_reach()
+    {
+        // 54 m from the frame's origin: the reach is 44 m plus the speed relative to the frame times 2 s.
+        TouchStickOut(Body(0, vx: 5), frameX: 54, stickOut: 43).Should().BeTrue();
+        TouchStickOut(Body(0, vx: 4.9), frameX: 54, stickOut: 43).Should().BeFalse();
+        TouchStickOut(Body(0, vx: 60), frameX: 54, stickOut: 43, frameVx: 55).Should().BeTrue();
+        TouchStickOut(Body(0, vx: 60), frameX: 54, stickOut: 43, frameVx: 55.1).Should().BeFalse();
+    }
+
+    [Fact]
+    public void A_body_that_moves_with_the_bubbles_frame_gets_no_lookahead() =>
+        TouchStickOut(Body(0, vx: 7_700), frameX: 45, stickOut: 43, frameVx: 7_700).Should().BeFalse();
+
+    [Fact]
+    public void A_body_gets_no_split_margin_against_the_bodies_that_stick_out_of_a_bubble() =>
+        TouchStickOut(Body(0, home: Pod), frameX: 50, stickOut: 43).Should().BeFalse("the reach is 44 m, without the 10 m split margin");
+
+    [Fact]
+    public void The_slack_of_two_places_in_a_semantic_frame_covers_their_rounding_far_from_its_origin()
+    {
+        // A light-year out, a double steps by 2 m; 1 km out, by about 1e-13 m.
+        double step = Math.BitIncrement(1e16) - 1e16;
+        PlaceSlack(X(1e16), X(-1e16)).Should().BeGreaterThan(1000 * step);
+        PlaceSlack(X(1_000), X(0)).Should().BeLessThan(1e-6, "near the origin the first test reaches almost exactly as far as the second");
+    }
+
+    [Fact]
+    public void The_test_of_the_bodies_that_stick_out_measures_the_separation_that_it_is_given()
+    {
+        // Far from the semantic frame's origin, the positions round; the caller gives the separation through the homes.
+        NumericBody body = Body(1e16, home: Pod);
+        MayTouchStickOut(body, X(44.001), Double3.Zero, 43, Options).Should().BeFalse();
+        MayTouchStickOut(body, X(44), Double3.Zero, 43, Options).Should().BeTrue();
+    }
+
     // ---- SplitClock ----------------------------------------------------------------------------------------------
 
     [Fact]
