@@ -174,6 +174,9 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>True when <paramref name="body"/> is a ghost in this system.</summary>
     public bool HasGhost(BodyID body) => ghosts.Contains(body);
 
+    /// <summary>Adds the body of every ghost in this system to <paramref name="into"/>.</summary>
+    public void CopyGhosts(List<BodyID> into) => into.AddRange(ghosts);
+
     // The ghosts in this system whose real body is static, by body ID: the hull of a parked frame, or an anchor in a
     // falling frame. Jolt makes a contact of a static body only with a dynamic body, or with a kinematic body when the
     // static body is a sensor. The ghost of such a body is kinematic unless it is a mesh that holds still, so that a

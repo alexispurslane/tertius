@@ -437,12 +437,12 @@ public class GhostContactTests
     /// <summary>
     /// With no gravity, a ball flies at 60 m/s along -X from (100, 3, 0), past a static box of 2 m by 2 m by 2 m at the
     /// origin, so it falls in a numeric frame of its own, and the numeric update names the box an anchor of that frame,
-    /// which keeps a ghost of it. Far past the box, the update stops naming it. The ghost pass of the next step drops the
-    /// ghost, although nothing changed the frame tree, which would make the reconcile drop it. A ghost that stayed would
-    /// stand for the box where the box is not.
+    /// which keeps a ghost of it. Far past the box, the update stops naming it, and the ghost goes at the same sync point,
+    /// although nothing else changed the frame tree. So the backend keeps its invariants between ticks, and no ghost stands
+    /// for the box where the box is not.
     /// </summary>
     [Fact]
-    public void TheGhostOfAStaticBoxGoesInTheStepAfterTheNumericUpdateStopsNamingItAnAnchor()
+    public void TheGhostOfAStaticBoxGoesAtTheSyncPointWhoseNumericUpdateStopsNamingItAnAnchor()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
@@ -452,16 +452,14 @@ public class GhostContactTests
         FrameHandle falling = world.PhysicsHomeOf(ball);
         world.Frames.Numeric(falling).Should().Be(NumericMode.Falling);
         NamesAnchor(world, box, falling).Should().BeTrue();
+        faults.Jolt.HasGhostIn(box, falling).Should().BeTrue();
+
         TickUntil(world, () => !NamesAnchor(world, box, falling), 600);
-        faults.Jolt.HasGhostIn(box, falling).Should().BeTrue("the ghost pass of the next step drops it");
-        int treeVersion = world.Frames.Version;
 
-        world.Tick();
-
-        world.Frames.Version.Should().Be(treeVersion, "nothing changed the frame tree");
         world.PhysicsHomeOf(ball).Should().Be(falling);
         faults.Jolt.HasGhostIn(box, falling).Should().BeFalse("the numeric update no longer names the box an anchor of the ball's frame");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        world.Tick();
         world.Errors.Should().BeEmpty();
     }
 

@@ -32,8 +32,10 @@ namespace Tertius;
 /// acceleration, and a semantic frame whose tree parent is a numeric frame has the Physics driver: a frame that its orbit,
 /// its spin or its owner's writes move, moves relative to its semantic parent. Every ghost of
 /// <see cref="AnchorGhosts"/> names a live falling frame. Every pair of <see cref="StickOutGhosts"/> names a live
-/// semantic frame and a live falling or resting frame of that frame's semantic parent, which is not its tree parent. Every
-/// leave clock (see <see cref="NumericFrameRules.LeaveClock"/>)
+/// semantic frame and a live falling or resting frame of that frame's semantic parent, which is not its tree parent. These
+/// two hold between updates too: a frame that leaves the tree takes the places of ghosts that name it (see
+/// <see cref="RemoveNode"/>), and a frame that moves to another parent drops the pairs of its bubble that no longer hold
+/// (see <see cref="Reparent"/>). Every leave clock (see <see cref="NumericFrameRules.LeaveClock"/>)
 /// is at least zero and names a body of the last update that is not an anchor, needs a frame by itself and stays in its
 /// semantic frame's own system, so no clock outlives its body's place in the input.</item>
 /// </list>
@@ -144,7 +146,7 @@ public sealed partial class FrameTree
             else
                 Reparent(child, parent);
         }
-        RemoveNode(node);
+        RemoveNode(frame, node);
     }
 
     /// <summary>
@@ -162,13 +164,23 @@ public sealed partial class FrameTree
             else
                 Reparent(child, target);
         }
-        anchorGhosts.RemoveAll(ghost => ghost.Frame == frame);
         dissolved?.Add(frame);
-        RemoveNode(Node(frame));
+        RemoveNode(frame, Node(frame));
     }
 
-    private void RemoveNode(PoseNode node)
+    /// <summary>
+    /// Removes <paramref name="frame"/>, whose node is <paramref name="node"/>, from the tree. The places of ghosts that
+    /// name it go with it: the falling frame of an anchor, and the bubble or the numeric frame of a pair of
+    /// <see cref="StickOutGhosts"/> (see the invariants of the class).
+    /// </summary>
+    private void RemoveNode(FrameHandle frame, PoseNode node)
     {
+        for (int i = anchorGhosts.Count - 1; i >= 0; i--)
+            if (anchorGhosts[i].Frame == frame)
+                anchorGhosts.RemoveAt(i);
+        for (int i = stickOutGhosts.Count - 1; i >= 0; i--)
+            if (stickOutGhosts[i].Bubble == frame || stickOutGhosts[i].Frame == frame)
+                stickOutGhosts.RemoveAt(i);
         if (!owner[node.Id].IsNull)
             byOwner.Remove(owner[node.Id]);
         owner[node.Id] = Entity.Null;
@@ -179,7 +191,9 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Moves a frame under a new parent. Its pose and velocity relative to everything else stay the same. Throws
+    /// Moves a frame under a new parent. Its pose and velocity relative to everything else stay the same. A pair of
+    /// <see cref="StickOutGhosts"/> whose bubble is the frame goes when its numeric frame is no longer a numeric frame of the
+    /// frame's semantic parent, or is now the frame's tree parent (see the invariants of the class). Throws
     /// <see cref="InvalidOperationException"/>, and changes nothing, if the new parent is the frame itself or one of
     /// its descendants.
     /// </summary>
@@ -201,6 +215,14 @@ public sealed partial class FrameTree
         linearVelocity[node.Id] = ConvertVelocity(oldParent, newParent, oldPose.Position, linearVelocity[node.Id]);
         angularVelocity[node.Id] = (oldToNew.Rotate(w) + AngularVelocityRelative(oldParent, newParent)).ToVector3();
         poses.Reparent(node, newParent.IsNull ? PoseNode.Null : Node(newParent), keepWorldPose: true);
+
+        FrameHandle semanticParent = Parent(frame);
+        for (int i = stickOutGhosts.Count - 1; i >= 0; i--)
+        {
+            StickOutGhost ghost = stickOutGhosts[i];
+            if (ghost.Bubble == frame && (ghost.Frame == newParent || SemanticOf(ghost.Frame) != semanticParent))
+                stickOutGhosts.RemoveAt(i);
+        }
     }
 
     public bool IsAlive(FrameHandle frame) => !frame.IsNull && poses.IsAlive(new PoseNode(frame.Index, frame.Generation)) && owner[frame.Index] == frame.Entity;

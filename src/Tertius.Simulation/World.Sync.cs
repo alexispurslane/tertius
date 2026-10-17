@@ -79,16 +79,26 @@ public sealed partial class World
         // 6. New entities, after the destroy batch, so that a spawn into a frame that just died is dropped.
         MakeSpawnsLive(endTime);
 
-        // 6b. Bodies move into numeric frames and out of them, after physics output, destroys and spawns, so that every
-        //     body that is live at the end of the sync point is clustered where it is now. The structural changes of this
-        //     sync reach physics with the update's first batch, so that a spawn that joins a numeric frame is created in
-        //     it, with its velocity converted in doubles.
+        // 6b. Kepler and Spin frames advance to the end of the tick, and static frames take their owners' gameplay writes,
+        //     with their owners' rows: every frame that physics does not drive reaches its place at the end of the tick.
+        //     The bodies' rows and the frames that physics drives hold the end of the step since step 2, so the numeric
+        //     update of 6c tests them against bubbles of the same moment: a station that orbits at 7.5 km/s would else be
+        //     126 m behind its bodies. After the destroy batch and the spawns, because this step mirrors the owners of the
+        //     frames that they move and create. Nothing between this step and step 7 reads these frames at the start of the
+        //     tick: the update and the flush of 6c read them at its end, as physics does in its next step.
+        AdvanceDrivenFrames(endTime);
+
+        // 6c. Bodies move into numeric frames and out of them, after physics output, destroys, spawns and the frames of
+        //     6b, so that every body that is live at the end of the sync point is clustered where it is now. The structural
+        //     changes of this sync reach physics with the update's first batch, so that a spawn that joins a numeric frame
+        //     is created in it, with its velocity converted in doubles.
         if (physics != null)
             UpdateNumericFrames(DeltaTime);
         FlushPhysicsChanges();
 
-        // 7. Kepler and Spin frames advance to the end of the tick, and every frame owner, then every attached entity, follows.
-        AdvanceFrames(endTime);
+        // 7. The owner of every frame that physics drives mirrors its frame, after the numeric update, which can move such
+        //    a frame among numeric frames. Then every attached entity follows.
+        MirrorPhysicsFrameOwners();
         DeriveAttachments();
 
         // 8. The back tables become the front tables.
@@ -327,17 +337,18 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Step 7: Kepler and Spin frames from time, static frames from their owners' gameplay writes, then every owner's row
-    /// from its frame. Physics frames got their states in step 2.
+    /// Step 6b: Kepler and Spin frames from time, static frames from their owners' gameplay writes, then each one's owner's
+    /// row from its frame. These frames hang in semantic frames (see <see cref="FrameTree"/>), and the numeric update never
+    /// moves them, so their owners' rows hold after it.
     /// </summary>
-    private void AdvanceFrames(double endTime)
+    private void AdvanceDrivenFrames(double endTime)
     {
         int n = Frames.Count;
         for (int i = 0; i < n; i++)
         {
             FrameHandle frame = Frames.AtDense(i);
-            // A numeric frame moved in step 2, and it has no owner to follow it.
-            if (Frames.IsNumeric(frame))
+            // A numeric frame moved in step 2, and it has no owner to follow it. A physics frame got its state in step 2.
+            if (Frames.IsNumeric(frame) || Frames.Driver(frame) == MotionDriver.Physics)
                 continue;
             switch (Frames.Driver(frame))
             {
@@ -357,6 +368,23 @@ public sealed partial class World
                     break;
             }
             MirrorFrameOwner(frame);
+        }
+    }
+
+    /// <summary>
+    /// Step 7: the row of the owner of every frame that physics drives mirrors its frame. Step 2 wrote it from the frame's
+    /// state, and the destroy batch and the numeric update write the rows of the frames that they move or shift. A numeric
+    /// frame above the frame that moves under a nesting frame, or a nesting frame that jumps, changes no row, but it changes
+    /// the sum that gives the frame's place in its semantic frame, which can then round to another double.
+    /// </summary>
+    private void MirrorPhysicsFrameOwners()
+    {
+        int n = Frames.Count;
+        for (int i = 0; i < n; i++)
+        {
+            FrameHandle frame = Frames.AtDense(i);
+            if (!Frames.IsNumeric(frame) && Frames.Driver(frame) == MotionDriver.Physics)
+                MirrorFrameOwner(frame);
         }
     }
 

@@ -180,6 +180,7 @@ public class FrameTreeNumericUpdateTests
         FrameHandle pod = Update(0.1, Body(10, x: 0) with { Static = true }, Body(11, x: 2, vx: 60))[1].Home;
         Update(0.1, Body(10, x: 0) with { Static = true }, Body(11, x: 500, vx: 60, home: pod));
         frames.AnchorGhosts.IsEmpty.Should().BeTrue();
+        changes.GhostPlacesWithdrawn.Should().Equal([pod], "physics drops the anchor's ghost there at once");
     }
 
     // ---- The numeric frames that keep the ghosts of the bodies that stick out of a bubble -------------------------
@@ -241,10 +242,10 @@ public class FrameTreeNumericUpdateTests
     }
 
     [Fact]
-    public void An_anchor_in_a_resting_frame_needs_no_ghosts_of_the_bodies_that_stick_out()
+    public void A_static_body_that_is_not_a_sensor_in_a_resting_frame_needs_no_ghosts_of_the_bodies_that_stick_out()
     {
-        // A ghost is kinematic, and Jolt makes no contact between a kinematic body and a static one. The static body lies
-        // 30 m from the station's origin, within the 44 m that its sphere and those that stick out of the station reach.
+        // A ghost is kinematic, and Jolt makes no contact between a kinematic body and a static one that is not a sensor. The
+        // static body lies 30 m from the station's origin, within the 44 m that its sphere and those that stick out reach.
         FrameHandle station = Station(20_030);
         NumericBody[] after = Update(0.1, Body(10, x: 20_000) with { Static = true }, BodyOf(station, 11, new Double3(0, 40, 0)));
         frames.Numeric(after[0].Home).Should().Be(NumericMode.Resting);
@@ -252,12 +253,147 @@ public class FrameTreeNumericUpdateTests
     }
 
     [Fact]
+    public void A_static_sensor_in_a_resting_frame_keeps_the_ghosts_of_the_bodies_that_stick_out()
+    {
+        // A static sensor meets a kinematic body, so it detects the ghost of a body that sticks out of the station.
+        FrameHandle station = Station(20_030);
+        NumericBody[] after = Update(0.1, Body(10, x: 20_000) with { Static = true, Sensor = true }, BodyOf(station, 11, new Double3(0, 40, 0)));
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Resting);
+        frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(station, after[0].Home));
+    }
+
+    [Fact]
+    public void A_hull_on_rails_far_outside_its_frames_bubble_counts_with_its_own_reach()
+    {
+        // A hull that its frame's driver moves sticks out of the station by as far as it lies, 60 m out with a radius of 5 m,
+        // so it reaches 65 m, past the 55 m that a body of its radius that leaves reaches. The slow body 20 km out rests 62 m
+        // from the station's origin, and its sphere reaches 1 m.
+        FrameHandle station = Station(20_062);
+        NumericBody radar = BodyOf(station, 11, new Double3(0, 60, 0)) with { Radius = 5, Fixed = true };
+        NumericBody[] after = Update(0.1, Body(10, x: 20_000), radar);
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Resting);
+        frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(station, after[0].Home));
+    }
+
+    [Fact]
     public void The_ghosts_of_the_bodies_that_stick_out_go_when_the_falling_frame_passes()
     {
         FrameHandle station = Station(100);
         FrameHandle pod = Update(0.1, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[0].Home;
+        changes.GhostPlacesWithdrawn.Should().BeEmpty("the update named no place before");
         Update(0.1, Body(10, x: 300, vx: 60, home: pod), BodyOf(station, 11, new Double3(0, 40, 0)));
         frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+        changes.GhostPlacesWithdrawn.Should().Equal([pod], "physics drops the ghosts there at once");
+    }
+
+    [Fact]
+    public void A_frame_that_loses_two_places_at_once_is_withdrawn_once()
+    {
+        // The pod passes the static body beside it and the station at once.
+        FrameHandle station = Station(100);
+        FrameHandle pod = Update(0.1, Body(12, x: -2) with { Static = true }, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[1].Home;
+        Update(0.1, Body(12, x: -2) with { Static = true }, Body(10, x: 400, vx: 60, home: pod), BodyOf(station, 11, new Double3(0, 40, 0)));
+        frames.AnchorGhosts.IsEmpty.Should().BeTrue();
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+        changes.GhostPlacesWithdrawn.Should().Equal([pod]);
+    }
+
+    [Fact]
+    public void An_update_that_keeps_naming_a_place_withdraws_none()
+    {
+        FrameHandle station = Station(100);
+        FrameHandle pod = Update(0.1, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[0].Home;
+        Update(0.1, Body(10, x: 6, vx: 60, home: pod), BodyOf(station, 11, new Double3(0, 40, 0)));
+        frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(station, pod));
+        changes.GhostPlacesWithdrawn.Should().BeEmpty();
+
+        // A second station near the pod adds a pair, and the pair of the first one stays.
+        FrameHandle depot = frames.Create(new Entity(3, 1), ground, new DPose(X(-100), DQuaternion.Identity), FrameBounds.Sphere(40), MotionDriver.Static);
+        Update(0.1, Body(10, x: 12, vx: 60, home: pod), BodyOf(station, 11, new Double3(0, 40, 0)), BodyOf(depot, 12, new Double3(0, 40, 0)));
+        frames.StickOutGhosts.ToArray().Should().BeEquivalentTo([new StickOutGhost(station, pod), new StickOutGhost(depot, pod)]);
+        changes.GhostPlacesWithdrawn.Should().BeEmpty();
+    }
+
+    // ---- The places of ghosts follow the frames that they name ----------------------------------------------------
+
+    [Fact]
+    public void Destroying_a_bubble_drops_the_frames_that_keep_the_ghosts_of_its_bodies()
+    {
+        FrameHandle station = Station(100);
+        Update(0.1, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)));
+        frames.StickOutGhosts.IsEmpty.Should().BeFalse();
+
+        frames.Destroy(station);
+
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+        frames.AssertInvariants();
+    }
+
+    [Fact]
+    public void Destroying_a_numeric_frame_drops_the_places_of_ghosts_that_name_it()
+    {
+        // The pod keeps a ghost of the static body beside it and the ghosts of the bodies that stick out of the station.
+        FrameHandle station = Station(100);
+        FrameHandle pod = Update(0.1, Body(12, x: -2) with { Static = true }, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[1].Home;
+        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(new Entity(12, 1), pod));
+        frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(station, pod));
+
+        frames.Destroy(pod);
+
+        frames.AnchorGhosts.IsEmpty.Should().BeTrue();
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+        frames.TreeParent(station).Should().Be(ground, "the station did not move");
+    }
+
+    [Fact]
+    public void Destroying_a_semantic_frame_drops_the_places_of_ghosts_in_its_numeric_frames()
+    {
+        // Space is a semantic child of ground. A fast body in space falls in a numeric frame of space, which keeps a ghost of
+        // the static body beside it and the ghosts of the bodies that stick out of a station in space.
+        FrameHandle space = frames.Create(new Entity(3, 1), ground, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
+        FrameHandle station = frames.Create(new Entity(2, 1), space, new DPose(X(100), DQuaternion.Identity), FrameBounds.Sphere(40), MotionDriver.Static);
+        NumericBody[] after = Update(0.1, BodyOf(space, 12, X(-2)) with { Static = true }, BodyOf(space, 10, X(0)) with { Velocity = X(60) },
+            BodyOf(station, 11, new Double3(0, 40, 0)));
+        FrameHandle pod = after[1].Home;
+        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(new Entity(12, 1), pod));
+        frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(station, pod));
+
+        var dissolved = new List<FrameHandle>();
+        frames.Destroy(space, dissolved);
+
+        dissolved.Should().Equal(pod);
+        frames.Parent(station).Should().Be(ground);
+        frames.AnchorGhosts.IsEmpty.Should().BeTrue();
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Moving_a_bubble_to_another_semantic_frame_drops_the_frames_that_keep_the_ghosts_of_its_bodies()
+    {
+        FrameHandle station = Station(100);
+        FrameHandle depot = frames.Create(new Entity(3, 1), ground, new DPose(X(-50_000), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Static);
+        FrameHandle pod = Update(0.1, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[0].Home;
+
+        frames.Reparent(station, depot);
+
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue("the pod is no numeric frame of the depot");
+        frames.AssertInvariants();
+        frames.IsAlive(pod).Should().BeTrue();
+    }
+
+    [Fact]
+    public void Moving_a_bubble_under_the_frame_that_keeps_the_ghosts_of_its_bodies_drops_that_place()
+    {
+        // The frame that keeps the ghosts that stick out of the station is never the station's tree parent, which holds
+        // those ghosts already.
+        FrameHandle station = frames.Create(new Entity(2, 1), ground, new DPose(X(100), DQuaternion.Identity), FrameBounds.Sphere(40), MotionDriver.Physics);
+        FrameHandle pod = Update(0.1, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[0].Home;
+        frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(station, pod));
+
+        frames.Reparent(station, pod);
+
+        frames.StickOutGhosts.IsEmpty.Should().BeTrue();
+        frames.AssertInvariants();
     }
 
     [Fact]

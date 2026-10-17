@@ -287,9 +287,8 @@ public sealed partial class JoltPhysicsBackend
         }
         if (record.IsHull)
             MoveFrame(record.OwnedFrame, plan.From, plan.To);
-        // The numeric update links the body to what it touches only at the sync point (see ResolveLooseContacts).
-        if (frames.IsNumeric(plan.To))
-            handedIntoNumericFrames.Add(record.Entity);
+        // A contact that no system takes over can wait for the numeric update of the sync point (see ResolveLooseContacts).
+        handedOff.Add(record.Entity);
         output.HandOffs.Add(new HandOff(record.Entity, plan.From, plan.To, pose, plan.LinearVelocity, plan.AngularVelocity));
     }
 
@@ -334,8 +333,9 @@ public sealed partial class JoltPhysicsBackend
     /// siblings of the frame, wherever they hang among numeric frames.
     /// Ghosts get the real body's pose and chord velocity, so that during the next step they move with it.
     /// Each anchor that the numeric update names in <see cref="FrameTree.AnchorGhosts"/> has a ghost in the falling frame
-    /// that it names, a numeric frame of the anchor's own semantic frame, and loses it in the first pass after the update
-    /// stops naming it, also when the tree did not change. No frame gets two ghosts of one body: an anchor's falling frames
+    /// that it names, a numeric frame of the anchor's own semantic frame. A ghost loses its place in a numeric frame at the
+    /// sync point whose update stops naming it (see <see cref="DropWithdrawnGhosts"/>), so the pass finds only ghosts that
+    /// the tree allows, as <see cref="GhostAllowed"/> says. No frame gets two ghosts of one body: an anchor's falling frames
     /// are numeric frames of its own semantic frame, which no other ghost enters; the frames that keep the ghosts of the
     /// bodies that stick out are numeric frames of the semantic parent other than the tree parent; and the semantic parent
     /// and the bubbles that a body touches are not numeric, and the semantic parent is no bubble that the body touches.
@@ -373,8 +373,9 @@ public sealed partial class JoltPhysicsBackend
             {
                 bool movable = member.IsMovable;
                 bool anchor = (!movable || member.IsHull) && HasAnchorGhost(anchorGhosts, member.Entity);
-                // A static body that is not a hull has ghosts only as an anchor. One that the numeric update stopped
-                // naming still has them, and the pass drops them below, also when nothing changed the frame tree.
+                // A static body that is not a hull has ghosts only as an anchor. The sync point drops those whose place the
+                // numeric update stopped naming (see DropWithdrawnGhosts), and the pass drops below any other that it does
+                // not want, as for every body.
                 if (!movable && !member.IsHull && !anchor && member.Ghosts is not { Count: > 0 })
                     continue;
                 if (member.Ghosts is { Count: > 0 } existing)
@@ -641,6 +642,39 @@ public sealed partial class JoltPhysicsBackend
                 if (!GhostAllowed(record, ghosts[i].Frame))
                     RemoveGhostAt(ghosts, i);
         }
+    }
+
+    // Scratch for DropWithdrawnGhosts: the ghosts of one system.
+    private readonly List<BodyID> withdrawnScratch = new();
+
+    /// <summary>
+    /// Removes each ghost in the system of a frame of <paramref name="withdrawn"/> that the frame tree no longer allows
+    /// there (see <see cref="GhostAllowed"/>). These are the numeric frames that the numeric update of this sync point
+    /// stopped naming for an anchor or for the bodies that stick out of a bubble (see
+    /// <see cref="PhysicsChanges.GhostPlacesWithdrawn"/>). The update does not change the tree's version for that, so the
+    /// reconcile would not see it. Costs time in proportion to the ghosts in those systems.
+    /// </summary>
+    private void DropWithdrawnGhosts(List<FrameHandle> withdrawn)
+    {
+        foreach (FrameHandle frame in withdrawn)
+        {
+            if (!frames.IsAlive(frame) || ExistingWorld(frame) is not { } world)
+                continue;
+            withdrawnScratch.Clear();
+            world.CopyGhosts(withdrawnScratch);
+            foreach (BodyID body in withdrawnScratch)
+            {
+                // A system holds only the ghosts that the records keep in it (see AssertInvariants).
+                BodyRecord record = RecordFor(world.Bodies.GetUserData(body))!;
+                if (GhostAllowed(record, frame))
+                    continue;
+                List<GhostBody> ghosts = record.Ghosts!;
+                for (int i = ghosts.Count - 1; i >= 0; i--)
+                    if (ghosts[i].Body == body && ghosts[i].World == world)
+                        RemoveGhostAt(ghosts, i);
+            }
+        }
+        withdrawnScratch.Clear();
     }
 
     private void DropUnwantedGhosts(BodyRecord record)

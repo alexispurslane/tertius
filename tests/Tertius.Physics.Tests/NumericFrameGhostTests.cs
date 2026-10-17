@@ -493,14 +493,14 @@ public class NumericFrameGhostTests
     }
 
     /// <summary>
-    /// The reconcile allows a ghost only in the frames where the ghost pass can put one. A falling frame keeps a ghost of
-    /// the station's hull, an anchor, only while the numeric update names it: while the merge test links the ship's hull to
-    /// the station's, which reaches the two hulls' bounding spheres plus 2 s of their relative speed, about 127 m. The
-    /// falling frame is a child of space, the frame of the station's hull, but it has no bubble. So the reconcile after the
-    /// update stops naming the ghost drops it before the next step, which would otherwise run with it.
+    /// Physics keeps a ghost only in the frames where the ghost pass can put one. A falling frame keeps a ghost of the
+    /// station's hull, an anchor, only while the numeric update names it: while the merge test links the ship's hull to the
+    /// station's, which reaches the two hulls' bounding spheres plus 2 s of their relative speed, about 127 m. The falling
+    /// frame is a child of space, the frame of the station's hull, but it has no bubble. So the sync point whose update
+    /// stops naming the ghost drops it, and the next step does not run with it. A later reconcile allows none there.
     /// </summary>
     [Fact]
-    public void AReconcileDropsTheGhostOfAnAnchorThatTheNumericUpdateNoLongerNames()
+    public void TheSyncPointDropsTheGhostOfAnAnchorThatTheNumericUpdateNoLongerNames()
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         StationScene scene = CratesPassingAStation(world, lane: 10, stationCrate: null, shipCrate: null);
@@ -510,11 +510,13 @@ public class NumericFrameGhostTests
         FrameHandle falling = world.PhysicsHomeOf(scene.ShipOwner);
         world.Frames.Numeric(falling).Should().Be(NumericMode.Falling);
         NamesAnchorGhost(world, scene.StationOwner, falling).Should().BeTrue("the ship's hull starts about 100 m from the station's");
+        faults.Jolt.HasGhostIn(scene.StationOwner, falling).Should().BeTrue();
 
         TickUntil(world, () => !NamesAnchorGhost(world, scene.StationOwner, falling), 300);
         NamesAnchorGhost(world, scene.StationOwner, falling).Should().BeFalse("the ship's hull flies on until it is 127 m past the station's");
         world.PhysicsHomeOf(scene.ShipOwner).Should().Be(falling, "the ship's hull still falls in the same frame");
-        faults.Jolt.HasGhostIn(scene.StationOwner, falling).Should().BeTrue("the last step ran with the ghost that the update named before it");
+        faults.Jolt.HasGhostIn(scene.StationOwner, falling).Should().BeFalse("the update withdrew the ghost's place at this sync point");
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
 
         // A change far away makes the backend reconcile.
         world.Frames.Reparent(buoy, depot);

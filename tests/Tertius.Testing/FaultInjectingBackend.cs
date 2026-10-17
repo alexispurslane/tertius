@@ -145,6 +145,7 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
         copy.FramesCreated.AddRange(changes.FramesCreated);
         copy.BodiesMoved.AddRange(changes.BodiesMoved);
         copy.FramesShifted.AddRange(changes.FramesShifted);
+        copy.GhostPlacesWithdrawn.AddRange(changes.GhostPlacesWithdrawn);
         copy.Errors.AddRange(changes.Errors);
         return copy;
     }

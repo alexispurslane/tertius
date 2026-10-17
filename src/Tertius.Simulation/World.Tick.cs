@@ -88,7 +88,7 @@ public sealed partial class World
         PhysicsChanges changes = physicsChanges;
         if (changes.FramesCreated.Count == 0 && changes.BodiesDestroyed.Count == 0 &&
             changes.FramesDestroyed.Count == 0 && changes.FramesShifted.Count == 0 && changes.BodiesMoved.Count == 0 &&
-            changes.BodiesCreated.Count == 0)
+            changes.GhostPlacesWithdrawn.Count == 0 && changes.BodiesCreated.Count == 0)
             return;
         try
         {

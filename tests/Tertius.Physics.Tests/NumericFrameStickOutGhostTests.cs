@@ -16,7 +16,7 @@ namespace Tertius.Physics.Tests;
 /// frame options, under which a body that flies at 50 m/s or more relative to its frame gets a falling numeric frame, and
 /// a slow body 10 km or more from its frame's origin gets a resting one, and with no numeric frames.
 /// </summary>
-public class NumericFrameStickOutGhostTests
+public partial class NumericFrameStickOutGhostTests
 {
     /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
     private static readonly NumericFrameOptions WithoutNumericFrames = new()
@@ -287,10 +287,11 @@ public class NumericFrameStickOutGhostTests
     }
 
     /// <summary>
-    /// The reconcile allows the ghost of a body that sticks out of a bubble in a numeric frame that the numeric update named
-    /// for the bubble only while that frame is a numeric frame of the bubble's semantic parent. When a change of the tree
-    /// moves the parked station under a depot far away, the depot is the station's parent, and the rock's falling frame, a
-    /// numeric frame of space, is no place for the ghost of the station's crate, although the last update named it.
+    /// The numeric update names a frame for the bodies that stick out of a bubble only while that frame is a numeric frame
+    /// of the bubble's semantic parent. When a change of the tree moves the parked station under a depot far away, the
+    /// depot is the station's parent, and the rock's falling frame, a numeric frame of space, is no place for the ghost of
+    /// the station's crate. So the tree drops the station's place there at once, before any numeric update, and the
+    /// reconcile drops the ghost.
     /// </summary>
     [Fact]
     public void AReconcileDropsTheGhostInTheNumericFrameOfARockWhenTheBubbleMovesToAnotherParent()
@@ -306,7 +307,8 @@ public class NumericFrameStickOutGhostTests
         world.Frames.Update();
         faults.Jolt.ApplyChanges(new PhysicsChanges(), world.Frames);
 
-        NamesStickOutGhosts(world, scene.Bubble, home).Should().BeTrue("no numeric update ran since the change");
+        NamesStickOutGhosts(world, scene.Bubble, home).Should().BeFalse("the tree drops the places of a bubble that moves to another semantic parent");
+        world.Frames.Invoking(tree => tree.AssertInvariants()).Should().NotThrow();
         faults.Jolt.HasGhostIn(scene.Crate, home).Should().BeFalse("the rock's frame is no numeric frame of the station's new parent");
     }
 
@@ -453,5 +455,196 @@ public class NumericFrameStickOutGhostTests
         }
         world.VelocityIn(scene.Rock, scene.Space).Length.Should().BeLessThan(1e-6, "nothing touched the rock");
         world.Errors.Should().BeEmpty();
+    }
+
+    // ---- Frames that their drivers move, sensors and hulls ----------------------------------------------------------
+
+    /// <summary>The G·M of the earth, in m³/s².</summary>
+    private const double EarthMu = 3.986004418e14;
+
+    /// <summary>The outcome of a run of a station on an orbit: the tick of the rock's first Collision with the crate, and the rock's place in the station at the end.</summary>
+    private sealed record OrbitOutcome(long HitTick, Double3 RockInStation, List<ContactNews> RockNews);
+
+    /// <summary>
+    /// A planet whose point gravity has the G·M <paramref name="mu"/>, and a station on a circular orbit 7,000 km from its
+    /// center, which the Kepler driver moves: a hull of 4 m by 4 m by 4 m and a bubble of radius 40 m, so it hangs directly
+    /// in the planet. A crate floats at (0, 40.5, 0) in the station and sticks 1.5 m out of its bubble. A rock co-orbits
+    /// beside the station, from (3, 41, 0) in the station's place, and drifts toward the crate at 1 m/s relative to the
+    /// station. The rock never touches the bubble, so only the ghost of the crate can stop it. At the earth's G·M the
+    /// station orbits at 7,546 m/s, so in one tick of 1/60 s it moves 126 m, more than the 47.7 m that the test of the
+    /// bodies that stick out reaches: the rock's 0.5 m, the 45.2 m of the bodies that stick out of the station, and 2 s at
+    /// 1 m/s.
+    /// </summary>
+    private static OrbitOutcome RunStationOnAnOrbit(bool numericFrames, double mu)
+    {
+        using World world = NewWorld(numericFrames, out _);
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(mu)));
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = planet,
+            Body = ShipHull,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(7_000_000)),
+        });
+        FrameHandle station = world.GetOwnedFrame(owner);
+        Double3 stationPlace = world.Frames.LocalPose(station).Position;
+        Double3 stationVelocity = world.Frames.LinearVelocity(station);
+        Entity crate = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 40.5), Body = CrateBody });
+        var rockLog = new CollisionLog();
+        Entity rock = world.Spawn(new SpawnDesc
+        {
+            Frame = planet,
+            Pose = new DPose(stationPlace + new Double3(3, 41, 0), DQuaternion.Identity),
+            LinearVelocity = stationVelocity + new Double3(-1, 0, 0),
+            Body = RockBody,
+            Components = [rockLog],
+        });
+
+        long hitTick = -1;
+        for (int tick = 0; tick < 150; tick++)
+        {
+            world.Tick();
+            if (hitTick < 0 && rockLog.CountWith(crate) > 0)
+                hitTick = world.TickNumber;
+        }
+        world.Errors.Should().BeEmpty();
+        world.GetFrame(rock).Should().Be(planet, "the rock never touched the bubble");
+        if (numericFrames)
+            world.Frames.IsNumeric(world.PhysicsHomeOf(rock)).Should().BeTrue("the rock flies at orbital speed");
+        return new OrbitOutcome(hitTick, world.PoseIn(rock, station).Position, rockLog.NewsOf(crate));
+    }
+
+    [Fact]
+    public void ARockThatCoOrbitsWithAStationOnRailsHitsACrateThatSticksOutOfItAsItDoesWithoutNumericFrames()
+    {
+        OrbitOutcome withNumericFrames = RunStationOnAnOrbit(numericFrames: true, EarthMu);
+        OrbitOutcome withoutNumericFrames = RunStationOnAnOrbit(numericFrames: false, EarthMu);
+
+        // The rock's face closes the gap of 1.5 m to the crate's face at 1 m/s in 1.5 s, or 90 ticks.
+        withoutNumericFrames.HitTick.Should().BeInRange(87, 94, "the ghost of the crate in the planet's system stops the rock");
+        withoutNumericFrames.RockInStation.X.Should().BeGreaterThan(1.4, "the rock did not pass through the crate");
+        withNumericFrames.HitTick.Should().BeInRange(withoutNumericFrames.HitTick - 1, withoutNumericFrames.HitTick + 1,
+            "the update tests the rock against the station's bubble at the end of the tick, where the step put the rock");
+        withNumericFrames.RockInStation.X.Should().BeApproximately(withoutNumericFrames.RockInStation.X, 0.05);
+        withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews);
+        withNumericFrames.RockNews.Should().StartWith(ContactNews.Started);
+    }
+
+    /// <summary>
+    /// The same scene with a G·M at which the station orbits at 60 m/s, so it moves only 1 m in a tick. It shows that the
+    /// scene works when the place of the bubble hardly changes over a tick.
+    /// </summary>
+    [Fact]
+    public void ARockThatCoOrbitsWithASlowStationOnRailsHitsACrateThatSticksOutOfItAsItDoesWithoutNumericFrames()
+    {
+        const double slowMu = 2.52e10;
+        OrbitOutcome withNumericFrames = RunStationOnAnOrbit(numericFrames: true, slowMu);
+        OrbitOutcome withoutNumericFrames = RunStationOnAnOrbit(numericFrames: false, slowMu);
+
+        withoutNumericFrames.HitTick.Should().BeInRange(87, 94);
+        withNumericFrames.HitTick.Should().BeInRange(withoutNumericFrames.HitTick - 1, withoutNumericFrames.HitTick + 1);
+        withNumericFrames.RockInStation.X.Should().BeApproximately(withoutNumericFrames.RockInStation.X, 0.05);
+        withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews);
+    }
+
+    /// <summary>
+    /// A parked station 20 km out in space, a static hull with a bubble of radius 40 m. A crate at (0, 39, 0) in it drifts
+    /// out along +Y at 1 m/s, so it sticks out of the bubble. A static sensor ball of radius 1 m stands in space, 3.5 m
+    /// outside the bubble and 43.5 m from the hull, beyond the merge test's reach of the hull. A static sensor meets a
+    /// kinematic body, such as the ghost of the crate, so without numeric frames it detects the crate in the system of
+    /// space. 20 km out the sensor rests in a numeric frame of its own, so that frame needs the ghost of the crate too.
+    /// </summary>
+    private static (List<ContactNews> SensorNews, FrameHandle SensorHome, FrameHandle Space) RunStaticSensorBesideAStation(bool numericFrames)
+    {
+        using World world = NewWorld(numericFrames, out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        Entity station = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(20_000),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static),
+        });
+        FrameHandle bubble = world.GetOwnedFrame(station);
+        Entity crate = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(0, 39), LinearVelocity = new Double3(0, 1, 0), Body = CrateBody });
+        var sensorLog = new CollisionLog();
+        Entity sensor = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(20_000, 43.5),
+            Body = new BodyDesc(new SphereShapeDesc(1f), BodyMotion.Static) { IsSensor = true },
+            Components = [sensorLog],
+        });
+        Tick(world, 200);
+        world.Errors.Should().BeEmpty();
+        world.GetFrame(crate).Should().Be(bubble, "the crate still sticks out of the station's bubble");
+        return (sensorLog.NewsOf(crate), world.PhysicsHomeOf(sensor), space);
+    }
+
+    [Fact]
+    public void AStaticSensorFarOutDetectsACrateThatSticksOutOfAParkedStationAsItDoesWithoutNumericFrames()
+    {
+        var with = RunStaticSensorBesideAStation(numericFrames: true);
+        var without = RunStaticSensorBesideAStation(numericFrames: false);
+
+        without.SensorHome.Should().Be(without.Space);
+        without.SensorNews.Should().StartWith(ContactNews.Started);
+        with.SensorHome.Should().NotBe(with.Space, "the static sensor is 20 km out, so it rests in a numeric frame of its own");
+        with.SensorNews.Should().Equal(without.SensorNews, "numeric frames do not change which events gameplay hears");
+    }
+
+    /// <summary>
+    /// A parked station 20 km out in space, a static hull with a bubble of radius 40 m, holds a radar frame that the Spin
+    /// driver turns, at (0, 39, 0). The radar's hull is a ball of radius 5 m whose description is static, which a hull may
+    /// be: physics gives the hull of a Spin frame the kinematic motion of its driver. So it reaches 44 m from the station's
+    /// origin and sticks out of the bubble, and its kinematic ghost in space stops a rock that drifts at it at 0.3 m/s from
+    /// 0.05 m above it, outside the bubble. The rock rests in a numeric frame of its own 20 km out, so that frame needs the
+    /// ghost of the radar's hull too.
+    /// </summary>
+    private static (List<ContactNews> RockNews, Double3 RockPosition, Double3 RockVelocity, FrameHandle RockHome, FrameHandle Space) RunRadarAndRock(bool numericFrames)
+    {
+        using World world = NewWorld(numericFrames, out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        Entity station = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(20_000),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static),
+        });
+        Entity radar = world.Spawn(new SpawnDesc
+        {
+            Frame = world.GetOwnedFrame(station),
+            Pose = At(0, 39),
+            Body = new BodyDesc(new SphereShapeDesc(5f), BodyMotion.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(6), MotionDriver.Spin, Spin: new FrameSpin(DQuaternion.Identity, 0.1)),
+        });
+        var rockLog = new CollisionLog();
+        Entity rock = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(20_000, 44.55),
+            LinearVelocity = new Double3(0, -0.3, 0),
+            Body = RockBody,
+            Components = [rockLog],
+        });
+        Tick(world, 120);
+        world.Errors.Should().BeEmpty();
+        world.GetFrame(rock).Should().Be(space, "the rock never touched the station's bubble");
+        return (rockLog.NewsOf(radar), world.PoseIn(rock, space).Position, world.VelocityIn(rock, space), world.PhysicsHomeOf(rock), space);
+    }
+
+    [Fact]
+    public void ARockFarOutHitsTheHullOfASpinningRadarThatSticksOutOfAParkedStationAsItDoesWithoutNumericFrames()
+    {
+        var with = RunRadarAndRock(numericFrames: true);
+        var without = RunRadarAndRock(numericFrames: false);
+
+        without.RockHome.Should().Be(without.Space);
+        without.RockNews.Should().StartWith(ContactNews.Started);
+        without.RockPosition.Y.Should().BeGreaterThan(44.4, "the ghost of the radar's hull stopped the rock");
+        with.RockHome.Should().NotBe(with.Space, "the rock is slow and 20 km out, so it rests in a numeric frame of its own");
+        with.RockNews.Should().Equal(without.RockNews, "numeric frames do not change which events gameplay hears");
+        (with.RockPosition - without.RockPosition).Length.Should().BeLessThan(1e-2);
+        (with.RockVelocity - without.RockVelocity).Length.Should().BeLessThan(1e-2);
     }
 }

@@ -29,8 +29,8 @@ namespace Tertius.Physics;
 /// (see <see cref="FrameWorld.StartedPairs"/>), plus the number of its loose contacts, plus the number of its waiting
 /// contacts. An entity pair with no such body pair, no loose contact and no waiting contact has no count.</item>
 /// <item>Every count is at least 1.</item>
-/// <item>Outside a step, no entity is marked as handed off into a numeric frame (see
-/// <see cref="handedIntoNumericFrames"/>), so a mark never makes a contact of a later step wait.</item>
+/// <item>Outside a step, no entity is marked as handed off (see <see cref="handedOff"/>), so a mark never makes a contact
+/// of a later step wait.</item>
 /// </list>
 /// </remarks>
 public sealed partial class JoltPhysicsBackend
@@ -45,11 +45,11 @@ public sealed partial class JoltPhysicsBackend
     // The started contacts of the bodies that left their systems since the last ResolveLooseContacts, by entities in
     // canonical order, once for each body pair. A ghost that goes leaves its system too.
     private readonly List<(Entity A, Entity B)> looseContacts = new();
-    // The entities whose body a hand-off of this step moved into a numeric frame. ResolveLooseContacts reads and clears
-    // them at the end of the step.
-    private readonly HashSet<Entity> handedIntoNumericFrames = new();
+    // The entities whose body a hand-off of this step moved to another frame. ResolveLooseContacts reads and clears them at
+    // the end of the step.
+    private readonly HashSet<Entity> handedOff = new();
     // The loose contacts that the last ResolveLooseContacts let wait for the next one, by entities in canonical order:
-    // contacts of an entity that a hand-off moved into a numeric frame, which no system took over (see
+    // contacts of an entity that a hand-off moved, with a body in a numeric frame, which no system took over (see
     // ResolveLooseContacts). Each keeps its count in the ledger until then.
     private readonly List<(Entity A, Entity B)> waitingContacts = new();
     // The contact ledger: for each pair of entities in contact, in canonical order, the number of body pairs that hold the
@@ -195,14 +195,28 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     /// <remarks>
     /// <para>
-    /// A hand-off happens in the step, after the numeric update of the last sync point. A body that sticks out of a frame
-    /// whose tree parent is numeric leaves the frame into that numeric frame, which holds only the bodies that the merge
-    /// test linked to the frame's hull. So a contact that the body's ghost in the frame's semantic parent held is in no
-    /// system for one step: without numeric frames, the body would leave into the semantic parent and take the contact
-    /// over there. The next sync point's numeric update links the touching bodies, which puts them in one system, or
-    /// names a static body an anchor of the numeric frame, whose ghost the next ghost pass makes. So such a contact, which
-    /// no system takes over, waits for the next call with its count, as the contacts of a move between numeric frames do,
-    /// and that call settles it for good. A contact that really ended at the hand-off ends one step late.
+    /// A hand-off happens in the step, after the numeric update of the last sync point, which chose the numeric frames for
+    /// the place of each body before the step. So after a hand-off, a contact of the body with a body in a numeric frame
+    /// can be in no system for one step, where without numeric frames one system takes it over:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>A body that sticks out of a frame whose tree parent is numeric leaves the frame into that numeric frame, which
+    /// holds only the bodies that the merge test linked to the frame's hull. Without numeric frames, it would leave into
+    /// the semantic parent and take over there the contact that its ghost there held.</item>
+    /// <item>A body that leaves a frame drops its ghost in each numeric frame that the update named for the bodies that
+    /// stick out of the frame (see <see cref="FrameTree.StickOutGhosts"/>). Without numeric frames, the bodies there lie
+    /// in the semantic parent's own system, where the body goes, and it takes the contact over there.</item>
+    /// <item>A body that enters a frame that the update named no numeric frame for, because the frame had no body that can
+    /// move, has no ghost in the numeric frames of the semantic parent. Without numeric frames, its ghost in the semantic
+    /// parent's own system takes the contact over.</item>
+    /// </list>
+    /// <para>
+    /// The next sync point's numeric update links the touching bodies, which puts them in one system, or names a static
+    /// body an anchor of the numeric frame or the numeric frame for the bodies that stick out of the frame, whose ghost the
+    /// next ghost pass makes. So the rule is: a contact that no system takes over waits for the next call with its count,
+    /// as the contacts of a move between numeric frames do, when a hand-off of the step moved a body of it and a body of it
+    /// is in a numeric frame. That call settles it for good. A contact that really ended at the hand-off then ends one step
+    /// late. Without numeric frames no body is in a numeric frame, so no contact waits.
     /// </para>
     /// <para>
     /// An interior never takes over a contact of its owner's hull. The hull of a frame lies inside the frame's bubble, so
@@ -223,14 +237,17 @@ public sealed partial class JoltPhysicsBackend
                 continue;
             }
             int taken = CarryContact(first, second);
-            if (taken == 0 && (handedIntoNumericFrames.Contains(pair.A) || handedIntoNumericFrames.Contains(pair.B)))
+            if (taken == 0 && (handedOff.Contains(pair.A) || handedOff.Contains(pair.B)) && (InNumericFrame(first) || InNumericFrame(second)))
                 waitingContacts.Add(pair);
             else
                 Recount(pair, taken - 1);
         }
         looseContacts.Clear();
-        handedIntoNumericFrames.Clear();
+        handedOff.Clear();
     }
+
+    /// <summary>True when the system of a numeric frame holds the body of the record (see <see cref="BodyRecord.Frame"/>).</summary>
+    private bool InNumericFrame(BodyRecord record) => !record.Frame.IsNull && frames.IsNumeric(record.Frame);
 
     /// <summary>
     /// Lets every system that holds a body of each of the two records carry their contact, and returns how many of them
@@ -341,7 +358,7 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     private void AssertContactInvariants()
     {
-        Contract.Invariant(handedIntoNumericFrames.Count == 0);
+        Contract.Invariant(handedOff.Count == 0);
         countScratch.Clear();
         foreach (FrameWorld world in worldList)
         {

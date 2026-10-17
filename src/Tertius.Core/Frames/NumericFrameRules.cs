@@ -29,11 +29,21 @@ internal readonly record struct NumericBody
     /// <summary>The mass in kg, above zero.</summary>
     public double Mass { get; init; }
 
-    /// <summary>A static body cannot take a velocity, so its group cannot fall.</summary>
+    /// <summary>
+    /// Physics keeps the body static, so it cannot take a velocity, and its group cannot fall. That is the motion of the
+    /// description, or for the hull of a frame, the motion of the frame's driver (see <see cref="BodyDesc.FrameHullMotion"/>),
+    /// whatever the description says: the hull of a Physics, Kepler or Spin frame moves.
+    /// </summary>
     public bool Static { get; init; }
 
     /// <summary>It owns a frame that physics does not drive, so it stays in its semantic frame's own system.</summary>
     public bool Fixed { get; init; }
+
+    /// <summary>
+    /// A sensor, which detects touches but does not push. Jolt makes a contact between a kinematic body and a static one
+    /// only when one of them is a sensor, so a static sensor meets the kinematic ghost of a body that moves.
+    /// </summary>
+    public bool Sensor { get; init; }
 
     /// <summary>The frame that the entity owns, or null. A move puts that frame under the body's new home.</summary>
     public FrameHandle OwnedFrame { get; init; }
@@ -111,6 +121,19 @@ internal static class NumericFrameRules
     /// </summary>
     internal static double StickOutRadius(FrameBounds bubble, double largestRadius) =>
         bubble.MaxRadius + 2 * largestRadius + bubble.ExitMargin(largestRadius);
+
+    /// <summary>
+    /// How far from a frame's origin <paramref name="body"/>, a body of the frame's own system that can move, reaches while
+    /// it sticks out of the frame's bubble <paramref name="bubble"/>. A body that leaves the bubble when it is fully outside
+    /// reaches <see cref="StickOutRadius"/> for its radius. A hull of a frame that its driver moves on rails (see
+    /// <see cref="NumericBody.Fixed"/>) never leaves, so it sticks out by as far as it lies: it reaches its distance from the
+    /// origin plus its radius, and its speed relative to the frame times the lookahead time, for its move until the next
+    /// update.
+    /// </summary>
+    internal static double StickOutReach(FrameBounds bubble, in NumericBody body, NumericFrameOptions options) =>
+        body.Fixed
+            ? body.Position.Length + body.Radius + body.Velocity.Length * options.LookaheadTime
+            : StickOutRadius(bubble, body.Radius);
 
     /// <summary>
     /// The merge test of a body and the bodies that stick out of the bubble of a frame, which lie in the sphere of

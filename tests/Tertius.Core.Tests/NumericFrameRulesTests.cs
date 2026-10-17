@@ -181,6 +181,21 @@ public class NumericFrameRulesTests
     public void The_sphere_that_holds_the_bodies_that_stick_out_of_an_ellipsoid_starts_at_its_longest_radius() =>
         StickOutRadius(new FrameBounds(new System.Numerics.Vector3(10, 50, 20)), largestRadius: 2).Should().Be(50 + 4 + 2);
 
+    [Fact]
+    public void A_body_that_leaves_its_bubble_reaches_as_far_from_its_frames_origin_as_the_stick_out_radius() =>
+        // The body is 39 m from the origin, so it lies inside the bubble, and its distance does not count.
+        StickOutReach(FrameBounds.Sphere(40), Body(39, vx: 5, radius: 1), Options).Should().Be(StickOutRadius(FrameBounds.Sphere(40), 1));
+
+    [Fact]
+    public void A_hull_on_rails_reaches_its_distance_from_its_frames_origin_plus_its_radius_and_its_lookahead()
+    {
+        // A hull that its frame's driver moves never leaves the bubble, so it can stick out by any amount: 60 m out, with a
+        // radius of 5 m and 2 s at 3 m/s, it reaches 71 m, past the 55 m of a body of its radius that leaves.
+        StickOutReach(FrameBounds.Sphere(40), Body(60, vx: 3, radius: 5) with { Fixed = true }, Options).Should().Be(60 + 5 + 3 * 2);
+        StickOutReach(FrameBounds.Sphere(40), Body(10, radius: 5) with { Fixed = true }, Options).Should().Be(15,
+            "a hull on rails deep inside its bubble reaches less far than a body that leaves");
+    }
+
     /// <summary>
     /// The merge test of a body and the bodies that stick out of a bubble whose sphere of <paramref name="stickOut"/> m
     /// around the frame's origin, which is at <paramref name="frameX"/> on X and moves at <paramref name="frameVx"/>.
