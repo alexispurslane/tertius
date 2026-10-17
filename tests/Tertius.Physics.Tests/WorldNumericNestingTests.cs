@@ -21,6 +21,13 @@ public class WorldNumericNestingTests
     /// </summary>
     private const double Drift = 1.0 / 16;
 
+    /// <summary>
+    /// A speed in m/s at which a group of free bodies falls in a numeric frame: twice the 1,000 m/s of
+    /// <see cref="NumericFrameOptions.CreateSpeed"/>, rounded up to a power of two, so that <see cref="Drift"/> stays exact
+    /// on top of it in a float.
+    /// </summary>
+    private const double FallingSpeed = 2048;
+
     /// <summary>The grid of a resting frame that nests, in meters: 2^20 m.</summary>
     private const double Grid = 1 << 20;
 
@@ -90,7 +97,7 @@ public class WorldNumericNestingTests
     [Fact]
     public void ACrateALightYearOutKeepsMillimeterStepsRelativeToAPodNextToIt()
     {
-        Scene scene = PodAndCrate(speed: 1000);
+        Scene scene = PodAndCrate(FallingSpeed);
         using World world = scene.World;
         world.Tick();
         var before = CrateX(scene);
@@ -105,19 +112,21 @@ public class WorldNumericNestingTests
 
         world.Errors.Should().BeEmpty();
         FrameHandle crateHome = world.PhysicsHomeOf(scene.Crate);
-        world.Frames.IsNumeric(crateHome).Should().BeTrue("the crate is fast, so it falls in a numeric frame");
+        world.Frames.Numeric(crateHome).Should().Be(NumericMode.Falling, "the crate is fast, so it falls in a numeric frame");
         world.Frames.TreeLocalPose(crateHome).Position.Length.Should().BeLessThan(1e9, "its frame nests near it");
     }
 
     [Fact]
     public void TwoNumericFramesNearEachOtherFarFromTheOriginShareOneRestingFrameOnTheGrid()
     {
-        Scene scene = PodAndCrate(speed: 1000);
+        Scene scene = PodAndCrate(FallingSpeed);
         using World world = scene.World;
         world.Tick();
 
         FrameHandle crateHome = world.PhysicsHomeOf(scene.Crate);
         FrameHandle podHome = world.Frames.TreeParent(scene.Pod);
+        world.Frames.Numeric(crateHome).Should().Be(NumericMode.Falling, "the crate is fast, so it falls in a numeric frame");
+        world.Frames.Numeric(podHome).Should().Be(NumericMode.Falling, "the pod is fast, so it falls in a numeric frame");
         crateHome.Should().NotBe(podHome, "the crate and the pod are too far apart to share a numeric frame");
         FrameHandle nest = world.Frames.TreeParent(crateHome);
         world.Frames.TreeParent(podHome).Should().Be(nest);

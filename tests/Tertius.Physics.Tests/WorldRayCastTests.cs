@@ -671,15 +671,17 @@ public class WorldRayCastTests
     {
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 0);
-        // A crate at rest 20 km out moves into a resting numeric frame of its own.
-        Entity crate = Spawn(world, ground, new Double3(20_000, 0, 0), Cube());
-        var aim = new Aim(new Ray(new Double3(19_990, 0, 0), Double3.UnitX, 50, default, Tag: 1, OnTick: 3));
-        Spawn(world, ground, new Double3(19_990, 0, 0), null, aim);
+        // A crate at rest 10,000 km out, beyond the 2^23 m (8,389 km) of NumericFrameOptions.CreateDistance, moves into a
+        // resting numeric frame of its own.
+        const double far = 1e7;
+        Entity crate = Spawn(world, ground, new Double3(far, 0, 0), Cube());
+        var aim = new Aim(new Ray(new Double3(far - 10, 0, 0), Double3.UnitX, 50, default, Tag: 1, OnTick: 3));
+        Spawn(world, ground, new Double3(far - 10, 0, 0), null, aim);
 
         Tick(world, 5);
 
-        world.Frames.IsNumeric(world.PhysicsHomeOf(crate)).Should().BeTrue("the crate must be in a numeric frame for this test to mean anything");
-        ShouldBeAt(aim.AnswersTo(1).Single(), crate, new Double3(19_999.5, 0, 0), -Vector3.UnitX, 9.5);
+        world.Frames.Numeric(world.PhysicsHomeOf(crate)).Should().Be(NumericMode.Resting, "the crate must be in a numeric frame for this test to mean anything");
+        ShouldBeAt(aim.AnswersTo(1).Single(), crate, new Double3(far - 0.5, 0, 0), -Vector3.UnitX, 9.5);
     }
 
     /// <summary>

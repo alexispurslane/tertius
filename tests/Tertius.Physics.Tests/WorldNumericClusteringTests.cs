@@ -155,19 +155,24 @@ public class WorldNumericClusteringTests
         (world.VelocityIn(person, earth) - world.VelocityIn(crate, earth)).Z.Should().BeApproximately(0, 0.05);
     }
 
+    /// <summary>
+    /// A crate at rest on a static floor 10,000 km above the origin of a frame with gravity, beyond the 2^23 m (8,389 km)
+    /// from which a slow group rests in a numeric frame (<see cref="NumericFrameOptions.CreateDistance"/>). The crate and
+    /// the floor that holds it move into one resting frame, and the crate keeps its semantic frame and stays at rest.
+    /// </summary>
     [Fact]
     public void ACrateAtRestOnAFloorFarFromItsFramesOriginGetsARestingFrameAndStaysAtRest()
     {
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
-        const double top = 6.371e6;
+        const double top = 1e7;
         Entity floor = Floor(world, ground, top);
         Entity crate = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, top + 0.5), Body = Crate });
         Tick(world, 120);
 
         world.Errors.Should().BeEmpty();
         FrameHandle home = world.PhysicsHomeOf(crate);
-        home.Should().NotBe(ground, "the crate is 6,371 km from the origin of the frame ground");
+        home.Should().NotBe(ground, "the crate is 10,000 km from the origin of the frame ground");
         world.Frames.Numeric(home).Should().Be(NumericMode.Resting);
         world.PhysicsHomeOf(floor).Should().Be(home, "the floor that holds the crate went with it");
         world.GetFrame(crate).Should().Be(ground);
