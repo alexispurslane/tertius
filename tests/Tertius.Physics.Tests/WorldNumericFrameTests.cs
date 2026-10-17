@@ -1,5 +1,6 @@
 using System.Numerics;
 using Tertius.Simulation;
+using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
@@ -328,6 +329,150 @@ public class WorldNumericFrameTests
         Tick(world, 60);
         world.Errors.Should().BeEmpty();
         world.PoseIn(crate, ground).Position.X.Should().BeLessThan(0, "the crate hit the wall's ghost and did not pass through");
+    }
+
+    /// <summary>
+    /// The scene of <see cref="AFastCrateNearAStaticWallFallsInItsOwnFrameAndHitsTheWallsGhost"/>: with no gravity, a crate
+    /// of 10 kg flies at 60 m/s at a static wall. It falls in a numeric frame of its own, and the wall stays in its own
+    /// system, with a ghost in the crate's frame. A contact with a ghost is a contact of the two entities, so the crate and
+    /// the wall each hear one Collision when the crate hits the ghost, and no end while the crate rests against the wall,
+    /// also when the slow crate goes back to the system of the wall. A ghost stands for its real body, which is static, so
+    /// the impulse is the crate's mass times its approach speed.
+    /// </summary>
+    [Fact]
+    public void AFastCrateInAFallingFrameAndTheStaticWallThatItHitsEachHearOneCollision()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        var wallLog = new CollisionLog();
+        Entity wall = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Static),
+            Components = [wallLog],
+        });
+        var crateLog = new CollisionLog();
+        Entity crate = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-10), LinearVelocity = new Double3(60, 0, 0), Body = Crate, Components = [crateLog] });
+        Tick(world, 1);
+        InFallingFrame(world, crate).Should().BeTrue("a static body never stops a group that falls");
+
+        Tick(world, 180);
+
+        world.Errors.Should().BeEmpty();
+        world.PoseIn(crate, ground).Position.X.Should().BeLessThan(0, "the crate hit the wall's ghost and did not pass through");
+        crateLog.NewsOf(wall).Should().Equal([Started], "the crate rests against the wall");
+        wallLog.NewsOf(crate).Should().Equal([Started]);
+        crateLog.Seen.Single().Impulse.Should().BeApproximately(600f, 30f, "the crate of 10 kg approached the static wall at 60 m/s");
+    }
+
+    /// <summary>
+    /// With no gravity, a crate drifts at 0.2 m/s into a static wall and stops there, with one contact. Then every group
+    /// falls (<see cref="FallEverywhere"/>): the crate moves into a falling frame of its own, and the wall stays in its own
+    /// system, with a ghost in the crate's frame. That ghost appears only at the end of the first step in the new frame.
+    /// The contact goes on through it: the crate and the wall hear no end, and no second start. The order of the two
+    /// entities does not matter.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ACrateThatMovesIntoAFallingFrameKeepsItsContactWithTheWallThatItRestsAgainst(bool wallFirst)
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle ground = Ground(world, 0);
+        var wallLog = new CollisionLog();
+        var wallSpawn = new SpawnDesc
+        {
+            Frame = ground,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Static),
+            Components = [wallLog],
+        };
+        var crateLog = new CollisionLog();
+        var crateSpawn = new SpawnDesc { Frame = ground, Pose = At(-1.1), LinearVelocity = new Double3(0.2, 0, 0), Body = Crate, Components = [crateLog] };
+        Entity wall = wallFirst ? world.Spawn(wallSpawn) : Entity.Null;
+        Entity crate = world.Spawn(crateSpawn);
+        if (!wallFirst)
+            wall = world.Spawn(wallSpawn);
+        Tick(world, 60);
+        world.VelocityIn(crate, ground).Length.Should().BeLessThan(0.01, "the crate stopped at the wall");
+        world.PhysicsHomeOf(crate).Should().Be(ground);
+        crateLog.NewsOf(wall).Should().Equal([Started]);
+
+        world.Frames.NumericOptions = FallEverywhere;
+        Tick(world, 120);
+
+        world.Errors.Should().BeEmpty();
+        InFallingFrame(world, crate).Should().BeTrue();
+        backend.HasGhostIn(wall, world.PhysicsHomeOf(crate)).Should().BeTrue("the falling frame keeps a ghost of the wall");
+        crateLog.NewsOf(wall).Should().Equal([Started], "the contact went on through the wall's ghost");
+        wallLog.NewsOf(crate).Should().Equal([Started]);
+    }
+
+    /// <summary>
+    /// With no gravity, two crates touch, and then one drifts away at 1 cm/s. Jolt holds their pair while they are within
+    /// its speculative contact distance of 2 cm, so their contact goes on for about 2 s. Meanwhile every slow group gets a
+    /// resting frame (<see cref="RestEverywhere"/>), and both crates move into one. In the new system, Jolt finds their
+    /// pair a few millimeters apart, without a touch, which would wait for a touch as a new pair. The move hands it the
+    /// contact instead, so the contact ends only when the crates are 2 cm apart, and not at the move.
+    /// </summary>
+    [Fact]
+    public void TwoCratesThatDriftApartMoveIntoARestingFrameAndTheirContactEndsOnlyWhenTheySeparate()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        var leftLog = new CollisionLog();
+        var pilot = new Pilot();
+        Entity left = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-0.5), Body = Crate, Components = [leftLog, pilot] });
+        Entity right = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0.5), Body = Crate });
+        Tick(world, 10);
+        leftLog.NewsOf(right).Should().Equal([Started]);
+
+        // Half a second of drift puts the crates 5 mm apart, beyond the 1 mm of a touch.
+        pilot.Once = body => body.SetVelocity(new Double3(-0.01, 0, 0));
+        long drift = world.TickNumber;
+        Tick(world, 30);
+        world.Frames.NumericOptions = RestEverywhere;
+        TickUntil(world, () => world.PhysicsHomeOf(left) != ground, 300);
+        FrameHandle home = world.PhysicsHomeOf(left);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Resting);
+        world.PhysicsHomeOf(right).Should().Be(home, "the two crates move together");
+        long moved = world.TickNumber;
+        leftLog.NewsOf(right).Should().Equal([Started]);
+        Tick(world, 180);
+
+        world.Errors.Should().BeEmpty();
+        leftLog.NewsOf(right).Should().Equal(Started, Ended);
+        long ended = leftLog.Ended.Single().Tick;
+        ended.Should().BeGreaterThan(moved + 5, "the move did not end the contact");
+        (ended - drift).Should().BeInRange(110, 160, "the contact ends when the crates are about 2 cm apart, after about 2 s");
+    }
+
+    /// <summary>
+    /// With no gravity and every group falling (<see cref="FallEverywhere"/>), a crate of 10 kg flies at 3 m/s at a static
+    /// cube of triangles. The crate falls in a frame of its own, which takes over its velocity, so in that frame the crate
+    /// rests and the ghost of the cube comes at it at 3 m/s. Jolt never moves a mesh, so the ghost is static, and the
+    /// backend puts it at the cube's place after every step. A ghost stands for its real body, so the test of the touch and
+    /// the impulse use the cube's velocity in the crate's frame: each hears one Collision, whose impulse is the crate's mass
+    /// times 3 m/s.
+    /// </summary>
+    [Fact]
+    public void ACrateInAFallingFrameThatTheGhostOfAMeshHitsHearsTheImpulseOfTheMeshsVelocity()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend, configure: o => o.NumericFrames = FallEverywhere);
+        FrameHandle ground = Ground(world, 0);
+        var wallLog = new CollisionLog();
+        Entity wall = world.Spawn(new SpawnDesc { Frame = ground, Body = new BodyDesc(MeshCube(0.5f), BodyMotion.Static), Components = [wallLog] });
+        var crateLog = new CollisionLog();
+        Entity crate = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-3), LinearVelocity = new Double3(3, 0, 0), Body = Crate, Components = [crateLog] });
+        Tick(world, 2);
+        InFallingFrame(world, crate).Should().BeTrue();
+        backend.HasGhostIn(wall, world.PhysicsHomeOf(crate)).Should().BeTrue();
+
+        Tick(world, 60);
+
+        world.Errors.Should().BeEmpty();
+        crateLog.NewsOf(wall).Should().Equal([Started]);
+        wallLog.NewsOf(crate).Should().Equal([Started]);
+        crateLog.Seen.Single().Impulse.Should().BeApproximately(30f, 3f, "the cube came at the crate of 10 kg at 3 m/s");
     }
 
     [Fact]

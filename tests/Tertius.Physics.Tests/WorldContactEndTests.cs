@@ -467,46 +467,75 @@ public class WorldContactEndTests
 
     /// <summary>
     /// With no gravity, two crates touch end to end and drift together into a frame's bubble. The front crate moves into
-    /// the frame 30 steps before the other. In between, the back crate touches only the front crate's ghost, and contacts
-    /// with ghosts are not reported, so the contact ends at the first move and starts again when the two are in one
-    /// system again.
+    /// the frame 30 steps before the other. In between, the back crate touches the front crate's ghost, which sticks out
+    /// of the bubble, and a contact with a ghost is a contact of the two entities. So the contact goes on through the
+    /// ghost, and then in the frame once both crates are in: each crate hears one Collision and no CollisionEnded. The
+    /// order of the two entities does not matter.
     /// </summary>
-    [Fact]
-    public void ACrateThatEntersAFrameAheadOfTheCrateThatTouchesItEndsTheContactUntilBothAreIn()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ACrateThatEntersAFrameAheadOfTheCrateThatTouchesItKeepsTheContactThroughItsGhost(bool frontFirst)
     {
         using World world = NewWorld(out _);
         FrameHandle space = Ground(world, 0);
         FrameHandle inside = Bubble(world, space, 20);
         var frontLog = new CollisionLog();
         var backLog = new CollisionLog();
-        Entity front = world.Spawn(new SpawnDesc { Frame = space, Pose = At(14), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(), Components = [frontLog] });
-        Entity back = world.Spawn(new SpawnDesc { Frame = space, Pose = At(13), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(), Components = [backLog] });
+        var frontSpawn = new SpawnDesc { Frame = space, Pose = At(14), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(), Components = [frontLog] };
+        var backSpawn = new SpawnDesc { Frame = space, Pose = At(13), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(), Components = [backLog] };
+        Entity front = frontFirst ? world.Spawn(frontSpawn) : Entity.Null;
+        Entity back = world.Spawn(backSpawn);
+        if (!frontFirst)
+            front = world.Spawn(frontSpawn);
 
         Tick(world, 90);
 
         world.GetFrame(front).Should().Be(inside);
         world.GetFrame(back).Should().Be(inside);
-        frontLog.NewsOf(back).Should().Equal(Started, Ended, Started);
-        backLog.NewsOf(front).Should().Equal(Started, Ended, Started);
+        frontLog.NewsOf(back).Should().Equal([Started], "the back crate touched the front crate's ghost until it entered too");
+        backLog.NewsOf(front).Should().Equal([Started]);
         world.Errors.Should().BeEmpty();
     }
 
-    /// <summary>The front crate of the scene above hears the end in the same tick as its FrameChanged.</summary>
+    /// <summary>
+    /// Under gravity, a crate that nothing slows down slides on a static floor at 2 m/s into a frame's bubble. The frame has
+    /// the same gravity and no floor, so the crate falls there. Its ghost on the floor's side is kinematic, and Jolt makes
+    /// no contact between a kinematic body and a static one, so nothing carries the contact: the hand-off ends it. The
+    /// crate hears the end in the same tick as its FrameChanged, and so does the floor.
+    /// </summary>
     [Fact]
     public void AHandOffThatEndsAContactReportsTheEndWithTheFrameChange()
     {
         using World world = NewWorld(out _);
-        FrameHandle space = Ground(world, 0);
-        Bubble(world, space, 20);
-        var frontLog = new CollisionLog();
-        var frontMoves = new FrameChangeTicks();
-        Entity back = world.Spawn(new SpawnDesc { Frame = space, Pose = At(13), LinearVelocity = new Vector3(2, 0, 0), Body = Cube() });
-        world.Spawn(new SpawnDesc { Frame = space, Pose = At(14), LinearVelocity = new Vector3(2, 0, 0), Body = Cube(), Components = [frontLog, frontMoves] });
+        FrameHandle ground = Ground(world, 9.81f);
+        FrameHandle inside = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(20, 0.5),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+        }));
+        var floorLog = new CollisionLog();
+        Entity floor = LoggedFloor(world, ground, floorLog);
+        var crateLog = new CollisionLog();
+        var crateMoves = new FrameChangeTicks();
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(13, 0.5),
+            LinearVelocity = new Vector3(2, 0, 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, Friction: 0, LinearDamping: 0, AngularDamping: 0),
+            Components = [crateLog, crateMoves],
+        });
 
-        Tick(world, 20);
+        Tick(world, 60);
 
-        long moved = frontMoves.Ticks.Should().ContainSingle().Subject;
-        frontLog.Ended.Should().ContainSingle().Which.Should().Be((moved, back));
+        world.GetFrame(crate).Should().Be(inside);
+        long moved = crateMoves.Ticks.Should().ContainSingle().Subject;
+        crateLog.NewsOf(floor).Should().Equal(Started, Ended);
+        crateLog.Ended.Should().ContainSingle().Which.Should().Be((moved, floor));
+        floorLog.Ended.Should().ContainSingle().Which.Should().Be((moved, crate));
+        world.Errors.Should().BeEmpty();
     }
 
     /// <summary>Records the tick of every FrameChanged that its entity hears.</summary>

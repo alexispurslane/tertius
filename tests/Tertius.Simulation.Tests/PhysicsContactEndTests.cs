@@ -103,9 +103,11 @@ public class PhysicsContactEndTests
     }
 
     /// <summary>
-    /// The first ball flies into the bubble of a frame in the step of tick 0 and overlaps the second ball, which is behind it
-    /// and still outside the bubble. In that step Jolt finds the contact of the two balls, and then hands the first ball off to
-    /// the frame, where the second ball has no body. So the one step sends the start of the contact and its end.
+    /// The first ball flies into the bubble of a frame in the step of tick 0 and overlaps the second ball, a kinematic one,
+    /// which is behind it and still outside the bubble. In that step Jolt finds the contact of the two balls, and then hands
+    /// the first ball off to the frame, where the second ball has no body. The first ball's ghost stays outside, but a ghost
+    /// is kinematic, and Jolt makes no contact between two kinematic bodies, so nothing carries the contact on. So the one
+    /// step sends the start of the contact and its end.
     /// </summary>
     [Fact]
     public void AContactThatStartsAndEndsInOneStepArrivesAsTheStartAndThenTheEnd()
@@ -128,7 +130,7 @@ public class PhysicsContactEndTests
             Frame = test.Root,
             Pose = TestWorld.At(flight.Pose.Position.X - 0.9, flight.Pose.Position.Y, flight.Pose.Position.Z),
             LinearVelocity = flight.Velocity,
-            Body = WorldTesting.Ball(),
+            Body = new BodyDesc(new SphereShapeDesc(0.5f), BodyMotion.Kinematic),
             Components = [secondLog],
         });
 

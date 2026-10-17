@@ -178,7 +178,29 @@ internal sealed class FrameWorld : IDisposable
     {
         Contract.Requires(ghosts.Contains(body));
         ghosts.Remove(body);
+        staticGhostMotion.Remove(body.ID);
         RemoveBody(body);
+    }
+
+    /// <summary>The velocity of the real body of a static ghost, in this frame's axes: of its center of mass, and its angular velocity.</summary>
+    private readonly record struct GhostMotion(Vector3 Linear, Vector3 Angular);
+
+    // The motion of the real body of each static ghost in this system, by the ghost's body ID. Jolt never moves a mesh, so
+    // the ghost of a mesh is static, and the backend puts it at its real body's place after every step. So the ghost moves
+    // with its real body, one step at a time, while Jolt gives it no velocity. The test of a touch and the impulse read this
+    // motion in place of Jolt's. Only the physics thread changes it, between updates, so Jolt's worker threads read it
+    // during an update without the gate.
+    private readonly Dictionary<uint, GhostMotion> staticGhostMotion = new();
+
+    /// <summary>
+    /// Records the velocity of the real body of <paramref name="ghost"/>, a static ghost in this system, in this frame's
+    /// axes: <paramref name="linear"/> of its center of mass and <paramref name="angular"/>, in m/s and rad/s. Contacts with
+    /// the ghost read it until the next call, or until the ghost goes.
+    /// </summary>
+    public void SetStaticGhostMotion(BodyID ghost, Vector3 linear, Vector3 angular)
+    {
+        Contract.Requires(ghosts.Contains(ghost));
+        staticGhostMotion[ghost.ID] = new GhostMotion(linear, angular);
     }
 
     /// <summary>
@@ -370,7 +392,8 @@ internal sealed class FrameWorld : IDisposable
             if (contact.WasDiscarded || !contact.BodyB.IsValid)
                 continue;
             characterTouches.Add(PairKey(inner, contact.BodyB));
-            if (!contact.HadCollision || !IsReportable(contact.UserData))
+            // The inner body is no ghost, so a hit of a ghost counts too.
+            if (!contact.HadCollision || !IsContactBody(contact.UserData))
                 continue;
             // Jolt's contact normal points out of the other body, toward the character. A contact's normal points from
             // its first body, here the inner body, to its second.
@@ -487,18 +510,32 @@ internal sealed class FrameWorld : IDisposable
     private RawEnd EndOf(ulong key) => new(BodiesNoLock.GetUserData(First(key)), BodiesNoLock.GetUserData(Second(key)));
 
     /// <summary>
-    /// Holds the pair of two bodies whose entities were in contact when one or both of the bodies came into this system,
-    /// so that Jolt finding their contact continues it instead of starting it. The pair ends as
-    /// <see cref="HeldPairEnded"/> says.
+    /// Takes over the contact of two entities whose bodies <paramref name="a"/> and <paramref name="b"/> are in this system,
+    /// after a body of the contact left another system: the contact goes on here, and Jolt finding the pair continues it
+    /// instead of starting it. A pair that Jolt found without a touch (a pending pair) starts without a report. A pair that
+    /// Jolt does not hold becomes held, and it ends as <see cref="HeldPairEnded"/> says. Returns false when this system
+    /// holds the pair as started already, so that it takes over nothing.
     /// </summary>
-    public void Hold(BodyID a, BodyID b)
+    public bool Carry(BodyID a, BodyID b)
     {
         ulong key = PairKey(a, b);
         lock (contactGate)
+            return touching.ContainsKey(key) ? pending.Remove(key) : held.Add(key);
+    }
+
+    /// <summary>
+    /// Appends to <paramref name="pairs"/> each body pair of this system that has started and not ended: the pairs of
+    /// <c>touching</c> that are not pending, and the held pairs. Only the backend's check of its invariants reads them.
+    /// </summary>
+    public void StartedPairs(List<RawEnd> pairs)
+    {
+        lock (contactGate)
         {
-            // Both bodies are new in this system, so Jolt has not found their pair yet.
-            Contract.Requires(!touching.ContainsKey(key));
-            held.Add(key);
+            foreach (ulong key in touching.Keys)
+                if (!pending.Contains(key))
+                    pairs.Add(EndOf(key));
+            foreach (ulong key in held)
+                pairs.Add(EndOf(key));
         }
     }
 
@@ -596,7 +633,7 @@ internal sealed class FrameWorld : IDisposable
     public unsafe void OnContactAdded(nint body1, nint body2, nint manifold, ContactSettings* settings)
     {
         ulong data1 = JoltNative.BodyUserData(body1), data2 = JoltNative.BodyUserData(body2);
-        if (!IsReportable(data1) || !IsReportable(data2))
+        if (!IsReported(data1, data2))
         {
             if (settings->CombinedRestitution > 0f)
                 settings->CombinedRestitution = KeptRestitution(settings->CombinedRestitution, NormalVelocity(body1, body2, manifold, out _, out _));
@@ -656,7 +693,7 @@ internal sealed class FrameWorld : IDisposable
     /// manifold's points on the first body, or the first body's center of mass when the manifold has none.
     /// <paramref name="normal"/> is the manifold's normal, from the first body to the second.
     /// </summary>
-    private static unsafe float NormalVelocity(nint body1, nint body2, nint manifold, out Double3 point, out Vector3 normal)
+    private unsafe float NormalVelocity(nint body1, nint body2, nint manifold, out Double3 point, out Vector3 normal)
     {
         uint count = JoltNative.ManifoldPointCount(manifold);
         point = Double3.Zero;
@@ -684,19 +721,40 @@ internal sealed class FrameWorld : IDisposable
         return Vector3.Dot(v2 - v1, direction);
     }
 
-    private static bool IsReportable(ulong data)
+    /// <summary>
+    /// True when a contact of the two bodies is a contact of their entities: both stand for an entity, and they are not
+    /// two ghosts. A ghost stands for its real body, so its contact with any other body counts. The real bodies of two
+    /// ghosts are in their own systems, which report their contact if they touch.
+    /// </summary>
+    private static bool IsReported(ulong data1, ulong data2) =>
+        IsContactBody(data1) && IsContactBody(data2) && !(BodyUserData.Kind(data1) == BodyKind.Ghost && BodyUserData.Kind(data2) == BodyKind.Ghost);
+
+    /// <summary>True for a body that stands for an entity in contacts: a primary body, an interior, a character's inner body or a ghost.</summary>
+    private static bool IsContactBody(ulong data)
     {
         BodyKind kind = BodyUserData.Kind(data);
-        return kind is BodyKind.Primary or BodyKind.Interior or BodyKind.CharacterInner;
+        return kind is BodyKind.Primary or BodyKind.Interior or BodyKind.CharacterInner or BodyKind.Ghost;
     }
 
-    private static unsafe Vector3 PointVelocity(nint body, Double3 point)
+    /// <summary>
+    /// The velocity of the point <paramref name="point"/> of a body, in m/s: Jolt's velocity of the body, or for a static
+    /// ghost the velocity of its real body (see <see cref="SetStaticGhostMotion"/>).
+    /// </summary>
+    private unsafe Vector3 PointVelocity(nint body, Double3 point)
     {
         RVector3 com;
         Vector3 linear, angular;
         JoltNative.BodyCenterOfMass(body, &com);
-        JoltNative.BodyLinearVelocity(body, &linear);
-        JoltNative.BodyAngularVelocity(body, &angular);
+        if (staticGhostMotion.Count > 0 && staticGhostMotion.TryGetValue(JoltNative.BodyId(body), out GhostMotion motion))
+        {
+            linear = motion.Linear;
+            angular = motion.Angular;
+        }
+        else
+        {
+            JoltNative.BodyLinearVelocity(body, &linear);
+            JoltNative.BodyAngularVelocity(body, &angular);
+        }
         Vector3 offset = (point - com.ToDouble3()).ToVector3();
         return linear + Vector3.Cross(angular, offset);
     }

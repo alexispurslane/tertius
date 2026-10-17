@@ -233,6 +233,70 @@ public class ContactAllocationTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// With no gravity, a kinematic block in a frame of radius 10 m sticks 1 m out of the bubble, so space holds a ghost of
+    /// it, whose face is at x = 11 m. 16 balls of radius 0.1 m in space, in a grid of lanes 0.4 m apart, bounce at 3 m/s
+    /// between that face and the face of a static wall at x = 13.5 m, with a restitution of 1. So every 1.5 s each ball
+    /// starts and ends a contact with the ghost, which goes through the backend's count of the systems that hold each pair
+    /// of entities, and one with the wall. Once each pair has been counted, a step must allocate nothing.
+    /// </summary>
+    [Fact]
+    public void StepsWithContactsThroughAGhostThatStartAndEndAllocateNothingOnAnyThread()
+    {
+        using World world = NewWorld(out _, debugChecks: false);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle bubble = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static) }));
+        var blockContacts = new ContactCounter();
+        world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(10), Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic), Components = [blockContacts] });
+        world.Spawn(new SpawnDesc { Frame = space, Pose = At(13.75), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.25f, 1, 1)), BodyMotion.Static) });
+        var bouncy = new BodyDesc(new SphereShapeDesc(0.1f), Mass: 1, Restitution: 1, LinearDamping: 0, AngularDamping: 0);
+        for (int i = 0; i < 16; i++)
+            world.Spawn(new SpawnDesc { Frame = space, Pose = At(12, -0.6 + 0.4 * (i % 4), -0.6 + 0.4 * (i / 4)), LinearVelocity = new Vector3(3, 0, 0), Body = bouncy });
+        // Two seconds: each ball has hit the ghost once.
+        Tick(world, 120);
+        blockContacts.Started.Should().Be(16, "each ball hit the block's ghost");
+
+        const int Ticks = 200;
+        int startedBefore = blockContacts.Started;
+        long first = BytesPerTick(world, Ticks);
+        long second = BytesPerTick(world, Ticks);
+
+        Math.Min(first, second).Should().Be(0, $"a step with contacts through a ghost must not allocate (the windows gave {first} and {second} bytes per tick)");
+        (blockContacts.Started - startedBefore).Should().BeGreaterThanOrEqualTo(32, "each ball hit the ghost again in the windows");
+        blockContacts.Ended.Should().BeGreaterThanOrEqualTo(blockContacts.Started - 16);
+        world.Errors.Should().BeEmpty();
+    }
+
+    private static long BytesPerTick(World world, int ticks)
+    {
+        long before = GC.GetTotalAllocatedBytes(precise: true);
+        for (int t = 0; t < ticks; t++)
+            world.Tick();
+        return (GC.GetTotalAllocatedBytes(precise: true) - before) / ticks;
+    }
+
+    /// <summary>Counts the Collision and CollisionEnded events that its entity hears, without allocating.</summary>
+    private sealed class ContactCounter : IComponent
+    {
+        public int Started;
+        public int Ended;
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Collision>() | EventMask.Of<CollisionEnded>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            for (int i = 0; i < events.Count; i++)
+            {
+                if (events[i].Is<Collision>())
+                    Started++;
+                else if (events[i].Is<CollisionEnded>())
+                    Ended++;
+            }
+        }
+    }
+
     private static long BytesPerReport(World world, int ticks, int reportsPerTick)
     {
         long before = GC.GetTotalAllocatedBytes(precise: true);

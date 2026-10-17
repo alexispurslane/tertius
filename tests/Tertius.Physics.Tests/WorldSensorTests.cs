@@ -9,7 +9,8 @@ namespace Tertius.Physics.Tests;
 /// Sensor bodies (<see cref="BodyDesc.IsSensor"/>) detect touches but do not push. A touch of a sensor starts in the first
 /// step that begins with the two bodies overlapping, and it ends in the first step that begins without the overlap. Each
 /// entity hears one Collision, with no impulse, and one CollisionEnded. A sensor detects dynamic and kinematic bodies and
-/// characters. Sleep and wake send nothing, and a ghost's touch is not a touch of its entity.
+/// characters. Sleep and wake send nothing. A ghost's touch is a touch of its entity, and an entity's body and its ghosts
+/// make one touch.
 /// </summary>
 public class WorldSensorTests
 {
@@ -156,11 +157,12 @@ public class WorldSensorTests
     /// out of the bubble, and space holds a ghost of it. A static sensor in space, outside the bubble, spans x from 10.1 m
     /// to 14.5 m, so the ghost overlaps it. The block moves along +X at 2 m/s. It leaves the bubble when its bounding
     /// sphere, of radius √3 m, is outside the bubble by a margin of √3 m, at x = 13.46 m, inside the sensor. It leaves the
-    /// sensor at x = 15.5 m. The ghost's touch reports nothing: the sensor and the block hear one start, after the block
-    /// moved into space, and one end.
+    /// sensor at x = 15.5 m. A ghost's touch is a touch of its entity: the sensor and the block hear one start while the
+    /// block is still in its bubble. The block's own body takes the touch over at the hand-off, which starts nothing, and
+    /// each hears one end when the block leaves the sensor.
     /// </summary>
     [Fact]
-    public void AGhostThatOverlapsASensorIsNotASecondTouchOfItsEntity()
+    public void ASensorHearsTheTouchOfABodysGhostOnceAndNoSecondTouchWhenTheBodyFollowsIt()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
@@ -179,13 +181,15 @@ public class WorldSensorTests
         TickUntil(world, () => world.GetFrame(block) == space, 300);
         world.GetFrame(block).Should().Be(space, "the block left its bubble");
         long handOff = world.TickNumber;
-        sensorLog.Seen.Should().BeEmpty("only the ghost touched the sensor while the block was in its bubble");
+        sensorLog.NewsOf(block).Should().Equal([Started], "the ghost touched the sensor while the block was in its bubble");
+        blockLog.NewsOf(sensor).Should().Equal([Started]);
+        sensorLog.Seen.Single().Tick.Should().BeLessThan(handOff);
         Tick(world, 120);
 
         world.PoseInOwnFrame(block).Position.X.Should().BeGreaterThan(15.6, "the block passed the sensor");
         sensorLog.NewsOf(block).Should().Equal(Started, Ended);
         blockLog.NewsOf(sensor).Should().Equal(Started, Ended);
-        sensorLog.Seen.Single().Tick.Should().BeGreaterThanOrEqualTo(handOff);
+        sensorLog.Ended.Single().Tick.Should().BeGreaterThan(handOff);
         world.Errors.Should().BeEmpty();
     }
 }
