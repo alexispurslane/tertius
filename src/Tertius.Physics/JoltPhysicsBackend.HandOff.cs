@@ -444,11 +444,14 @@ public sealed partial class JoltPhysicsBackend
     /// Numeric frames are an engine detail with no bubbles, so every body, hull and anchor gets the ghosts in semantic
     /// frames that it gets without numeric frames. The bubbles inside a body's frame are those that the hand-off lets it
     /// enter (see <see cref="PrepareBubbles"/>). An anchor never enters them, but a ghost is about touching, so it meets
-    /// them too. A body that sticks out of its frame's bubble also meets the bubbles that the members of the parent's
-    /// system meet, the semantic siblings of its frame, wherever they hang among numeric frames. Ghosts get the real
-    /// body's pose and chord velocity, so that during the next step they move with it. Each anchor that the numeric
-    /// update names in <see cref="FrameTree.AnchorGhosts"/> has a ghost in the falling frame that it names. Those frames are
-    /// numeric, and no bubble is, so no frame gets two ghosts of one body.
+    /// them too. A body that sticks out of its frame's bubble has a ghost in the frame's tree parent. When that parent is
+    /// a numeric frame, it holds only the bodies that the merge test links to the frame's hull, so the body also has a
+    /// ghost in the frame's semantic parent, whose own system holds the other bodies there. The body also meets the
+    /// bubbles that the members of the parent's system meet, the semantic siblings of its frame, wherever they hang among
+    /// numeric frames. Ghosts get the real body's pose and chord velocity, so that during the next step they move with it.
+    /// Each anchor that the numeric update names in <see cref="FrameTree.AnchorGhosts"/> has a ghost in the falling frame
+    /// that it names, a numeric frame of the anchor's own semantic frame. No other ghost goes into such a frame, and the
+    /// semantic parent is neither numeric nor a bubble that the body touches, so no frame gets two ghosts of one body.
     /// </summary>
     private void UpdateGhosts()
     {
@@ -463,11 +466,15 @@ public sealed partial class JoltPhysicsBackend
                 continue;
             FrameHandle frame = world.Frame;
             FrameHandle parent = BubbleParentOf(frame);
+            // The frame's semantic parent when its tree parent is a numeric frame, or else null.
+            FrameHandle semanticParent = !parent.IsNull && frames.IsNumeric(parent) ? frames.SemanticOf(parent) : FrameHandle.Null;
             FrameBounds bounds = frames.Bounds(frame);
             PrepareBubbles(ghostBubbles, frame, BubblesFor.Ghosts);
             bool haveSiblingBubbles = false;
             bool haveFrameMotion = false;
             FrameMotion frameMotion = default;
+            // The position and the chord velocity of the tree parent's origin in the semantic parent at the end of the step.
+            Double3 parentOffset = default, parentVelocity = default;
 
             foreach (BodyRecord member in world.Members)
             {
@@ -488,12 +495,19 @@ public sealed partial class JoltPhysicsBackend
                 // frame whose bubble it touches (it lost the tie of rule 3, or the bubbles overlap there). The body is
                 // partly in the parent, so its siblings are the bubbles that the members of the parent's system meet,
                 // those of the semantic children of the parent's semantic frame (see PrepareBubbles), apart from its own
-                // frame. So a body in a ship that falls in a numeric frame meets a parked station beside it.
+                // frame. So a body in a ship that falls in a numeric frame meets a parked station beside it. The ghost in
+                // the semantic parent sits where the ghost in the tree parent sits, shifted by the tree parent's place
+                // and chord velocity in the semantic parent, sums through the numeric frames in doubles.
                 if (movable && !parent.IsNull && bounds.SignedDistance(center) > -radius)
                 {
                     if (!haveFrameMotion)
                     {
                         frameMotion = MotionOf(frame);
+                        if (!semanticParent.IsNull)
+                        {
+                            parentOffset = frames.HomeOffsetAfter(parent, semanticParent, stepDt);
+                            parentVelocity = frames.HomeVelocityAfter(parent, semanticParent, stepDt);
+                        }
                         haveFrameMotion = true;
                     }
                     s = ReadPrimary(member);
@@ -503,6 +517,13 @@ public sealed partial class JoltPhysicsBackend
                     Double3 parentLinear = frameMotion.VelocityToParent(s.CenterOfMass, s.Linear);
                     Double3 parentAngular = frameMotion.AngularToParent(s.Angular);
                     WantGhost(member, parent, parentPose, parentLinear, parentAngular);
+                    // A numeric tree parent holds only the bodies that the merge test links to the frame's hull. The
+                    // semantic parent's own system holds the others, which meet the body without numeric frames, such as
+                    // a body beside a ship that rests in a resting frame. So the body has a ghost there too. A nesting
+                    // frame between the two holds no bodies, so it gets none.
+                    if (!semanticParent.IsNull)
+                        WantGhost(member, semanticParent, new DPose(parentPose.Position + parentOffset, parentPose.Rotation),
+                            parentLinear + parentVelocity, parentAngular);
 
                     if (!haveSiblingBubbles)
                     {
@@ -625,6 +646,9 @@ public sealed partial class JoltPhysicsBackend
     /// <list type="bullet">
     /// <item>The home's tree parent, unless the home is numeric: a body that sticks out of the home's bubble is partly
     /// there (see <see cref="BubbleParentOf"/>).</item>
+    /// <item>The semantic frame of that tree parent, which is the home's semantic parent. When the tree parent is numeric,
+    /// it holds only the bodies that the merge test links to the home's hull, and the semantic parent's own system holds
+    /// the others, so a body that sticks out of the home's bubble is partly there too.</item>
     /// <item>A semantic child of the home's semantic frame, wherever it hangs among numeric frames (see
     /// <see cref="BubbleSitesOf"/>): its bubble is one that the body touches.</item>
     /// <item>A semantic child of the semantic frame of that tree parent, wherever it hangs among numeric frames: a sibling
@@ -643,7 +667,7 @@ public sealed partial class JoltPhysicsBackend
             if (ghost.Anchor == record.Entity && ghost.Frame == frame)
                 return true;
         FrameHandle bubbleParent = frames.IsNumeric(home) ? FrameHandle.Null : frames.TreeParent(home);
-        if (frame == bubbleParent)
+        if (!bubbleParent.IsNull && (frame == bubbleParent || frame == frames.SemanticOf(bubbleParent)))
             return true;
         if (frames.IsNumeric(frame))
             return false;
