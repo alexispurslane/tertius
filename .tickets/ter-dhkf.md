@@ -2,7 +2,7 @@
 id: ter-dhkf
 status: in_progress
 deps: []
-links: [ter-ykqs, ter-s02r]
+links: [ter-ykqs, ter-s02r, ter-kugq, ter-jwzd, ter-uu1x]
 created: 2026-10-17T12:22:14Z
 type: feature
 priority: 1
