@@ -1,6 +1,6 @@
 ---
 id: ter-2gg0
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-17T02:58:53Z
@@ -19,3 +19,7 @@ From ter-wllb: the second ghost goes into the system of the ship's semantic pare
 **2026-10-17T03:35:29Z**
 
 The review of the contact sweep (2026-10-17) confirmed a second case of the same gap with a test on the real World and Jolt: a station G hangs directly in space Q, a crate in G sticks 1 m out of G's bubble, so Q's system holds its ghost. A rock at 60 m/s falls in a numeric frame N of Q, and passes through the part that sticks out, with no Collision. Without numeric frames, it hits the ghost. The merge test runs per semantic frame, so it never compares the rock (in Q) with the crate (in G). Suggested fix: in FrameTree.UpdateNumericFrames, test the members of each numeric frame N of a semantic frame S against the bubble of each semantic child C of S, with the merge reach, and record (C, N) beside AnchorGhosts, so that UpdateGhosts puts the ghost of a body that sticks out of C into N too.
+
+**2026-10-17T08:27:57Z**
+
+Merged. The numeric update records StickOutGhost pairs through pure predicates (StickOutRadius, MayTouchStickOut, PlaceSlack, StickOutReach), and the ghost pass puts the ghost of each body that sticks out of a semantic child into each named numeric frame. After the review: a static sensor counts, a hull counts by its driver, removed or moved frames drop their pairs, and the update sends the places that it stops naming in PhysicsChanges.GhostPlacesWithdrawn. The sync point gained step 6b (Kepler, Spin and gameplay-moved static frames advance before the numeric update, so that bodies and bubbles describe the same moment). Follow-ups: ter-ykqs, ter-tenw, ter-me1y.
