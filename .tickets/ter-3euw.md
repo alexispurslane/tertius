@@ -1,6 +1,6 @@
 ---
 id: ter-3euw
-status: open
+status: closed
 deps: [ter-juuk]
 links: []
 created: 2026-10-11T23:45:16Z

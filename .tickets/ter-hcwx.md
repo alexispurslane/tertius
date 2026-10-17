@@ -1,6 +1,6 @@
 ---
 id: ter-hcwx
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-17T00:20:12Z
