@@ -1,7 +1,7 @@
 ---
 id: ter-s9m0
 status: open
-deps: [ter-n44b]
+deps: [ter-n44b, ter-ozm8]
 links: []
 created: 2026-10-16T23:00:45Z
 type: epic
