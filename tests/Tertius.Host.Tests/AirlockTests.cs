@@ -26,15 +26,18 @@ public sealed class AirlockTests : IDisposable
 
     public void Dispose() => world.Dispose();
 
-    /// <summary>Spawns an airlock with its inner door at z = 0 and its outer door at z = 3, at <paramref name="x"/> in the room.</summary>
-    private (Entity Inner, Entity Outer, Entity Airlock) SpawnAirlock(double x, float cycleSeconds)
+    /// <summary>
+    /// Spawns an airlock with its inner door at z = 0 and its outer door at z = 3, at <paramref name="x"/> in the room. With
+    /// <paramref name="outerOpenAtStart"/>, the airlock opens its outer door when it starts.
+    /// </summary>
+    private (Entity Inner, Entity Outer, Entity Airlock) SpawnAirlock(double x, float cycleSeconds, bool outerOpenAtStart = false)
     {
         Entity innerDoor = SpawnDoor(x, z: 0), outerDoor = SpawnDoor(x, z: 3);
         Entity cycler = world.Spawn(new SpawnDesc
         {
             Frame = room,
             Pose = new DPose(new Double3(x, 1, 1.5), DQuaternion.Identity),
-            Components = [new Airlock(innerDoor, outerDoor, cycleSeconds)],
+            Components = [new Airlock(innerDoor, outerDoor, cycleSeconds, outerOpenAtStart)],
         });
         return (innerDoor, outerDoor, cycler);
     }
@@ -73,6 +76,31 @@ public sealed class AirlockTests : IDisposable
 
         ExpectOpen(inner, "inner");
         ExpectShut(outer, "outer");
+    }
+
+    [Fact]
+    public void AnAirlockThatStartsOpenToTheOutsideOpensTheOuterDoorAndKeepsTheInnerDoorShut()
+    {
+        (Entity innerDoor, Entity outerDoor, _) = SpawnAirlock(x: 5, cycleSeconds: 1, outerOpenAtStart: true);
+        Ticks(Second);
+
+        ExpectOpen(outerDoor, "outer");
+        ExpectShut(innerDoor, "inner");
+    }
+
+    [Fact]
+    public void AUseCyclesAnAirlockThatStartsOpenToTheOutsideBackToItsInnerDoor()
+    {
+        (Entity innerDoor, Entity outerDoor, Entity cycler) = SpawnAirlock(x: 5, cycleSeconds: 1, outerOpenAtStart: true);
+        Ticks(Second);
+        Use(cycler);
+        Ticks(Second * 3 / 4);
+        ExpectShut(innerDoor, "inner");
+        ExpectShut(outerDoor, "outer");
+        Ticks(Second);
+
+        ExpectOpen(innerDoor, "inner");
+        ExpectShut(outerDoor, "outer");
     }
 
     [Fact]

@@ -10,7 +10,7 @@ namespace Tertius.Simulation;
 /// </summary>
 public sealed partial class World
 {
-    // The bodies of the current numeric update, in entity slot order.
+    // The bodies of the current numeric update, in entity slot order: a frame owner's interior, then its hull.
     private readonly List<NumericBody> numericBodies = new();
     private Action<List<NumericMove>>? applyNumericMoves;
 
@@ -44,10 +44,26 @@ public sealed partial class World
         {
             if (entities.Body(entity) is not { } desc || !attachments.ParentOf(entity).IsNull)
                 continue;
+            FrameHandle own = entities.OwnedFrame(entity);
+            // The interior of a frame owner is a static body of the frame's own system, at the frame's origin, which no
+            // numeric update moves: an anchor that fixes each group that it links in that system (docs/plans/numeric-frames.md,
+            // "Anchors"). A root frame has an interior and no hull.
+            if (!own.IsNull)
+                numericBodies.Add(new NumericBody
+                {
+                    Entity = entity,
+                    Semantic = own,
+                    Home = own,
+                    Radius = physics!.BoundingRadius(desc.InteriorShape ?? desc.Shape),
+                    Mass = desc.Mass > 0 ? desc.Mass : 1,
+                    Static = true,
+                    Fixed = true,
+                });
             ref readonly TransformRow row = ref entities.BackRow(entity);
             if (row.Frame.IsNull)
                 continue;
-            FrameHandle own = entities.OwnedFrame(entity);
+            // The body of a frame owner is its frame's hull, which moves as the frame's driver says.
+            BodyMotion motion = own.IsNull ? desc.Motion : BodyDesc.FrameHullMotion(Frames.Driver(own));
             numericBodies.Add(new NumericBody
             {
                 Entity = entity,
@@ -58,9 +74,10 @@ public sealed partial class World
                 Velocity = SemanticVelocity(entity, row, own),
                 Radius = physics!.BoundingRadius(desc.Shape),
                 Mass = desc.Mass > 0 ? desc.Mass : 1,
-                // The body of a frame owner is its frame's hull, which moves as the frame's driver says.
-                Static = (own.IsNull ? desc.Motion : BodyDesc.FrameHullMotion(Frames.Driver(own))) == BodyMotion.Static,
+                Static = motion == BodyMotion.Static,
+                Kinematic = motion == BodyMotion.Kinematic,
                 Fixed = !own.IsNull && Frames.Driver(own) != MotionDriver.Physics,
+                Orbits = !own.IsNull && Frames.Driver(own) == MotionDriver.Kepler,
                 Sensor = desc.IsSensor,
                 OwnedFrame = own,
             });

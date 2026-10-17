@@ -613,7 +613,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>Every frame owner follows its frame's driver: the record has the frame's driver version and driver, and the
     /// motion that <see cref="BodyDesc.FrameHullMotion"/> gives for it, and Jolt moves the hull with that motion.</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame among the semantic
-    /// frames, in a falling frame that keeps a ghost of an anchor, or in a numeric frame that keeps the ghosts of the bodies
+    /// frames, in the home of a group that keeps a ghost of an anchor, or in a numeric frame that keeps the ghosts of the bodies
     /// that stick out of a bubble (see <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside
     /// it.</item>
     /// <item>The ghosts of each system (see <see cref="FrameWorld.AddGhost"/>) are the ghosts that the records keep in
@@ -815,9 +815,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     }
 
     /// <summary>
-    /// The motion of a frame relative to its tree parent at <paramref name="time"/>. A Kepler frame uses its orbit
-    /// when the tree pose matches the orbit at the step start; anything else extrapolates the tree pose with the
-    /// tree velocities. A Spin frame turns at a steady rate in place, so that extrapolation is its exact motion.
+    /// The motion of a frame relative to its tree parent at <paramref name="time"/>. A Kepler frame uses its orbit, as the
+    /// tree places it (see <see cref="FrameTree.KeplerMotion"/>), when the tree pose matches the orbit at the step start:
+    /// at the orbit's place in its semantic parent, or at the origin of its orbit frame, with the rest of the orbit's
+    /// velocity. Anything else extrapolates the tree pose with the tree velocities. A Spin frame turns at a steady rate in
+    /// place, so that extrapolation is its exact motion.
     /// </summary>
     private FrameMotion PredictMotion(FrameHandle frame, double time)
     {
@@ -826,16 +828,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         if (driver == MotionDriver.Static)
             return new FrameMotion(pose, Double3.Zero, Double3.Zero);
 
-        if (driver == MotionDriver.Kepler)
+        if (driver == MotionDriver.Kepler && OrbitMatchesTree(frames.KeplerMotion(frame, stepTime).Pose, pose))
         {
-            // The same G·M as the simulation uses: the point gravity of the parent, which also pulls the bodies in the parent.
-            KeplerOrbit orbit = frames.Orbit(frame);
-            double parentMu = frames.KeplerMu(frame);
-            if (OrbitMatchesTree(orbit, parentMu, pose))
-            {
-                var (position, velocity) = orbit.StateAt(time, parentMu);
-                return new FrameMotion(new DPose(position, orbit.RotationAt(time, parentMu)), velocity, orbit.AngularVelocityAt(time, parentMu));
-            }
+            (DPose onOrbit, Double3 orbitVelocity, Double3 orbitAngular) = frames.KeplerMotion(frame, time);
+            return new FrameMotion(onOrbit, orbitVelocity, orbitAngular);
         }
 
         double ahead = time - stepTime;
@@ -845,13 +841,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         return new FrameMotion(extrapolated, linear, angular);
     }
 
-    private bool OrbitMatchesTree(in KeplerOrbit orbit, double parentMu, in DPose treePose)
+    private static bool OrbitMatchesTree(in DPose orbitPose, in DPose treePose)
     {
-        var (position, _) = orbit.StateAt(stepTime, parentMu);
         double tolerance = 1e-3 + 1e-9 * treePose.Position.Length;
-        if ((position - treePose.Position).Length > tolerance)
+        if ((orbitPose.Position - treePose.Position).Length > tolerance)
             return false;
-        DQuaternion rotation = orbit.RotationAt(stepTime, parentMu);
+        DQuaternion rotation = orbitPose.Rotation;
         DQuaternion q = treePose.Rotation;
         double dot = Math.Abs(rotation.X * q.X + rotation.Y * q.Y + rotation.Z * q.Z + rotation.W * q.W);
         return dot > 1 - 1e-6;

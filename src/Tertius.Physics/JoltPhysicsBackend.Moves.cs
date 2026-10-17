@@ -17,12 +17,16 @@ public sealed partial class JoltPhysicsBackend
     /// velocity move by the difference of the two homes' offsets and frame velocities, in doubles; numeric frames do not
     /// rotate, so nothing turns. A sleeping rigid body stays asleep. A character is created again, as in a hand-off, and
     /// looks up its contacts. A frame's hull keeps its body state too, and the simulation has already put the frame under
-    /// the new home. A moved body's ghosts go: the ghost pass of the next step makes the ones that its new place wants.
-    /// So the contacts of a moved body wait until then (see <see cref="ResolveLooseContacts"/>). A contact goes on without
-    /// a new report where a body of each entity can still touch the other, such as two touching bodies that move to the
-    /// same system, or a body that moves into a falling frame and the ghost there of the anchor that it rests on. Every
-    /// other contact of a moved body ends. The bodies left behind around a moved body wake, and so do the moved bodies that
-    /// Jolt simulated.
+    /// the new home. A moved body keeps its ghosts in the systems of other frames: a move stays within one semantic frame,
+    /// and every frame where a ghost may be (see <see cref="GhostAllowed"/>) depends only on that semantic frame, so the
+    /// ghost there still stands for the body, with the same velocity in its system. The ghost pass of the next step puts it
+    /// at the body's new state. Before ticket ter-dhkf every ghost of a moved body went until that ghost pass, so a fast ship
+    /// whose hull joined the system of a station's hull, an anchor, while their bubbles overlapped had no ghost in the
+    /// station for a step. A ghost in the new home goes, because a system never holds a body and its ghost. The contacts of
+    /// the moved body wait until the next ghost pass (see <see cref="ResolveLooseContacts"/>). A contact goes on without a
+    /// new report where a body of each entity can still touch the other, such as two touching bodies that move to the same
+    /// system. Every other contact of a moved body ends. The bodies left behind around a moved body wake, and so do the
+    /// moved bodies that Jolt simulated.
     /// </summary>
     private void ApplyMoves(List<BodyMove> moves)
     {
@@ -58,7 +62,11 @@ public sealed partial class JoltPhysicsBackend
         {
             PendingMove move = pendingMoves[i];
             BodyRecord record = move.Record;
-            RemoveGhosts(record);
+            // The body keeps its ghosts, but not one in its new home, so that no system holds a body and its ghost. Only an
+            // anchor's ghost lies in a home of the body's semantic frame: a Kepler hull that the game gives another driver
+            // can join the home of a group that kept its ghost a sync point before. The update withdraws that ghost's place
+            // in the same batch, but the batch drops withdrawn ghosts only after the moves and the reconcile.
+            RemoveGhostIn(record, WorldFor(move.To));
             RemovePrimary(record);
             CreatePrimary(record, move.To, move.Pose, move.Linear, move.Angular, upFromGravity: record.Standing, awake: move.Awake);
             if (record.Character is { } character)

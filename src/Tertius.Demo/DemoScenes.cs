@@ -10,7 +10,7 @@ namespace Tertius.Demo;
 /// </summary>
 public static partial class DemoScenes
 {
-    public static IReadOnlyList<Scene> All { get; } = [new Scene("drop-box", DropBox), new Scene("orbit", Orbit), new Scene("orbit-cluster", OrbitCluster), new Scene("surface-yard", SurfaceYard), new Scene("deep-yard", DeepYard.Build), new Scene("doorway", Doorway), new Scene("weightless-push", WeightlessPush)];
+    public static IReadOnlyList<Scene> All { get; } = [new Scene("drop-box", DropBox), new Scene("orbit", Orbit), new Scene("orbit-cluster", OrbitCluster), new Scene("surface-yard", SurfaceYard), new Scene("deep-yard", DeepYard.Build), new Scene("doorway", Doorway), new Scene("station", Station.Build), new Scene("weightless-push", WeightlessPush)];
 
     /// <summary>Earth's mean radius, in meters.</summary>
     public const double EarthRadius = 6.371e6;
@@ -104,52 +104,7 @@ public static partial class DemoScenes
     private static SceneInstance Orbit(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle sun = world.CreateRootFrame(
-            new FrameSpec(FrameBounds.Sphere(1e13f), MotionDriver.Static, GravityField.Point(SunMu)),
-            new RenderData
-            {
-                Mesh = resources.CreateMesh(Primitives.Sphere((float)SunRadius, 64, 32)),
-                // Black, so that only the emission shows: the sun lights the scene through world.SunFrame, not through
-                // its sphere.
-                Material = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(60, 55, 45))),
-                BoundingRadius = (float)SunRadius,
-                Flags = RenderFlags.Visible | RenderFlags.Celestial,
-            });
-        scene.Add("sun", sun.Entity);
-        world.SunFrame = sun;
-        // Sunlight above the atmosphere is bright. Space has no sky and no ground, so a face that the sun does not reach gets
-        // the same dim light from every direction.
-        world.SunIntensity = 2.5f;
-        world.Ambient = new AmbientLight { SkyColor = new Vector3(0.03f), GroundColor = new Vector3(0.03f), Intensity = 1 };
-
-        // The pole leans from the sun's +Y toward -Z, the direction of the sun from Earth at the June solstice.
-        DQuaternion obliquity = DQuaternion.FromAxisAngle(Double3.UnitX, -Obliquity);
-        const double eccentricity = 0.01671123, perihelion = 102.93768193 * Math.PI / 180;
-        // At the March equinox, Earth is at longitude 180 degrees from the sun.
-        double meanAnomaly = MeanAnomaly(Math.PI - perihelion, eccentricity);
-        Entity earthOwner = world.Spawn(new SpawnDesc
-        {
-            Frame = sun,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu),
-                new KeplerOrbit(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, obliquity, 0, 0)),
-        });
-        scene.Add("earth", earthOwner);
-        FrameHandle earth = world.GetOwnedFrame(earthOwner);
-
-        scene.Add("earth-surface", world.Spawn(new SpawnDesc
-        {
-            Frame = earth,
-            // The bubble holds the air, 100 km up, and ends below the ship's orbit.
-            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + 100e3)), MotionDriver.Spin, GravityField.Point(EarthMu),
-                Spin: new FrameSpin(DQuaternion.Identity, SiderealRate)),
-            Render = new RenderData
-            {
-                Mesh = resources.CreateMesh(Primitives.Sphere((float)EarthRadius, 256, 128)),
-                Material = resources.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0.1f, Albedo: resources.CreateTexture(EarthGrid()))),
-                BoundingRadius = (float)EarthRadius,
-                Flags = RenderFlags.Visible | RenderFlags.Celestial | RenderFlags.CastsShadow,
-            },
-        }));
+        FrameHandle earth = SunAndEarth(world, resources, scene);
 
         // The circle that the ship starts on gives its state at the world's time. From there, gravity alone moves it. The
         // circle takes the G·M of earth's own field, which is the G·M that pulls the ship.
@@ -266,6 +221,61 @@ public static partial class DemoScenes
         scene.AddView("person");
         world.Camera = chase;
         return scene;
+    }
+
+    /// <summary>
+    /// The sun, earth and earth-surface of the orbit scene (see <see cref="Orbit"/>), added to <paramref name="scene"/>,
+    /// with the sunlight and the dim light of space, at the March equinox. Returns earth's frame.
+    /// </summary>
+    private static FrameHandle SunAndEarth(World world, IRenderResources resources, SceneInstance scene)
+    {
+        FrameHandle sun = world.CreateRootFrame(
+            new FrameSpec(FrameBounds.Sphere(1e13f), MotionDriver.Static, GravityField.Point(SunMu)),
+            new RenderData
+            {
+                Mesh = resources.CreateMesh(Primitives.Sphere((float)SunRadius, 64, 32)),
+                // Black, so that only the emission shows: the sun lights the scene through world.SunFrame, not through
+                // its sphere.
+                Material = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(60, 55, 45))),
+                BoundingRadius = (float)SunRadius,
+                Flags = RenderFlags.Visible | RenderFlags.Celestial,
+            });
+        scene.Add("sun", sun.Entity);
+        world.SunFrame = sun;
+        // Sunlight above the atmosphere is bright. Space has no sky and no ground, so a face that the sun does not reach gets
+        // the same dim light from every direction.
+        world.SunIntensity = 2.5f;
+        world.Ambient = new AmbientLight { SkyColor = new Vector3(0.03f), GroundColor = new Vector3(0.03f), Intensity = 1 };
+
+        // The pole leans from the sun's +Y toward -Z, the direction of the sun from Earth at the June solstice.
+        DQuaternion obliquity = DQuaternion.FromAxisAngle(Double3.UnitX, -Obliquity);
+        const double eccentricity = 0.01671123, perihelion = 102.93768193 * Math.PI / 180;
+        // At the March equinox, Earth is at longitude 180 degrees from the sun.
+        double meanAnomaly = MeanAnomaly(Math.PI - perihelion, eccentricity);
+        Entity earthOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = sun,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu),
+                new KeplerOrbit(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, obliquity, 0, 0)),
+        });
+        scene.Add("earth", earthOwner);
+        FrameHandle earth = world.GetOwnedFrame(earthOwner);
+
+        scene.Add("earth-surface", world.Spawn(new SpawnDesc
+        {
+            Frame = earth,
+            // The bubble holds the air, 100 km up, and ends below the ship's orbit.
+            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + 100e3)), MotionDriver.Spin, GravityField.Point(EarthMu),
+                Spin: new FrameSpin(DQuaternion.Identity, SiderealRate)),
+            Render = new RenderData
+            {
+                Mesh = resources.CreateMesh(Primitives.Sphere((float)EarthRadius, 256, 128)),
+                Material = resources.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0.1f, Albedo: resources.CreateTexture(EarthGrid()))),
+                BoundingRadius = (float)EarthRadius,
+                Flags = RenderFlags.Visible | RenderFlags.Celestial | RenderFlags.CastsShadow,
+            },
+        }));
+        return earth;
     }
 
     /// <summary>The half extents of the ship's hull, in meters: 20 m wide, 8 m high and 60 m long.</summary>

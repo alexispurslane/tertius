@@ -42,6 +42,12 @@ internal struct GhostBody
     public BodyID Body;
     /// <summary>Set by the ghost pass when the ghost is still needed this step.</summary>
     public bool Wanted;
+    /// <summary>
+    /// The ghost stands for an anchor in the home of a group of the anchor's own semantic frame (see
+    /// <see cref="FrameTree.AnchorGhosts"/>). It has its anchor's own layer, so it meets there only what the anchor meets:
+    /// a hull meets only static bodies and other hulls. Every other ghost has the ghost layer of its body.
+    /// </summary>
+    public bool Anchor;
 }
 
 /// <summary>Everything the backend knows about one entity's physics.</summary>

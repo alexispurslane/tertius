@@ -87,6 +87,8 @@ public sealed partial class World : IDisposable
         dyingMarks = entities.AddColumn<bool>();
         characterStanding = entities.AddColumn<bool>();
         Frames.NumericOptions = this.options.NumericFrames;
+        // Physics steps by one tick, so an orbit frame's velocity is the chord of its orbit over one tick.
+        Frames.StepLength = DeltaTime;
         if (physics != null)
             physicsWorker = new PhysicsWorker(physics, stepOutput);
     }
@@ -307,6 +309,8 @@ public sealed partial class World : IDisposable
     /// <item>Only a character can be standing.</item>
     /// <item>Every frame with the Kepler driver has a parent whose gravity is a point field with a G·M above 0
     /// (see <see cref="FrameTree.AssertInvariants"/>).</item>
+    /// <item>Every intent that the next physics step applies names its entity's frame (see
+    /// <see cref="PhysicsIntent.Frame"/>).</item>
     /// </list>
     /// </summary>
     internal void AssertInvariants()
@@ -319,6 +323,8 @@ public sealed partial class World : IDisposable
         renderBuilder.AssertInvariants();
 
         Contract.Invariant(dying.Count == 0);
+        foreach (Entity entity in entities.IntentEntities.Span)
+            Contract.Invariant(entities.NextStepIntent(entity).Frame == entities.BackRow(entity).Frame);
         foreach (Entity entity in entities.LiveEntities)
         {
             ref readonly TransformRow row = ref entities.BackRow(entity);

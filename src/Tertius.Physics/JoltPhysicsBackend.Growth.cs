@@ -78,7 +78,8 @@ public sealed partial class JoltPhysicsBackend
             {
                 BodyKind.Primary => PrimarySpec(record),
                 BodyKind.Interior => InteriorSpec(record),
-                _ => GhostSpec(record, from.GetMotionType(id)),
+                // A ghost keeps its layer: the ghost layer of its body, or its anchor's own layer.
+                _ => GhostSpec(record, from.GetMotionType(id), from.GetObjectLayer(id)),
             };
             from.GetRPosition(id, out RVector3 position);
             from.GetLinearAndAngularVelocity(id, out Vector3 linear, out Vector3 angular);

@@ -7,8 +7,10 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The ghosts of static meshes (ter-dq92), on the World and the real backend. A static mesh has a ghost as an anchor of a
-/// falling numeric frame, and as the hull of a parked frame in each bubble that it touches. A ghost stands for its real
+/// The ghosts of static meshes (ter-dq92), on the World and the real backend. A static mesh has a ghost as the hull of a
+/// parked frame in each bubble that it touches. Before ter-dhkf it also had a ghost as an anchor of a falling numeric
+/// frame; now the merge test links a fast body to a static mesh, and the body joins the mesh's home (docs/plans/
+/// numeric-frames.md, "Anchors"), so the scenes of a body that flies at a mesh wall check that. A ghost stands for its real
 /// body, so a body that hits the ghost must meet a body that moves as the real one does relative to the ghost's frame.
 /// Numeric frames must not change which bodies a body meets, how it moves, or what gameplay hears, so each scene with
 /// numeric frames runs beside the same scene without them.
@@ -42,9 +44,10 @@ public class MeshGhostTests
     /// so the wall has none, and Jolt cannot compute one for its mesh either. The body's front lies
     /// <paramref name="reach"/> m ahead of its center, and the body starts so that its front is <paramref name="gap"/> m
     /// from the wall at the start of step <see cref="ContactStep"/>. The run lasts 30 steps longer.
-    /// With numeric frames, under <paramref name="numeric"/>, the body falls in a numeric frame of its own from the first
-    /// sync point on, and the numeric update names the wall an anchor of that frame, which keeps a ghost of the wall. The
-    /// ghost comes at the body at the frame's speed. The run checks both before the contact step.
+    /// With numeric frames, under <paramref name="numeric"/>, the body is fast enough for a falling frame of its own, but the
+    /// merge test links it to the wall, an anchor, from the first sync point on, so the body joins the wall's home, the
+    /// ground frame's own system, and meets the real wall there (ter-dhkf). No frame keeps a ghost of the wall. The run
+    /// checks both before the contact step.
     /// </summary>
     private static WallRun FlyAtAMeshWall(bool numericFrames, NumericFrameOptions numeric, BodyDesc body, double reach, double speed, double gap)
     {
@@ -61,18 +64,8 @@ public class MeshGhostTests
         });
 
         Tick(world, ContactStep - 1);
-        FrameHandle home = world.PhysicsHomeOf(mover);
-        if (numericFrames)
-        {
-            world.Frames.Numeric(home).Should().Be(NumericMode.Falling, "the body falls in a numeric frame of its own");
-            faults.Jolt.HasGhostIn(wall, home).Should().BeTrue("the body's falling frame keeps a ghost of the wall, its anchor");
-            // The moving ghost of a mesh is a kinematic body, with a mass that Jolt can use.
-            faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
-        }
-        else
-        {
-            home.Should().Be(ground);
-        }
+        world.PhysicsHomeOf(mover).Should().Be(ground, "the body joins the wall's home, with numeric frames or without");
+        faults.Jolt.GhostCount(wall).Should().Be(0, "the wall is a real body of the body's system");
         log.Seen.Should().BeEmpty("the body has not reached the wall yet");
         Tick(world, 31);
 
@@ -95,18 +88,17 @@ public class MeshGhostTests
 
     /// <summary>
     /// A crate flies at a static mesh wall (see <see cref="FlyAtAMeshWall"/>) and stops there, with numeric frames as
-    /// without them. In the first case the crate falls at 60 m/s and its front is 1 cm from the wall at the start of the
+    /// without them. In the first case the crate flies at 60 m/s and its front is 1 cm from the wall at the start of the
     /// contact step, within Jolt's speculative contact distance, so Jolt stops it at the wall in that step. In the second
-    /// every body falls, the crate flies at 20 m/s, and its front is 17 cm from the wall at the start of the contact step,
-    /// so it sinks up to 17 cm into the wall in that step, and Jolt pushes it out again. In the crate's falling frame the
-    /// ghost of the wall comes at the crate at 60 m/s or 20 m/s. The ghost must be a body that Jolt moves with that
-    /// velocity: Jolt does not stop a crate at a static body that the ghost pass moves 1 m or 34 cm into it after each
-    /// step, and the crate passes into the hollow mesh.
+    /// every body that moves would fall, the crate flies at 20 m/s, and its front is 17 cm from the wall at the start of the
+    /// contact step, so it sinks up to 17 cm into the wall in that step, and Jolt pushes it out again. The crate joins the
+    /// wall's home, so it meets the real wall. Before ter-dhkf, the crate fell in a frame of its own, where the ghost of the
+    /// wall came at it at 60 m/s or 20 m/s, and that ghost had to be a body that Jolt moves with that velocity.
     /// </summary>
     [Theory]
     [InlineData(false, 60.0, 0.01)]
     [InlineData(true, 20.0, 0.17)]
-    public void ACrateInAFallingFrameStopsAtAStaticMeshWallAsItDoesWithoutNumericFrames(bool everyBodyFalls, double speed, double gap)
+    public void ACrateThatFliesAtAStaticMeshWallJoinsItsHomeAndStopsAtItAsItDoesWithoutNumericFrames(bool everyBodyFalls, double speed, double gap)
     {
         NumericFrameOptions numeric = everyBodyFalls ? EveryBodyFalls : new NumericFrameOptions();
         WallRun without = FlyAtAMeshWall(numericFrames: false, numeric, Crate, reach: 0.5, speed, gap);
@@ -128,13 +120,13 @@ public class MeshGhostTests
     /// A ball of restitution 0.5 flies at a static mesh wall at 60 m/s (see <see cref="FlyAtAMeshWall"/>) and bounces off it
     /// at 30 m/s, with numeric frames as without them. Its front is 1 cm from the wall at the start of the contact step,
     /// so Jolt bounces it in that step. Jolt bounces a contact by the approach speed that it simulates, and the minimum
-    /// rebound reads it too (see FrameWorld.KeptRestitution). In the ball's falling frame the ball is at rest and the
-    /// ghost of the wall comes at it at 60 m/s, so Jolt must see the ghost move: a static ghost that the ghost pass moves
-    /// gives no approach, so no bounce. The ball hears one Collision with the wall and, after the bounce, one
+    /// rebound reads it too (see FrameWorld.KeptRestitution). The ball joins the wall's home, so it meets the real wall.
+    /// Before ter-dhkf, the ball rested in a falling frame of its own and the ghost of the wall came at it at 60 m/s, so
+    /// Jolt had to see the ghost move. The ball hears one Collision with the wall and, after the bounce, one
     /// CollisionEnded, in the same ticks either way.
     /// </summary>
     [Fact]
-    public void ABallInAFallingFrameBouncesOffAStaticMeshWallAsItDoesWithoutNumericFrames()
+    public void ABallThatFliesAtAStaticMeshWallJoinsItsHomeAndBouncesOffItAsItDoesWithoutNumericFrames()
     {
         var numeric = new NumericFrameOptions();
         WallRun without = FlyAtAMeshWall(numericFrames: false, numeric, BouncyBall, reach: 0.5, speed: 60, gap: 0.01);
@@ -153,16 +145,16 @@ public class MeshGhostTests
         with.Impulse.Should().BeApproximately(without.Impulse, without.Impulse * 0.02f);
     }
 
-    /// <summary>What <see cref="PushACrateFromRestAtAMeshWall"/> saw: the crate's Collisions with the wall, its place in the ground frame at the end, the motion of the wall's ghost while the crate rested, and v₁ in m/s.</summary>
-    private sealed record PushRun(List<(long Tick, Entity Other, float Impulse)> Seen, Double3 Position, MotionType? GhostAtRest, double V1);
+    /// <summary>What <see cref="PushACrateFromRestAtAMeshWall"/> saw: the crate's Collisions with the wall, its place in the ground frame at the end, and v₁ in m/s.</summary>
+    private sealed record PushRun(List<(long Tick, Entity Other, float Impulse)> Seen, Double3 Position, double V1);
 
     /// <summary>
-    /// With no gravity and every body in a falling frame of its own, a crate flies at 3 m/s at the static mesh wall of
-    /// <see cref="FlyAtAMeshWall"/>, from 4.5 m before it. About 40 cm before the wall, the crate stops in the ground frame.
-    /// Its falling frame drains: it takes on the crate's change of velocity, so the frame now rests in the ground frame,
-    /// exactly, and so does the ghost of the wall in it, which is then static. Then the crate speeds up to v₁ ≈ 20 m/s, so
-    /// that it is 1.2 cm from the wall at the next sync point, where the frame drains again and moves on at v₁. The ghost
-    /// of the wall must then move at v₁ backward in the frame's next step, the step in which the crate meets the wall.
+    /// With no gravity and every body that moves in a falling frame of its own, a crate flies at 3 m/s at the static mesh
+    /// wall of <see cref="FlyAtAMeshWall"/>, from 4.5 m before it. About 40 cm before the wall, the crate stops in the ground
+    /// frame. Then the crate speeds up to v₁ ≈ 20 m/s, so that it is 1.2 cm from the wall at the next sync point, and it
+    /// meets the wall in the next step. The merge test links the crate to the wall, so the crate stays in the wall's home
+    /// all the time (ter-dhkf). Before, the crate fell in a frame of its own, whose drains stopped and restarted the ghost
+    /// of the wall in it, which a drain had to turn from static to kinematic at once.
     /// </summary>
     private static PushRun PushACrateFromRestAtAMeshWall(bool numericFrames)
     {
@@ -182,9 +174,8 @@ public class MeshGhostTests
         pilot.Once = body => body.SetVelocity(Double3.Zero);
         Tick(world, 6);
         world.VelocityIn(crate, ground).Length.Should().BeLessThan(1e-9, "the crate rests in the ground frame");
-        MotionType? ghostAtRest = numericFrames ? GhostOf(faults, wall, world.PhysicsHomeOf(crate)).Motion : null;
-        // The still ghost of a mesh is a static body that Jolt can turn kinematic.
-        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        world.PhysicsHomeOf(crate).Should().Be(ground, "the crate stays in the wall's home");
+        faults.Jolt.GhostCount(wall).Should().Be(0);
 
         // The command acts in the step after the next one, and the crate rests until then.
         double v1 = (Gap() - 0.012) / world.DeltaTime;
@@ -192,23 +183,23 @@ public class MeshGhostTests
         Tick(world, 20);
 
         world.Errors.Should().BeEmpty();
-        return new PushRun(log.Seen.Where(s => s.Other == wall).ToList(), world.PoseIn(crate, ground).Position, ghostAtRest, v1);
+        world.PhysicsHomeOf(crate).Should().Be(ground);
+        return new PushRun(log.Seen.Where(s => s.Other == wall).ToList(), world.PoseIn(crate, ground).Position, v1);
     }
 
     /// <summary>
-    /// A static ghost of a mesh that a drain sets moving moves in the next step (see
-    /// <see cref="PushACrateFromRestAtAMeshWall"/>): the crate meets the wall in the same step and with the same impulse as
-    /// without numeric frames, and stops there. A shift of the frame gives every ghost in its system the frame's change
-    /// of velocity backward, so the static ghost turns kinematic at the shift. A ghost that stayed static until the ghost
-    /// pass at the end of that step would let the crate fly 33 cm into the wall, and the contact would start a step late.
+    /// A crate that starts again from rest just before a static mesh wall (see <see cref="PushACrateFromRestAtAMeshWall"/>)
+    /// meets the wall in the same step and with the same impulse as without numeric frames, and stops there. Before
+    /// ter-dhkf, the crate's falling frame kept a ghost of the wall, which rested and was static while the crate rested;
+    /// the drain that set the frame moving again had to turn that ghost kinematic at once, or the crate flew 33 cm into
+    /// the wall and the contact started a step late. Now the crate joins the wall's home and meets the real wall.
     /// </summary>
     [Fact]
-    public void AStaticMeshGhostThatADrainSetsMovingStopsACrateInTheNextStepAsWithoutNumericFrames()
+    public void ACrateThatStartsFromRestBeforeAStaticMeshWallStopsAtItInTheSameStepAsWithoutNumericFrames()
     {
         PushRun without = PushACrateFromRestAtAMeshWall(numericFrames: false);
         PushRun with = PushACrateFromRestAtAMeshWall(numericFrames: true);
 
-        with.GhostAtRest.Should().Be(MotionType.Static, "the ghost of the wall rests in the crate's resting frame");
         without.Seen.Should().ContainSingle();
         without.Seen[0].Impulse.Should().BeApproximately((float)(10 * without.V1), (float)(10 * without.V1) * 0.05f, "the crate of 10 kg stopped from v₁");
         with.Seen.Should().ContainSingle();

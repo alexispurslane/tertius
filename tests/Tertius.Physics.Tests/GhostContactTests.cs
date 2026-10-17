@@ -308,7 +308,7 @@ public class GhostContactTests
     private static World WorldWith(bool numericFrames, out FaultInjectingBackend faults) =>
         NewWorldWithFaults(out faults, configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
 
-    /// <summary>True while the numeric update names <paramref name="anchor"/> an anchor of the falling frame <paramref name="frame"/>.</summary>
+    /// <summary>True while the numeric update names <paramref name="frame"/> to keep a ghost of the anchor <paramref name="anchor"/>.</summary>
     private static bool NamesAnchor(World world, Entity anchor, FrameHandle frame)
     {
         foreach (NumericGhost ghost in world.Frames.AnchorGhosts)
@@ -323,10 +323,10 @@ public class GhostContactTests
 
     /// <summary>
     /// Runs a ball of <paramref name="ballBody"/> at 60 m/s along +X from (-30, 0, 0) through a static box of 4 m by 4 m by
-    /// 4 m at the origin, with no gravity, for 1.5 s. At 60 m/s the ball falls in a numeric frame of its own, and the
-    /// numeric update names the box an anchor of that frame, which keeps a ghost of it. The ghost of a box is kinematic, so
-    /// that a dynamic body that hits it meets a body that moves at the box's velocity relative to the frame. Returns what
-    /// the box and the ball heard of each other, and whether the ball's physics home ever held a ghost of the box.
+    /// 4 m at the origin, with no gravity, for 1.5 s. At 60 m/s the ball is fast enough for a numeric frame of its own, but
+    /// the merge test links it to the box, an anchor, so it joins the box's home, the system of ground, and meets the real
+    /// box there (ter-dhkf). Before, the ball fell in a frame of its own, which kept a kinematic ghost of the box. Returns
+    /// what the box and the ball heard of each other, and whether the ball's physics home ever held a ghost of the box.
     /// </summary>
     private static (List<ContactNews> BoxHeard, List<ContactNews> BallHeard, bool GhostOfTheBox) FlyThroughAStaticBox(bool numericFrames,
         BodyDesc boxBody, BodyDesc ballBody)
@@ -351,34 +351,36 @@ public class GhostContactTests
     /// <summary>
     /// A kinematic sensor ball flies through a static box (see <see cref="FlyThroughAStaticBox"/>). Jolt makes no contact
     /// between a kinematic body and a static one, sensor or not, so the sensor never detects the box without numeric
-    /// frames. The ghost of the box in the sensor's falling frame stands for the box, so it is not detected either.
+    /// frames. With numeric frames the sensor joins the box's home, so it does not detect the box either. Before ter-dhkf,
+    /// the sensor fell in a frame of its own, whose ghost of the box stood for the box and was not detected.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void AKinematicSensorThatFliesThroughAStaticBoxDetectsNothingWithNumericFramesOrWithout(bool numericFrames)
+    public void AKinematicSensorThatFliesThroughAStaticBoxJoinsItsHomeAndDetectsNothingWithNumericFramesOrWithout(bool numericFrames)
     {
         var heard = FlyThroughAStaticBox(numericFrames, new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static), KinematicSensorBall);
 
-        heard.GhostOfTheBox.Should().Be(numericFrames, "with numeric frames, the sensor's falling frame keeps a ghost of the box, its anchor");
+        heard.GhostOfTheBox.Should().BeFalse("the sensor joins the home of the box, an anchor, so no frame keeps a ghost of the box");
         heard.BallHeard.Should().BeEmpty("a kinematic sensor never detects a static body");
         heard.BoxHeard.Should().BeEmpty();
     }
 
     /// <summary>
     /// A kinematic ball flies through a static sensor box (see <see cref="FlyThroughAStaticBox"/>). Jolt makes a contact
-    /// between a kinematic body and a sensor, so the sensor detects the ball, without numeric frames and through its ghost
-    /// in the ball's falling frame alike.
+    /// between a kinematic body and a sensor, so the sensor detects the ball, with numeric frames and without alike: the
+    /// ball joins the sensor's home. Before ter-dhkf, the sensor detected the ball through its ghost in the ball's falling
+    /// frame.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void AStaticSensorDetectsAKinematicBallThatFliesThroughItWithNumericFramesOrWithout(bool numericFrames)
+    public void AStaticSensorDetectsAKinematicBallThatJoinsItsHomeAndFliesThroughItWithNumericFramesOrWithout(bool numericFrames)
     {
         var heard = FlyThroughAStaticBox(numericFrames, new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static) { IsSensor = true },
             KinematicSensorBall with { IsSensor = false });
 
-        heard.GhostOfTheBox.Should().Be(numericFrames);
+        heard.GhostOfTheBox.Should().BeFalse("the ball joins the home of the sensor, an anchor");
         heard.BoxHeard.Should().Equal(Started, Ended);
         heard.BallHeard.Should().Equal(Started, Ended);
     }
@@ -435,29 +437,30 @@ public class GhostContactTests
     }
 
     /// <summary>
-    /// With no gravity, a ball flies at 60 m/s along -X from (100, 3, 0), past a static box of 2 m by 2 m by 2 m at the
-    /// origin, so it falls in a numeric frame of its own, and the numeric update names the box an anchor of that frame,
-    /// which keeps a ghost of it. Far past the box, the update stops naming it, and the ghost goes at the same sync point,
-    /// although nothing else changed the frame tree. So the backend keeps its invariants between ticks, and no ghost stands
-    /// for the box where the box is not.
+    /// A Kepler hull, a box of 2 m by 2 m by 2 m, flies at 63 m/s in an orbit frame of its own past a static rock of radius
+    /// 1 m, 8 m to the side of its path (see <see cref="Scenes.FastKeplerHull"/>). No home holds both anchors at rest, so
+    /// the merge test links them into a group that lives in the rock's home, the system of space, and the numeric update
+    /// names that system to keep a ghost of the hull. Far past the rock, the update stops naming it, and the ghost goes at
+    /// the same sync point, although nothing else changed the frame tree. So the backend keeps its invariants between
+    /// ticks, and no ghost stands for the hull where the tree allows none. Before ter-dhkf rule 3, the falling frame of a
+    /// fast ball beside a still Kepler hull kept the ghost, and the ball now joins the hull's system instead.
     /// </summary>
     [Fact]
-    public void TheGhostOfAStaticBoxGoesAtTheSyncPointWhoseNumericUpdateStopsNamingItAnAnchor()
+    public void TheGhostOfAKeplerHullInTheHomeOfAStaticRockGoesAtTheSyncPointWhoseNumericUpdateStopsNamingIt()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = Space(world);
-        Entity box = world.Spawn(new SpawnDesc { Frame = space, Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static) });
-        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = At(100, 3), LinearVelocity = new Vector3(-60, 0, 0), Body = Ball() });
-        world.Tick();
-        FrameHandle falling = world.PhysicsHomeOf(ball);
-        world.Frames.Numeric(falling).Should().Be(NumericMode.Falling);
-        NamesAnchor(world, box, falling).Should().BeTrue();
-        faults.Jolt.HasGhostIn(box, falling).Should().BeTrue();
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        Entity box = Scenes.FastKeplerHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic));
+        world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
+        Tick(world, 2);
+        world.Frames.Numeric(world.PhysicsHomeOf(box)).Should().Be(NumericMode.Orbiting);
+        NamesAnchor(world, box, space).Should().BeTrue();
+        faults.Jolt.HasGhostIn(box, space).Should().BeTrue();
 
-        TickUntil(world, () => !NamesAnchor(world, box, falling), 600);
+        TickUntil(world, () => !NamesAnchor(world, box, space), 600);
 
-        world.PhysicsHomeOf(ball).Should().Be(falling);
-        faults.Jolt.HasGhostIn(box, falling).Should().BeFalse("the numeric update no longer names the box an anchor of the ball's frame");
+        NamesAnchor(world, box, space).Should().BeFalse("the hull flies on until the merge test lets go of the rock");
+        faults.Jolt.HasGhostIn(box, space).Should().BeFalse("the numeric update no longer names space to keep a ghost of the hull");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         world.Tick();
         world.Errors.Should().BeEmpty();
@@ -465,12 +468,12 @@ public class GhostContactTests
 
     /// <summary>
     /// With no gravity, a ship of 1000 kg and a probe, a ball of radius 1 m, fly at 60 m/s along -X, 3 m apart, past a
-    /// static mesh cube of 2 m by 2 m by 2 m at the origin. With numeric frames, both fall in one numeric frame, which keeps
-    /// a ghost of the cube while the numeric update names it an anchor. That ghost moves in the frame, so it is a kinematic
-    /// body that Jolt moves with the cube's velocity in the frame (ter-dq92). When the probe is 120 m past the cube, it
-    /// stops and drifts down at 1.5 m/s across the lane of the cube, while its frame flies on, so the place in that frame
-    /// where the ghost of the cube stood comes past the probe. The ghost has gone by then, so nothing hits the probe, as
-    /// without numeric frames.
+    /// static mesh cube of 2 m by 2 m by 2 m at the origin. With numeric frames, the merge test links both to the cube, an
+    /// anchor, from the start, so they join the cube's home, the system of space, and no frame keeps a ghost of the cube
+    /// (ter-dhkf). When the probe is 120 m past the cube, it stops and drifts down at 1.5 m/s across the lane of the cube.
+    /// Nothing hits the probe, as without numeric frames. Before ter-dhkf, both fell in one numeric frame, which kept a
+    /// ghost of the cube while the numeric update named it an anchor, and the ghost had gone when the place in that frame
+    /// where it stood came past the probe.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -492,13 +495,8 @@ public class GhostContactTests
             Frame = space, Pose = At(100, 3), LinearVelocity = new Vector3(-60, 0, 0), Body = Ball(1), Components = [probeLog, pilot],
         });
         world.Tick();
-        if (numericFrames)
-        {
-            NamesAnchor(world, cube, world.PhysicsHomeOf(probe)).Should().BeTrue("the probe's falling frame keeps a ghost of the cube");
-            faults.Jolt.HasGhostIn(cube, world.PhysicsHomeOf(probe)).Should().BeTrue();
-            // The new ghost of the mesh is kinematic, with a mass that Jolt can use.
-            faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
-        }
+        world.PhysicsHomeOf(probe).Should().Be(space, "the probe joins the home of the cube, with numeric frames or without");
+        faults.Jolt.GhostCount(cube).Should().Be(0);
         TickUntil(world, () => world.PoseIn(probe, space).Position.X < -120, 600);
         probeLog.Seen.Should().BeEmpty("the probe passed 3 m from the cube's center");
 
@@ -512,20 +510,18 @@ public class GhostContactTests
 
     /// <summary>
     /// With no gravity, a crate of 10 kg flies at 3 m/s at a static wall, a cube of 1 m at the origin, a mesh or a box.
-    /// With numeric frames that make every moving body fall in a frame of its own, the crate's falling frame keeps a ghost
-    /// of the wall, its anchor, which moves in the frame, so it is kinematic for a mesh as for a box. 40 cm before the
-    /// wall, the crate speeds up to v₁ ≈ 20 m/s, so that it is 1.2 cm from the wall at the next sync point, which drains
-    /// the frame: the frame takes on the crate's change of velocity, and every member and ghost of the frame loses it. The
-    /// contact starts in the step after the drain, and its impulse is the crate's mass times v₁, the approach speed of the
-    /// crate and the real wall, which Jolt simulates as the approach to the ghost. The test reads only the start; that
-    /// the crate then stops at the wall as without numeric frames is the test of MeshGhostTests (ter-dq92).
+    /// With numeric frames that would make every moving body fall in a frame of its own, the merge test links the crate to
+    /// the wall, an anchor, so the crate stays in the wall's home (ter-dhkf). 40 cm before the wall, the crate speeds up to
+    /// v₁ ≈ 20 m/s, so that it is 1.2 cm from the wall at the next sync point. The contact starts in the next step, and its
+    /// impulse is the crate's mass times v₁, the approach speed of the crate and the wall. Before ter-dhkf, the crate fell
+    /// in a frame of its own, the sync point drained that frame, and Jolt simulated the approach to the wall's ghost.
     /// </summary>
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, true)]
     [InlineData(false, false)]
     [InlineData(true, false)]
-    public void TheImpulseOfACrateThatHitsAStaticWallRightAfterItsFrameDrainsIsItsApproachToTheRealWall(bool mesh, bool numericFrames)
+    public void TheImpulseOfACrateThatSpeedsUpJustBeforeAStaticWallIsItsApproachToTheWallWithNumericFramesOrWithout(bool mesh, bool numericFrames)
     {
         var everyBodyFalls = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0 };
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
@@ -543,11 +539,8 @@ public class GhostContactTests
         double Gap() => -1 - world.PoseIn(crate, ground).Position.X;
 
         TickUntil(world, () => Gap() < 0.40, 200);
-        if (numericFrames)
-        {
-            world.Frames.Numeric(world.PhysicsHomeOf(crate)).Should().Be(NumericMode.Falling);
-            faults.Jolt.HasGhostIn(wall, world.PhysicsHomeOf(crate)).Should().BeTrue();
-        }
+        world.PhysicsHomeOf(crate).Should().Be(ground, "the crate stays in the wall's home");
+        faults.Jolt.GhostCount(wall).Should().Be(0);
         // The command acts in the step after the next one, and the next step closes 5 cm.
         double v1 = (Gap() - 0.05 - 0.012) / world.DeltaTime;
         pilot.Once = body => body.SetVelocity(new Double3(v1, 0, 0));

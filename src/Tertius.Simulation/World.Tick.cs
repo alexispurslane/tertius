@@ -75,7 +75,8 @@ public sealed partial class World
         }
         FlushPhysicsChanges();
         Frames.Update();
-        // The falling numeric frames fix their accelerations for the step, which physics reads and the sync point follows.
+        // The falling numeric frames and the orbit frames fix their accelerations for the step, which physics reads and the
+        // sync point follows.
         Frames.BeginNumericStep();
         // The indexes that entity queries start from apply their queued changes, so that the workers only read them.
         topics.SettleMembers();

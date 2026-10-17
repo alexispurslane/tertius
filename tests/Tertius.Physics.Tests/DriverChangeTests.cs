@@ -183,9 +183,12 @@ public class DriverChangeTests
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Kinematic);
         FrameStatesSince(faults, station, reported).Should().BeEmpty("the Kepler driver moves the frame again");
         (world.Frames.LocalPose(station).Position - orbit.StateAt(world.Time, EarthMu).Position).Length.Should().BeLessThan(1e-6);
+        // At 7.5 km/s the hull rests at the origin of an orbit frame of its own (ter-dhkf rule 3), which follows the orbit.
         BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
-        (hull.Pose.Position - world.Frames.LocalPose(station).Position).Length.Should().BeLessThan(1e-3,
-            "the kinematic hull is where the orbit puts the frame");
+        world.Frames.Numeric(hull.Frame).Should().Be(NumericMode.Orbiting);
+        world.Frames.TreeParent(station).Should().Be(hull.Frame);
+        (hull.Pose.Position - world.Frames.TreeLocalPose(station).Position).Length.Should().BeLessThan(1e-3,
+            "the kinematic hull is where the orbit puts the frame, at the orbit frame's origin");
         world.Errors.Should().BeEmpty();
     }
 

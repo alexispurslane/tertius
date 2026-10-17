@@ -361,11 +361,19 @@ public enum IntentFlags : ushort
 }
 
 /// <summary>
-/// What gameplay asks physics to do with one body during the next step. Vectors are in the entity's frame axes.
-/// Forces, torques and impulses add up during a tick. The other fields keep the last value written.
+/// What gameplay asks physics to do with one body during the next step. Poses and velocities are relative to
+/// <see cref="Frame"/>, the entity's frame, and vectors are in its axes. Forces, torques and impulses add up during a
+/// tick. The other fields keep the last value written.
 /// </summary>
 public struct PhysicsIntent
 {
+    /// <summary>
+    /// The frame that the intent is relative to: the entity's frame when gameplay wrote it. The sync point between the
+    /// write and the step that applies it can move the entity to another frame, and it then converts the intent into that
+    /// frame, so physics always gets an intent relative to the entity's frame (see "Ownership of transforms" in
+    /// ARCHITECTURE.md).
+    /// </summary>
+    public FrameHandle Frame;
     public Vector3 Force;
     public Vector3 Torque;
     public Vector3 Impulse;
@@ -451,9 +459,10 @@ public sealed class PhysicsChanges
     internal readonly List<FrameShift> FramesShifted = new();
 
     /// <summary>
-    /// Numeric frames that the numeric update of the last sync point named as a place for a ghost and this one does not:
-    /// the falling frame of an anchor (see <see cref="FrameTree.AnchorGhosts"/>) or a frame that keeps the ghosts of the
-    /// bodies that stick out of a bubble (see <see cref="FrameTree.StickOutGhosts"/>). Physics drops the ghosts there that
+    /// Frames that the numeric update of the last sync point named as a place for a ghost and this one does not: the home
+    /// of a group that keeps a ghost of a Kepler hull (see <see cref="FrameTree.AnchorGhosts"/>), which can be a semantic
+    /// frame's own system, or a numeric frame that keeps the ghosts of the bodies that stick out of a bubble (see
+    /// <see cref="FrameTree.StickOutGhosts"/>). Physics drops the ghosts there that
     /// the tree no longer allows, at once, so that it keeps a ghost only where the tree allows one. Only the engine fills
     /// it.
     /// </summary>

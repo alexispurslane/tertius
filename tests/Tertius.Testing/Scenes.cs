@@ -87,6 +87,33 @@ public static class Scenes
         return new MoonScene(planet, moon);
     }
 
+    /// <summary>
+    /// The G·M of <see cref="AsteroidSpace"/>, in m³/s². A circular orbit of 5 km in it moves at 63 m/s, fast enough for an
+    /// orbit frame of its own, while a body at rest 5 km out lies nearer to the origin than the 10 km at which it gets a
+    /// numeric frame, so it stays in the system of space. The pull there is 0.8 m/s².
+    /// </summary>
+    public const double AsteroidMu = 2e7;
+
+    /// <summary>A root frame with a point gravity of <see cref="AsteroidMu"/>, so that a frame in it can take the Kepler driver.</summary>
+    public static FrameHandle AsteroidSpace(World world) =>
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(AsteroidMu)));
+
+    /// <summary>
+    /// The owner of a frame with the Kepler driver in <paramref name="space"/>, an <see cref="AsteroidSpace"/>, on a circular
+    /// orbit of 5 km at phase 0: its hull, of <paramref name="body"/>, starts at (5000, 0, 0) and moves along -Z at 63 m/s,
+    /// so it lives in an orbit frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). Its bubble is a sphere
+    /// of 1 cm, so that no body near the hull enters it. A static body that the hull passes is an anchor at rest, which no
+    /// home shares with the hull: a group that links the two lives in the static body's home, and that home keeps a ghost
+    /// of the hull.
+    /// </summary>
+    public static Entity FastKeplerHull(World world, FrameHandle space, BodyDesc body, params IComponent[] components) => world.Spawn(new SpawnDesc
+    {
+        Frame = space,
+        Body = body,
+        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(5_000)),
+        Components = components,
+    });
+
     /// <summary>Where a ball starts and how fast it flies, so that it enters a bubble in a chosen tick. See <see cref="BallApproachingBubble"/>.</summary>
     /// <param name="Pose">The pose of the ball in the frame of the bubble's parent, in meters.</param>
     /// <param name="Velocity">The velocity of the ball in that frame, in meters per second.</param>

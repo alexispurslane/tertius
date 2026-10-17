@@ -79,15 +79,22 @@ public class WorldFacingFrameTests
         }
     }
 
+    /// <summary>
+    /// The station's hull moves at about 1 km/s on its orbit, so it rests in an orbit frame of its own (ter-dhkf,
+    /// docs/plans/numeric-frames.md, "Anchors", rule 3), which never rotates, and the hull turns there with the frame.
+    /// Before rule 3, the hull lived in the planet's own system.
+    /// </summary>
     [Fact]
-    public void TheStationsHullInThePlanetsSystemTurnsWithTheFrame()
+    public void TheStationsHullTurnsWithTheFrameInTheOrbitFrameWhereItRests()
     {
         (World world, JoltPhysicsBackend backend, FrameHandle planet, Entity owner) = Station();
         using (world)
         {
             Tick(world, 600);
 
-            Quaternion hull = backend.BodiesIn(planet)
+            FrameHandle home = world.PhysicsHomeOf(owner);
+            world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting);
+            Quaternion hull = backend.BodiesIn(home)
                 .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner)).Rotation;
             Quaternion frame = world.PoseInOwnFrame(owner).Rotation.ToQuaternion();
             MathF.Abs(Quaternion.Dot(hull, frame)).Should().BeGreaterThan(1 - 1e-5f, "the hull's rotation is the frame's, up to the sign of the quaternion");

@@ -167,22 +167,39 @@ public sealed partial class World
         if (driver == MotionDriver.Spin && !Frames.Spin(frame).IsValid)
             throw new ArgumentException($"Cannot give {frame} the Spin driver: its spin is not valid. Call SetFrameSpin first.", nameof(driver));
 
+        // A frame that leaves its orbit frame for another driver leaves that frame falling (see FrameTree.SetDriver).
         Frames.SetDriver(frame, driver);
-        // A frame that physics does not drive moves relative to its semantic parent: a numeric update takes its hull out of
-        // a numeric frame, with the frame, before its driver places it. The move carries the numeric frame's velocity into
-        // the frame, and a frame that gets the static driver stops where it is.
-        if (driver != MotionDriver.Physics && Frames.TreeParent(frame) is { IsNull: false } treeParent && Frames.IsNumeric(treeParent))
+        PlaceByDriver(frame, driver);
+        // A frame whose spin or whose owner's writes move it moves relative to its semantic parent, and a frame whose orbit
+        // moves it fast or far hangs in an orbit frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). So a
+        // numeric update moves the hull, with its frame, into the home that the new driver gives it, at once: out of a
+        // numeric frame for the Static and Spin drivers, and into or out of an orbit frame for the Kepler driver. It runs
+        // after the driver placed the frame, so that the merge test sees the hull where the driver put it and links the
+        // bodies there, as without numeric frames, where the hull meets them there in the next step; a hull that jumps to
+        // its orbit takes no body along from where it was. The move carries the velocity of the old home into the frame,
+        // so the driver places the frame again in its new home: a frame that gets the static driver stops where it is.
+        if (physics != null && (driver == MotionDriver.Kepler ||
+            driver != MotionDriver.Physics && Frames.TreeParent(frame) is { IsNull: false } treeParent && Frames.IsNumeric(treeParent)))
         {
             UpdateNumericFrames(0);
             if (driver == MotionDriver.Static)
                 Frames.SetDriver(frame, driver);
+            PlaceByDriver(frame, driver);
         }
+        FinishOutsideTickChange();
+    }
+
+    /// <summary>
+    /// Puts a frame where its new driver puts it at the world's time, and its owner's row with it: a Kepler frame on its
+    /// orbit, a Spin frame turned to its spin. A Static or Physics frame keeps its pose.
+    /// </summary>
+    private void PlaceByDriver(FrameHandle frame, MotionDriver driver)
+    {
         if (driver == MotionDriver.Kepler)
             ApplyKepler(frame, Time);
         else if (driver == MotionDriver.Spin)
             ApplySpin(frame, Time);
         MirrorFrameOwner(frame);
-        FinishOutsideTickChange();
     }
 
     /// <summary>
@@ -237,7 +254,16 @@ public sealed partial class World
         Frames.SetOrbit(frame, orbit);
         if (Frames.Driver(frame) == MotionDriver.Kepler)
         {
-            ApplyKepler(frame, Time);
+            // The frame jumps to the new orbit, and the bodies and frames beside its hull in its orbit frame stay where they
+            // are, as without numeric frames, where they lie in the semantic parent's own system. The rows of the bodies that
+            // stay lose the orbit frame's move, as for a drain, and physics shifts their bodies in the same batch.
+            Frames.MoveOnOrbit(frame, Time, physicsChanges);
+            foreach (FrameShift shift in physicsChanges.FramesShifted)
+                foreach (Entity entity in entities.LiveEntities)
+                    if (entity != frame.Entity && entities.Body(entity) != null && attachments.ParentOf(entity).IsNull &&
+                        entities.BackRow(entity).PhysicsHome == shift.Frame)
+                        ShiftRow(entity, shift);
+            FlushPhysicsChanges();
             MirrorFrameOwner(frame);
         }
         FinishOutsideTickChange();
@@ -578,6 +604,7 @@ public sealed partial class World
                     movedFrameOwners.Add(member);
             }
         }
+        ConvertIntentsOfDyingFrames();
 
         foreach (Entity entity in dying)
             FreeEntity(entity);
@@ -636,6 +663,26 @@ public sealed partial class World
             if (!dyingMarks[parent.Entity])
                 return parent;
         return FrameHandle.Null;
+    }
+
+    /// <summary>
+    /// Converts each intent that the next step applies and that names a frame of the destroy batch into the frame of its
+    /// entity, which survives: a body that a rehome moved, or one that a hand-off of the step moved out of the frame before
+    /// it died. Step 7b of the sync point converts every other intent of an entity that moved (see
+    /// <see cref="ConvertMovedIntents"/>), but by then these frames are gone, so these intents convert here, after the
+    /// rehomes and before the frames die.
+    /// </summary>
+    private void ConvertIntentsOfDyingFrames()
+    {
+        foreach (Entity entity in entities.IntentEntities.Span)
+        {
+            if (dyingMarks[entity])
+                continue;
+            ref PhysicsIntent intent = ref entities.NextStepIntent(entity);
+            ref readonly TransformRow row = ref entities.BackRow(entity);
+            if (!intent.Frame.IsNull && dyingMarks[intent.Frame.Entity])
+                ConvertIntent(ref intent, row.Frame, row.Pose.Position);
+        }
     }
 
     /// <summary>Moves an entity from a dying frame into an ancestor frame, keeping its pose and velocity relative to everything else.</summary>
@@ -769,16 +816,7 @@ public sealed partial class World
     /// Puts a Kepler frame at its place on its orbit at <paramref name="time"/>. The orbit takes its G·M from the point
     /// gravity of the parent, the field that pulls the loose bodies in the parent (see <see cref="FrameTree.KeplerMu"/>).
     /// </summary>
-    private void ApplyKepler(FrameHandle frame, double time)
-    {
-        KeplerOrbit orbit = Frames.Orbit(frame);
-        double parentMu = Frames.KeplerMu(frame);
-        (Double3 position, Double3 velocity) = orbit.StateAt(time, parentMu);
-        Frames.SetLocalPose(frame, new DPose(position, orbit.RotationAt(time, parentMu)));
-        Frames.TreeLinearVelocity(frame) = velocity;
-        Frames.AngularVelocity(frame) = orbit.AngularVelocityAt(time, parentMu).ToVector3();
-        Frames.ProperAcceleration(frame) = Vector3.Zero;
-    }
+    private void ApplyKepler(FrameHandle frame, double time) => Frames.PlaceOnOrbit(frame, time);
 
     /// <summary>
     /// A Spin frame keeps its place in its parent and turns to its spin at <paramref name="time"/>. Like a static frame, it

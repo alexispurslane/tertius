@@ -265,11 +265,13 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The spec of a ghost of a record's body with the Jolt motion <paramref name="motion"/>, which
-    /// <see cref="GhostMotion"/> gives it. A ghost of a static body meets only what the static body meets (see
-    /// <see cref="FrameWorld.StandsForStaticBody"/>). A ghost of a mesh changes its motion as it starts and stops moving.
+    /// <see cref="GhostMotion"/> gives it, in the object layer <paramref name="layer"/>: the ghost layer of the body, or the
+    /// body's own layer for the ghost of an anchor (see <see cref="GhostBody.Anchor"/>). A ghost of a static body meets only
+    /// what the static body meets (see <see cref="FrameWorld.StandsForStaticBody"/>). A ghost of a mesh changes its motion
+    /// as it starts and stops moving.
     /// </summary>
-    private static RigidSpec GhostSpec(BodyRecord record, MotionType motion) =>
-        new(record.Desc.Shape, motion, GhostLayer(record), BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc, MotionChanges: record.HasMesh);
+    private static RigidSpec GhostSpec(BodyRecord record, MotionType motion, ObjectLayer layer) =>
+        new(record.Desc.Shape, motion, layer, BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc, MotionChanges: record.HasMesh);
 
     /// <summary>
     /// The Jolt motion of a ghost of a record's body that moves in its system with <paramref name="linear"/> m/s and

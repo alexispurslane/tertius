@@ -189,7 +189,8 @@ public sealed partial class JoltPhysicsBackend
     /// pair, which ends as a held pair does, when Jolt does not find it again. So a contact goes on when two touching
     /// bodies move together, by a hand-off or a move between numeric frames, and when one of them moves on while the
     /// other touches its ghost, or the other way round. A move between numeric frames happens at the sync point, and the
-    /// ghosts that the body's new place wants appear only at the end of the next step, so its contacts wait until then.
+    /// ghost pass puts the moved body's ghosts at its new state only at the end of the next step, and makes the ones that
+    /// its new place wants then, so its contacts wait until then.
     /// Each loose contact counts down in the ledger, and each system that takes it over counts up. A contact that no
     /// system holds then ends.
     /// </summary>
@@ -211,9 +212,9 @@ public sealed partial class JoltPhysicsBackend
     /// parent's own system takes the contact over.</item>
     /// </list>
     /// <para>
-    /// The next sync point's numeric update links the touching bodies, which puts them in one system, or names a static
-    /// body an anchor of the numeric frame or the numeric frame for the bodies that stick out of the frame, whose ghost the
-    /// next ghost pass makes. So the rule is: a contact that no system takes over waits for the next call with its count,
+    /// The next sync point's numeric update links the touching bodies, which puts them in one system, also a static body
+    /// and a body that falls, or names the home of their group for the ghost of a Kepler hull or the numeric frame for the
+    /// bodies that stick out of the frame, whose ghost the next ghost pass makes. So the rule is: a contact that no system takes over waits for the next call with its count,
     /// as the contacts of a move between numeric frames do, when a hand-off of the step moved a body of it and a body of it
     /// is in a numeric frame. That call settles it for good. A contact that really ended at the hand-off then ends one step
     /// late. Without numeric frames no body is in a numeric frame, so no contact waits.
@@ -267,28 +268,28 @@ public sealed partial class JoltPhysicsBackend
                 if (PrimariesTouch(first, second))
                     taken += Carried(home, PrimaryId(first), PrimaryId(second));
             }
-            else if (GhostIn(second, home) is { IsValid: true } ghost && GhostTouches(second, first))
+            else if (GhostIn(second, home) is { Body.IsValid: true } ghost && GhostTouches(second, ghost.Anchor, first))
             {
-                taken += Carried(home, PrimaryId(first), ghost);
+                taken += Carried(home, PrimaryId(first), ghost.Body);
             }
         }
         if (first.Ghosts is { } ghosts && second.World is { } other)
             foreach (GhostBody ghost in ghosts)
-                if (ghost.World == other && GhostTouches(first, second))
+                if (ghost.World == other && GhostTouches(first, ghost.Anchor, second))
                     taken += Carried(other, ghost.Body, PrimaryId(second));
         return taken;
     }
 
     private static int Carried(FrameWorld world, BodyID a, BodyID b) => world.Carry(a, b) ? 1 : 0;
 
-    /// <summary>The ghost of the record's body in <paramref name="world"/>, or an invalid ID when it has none there.</summary>
-    private static BodyID GhostIn(BodyRecord record, FrameWorld world)
+    /// <summary>The ghost of the record's body in <paramref name="world"/>, or one with an invalid ID when it has none there.</summary>
+    private static GhostBody GhostIn(BodyRecord record, FrameWorld world)
     {
         if (record.Ghosts is { } ghosts)
             foreach (GhostBody ghost in ghosts)
                 if (ghost.World == world)
-                    return ghost.Body;
-        return BodyID.Invalid;
+                    return ghost;
+        return new GhostBody { Body = BodyID.Invalid };
     }
 
     /// <summary>
@@ -302,13 +303,14 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// True when a ghost of <paramref name="ghostOf"/> and the primary body of <paramref name="other"/> can touch in one
-    /// system: their layers meet, so that the ghost never meets the hull of a frame (see <see cref="Layers"/>), and their
-    /// motions meet (see <see cref="MotionsMeet"/>). A ghost is kinematic, or static for a mesh that holds still. A ghost
-    /// of a static body, such as every ghost of a mesh, meets only what that body meets (see
-    /// <see cref="FrameWorld.StandsForStaticBody"/>), so it counts as static too.
+    /// system: their layers meet, so that a ghost never meets the hull of a frame, and the ghost of an anchor, which has the
+    /// anchor's own layer when <paramref name="anchor"/> is true (see <see cref="GhostBody.Anchor"/>), meets what the anchor
+    /// meets (see <see cref="Layers"/>), and their motions meet (see <see cref="MotionsMeet"/>). A ghost is kinematic, or
+    /// static for a mesh that holds still. A ghost of a static body, such as every ghost of a mesh, meets only what that
+    /// body meets (see <see cref="FrameWorld.StandsForStaticBody"/>), so it counts as static too.
     /// </summary>
-    private static bool GhostTouches(BodyRecord ghostOf, BodyRecord other) =>
-        Layers.Meet(GhostLayer(ghostOf), PrimaryLayer(other)) &&
+    private static bool GhostTouches(BodyRecord ghostOf, bool anchor, BodyRecord other) =>
+        Layers.Meet(anchor ? PrimaryLayer(ghostOf) : GhostLayer(ghostOf), PrimaryLayer(other)) &&
         MotionsMeet(ghostOf.IsMovable ? BodyMotion.Kinematic : BodyMotion.Static, ghostOf.Desc.IsSensor, other.Motion, other.Desc.IsSensor);
 
     /// <summary>

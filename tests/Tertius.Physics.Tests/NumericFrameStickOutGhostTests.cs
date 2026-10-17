@@ -48,8 +48,10 @@ public partial class NumericFrameStickOutGhostTests
     {
         /// <summary>
         /// Space, and at (1000, 0, 0) in it a parked station: a frame that physics does not drive, with a bubble of radius
-        /// 40 m around a static hull of 4 m by 4 m by 4 m at its center. The station hangs directly in space, with numeric
-        /// frames or without. A crate floats at (0, 40.5, 0) in the station and sticks 1.5 m out of its bubble. A rock flies
+        /// 40 m and no hull. A static hull at its center would be an anchor, which the merge test links to the rock 124 m
+        /// before the hull, so the rock would join the system of space and fall in no numeric frame near the station
+        /// (ter-dhkf). The station hangs directly in space, with numeric frames or without. A crate floats at (0, 40.5, 0)
+        /// in the station and sticks 1.5 m out of its bubble. A rock flies
         /// at 60 m/s along -X from (1100, 41, 0) in space, so it falls in a numeric frame of its own, through the part of
         /// the crate that sticks out. The rock's center stays at least 1 m outside the station's bubble, so it never touches
         /// the bubble and never meets the real crate.
@@ -91,10 +93,9 @@ public partial class NumericFrameStickOutGhostTests
     private static Scene Build(World world, Layout layout, Double3? crateInBubble = null, double rockOffset = 0)
     {
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
-        (DPose ownerPose, Double3 ownerVelocity, BodyDesc hull, FrameSpec bubble) = layout switch
+        (DPose ownerPose, Double3 ownerVelocity, BodyDesc? hull, FrameSpec bubble) = layout switch
         {
-            Layout.StationAndFastRock => (At(1000), Double3.Zero, new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-                new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static)),
+            Layout.StationAndFastRock => (At(1000), Double3.Zero, null, new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static)),
             Layout.ShipAndFarRock => (At(20_100), new Double3(-60, 0, 0), ShipHull, new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics)),
             _ => (At(1100), new Double3(-60, 0, 0), ShipHull, new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics)),
         };
