@@ -15,7 +15,10 @@ internal static class JoltRuntime
     /// </summary>
     public static readonly Lock NativeGate = new();
 
-    /// <summary>Initializes Jolt in double precision, which loads <c>libjoltc_double</c>. Safe to call many times.</summary>
+    /// <summary>
+    /// Initializes Jolt in double precision, which loads <c>libjoltc_double</c>, and makes joltc call the backend's own
+    /// contact callbacks (see <see cref="ContactListener"/>). Safe to call many times.
+    /// </summary>
     public static void EnsureInitialized()
     {
         lock (InitGate)
@@ -24,6 +27,7 @@ internal static class JoltRuntime
                 return;
             if (!Foundation.Init(doublePrecision: true))
                 throw new InvalidOperationException("Jolt failed to initialize. Check that libjoltc_double is next to the executable.");
+            ContactListener.InstallCallbacks();
             initialized = true;
         }
     }

@@ -371,6 +371,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>The most bodies that the system of <paramref name="frame"/> holds now, or 0 when the frame has no system.</summary>
     internal uint CapacityOf(FrameHandle frame) => ExistingWorld(frame)?.System.MaxBodies ?? 0;
 
+    /// <summary>
+    /// The number of body pairs in the system of <paramref name="frame"/> that Jolt found within its speculative contact
+    /// distance and that wait for their first real touch, or 0 when the frame has no system.
+    /// </summary>
+    internal int PendingPairCount(FrameHandle frame) => ExistingWorld(frame)?.PendingPairCount ?? 0;
+
     /// <summary>What Jolt holds for one body. Tests compare it before and after a system grows.</summary>
     internal readonly record struct BodyFacts(
         BodyID Id,
