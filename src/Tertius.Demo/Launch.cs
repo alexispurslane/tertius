@@ -12,7 +12,7 @@ public struct Launch : IEventPayload
 /// <summary>
 /// A body that an order throws, as a mass driver throws its load: a <see cref="Launch"/> sets the body's velocity
 /// relative to its frame before the next step. When one tick brings several launches, the last one counts. A script
-/// throws with it at a speed that no person reaches, as the station scene throws its crate at 60 m/s (see
+/// throws with it at a speed that no person reaches, as the station scene throws its crate at 1,200 m/s (see
 /// <see cref="DemoScenes.Station"/>). Its entity needs a dynamic body.
 /// </summary>
 public sealed class Launchable : IComponent
