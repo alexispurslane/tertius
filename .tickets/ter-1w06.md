@@ -1,6 +1,6 @@
 ---
 id: ter-1w06
-status: in_progress
+status: closed
 deps: []
 links: [ter-kugq, ter-tftg, ter-61ds, ter-w7cw, ter-qcdo, ter-myew]
 created: 2026-10-17T13:44:29Z
@@ -46,3 +46,7 @@ Review fixes on branch worktree-wf_30340cc3-24e-1, each confirmed first by a tes
 1. The band between 0.05 and 0.1 m/s2 trapped a character that came from below: a rigid character on a floor never stood or walked. NextCharacterMotion now takes a third input, touches (the rigid body holds a started pair in its system, FrameWorld.HasStartedPair). A rigid character that touches something walks again from 0.05 m/s2 on. The band still holds a floating character, where both forms move alike. Test: ACharacterThatLiesOnAFloorWhenAWeakGravityComesStandsAndWalksAsOneThatSpawnedInThatGravity.
 2. A switch to the rigid form ended each contact with a body between 0.02 and 0.1 m away that the walking form still held. The rigid form now gets the walking form's contact list from a CollideShape query (walking capsule, max separation padding + 0.1 m) after each update of its system (NoteRigidCharacterContacts), and HeldPairEnded ends its held pairs by that list. Test: ASwitchToTheRigidFormEndsNoContactWithAWallThatTheWalkingFormStillHeld.
 3. Rigid capsules were cached by BodyDesc reference, so a new BodyDesc per spawn made a new native capsule. The cache is now keyed by the walking CapsuleShapeDesc reference. Test: CharactersOfTwoDescriptionsWithOneCapsuleShareOneNativeCapsuleInTheRigidForm.
+
+**2026-10-17T16:16:23Z**
+
+Merged 2026-10-17 (d6d0b96). Coverage of the changed lines in src/, Core, Simulation and Physics in Debug and Release: 205 of 207 lines (99.0 %), 133 of 158 branches. The two uncovered lines are the held-pair loop of FrameWorld.HasStartedPair. Judgment call: in the tested scenes Jolt keeps the floor contact of a sleeping rigid character in touching, and a held pair (for example after a growth) comes back to touching in the next update, so the loop saves at most one step before a rigid character in the band walks again. A hand mutation of the loop survived the new test ACharacterThatFellAsleepOnAFloorWhenAWeakGravityComesStandsAndWalks, which kills the mutation of the touching loop. The partly covered branches are contract conditions, AssertFormInvariants and the 1 kg fallback of CharacterMass. The two ContactAllocationTests that fail under coverage fail only with coverage on (see ter-odo6).
