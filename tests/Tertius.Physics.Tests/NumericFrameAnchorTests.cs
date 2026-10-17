@@ -171,6 +171,104 @@ public class NumericFrameAnchorTests
         ShouldMatch(with, without, tolerance: 0.01);
     }
 
+    /// <summary>
+    /// The crate of <see cref="ThrowAtAWall"/>, thrown at a wall of the station's interior instead of a body of its own:
+    /// the station's owner has a static hull of 2 m in space and the thin wall as its interior shape, which physics keeps
+    /// as a static body in the station's own system, across the X axis at the station's origin. No other body is in the
+    /// station.
+    /// </summary>
+    private static Scene ThrowAtAnInteriorWall(World world, CollisionLog log)
+    {
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static, InteriorShape: ThinWall.Shape),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1000), MotionDriver.Static),
+        });
+        FrameHandle station = world.GetOwnedFrame(owner);
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = station, Pose = At(-200.5), LinearVelocity = new Vector3(60, 0, 0), Body = SmallCrate, Components = [log],
+        });
+        return new Scene(station, crate, owner);
+    }
+
+    /// <summary>
+    /// The interior of a frame owner is a static body of the frame's own system, so it is an anchor of that system, as a
+    /// static wall of its own is. A crate thrown at 60 m/s at a thin wall of the interior falls in a numeric frame of its
+    /// own until the merge test reaches the interior's bounding sphere, 2 s ahead, and then joins the station's own system,
+    /// where Jolt sweeps it against the wall. Before, the update had a body only for the hull of a frame owner, in the
+    /// frame's parent, so the crate fell on in its own frame, whose system holds no copy of the interior, and passed
+    /// through every wall of the cabin.
+    /// </summary>
+    [Fact]
+    public void ACrateThrownAtAThinWallOfItsFramesInteriorJoinsTheFramesOwnSystemAndStopsAtItAsItDoesWithoutNumericFrames()
+    {
+        Flight without = Fly(numericFrames: false, threads: 1, ThrowAtAnInteriorWall, ticks: 230);
+        Flight with = Fly(numericFrames: true, threads: 1, ThrowAtAnInteriorWall, ticks: 230);
+
+        foreach (Flight run in new[] { without, with })
+        {
+            run.Position.X.Should().BeApproximately(-0.15, 0.03, "the crate stops with its front at the wall's face {0}", run.Name);
+            run.Velocity.Length.Should().BeLessThan(0.05, "the crate stopped at the wall {0}", run.Name);
+            run.Seen.Should().ContainSingle("the crate hears one Collision with the station's owner {0}", run.Name);
+        }
+        with.HomeKinds.Should().Equal(["Falling", "station"], "the crate falls until the merge test reaches the interior, then joins its home");
+        with.Homes[1].Distance.Should().BeInRange(126, 128, "the merge test reaches the interior 2 s ahead: 120 m plus the bounding radii");
+        with.Homes[1].Tick.Should().BeLessThan(with.Seen[0].Tick, "the crate joins the interior's home before it hits the wall");
+        ShouldMatch(with, without, tolerance: 0.01);
+    }
+
+    // ---- A fast crate thrown at a kinematic door ------------------------------------------------------------------
+
+    /// <summary>A crate of 25 kg, a box of 50 cm that nothing slows down on its own and that does not bounce.</summary>
+    private static readonly BodyDesc HeavyCrate = new(new BoxShapeDesc(new Vector3(0.25f)), Mass: 25, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
+
+    /// <summary>A kinematic door of 1 kg, 10 cm thick, 10 m by 10 m, across the X axis.</summary>
+    private static readonly BodyDesc ThinDoor = new(new BoxShapeDesc(new Vector3(0.05f, 5, 5)), BodyMotion.Kinematic, Mass: 1);
+
+    /// <summary>
+    /// The crate of 25 kg flies along +X at 60 m/s, 1 m per step, at a shut kinematic door that holds still at the station's
+    /// origin. It starts 200.5 m before the door, so the steps end with its center 0.5 m before the door and 0.5 m behind
+    /// it, and neither touches the door: only a linear cast stops it.
+    /// </summary>
+    private static Scene ThrowAtADoor(World world, CollisionLog log)
+    {
+        FrameHandle station = Station(world);
+        Entity door = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0), Body = ThinDoor });
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = station, Pose = At(-200.5), LinearVelocity = new Vector3(60, 0, 0), Body = HeavyCrate, Components = [log],
+        });
+        return new Scene(station, crate, door);
+    }
+
+    /// <summary>
+    /// Jolt treats a kinematic body as infinitely heavy in a contact, so a door stops a crate as a static wall does. In the
+    /// merge test it is infinitely heavy too: no contact changes its velocity, so the group of the crate and the door takes
+    /// the door's velocity, zero, and lives in the station's own system, where Jolt sweeps the crate against the door.
+    /// Before, the group weighed the door by its 1 kg and moved at 57.7 m/s, so it fell in a numeric frame where the door
+    /// came at the crate at 57.7 m/s. Jolt gives a kinematic body no linear cast, so the door passed through the crate.
+    /// </summary>
+    [Fact]
+    public void ACrateThrownAtAStillKinematicDoorRunsInTheDoorsSystemAndStopsAtItAsItDoesWithoutNumericFrames()
+    {
+        Flight without = Fly(numericFrames: false, threads: 1, ThrowAtADoor, ticks: 230);
+        Flight with = Fly(numericFrames: true, threads: 1, ThrowAtADoor, ticks: 230);
+
+        foreach (Flight run in new[] { without, with })
+        {
+            run.Position.X.Should().BeApproximately(-0.3, 0.03, "the crate stops with its front at the door's face {0}", run.Name);
+            run.Velocity.Length.Should().BeLessThan(0.05, "the crate stopped at the door {0}", run.Name);
+            run.Seen.Should().ContainSingle("the crate hears one Collision with the door {0}", run.Name);
+        }
+        with.HomeKinds.Should().Equal(["Falling", "station"], "the crate falls until the merge test reaches the door, then joins its system");
+        with.Homes[1].Distance.Should().BeInRange(126, 129, "the merge test reaches the door 2 s ahead: 120 m plus the bounding radii");
+        ShouldMatch(with, without, tolerance: 0.01);
+    }
+
     // ---- A fast body that passes an anchor -----------------------------------------------------------------------
 
     /// <summary>
@@ -311,6 +409,88 @@ public class NumericFrameAnchorTests
         sharedTicks.Should().BeGreaterThan(200, "the ball shares the rocks' home while it is within the reach of either");
         with.Seen.Should().BeEmpty();
         ShouldMatch(with, without, tolerance: 1e-3);
+    }
+
+    /// <summary>The rock and the owner of the planetoid of <see cref="FlyBetweenTheInteriorAndARock"/>.</summary>
+    private sealed record Planetoid(Entity Owner, Entity Rock);
+
+    /// <summary>
+    /// A planetoid: a frame with the Static driver whose owner has a static hull of 2 m in space and as its interior a
+    /// static sphere of radius 9,990 m, at the frame's origin, with a bubble of radius 20 km. A static rock of radius 1 m
+    /// lies 10,020 m out on the X axis, 30 m above the interior's surface, in a resting frame of its own. A ball flies
+    /// between them along +Y at 80 m/s, from 300 m before their line, 15 m from the surface and from the rock's center.
+    /// </summary>
+    private static Scene FlyBetweenTheInteriorAndARock(World world, CollisionLog log, out Planetoid planetoid)
+    {
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static, InteriorShape: new SphereShapeDesc(9_990)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20_000), MotionDriver.Static),
+        });
+        FrameHandle frame = world.GetOwnedFrame(owner);
+        Entity rock = world.Spawn(new SpawnDesc { Frame = frame, Pose = At(10_020), Body = Rock });
+        Entity ball = world.Spawn(new SpawnDesc
+        {
+            Frame = frame, Pose = At(10_005, -300), LinearVelocity = new Vector3(0, 80, 0), Body = FlyingBall, Components = [log],
+        });
+        planetoid = new Planetoid(owner, rock);
+        return new Scene(frame, ball, rock);
+    }
+
+    /// <summary>
+    /// The interior of a frame owner never leaves the frame's own system, because physics keeps it there, so it fixes its
+    /// group there, as the hull of a Static frame does. The ball links the interior all along its flight, so it stays in
+    /// the frame's own system, and the static rock that it passes joins that system for the encounter, although it lies
+    /// in a resting frame. Two static rocks would take the resting frame of the far one (see
+    /// <see cref="AFastBallThatLinksTwoStaticRocksInDifferentHomesTakesTheRestingFrameOfTheFarOneForBoth"/>).
+    /// </summary>
+    [Fact]
+    public void AFastBallThatLinksTheInteriorOfAFrameAndAStaticRockInAFarRestingFrameTakesTheInteriorsHomeForBoth()
+    {
+        Planetoid planetoid = null!;
+        FrameHandle rockHome = FrameHandle.Null;
+        int sharedTicks = 0;
+        Flight without = Fly(numericFrames: false, threads: 1, (world, log) => FlyBetweenTheInteriorAndARock(world, log, out _), ticks: 480);
+        Flight with = Fly(numericFrames: true, threads: 1, (world, log) => FlyBetweenTheInteriorAndARock(world, log, out planetoid), ticks: 480, (world, scene) =>
+        {
+            if (rockHome.IsNull)
+            {
+                rockHome = world.PhysicsHomeOf(planetoid.Rock);
+                world.Frames.Numeric(rockHome).Should().Be(NumericMode.Resting, "the rock lies 10,020 m out");
+            }
+            world.PhysicsHomeOf(planetoid.Owner).Should().Be(world.Frames.TreeParent(scene.Station), "the hull stays in space");
+            if (world.PhysicsHomeOf(planetoid.Rock) == scene.Station)
+                sharedTicks++;
+        });
+
+        with.HomeKinds.Should().Equal(["station"], "the interior keeps the ball in the frame's own system");
+        sharedTicks.Should().BeGreaterThan(200, "the rock joins the interior's home while the ball is within its reach");
+        with.Seen.Should().BeEmpty();
+        ShouldMatch(with, without, tolerance: 1e-3);
+    }
+
+    /// <summary>
+    /// A frame owner has two bodies in the numeric update: its hull in the frame's parent and its interior in the frame's
+    /// own system. A ship's hull 10,005 m out, slow, needs a resting frame by itself, but a static rock 9,990 m out, which
+    /// stays in the system of space, keeps it there, so the hull gets a leave clock. The tree's invariants find the hull's
+    /// clock on the hull, not on the interior, which is an anchor and has none.
+    /// </summary>
+    [Fact]
+    public void AShipsHullThatAStaticRockKeepsInTheSystemOfSpaceHasALeaveClockThatTheInvariantsFindOnTheHull()
+    {
+        using World world = NewWorld(numericFrames: true, threads: 1, out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        world.Spawn(new SpawnDesc { Frame = space, Pose = At(9_990), Body = Rock });
+        Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, new Double3(10_005, 0, 0));
+
+        Tick(world, 3);
+
+        world.PhysicsHomeOf(ship.Hull).Should().Be(space, "the rock keeps the ship's hull in the system of space for the split cooldown");
+        world.Errors.Should().BeEmpty();
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
     }
 
     // ---- A move keeps the ghosts of the moved body -----------------------------------------------------------------

@@ -13,7 +13,8 @@ public static partial class DemoScenes
     /// numeric frame that follows its orbit, so cargo that drifts out of the station's bubble joins that frame, where
     /// both the cargo and the hull are slow and float velocities stay small. And a crate thrown at 60 m/s inside the
     /// station stops at a thin static wall, because the merge test links the crate to the wall, so that the crate lives
-    /// in the wall's Jolt system, where Jolt sweeps it against the real wall.
+    /// in the wall's Jolt system, where Jolt sweeps it against the real wall. The station's interior and the airlock's shut
+    /// doors keep the crate there too.
     /// <list type="bullet">
     /// <item>The station's frame, owned by <c>station</c>, keeps one attitude on its orbit: its axes do not turn
     /// relative to earth's. At the start, its belly (-Y) faces Earth and its nose (-Z) points along its motion, then it
@@ -52,10 +53,13 @@ public static partial class DemoScenes
     /// wall's face, because Jolt's solver pushes two bodies apart only as far as they sink beyond the backend's
     /// penetration slop of 5 mm (<c>JoltBackendOptions.PenetrationSlop</c>). The script throws it 15 s after
     /// the start, when the pods have left the station's frame. The merge test links every body of the frame within 2 s of
-    /// the crate's speed, 120 m, and weighs their velocities by their mass. With the pods gone, the crate shares its group
-    /// only with the airlock's doors, of 1 kg each, so the group moves at 55.6 m/s, fast enough to get a falling numeric
-    /// frame if the wall were not in it. So the crate is the user's case: a fast body that, before ter-dhkf, fell in a
-    /// numeric frame of its own and passed through the wall's kinematic ghost there.</item>
+    /// the crate's speed, 120 m. With the pods gone, the crate shares its group with the wall, the station's interior and
+    /// the airlock's two kinematic doors, of 1 kg each. Each of them keeps the group out of a falling numeric frame: the
+    /// wall and the interior are anchors, which fix the group in the frame's own system, and a kinematic body counts as
+    /// infinitely heavy, so the still doors give the group their velocity, zero (docs/plans/numeric-frames.md, "Anchors").
+    /// Weighed by their masses, the crate and the doors would move at 55.6 m/s. So the crate is the user's case: a fast
+    /// body that, before ter-dhkf, fell in a numeric frame of its own and passed through the wall's kinematic ghost
+    /// there.</item>
     /// <item>Five lamps under the cabin's roof, 6 m apart, light the cabin, at less than half the light of the orbit scene's
     /// lamps, so that the light cabin walls, the dark blue thin wall and the deep green crate stay apart in the image.</item>
     /// <item>The views: <c>watch</c>, outside, level with the pods off the station's port side and aft of it, looks
@@ -142,8 +146,8 @@ public static partial class DemoScenes
         public const float CrateHalfSize = 0.25f;
 
         /// <summary>
-        /// The mass of the thrown crate, in kilograms: heavy enough that it sets the speed of the group that the merge test
-        /// links it to (see <see cref="Station"/>).
+        /// The mass of the thrown crate, in kilograms: heavy enough that it would set the speed of the group that the merge
+        /// test links it to, if the doors in that group were not kinematic (see <see cref="Station"/>).
         /// </summary>
         public const float CrateMass = 25;
 

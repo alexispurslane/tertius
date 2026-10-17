@@ -13,9 +13,10 @@ namespace Tertius.Physics.Tests;
 /// bubble it touches. A ghost is a kinematic copy of a body in the physics system of another frame, so that the bodies
 /// there collide with it. When the crate is fully outside the ship's bubble plus the exit margin, it moves into the ship's
 /// parent: its semantic frame changes, and it hears FrameChanged. These tests run the World on the real backend, with the
-/// default numeric frame options, under which a body that flies at 50 m/s or more relative to its frame gets a falling
-/// numeric frame, and with no numeric frames, where the crate stays in the system of the ship. They assert the same
-/// outcome in both.
+/// default numeric frame options but a merge test without lookahead (see <see cref="WithoutLookahead"/>), under which a
+/// body that flies at 50 m/s or more relative to its frame gets a falling numeric frame once it is clear of the ship's
+/// interior, and with no numeric frames, where the crate stays in the system of the ship. They assert the same outcome in
+/// both.
 /// </summary>
 public class NumericHomeHandOffTests
 {
@@ -37,9 +38,22 @@ public class NumericHomeHandOffTests
         LeaveDistance = double.PositiveInfinity,
     };
 
-    /// <summary>A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.</summary>
+    /// <summary>
+    /// The default membership rules, but with a merge test that reaches only the bounding spheres, without the lookahead of
+    /// 2 s and the split margin of 10 m. The ship's interior is a static body at the ship's origin, an anchor that keeps
+    /// every body that the merge test links to it in the ship's own system (docs/plans/numeric-frames.md, "Anchors"). With
+    /// the default reach, 2 s of the crate's 60 m/s, the interior would keep the crate there until it left the bubble. With
+    /// this reach, the crate is clear of the interior after the first step, 1 m beyond the 5.2 m where their spheres
+    /// touch, so it falls in a numeric frame of its own below the ship, which is the case that these tests are about.
+    /// </summary>
+    private static readonly NumericFrameOptions WithoutLookahead = new() { LookaheadTime = 0, SplitMargin = 0 };
+
+    /// <summary>
+    /// A world on the wrapper with the numeric frames of <see cref="WithoutLookahead"/> or, when
+    /// <paramref name="numericFrames"/> is false, with none.
+    /// </summary>
     private static World NewWorld(bool numericFrames, out FaultInjectingBackend faults) =>
-        NewWorldWithFaults(out faults, configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
+        NewWorldWithFaults(out faults, configure: options => options.NumericFrames = numericFrames ? WithoutLookahead : WithoutNumericFrames);
 
     /// <summary>A hull of 4 m by 4 m by 4 m and 1000 kg that nothing slows down and that does not bounce.</summary>
     private static readonly BodyDesc ShipHull = new(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0);

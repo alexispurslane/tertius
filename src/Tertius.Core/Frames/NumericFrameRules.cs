@@ -2,7 +2,9 @@ namespace Tertius;
 
 /// <summary>
 /// One entity with a body that is not attached, as the World hands it to <see cref="FrameTree.UpdateNumericFrames"/> at a
-/// sync point. Speeds are in m/s and distances in meters, both in the axes of <see cref="Semantic"/>.
+/// sync point, or the interior of a frame owner: a static body at the origin of the owner's frame, in that frame's own
+/// system, which is <see cref="Fixed"/> there and owns no frame. Speeds are in m/s and distances in meters, both in the
+/// axes of <see cref="Semantic"/>.
 /// </summary>
 internal readonly record struct NumericBody
 {
@@ -37,9 +39,17 @@ internal readonly record struct NumericBody
     public bool Static { get; init; }
 
     /// <summary>
-    /// It owns a frame that physics does not drive: the Static, Spin or Kepler driver moves the frame on rails. A Static or
-    /// Spin hull stays in its semantic frame's own system, and so does a Kepler hull unless it lives in an orbit frame of
-    /// its own (see <see cref="NumericFrameRules.OrbitsInFrame"/>).
+    /// Physics keeps the body kinematic, so no contact changes its velocity: only the game moves it. In a contact, Jolt
+    /// treats it as infinitely heavy, so a still door stops a crate as a static wall does. The hull of a Kepler or Spin
+    /// frame is kinematic too, and also <see cref="Fixed"/>.
+    /// </summary>
+    public bool Kinematic { get; init; }
+
+    /// <summary>
+    /// It stays in its semantic frame's own system, and so does its group. It is the hull of a frame that physics does not
+    /// drive, which the Static, Spin or Kepler driver moves on rails, or the interior of a frame owner, which physics keeps
+    /// as a static body in the frame's own system, at its origin. A Kepler hull that lives in an orbit frame of its own
+    /// (see <see cref="NumericFrameRules.OrbitsInFrame"/>) is the one exception.
     /// </summary>
     public bool Fixed { get; init; }
 
@@ -66,9 +76,9 @@ internal readonly record struct NumericBody
     public FrameHandle OwnedFrame { get; init; }
 
     /// <summary>
-    /// True for a static body and for the hull of a frame that physics does not drive. No force moves an anchor, so it
-    /// counts as infinitely heavy: a group that the merge test links to it takes its home (docs/plans/numeric-frames.md,
-    /// "Anchors").
+    /// True for a static body, for the hull of a frame that physics does not drive, and for the interior of a frame owner.
+    /// No force moves an anchor, so it counts as infinitely heavy: a group that the merge test links to it takes its home
+    /// (docs/plans/numeric-frames.md, "Anchors").
     /// </summary>
     public bool Anchor => Static || Fixed;
 }
@@ -77,9 +87,10 @@ internal readonly record struct NumericBody
 /// The motion of a group of bodies of one semantic frame that the merge test links.
 /// </summary>
 /// <param name="Velocity">The mass-weighted mean velocity of the bodies that are not static, relative to the semantic
-/// frame. Zero when a body is static, because then the group cannot fall.</param>
+/// frame: of the kinematic bodies alone when the group has one, because a kinematic body counts as infinitely heavy. Zero
+/// when a body is static, because then the group cannot fall.</param>
 /// <param name="Center">The center of mass of the bodies, in the semantic frame: of the static bodies alone when the group
-/// has one, because a static body counts as infinitely heavy.</param>
+/// has one, and else of the kinematic bodies alone when it has one, because both count as infinitely heavy.</param>
 /// <param name="Anchored">True when a body of the group is static.</param>
 /// <param name="Fixed">True when a body of the group stays in the semantic frame's own system, so the whole group does.</param>
 /// <param name="Frame">The numeric frame that holds the most of the group's mass, the first one on a tie, or null. For an
@@ -285,6 +296,10 @@ internal static class NumericFrameRules
     /// over an orbit frame, and each orbiting hull of the group keeps its own frame and a ghost in the group's home.</item>
     /// <item>A group with an orbiter and no anchor at rest <see cref="NumericGroup.Orbits"/>: it takes the orbiter's orbit
     /// frame, the orbiter's home when it is in one, or else a new one.</item>
+    /// <item>A group with a kinematic body and no anchor has the velocity and the center of its kinematic bodies alone: no
+    /// contact changes their velocity, so the group moves with them, and in a falling frame they are slow, as a door in a
+    /// fast crate's group must be, because Jolt gives a kinematic body no linear cast. A kinematic body can move between
+    /// frames, so it is no anchor, and the frame that the group keeps is chosen by the masses as before.</item>
     /// </list>
     /// A frame that holds a static body of the group, or the orbit frame of its orbiter, has the mass +∞, which only
     /// comparisons read. Those motions are the limits of the mass-weighted means as the anchors' mass grows without bound,
@@ -295,8 +310,8 @@ internal static class NumericFrameRules
     internal static NumericGroup Summarize(ReadOnlySpan<NumericBody> members, List<(FrameHandle Frame, double Mass)> homeMasses,
         NumericFrameOptions options)
     {
-        Double3 momentum = Double3.Zero, moment = Double3.Zero, staticMoment = Double3.Zero;
-        double movingMass = 0, mass = 0, staticMass = 0;
+        Double3 momentum = Double3.Zero, moment = Double3.Zero, staticMoment = Double3.Zero, kinematicMomentum = Double3.Zero, kinematicMoment = Double3.Zero;
+        double movingMass = 0, mass = 0, staticMass = 0, kinematicMass = 0;
         bool anchored = false, isFixed = false;
         int orbiter = -1;
         homeMasses.Clear();
@@ -322,6 +337,12 @@ internal static class NumericFrameRules
             {
                 movingMass += body.Mass;
                 momentum += body.Velocity * body.Mass;
+            }
+            if (body.Kinematic)
+            {
+                kinematicMass += body.Mass;
+                kinematicMomentum += body.Velocity * body.Mass;
+                kinematicMoment += body.Position * body.Mass;
             }
             if (body.Home == body.Semantic || body.HomeMode == NumericMode.Orbiting)
                 continue;
@@ -349,8 +370,8 @@ internal static class NumericFrameRules
         // A frame without a static body is not the home of an anchored group, however much of its mass is there.
         if (anchored && !double.IsPositiveInfinity(frameMass))
             (frame, frameMass) = (FrameHandle.Null, 0);
-        Double3 velocity = anchored || movingMass == 0 ? Double3.Zero : momentum / movingMass;
-        Double3 center = anchored ? staticMoment / staticMass : moment / mass;
+        Double3 velocity = anchored || movingMass == 0 ? Double3.Zero : kinematicMass > 0 ? kinematicMomentum / kinematicMass : momentum / movingMass;
+        Double3 center = anchored ? staticMoment / staticMass : kinematicMass > 0 ? kinematicMoment / kinematicMass : moment / mass;
         return new NumericGroup(velocity, center, anchored, isFixed, frame, frameMass, orbiter);
     }
 

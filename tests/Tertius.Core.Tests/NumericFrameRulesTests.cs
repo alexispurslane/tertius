@@ -335,6 +335,25 @@ public class NumericFrameRulesTests
     }
 
     [Fact]
+    public void A_kinematic_body_is_infinitely_heavy_so_its_group_takes_its_velocity_and_its_center()
+    {
+        // A crate of 25 kg at 60 m/s and a still door of 1 kg: the door decides, so the group does not fall.
+        NumericGroup still = Summary(Body(-120, vx: 60, mass: 25), Body(0, mass: 1) with { Kinematic = true });
+        still.Velocity.Should().Be(Double3.Zero);
+        still.Center.Should().Be(X(0));
+        still.Anchored.Should().BeFalse("a kinematic body can take a velocity, so its group can fall with it");
+        NumericGroup sliding = Summary(Body(0, vx: 60, mass: 25), Body(2, vx: 30, mass: 1) with { Kinematic = true },
+            Body(6, vx: 90, mass: 3) with { Kinematic = true });
+        sliding.Velocity.Should().Be(X(75),"the mass-weighted mean of the kinematic bodies alone");
+        sliding.Center.Should().Be(X(5));
+    }
+
+    [Fact]
+    public void A_static_body_outweighs_a_kinematic_one_so_their_group_does_not_move() =>
+        Summary(Body(0, vx: 60, mass: 25), Body(1, vx: 70, mass: 1) with { Kinematic = true }, Body(2) with { Static = true })
+            .Should().Match<NumericGroup>(group => group.Velocity == Double3.Zero && group.Center == X(2));
+
+    [Fact]
     public void A_fixed_body_fixes_the_whole_group() =>
         Summary(Body(0, vx: 100), Body(1) with { Fixed = true }).Fixed.Should().BeTrue();
 

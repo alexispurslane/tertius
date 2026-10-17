@@ -183,7 +183,7 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
         Samples.Take(Launched).Should().OnlyContain(s => Double3.Distance(s.Bodies["crate"].InStation, Station.CrateStart) < 1e-6,
             "the crate floats at its start until the script throws it");
         Samples[Launched].Bodies.Where(body => body.Key != "crate").Should().OnlyContain(body => !body.Value.InStationFrame,
-            "the pods have left the station's frame, so the crate's speed sets the speed of its group in the merge test");
+            "the pods have left the station's frame, so no pod is in the crate's group in the merge test");
     }
 
     [Fact]
@@ -223,9 +223,10 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
     /// <summary>
     /// The crate is within the merge test's reach of the wall at every sync point, 120 m at 60 m/s for 2 s, so it never
     /// falls in a numeric frame of its own: it shares the wall's home, the station frame's own system, where Jolt sweeps it
-    /// against the real wall. Its group, the crate and the airlock's two doors of 1 kg, moves at 55.6 m/s, fast enough for
-    /// a falling frame. Before ter-dhkf, the merge test kept a falling group apart from an anchor, so the crate fell in a
-    /// numeric frame, met only a kinematic ghost of the wall there, which Jolt gives no linear cast, and passed through it.
+    /// against the real wall. The station's interior, an anchor of that system too, and the airlock's two kinematic doors,
+    /// which give the group their velocity, zero, keep it there as well. Before ter-dhkf, the merge test kept a falling
+    /// group apart from an anchor and weighed the doors by their 1 kg, so the crate fell in a numeric frame at 55.6 m/s,
+    /// met only a kinematic ghost of the wall there, which Jolt gives no linear cast, and passed through it.
     /// </summary>
     [Fact]
     public void TheThrownCrateLivesInTheWallsSystemAtEveryTick()

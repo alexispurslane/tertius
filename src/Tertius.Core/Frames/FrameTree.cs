@@ -131,10 +131,10 @@ public sealed partial class FrameTree
     public void Destroy(FrameHandle frame) => Destroy(frame, null);
 
     /// <summary>
-    /// Destroys a frame. Its semantic child frames move to its parent and keep their poses and velocities. Its numeric
-    /// child frames go with it, because they lie in it: the frames that they hold move to the parent in the same way, and
-    /// each numeric frame that goes is added to <paramref name="dissolved"/>. The caller has moved the bodies of those
-    /// numeric frames out.
+    /// Destroys a frame. Its semantic child frames move to its parent and keep their poses and velocities (see
+    /// <see cref="Heir"/>). Its numeric child frames go with it, because they lie in it: the frames that they hold move to
+    /// the parent in the same way, and each numeric frame that goes is added to <paramref name="dissolved"/>. The caller
+    /// has moved the bodies of those numeric frames out.
     /// </summary>
     internal void Destroy(FrameHandle frame, List<FrameHandle>? dissolved)
     {
@@ -149,14 +149,27 @@ public sealed partial class FrameTree
             if (IsNumeric(child))
                 Dissolve(child, parent, dissolved);
             else
-                Reparent(child, parent);
+                Reparent(child, Heir(child, parent));
         }
         RemoveNode(frame, node);
     }
 
     /// <summary>
+    /// The frame that takes the semantic frame <paramref name="child"/> when the frame that holds it dies, and
+    /// <paramref name="parent"/> is the tree parent of the frame that dies. A frame with the Physics driver goes to that
+    /// parent, also when it is a numeric frame, because its hull lives in the system of its frame's tree parent, and the
+    /// next numeric update regroups it. Every other frame goes to the semantic frame of that parent, because a frame whose
+    /// orbit, spin or owner's writes move it hangs in its semantic parent (see the invariants of the class). That parent
+    /// is numeric for the frame of a Kepler hull in its orbit frame, which falls on when its orbiter dies, and for the
+    /// frame of a ship in a numeric frame. A frame that holds no body is in no numeric update, so nothing else would move
+    /// it out of a numeric frame.
+    /// </summary>
+    private FrameHandle Heir(FrameHandle child, FrameHandle parent) =>
+        parent.IsNull || Driver(child) == MotionDriver.Physics ? parent : SemanticOf(parent);
+
+    /// <summary>
     /// Destroys the numeric frame <paramref name="frame"/> and the numeric frames in it, and moves the semantic frames in
-    /// them to <paramref name="target"/>.
+    /// them to <paramref name="target"/>, or to its semantic frame (see <see cref="Heir"/>).
     /// </summary>
     private void Dissolve(FrameHandle frame, FrameHandle target, List<FrameHandle>? dissolved)
     {
@@ -167,7 +180,7 @@ public sealed partial class FrameTree
             if (IsNumeric(child))
                 Dissolve(child, target, dissolved);
             else
-                Reparent(child, target);
+                Reparent(child, Heir(child, target));
         }
         dissolved?.Add(frame);
         RemoveNode(frame, Node(frame));
@@ -531,9 +544,11 @@ public sealed partial class FrameTree
         }
         if (leaveClocks.Count == 0)
             return;
+        // Only a body that is not an anchor has a clock. A frame owner has two bodies, its interior, an anchor, and its hull.
         var lastBodies = new Dictionary<Entity, NumericBody>();
         foreach (NumericBody body in sortedBodies)
-            lastBodies[body.Entity] = body;
+            if (!body.Anchor)
+                lastBodies[body.Entity] = body;
         foreach ((Entity entity, double apart) in leaveClocks)
         {
             bool known = lastBodies.TryGetValue(entity, out NumericBody body);

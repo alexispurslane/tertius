@@ -256,7 +256,8 @@ public sealed partial class FrameTree
     /// <summary>
     /// Runs the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and "Nesting for
     /// vast distances") once, over a sync point of <paramref name="dt"/> seconds. <paramref name="bodies"/> holds every
-    /// entity with a body that is not attached, in entity slot order. Within each semantic frame, the update links every
+    /// entity with a body that is not attached, in entity slot order, and a frame owner twice: its interior in its frame,
+    /// then its hull in the frame's parent. Within each semantic frame, the update links every
     /// pair of bodies that <see cref="NumericFrameRules.MayTouch"/> links, also an anchor (see <see cref="NumericBody.Anchor"/>)
     /// and a group that falls. It holds the members of each numeric frame that are not anchors together until
     /// <see cref="NumericFrameRules.SplitClock"/> lets them split. An anchor counts as infinitely heavy (see

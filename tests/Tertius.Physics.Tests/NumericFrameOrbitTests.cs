@@ -547,6 +547,44 @@ public partial class NumericFrameOrbitTests
         with.FrameInHome.Position.Should().Be(Double3.Zero, "the hull rests at its orbit frame's origin");
     }
 
+    // ---- The station dies ------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// A station in low orbit holds a room: a frame with the Static driver and no body, 5 m from the station's origin,
+    /// which only marks a region. The game destroys the station, and its room moves to earth, the station's semantic
+    /// parent, where it holds still at the place that it had, as every frame whose driver is not Physics hangs in its
+    /// semantic parent. With numeric frames the station hangs in its orbit frame K. Before, the destroy moved the room to
+    /// the station's tree parent, K, which lost its orbiter and fell on at 7.66 km/s with the room in it, and the next
+    /// check of the tree's invariants failed: only a frame with the Physics driver may hang in a falling frame. No numeric
+    /// update moved the room out, because it has no body.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ARoomWithoutABodyInADestroyedKeplerStationMovesToEarthAndHoldsStillWhereItWas(bool numericFrames)
+    {
+        using World world = NewWorld(numericFrames, threads: 1, out FaultInjectingBackend faults);
+        Station station = KeplerStation(world);
+        Entity room = world.Spawn(new SpawnDesc
+        {
+            Frame = station.Frame, Pose = At(0, 0, 5), AsFrame = new FrameSpec(FrameBounds.Sphere(2), MotionDriver.Static),
+        });
+        Tick(world, 2);
+        if (numericFrames)
+            world.Frames.Numeric(world.Frames.TreeParent(station.Frame)).Should().Be(NumericMode.Orbiting, "the station hangs in its orbit frame");
+        FrameHandle roomFrame = world.GetOwnedFrame(room);
+
+        world.Destroy(station.Owner).Should().BeTrue();
+        Double3 place = world.PoseIn(room, station.Earth).Position;
+        Tick(world, 60);
+
+        world.Frames.TreeParent(roomFrame).Should().Be(station.Earth, "a Static frame hangs in its semantic parent");
+        (world.PoseIn(room, station.Earth).Position - place).Length.Should().BeLessThan(1e-6, "the room holds still where it was");
+        world.Frames.NumericCount.Should().Be(0, "nothing is left that needs a numeric frame");
+        world.Errors.Should().BeEmpty();
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+    }
+
     // ---- Determinism ---------------------------------------------------------------------------------------------
 
     /// <summary>
