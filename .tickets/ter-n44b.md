@@ -1,7 +1,7 @@
 ---
 id: ter-n44b
 status: open
-deps: [ter-1b21, ter-vja8]
+deps: [ter-1b21]
 links: []
 created: 2026-10-16T23:00:45Z
 type: feature
