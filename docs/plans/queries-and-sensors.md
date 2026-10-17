@@ -50,6 +50,7 @@ Today a component reads other entities only through the snapshot of the previous
 | Where a physics query runs | At the sync point, after the physics output lands. The answer arrives as an event in the next tick. (User) |
 | When a contact starts | At a real touch. Jolt's earlier report of the pair does not count. (User) |
 | Contact event types | Two: `Collision` and `CollisionEnded` (User) |
+| A small bounce that starts within Jolt's 2 cm | A contact whose rebound, its combined restitution times its approach speed, is below 1 m/s does not bounce. The default restitution of a body is 0, as in Jolt. (User) |
 | The `Sensor` component | It relays `Entered` and `Left` to a topic or to every entity, with an entity query as its filter (User) |
 | `Near` centers | The asker, another entity, or a fixed point (User) |
 | "Cast as a group" | Not now (User) |
@@ -220,6 +221,8 @@ Each part is queried in its frame's axes, and the hits are mapped back and merge
 ## Contacts
 
 A contact starts at a real touch (User): the first step with an applied impulse or zero separation, and an overlap for a sensor body. Jolt adds a pair earlier, at its speculative contact distance. That can be 2 cm before a touch, or with no touch at all, so it does not start a contact. The deep-yard scene found that start 11 ticks early at 0.1 m/s.
+
+A bounce leaves Jolt's speculative contact distance (User). When a landing step begins within that distance, Jolt gives a bouncing body its rebound at once, from where it is, so the top of its hop is about the gap at the start of the step plus the height of its bounce. A small bounce therefore stayed within 2 cm from a step that began near the surface, and left it from a step that began near the edge, where Jolt dropped the pair: one drop reported one landing or two. So both of Jolt's reports of a contact set its combined restitution to 0 when the restitution times the approach speed is below 1 m/s, in every step, because Jolt rebuilds the settings of each contact in each step. Every bounce that remains rises well out of the 2 cm (at least 3.6 cm at 60 Hz, after Jolt takes a step of gravity off the rebound), so the count no longer depends on where the landing step begins. Jolt's linear cast of a fast body uses the same reports. The default restitution of a body is 0, as in Jolt, so default content never bounces and costs nothing in the check. Rejected: merging an end and a restart within 0.25 s, which delays every end and still varies for some heights. Ticket: `ter-4kaa`.
 
 Starts and ends are two event types, `Collision` and `CollisionEnded`, so that each reader picks its type with `Of<T>()` (User). Each start ends with exactly one end, and both entities get both events. Sleep and wake send nothing. A move between numeric frames sends nothing. A destroyed body ends all of its contacts.
 

@@ -558,33 +558,73 @@ internal sealed class FrameWorld : IDisposable
         return gap <= TouchTolerance || -normalVelocity * deltaTime >= gap;
     }
 
+    /// <summary>
+    /// The slowest rebound that a contact keeps, in m/s. A rebound of 1 m/s rises 5.1 cm, more than twice Jolt's
+    /// speculative contact distance of 0.02 m, so every bounce that remains carries the body out of that distance, and
+    /// ends the contact, wherever its landing step begins. Jolt takes the speed that gravity added in the step off a
+    /// rebound, so at 60 Hz a bounce that remains leaves at 0.84 m/s or more, and still rises 3.6 cm.
+    /// </summary>
+    /// <remarks>
+    /// Jolt finds a pair within its speculative contact distance. When a landing step begins there, Jolt gives a bouncing
+    /// body its rebound at once, from where it is, so it rises to about its gap at the start of the step plus the height
+    /// of its bounce. Without the minimum, a small bounce from a step that begins near the surface stayed within the
+    /// distance, and the same bounce from a step that begins near the edge left it: one drop reported one landing or two
+    /// (ter-4kaa).
+    /// </remarks>
+    public const float MinReboundSpeed = 1f;
+
+    /// <summary>
+    /// The restitution that a contact keeps: <paramref name="restitution"/>, unless its rebound, the restitution times the
+    /// approach speed, is slower than <see cref="MinReboundSpeed"/>. Then 0, so that the contact does not bounce.
+    /// </summary>
+    /// <param name="restitution">The contact's combined restitution: the larger of the restitutions of its two bodies.</param>
+    /// <param name="normalVelocity">How fast the bodies move apart along the contact's normal, in m/s. Below zero, how fast they approach.</param>
+    internal static float KeptRestitution(float restitution, float normalVelocity) =>
+        restitution * -normalVelocity >= MinReboundSpeed ? restitution : 0f;
+
     // ---- Jolt's reports, through the contact listener ----
     //
     // Each runs on a Jolt worker thread during an update, with the bodies locked, so it must not use any locking body
     // interface. Each reads the bodies and the manifold through the pointers that Jolt passes (see ContactListener).
+    //
+    // Each also applies the minimum rebound speed (see KeptRestitution) to the contact settings that Jolt passes, which
+    // Jolt then uses for the contact in this update. Jolt computes those settings again in every update, the combined
+    // restitution included, before it calls the listener, so both reports must apply the minimum every time. Jolt's
+    // linear cast of a fast body calls the same two reports, and uses the settings that they leave.
 
     /// <summary>Jolt's report of a contact that it found in this update and did not hold before.</summary>
-    /// <param name="sensor">True when one of the bodies is a sensor, as Jolt's contact settings say.</param>
-    public void OnContactAdded(nint body1, nint body2, nint manifold, bool sensor)
+    public unsafe void OnContactAdded(nint body1, nint body2, nint manifold, ContactSettings* settings)
     {
         ulong data1 = JoltNative.BodyUserData(body1), data2 = JoltNative.BodyUserData(body2);
         if (!IsReportable(data1) || !IsReportable(data2))
+        {
+            if (settings->CombinedRestitution > 0f)
+                settings->CombinedRestitution = KeptRestitution(settings->CombinedRestitution, NormalVelocity(body1, body2, manifold, out _, out _));
             return;
-        RawContact contact = Describe(body1, body2, data1, data2, manifold, sensor);
+        }
+        RawContact contact = Describe(body1, body2, data1, data2, manifold, settings->IsSensor);
+        settings->CombinedRestitution = KeptRestitution(settings->CombinedRestitution, contact.NormalVelocity);
         lock (contactGate)
             added.Add(contact);
     }
 
     /// <summary>
     /// Jolt's report of a contact that it held before and found again in this update: every contact of every body that it
-    /// simulates, in every update. Only a pending pair needs it, and nothing changes pending during an update, so nearly
-    /// every call ends at the test of pending, without the gate.
+    /// simulates, in every update. Only a pending pair and a contact that may bounce need it. Nothing changes pending
+    /// during an update, and the default restitution is 0, so nearly every call ends at the test of the restitution and of
+    /// pending, without a native call and without the gate.
     /// </summary>
     public unsafe void OnContactPersisted(nint body1, nint body2, nint manifold, ContactSettings* settings)
     {
+        float restitution = settings->CombinedRestitution;
         if (pending.Count == 0 || !pending.Contains(PairKey(JoltNative.BodyId(body1), JoltNative.BodyId(body2))))
+        {
+            if (restitution > 0f)
+                settings->CombinedRestitution = KeptRestitution(restitution, NormalVelocity(body1, body2, manifold, out _, out _));
             return;
+        }
         RawContact contact = Describe(body1, body2, JoltNative.BodyUserData(body1), JoltNative.BodyUserData(body2), manifold, settings->IsSensor);
+        settings->CombinedRestitution = KeptRestitution(restitution, contact.NormalVelocity);
         if (!contact.Touches)
             return;
         lock (contactGate)
@@ -605,8 +645,21 @@ internal sealed class FrameWorld : IDisposable
     /// </summary>
     private unsafe RawContact Describe(nint body1, nint body2, ulong data1, ulong data2, nint manifold, bool sensor)
     {
+        float normalVelocity = NormalVelocity(body1, body2, manifold, out Double3 point, out Vector3 normal);
+        return new RawContact(new BodyID(JoltNative.BodyId(body1)), new BodyID(JoltNative.BodyId(body2)), data1, data2, point, normal,
+            normalVelocity, Touches(JoltNative.ManifoldPenetrationDepth(manifold), normalVelocity, updateDeltaTime), sensor);
+    }
+
+    /// <summary>
+    /// How fast the bodies of a manifold that Jolt found in this update move apart along its normal, in m/s, before the
+    /// solver runs: below zero, how fast they approach. It is measured at <paramref name="point"/>, the mean of the
+    /// manifold's points on the first body, or the first body's center of mass when the manifold has none.
+    /// <paramref name="normal"/> is the manifold's normal, from the first body to the second.
+    /// </summary>
+    private static unsafe float NormalVelocity(nint body1, nint body2, nint manifold, out Double3 point, out Vector3 normal)
+    {
         uint count = JoltNative.ManifoldPointCount(manifold);
-        Double3 point = Double3.Zero;
+        point = Double3.Zero;
         if (count > 0)
         {
             RVector3 p;
@@ -624,12 +677,11 @@ internal sealed class FrameWorld : IDisposable
             point = com.ToDouble3();
         }
 
-        Vector3 normal;
-        JoltNative.ManifoldNormal(manifold, &normal);
+        Vector3 direction;
+        JoltNative.ManifoldNormal(manifold, &direction);
+        normal = direction;
         Vector3 v1 = PointVelocity(body1, point), v2 = PointVelocity(body2, point);
-        float normalVelocity = Vector3.Dot(v2 - v1, normal);
-        return new RawContact(new BodyID(JoltNative.BodyId(body1)), new BodyID(JoltNative.BodyId(body2)), data1, data2, point, normal,
-            normalVelocity, Touches(JoltNative.ManifoldPenetrationDepth(manifold), normalVelocity, updateDeltaTime), sensor);
+        return Vector3.Dot(v2 - v1, direction);
     }
 
     private static bool IsReportable(ulong data)

@@ -15,6 +15,9 @@ namespace Tertius.Benchmarks;
 /// <item><see cref="PendingPair"/> true: the first box of the first row stands 1 cm from its neighbor, so Jolt finds
 /// their pair without a touch, and the pair waits as a pending pair the whole time. The backend must then look at every
 /// report of a persisting contact, to see whether it is the touch of the pending pair.</item>
+/// <item><see cref="Restitution"/> is the restitution of every box, and the floor has the default of 0. At 0, the report
+/// of a persisting contact ends at once while no pair is pending. At 0.5, the backend reads the approach speed of every
+/// contact in every step, to apply the minimum rebound speed (ter-4kaa).</item>
 /// </list>
 /// </summary>
 [MemoryDiagnoser]
@@ -25,6 +28,9 @@ public class ContactHeapBenchmarks
 
     [Params(false, true)]
     public bool PendingPair;
+
+    [Params(0f, 0.5f)]
+    public float Restitution;
 
     private World world = null!;
 
@@ -52,7 +58,7 @@ public class ContactHeapBenchmarks
             {
                 Frame = ground,
                 Pose = At(x, 0.5, (i / Columns - Rows / 2) * 1.05),
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10),
+                Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, Restitution: Restitution),
             }));
         }
         // Two seconds: every box has the speed of the floor.

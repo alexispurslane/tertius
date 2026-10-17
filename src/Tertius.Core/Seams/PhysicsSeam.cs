@@ -237,13 +237,18 @@ public readonly record struct CompoundChild(ShapeDesc Shape, Pose Pose);
 /// the parent frame, and <see cref="InteriorShape"/> (or <see cref="Shape"/> if null) is static geometry in the
 /// frame's own system.
 /// </summary>
+/// <param name="Restitution">
+/// How much of its approach speed a contact gives back as a rebound. A contact takes the larger restitution of its two
+/// bodies, and does not bounce when its rebound, that restitution times its approach speed, is below 1 m/s. The default is
+/// 0, as in Jolt, so a body bounces only when its content names a restitution.
+/// </param>
 public sealed record BodyDesc(
     ShapeDesc Shape,
     BodyMotion Motion = BodyMotion.Dynamic,
     BodyLayer Layer = BodyLayer.Moving,
     float Mass = 1f,
     float Friction = 0.5f,
-    float Restitution = 0.1f,
+    float Restitution = 0f,
     float LinearDamping = 0.05f,
     float AngularDamping = 0.05f,
     ShapeDesc? InteriorShape = null)
