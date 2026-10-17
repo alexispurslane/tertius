@@ -11,10 +11,10 @@ public static partial class DemoScenes
     /// up, at 7.67 km/s, with the orbit scene's sun and Earth (see <see cref="Orbit"/>). It shows the two cases of
     /// ter-dhkf (docs/plans/numeric-frames.md, "Anchors"). A fast hull on rails lives in an orbit frame of its own, a
     /// numeric frame that follows its orbit, so cargo that drifts out of the station's bubble joins that frame, where
-    /// both the cargo and the hull are slow and float velocities stay small. And a crate thrown at 60 m/s inside the
-    /// station stops at a thin static wall, because the merge test links the crate to the wall, so that the crate lives
-    /// in the wall's Jolt system, where Jolt sweeps it against the real wall. The station's interior and the airlock's shut
-    /// doors keep the crate there too.
+    /// both the cargo and the hull are slow and float velocities stay small. And a crate thrown at 1,200 m/s inside the
+    /// station, faster than the 1,000 m/s from which a group of free bodies falls in a numeric frame, stops at a thin static
+    /// wall, because the merge test links the crate to the wall, so that the crate lives in the wall's Jolt system, where
+    /// Jolt sweeps it against the real wall. The station's interior and the airlock's shut doors keep the crate there too.
     /// <list type="bullet">
     /// <item>The station's frame, owned by <c>station</c>, keeps one attitude on its orbit: its axes do not turn
     /// relative to earth's. At the start, its belly (-Y) faces Earth and its nose (-Z) points along its motion, then it
@@ -47,19 +47,21 @@ public static partial class DemoScenes
     /// station worked out from two dumped velocities is off by half a step of Earth's pull, 7 cm/s, away from Earth, while
     /// the pods' places drift at exactly 1 m/s relative to the station. The places are the measure.</item>
     /// <item>A thin static <c>wall</c>, 3 by 5.2 m and 10 cm thick, stands across the cabin's starboard half, 10 m ahead
-    /// of the center. A green <c>crate</c> of 0.5 m and 25 kg floats 20.5 m aft of the wall's center. A
-    /// <see cref="Launch"/> throws it at the wall at 60 m/s (<see cref="CrateVelocity"/>), 1 m in each tick, so that no
-    /// tick ends with the crate in or at the wall, and only Jolt's linear cast stops it. It comes to rest 5 mm into the
+    /// of the center. A green <c>crate</c> of 0.5 m and 25 kg floats 23.5 m aft of the wall's center. A
+    /// <see cref="Launch"/> throws it at the wall at 1,200 m/s (<see cref="CrateVelocity"/>), 20 m in each tick: the first
+    /// tick of its flight ends with its front 3.2 m before the wall, and the second would end far past it, so that no tick
+    /// ends with the crate in or at the wall, and only Jolt's linear cast stops it. It comes to rest 5 mm into the
     /// wall's face, because Jolt's solver pushes two bodies apart only as far as they sink beyond the backend's
     /// penetration slop of 5 mm (<c>JoltBackendOptions.PenetrationSlop</c>). The script throws it 15 s after
     /// the start, when the pods have left the station's frame. The merge test links every body of the frame within 2 s of
-    /// the crate's speed, 120 m. With the pods gone, the crate shares its group with the wall, the station's interior and
+    /// the crate's speed, 2,400 m, so every body of the frame. With the pods gone, the crate shares its group with the wall, the station's interior and
     /// the airlock's two kinematic doors, of 1 kg each. Each of them keeps the group out of a falling numeric frame: the
     /// wall and the interior are anchors, which fix the group in the frame's own system, and a kinematic body counts as
     /// infinitely heavy, so the still doors give the group their velocity, zero (docs/plans/numeric-frames.md, "Anchors").
-    /// Weighed by their masses, the crate and the doors would move at 55.6 m/s. So the crate is the user's case: a fast
-    /// body that, before ter-dhkf, fell in a numeric frame of its own and passed through the wall's kinematic ghost
-    /// there.</item>
+    /// Weighed by their masses, the crate and the doors would move at 1,111 m/s, and the crate alone at 1,200 m/s, both
+    /// above the 1,000 m/s from which a group of free bodies falls (<c>NumericFrameOptions.CreateSpeed</c>). So the crate is
+    /// the user's case: a fast body that, before ter-dhkf, fell in a numeric frame of its own and passed through the wall's
+    /// kinematic ghost there.</item>
     /// <item>Five lamps under the cabin's roof, 6 m apart, light the cabin, at less than half the light of the orbit scene's
     /// lamps, so that the light cabin walls, the dark blue thin wall and the deep green crate stay apart in the image.</item>
     /// <item>The views: <c>watch</c>, outside, level with the pods off the station's port side and aft of it, looks
@@ -152,17 +154,18 @@ public static partial class DemoScenes
         public const float CrateMass = 25;
 
         /// <summary>
-        /// Where the thrown crate starts, in the station's axes: 20.5 m aft of the wall's center, so that each tick of
-        /// 1 m ends with the crate's center 0.5 m before or behind a whole number of meters from the wall's center, and
-        /// none ends with the crate in or at the wall.
+        /// Where the thrown crate starts, in the station's axes: 23.5 m aft of the wall's center, with its back 0.85 m from
+        /// the cabin's aft wall. The first tick of its flight, 20 m, ends with its center 3.5 m aft of the wall's center and
+        /// its front 3.2 m before the wall's face, so that no tick ends with the crate in or at the wall.
         /// </summary>
-        public static Double3 CrateStart { get; } = new(2, 0, 10.5);
+        public static Double3 CrateStart { get; } = new(2, 0, 13.5);
 
         /// <summary>
-        /// The velocity that the script's <see cref="Launch"/> gives the crate, relative to the station, in m/s: 60 m/s
-        /// toward the wall.
+        /// The velocity that the script's <see cref="Launch"/> gives the crate, relative to the station, in m/s: 1,200 m/s
+        /// toward the wall, above the 1,000 m/s from which a group of free bodies falls in a numeric frame, and 20 m in each
+        /// tick.
         /// </summary>
-        public static Double3 CrateVelocity { get; } = new(0, 0, -60);
+        public static Double3 CrateVelocity { get; } = new(0, 0, -1200);
 
         /// <summary>The roll of the station about its Z axis after it faces Earth, in radians: 35 degrees, port side up.</summary>
         private const double Roll = -35 * Math.PI / 180;

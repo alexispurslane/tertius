@@ -2,6 +2,7 @@ using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -295,15 +296,6 @@ public class GhostContactTests
     // contacts gameplay hears. A ghost stands for its real body, so it meets what that body meets. Each test that
     // involves numeric frames runs the same scene without them.
 
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
-
     /// <summary>A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.</summary>
     private static World WorldWith(bool numericFrames, out FaultInjectingBackend faults) =>
         NewWorldWithFaults(out faults, configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
@@ -321,12 +313,19 @@ public class GhostContactTests
     private static readonly BodyDesc KinematicSensorBall =
         new BodyDesc(new SphereShapeDesc(0.25f), BodyMotion.Kinematic, Mass: 1, LinearDamping: 0, AngularDamping: 0) { IsSensor = true };
 
+    /// <summary>The speed of the kinematic ball of <see cref="FlyThroughAStaticBox"/>, in m/s: 20 m per step.</summary>
+    private const double KinematicBallSpeed = 1_200;
+
     /// <summary>
-    /// Runs a ball of <paramref name="ballBody"/> at 60 m/s along +X from (-30, 0, 0) through a static box of 4 m by 4 m by
-    /// 4 m at the origin, with no gravity, for 1.5 s. At 60 m/s the ball is fast enough for a numeric frame of its own, but
-    /// the merge test links it to the box, an anchor, so it joins the box's home, the system of ground, and meets the real
-    /// box there (ter-dhkf). Before, the ball fell in a frame of its own, which kept a kinematic ghost of the box. Returns
-    /// what the box and the ball heard of each other, and whether the ball's physics home ever held a ghost of the box.
+    /// Runs a ball of <paramref name="ballBody"/> at 1,200 m/s along +X from (-600, 0, 0) through a static box of 4 m by 4 m
+    /// by 4 m at the origin, with no gravity, for 3 s. The ball moves 20 m per step, so the step of tick 30 ends with its
+    /// center at the box's center, and no other step ends with the two touching. A kinematic body never thrusts, so the ball
+    /// needs the 1,000 m/s of a group of free bodies for a numeric frame of its own, and at 1,200 m/s it is fast enough. But
+    /// the merge test links it to the box, an anchor, from the start, so it joins the box's home, the system of ground, and
+    /// meets the real box there (ter-dhkf). Once the ball is out of the merge test's reach, 2.4 km past the box, it falls in
+    /// a numeric frame of its own. The run checks both. Before, the ball fell in a frame of its own, which kept a kinematic
+    /// ghost of the box. Returns what the box and the ball heard of each other, and whether the ball's physics home ever held
+    /// a ghost of the box.
     /// </summary>
     private static (List<ContactNews> BoxHeard, List<ContactNews> BallHeard, bool GhostOfTheBox) FlyThroughAStaticBox(bool numericFrames,
         BodyDesc boxBody, BodyDesc ballBody)
@@ -336,14 +335,22 @@ public class GhostContactTests
         var boxLog = new CollisionLog();
         Entity box = world.Spawn(new SpawnDesc { Frame = ground, Body = boxBody, Components = [boxLog] });
         var ballLog = new CollisionLog();
-        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-30), LinearVelocity = new Double3(60, 0, 0), Body = ballBody, Components = [ballLog] });
+        Entity ball = world.Spawn(new SpawnDesc
+        {
+            Frame = ground, Pose = At(-30 * KinematicBallSpeed * world.DeltaTime), LinearVelocity = new Double3(KinematicBallSpeed, 0, 0),
+            Body = ballBody, Components = [ballLog],
+        });
         bool ghostOfTheBox = false;
-        for (int tick = 0; tick < 90; tick++)
+        for (int tick = 0; tick < 180; tick++)
         {
             world.Tick();
             ghostOfTheBox |= faults.Jolt.HasGhostIn(box, world.PhysicsHomeOf(ball));
+            if (world.TickNumber == 30)
+                world.PhysicsHomeOf(ball).Should().Be(ground, "the ball runs in the box's home as it passes the box, with numeric frames or without");
         }
-        world.PoseIn(ball, ground).Position.X.Should().BeGreaterThan(50, "the ball flew through the box");
+        world.PoseIn(ball, ground).Position.X.Should().BeGreaterThan(2_500, "the ball flew through the box");
+        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(numericFrames ? NumericMode.Falling : NumericMode.None,
+            "out of the merge test's reach, the ball at 1,200 m/s falls in a numeric frame of its own, when there are numeric frames");
         world.Errors.Should().BeEmpty();
         return (boxLog.NewsOf(ball), ballLog.NewsOf(box), ghostOfTheBox);
     }
@@ -437,7 +444,7 @@ public class GhostContactTests
     }
 
     /// <summary>
-    /// A Kepler hull, a box of 2 m by 2 m by 2 m, flies at 63 m/s in an orbit frame of its own past a static rock of radius
+    /// A Kepler hull, a box of 2 m by 2 m by 2 m, flies at 2 km/s in an orbit frame of its own past a static rock of radius
     /// 1 m, 8 m to the side of its path (see <see cref="Scenes.FastKeplerHull"/>). No home holds both anchors at rest, so
     /// the merge test links them into a group that lives in the rock's home, the system of space, and the numeric update
     /// names that system to keep a ghost of the hull. Far past the rock, the update stops naming it, and the ghost goes at
@@ -468,12 +475,14 @@ public class GhostContactTests
 
     /// <summary>
     /// With no gravity, a ship of 1000 kg and a probe, a ball of radius 1 m, fly at 60 m/s along -X, 3 m apart, past a
-    /// static mesh cube of 2 m by 2 m by 2 m at the origin. With numeric frames, the merge test links both to the cube, an
-    /// anchor, from the start, so they join the cube's home, the system of space, and no frame keeps a ghost of the cube
-    /// (ter-dhkf). When the probe is 120 m past the cube, it stops and drifts down at 1.5 m/s across the lane of the cube.
-    /// Nothing hits the probe, as without numeric frames. Before ter-dhkf, both fell in one numeric frame, which kept a
-    /// ghost of the cube while the numeric update named it an anchor, and the ghost had gone when the place in that frame
-    /// where it stood came past the probe.
+    /// static mesh cube of 2 m by 2 m by 2 m at the origin. Both thrust gently across their flight (see <see cref="Thruster"/>)
+    /// from their spawn on, so from tick 30 on, 70 m before the cube, they are fast enough for a falling numeric frame. With
+    /// numeric frames, the merge test links both to the cube, an anchor, from the start, so they stay in the cube's home,
+    /// the system of space, and no frame keeps a ghost of the cube (ter-dhkf). When the probe is 120 m past the cube, it
+    /// stops and drifts down at 1.5 m/s across the lane of the cube. Nothing hits the probe, as without numeric frames. The
+    /// ship flies on, out of the merge test's reach of the cube, and falls in a numeric frame. Before ter-dhkf, both fell in
+    /// one numeric frame, which kept a ghost of the cube while the numeric update named it an anchor, and the ghost had gone
+    /// when the place in that frame where it stood came past the probe.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -483,19 +492,22 @@ public class GhostContactTests
         using World world = WorldWith(numericFrames, out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
         Entity cube = world.Spawn(new SpawnDesc { Frame = space, Body = new BodyDesc(MeshCube(1), BodyMotion.Static) });
-        world.Spawn(new SpawnDesc
+        Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = space, Pose = At(100, 6), LinearVelocity = new Vector3(-60, 0, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Components = [new Thruster(1000) { Direction = Vector3.UnitZ }],
         });
         var probeLog = new CollisionLog();
         var pilot = new Pilot();
         Entity probe = world.Spawn(new SpawnDesc
         {
-            Frame = space, Pose = At(100, 3), LinearVelocity = new Vector3(-60, 0, 0), Body = Ball(1), Components = [probeLog, pilot],
+            Frame = space, Pose = At(100, 3), LinearVelocity = new Vector3(-60, 0, 0), Body = Ball(1),
+            Components = [probeLog, pilot, new Thruster(1) { Direction = Vector3.UnitZ }],
         });
-        world.Tick();
-        world.PhysicsHomeOf(probe).Should().Be(space, "the probe joins the home of the cube, with numeric frames or without");
+        Tick(world, 30);
+        world.PhysicsHomeOf(probe).Should().Be(space, "the probe thrusts, but it stays in the home of the cube, with numeric frames or without");
+        world.PhysicsHomeOf(ship).Should().Be(space, "the ship thrusts, but it stays in the home of the cube, with numeric frames or without");
         faults.Jolt.GhostCount(cube).Should().Be(0);
         TickUntil(world, () => world.PoseIn(probe, space).Position.X < -120, 600);
         probeLog.Seen.Should().BeEmpty("the probe passed 3 m from the cube's center");
@@ -505,6 +517,8 @@ public class GhostContactTests
 
         world.PoseIn(probe, space).Position.Y.Should().BeLessThan(0, "the probe drifted across the lane of the cube");
         probeLog.Seen.Should().BeEmpty("the cube is more than 100 m away");
+        world.Frames.Numeric(world.PhysicsHomeOf(ship)).Should().Be(numericFrames ? NumericMode.Falling : NumericMode.None,
+            "the ship that thrusts at 60 m/s falls once it is out of the merge test's reach of the cube, when there are numeric frames");
         world.Errors.Should().BeEmpty();
     }
 
@@ -523,9 +537,8 @@ public class GhostContactTests
     [InlineData(true, false)]
     public void TheImpulseOfACrateThatSpeedsUpJustBeforeAStaticWallIsItsApproachToTheWallWithNumericFramesOrWithout(bool mesh, bool numericFrames)
     {
-        var everyBodyFalls = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0 };
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
-            configure: options => options.NumericFrames = numericFrames ? everyBodyFalls : WithoutNumericFrames);
+            configure: options => options.NumericFrames = numericFrames ? EveryGroupFalls : WithoutNumericFrames);
         FrameHandle ground = Ground(world, 0);
         ShapeDesc shape = mesh ? MeshCube(0.5f) : new BoxShapeDesc(new Vector3(0.5f));
         Entity wall = world.Spawn(new SpawnDesc { Frame = ground, Body = new BodyDesc(shape, BodyMotion.Static) });

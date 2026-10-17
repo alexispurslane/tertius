@@ -9,12 +9,20 @@ namespace Tertius.Physics.Tests;
 /// frame (ticket ter-gsvv). A numeric frame has no bubble. A parked station is a frame that physics does not drive, so its
 /// hull stays in the system of the station's parent as an anchor, and the station stays a child of that parent. A fast
 /// body that flies into the station's bubble must still enter the station, or it misses everything inside. These tests run
-/// the World on the real backend with the default numeric frame options, under which a body that flies at 50 m/s or more
-/// relative to its frame gets a falling numeric frame.
+/// the World on the real backend with the default numeric frame options, under which a group with a body that thrusts gets
+/// a falling numeric frame from 50 m/s relative to its frame, and a group of free bodies only from 1,000 m/s. A character
+/// thrusts always. Any other body thrusts after 0.5 s (30 ticks) of thrust, so each fast ball and ship here carries a
+/// gentle thruster (<see cref="Thruster"/>) along its flight and flies for 30 ticks before its falling frame matters.
 /// </summary>
 public class NumericFrameEntryTests
 {
     private const float Dt = 1f / 60f;
+
+    /// <summary>
+    /// How many ticks of thrust at 60 Hz a body needs before it thrusts: the first count of ticks of 1/60 s that reaches the
+    /// 0.5 s of <see cref="NumericFrameOptions.ThrustOnset"/>.
+    /// </summary>
+    private const int OnsetTicks = 30;
 
     /// <summary>
     /// The radius of the station's bubble, in meters. It is wider than the reach of the merge test between a body at
@@ -26,7 +34,10 @@ public class NumericFrameEntryTests
     /// <summary>How far along +X from the station's center the crate floats, in meters: 25 m inside the bubble.</summary>
     private const double CrateX = 175;
 
-    /// <summary>Where the bodies start along +X in space, in meters: 60 m outside the station's bubble.</summary>
+    /// <summary>
+    /// Where the bodies are along +X in space when their falling frame starts to matter, in meters: 60 m outside the
+    /// station's bubble. They start <see cref="OnsetTicks"/> ticks of their 60 m/s farther out.
+    /// </summary>
     private const double StartX = 1260;
 
     /// <summary>How far along +Y from the station's center the crate floats and the bodies fly, in meters, so that they miss the hull.</summary>
@@ -88,16 +99,25 @@ public class NumericFrameEntryTests
         faults.Outputs.SelectMany(output => output.Contacts).Any(c => (c.A == a && c.B == b) || (c.A == b && c.B == a));
 
     /// <summary>
-    /// Flies <paramref name="body"/> from (1260, 10, 0) in space at 60 m/s along -X into the station, and checks that it
-    /// gets a falling numeric frame and then enters the station on the first touch of its bubble, with its pose and
-    /// velocity relative to the station.
+    /// Flies <paramref name="body"/>, with <paramref name="components"/>, from (1290, 10, 0) in space at 60 m/s along -X
+    /// into the station. It checks that the body falls in a numeric frame after <see cref="OnsetTicks"/> ticks, at
+    /// (1260, 10, 0), and then enters the station from that frame on the first touch of its bubble, with its pose and
+    /// velocity relative to the station. A body that is not a character needs a thruster in
+    /// <paramref name="components"/> to thrust by then.
     /// </summary>
-    private static Entity FlyFastIntoTheStation(World world, FaultInjectingBackend faults, Scene scene, BodyDesc body)
+    private static Entity FlyFastIntoTheStation(World world, FaultInjectingBackend faults, Scene scene, BodyDesc body, params IComponent[] components)
     {
-        Entity flier = world.Spawn(new SpawnDesc { Frame = scene.Space, Pose = At(StartX, Lane), LinearVelocity = new Vector3(-60, 0, 0), Body = body });
-        world.Tick();
+        Entity flier = world.Spawn(new SpawnDesc
+        {
+            Frame = scene.Space,
+            Pose = At(StartX + 60 * OnsetTicks * (double)Dt, Lane),
+            LinearVelocity = new Vector3(-60, 0, 0),
+            Body = body,
+            Components = components,
+        });
+        Tick(world, OnsetTicks);
         FrameHandle home = world.PhysicsHomeOf(flier);
-        world.Frames.Numeric(home).Should().Be(NumericMode.Falling, "at 60 m/s the body gets a falling numeric frame");
+        world.Frames.Numeric(home).Should().Be(NumericMode.Falling, "the body thrusts at 60 m/s, so it gets a falling numeric frame");
         world.Frames.TreeParent(home).Should().Be(scene.Space);
 
         HandOff? entry = TickUntilHandedOff(world, faults, flier, scene.Space, 120, out Double3 expected);
@@ -124,7 +144,7 @@ public class NumericFrameEntryTests
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         Scene scene = ParkedStation(world, hullMotion);
 
-        Entity ball = FlyFastIntoTheStation(world, faults, scene, Ball);
+        Entity ball = FlyFastIntoTheStation(world, faults, scene, Ball, new Thruster(Ball.Mass) { Direction = -Vector3.UnitX });
         TickUntil(world, () => Touched(faults, ball, scene.Crate), 60);
         Tick(world, 10);
 
@@ -141,6 +161,7 @@ public class NumericFrameEntryTests
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         Scene scene = ParkedStation(world, BodyMotion.Static);
 
+        // A character thrusts always, so the person needs no thruster.
         Entity person = FlyFastIntoTheStation(world, faults, scene, Person);
         TickUntil(world, () => Touched(faults, person, scene.Crate), 60);
         Tick(world, 10);
@@ -152,20 +173,22 @@ public class NumericFrameEntryTests
     }
 
     /// <summary>
-    /// A ship that flies at 60 m/s along +Z from the origin of space: a hull of 4 m by 4 m by 4 m that physics drives, with
-    /// a bubble of <paramref name="bubbleRadius"/> m, and a crate of 2 m by 2 m by 2 m and 2 kg that floats in the ship at
-    /// (0, 15, 0).
+    /// A ship that flies with <paramref name="velocity"/> from <paramref name="position"/> in space: a hull of 4 m by 4 m by
+    /// 4 m and 1000 kg that physics drives, with a gentle thruster along its velocity, a bubble of
+    /// <paramref name="bubbleRadius"/> m, and a crate of 2 m by 2 m by 2 m and 2 kg that floats in the ship at (0, 15, 0).
     /// </summary>
     private static (FrameHandle Space, FrameHandle Ship, Entity Crate) FastShip(World world, float bubbleRadius, Double3 position, Vector3 velocity)
     {
+        const float hullMass = 1000;
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = new DPose(position, DQuaternion.Identity),
             LinearVelocity = velocity,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: hullMass, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new FrameSpec(FrameBounds.Sphere(bubbleRadius), MotionDriver.Physics),
+            Components = [new Thruster(hullMass) { Direction = Vector3.Normalize(velocity) }],
         }));
         Entity crate = world.Spawn(new SpawnDesc
         {
@@ -182,11 +205,20 @@ public class NumericFrameEntryTests
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         var (space, ship, crate) = FastShip(world, 30, Double3.Zero, new Vector3(0, 0, 60));
         // The ball flies with the ship and closes on it at 6 m/s. The merge test reaches 12 m at that speed, so the ball
-        // touches the ship's bubble while the two are still in numeric frames of their own.
-        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, 40), LinearVelocity = new Vector3(0, -6, 60), Body = Ball });
-        world.Tick();
+        // touches the ship's bubble while the two are still in numeric frames of their own. The ball and the ship thrust
+        // alike along +Z, so the thrust does not change how they close. The ball starts 3 m farther out than the 40 m at
+        // which it is when the two start to thrust, 30 ticks later.
+        Entity ball = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(0, 40 + 6 * OnsetTicks * (double)Dt),
+            LinearVelocity = new Vector3(0, -6, 60),
+            Body = Ball,
+            Components = [new Thruster(Ball.Mass) { Direction = Vector3.UnitZ }],
+        });
+        Tick(world, OnsetTicks);
         FrameHandle home = world.PhysicsHomeOf(ball);
-        world.Frames.Numeric(home).Should().Be(NumericMode.Falling);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Falling, "the ball thrusts at 60 m/s");
         world.Frames.Numeric(world.Frames.TreeParent(ship)).Should().Be(NumericMode.Falling, "the ship's hull falls in a numeric frame of its own");
         world.Frames.TreeParent(ship).Should().NotBe(home);
 
@@ -213,16 +245,18 @@ public class NumericFrameEntryTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         // A bubble of 200 m, wider than the 120 m that the merge test reaches at 60 m/s, so the ship's bubble reaches the
-        // ball before the ball joins the ship's numeric frame.
-        var (space, ship, _) = FastShip(world, 200, new Double3(0, 0, -300), new Vector3(0, 0, 60));
+        // ball before the ball joins the ship's numeric frame. The ship's hull thrusts from its thirtieth tick on, when it
+        // is 300 m from the ball's plane, so it starts 30 ticks of its 60 m/s farther out.
+        var (space, ship, _) = FastShip(world, 200, new Double3(0, 0, -300 - 60 * OnsetTicks * (double)Dt), new Vector3(0, 0, 60));
         Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = At(10), Body = Ball });
-        world.Tick();
+        Tick(world, OnsetTicks);
         world.PhysicsHomeOf(ball).Should().Be(space);
-        world.Frames.Numeric(world.Frames.TreeParent(ship)).Should().Be(NumericMode.Falling);
+        world.Frames.Numeric(world.Frames.TreeParent(ship)).Should().Be(NumericMode.Falling, "the ship's hull thrusts at 60 m/s");
 
         HandOff? entry = TickUntilHandedOff(world, faults, ball, space, 180, out Double3 expected);
 
         entry.Should().NotBeNull("the ship's bubble reaches the ball within 3 s");
+        world.Frames.Numeric(world.Frames.TreeParent(ship)).Should().Be(NumericMode.Falling, "the ship's bubble reaches the ball from a falling frame");
         entry!.Value.From.Should().Be(space);
         entry.Value.To.Should().Be(ship);
         world.GetFrame(ball).Should().Be(ship);

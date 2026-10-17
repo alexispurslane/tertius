@@ -3,6 +3,7 @@ using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.WorldTestingGrowth;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -22,26 +23,13 @@ namespace Tertius.Physics.Tests;
 public class GrowthTests
 {
     /// <summary>
-    /// The thresholds of numeric frames, set so that the World never makes one. A numeric frame is a frame that the engine
-    /// makes around fast or far bodies (the default speed to get one is 50 m/s), with a system of its own. A test that checks
-    /// which system holds a body that flies at 60 m/s needs them off.
-    /// </summary>
-    private static readonly NumericFrameOptions NoNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
-
-    /// <summary>
     /// A world on the wrapper, whose systems start with room for <paramref name="maxBodiesPerFrame"/> bodies, with the
     /// default numeric frames or, when <paramref name="numericFrames"/> is false, with none.
     /// </summary>
     private static World NewWorldOfSmallSystems(int maxBodiesPerFrame, out FaultInjectingBackend faults, List<string>? warnings = null,
         bool numericFrames = true) =>
         NewWorldWithFaultsAndSmallSystems(maxBodiesPerFrame, out faults, warnings,
-            configure: numericFrames ? null : options => options.NumericFrames = NoNumericFrames);
+            configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
 
     private static readonly BodyDesc Crate = new(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static);
 

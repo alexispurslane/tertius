@@ -298,8 +298,9 @@ public sealed partial class JoltPhysicsBackend
     /// frame, which is the frame itself unless it is numeric. A numeric frame has no bubble, so it does not change which
     /// bubble a body leaves. Its members leave the bubble of its semantic frame, at the same place, into the same tree
     /// parent, and they have ghosts in the same frames while they stick out, as the members of that frame's own system do
-    /// (ticket ter-kz89). A crate thrown at 60 m/s inside a ship falls in a numeric frame below the ship, and it leaves
-    /// the ship's bubble into the ship's parent. A root frame has no parent, so nothing leaves its bubble.
+    /// (ticket ter-kz89). A free crate thrown at 1,000 m/s inside a ship, beyond the merge test's reach of the ship's
+    /// interior, falls in a numeric frame below the ship, and it leaves the ship's bubble into the ship's parent. A root
+    /// frame has no parent, so nothing leaves its bubble.
     /// </summary>
     private FrameHandle BubbleOf(FrameHandle frame) => frames.SemanticOf(frame);
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Text;
 using Tertius.Simulation;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests.Precision;
 
@@ -55,15 +56,6 @@ public class PushedContactMeasurement
 
     /// <summary>Jolt's speed limit in these runs, in m/s: far above the fastest body.</summary>
     private const float SpeedLimit = 1_000_000f;
-
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
 
     /// <summary>
     /// A pair of bodies in contact along x.

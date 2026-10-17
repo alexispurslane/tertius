@@ -6,9 +6,12 @@ namespace Tertius.Core.Tests;
 /// Orbit frames (<see cref="NumericMode.Orbiting"/>, docs/plans/numeric-frames.md, "Anchors", rule 3) on a tree built in
 /// the test: the hull of a frame whose Kepler driver moves it fast or far in its semantic frame lives in a numeric frame of
 /// its own, K, that follows the orbit, and the hull's frame hangs at K's origin. The tests run
-/// <see cref="FrameTree.UpdateNumericFrames"/> with plain body records, at the starting values of
-/// <see cref="NumericFrameOptions"/>: create speed 50 m/s, leave speed 20 m/s, create distance 10 km, leave distance 5 km,
-/// lookahead 2 s, split margin 10 m. After every update the tree keeps its invariants.
+/// <see cref="FrameTree.UpdateNumericFrames"/> with plain body records, at the defaults of <see cref="NumericFrameOptions"/>.
+/// A group of free bodies gets a falling frame from 1,000 m/s and keeps it down to 400 m/s. A group with a body that
+/// thrusts, such as a character, gets one from 50 m/s and keeps it down to 20 m/s. A slow group gets a resting frame from
+/// 2^23 m (about 8,389 km) from its semantic frame's origin and keeps it down to 2^22 m (about 4,194 km). A Kepler hull
+/// never thrusts, so it gets an orbit frame from 1,000 m/s or 8,389 km. The lookahead is 2 s and the split margin 10 m.
+/// After every update the tree keeps its invariants.
 /// </summary>
 public class FrameTreeOrbitFrameTests
 {
@@ -18,6 +21,12 @@ public class FrameTreeOrbitFrameTests
 
     /// <summary>A station in low orbit that faces earth, so that its rotation turns with its place.</summary>
     private static readonly KeplerOrbit Low = KeplerOrbit.Circular(6.8e6, phase: 0.4) with { Attitude = KeplerAttitude.FacesParent };
+
+    /// <summary>
+    /// A station that faces earth on an orbit of 10,000 km at 6.31 km/s: past the create distance of a resting frame, 2^23 m
+    /// (about 8,389 km). So a static body beside it rests in a resting frame of its own.
+    /// </summary>
+    private static readonly KeplerOrbit Far = KeplerOrbit.Circular(1e7, phase: 0.4) with { Attitude = KeplerAttitude.FacesParent };
 
     private readonly FrameTree frames = new() { StepLength = Step };
     private readonly FrameHandle earth;
@@ -192,12 +201,16 @@ public class FrameTreeOrbitFrameTests
     [Fact]
     public void A_slow_near_Kepler_hull_stays_in_its_semantic_frames_own_system_and_takes_a_fast_body_there()
     {
-        // A circular orbit of 1 km in a field of 1e-9 m³/s² moves at 1 µm/s.
+        // A circular orbit of 1 km in a field of 1e-9 m³/s² moves at 1 µm/s. The fast body is a character, which always
+        // thrusts, so at 60 m/s it would fall in a frame of its own.
         FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static,
             GravityField.Point(1e-9));
         FrameHandle station = Station(10, KeplerOrbit.Circular(1_000), space);
+        NumericBody character = Crate(11, new Double3(1_000, 3, 0), new Double3(60, 0, 0), home: space) with { Character = true };
+        NumericFrameRules.BodyMode(character, thrusts: true, frames.NumericOptions).Should().Be(NumericMode.Falling,
+            "alone, a character at 60 m/s needs a falling frame");
 
-        NumericBody[] after = Update(Hull(station), Crate(11, new Double3(1_000, 3, 0), new Double3(60, 0, 0), home: space));
+        NumericBody[] after = Update(Hull(station), character);
 
         after[0].Home.Should().Be(space);
         after[1].Home.Should().Be(space, "the slow hull is an anchor at rest in the system of space");
@@ -208,11 +221,12 @@ public class FrameTreeOrbitFrameTests
     [Fact]
     public void A_group_that_links_an_orbiting_hull_and_a_static_body_takes_the_static_bodys_home_and_keeps_a_ghost_of_the_hull()
     {
-        FrameHandle station = Station(10, Low);
+        FrameHandle station = Station(10, Far);
         FrameHandle orbit = Update(Hull(station))[0].Home;
-        (Double3 place, _) = StateAt(Low, Start);
+        (Double3 place, _) = StateAt(Far, Start);
 
-        // The static body lies 6,800 km from earth's origin, so it rests in a resting frame of its own.
+        // The static body lies 10,000 km from earth's origin, past the create distance, so it rests in a resting frame of
+        // its own.
         NumericBody[] after = Update(Hull(station), Crate(11, place + new Double3(0, 20, 0), Double3.Zero, isStatic: true));
 
         after[0].Home.Should().Be(orbit, "no home holds both anchors at rest, and the hull keeps its own");
@@ -229,12 +243,14 @@ public class FrameTreeOrbitFrameTests
     [Fact]
     public void The_ghost_of_an_orbiting_hull_goes_when_the_group_lets_go_of_it()
     {
-        FrameHandle station = Station(10, Low);
+        FrameHandle station = Station(10, Far);
         Update(Hull(station));
-        (Double3 place, _) = StateAt(Low, Start);
+        (Double3 place, _) = StateAt(Far, Start);
         FrameHandle raft = Update(Hull(station), Crate(11, place + new Double3(0, 20, 0), Double3.Zero, isStatic: true))[1].Home;
+        frames.Numeric(raft).Should().Be(NumericMode.Resting, "the static body lies past the create distance");
+        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(station.Entity, raft));
 
-        // The hull flies on along its orbit, 7.66 km/s past the static body, 23 km in 3 s: beyond the reach of 2 s of that
+        // The hull flies on along its orbit, 6.31 km/s past the static body, 19 km in 3 s: beyond the reach of 2 s of that
         // speed and the split margin.
         frames.PlaceOnOrbit(station, Start + 3);
         Update(Hull(station), Crate(11, place + new Double3(0, 20, 0), Double3.Zero, home: raft, isStatic: true));
@@ -263,11 +279,11 @@ public class FrameTreeOrbitFrameTests
     [Fact]
     public void A_hull_whose_orbit_no_longer_needs_a_frame_goes_back_with_its_frame_and_its_orbit_frame_goes_away()
     {
-        // 20 km out in a field of 1e-9 m³/s², the hull is slow but far, so it lives in an orbit frame. Then it moves to an
-        // orbit of 1 km, within the leave distance.
-        FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static,
+        // 10,000 km out in a field of 1e-9 m³/s², the hull is slow but far: past the create distance of 2^23 m (about
+        // 8,389 km), so it lives in an orbit frame. Then it moves to an orbit of 1 km, within the leave distance of 2^22 m.
+        FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e8f), MotionDriver.Static,
             GravityField.Point(1e-9));
-        FrameHandle station = Station(10, KeplerOrbit.Circular(20_000), space);
+        FrameHandle station = Station(10, KeplerOrbit.Circular(1e7), space);
         FrameHandle orbit = Update(Hull(station))[0].Home;
         frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
 
@@ -316,11 +332,12 @@ public class FrameTreeOrbitFrameTests
     [Fact]
     public void Destroying_a_frame_in_its_orbit_frame_turns_that_frame_into_a_falling_frame_and_drops_the_ghosts_of_its_hull()
     {
-        FrameHandle station = Station(10, Low);
+        FrameHandle station = Station(10, Far);
         FrameHandle orbit = Update(Hull(station))[0].Home;
-        (Double3 place, _) = StateAt(Low, Start);
-        Update(Hull(station), Crate(11, place + new Double3(0, 20, 0), Double3.Zero, isStatic: true));
-        frames.AnchorGhosts.IsEmpty.Should().BeFalse();
+        (Double3 place, _) = StateAt(Far, Start);
+        FrameHandle raft = Update(Hull(station), Crate(11, place + new Double3(0, 20, 0), Double3.Zero, isStatic: true))[1].Home;
+        frames.Numeric(raft).Should().Be(NumericMode.Resting, "the static body lies past the create distance");
+        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(station.Entity, raft));
 
         frames.Destroy(station);
 
@@ -332,10 +349,11 @@ public class FrameTreeOrbitFrameTests
     [Fact]
     public void Destroying_the_home_of_a_group_drops_the_ghosts_that_it_keeps_of_orbiting_hulls()
     {
-        FrameHandle station = Station(10, Low);
+        FrameHandle station = Station(10, Far);
         Update(Hull(station));
-        (Double3 place, _) = StateAt(Low, Start);
+        (Double3 place, _) = StateAt(Far, Start);
         FrameHandle raft = Update(Hull(station), Crate(11, place + new Double3(0, 20, 0), Double3.Zero, isStatic: true))[1].Home;
+        frames.Numeric(raft).Should().Be(NumericMode.Resting, "the static body lies past the create distance");
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(station.Entity, raft));
 
         frames.Destroy(raft);
@@ -350,11 +368,12 @@ public class FrameTreeOrbitFrameTests
         // Earth is a semantic child of the sun, which has no gravity of its own here.
         FrameHandle sun = frames.Create(new Entity(3, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
         frames.Reparent(earth, sun);
-        FrameHandle station = Station(10, Low);
+        FrameHandle station = Station(10, Far);
         FrameHandle orbit = Update(Hull(station))[0].Home;
-        (Double3 place, _) = StateAt(Low, Start);
+        (Double3 place, _) = StateAt(Far, Start);
         FrameHandle raft = Update(Hull(station), Crate(11, place + new Double3(0, 20, 0), Double3.Zero, isStatic: true))[1].Home;
-        frames.AnchorGhosts.IsEmpty.Should().BeFalse();
+        frames.Numeric(raft).Should().Be(NumericMode.Resting, "the static body lies past the create distance");
+        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(station.Entity, raft));
 
         var dissolved = new List<FrameHandle>();
         frames.Destroy(earth, dissolved);

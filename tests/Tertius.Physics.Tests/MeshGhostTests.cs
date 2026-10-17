@@ -3,6 +3,7 @@ using JoltPhysicsSharp;
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -17,18 +18,6 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class MeshGhostTests
 {
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
-
-    /// <summary>Membership rules under which every body that moves falls in a numeric frame of its own, also a slow one.</summary>
-    private static readonly NumericFrameOptions EveryBodyFalls = new() { CreateSpeed = 0, LeaveSpeed = 0 };
-
     /// <summary>The step at whose start the body of <see cref="FlyAtAMeshWall"/> is its gap from the wall.</summary>
     private const int ContactStep = 40;
 
@@ -43,11 +32,14 @@ public class MeshGhostTests
     /// a closed mesh cube of 2 m at the origin, whose face toward the body lies at x = -1 m. A static body needs no mass,
     /// so the wall has none, and Jolt cannot compute one for its mesh either. The body's front lies
     /// <paramref name="reach"/> m ahead of its center, and the body starts so that its front is <paramref name="gap"/> m
-    /// from the wall at the start of step <see cref="ContactStep"/>. The run lasts 30 steps longer.
-    /// With numeric frames, under <paramref name="numeric"/>, the body is fast enough for a falling frame of its own, but the
-    /// merge test links it to the wall, an anchor, from the first sync point on, so the body joins the wall's home, the
-    /// ground frame's own system, and meets the real wall there (ter-dhkf). No frame keeps a ghost of the wall. The run
-    /// checks both before the contact step.
+    /// from the wall at the start of step <see cref="ContactStep"/>. The run lasts 30 steps longer. The body thrusts gently
+    /// along its flight from its spawn on (see <see cref="Thruster"/>), so under the default rules it is fast enough for a
+    /// falling frame of its own from tick 30 on, before the contact step. A twin of the body, with the same velocity and
+    /// thruster, flies 1 km to the side, out of the wall's reach.
+    /// With numeric frames, under <paramref name="numeric"/>, the twin falls in a numeric frame of its own, and so would the
+    /// body, but the merge test links it to the wall, an anchor, from the first sync point on, so the body joins the wall's
+    /// home, the ground frame's own system, and meets the real wall there (ter-dhkf). No frame keeps a ghost of the wall. The
+    /// run checks all three before the contact step.
     /// </summary>
     private static WallRun FlyAtAMeshWall(bool numericFrames, NumericFrameOptions numeric, BodyDesc body, double reach, double speed, double gap)
     {
@@ -60,10 +52,16 @@ public class MeshGhostTests
         double start = -1 - reach - gap - ContactStep * speed * world.DeltaTime;
         Entity mover = world.Spawn(new SpawnDesc
         {
-            Frame = ground, Pose = At(start), LinearVelocity = new Double3(speed, 0, 0), Body = body, Components = [log],
+            Frame = ground, Pose = At(start), LinearVelocity = new Double3(speed, 0, 0), Body = body, Components = [log, new Thruster(body.Mass)],
+        });
+        Entity twin = world.Spawn(new SpawnDesc
+        {
+            Frame = ground, Pose = At(start, 1_000), LinearVelocity = new Double3(speed, 0, 0), Body = body, Components = [new Thruster(body.Mass)],
         });
 
         Tick(world, ContactStep - 1);
+        world.Frames.Numeric(world.PhysicsHomeOf(twin)).Should().Be(numericFrames ? NumericMode.Falling : NumericMode.None,
+            "the twin of the body, which no anchor links, falls in a numeric frame of its own, when there are numeric frames");
         world.PhysicsHomeOf(mover).Should().Be(ground, "the body joins the wall's home, with numeric frames or without");
         faults.Jolt.GhostCount(wall).Should().Be(0, "the wall is a real body of the body's system");
         log.Seen.Should().BeEmpty("the body has not reached the wall yet");
@@ -88,19 +86,20 @@ public class MeshGhostTests
 
     /// <summary>
     /// A crate flies at a static mesh wall (see <see cref="FlyAtAMeshWall"/>) and stops there, with numeric frames as
-    /// without them. In the first case the crate flies at 60 m/s and its front is 1 cm from the wall at the start of the
-    /// contact step, within Jolt's speculative contact distance, so Jolt stops it at the wall in that step. In the second
-    /// every body that moves would fall, the crate flies at 20 m/s, and its front is 17 cm from the wall at the start of the
-    /// contact step, so it sinks up to 17 cm into the wall in that step, and Jolt pushes it out again. The crate joins the
-    /// wall's home, so it meets the real wall. Before ter-dhkf, the crate fell in a frame of its own, where the ghost of the
-    /// wall came at it at 60 m/s or 20 m/s, and that ghost had to be a body that Jolt moves with that velocity.
+    /// without them. In the first case the default rules hold, the crate flies at 60 m/s, and its front is 1 cm from the
+    /// wall at the start of the contact step, within Jolt's speculative contact distance, so Jolt stops it at the wall in
+    /// that step. In the second every body that moves would fall, the crate flies at 20 m/s, and its front is 17 cm from the
+    /// wall at the start of the contact step, so it sinks up to 17 cm into the wall in that step, and Jolt pushes it out
+    /// again. The crate joins the wall's home, so it meets the real wall. Before ter-dhkf, the crate fell in a frame of its
+    /// own, where the ghost of the wall came at it at 60 m/s or 20 m/s, and that ghost had to be a body that Jolt moves with
+    /// that velocity.
     /// </summary>
     [Theory]
     [InlineData(false, 60.0, 0.01)]
     [InlineData(true, 20.0, 0.17)]
     public void ACrateThatFliesAtAStaticMeshWallJoinsItsHomeAndStopsAtItAsItDoesWithoutNumericFrames(bool everyBodyFalls, double speed, double gap)
     {
-        NumericFrameOptions numeric = everyBodyFalls ? EveryBodyFalls : new NumericFrameOptions();
+        NumericFrameOptions numeric = everyBodyFalls ? EveryGroupFalls : new NumericFrameOptions();
         WallRun without = FlyAtAMeshWall(numericFrames: false, numeric, Crate, reach: 0.5, speed, gap);
         WallRun with = FlyAtAMeshWall(numericFrames: true, numeric, Crate, reach: 0.5, speed, gap);
 
@@ -159,7 +158,7 @@ public class MeshGhostTests
     private static PushRun PushACrateFromRestAtAMeshWall(bool numericFrames)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
-            configure: options => options.NumericFrames = numericFrames ? EveryBodyFalls : WithoutNumericFrames);
+            configure: options => options.NumericFrames = numericFrames ? EveryGroupFalls : WithoutNumericFrames);
         FrameHandle ground = Ground(world, 0);
         Entity wall = world.Spawn(new SpawnDesc { Frame = ground, Body = MeshWall });
         var log = new CollisionLog();

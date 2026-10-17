@@ -1,6 +1,7 @@
 using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -22,15 +23,6 @@ public class CharacterFormNumericFrameTests
 
     /// <summary>The radius of the bounding sphere of <see cref="Person"/>, in meters.</summary>
     private const float PersonRadius = 0.9f;
-
-    /// <summary>Membership rules under which no group of bodies and no hull ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
 
     private static World NewWorld(bool numericFrames, out FaultInjectingBackend faults) =>
         NewWorldWithFaults(out faults, configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);

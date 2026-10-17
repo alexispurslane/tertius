@@ -2,6 +2,7 @@ using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.WorldTestingGrowth;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -17,19 +18,6 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class ReconcileTests
 {
-    /// <summary>
-    /// The thresholds of numeric frames, set so that the World never makes one. A numeric frame is a frame that the engine
-    /// makes around fast or far bodies (the default speed to get one is 50 m/s), with a system of its own. The ships here fly
-    /// at 60 m/s, so a test that checks which system holds a ship's hull needs them off.
-    /// </summary>
-    private static readonly NumericFrameOptions NoNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
-
     /// <summary>A hull of 4 m by 4 m by 4 m with a mass of 1000 kg, and no damping or bounce.</summary>
     private static BodyDesc ShipHull() =>
         new(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
@@ -49,27 +37,34 @@ public class ReconcileTests
 
     /// <summary>
     /// Probe P1 of the review, with physics systems of at most 8 bodies. A hangar bubble of radius 30 m, 1 km along +X,
-    /// and a ship 40 m beyond the hangar's center that flies into it at 60 m/s. Far along -X, a storage frame whose
-    /// system is full with 8 static crates, and a static skiff. The backend reconciles frame owners from the last one
-    /// created, so it reaches the skiff's hull before the ship's. With <paramref name="numericFrames"/> false, the World makes
-    /// no numeric frames.
+    /// and a ship 70 m beyond the hangar's center that flies into it at 60 m/s, with a gentle thruster along -X. Far along
+    /// -X, a storage frame whose system is full with 8 static crates, and a static skiff. The backend reconciles frame
+    /// owners from the last one created, so it reaches the skiff's hull before the ship's. With
+    /// <paramref name="numericFrames"/> false, the World makes no numeric frames. With it true, the ship's hull thrusts from
+    /// the sync point of its thirtieth tick on, 40 m beyond the hangar's center, and a hull that thrusts at 60 m/s falls in
+    /// a numeric frame of space: so it enters the hangar from that frame.
     /// </summary>
     private sealed class FullStorage : IDisposable
     {
+        private readonly bool numericFrames;
+
         public FullStorage(bool numericFrames)
         {
+            this.numericFrames = numericFrames;
             World = NewWorldWithFaultsAndSmallSystems(8, out FaultInjectingBackend faults,
-                configure: numericFrames ? null : options => options.NumericFrames = NoNumericFrames);
+                configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
             Faults = faults;
             Space = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
             Hangar = EmptyFrame(World, Space, At(1000), 30);
+            BodyDesc hull = ShipHull();
             Ship = World.GetOwnedFrame(World.Spawn(new SpawnDesc
             {
                 Frame = Space,
-                Pose = At(1040),
+                Pose = At(1070),
                 LinearVelocity = new Vector3(-60, 0, 0),
-                Body = ShipHull(),
+                Body = hull,
                 AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+                Components = [new Thruster(hull.Mass) { Direction = -Vector3.UnitX }],
             }));
             Storage = EmptyFrame(World, Space, At(-5000), 50);
             for (int i = 0; i < 8; i++)
@@ -97,13 +92,28 @@ public class ReconcileTests
         public FrameHandle Skiff { get; }
 
         /// <summary>
-        /// Ticks until physics hands the ship into the hangar. Then, between ticks and with no change batch, the game
+        /// Ticks until physics hands the ship into the hangar, and checks that the hull enters from a falling numeric frame
+        /// with numeric frames, or from the system of space without. Then, between ticks and with no change batch, the game
         /// moves the skiff into storage, the ship back into space and the hangar under the ship. Every move is legal.
         /// </summary>
         public void MoveFramesAfterTheShipEntersTheHangar()
         {
-            TickUntil(World, () => HandOffs(Faults).Count > 0, 60);
-            HandOffs(Faults).Should().ContainSingle().Which.To.Should().Be(Hangar);
+            // The ship's tree parent, and how it moves, before the step of the hand-off.
+            FrameHandle treeParent = FrameHandle.Null;
+            NumericMode treeParentMode = NumericMode.None;
+            TickUntil(World, () =>
+            {
+                if (HandOffs(Faults).Count > 0)
+                    return true;
+                treeParent = World.Frames.TreeParent(Ship);
+                treeParentMode = World.Frames.Numeric(treeParent);
+                return false;
+            }, 60);
+            HandOff entry = HandOffs(Faults).Should().ContainSingle().Which;
+            entry.To.Should().Be(Hangar);
+            entry.From.Should().Be(treeParent, "the hull enters the hangar from the system of the ship's tree parent");
+            treeParentMode.Should().Be(numericFrames ? NumericMode.Falling : NumericMode.None,
+                numericFrames ? "the ship's hull thrusts at 60 m/s, so it falls in a numeric frame of space" : "the World makes no numeric frames");
             World.Frames.Reparent(Skiff, Storage);
             World.Frames.Reparent(Ship, Space);
             World.Frames.Reparent(Hangar, Ship);
@@ -138,7 +148,8 @@ public class ReconcileTests
 
     /// <summary>
     /// Step 4 of the plan: this test read the backend between the stand-in's reconcile and the step. Now it asserts
-    /// the same two facts after one tick. The tick reconciles first, with the same code, and nothing in its step moves a
+    /// the same two facts after one tick. Numeric frames are on, and the ship's hull enters the hangar from a falling frame
+    /// (see <see cref="FullStorage"/>). The tick reconciles first, with the same code, and nothing in its step moves a
     /// hull to another system again or takes one out, so the step cannot repair a reconcile that left a hull in the wrong
     /// system. The reconcile also checks its own invariants at its end in a Debug build.
     /// </summary>
@@ -172,7 +183,7 @@ public class ReconcileTests
     public void AfterARefusedHandOffTheReconcileRestoresTheInvariants()
     {
         // Numeric frames off: the Release branch checks that the system of space holds the fighter's hull.
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.NumericFrames = NoNumericFrames);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.NumericFrames = WithoutNumericFrames);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
         FrameHandle carrier = EmptyFrame(world, space, At(1000), 200);
         FrameHandle fighter = world.GetOwnedFrame(world.Spawn(new SpawnDesc

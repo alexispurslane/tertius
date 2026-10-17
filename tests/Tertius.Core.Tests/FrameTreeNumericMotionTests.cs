@@ -14,6 +14,12 @@ public class FrameTreeNumericMotionTests
     private const double EarthMu = 3.986004418e14;
     private const double OrbitRadius = 6.771e6;
     private const double OrbitSpeed = 7_672.6;
+
+    /// <summary>
+    /// A distance from Earth's center of 10,000 km, in meters: past 2^23 m (about 8,389 km), the distance from which a slow
+    /// body gets a resting frame.
+    /// </summary>
+    private const double RestRadius = 1e7;
     private const double Dt = 1.0 / 60;
     private static readonly GravityField Earth = GravityField.Point(EarthMu);
 
@@ -94,10 +100,10 @@ public class FrameTreeNumericMotionTests
     [Fact]
     public void A_resting_frame_does_not_move_and_its_members_feel_the_whole_field()
     {
-        FrameHandle raft = FrameFor(X(OrbitRadius), Double3.Zero);
+        FrameHandle raft = FrameFor(X(RestRadius), Double3.Zero);
         frames.Numeric(raft).Should().Be(NumericMode.Resting);
         frames.AdvanceNumericFrames(Dt);
-        frames.TreeLocalPose(raft).Position.Should().Be(X(OrbitRadius));
-        frames.EffectiveGravity(raft, X(100)).Should().Be(Earth.AtPrecise(X(OrbitRadius + 100)).ToVector3());
+        frames.TreeLocalPose(raft).Position.Should().Be(X(RestRadius));
+        frames.EffectiveGravity(raft, X(100)).Should().Be(Earth.AtPrecise(X(RestRadius + 100)).ToVector3());
     }
 }

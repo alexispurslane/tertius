@@ -1,27 +1,20 @@
 using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// Hand-offs of bodies and frames between the physics systems of frames, on the World and the real backend. A test reads
 /// the hand-offs that Jolt really sent from <see cref="FaultInjectingBackend.Outputs"/>, and checks that the World applied
-/// them. A fast test (60 m/s and more) that checks which system a hull leaves or lands in turns the numeric frames of the
-/// World off, because a numeric frame would be the frame that Jolt names. The comment at the start of such a test says so.
+/// them. A fast test that checks which system a hull leaves or lands in turns the numeric frames of the World off, so that
+/// no numeric frame, which would be the frame that Jolt names, comes into play under any membership rules. The comment at
+/// the start of such a test says so.
 /// </summary>
 public class HandOffTests
 {
     private const float Dt = 1f / 60f;
-
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
 
     /// <summary>A world on the fault-injecting backend with no numeric frames.</summary>
     private static World NewWorldWithoutNumericFrames(out FaultInjectingBackend faults, List<string>? warnings = null) =>
@@ -167,8 +160,10 @@ public class HandOffTests
     [Fact]
     public void ABallThatLeavesAStationFacingItsPlanetNearApoapsisTakesTheStationsTurnRateThere()
     {
-        // At about 700 m/s the station's hull would rest in an orbit frame of its own, which would be the frame that Jolt
-        // names. The test after this one runs the scene with numeric frames.
+        // The station's hull would rest in an orbit frame of its own, which would be the frame that Jolt names: it gets one
+        // at 1,363 m/s at periapsis, faster than the 1,000 m/s from which a free hull gets one, and keeps it at 734 m/s near
+        // apoapsis, faster than the 400 m/s down to which it keeps one. The test after this one runs the scene with numeric
+        // frames.
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         const double mu = 5e9;
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(mu)));
@@ -211,6 +206,11 @@ public class HandOffTests
     /// 25 m from the hull then, farther than the merge test reaches, so the update of the same sync point moves it into a
     /// falling frame of its own. Every read of the ball in the planet is the same as without numeric frames, to the
     /// rounding of the hand-off's floats.
+    /// <para>
+    /// The ball leaves at about 734 m/s relative to the planet, below the 1,000 m/s from which a free body gets a falling
+    /// frame. So it carries a gentle thruster (<see cref="Thruster"/>) along its drift, in both runs, and thrusts from its
+    /// thirtieth tick on: a group with a body that thrusts falls from 50 m/s.
+    /// </para>
     /// </summary>
     [Fact]
     public void ABallThatLeavesAStationFacingItsPlanetMovesInThePlanetAlikeWithNumericFramesAndWithout()
@@ -227,8 +227,24 @@ public class HandOffTests
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(4)), InteriorShape: new SphereShapeDesc(1)),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(25), MotionDriver.Kepler, Orbit: orbit),
             }));
-            Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 0, 10), LinearVelocity = new Vector3(0, 0, 1), Body = BallBody(0.2f) });
+            BodyDesc ballBody = BallBody(0.2f);
+            Entity ball = world.Spawn(new SpawnDesc
+            {
+                Frame = station,
+                Pose = At(0, 0, 10),
+                LinearVelocity = new Vector3(0, 0, 1),
+                Body = ballBody,
+                Components = [new Thruster(ballBody.Mass) { Direction = Vector3.UnitZ }],
+            });
             TickUntil(world, () => world.GetFrame(ball) == planet, 1200);
+            if (numericFrames)
+            {
+                world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Orbiting,
+                    "the station's hull rests in an orbit frame of its own when the ball leaves");
+                world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Falling,
+                    "the sync point of the hand-off moves the ball into a falling frame of its own");
+                world.PhysicsHomeOf(ball).Should().NotBe(world.Frames.TreeParent(station));
+            }
             Tick(world, 60);
             world.Errors.Should().BeEmpty();
             FrameHandle home = world.PhysicsHomeOf(ball);

@@ -240,6 +240,12 @@ public sealed partial class FrameTree
     // clocks of its own bodies, so the clock of a body that is gone from its input goes with it.
     private Dictionary<Entity, double> leaveClocks = new();
     private Dictionary<Entity, double> nextLeaveClocks = new();
+    // The thrust clock of each body of the last update that is not static and has thrust time (see
+    // NumericFrameRules.ThrustClock), and the clocks that the current update builds. A body without an entry has a clock
+    // at zero. An update keeps only the clocks of its own bodies, so the clock of a body that is gone from its input goes
+    // with it.
+    private Dictionary<Entity, (double ThrustTime, double QuietTime)> thrustClocks = new();
+    private Dictionary<Entity, (double ThrustTime, double QuietTime)> nextThrustClocks = new();
 
     /// <summary>
     /// The ghosts that the homes of groups keep of the Kepler hulls that the groups link but cannot share a home with, which
@@ -257,7 +263,9 @@ public sealed partial class FrameTree
     /// Runs the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and "Nesting for
     /// vast distances") once, over a sync point of <paramref name="dt"/> seconds. <paramref name="bodies"/> holds every
     /// entity with a body that is not attached, in entity slot order, and a frame owner twice: its interior in its frame,
-    /// then its hull in the frame's parent. Within each semantic frame, the update links every
+    /// then its hull in the frame's parent. First the thrust clock of every body that is not static runs over the sync
+    /// point (see <see cref="NumericFrameRules.ThrustClock"/>), and a group with a body that thrusts then uses the lower
+    /// speeds of a group that thrusts (see <see cref="NumericBody.Thrusts"/>). Within each semantic frame, the update links every
     /// pair of bodies that <see cref="NumericFrameRules.MayTouch"/> links, also an anchor (see <see cref="NumericBody.Anchor"/>)
     /// and a group that falls. It holds the members of each numeric frame that are not anchors together until
     /// <see cref="NumericFrameRules.SplitClock"/> lets them split. An anchor counts as infinitely heavy (see
@@ -295,7 +303,7 @@ public sealed partial class FrameTree
     internal void UpdateNumericFrames(ReadOnlySpan<NumericBody> bodies, double dt, PhysicsChanges changes, Action<List<NumericMove>> applyMoves)
     {
         Contract.Requires(dt >= 0);
-        SortBySemanticFrame(bodies);
+        SortBySemanticFrame(bodies, dt);
         moves.Clear();
         lastAnchorGhosts.Clear();
         lastAnchorGhosts.AddRange(anchorGhosts);
@@ -328,7 +336,12 @@ public sealed partial class FrameTree
         CollectEmptyFrames(changes);
     }
 
-    private void SortBySemanticFrame(ReadOnlySpan<NumericBody> bodies)
+    /// <summary>
+    /// Fills <see cref="sortedBodies"/> with <paramref name="bodies"/>, sorted by semantic frame, each with the mode of its
+    /// home and whether it thrusts, after its thrust clock has run over <paramref name="dt"/> seconds (see
+    /// <see cref="Thrusts"/>).
+    /// </summary>
+    private void SortBySemanticFrame(ReadOnlySpan<NumericBody> bodies, double dt)
     {
         if (sortKeys.Length < bodies.Length)
         {
@@ -344,24 +357,58 @@ public sealed partial class FrameTree
         }
         Array.Sort(sortKeys, 0, bodies.Length);
         sortedBodies.Clear();
-        // The rules read the mode of each body's home, which only the tree knows. A semantic frame's mode is None, which
-        // the record has already, so most bodies need no copy.
+        nextThrustClocks.Clear();
+        // The rules read the mode of each body's home and whether it thrusts, which only the tree knows. A semantic frame's
+        // mode is None and most bodies do not thrust, which the record has already, so most bodies need no copy.
         for (int i = 0; i < bodies.Length; i++)
         {
             ref readonly NumericBody body = ref bodies[(int)(uint)sortKeys[i]];
-            sortedBodies.Add(body.Home == body.Semantic ? body : body with { HomeMode = numeric[body.Home.Index] });
+            NumericMode homeMode = body.Home == body.Semantic ? NumericMode.None : numeric[body.Home.Index];
+            bool thrusts = Thrusts(body, dt);
+            sortedBodies.Add(homeMode == body.HomeMode && thrusts == body.Thrusts ? body : body with { HomeMode = homeMode, Thrusts = thrusts });
         }
+        (thrustClocks, nextThrustClocks) = (nextThrustClocks, thrustClocks);
+    }
+
+    /// <summary>
+    /// Runs the thrust clock of <paramref name="body"/> over <paramref name="dt"/> seconds (see
+    /// <see cref="NumericFrameRules.ThrustClock"/>) into the clocks of the current update, and returns true when the body
+    /// thrusts: a character always does, and any other body when its clock says so. A clock without thrust time is a clock
+    /// at zero, so it gets no entry. A static body has no clock: no force moves it. That is also the interior of a frame
+    /// owner, so the owner's one clock is the one of its hull, and the hull of a frame that the Static driver parks drops
+    /// its clock.
+    /// </summary>
+    private bool Thrusts(in NumericBody body, double dt)
+    {
+        if (body.Static)
+            return false;
+        thrustClocks.TryGetValue(body.Entity, out (double ThrustTime, double QuietTime) clock);
+        (bool thrusts, double thrustTime, double quietTime) =
+            NumericFrameRules.ThrustClock(body.ThrustAcceleration, clock.ThrustTime, clock.QuietTime, dt, NumericOptions);
+        if (thrustTime > 0)
+            nextThrustClocks[body.Entity] = (thrustTime, quietTime);
+        return body.Character || thrusts;
     }
 
     /// <summary>
     /// True when a body of the semantic frame is in a numeric frame or needs one by itself. A group's common speed and
     /// center never pass those of its farthest and fastest body, so a semantic frame where no body needs a frame has no
-    /// group that does.
+    /// group that does. A group of free bodies can join a body that thrusts, though, and then use the lower speeds of a
+    /// group that thrusts although no body passes the speeds of its own kind: a free body at 60 m/s and a character at
+    /// 40 m/s thrust together at 50 m/s. So when a body of the semantic frame thrusts, every body is tested with the speeds
+    /// of a body that thrusts, which are never above those of a free body (see <see cref="NumericFrameOptions.Validate"/>).
     /// </summary>
     private bool NeedsWork(ReadOnlySpan<NumericBody> bodies)
     {
+        bool thrusts = false;
         foreach (ref readonly NumericBody body in bodies)
-            if (body.Home != body.Semantic || NumericFrameRules.BodyMode(body, NumericOptions) != NumericMode.None)
+        {
+            if (body.Home != body.Semantic)
+                return true;
+            thrusts |= body.Thrusts;
+        }
+        foreach (ref readonly NumericBody body in bodies)
+            if (NumericFrameRules.BodyMode(body, thrusts, NumericOptions) != NumericMode.None)
                 return true;
         return false;
     }

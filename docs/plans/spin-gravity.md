@@ -68,7 +68,7 @@ In the spike, a person stood for 600 of 600 ticks, walked both ways, and jumped 
 
 ## Numeric frames inside turning frames
 
-A body that moves faster than 50 m/s relative to the station gets a falling numeric frame. Its origin moves on its inertial line: the frame integrates it in the turning frame, with the same terms at the origin. Its members then feel only the difference. For them, the Coriolis term reduces to `−2 ω × v_local`.
+A group with a body that thrusts, such as any character, gets a falling numeric frame from 50 m/s relative to the station. A group of free bodies only gets one from 1,000 m/s (see [Numeric frames](numeric-frames.md), "Who gets a numeric frame"). The frame's origin moves on its inertial line: the frame integrates it in the turning frame, with the same terms at the origin. Its members then feel only the difference. For them, the Coriolis term reduces to `−2 ω × v_local`.
 
 One case failed in the spike and must be fixed. A person crossed the middle at 40 m/s and got a falling frame five ticks before landing. It landed 0.7 m deep in the floor and went through it. With falling frames off, it landed correctly.
 

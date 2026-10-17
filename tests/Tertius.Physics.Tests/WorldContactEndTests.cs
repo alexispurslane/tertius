@@ -2,6 +2,7 @@ using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -254,7 +255,7 @@ public class WorldContactEndTests
         Tick(world, 3);
         boxLog.NewsOf(floor).Should().Equal(Started);
 
-        world.Frames.NumericOptions = new NumericFrameOptions { CreateDistance = 0, LeaveDistance = 0 };
+        world.Frames.NumericOptions = EverySlowGroupRests;
         TickUntil(world, () => world.Frames.IsNumeric(world.PhysicsHomeOf(box)), 30);
         FrameHandle numeric = world.PhysicsHomeOf(box);
         world.Frames.IsNumeric(numeric).Should().BeTrue();

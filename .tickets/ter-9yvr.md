@@ -1,6 +1,6 @@
 ---
 id: ter-9yvr
-status: open
+status: closed
 deps: [ter-dhkf]
 links: [ter-vja8]
 created: 2026-10-17T14:34:17Z
@@ -16,3 +16,9 @@ Part of the epic on fewer, more reliable numeric frames (change 1). A group insi
 
 If this rule lands, ter-vja8 (numeric frames inside turning frames, with the origin on its inertial line) is superseded. Ask the user before closing ter-vja8.
 
+
+## Notes
+
+**2026-10-17T20:59:04Z**
+
+2026-10-17: closed by the user's rule that planned work gets no stopgaps. ter-vja8 builds falling numeric frames inside turning frames properly, and it now comes before the spinning station scene (ter-n44b).

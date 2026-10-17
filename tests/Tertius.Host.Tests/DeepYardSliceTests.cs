@@ -8,7 +8,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// One headless run of the checked-in script scripts/deep-yard.json in the scene deep-yard (see
-/// <see cref="DemoScenes.DeepYard"/>), with the state of its bodies after every tick. The whole yard drifts at 100 m/s.
+/// <see cref="DemoScenes.DeepYard"/>), with the state of its bodies after every tick. The whole yard drifts at 2,000 m/s.
 /// In it, crate-a closes the 2 m between itself and crate-b at 0.1 m/s and pushes it. The person floats at rest for 10 s,
 /// thrusts toward the crates for 1 s, drifts toward them, and joins their numeric frame. Every test of the class reads
 /// that one run.
@@ -293,12 +293,12 @@ public sealed class DeepYardSliceTests(DeepYardRun run) : IClassFixture<DeepYard
     }
 
     /// <summary>
-    /// The yard drifts 1.67 m along -Z in each tick. A frame whose place were a double in space a light-year out would
-    /// round each step to 2 m, so the bodies at rest in the yard would move 0.33 m farther along -Z than its center in
-    /// each tick. Through the nest they stay where they were spawned.
+    /// The yard drifts 33.33 m along -Z in each tick. A frame whose place were a double in space a light-year out would
+    /// round each step to a multiple of 2 m, 34 m, so the bodies at rest in the yard would move 0.67 m farther along -Z than
+    /// its center in each tick. Through the nest they stay where they were spawned.
     /// </summary>
     [Fact]
-    public void TheBodiesAtRestInTheYardKeepTheirPlacesWhileTheYardDriftsAHundredMetersASecond()
+    public void TheBodiesAtRestInTheYardKeepTheirPlacesWhileTheYardDriftsTwoKilometersASecond()
     {
         int push = DeepYardExpectations.FirstPushOfCrateB(Samples), rest = DeepYardExpectations.LastTickAtRest(Samples);
         push.Should().BePositive();
@@ -313,7 +313,7 @@ public sealed class DeepYardSliceTests(DeepYardRun run) : IClassFixture<DeepYard
         foreach (YardSample sample in Samples)
             foreach (string id in new[] { "crate-a", "crate-b" })
                 sample.InYard(id).Z.Should().BeApproximately(0, 1e-5, $"{id} moves only along X in the yard, after tick {sample.Tick}");
-        (Samples[^1].Time * DeepYard.DriftSpeed).Should().BeGreaterThan(2_000, "the yard drifts more than 2 km over the run");
+        (Samples[^1].Time * DeepYard.DriftSpeed).Should().BeGreaterThan(40_000, "the yard drifts more than 40 km over the run");
     }
 
     [Fact]
@@ -352,7 +352,7 @@ public sealed class DeepYardSliceTests(DeepYardRun run) : IClassFixture<DeepYard
                 $"every other numeric frame falls with the yard, in the nest, after tick {sample.Tick}");
             foreach ((string id, DeepYardBody body) in sample.Bodies)
             {
-                body.HomeMode.Should().Be(NumericMode.Falling, $"{id} moves at 100 m/s in space after tick {sample.Tick}");
+                body.HomeMode.Should().Be(NumericMode.Falling, $"{id} moves at {DeepYard.DriftSpeed} m/s in space after tick {sample.Tick}");
                 body.Nest.Should().Be(nest.Frame, $"{id}'s frame lies in the nest after tick {sample.Tick}");
             }
         }
@@ -454,7 +454,7 @@ internal static class DeepYardReport
         Line(report, $"- The `person`, a capsule character of {DeepYard.PersonMass} kg, floats at rest in the yard {DeepYard.PersonDistance} m from its center along +Z and faces the crates (-Z). It is the camera.");
         Line(report, $"- The script holds W for {DeepYardExpectations.ThrustTicks} ticks (1 s) from tick 600, so the person thrusts toward the crates with {PersonControl.ThrustForce} N. It then drifts toward them and, after tick {merge}, joins their numeric frame. The run ends at tick {samples.Count - 1}, before the person reaches the crates.");
         Line(report, $"");
-        Line(report, $"Why the drift: a numeric frame moves only when it falls or recenters. A yard at rest in space would rest in resting frames that never move, and every place would be an even number of meters, which a double holds a light-year out, so a run without the nest would give the same numbers. At {DeepYard.DriftSpeed} m/s the yard's frames fall and move {DeepYard.DriftSpeed * tick:F4} m along -Z in each tick. A double in space, a light-year out, would round each such step to 2 m. The section \"What the nest changes in this run\" works that out from the run's own steps.");
+        Line(report, $"Why the drift: a numeric frame moves only when it falls or recenters. A yard at rest in space would rest in resting frames that never move, and every place would be an even number of meters, which a double holds a light-year out, so a run without the nest would give the same numbers. At {DeepYard.DriftSpeed} m/s the yard's frames fall and move {DeepYard.DriftSpeed * tick:F4} m along -Z in each tick. A double in space, a light-year out, would round each such step to a multiple of 2 m. The section \"What the nest changes in this run\" works that out from the run's own steps.");
         Line(report, $"");
         Line(report, $"The crates' gap lies along X, not along Z. Spawn positions are in space's coordinates, which step by 2 m along Z a light-year out, so no spawn can place two crates 3 m apart along Z. The engine has no way to spawn a body more precisely than a double of its semantic frame's coordinates. Along X the coordinates are small.");
         Line(report, $"");
@@ -464,7 +464,7 @@ internal static class DeepYardReport
         Line(report, $"- The crates' momentum in the yard stays what it was before the contact, about {DeepYardExpectations.Momentum.X} kg·m/s along +X, within 1e-6 relative.");
         Line(report, $"- The second of thrust moves the person as thrust over mass predicts, within 1 mm. The engine works in ticks of 1/60 s with semi-implicit Euler, the scheme that Jolt uses for every rigid body, and its 60 ticks of {DeepYardExpectations.Thrust} m/s² predict a·dt²·60·61/2 = {-DeepYardExpectations.SteppedThrustDisplacement.Z} m. A force that acts without a break would give a·t²/2 = {-DeepYardExpectations.ContinuousThrustDisplacement.Z} m, 12.5 mm less. The report shows both; the test checks the first.");
         Line(report, $"- After the thrust the person drifts at {-DeepYardExpectations.ThrustVelocity.Z} m/s in the yard, within 1 mm over the rest of the run, through its merge into the crates' frame.");
-        Line(report, $"- The bodies at rest in the yard keep their places, within 1e-6 m, while the yard drifts more than 2 km.");
+        Line(report, $"- The bodies at rest in the yard keep their places, within 1e-6 m, while the yard drifts more than 40 km.");
         Line(report, $"- Every body falls in a numeric frame under one nesting frame on the grid of 2^20 m, which never jumps. The crates keep one frame. The person joins it once, when the merge test first holds, and stays. World.Errors stays empty.");
         Line(report, $"");
         Line(report, $"Positions in space round to 2 m along Z, a light-year out. The column \"In the yard\" reads each body through its nesting frame instead: the nest's place minus the yard's starting center, which is exact, plus the body's position in the nest, minus the drift since the start.");
@@ -552,7 +552,7 @@ internal static class DeepYardReport
         }
         Line(report, $"");
         string speedup = speedups.Count == 0 ? "no falling frame moved" : string.Join(" and ", speedups.Select(r => Invariant($"{r:F4}")));
-        Line(report, $"The ratio of the move in space to the move through the nest, for each falling frame: {speedup}. So without the nest the yard's frames would move at that many times the speed that their members' velocities say, and the bodies at rest in the yard would move away from their places in it. Through the nest they keep their places within 1e-6 m (the test TheBodiesAtRestInTheYardKeepTheirPlacesWhileTheYardDriftsAHundredMetersASecond). The merge test between the person's frame and the crates' frame also reads the separation of the two frames through the nest, from small numbers.");
+        Line(report, $"The ratio of the move in space to the move through the nest, for each falling frame: {speedup}. So without the nest the yard's frames would move at that many times the speed that their members' velocities say, and the bodies at rest in the yard would move away from their places in it. Through the nest they keep their places within 1e-6 m (the test TheBodiesAtRestInTheYardKeepTheirPlacesWhileTheYardDriftsTwoKilometersASecond). The merge test between the person's frame and the crates' frame also reads the separation of the two frames through the nest, from small numbers.");
         Line(report, $"");
 
         Line(report, $"## Expectations");

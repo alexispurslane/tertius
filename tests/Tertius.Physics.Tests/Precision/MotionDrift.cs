@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Tertius.Simulation;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests.Precision;
 
@@ -84,15 +85,6 @@ internal static class MotionDrift
 
     /// <summary>The environment variable that names the folder for the CSV files.</summary>
     public const string OutputVariable = "TERTIUS_PRECISION_OUT";
-
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
 
     private static readonly string[] Header =
     [

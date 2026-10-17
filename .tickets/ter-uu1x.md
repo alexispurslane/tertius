@@ -1,6 +1,6 @@
 ---
 id: ter-uu1x
-status: open
+status: in_progress
 deps: []
 links: [ter-kugq, ter-jwzd, ter-dhkf]
 created: 2026-10-17T14:34:17Z
@@ -45,3 +45,7 @@ ter-3xs6 and ter-9yvr both edit NumericFrameRules.cs and FrameTree.Numeric.cs, s
 Process (global CLAUDE.md, new today): one Opus reviewer per piece of work; a skeptic only for four or more high findings; a fix agent confirms each finding with a failing test; every brief tells agents to cut command output and splits big stages into agents that commit in turn. Coverage and Stryker run only in the orchestrator (tools/README.md). The two ContactAllocationTests fail only with coverage on (ter-odo6). Use subshells, not cd, for commands in worktrees, or the session's folder moves.
 
 Other tickets filed today, not in this epic: ter-w7cw (a character in the air pushes without reaction), ter-myew (rigid form gets 7 mm/s from the airlock sill), ter-qcdo (a weightless character lowers a whole system's sleep threshold), ter-61ds (the character's supporting plane sits above its center).
+
+**2026-10-17T20:59:04Z**
+
+2026-10-17: change 1's rule that no numeric frame falls inside a turning frame is dropped (ter-9yvr closed): the user wants no stopgaps for planned work, and ter-vja8 in the spin gravity epic builds those frames. Order now: ter-3xs6, then ter-4psc, then the spin gravity epic ter-s9m0 (ter-1bnq, ter-vja8, ter-1b21, ter-n44b).

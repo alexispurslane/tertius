@@ -3,6 +3,7 @@ using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.WorldTestingGrowth;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -378,10 +379,7 @@ public class CharacterFormTests
     [Fact]
     public void AWeightlessCharacterHandsOffIntoAnotherFramesBubbleAndKeepsItsMotion()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.NumericFrames = new NumericFrameOptions
-        {
-            CreateSpeed = double.PositiveInfinity, LeaveSpeed = double.PositiveInfinity, CreateDistance = double.PositiveInfinity, LeaveDistance = double.PositiveInfinity,
-        });
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.NumericFrames = WithoutNumericFrames);
         FrameHandle space = Space(world);
         FrameHandle bay = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
@@ -438,13 +436,14 @@ public class CharacterFormTests
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         FrameHandle space = Space(world);
-        // At 100 m/s together, the two get a numeric frame of their own (NumericFrameOptions.CreateSpeed).
+        // A character always thrusts, so at 100 m/s together the two get a falling frame of their own: a group with a body
+        // that thrusts falls from 50 m/s (NumericFrameOptions.ThrustCreateSpeed).
         var drift = new Double3(0, 0, 100);
         var pilot = new Pilot();
         Entity person = SpawnPerson(world, space, At(0), drift, pilot);
         Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0.3 + 0.02 + 0.5), LinearVelocity = drift, Body = Crate });
         Tick(world, 2);
-        world.Frames.IsNumeric(world.PhysicsHomeOf(person)).Should().BeTrue();
+        world.Frames.Numeric(world.PhysicsHomeOf(person)).Should().Be(NumericMode.Falling);
         world.PhysicsHomeOf(crate).Should().Be(world.PhysicsHomeOf(person));
         backend.HasRigidForm(person).Should().BeTrue();
         double crateStart = world.PoseIn(crate, space).Position.X;
@@ -456,6 +455,8 @@ public class CharacterFormTests
         double pairPath = PairPath(world, thrust, 120, PersonMass + CrateMass);
         (world.PoseIn(crate, space).Position.X - crateStart).Should().BeGreaterThan(0.8 * pairPath,
             $"a pair of 90 kg under {Thrust} N moves {pairPath:F2} m, also in a numeric frame");
+        world.Frames.Numeric(world.PhysicsHomeOf(crate)).Should().Be(NumericMode.Falling, "the push happened in the falling frame");
+        world.PhysicsHomeOf(person).Should().Be(world.PhysicsHomeOf(crate));
         world.Errors.Should().BeEmpty();
     }
 

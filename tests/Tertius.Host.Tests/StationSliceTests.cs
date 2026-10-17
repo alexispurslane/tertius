@@ -9,8 +9,8 @@ namespace Tertius.Host.Tests;
 /// One headless run of the checked-in script scripts/station.json in the scene station (see
 /// <see cref="Station"/>), with the state of its moving bodies after every tick. The station rides its Kepler orbit 400 km
 /// up at 7.67 km/s. Its airlock opens to the outside, and three cargo pods drift out of it at 1 m/s, out of the bubble
-/// and along the port side, and bump the radiator. In the cabin, the script throws a crate at 60 m/s after the pods have
-/// left the station's frame, and it stops at a thin wall. Every test of the class reads that one run.
+/// and along the port side, and bump the radiator. In the cabin, the script throws a crate at 1,200 m/s after the pods
+/// have left the station's frame, and it stops at a thin wall. Every test of the class reads that one run.
 /// </summary>
 public sealed class StationRun : CheckedInRun
 {
@@ -186,13 +186,20 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
             "the pods have left the station's frame, so no pod is in the crate's group in the merge test");
     }
 
+    /// <summary>
+    /// The crate flies 20 m in each tick. The first tick of its flight ends with it 3.2 m before the wall, and the script
+    /// dumps and captures it there. The next step would carry it far past the wall, so only Jolt's linear cast stops it.
+    /// </summary>
     [Fact]
-    public void TheCrateThrownAtSixtyMetersASecondStopsAtTheThinWallAndHearsItsCollision()
+    public void TheCrateThrownAtTwelveHundredMetersASecondStopsAtTheThinWallAndHearsItsCollision()
     {
         Entity wall = run.Scene["wall"];
-        StationBody flying = Samples[Launched + 10].Bodies["crate"], end = Samples[^1].Bodies["crate"];
+        StationBody flying = Samples[Launched].Bodies["crate"], end = Samples[^1].Bodies["crate"];
 
-        Double3.Distance(flying.VelocityInStation, Station.CrateVelocity).Should().BeLessThan(1e-3, "the crate flies at 60 m/s before it reaches the wall");
+        Double3.Distance(flying.VelocityInStation, Station.CrateVelocity).Should().BeLessThan(1e-3, "the crate flies at 1,200 m/s before it reaches the wall");
+        flying.InStation.Z.Should().BeInRange(Station.ThinWall.Max.Z + Station.CrateHalfSize + 1, Station.CrateStart.Z - 1,
+            "after the first step of its flight, the crate is on its way, short of the wall");
+        run.Result.Dump("crate-flying").Tick.Should().Be(Samples[Launched].Tick, "the script dumps and captures the crate in its one tick in the air");
         // Jolt pushes two bodies apart only as far as they sink beyond the penetration slop, so the crate may rest that far in.
         double sink = Station.ThinWall.Max.Z + Station.CrateHalfSize - end.InStation.Z;
         sink.Should().BeInRange(-2e-3, new JoltBackendOptions().PenetrationSlop + 2e-3, "the crate stops with its front at the wall's aft face");
@@ -221,16 +228,21 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
     }
 
     /// <summary>
-    /// The crate is within the merge test's reach of the wall at every sync point, 120 m at 60 m/s for 2 s, so it never
-    /// falls in a numeric frame of its own: it shares the wall's home, the station frame's own system, where Jolt sweeps it
-    /// against the real wall. The station's interior, an anchor of that system too, and the airlock's two kinematic doors,
-    /// which give the group their velocity, zero, keep it there as well. Before ter-dhkf, the merge test kept a falling
-    /// group apart from an anchor and weighed the doors by their 1 kg, so the crate fell in a numeric frame at 55.6 m/s,
-    /// met only a kinematic ghost of the wall there, which Jolt gives no linear cast, and passed through it.
+    /// After the first step of its flight, the crate moves at 1,200 m/s, above the 1,000 m/s from which a group of free
+    /// bodies falls in a numeric frame. But it is within the merge test's reach of the wall at every sync point, 2,400 m at
+    /// 1,200 m/s for 2 s, so it never falls in a numeric frame of its own: it shares the wall's home, the station frame's
+    /// own system, where Jolt sweeps it against the real wall. The station's interior, an anchor of that system too, and
+    /// the airlock's two kinematic doors, which give the group their velocity, zero, keep it there as well. Before ter-dhkf,
+    /// the merge test kept a falling group apart from an anchor and weighed the doors by their 1 kg, so the crate would
+    /// fall in a numeric frame at 1,111 m/s, meet only a kinematic ghost of the wall there, which Jolt gives no linear
+    /// cast, and pass through it.
     /// </summary>
     [Fact]
     public void TheThrownCrateLivesInTheWallsSystemAtEveryTick()
     {
+        StationBody flying = Samples[Launched].Bodies["crate"];
+        flying.VelocityInStation.Length.Should().BeGreaterThan(new NumericFrameOptions().CreateSpeed, "the crate alone would fall in a numeric frame");
+        flying.Home.Should().Be("station", "the anchors of its group keep the fast crate in the wall's system");
         Samples.Skip(1).Should().OnlyContain(s => s.Bodies["crate"].Home == "station" && s.Bodies["crate"].InStationFrame);
     }
 

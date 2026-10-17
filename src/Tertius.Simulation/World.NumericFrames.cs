@@ -64,6 +64,7 @@ public sealed partial class World
                 continue;
             // The body of a frame owner is its frame's hull, which moves as the frame's driver says.
             BodyMotion motion = own.IsNull ? desc.Motion : BodyDesc.FrameHullMotion(Frames.Driver(own));
+            double mass = desc.Mass > 0 ? desc.Mass : 1;
             numericBodies.Add(new NumericBody
             {
                 Entity = entity,
@@ -73,7 +74,9 @@ public sealed partial class World
                 HomePosition = row.HomePose.Position,
                 Velocity = SemanticVelocity(entity, row, own),
                 Radius = physics!.BoundingRadius(desc.Shape),
-                Mass = desc.Mass > 0 ? desc.Mass : 1,
+                Mass = mass,
+                Character = motion == BodyMotion.Character,
+                ThrustAcceleration = ThrustAcceleration(entity, motion, mass),
                 Static = motion == BodyMotion.Static,
                 Kinematic = motion == BodyMotion.Kinematic,
                 Fixed = !own.IsNull && Frames.Driver(own) != MotionDriver.Physics,
@@ -85,6 +88,22 @@ public sealed partial class World
         Frames.UpdateNumericFrames(CollectionsMarshal.AsSpan(numericBodies), dt, physicsChanges, applyNumericMoves ??= ApplyNumericMoves);
         FlushPhysicsChanges();
         pendingCreates.Clear();
+    }
+
+    /// <summary>
+    /// The acceleration in m/s² that the force and impulse intents of <paramref name="entity"/> ask of its body, whose
+    /// motion is <paramref name="motion"/> and mass <paramref name="mass"/> kg, in the step after this sync point:
+    /// (|force| + |impulse| / step) / mass, from the intent that the step applies. Physics gives a force or an impulse only
+    /// to a dynamic body or a character, so any other body gets zero, and so does the hull of a frame that physics does not
+    /// drive, whose owner's intent acts on that hull. Gravity is no intent, and a torque does not move the body, so neither
+    /// counts. The thrust clock of the numeric update reads it (see <see cref="NumericFrameRules.ThrustClock"/>).
+    /// </summary>
+    private double ThrustAcceleration(Entity entity, BodyMotion motion, double mass)
+    {
+        if (motion is not (BodyMotion.Dynamic or BodyMotion.Character))
+            return 0;
+        ref readonly PhysicsIntent intent = ref entities.NextStepIntent(entity);
+        return (intent.Force.Length() + intent.Impulse.Length() / (double)DeltaTime) / mass;
     }
 
     /// <summary>

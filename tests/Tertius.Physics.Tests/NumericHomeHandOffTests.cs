@@ -1,6 +1,7 @@
 using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -8,42 +9,46 @@ namespace Tertius.Physics.Tests;
 /// A body whose physics home is a numeric frame meets the bubbles that it meets in the system of its home's semantic frame
 /// (ticket ter-kz89). A numeric frame is a physics-only frame that the engine makes for fast, falling or resting bodies,
 /// so that Jolt's float positions stay small. It has no bubble, so it does not change which bubbles a body meets. A crate
-/// thrown at 50 m/s or more inside a ship falls in a numeric frame below the ship, whose semantic frame is the ship. When
-/// the crate sticks out of the ship's bubble, it has a ghost in the ship's parent and in each sibling of the ship whose
-/// bubble it touches. A ghost is a kinematic copy of a body in the physics system of another frame, so that the bodies
-/// there collide with it. When the crate is fully outside the ship's bubble plus the exit margin, it moves into the ship's
-/// parent: its semantic frame changes, and it hears FrameChanged. These tests run the World on the real backend, with the
-/// default numeric frame options but a merge test without lookahead (see <see cref="WithoutLookahead"/>), under which a
-/// body that flies at 50 m/s or more relative to its frame gets a falling numeric frame once it is clear of the ship's
-/// interior, and with no numeric frames, where the crate stays in the system of the ship. They assert the same outcome in
-/// both.
+/// that thrusts and is thrown at 60 m/s inside a ship falls in a numeric frame below the ship, whose semantic frame is the
+/// ship. When the crate sticks out of the ship's bubble, it has a ghost in the ship's parent and in each sibling of the ship
+/// whose bubble it touches. A ghost is a kinematic copy of a body in the physics system of another frame, so that the
+/// bodies there collide with it. When the crate is fully outside the ship's bubble plus the exit margin, it moves into the
+/// ship's parent: its semantic frame changes, and it hears FrameChanged. These tests run the World on the real backend,
+/// with the default numeric frame options but a merge test without lookahead (see <see cref="WithoutLookahead"/>), and with
+/// no numeric frames, where the crate stays in the system of the ship. They assert the same outcome in both.
+/// <para>
+/// Under the default options, a group of free bodies falls in a numeric frame only from 1,000 m/s, and a group with a body
+/// that thrusts from 50 m/s. A body other than a character thrusts after 0.5 s (30 ticks) of thrust. So the crate carries a
+/// gentle thruster (<see cref="Thruster"/>), waits at rest in the ship for those 30 ticks, and only then is thrown (see
+/// <see cref="WarmUpAndThrow"/>). From the throw on, every tick and place is as it was when a free crate at 60 m/s fell.
+/// </para>
 /// </summary>
 public class NumericHomeHandOffTests
 {
     /// <summary>The radius of the ship's bubble, in meters.</summary>
     private const float ShipRadius = 30;
 
-    /// <summary>How fast the crate is thrown in the ship, in m/s. It is more than 50 m/s, so the crate gets a falling frame.</summary>
+    /// <summary>
+    /// How fast the crate is thrown in the ship, in m/s. It is more than the 50 m/s from which a group with a body that
+    /// thrusts gets a falling frame, and less than the 1,000 m/s from which a group of free bodies gets one.
+    /// </summary>
     private const float ThrowSpeed = 60;
+
+    /// <summary>
+    /// How many ticks of thrust at 60 Hz a body needs before it thrusts: the first count of ticks of 1/60 s that reaches the
+    /// 0.5 s of <see cref="NumericFrameOptions.ThrustOnset"/>.
+    /// </summary>
+    private const int OnsetTicks = 30;
 
     /// <summary>How many ticks each run lasts after the first one, 1 s at 60 Hz.</summary>
     private const int Ticks = 60;
-
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
 
     /// <summary>
     /// The default membership rules, but with a merge test that reaches only the bounding spheres, without the lookahead of
     /// 2 s and the split margin of 10 m. The ship's interior is a static body at the ship's origin, an anchor that keeps
     /// every body that the merge test links to it in the ship's own system (docs/plans/numeric-frames.md, "Anchors"). With
     /// the default reach, 2 s of the crate's 60 m/s, the interior would keep the crate there until it left the bubble. With
-    /// this reach, the crate is clear of the interior after the first step, 1 m beyond the 5.2 m where their spheres
+    /// this reach, the crate is clear of the interior after the step of the throw, 1 m beyond the 5.2 m where their spheres
     /// touch, so it falls in a numeric frame of its own below the ship, which is the case that these tests are about.
     /// </summary>
     private static readonly NumericFrameOptions WithoutLookahead = new() { LookaheadTime = 0, SplitMargin = 0 };
@@ -65,21 +70,30 @@ public class NumericHomeHandOffTests
     /// <param name="Station">The parked station beside the ship, or null when the scene has none.</param>
     /// <param name="StationCrate">The crate at rest in the station, or null when the scene has none.</param>
     /// <param name="CrateFrames">Every FrameChanged that the thrown crate hears.</param>
+    /// <param name="CratePilot">The pilot that throws the crate (see <see cref="WarmUpAndThrow"/>).</param>
+    /// <param name="ThrowVelocity">The velocity of the throw relative to the ship, in m/s.</param>
     private sealed record ShipScene(FrameHandle Space, Entity ShipOwner, FrameHandle Ship, Entity Crate, FrameChangedLog CrateFrames,
-        FrameHandle Station, Entity StationCrate);
+        FrameHandle Station, Entity StationCrate, Pilot CratePilot, Double3 ThrowVelocity);
+
+    /// <summary>How the ship moves in space.</summary>
+    /// <param name="Velocity">The ship's velocity in space, in m/s.</param>
+    /// <param name="Thrusts">True when the ship's hull carries a gentle thruster along its velocity, so that it thrusts from
+    /// the sync point of its thirtieth tick on.</param>
+    private readonly record struct ShipMotion(Vector3 Velocity, bool Thrusts);
 
     /// <summary>
     /// Space, with no gravity, and in it a ship: a hull of 4 m by 4 m by 4 m and 1000 kg that physics drives, at the origin
-    /// of space, with the velocity <paramref name="shipVelocity"/> in space, a bubble of radius 30 m around it, and the
-    /// field <paramref name="shipGravity"/> inside, or none. A crate of 2 m by 2 m by 2 m and 2 kg starts 5 m from the
-    /// ship's center along <paramref name="throwDirection"/>, and flies along it at 60 m/s relative to the ship. Its
-    /// bounding sphere has a radius of about 1.73 m. So it sticks out of the bubble from about 0.39 s on, and it is fully
-    /// outside the bubble plus the exit margin of 1.73 m after about 0.47 s. When <paramref name="withStation"/> holds, a
-    /// parked station sits at (60, 0, 0) in space: a frame that physics does not drive, with a static hull of 4 m by 4 m by
-    /// 4 m at its center and a bubble of radius 40 m, which overlaps the ship's. A crate rests at (-28, 0, 0) in the
-    /// station, 32 m from the ship's center, outside the ship's bubble.
+    /// of space, with the velocity of <paramref name="shipMotion"/> in space and a gentle thruster when it says so, a bubble
+    /// of radius 30 m around it, and the field <paramref name="shipGravity"/> inside, or none. A crate of 2 m by 2 m by 2 m
+    /// and 2 kg rests 5 m from the ship's center along <paramref name="throwDirection"/>, with a gentle thruster along it.
+    /// <see cref="WarmUpAndThrow"/> throws it along that direction at 60 m/s relative to the ship. Its bounding sphere has a
+    /// radius of about 1.73 m. So it sticks out of the bubble from about 0.39 s after the throw on, and it is fully outside
+    /// the bubble plus the exit margin of 1.73 m after about 0.47 s. When <paramref name="withStation"/> holds, a parked
+    /// station sits at (60, 0, 0) in space: a frame that physics does not drive, with a static hull of 4 m by 4 m by 4 m at
+    /// its center and a bubble of radius 40 m, which overlaps the ship's. A crate rests at (-28, 0, 0) in the station, 32 m
+    /// from the ship's center, outside the ship's bubble.
     /// </summary>
-    private static ShipScene CrateThrownInAShip(World world, Vector3 shipVelocity, Double3 throwDirection, bool withStation = false,
+    private static ShipScene CrateThrownInAShip(World world, ShipMotion shipMotion, Double3 throwDirection, bool withStation = false,
         GravityField shipGravity = default)
     {
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
@@ -87,19 +101,20 @@ public class NumericHomeHandOffTests
         {
             Frame = space,
             Pose = At(0),
-            LinearVelocity = shipVelocity,
+            LinearVelocity = shipMotion.Velocity,
             Body = ShipHull,
             AsFrame = new FrameSpec(FrameBounds.Sphere(ShipRadius), MotionDriver.Physics, shipGravity),
+            Components = shipMotion.Thrusts ? [new Thruster(ShipHull.Mass) { Direction = Vector3.Normalize(shipMotion.Velocity) }] : [],
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         var crateFrames = new FrameChangedLog();
+        var cratePilot = new Pilot();
         Entity crate = world.Spawn(new SpawnDesc
         {
             Frame = ship,
             Pose = new DPose(throwDirection * 5, DQuaternion.Identity),
-            LinearVelocity = (throwDirection * ThrowSpeed).ToVector3(),
             Body = CrateBody,
-            Components = [crateFrames],
+            Components = [crateFrames, new Thruster(CrateBody.Mass) { Direction = throwDirection.ToVector3() }, cratePilot],
         });
         FrameHandle station = FrameHandle.Null;
         Entity stationCrate = Entity.Null;
@@ -115,8 +130,26 @@ public class NumericHomeHandOffTests
             station = world.GetOwnedFrame(stationOwner);
             stationCrate = world.Spawn(new SpawnDesc { Frame = station, Pose = At(-28), Body = CrateBody });
         }
-        return new ShipScene(space, shipOwner, ship, crate, crateFrames, station, stationCrate);
+        return new ShipScene(space, shipOwner, ship, crate, crateFrames, station, stationCrate, cratePilot, throwDirection * ThrowSpeed);
     }
+
+    /// <summary>
+    /// Runs the ship scene for <see cref="OnsetTicks"/> ticks, at whose last sync point the crate, and the ship's hull when
+    /// it carries a thruster, start to thrust. Then it ticks once more, in which the crate's pilot sets its velocity to the
+    /// throw. The step of the next tick throws the crate, and the sync point of that tick gives it a falling frame: the
+    /// caller's first tick after this one is the tick of the throw.
+    /// </summary>
+    private static void WarmUpAndThrow(World world, ShipScene scene)
+    {
+        Tick(world, OnsetTicks);
+        Double3 throwVelocity = scene.ThrowVelocity;
+        scene.CratePilot.Once = body => body.SetVelocity(throwVelocity);
+        world.Tick();
+    }
+
+    /// <summary>Checks that the thrown crate falls in a numeric frame, as it does from the tick of the throw on.</summary>
+    private static void CrateShouldFall(World world, ShipScene scene, string because) =>
+        world.Frames.Numeric(world.PhysicsHomeOf(scene.Crate)).Should().Be(NumericMode.Falling, because);
 
     /// <summary>
     /// Checks that the thrown crate falls in a numeric frame below the ship with numeric frames, and is in the system of
@@ -127,7 +160,8 @@ public class NumericHomeHandOffTests
         FrameHandle home = world.PhysicsHomeOf(scene.Crate);
         if (numericFrames)
         {
-            world.Frames.Numeric(home).Should().Be(NumericMode.Falling, "at 60 m/s relative to the ship the crate gets a falling numeric frame");
+            world.Frames.Numeric(home).Should().Be(NumericMode.Falling,
+                "the crate thrusts and flies at 60 m/s relative to the ship, so it gets a falling numeric frame");
             world.Frames.SemanticOf(home).Should().Be(scene.Ship, "the crate's falling frame is a frame of the ship");
         }
         else
@@ -151,14 +185,17 @@ public class NumericHomeHandOffTests
         List<int> TreeParentGhostTicks, int LeftAt, Double3 Position, Double3 Velocity, List<FrameChanged> Seen, List<HandOff> HandOffsOut);
 
     /// <summary>
-    /// Runs the ship scene for 61 ticks and records, after each tick but the first, whether the crate has a ghost in
-    /// space, whether it has a ghost in the ship's tree parent when that is a numeric frame, and whether it has left the
-    /// ship. It checks after each tick that the crate has no ghost in the ship, its own semantic frame.
+    /// Throws the crate in the ship scene (see <see cref="WarmUpAndThrow"/>), runs it for 61 ticks from the throw on, and
+    /// records, after each tick but the first, whether the crate has a ghost in space, whether it has a ghost in the ship's
+    /// tree parent when that is a numeric frame, and whether it has left the ship. It checks after each tick that the crate
+    /// has no ghost in the ship, its own semantic frame, and, with numeric frames, that it falls in a numeric frame until it
+    /// leaves.
     /// </summary>
-    private static Run ThrowTheCrate(bool numericFrames, Vector3 shipVelocity, Double3 throwDirection, GravityField shipGravity = default)
+    private static Run ThrowTheCrate(bool numericFrames, ShipMotion shipMotion, Double3 throwDirection, GravityField shipGravity = default)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
-        ShipScene scene = CrateThrownInAShip(world, shipVelocity, throwDirection, shipGravity: shipGravity);
+        ShipScene scene = CrateThrownInAShip(world, shipMotion, throwDirection, shipGravity: shipGravity);
+        WarmUpAndThrow(world, scene);
         world.Tick();
         CrateHomeShouldBe(world, scene, numericFrames);
         FrameHandle shipTreeParent = world.Frames.TreeParent(scene.Ship);
@@ -177,6 +214,8 @@ public class NumericHomeHandOffTests
                 treeParentGhostTicks.Add(tick);
             if (leftAt < 0 && world.GetFrame(scene.Crate) == scene.Space)
                 leftAt = tick;
+            if (numericFrames && leftAt < 0)
+                CrateShouldFall(world, scene, $"after tick {tick} the crate still falls in its numeric frame below the ship");
         }
 
         world.Errors.Should().BeEmpty();
@@ -186,11 +225,20 @@ public class NumericHomeHandOffTests
             world.PoseIn(scene.Crate, scene.Space).Position, world.VelocityIn(scene.Crate, scene.Space), scene.CrateFrames.Seen, handOffsOut);
     }
 
-    /// <summary>The ship drifts at 20 m/s along +Y, slower than 50 m/s, so its hull stays in the system of space.</summary>
-    private static readonly Vector3 Drift = new(0, 20, 0);
+    /// <summary>The ship rests at the origin of space.</summary>
+    private static readonly ShipMotion AtRest = new(Vector3.Zero, Thrusts: false);
 
-    /// <summary>The ship flies at 60 m/s along -X, faster than 50 m/s, so its hull falls in a numeric frame of space.</summary>
-    private static readonly Vector3 Fall = new(-60, 0, 0);
+    /// <summary>
+    /// The ship drifts at 20 m/s along +Y without thrust, slower than the 1,000 m/s from which a free hull falls, so its hull
+    /// stays in the system of space.
+    /// </summary>
+    private static readonly ShipMotion Drift = new(new Vector3(0, 20, 0), Thrusts: false);
+
+    /// <summary>
+    /// The ship flies at 60 m/s along -X with a gentle thrust along it, faster than the 50 m/s from which a hull that thrusts
+    /// falls, so its hull falls in a numeric frame of space from the sync point of its thirtieth tick on, before the throw.
+    /// </summary>
+    private static readonly ShipMotion Fall = new(new Vector3(-60, 0, 0), Thrusts: true);
 
     /// <summary>Checks that the crate had a ghost in space exactly while it stuck out of the ship's bubble, before it left.</summary>
     private static void GhostInSpaceWhileItSticksOut(Run run)
@@ -259,9 +307,12 @@ public class NumericHomeHandOffTests
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
         ShipScene scene = CrateThrownInAShip(world, Drift, new Double3(1, 0, 0), shipGravity: ShipGravity);
+        WarmUpAndThrow(world, scene);
         world.Tick();
         CrateHomeShouldBe(world, scene, numericFrames);
         TickUntil(world, () => faults.Jolt.HasGhostIn(scene.Crate, scene.Space), Ticks);
+        if (numericFrames)
+            CrateShouldFall(world, scene, "the crate that sticks out of the ship falls in its numeric frame");
 
         JoltPhysicsBackend.BodyFacts ghost = GhostOf(faults, scene.Crate, scene.Space);
         Double3 velocity = world.VelocityIn(scene.Crate, scene.Space);
@@ -302,18 +353,26 @@ public class NumericHomeHandOffTests
 
     /// <summary>
     /// Runs the ship scene with the ship at rest and the station beside it, with the crate thrown along +X at the
-    /// station's crate, until the station's crate moves at more than 10 m/s relative to the station, at most 60 ticks.
-    /// Returns the ticks that it ran, the state of the station's crate then, relative to the station, and the place of the
-    /// thrown crate there.
+    /// station's crate, until the station's crate moves at more than 10 m/s relative to the station, at most 60 ticks after
+    /// the tick of the throw. With numeric frames, it checks after each of those ticks until the push that the thrown crate
+    /// falls in its numeric frame. Returns the ticks that it ran, the state of the station's crate then, relative to the
+    /// station, and the place of the thrown crate there.
     /// </summary>
     private static (int Ticks, Double3 Position, Double3 Velocity, Double3 PusherPosition) PushTheStationsCrate(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out _);
-        ShipScene scene = CrateThrownInAShip(world, Vector3.Zero, new Double3(1, 0, 0), withStation: true);
+        ShipScene scene = CrateThrownInAShip(world, AtRest, new Double3(1, 0, 0), withStation: true);
+        WarmUpAndThrow(world, scene);
         world.Tick();
         CrateHomeShouldBe(world, scene, numericFrames);
 
-        int ticks = TickUntil(world, () => world.VelocityIn(scene.StationCrate, scene.Station).Length > 10, Ticks);
+        int ticks = TickUntil(world, () =>
+        {
+            bool pushed = world.VelocityIn(scene.StationCrate, scene.Station).Length > 10;
+            if (numericFrames && !pushed)
+                CrateShouldFall(world, scene, "the thrown crate falls in its numeric frame until its ghost pushes the station's crate");
+            return pushed;
+        }, Ticks);
 
         world.Errors.Should().BeEmpty();
         return (ticks, world.PoseIn(scene.StationCrate, scene.Station).Position, world.VelocityIn(scene.StationCrate, scene.Station),
@@ -326,8 +385,8 @@ public class NumericHomeHandOffTests
         var withNumericFrames = PushTheStationsCrate(numericFrames: true);
         var withoutNumericFrames = PushTheStationsCrate(numericFrames: false);
 
-        // The front of the thrown crate reaches the back of the station's, 31 m from the ship's center, after 0.42 s. The
-        // thrown crate then sticks out of the ship's bubble and touches the station's, a sibling of the ship.
+        // The front of the thrown crate reaches the back of the station's, 31 m from the ship's center, 0.42 s after the
+        // throw. The thrown crate then sticks out of the ship's bubble and touches the station's, a sibling of the ship.
         withoutNumericFrames.Ticks.Should().BeInRange(22, 28, "the ghost of the thrown crate in the station reaches the station's crate after about 0.42 s");
         withoutNumericFrames.Velocity.X.Should().BeGreaterThan(10, "the ghost pushed the crate along +X");
         (withoutNumericFrames.Position.X - withoutNumericFrames.PusherPosition.X).Should().BeGreaterThan(1.9,
@@ -356,16 +415,20 @@ public class NumericHomeHandOffTests
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         ShipScene scene = shipFalls
             ? CrateThrownInAShip(world, Fall, new Double3(0, 1, 0))
-            : CrateThrownInAShip(world, Vector3.Zero, new Double3(1, 0, 0), withStation: true);
+            : CrateThrownInAShip(world, AtRest, new Double3(1, 0, 0), withStation: true);
         FrameHandle buoy = EmptyFrame(world, scene.Space, At(-5000), 5);
         FrameHandle depot = EmptyFrame(world, scene.Space, At(5000), 50);
+        WarmUpAndThrow(world, scene);
         world.Tick();
         CrateHomeShouldBe(world, scene, numericFrames: true);
         // The ship's tree parent, or the station beside the ship.
         FrameHandle other = shipFalls ? world.Frames.TreeParent(scene.Ship) : scene.Station;
+        if (shipFalls)
+            world.Frames.Numeric(other).Should().Be(NumericMode.Falling, "the ship's hull thrusts at 60 m/s, so it falls in a numeric frame");
         bool HasBothGhosts() => faults.Jolt.HasGhostIn(scene.Crate, scene.Space) && faults.Jolt.HasGhostIn(scene.Crate, other);
         TickUntil(world, HasBothGhosts, Ticks);
-        HasBothGhosts().Should().BeTrue("after about 0.4 s the crate sticks out of the ship's bubble");
+        HasBothGhosts().Should().BeTrue("about 0.4 s after the throw the crate sticks out of the ship's bubble");
+        CrateShouldFall(world, scene, "the crate that sticks out of the ship falls in its numeric frame");
 
         // A change far away makes the backend reconcile. The ship is still a semantic child of space.
         world.Frames.Reparent(buoy, depot);

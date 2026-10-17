@@ -10,4 +10,10 @@
     <ProjectReference Include="../../src/Tertius.Simulation/Tertius.Simulation.csproj" />
     <ProjectReference Include="../../src/Tertius.Physics/Tertius.Physics.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The helpers that name internal engine types, such as the membership rules of numeric frames. -->
+    <InternalsVisibleTo Include="Tertius.Physics.Tests" />
+    <InternalsVisibleTo Include="Tertius.Simulation.Tests" />
+    <InternalsVisibleTo Include="Tertius.Host.Tests" />
+  </ItemGroup>
 </Project>
