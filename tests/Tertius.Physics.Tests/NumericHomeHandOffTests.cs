@@ -10,8 +10,8 @@ namespace Tertius.Physics.Tests;
 /// (ticket ter-kz89). A numeric frame is a physics-only frame that the engine makes for fast, falling or resting bodies,
 /// so that Jolt's float positions stay small. It has no bubble, so it does not change which bubbles a body meets. A crate
 /// that thrusts and is thrown at 60 m/s inside a ship falls in a numeric frame below the ship, whose semantic frame is the
-/// ship. When the crate sticks out of the ship's bubble, it has a ghost in the ship's parent and in each sibling of the ship
-/// whose bubble it touches. A ghost is a kinematic copy of a body in the physics system of another frame, so that the
+/// ship. When the crate sticks out of the ship's bubble, it has a ghost in the ship's tree parent, the home of the ship's
+/// hull, and in each sibling of the ship whose bubble it touches. A ghost is a kinematic copy of a body in the physics system of another frame, so that the
 /// bodies there collide with it. When the crate is fully outside the ship's bubble plus the exit margin, it moves into the
 /// ship's parent: its semantic frame changes, and it hears FrameChanged. These tests run the World on the real backend,
 /// with the default numeric frame options but a merge test without lookahead (see <see cref="WithoutLookahead"/>), and with
@@ -325,12 +325,13 @@ public class NumericHomeHandOffTests
 
     /// <summary>
     /// The ship flies in a falling frame of space. The crate's falling frame hangs below the ship, which hangs below the
-    /// hull's falling frame. The crate that sticks out of the ship has a ghost in that falling frame, the ship's tree
-    /// parent, and in space, the ship's semantic parent, whose own system holds the bodies that the merge test does not
-    /// link to the hull. It leaves into the ship's tree parent, as a body in the ship's own system does.
+    /// hull's falling frame. The crate that sticks out of the ship has its ghost in that falling frame, the ship's tree
+    /// parent, while it sticks out, as it has its ghost in space, the ship's tree parent without numeric frames. No body of
+    /// space may touch the ghost, so the system of space keeps none (ticket ter-4psc). The crate leaves into the ship's
+    /// tree parent, as a body in the ship's own system does.
     /// </summary>
     [Fact]
-    public void ACrateThrownFastInsideAFallingShipHasAGhostInSpaceAndLeavesTheShipAsItDoesWithoutNumericFrames()
+    public void ACrateThrownFastInsideAFallingShipHasAGhostInTheShipsTreeParentAndLeavesTheShipAsItDoesWithoutNumericFrames()
     {
         Run withNumericFrames = ThrowTheCrate(numericFrames: true, Fall, new Double3(0, 1, 0));
         Run withoutNumericFrames = ThrowTheCrate(numericFrames: false, Fall, new Double3(0, 1, 0));
@@ -340,9 +341,9 @@ public class NumericHomeHandOffTests
         GhostInSpaceWhileItSticksOut(withoutNumericFrames);
         withNumericFrames.ShipTreeParent.Should().NotBe(withNumericFrames.Space, "the ship's hull falls in a numeric frame");
         withNumericFrames.LeftAt.Should().Be(withoutNumericFrames.LeftAt);
-        withNumericFrames.GhostTicks.Should().Equal(withoutNumericFrames.GhostTicks, "the crate has a ghost in space while it sticks out");
-        withNumericFrames.TreeParentGhostTicks.Should().Equal(withNumericFrames.GhostTicks,
-            "the crate is partly in the ship's tree parent while it sticks out");
+        withNumericFrames.TreeParentGhostTicks.Should().Equal(withoutNumericFrames.GhostTicks,
+            "the crate is partly in the ship's tree parent while it sticks out, with numeric frames or without");
+        withNumericFrames.GhostTicks.Should().BeEmpty("no body of space may touch the crate's ghost, so the system of space keeps none");
         withNumericFrames.HandOffsOut.Should().ContainSingle().Which.To.Should().Be(withNumericFrames.ShipTreeParent,
             "the crate leaves into the ship's tree parent");
         withNumericFrames.Seen.Should().ContainSingle().Which.To.Should().Be(withNumericFrames.Space);
@@ -405,7 +406,9 @@ public class NumericHomeHandOffTests
     /// The reconcile at the start of a step drops each ghost that the frame tree does not allow, and the ghost pass at the
     /// end of the step makes a missing ghost again, so the step would run without it. The test runs the reconcile alone, by
     /// applying an empty change batch after a change of the tree far away, and reads the backend before the next step. The
-    /// crate sticks out of a ship at rest beside the station, or out of a falling ship.
+    /// crate sticks out of a ship at rest beside the station, whose tree parent is space, and then has its ghosts in space
+    /// and in the station; or out of a falling ship, whose tree parent is the hull's falling frame, and then has its one
+    /// ghost there and none in space, the ship's semantic parent (ticket ter-4psc).
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -421,25 +424,29 @@ public class NumericHomeHandOffTests
         WarmUpAndThrow(world, scene);
         world.Tick();
         CrateHomeShouldBe(world, scene, numericFrames: true);
-        // The ship's tree parent, or the station beside the ship.
-        FrameHandle other = shipFalls ? world.Frames.TreeParent(scene.Ship) : scene.Station;
+        FrameHandle treeParent = world.Frames.TreeParent(scene.Ship);
         if (shipFalls)
-            world.Frames.Numeric(other).Should().Be(NumericMode.Falling, "the ship's hull thrusts at 60 m/s, so it falls in a numeric frame");
-        bool HasBothGhosts() => faults.Jolt.HasGhostIn(scene.Crate, scene.Space) && faults.Jolt.HasGhostIn(scene.Crate, other);
-        TickUntil(world, HasBothGhosts, Ticks);
-        HasBothGhosts().Should().BeTrue("about 0.4 s after the throw the crate sticks out of the ship's bubble");
+            world.Frames.Numeric(treeParent).Should().Be(NumericMode.Falling, "the ship's hull thrusts at 60 m/s, so it falls in a numeric frame");
+        else
+            treeParent.Should().Be(scene.Space, "the ship's hull rests at the origin of space");
+        bool HasItsGhosts() => faults.Jolt.HasGhostIn(scene.Crate, treeParent) && (shipFalls || faults.Jolt.HasGhostIn(scene.Crate, scene.Station));
+        TickUntil(world, HasItsGhosts, Ticks);
+        HasItsGhosts().Should().BeTrue("about 0.4 s after the throw the crate sticks out of the ship's bubble");
         CrateShouldFall(world, scene, "the crate that sticks out of the ship falls in its numeric frame");
+        if (shipFalls)
+            faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeFalse("no body of space may touch the crate's ghost");
 
         // A change far away makes the backend reconcile. The ship is still a semantic child of space.
         world.Frames.Reparent(buoy, depot);
         world.Frames.Update();
         faults.Jolt.ApplyChanges(new PhysicsChanges(), world.Frames);
 
-        faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeTrue(
-            "the crate sticks out of the ship, the semantic frame of its home, so it is partly in space, the ship's semantic parent");
-        faults.Jolt.HasGhostIn(scene.Crate, other).Should().BeTrue(shipFalls
-            ? "the crate is partly in the ship's tree parent"
-            : "the crate touches the bubble of the station, a semantic sibling of the ship");
+        faults.Jolt.HasGhostIn(scene.Crate, treeParent).Should().BeTrue(
+            "the crate sticks out of the ship, the semantic frame of its home, so it is partly in the ship's tree parent, the home of the ship's hull");
+        if (shipFalls)
+            faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeFalse("the tree allows the crate no ghost in the ship's semantic parent");
+        else
+            faults.Jolt.HasGhostIn(scene.Crate, scene.Station).Should().BeTrue("the crate touches the bubble of the station, a semantic sibling of the ship");
         world.Tick();
         world.Errors.Should().BeEmpty();
     }

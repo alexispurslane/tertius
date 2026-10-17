@@ -498,26 +498,31 @@ public class WorldNumericFrameTests
     }
 
     // The scenes of the shifts need ghosts in a falling frame. Since ter-dhkf, every anchor joins the group of the crates
-    // near it, or that group lives in the anchor's home, so no anchor has a ghost in a falling frame. The ghost of a body
-    // that sticks out of a bubble does: the numeric update names the falling frame of the crates near the bubble to keep
-    // it (see StickingWall). Every wall lies about 1 km along +X in space.
+    // near it, or that group lives in the anchor's home, so no anchor has a ghost in a falling frame. Since ter-4psc, a
+    // crate that may touch the ghost of a body that sticks out of a bubble joins the group of the bubble's hull, because
+    // that ghost lives in the bubble's tree parent, the home of the hull. When every group falls, the hull, the crates near
+    // the bubble and the ghost share a falling frame (see StickingWall). Every wall lies about 1 km along +X in space.
 
     [Fact]
     public void AShiftOfAFallingFrameMovesTheGhostsInItWithoutWakingTheBodiesNearThem()
     {
-        // Every group falls, and a frame moves its origin when its members' center is 1 m from it. A sleeping crate floats
-        // 4 cm from the ghost of a still wall, inside the margin in which a removed ghost wakes bodies, and beyond the
-        // distance at which Jolt makes a contact. A second crate in its frame puts the members' center 4 m away.
+        // Every group falls, and a frame moves its origin when its members' center of mass is 1 m from it. A sleeping crate
+        // floats 4 cm from the ghost of a still wall, inside the margin in which a removed ghost wakes bodies, and beyond the
+        // distance at which Jolt makes a contact. The wall's hull, 2 m behind the wall's center, is a member too, and a
+        // second crate in the frame puts the members' center of mass 3.9 m from the center of mass of the hull and the
+        // sleeper.
         using World world = NewWorld(out JoltPhysicsBackend backend,
             configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 });
         FrameHandle ground = Space(world);
-        Entity wall = StickingWall(world, ground, 1000, cratesSide: 1);
+        WallInShip wall = StickingWall(world, ground, 1000, cratesSide: 1);
         Entity sleeper = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1001.04), Body = Crate });
         Entity other = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1009), Body = Crate });
         Tick(world, 1);
         FrameHandle home = world.PhysicsHomeOf(sleeper);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Falling);
         world.PhysicsHomeOf(other).Should().Be(home);
-        backend.HasGhostIn(wall, home).Should().BeTrue();
+        world.PhysicsHomeOf(wall.Hull).Should().Be(home, "the merge test links the wall's hull to the crates near the wall");
+        backend.HasGhostIn(wall.Wall, home).Should().BeTrue("the wall sticks out of its ship into the ship's tree parent");
         TickUntil(world, () => !IsAwake(backend, home, sleeper), 600);
         IsAwake(backend, home, sleeper).Should().BeFalse("the crate came to rest next to the wall's ghost");
 
@@ -526,25 +531,27 @@ public class WorldNumericFrameTests
 
         world.Errors.Should().BeEmpty();
         world.PhysicsHomeOf(sleeper).Should().Be(home);
-        world.Frames.HomeOffset(home, ground).X.Should().BeApproximately(1001.04, 1e-6, "the frame's origin moved to the crate");
+        double center = (world.PoseIn(wall.Hull, ground).Position.X * WallHull.Mass + world.PoseIn(sleeper, ground).Position.X * Crate.Mass)
+            / (WallHull.Mass + Crate.Mass);
+        world.Frames.HomeOffset(home, ground).X.Should().BeApproximately(center, 1e-6, "the frame's origin moved to the center of mass of the hull and the crate");
         IsAwake(backend, home, sleeper).Should().BeFalse("the ghost moved without waking the crate next to it");
-        backend.HasGhostIn(wall, home).Should().BeTrue();
+        backend.HasGhostIn(wall.Wall, home).Should().BeTrue();
     }
 
     [Fact]
     public void AShiftOfAFallingFrameMovesEveryGhostInItAndLeavesTheGhostsOfOtherFramesWhereTheyAre()
     {
-        // Every group falls, and a frame moves its origin when its members' center is 1 m from it. In one falling frame, two
-        // sleeping crates float 4 cm from the ghosts of two still walls, and a third crate above them puts the members'
-        // center 2.7 m above the center of the two. Far away, a second falling frame holds a crate that sleeps 4 cm from the
-        // ghost of a third wall. The ghost pass puts back a ghost that is not where its wall is relative to the frame, and so
-        // wakes the crate next to it.
+        // Every group falls, and a frame moves its origin when its members' center of mass is 1 m from it. In one falling
+        // frame, two sleeping crates float 4 cm from the ghosts of two still walls, whose hulls are members too, and a third
+        // crate above them puts the members' center of mass 2.5 m above the center of the two crates and the two hulls.
+        // Far away, a second falling frame holds a crate that sleeps 4 cm from the ghost of a third wall. The ghost pass puts
+        // back a ghost that is not where its wall is relative to the frame, and so wakes the crate next to it.
         using World world = NewWorld(out JoltPhysicsBackend backend,
             configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 });
         FrameHandle ground = Space(world);
         StickingWall(world, ground, 1000, cratesSide: 1);
         StickingWall(world, ground, 1010, cratesSide: -1);
-        Entity farWall = StickingWall(world, ground, 1200, cratesSide: 1);
+        Entity farWall = StickingWall(world, ground, 1200, cratesSide: 1).Wall;
         Entity left = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1001.04), Body = Crate });
         Entity right = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1008.96), Body = Crate });
         Entity above = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1005, 8), Body = Crate });
@@ -553,6 +560,8 @@ public class WorldNumericFrameTests
         Tick(world, 1);
         FrameHandle home = world.PhysicsHomeOf(left);
         FrameHandle farHome = world.PhysicsHomeOf(far);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Falling);
+        world.Frames.Numeric(farHome).Should().Be(NumericMode.Falling);
         world.PhysicsHomeOf(right).Should().Be(home);
         farHome.Should().NotBe(home);
         GhostsIn(backend, home).Should().HaveCount(2, "the frame keeps a ghost of each wall next to its crates");
@@ -580,16 +589,18 @@ public class WorldNumericFrameTests
     public void AShiftOfAFallingFrameDoesNotTouchAGhostThatWentAwayBeforeIt()
     {
         // As above, without the far frame. In the tick that shifts the frame, the right wall goes away, and its ghost with it.
+        // The right wall's hull stays in the frame, which the merge test links to the right crate beside it.
         using World world = NewWorld(out JoltPhysicsBackend backend,
             configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 });
         FrameHandle ground = Space(world);
-        Entity leftWall = StickingWall(world, ground, 1000, cratesSide: 1);
-        Entity rightWall = StickingWall(world, ground, 1010, cratesSide: -1);
+        Entity leftWall = StickingWall(world, ground, 1000, cratesSide: 1).Wall;
+        Entity rightWall = StickingWall(world, ground, 1010, cratesSide: -1).Wall;
         Entity left = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1001.04), Body = Crate });
         Entity right = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1008.96), Body = Crate });
         Entity above = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1005, 8), Body = Crate });
         Tick(world, 1);
         FrameHandle home = world.PhysicsHomeOf(left);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Falling);
         backend.HasGhostIn(rightWall, home).Should().BeTrue();
         TickUntil(world, () => !IsAwake(backend, home, left) && !IsAwake(backend, home, right), 600);
         IsAwake(backend, home, left).Should().BeFalse("the left crate came to rest next to its wall's ghost");
@@ -611,22 +622,36 @@ public class WorldNumericFrameTests
     private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
 
     /// <summary>
-    /// A still wall 1 m thick and 10 m square, across the X axis at <paramref name="x"/> in <paramref name="space"/>: a
-    /// kinematic body at rest in a station, a frame with the Static driver, no hull and a bubble of radius 2 m, on the edge
-    /// of the bubble, so that it sticks out. The station lies on the side of the wall away from the crates, whose side is
-    /// <paramref name="cratesSide"/>: +1 for +X, -1 for -X. A body that sticks out of a bubble has a ghost in the bubble's
-    /// tree parent, space, and in each falling frame of space whose members may touch it, which the numeric update names.
+    /// The hull of a ship of <see cref="StickingWall"/>: a ball of radius 10 cm and 1 kg, light beside a crate of 10 kg,
+    /// that nothing slows down. A hull meets only static bodies and other hulls, so the crates pass it by.
     /// </summary>
-    private static Entity StickingWall(World world, FrameHandle space, double x, int cratesSide)
+    private static readonly BodyDesc WallHull = new(new SphereShapeDesc(0.1f), Mass: 1, LinearDamping: 0, AngularDamping: 0);
+
+    /// <summary>A wall of <see cref="StickingWall"/> and the hull of the ship whose bubble it sticks out of.</summary>
+    private readonly record struct WallInShip(Entity Wall, Entity Hull);
+
+    /// <summary>
+    /// A still wall 1 m thick and 10 m square, across the X axis at <paramref name="x"/> in <paramref name="space"/>: a
+    /// kinematic body at rest in a ship, a frame with the Physics driver, the hull <see cref="WallHull"/> and a bubble of
+    /// radius 2 m, on the edge of the bubble, so that it sticks out. The ship lies on the side of the wall away from the
+    /// crates, whose side is <paramref name="cratesSide"/>: +1 for +X, -1 for -X, and its hull rests at its origin, 2 m
+    /// behind the wall's center. A body that sticks out of a bubble has a ghost in the bubble's tree parent, the home of the
+    /// bubble's hull. The merge test links each crate that may touch that ghost to the place of the ghost, whose target is
+    /// the hull (ticket ter-4psc), and the hull lies within its reach of the crates near the wall too. So under
+    /// <see cref="NumericFrameTesting.EveryGroupFalls"/> the hull and those crates fall in one numeric frame, which holds the
+    /// wall's ghost.
+    /// </summary>
+    private static WallInShip StickingWall(World world, FrameHandle space, double x, int cratesSide)
     {
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        Entity hull = world.Spawn(new SpawnDesc
         {
-            Frame = space, Pose = At(x - 2 * cratesSide), AsFrame = new FrameSpec(FrameBounds.Sphere(2), MotionDriver.Static),
-        }));
-        return world.Spawn(new SpawnDesc
-        {
-            Frame = station, Pose = At(2 * cratesSide), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Kinematic),
+            Frame = space, Pose = At(x - 2 * cratesSide), Body = WallHull, AsFrame = new FrameSpec(FrameBounds.Sphere(2), MotionDriver.Physics),
         });
+        Entity wall = world.Spawn(new SpawnDesc
+        {
+            Frame = world.GetOwnedFrame(hull), Pose = At(2 * cratesSide), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Kinematic),
+        });
+        return new WallInShip(wall, hull);
     }
 
     /// <summary>Every ghost in the system of <paramref name="frame"/>, as Jolt holds it.</summary>

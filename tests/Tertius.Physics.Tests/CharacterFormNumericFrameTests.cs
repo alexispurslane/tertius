@@ -169,7 +169,9 @@ public class CharacterFormNumericFrameTests
     /// and <see cref="Core"/> otherwise, and whose bubble is a sphere of <see cref="StationRadius"/>, and a character in it,
     /// 10 m along +Y from the core, that drifts along +Y at 1 m/s relative to the station. The station's frame falls with
     /// its orbit and has no gravity of its own, so the character has the rigid form there. While it sticks out of the bubble
-    /// it has ghosts in the station's tree parent and in earth. It leaves the bubble into the tree parent. With numeric
+    /// it has a ghost in the station's tree parent, the home of the station's hull: the orbit frame K with numeric frames,
+    /// earth's own system without. With numeric frames, no body of earth may touch that ghost, so earth's own system keeps
+    /// none (ticket ter-4psc). It leaves the bubble into the tree parent. With numeric
     /// frames that is the station's orbit frame K: the merge test links the character to a hull with the plate, so it stays
     /// in K, and it does not link it to the core alone, so the same sync point moves it into a falling frame of its own.
     /// Both fall with the station, so the character stays rigid. Without numeric frames the tree parent is earth's own
@@ -181,8 +183,8 @@ public class CharacterFormNumericFrameTests
     [InlineData(true, true)]
     [InlineData(true, false)]
     [InlineData(false, true)]
-    public void ARigidCharacterThatDriftsOutOfAKeplerStationHasGhostsWhileItSticksOutAndTakesTheFormThatTheGravityOfItsNewHomeAsksFor(bool numericFrames,
-        bool plate)
+    public void ARigidCharacterThatDriftsOutOfAKeplerStationHasAGhostInTheStationsTreeParentWhileItSticksOutAndTakesTheFormThatTheGravityOfItsNewHomeAsksFor(
+        bool numericFrames, bool plate)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
         FrameHandle earth = Earth(world);
@@ -194,7 +196,7 @@ public class CharacterFormNumericFrameTests
         Entity person = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 10), LinearVelocity = new Double3(0, 1, 0), Body = Person });
 
         var states = new List<string>();
-        bool ghostsWhileRigid = false;
+        bool ghostWhileRigid = false;
         for (int tick = 0; tick < 480; tick++)
         {
             world.Tick();
@@ -202,15 +204,16 @@ public class CharacterFormNumericFrameTests
             if (states.Count == 0 || states[^1] != state)
                 states.Add(state);
             FrameHandle parent = world.Frames.TreeParent(station);
-            if (world.PhysicsHomeOf(person) == station && faults.Jolt.HasRigidForm(person) &&
-                faults.Jolt.HasGhostIn(person, parent) && faults.Jolt.HasGhostIn(person, earth))
-                ghostsWhileRigid = true;
+            if (world.PhysicsHomeOf(person) == station && faults.Jolt.HasRigidForm(person) && faults.Jolt.HasGhostIn(person, parent))
+                ghostWhileRigid = true;
+            if (parent != earth)
+                faults.Jolt.HasGhostIn(person, earth).Should().BeFalse($"after tick {tick} no body of earth may touch the character's ghost in K");
         }
 
         states.Should().Equal(!numericFrames ? ["station rigid", "earth rigid", "earth walking"]
             : plate ? ["station rigid", "Orbiting rigid"]
             : ["station rigid", "Falling rigid"], "a hand-off keeps the form, and the next step takes the form of the new home's gravity");
-        ghostsWhileRigid.Should().BeTrue("a rigid character that sticks out of the bubble is partly in the station's tree parent and in earth");
+        ghostWhileRigid.Should().BeTrue("a rigid character that sticks out of the bubble is partly in the station's tree parent");
         world.GetFrame(person).Should().Be(earth);
         (world.PoseIn(person, station).Position - new Double3(0, 18, 0)).Length.Should().BeLessThan(numericFrames ? 1e-6 : 1e-3,
             "the character drifts on at 1 m/s relative to the station");
