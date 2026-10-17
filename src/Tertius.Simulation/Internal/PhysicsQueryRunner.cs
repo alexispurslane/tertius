@@ -113,7 +113,7 @@ internal sealed class PhysicsQueryRunner
                 // A broken contract is a bug, so it is not survived like one.
                 catch (Exception ex) when (ex is not ContractException)
                 {
-                    reportError($"tick {tick}: {request.Asker}: a {NameOf(request.Kind)} failed and has no answer: {ex.GetType().Name}: {ex.Message}");
+                    reportError($"tick {tick}: {request.Asker}: the {NameOf(request.Kind)} failed and has no answer: {ex.GetType().Name}: {ex.Message}");
                 }
                 if (filter.DeadHits > 0)
                     reportError($"tick {tick}: {request.Asker}: physics reported {filter.DeadHits} bodies of entities that are not live, which only a bug in the backend produces. The {NameOf(request.Kind)} skipped them.");

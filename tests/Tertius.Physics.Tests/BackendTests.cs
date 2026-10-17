@@ -39,6 +39,42 @@ public class BackendTests
         backend.Invoking(b => b.Dispose()).Should().NotThrow();
     }
 
+    /// <summary>A query filter that accepts every entity.</summary>
+    private sealed class AcceptsEveryEntity : IPhysicsQueryFilter
+    {
+        public bool Accepts(Entity entity) => true;
+    }
+
+    /// <summary>
+    /// The World refuses a shape that no query can use before it asks the backend, so the backend's own refusal is for
+    /// callers that skip the World. This test sets up a frame with one box through the World, then calls the real backend
+    /// itself. It shows that a usable shape finds the box through the same calls on the same frame, so that the refusal
+    /// comes from the shape and not from a frame without a system.
+    /// </summary>
+    [Fact]
+    public void ShapeCastAndOverlapRefuseAShapeThatNoQueryCanUse()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle ground = Ground(world, 0);
+        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
+        world.Tick();
+        var filter = new AcceptsEveryEntity();
+        QueryShape unusable = QueryShape.Sphere(0);
+        QueryShape usable = QueryShape.Sphere(1);
+        var shapeHits = new List<ShapeCastHit>();
+        var overlapped = new List<Entity>();
+
+        backend.Invoking(b => b.CastShape(ground, unusable, DPose.Identity, Double3.UnitX, 0, 10, filter, shapeHits))
+            .Should().Throw<ArgumentException>().WithParameterName("shape").WithMessage("*is a sphere with a radius of 0 m*");
+        backend.Invoking(b => b.Overlap(ground, unusable, DPose.Identity, filter, overlapped))
+            .Should().Throw<ArgumentException>().WithParameterName("shape").WithMessage("*is a sphere with a radius of 0 m*");
+
+        backend.CastShape(ground, usable, DPose.Identity, Double3.UnitX, 0, 10, filter, shapeHits);
+        backend.Overlap(ground, usable, At(5), filter, overlapped);
+        shapeHits.Should().ContainSingle().Which.Entity.Should().Be(box);
+        overlapped.Should().Equal(box);
+    }
+
     [Fact]
     public void SceneWithMoreFramesThanTheFirstTablesHoldKeepsEveryBodyInItsFrame()
     {

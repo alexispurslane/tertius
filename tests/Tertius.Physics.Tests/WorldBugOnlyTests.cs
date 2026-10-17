@@ -43,6 +43,56 @@ public class WorldBugOnlyTests
 #endif
     }
 
+    /// <summary>Casts one ray along +X from its own position on tick <paramref name="onTick"/>, and keeps the answers.</summary>
+    private sealed class RayOnTick(long onTick) : IComponent
+    {
+        public List<RayHit> Answers { get; } = new();
+
+        public int Priority => 0;
+        public EventMask Wants => EventMask.Of<Tertius.Tick>().And<RayHit>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            foreach (ref RayHit hit in events.Of<RayHit>())
+                Answers.Add(hit);
+            if (self.Tick == onTick)
+                self.Physics.CastRay(Double3.Zero, Double3.UnitX, 50, default, 1);
+        }
+    }
+
+    /// <summary>
+    /// The World destroys the body of an entity in the same sync point that destroys the entity, so Jolt never holds the
+    /// body of an entity that is not live when a query runs. A body that stays comes only from a bug. A test stands in for
+    /// that bug: it removes the entity from the change batch that would destroy its body. A Debug build breaks a contract
+    /// when the ray meets the body. A Release build skips the body, so that the ray goes on to the next one, and records
+    /// the state in <see cref="World.Errors"/>.
+    /// </summary>
+    [Fact]
+    public void ARayThatMeetsTheBodyOfAnEntityThatIsNotLiveIsABugAndAReleaseBuildSkipsTheBodyAndRecordsAnError()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle ground = Ground(world, 0);
+        var asker = new RayOnTick(onTick: 1);
+        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0), Components = [asker] });
+        Entity dead = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(10), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
+        Entity beyond = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(20), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Static) });
+        world.Tick();
+        faults.EditNextChanges = changes => changes.BodiesDestroyed.Remove(dead);
+        world.Destroy(dead);
+
+#if TERTIUS_CONTRACTS
+        Action tick = () => world.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage($"*{dead}*which is not live*");
+#else
+        Tick(world, 2);
+
+        world.Errors.Should().ContainSingle().Which.Should().Contain("physics reported 1 bodies of entities that are not live").And.Contain("The ray cast skipped them");
+        asker.Answers.Should().ContainSingle().Which.Entity.Should().Be(beyond, "the ray skipped the body of the entity that is not live");
+        faults.Jolt.TryGetBodyFrame(dead, out _).Should().BeTrue("the edit kept the body in Jolt, which is the bug that this test stands in for");
+#endif
+    }
+
     /// <summary>
     /// The World refuses a driver that the hull of a frame cannot follow, so a frame tree with such a driver comes only
     /// from a bug. A test stands in for that bug: it gives a dock whose hull is a mesh the physics driver through the

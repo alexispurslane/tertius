@@ -106,6 +106,29 @@ public class WorldShapeQueryTests
         AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
     }));
 
+    /// <summary>
+    /// A static frame at <paramref name="at"/> in <paramref name="parent"/>, not turned, with a bubble of
+    /// <paramref name="radius"/> m. Its owner has no body, so the parent's system holds nothing of it.
+    /// </summary>
+    private static FrameHandle Bubble(World world, FrameHandle parent, Double3 at, float radius) =>
+        world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = parent,
+            Pose = new DPose(at, DQuaternion.Identity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static),
+        }));
+
+    /// <summary>
+    /// A predicate for <see cref="EntityQuery.Where"/> that accepts every entity and writes down each entity that it was
+    /// asked about, in order. Jolt asks it about the bodies that a cast reaches, so the list shows which frames the cast
+    /// looked in.
+    /// </summary>
+    private static EntityQuery Recording(List<Entity> asked) => EntityQuery.Where((_, entity) =>
+    {
+        asked.Add(entity);
+        return true;
+    });
+
     // ---- Shape casts ----
 
     [Fact]
@@ -273,6 +296,53 @@ public class WorldShapeQueryTests
         Tick(world, 2);
 
         ShouldBeAt(probe.CastAnswersTo(1).Single(), inside, new Double3(104.5, 0, 0), -Vector3.UnitX, 103);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AShapeCastThatTouchesAFarBodyInTheParentAndANearerBodyInAChildFrameNamesTheNearerBody()
+    {
+        // The ground's system answers first, with the far box. The child's system then answers with a nearer box, and the
+        // nearer one is the cast's hit.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        FrameHandle child = TurnedChildFrame(world, ground);
+        var probe = new Probe { Casts = [new Cast(QueryShape.Sphere(0.5f), At(0), Double3.UnitX, 200, default, Tag: 1)] };
+        Spawn(world, ground, Double3.Zero, null, probe);
+        Spawn(world, ground, new Double3(150, 0, 0), StaticBox());
+        // At (0, 0, 5) in the child, which is (105, 0, 0) in the ground: the sphere touches its face at x = 104.5 with its
+        // center at x = 104.
+        Entity nearer = Spawn(world, child, new Double3(0, 0, 5), StaticBox());
+
+        Tick(world, 2);
+
+        ShouldBeAt(probe.CastAnswersTo(1).Single(), nearer, new Double3(104.5, 0, 0), -Vector3.UnitX, 104);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AShapeCastDoesNotLookInAChildFrameThatLiesBeyondTheNearestHitItHasAlreadyFound()
+    {
+        // Three places along +X: the ground's box at x = 150, a near frame around x = 40, and a far frame around x = 120.
+        // The far frame is made first, so the cast's walk visits it after the near frame. The ground's system answers with
+        // the box at x = 150, the near frame's system then answers with a nearer hit, and the far frame's part of the cast,
+        // from about x = 109, starts beyond that hit. So Jolt is never asked about the far frame's body.
+        var asked = new List<Entity>();
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        FrameHandle farFrame = Bubble(world, ground, new Double3(120, 0, 0), 10);
+        FrameHandle nearFrame = Bubble(world, ground, new Double3(40, 0, 0), 10);
+        var probe = new Probe { Casts = [new Cast(QueryShape.Sphere(0.5f), At(0), Double3.UnitX, 200, Recording(asked), Tag: 1)] };
+        Spawn(world, ground, Double3.Zero, null, probe);
+        Entity groundBox = Spawn(world, ground, new Double3(150, 0, 0), StaticBox());
+        Entity farBody = Spawn(world, farFrame, Double3.Zero, StaticBox());
+        Entity nearBody = Spawn(world, nearFrame, Double3.Zero, StaticBox());
+
+        Tick(world, 2);
+
+        ShouldBeAt(probe.CastAnswersTo(1).Single(), nearBody, new Double3(39.5, 0, 0), -Vector3.UnitX, 39);
+        asked.Should().Contain([groundBox, nearBody], "the cast looked in the ground and in the near frame");
+        asked.Should().NotContain(farBody, "the near frame's hit ends the cast's search before the far frame");
         world.Errors.Should().BeEmpty();
     }
 
@@ -559,6 +629,49 @@ public class WorldShapeQueryTests
         world.Errors.Should().Contain(e => e.Contains("BadQuery") && e.Contains(what));
         probe.ShapeAnswers.Should().BeEmpty();
         probe.OverlapAnswers.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A shape cast and an overlap query run the asker's predicate inside Jolt, so a predicate that throws must not cross
+    /// into native code: the query has no answer, the error names the kind of query, and the other askers go on.
+    /// </summary>
+    [Fact]
+    public void AShapeCastWhosePredicateThrowsReportsAShapeCastFailureAndGivesNoAnswerWhileTheWorldGoesOn()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        EntityQuery throws = EntityQuery.Where(static (_, _) => throw new InvalidOperationException("the predicate broke"));
+        var broken = new Probe { Casts = [new Cast(QueryShape.Sphere(0.5f), At(0), Double3.UnitX, 50, throws, Tag: 1)] };
+        var fine = new Probe { Casts = [new Cast(QueryShape.Sphere(0.5f), At(0, 0.1), Double3.UnitX, 50, default, Tag: 2)] };
+        Spawn(world, ground, Double3.Zero, null, broken);
+        Spawn(world, ground, new Double3(0, 0.1, 0), null, fine);
+        Entity box = Spawn(world, ground, new Double3(10, 0, 0), StaticBox());
+
+        Tick(world, 3);
+
+        world.Errors.Should().ContainSingle().Which.Should().Contain("the shape cast failed").And.Contain("the predicate broke");
+        broken.ShapeAnswers.Should().BeEmpty();
+        fine.CastAnswersTo(2).Should().ContainSingle().Which.Entity.Should().Be(box);
+    }
+
+    [Fact]
+    public void AnOverlapWhosePredicateThrowsReportsAnOverlapQueryFailureAndGivesNoAnswerWhileTheWorldGoesOn()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        EntityQuery throws = EntityQuery.Where(static (_, _) => throw new InvalidOperationException("the predicate broke"));
+        var broken = new Probe { Overlaps = [new Overlap(QueryShape.Sphere(2), At(0), throws, Tag: 1)] };
+        var fine = new Probe { Overlaps = [new Overlap(QueryShape.Sphere(2), At(0, 0.1), default, Tag: 2)] };
+        Spawn(world, ground, Double3.Zero, null, broken);
+        Spawn(world, ground, new Double3(0, 0.1, 0), null, fine);
+        Entity box = Spawn(world, ground, new Double3(1, 0, 0), StaticBox());
+
+        Tick(world, 3);
+
+        // The test pins the name of the kind of query, and not the article before it.
+        world.Errors.Should().ContainSingle().Which.Should().Contain("the overlap query failed").And.Contain("the predicate broke");
+        broken.OverlapAnswers.Should().BeEmpty();
+        fine.OverlapAnswersTo(2).Should().Equal(box);
     }
 
     /// <summary>
