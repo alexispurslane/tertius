@@ -1,6 +1,6 @@
 ---
 id: ter-gd22
-status: open
+status: closed
 deps: [ter-g3yp, ter-wu6v, ter-gj55]
 links: []
 created: 2026-10-11T23:45:16Z

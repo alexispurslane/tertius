@@ -17,3 +17,9 @@ Found in ter-swgm's follow-up. A test that counts GC.GetAllocatedBytesForCurrent
 
 Every allocation test measures per call or per tick, or warms up past the runtime's recompilation, and says which in a comment.
 
+
+## Notes
+
+**2026-10-17T00:20:12Z**
+
+2026-10-16: EventQueryTests.NoQueryAllocates failed once in a full Debug run of Simulation during ter-gd22, and passed alone and in later runs. Another exact-zero allocation test that flakes.

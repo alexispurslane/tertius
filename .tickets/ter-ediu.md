@@ -1,6 +1,6 @@
 ---
 id: ter-ediu
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-16T23:00:45Z

@@ -1,6 +1,6 @@
 ---
 id: ter-juuk
-status: open
+status: closed
 deps: [ter-g3yp, ter-gj55]
 links: [ter-f8sh]
 created: 2026-10-11T23:45:16Z
