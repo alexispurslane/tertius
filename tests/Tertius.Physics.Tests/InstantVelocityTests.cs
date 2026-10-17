@@ -335,21 +335,37 @@ public class InstantVelocityTests
             Pose = roomPose,
             AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         }));
-        // At 60 m/s the ball gets a falling numeric frame of its own, which falls at g. It enters the room from that frame.
+        // A group with a body that thrusts falls in a numeric frame from 50 m/s, and a free body only from 1,000 m/s. So the
+        // ball carries a gentle thruster, which pushes it up along the vertical, about which the room is turned, so that the
+        // thrust is the same in the room's axes as in the ground's. It thrusts from the sync point of its thirtieth tick on
+        // (30 ticks of 1/60 s reach the 0.5 s of NumericFrameOptions.ThrustOnset). At 60 m/s it then gets a falling numeric
+        // frame of its own, which falls at g, and it enters the room from that frame about 50 ticks later.
+        const int onsetTicks = 30;
         var start = new Double3(0, 0, 0);
         var velocity = new Double3(60, 2, 0);
-        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = new DPose(start, DQuaternion.Identity), LinearVelocity = velocity, Body = Ball });
+        Entity ball = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(start, DQuaternion.Identity),
+            LinearVelocity = velocity,
+            Body = Ball,
+            Components = [new Thruster(Ball.Mass) { Direction = Vector3.UnitY }],
+        });
+        // The thrust of a tick acts in the step of the next tick, so the ball runs one step behind this path: by about
+        // 1e-4 m/s² · 1/60 s · 2 s = 3e-6 m after 2 s.
+        Double3 acceleration = Down + new Double3(0, Thruster.GentleAcceleration, 0);
 
         double dt = world.DeltaTime;
         int inRoom = 0;
         for (int tick = 1; tick <= 120; tick++)
         {
             world.Tick();
-            if (tick == 1)
-                world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Falling, "the ball has a falling numeric frame");
             if (world.GetFrame(ball) == room)
                 inRoom++;
-            (world.PoseIn(ball, ground).Position - Path(start, velocity, Down, tick * dt)).Length
+            else if (inRoom == 0 && tick >= onsetTicks)
+                world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Falling,
+                    "from its thirtieth tick until it enters the room, the ball falls in a numeric frame (tick {0})", tick);
+            (world.PoseIn(ball, ground).Position - Path(start, velocity, acceleration, tick * dt)).Length
                 .Should().BeLessThan(1e-4, "the ball is on the parabola of its spawn after {0} ticks", tick);
         }
         inRoom.Should().BeGreaterThan(20, "the ball flies through the room");
