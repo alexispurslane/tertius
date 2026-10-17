@@ -373,6 +373,17 @@ public class FrameTreeGhostPlaceTests
         after[0].Home.Should().Be(ground);
     }
 
+    [Fact]
+    public void The_update_finds_the_fixed_ghosts_that_a_body_may_touch_itself()
+    {
+        // The tree fills in the field, as it fills in the mode of the home, so a value in the input does not count.
+        NumericBody rock = Body(10, X(1_000), X(60), character: true) with { MayTouchFixedGhost = true };
+
+        NumericBody[] after = Update(0.1, rock);
+
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
+    }
+
     // ---- Places in a frame's own system from outside it (ter-tenw) ----------------------------------------------------
 
     [Fact]
@@ -472,6 +483,21 @@ public class FrameTreeGhostPlaceTests
 
         after[1].Home.Should().Be(station);
         frames.NumericCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void A_body_that_sticks_out_of_a_sibling_that_comes_at_the_frame_leaves_a_place_in_the_frames_own_system()
+    {
+        // The depot comes at the station at 10 m/s. Its crate sticks out of it 20 m outside the station's bubble, so it may
+        // touch that bubble within 2 s. The body in the station flies at 60 m/s 22 m from it.
+        FrameHandle station = Station(2, X(1_000));
+        FrameHandle depot = Station(3, X(1_100), MotionDriver.Physics);
+        frames.TreeLinearVelocity(depot) = X(-10);
+        NumericBody inside = BodyOf(station, 12, X(38), Y(60)) with { Character = true };
+
+        NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(-40)), inside);
+
+        after[1].Home.Should().Be(station);
     }
 
     [Fact]
@@ -602,6 +628,29 @@ public class FrameTreeGhostPlaceTests
         Radius = 1,
         Mass = 10,
     };
+
+    // ---- Cost ---------------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void A_warm_update_with_places_of_ghosts_allocates_nothing()
+    {
+        // A rock comes at the crate of a parked station, and a body in the station comes at the rock: the place of the crate
+        // links the rock to the hull, and the place of the rock keeps the body in the station's own system. So the update
+        // works on both semantic frames with places and makes no numeric frame, whose collection allocates on its own.
+        FrameHandle station = Station(2, X(1_000));
+        NumericBody[] bodies = Update(0.1, ParkedHull(station), Body(10, new Double3(1_000, 160, 0), Y(-60), character: true),
+            BodyOf(station, 11, Y(40)), BodyOf(station, 12, Y(38), X(60)) with { Character = true });
+        bodies.Select(body => body.Home).Should().Equal(ground, ground, station, station);
+        frames.NumericCount.Should().Be(0);
+        Action<List<NumericMove>> ignore = static _ => { };
+        frames.UpdateNumericFrames(bodies, 0.1, changes, ignore);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        frames.UpdateNumericFrames(bodies, 0.1, changes, ignore);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        allocated.Should().Be(0);
+    }
 
     // ---- Determinism --------------------------------------------------------------------------------------------------
 

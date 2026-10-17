@@ -559,23 +559,24 @@ public sealed partial class FrameTree
     private void AddStickOutPlaces(FrameHandle child, ReadOnlySpan<NumericBody> members, int start, int end)
     {
         FrameBounds bubble = Bounds(child);
-        bool found = false;
-        int hull = -1;
         FrameHandle home = TreeParent(child);
         DPose pose = TreeLocalPose(child);
+        // The hull and the child's motion, which the first body that may stick out looks up for all of them.
+        bool prepared = false;
+        int hull = -1;
         Double3 velocity = default, spin = default;
         foreach (ref readonly NumericBody body in members)
         {
             if (!NumericFrameRules.MayStickOut(bubble, body, NumericOptions))
                 continue;
-            if (!found)
+            if (!prepared)
             {
                 for (int i = start; i < end && hull < 0; i++)
                     if (sortedBodies[i].OwnedFrame == child)
                         hull = i;
                 velocity = LinearVelocity(child);
                 spin = (Double3)AngularVelocity(child);
-                found = true;
+                prepared = true;
             }
             ghostPlaces.Add(new GhostPlace(home, pose.TransformPoint(body.Position),
                 VelocityToParent(pose, velocity, spin, body.Position, body.Velocity), body.Radius, hull));
