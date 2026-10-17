@@ -275,6 +275,9 @@ public sealed partial class JoltPhysicsBackend
         }
         if (record.IsHull)
             MoveFrame(record.OwnedFrame, plan.From, plan.To);
+        // The numeric update links the body to what it touches only at the sync point (see ResolveLooseContacts).
+        if (frames.IsNumeric(plan.To))
+            handedIntoNumericFrames.Add(record.Entity);
         output.HandOffs.Add(new HandOff(record.Entity, plan.From, plan.To, pose, plan.LinearVelocity, plan.AngularVelocity));
     }
 
@@ -312,7 +315,8 @@ public sealed partial class JoltPhysicsBackend
     /// bubbles that the members of the parent's system meet, the semantic siblings of its frame, wherever they hang among
     /// numeric frames. Ghosts get the real body's pose and chord velocity, so that during the next step they move with it.
     /// Each anchor that the numeric update names in <see cref="FrameTree.AnchorGhosts"/> has a ghost in the falling frame
-    /// that it names, a numeric frame of the anchor's own semantic frame. No other ghost goes into such a frame, and the
+    /// that it names, a numeric frame of the anchor's own semantic frame, and loses it in the first pass after the update
+    /// stops naming it, also when the tree did not change. No other ghost goes into such a frame, and the
     /// semantic parent is neither numeric nor a bubble that the body touches, so no frame gets two ghosts of one body.
     /// </summary>
     private void UpdateGhosts()
@@ -342,7 +346,9 @@ public sealed partial class JoltPhysicsBackend
             {
                 bool movable = member.IsMovable;
                 bool anchor = (!movable || member.IsHull) && HasAnchorGhost(anchorGhosts, member.Entity);
-                if (!movable && !member.IsHull && !anchor)
+                // A static body that is not a hull has ghosts only as an anchor. One that the numeric update stopped
+                // naming still has them, and the pass drops them below, also when nothing changed the frame tree.
+                if (!movable && !member.IsHull && !anchor && member.Ghosts is not { Count: > 0 })
                     continue;
                 if (member.Ghosts is { Count: > 0 } existing)
                     foreach (ref GhostBody ghost in CollectionsMarshal.AsSpan(existing))
@@ -498,7 +504,7 @@ public sealed partial class JoltPhysicsBackend
             return;
         }
         BodyID id = CreateRigid(world, GhostSpec(record), pose, linear, angular);
-        world.AddGhost(id);
+        world.AddGhost(id, ofStaticBody: !record.IsMovable);
         // Jolt never moves a mesh, so the ghost of a mesh is static, and contacts read its real body's velocity.
         if (record.HasMesh)
             world.SetStaticGhostMotion(id, linear, angular);

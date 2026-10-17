@@ -64,6 +64,16 @@ internal static class Layers
     private static ObjectLayer Encode(uint groups, uint mask) => groups | (mask << 16);
 
     /// <summary>
+    /// True when bodies of the two layers collide: Jolt's pair test of <see cref="ObjectLayerPairFilterMask"/>, which the
+    /// summary of this class shows. Jolt also needs their motions to allow a contact.
+    /// </summary>
+    public static bool Meet(ObjectLayer a, ObjectLayer b)
+    {
+        uint x = a, y = b;
+        return (x & 0xFFFF & (y >> 16)) != 0 && (y & 0xFFFF & (x >> 16)) != 0;
+    }
+
+    /// <summary>
     /// The broad-phase layers, one for each role. A body goes into the layer of its role. A body looks in a layer only
     /// when its mask meets the groups that the layer admits, except the last one, the ghosts' layer, in which Jolt lets
     /// every body look.

@@ -237,7 +237,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// its bodies was destroyed or left the system, a ghost too. A body pair that leaves goes on in every system that
     /// holds a body of each entity that can touch the other one there, after the hand-offs and the ghosts of the step. So
     /// a contact goes on when two touching bodies move to another system together, by a hand-off or a move between
-    /// numeric frames, and when one of them leaves while the other touches its ghost.
+    /// numeric frames, and when one of them leaves while the other touches its ghost. A contact of a body that a hand-off
+    /// moved into a numeric frame, which no system takes over, waits one more step, for the numeric update of the sync
+    /// point to link the bodies.
     /// </para>
     /// </remarks>
     public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
@@ -588,11 +590,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// frames, or in a falling frame that keeps a ghost of an anchor (see <see cref="GhostAllowed"/>), so never in the
     /// frame that the body owns or inside it.</item>
     /// <item>The ghosts of each system (see <see cref="FrameWorld.AddGhost"/>) are the ghosts that the records keep in
-    /// it, no more and no fewer.</item>
+    /// it, no more and no fewer. A system marks exactly the ghosts of static bodies as such (see
+    /// <see cref="FrameWorld.StandsForStaticBody"/>), and records the motion of the real body of exactly the ghosts of
+    /// meshes, which are static in Jolt (see <see cref="FrameWorld.SetStaticGhostMotion"/>).</item>
     /// <item>Every Jolt body of a record has the layer that the record's collision groups and mask give it: the primary
     /// body or the character's inner body, the interior and every ghost (see <see cref="Layers"/>).</item>
     /// <item>The contact ledger counts, for each pair of entities, the body pairs that hold their contact as started in
-    /// every system, and its loose contacts (see <see cref="AssertContactInvariants"/>). This one holds at every sync point.</item>
+    /// every system, and its loose and waiting contacts (see <see cref="AssertContactInvariants"/>). This one holds at
+    /// every sync point.</item>
     /// </list>
     /// The record and ghost checks visit every entity slot, so the whole check is O(entity slots + systems + started pairs).
     /// </summary>
@@ -603,6 +608,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             Contract.Invariant(frames.IsAlive(world.Frame) && ExistingWorld(world.Frame) == world);
         int hulls = 0;
         int recordGhosts = 0;
+        int staticBodyGhosts = 0;
         foreach (BodyRecord? record in records)
         {
             if (record is null)
@@ -633,6 +639,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(GhostAllowed(record, ghost.Frame) && ghost.World == ExistingWorld(ghost.Frame));
                 Contract.Invariant(ghost.World.HasGhost(ghost.Body));
                 Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == GhostLayer(record));
+                Contract.Invariant(ghost.World.StandsForStaticBody(ghost.Body) == !record.IsMovable);
+                Contract.Invariant(ghost.World.HasStaticGhostMotion(ghost.Body) == record.HasMesh);
+                if (!record.IsMovable)
+                    staticBodyGhosts++;
             }
             recordGhosts += ghosts.Count;
         }
@@ -640,10 +650,15 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         AssertContactInvariants();
         // Every ghost of a record is in its system's ghosts, and each is a body of its own, so the systems hold as many
         // ghosts as the records only when they hold no other.
-        int systemGhosts = 0;
+        int systemGhosts = 0, systemStaticBodyGhosts = 0;
         foreach (FrameWorld world in worldList)
+        {
             systemGhosts += world.GhostCount;
+            systemStaticBodyGhosts += world.StaticBodyGhostCount;
+        }
         Contract.Invariant(systemGhosts == recordGhosts);
+        // In the same way, the systems mark no body as a ghost of a static body that is not one.
+        Contract.Invariant(systemStaticBodyGhosts == staticBodyGhosts);
         foreach (BodyRecord owner in frameOwners)
         {
             Contract.Invariant(frames.IsAlive(owner.OwnedFrame));

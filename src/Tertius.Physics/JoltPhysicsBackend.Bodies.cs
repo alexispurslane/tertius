@@ -246,7 +246,9 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The spec of a ghost of a record's body. Meshes are static-only, so the ghost of a mesh hull (a static frame's) is a
-    /// static body that physics repositions. The other ghosts are kinematic and carry the real body's velocity.
+    /// static body that physics repositions. The other ghosts are kinematic and carry the real body's velocity. A ghost of
+    /// a static body is kinematic too, but its system reports only the contacts that the static body would make (see
+    /// <see cref="FrameWorld.StandsForStaticBody"/>).
     /// </summary>
     private static RigidSpec GhostSpec(BodyRecord record) =>
         new(record.Desc.Shape, record.HasMesh ? MotionType.Static : MotionType.Kinematic, GhostLayer(record), BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc);
@@ -508,6 +510,10 @@ public sealed partial class JoltPhysicsBackend
         owner.DriverVersion = version;
         owner.Driver = driver;
         owner.Motion = BodyDesc.FrameHullMotion(driver);
+        // A ghost meets what its real body meets, and a static body meets less (see FrameWorld.StandsForStaticBody).
+        if (owner.Ghosts is { } ghosts)
+            foreach (GhostBody ghost in ghosts)
+                ghost.World.SetGhostOfStaticBody(ghost.Body, !owner.IsMovable);
         return true;
     }
 

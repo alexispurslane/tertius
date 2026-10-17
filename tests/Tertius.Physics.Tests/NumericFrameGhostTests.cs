@@ -879,6 +879,64 @@ public class NumericFrameGhostTests
     }
 
     /// <summary>
+    /// The ship rests at (10150, 0, 0) in space, so its hull rests in a numeric frame, under which the ship's frame hangs.
+    /// The crate floats at (-200, 0, 0) in the ship, on the edge of its bubble, and drifts outward along -X at 2 m/s. A rock
+    /// (a ball of radius 0.5 m and 1 kg, slowed by its damping) rests in space 0.1 m in front of the crate's face, outside
+    /// the bubble. The crate's ghost in space, the ship's semantic parent, reaches the rock at once and pushes it ahead.
+    /// When the crate is fully outside the bubble plus the exit margin, it leaves the ship into the ship's tree parent, the
+    /// numeric frame, while it still pushes the rock, whose body is in the system of space. Without numeric frames, the
+    /// crate leaves into space, and its body there takes over the contact of its ghost. With them, the sync point after
+    /// the hand-off links the two bodies and moves the rock into the numeric frame, and the next step finds their contact
+    /// there. In both runs, each entity hears one Collision and no end (review of ter-ejx9).
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ACrateThatLeavesAShipInARestingFrameWhileItPushesARockInSpaceKeepsTheContactAsItDoesWithoutNumericFrames(bool numericFrames)
+    {
+        using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        Entity shipOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(10_150),
+            Body = ShipHull,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(BigShipRadius), MotionDriver.Physics),
+        });
+        FrameHandle ship = world.GetOwnedFrame(shipOwner);
+        var crateLog = new CollisionLog();
+        var rockLog = new CollisionLog();
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = ship, Pose = At(-BigShipRadius), LinearVelocity = new Double3(-2, 0, 0), Body = CrateBody, Components = [crateLog],
+        });
+        // The crate's face is at x = 9949 in space, and the rock's side at x = 9948.9.
+        Entity rock = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(9_948.4), Body = RockBody with { LinearDamping = 0.5f }, Components = [rockLog],
+        });
+
+        int handOff = TickUntil(world, () => world.GetFrame(crate) == space, 400);
+
+        world.GetFrame(crate).Should().Be(space, "the crate left the ship's bubble");
+        if (numericFrames)
+        {
+            world.Frames.Numeric(world.PhysicsHomeOf(crate)).Should().Be(NumericMode.Resting,
+                "the crate left into the ship's tree parent, and the sync point linked it to the rock there");
+            faults.Outputs[^1].HandOffs.Should().Contain(h => h.Entity == crate && world.Frames.IsNumeric(h.To));
+            // The contact is in no system until the next step finds it in the numeric frame, and the ledger still counts it.
+            faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        }
+        Tick(world, 60);
+
+        handOff.Should().BeInRange(120, 250, "the crate needs about 3 s to leave the bubble plus the exit margin");
+        crateLog.NewsOf(rock).Should().Equal([ContactNews.Started], "the crate pushes the rock the whole time");
+        rockLog.NewsOf(crate).Should().Equal([ContactNews.Started]);
+        world.VelocityIn(rock, space).X.Should().BeLessThan(-0.1, "the crate still pushes the rock");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// The reconcile at the start of a step drops each ghost that the frame tree does not allow. The test runs the
     /// reconcile alone, by applying an empty change batch after a change of the tree far away, and reads the backend before
     /// the next step, as <see cref="TheGhostOfAShipAtRestInTheFastShipThatHangsInAFallingFrameSurvivesAReconcile"/> does.

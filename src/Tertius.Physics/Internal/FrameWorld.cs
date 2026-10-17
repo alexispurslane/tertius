@@ -1,4 +1,6 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using JoltPhysicsSharp;
 
 namespace Tertius.Physics;
@@ -174,11 +176,43 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>True when <paramref name="body"/> is a ghost in this system.</summary>
     public bool HasGhost(BodyID body) => ghosts.Contains(body);
 
-    /// <summary>Counts <paramref name="body"/>, a new body of this system, as a ghost.</summary>
-    public void AddGhost(BodyID body)
+    // The ghosts in this system whose real body is static, by body ID: the hull of a parked frame, or an anchor in a
+    // falling frame. Jolt makes a contact of a static body only with a dynamic body, or with a kinematic body when the
+    // static body is a sensor. The ghost of such a body is kinematic unless it is a mesh, so that a dynamic body that hits
+    // it meets a body that moves as the real body does in this frame, and Jolt also makes a contact between it and every
+    // sensor. A ghost stands for its real body, so the reports drop the contacts that the real body would not make (see
+    // MeetsAsItsRealBody). Only the physics thread changes it, between updates, so Jolt's worker threads read it during an
+    // update without the gate.
+    private readonly HashSet<uint> ghostsOfStaticBodies = new();
+
+    /// <summary>The number of ghosts in this system whose real body is static (see <see cref="StandsForStaticBody"/>).</summary>
+    public int StaticBodyGhostCount => ghostsOfStaticBodies.Count;
+
+    /// <summary>True when <paramref name="ghost"/> is a ghost in this system whose real body is static.</summary>
+    public bool StandsForStaticBody(BodyID ghost) => ghostsOfStaticBodies.Contains(ghost.ID);
+
+    /// <summary>
+    /// Counts <paramref name="body"/>, a new body of this system, as a ghost, whose real body is static when
+    /// <paramref name="ofStaticBody"/> is true.
+    /// </summary>
+    public void AddGhost(BodyID body, bool ofStaticBody)
     {
         Contract.Requires(!ghosts.Contains(body));
         ghosts.Add(body);
+        SetGhostOfStaticBody(body, ofStaticBody);
+    }
+
+    /// <summary>
+    /// Records whether the real body of <paramref name="ghost"/>, a ghost in this system, is static. Call it when the
+    /// motion of the real body changes, so that the ghost meets what the real body meets from the next update on.
+    /// </summary>
+    public void SetGhostOfStaticBody(BodyID ghost, bool ofStaticBody)
+    {
+        Contract.Requires(ghosts.Contains(ghost));
+        if (ofStaticBody)
+            ghostsOfStaticBodies.Add(ghost.ID);
+        else
+            ghostsOfStaticBodies.Remove(ghost.ID);
     }
 
     /// <summary>Removes and destroys the ghost <paramref name="body"/>, after it wakes the bodies around it (see <see cref="WakeAround"/>).</summary>
@@ -186,6 +220,7 @@ internal sealed class FrameWorld : IDisposable
     {
         Contract.Requires(ghosts.Contains(body));
         ghosts.Remove(body);
+        ghostsOfStaticBodies.Remove(body.ID);
         staticGhostMotion.Remove(body.ID);
         RemoveBody(body);
     }
@@ -211,12 +246,17 @@ internal sealed class FrameWorld : IDisposable
         staticGhostMotion[ghost.ID] = new GhostMotion(linear, angular);
     }
 
+    /// <summary>True when this system records the motion of the real body of <paramref name="ghost"/> (see <see cref="SetStaticGhostMotion"/>).</summary>
+    public bool HasStaticGhostMotion(BodyID ghost) => staticGhostMotion.ContainsKey(ghost.ID);
+
     /// <summary>
     /// Moves every ghost in this system by a shift of the frame, like a member: each ghost loses <paramref name="offset"/>
     /// from its position and <paramref name="velocity"/> from its velocity, so that its place and velocity in the frame's
-    /// parent stay the same. A static ghost loses only the offset. Jolt does not simulate the move, and the ghosts move
-    /// with the members around them, so nothing wakes. Each ghost moves on its own, so the order of the visits does not
-    /// change the result. Costs time in proportion to the number of ghosts in this system.
+    /// parent stay the same. Jolt gives a static ghost no velocity, so the shift takes <paramref name="velocity"/> off the
+    /// recorded motion of its real body instead (see <see cref="SetStaticGhostMotion"/>), which the contacts of the next
+    /// update read. Numeric frames do not rotate, so the angular velocity stays. Jolt does not simulate the move, and the
+    /// ghosts move with the members around them, so nothing wakes. Each ghost moves on its own, so the order of the visits
+    /// does not change the result. Costs time in proportion to the number of ghosts in this system.
     /// </summary>
     public void ShiftGhosts(Double3 offset, Double3 velocity)
     {
@@ -226,8 +266,18 @@ internal sealed class FrameWorld : IDisposable
             bodies.GetRPosition(ghost, out RVector3 position);
             Quaternion rotation = bodies.GetRotation(ghost);
             bodies.SetRPositionAndRotation(ghost, (position.ToDouble3() - offset).ToJolt(), rotation, Activation.DontActivate);
-            if (velocity != Double3.Zero && bodies.GetMotionType(ghost) != MotionType.Static)
+            if (velocity == Double3.Zero)
+                continue;
+            if (bodies.GetMotionType(ghost) != MotionType.Static)
+            {
                 bodies.SetLinearVelocity(ghost, ((Double3)bodies.GetLinearVelocity(ghost) - velocity).ToVector3());
+                continue;
+            }
+            ref GhostMotion motion = ref CollectionsMarshal.GetValueRefOrNullRef(staticGhostMotion, ghost.ID);
+            // The ghost pass records the motion of every static ghost when it makes the ghost.
+            Contract.Assert(!Unsafe.IsNullRef(ref motion));
+            if (!Unsafe.IsNullRef(ref motion))
+                motion = motion with { Linear = ((Double3)motion.Linear - velocity).ToVector3() };
         }
     }
 
@@ -765,13 +815,16 @@ internal sealed class FrameWorld : IDisposable
     // the cast hits, which a report cannot know, so for a body that spins fast the two approach speeds differ by the
     // spin times the distance that the center moved before the hit.
 
-    /// <summary>Jolt's report of a contact that it found in this update and did not hold before.</summary>
+    /// <summary>
+    /// Jolt's report of a contact that it found in this update and did not hold before. A contact that is not reported here
+    /// never enters the pair table, so the other two reports of it change nothing.
+    /// </summary>
     public unsafe void OnContactAdded(nint body1, nint body2, nint manifold, ContactSettings* settings)
     {
         if (settings->CombinedRestitution > 0f)
             settings->CombinedRestitution = KeptRestitution(body1, body2, manifold, settings->CombinedRestitution);
         ulong data1 = JoltNative.BodyUserData(body1), data2 = JoltNative.BodyUserData(body2);
-        if (!IsReported(data1, data2))
+        if (!IsReported(data1, data2) || !MeetsAsItsRealBody(body1, data1, body2) || !MeetsAsItsRealBody(body2, data2, body1))
             return;
         RawContact contact = Describe(body1, body2, data1, data2, manifold, settings->IsSensor);
         lock (contactGate)
@@ -858,6 +911,23 @@ internal sealed class FrameWorld : IDisposable
     /// </summary>
     private static bool IsReported(ulong data1, ulong data2) =>
         IsContactBody(data1) && IsContactBody(data2) && !(BodyUserData.Kind(data1) == BodyKind.Ghost && BodyUserData.Kind(data2) == BodyKind.Ghost);
+
+    /// <summary>
+    /// False when <paramref name="body"/> is the ghost of a static body (see <see cref="StandsForStaticBody"/>), and Jolt
+    /// would make no contact between that static body and <paramref name="other"/>: Jolt makes a contact of a static body
+    /// only with a dynamic body, or with a kinematic body when the static body is a sensor. The engine never sets
+    /// <c>CollideKinematicVsNonDynamic</c>, so this is Jolt's whole rule. Such a ghost is kinematic unless it is a mesh,
+    /// and Jolt also makes a contact between a kinematic body and any sensor, so a kinematic sensor would detect it, and it
+    /// would detect a static sensor. A ghost stands for its real body, so it meets only what that body meets, and numeric
+    /// frames, whose anchors have such ghosts, change nothing. Reads Jolt's motion of <paramref name="other"/>, whose body
+    /// can be a ghost too, only for a ghost of a static body.
+    /// </summary>
+    private bool MeetsAsItsRealBody(nint body, ulong data, nint other)
+    {
+        if (BodyUserData.Kind(data) != BodyKind.Ghost || ghostsOfStaticBodies.Count == 0 || !ghostsOfStaticBodies.Contains(JoltNative.BodyId(body)))
+            return true;
+        return JoltNative.BodyIsDynamic(other) != 0 || (JoltNative.BodyIsKinematic(other) != 0 && JoltNative.BodyIsSensor(body) != 0);
+    }
 
     /// <summary>True for a body that stands for an entity in contacts: a primary body, an interior, a character's inner body or a ghost.</summary>
     private static bool IsContactBody(ulong data)

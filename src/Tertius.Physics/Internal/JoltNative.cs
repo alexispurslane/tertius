@@ -91,6 +91,15 @@ internal static unsafe class JoltNative
 
     [DllImport(Library, EntryPoint = "JPH_MotionProperties_GetInverseMassUnchecked", CallingConvention = CallingConvention.Cdecl)]
     public static extern float MotionPropertiesInverseMass(nint properties);
+
+    // What a report reads of the two bodies of a contact with the ghost of a static body, which meets only what that body
+    // meets (see FrameWorld.MeetsAsItsRealBody), with BodyIsDynamic above.
+
+    [DllImport(Library, EntryPoint = "JPH_Body_IsKinematic", CallingConvention = CallingConvention.Cdecl)]
+    public static extern byte BodyIsKinematic(nint body);
+
+    [DllImport(Library, EntryPoint = "JPH_Body_IsSensor", CallingConvention = CallingConvention.Cdecl)]
+    public static extern byte BodyIsSensor(nint body);
 }
 
 /// <summary>

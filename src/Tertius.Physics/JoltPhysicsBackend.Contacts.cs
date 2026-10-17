@@ -16,19 +16,21 @@ namespace Tertius.Physics;
 /// </para>
 /// <para>
 /// The contact ledger, <see cref="contactCounts"/>, keeps the reports right. For each pair of entities in contact, it
-/// counts the body pairs that hold the contact as started, in every system, and the loose contacts of the pair (see
-/// <see cref="looseContacts"/>). Each system holds at most one body pair of an entity pair, because an entity has at
-/// most one body in each system that meets the other entity's bodies: its primary body or a ghost, never both, and an
-/// interior only in its own frame, where the entity has no ghost. A contact starts when its count goes from 0 to 1, and
-/// ends when the count goes back to 0. So the two entities hear one Collision and one CollisionEnded, however many
-/// systems hold the contact in between.
+/// counts the body pairs that hold the contact as started, in every system, the loose contacts of the pair (see
+/// <see cref="looseContacts"/>), and its waiting contacts (see <see cref="waitingContacts"/>). Each system holds at most
+/// one body pair of an entity pair, because an entity has at most one body in each system that meets the other entity's
+/// bodies: its primary body or a ghost, never both, and an interior only in its own frame, where the entity has no ghost.
+/// A contact starts when its count goes from 0 to 1, and ends when the count goes back to 0. So the two entities hear one
+/// Collision and one CollisionEnded, however many systems hold the contact in between.
 /// </para>
 /// <para>Invariants, which <see cref="AssertContactInvariants"/> checks:</para>
 /// <list type="bullet">
 /// <item>The count of each entity pair is the number of body pairs that hold its contact as started in all systems
-/// (see <see cref="FrameWorld.StartedPairs"/>), plus the number of its loose contacts. An entity pair with no such body
-/// pair and no loose contact has no count.</item>
+/// (see <see cref="FrameWorld.StartedPairs"/>), plus the number of its loose contacts, plus the number of its waiting
+/// contacts. An entity pair with no such body pair, no loose contact and no waiting contact has no count.</item>
 /// <item>Every count is at least 1.</item>
+/// <item>Outside a step, no entity is marked as handed off into a numeric frame (see
+/// <see cref="handedIntoNumericFrames"/>), so a mark never makes a contact of a later step wait.</item>
 /// </list>
 /// </remarks>
 public sealed partial class JoltPhysicsBackend
@@ -43,8 +45,15 @@ public sealed partial class JoltPhysicsBackend
     // The started contacts of the bodies that left their systems since the last ResolveLooseContacts, by entities in
     // canonical order, once for each body pair. A ghost that goes leaves its system too.
     private readonly List<(Entity A, Entity B)> looseContacts = new();
+    // The entities whose body a hand-off of this step moved into a numeric frame. ResolveLooseContacts reads and clears
+    // them at the end of the step.
+    private readonly HashSet<Entity> handedIntoNumericFrames = new();
+    // The loose contacts that the last ResolveLooseContacts let wait for the next one, by entities in canonical order:
+    // contacts of an entity that a hand-off moved into a numeric frame, which no system took over (see
+    // ResolveLooseContacts). Each keeps its count in the ledger until then.
+    private readonly List<(Entity A, Entity B)> waitingContacts = new();
     // The contact ledger: for each pair of entities in contact, in canonical order, the number of body pairs that hold the
-    // contact as started in every system, plus its loose contacts. See the remarks of this file.
+    // contact as started in every system, plus its loose and its waiting contacts. See the remarks of this file.
     private readonly Dictionary<(Entity A, Entity B), int> contactCounts = new();
     // Scratch for AssertContactInvariants.
     private readonly Dictionary<(Entity A, Entity B), int> countScratch = new();
@@ -185,24 +194,51 @@ public sealed partial class JoltPhysicsBackend
     /// system holds then ends.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// A hand-off happens in the step, after the numeric update of the last sync point. A body that sticks out of a frame
+    /// whose tree parent is numeric leaves the frame into that numeric frame, which holds only the bodies that the merge
+    /// test linked to the frame's hull. So a contact that the body's ghost in the frame's semantic parent held is in no
+    /// system for one step: without numeric frames, the body would leave into the semantic parent and take the contact
+    /// over there. The next sync point's numeric update links the touching bodies, which puts them in one system, or
+    /// names a static body an anchor of the numeric frame, whose ghost the next ghost pass makes. So such a contact, which
+    /// no system takes over, waits for the next call with its count, as the contacts of a move between numeric frames do,
+    /// and that call settles it for good. A contact that really ended at the hand-off ends one step late.
+    /// </para>
+    /// <para>
     /// An interior never takes over a contact of its owner's hull. The hull of a frame lies inside the frame's bubble, so
     /// a body moves into the frame before it can touch the hull, and it leaves the frame only far outside the bubble.
+    /// </para>
     /// </remarks>
     private void ResolveLooseContacts()
     {
+        // The contacts that waited since the last call, now that a sync point and a step have passed.
+        foreach ((Entity A, Entity B) pair in waitingContacts)
+            Recount(pair, (Find(pair.A) is { } first && Find(pair.B) is { } second ? CarryContact(first, second) : 0) - 1);
+        waitingContacts.Clear();
         foreach ((Entity A, Entity B) pair in looseContacts)
         {
-            int taken = Find(pair.A) is { } first && Find(pair.B) is { } second ? CarryContact(first, second) : 0;
-            Recount(pair, taken - 1);
+            if (Find(pair.A) is not { } first || Find(pair.B) is not { } second)
+            {
+                Recount(pair, -1);
+                continue;
+            }
+            int taken = CarryContact(first, second);
+            if (taken == 0 && (handedIntoNumericFrames.Contains(pair.A) || handedIntoNumericFrames.Contains(pair.B)))
+                waitingContacts.Add(pair);
+            else
+                Recount(pair, taken - 1);
         }
         looseContacts.Clear();
+        handedIntoNumericFrames.Clear();
     }
 
     /// <summary>
     /// Lets every system that holds a body of each of the two records carry their contact, and returns how many of them
     /// took it over: the ones that did not hold it as started already (see <see cref="FrameWorld.Carry"/>). The bodies are
     /// the primary body of each, or the primary body of one and a ghost of the other, which must be able to touch (see
-    /// <see cref="GhostTouches"/>). Two ghosts carry no contact.
+    /// <see cref="PrimariesTouch"/> and <see cref="GhostTouches"/>), because Jolt would never find a pair that cannot, and
+    /// a held pair that Jolt never finds ends a step late, or never while both its bodies sleep. Two ghosts carry no
+    /// contact.
     /// </summary>
     private int CarryContact(BodyRecord first, BodyRecord second)
     {
@@ -210,9 +246,14 @@ public sealed partial class JoltPhysicsBackend
         if (first.World is { } home)
         {
             if (second.World == home)
-                taken += Carried(home, PrimaryId(first), PrimaryId(second));
+            {
+                if (PrimariesTouch(first, second))
+                    taken += Carried(home, PrimaryId(first), PrimaryId(second));
+            }
             else if (GhostIn(second, home) is { IsValid: true } ghost && GhostTouches(second, first))
+            {
                 taken += Carried(home, PrimaryId(first), ghost);
+            }
         }
         if (first.Ghosts is { } ghosts && second.World is { } other)
             foreach (GhostBody ghost in ghosts)
@@ -234,15 +275,33 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
+    /// True when the primary bodies of <paramref name="first"/> and <paramref name="second"/> can touch in one system: their
+    /// layers meet (see <see cref="Layers"/>), so that neither is the hull of a frame while the other moves, and their
+    /// motions meet (see <see cref="MotionsMeet"/>).
+    /// </summary>
+    private static bool PrimariesTouch(BodyRecord first, BodyRecord second) =>
+        Layers.Meet(PrimaryLayer(first), PrimaryLayer(second)) &&
+        MotionsMeet(first.Motion, first.Desc.IsSensor, second.Motion, second.Desc.IsSensor);
+
+    /// <summary>
     /// True when a ghost of <paramref name="ghostOf"/> and the primary body of <paramref name="other"/> can touch in one
-    /// system. Jolt makes a contact only when one of two bodies is dynamic, or when one is kinematic and the other is a
-    /// sensor. A character's own collisions find every body. A ghost is kinematic, or static for a mesh, and it never
-    /// meets the hull of a frame (see <see cref="Layers"/>).
+    /// system: their layers meet, so that the ghost never meets the hull of a frame (see <see cref="Layers"/>), and their
+    /// motions meet (see <see cref="MotionsMeet"/>). A ghost is kinematic, or static for a mesh. A ghost of a static body
+    /// meets only what that body meets (see <see cref="FrameWorld.StandsForStaticBody"/>), so it counts as static too.
     /// </summary>
     private static bool GhostTouches(BodyRecord ghostOf, BodyRecord other) =>
-        !other.IsHull && (other.Motion is BodyMotion.Dynamic or BodyMotion.Character ||
-                          (!ghostOf.HasMesh && other.Desc.IsSensor) ||
-                          (other.Motion == BodyMotion.Kinematic && ghostOf.Desc.IsSensor));
+        Layers.Meet(GhostLayer(ghostOf), PrimaryLayer(other)) &&
+        MotionsMeet(ghostOf.HasMesh || !ghostOf.IsMovable ? BodyMotion.Static : BodyMotion.Kinematic, ghostOf.Desc.IsSensor,
+            other.Motion, other.Desc.IsSensor);
+
+    /// <summary>
+    /// True when Jolt makes a contact between two bodies of these motions whose layers meet: when one of them is dynamic,
+    /// or when one is kinematic and the other is a sensor. The engine never sets <c>CollideKinematicVsNonDynamic</c>, so
+    /// that is Jolt's whole rule. A character's own collisions find every body that its layer meets.
+    /// </summary>
+    private static bool MotionsMeet(BodyMotion a, bool aIsSensor, BodyMotion b, bool bIsSensor) =>
+        a is BodyMotion.Dynamic or BodyMotion.Character || b is BodyMotion.Dynamic or BodyMotion.Character ||
+        (a == BodyMotion.Kinematic && bIsSensor) || (b == BodyMotion.Kinematic && aIsSensor);
 
     /// <summary>The two entities of a contact, in canonical order, or null when the contact is not reported.</summary>
     private (Entity A, Entity B)? EntityPair(in RawEnd raw)
@@ -278,10 +337,11 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Checks the invariants of the contact ledger (see the remarks of this file). Visits every started body pair of every
-    /// system, so it costs O(started pairs + loose contacts).
+    /// system, so it costs O(started pairs + loose contacts + waiting contacts).
     /// </summary>
     private void AssertContactInvariants()
     {
+        Contract.Invariant(handedIntoNumericFrames.Count == 0);
         countScratch.Clear();
         foreach (FrameWorld world in worldList)
         {
@@ -292,6 +352,8 @@ public sealed partial class JoltPhysicsBackend
                     CollectionsMarshal.GetValueRefOrAddDefault(countScratch, pair, out _)++;
         }
         foreach ((Entity A, Entity B) pair in looseContacts)
+            CollectionsMarshal.GetValueRefOrAddDefault(countScratch, pair, out _)++;
+        foreach ((Entity A, Entity B) pair in waitingContacts)
             CollectionsMarshal.GetValueRefOrAddDefault(countScratch, pair, out _)++;
         Contract.Invariant(countScratch.Count == contactCounts.Count);
         foreach (((Entity A, Entity B) pair, int count) in contactCounts)

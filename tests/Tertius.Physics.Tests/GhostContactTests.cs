@@ -288,4 +288,324 @@ public class GhostContactTests
         second.Should().Equal(first);
         parallel.Should().Equal(first);
     }
+
+    // ---- Review of ter-ejx9 ----
+    //
+    // Numeric frames are an engine detail with no bubbles, so they must not change which bodies a body meets or which
+    // contacts gameplay hears. A ghost stands for its real body, so it meets what that body meets. Each test that
+    // involves numeric frames runs the same scene without them.
+
+    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
+    private static readonly NumericFrameOptions WithoutNumericFrames = new()
+    {
+        CreateSpeed = double.PositiveInfinity,
+        LeaveSpeed = double.PositiveInfinity,
+        CreateDistance = double.PositiveInfinity,
+        LeaveDistance = double.PositiveInfinity,
+    };
+
+    /// <summary>A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.</summary>
+    private static World WorldWith(bool numericFrames, out FaultInjectingBackend faults) =>
+        NewWorldWithFaults(out faults, configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
+
+    /// <summary>True while the numeric update names <paramref name="anchor"/> an anchor of the falling frame <paramref name="frame"/>.</summary>
+    private static bool NamesAnchor(World world, Entity anchor, FrameHandle frame)
+    {
+        foreach (NumericGhost ghost in world.Frames.AnchorGhosts)
+            if (ghost.Anchor == anchor && ghost.Frame == frame)
+                return true;
+        return false;
+    }
+
+    /// <summary>A kinematic sensor ball of radius 0.25 m.</summary>
+    private static readonly BodyDesc KinematicSensorBall =
+        new BodyDesc(new SphereShapeDesc(0.25f), BodyMotion.Kinematic, Mass: 1, LinearDamping: 0, AngularDamping: 0) { IsSensor = true };
+
+    /// <summary>
+    /// Runs a ball of <paramref name="ballBody"/> at 60 m/s along +X from (-30, 0, 0) through a static box of 4 m by 4 m by
+    /// 4 m at the origin, with no gravity, for 1.5 s. At 60 m/s the ball falls in a numeric frame of its own, and the
+    /// numeric update names the box an anchor of that frame, which keeps a ghost of it. The ghost of a box is kinematic, so
+    /// that a dynamic body that hits it meets a body that moves at the box's velocity relative to the frame. Returns what
+    /// the box and the ball heard of each other, and whether the ball's physics home ever held a ghost of the box.
+    /// </summary>
+    private static (List<ContactNews> BoxHeard, List<ContactNews> BallHeard, bool GhostOfTheBox) FlyThroughAStaticBox(bool numericFrames,
+        BodyDesc boxBody, BodyDesc ballBody)
+    {
+        using World world = WorldWith(numericFrames, out FaultInjectingBackend faults);
+        FrameHandle ground = Ground(world, 0);
+        var boxLog = new CollisionLog();
+        Entity box = world.Spawn(new SpawnDesc { Frame = ground, Body = boxBody, Components = [boxLog] });
+        var ballLog = new CollisionLog();
+        Entity ball = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-30), LinearVelocity = new Double3(60, 0, 0), Body = ballBody, Components = [ballLog] });
+        bool ghostOfTheBox = false;
+        for (int tick = 0; tick < 90; tick++)
+        {
+            world.Tick();
+            ghostOfTheBox |= faults.Jolt.HasGhostIn(box, world.PhysicsHomeOf(ball));
+        }
+        world.PoseIn(ball, ground).Position.X.Should().BeGreaterThan(50, "the ball flew through the box");
+        world.Errors.Should().BeEmpty();
+        return (boxLog.NewsOf(ball), ballLog.NewsOf(box), ghostOfTheBox);
+    }
+
+    /// <summary>
+    /// A kinematic sensor ball flies through a static box (see <see cref="FlyThroughAStaticBox"/>). Jolt makes no contact
+    /// between a kinematic body and a static one, sensor or not, so the sensor never detects the box without numeric
+    /// frames. The ghost of the box in the sensor's falling frame stands for the box, so it is not detected either.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AKinematicSensorThatFliesThroughAStaticBoxDetectsNothingWithNumericFramesOrWithout(bool numericFrames)
+    {
+        var heard = FlyThroughAStaticBox(numericFrames, new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static), KinematicSensorBall);
+
+        heard.GhostOfTheBox.Should().Be(numericFrames, "with numeric frames, the sensor's falling frame keeps a ghost of the box, its anchor");
+        heard.BallHeard.Should().BeEmpty("a kinematic sensor never detects a static body");
+        heard.BoxHeard.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A kinematic ball flies through a static sensor box (see <see cref="FlyThroughAStaticBox"/>). Jolt makes a contact
+    /// between a kinematic body and a sensor, so the sensor detects the ball, without numeric frames and through its ghost
+    /// in the ball's falling frame alike.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AStaticSensorDetectsAKinematicBallThatFliesThroughItWithNumericFramesOrWithout(bool numericFrames)
+    {
+        var heard = FlyThroughAStaticBox(numericFrames, new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static) { IsSensor = true },
+            KinematicSensorBall with { IsSensor = false });
+
+        heard.GhostOfTheBox.Should().Be(numericFrames);
+        heard.BoxHeard.Should().Equal(Started, Ended);
+        heard.BallHeard.Should().Equal(Started, Ended);
+    }
+
+    /// <summary>
+    /// The other ghost of a static body: the hull of a parked station, a static box of 4 m by 4 m by 4 m at the origin of
+    /// space with a bubble of radius 40 m, has a ghost in an empty frame whose bubble of radius 30 m around (20, 0, 0)
+    /// overlaps the station's, and which does not fit in it. A kinematic sensor ball in that frame flies at 4 m/s along -X
+    /// through the ghost. With no numeric frame in the scene, the ghost of the hull is kinematic too, as for every hull
+    /// that is not a mesh. It stands for a static hull, so the sensor does not detect it, as it does not detect the static
+    /// interior of the station inside the station's bubble. The same holds when physics drove the station until the game
+    /// parked it in the first tick, which made the hull static while it kept its ghost.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AKinematicSensorDoesNotDetectTheGhostOfAParkedStationsHull(bool parkedByTheGame)
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = Space(world);
+        var stationLog = new CollisionLog();
+        Entity stationOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(40), parkedByTheGame ? MotionDriver.Physics : MotionDriver.Static),
+            Components = [stationLog],
+        });
+        FrameHandle beside = Bubble(world, space, 20, 30);
+        var sensorLog = new CollisionLog();
+        Entity sensor = world.Spawn(new SpawnDesc
+        {
+            Frame = beside, Pose = At(-14), LinearVelocity = new Double3(-4, 0, 0), Body = KinematicSensorBall, Components = [sensorLog],
+        });
+        world.Tick();
+        faults.Jolt.HasGhostIn(stationOwner, beside).Should().BeTrue("the bubbles overlap, and the station does not fit in the other frame");
+        if (parkedByTheGame)
+            world.SetFrameDriver(world.GetOwnedFrame(stationOwner), MotionDriver.Static);
+
+        bool ghostSeen = false;
+        for (int tick = 0; tick < 150; tick++)
+        {
+            world.Tick();
+            ghostSeen |= faults.Jolt.HasGhostIn(stationOwner, beside);
+        }
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+
+        ghostSeen.Should().BeTrue("the bubbles overlap, and the station does not fit in the other frame");
+        world.GetFrame(sensor).Should().Be(beside);
+        world.PoseIn(sensor, space).Position.X.Should().BeLessThan(-3, "the sensor flew through the ghost of the hull");
+        sensorLog.NewsOf(stationOwner).Should().BeEmpty("a kinematic sensor never detects a static body");
+        stationLog.NewsOf(sensor).Should().BeEmpty();
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// With no gravity, a ball flies at 60 m/s along -X from (100, 3, 0), past a static box of 2 m by 2 m by 2 m at the
+    /// origin, so it falls in a numeric frame of its own, and the numeric update names the box an anchor of that frame,
+    /// which keeps a ghost of it. Far past the box, the update stops naming it. The ghost pass of the next step drops the
+    /// ghost, although nothing changed the frame tree, which would make the reconcile drop it. A ghost that stayed would
+    /// stand for the box where the box is not.
+    /// </summary>
+    [Fact]
+    public void TheGhostOfAStaticBoxGoesInTheStepAfterTheNumericUpdateStopsNamingItAnAnchor()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = Space(world);
+        Entity box = world.Spawn(new SpawnDesc { Frame = space, Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static) });
+        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = At(100, 3), LinearVelocity = new Vector3(-60, 0, 0), Body = Ball() });
+        world.Tick();
+        FrameHandle falling = world.PhysicsHomeOf(ball);
+        world.Frames.Numeric(falling).Should().Be(NumericMode.Falling);
+        NamesAnchor(world, box, falling).Should().BeTrue();
+        TickUntil(world, () => !NamesAnchor(world, box, falling), 600);
+        faults.Jolt.HasGhostIn(box, falling).Should().BeTrue("the ghost pass of the next step drops it");
+        int treeVersion = world.Frames.Version;
+
+        world.Tick();
+
+        world.Frames.Version.Should().Be(treeVersion, "nothing changed the frame tree");
+        world.PhysicsHomeOf(ball).Should().Be(falling);
+        faults.Jolt.HasGhostIn(box, falling).Should().BeFalse("the numeric update no longer names the box an anchor of the ball's frame");
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// With no gravity, a ship of 1000 kg and a probe, a ball of radius 1 m, fly at 60 m/s along -X, 3 m apart, past a
+    /// static mesh cube of 2 m by 2 m by 2 m at the origin. With numeric frames, both fall in one numeric frame, which keeps
+    /// a ghost of the cube while the numeric update names it an anchor. The ghost of a mesh is static, so Jolt never moves
+    /// it. When the probe is 120 m past the cube, it stops and drifts down at 1.5 m/s across the lane of the cube, while
+    /// its frame flies on, so the place in that frame where the ghost of the cube stood comes past the probe. The ghost has
+    /// gone by then, so nothing hits the probe, as without numeric frames.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void AProbeThatStopsFarPastAStaticMeshCubeIsNotHitByTheCubeWithNumericFramesOrWithout(bool numericFrames)
+    {
+        using World world = WorldWith(numericFrames, out FaultInjectingBackend faults);
+        FrameHandle space = Space(world);
+        Entity cube = world.Spawn(new SpawnDesc { Frame = space, Body = new BodyDesc(MeshCube(1), BodyMotion.Static) });
+        world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(100, 6), LinearVelocity = new Vector3(-60, 0, 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+        });
+        var probeLog = new CollisionLog();
+        var pilot = new Pilot();
+        Entity probe = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(100, 3), LinearVelocity = new Vector3(-60, 0, 0), Body = Ball(1), Components = [probeLog, pilot],
+        });
+        world.Tick();
+        if (numericFrames)
+        {
+            NamesAnchor(world, cube, world.PhysicsHomeOf(probe)).Should().BeTrue("the probe's falling frame keeps a ghost of the cube");
+            faults.Jolt.HasGhostIn(cube, world.PhysicsHomeOf(probe)).Should().BeTrue();
+            // The new static ghost has the recorded motion of the cube from the start.
+            faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        }
+        TickUntil(world, () => world.PoseIn(probe, space).Position.X < -120, 600);
+        probeLog.Seen.Should().BeEmpty("the probe passed 3 m from the cube's center");
+
+        pilot.Once = body => body.SetVelocity(new Double3(0, -1.5, 0));
+        Tick(world, 150);
+
+        world.PoseIn(probe, space).Position.Y.Should().BeLessThan(0, "the probe drifted across the lane of the cube");
+        probeLog.Seen.Should().BeEmpty("the cube is more than 100 m away");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// With no gravity, a crate of 10 kg flies at 3 m/s at a static wall, a cube of 1 m at the origin, a mesh or a box.
+    /// With numeric frames that make every moving body fall in a frame of its own, the crate's falling frame keeps a ghost
+    /// of the wall, its anchor, which is static for a mesh and kinematic for a box. 40 cm before the wall, the crate speeds
+    /// up to v₁ ≈ 20 m/s, so that it is 1.2 cm from the wall at the next sync point, which drains the frame: the frame
+    /// takes on the crate's change of velocity, and every member and ghost of the frame loses it. The contact starts in the
+    /// step after the drain, and its impulse is the crate's mass times v₁, the approach speed of the crate and the real
+    /// wall. Jolt never moves a static ghost, so the contact reads its real body's velocity, which the drain changes too.
+    /// The test reads only the start: Jolt does not stop a crate at a static ghost that the ghost pass moves 34 cm into
+    /// it in each step, so with numeric frames the crate passes into the hollow mesh.
+    /// </summary>
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    public void TheImpulseOfACrateThatHitsAStaticWallRightAfterItsFrameDrainsIsItsApproachToTheRealWall(bool mesh, bool numericFrames)
+    {
+        var everyBodyFalls = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0 };
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
+            configure: options => options.NumericFrames = numericFrames ? everyBodyFalls : WithoutNumericFrames);
+        FrameHandle ground = Ground(world, 0);
+        ShapeDesc shape = mesh ? MeshCube(0.5f) : new BoxShapeDesc(new Vector3(0.5f));
+        Entity wall = world.Spawn(new SpawnDesc { Frame = ground, Body = new BodyDesc(shape, BodyMotion.Static) });
+        var crateLog = new CollisionLog();
+        var pilot = new Pilot();
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = ground, Pose = At(-3), LinearVelocity = new Double3(3, 0, 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0), Components = [crateLog, pilot],
+        });
+        double Gap() => -1 - world.PoseIn(crate, ground).Position.X;
+
+        TickUntil(world, () => Gap() < 0.40, 200);
+        if (numericFrames)
+        {
+            world.Frames.Numeric(world.PhysicsHomeOf(crate)).Should().Be(NumericMode.Falling);
+            faults.Jolt.HasGhostIn(wall, world.PhysicsHomeOf(crate)).Should().BeTrue();
+        }
+        // The command acts in the step after the next one, and the next step closes 5 cm.
+        double v1 = (Gap() - 0.05 - 0.012) / world.DeltaTime;
+        pilot.Once = body => body.SetVelocity(new Double3(v1, 0, 0));
+        Tick(world, 8);
+
+        world.Errors.Should().BeEmpty();
+        crateLog.Seen.Should().ContainSingle().Which.Other.Should().Be(wall);
+        crateLog.Seen[0].Impulse.Should().BeApproximately((float)(10 * v1), 15f, "the crate of 10 kg approached the static wall at v₁");
+    }
+
+    /// <summary>
+    /// With no gravity, a ship flies at 2 m/s along -X from (110, 0, 0) toward an empty frame, the station, with a bubble
+    /// of radius 100 m at the origin of space. The ship's hull is a box of 4 m by 4 m by 4 m, its bubble has a radius of
+    /// 30 m, so it fits in the station, and its interior is a small ball at its center. A crate of 2 m by 2 m by 2 m floats
+    /// in the station at (103, 0, 0), 3 m outside the station's bubble but not far enough to leave it. While the bubbles
+    /// overlap, the station's system holds a ghost of the hull, which reaches the crate before the hull touches the
+    /// station's bubble, and pushes it ahead. Then the hull enters the station, and its ghost there goes. The hull and the
+    /// crate are now in the same system, but a hull never meets a moving body (see Layers), and the crate does not touch the
+    /// small interior. So no system can hold their contact any more, and it ends in the step of the hand-off, not later.
+    /// </summary>
+    [Fact]
+    public void AContactThatNoSystemCanHoldAfterAHandOffEndsInTheStepOfTheHandOff()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = Space(world);
+        FrameHandle station = Bubble(world, space, 0, 100);
+        var shipLog = new CollisionLog();
+        Entity shipOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(110),
+            LinearVelocity = new Vector3(-2, 0, 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0)
+            {
+                InteriorShape = new SphereShapeDesc(0.05f),
+            },
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+            Components = [shipLog],
+        });
+        var crateLog = new CollisionLog();
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = station, Pose = At(103),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0), Components = [crateLog],
+        });
+
+        TickUntil(world, () => world.GetFrame(shipOwner) == station, 300);
+        Tick(world, 30);
+
+        int started = faults.Outputs.FindIndex(output => output.Contacts.Any(c => c.A == crate && c.B == shipOwner || c.A == shipOwner && c.B == crate));
+        int handOff = faults.Outputs.FindIndex(output => output.HandOffs.Any(h => h.Entity == shipOwner && h.To == station));
+        int ended = faults.Outputs.FindIndex(output => output.ContactsEnded.Any(e => e.A == crate && e.B == shipOwner || e.A == shipOwner && e.B == crate));
+        started.Should().BeInRange(0, handOff - 1, "the ghost of the hull reached the crate before the hull entered the station");
+        ended.Should().Be(handOff, "the hull never meets the crate in the station's system, and the crate never touches the interior");
+        crateLog.NewsOf(shipOwner).Should().Equal(Started, Ended);
+        shipLog.NewsOf(crate).Should().Equal(Started, Ended);
+        world.Errors.Should().BeEmpty();
+    }
 }
