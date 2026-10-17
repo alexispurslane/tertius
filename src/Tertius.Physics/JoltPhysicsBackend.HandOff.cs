@@ -86,9 +86,10 @@ public sealed partial class JoltPhysicsBackend
     private readonly List<HandOffPlan> handOffPlans = new();
     private readonly List<BubbleEntry> bubbleEntries = new();
     private readonly List<BubbleEntry> ghostBubbles = new();
+    // The bubbles that the members of the bubble parent of a system's frame meet, for the bodies that stick out of that frame.
+    private readonly List<BubbleEntry> siblingBubbles = new();
     private readonly BubbleSiteCache handOffSites = new();
     private readonly BubbleSiteCache ghostSites = new();
-    private readonly List<FrameMotion> siblingMotions = new();
     private readonly List<RawContact> rawContacts = new();
     private readonly List<RawEnd> rawEnds = new();
     private readonly List<ContactStarted> startedContacts = new();
@@ -97,13 +98,6 @@ public sealed partial class JoltPhysicsBackend
     // The contacts that started of the bodies that left their systems since the last ResolveLooseContacts, by entities in
     // canonical order. Each pair of entities has at most one body pair in contact, so no pair is here twice.
     private readonly List<(Entity A, Entity B)> looseContacts = new();
-
-    private void PrepareSiblingMotions(List<FrameHandle> siblings)
-    {
-        siblingMotions.Clear();
-        foreach (FrameHandle sibling in siblings)
-            siblingMotions.Add(MotionOf(sibling));
-    }
 
     // ---- Contacts ----
 
@@ -333,9 +327,10 @@ public sealed partial class JoltPhysicsBackend
     /// engine detail with no bubbles, so they do not change which bubbles a body meets. A fast body enters a parked
     /// station, whose hull is an anchor in the system of the station's parent. A body in a numeric frame of its own enters
     /// a ship that falls in another one, and a body at rest enters a fast ship. A body that touches one of these bubbles
-    /// without entering it has a ghost there. The place and velocity of the system's origin in each parent are sums
-    /// through the tree, in doubles, through their lowest common ancestor, at the end of the step. Numeric frames never
-    /// rotate, so each parent has the axes of the system.
+    /// without entering it has a ghost there, and so does an anchor. The ghosts also read the bubbles that the members of
+    /// a frame's parent meet, for a body that sticks out of the frame (see <see cref="UpdateGhosts"/>). The place and
+    /// velocity of the system's origin in each parent are sums through the tree, in doubles, through their lowest common
+    /// ancestor, at the end of the step. Numeric frames never rotate, so each parent has the axes of the system.
     /// </summary>
     private void PrepareBubbles(List<BubbleEntry> entries, FrameHandle frame, BubblesFor use)
     {
@@ -446,10 +441,14 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Keeps a kinematic ghost of each moving body whose bounding sphere crosses a bubble boundary, in the system on
     /// the other side, and a ghost of each frame hull in the system of every sibling whose bubble overlaps its own.
-    /// The bubbles inside a body's frame are those that the hand-off lets it enter (see <see cref="PrepareBubbles"/>), so
-    /// a body in a numeric frame meets the same bubbles as without numeric frames. Ghosts get the real body's pose and
-    /// velocity, so that during the next step they move with it. Each anchor that the numeric update names in
-    /// <see cref="FrameTree.AnchorGhosts"/> has a ghost in the falling frame that it names.
+    /// Numeric frames are an engine detail with no bubbles, so every body, hull and anchor gets the ghosts in semantic
+    /// frames that it gets without numeric frames. The bubbles inside a body's frame are those that the hand-off lets it
+    /// enter (see <see cref="PrepareBubbles"/>). An anchor never enters them, but a ghost is about touching, so it meets
+    /// them too. A body that sticks out of its frame's bubble also meets the bubbles that the members of the parent's
+    /// system meet, the semantic siblings of its frame, wherever they hang among numeric frames. Ghosts get the real
+    /// body's pose and chord velocity, so that during the next step they move with it. Each anchor that the numeric
+    /// update names in <see cref="FrameTree.AnchorGhosts"/> has a ghost in the falling frame that it names. Those frames are
+    /// numeric, and no bubble is, so no frame gets two ghosts of one body.
     /// </summary>
     private void UpdateGhosts()
     {
@@ -466,8 +465,7 @@ public sealed partial class JoltPhysicsBackend
             FrameHandle parent = BubbleParentOf(frame);
             FrameBounds bounds = frames.Bounds(frame);
             PrepareBubbles(ghostBubbles, frame, BubblesFor.Ghosts);
-            List<FrameHandle> siblings = parent.IsNull ? EmptyChildren : ChildrenOf(parent);
-            bool haveSiblingMotions = false;
+            bool haveSiblingBubbles = false;
             bool haveFrameMotion = false;
             FrameMotion frameMotion = default;
 
@@ -487,7 +485,10 @@ public sealed partial class JoltPhysicsBackend
                 bool haveSnapshot = false;
 
                 // A moving body that sticks out of its frame's bubble has a ghost in the parent, and in each sibling
-                // frame whose bubble it touches (it lost the tie of rule 3, or the bubbles overlap there).
+                // frame whose bubble it touches (it lost the tie of rule 3, or the bubbles overlap there). The body is
+                // partly in the parent, so its siblings are the bubbles that the members of the parent's system meet,
+                // those of the semantic children of the parent's semantic frame (see PrepareBubbles), apart from its own
+                // frame. So a body in a ship that falls in a numeric frame meets a parked station beside it.
                 if (movable && !parent.IsNull && bounds.SignedDistance(center) > -radius)
                 {
                     if (!haveFrameMotion)
@@ -503,35 +504,36 @@ public sealed partial class JoltPhysicsBackend
                     Double3 parentAngular = frameMotion.AngularToParent(s.Angular);
                     WantGhost(member, parent, parentPose, parentLinear, parentAngular);
 
-                    for (int i = 0; i < siblings.Count; i++)
+                    if (!haveSiblingBubbles)
                     {
-                        FrameHandle sibling = siblings[i];
-                        if (sibling == frame || sibling == member.OwnedFrame || frames.IsNumeric(sibling))
+                        PrepareBubbles(siblingBubbles, parent, BubblesFor.Ghosts);
+                        haveSiblingBubbles = true;
+                    }
+                    foreach (BubbleEntry sibling in siblingBubbles)
+                    {
+                        if (sibling.Frame == frame || sibling.Frame == member.OwnedFrame)
                             continue;
-                        if (!haveSiblingMotions)
-                        {
-                            PrepareSiblingMotions(siblings);
-                            haveSiblingMotions = true;
-                        }
-                        FrameMotion motion = siblingMotions[i];
-                        if (frames.Bounds(sibling).SignedDistance(motion.Pose.InverseTransformPoint(parentPose.Position)) > radius)
+                        FrameMotion motion = sibling.Motion;
+                        var poseInSiblingParent = new DPose(parentPose.Position + sibling.Offset, parentPose.Rotation);
+                        if (frames.Bounds(sibling.Frame).SignedDistance(motion.Pose.InverseTransformPoint(poseInSiblingParent.Position)) > radius)
                             continue;
-                        WantGhost(member, sibling, motion.PoseFromParent(parentPose),
-                            motion.VelocityFromParent(parentCenter, parentLinear), motion.AngularFromParent(parentAngular));
+                        WantGhost(member, sibling.Frame, motion.PoseFromParent(poseInSiblingParent),
+                            motion.VelocityFromParent(parentCenter + sibling.Offset, parentLinear + sibling.Velocity),
+                            motion.AngularFromParent(parentAngular));
                     }
                 }
 
                 // A body that touches the bubble of a semantic child of its semantic frame without being in it (it lost
                 // a tie, or it is a hull that does not fit) has a ghost in that child. A hull reaches as far as its own
-                // bubble. An anchor never moves between frames, so it has no bubbles to enter: it keeps the ghosts that it
-                // had before a body in a numeric frame met bubbles, those in the children of its own frame, and those that
-                // the numeric update names.
+                // bubble. A ghost is about touching, not entering, so an anchor meets the same bubbles, although it never
+                // moves between frames: a parked station's hull has a ghost in a ship that falls past it in a numeric
+                // frame. A static body that is not a hull has no ghost in a bubble, with numeric frames or without. None
+                // of these bubbles is a numeric frame, so none of them holds a ghost that the numeric update names.
                 double reach = member.IsHull ? Math.Max(radius, frames.Bounds(member.OwnedFrame).MaxRadius) : radius;
-                bool entersBubbles = MovesBetweenFrames(member);
                 for (int i = 0; i < ghostBubbles.Count && (movable || member.IsHull); i++)
                 {
                     BubbleEntry bubble = ghostBubbles[i];
-                    if (bubble.Frame == member.OwnedFrame || (!entersBubbles && bubble.Parent != frame))
+                    if (bubble.Frame == member.OwnedFrame)
                         continue;
                     FrameMotion motion = bubble.Motion;
                     if (frames.Bounds(bubble.Frame).SignedDistance(motion.Pose.InverseTransformPoint(center + bubble.Offset)) > reach)
@@ -617,11 +619,20 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// True when the frame tree allows a ghost of the record's body in <paramref name="frame"/>: the frame is the parent,
-    /// a sibling or a child of the frame whose system holds the body, a semantic child of that frame's semantic frame
-    /// wherever it hangs among its numeric frames (see <see cref="BubbleSitesOf"/>), or a falling frame that keeps a ghost
-    /// of the anchor (see <see cref="FrameTree.AnchorGhosts"/>), and not the frame that the record owns. These are the only
-    /// frames where <see cref="UpdateGhosts"/> puts a ghost. A record without a body has no place for a ghost.
+    /// True when the frame tree allows a ghost of the record's body in <paramref name="frame"/>. These are exactly the
+    /// frames where <see cref="UpdateGhosts"/> can put a ghost, apart from the frame that the record owns. Call the frame
+    /// whose system holds the body its home.
+    /// <list type="bullet">
+    /// <item>The home's tree parent, unless the home is numeric: a body that sticks out of the home's bubble is partly
+    /// there (see <see cref="BubbleParentOf"/>).</item>
+    /// <item>A semantic child of the home's semantic frame, wherever it hangs among numeric frames (see
+    /// <see cref="BubbleSitesOf"/>): its bubble is one that the body touches.</item>
+    /// <item>A semantic child of the semantic frame of that tree parent, wherever it hangs among numeric frames: a sibling
+    /// of the home, whose bubble a body that sticks out of the home's bubble touches.</item>
+    /// <item>A falling frame that keeps a ghost of the anchor (see <see cref="FrameTree.AnchorGhosts"/>).</item>
+    /// </list>
+    /// Apart from the tree parent, these frames are never numeric unless they keep a ghost of an anchor. A record without a
+    /// body has no place for a ghost.
     /// </summary>
     private bool GhostAllowed(BodyRecord record, FrameHandle frame)
     {
@@ -631,11 +642,14 @@ public sealed partial class JoltPhysicsBackend
         foreach (NumericGhost ghost in frames.AnchorGhosts)
             if (ghost.Anchor == record.Entity && ghost.Frame == frame)
                 return true;
-        FrameHandle homeParent = frames.TreeParent(home);
-        FrameHandle frameParent = frames.TreeParent(frame);
-        if (frame == homeParent || frameParent == home || (!homeParent.IsNull && frameParent == homeParent))
+        FrameHandle bubbleParent = frames.IsNumeric(home) ? FrameHandle.Null : frames.TreeParent(home);
+        if (frame == bubbleParent)
             return true;
-        return !frameParent.IsNull && !frames.IsNumeric(frame) && frames.SemanticOf(frameParent) == frames.SemanticOf(home);
+        if (frames.IsNumeric(frame))
+            return false;
+        // A root frame's semantic parent is null, which is the semantic frame of no frame.
+        FrameHandle semanticParent = frames.Parent(frame);
+        return semanticParent == frames.SemanticOf(home) || (!bubbleParent.IsNull && semanticParent == frames.SemanticOf(bubbleParent));
     }
 
     /// <summary>
