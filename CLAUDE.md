@@ -6,6 +6,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 
 - Run every build and test command in the dev shell: `nix develop --command bash -c '<command>'`.
 - Build: `dotnet build Tertius.slnx`. Test one module: `dotnet test --project tests/Tertius.<Module>.Tests`.
+- To open the project in JetBrains Rider, start Rider with `bash tools/rider.sh`, so that it uses the dev shell's SDK and variables. `tools/README.md` gives the one-time settings.
 - The tests use xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions.
 - The double-precision Jolt library comes from `native/joltc.nix`. Read the Jolt pitfalls in project memory before you touch Jolt interop.
 - This project uses a CLI ticket system for task management. When you need it, run `tk help`. The tickets in `.tickets/` track what to do and in which order, and `tk ready` lists the work whose dependencies are done. Design docs live in `docs/plans/`, and each epic ticket names its design doc. When you start a ticket, run `tk start`. When its work is merged, run `tk close`. Commit ticket changes together with the work.

@@ -16,6 +16,8 @@
     {
       packages = forAllSystems (pkgs: {
         joltc-double = pkgs.callPackage ./native/joltc.nix { };
+        # The dev shell's SDK, so that tools/rider.sh can keep a stable link to it (.nix/dotnet-sdk) for Rider.
+        dotnet-sdk = pkgs.dotnet-sdk_11;
       });
 
       devShells = forAllSystems (
@@ -63,8 +65,13 @@
             VK_LAYER_PATH = "${pkgs.vulkan-validation-layers}/share/vulkan/explicit_layer.d";
             VK_ICD_FILENAMES = pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isDarwin "${pkgs.moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
 
-            # The Nix-built double-precision Jolt library. MSBuild does not read this yet.
+            # The Nix-built double-precision Jolt library, which Directory.Build.targets copies next to each output.
             TERTIUS_JOLTC_DIR = "${joltc}/lib";
+
+            # The Vulkan loader, which Directory.Build.targets copies next to each output, so that Silk.NET finds it
+            # without DYLD_FALLBACK_LIBRARY_PATH. macOS removes DYLD_* variables in /usr/bin/env and in apps with the
+            # hardened runtime, such as Rider, so a test that Rider starts never sees them.
+            TERTIUS_VULKAN_DIR = "${pkgs.vulkan-loader}/lib";
           };
         }
       );

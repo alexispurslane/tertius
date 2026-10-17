@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <UsesJolt>true</UsesJolt>
+    <UsesVulkan>true</UsesVulkan>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Tertius.Host/Tertius.Host.csproj" />
