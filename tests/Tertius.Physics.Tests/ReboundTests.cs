@@ -508,26 +508,28 @@ public class ReboundTests
     }
 
     /// <summary>
-    /// The rule decides by what Jolt simulates. A ship flies at 0.7 m/s past a parked station whose hull is a floor of
-    /// triangles, under the ship's own gravity of 1 g, and the ship's bubble takes in the hull, so the ship's system holds
-    /// a ghost of it. Jolt never moves a mesh, so that ghost is static: Jolt sees it at rest, and the backend puts it at
-    /// the hull's place after every step. A ball of restitution 0.5 in the ship falls onto that ghost. Jolt computes the
-    /// bounce from the ball's own velocity in the ship, which differs from the approach to the real floor by 0.7 m/s.
+    /// A ghost moves as its real body does, so the ball bounces as on the real floor (ter-dq92). A ship flies at 0.7 m/s
+    /// past a parked station whose hull is a floor of triangles, under the ship's own gravity of 1 g, and the ship's bubble
+    /// takes in the hull, so the ship's system holds a ghost of it. That ghost moves in the ship at the ship's velocity
+    /// backward, so it is a kinematic body that Jolt moves with that velocity. A ball of restitution 0.5 in the ship
+    /// falls onto the ghost. Jolt computes the bounce from the approach to the ghost, which is the approach to the real
+    /// floor, and the minimum rebound reads the same approach.
     /// <list type="bullet">
     /// <item>The ship sinks, so the floor comes up at the ball. The ball lands at about 1.7 m/s in the ship, 2.4 m/s
-    /// against the floor. Jolt's rebound would be 0.5 × (1.7 − 0.16) m/s = 0.77 m/s, which rises 3 cm, so the ball does
-    /// not bounce, and it stops in the ship. By the real approach, 0.5 × (2.4 − 0.16) m/s, the rule kept that bounce.</item>
+    /// against the floor. Jolt rebounds it at 0.5 × (2.4 − 0.16) m/s = 1.12 m/s from the floor, which rises 6.4 cm, so
+    /// the ball bounces. (Before, the ghost was a static body that the backend put at the hull's place after every step,
+    /// so Jolt saw it at rest and rebounded at 0.5 × (1.7 − 0.16) m/s, which rises 3 cm, and the ball did not bounce.)</item>
     /// <item>The ship rises, so the floor falls away. The ball lands at about 2.3 m/s in the ship, 1.6 m/s against the
-    /// floor. Jolt rebounds at 0.5 × (2.3 − 0.16) m/s = 1.07 m/s, which rises 5.8 cm, so the ball bounces. By the real
-    /// approach, 0.5 × (1.6 − 0.16) m/s, the rule removed that bounce.</item>
+    /// floor. Jolt would rebound it at 0.5 × (1.6 − 0.16) m/s = 0.72 m/s, which rises 2.6 cm, so the ball does not bounce,
+    /// and it stops on the floor. (Before, Jolt rebounded at 0.5 × (2.3 − 0.16) m/s, and the ball bounced.)</item>
     /// </list>
-    /// The test reads the ball's velocity in the ship after its landing step: the step after which it no longer falls
-    /// faster than 0.5 m/s.
+    /// The test reads the ball's velocity in space, where the floor rests, after its landing step: the step after which
+    /// it no longer falls faster than 0.5 m/s.
     /// </summary>
     [Theory]
-    [InlineData(-0.7f, 0.268, false)]
-    [InlineData(0.7f, 0.106, true)]
-    public void ABallThatFallsOntoTheStaticGhostOfAMovingMeshBouncesAsJoltSimulatesIt(float shipVelocity, double drop, bool bounces)
+    [InlineData(-0.7f, 0.268, true)]
+    [InlineData(0.7f, 0.106, false)]
+    public void ABallThatFallsOntoTheGhostOfAMovingMeshBouncesAsOnTheRealFloor(float shipVelocity, double drop, bool bounces)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
@@ -556,15 +558,15 @@ public class ReboundTests
             Body = new BodyDesc(new SphereShapeDesc(Radius), Mass: 1, Restitution: 0.5f, LinearDamping: 0, AngularDamping: 0),
         });
 
-        float? afterLanding = null;
+        double? afterLanding = null;
         bool falling = false;
         for (int i = 0; i < 60 && afterLanding is null; i++)
         {
             world.Tick();
-            float vertical = world.VelocityInOwnFrame(ball).Y;
-            if (vertical < -1f)
+            double vertical = world.VelocityIn(ball, space).Y;
+            if (vertical < -1)
                 falling = true;
-            else if (falling && vertical > -0.5f)
+            else if (falling && vertical > -0.5)
                 afterLanding = vertical;
         }
 
@@ -572,9 +574,9 @@ public class ReboundTests
         world.GetFrame(ball).Should().Be(ship);
         afterLanding.Should().NotBeNull("the ball landed");
         if (bounces)
-            afterLanding.Should().BeGreaterThan(0.9f, "Jolt rebounds the ball at about 1.07 m/s");
+            afterLanding.Should().BeGreaterThan(0.9, "Jolt rebounds the ball at about 1.12 m/s from the floor");
         else
-            afterLanding.Should().BeInRange(-0.2f, 0.1f, "the ball stops on the ghost, which Jolt holds at rest");
+            afterLanding.Should().BeInRange(-0.2, 0.1, "the ball stops on the floor");
         world.Errors.Should().BeEmpty();
     }
 }

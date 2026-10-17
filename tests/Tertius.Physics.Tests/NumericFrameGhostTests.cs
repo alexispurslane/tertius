@@ -493,14 +493,14 @@ public class NumericFrameGhostTests
     }
 
     /// <summary>
-    /// The reconcile allows a ghost only in the frames where the ghost pass can put one. A falling frame keeps a ghost of
-    /// the station's hull, an anchor, only while the numeric update names it: while the merge test links the ship's hull to
-    /// the station's, which reaches the two hulls' bounding spheres plus 2 s of their relative speed, about 127 m. The
-    /// falling frame is a child of space, the frame of the station's hull, but it has no bubble. So the reconcile after the
-    /// update stops naming the ghost drops it before the next step, which would otherwise run with it.
+    /// Physics keeps a ghost only in the frames where the ghost pass can put one. A falling frame keeps a ghost of the
+    /// station's hull, an anchor, only while the numeric update names it: while the merge test links the ship's hull to the
+    /// station's, which reaches the two hulls' bounding spheres plus 2 s of their relative speed, about 127 m. The falling
+    /// frame is a child of space, the frame of the station's hull, but it has no bubble. So the sync point whose update
+    /// stops naming the ghost drops it, and the next step does not run with it. A later reconcile allows none there.
     /// </summary>
     [Fact]
-    public void AReconcileDropsTheGhostOfAnAnchorThatTheNumericUpdateNoLongerNames()
+    public void TheSyncPointDropsTheGhostOfAnAnchorThatTheNumericUpdateNoLongerNames()
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         StationScene scene = CratesPassingAStation(world, lane: 10, stationCrate: null, shipCrate: null);
@@ -510,11 +510,13 @@ public class NumericFrameGhostTests
         FrameHandle falling = world.PhysicsHomeOf(scene.ShipOwner);
         world.Frames.Numeric(falling).Should().Be(NumericMode.Falling);
         NamesAnchorGhost(world, scene.StationOwner, falling).Should().BeTrue("the ship's hull starts about 100 m from the station's");
+        faults.Jolt.HasGhostIn(scene.StationOwner, falling).Should().BeTrue();
 
         TickUntil(world, () => !NamesAnchorGhost(world, scene.StationOwner, falling), 300);
         NamesAnchorGhost(world, scene.StationOwner, falling).Should().BeFalse("the ship's hull flies on until it is 127 m past the station's");
         world.PhysicsHomeOf(scene.ShipOwner).Should().Be(falling, "the ship's hull still falls in the same frame");
-        faults.Jolt.HasGhostIn(scene.StationOwner, falling).Should().BeTrue("the last step ran with the ghost that the update named before it");
+        faults.Jolt.HasGhostIn(scene.StationOwner, falling).Should().BeFalse("the update withdrew the ghost's place at this sync point");
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
 
         // A change far away makes the backend reconcile.
         world.Frames.Reparent(buoy, depot);
@@ -567,7 +569,9 @@ public class NumericFrameGhostTests
     /// station's crate at (0, 40, 0) and the ship's crate at (0, -30, 0) stick out of their frames' bubbles, toward the other
     /// frame, but each stays at least 5 m away from the other bubble. Each crate has a ghost only in the systems of its
     /// frame's parent: the ship's crate in the ship's falling frame and in space, the ship's semantic parent, which are one
-    /// frame without numeric frames.
+    /// frame without numeric frames. The station's crate has a ghost in space, and while the ship's hull may touch it, one in
+    /// the hull's falling frame, a numeric frame of space, whose member meets the ghost in space without numeric frames
+    /// (ticket ter-2gg0).
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -580,6 +584,7 @@ public class NumericFrameGhostTests
         ShipHomeShouldBe(world, scene, numericFrames);
 
         double closest = double.PositiveInfinity;
+        bool sawGhostInHullsFrame = false;
         for (int tick = 0; tick < 200; tick++)
         {
             world.Tick();
@@ -591,8 +596,14 @@ public class NumericFrameGhostTests
                 "the ship's crate sticks out of the ship, so it has a ghost in the ship's tree parent and one in space, the ship's semantic parent, which is the tree parent without numeric frames");
             faults.Jolt.HasGhostIn(scene.ShipCrate, world.Frames.TreeParent(scene.Ship)).Should().BeTrue();
             faults.Jolt.HasGhostIn(scene.ShipCrate, scene.Space).Should().BeTrue();
-            faults.Jolt.GhostCount(scene.Crate).Should().Be(1, "the station's crate has one ghost, in space");
+            faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeTrue("the station's crate sticks out of the station into space");
+            bool inHullsFrame = numericFrames && faults.Jolt.HasGhostIn(scene.Crate, world.PhysicsHomeOf(scene.ShipOwner));
+            sawGhostInHullsFrame |= inHullsFrame;
+            faults.Jolt.GhostCount(scene.Crate).Should().Be(inHullsFrame ? 2 : 1,
+                "the station's crate has a ghost in space, and one in the falling frame of the ship's hull while the hull may touch it");
         }
+
+        sawGhostInHullsFrame.Should().Be(numericFrames, "the ship's hull passes within 2 s at 60 m/s of the station's crate");
 
         closest.Should().BeInRange(75, 75.01, "the ship passed the station");
         world.VelocityIn(scene.Crate, scene.Station).Length.Should().BeLessThan(1e-3, "nothing touched the station's crate");

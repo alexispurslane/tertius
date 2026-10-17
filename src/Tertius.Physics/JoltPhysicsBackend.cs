@@ -142,6 +142,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // move keeps the hull's state, which a reconcile would take from the tree.
             ApplyMoves(changes.BodiesMoved);
             ReconcileFrames();
+            DropWithdrawnGhosts(changes.GhostPlacesWithdrawn);
             foreach (BodyCreate create in changes.BodiesCreated)
             {
                 try
@@ -237,9 +238,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// its bodies was destroyed or left the system, a ghost too. A body pair that leaves goes on in every system that
     /// holds a body of each entity that can touch the other one there, after the hand-offs and the ghosts of the step. So
     /// a contact goes on when two touching bodies move to another system together, by a hand-off or a move between
-    /// numeric frames, and when one of them leaves while the other touches its ghost. A contact of a body that a hand-off
-    /// moved into a numeric frame, which no system takes over, waits one more step, for the numeric update of the sync
-    /// point to link the bodies.
+    /// numeric frames, and when one of them leaves while the other touches its ghost. A contact that no system takes over
+    /// after a hand-off of one of its bodies, while a body of it is in a numeric frame, waits one more step, for the numeric
+    /// update of the sync point to link the bodies or to name the numeric frame that keeps a ghost of one of them (see
+    /// <see cref="ResolveLooseContacts"/>).
     /// </para>
     /// </remarks>
     public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
@@ -574,8 +576,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>
     /// Checks the invariants that hold right after every reconcile, and until the next step hands a frame off or the
-    /// tree changes. Throws <see cref="ContractException"/> when one does not hold. Debug builds run it at the end of
-    /// every reconcile that does work, and tests call it.
+    /// tree changes. A numeric update changes where the tree allows a ghost without changing the tree's version, and it
+    /// sends each place that it withdraws in its batch (see <see cref="PhysicsChanges.GhostPlacesWithdrawn"/>), so the
+    /// invariants hold after it too. Throws <see cref="ContractException"/> when one does not hold. Debug builds run it at
+    /// the end of every reconcile that does work, and tests call it.
     /// <list type="bullet">
     /// <item>No hand-off override remains, so the backend reads every frame's parent from the tree.</item>
     /// <item>Every system belongs to a live frame.</item>
@@ -587,12 +591,15 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>Every frame owner follows its frame's driver: the record has the frame's driver version and driver, and the
     /// motion that <see cref="BodyDesc.FrameHullMotion"/> gives for it, and Jolt moves the hull with that motion.</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame among the semantic
-    /// frames, or in a falling frame that keeps a ghost of an anchor (see <see cref="GhostAllowed"/>), so never in the
-    /// frame that the body owns or inside it.</item>
+    /// frames, in a falling frame that keeps a ghost of an anchor, or in a numeric frame that keeps the ghosts of the bodies
+    /// that stick out of a bubble (see <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside
+    /// it.</item>
     /// <item>The ghosts of each system (see <see cref="FrameWorld.AddGhost"/>) are the ghosts that the records keep in
     /// it, no more and no fewer. A system marks exactly the ghosts of static bodies as such (see
-    /// <see cref="FrameWorld.StandsForStaticBody"/>), and records the motion of the real body of exactly the ghosts of
-    /// meshes, which are static in Jolt (see <see cref="FrameWorld.SetStaticGhostMotion"/>).</item>
+    /// <see cref="FrameWorld.StandsForStaticBody"/>). Every ghost is kinematic, except a ghost of a mesh, which is static
+    /// while it holds still (see <see cref="GhostMotion"/>). Jolt can move every ghost of a mesh as a kinematic body, with
+    /// a finite mass (see <see cref="FrameWorld.CanMove"/>), so the ghost pass and the shifts can turn it kinematic when
+    /// it starts to move.</item>
     /// <item>Every Jolt body of a record has the layer that the record's collision groups and mask give it: the primary
     /// body or the character's inner body, the interior and every ghost (see <see cref="Layers"/>).</item>
     /// <item>The contact ledger counts, for each pair of entities, the body pairs that hold their contact as started in
@@ -640,7 +647,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(ghost.World.HasGhost(ghost.Body));
                 Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == GhostLayer(record));
                 Contract.Invariant(ghost.World.StandsForStaticBody(ghost.Body) == !record.IsMovable);
-                Contract.Invariant(ghost.World.HasStaticGhostMotion(ghost.Body) == record.HasMesh);
+                Contract.Invariant(record.HasMesh || ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic);
+                Contract.Invariant(!record.HasMesh || ghost.World.CanMove(ghost.Body));
                 if (!record.IsMovable)
                     staticBodyGhosts++;
             }

@@ -28,7 +28,7 @@ public sealed partial class World
 
     /// <summary>
     /// Runs the rules of numeric frames once, over a sync point of <paramref name="dt"/> seconds, after the physics output,
-    /// the destroys and the spawns, on one thread. The structural changes that wait in the batch for physics reach it with
+    /// the destroys, the spawns and the frames that physics does not drive have reached the end of the tick, on one thread. The structural changes that wait in the batch for physics reach it with
     /// the update's first batch, so that a body that physics has not created yet is created in its numeric frame, with its
     /// state converted in doubles. The update's changes reach physics in two batches.
     /// </summary>
@@ -58,8 +58,10 @@ public sealed partial class World
                 Velocity = SemanticVelocity(entity, row, own),
                 Radius = physics!.BoundingRadius(desc.Shape),
                 Mass = desc.Mass > 0 ? desc.Mass : 1,
-                Static = desc.Motion == BodyMotion.Static,
+                // The body of a frame owner is its frame's hull, which moves as the frame's driver says.
+                Static = (own.IsNull ? desc.Motion : BodyDesc.FrameHullMotion(Frames.Driver(own))) == BodyMotion.Static,
                 Fixed = !own.IsNull && Frames.Driver(own) != MotionDriver.Physics,
+                Sensor = desc.IsSensor,
                 OwnedFrame = own,
             });
         }

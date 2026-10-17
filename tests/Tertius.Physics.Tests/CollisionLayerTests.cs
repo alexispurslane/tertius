@@ -97,7 +97,8 @@ public class CollisionLayerTests
     /// <summary>
     /// The architecture's table, for every pair of kinds in which one body can be dynamic or is a character's layer. Jolt
     /// never makes a contact between two bodies that are not dynamic, so the pairs of two kinds that never are (static
-    /// with static, static with ghost, ghost with ghost) do not matter: a ghost is kinematic, or static for a mesh.
+    /// with static, static with ghost, ghost with ghost) do not matter: a ghost is kinematic, or static for a mesh that
+    /// holds still.
     /// </summary>
     [Theory]
     [InlineData(Kind.Static, Kind.Moving, true)]

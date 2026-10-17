@@ -16,5 +16,7 @@
     <InternalsVisibleTo Include="Tertius.Host.Tests" />
     <!-- The fault-injecting backend copies every PhysicsChanges batch that it applies, the internal lists included. -->
     <InternalsVisibleTo Include="Tertius.Testing" />
+    <!-- The benchmark of the numeric update drives FrameTree.UpdateNumericFrames directly, without physics. -->
+    <InternalsVisibleTo Include="Tertius.Benchmarks" />
   </ItemGroup>
 </Project>

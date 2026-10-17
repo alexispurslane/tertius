@@ -16,6 +16,15 @@ internal readonly record struct NumericMove(Entity Entity, FrameHandle From, Fra
 internal readonly record struct NumericGhost(Entity Anchor, FrameHandle Frame);
 
 /// <summary>
+/// The numeric frame <see cref="Frame"/> keeps a ghost of each body that sticks out of the bubble of the semantic frame
+/// <see cref="Bubble"/>. The frame is a falling or resting frame of the bubble's semantic parent, other than the bubble's
+/// tree parent, and a member of it may touch a body that sticks out of the bubble (see
+/// <see cref="NumericFrameRules.MayTouchStickOut"/>). Without numeric frames, that member would lie in the system of the
+/// semantic parent, which holds the ghost of each such body, so its numeric frame needs one too (ticket ter-2gg0).
+/// </summary>
+internal readonly record struct StickOutGhost(FrameHandle Bubble, FrameHandle Frame);
+
+/// <summary>
 /// The numeric frames of the tree (docs/plans/numeric-frames.md): frames that the engine makes around a group of bodies,
 /// only for precision. Gameplay never sees them. <see cref="UpdateNumericFrames"/> runs their rules once per sync point.
 /// </summary>
@@ -58,6 +67,19 @@ public sealed partial class FrameTree
     // The pairs of an anchor and a body that falls, which the merge test links, of the semantic frame that the update works on.
     private readonly List<(Entity Anchor, Entity Body)> anchorPairs = new();
     private readonly List<NumericGhost> anchorGhosts = new();
+    private readonly List<StickOutGhost> stickOutGhosts = new();
+    // The two lists above as the last update left them, which the current update compares with its own (see WithdrawGhostPlaces).
+    private readonly List<NumericGhost> lastAnchorGhosts = new();
+    private readonly List<StickOutGhost> lastStickOutGhosts = new();
+    // Each semantic frame of the input, with the range of its bodies in sortedBodies, in the order of the frames' indices.
+    private readonly List<(FrameHandle Frame, int Start, int End)> semanticRanges = new();
+    // The semantic children of the semantic frame that the update works on that have a body that can move: each one with
+    // the radius of the sphere around its origin that holds every body that sticks out of its bubble (see
+    // NumericFrameRules.StickOutRadius), and the velocity and the place of its origin in the semantic frame.
+    private readonly List<(FrameHandle Bubble, double Radius, Double3 Velocity, Double3 Place)> stickOutBubbles = new();
+    // The pairs of such a bubble and a group that gets a numeric frame, a member of which may touch a body that sticks out
+    // of the bubble, of the semantic frame that the update works on.
+    private readonly List<(FrameHandle Bubble, int Group)> stickOutPairs = new();
     // The leave clock of each body that the last update kept in its semantic frame's own system although it needs a frame by
     // itself (see NumericFrameRules.LeaveClock), and the clocks that the current update builds. An update keeps only the
     // clocks of its own bodies, so the clock of a body that is gone from its input goes with it.
@@ -71,6 +93,12 @@ public sealed partial class FrameTree
     internal ReadOnlySpan<NumericGhost> AnchorGhosts => CollectionsMarshal.AsSpan(anchorGhosts);
 
     /// <summary>
+    /// The numeric frames that keep the ghosts of the bodies that stick out of a bubble, which the last
+    /// <see cref="UpdateNumericFrames"/> chose. Physics reads them at each step.
+    /// </summary>
+    internal ReadOnlySpan<StickOutGhost> StickOutGhosts => CollectionsMarshal.AsSpan(stickOutGhosts);
+
+    /// <summary>
     /// Runs the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and "Nesting for
     /// vast distances") once, over a sync point of <paramref name="dt"/> seconds. <paramref name="bodies"/> holds every
     /// entity with a body that is not attached, in entity slot order. Within each semantic frame, the update links every
@@ -82,7 +110,12 @@ public sealed partial class FrameTree
     /// Each linked group gets the mode of <see cref="NumericFrameRules.Mode"/>, but a group that would rest in a new frame
     /// stays in its semantic frame's own system until <see cref="NumericFrameRules.LeaveClock"/> lets a member that the last
     /// update kept there leave. A group keeps the numeric frame that holds most of its mass, which drains and moves its
-    /// origin; the bodies of the other groups move. Then far frames nest.
+    /// origin; the bodies of the other groups move. Each group that gets a numeric frame and a member of which may touch a
+    /// body that sticks out of the bubble of a semantic child of its semantic frame (see
+    /// <see cref="NumericFrameRules.MayTouchStickOut"/>) makes its frame keep the ghosts of such bodies (see
+    /// <see cref="StickOutGhosts"/>). A member that is static counts only when it is a sensor. Each frame that the last
+    /// update named for a ghost and this one does not goes into <see cref="PhysicsChanges.GhostPlacesWithdrawn"/>. Then far
+    /// frames nest.
     /// Each frame that the update creates, shifts or destroys goes into <paramref name="changes"/>, where physics picks it up.
     /// <para>
     /// The update hands the moves to <paramref name="applyMoves"/>, which applies them to the rows and hands this
@@ -95,25 +128,40 @@ public sealed partial class FrameTree
     /// Every step runs in a fixed order: semantic frames by index, bodies in the order of <paramref name="bodies"/>, groups
     /// by their first body, frames in dense order. So two runs with the same input make the same frames in the same order.
     /// The merge test compares every pair of bodies in a semantic frame that has a numeric frame or a body that needs one,
-    /// which costs the square of their count.
+    /// which costs the square of their count. The test of the bodies that stick out compares each body of a group that gets
+    /// a numeric frame with each semantic child of that semantic frame that has a body that can move, and finds those
+    /// children among the semantic frames of the input.
     /// </remarks>
     internal void UpdateNumericFrames(ReadOnlySpan<NumericBody> bodies, double dt, PhysicsChanges changes, Action<List<NumericMove>> applyMoves)
     {
         Contract.Requires(dt >= 0);
         SortBySemanticFrame(bodies);
         moves.Clear();
+        lastAnchorGhosts.Clear();
+        lastAnchorGhosts.AddRange(anchorGhosts);
+        lastStickOutGhosts.Clear();
+        lastStickOutGhosts.AddRange(stickOutGhosts);
         anchorGhosts.Clear();
+        stickOutGhosts.Clear();
         nextLeaveClocks.Clear();
+        semanticRanges.Clear();
         for (int start = 0; start < sortedBodies.Count;)
         {
             int end = start + 1;
             while (end < sortedBodies.Count && sortedBodies[end].Semantic == sortedBodies[start].Semantic)
                 end++;
-            if (NeedsWork(CollectionsMarshal.AsSpan(sortedBodies)[start..end]))
-                UpdateSemanticFrame(start, end, dt, changes);
+            semanticRanges.Add((sortedBodies[start].Semantic, start, end));
             start = end;
         }
+        // The update of a semantic frame reads the bodies of its semantic children, which keep their ranges.
+        for (int r = 0; r < semanticRanges.Count; r++)
+        {
+            (_, int start, int end) = semanticRanges[r];
+            if (NeedsWork(CollectionsMarshal.AsSpan(sortedBodies)[start..end]))
+                UpdateSemanticFrame(start, end, dt, changes);
+        }
         (leaveClocks, nextLeaveClocks) = (nextLeaveClocks, leaveClocks);
+        WithdrawGhostPlaces(changes);
         NestFarFrames(changes);
         CountBodies();
         applyMoves(moves);
@@ -168,6 +216,8 @@ public sealed partial class FrameTree
         GroupBodies(start, end);
         HoldInSemanticSystem(dt);
         ChooseKeepers();
+        // Before any frame shifts, while each body's place in its home holds.
+        FindStickOutPairs(start);
         // Every shift lands before any move: a body that leaves a shifted frame leaves it from its shifted state.
         foreach (BodyGroup group in groups)
             if (group.Keeps)
@@ -175,6 +225,7 @@ public sealed partial class FrameTree
         foreach (BodyGroup group in groups)
             MoveHome(group, changes);
         KeepAnchorGhosts(start, end);
+        KeepStickOutGhosts();
     }
 
     /// <summary>
@@ -292,6 +343,124 @@ public sealed partial class FrameTree
             if (!anchorGhosts.Contains(ghost))
                 anchorGhosts.Add(ghost);
         }
+    }
+
+    /// <summary>
+    /// Finds each group that gets a numeric frame and a member of which may touch a body that sticks out of the bubble of a
+    /// semantic child of the group's semantic frame, by <see cref="NumericFrameRules.MayTouchStickOut"/>. Such a body has a
+    /// ghost in the system of that semantic frame, which holds the member without numeric frames, so the member's numeric
+    /// frame needs one too (see <see cref="KeepStickOutGhosts"/>). A hull of a frame that physics does not drive stays in
+    /// that system, so the anchors of a group that gets a numeric frame are static bodies. A ghost is kinematic, and Jolt
+    /// makes a contact between a kinematic body and a static one only when one of them is a sensor, so only a static
+    /// sensor among them counts: it detects the ghost. The children are the semantic frames whose semantic parent is the
+    /// group's, wherever they hang among its numeric frames, with a body that can move.
+    /// </summary>
+    private void FindStickOutPairs(int start)
+    {
+        stickOutPairs.Clear();
+        FrameHandle semantic = sortedBodies[start].Semantic;
+        CollectStickOutBubbles(semantic);
+        if (stickOutBubbles.Count == 0)
+            return;
+        Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
+        Span<BodyGroup> spans = CollectionsMarshal.AsSpan(groups);
+        for (int g = 0; g < spans.Length; g++)
+        {
+            if (spans[g].Mode == NumericMode.None)
+                continue;
+            foreach ((FrameHandle bubble, double radius, Double3 velocity, Double3 place) in stickOutBubbles)
+            {
+                FrameHandle home = FrameHandle.Null;
+                Double3 origin = default;
+                for (int i = spans[g].Start; i < spans[g].End; i++)
+                {
+                    ref readonly NumericBody body = ref bodies[i];
+                    if (body.Anchor && !body.Sensor)
+                        continue;
+                    // A first test in the semantic frame's coordinates, which round far from its origin, with the sphere grown
+                    // by the slack of that rounding, so that it drops no pair that the test through the homes links. It
+                    // spares that test, which composes poses through the tree, for most pairs.
+                    double slack = NumericFrameRules.PlaceSlack(place, body.Position);
+                    if (!NumericFrameRules.MayTouchStickOut(body, place - body.Position, velocity, radius + slack, NumericOptions))
+                        continue;
+                    // The place of the bubble's origin in the member's home, through their lowest common ancestor. The homes
+                    // of a semantic frame have its axes, because numeric frames never rotate.
+                    if (body.Home != home)
+                        (home, origin) = (body.Home, Relative(bubble, body.Home).Position);
+                    if (!NumericFrameRules.MayTouchStickOut(body, origin - body.HomePosition, velocity, radius, NumericOptions))
+                        continue;
+                    stickOutPairs.Add((bubble, g));
+                    break;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Fills <see cref="stickOutBubbles"/> with the semantic children of <paramref name="semantic"/> that have a body that
+    /// can move, from the bodies of the update: a static body has no ghost in a bubble. The radius of each child's sphere
+    /// is the farthest reach of those bodies (see <see cref="NumericFrameRules.StickOutReach"/>).
+    /// </summary>
+    private void CollectStickOutBubbles(FrameHandle semantic)
+    {
+        stickOutBubbles.Clear();
+        foreach ((FrameHandle frame, int start, int end) in semanticRanges)
+        {
+            if (Parent(frame) != semantic)
+                continue;
+            FrameBounds bubble = Bounds(frame);
+            double radius = -1;
+            for (int i = start; i < end; i++)
+                if (!sortedBodies[i].Static)
+                    radius = Math.Max(radius, NumericFrameRules.StickOutReach(bubble, sortedBodies[i], NumericOptions));
+            if (radius >= 0)
+                stickOutBubbles.Add((frame, radius, LinearVelocity(frame), InSemantic(TreeParent(frame), semantic, TreeLocalPose(frame).Position)));
+        }
+    }
+
+    /// <summary>
+    /// Names the home of each group of <see cref="FindStickOutPairs"/> to keep the ghosts of the bodies that stick out of its
+    /// bubble, unless the home is the bubble's tree parent, which keeps them already. Each group that gets a numeric frame
+    /// has a frame of its own, so no pair is named twice.
+    /// </summary>
+    private void KeepStickOutGhosts()
+    {
+        foreach ((FrameHandle bubble, int g) in stickOutPairs)
+        {
+            FrameHandle home = sortedBodies[groups[g].Start].Home;
+            Contract.Assert(IsNumeric(home));
+            if (home == TreeParent(bubble))
+                continue;
+            var ghost = new StickOutGhost(bubble, home);
+            Contract.Assert(!stickOutGhosts.Contains(ghost));
+            stickOutGhosts.Add(ghost);
+        }
+    }
+
+    /// <summary>
+    /// Adds to <see cref="PhysicsChanges.GhostPlacesWithdrawn"/>, once each, the numeric frames of the pairs that the last
+    /// update named in <see cref="AnchorGhosts"/> or <see cref="StickOutGhosts"/> and this one does not. Physics drops the
+    /// ghosts there at this sync point, so that between updates it keeps a ghost only where the tree allows one, as the
+    /// ghost pass does. A frame that leaves the tree takes its pairs with it (see <see cref="RemoveNode"/>), so every frame
+    /// of the last update's pairs is still alive. An update that names the same pairs in the same order, as the next one
+    /// usually does, costs one comparison of each list.
+    /// </summary>
+    private void WithdrawGhostPlaces(PhysicsChanges changes)
+    {
+        if (!CollectionsMarshal.AsSpan(lastAnchorGhosts).SequenceEqual(CollectionsMarshal.AsSpan(anchorGhosts)))
+            foreach (NumericGhost ghost in lastAnchorGhosts)
+                if (!anchorGhosts.Contains(ghost))
+                    Withdraw(ghost.Frame, changes);
+        if (!CollectionsMarshal.AsSpan(lastStickOutGhosts).SequenceEqual(CollectionsMarshal.AsSpan(stickOutGhosts)))
+            foreach (StickOutGhost ghost in lastStickOutGhosts)
+                if (!stickOutGhosts.Contains(ghost))
+                    Withdraw(ghost.Frame, changes);
+    }
+
+    private static void Withdraw(FrameHandle frame, PhysicsChanges changes)
+    {
+        if (!changes.GhostPlacesWithdrawn.Contains(frame))
+            changes.GhostPlacesWithdrawn.Add(frame);
     }
 
     /// <summary>
