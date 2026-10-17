@@ -237,7 +237,6 @@ public class FrameTreeOrbitFrameTests
         Update(Hull(station), after[1]);
         moves.Should().BeEmpty("the next sync point makes the same choice");
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(station.Entity, raft));
-        changes.GhostPlacesWithdrawn.Should().BeEmpty();
     }
 
     [Fact]
@@ -256,7 +255,6 @@ public class FrameTreeOrbitFrameTests
         Update(Hull(station), Crate(11, place + new Double3(0, 20, 0), Double3.Zero, home: raft, isStatic: true));
 
         frames.AnchorGhosts.IsEmpty.Should().BeTrue();
-        changes.GhostPlacesWithdrawn.Should().Equal([raft], "physics drops the hull's ghost there at once");
     }
 
     [Fact]

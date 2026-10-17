@@ -213,8 +213,6 @@ public sealed partial class FrameTree
     // An orbiting frame's orbiter: the Kepler frame that hangs at its origin. Null for every other frame.
     private FrameHandle[] orbiter = new FrameHandle[64];
     private readonly List<NumericGhost> anchorGhosts = new();
-    // The list above as the last update left it, which the current update compares with its own (see WithdrawGhostPlaces).
-    private readonly List<NumericGhost> lastAnchorGhosts = new();
     // Each semantic frame of the input, with the range of its bodies in sortedBodies, in the order of the frames' indices.
     private readonly List<(FrameHandle Frame, int Start, int End)> semanticRanges = new();
     // The places of the ghosts in the frames of the semantic frame that the update works on (see CollectGhostPlaces).
@@ -261,8 +259,8 @@ public sealed partial class FrameTree
     /// Each linked group gets the mode of <see cref="NumericFrameRules.GroupMode"/>, but a group that would rest in a new frame
     /// stays in its semantic frame's own system until <see cref="NumericFrameRules.LeaveClock"/> lets a member that the last
     /// update kept there leave. A group keeps the numeric frame that holds most of its mass, which drains and moves its
-    /// origin; the bodies of the other groups move. Each frame that the last update named for the ghost of an anchor and this
-    /// one does not goes into <see cref="PhysicsChanges.GhostPlacesWithdrawn"/>. Then far frames nest.
+    /// origin; the bodies of the other groups move. Physics drops the ghosts in each home that the last update named for the
+    /// ghost of an anchor and this one does not, when it applies the changes of this sync point. Then far frames nest.
     /// Each frame that the update creates, shifts or destroys goes into <paramref name="changes"/>, where physics picks it up.
     /// <para>
     /// The update hands the moves to <paramref name="applyMoves"/>, which applies them to the rows and hands this
@@ -284,8 +282,6 @@ public sealed partial class FrameTree
         Contract.Requires(dt >= 0);
         SortBySemanticFrame(bodies, dt);
         moves.Clear();
-        lastAnchorGhosts.Clear();
-        lastAnchorGhosts.AddRange(anchorGhosts);
         anchorGhosts.Clear();
         nextLeaveClocks.Clear();
         semanticRanges.Clear();
@@ -306,7 +302,6 @@ public sealed partial class FrameTree
                 UpdateSemanticFrame(start, end, dt, changes);
         }
         (leaveClocks, nextLeaveClocks) = (nextLeaveClocks, leaveClocks);
-        WithdrawGhostPlaces(changes);
         NestFarFrames(changes);
         CountBodies();
         applyMoves(moves);
@@ -669,29 +664,6 @@ public sealed partial class FrameTree
     {
         Double3 between = body.Home == place.Home ? Double3.Zero : Relative(place.Home, body.Home).Position;
         return NumericFrameRules.MayTouch(body, place, between + place.HomePosition - body.HomePosition, NumericOptions);
-    }
-
-    /// <summary>
-    /// Adds to <see cref="PhysicsChanges.GhostPlacesWithdrawn"/>, once each, the numeric frames of the pairs that the last
-    /// update named in <see cref="AnchorGhosts"/> and this one does not. Physics drops the ghosts there at this sync point,
-    /// so that between updates it keeps a ghost only where the tree allows one, as the ghost pass does. A frame that leaves
-    /// the tree takes its pairs with it (see <see cref="RemoveNode"/>), so every frame of the last update's pairs is still
-    /// alive. An update that names the same pairs in the same order, as the next one usually does, costs one comparison of
-    /// the lists.
-    /// </summary>
-    private void WithdrawGhostPlaces(PhysicsChanges changes)
-    {
-        if (CollectionsMarshal.AsSpan(lastAnchorGhosts).SequenceEqual(CollectionsMarshal.AsSpan(anchorGhosts)))
-            return;
-        foreach (NumericGhost ghost in lastAnchorGhosts)
-            if (!anchorGhosts.Contains(ghost))
-                Withdraw(ghost.Frame, changes);
-    }
-
-    private static void Withdraw(FrameHandle frame, PhysicsChanges changes)
-    {
-        if (!changes.GhostPlacesWithdrawn.Contains(frame))
-            changes.GhostPlacesWithdrawn.Add(frame);
     }
 
     /// <summary>

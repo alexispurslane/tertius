@@ -83,13 +83,17 @@ public sealed partial class World
         entities.BeginTick(options.SpawnPoolSize);
     }
 
-    /// <summary>Hands this batch of structural changes to physics, which applies destroys before creates.</summary>
-    private void FlushPhysicsChanges()
+    /// <summary>
+    /// Hands this batch of structural changes to physics, which applies destroys before creates. An empty batch goes only
+    /// when <paramref name="evenIfEmpty"/> is true: physics also follows the tree in other ways when it applies a batch, for
+    /// example it drops the ghosts whose place the numeric update withdrew (see <see cref="UpdateNumericFrames"/>).
+    /// </summary>
+    private void FlushPhysicsChanges(bool evenIfEmpty = false)
     {
         PhysicsChanges changes = physicsChanges;
-        if (changes.FramesCreated.Count == 0 && changes.BodiesDestroyed.Count == 0 &&
+        if (!evenIfEmpty && changes.FramesCreated.Count == 0 && changes.BodiesDestroyed.Count == 0 &&
             changes.FramesDestroyed.Count == 0 && changes.FramesShifted.Count == 0 && changes.BodiesMoved.Count == 0 &&
-            changes.GhostPlacesWithdrawn.Count == 0 && changes.BodiesCreated.Count == 0)
+            changes.BodiesCreated.Count == 0)
             return;
         try
         {

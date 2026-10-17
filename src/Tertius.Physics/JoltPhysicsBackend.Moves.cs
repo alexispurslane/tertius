@@ -64,8 +64,9 @@ public sealed partial class JoltPhysicsBackend
             BodyRecord record = move.Record;
             // The body keeps its ghosts, but not one in its new home, so that no system holds a body and its ghost. Only an
             // anchor's ghost lies in a home of the body's semantic frame: a Kepler hull that the game gives another driver
-            // can join the home of a group that kept its ghost a sync point before. The update withdraws that ghost's place
-            // in the same batch, but the batch drops withdrawn ghosts only after the moves and the reconcile.
+            // can join the home of a group that kept its ghost a sync point before. The update stops naming that home at
+            // the same sync point, but the batch drops withdrawn ghosts only after the moves and the reconcile (see
+            // DropWithdrawnAnchorGhosts).
             RemoveGhostIn(record, WorldFor(move.To));
             RemovePrimary(record);
             CreatePrimary(record, move.To, move.Pose, move.Linear, move.Angular, upFromGravity: record.Standing, awake: move.Awake);

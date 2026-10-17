@@ -201,23 +201,22 @@ public sealed partial class JoltPhysicsBackend
     /// can be in no system for one step, where without numeric frames one system takes it over:
     /// </para>
     /// <list type="bullet">
-    /// <item>A body that sticks out of a frame whose tree parent is numeric leaves the frame into that numeric frame, which
-    /// holds only the bodies that the merge test linked to the frame's hull. Without numeric frames, it would leave into
-    /// the semantic parent and take over there the contact that its ghost there held.</item>
-    /// <item>A body that leaves a frame drops its ghost in each numeric frame that the update named for the bodies that
-    /// stick out of the frame (see <see cref="FrameTree.StickOutGhosts"/>). Without numeric frames, the bodies there lie
-    /// in the semantic parent's own system, where the body goes, and it takes the contact over there.</item>
-    /// <item>A body that enters a frame that the update named no numeric frame for, because the frame had no body that can
-    /// move, has no ghost in the numeric frames of the semantic parent. Without numeric frames, its ghost in the semantic
-    /// parent's own system takes the contact over.</item>
+    /// <item>A body that enters a frame while it touches a body of the semantic parent has its ghost among the frames of
+    /// the semantic parent only in the frame's tree parent, the home of the frame's hull. The update linked the other body
+    /// to the body that entered, not to the hull, so the other body can live in another frame of the semantic parent.
+    /// Without numeric frames, the ghost in the semantic parent's own system takes the contact over.</item>
+    /// <item>A body that leaves a frame whose hull lives apart from its group, in an orbit frame of its own, leaves into
+    /// that orbit frame, and drops its ghost in the home of the group (see <see cref="WantGhostsBesideHull"/>), where the
+    /// bodies that the merge test linked to the hull live. Without numeric frames, those bodies lie in the semantic
+    /// parent's own system, where the body goes, and it takes the contact over there.</item>
     /// </list>
     /// <para>
     /// The next sync point's numeric update links the touching bodies, which puts them in one system, also a static body
-    /// and a body that falls, or names the home of their group for the ghost of a Kepler hull or the numeric frame for the
-    /// bodies that stick out of the frame, whose ghost the next ghost pass makes. So the rule is: a contact that no system takes over waits for the next call with its count,
-    /// as the contacts of a move between numeric frames do, when a hand-off of the step moved a body of it and a body of it
-    /// is in a numeric frame. That call settles it for good. A contact that really ended at the hand-off then ends one step
-    /// late. Without numeric frames no body is in a numeric frame, so no contact waits.
+    /// and a body that falls, or names the home of their group for the ghost of a Kepler hull, whose ghost the next ghost
+    /// pass makes. So the rule is: a contact that no system takes over waits for the next call with its count, as the
+    /// contacts of a move between numeric frames do, when a hand-off of the step moved a body of it and a body of it is in a
+    /// numeric frame. That call settles it for good. A contact that really ended at the hand-off then ends one step late.
+    /// Without numeric frames no body is in a numeric frame, so no contact waits.
     /// </para>
     /// <para>
     /// An interior never takes over a contact of its owner's hull. The hull of a frame lies inside the frame's bubble, so
