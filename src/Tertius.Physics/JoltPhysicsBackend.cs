@@ -189,6 +189,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>Teleport sets the pose to <see cref="PhysicsIntent.TeleportPose"/> and zeroes both velocities.
     /// SetVelocity, SetAngularVelocity and KinematicTarget apply after it, so a target in the same intent moves the
     /// body on from the teleport pose.</item>
+    /// <item>A velocity that SetVelocity, SetAngularVelocity, a teleport or a jump gives, like a velocity that a spawn
+    /// gives, is an instant velocity: from the start of the step the body moves as it says, with Jolt's acceleration
+    /// (docs/plans/spin-gravity.md, "The velocity convention").</item>
     /// <item>KinematicTarget moves a kinematic body to <see cref="PhysicsIntent.Target"/> over one step and stops it
     /// there unless the next step gives a new target or velocity. A dynamic body gets the velocities that would carry
     /// it there.</item>
@@ -210,7 +213,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// </list>
     /// <para>
     /// Outputs: <see cref="PhysicsStepOutput.Bodies"/> holds every awake dynamic or kinematic body and every
-    /// character, plus one last report for a body that fell asleep. Velocities are at the center of mass.
+    /// character, plus one last report for a body that fell asleep. Velocities are at the center of mass, and each is
+    /// Jolt's: the chord of the last step, its displacement divided by the step, which is the velocity half a step earlier.
     /// <see cref="PhysicsStepOutput.Characters"/> holds every character once, after the hand-offs, with whether physics
     /// stood it in this step. A character that a hand-off moved has not stood in its new frame yet.
     /// <see cref="PhysicsStepOutput.HandOffs"/> holds each body that moved to another frame, with its pose there. For a
@@ -251,6 +255,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // the hand-offs of the last step, and it can also have changed the tree on its own, for example to dock a ship.
             ReconcileFrames();
             RefreshFrameStructure();
+            // Before the hull velocities, so that a new hull's accelerometer starts from its chord.
+            ConvertSpawnVelocities();
             CaptureHullVelocities();
             ApplyIntents(context);
             DriveKinematicHulls();

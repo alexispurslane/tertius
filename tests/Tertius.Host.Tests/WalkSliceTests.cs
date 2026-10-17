@@ -56,9 +56,9 @@ public sealed class WalkSliceTests(WalkRun run) : IClassFixture<WalkRun>
         Double3 start = PersonAt("turned"), top = PersonAt("jumping");
 
         // A jump at 4 m/s in 9.81 m/s² peaks 0.41 s later, 0.82 m up. The jump acts in the third tick after its post, so the
-        // dump comes after 25 moves. Physics adds each tick's gravity to the velocity before the move, so the person is
-        // 1/60 s · (25 · 4 m/s - 9.81 m/s² · (1 + 2 + ... + 25) / 60 s) = 0.781 m up.
-        (top.Y - start.Y).Should().BeApproximately(0.781, 0.005);
+        // dump comes after 25 moves. The jump speed is an instant velocity and physics moves the person by the chord of
+        // each step, so the person is 4 m/s · t - 9.81 m/s² · t² / 2 = 0.815 m up, t = 25/60 s.
+        (top.Y - start.Y).Should().BeApproximately(0.815, 0.005);
         ExpectNear(top with { Y = 0 }, start with { Y = 0 }, 0.01);
         ExpectNear(PersonAt("landed"), start, 0.02);
     }

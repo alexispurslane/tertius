@@ -6,7 +6,10 @@ namespace Tertius.Physics;
 
 public sealed partial class JoltPhysicsBackend
 {
-    /// <summary>A hand-off decided after the step, with the body's state already converted to the target frame.</summary>
+    /// <summary>
+    /// A hand-off decided after the step, with the body's state already converted to the target frame: its pose, and the
+    /// velocities that Jolt gets there (see <see cref="HandedOffVelocities"/>).
+    /// </summary>
     private readonly record struct HandOffPlan(
         BodyRecord Record,
         FrameHandle From,
@@ -24,9 +27,10 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// A bubble that the members of one system can enter during the hand-off: the frame <see cref="Frame"/>, its motion
-    /// relative to its tree parent at the end of the step, and the position and velocity of the system's origin in that
-    /// parent then. Both are zero for a child of the system's own frame. Numeric frames never rotate, so a shift of position
-    /// and velocity takes a member's state from the system into the parent.
+    /// relative to its tree parent at the end of the step with its instant velocity there (see <see cref="InstantMotionOf"/>),
+    /// and the position and instant velocity of the system's origin in that parent then. Both are zero for a child of the
+    /// system's own frame. Numeric frames never rotate, so a shift of position and velocity takes a member's state from the
+    /// system into the parent.
     /// </summary>
     private readonly record struct BubbleEntry(FrameHandle Frame, FrameMotion Motion, Double3 Offset, Double3 Velocity);
 
@@ -226,14 +230,14 @@ public sealed partial class JoltPhysicsBackend
                 {
                     if (!haveFrameMotion)
                     {
-                        frameMotion = MotionOf(frame);
+                        frameMotion = InstantMotionOf(frame);
                         haveFrameMotion = true;
                     }
                     DPose pose = frameMotion.PoseToParent(s.Pose);
-                    handOffPlans.Add(new HandOffPlan(member, frame, parent, pose,
-                        frameMotion.VelocityToParent(s.CenterOfMass, s.Linear).ToVector3(),
-                        frameMotion.AngularToParent(s.Angular).ToVector3(),
-                        frameMotion.Pose.Rotation));
+                    var (linear, angular) = HandedOffVelocities(member, parent, frameMotion.Pose.TransformPoint(s.CenterOfMass),
+                        frameMotion.VelocityToParent(s.CenterOfMass, InstantVelocity(member, s)),
+                        frameMotion.AngularToParent(InstantAngularVelocity(member, s)));
+                    handOffPlans.Add(new HandOffPlan(member, frame, parent, pose, linear, angular, frameMotion.Pose.Rotation));
                     continue;
                 }
 
@@ -262,9 +266,11 @@ public sealed partial class JoltPhysicsBackend
                     BubbleEntry entry = bubbleEntries[best];
                     FrameMotion motion = entry.Motion;
                     var poseInParent = new DPose(s.Pose.Position + entry.Offset, s.Pose.Rotation);
-                    handOffPlans.Add(new HandOffPlan(member, frame, entry.Frame, motion.PoseFromParent(poseInParent),
-                        motion.VelocityFromParent(s.CenterOfMass + entry.Offset, (Double3)s.Linear + entry.Velocity).ToVector3(),
-                        motion.AngularFromParent(s.Angular).ToVector3(),
+                    Double3 centerInParent = s.CenterOfMass + entry.Offset;
+                    var (linear, angular) = HandedOffVelocities(member, entry.Frame, motion.Pose.InverseTransformPoint(centerInParent),
+                        motion.VelocityFromParent(centerInParent, InstantVelocity(member, s) + entry.Velocity),
+                        motion.AngularFromParent(InstantAngularVelocity(member, s)));
+                    handOffPlans.Add(new HandOffPlan(member, frame, entry.Frame, motion.PoseFromParent(poseInParent), linear, angular,
                         motion.Pose.Rotation.Conjugate()));
                 }
             }
@@ -279,15 +285,15 @@ public sealed partial class JoltPhysicsBackend
     /// enter: those of the semantic children of its semantic frame (see <see cref="BubbleSitesOf"/>). Numeric frames are an
     /// engine detail with no bubbles, so they do not change which bubbles a body meets. A fast body enters a parked station,
     /// whose hull is an anchor in the system of the station's parent. A body in a numeric frame of its own enters a ship that
-    /// falls in another one, and a body at rest enters a fast ship. The place and velocity of the system's origin in each
-    /// parent are sums through the tree, in doubles, through their lowest common ancestor, at the end of the step. Numeric
-    /// frames never rotate, so each parent has the axes of the system.
+    /// falls in another one, and a body at rest enters a fast ship. The place and instant velocity of the system's origin in
+    /// each parent are sums through the tree, in doubles, through their lowest common ancestor, at the end of the step.
+    /// Numeric frames never rotate, so each parent has the axes of the system.
     /// </summary>
     private void PrepareBubbleEntries(FrameHandle frame)
     {
         bubbleEntries.Clear();
         FrameHandle semantic = frames.SemanticOf(frame);
-        Double3 velocity = frames.HomeVelocityAfter(frame, semantic, stepDt);
+        Double3 velocity = InstantHomeVelocity(frame, semantic);
         FrameHandle parent = FrameHandle.Null;
         Double3 offsetInParent = default, velocityInParent = default;
         foreach (BubbleSite site in BubbleSitesOf(semantic))
@@ -296,7 +302,7 @@ public sealed partial class JoltPhysicsBackend
             {
                 parent = site.Parent;
                 offsetInParent = frames.OffsetAfter(frame, parent, stepDt);
-                velocityInParent = velocity - frames.HomeVelocityAfter(parent, semantic, stepDt);
+                velocityInParent = velocity - InstantHomeVelocity(parent, semantic);
             }
             bubbleEntries.Add(new BubbleEntry(site.Frame, site.Motion, offsetInParent, velocityInParent));
         }
@@ -332,7 +338,7 @@ public sealed partial class JoltPhysicsBackend
         List<FrameHandle> children = ChildrenOf(parent);
         foreach (FrameHandle child in children)
             if (!frames.IsNumeric(child))
-                sites.Add(new BubbleSite(parent, child, MotionOf(child)));
+                sites.Add(new BubbleSite(parent, child, InstantMotionOf(child)));
         foreach (FrameHandle child in children)
             if (frames.IsNumeric(child))
                 CollectBubbleSites(child, sites);

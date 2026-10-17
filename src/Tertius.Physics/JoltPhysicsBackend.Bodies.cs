@@ -134,14 +134,24 @@ public sealed partial class JoltPhysicsBackend
                 // The tree is the authority on a frame's pose. A root frame has no parent, so it has no hull.
                 FrameHandle parent = ParentOf(owned);
                 if (!parent.IsNull)
+                {
+                    // A new frame has the velocities that the game spawned it with: instant velocities, as for any
+                    // other body, so that a ship and the crates spawned with it move alike.
                     CreateHullFromTree(record, parent);
+                    spawnedRigid.Add(record);
+                }
                 CreateInterior(record);
             }
             else
             {
                 record.Up = Vector3.Transform(Vector3.UnitY, create.Pose.Rotation.ToJolt());
                 var pose = new DPose(InHome(create.Frame, create.Pose.Position), create.Pose.Rotation);
-                CreatePrimary(record, create.Frame, pose, LocalVelocity(create.Frame, create.LinearVelocity), create.AngularVelocity, upFromGravity: true);
+                // The spawn velocities are instant velocities. The next step makes their chords.
+                CreatePrimary(record, create.Frame, pose, LocalVelocity(create.Frame, create.LinearVelocity).ToVector3(), create.AngularVelocity, upFromGravity: true);
+                if (record.Character is not null)
+                    record.InstantVelocityStep = stepIndex + 1;
+                else
+                    spawnedRigid.Add(record);
             }
         }
         catch
@@ -197,7 +207,9 @@ public sealed partial class JoltPhysicsBackend
     private (Vector3 Linear, Vector3 Angular) HullVelocityFromTree(BodyRecord record, in DPose pose)
     {
         // The tree holds the frame's velocity relative to its tree parent, the hull's physics home, so it is the local
-        // velocity already: there is no frame velocity of the home to subtract.
+        // velocity already: there is no frame velocity of the home to subtract. Jolt gets it as it is: for a
+        // physics-driven frame, the tree's velocity is the hull's own chord from the last step. Only a new frame's hull
+        // has the game's instant velocities, which the next step turns into chords (see ConvertSpawnVelocities).
         FrameHandle frame = record.OwnedFrame;
         Vector3 angular = frames.AngularVelocity(frame);
         Double3 centerOffset = pose.TransformDirection(shapes.Get(record.Desc.Shape).CenterOfMass);

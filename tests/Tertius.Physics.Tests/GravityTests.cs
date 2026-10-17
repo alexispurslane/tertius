@@ -114,10 +114,11 @@ public class GravityTests
 
         double g = EarthMu / ((EarthRadius + 100) * (EarthRadius + 100));
         double t = 30 * (double)world.DeltaTime;
-        ((double)world.VelocityInOwnFrame(ball).Y).Should().BeApproximately(-g * t, 5e-3);
-        // Semi-implicit Euler falls a little further than the exact g t² / 2.
+        // Jolt's velocity is the chord of the last step, the instant velocity half a step before its end.
+        ((double)world.VelocityInOwnFrame(ball).Y).Should().BeApproximately(-g * (t - world.DeltaTime / 2.0), 5e-3);
+        // Jolt gets the chord of the spawn's instant velocity of zero, so the ball falls the exact g t² / 2.
         double fall = EarthRadius + 100 - world.PoseIn(ball, planet).Position.Y;
-        fall.Should().BeInRange(0.5 * g * t * t, 0.5 * g * t * (t + world.DeltaTime) + 1e-6);
+        fall.Should().BeApproximately(0.5 * g * t * t, 1e-4);
         world.Errors.Should().BeEmpty();
     }
 
@@ -142,7 +143,8 @@ public class GravityTests
         Tick(world, 10);
         world.GetFrame(crate).Should().Be(ship);
         Vector3 falling = world.VelocityInOwnFrame(crate);
-        ((double)falling.Y).Should().BeApproximately(-9.81 * 10 * world.DeltaTime, 5e-4);
+        // Jolt's velocity is the chord of the last step, the instant velocity half a step before its end.
+        ((double)falling.Y).Should().BeApproximately(-9.81 * 9.5 * world.DeltaTime, 5e-4);
         MathF.Abs(falling.X).Should().BeLessThan(1e-4f);
         MathF.Abs(falling.Z).Should().BeLessThan(1e-4f);
 

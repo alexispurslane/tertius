@@ -190,7 +190,9 @@ public class HandOffTests
 
         // The World has advanced the station to the end of the hand-off step, with the turn rate of that time.
         Double3 position = before.Pose.Position + (Double3)before.LinearVelocity * Dt;
-        Double3 expected = world.Frames.VelocityToParent(station, position, before.LinearVelocity);
+        Double3 instant = world.Frames.VelocityToParent(station, position, before.LinearVelocity);
+        // Jolt gets the chord of that instant velocity: half a step of the planet's gravity, 118 m/s² here, behind it.
+        Double3 expected = instant - GravityField.Point(mu).AtPrecise(world.Frames.PointToParent(station, position)) * (Dt / 2.0);
         (exit.Value.LinearVelocity - expected).Length.Should().BeLessThan(0.05);
 
         // The turn rate matters: the rate at periapsis would be off by about 7 m/s.

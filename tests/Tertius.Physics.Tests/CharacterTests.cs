@@ -209,7 +209,8 @@ public class CharacterTests
             Vector3 thrown = world.VelocityInOwnFrame(person);
             thrown.X.Should().BeApproximately(0, 1e-3f);
             thrown.Z.Should().BeApproximately(0, 1e-3f);
-            thrown.Y.Should().BeApproximately(3 - 9.81f * world.DeltaTime, 1e-3f);
+            // The set velocity is an instant velocity, and the velocity after the step is the chord of the step.
+            thrown.Y.Should().BeApproximately(3 - 9.81f * world.DeltaTime / 2, 1e-3f);
             world.Errors.Should().BeEmpty();
         }
     }
@@ -380,7 +381,8 @@ public class CharacterTests
         Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(3, 0, 0), Body = Box(0.25f, mass: 5) });
         Tick(world, 60);
 
-        world.VelocityInOwnFrame(person).Z.Should().BeApproximately(0.04f, 1e-4f);
+        // The character's velocity is the chord of the last step, the instant velocity half a step before its end.
+        world.VelocityInOwnFrame(person).Z.Should().BeApproximately(0.04f * (1 - world.DeltaTime / 2), 1e-5f);
         world.VelocityInOwnFrame(person).Z.Should().BeApproximately(world.VelocityInOwnFrame(crate).Z, 1e-4f);
         Vector3.Distance(UpOf(world, person), Vector3.UnitY).Should().BeLessThan(1e-5f, "a weightless character keeps its up");
         world.Errors.Should().BeEmpty();

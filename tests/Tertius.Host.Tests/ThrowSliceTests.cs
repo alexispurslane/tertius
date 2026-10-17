@@ -102,7 +102,8 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
 
         person.Length().Should().BeLessThan(1e-6f, "the floor holds the standing person");
         crate.Pose.Frame.Should().Be("ship");
-        ExpectNear(crate.Velocity - person, new Double3(-Carry.MaxThrowSpeed, -GravityPerTick, 0), 1e-3);
+        // The throw is an instant velocity, and the velocity after the step is the chord of the step: half a tick of gravity on.
+        ExpectNear(crate.Velocity - person, new Double3(-Carry.MaxThrowSpeed, -GravityPerTick / 2, 0), 1e-3);
         // It starts on the view, level with the eye and in the middle of the hatch's width, 10 m aft of the ship's center.
         crate.Pose.Position.Z.Should().BeApproximately(10, 1e-4);
         crate.Pose.Position.Y.Should().BeApproximately(Eye, 0.01);
@@ -174,7 +175,8 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         // Out of the cabin, the crate moves at the 12 m/s of the throw along the ship's -X. It took the velocity of the
         // standing person, zero, and the cabin's gravity pulled it in its five steps before it left the cabin's box.
         leaving.Velocity.X.Should().BeApproximately(-Carry.MaxThrowSpeed, 1e-3);
-        leaving.Velocity.Y.Should().BeApproximately(-5 * GravityPerTick, 1e-3);
+        // The velocity after the fifth step is the chord of that step: half a tick of gravity short of five ticks.
+        leaving.Velocity.Y.Should().BeApproximately(-4.5 * GravityPerTick, 1e-3);
         leaving.Velocity.Z.Should().BeApproximately(0, 1e-3);
         // The hand-off keeps the crate's motion relative to the ship.
         ExpectNear(inEarth.Velocity, leaving.Velocity, 1e-3);

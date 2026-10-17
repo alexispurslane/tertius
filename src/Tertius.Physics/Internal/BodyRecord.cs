@@ -106,11 +106,21 @@ internal sealed class BodyRecord
 
     // Per-step bookkeeping.
     public Vector3 VelocityBefore;
+    /// <summary>
+    /// The effective gravity that the last step applied to the body, in the axes of its home: to a dynamic rigid body
+    /// while it was awake, and to a character that the ground did not hold (zero when it did).
+    /// </summary>
     public Vector3 GravityApplied;
     /// <summary>For a physics-driven frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>
     public Vector3 ProperAcceleration;
     public long KinematicTargetStep = -1;
     public long VelocitySetStep = -1;
+    /// <summary>
+    /// For a character: the step whose update starts from an instant velocity that the game gave it, by a spawn, a
+    /// teleport or SetVelocity. That update moves it by the chord of the instant velocity. A hand-off gives a character
+    /// its chord right away, as it does a rigid body.
+    /// </summary>
+    public long InstantVelocityStep = -1;
     public long ReportedStep = -1;
 
     public bool IsHull => !OwnedFrame.IsNull;
