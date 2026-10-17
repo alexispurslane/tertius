@@ -135,6 +135,14 @@ internal sealed class FrameWorld : IDisposable
     public Vector3 WakeProperAcceleration;
     public GravityField LastGravity;
 
+    /// <summary>
+    /// How fast the origin of <see cref="Frame"/> accelerates relative to its semantic frame in the current step, in
+    /// m/s², in frame axes: the step acceleration of a numeric frame, which falls with its semantic frame's gravity, and
+    /// zero for a semantic frame. The backend sets it before each update. The minimum rebound reads it (see
+    /// <see cref="ForceAcceleration"/>).
+    /// </summary>
+    public Vector3 HomeAcceleration;
+
     // Records reported in the last and the current step. A body that falls asleep gets one final report.
     public List<BodyRecord> ReportedLast = new();
     public List<BodyRecord> ReportedNow = new();
@@ -596,51 +604,176 @@ internal sealed class FrameWorld : IDisposable
     }
 
     /// <summary>
-    /// The slowest rebound that a contact keeps, in m/s. A rebound of 1 m/s rises 5.1 cm, more than twice Jolt's
-    /// speculative contact distance of 0.02 m, so every bounce that remains carries the body out of that distance, and
-    /// ends the contact, wherever its landing step begins. Jolt takes the speed that gravity added in the step off a
-    /// rebound, so at 60 Hz a bounce that remains leaves at 0.84 m/s or more, and still rises 3.6 cm.
+    /// Jolt's speculative contact distance, in m: Jolt finds the pair of two bodies that are this close, and holds their
+    /// contact while they stay this close. It is Jolt's default, which the engine keeps.
+    /// </summary>
+    public const float JoltSpeculativeContactDistance = 0.02f;
+
+    /// <summary>
+    /// Jolt's <c>MinVelocityForRestitution</c>, in m/s: Jolt bounces a contact point only when it approaches faster than
+    /// this. It is Jolt's default, which the engine keeps.
+    /// </summary>
+    public const float JoltMinVelocityForRestitution = 1f;
+
+    /// <summary>
+    /// The least height, in m, that a bounce that a contact keeps rises before the pull toward the surface brings it
+    /// back: twice <see cref="JoltSpeculativeContactDistance"/>. So every bounce that remains carries the body out of that
+    /// distance, and ends the contact, wherever its landing step begins. At 1 g the slowest rebound that remains is
+    /// about 0.89 m/s.
     /// </summary>
     /// <remarks>
     /// Jolt finds a pair within its speculative contact distance. When a landing step begins there, Jolt gives a bouncing
     /// body its rebound at once, from where it is, so it rises to about its gap at the start of the step plus the height
     /// of its bounce. Without the minimum, a small bounce from a step that begins near the surface stayed within the
     /// distance, and the same bounce from a step that begins near the edge left it: one drop reported one landing or two
-    /// (ter-4kaa).
+    /// (ter-4kaa). Twice the distance leaves a margin for the rounding of the rise in whole steps.
     /// </remarks>
-    public const float MinReboundSpeed = 1f;
+    public const float MinReboundHeight = 2 * JoltSpeculativeContactDistance;
 
     /// <summary>
-    /// The restitution that a contact keeps: <paramref name="restitution"/>, unless its rebound, the restitution times the
-    /// approach speed, is slower than <see cref="MinReboundSpeed"/>. Then 0, so that the contact does not bounce.
+    /// The restitution that a contact keeps: <paramref name="restitution"/> when the bounce that Jolt gives it rises at
+    /// least <see cref="MinReboundHeight"/>, or when nothing pulls the bodies back together. Otherwise 0, so that the
+    /// contact does not bounce.
     /// </summary>
+    /// <remarks>
+    /// Jolt's rebound is <c>u = restitution · (approach − a · Δt)</c>, where <c>a</c> is the pull toward the surface, at
+    /// least 0: Jolt applies the accumulated forces at the start of the step, so it takes the speed that they added off
+    /// the rebound (ContactConstraintManager.cpp). Under a constant pull, a bounce of speed <c>u</c> rises
+    /// <c>u² / (2 a)</c>. So the contact keeps its restitution when <c>u² ≥ 2 a · MinReboundHeight</c>. Without a pull,
+    /// a bounce never comes back, so every bounce that moves the bodies apart remains. A rebound of 0 or less is none.
+    /// </remarks>
     /// <param name="restitution">The contact's combined restitution: the larger of the restitutions of its two bodies.</param>
-    /// <param name="normalVelocity">How fast the bodies move apart along the contact's normal, in m/s. Below zero, how fast they approach.</param>
-    internal static float KeptRestitution(float restitution, float normalVelocity) =>
-        restitution * -normalVelocity >= MinReboundSpeed ? restitution : 0f;
+    /// <param name="approachSpeed">How fast the bodies approach along the contact's normal, in m/s, as Jolt measures it for its rebound. Below zero, how fast they move apart.</param>
+    /// <param name="approachAcceleration">How fast the accumulated forces accelerate the bodies toward each other along the normal, in m/s². Below zero, apart.</param>
+    /// <param name="deltaTime">The length of the step, in seconds.</param>
+    internal static float KeptRestitution(float restitution, float approachSpeed, float approachAcceleration, float deltaTime)
+    {
+        float pull = MathF.Max(approachAcceleration, 0f);
+        float rebound = restitution * (approachSpeed - pull * deltaTime);
+        return rebound > 0f && rebound * rebound >= 2f * pull * MinReboundHeight ? restitution : 0f;
+    }
+
+    /// <summary>
+    /// The restitution that Jolt uses for a manifold in this update: <paramref name="restitution"/>, or 0 when the bounce
+    /// that Jolt would give it rises too little (see <see cref="KeptRestitution(float, float, float, float)"/>). It reads
+    /// what Jolt simulates, as Jolt does when it bounces a contact: Jolt holds a static body at rest, also the static ghost
+    /// of a mesh whose real body moves, and only a dynamic body's forces count, as in the semantic frame (see
+    /// <see cref="ForceAcceleration"/>). The touch test and the impulse instead use
+    /// the motion of the real body that a ghost stands for (see <see cref="PointVelocity"/>), because they are about
+    /// what the entities do.
+    /// </summary>
+    private unsafe float KeptRestitution(nint body1, nint body2, nint manifold, float restitution)
+    {
+        float approach = BounceApproach(body1, body2, manifold, out Vector3 normal);
+        if (approach <= 0f)
+            return 0f;
+        return KeptRestitution(restitution, approach, ApproachAcceleration(body1, body2, normal), updateDeltaTime);
+    }
+
+    /// <summary>
+    /// The fastest approach speed, in m/s, of a point of the manifold that Jolt can bounce, or 0 when there is none. As
+    /// Jolt does, it measures each point at the middle of its two contact points, from the velocities that Jolt simulates
+    /// (none for a static body), and counts only a point that approaches faster than
+    /// <see cref="JoltMinVelocityForRestitution"/>. So a resting contact reads no forces.
+    /// <paramref name="normal"/> is the manifold's normal, from the first body to the second.
+    /// </summary>
+    /// <remarks>
+    /// Jolt decides restitution at each point of a manifold, but a callback sets one restitution for the whole manifold.
+    /// The point that Jolt rebounds fastest leaves the surface fastest and carries the body with it, so that point
+    /// decides whether the bounce clears the speculative distance. Another point can approach much slower: the center of
+    /// the face of a box that spins as it lands flat comes down slower than its leading corner, and a rule that decided
+    /// there would remove the bounce that Jolt gives the leading corner. Jolt also skips a point that does not close its
+    /// gap within the step. This counts such a point anyway: at 60 Hz it approaches slower than 1.2 m/s, so it can be
+    /// the fastest only beside points of about the same speed, and no test can tell the difference.
+    /// </remarks>
+    private unsafe float BounceApproach(nint body1, nint body2, nint manifold, out Vector3 normal)
+    {
+        Vector3 direction;
+        JoltNative.ManifoldNormal(manifold, &direction);
+        normal = direction;
+        uint count = JoltNative.ManifoldPointCount(manifold);
+        if (count == 0)
+            return 0f;
+
+        RVector3 com1, com2;
+        Vector3 linear1, angular1, linear2, angular2;
+        JoltNative.BodyCenterOfMass(body1, &com1);
+        JoltNative.BodyCenterOfMass(body2, &com2);
+        JoltNative.BodyLinearVelocity(body1, &linear1);
+        JoltNative.BodyAngularVelocity(body1, &angular1);
+        JoltNative.BodyLinearVelocity(body2, &linear2);
+        JoltNative.BodyAngularVelocity(body2, &angular2);
+        Double3 center1 = com1.ToDouble3(), center2 = com2.ToDouble3();
+
+        float fastest = 0f;
+        for (uint i = 0; i < count; i++)
+        {
+            RVector3 p1, p2;
+            JoltNative.ContactPointOn1(manifold, i, &p1);
+            JoltNative.ContactPointOn2(manifold, i, &p2);
+            Double3 middle = 0.5 * (p1.ToDouble3() + p2.ToDouble3());
+            Vector3 v1 = linear1 + Vector3.Cross(angular1, (middle - center1).ToVector3());
+            Vector3 v2 = linear2 + Vector3.Cross(angular2, (middle - center2).ToVector3());
+            float approach = -Vector3.Dot(v2 - v1, direction);
+            if (approach > fastest && approach > JoltMinVelocityForRestitution)
+                fastest = approach;
+        }
+        return fastest;
+    }
+
+    /// <summary>
+    /// How fast the two bodies accelerate toward each other along <paramref name="normal"/>, from the first body to the
+    /// second, in m/s², as Jolt reckons it in the semantic frame when it takes their push off a rebound (see
+    /// <see cref="ForceAcceleration"/>). Below zero, apart. The backend adds gravity as a force, and keeps the system's
+    /// own gravity at zero during an update, so this holds gravity and every Force intent.
+    /// </summary>
+    private unsafe float ApproachAcceleration(nint body1, nint body2, Vector3 normal) =>
+        Vector3.Dot(ForceAcceleration(body1) - ForceAcceleration(body2), normal);
+
+    /// <summary>
+    /// The acceleration of a body in this update, in m/s², in frame axes, as Jolt sees it in the semantic frame: a
+    /// dynamic body's accumulated force times its inverse mass, and for any other body none in the semantic frame, which
+    /// is <see cref="HomeAcceleration"/> backward in this frame.
+    /// </summary>
+    /// <remarks>
+    /// Numeric frames must not change what a body hears. A numeric frame falls with its semantic frame's gravity, so the
+    /// backend adds only the gravity that it leaves to a dynamic body there, and a ghost or a kinematic body that holds
+    /// still in the semantic frame comes at the body at the frame's acceleration, which Jolt does not see. In the
+    /// semantic frame Jolt sees the body's full gravity and the other body at rest, and the difference of the two
+    /// accelerations is the same in both frames.
+    /// </remarks>
+    private unsafe Vector3 ForceAcceleration(nint body)
+    {
+        if (JoltNative.BodyIsDynamic(body) == 0)
+            return -HomeAcceleration;
+        Vector3 force;
+        JoltNative.BodyAccumulatedForce(body, &force);
+        return force * JoltNative.MotionPropertiesInverseMass(JoltNative.BodyMotionProperties(body));
+    }
 
     // ---- Jolt's reports, through the contact listener ----
     //
     // Each runs on a Jolt worker thread during an update, with the bodies locked, so it must not use any locking body
     // interface. Each reads the bodies and the manifold through the pointers that Jolt passes (see ContactListener).
     //
-    // Each also applies the minimum rebound speed (see KeptRestitution) to the contact settings that Jolt passes, which
-    // Jolt then uses for the contact in this update. Jolt computes those settings again in every update, the combined
+    // Each also applies the minimum rebound (see KeptRestitution) to the contact settings that Jolt passes, which Jolt
+    // then uses for the contact in this update. Jolt computes those settings again in every update, the combined
     // restitution included, before it calls the listener, so both reports must apply the minimum every time. Jolt's
-    // linear cast of a fast body calls the same two reports, and uses the settings that they leave.
+    // linear cast of a fast body calls the same two reports, and uses the settings that they leave. The cast does not
+    // take the push of the forces off its rebound, so for a cast the rule judges a rebound up to restitution · a · Δt
+    // slower than Jolt's, and removes a little more. The cast also measures the spin of the body about its center where
+    // the cast hits, which a report cannot know, so for a body that spins fast the two approach speeds differ by the
+    // spin times the distance that the center moved before the hit.
 
     /// <summary>Jolt's report of a contact that it found in this update and did not hold before.</summary>
     public unsafe void OnContactAdded(nint body1, nint body2, nint manifold, ContactSettings* settings)
     {
+        if (settings->CombinedRestitution > 0f)
+            settings->CombinedRestitution = KeptRestitution(body1, body2, manifold, settings->CombinedRestitution);
         ulong data1 = JoltNative.BodyUserData(body1), data2 = JoltNative.BodyUserData(body2);
         if (!IsReported(data1, data2))
-        {
-            if (settings->CombinedRestitution > 0f)
-                settings->CombinedRestitution = KeptRestitution(settings->CombinedRestitution, NormalVelocity(body1, body2, manifold, out _, out _));
             return;
-        }
         RawContact contact = Describe(body1, body2, data1, data2, manifold, settings->IsSensor);
-        settings->CombinedRestitution = KeptRestitution(settings->CombinedRestitution, contact.NormalVelocity);
         lock (contactGate)
             added.Add(contact);
     }
@@ -654,14 +787,11 @@ internal sealed class FrameWorld : IDisposable
     public unsafe void OnContactPersisted(nint body1, nint body2, nint manifold, ContactSettings* settings)
     {
         float restitution = settings->CombinedRestitution;
+        if (restitution > 0f)
+            settings->CombinedRestitution = KeptRestitution(body1, body2, manifold, restitution);
         if (pending.Count == 0 || !pending.Contains(PairKey(JoltNative.BodyId(body1), JoltNative.BodyId(body2))))
-        {
-            if (restitution > 0f)
-                settings->CombinedRestitution = KeptRestitution(restitution, NormalVelocity(body1, body2, manifold, out _, out _));
             return;
-        }
         RawContact contact = Describe(body1, body2, JoltNative.BodyUserData(body1), JoltNative.BodyUserData(body2), manifold, settings->IsSensor);
-        settings->CombinedRestitution = KeptRestitution(restitution, contact.NormalVelocity);
         if (!contact.Touches)
             return;
         lock (contactGate)

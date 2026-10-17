@@ -239,8 +239,9 @@ public readonly record struct CompoundChild(ShapeDesc Shape, Pose Pose);
 /// </summary>
 /// <param name="Restitution">
 /// How much of its approach speed a contact gives back as a rebound. A contact takes the larger restitution of its two
-/// bodies, and does not bounce when its rebound, that restitution times its approach speed, is below 1 m/s. The default is
-/// 0, as in Jolt, so a body bounces only when its content names a restitution.
+/// bodies, and does not bounce when its bounce would rise less than 4 cm against the pull toward the surface: about a
+/// rebound of 0.89 m/s at 1 g, more under a stronger pull, and any rebound without one. The default is 0, as in Jolt, so
+/// a body bounces only when its content names a restitution.
 /// </param>
 public sealed record BodyDesc(
     ShapeDesc Shape,

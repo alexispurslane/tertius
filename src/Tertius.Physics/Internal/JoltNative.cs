@@ -75,6 +75,22 @@ internal static unsafe class JoltNative
 
     [DllImport(Library, EntryPoint = "JPH_ContactManifold_GetPenetrationDepth", CallingConvention = CallingConvention.Cdecl)]
     public static extern float ManifoldPenetrationDepth(nint manifold);
+
+    // What the minimum rebound reads of a body's push, as Jolt does when it takes that push off a rebound. Only a dynamic
+    // body has an accumulated force and a mass: Jolt asserts on the force of any other, and a static body has no motion
+    // properties. joltc's bool is one byte, so the declaration returns a byte, which needs no marshaling.
+
+    [DllImport(Library, EntryPoint = "JPH_Body_IsDynamic", CallingConvention = CallingConvention.Cdecl)]
+    public static extern byte BodyIsDynamic(nint body);
+
+    [DllImport(Library, EntryPoint = "JPH_Body_GetAccumulatedForce", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void BodyAccumulatedForce(nint body, Vector3* force);
+
+    [DllImport(Library, EntryPoint = "JPH_Body_GetMotionPropertiesUnchecked", CallingConvention = CallingConvention.Cdecl)]
+    public static extern nint BodyMotionProperties(nint body);
+
+    [DllImport(Library, EntryPoint = "JPH_MotionProperties_GetInverseMassUnchecked", CallingConvention = CallingConvention.Cdecl)]
+    public static extern float MotionPropertiesInverseMass(nint properties);
 }
 
 /// <summary>

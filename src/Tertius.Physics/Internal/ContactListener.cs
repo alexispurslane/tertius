@@ -11,7 +11,7 @@ namespace Tertius.Physics;
 /// events instead look up a managed wrapper for both bodies in a table behind a lock that only one thread holds at a time,
 /// which made the reports of persisting contacts cost 15 % of a tick in a heap of 300 awake boxes (ter-wu6v, ter-pnco).
 /// The added and persisted callbacks also pass Jolt's contact settings, through which the world's handlers apply the
-/// minimum rebound speed (see <see cref="FrameWorld.MinReboundSpeed"/>). JoltPhysicsSharp's <see cref="ContactSettings"/>
+/// minimum rebound (see <see cref="FrameWorld.MinReboundHeight"/>). JoltPhysicsSharp's <see cref="ContactSettings"/>
 /// has the layout of joltc's <c>JPH_ContactSettings</c> (52 bytes, the combined restitution a float at offset 4), and
 /// joltc copies the settings back to Jolt when a callback returns.
 /// </summary>
