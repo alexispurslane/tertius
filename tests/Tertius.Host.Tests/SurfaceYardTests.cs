@@ -6,8 +6,8 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// One headless run of the checked-in script scripts/surface-yard.json, on the scene surface-yard: a yard on Earth's
-/// surface, 6,371 km from the origin of its frame earth-surface, where only resting numeric frames keep the bodies near a
-/// Jolt origin. After 2 s, when the crates of the stack rest, the person walks 10 m toward the stack and stops. It jumps
+/// surface, 6,371 km from the origin of its frame earth-surface, whose bodies rest in the Jolt system of earth-surface
+/// itself, without a numeric frame. After 2 s, when the crates of the stack rest, the person walks 10 m toward the stack and stops. It jumps
 /// once in place and lands. Then it walks on into the top crate, which sticks out toward it, pushes that crate off the
 /// far side of the stack, so that the crate falls 1 m to the floor, and stops against the heavy crates below. The run
 /// ends 60 s after the crates came to rest. The fixture samples the yard's bodies after every tick, and every test of the
@@ -41,10 +41,7 @@ public sealed class SurfaceYardRun : CheckedInRun
 /// <param name="AngularVelocity">The body's angular velocity in earth-surface's axes, in rad/s.</param>
 /// <param name="Home">The frame whose Jolt system holds the body: earth-surface, or a numeric frame below it.</param>
 /// <param name="HomeMode">How the home moves as a numeric frame, or <see cref="NumericMode.None"/> for earth-surface.</param>
-/// <param name="PositionInHome">The body's position in its home, in meters: its position in the home's Jolt system.</param>
-/// <param name="HomeOrigin">The origin of the home in earth-surface, in meters.</param>
-internal readonly record struct BodySample(DPose Pose, Double3 Velocity, Vector3 AngularVelocity, FrameHandle Home, NumericMode HomeMode,
-    Double3 PositionInHome, Double3 HomeOrigin);
+internal readonly record struct BodySample(DPose Pose, Double3 Velocity, Vector3 AngularVelocity, FrameHandle Home, NumericMode HomeMode);
 
 /// <summary>The yard after one tick.</summary>
 /// <param name="Tick">The number of ticks run so far: 0 for the scene as built.</param>
@@ -75,8 +72,7 @@ internal sealed class YardRecord
             Entity entity = scene[Bodies[i]];
             FrameHandle home = world.PhysicsHomeOf(entity);
             bodies[i] = new BodySample(world.PoseIn(entity, surface), world.VelocityIn(entity, surface),
-                world.AngularVelocityIn(entity, surface), home, home.IsNull ? NumericMode.None : world.Frames.Numeric(home),
-                world.PoseIn(entity, home).Position, world.Frames.Relative(home, surface).Position);
+                world.AngularVelocityIn(entity, surface), home, home.IsNull ? NumericMode.None : world.Frames.Numeric(home));
         }
         Ticks.Add(new TickSample(world.TickNumber, world.Time, bodies, world.IsStanding(scene["person"]), world.Frames.NumericCount, world.Errors.Count));
     }
@@ -175,16 +171,23 @@ public sealed class SurfaceYardTests(SurfaceYardRun run) : IClassFixture<Surface
         }
     }
 
+    /// <summary>
+    /// The yard lies 6,371 km from the origin of earth-surface, nearer than the 8,389 km from which a slow group gets a
+    /// resting numeric frame (<see cref="NumericFrameOptions.CreateDistance"/>), and no body of it is fast. So the Jolt system
+    /// of earth-surface itself holds every body, 6,371 km from its origin, in double precision, and the bodies still rest
+    /// without jitter. The precision measurements (tests/Tertius.Physics.Tests/Precision) found no error from the distance
+    /// up to 9,000 km.
+    /// </summary>
     [Fact]
-    public void OnlyRestingNumericFramesHoldTheYardsBodies()
+    public void NoNumericFrameHoldsTheYardsBodiesAndTheyRestInTheJoltSystemOfEarthSurfaceItself()
     {
+        Measured.MostNumericFrames.Should().Be(0, "no group of the yard is fast or 8,389 km from the origin of earth-surface");
         foreach (BodyHomes homes in Measured.Homes)
-        {
-            homes.TicksNotResting.Should().Be(0,
-                $"the {homes.Id} is slow and 6,371 km from the origin of earth-surface, so a resting numeric frame holds it after every tick from the first (the first ticks without one: {string.Join(", ", homes.FirstTicksNotResting)})");
-            homes.LargestDistanceFromHomeOrigin.Should().BeLessThan(YardMeasurements.NearJoltOrigin,
-                $"the resting numeric frame keeps the {homes.Id} near the origin of its Jolt system");
-        }
+            homes.TicksNotInEarthSurface.Should().Be(0,
+                $"the Jolt system of earth-surface holds the {homes.Id} after every tick (the first ticks in another home: {string.Join(", ", homes.FirstTicksNotInEarthSurface)})");
+        foreach (RestingBody body in Measured.AtRest)
+            body.LargestStep.Should().BeLessThan(YardMeasurements.JitterStepLimit,
+                $"the {body.Id} rests 6,371 km from the origin of its Jolt system, from {Measured.RestFromTime:F2} s to the end, so no tick moves it");
     }
 
     [Fact]

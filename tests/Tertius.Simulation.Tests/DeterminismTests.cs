@@ -8,8 +8,9 @@ namespace Tertius.Simulation.Tests;
 /// The same inputs must give the same world, bit for bit, whether the gameplay chunks run on one thread or on eight.
 /// This is the one place where the tests run the world in parallel. The world runs on real Jolt, so the hand-offs and
 /// the contacts are the ones that Jolt really sends. The workload sends messages in every delivery mode, spawns,
-/// destroys, moves bodies between frames and hears contacts, so a change in the order of anything shows in the hash. The
-/// four runs are made once, by <see cref="Runs"/>, and each test reads what it needs.
+/// destroys, moves bodies between frames, runs bodies in falling and resting numeric frames under the default rules and
+/// hears contacts, so a change in the order of anything shows in the hash. The four runs are made once, by
+/// <see cref="Runs"/>, and each test reads what it needs.
 /// </summary>
 public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper output) : IClassFixture<DeterminismTests.Runs>
 {
@@ -133,13 +134,17 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
     /// <param name="HandOffs">The hand-offs that Jolt sent, summed over the steps.</param>
     /// <param name="Contacts">The contacts that Jolt sent, summed over the steps.</param>
     /// <param name="Errors">The number of errors that the world recorded.</param>
-    public sealed record RunResult(ulong Hash, WorldStats Stats, long Messages, int HandOffs, int Contacts, int Errors);
+    /// <param name="FallingFrameTicks">The falling numeric frames that lived after each tick, summed over the ticks.</param>
+    /// <param name="RestingFrameTicks">The resting numeric frames that lived after each tick, summed over the ticks.</param>
+    public sealed record RunResult(ulong Hash, WorldStats Stats, long Messages, int HandOffs, int Contacts, int Errors, int FallingFrameTicks, int RestingFrameTicks);
 
     /// <summary>
-    /// How far from the planet at the origin of the root frame the bodies of the root group start, in meters. The planet
-    /// pulls them with the G·M of the root's point gravity, so that its pull on them is 1e8 / 1e4² = 1 m/s².
+    /// How far from the planet at the origin of the root frame the bodies of the root group start, in meters: 10,000 km,
+    /// past the 8,389 km from which a slow group gets a resting numeric frame (<see cref="NumericFrameOptions.CreateDistance"/>).
+    /// So the slow bodies of the root group, and the balls of its collision course, rest in numeric frames. The planet pulls
+    /// them with the G·M of the root's point gravity, 1e8 / 1e7² = 1e-6 m/s², too little to make them fast.
     /// </summary>
-    private const double RootGroupDistance = 1e4;
+    private const double RootGroupDistance = 1e7;
 
     /// <summary>
     /// Runs the workload on <paramref name="maxDop"/> workers and returns what it ended in, and how many different threads
@@ -170,7 +175,9 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
             FrameHandle frame = (i % 3) switch { 0 => west, 1 => east, _ => root };
             bool hasBody = i % 4 == 0;
             // Every other body is shot along +X at 120 to 160 m/s, so that it leaves the bubble of its frame, which has a radius
-            // of 200 m, within the run. Jolt then hands it off to the parent frame.
+            // of 200 m, within the run. Jolt then hands it off to the parent frame. Its Chatter pushes it on every tick, so after
+            // 0.5 s it thrusts (NumericFrameOptions.ThrustOnset), and its group falls in a numeric frame while the group's common
+            // speed is above the 50 m/s from which a group that thrusts falls.
             double speed = hasBody && i % 8 == 0 ? 120 + random.NextDouble() * 40 : random.NextDouble();
             double distance = frame == root ? RootGroupDistance : 0;
             world.Spawn(new SpawnDesc
@@ -207,10 +214,16 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
         world.Camera = world.Spawn(new SpawnDesc { Frame = west, Render = new RenderData() });
 
         long messages = 0;
+        int fallingFrameTicks = 0, restingFrameTicks = 0;
+        var frames = new List<FrameHandle>();
         for (int tick = 0; tick < ticks; tick++)
         {
             world.Tick();
             messages += world.Stats.RoutedEvents;
+            frames.Clear();
+            world.Frames.GetAllInTree(frames);
+            fallingFrameTicks += frames.Count(frame => world.Frames.Numeric(frame) == NumericMode.Falling);
+            restingFrameTicks += frames.Count(frame => world.Frames.Numeric(frame) == NumericMode.Resting);
         }
 
         ulong hash = WorldHash.Of(world, static (soFar, component) => component switch
@@ -221,7 +234,7 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
         });
         int handOffs = faults.Outputs.Sum(output => output.HandOffs.Count);
         int contacts = faults.Outputs.Sum(output => output.Contacts.Count);
-        return (new RunResult(hash, world.Stats, messages, handOffs, contacts, world.Errors.Count), threads.Count);
+        return (new RunResult(hash, world.Stats, messages, handOffs, contacts, world.Errors.Count, fallingFrameTicks, restingFrameTicks), threads.Count);
     }
 
     /// <summary>The four runs, made once for the whole class: two on one worker and two on eight, alternating.</summary>
@@ -309,6 +322,14 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
     {
         runs.OneWorker.HandOffs.Should().BeGreaterThan(0);
         runs.OneWorker.Contacts.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public void TheWorkloadRunsBodiesInFallingAndInRestingNumericFrames()
+    {
+        // Equal worlds would prove nothing about the order of the numeric update if no group ever got a numeric frame.
+        runs.OneWorker.FallingFrameTicks.Should().BeGreaterThan(0, "the shot balls thrust at 120 to 160 m/s");
+        runs.OneWorker.RestingFrameTicks.Should().BeGreaterThan(0, "the slow bodies of the root group are 10,000 km from its origin");
     }
 
     [Fact]

@@ -9,7 +9,7 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// Writes the report of a <see cref="SurfaceYardRun"/> as Markdown, for a reader who did not see the run: what the scene
-/// is and what it must show, the yard every 2 s, the push and the fall tick by tick, the physics homes of the bodies,
+/// is and what it must show, the yard every 2 s, the push and the fall tick by tick, whether a numeric frame held a body,
 /// each expectation with its expected and measured value, and the captures of the script with what each must show.
 /// </summary>
 internal static class SurfaceYardReport
@@ -46,8 +46,6 @@ internal static class SurfaceYardReport
     public static void Write(SurfaceYardRun run, string path)
     {
         YardMeasurements m = run.Measured;
-        FrameHandle surface = run.World.GetOwnedFrame(run.Scene["earth-surface"]);
-        Dictionary<FrameHandle, string> labels = Labels(m, surface);
         var text = new StringBuilder();
         Line(text, "# Surface yard: scene report");
         Line(text);
@@ -56,9 +54,9 @@ internal static class SurfaceYardReport
             + $"at 60 ticks a second (one tick is {m.TickSeconds:F9} s). The run has {m.EndTick} ticks, {m.EndTime:F3} s.");
         Line(text);
         Scene(text, m);
-        Samples(text, m, labels);
-        Fall(text, m, labels);
-        Homes(text, m, labels);
+        Samples(text, m);
+        Fall(text, m);
+        NumericFrames(text, m);
         Expectations(text, run, m);
         NotAsserted(text, m);
         Captures(text, m);
@@ -84,20 +82,6 @@ internal static class SurfaceYardReport
     /// <summary>sqrt(2h/g) for h = 1 m, the stack's height, and g = μ/R²: the time of a fall from the stack's top to the floor from rest.</summary>
     private static double RestFallTime => Math.Sqrt(2 * YardMeasurements.DropHeight / YardMeasurements.SurfaceGravity);
 
-    /// <summary>A short name for each physics home: earth-surface, or N1, N2 and so on in the order that the run first used them.</summary>
-    private static Dictionary<FrameHandle, string> Labels(YardMeasurements m, FrameHandle surface)
-    {
-        var labels = new Dictionary<FrameHandle, string> { [surface] = "earth-surface" };
-        foreach (TickSample tick in m.Ticks)
-            foreach (BodySample body in tick.Bodies)
-                if (!labels.ContainsKey(body.Home))
-                    labels[body.Home] = body.Home.IsNull ? "none" : $"N{labels.Count}";
-        return labels;
-    }
-
-    private static string Home(BodySample body, Dictionary<FrameHandle, string> labels) =>
-        body.HomeMode == NumericMode.None ? $"{labels[body.Home]} (semantic)" : $"{labels[body.Home]} ({body.HomeMode.ToString().ToLowerInvariant()})";
-
     private static void Scene(StringBuilder text, YardMeasurements m)
     {
         Line(text, "## The scene");
@@ -117,9 +101,9 @@ internal static class SurfaceYardReport
         Line(text, "- The script: 2 s of rest; W for 200 ticks (a 10 m walk); 30 ticks still; one jump; 90 ticks; W for 40 ticks, in which "
             + "the person walks about 1.5 m, reaches the top crate's face, pushes the crate off the far side of the stack, and stops "
             + "against the heavy crates; then rest until 60 s after the 2 s of rest.");
-        Line(text, "- Every body is slow and 6,371 km from its frame's origin, so only resting numeric frames keep it near a Jolt origin. "
-            + "Physics home below means the frame whose Jolt system holds the body: `earth-surface` (semantic), or a numeric frame "
-            + "`N1`, `N2`... with its mode.");
+        Line(text, "- Every body is slow and 6,371 km from its frame's origin, nearer than the 8,389 km from which a slow group gets a "
+            + "resting numeric frame, so the Jolt system of `earth-surface` itself holds every body, 6,371 km from its origin, in double "
+            + "precision. The precision measurements (tests/Tertius.Physics.Tests/Precision) found no error from the distance up to 9,000 km.");
         Line(text);
         Line(text, "What the run must show:");
         Line(text);
@@ -130,12 +114,12 @@ internal static class SurfaceYardReport
             + $"from that state. For a crate that left at rest and without spin, that time is sqrt(2h/g); for h = 1 m it is {F(RestFallTime, 4)} s. "
             + "The crate tips over the stack's edge and leaves it spinning, so the time from the edge to the floor is not that of a fall of 1 m from rest.");
         Line(text, "4. No body jitters: over the last 40 s, no tick moves any body by 0.1 mm or more.");
-        Line(text, "5. A resting numeric frame holds every body after every tick, within 1 km of the origin of its Jolt system, and World.Errors stays empty.");
+        Line(text, "5. No numeric frame holds a body at any tick: the Jolt system of `earth-surface` holds them all, and they rest without jitter there. World.Errors stays empty.");
         Line(text, "6. The person and the top crate hear each other (a Collision event) when the person pushes the crate.");
         Line(text);
     }
 
-    private static void Samples(StringBuilder text, YardMeasurements m, Dictionary<FrameHandle, string> labels)
+    private static void Samples(StringBuilder text, YardMeasurements m)
     {
         Line(text, "## The yard every 2 s");
         Line(text);
@@ -146,25 +130,15 @@ internal static class SurfaceYardReport
         foreach (TickSample tick in Sampled(m))
             Line(text, $"| {F(tick.Time, 3)} | {tick.Tick} | {tick.NumericFrames} | {tick.Errors} | {Yes(tick.PersonStanding)} |");
         Line(text);
-        Line(text, "Position in home is the body's position in its physics home, which is its position in that home's Jolt system.");
-        Line(text);
-        Line(text, "| t (s) | body | position x, y, z (m) | height (m) | velocity (m/s) | asleep | physics home | position in home (m) |");
-        Line(text, "|---:|---|---|---:|---|:---:|---|---|");
+        Line(text, "| t (s) | body | position x, y, z (m) | height (m) | velocity (m/s) | asleep |");
+        Line(text, "|---:|---|---|---:|---|:---:|");
         foreach (TickSample tick in Sampled(m))
             for (int i = 0; i < YardRecord.Bodies.Length; i++)
             {
                 BodySample body = tick.Bodies[i];
                 Line(text, $"| {F(tick.Time, 3)} | {YardRecord.Bodies[i]} | {V(body.Pose.Position)} | {F(body.Pose.Position.Y - YardMeasurements.FloorTop)} "
-                    + $"| {V(body.Velocity)} | {Yes(YardMeasurements.Asleep(body))} | {Home(body, labels)} | {V(body.PositionInHome)} |");
+                    + $"| {V(body.Velocity)} | {Yes(YardMeasurements.Asleep(body))} |");
             }
-        Line(text);
-        Line(text, "The origin of each physics home in `earth-surface`, at the same ticks:");
-        Line(text);
-        Line(text, "| t (s) | home | origin x, y, z (m) | distance from Earth's center (m) |");
-        Line(text, "|---:|---|---|---:|");
-        foreach (TickSample tick in Sampled(m))
-            foreach (BodySample body in tick.Bodies.DistinctBy(body => body.Home))
-                Line(text, $"| {F(tick.Time, 3)} | {Home(body, labels)} | {V(body.HomeOrigin)} | {F(body.HomeOrigin.Length)} |");
         Line(text);
     }
 
@@ -176,7 +150,7 @@ internal static class SurfaceYardReport
             yield return m.Ticks[^1];
     }
 
-    private static void Fall(StringBuilder text, YardMeasurements m, Dictionary<FrameHandle, string> labels)
+    private static void Fall(StringBuilder text, YardMeasurements m)
     {
         CrateFall fall = m.Fall;
         Line(text, "## The push and the fall, tick by tick");
@@ -191,8 +165,8 @@ internal static class SurfaceYardReport
             + "μ/r² toward Earth's center, which is -Y here. Lowest corner is the height of the crate's lowest corner above the floor's top, "
             + "and nearest z is the largest z of its corners, the corner nearest the stack, whose far face is at z = -0.25 m.");
         Line(text);
-        Line(text, "| tick | t (s) | top crate position (m) | height (m) | lowest corner (m) | nearest z (m) | velocity (m/s) | spin (rad/s) | free flight | acceleration (m/s²) | expected (m/s²) | person z (m) | person standing | crate's home |");
-        Line(text, "|---:|---:|---|---:|---:|---:|---|---:|:---:|---|---|---:|:---:|---|");
+        Line(text, "| tick | t (s) | top crate position (m) | height (m) | lowest corner (m) | nearest z (m) | velocity (m/s) | spin (rad/s) | free flight | acceleration (m/s²) | expected (m/s²) | person z (m) | person standing |");
+        Line(text, "|---:|---:|---|---:|---:|---:|---|---:|:---:|---|---|---:|:---:|");
         long from = Math.Max(m.LandedTick + 1, (fall.PushTick ?? m.LandedTick) - 3);
         long to = Math.Min(m.EndTick, (fall.LandingTick ?? m.PushedTick + 40) + 5);
         var free = fall.FreeFlightTicks.ToDictionary(step => step.Tick);
@@ -206,48 +180,22 @@ internal static class SurfaceYardReport
             Line(text, $"| {tick} | {F(sample.Time, 3)} | {V(crate.Pose.Position)} | {F(crate.Pose.Position.Y - YardMeasurements.FloorTop)} "
                 + $"| {F(lowest - YardMeasurements.FloorTop)} | {F(nearestZ)} | {V(crate.Velocity)} "
                 + $"| {F(crate.AngularVelocity.Length(), 3)} | {Yes(free.ContainsKey(tick))} | {V(acceleration, 5)} | {V(YardMeasurements.Field(before.Pose.Position), 5)} "
-                + $"| {F(person.Pose.Position.Z, 3)} | {Yes(sample.PersonStanding)} | {Home(crate, labels)} |");
+                + $"| {F(person.Pose.Position.Z, 3)} | {Yes(sample.PersonStanding)} |");
         }
         Line(text);
     }
 
-    private static void Homes(StringBuilder text, YardMeasurements m, Dictionary<FrameHandle, string> labels)
+    private static void NumericFrames(StringBuilder text, YardMeasurements m)
     {
-        Line(text, "## Physics homes: which bodies have resting frames, and when");
+        Line(text, "## Numeric frames");
         Line(text);
-        Line(text, "Each change of a body's physics home, from the scene as built (tick 0) to the end. A body keeps a home until the next row for it.");
+        Line(text, $"The most numeric frames that the frame tree held after a tick, from the scene as built (tick 0) to the end: {m.MostNumericFrames}. "
+            + "The ticks after which a body's physics home was not `earth-surface` itself:");
         Line(text);
-        Line(text, "| body | tick | t (s) | new home |");
-        Line(text, "|---|---:|---:|---|");
+        Line(text, "| body | ticks in another home | first such ticks |");
+        Line(text, "|---|---:|---|");
         foreach (BodyHomes homes in m.Homes)
-            foreach (HomeChange change in homes.Changes)
-            {
-                string home = change.Mode == NumericMode.None ? $"{labels[change.Home]} (semantic)" : $"{labels[change.Home]} ({change.Mode.ToString().ToLowerInvariant()})";
-                Line(text, $"| {homes.Id} | {change.Tick} | {F(change.Time, 3)} | {home} |");
-            }
-        Line(text);
-        int fewest = m.Ticks.Skip(1).Min(tick => tick.NumericFrames), most = m.Ticks.Skip(1).Max(tick => tick.NumericFrames);
-        Line(text, $"From tick 1 on, the frame tree holds between {fewest} and {most} numeric frames.");
-        Line(text);
-        Line(text, "Each home's origin in `earth-surface` when the run first used it and at the end, and how far each body got from its home's origin "
-            + "from tick 1 on, which is how far it got from the origin of the Jolt system that held it:");
-        Line(text);
-        Line(text, "| home | first tick | origin then (m) | origin at the end (m) |");
-        Line(text, "|---|---:|---|---|");
-        foreach (FrameHandle home in labels.Keys)
-        {
-            int first = m.Ticks.Select((tick, index) => (tick, index)).FirstOrDefault(pair => pair.tick.Bodies.Any(body => body.Home == home), (null!, -1)).index;
-            if (first < 0)
-                continue;
-            BodySample then = m.Ticks[first].Bodies.First(body => body.Home == home);
-            BodySample? last = m.Ticks[^1].Bodies.Cast<BodySample?>().FirstOrDefault(body => body!.Value.Home == home);
-            Line(text, $"| {Home(then, labels)} | {first} | {V(then.HomeOrigin)} | {(last is { } end ? V(end.HomeOrigin) : "not used at the end")} |");
-        }
-        Line(text);
-        Line(text, "| body | largest distance from its home's origin, from tick 1 on (m) |");
-        Line(text, "|---|---:|");
-        foreach (BodyHomes homes in m.Homes)
-            Line(text, $"| {homes.Id} | {F(homes.LargestDistanceFromHomeOrigin, 3)} |");
+            Line(text, $"| {homes.Id} | {homes.TicksNotInEarthSurface} | {(homes.TicksNotInEarthSurface == 0 ? "none" : string.Join(", ", homes.FirstTicksNotInEarthSurface))} |");
         Line(text);
     }
 
@@ -330,14 +278,15 @@ internal static class SurfaceYardReport
                 Row(jitter, $"{body.Id} asleep at the end", "yes", Yes(body.AsleepAtTheEnd), body.AsleepAtTheEnd);
         }
 
-        const string homes = "OnlyRestingNumericFramesHoldTheYardsBodies";
+        const string homes = "NoNumericFrameHoldsTheYardsBodiesAndTheyRestInTheJoltSystemOfEarthSurfaceItself";
+        Row(homes, "most numeric frames in the frame tree after a tick", "0", m.MostNumericFrames.ToString(CultureInfo.InvariantCulture), m.MostNumericFrames == 0);
         foreach (BodyHomes body in m.Homes)
-        {
-            Row(homes, $"{body.Id}: ticks from 1 on without a resting numeric frame as its home", "0",
-                body.TicksNotResting == 0 ? "0" : $"{body.TicksNotResting} (first: {string.Join(", ", body.FirstTicksNotResting)})", body.TicksNotResting == 0);
-            Row(homes, $"{body.Id}: largest distance from its home's origin, from tick 1 on", $"below {F(YardMeasurements.NearJoltOrigin, 0)} m",
-                $"{F(body.LargestDistanceFromHomeOrigin, 3)} m", body.LargestDistanceFromHomeOrigin < YardMeasurements.NearJoltOrigin);
-        }
+            Row(homes, $"{body.Id}: ticks from 0 on with a physics home other than earth-surface itself", "0",
+                body.TicksNotInEarthSurface == 0 ? "0" : $"{body.TicksNotInEarthSurface} (first: {string.Join(", ", body.FirstTicksNotInEarthSurface)})",
+                body.TicksNotInEarthSurface == 0);
+        foreach (RestingBody body in m.AtRest)
+            Row(homes, $"{body.Id}: largest move in one tick, from {F(m.RestFromTime, 2)} s to the end, 6,371 km from the origin of its Jolt system",
+                "0, below 0.1 mm", $"{G(body.LargestStep * 1e3)} mm", body.LargestStep < YardMeasurements.JitterStepLimit);
 
         const string errors = "TheRunRecordsNoErrors";
         Row(errors, "World.Errors at the end", "0", run.World.Errors.Count.ToString(CultureInfo.InvariantCulture), run.World.Errors.Count == 0);
