@@ -112,9 +112,11 @@ public sealed partial class JoltPhysicsBackend
         }
         if (record.InteriorWorld is { } interior)
             SetLayer(interior, record.InteriorBody, InteriorLayer(record));
+        // The ghost of an anchor has the anchor's own layer, a hull's, which ignores the collision groups.
         if (record.Ghosts is { } ghosts)
             foreach (GhostBody ghost in ghosts)
-                SetLayer(ghost.World, ghost.Body, GhostLayer(record));
+                if (!ghost.Anchor)
+                    SetLayer(ghost.World, ghost.Body, GhostLayer(record));
     }
 
     private static void SetLayer(FrameWorld world, BodyID body, ObjectLayer layer)

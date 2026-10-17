@@ -132,7 +132,8 @@ public class HandOffTests
     [Fact]
     public void BallLeavingOrbitingSpinningKeplerFrameKeepsItsParentVelocity()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        // At 7.5 km/s the station's hull would rest in an orbit frame of its own, which would be the frame that Jolt names.
+        using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         const double mu = 3.986004418e14;
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(mu)));
         var orbit = KeplerOrbit.Circular(7_000_000, phase: 0.3, spinRate: 0.15);
@@ -166,7 +167,9 @@ public class HandOffTests
     [Fact]
     public void ABallThatLeavesAStationFacingItsPlanetNearApoapsisTakesTheStationsTurnRateThere()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        // At about 700 m/s the station's hull would rest in an orbit frame of its own, which would be the frame that Jolt
+        // names. The test after this one runs the scene with numeric frames.
+        using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         const double mu = 5e9;
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(mu)));
         // Periapsis at t = 0 and apoapsis at half the 31.4 s period. The station turns at 0.389 rad/s at periapsis and
@@ -199,6 +202,45 @@ public class HandOffTests
         FrameMotionData atPeriapsis = new(world.Frames.LocalPose(station), world.Frames.LinearVelocity(station), orbit.AngularVelocityAt(0, mu));
         (ToParentVelocity(atPeriapsis, position, before.LinearVelocity) - expected).Length.Should().BeGreaterThan(5);
         world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The ball of the test above, which leaves a station that faces its planet near apoapsis, runs on for a second after
+    /// it leaves. With numeric frames the station's hull rests in an orbit frame of its own (ter-dhkf rule 3), the station's
+    /// frame turns at the frame's origin, and the ball leaves into that orbit frame, the station's tree parent. The ball is
+    /// 25 m from the hull then, farther than the merge test reaches, so the update of the same sync point moves it into a
+    /// falling frame of its own. Every read of the ball in the planet is the same as without numeric frames, to the
+    /// rounding of the hand-off's floats.
+    /// </summary>
+    [Fact]
+    public void ABallThatLeavesAStationFacingItsPlanetMovesInThePlanetAlikeWithNumericFramesAndWithout()
+    {
+        (Double3 Position, Double3 Velocity, string Home) Run(bool numericFrames)
+        {
+            using World world = numericFrames ? NewWorldWithFaults(out _) : NewWorldWithoutNumericFrames(out _);
+            const double mu = 5e9;
+            FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(mu)));
+            var orbit = new KeplerOrbit(5000, 0.3, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
+            FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+            {
+                Frame = planet,
+                Body = new BodyDesc(new BoxShapeDesc(new Vector3(4)), InteriorShape: new SphereShapeDesc(1)),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(25), MotionDriver.Kepler, Orbit: orbit),
+            }));
+            Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 0, 10), LinearVelocity = new Vector3(0, 0, 1), Body = BallBody(0.2f) });
+            TickUntil(world, () => world.GetFrame(ball) == planet, 1200);
+            Tick(world, 60);
+            world.Errors.Should().BeEmpty();
+            FrameHandle home = world.PhysicsHomeOf(ball);
+            return (world.PoseIn(ball, planet).Position, world.VelocityIn(ball, planet), home == planet ? "planet" : world.Frames.Numeric(home).ToString());
+        }
+
+        var with = Run(numericFrames: true);
+        var without = Run(numericFrames: false);
+        with.Home.Should().Be("Falling", "the ball falls in a frame of its own apart from the hull");
+        without.Home.Should().Be("planet");
+        (with.Position - without.Position).Length.Should().BeLessThan(1e-3);
+        (with.Velocity - without.Velocity).Length.Should().BeLessThan(1e-3);
     }
 
     [Fact]

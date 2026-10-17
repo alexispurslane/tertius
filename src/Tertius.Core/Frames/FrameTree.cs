@@ -24,17 +24,21 @@ namespace Tertius;
 /// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner, a parent, no bubble, the identity rotation, no
 /// spin, the Static driver and no gravity. A resting or nesting one has no velocity and no step acceleration. The chain of
 /// tree parents of a numeric frame ends at a semantic frame: a falling or resting frame lies in a semantic frame or a
-/// nesting frame, and a nesting frame lies in a semantic frame, on a whole multiple of
-/// <see cref="NumericFrameOptions.NestGrid"/>, and holds only numeric frames. At the end of
+/// nesting frame, an orbit frame lies in a semantic frame, and a nesting frame lies in a semantic frame, on a whole
+/// multiple of <see cref="NumericFrameOptions.NestGrid"/>, and holds only numeric frames. An orbit frame, and only an
+/// orbit frame, has an orbiter: a frame with the Kepler driver that hangs in it, at its origin. At the end of
 /// <see cref="UpdateNumericFrames"/>, every falling or resting frame is the home of a body or holds a frame, and every
 /// nesting frame holds a frame and is the home of no body; between updates, the count of bodies is the one of the last
 /// update. <see cref="NumericCount"/> is the number of numeric frames. A semantic frame has an owner and no step
-/// acceleration, and a semantic frame whose tree parent is a numeric frame has the Physics driver: a frame that its orbit,
-/// its spin or its owner's writes move, moves relative to its semantic parent. Every ghost of
-/// <see cref="AnchorGhosts"/> names a live falling frame. Every pair of <see cref="StickOutGhosts"/> names a live
-/// semantic frame and a live falling or resting frame of that frame's semantic parent, which is not its tree parent. These
-/// two hold between updates too: a frame that leaves the tree takes the places of ghosts that name it (see
-/// <see cref="RemoveNode"/>), and a frame that moves to another parent drops the pairs of its bubble that no longer hold
+/// acceleration, and a semantic frame whose tree parent is a numeric frame has the Physics driver, or it is the orbiter of
+/// that frame: a frame that its spin or its owner's writes move moves relative to its semantic parent, and a frame that
+/// its orbit moves hangs in its semantic parent or in its orbit frame, which follows the orbit. Every ghost of
+/// <see cref="AnchorGhosts"/> names the hull of the orbiter of a live orbit frame and a live frame of that orbiter's
+/// semantic parent other than the orbit frame. Every pair of <see cref="StickOutGhosts"/> names a live semantic frame and a
+/// live falling, resting or orbit frame of that frame's semantic parent, which is not its tree parent. These two hold
+/// between updates too: a frame that leaves the tree takes the places of ghosts that name it (see
+/// <see cref="RemoveNode"/>), an orbit frame that loses its orbiter takes the ghosts of its hull (see
+/// <see cref="LeaveOrbit"/>), and a frame that moves to another parent drops the pairs of its bubble that no longer hold
 /// (see <see cref="Reparent"/>). Every leave clock (see <see cref="NumericFrameRules.LeaveClock"/>)
 /// is at least zero and names a body of the last update that is not an anchor, needs a frame by itself and stays in its
 /// semantic frame's own system, so no clock outlives its body's place in the input.</item>
@@ -118,6 +122,7 @@ public sealed partial class FrameTree
         stepAcceleration[node.Id] = Double3.Zero;
         apartTime[node.Id] = 0;
         numericBodies[node.Id] = 0;
+        orbiter[node.Id] = FrameHandle.Null;
         driverVersion[node.Id] = 0;
         return new FrameHandle(frameOwner, node.Id, node.Generation);
     }
@@ -170,11 +175,13 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Removes <paramref name="frame"/>, whose node is <paramref name="node"/>, from the tree. The places of ghosts that
-    /// name it go with it: the falling frame of an anchor, and the bubble or the numeric frame of a pair of
-    /// <see cref="StickOutGhosts"/> (see the invariants of the class).
+    /// name it go with it: the home of a group that keeps a ghost of an anchor, and the bubble or the numeric frame of a pair
+    /// of <see cref="StickOutGhosts"/> (see the invariants of the class). An orbit frame whose orbiter goes falls on.
     /// </summary>
     private void RemoveNode(FrameHandle frame, PoseNode node)
     {
+        if (InOrbitFrame(frame))
+            LeaveOrbit(TreeParent(frame));
         for (int i = anchorGhosts.Count - 1; i >= 0; i--)
             if (anchorGhosts[i].Frame == frame)
                 anchorGhosts.RemoveAt(i);
@@ -187,13 +194,15 @@ public sealed partial class FrameTree
         if (numeric[node.Id] != NumericMode.None)
             NumericCount--;
         numeric[node.Id] = NumericMode.None;
+        orbiter[node.Id] = FrameHandle.Null;
         poses.Remove(node);
     }
 
     /// <summary>
     /// Moves a frame under a new parent. Its pose and velocity relative to everything else stay the same. A pair of
     /// <see cref="StickOutGhosts"/> whose bubble is the frame goes when its numeric frame is no longer a numeric frame of the
-    /// frame's semantic parent, or is now the frame's tree parent (see the invariants of the class). Throws
+    /// frame's semantic parent, or is now the frame's tree parent (see the invariants of the class). A frame that leaves its
+    /// orbit frame leaves it falling (see <see cref="NumericMode.Orbiting"/>). Throws
     /// <see cref="InvalidOperationException"/>, and changes nothing, if the new parent is the frame itself or one of
     /// its descendants.
     /// </summary>
@@ -206,6 +215,9 @@ public sealed partial class FrameTree
         // Refuse a cycle before the velocities below are converted: a refused move must leave the frame as it was.
         if (!newParent.IsNull && (newParent == frame || IsAncestorOf(frame, newParent)))
             throw new InvalidOperationException($"Cannot move frame {frame} under itself or its own descendant {newParent}.");
+
+        if (InOrbitFrame(frame))
+            LeaveOrbit(oldParent);
 
         // Carry the frame origin's velocity and the frame's spin from the old parent into the new parent.
         // A null parent is the virtual root above every root frame.
@@ -356,8 +368,10 @@ public sealed partial class FrameTree
     /// the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until that driver moves
     /// it. Every call changes <see cref="Version"/> and <see cref="DriverVersion"/>, also a call that gives the frame the
     /// driver that it has. So physics follows the call at the start of its next step, the same way that it follows a
-    /// reparent: it puts the frame's hull at the frame's pose and velocity in the tree. Throws
-    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// reparent: it puts the frame's hull at the frame's pose and velocity in the tree. A frame that hangs in its orbit
+    /// frame and gets another driver than Kepler leaves that frame falling, because no orbit moves it any more: a frame
+    /// with the Physics driver may hang in a falling frame, and the numeric update moves any other one, with its hull, into
+    /// its semantic parent. Throws <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     /// <remarks>
     /// Only the simulation calls it, through <c>World.SetFrameDriver</c>, which refuses a driver that the frame cannot
@@ -367,6 +381,8 @@ public sealed partial class FrameTree
     {
         Contract.Requires(Enum.IsDefined(motion));
         int id = Node(frame).Id;
+        if (motion != MotionDriver.Kepler && InOrbitFrame(frame))
+            LeaveOrbit(TreeParent(frame));
         driver[id] = motion;
         driverVersion[id]++;
         driverChanges++;
@@ -464,10 +480,14 @@ public sealed partial class FrameTree
             if (numeric[id] == NumericMode.None)
             {
                 Contract.Invariant(!owner[id].IsNull && stepAcceleration[id] == Double3.Zero);
+                Contract.Invariant(orbiter[id].IsNull);
                 // A nesting frame holds only numeric frames.
                 Contract.Invariant(parentMode != NumericMode.Nesting);
-                // A frame that its orbit, its spin or its owner's writes move, moves relative to its semantic parent.
-                if (parentMode != NumericMode.None)
+                // A frame that its spin or its owner's writes move moves relative to its semantic parent, and a frame that its
+                // orbit moves hangs in its semantic parent or at the origin of its orbit frame.
+                if (parentMode == NumericMode.Orbiting && orbiter[parent.Index] == frame)
+                    Contract.Invariant(Driver(frame) == MotionDriver.Kepler && locals[i].Position == Double3.Zero);
+                else if (parentMode != NumericMode.None)
                     Contract.Invariant(Driver(frame) == MotionDriver.Physics);
                 continue;
             }
@@ -477,10 +497,17 @@ public sealed partial class FrameTree
             Contract.Invariant(driver[id] == MotionDriver.Static && !gravity[id].HasValue);
             if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
                 Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero);
+            // Only an orbit frame has an orbiter, a live frame that hangs in it.
+            if (numeric[id] == NumericMode.Orbiting)
+                Contract.Invariant(IsAlive(orbiter[id]) && TreeParent(orbiter[id]) == frame);
+            else
+                Contract.Invariant(orbiter[id].IsNull);
             // The chain of tree parents ends at a semantic frame: a falling or resting frame lies in one or in a nesting
-            // frame, and a nesting frame lies in one, on an exact grid point.
+            // frame, an orbit frame lies in one, and a nesting frame lies in one, on an exact grid point.
             if (numeric[id] == NumericMode.Nesting)
                 Contract.Invariant(parentMode == NumericMode.None && NumericFrameRules.OnGrid(locals[i].Position, NumericOptions.NestGrid));
+            else if (numeric[id] == NumericMode.Orbiting)
+                Contract.Invariant(parentMode == NumericMode.None);
             else
                 Contract.Invariant(parentMode is NumericMode.None or NumericMode.Nesting);
             // The last update left no falling or resting frame without a body or a frame, and no nesting frame without a
@@ -492,11 +519,14 @@ public sealed partial class FrameTree
         }
         Contract.Invariant(NumericCount == numericFrames);
         foreach (NumericGhost ghost in anchorGhosts)
-            Contract.Invariant(IsAlive(ghost.Frame) && Numeric(ghost.Frame) == NumericMode.Falling);
+        {
+            Contract.Invariant(TryGetFrame(ghost.Anchor, out FrameHandle hullFrame) && InOrbitFrame(hullFrame) && IsAlive(ghost.Frame));
+            Contract.Invariant(ghost.Frame != TreeParent(hullFrame) && SemanticOf(ghost.Frame) == Parent(hullFrame));
+        }
         foreach (StickOutGhost ghost in stickOutGhosts)
         {
             Contract.Invariant(IsAlive(ghost.Bubble) && !IsNumeric(ghost.Bubble) && IsAlive(ghost.Frame));
-            Contract.Invariant(Numeric(ghost.Frame) is NumericMode.Falling or NumericMode.Resting);
+            Contract.Invariant(Numeric(ghost.Frame) is NumericMode.Falling or NumericMode.Resting or NumericMode.Orbiting);
             Contract.Invariant(SemanticOf(ghost.Frame) == Parent(ghost.Bubble) && ghost.Frame != TreeParent(ghost.Bubble));
         }
         if (leaveClocks.Count == 0)
@@ -838,6 +868,7 @@ public sealed partial class FrameTree
         Array.Resize(ref stepAcceleration, size);
         Array.Resize(ref apartTime, size);
         Array.Resize(ref numericBodies, size);
+        Array.Resize(ref orbiter, size);
         Array.Resize(ref driverVersion, size);
     }
 }

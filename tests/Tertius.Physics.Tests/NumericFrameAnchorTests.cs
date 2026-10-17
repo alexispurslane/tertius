@@ -317,34 +317,33 @@ public class NumericFrameAnchorTests
 
     /// <summary>
     /// A move between numeric frames keeps the moved body's ghosts in other systems, but not one in its new home. Only the
-    /// ghost of an anchor lies in a home of its own semantic frame: here the hull of a still Kepler frame (see
-    /// <see cref="Scenes.KeplerHull"/>), which a crate at 60 m/s passes 3 m from its center, so that the crate's falling
-    /// frame keeps a ghost of the hull. Then the game hands the frame to the Physics driver. The hull is no anchor any more,
-    /// the merge test links it to the crate, and the group keeps falling in the crate's frame, which takes the hull in,
+    /// ghost of an anchor lies in a home of its own semantic frame: here the hull of a Kepler frame that flies at 63 m/s in
+    /// an orbit frame of its own past a static rock 8 m to the side of its path (see <see cref="Scenes.FastKeplerHull"/>),
+    /// so that the system of space, the rock's home, keeps a ghost of the hull. Then the game gives the frame the Static
+    /// driver. The hull is a fixed anchor in the system of space now, and the numeric update moves it there, with its frame,
     /// in the same batch that withdraws the place of its old ghost there. The move drops that ghost, and so does the
-    /// withdrawal later in the batch, so no step runs with the hull and its ghost in one system.
+    /// withdrawal later in the batch, so no step runs with the hull and its ghost in one system. Before ter-dhkf rule 3,
+    /// the scene was a still Kepler hull whose ghost a falling crate's frame kept, and which joined that frame when the
+    /// game gave it the Physics driver.
     /// </summary>
     [Fact]
-    public void AKeplerHullThatTheGameHandsToThePhysicsDriverJoinsTheFallingFrameThatKeptItsGhostWithoutTheGhost()
+    public void AKeplerHullThatTheGameGivesTheStaticDriverJoinsTheSystemThatKeptItsGhostWithoutTheGhost()
     {
         using World world = NewWorld(numericFrames: true, threads: 1, out FaultInjectingBackend faults);
-        FrameHandle space = Scenes.StillSpace(world);
-        Entity hull = Scenes.KeplerHull(world, space, 1000, new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 1, LinearDamping: 0, AngularDamping: 0));
-        Entity crate = world.Spawn(new SpawnDesc
-        {
-            Frame = space, Pose = At(950, 3), LinearVelocity = new Vector3(60, 0, 0),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
-        });
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        Entity hull = Scenes.FastKeplerHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 1, LinearDamping: 0, AngularDamping: 0));
+        world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = Rock });
         Tick(world, 2);
-        FrameHandle falling = world.PhysicsHomeOf(crate);
-        world.Frames.Numeric(falling).Should().Be(NumericMode.Falling);
-        faults.Jolt.HasGhostIn(hull, falling).Should().BeTrue("the crate's falling frame keeps a ghost of the Kepler hull");
+        FrameHandle orbit = world.PhysicsHomeOf(hull);
+        world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        faults.Jolt.HasGhostIn(hull, space).Should().BeTrue("the rock's home keeps a ghost of the Kepler hull");
 
-        world.SetFrameDriver(world.GetOwnedFrame(hull), MotionDriver.Physics);
-        TickUntil(world, () => world.PhysicsHomeOf(hull) == falling, 5);
+        world.SetFrameDriver(world.GetOwnedFrame(hull), MotionDriver.Static);
 
-        world.PhysicsHomeOf(hull).Should().Be(falling, "the merge test links the hull, which physics drives now, to the crate");
-        faults.Jolt.HasGhostIn(hull, falling).Should().BeFalse("the hull is a real body of the frame's system");
+        world.PhysicsHomeOf(hull).Should().Be(space, "the hull of a Static frame lives in its semantic frame's own system");
+        world.Frames.IsAlive(orbit).Should().BeFalse("the orbit frame lost its frame and its hull");
+        world.Tick();
+        faults.Jolt.HasGhostIn(hull, space).Should().BeFalse("the hull is a real body of the system");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         world.Tick();
         world.Errors.Should().BeEmpty();

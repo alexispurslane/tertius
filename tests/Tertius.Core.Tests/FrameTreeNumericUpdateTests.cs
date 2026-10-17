@@ -164,18 +164,6 @@ public class FrameTreeNumericUpdateTests
     }
 
     [Fact]
-    public void A_fast_body_near_a_hull_on_a_Kepler_orbit_falls_and_its_frame_keeps_a_ghost_of_the_hull()
-    {
-        NumericBody[] after = Update(0.1, KeplerHull(10, x: 0, vx: 60), Body(11, x: 2, vx: 60));
-        after[0].Home.Should().Be(ground);
-        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
-        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(new Entity(10, 1), after[1].Home));
-    }
-
-    /// <summary>The hull of a frame whose Kepler driver moves it, at <paramref name="x"/>, flying at <paramref name="vx"/>.</summary>
-    private NumericBody KeplerHull(uint id, double x, double vx = 0) => Body(id, x, vx) with { Fixed = true, Orbits = true };
-
-    [Fact]
     public void A_falling_frame_that_reaches_a_static_body_hands_its_body_to_the_static_bodys_system()
     {
         FrameHandle pod = Update(0.1, Body(11, x: 0, vx: 7_700))[0].Home;
@@ -258,15 +246,6 @@ public class FrameTreeNumericUpdateTests
         after[0].Home.Should().Be(raft, "a static body outweighs any mass");
         after[1].Home.Should().NotBe(raft);
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Resting);
-    }
-
-    [Fact]
-    public void An_anchor_ghost_goes_when_the_falling_frame_passes()
-    {
-        FrameHandle pod = Update(0.1, KeplerHull(10, x: 0), Body(11, x: 2, vx: 60))[1].Home;
-        Update(0.1, KeplerHull(10, x: 0), Body(11, x: 500, vx: 60, home: pod));
-        frames.AnchorGhosts.IsEmpty.Should().BeTrue();
-        changes.GhostPlacesWithdrawn.Should().Equal([pod], "physics drops the anchor's ghost there at once");
     }
 
     // ---- The numeric frames that keep the ghosts of the bodies that stick out of a bubble -------------------------
@@ -375,11 +354,12 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void A_frame_that_loses_two_places_at_once_is_withdrawn_once()
     {
-        // The pod passes the Kepler hull beside it and the station at once.
+        // The pod passes two stations at once, one on each side of it.
         FrameHandle station = Station(100);
-        FrameHandle pod = Update(0.1, KeplerHull(12, x: -2), Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[1].Home;
-        Update(0.1, KeplerHull(12, x: -2), Body(10, x: 400, vx: 60, home: pod), BodyOf(station, 11, new Double3(0, 40, 0)));
-        frames.AnchorGhosts.IsEmpty.Should().BeTrue();
+        FrameHandle depot = frames.Create(new Entity(3, 1), ground, new DPose(X(-100), DQuaternion.Identity), FrameBounds.Sphere(40), MotionDriver.Static);
+        FrameHandle pod = Update(0.1, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)), BodyOf(depot, 12, new Double3(0, 40, 0)))[0].Home;
+        frames.StickOutGhosts.ToArray().Should().HaveCount(2);
+        Update(0.1, Body(10, x: 400, vx: 60, home: pod), BodyOf(station, 11, new Double3(0, 40, 0)), BodyOf(depot, 12, new Double3(0, 40, 0)));
         frames.StickOutGhosts.IsEmpty.Should().BeTrue();
         changes.GhostPlacesWithdrawn.Should().Equal([pod]);
     }
@@ -418,15 +398,13 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void Destroying_a_numeric_frame_drops_the_places_of_ghosts_that_name_it()
     {
-        // The pod keeps a ghost of the Kepler hull beside it and the ghosts of the bodies that stick out of the station.
+        // The pod keeps the ghosts of the bodies that stick out of the station.
         FrameHandle station = Station(100);
-        FrameHandle pod = Update(0.1, KeplerHull(12, x: -2), Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[1].Home;
-        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(new Entity(12, 1), pod));
+        FrameHandle pod = Update(0.1, Body(10, x: 0, vx: 60), BodyOf(station, 11, new Double3(0, 40, 0)))[0].Home;
         frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(station, pod));
 
         frames.Destroy(pod);
 
-        frames.AnchorGhosts.IsEmpty.Should().BeTrue();
         frames.StickOutGhosts.IsEmpty.Should().BeTrue();
         frames.TreeParent(station).Should().Be(ground, "the station did not move");
     }
@@ -434,14 +412,12 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void Destroying_a_semantic_frame_drops_the_places_of_ghosts_in_its_numeric_frames()
     {
-        // Space is a semantic child of ground. A fast body in space falls in a numeric frame of space, which keeps a ghost of
-        // the Kepler hull beside it and the ghosts of the bodies that stick out of a station in space.
+        // Space is a semantic child of ground. A fast body in space falls in a numeric frame of space, which keeps the ghosts
+        // of the bodies that stick out of a station in space.
         FrameHandle space = frames.Create(new Entity(3, 1), ground, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static);
         FrameHandle station = frames.Create(new Entity(2, 1), space, new DPose(X(100), DQuaternion.Identity), FrameBounds.Sphere(40), MotionDriver.Static);
-        NumericBody[] after = Update(0.1, BodyOf(space, 12, X(-2)) with { Fixed = true, Orbits = true }, BodyOf(space, 10, X(0)) with { Velocity = X(60) },
-            BodyOf(station, 11, new Double3(0, 40, 0)));
-        FrameHandle pod = after[1].Home;
-        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(new Entity(12, 1), pod));
+        NumericBody[] after = Update(0.1, BodyOf(space, 10, X(0)) with { Velocity = X(60) }, BodyOf(station, 11, new Double3(0, 40, 0)));
+        FrameHandle pod = after[0].Home;
         frames.StickOutGhosts.ToArray().Should().Equal(new StickOutGhost(station, pod));
 
         var dissolved = new List<FrameHandle>();
@@ -449,7 +425,6 @@ public class FrameTreeNumericUpdateTests
 
         dissolved.Should().Equal(pod);
         frames.Parent(station).Should().Be(ground);
-        frames.AnchorGhosts.IsEmpty.Should().BeTrue();
         frames.StickOutGhosts.IsEmpty.Should().BeTrue();
     }
 

@@ -312,7 +312,7 @@ public class NumericFrameRulesTests
 
     // ---- Summarize -----------------------------------------------------------------------------------------------
 
-    private static NumericGroup Summary(params NumericBody[] members) => Summarize(members, new());
+    private static NumericGroup Summary(params NumericBody[] members) => Summarize(members, new(), Options);
 
     [Fact]
     public void The_center_of_a_group_without_a_static_body_is_the_mass_weighted_mean_of_every_body() =>
@@ -383,44 +383,168 @@ public class NumericFrameRulesTests
         Summary(Body(0, mass: 1, home: Pod) with { Static = true }, Body(1, mass: 9, home: Raft) with { Static = true },
             Body(2, mass: 9, home: Raft)).Frame.Should().Be(Pod);
 
-    // ---- Which groups take in a body ---------------------------------------------------------------------------
+    // ---- Kepler hulls and their orbit frames ----------------------------------------------------------------------
+
+    /// <summary>The hull of a frame whose Kepler driver moves it, at <paramref name="x"/> and flying at <paramref name="vx"/>.</summary>
+    private static NumericBody KeplerHull(double x, double vx, FrameHandle home = default, NumericMode homeMode = NumericMode.None) =>
+        Body(x, vx, home: home) with { Fixed = true, Orbits = true, HomeMode = homeMode };
+
+    /// <summary>The orbit frame of the Kepler hull of these tests.</summary>
+    private static readonly FrameHandle Orbit = new(Entity.Null, 3, 1);
 
     [Fact]
-    public void A_body_that_moves_and_every_anchor_at_rest_join_every_group_that_they_may_touch()
+    public void A_Kepler_hull_that_its_orbit_moves_fast_or_far_lives_in_an_orbit_frame_of_its_own()
     {
-        JoinsEveryGroup(Body(0, vx: 60)).Should().BeTrue();
-        JoinsEveryGroup(Body(0) with { Static = true }).Should().BeTrue("a static body, also a mesh wall");
-        JoinsEveryGroup(Body(0) with { Static = true, Fixed = true }).Should().BeTrue("the hull of a Static frame");
-        JoinsEveryGroup(Body(0) with { Fixed = true }).Should().BeTrue("the hull of a Spin frame, which turns in place");
+        OrbitsInFrame(KeplerHull(6.8e6, vx: 7_700), Options).Should().BeTrue("at the create speed or above");
+        OrbitsInFrame(KeplerHull(0, vx: 50), Options).Should().BeTrue();
+        OrbitsInFrame(KeplerHull(10_000, vx: 0), Options).Should().BeTrue("at the create distance or beyond");
+        OrbitsInFrame(KeplerHull(9_999, vx: 49), Options).Should().BeFalse("a slow, near hull stays in its semantic frame's own system");
     }
 
     [Fact]
-    public void A_hull_on_a_Kepler_orbit_joins_only_a_group_that_does_not_fall() =>
-        JoinsEveryGroup(Body(0, vx: 7_700) with { Fixed = true, Orbits = true }).Should().BeFalse();
+    public void A_Kepler_hull_in_its_orbit_frame_keeps_it_down_to_the_thresholds_to_leave_one()
+    {
+        OrbitsInFrame(KeplerHull(0, vx: 30, Orbit, NumericMode.Orbiting), Options).Should().BeTrue("above the leave speed");
+        OrbitsInFrame(KeplerHull(0, vx: 30), Options).Should().BeFalse("below the create speed, outside a numeric frame");
+        OrbitsInFrame(KeplerHull(6_000, vx: 0, Orbit, NumericMode.Orbiting), Options).Should().BeTrue("beyond the leave distance");
+        OrbitsInFrame(KeplerHull(4_999, vx: 19, Orbit, NumericMode.Orbiting), Options).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Only_a_Kepler_hull_lives_in_an_orbit_frame()
+    {
+        OrbitsInFrame(Body(0, vx: 7_700), Options).Should().BeFalse("a fast body falls");
+        OrbitsInFrame(Body(0, vx: 7_700) with { Fixed = true }, Options).Should().BeFalse("the hull of a Spin frame, which turns in place");
+    }
+
+    [Fact]
+    public void A_fast_Kepler_hull_alone_needs_an_orbit_frame()
+    {
+        BodyMode(KeplerHull(0, vx: 7_700), Options).Should().Be(NumericMode.Orbiting);
+        BodyMode(KeplerHull(0, vx: 49), Options).Should().Be(NumericMode.None);
+    }
+
+    [Fact]
+    public void A_group_with_a_fast_Kepler_hull_and_no_anchor_at_rest_takes_the_hulls_orbit_frame()
+    {
+        NumericGroup group = Summary(Body(0, vx: 7_701, home: Pod), KeplerHull(5, vx: 7_700, Orbit, NumericMode.Orbiting));
+        group.Orbits.Should().BeTrue();
+        group.Orbiter.Should().Be(1);
+        group.Frame.Should().Be(Orbit);
+        group.FrameMass.Should().Be(double.PositiveInfinity, "the hull is infinitely heavy, so no other group keeps its frame");
+        GroupMode(NumericMode.Falling, group, Options).Should().Be(NumericMode.Orbiting);
+    }
+
+    [Fact]
+    public void A_group_whose_Kepler_hull_has_no_orbit_frame_yet_takes_a_new_one()
+    {
+        NumericGroup group = Summary(KeplerHull(0, vx: 7_700));
+        group.Orbits.Should().BeTrue();
+        group.Frame.IsNull.Should().BeTrue("the update makes the frame for the hull");
+    }
+
+    [Fact]
+    public void Among_Kepler_hulls_with_orbit_frames_the_first_one_gives_the_group_its_home()
+    {
+        NumericGroup group = Summary(Body(0, vx: 7_700), KeplerHull(1, vx: 7_700, Raft, NumericMode.Orbiting), KeplerHull(2, vx: 7_700, Orbit, NumericMode.Orbiting));
+        group.Orbiter.Should().Be(1);
+        group.Frame.Should().Be(Raft);
+    }
+
+    [Fact]
+    public void An_anchor_at_rest_wins_over_the_orbit_frame_of_a_Kepler_hull()
+    {
+        NumericGroup group = Summary(KeplerHull(0, vx: 7_700, Orbit, NumericMode.Orbiting), Body(4, vx: 7_700), Body(6, home: Raft) with { Static = true });
+        group.Orbits.Should().BeFalse();
+        group.Orbiter.Should().Be(0, "the hull keeps its own frame, and the group's home keeps a ghost of it");
+        group.Anchored.Should().BeTrue();
+        group.Frame.Should().Be(Raft);
+        group.Center.Should().Be(X(6), "the static body alone decides where the group lives");
+        GroupMode(NumericMode.Resting, group, Options).Should().Be(NumericMode.None, "6 m from the origin");
+    }
+
+    [Fact]
+    public void The_hull_of_a_Static_or_Spin_frame_and_a_slow_Kepler_hull_win_over_an_orbit_frame()
+    {
+        Summary(KeplerHull(0, vx: 7_700, Orbit, NumericMode.Orbiting), Body(1) with { Fixed = true }).Fixed.Should().BeTrue();
+        NumericGroup group = Summary(KeplerHull(0, vx: 7_700, Orbit, NumericMode.Orbiting), KeplerHull(1, vx: 10));
+        group.Fixed.Should().BeTrue("a slow, near Kepler hull stays in the semantic frame's own system");
+        group.Orbits.Should().BeFalse();
+        GroupMode(NumericMode.None, group, Options).Should().Be(NumericMode.None);
+    }
+
+    [Fact]
+    public void Bodies_in_an_orbit_frame_without_its_hull_do_not_keep_it()
+    {
+        // The hull's group keeps its frame by itself, so a group that the hull left must find a frame of its own.
+        NumericGroup group = Summary(Body(0, vx: 7_700, mass: 5, home: Orbit) with { HomeMode = NumericMode.Orbiting }, Body(1, vx: 7_700, home: Pod) with { HomeMode = NumericMode.Falling });
+        group.Orbits.Should().BeFalse();
+        group.Frame.Should().Be(Pod);
+        group.FrameMass.Should().Be(1);
+    }
+
+    // ---- The motion of an orbit frame ----------------------------------------------------------------------------
+
+    /// <summary>
+    /// A tight circular orbit, 100 m round a body with a G·M of 1e6 m³/s², so that it turns at 1 rad/s: its acceleration
+    /// of 100 m/s² and its jerk of 100 m/s³ show in the chord of one step.
+    /// </summary>
+    private static readonly KeplerOrbit Tight = KeplerOrbit.Circular(100, phase: 0.3);
+    private const double TightMu = 1e6;
+    private const double Step = 1.0 / 60;
+
+    [Fact]
+    public void The_chord_of_an_orbit_is_its_change_of_place_over_the_step_that_ends_now_divided_by_the_step()
+    {
+        (Double3 before, _) = Tight.StateAt(10 - Step, TightMu);
+        (Double3 now, Double3 velocity) = Tight.StateAt(10, TightMu);
+        Double3 chord = OrbitChord(now, velocity, TightMu, Step);
+        (chord - (now - before) / Step).Length.Should().BeLessThan(3e-5,
+            "the series stops at the jerk, so it leaves out the snap of 100 m/s⁴ times the cube of the step over 24, 2e-5 m/s");
+        (chord - velocity).Length.Should().BeGreaterThan(0.8, "the chord lags the instant velocity by half a step of the 100 m/s² acceleration");
+    }
+
+    [Fact]
+    public void A_frame_that_starts_a_step_at_the_chord_with_the_orbits_acceleration_ends_it_on_the_orbit()
+    {
+        // The scheme that Jolt uses for bodies, and the numeric update for falling frames: the velocity first, then the place.
+        (Double3 now, Double3 velocity) = Tight.StateAt(10, TightMu);
+        (Double3 next, _) = Tight.StateAt(10 + Step, TightMu);
+        Double3 chord = OrbitChord(now, velocity, TightMu, Step);
+        Double3 after = now + (chord + OrbitAcceleration(now, TightMu) * Step) * Step;
+        (after - next).Length.Should().BeLessThan(1e-6);
+    }
+
+    [Fact]
+    public void The_acceleration_of_an_orbit_is_the_pull_of_its_point_gravity()
+    {
+        OrbitAcceleration(new Double3(0, 0, 100), TightMu).Should().Be(new Double3(0, 0, -100));
+        OrbitAcceleration(new Double3(200, 0, 0), TightMu).Should().Be(new Double3(-25, 0, 0));
+    }
 
     // ---- Drain and origin ----------------------------------------------------------------------------------------
 
-    private static readonly Double3 Orbit = X(7_700);
+    private static readonly Double3 OrbitSpeed = X(7_700);
 
     [Fact]
     public void A_sleeping_member_counts_with_zero_local_velocity_and_holds_the_drain_back()
     {
         // The sleeper moves with the frame. The mover's 4 m/s, a quarter of the mass, is a common part of exactly 1 m/s.
-        NumericBody sleeper = Body(0, vx: Orbit.X, mass: 3, home: Pod), mover = Body(1, vx: Orbit.X + 4, mass: 1, home: Pod);
+        NumericBody sleeper = Body(0, vx: OrbitSpeed.X, mass: 3, home: Pod), mover = Body(1, vx: OrbitSpeed.X + 4, mass: 1, home: Pod);
         Double3 common = Summary(sleeper, mover).Velocity;
-        DrainVelocity(NumericMode.Falling, NumericMode.Falling, Orbit, common, Options).Should().Be(Orbit);
+        DrainVelocity(NumericMode.Falling, NumericMode.Falling, OrbitSpeed, common, Options).Should().Be(OrbitSpeed);
 
-        Double3 faster = Summary(sleeper, mover with { Velocity = X(Orbit.X + 4.04) }).Velocity;
-        DrainVelocity(NumericMode.Falling, NumericMode.Falling, Orbit, faster, Options).Should().Be(faster);
+        Double3 faster = Summary(sleeper, mover with { Velocity = X(OrbitSpeed.X + 4.04) }).Velocity;
+        DrainVelocity(NumericMode.Falling, NumericMode.Falling, OrbitSpeed, faster, Options).Should().Be(faster);
     }
 
     [Fact]
     public void A_falling_frame_keeps_its_velocity_up_to_the_drain_speed() =>
-        DrainVelocity(NumericMode.Falling, NumericMode.Falling, Orbit, Orbit + X(1), Options).Should().Be(Orbit);
+        DrainVelocity(NumericMode.Falling, NumericMode.Falling, OrbitSpeed, OrbitSpeed + X(1), Options).Should().Be(OrbitSpeed);
 
     [Fact]
     public void A_falling_frame_takes_its_members_velocity_above_the_drain_speed() =>
-        DrainVelocity(NumericMode.Falling, NumericMode.Falling, Orbit, Orbit + X(1.01), Options).Should().Be(Orbit + X(1.01));
+        DrainVelocity(NumericMode.Falling, NumericMode.Falling, OrbitSpeed, OrbitSpeed + X(1.01), Options).Should().Be(OrbitSpeed + X(1.01));
 
     [Fact]
     public void A_resting_frame_that_starts_to_fall_takes_its_members_velocity() =>
@@ -428,7 +552,7 @@ public class NumericFrameRulesTests
 
     [Fact]
     public void A_frame_that_comes_to_rest_keeps_no_velocity() =>
-        DrainVelocity(NumericMode.Falling, NumericMode.Resting, Orbit, X(3), Options).Should().Be(Double3.Zero);
+        DrainVelocity(NumericMode.Falling, NumericMode.Resting, OrbitSpeed, X(3), Options).Should().Be(Double3.Zero);
 
     [Fact]
     public void The_origin_stays_while_the_center_is_within_the_recenter_distance() =>

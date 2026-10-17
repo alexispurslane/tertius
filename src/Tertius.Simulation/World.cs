@@ -87,6 +87,8 @@ public sealed partial class World : IDisposable
         dyingMarks = entities.AddColumn<bool>();
         characterStanding = entities.AddColumn<bool>();
         Frames.NumericOptions = this.options.NumericFrames;
+        // Physics steps by one tick, so an orbit frame's velocity is the chord of its orbit over one tick.
+        Frames.StepLength = DeltaTime;
         if (physics != null)
             physicsWorker = new PhysicsWorker(physics, stepOutput);
     }

@@ -88,31 +88,29 @@ public static class Scenes
     }
 
     /// <summary>
-    /// The G·M of <see cref="StillSpace"/>, in m³/s². A circular orbit of 1 km in it moves at 1 µm/s, and its field there is
-    /// 1e-15 m/s².
+    /// The G·M of <see cref="AsteroidSpace"/>, in m³/s². A circular orbit of 5 km in it moves at 63 m/s, fast enough for an
+    /// orbit frame of its own, while a body at rest 5 km out lies nearer to the origin than the 10 km at which it gets a
+    /// numeric frame, so it stays in the system of space. The pull there is 0.8 m/s².
     /// </summary>
-    public const double StillMu = 1e-9;
+    public const double AsteroidMu = 2e7;
+
+    /// <summary>A root frame with a point gravity of <see cref="AsteroidMu"/>, so that a frame in it can take the Kepler driver.</summary>
+    public static FrameHandle AsteroidSpace(World world) =>
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(AsteroidMu)));
 
     /// <summary>
-    /// A root frame without gravity for every practical purpose, but with a point gravity of <see cref="StillMu"/>, so that
-    /// a frame in it can take the Kepler driver (see <see cref="KeplerHull"/>).
+    /// The owner of a frame with the Kepler driver in <paramref name="space"/>, an <see cref="AsteroidSpace"/>, on a circular
+    /// orbit of 5 km at phase 0: its hull, of <paramref name="body"/>, starts at (5000, 0, 0) and moves along -Z at 63 m/s,
+    /// so it lives in an orbit frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). Its bubble is a sphere
+    /// of 1 cm, so that no body near the hull enters it. A static body that the hull passes is an anchor at rest, which no
+    /// home shares with the hull: a group that links the two lives in the static body's home, and that home keeps a ghost
+    /// of the hull.
     /// </summary>
-    public static FrameHandle StillSpace(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(StillMu)));
-
-    /// <summary>
-    /// The owner of a frame with the Kepler driver in <paramref name="space"/>, a <see cref="StillSpace"/>, on a circular
-    /// orbit of <paramref name="radius"/> m at phase 0: its hull, of <paramref name="body"/>, is at (radius, 0, 0) and moves
-    /// along -Z at about 1 µm/s for a radius of 1 km, so it holds as still as a static body. Its bubble is a sphere of
-    /// 1 cm, so that no body near the hull enters it or touches it. A Kepler hull is an anchor that the merge test of
-    /// numeric frames links only to a group that does not fall: the frame of a falling group keeps a ghost of it
-    /// (docs/plans/numeric-frames.md, "Anchors"). So it stands in for a static body in a test of the ghosts of anchors.
-    /// </summary>
-    public static Entity KeplerHull(World world, FrameHandle space, double radius, BodyDesc body, params IComponent[] components) => world.Spawn(new SpawnDesc
+    public static Entity FastKeplerHull(World world, FrameHandle space, BodyDesc body, params IComponent[] components) => world.Spawn(new SpawnDesc
     {
         Frame = space,
         Body = body,
-        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(radius)),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(5_000)),
         Components = components,
     });
 

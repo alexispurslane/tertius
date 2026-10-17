@@ -308,7 +308,7 @@ public class GhostContactTests
     private static World WorldWith(bool numericFrames, out FaultInjectingBackend faults) =>
         NewWorldWithFaults(out faults, configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
 
-    /// <summary>True while the numeric update names <paramref name="anchor"/> an anchor of the falling frame <paramref name="frame"/>.</summary>
+    /// <summary>True while the numeric update names <paramref name="frame"/> to keep a ghost of the anchor <paramref name="anchor"/>.</summary>
     private static bool NamesAnchor(World world, Entity anchor, FrameHandle frame)
     {
         foreach (NumericGhost ghost in world.Frames.AnchorGhosts)
@@ -437,31 +437,30 @@ public class GhostContactTests
     }
 
     /// <summary>
-    /// With no gravity, a ball flies at 60 m/s along -X from 100 m before a still Kepler hull (see
-    /// <see cref="Scenes.KeplerHull"/>), a box of 2 m by 2 m by 2 m, and 3 m to the side of it. The merge test links a Kepler
-    /// hull only to a group that does not fall, so the ball falls in a numeric frame of its own, and the numeric update
-    /// names the hull an anchor of that frame, which keeps a ghost of it. Far past the hull, the update stops naming it, and
-    /// the ghost goes at the same sync point, although nothing else changed the frame tree. So the backend keeps its
-    /// invariants between ticks, and no ghost stands for the hull where the hull is not. Before ter-dhkf the scene used a
-    /// static box, which now joins the ball's group instead.
+    /// A Kepler hull, a box of 2 m by 2 m by 2 m, flies at 63 m/s in an orbit frame of its own past a static rock of radius
+    /// 1 m, 8 m to the side of its path (see <see cref="Scenes.FastKeplerHull"/>). No home holds both anchors at rest, so
+    /// the merge test links them into a group that lives in the rock's home, the system of space, and the numeric update
+    /// names that system to keep a ghost of the hull. Far past the rock, the update stops naming it, and the ghost goes at
+    /// the same sync point, although nothing else changed the frame tree. So the backend keeps its invariants between
+    /// ticks, and no ghost stands for the hull where the tree allows none. Before ter-dhkf rule 3, the falling frame of a
+    /// fast ball beside a still Kepler hull kept the ghost, and the ball now joins the hull's system instead.
     /// </summary>
     [Fact]
-    public void TheGhostOfAKeplerHullGoesAtTheSyncPointWhoseNumericUpdateStopsNamingItAnAnchor()
+    public void TheGhostOfAKeplerHullInTheHomeOfAStaticRockGoesAtTheSyncPointWhoseNumericUpdateStopsNamingIt()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = Scenes.StillSpace(world);
-        Entity box = Scenes.KeplerHull(world, space, 1000, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic));
-        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = At(1100, 3), LinearVelocity = new Vector3(-60, 0, 0), Body = Ball() });
-        world.Tick();
-        FrameHandle falling = world.PhysicsHomeOf(ball);
-        world.Frames.Numeric(falling).Should().Be(NumericMode.Falling);
-        NamesAnchor(world, box, falling).Should().BeTrue();
-        faults.Jolt.HasGhostIn(box, falling).Should().BeTrue();
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        Entity box = Scenes.FastKeplerHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic));
+        world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
+        Tick(world, 2);
+        world.Frames.Numeric(world.PhysicsHomeOf(box)).Should().Be(NumericMode.Orbiting);
+        NamesAnchor(world, box, space).Should().BeTrue();
+        faults.Jolt.HasGhostIn(box, space).Should().BeTrue();
 
-        TickUntil(world, () => !NamesAnchor(world, box, falling), 600);
+        TickUntil(world, () => !NamesAnchor(world, box, space), 600);
 
-        world.PhysicsHomeOf(ball).Should().Be(falling);
-        faults.Jolt.HasGhostIn(box, falling).Should().BeFalse("the numeric update no longer names the box an anchor of the ball's frame");
+        NamesAnchor(world, box, space).Should().BeFalse("the hull flies on until the merge test lets go of the rock");
+        faults.Jolt.HasGhostIn(box, space).Should().BeFalse("the numeric update no longer names space to keep a ghost of the hull");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         world.Tick();
         world.Errors.Should().BeEmpty();

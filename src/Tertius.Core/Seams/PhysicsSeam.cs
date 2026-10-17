@@ -451,9 +451,10 @@ public sealed class PhysicsChanges
     internal readonly List<FrameShift> FramesShifted = new();
 
     /// <summary>
-    /// Numeric frames that the numeric update of the last sync point named as a place for a ghost and this one does not:
-    /// the falling frame of an anchor (see <see cref="FrameTree.AnchorGhosts"/>) or a frame that keeps the ghosts of the
-    /// bodies that stick out of a bubble (see <see cref="FrameTree.StickOutGhosts"/>). Physics drops the ghosts there that
+    /// Frames that the numeric update of the last sync point named as a place for a ghost and this one does not: the home
+    /// of a group that keeps a ghost of a Kepler hull (see <see cref="FrameTree.AnchorGhosts"/>), which can be a semantic
+    /// frame's own system, or a numeric frame that keeps the ghosts of the bodies that stick out of a bubble (see
+    /// <see cref="FrameTree.StickOutGhosts"/>). Physics drops the ghosts there that
     /// the tree no longer allows, at once, so that it keeps a ghost only where the tree allows one. Only the engine fills
     /// it.
     /// </summary>

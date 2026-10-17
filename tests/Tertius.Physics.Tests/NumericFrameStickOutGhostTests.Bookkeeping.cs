@@ -11,15 +11,6 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public partial class NumericFrameStickOutGhostTests
 {
-    /// <summary>True while the numeric update names <paramref name="anchor"/> an anchor of the falling frame <paramref name="frame"/>.</summary>
-    private static bool NamesAnchor(World world, Entity anchor, FrameHandle frame)
-    {
-        foreach (NumericGhost ghost in world.Frames.AnchorGhosts)
-            if (ghost.Anchor == anchor && ghost.Frame == frame)
-                return true;
-        return false;
-    }
-
     /// <summary>
     /// The scene of <see cref="Layout.StationAndFastRock"/>, in which the numeric update names the rock's falling frame
     /// for the bodies that stick out of the station. Destroying the station's owner outside a tick takes the station's
@@ -79,13 +70,14 @@ public partial class NumericFrameStickOutGhostTests
     }
 
     /// <summary>
-    /// The rock of <see cref="Layout.StationAndFastRock"/> passes 2 m higher, so it misses the crate. The station has a
-    /// Kepler hull, an anchor that the merge test does not link to a group that falls. The rock flies on past the
-    /// station, and the numeric update stops naming the station's hull an anchor of the rock's falling frame, and later
-    /// stops naming that frame for the bodies that stick out of the station, while the frame lives on. Each time, the
-    /// ghost there goes at the same sync point, so the backend keeps its invariants after every tick. The rock meets
-    /// nothing, with numeric frames or without. Before ter-dhkf the station's hull was static, which now joins the rock's
-    /// group instead.
+    /// The rock of <see cref="Layout.StationAndFastRock"/> passes 2 m higher, so it misses the crate. The rock flies on past
+    /// the station, and the numeric update stops naming the rock's falling frame for the bodies that stick out of the
+    /// station, while the frame lives on. The ghost there goes at the same sync point, so the backend keeps its invariants
+    /// after every tick, and it stays as long as its place does. The rock meets nothing, with numeric frames or without.
+    /// Before ter-dhkf rule 3, the station had the hull of a still Kepler frame, whose ghost the rock's frame kept too, so
+    /// the test also saw one place of the frame go while the other stayed; a Kepler hull that holds still is a fixed
+    /// anchor now, which the rock's group joins, and the place of a ghost of a Kepler hull has tests of its own in
+    /// <see cref="NumericFrameGhostTests"/> and <see cref="GhostContactTests"/>.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -93,32 +85,28 @@ public partial class NumericFrameStickOutGhostTests
     public void AGhostWhosePlaceTheNumericUpdateStopsNamingGoesAtTheSameSyncPoint(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
-        Scene scene = Build(world, Layout.StationAndFastRock, rockOffset: 2, keplerStation: true);
+        Scene scene = Build(world, Layout.StationAndFastRock, rockOffset: 2);
         world.Tick();
         FrameHandle home = world.PhysicsHomeOf(scene.Rock);
-        bool namedAnchor = false, namedStickOut = false, keptAnchorGhost = false, keptStickOutGhost = false, lostStickOutGhost = false;
+        bool namedStickOut = false, keptStickOutGhost = false, lostStickOutGhost = false;
         bool namedBefore = NamesStickOutGhosts(world, scene.Bubble, home);
         for (int tick = 0; tick < 400; tick++)
         {
             world.Tick();
             faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow($"after tick {world.TickNumber}");
-            bool anchor = NamesAnchor(world, scene.Owner, home), stickOut = NamesStickOutGhosts(world, scene.Bubble, home);
-            namedAnchor |= anchor;
+            bool stickOut = NamesStickOutGhosts(world, scene.Bubble, home);
             namedStickOut |= stickOut;
             // Without numeric frames the rock's home is space, which holds the ghost of the crate that sticks out.
-            keptAnchorGhost |= numericFrames && !anchor && faults.Jolt.HasGhostIn(scene.Owner, home);
             keptStickOutGhost |= numericFrames && !stickOut && faults.Jolt.HasGhostIn(scene.Crate, home);
-            // A place that the update still names keeps its ghost when another place of the same frame goes.
+            // A place that the update still names keeps its ghost.
             lostStickOutGhost |= numericFrames && namedBefore && stickOut && !faults.Jolt.HasGhostIn(scene.Crate, home);
             namedBefore = stickOut;
         }
 
         world.PhysicsHomeOf(scene.Rock).Should().Be(home, "the rock flies on in its frame");
-        namedAnchor.Should().Be(numericFrames, "the rock flies past the station's hull");
         namedStickOut.Should().Be(numericFrames, "the rock flies past the crate that sticks out of the station");
-        keptAnchorGhost.Should().BeFalse("the ghost of the hull goes when its place goes");
         keptStickOutGhost.Should().BeFalse("the ghost of the crate goes when its place goes");
-        lostStickOutGhost.Should().BeFalse("the ghost of the crate stays while its place stays, also when the hull's goes");
+        lostStickOutGhost.Should().BeFalse("the ghost of the crate stays while its place stays");
         world.Frames.StickOutGhosts.IsEmpty.Should().BeTrue("the rock is far past the station");
         scene.RockLog.NewsOf(scene.Crate).Should().BeEmpty("the rock passes above the crate");
         (world.VelocityIn(scene.Rock, scene.Space) - new Double3(-60, 0, 0)).Length.Should().BeLessThan(1e-3, "nothing touched the rock");

@@ -461,9 +461,10 @@ public class WorldNumericFrameTests
         crateLog.Seen.Single().Impulse.Should().BeApproximately(30f, 3f, "the cube came at the crate of 10 kg at 3 m/s");
     }
 
-    // The scenes of the shifts need ghosts in a falling frame. Since ter-dhkf, a static wall joins the group of the crates
-    // near it, so it has no ghost in their frame. A still Kepler hull (see Scenes.KeplerHull) keeps the older rule: the
-    // falling frame of the crates near it keeps a ghost of it. Space is a StillSpace, and every wall lies 1 km along +X.
+    // The scenes of the shifts need ghosts in a falling frame. Since ter-dhkf, every anchor joins the group of the crates
+    // near it, or that group lives in the anchor's home, so no anchor has a ghost in a falling frame. The ghost of a body
+    // that sticks out of a bubble does: the numeric update names the falling frame of the crates near the bubble to keep
+    // it (see StickingWall). Every wall lies about 1 km along +X in space.
 
     [Fact]
     public void AShiftOfAFallingFrameMovesTheGhostsInItWithoutWakingTheBodiesNearThem()
@@ -473,8 +474,8 @@ public class WorldNumericFrameTests
         // distance at which Jolt makes a contact. A second crate in its frame puts the members' center 4 m away.
         using World world = NewWorld(out JoltPhysicsBackend backend,
             configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
-        FrameHandle ground = Scenes.StillSpace(world);
-        Entity wall = Wall(world, ground, 1000);
+        FrameHandle ground = Space(world);
+        Entity wall = StickingWall(world, ground, 1000, cratesSide: 1);
         Entity sleeper = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1001.04), Body = Crate });
         Entity other = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1009), Body = Crate });
         Tick(world, 1);
@@ -504,10 +505,10 @@ public class WorldNumericFrameTests
         // wakes the crate next to it.
         using World world = NewWorld(out JoltPhysicsBackend backend,
             configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
-        FrameHandle ground = Scenes.StillSpace(world);
-        Wall(world, ground, 1000);
-        Wall(world, ground, 1010);
-        Entity farWall = Wall(world, ground, 1200);
+        FrameHandle ground = Space(world);
+        StickingWall(world, ground, 1000, cratesSide: 1);
+        StickingWall(world, ground, 1010, cratesSide: -1);
+        Entity farWall = StickingWall(world, ground, 1200, cratesSide: 1);
         Entity left = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1001.04), Body = Crate });
         Entity right = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1008.96), Body = Crate });
         Entity above = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1005, 8), Body = Crate });
@@ -535,7 +536,7 @@ public class WorldNumericFrameTests
         IsAwake(backend, home, right).Should().BeFalse("the ghost of the right wall moved with the frame");
         world.Frames.HomeOffset(farHome, ground).Should().Be(farOrigin, "only the near frame shifted");
         IsAwake(backend, farHome, far).Should().BeFalse("the ghost in the far frame did not move");
-        (GhostPosition(backend, farHome, farWall) - farGhost).Length.Should().BeLessThan(1e-6, "the far wall moves 1 µm/s, and its ghost with it");
+        (GhostPosition(backend, farHome, farWall) - farGhost).Length.Should().BeLessThan(1e-6, "the far wall holds still, and its ghost with it");
         backend.Invoking(b => b.AssertInvariants()).Should().NotThrow();
     }
 
@@ -545,9 +546,9 @@ public class WorldNumericFrameTests
         // As above, without the far frame. In the tick that shifts the frame, the right wall goes away, and its ghost with it.
         using World world = NewWorld(out JoltPhysicsBackend backend,
             configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
-        FrameHandle ground = Scenes.StillSpace(world);
-        Entity leftWall = Wall(world, ground, 1000);
-        Entity rightWall = Wall(world, ground, 1010);
+        FrameHandle ground = Space(world);
+        Entity leftWall = StickingWall(world, ground, 1000, cratesSide: 1);
+        Entity rightWall = StickingWall(world, ground, 1010, cratesSide: -1);
         Entity left = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1001.04), Body = Crate });
         Entity right = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1008.96), Body = Crate });
         Entity above = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1005, 8), Body = Crate });
@@ -570,12 +571,27 @@ public class WorldNumericFrameTests
         backend.Invoking(b => b.AssertInvariants()).Should().NotThrow();
     }
 
+    /// <summary>Space without gravity.</summary>
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+
     /// <summary>
-    /// A still wall 1 m thick and 10 m square, across the X axis at <paramref name="x"/> in <paramref name="space"/>, a
-    /// StillSpace: the kinematic hull of a Kepler frame (see <see cref="Scenes.KeplerHull"/>).
+    /// A still wall 1 m thick and 10 m square, across the X axis at <paramref name="x"/> in <paramref name="space"/>: a
+    /// kinematic body at rest in a station, a frame with the Static driver, no hull and a bubble of radius 2 m, on the edge
+    /// of the bubble, so that it sticks out. The station lies on the side of the wall away from the crates, whose side is
+    /// <paramref name="cratesSide"/>: +1 for +X, -1 for -X. A body that sticks out of a bubble has a ghost in the bubble's
+    /// tree parent, space, and in each falling frame of space whose members may touch it, which the numeric update names.
     /// </summary>
-    private static Entity Wall(World world, FrameHandle space, double x) =>
-        Scenes.KeplerHull(world, space, x, new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Kinematic));
+    private static Entity StickingWall(World world, FrameHandle space, double x, int cratesSide)
+    {
+        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(x - 2 * cratesSide), AsFrame = new FrameSpec(FrameBounds.Sphere(2), MotionDriver.Static),
+        }));
+        return world.Spawn(new SpawnDesc
+        {
+            Frame = station, Pose = At(2 * cratesSide), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Kinematic),
+        });
+    }
 
     /// <summary>Every ghost in the system of <paramref name="frame"/>, as Jolt holds it.</summary>
     private static List<JoltPhysicsBackend.BodyFacts> GhostsIn(JoltPhysicsBackend backend, FrameHandle frame) =>

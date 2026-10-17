@@ -85,17 +85,15 @@ public class NumericFrameGhostTests
     /// has the field <paramref name="gravity"/>, or none.
     /// </summary>
     private static StationScene CratesPassingAStation(World world, double lane, DPose? stationCrate, DPose? shipCrate,
-        double shipX = 1100, GravityField gravity = default, bool keplerStation = false)
+        double shipX = 1100, GravityField gravity = default)
     {
-        FrameHandle space = keplerStation ? Scenes.StillSpace(world) : world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, gravity));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, gravity));
         Entity stationOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = new DPose(StationCenter, DQuaternion.Identity),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-            AsFrame = keplerStation
-                ? new FrameSpec(FrameBounds.Sphere(StationRadius), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(StationCenter.X))
-                : new FrameSpec(FrameBounds.Sphere(StationRadius), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius), MotionDriver.Static),
         });
         FrameHandle station = world.GetOwnedFrame(stationOwner);
         Entity crate = stationCrate is { } inStation ? world.Spawn(new SpawnDesc { Frame = station, Pose = inStation, Body = CrateBody }) : Entity.Null;
@@ -522,32 +520,31 @@ public class NumericFrameGhostTests
     }
 
     /// <summary>
-    /// Physics keeps a ghost only in the frames where the ghost pass can put one. The station here has the Kepler driver,
-    /// on an orbit that barely moves (see <see cref="Scenes.KeplerHull"/>), so its hull is an anchor that the merge test
-    /// links only to a group that does not fall (ter-dhkf). A falling frame keeps a ghost of the hull only while the
-    /// numeric update names it: while the merge test links the ship's hull to the station's, which reaches the two hulls'
-    /// bounding spheres plus 2 s of their relative speed, about 127 m. The falling frame is a child of space, the frame of
-    /// the station's hull, but it has no bubble. So the sync point whose update stops naming the ghost drops it, and the
-    /// next step does not run with it. A later reconcile allows none there. Before ter-dhkf, the scene used a parked
-    /// station, whose static hull now joins the ship's group instead.
+    /// Physics keeps a ghost only in the frames where the ghost pass can put one. A Kepler hull flies at 63 m/s in an orbit
+    /// frame of its own past a static rock 8 m to the side of its path (see <see cref="Scenes.FastKeplerHull"/>), so the
+    /// group that links them lives in the rock's home, the system of space, which keeps a ghost of the hull while the
+    /// numeric update names it: while the merge test links the two, which reaches their bounding spheres plus 2 s of their
+    /// relative speed, about 130 m. The sync point whose update stops naming the ghost drops it, and the next step does not
+    /// run with it. A later reconcile allows none there either: space is the hull's semantic frame, and no other path of
+    /// the ghost pass leads into its system. Before ter-dhkf rule 3, a falling ship beside a still Kepler station kept the
+    /// ghost of the station's hull, and the ship now joins the hull's system instead.
     /// </summary>
     [Fact]
     public void TheSyncPointDropsTheGhostOfAnAnchorThatTheNumericUpdateNoLongerNames()
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
-        StationScene scene = CratesPassingAStation(world, lane: 10, stationCrate: null, shipCrate: null, keplerStation: true);
-        FrameHandle buoy = EmptyFrame(world, scene.Space, At(-5000), 5);
-        FrameHandle depot = EmptyFrame(world, scene.Space, At(5000), 50);
-        world.Tick();
-        FrameHandle falling = world.PhysicsHomeOf(scene.ShipOwner);
-        world.Frames.Numeric(falling).Should().Be(NumericMode.Falling);
-        NamesAnchorGhost(world, scene.StationOwner, falling).Should().BeTrue("the ship's hull starts about 100 m from the station's");
-        faults.Jolt.HasGhostIn(scene.StationOwner, falling).Should().BeTrue();
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        Entity hull = Scenes.FastKeplerHull(world, space, ShipHull);
+        world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
+        FrameHandle buoy = EmptyFrame(world, space, At(-5000), 5);
+        FrameHandle depot = EmptyFrame(world, space, At(-6000), 50);
+        Tick(world, 2);
+        NamesAnchorGhost(world, hull, space).Should().BeTrue("the hull starts 100 m from the rock");
+        faults.Jolt.HasGhostIn(hull, space).Should().BeTrue();
 
-        TickUntil(world, () => !NamesAnchorGhost(world, scene.StationOwner, falling), 300);
-        NamesAnchorGhost(world, scene.StationOwner, falling).Should().BeFalse("the ship's hull flies on until it is 127 m past the station's");
-        world.PhysicsHomeOf(scene.ShipOwner).Should().Be(falling, "the ship's hull still falls in the same frame");
-        faults.Jolt.HasGhostIn(scene.StationOwner, falling).Should().BeFalse("the update withdrew the ghost's place at this sync point");
+        TickUntil(world, () => !NamesAnchorGhost(world, hull, space), 300);
+        NamesAnchorGhost(world, hull, space).Should().BeFalse("the hull flies on until the merge test lets go of the rock");
+        faults.Jolt.HasGhostIn(hull, space).Should().BeFalse("the update withdrew the ghost's place at this sync point");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
 
         // A change far away makes the backend reconcile.
@@ -555,15 +552,10 @@ public class NumericFrameGhostTests
         world.Frames.Update();
         faults.Jolt.ApplyChanges(new PhysicsChanges(), world.Frames);
 
-        faults.Jolt.HasGhostIn(scene.StationOwner, falling).Should().BeFalse("no path of the ghost pass leads to a falling frame that keeps no ghost of the anchor");
+        faults.Jolt.HasGhostIn(hull, space).Should().BeFalse("no path of the ghost pass leads into the system of the hull's semantic frame");
         world.Errors.Should().BeEmpty();
     }
 
-    /// <summary>
-    /// The ghost pass reaches each frame by several paths: the parent of the body's frame, the semantic siblings of that
-    /// frame, the semantic children of the body's semantic frame, and the falling frames that keep a ghost of an anchor.
-    /// No frame gets a second ghost of a body, or a ghost beside its real body, or a ghost of the hull that owns it.
-    /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

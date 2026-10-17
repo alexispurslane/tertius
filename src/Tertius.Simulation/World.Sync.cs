@@ -83,9 +83,13 @@ public sealed partial class World
         //     with their owners' rows: every frame that physics does not drive reaches its place at the end of the tick.
         //     The bodies' rows and the frames that physics drives hold the end of the step since step 2, so the numeric
         //     update of 6c tests them against bubbles of the same moment: a station that orbits at 7.5 km/s would else be
-        //     126 m behind its bodies. After the destroy batch and the spawns, because this step mirrors the owners of the
-        //     frames that they move and create. Nothing between this step and step 7 reads these frames at the start of the
-        //     tick: the update and the flush of 6c read them at its end, as physics does in its next step.
+        //     126 m behind its bodies. A Kepler frame in its orbit frame puts that frame on the orbit, which step 2 moved
+        //     there to its rounding, so the frame's place in its semantic parent is the orbit's to the last bit at every
+        //     sync point, and the update of 6c makes a new orbit frame from the orbit's place at the end of the tick, the
+        //     moment at which it clusters every body. After the destroy batch and the spawns, because this step mirrors the
+        //     owners of the frames that they move and create, and because a frame whose orbit frame lost it to a destroy
+        //     places itself in its new tree parent. Nothing between this step and step 7 reads these frames at the start of
+        //     the tick: the update and the flush of 6c read them at its end, as physics does in its next step.
         AdvanceDrivenFrames(endTime);
 
         // 6c. Bodies move into numeric frames and out of them, after physics output, destroys, spawns and the frames of
@@ -338,8 +342,10 @@ public sealed partial class World
 
     /// <summary>
     /// Step 6b: Kepler and Spin frames from time, static frames from their owners' gameplay writes, then each one's owner's
-    /// row from its frame. These frames hang in semantic frames (see <see cref="FrameTree"/>), and the numeric update never
-    /// moves them, so their owners' rows hold after it.
+    /// row from its frame. These frames hang in semantic frames, or a Kepler frame in its orbit frame, which it places on
+    /// the orbit with itself (see <see cref="FrameTree.PlaceOnOrbit"/>); the loop skips the orbit frame, which has no owner.
+    /// The numeric update moves such a frame only into or out of its orbit frame, which keeps its place, and it writes the
+    /// owner's row when it does, so the owners' rows hold after it.
     /// </summary>
     private void AdvanceDrivenFrames(double endTime)
     {

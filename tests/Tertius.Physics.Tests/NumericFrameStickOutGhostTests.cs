@@ -89,18 +89,12 @@ public partial class NumericFrameStickOutGhostTests
     /// <summary>
     /// Builds the scene of <paramref name="layout"/>. The crate floats at <paramref name="crateInBubble"/> in its frame
     /// instead, when it is given. The rock is <paramref name="rockOffset"/> farther along +Y from where the layout puts it.
-    /// With <paramref name="keplerStation"/>, the station of <see cref="Layout.StationAndFastRock"/> has a hull of 4 m by
-    /// 4 m by 4 m at its center and the Kepler driver, on an orbit that barely moves in a space with a G·M of almost
-    /// nothing (see <see cref="Scenes.KeplerHull"/>). The merge test links a Kepler hull only to a group that does not
-    /// fall, so the rock's falling frame keeps a ghost of the hull while it may touch it (ter-dhkf).
     /// </summary>
-    private static Scene Build(World world, Layout layout, Double3? crateInBubble = null, double rockOffset = 0, bool keplerStation = false)
+    private static Scene Build(World world, Layout layout, Double3? crateInBubble = null, double rockOffset = 0)
     {
-        FrameHandle space = keplerStation ? Scenes.StillSpace(world) : world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
         (DPose ownerPose, Double3 ownerVelocity, BodyDesc? hull, FrameSpec bubble) = layout switch
         {
-            Layout.StationAndFastRock when keplerStation => (At(1000), Double3.Zero, new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic),
-                new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(1000))),
             Layout.StationAndFastRock => (At(1000), Double3.Zero, null, new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static)),
             Layout.ShipAndFarRock => (At(20_100), new Double3(-60, 0, 0), ShipHull, new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics)),
             _ => (At(1100), new Double3(-60, 0, 0), ShipHull, new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics)),

@@ -28,8 +28,14 @@ public class FrameHullTests
     private static BodyState? LastReport(FaultInjectingBackend faults, Entity entity) =>
         faults.Outputs.SelectMany(output => output.Bodies).Where(state => state.Entity == entity).Cast<BodyState?>().LastOrDefault();
 
+    /// <summary>
+    /// The hull of a frame whose Kepler driver moves it at 7.5 km/s rests in an orbit frame of its own (ter-dhkf,
+    /// docs/plans/numeric-frames.md, "Anchors", rule 3), so its body state is at the frame's pose in that orbit frame, the
+    /// orbit frame's origin with the frame's rotation, and its kinematic velocity there, added to the orbit frame's chord,
+    /// is the orbital velocity. Before rule 3, the hull lived in the planet's own system at the orbit's place.
+    /// </summary>
     [Fact]
-    public void KinematicHullOfKeplerFrameFollowsTheTreePose()
+    public void TheKinematicHullOfAKeplerFrameFollowsTheTreePoseInTheOrbitFrameWhereItRests()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
@@ -47,13 +53,17 @@ public class FrameHullTests
             world.Tick();
             // The sync point has advanced the tree to the end of the step, where the hull must be.
             BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
-            DPose tree = world.Frames.LocalPose(station);
-            hull.Frame.Should().Be(planet);
+            DPose tree = world.Frames.TreeLocalPose(station);
+            FrameHandle orbitFrame = world.Frames.TreeParent(station);
+            world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting);
+            hull.Frame.Should().Be(orbitFrame, "the hull rests in the orbit frame");
+            tree.Position.Should().Be(Double3.Zero);
             (hull.Pose.Position - tree.Position).Length.Should().BeLessThan(1e-3, "the hull is at the tree pose after tick {0}", i);
             Math.Abs(Dot(hull.Pose.Rotation, tree.Rotation)).Should().BeGreaterThan(1 - 1e-6);
-            // The kinematic velocity is the chord over one step, close to the orbital velocity.
-            ((Double3)hull.LinearVelocity - world.Frames.LinearVelocity(station)).Length.Should().BeLessThan(0.1);
-            world.PoseIn(owner, planet).Should().Be(tree, "the World rewrites the owner's state from the frame, not from the hull");
+            // The kinematic velocity in the orbit frame and the orbit frame's own are chords over one step, close to the
+            // orbital velocity together.
+            ((Double3)hull.LinearVelocity + world.Frames.LinearVelocity(orbitFrame) - world.Frames.LinearVelocity(station)).Length.Should().BeLessThan(0.1);
+            world.PoseIn(owner, planet).Should().Be(world.Frames.LocalPose(station), "the World rewrites the owner's state from the frame, not from the hull");
         }
         faults.Outputs.SelectMany(output => output.HandOffs).Should().BeEmpty();
         world.Errors.Should().BeEmpty();

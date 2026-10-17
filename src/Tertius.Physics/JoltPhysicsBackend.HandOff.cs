@@ -332,11 +332,11 @@ public sealed partial class JoltPhysicsBackend
     /// not (ticket ter-2gg0). The body also meets the bubbles that the members of the parent's system meet, the semantic
     /// siblings of the frame, wherever they hang among numeric frames.
     /// Ghosts get the real body's pose and chord velocity, so that during the next step they move with it.
-    /// Each anchor that the numeric update names in <see cref="FrameTree.AnchorGhosts"/> has a ghost in the falling frame
-    /// that it names, a numeric frame of the anchor's own semantic frame. A ghost loses its place in a numeric frame at the
+    /// Each anchor that the numeric update names in <see cref="FrameTree.AnchorGhosts"/> has a ghost in the home that it
+    /// names, a frame of the anchor's own semantic frame, with the anchor's own layer. A ghost loses such a place at the
     /// sync point whose update stops naming it (see <see cref="DropWithdrawnGhosts"/>), so the pass finds only ghosts that
-    /// the tree allows, as <see cref="GhostAllowed"/> says. No frame gets two ghosts of one body: an anchor's falling frames
-    /// are numeric frames of its own semantic frame, which no other ghost enters; the frames that keep the ghosts of the
+    /// the tree allows, as <see cref="GhostAllowed"/> says. No frame gets two ghosts of one body: an anchor's homes are
+    /// frames of its own semantic frame, which no other ghost enters; the frames that keep the ghosts of the
     /// bodies that stick out are numeric frames of the semantic parent other than the tree parent; and the semantic parent
     /// and the bubbles that a body touches are not numeric, and the semantic parent is no bubble that the body touches.
     /// </summary>
@@ -518,10 +518,11 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Keeps a ghost of the anchor <paramref name="anchor"/>, whose body is at <paramref name="s"/> at the end of the step,
-    /// in each falling frame that the numeric update names for it. The ghost goes where the anchor will be relative to the
-    /// frame at the end of the step, when the frame has moved on, with the anchor's velocity relative to the frame then.
-    /// That velocity is about the frame's speed in its semantic frame, so the ghost moves fast in the frame's system: the
-    /// limit that the doc accepts for a static body that a fast frame passes.
+    /// in each home of a group that the numeric update names for it. The ghost goes where the anchor will be relative to the
+    /// frame at the end of the step, when the frame has moved on, with the anchor's velocity relative to the frame then. The
+    /// anchor is a Kepler hull in its orbit frame, so that velocity is about the orbit's speed in the home's system, and
+    /// the ghost has no linear cast there: the limit that the doc accepts for anchors that move differently. The ghost has
+    /// the hull's own layer, so it meets only static bodies and other hulls, as the hull does.
     /// </summary>
     private void WantAnchorGhosts(BodyRecord anchor, ReadOnlySpan<NumericGhost> anchorGhosts, in BodySnapshot s)
     {
@@ -533,7 +534,8 @@ public sealed partial class JoltPhysicsBackend
                 continue;
             Double3 offset = frames.OffsetAfter(home, ghost.Frame, stepDt);
             Double3 velocity = frames.HomeVelocityAfter(home, semantic, stepDt) - frames.HomeVelocityAfter(ghost.Frame, semantic, stepDt);
-            WantGhost(anchor, ghost.Frame, new DPose(s.Pose.Position + offset, s.Pose.Rotation), (Double3)s.Linear + velocity, s.Angular);
+            WantGhost(anchor, ghost.Frame, new DPose(s.Pose.Position + offset, s.Pose.Rotation), (Double3)s.Linear + velocity, s.Angular,
+                standsForAnchor: true);
         }
     }
 
@@ -541,9 +543,12 @@ public sealed partial class JoltPhysicsBackend
     /// Keeps a ghost of the record's body in the system of <paramref name="frame"/> at <paramref name="pose"/>, moving
     /// with <paramref name="linearVelocity"/> and <paramref name="angularVelocity"/> in that frame, and marks it wanted.
     /// The ghost has the motion of <see cref="GhostMotion"/>, so a ghost of a mesh turns kinematic when it starts to move
-    /// and static when it holds still.
+    /// and static when it holds still. The ghost of an anchor in a home of its own semantic frame has the anchor's own
+    /// layer when <paramref name="standsForAnchor"/> is true (see <see cref="GhostBody.Anchor"/>). No frame gets two
+    /// ghosts of one body, so the ghost in a frame is always of one kind.
     /// </summary>
-    private void WantGhost(BodyRecord record, FrameHandle frame, in DPose pose, Double3 linearVelocity, Double3 angularVelocity)
+    private void WantGhost(BodyRecord record, FrameHandle frame, in DPose pose, Double3 linearVelocity, Double3 angularVelocity,
+        bool standsForAnchor = false)
     {
         FrameWorld world = WorldFor(frame);
         Vector3 linear = linearVelocity.ToVector3(), angular = angularVelocity.ToVector3();
@@ -553,6 +558,7 @@ public sealed partial class JoltPhysicsBackend
         {
             if (ghost.World != world)
                 continue;
+            Contract.Assert(ghost.Anchor == standsForAnchor);
             BodyInterface bodies = world.Bodies;
             // Jolt does not simulate the move of a ghost, so the bodies around its old and new places wake.
             bool moves = !IsAt(bodies, ghost.Body, pose);
@@ -575,9 +581,9 @@ public sealed partial class JoltPhysicsBackend
             ghost.Wanted = true;
             return;
         }
-        BodyID id = CreateRigid(world, GhostSpec(record, motion), pose, linear, angular);
+        BodyID id = CreateRigid(world, GhostSpec(record, motion, standsForAnchor ? PrimaryLayer(record) : GhostLayer(record)), pose, linear, angular);
         world.AddGhost(id, ofStaticBody: !record.IsMovable);
-        ghosts.Add(new GhostBody { Frame = frame, World = world, Body = id, Wanted = true });
+        ghosts.Add(new GhostBody { Frame = frame, World = world, Body = id, Wanted = true, Anchor = standsForAnchor });
     }
 
     /// <summary>
@@ -595,7 +601,7 @@ public sealed partial class JoltPhysicsBackend
     /// <see cref="BubbleSitesOf"/>): its bubble is one that the body touches.</item>
     /// <item>A semantic child of the semantic frame of that tree parent, wherever it hangs among numeric frames: a sibling
     /// of the home's semantic frame, whose bubble a body that sticks out of that frame's bubble touches.</item>
-    /// <item>A falling frame that keeps a ghost of the anchor (see <see cref="FrameTree.AnchorGhosts"/>).</item>
+    /// <item>The home of a group that keeps a ghost of the anchor (see <see cref="FrameTree.AnchorGhosts"/>).</item>
     /// <item>A numeric frame of the semantic frame of that tree parent that keeps the ghosts of the bodies that stick out of
     /// the home's semantic frame (see <see cref="FrameTree.StickOutGhosts"/>): its members may touch them.</item>
     /// </list>
@@ -722,8 +728,9 @@ public sealed partial class JoltPhysicsBackend
             foreach (BodyRecord record in world.ReportedLast)
                 if (record.ReportedStep != stepIndex && record.World == world && Find(record.Entity) == record)
                     Report(world, record, output, track: false);
-            // A falling numeric frame moves, so its sleeping and static members move in its semantic frame too.
-            if (frames.Numeric(world.Frame) == NumericMode.Falling)
+            // A falling numeric frame or an orbit frame moves, so its sleeping and static members move in its semantic frame
+            // too.
+            if (frames.Numeric(world.Frame) is NumericMode.Falling or NumericMode.Orbiting)
                 foreach (BodyRecord member in world.Members)
                     if (member.ReportedStep != stepIndex && !member.IsHull)
                         Report(world, member, output, track: false);
