@@ -2,7 +2,7 @@
 id: ter-tftg
 status: open
 deps: []
-links: []
+links: [ter-kugq, ter-1w06]
 created: 2026-10-16T12:38:20Z
 type: bug
 priority: 3

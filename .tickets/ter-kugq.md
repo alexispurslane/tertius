@@ -2,7 +2,7 @@
 id: ter-kugq
 status: in_progress
 deps: []
-links: []
+links: [ter-1w06, ter-tftg]
 created: 2026-10-17T13:17:17Z
 type: task
 priority: 1
