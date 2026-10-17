@@ -5,10 +5,11 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The contacts of a body that leaves a bubble or enters one, while a ghost in a numeric frame holds the contact or would
-/// hold it. A hand-off moves the body into another system in the step, and only the numeric update of the next sync point
-/// links it to what it touches there, or names the frame that keeps its ghost. So the contact waits one step, and gameplay
-/// hears the same events as without numeric frames.
+/// The contacts of a crate that leaves a bubble or enters one while a rock outside touches it, through the crate's ghost or
+/// its real body. A hand-off moves the crate into another system in the step, and only the numeric update of the next sync
+/// point links the rock to what it touches there: the crate's real body, or the place of the crate's ghost, which joins
+/// the rock to the home of the bubble's hull. So the contact waits one step when the rock's home holds neither, and
+/// gameplay hears the same events as without numeric frames.
 /// </summary>
 public partial class NumericFrameStickOutGhostTests
 {
@@ -22,12 +23,13 @@ public partial class NumericFrameStickOutGhostTests
     /// <summary>
     /// Space, and <see cref="FarOut"/>, 9,000 km, out in it a parked station: a static hull of 4 m by 4 m by 4 m with a
     /// bubble of radius 40 m, which hangs directly in space. A crate at (0, 40.5, 0) in the station drifts out along +Y at
-    /// 2 m/s. A rock rests in space 0.1 m above the crate's top face, outside the bubble, so it rests 9,000 km out in a
-    /// numeric frame of its own, and the numeric update names that frame for the bodies that stick out of the station. The
-    /// ghost of the crate there reaches the rock after 0.05 s and pushes it at 2 m/s. After about 1.5 s the crate is farther
-    /// outside the bubble than its radius plus the exit margin, so it leaves the station into space, which is not numeric.
-    /// Without numeric frames, the rock is in the system of space, and the contact goes on there. The outcome's mode is the
-    /// mode of the rock's home after 0.5 s, while the ghost of the crate pushes it.
+    /// 2 m/s. A rock rests in space 0.1 m above the crate's top face, outside the bubble. 9,000 km out it alone would rest
+    /// in a numeric frame of its own, but it may touch the ghost of the crate, which lives in the home of the station's
+    /// static hull, so the merge test links it to the hull, and it stays in the system of space. The ghost of the crate
+    /// there reaches the rock after 0.05 s and pushes it at 2 m/s. After about 1.5 s the crate is farther outside the bubble
+    /// than its radius plus the exit margin, so it leaves the station into space, where the rock lives. Without numeric
+    /// frames, the rock is in the system of space too, and the contact goes on there. The outcome's mode is the mode of the
+    /// rock's home after 0.5 s, while the ghost of the crate pushes it.
     /// </summary>
     private static HandOffOutcome RunCrateThatLeavesAStation(bool numericFrames)
     {
@@ -47,6 +49,7 @@ public partial class NumericFrameStickOutGhostTests
         Tick(world, 30);
         world.GetFrame(crate).Should().Be(station, "the crate leaves the station later");
         rockLog.NewsOf(crate).Should().StartWith(ContactNews.Started, "the ghost of the crate pushes the rock");
+        world.PhysicsHomeOf(rock).Should().Be(world.PhysicsHomeOf(owner), "the rock may touch the ghost of the crate, which lives in the home of the station's hull");
         NumericMode rockMode = world.Frames.Numeric(world.PhysicsHomeOf(rock));
         Tick(world, 130);
         world.Errors.Should().BeEmpty();
@@ -63,7 +66,7 @@ public partial class NumericFrameStickOutGhostTests
         withoutNumericFrames.CrateFrame.Should().Be(withoutNumericFrames.RockHome, "the crate left the station into space");
         withoutNumericFrames.RockNews.Should().Equal([ContactNews.Started], "the crate pushes the rock without a break");
         withoutNumericFrames.RockVelocity.Y.Should().BeApproximately(2, 0.05, "the crate pushed the rock at its own speed");
-        withNumericFrames.RockMode.Should().Be(NumericMode.Resting, "the ghost of the crate pushes the rock in its resting frame");
+        withNumericFrames.RockMode.Should().Be(NumericMode.None, "the ghost of the crate pushes the rock in the system of space, the home of the station's static hull");
         withNumericFrames.CrateFrame.Should().Be(withoutNumericFrames.CrateFrame, "the crate left the station into space");
         withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews, "numeric frames do not change which events gameplay hears");
         (withNumericFrames.RockPosition - withoutNumericFrames.RockPosition).Length.Should().BeLessThan(1e-2);
@@ -75,11 +78,13 @@ public partial class NumericFrameStickOutGhostTests
     /// m by 4 m by 4 m with a bubble of radius 40 m. A kinematic crate drifts at 2 m/s along -X toward the bubble, 20 m
     /// above the hull's path, and a rock that follows it at 2.2 m/s catches up with its back after 0.25 s and then rides on
     /// it. Both are slow and 9,000 km out, so they rest in one numeric frame of space, whose mode is the outcome's mode
-    /// after the first tick. After 0.7 s the crate touches the bubble and enters the station,
-    /// while the rock touches the bubble only 1.5 s later. The last numeric update listed no body of the station that can
-    /// move, so it named no frame for the bodies that stick out of it, and in the step of the hand-off no ghost of the
-    /// crate is in the rock's frame. Without numeric frames, the rock is in the system of space, where the ghost of the
-    /// crate that sticks out of the station carries the contact.
+    /// after the first tick. After 0.7 s the crate touches the bubble and enters the station, while the rock touches the
+    /// bubble only 1.5 s later. Until the hand-off the crate is a body of space, so the last numeric update had no place of
+    /// a ghost of it. In the step of the hand-off the crate's ghost goes into the station's tree parent, the system of
+    /// space, and the rock's resting frame holds no ghost of it. So the contact waits one step, until the next update links
+    /// the rock to the place of the crate's ghost, which joins it to the home of the station's static hull, the system of
+    /// space. Without numeric frames, the rock is in the system of space, where the ghost of the crate that sticks out of
+    /// the station carries the contact.
     /// </summary>
     private static HandOffOutcome RunCrateThatEntersAnEmptyStation(bool numericFrames)
     {
@@ -118,6 +123,7 @@ public partial class NumericFrameStickOutGhostTests
         world.GetFrame(rock).Should().Be(space, "the rock touches the bubble later");
         Tick(world, 40);
         world.GetFrame(rock).Should().Be(space, "the rock touches the bubble later");
+        world.PhysicsHomeOf(rock).Should().Be(world.PhysicsHomeOf(owner), "the rock may touch the ghost of the crate, which lives in the home of the station's hull");
         world.Errors.Should().BeEmpty();
         return new HandOffOutcome(rockLog.NewsOf(crate), world.PoseIn(rock, space).Position, world.VelocityIn(rock, space), world.GetFrame(crate),
             world.PhysicsHomeOf(rock), rockMode);
