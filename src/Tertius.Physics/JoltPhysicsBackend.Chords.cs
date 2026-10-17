@@ -49,7 +49,7 @@ public sealed partial class JoltPhysicsBackend
         Double3 local = velocity - HomeAccelerationOf(home) * half;
         if (record.Motion != BodyMotion.Dynamic)
             return local.ToVector3();
-        Double3 acceleration = (Double3)frames.EffectiveGravity(home, center) - record.Desc.LinearDamping * local;
+        Double3 acceleration = (Double3)frames.EffectiveGravity(home, center) - record.Material.LinearDamping * local;
         return (local - acceleration * half).ToVector3();
     }
 
@@ -67,7 +67,7 @@ public sealed partial class JoltPhysicsBackend
     {
         Contract.Requires(stepDt > 0);
         // Damping slows a spin by k·ω, so the chord is half a step of that faster.
-        return record.Motion == BodyMotion.Dynamic ? velocity * (1 + record.Desc.AngularDamping * 0.5f * stepDt) : velocity;
+        return record.Motion == BodyMotion.Dynamic ? velocity * (1 + record.Material.AngularDamping * 0.5f * stepDt) : velocity;
     }
 
     /// <summary>
@@ -85,7 +85,7 @@ public sealed partial class JoltPhysicsBackend
         {
             BodyMotion.Character => chord + (Double3)record.GravityApplied * half,
             BodyMotion.Dynamic when record.World!.Bodies.IsActive(record.Body) =>
-                chord + ((Double3)record.GravityApplied - record.Desc.LinearDamping * chord) * half,
+                chord + ((Double3)record.GravityApplied - record.Material.LinearDamping * chord) * half,
             _ => chord,
         };
     }
@@ -95,7 +95,7 @@ public sealed partial class JoltPhysicsBackend
     {
         Contract.Requires(stepDt > 0);
         return record.Motion == BodyMotion.Dynamic && record.World!.Bodies.IsActive(record.Body)
-            ? s.Angular * (1 - record.Desc.AngularDamping * 0.5f * stepDt)
+            ? s.Angular * (1 - record.Material.AngularDamping * 0.5f * stepDt)
             : s.Angular;
     }
 

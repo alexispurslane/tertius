@@ -231,7 +231,7 @@ A kinematic body has no linear cast in Jolt: a cast follows only the motion of t
 | Reader | Gravity |
 |---|---|
 | The force on a body | Effective gravity, which is tidal in a numeric frame |
-| Whether physics stands a character | Effective gravity. In free fall it is below the zero-gravity threshold, so a character floats, as in orbit. |
+| Whether physics stands a character | Effective gravity. In free fall it is below the zero-gravity threshold, so a character floats, as in orbit. Since ticket `ter-1w06` such a character is a rigid body that cannot turn, so it pushes the bodies of its numeric frame as any rigid body does. |
 | A character's up while it touches something | The semantic frame's field at the character's true position |
 | The ambient light's up | The row frame's field, which is semantic, as today |
 | The sleep threshold of a system | Effective gravity, as today. A numeric frame sits at the floor of 0.001 m/s². |

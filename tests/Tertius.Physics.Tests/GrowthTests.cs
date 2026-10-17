@@ -159,8 +159,11 @@ public class GrowthTests
                 world.Tick();
                 faults.Jolt.TryGetBodyFrame(person, out FrameHandle personFrame).Should().BeTrue();
                 personFrame.Should().Be(space);
-                faults.Jolt.BodiesIn(space).Should().ContainSingle(facts => BodyUserData.Kind(facts.UserData) == BodyKind.CharacterInner,
-                    "the character's inner body is in the grown system");
+                // The sync point created the character's walking form, whose inner body grew the system. The space has no
+                // gravity, so the step turned the character into its rigid form, a dynamic body in the place of the inner body.
+                faults.Jolt.BodiesIn(space).Should().ContainSingle(facts => BodyUserData.Names(facts.UserData, person),
+                    "the character's body is in the grown system");
+                faults.Jolt.HasRigidForm(person).Should().BeTrue();
                 break;
             case NewBody.Hull:
                 FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc

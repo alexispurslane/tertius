@@ -7,13 +7,13 @@ namespace Tertius.Physics;
 internal enum BodyKind : byte
 {
     None = 0,
-    /// <summary>The entity's own body: a rigid body, or the hull of a frame in its parent frame.</summary>
+    /// <summary>The entity's own body: a rigid body, the rigid form of a character, or the hull of a frame in its parent frame.</summary>
     Primary = 1,
     /// <summary>The static interior geometry of a frame, in the frame's own system.</summary>
     Interior = 2,
     /// <summary>A kinematic copy of a body that lives in another frame.</summary>
     Ghost = 3,
-    /// <summary>The kinematic inner body of a character controller.</summary>
+    /// <summary>The kinematic inner body of a character in its walking form.</summary>
     CharacterInner = 4,
 }
 
@@ -49,11 +49,19 @@ internal sealed class BodyRecord
 {
     public Entity Entity;
     public BodyDesc Desc = null!;
+    /// <summary>
+    /// The description of the Jolt rigid body that stands for the entity: <see cref="Desc"/>, or for a character the
+    /// description of its rigid form (see <c>JoltPhysicsBackend.RigidForm</c>). The primary rigid body takes its shape, mass,
+    /// material and damping from it, and so do the conversions between instant velocities and chords.
+    /// </summary>
+    public BodyDesc Material = null!;
     /// <summary>The bounding-sphere radius of the primary shape, about the body origin.</summary>
     public float Radius;
     /// <summary>
     /// The motion of the primary body as Jolt sees it. For a frame hull it follows <see cref="Driver"/>, as far as Jolt can
-    /// move the hull that way.
+    /// move the hull that way. For a character it is its form: <see cref="BodyMotion.Character"/> for the walking form, a
+    /// Jolt CharacterVirtual in <see cref="Character"/>, and <see cref="BodyMotion.Dynamic"/> for the rigid form, a dynamic
+    /// Jolt body in <see cref="Body"/> whose rotation is locked (see <c>JoltPhysicsBackend.NextCharacterMotion</c>).
     /// </summary>
     public BodyMotion Motion;
     /// <summary>
@@ -79,17 +87,28 @@ internal sealed class BodyRecord
     public int MemberIndex = -1;
     public BodyID Body = BodyID.Invalid;
 
+    /// <summary>The Jolt character of a character in its walking form, or null.</summary>
     public CharacterVirtual? Character;
-    /// <summary>The desired movement velocity of a character, in frame axes. It persists until a new CharacterMove.</summary>
+    /// <summary>
+    /// The desired movement velocity of a character, in frame axes. It persists until a new CharacterMove, in both forms.
+    /// </summary>
     public Vector3 DesiredVelocity;
+    /// <summary>The speed of the jump that the walking form makes in its next update, if it stands. Zero between steps.</summary>
     public float PendingJump;
-    /// <summary>Velocity change from impulses and forces on a character, applied at its next update.</summary>
+    /// <summary>
+    /// Velocity change from impulses and forces on a character in its walking form, applied at its next update. Zero
+    /// between steps. The rigid form takes impulses and forces as Jolt bodies do.
+    /// </summary>
     public Vector3 PendingVelocityChange;
+    /// <summary>
+    /// The up of a character, in frame axes. The walking form turns it against the gravity when it touches something. The
+    /// rigid form keeps it, so that the character walks again with the up that it had.
+    /// </summary>
     public Vector3 Up = Vector3.UnitY;
     /// <summary>
     /// For a character: true when its last update stood it on walkable ground under gravity. A new character starts
     /// false, and so does a character that a hand-off moved to another frame. A growth of the system keeps it, because
-    /// the character stays where it stood.
+    /// the character stays where it stood. A character in its rigid form never stands.
     /// </summary>
     public bool Standing;
 
@@ -124,6 +143,9 @@ internal sealed class BodyRecord
     public long ReportedStep = -1;
 
     public bool IsHull => !OwnedFrame.IsNull;
+
+    /// <summary>True for a character, in either of its forms.</summary>
+    public bool IsCharacter => Desc.Motion == BodyMotion.Character;
 
     /// <summary>True when the primary body can move: dynamic, kinematic or a character.</summary>
     public bool IsMovable => Motion != BodyMotion.Static;
