@@ -3,6 +3,7 @@ using JoltPhysicsSharp;
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -17,18 +18,6 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class MeshGhostTests
 {
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
-
-    /// <summary>Membership rules under which every body that moves falls in a numeric frame of its own, also a slow one.</summary>
-    private static readonly NumericFrameOptions EveryBodyFalls = new() { CreateSpeed = 0, LeaveSpeed = 0 };
-
     /// <summary>The step at whose start the body of <see cref="FlyAtAMeshWall"/> is its gap from the wall.</summary>
     private const int ContactStep = 40;
 
@@ -100,7 +89,7 @@ public class MeshGhostTests
     [InlineData(true, 20.0, 0.17)]
     public void ACrateThatFliesAtAStaticMeshWallJoinsItsHomeAndStopsAtItAsItDoesWithoutNumericFrames(bool everyBodyFalls, double speed, double gap)
     {
-        NumericFrameOptions numeric = everyBodyFalls ? EveryBodyFalls : new NumericFrameOptions();
+        NumericFrameOptions numeric = everyBodyFalls ? EveryGroupFalls : new NumericFrameOptions();
         WallRun without = FlyAtAMeshWall(numericFrames: false, numeric, Crate, reach: 0.5, speed, gap);
         WallRun with = FlyAtAMeshWall(numericFrames: true, numeric, Crate, reach: 0.5, speed, gap);
 
@@ -159,7 +148,7 @@ public class MeshGhostTests
     private static PushRun PushACrateFromRestAtAMeshWall(bool numericFrames)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
-            configure: options => options.NumericFrames = numericFrames ? EveryBodyFalls : WithoutNumericFrames);
+            configure: options => options.NumericFrames = numericFrames ? EveryGroupFalls : WithoutNumericFrames);
         FrameHandle ground = Ground(world, 0);
         Entity wall = world.Spawn(new SpawnDesc { Frame = ground, Body = MeshWall });
         var log = new CollisionLog();

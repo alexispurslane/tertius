@@ -88,11 +88,13 @@ public static class Scenes
     }
 
     /// <summary>
-    /// The G·M of <see cref="AsteroidSpace"/>, in m³/s². A circular orbit of 5 km in it moves at 63 m/s, fast enough for an
-    /// orbit frame of its own, while a body at rest 5 km out lies nearer to the origin than the 10 km at which it gets a
-    /// numeric frame, so it stays in the system of space. The pull there is 0.8 m/s².
+    /// The G·M of <see cref="AsteroidSpace"/>, in m³/s². A circular orbit of 5 km in it moves at 2 km/s, twice the speed of
+    /// 1 km/s from which a hull on rails gets an orbit frame of its own (a Kepler hull never thrusts, so it needs the speed
+    /// of a group of free bodies, see <see cref="NumericFrameOptions.CreateSpeed"/>). A body at rest 5 km out lies far nearer
+    /// to the origin than the 8,389 km at which it gets a numeric frame, so it stays in the system of space. The pull there
+    /// is 800 m/s², and a hull on the orbit moves 33 m in a step of 1/60 s.
     /// </summary>
-    public const double AsteroidMu = 2e7;
+    public const double AsteroidMu = 2e10;
 
     /// <summary>A root frame with a point gravity of <see cref="AsteroidMu"/>, so that a frame in it can take the Kepler driver.</summary>
     public static FrameHandle AsteroidSpace(World world) =>
@@ -100,7 +102,7 @@ public static class Scenes
 
     /// <summary>
     /// The owner of a frame with the Kepler driver in <paramref name="space"/>, an <see cref="AsteroidSpace"/>, on a circular
-    /// orbit of 5 km at phase 0: its hull, of <paramref name="body"/>, starts at (5000, 0, 0) and moves along -Z at 63 m/s,
+    /// orbit of 5 km at phase 0: its hull, of <paramref name="body"/>, starts at (5000, 0, 0) and moves along -Z at 2 km/s,
     /// so it lives in an orbit frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). Its bubble is a sphere
     /// of 1 cm, so that no body near the hull enters it. A static body that the hull passes is an anchor at rest, which no
     /// home shares with the hull: a group that links the two lives in the static body's home, and that home keeps a ghost

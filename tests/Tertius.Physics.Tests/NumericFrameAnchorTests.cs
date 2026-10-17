@@ -1,6 +1,7 @@
 using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -17,15 +18,6 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class NumericFrameAnchorTests
 {
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
-
     /// <summary>
     /// A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.
     /// It runs on <paramref name="threads"/> gameplay threads, and its backend on as many Jolt threads.

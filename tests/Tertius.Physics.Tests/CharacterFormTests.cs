@@ -3,6 +3,7 @@ using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.WorldTestingGrowth;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -378,10 +379,7 @@ public class CharacterFormTests
     [Fact]
     public void AWeightlessCharacterHandsOffIntoAnotherFramesBubbleAndKeepsItsMotion()
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.NumericFrames = new NumericFrameOptions
-        {
-            CreateSpeed = double.PositiveInfinity, LeaveSpeed = double.PositiveInfinity, CreateDistance = double.PositiveInfinity, LeaveDistance = double.PositiveInfinity,
-        });
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.NumericFrames = WithoutNumericFrames);
         FrameHandle space = Space(world);
         FrameHandle bay = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {

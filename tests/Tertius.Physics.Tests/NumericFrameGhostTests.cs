@@ -1,6 +1,7 @@
 using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -31,15 +32,6 @@ public class NumericFrameGhostTests
     private const float ShipSpeed = 60;
 
     private static readonly Double3 StationCenter = new(1000, 0, 0);
-
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
 
     /// <summary>A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.</summary>
     private static World NewWorld(bool numericFrames, out FaultInjectingBackend faults) =>

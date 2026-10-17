@@ -1,6 +1,7 @@
 using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -33,15 +34,6 @@ public class WeightlessCharacterPushTests
 
     private static readonly BodyDesc Crate =
         new(new BoxShapeDesc(new Vector3(0.5f)), Mass: CrateMass, LinearDamping: 0, AngularDamping: 0);
-
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
 
     /// <summary>A character behind a crate in a frame without gravity, and the pilot that steers the character.</summary>
     private sealed class Pair : IDisposable

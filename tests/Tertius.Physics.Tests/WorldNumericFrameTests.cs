@@ -2,6 +2,7 @@ using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -26,12 +27,6 @@ public class WorldNumericFrameTests
 
     private static readonly BodyDesc Hull = new(new BoxShapeDesc(new Vector3(5)), Mass: 1e4f, LinearDamping: 0, AngularDamping: 0,
         InteriorShape: new SphereShapeDesc(0.05f));
-
-    /// <summary>Membership rules that give every slow group a resting frame and never take a frame away for being near.</summary>
-    private static readonly NumericFrameOptions RestEverywhere = new() { CreateDistance = 0, LeaveDistance = 0 };
-
-    /// <summary>Membership rules that give every group a falling frame and never take a frame away for being slow.</summary>
-    private static readonly NumericFrameOptions FallEverywhere = new() { CreateSpeed = 0, LeaveSpeed = 0 };
 
     private static FrameHandle Earth(World world) =>
         world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
@@ -155,7 +150,7 @@ public class WorldNumericFrameTests
         DPose upperPose = world.PoseIn(upper, ground);
 
         // From now on, every slow group gets a resting frame: the floor and the stack on it.
-        world.Frames.NumericOptions = RestEverywhere;
+        world.Frames.NumericOptions = EverySlowGroupRests;
         Tick(world, 60);
         FrameHandle numeric = world.PhysicsHomeOf(upper);
 
@@ -182,7 +177,7 @@ public class WorldNumericFrameTests
     [Fact]
     public void TheFramesThatGameplaySeesAreOnlySemanticFramesWhileANumericFrameExists()
     {
-        using World world = NewWorld(out _, configure: o => o.NumericFrames = RestEverywhere);
+        using World world = NewWorld(out _, configure: o => o.NumericFrames = EverySlowGroupRests);
         FrameHandle ground = Ground(world, 0);
         Entity crate = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(2), Body = Cube() });
         Entity owner = world.Spawn(new SpawnDesc
@@ -239,7 +234,7 @@ public class WorldNumericFrameTests
         world.Snapshot.IsStanding(person).Should().BeTrue("the person stands on the floor in the frame ground");
 
         // As outside a ship in orbit: the person, and what it touches, fall freely in a numeric frame.
-        world.Frames.NumericOptions = FallEverywhere;
+        world.Frames.NumericOptions = EveryGroupFalls;
         Tick(world, 30);
 
         world.Errors.Should().BeEmpty();
@@ -370,9 +365,9 @@ public class WorldNumericFrameTests
     }
 
     /// <summary>
-    /// With no gravity, a crate rests against a static wall, and then every group falls (<see cref="FallEverywhere"/>). The
-    /// merge test links the crate to the wall, and a group with a static body never falls, so the crate stays in the wall's
-    /// system, and the contact goes on there (ter-dhkf).
+    /// With no gravity, a crate rests against a static wall, and then every group falls
+    /// (<see cref="NumericFrameTesting.EveryGroupFalls"/>). The merge test links the crate to the wall, and a group with a
+    /// static body never falls, so the crate stays in the wall's system, and the contact goes on there (ter-dhkf).
     /// </summary>
     [Fact]
     public void ACrateThatRestsAgainstAStaticWallStaysInTheWallsSystemWhenEveryGroupFalls()
@@ -385,7 +380,7 @@ public class WorldNumericFrameTests
         Tick(world, 60);
         crateLog.NewsOf(wall).Should().Equal([Started]);
 
-        world.Frames.NumericOptions = FallEverywhere;
+        world.Frames.NumericOptions = EveryGroupFalls;
         Tick(world, 120);
 
         world.Errors.Should().BeEmpty();
@@ -397,9 +392,9 @@ public class WorldNumericFrameTests
     /// <summary>
     /// With no gravity, two crates touch, and then one drifts away at 1 cm/s. Jolt holds their pair while they are within
     /// its speculative contact distance of 2 cm, so their contact goes on for about 2 s. Meanwhile every slow group gets a
-    /// resting frame (<see cref="RestEverywhere"/>), and both crates move into one. In the new system, Jolt finds their
-    /// pair a few millimeters apart, without a touch, which would wait for a touch as a new pair. The move hands it the
-    /// contact instead, so the contact ends only when the crates are 2 cm apart, and not at the move.
+    /// resting frame (<see cref="NumericFrameTesting.EverySlowGroupRests"/>), and both crates move into one. In the new
+    /// system, Jolt finds their pair a few millimeters apart, without a touch, which would wait for a touch as a new pair.
+    /// The move hands it the contact instead, so the contact ends only when the crates are 2 cm apart, and not at the move.
     /// </summary>
     [Fact]
     public void TwoCratesThatDriftApartMoveIntoARestingFrameAndTheirContactEndsOnlyWhenTheySeparate()
@@ -417,7 +412,7 @@ public class WorldNumericFrameTests
         pilot.Once = body => body.SetVelocity(new Double3(-0.01, 0, 0));
         long drift = world.TickNumber;
         Tick(world, 30);
-        world.Frames.NumericOptions = RestEverywhere;
+        world.Frames.NumericOptions = EverySlowGroupRests;
         TickUntil(world, () => world.PhysicsHomeOf(left) != ground, 300);
         FrameHandle home = world.PhysicsHomeOf(left);
         world.Frames.Numeric(home).Should().Be(NumericMode.Resting);
@@ -434,16 +429,16 @@ public class WorldNumericFrameTests
     }
 
     /// <summary>
-    /// With no gravity and every group falling (<see cref="FallEverywhere"/>), a crate of 10 kg flies at 3 m/s at a static
-    /// cube of triangles. The merge test links the crate to the cube, an anchor, and a group with a static body never falls,
-    /// so the crate stays in the cube's system and meets the real cube (ter-dhkf). Each hears one Collision, whose impulse
-    /// is the crate's mass times 3 m/s. Before, the crate fell in a frame of its own, and the ghost of the cube came at it at
-    /// 3 m/s, with the same events.
+    /// With no gravity and every group falling (<see cref="NumericFrameTesting.EveryGroupFalls"/>), a crate of 10 kg flies
+    /// at 3 m/s at a static cube of triangles. The merge test links the crate to the cube, an anchor, and a group with a
+    /// static body never falls, so the crate stays in the cube's system and meets the real cube (ter-dhkf). Each hears one
+    /// Collision, whose impulse is the crate's mass times 3 m/s. Before, the crate fell in a frame of its own, and the ghost
+    /// of the cube came at it at 3 m/s, with the same events.
     /// </summary>
     [Fact]
     public void ACrateThatFliesAtAStaticMeshJoinsItsSystemAndHearsTheImpulseOfItsApproach()
     {
-        using World world = NewWorld(out _, configure: o => o.NumericFrames = FallEverywhere);
+        using World world = NewWorld(out _, configure: o => o.NumericFrames = EveryGroupFalls);
         FrameHandle ground = Ground(world, 0);
         var wallLog = new CollisionLog();
         Entity wall = world.Spawn(new SpawnDesc { Frame = ground, Body = new BodyDesc(MeshCube(0.5f), BodyMotion.Static), Components = [wallLog] });
@@ -473,7 +468,7 @@ public class WorldNumericFrameTests
         // 4 cm from the ghost of a still wall, inside the margin in which a removed ghost wakes bodies, and beyond the
         // distance at which Jolt makes a contact. A second crate in its frame puts the members' center 4 m away.
         using World world = NewWorld(out JoltPhysicsBackend backend,
-            configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
+            configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 });
         FrameHandle ground = Space(world);
         Entity wall = StickingWall(world, ground, 1000, cratesSide: 1);
         Entity sleeper = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1001.04), Body = Crate });
@@ -504,7 +499,7 @@ public class WorldNumericFrameTests
         // ghost of a third wall. The ghost pass puts back a ghost that is not where its wall is relative to the frame, and so
         // wakes the crate next to it.
         using World world = NewWorld(out JoltPhysicsBackend backend,
-            configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
+            configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 });
         FrameHandle ground = Space(world);
         StickingWall(world, ground, 1000, cratesSide: 1);
         StickingWall(world, ground, 1010, cratesSide: -1);
@@ -545,7 +540,7 @@ public class WorldNumericFrameTests
     {
         // As above, without the far frame. In the tick that shifts the frame, the right wall goes away, and its ghost with it.
         using World world = NewWorld(out JoltPhysicsBackend backend,
-            configure: o => o.NumericFrames = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0, RecenterDistance = 1 });
+            configure: o => o.NumericFrames = EveryGroupFalls with { RecenterDistance = 1 });
         FrameHandle ground = Space(world);
         Entity leftWall = StickingWall(world, ground, 1000, cratesSide: 1);
         Entity rightWall = StickingWall(world, ground, 1010, cratesSide: -1);

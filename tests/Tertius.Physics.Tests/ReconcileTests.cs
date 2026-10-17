@@ -2,6 +2,7 @@ using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.WorldTestingGrowth;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -17,19 +18,6 @@ namespace Tertius.Physics.Tests;
 /// </summary>
 public class ReconcileTests
 {
-    /// <summary>
-    /// The thresholds of numeric frames, set so that the World never makes one. A numeric frame is a frame that the engine
-    /// makes around fast or far bodies (the default speed to get one is 50 m/s), with a system of its own. The ships here fly
-    /// at 60 m/s, so a test that checks which system holds a ship's hull needs them off.
-    /// </summary>
-    private static readonly NumericFrameOptions NoNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
-
     /// <summary>A hull of 4 m by 4 m by 4 m with a mass of 1000 kg, and no damping or bounce.</summary>
     private static BodyDesc ShipHull() =>
         new(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
@@ -59,7 +47,7 @@ public class ReconcileTests
         public FullStorage(bool numericFrames)
         {
             World = NewWorldWithFaultsAndSmallSystems(8, out FaultInjectingBackend faults,
-                configure: numericFrames ? null : options => options.NumericFrames = NoNumericFrames);
+                configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
             Faults = faults;
             Space = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
             Hangar = EmptyFrame(World, Space, At(1000), 30);
@@ -172,7 +160,7 @@ public class ReconcileTests
     public void AfterARefusedHandOffTheReconcileRestoresTheInvariants()
     {
         // Numeric frames off: the Release branch checks that the system of space holds the fighter's hull.
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.NumericFrames = NoNumericFrames);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.NumericFrames = WithoutNumericFrames);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
         FrameHandle carrier = EmptyFrame(world, space, At(1000), 200);
         FrameHandle fighter = world.GetOwnedFrame(world.Spawn(new SpawnDesc

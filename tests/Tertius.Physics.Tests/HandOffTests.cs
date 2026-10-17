@@ -1,6 +1,7 @@
 using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -13,15 +14,6 @@ namespace Tertius.Physics.Tests;
 public class HandOffTests
 {
     private const float Dt = 1f / 60f;
-
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
 
     /// <summary>A world on the fault-injecting backend with no numeric frames.</summary>
     private static World NewWorldWithoutNumericFrames(out FaultInjectingBackend faults, List<string>? warnings = null) =>

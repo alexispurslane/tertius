@@ -1,6 +1,7 @@
 using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -16,15 +17,6 @@ namespace Tertius.Physics.Tests;
 public partial class NumericFrameOrbitTests
 {
     private const double Dt = 1.0 / 60;
-
-    /// <summary>Membership rules under which no group of bodies and no hull ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
 
     /// <summary>
     /// A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.

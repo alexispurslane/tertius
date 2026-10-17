@@ -2,6 +2,7 @@ using System.Numerics;
 using Tertius.Host.Scripting;
 using Tertius.Simulation;
 using static Tertius.Host.Tests.HostTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Host.Tests;
 
@@ -37,7 +38,7 @@ public class StateDumpTests
         SceneInstance scene = BoxOnFloor(world);
         world.Frames.TryGetFrame(scene["ground"], out FrameHandle ground).Should().BeTrue();
         // Every slow group gets a resting frame, however near the origin: the box and the floor under it.
-        world.Frames.NumericOptions = new NumericFrameOptions { CreateDistance = 0, LeaveDistance = 0 };
+        world.Frames.NumericOptions = EverySlowGroupRests;
         // The numeric update runs at the start of the first tick, in which the box falls by 3 mm.
         world.Tick();
 

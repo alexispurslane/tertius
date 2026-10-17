@@ -3,6 +3,7 @@ using JoltPhysicsSharp;
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -278,14 +279,6 @@ public class ReboundTests
         cornerVelocity.Y.Should().BeGreaterThan(1f, "Jolt bounced the leading corner at about 1.37 m/s");
         world.Errors.Should().BeEmpty();
     }
-
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
 
     /// <summary>
     /// Numeric frames are an engine detail, so the rule keeps or removes a bounce as it does without them. A ball of

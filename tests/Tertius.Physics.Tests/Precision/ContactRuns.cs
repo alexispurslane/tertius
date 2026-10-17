@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Numerics;
 using System.Text;
 using Tertius.Simulation;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests.Precision;
 
@@ -38,15 +39,6 @@ internal static class ContactRuns
 
     /// <summary>The radius of the space's bubble, in meters, far beyond the largest distance of any run (9,300 km).</summary>
     private const float SpaceRadius = 1e9f;
-
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
 
     /// <summary>
     /// A world without numeric frames, on a new real backend with one Jolt worker thread and the speed limit

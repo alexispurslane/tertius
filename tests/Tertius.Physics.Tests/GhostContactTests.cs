@@ -2,6 +2,7 @@ using System.Numerics;
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
+using static Tertius.Testing.NumericFrameTesting;
 
 namespace Tertius.Physics.Tests;
 
@@ -295,15 +296,6 @@ public class GhostContactTests
     // contacts gameplay hears. A ghost stands for its real body, so it meets what that body meets. Each test that
     // involves numeric frames runs the same scene without them.
 
-    /// <summary>Membership rules under which no group of bodies ever gets a numeric frame.</summary>
-    private static readonly NumericFrameOptions WithoutNumericFrames = new()
-    {
-        CreateSpeed = double.PositiveInfinity,
-        LeaveSpeed = double.PositiveInfinity,
-        CreateDistance = double.PositiveInfinity,
-        LeaveDistance = double.PositiveInfinity,
-    };
-
     /// <summary>A world on the wrapper with the default numeric frames or, when <paramref name="numericFrames"/> is false, with none.</summary>
     private static World WorldWith(bool numericFrames, out FaultInjectingBackend faults) =>
         NewWorldWithFaults(out faults, configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
@@ -523,9 +515,8 @@ public class GhostContactTests
     [InlineData(true, false)]
     public void TheImpulseOfACrateThatSpeedsUpJustBeforeAStaticWallIsItsApproachToTheWallWithNumericFramesOrWithout(bool mesh, bool numericFrames)
     {
-        var everyBodyFalls = new NumericFrameOptions { CreateSpeed = 0, LeaveSpeed = 0 };
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
-            configure: options => options.NumericFrames = numericFrames ? everyBodyFalls : WithoutNumericFrames);
+            configure: options => options.NumericFrames = numericFrames ? EveryGroupFalls : WithoutNumericFrames);
         FrameHandle ground = Ground(world, 0);
         ShapeDesc shape = mesh ? MeshCube(0.5f) : new BoxShapeDesc(new Vector3(0.5f));
         Entity wall = world.Spawn(new SpawnDesc { Frame = ground, Body = new BodyDesc(shape, BodyMotion.Static) });
