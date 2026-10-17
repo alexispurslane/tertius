@@ -2,7 +2,7 @@
 id: ter-1w06
 status: in_progress
 deps: []
-links: [ter-kugq, ter-tftg]
+links: [ter-kugq, ter-tftg, ter-61ds]
 created: 2026-10-17T13:44:29Z
 type: bug
 priority: 2
@@ -25,3 +25,9 @@ When the common velocity has a part along the push (direction (1,1,1)/sqrt(3), a
 
 Probable area: UpdateCharacter and WithoutMotionIntoContacts in src/Tertius.Physics/JoltPhysicsBackend.Step.cs. A character that does not stand keeps its velocity against a dynamic body, so it can push it, but here Jolt's CharacterVirtual never moved the crate. Also see ter-tftg (a walking character slows when it touches a light resting crate). Done means: a weightless character that presses into a free crate moves it, the pair's momentum follows the thrust, and the velocity reads agree with the positions.
 
+
+## Notes
+
+**2026-10-17T14:08:27Z**
+
+Investigation (branch worktree-wf_c3fa9854-e4e-1). Root cause: Jolt's CharacterVirtual::ExtendedUpdate starts with CancelVelocityTowardsSteepSlopes, which removes the velocity into every contact that had a collision in the last update and whose face is steeper than MaxSlopeAngle against the character's up, whenever the ground state is OnSteepGround or NotSupported. A weightless character that touches the crate's face is OnSteepGround from its first update, so Jolt moves it with no velocity into the crate, never calls HandleContact, and never pushes. The engine then writes the full velocity back (WithoutMotionIntoContacts skips dynamic bodies), so the stored velocity grows as if free while nothing moves. Second defect: when Jolt does push (start gap 0.2 m, or with the cancel bypassed), the crate's impulse is not taken from the character, so the pair gains momentum (250 against 208 N s after 2 s). Second symptom: the cancel uses the absolute velocity, not the velocity relative to the crate, and on the first update the ValidateMovement sweep treats the co-moving crate as still at its start pose and scales the whole displacement, which is the exact one tick of cross velocity. Red tests in tests/Tertius.Physics.Tests/WeightlessCharacterPushTests.cs. The fix has design choices for the user.
