@@ -649,7 +649,7 @@ public class WorldShapeQueryTests
 
         Tick(world, 3);
 
-        world.Errors.Should().ContainSingle().Which.Should().Contain("a shape cast failed").And.Contain("the predicate broke");
+        world.Errors.Should().ContainSingle().Which.Should().Contain("the shape cast failed").And.Contain("the predicate broke");
         broken.ShapeAnswers.Should().BeEmpty();
         fine.CastAnswersTo(2).Should().ContainSingle().Which.Entity.Should().Be(box);
     }
@@ -669,7 +669,7 @@ public class WorldShapeQueryTests
         Tick(world, 3);
 
         // The test pins the name of the kind of query, and not the article before it.
-        world.Errors.Should().ContainSingle().Which.Should().Contain("overlap query failed").And.Contain("the predicate broke");
+        world.Errors.Should().ContainSingle().Which.Should().Contain("the overlap query failed").And.Contain("the predicate broke");
         broken.OverlapAnswers.Should().BeEmpty();
         fine.OverlapAnswersTo(2).Should().Equal(box);
     }
