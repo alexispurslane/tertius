@@ -1,0 +1,30 @@
+{
+  "scene": "weightless-push",
+  "window": { "width": 1280, "height": 720 },
+  "steps": [
+    { "do": "run", "ticks": 10 },
+    { "do": "dump", "name": "start" },
+    { "do": "camera", "entity": "side" },
+    { "do": "capture", "name": "side-start" },
+    { "do": "camera", "entity": "astronaut" },
+    { "do": "capture", "name": "astronaut-start" },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } },
+    { "do": "run", "ticks": 90 },
+    { "do": "dump", "name": "pushing" },
+    { "do": "camera", "entity": "side" },
+    { "do": "capture", "name": "side-pushing" },
+    { "do": "camera", "entity": "astronaut" },
+    { "do": "run", "ticks": 90 },
+    { "do": "post", "to": { "kind": "topic", "name": "input" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 87 } },
+    { "do": "run", "ticks": 30 },
+    { "do": "dump", "name": "pushed" },
+    { "do": "camera", "entity": "side" },
+    { "do": "capture", "name": "side-pushed" },
+    { "do": "camera", "entity": "astronaut" },
+    { "do": "capture", "name": "astronaut-pushed" },
+    { "do": "run", "ticks": 60 },
+    { "do": "dump", "name": "coasting" },
+    { "do": "camera", "entity": "side" },
+    { "do": "capture", "name": "side-coasting" }
+  ]
+}

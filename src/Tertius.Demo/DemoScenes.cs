@@ -10,7 +10,7 @@ namespace Tertius.Demo;
 /// </summary>
 public static partial class DemoScenes
 {
-    public static IReadOnlyList<Scene> All { get; } = [new Scene("drop-box", DropBox), new Scene("orbit", Orbit), new Scene("orbit-cluster", OrbitCluster), new Scene("surface-yard", SurfaceYard), new Scene("deep-yard", DeepYard.Build), new Scene("doorway", Doorway)];
+    public static IReadOnlyList<Scene> All { get; } = [new Scene("drop-box", DropBox), new Scene("orbit", Orbit), new Scene("orbit-cluster", OrbitCluster), new Scene("surface-yard", SurfaceYard), new Scene("deep-yard", DeepYard.Build), new Scene("doorway", Doorway), new Scene("weightless-push", WeightlessPush)];
 
     /// <summary>Earth's mean radius, in meters.</summary>
     public const double EarthRadius = 6.371e6;

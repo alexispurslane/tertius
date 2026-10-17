@@ -2,7 +2,7 @@
 id: ter-1w06
 status: in_progress
 deps: []
-links: [ter-kugq, ter-tftg, ter-61ds, ter-w7cw]
+links: [ter-kugq, ter-tftg, ter-61ds, ter-w7cw, ter-qcdo, ter-myew]
 created: 2026-10-17T13:44:29Z
 type: bug
 priority: 2
@@ -35,3 +35,7 @@ Investigation (branch worktree-wf_c3fa9854-e4e-1). Root cause: Jolt's CharacterV
 **2026-10-17T14:21:29Z**
 
 Decision (user, 2026-10-17): design B. Below FrameTree.ZeroGravityThreshold a character becomes a rigid capsule with its rotation locked, solved by Jolt, and it turns back into a CharacterVirtual above the threshold with hysteresis. A character that does not stand gets Jolt's plain Update, with no steep-slope cancel. A weightless push has no strength cap. Standing characters keep today's behavior. The four red tests on branch worktree-wf_c3fa9854-e4e-1 (commit faf2f9e, tests/Tertius.Physics.Tests/WeightlessCharacterPushTests.cs) are the acceptance tests. Rejected: design A (engine impulses from both effective masses), because it has no friction and its after-step ordering may only move the co-moving false hit from a body ahead to a body behind.
+
+**2026-10-17T15:24:38Z**
+
+Implemented design B on branch worktree-wf_30340cc3-24e-1. BodyRecord.Motion holds the form: Character for the walking form (CharacterVirtual), Dynamic for the rigid form (a dynamic body, AllowedDOFs translation only, no damping, the character's mass and material). JoltPhysicsBackend.SwitchCharacterForms runs at the start of each step, after the reconcile and before the spawn chords, intents and gravity, and applies the pure rule NextCharacterMotion: rigid below FrameTree.ZeroGravityThreshold (0.05 m/s2), walking again from twice it (0.1 m/s2). A switch is RemovePrimary plus CreatePrimary at the same pose and velocity, so the loose-contact machinery carries every contact (no Collision or CollisionEnded). The rigid capsule is 0.02 m wider and its cylinder 0.02 m shorter than the walking capsule, because a standing CharacterVirtual rests its capsule on a box floor but keeps its 0.02 m padding from a wall at its side (measured), so a switch moves nothing. A walking character that does not stand gets plain Update, not ExtendedUpdate. The four acceptance tests pass, plus 15 new tests in tests/Tertius.Physics.Tests/CharacterFormTests.cs. Restated tests: CharacterTests (a light crate now shares the momentum; the wall slide test uses a frictionless wall), GrowthTests (the character is rigid in the weightless space), AirlockSliceTests and SpacewalkSliceTests (a 7 mm/s upward drift from the sill's rounded edge, ticket ter-myew). Follow-ups: ter-myew (sill-edge push), ter-qcdo (a weightless character lowers a whole system's sleep threshold). Demo: scene weightless-push and scripts/weightless-push.json. Every test project passes in Debug and Release.
