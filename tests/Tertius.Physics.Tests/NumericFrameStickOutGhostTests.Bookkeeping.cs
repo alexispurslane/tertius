@@ -23,6 +23,7 @@ public partial class NumericFrameStickOutGhostTests
         Scene scene = Build(world, Layout.StationAndFastRock);
         Tick(world, 2);
         FrameHandle home = world.PhysicsHomeOf(scene.Rock);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Falling, "the rock thrusts at 60 m/s");
         NamesStickOutGhosts(world, scene.Bubble, home).Should().BeTrue("the rock may touch the crate that sticks out of the station");
 
         world.Destroy(scene.Owner);
@@ -35,9 +36,11 @@ public partial class NumericFrameStickOutGhostTests
 
     /// <summary>
     /// Space is a frame with a bubble of 1,000 km inside a root frame, and the scene of
-    /// <see cref="Layout.StationAndFastRock"/>, with a station without a hull, lies in space. Destroying the owner of space outside a tick dissolves the
-    /// rock's falling frame, a numeric frame of space, and moves the station to the root frame. So the update's pair of the
-    /// station and the rock's frame goes, and the invariants hold before the next tick.
+    /// <see cref="Layout.StationAndFastRock"/>, with a station without a hull, lies in space: after the
+    /// <see cref="OnsetTicks"/> ticks of its gentle thrust, the rock falls in a numeric frame of its own. Destroying the
+    /// owner of space outside a tick dissolves the rock's falling frame, a numeric frame of space, and moves the station to
+    /// the root frame. So the update's pair of the station and the rock's frame goes, and the invariants hold before the
+    /// next tick.
     /// </summary>
     [Fact]
     public void DestroyingTheSemanticParentOfAStationOutsideATickTakesTheDissolvedFramesThatKeptTheGhostsOfItsBodiesWithIt()
@@ -54,9 +57,17 @@ public partial class NumericFrameStickOutGhostTests
         });
         FrameHandle station = world.GetOwnedFrame(stationOwner);
         world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 40.5), Body = CrateBody });
-        Entity rock = world.Spawn(new SpawnDesc { Frame = space, Pose = At(1100, 41), LinearVelocity = new Double3(-60, 0, 0), Body = RockBody });
-        Tick(world, 2);
+        Entity rock = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(1130, 41),
+            LinearVelocity = new Double3(-60, 0, 0),
+            Body = RockBody,
+            Components = [new Thruster(RockBody.Mass)],
+        });
+        Tick(world, OnsetTicks + 2);
         FrameHandle home = world.PhysicsHomeOf(rock);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Falling, "the rock thrusts at 60 m/s");
         NamesStickOutGhosts(world, station, home).Should().BeTrue("the rock may touch the crate that sticks out of the station");
 
         world.Destroy(spaceOwner);
@@ -88,6 +99,7 @@ public partial class NumericFrameStickOutGhostTests
         Scene scene = Build(world, Layout.StationAndFastRock, rockOffset: 2);
         world.Tick();
         FrameHandle home = world.PhysicsHomeOf(scene.Rock);
+        world.Frames.Numeric(home).Should().Be(numericFrames ? NumericMode.Falling : NumericMode.None, "the rock thrusts at 60 m/s");
         bool namedStickOut = false, keptStickOutGhost = false, lostStickOutGhost = false;
         bool namedBefore = NamesStickOutGhosts(world, scene.Bubble, home);
         for (int tick = 0; tick < 400; tick++)
@@ -109,7 +121,8 @@ public partial class NumericFrameStickOutGhostTests
         lostStickOutGhost.Should().BeFalse("the ghost of the crate stays while its place stays");
         world.Frames.StickOutGhosts.IsEmpty.Should().BeTrue("the rock is far past the station");
         scene.RockLog.NewsOf(scene.Crate).Should().BeEmpty("the rock passes above the crate");
-        (world.VelocityIn(scene.Rock, scene.Space) - new Double3(-60, 0, 0)).Length.Should().BeLessThan(1e-3, "nothing touched the rock");
+        // In 431 ticks, 7.2 s, the gentle thrust of 1e-4 m/s² changes the rock's velocity by at most 0.72 mm/s.
+        (world.VelocityIn(scene.Rock, scene.Space) - new Double3(-60, 0, 0)).Length.Should().BeLessThan(1e-3, "nothing but its gentle thrust touched the rock");
         world.Errors.Should().BeEmpty();
     }
 }
