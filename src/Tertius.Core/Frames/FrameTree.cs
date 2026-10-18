@@ -89,6 +89,18 @@ public sealed partial class FrameTree
     /// </remarks>
     public bool TryGetAppliedSample(FrameHandle frame, out MotionSample sample) => Samples.Applied.TryGet(frame, out sample);
 
+    /// <summary>
+    /// How <paramref name="frame"/> followed its owner at the last sync point: <see cref="FollowKind.Rails"/> when it took a
+    /// motion sample that its owner wrote, <see cref="FollowKind.Physics"/> when it took the move that physics made of its
+    /// dynamic hull, and <see cref="FollowKind.Static"/> otherwise. Its hull's motion at that sync point counts, not a change
+    /// of motion that the next step applies. Throws <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    public FollowKind Followed(FrameHandle frame)
+    {
+        Node(frame);
+        return Samples.KindFollowed(frame);
+    }
+
     /// <summary>How many frames the tree holds, numeric frames included.</summary>
     internal int Count => poses.Count;
 
