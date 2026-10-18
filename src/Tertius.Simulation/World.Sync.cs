@@ -263,38 +263,8 @@ public sealed partial class World
     /// </summary>
     private void FollowOwners(bool stepFailed)
     {
-        int n = Frames.Count;
-        for (int i = 0; i < n; i++)
-        {
-            FrameHandle frame = Frames.AtDense(i);
-            if (Frames.IsNumeric(frame))
-                continue;
-            bool hull = !Frames.Parent(frame).IsNull && entities.Body(frame.Entity) != null;
-            if (stepRecords.TryGetValue(frame, out MotionSample record))
-            {
-                FrameHandle parent = Frames.TreeParent(frame);
-                Frames.Follow(frame, parent, record);
-                KeepRecord(frame, parent, record);
-            }
-            else if (!hull && Frames.Samples.Applied.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
-                Frames.Follow(frame, relativeTo, sample);
-            // A skipped update changes nothing, so the frame keeps the velocities that it had before the step.
-            else if (!(hull && stepFailed) && !physicsOutputCheck.IsSkipped(frame.Entity))
-                Frames.HoldStill(frame);
-
-            // Gameplay can write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the
-            // world normalizes it here, and the owner's row follows the frame below (see MirrorFrameOwner). The write moves
-            // the frame and changes nothing else, so the frame keeps its proper acceleration, as a frame that holds still.
-            Entity owner = frame.Entity;
-            if (!hull && entities.GameplayWroteTransform(owner))
-            {
-                ref readonly TransformRow row = ref entities.BackRow(owner);
-                var write = new MotionSample(row.Pose.WithUnitRotation(), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
-                    Frames.ProperAcceleration(frame));
-                Frames.Follow(frame, row.Frame, write);
-                KeepRecord(frame, row.Frame, write);
-            }
-        }
+        var follower = new OwnerFollower(this, stepFailed);
+        Frames.VisitFrames(ref follower);
 
         Profile.Lap(3);
         // A hull that teleported in the step left the origin of its orbit frame, toward its sample's place.
@@ -320,6 +290,42 @@ public sealed partial class World
 
         MirrorFrameOwners();
         Profile.Lap(5);
+    }
+
+    /// <summary>The pass of <see cref="FollowOwners"/> over every frame, in the tree's dense order.</summary>
+    private readonly struct OwnerFollower(World world, bool stepFailed) : IFrameVisitor
+    {
+        public void Visit(in FrameLinks links) => world.FollowOwner(links, stepFailed);
+    }
+
+    /// <summary>One frame of <see cref="FollowOwners"/>: it takes its step record.</summary>
+    private void FollowOwner(in FrameLinks links, bool stepFailed)
+    {
+        FrameHandle frame = links.Frame;
+        bool hull = !links.Parent.IsNull && entities.Body(frame.Entity) != null;
+        if (stepRecords.Count > 0 && stepRecords.TryGetValue(frame, out MotionSample record))
+        {
+            Frames.Follow(frame, links.TreeParent, record);
+            KeepRecord(frame, links.TreeParent, record);
+        }
+        else if (!hull && Frames.Samples.Applied.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
+            Frames.Follow(frame, relativeTo, sample);
+        // A skipped update changes nothing, so the frame keeps the velocities that it had before the step.
+        else if (!(hull && stepFailed) && !physicsOutputCheck.IsSkipped(frame.Entity))
+            Frames.HoldStill(frame);
+
+        // Gameplay can write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the
+        // world normalizes it here, and the owner's row follows the frame below (see MirrorFrameOwner). The write moves
+        // the frame and changes nothing else, so the frame keeps its proper acceleration, as a frame that holds still.
+        Entity owner = frame.Entity;
+        if (!hull && entities.GameplayWroteTransform(owner))
+        {
+            ref readonly TransformRow row = ref entities.BackRow(owner);
+            var write = new MotionSample(row.Pose.WithUnitRotation(), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
+                Frames.ProperAcceleration(frame));
+            Frames.Follow(frame, row.Frame, write);
+            KeepRecord(frame, row.Frame, write);
+        }
     }
 
     /// <summary>
@@ -490,12 +496,30 @@ public sealed partial class World
     /// </summary>
     private void MirrorFrameOwners()
     {
-        int n = Frames.Count;
-        for (int i = 0; i < n; i++)
+        var mirror = new OwnerMirror(this);
+        Frames.VisitOwnerViews(ref mirror);
+    }
+
+    /// <summary>
+    /// The pass of <see cref="MirrorFrameOwners"/>: the owner's row takes the frame's view, as <see cref="MirrorFrameOwner"/>
+    /// does for one frame (see <see cref="FrameOwnerRow"/>).
+    /// </summary>
+    private readonly struct OwnerMirror(World world) : IOwnerViewVisitor
+    {
+        public void Visit(in FrameOwnerView view)
         {
-            FrameHandle frame = Frames.AtDense(i);
-            if (!Frames.IsNumeric(frame))
-                MirrorFrameOwner(frame);
+            Entity owner = view.Frame.Entity;
+            var row = new TransformRow
+            {
+                Frame = view.Semantic,
+                PhysicsHome = view.Home,
+                Pose = new DPose(view.PositionInSemantic, view.LocalPose.Rotation),
+                HomePosition = view.LocalPose.Position,
+                LinearVelocity = view.LinearVelocity.ToVector3(),
+                AngularVelocity = view.AngularVelocity,
+            };
+            world.entities.SetBackTransform(owner, row);
+            world.MoveMembership(owner, row.Frame, sendFrameChanged: true);
         }
     }
 

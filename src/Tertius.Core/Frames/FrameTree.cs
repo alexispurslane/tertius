@@ -346,6 +346,79 @@ public sealed partial class FrameTree
     internal DPose TreeLocalPose(FrameHandle frame) => poses.GetLocal(Node(frame));
 
     /// <summary>
+    /// Hands every frame that is not numeric to <paramref name="visitor"/>, in dense order, with its tree parent and its
+    /// semantic parent (see <see cref="Parent"/>): one pass over the tree's own storage, with no handle check. The visitor
+    /// may write the pose and the velocities of a frame (see <see cref="Follow"/> and <see cref="HoldStill"/>), but must not
+    /// add, remove or move a frame.
+    /// </summary>
+    internal void VisitFrames<TVisitor>(ref TVisitor visitor) where TVisitor : struct, IFrameVisitor
+    {
+        ReadOnlySpan<int> parents = poses.ParentsDense;
+        ReadOnlySpan<int> ids = poses.IdsDense;
+        ReadOnlySpan<uint> generations = poses.Generations;
+        for (int dense = 0; dense < ids.Length; dense++)
+        {
+            int id = ids[dense];
+            if (numeric[id] != NumericMode.None)
+                continue;
+            int p = parents[dense];
+            FrameHandle treeParent = FrameHandle.Null, parent = FrameHandle.Null;
+            if (p >= 0)
+            {
+                int parentId = ids[p];
+                treeParent = new FrameHandle(owner[parentId], parentId, generations[parentId]);
+                int s = p, semanticId = parentId;
+                while (numeric[semanticId] != NumericMode.None)
+                {
+                    s = parents[s];
+                    semanticId = ids[s];
+                }
+                parent = s == p ? treeParent : new FrameHandle(owner[semanticId], semanticId, generations[semanticId]);
+            }
+            visitor.Visit(new FrameLinks(new FrameHandle(owner[id], id, generations[id]), treeParent, parent));
+        }
+    }
+
+    /// <summary>
+    /// Hands the state of every frame that is not numeric that the transform row of its owner mirrors to
+    /// <paramref name="visitor"/>, in dense order (see <see cref="FrameOwnerView"/>): one pass over the tree's own storage,
+    /// with no handle check. The visitor must not change the tree.
+    /// </summary>
+    internal void VisitOwnerViews<TVisitor>(ref TVisitor visitor) where TVisitor : struct, IOwnerViewVisitor
+    {
+        ReadOnlySpan<int> parents = poses.ParentsDense;
+        ReadOnlySpan<DPose> locals = poses.LocalPoses;
+        ReadOnlySpan<int> ids = poses.IdsDense;
+        ReadOnlySpan<uint> generations = poses.Generations;
+        for (int dense = 0; dense < ids.Length; dense++)
+        {
+            int id = ids[dense];
+            if (numeric[id] != NumericMode.None)
+                continue;
+            ref readonly DPose local = ref locals[dense];
+            int p = parents[dense];
+            FrameHandle home = FrameHandle.Null, semantic = FrameHandle.Null;
+            Double3 position = local.Position;
+            if (p >= 0)
+            {
+                int parentId = ids[p];
+                home = new FrameHandle(owner[parentId], parentId, generations[parentId]);
+                int s = p, semanticId = parentId;
+                // The same additions, in the same order, as InSemantic: the nearest numeric frame first.
+                while (numeric[semanticId] != NumericMode.None)
+                {
+                    position += locals[s].Position;
+                    s = parents[s];
+                    semanticId = ids[s];
+                }
+                semantic = s == p ? home : new FrameHandle(owner[semanticId], semanticId, generations[semanticId]);
+            }
+            visitor.Visit(new FrameOwnerView(new FrameHandle(owner[id], id, generations[id]), home, semantic, local, position,
+                linearVelocity[id], angularVelocity[id]));
+        }
+    }
+
+    /// <summary>
     /// Sets the pose of the frame in its parent (see <see cref="Parent"/>). The rotation must be unit length (see
     /// <see cref="DQuaternion.IsUnit"/>): a caller that cannot promise it normalizes the rotation first (see
     /// <see cref="DPose.WithUnitRotation"/>).
@@ -859,4 +932,28 @@ public sealed partial class FrameTree
         Array.Resize(ref driverVersion, size);
         Samples.Grow(size);
     }
+}
+
+/// <summary>A frame that is not numeric, its tree parent and its semantic parent (see <see cref="FrameTree.VisitFrames"/>).</summary>
+internal readonly record struct FrameLinks(FrameHandle Frame, FrameHandle TreeParent, FrameHandle Parent);
+
+/// <summary>Takes each frame of <see cref="FrameTree.VisitFrames"/>.</summary>
+internal interface IFrameVisitor
+{
+    void Visit(in FrameLinks links);
+}
+
+/// <summary>
+/// The state of <see cref="Frame"/> that the transform row of its owner mirrors (see <see cref="FrameTree.VisitOwnerViews"/>):
+/// its tree parent <see cref="Home"/>, which holds its hull and is the owner's physics home; the semantic frame of that
+/// parent, or null for a root frame; its pose in the tree parent; the position of its origin in that semantic frame,
+/// summed as <see cref="FrameTree.InSemantic"/> sums it; and its velocities relative to the tree parent.
+/// </summary>
+internal readonly record struct FrameOwnerView(FrameHandle Frame, FrameHandle Home, FrameHandle Semantic, DPose LocalPose,
+    Double3 PositionInSemantic, Double3 LinearVelocity, Vector3 AngularVelocity);
+
+/// <summary>Takes the owner view of each frame in <see cref="FrameTree.VisitOwnerViews"/>.</summary>
+internal interface IOwnerViewVisitor
+{
+    void Visit(in FrameOwnerView view);
 }

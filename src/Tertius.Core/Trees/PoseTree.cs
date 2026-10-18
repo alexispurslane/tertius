@@ -209,6 +209,15 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
         get { EnsureOrder(); return parent.AsSpan(0, count); }
     }
 
+    /// <summary>The stable id of the node at each dense index. Valid until the next structural change.</summary>
+    public ReadOnlySpan<int> IdsDense
+    {
+        get { EnsureOrder(); return idAt.AsSpan(0, count); }
+    }
+
+    /// <summary>The generation of each stable id.</summary>
+    public ReadOnlySpan<uint> Generations => generation.AsSpan(0, idCount);
+
     public ReadOnlySpan<TPose> LocalPoses
     {
         get { EnsureOrder(); return local.AsSpan(0, count); }

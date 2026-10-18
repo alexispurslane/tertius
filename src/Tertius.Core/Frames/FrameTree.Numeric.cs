@@ -61,9 +61,11 @@ public sealed partial class FrameTree
     /// </summary>
     internal void Follow(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
     {
-        int id = Node(frame).Id;
+        PoseNode node = Node(frame);
+        int id = node.Id;
         Contract.Requires(relativeTo == TreeParent(frame));
-        SetTreeLocalPose(frame, record.Pose);
+        Contract.Requires(record.Pose.Rotation.IsUnit);
+        poses.Local(node) = record.Pose;
         linearVelocity[id] = record.Velocity;
         angularVelocity[id] = record.AngularVelocity.ToVector3();
         properAcceleration[id] = record.ProperAcceleration;
@@ -1173,6 +1175,8 @@ public sealed partial class FrameTree
     internal void AdvanceNumericFrames(double dt)
     {
         Contract.Requires(dt >= 0 && double.IsFinite(dt));
+        if (NumericCount == 0)
+            return;
         for (int i = 0; i < poses.Count; i++)
         {
             PoseNode node = poses.NodeAt(i);
