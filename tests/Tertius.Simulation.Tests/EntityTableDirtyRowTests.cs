@@ -14,10 +14,17 @@ public class EntityTableDirtyRowTests
 {
     private const int ChunkSize = 4;
 
+    /// <summary>
+    /// A new table with chunks of <see cref="ChunkSize"/> slots, which copies on one thread.
+    /// <see cref="EntityTableParallelCopyTests"/> runs every test of this class again on a table that copies on the
+    /// workers.
+    /// </summary>
+    private protected virtual EntityTable NewTable() => TableSupport.NewTable();
+
     /// <summary>A table with live entities in slots 0 to <paramref name="count"/> - 1, whose "moved" list is already read.</summary>
-    private static (EntityTable Table, Entity[] Entities) Settled(int count)
+    private (EntityTable Table, Entity[] Entities) Settled(int count)
     {
-        EntityTable table = TableSupport.NewTable();
+        EntityTable table = NewTable();
         Entity[] entities = [.. Enumerable.Range(0, count).Select(i => table.SpawnLiveAt(i))];
         table.TakeMoved();
         return (table, entities);
@@ -224,7 +231,7 @@ public class EntityTableDirtyRowTests
     [Fact]
     public void ANewEntityCountsAsMovedOnceItIsLive()
     {
-        EntityTable table = TableSupport.NewTable();
+        EntityTable table = NewTable();
         Entity first = table.SpawnLiveAt(1);
         table.TakeMoved();
 
@@ -268,7 +275,7 @@ public class EntityTableDirtyRowTests
     [InlineData("angular velocity")]
     public void AChangeInAnyFieldOfTheRowIsCopiedForward(string field)
     {
-        EntityTable table = TableSupport.NewTable();
+        EntityTable table = NewTable();
         Entity entity = table.SpawnLive();
         table.SetBackTransform(entity, BaseRow());
         table.CopyDirtyRows();
@@ -288,7 +295,7 @@ public class EntityTableDirtyRowTests
     [Fact]
     public void ARowThatIsIdenticalInEveryFieldIsNotCopiedAndMovesNobody()
     {
-        EntityTable table = TableSupport.NewTable();
+        EntityTable table = NewTable();
         Entity entity = table.SpawnLive();
         table.SetBackTransform(entity, BaseRow());
         table.CopyDirtyRows();
@@ -303,7 +310,7 @@ public class EntityTableDirtyRowTests
     [Fact]
     public void ARowThatDiffersOnlyByTheSignOfAZeroIsStillACopiedChange()
     {
-        EntityTable table = TableSupport.NewTable();
+        EntityTable table = NewTable();
         Entity entity = table.SpawnLive();
         table.CopyDirtyRows();
         table.TakeMoved();
@@ -318,7 +325,7 @@ public class EntityTableDirtyRowTests
     [Fact]
     public void ARowWithANotANumberIsNotAChangeWhenItsWrittenAgainBitForBit()
     {
-        EntityTable table = TableSupport.NewTable();
+        EntityTable table = NewTable();
         Entity entity = table.SpawnLive();
         var broken = new TransformRow { Pose = new DPose(new Double3(double.NaN, 0, 0), DQuaternion.Identity) };
         table.SetBackTransform(entity, broken);

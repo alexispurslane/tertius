@@ -76,7 +76,8 @@ public sealed partial class World : IDisposable
         parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = this.options.MaxDegreeOfParallelism };
         runChunk = RunChunk;
 
-        entities = new EntityTable(this.options.ChunkSize, this.options.InitialCapacity);
+        entities = new EntityTable(this.options.ChunkSize, this.options.InitialCapacity,
+            this.options.MaxDegreeOfParallelism == 1 ? null : parallelOptions, this.options.ParallelRowCopyThreshold);
         // The order of the subsystems is the order in which they let go of a released entity.
         topics = new TopicSets(entities);
         router = new Router(entities, topics, this.options.MaxDegreeOfParallelism == 1 ? null : parallelOptions);

@@ -117,6 +117,24 @@ public class WorldNumericFrameTests
     }
 
     [Fact]
+    public void ACrateSpawnedAloneAtOrbitalSpeedFallsInAFrameThatTakesItsVelocityInDoubles()
+    {
+        // The crate is the only body that physics has not created yet when the first tick runs the numeric update, so the
+        // update reads its velocity from its creation, in doubles, and not from its row, whose float of 7,672 m/s steps by
+        // 488 µm/s: 7,672.123456 m/s is 79 µm/s from the nearest float.
+        using World world = NewWorld(out _);
+        FrameHandle earth = Earth(world);
+        var velocity = new Double3(7672.123456, 0, 0);
+        Entity crate = world.Spawn(new SpawnDesc { Frame = earth, Pose = At(0, OrbitRadius), LinearVelocity = velocity, Body = Crate });
+
+        Tick(world, 1);
+
+        InFallingFrame(world, crate).Should().BeTrue();
+        // The frame then falls for one step, in which Earth's field gains a part along X of up to 164 µm/s²: 3 µm/s.
+        world.Frames.HomeVelocity(world.PhysicsHomeOf(crate), earth).X.Should().BeApproximately(velocity.X, 1e-5);
+    }
+
+    [Fact]
     public void AGroupThatStartsToFallAtOrbitalSpeedKeepsTheVelocityOfEachBodyToAMicrometerPerSecond()
     {
         // Two crates 10,000 km out rest in one numeric frame, then speed up to orbital speed, far above the 1,000 m/s from
