@@ -9,12 +9,15 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class RouterTests
 {
+    /// <summary>The harness that every test of this class routes in. A subclass runs the same tests on the workers.</summary>
+    private protected virtual RouterHarness NewHarness() => new();
+
     // ---- The order of the sources -------------------------------------------------------------------------------------
 
     [Fact]
     public void AnInboxListsEngineEventsThenOutboxMessagesThenDueDelayedSendsThenPostedEvents()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
 
         // Added in the opposite order of the routing order on purpose.
@@ -31,7 +34,7 @@ public class RouterTests
     [Fact]
     public void AnInboxListsTheChunkOutboxesInChunkOrderWhateverOrderTheyWereFilledIn()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
 
         h.Send(2, a, new Ping { Value = 30 });
@@ -48,7 +51,7 @@ public class RouterTests
     [Fact]
     public void DelayedSendsDueTogetherAndSentOnTheSameTickKeepChunkOrderThenSendOrder()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
 
         h.SendAt(1, 5, a, new Ping { Value = 31 });
@@ -63,7 +66,7 @@ public class RouterTests
     [Fact]
     public void ADelayedSendThatWasQueuedEarlierStaysAheadOfOneQueuedLaterWhateverTheirChunks()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
 
         // Chunk 1 sends first and chunk 0 sends one routing later, and both are due at routing 5.
@@ -79,7 +82,7 @@ public class RouterTests
     [Fact]
     public void ADelayedSendWaitsForItsDueRoutingAndJoinsOnlyThatOne()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         h.SendAt(0, 6, a, new Ping { Value = 1 });
 
@@ -99,7 +102,7 @@ public class RouterTests
     [Fact]
     public void DelayedSendsJoinTheRoutingOfTheirOwnDueTickWhateverOrderTheyWereSentIn()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
 
         // The due ticks alternate, so that no two neighbours in the chunk's list share a bucket.
@@ -119,7 +122,7 @@ public class RouterTests
     [Fact]
     public void ATimerThatHasFiredIsReusedWithoutReplayingItsMessages()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         h.SendAt(0, 1, a, new Ping { Value = 1 });
         h.Route(tick: 1);
@@ -134,7 +137,7 @@ public class RouterTests
     [Fact]
     public void AMessageIsRoutedOnceWhicheverSourceItCameFrom()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         h.Router.AddEngineEvent(Event.Create(a, Entity.Null, new Ping { Value = 1 }));
         h.Send(0, a, new Ping { Value = 2 });
@@ -154,7 +157,7 @@ public class RouterTests
     [Fact]
     public void AnEventIsStoredOnceHoweverManyRecipientsItHas()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         for (int i = 0; i < 10; i++)
             h.Spawn(EventMask.Of<Ping>());
         h.Send(0, new Broadcast(), new Ping { Value = 1 });
@@ -168,7 +171,7 @@ public class RouterTests
     [Fact]
     public void AnInboxStaysInRoutingOrderWhenTheRecipientsOfNeighbouringEventsInterleave()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         var everyone = new List<Entity>();
         for (int i = 0; i < 10; i++)
             everyone.Add(h.Spawn(EventMask.Of<Ping>()));
@@ -195,7 +198,7 @@ public class RouterTests
     [Fact]
     public void InboxesStayCompleteAndInOrderWhenEventsAndDeliveriesOutgrowTheStartingBuffers()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity[] entities = [h.Spawn(EventMask.Of<Ping>()), h.Spawn(EventMask.Of<Ping>()), h.Spawn(EventMask.Of<Ping>())];
 
         // 300 direct sends, value i to entity i mod 3, then 50 broadcasts: 350 events and 300 + 150 deliveries.
@@ -219,7 +222,7 @@ public class RouterTests
     [Fact]
     public void ARoutingReplacesTheInboxesOfTheRoutingBefore()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         Entity b = h.Spawn(EventMask.Of<Ping>());
         h.Send(0, a, new Ping { Value = 1 });
@@ -238,7 +241,7 @@ public class RouterTests
     [Fact]
     public void AnEntityThatTakesAReleasedSlotStartsWithAnEmptyInbox()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity old = h.Spawn(EventMask.Of<Ping>());
         Entity other = h.Spawn(EventMask.Of<Ping>());
         h.Send(0, old, new Ping { Value = 1 });
@@ -259,7 +262,7 @@ public class RouterTests
     [Fact]
     public void AnEntityThatIsLiveForTheFirstTimeAfterTheLastRoutingHasAnEmptyInbox()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         h.Send(0, a, new Ping { Value = 1 });
         h.Route(tick: 0);

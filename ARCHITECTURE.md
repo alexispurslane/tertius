@@ -177,6 +177,13 @@ Each chunk of 64 entities owns an outbox for the tick. Outboxes belong to chunks
 
 Each inbox then has the same order in every run with the same inputs. Delayed messages wait in a timer queue keyed by tick, and they join the routing on the tick that they are due.
 
+A routing of 6,000 messages or more runs on the workers, in two phases of work items. In the first phase, each block of chunks copies its outboxes into the routed list and expands its messages. A block keeps its pairs in one cell per slot range, which is a run of entity slots. In the second phase, each slot range sorts its cells into the inboxes of its slots. A smaller routing runs the same phases with one block and one slot range on the sync thread. Both give the same inboxes bit for bit, because no order depends on the threads:
+
+- Each outbox goes to an offset in the routed list that a serial pass computes in chunk order.
+- Every message of a block comes before every message of the next block.
+- A slot range reads its cells in block order, so each inbox lists its messages in routing order, as one stable sort of the whole list does.
+- Each slot range writes its pairs from an offset that a serial pass computes in slot order.
+
 ### The component pipeline
 
 ```csharp

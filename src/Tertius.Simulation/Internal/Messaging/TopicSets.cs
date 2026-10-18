@@ -21,10 +21,11 @@ namespace Tertius.Simulation;
 /// <item>Changes apply before the next read, and readers see every set in slot order, so expansion does not depend
 /// on the order in which the changes were made.</item>
 /// </list>
-/// Only the sync point, or the ticking thread outside a tick, calls this class. The one exception is
+/// Only the sync point, or the ticking thread outside a tick, calls this class. There are two exceptions.
 /// <see cref="MembersOf"/>, which the gameplay workers call to run entity queries: the world calls
 /// <see cref="SettleMembers"/> before the gameplay part of each tick, and then nothing changes the member sets until it
-/// ends, so the workers only read them.
+/// ends, so the workers only read them. And <see cref="RecipientsOf"/>, which the workers of a large routing call: the
+/// router calls <see cref="Settle"/> first, and nothing changes the sets during the routing.
 /// </para>
 /// </remarks>
 internal sealed class TopicSets
@@ -143,6 +144,21 @@ internal sealed class TopicSets
         foreach (EntitySet? members in frameMembers)
             if (members is { HasQueuedChanges: true })
                 _ = members.Items;
+    }
+
+    /// <summary>
+    /// Applies the queued changes of every set, so that the workers of a routing can expand topic messages without a
+    /// race: a set applies its changes when it is next read, and two workers must not be its first readers at once.
+    /// </summary>
+    public void Settle()
+    {
+        SettleMembers();
+        foreach (EntitySet? subscribers in frameSubscribers)
+            if (subscribers is { HasQueuedChanges: true })
+                _ = subscribers.Items;
+        foreach (EntitySet? subscribers in named)
+            if (subscribers is { HasQueuedChanges: true })
+                _ = subscribers.Items;
     }
 
     /// <summary>

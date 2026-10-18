@@ -61,4 +61,22 @@ internal sealed class RefList<T>
     }
 
     public void Clear() => Truncate(0);
+
+    /// <summary>
+    /// Sets the count, for a caller that then writes every item below it, so that the items it keeps are not cleared
+    /// first. Shrinking drops items as <see cref="Truncate"/> does. Growing exposes the items past the old count as the
+    /// array holds them: default for a type with references, because the list clears every such item it drops. A
+    /// negative count throws, as <see cref="Truncate"/> does.
+    /// </summary>
+    public void SetCount(int newCount)
+    {
+        if (newCount <= count)
+        {
+            Truncate(newCount);
+            return;
+        }
+        if (newCount > items.Length)
+            Array.Resize(ref items, Math.Max(newCount, items.Length * 2));
+        count = newCount;
+    }
 }

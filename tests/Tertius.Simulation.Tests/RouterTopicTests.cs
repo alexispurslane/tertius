@@ -8,12 +8,15 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class RouterTopicTests
 {
+    /// <summary>The harness that every test of this class routes in. A subclass runs the same tests on the workers.</summary>
+    private protected virtual RouterHarness NewHarness() => new();
+
     private static readonly Topic Squad = Topics.Get("tests.routertopic.squad");
 
     [Fact]
     public void AFrameTopicReachesTheMembersOfThatFrameAndNobodyInAnotherFrame()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         FrameHandle bay = RouterHarness.Frame(index: 0, generation: 1);
         FrameHandle hangar = RouterHarness.Frame(index: 1, generation: 1);
         h.Topics.AddFrame(bay);
@@ -31,7 +34,7 @@ public class RouterTopicTests
     [Fact]
     public void AFrameTopicReachesMembersAndSubscribersOnceInSlotOrder()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         FrameHandle bay = RouterHarness.Frame(index: 0, generation: 1);
         h.Topics.AddFrame(bay);
         Entity outsider = h.Spawn(EventMask.Of<Ping>());
@@ -53,7 +56,7 @@ public class RouterTopicTests
     [Fact]
     public void AMessageToTheTopicOfADeadFrameReachesNobody()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         FrameHandle bay = RouterHarness.Frame(index: 3, generation: 1);
         h.Topics.AddFrame(bay);
         Entity inside = h.Spawn(EventMask.Of<Ping>(), bay);
@@ -73,7 +76,7 @@ public class RouterTopicTests
     [Fact]
     public void AMessageToAnOlderGenerationOfAFrameIndexDoesNotReachTheFrameThatReusesTheIndex()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         FrameHandle first = RouterHarness.Frame(index: 3, generation: 1);
         h.Topics.AddFrame(first);
         Entity inside = h.Spawn(EventMask.Of<Ping>(), first);
@@ -94,7 +97,7 @@ public class RouterTopicTests
     [Fact]
     public void AFrameTopicWithoutAGenerationReachesNobody()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         FrameHandle bay = RouterHarness.Frame(index: 2, generation: 1);
         h.Topics.AddFrame(bay);
         Entity inside = h.Spawn(EventMask.Of<Ping>(), bay);
@@ -109,7 +112,7 @@ public class RouterTopicTests
     [Fact]
     public void ASubscriberToAFramesTopicDoesNotHearTheNextFrameAtItsIndex()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         FrameHandle first = RouterHarness.Frame(index: 3, generation: 1);
         h.Topics.AddFrame(first);
         Entity watcher = h.Spawn(EventMask.Of<Ping>());
@@ -128,7 +131,7 @@ public class RouterTopicTests
     [Fact]
     public void ANewFrameAtAReusedIndexStartsWithNoMembersOrSubscribers()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         FrameHandle first = RouterHarness.Frame(index: 2, generation: 1);
         h.Topics.AddFrame(first);
         Entity inside = h.Spawn(EventMask.Of<Ping>(), first);
@@ -151,7 +154,7 @@ public class RouterTopicTests
     [Fact]
     public void TopicsThatNoSetBacksReachNobody()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity listener = h.Spawn(EventMask.Of<Ping>());
         h.Subscribe(listener, Squad);
 
@@ -174,7 +177,7 @@ public class RouterTopicTests
     [Fact]
     public void NamedTopicsCanBeSubscribedInAnyIdOrder()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         int[] ids = [Squad.Id + 3, Squad.Id + 4, Squad.Id + 1, Squad.Id];
         foreach (int id in ids)
