@@ -238,7 +238,7 @@ Read this code in this order:
 4. `AddForce` at [line 154](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Entities/Self.cs#L154) and `SetVelocity` at [line 169](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Entities/Self.cs#L169) of [Self.cs](src/Tertius.Simulation/Entities/Self.cs), in `BodyHandle`. A push on a body is an intent in the row of its own entity. Forces add up, and a velocity keeps the last value.
 5. [ARCHITECTURE.md](ARCHITECTURE.md), [lines 101 to 113](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/ARCHITECTURE.md#L101-113), on who owns a transform. There is no general command buffer.
 
-The part "Messages that allocate nothing" shows how a message reaches the other entity.
+The part "Messages and hot paths that allocate nothing" shows how a message reaches the other entity.
 
 These tests prove it:
 
@@ -246,7 +246,7 @@ These tests prove it:
 
 No test checks that the write methods of `World` throw during a tick. Subscriptions, physics queries and added components also wait for a later point in the tick. So the rule is "no general command buffer", not "only spawn and destroy wait".
 
-### Messages that allocate nothing
+### Messages and hot paths that allocate nothing
 
 Read this code in this order:
 
@@ -257,6 +257,14 @@ Read this code in this order:
 5. `CopyInbox` at [line 96](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Messaging/Router.cs#L96) of the same file. [Line 161](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Tick.cs#L161) of [World.Tick.cs](src/Tertius.Simulation/World.Tick.cs) calls it on the worker that runs the entity. So the copy for each recipient happens on the workers, not at the sync point.
 6. `Topic` at [line 37](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Handles/Entity.cs#L37) of [Entity.cs](src/Tertius.Core/Handles/Entity.cs). Every frame has a topic, and every entity in the frame subscribes to it.
 7. `Send` at [line 27](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/Outbox.cs#L27) and `SendAfter` at [line 38](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/Outbox.cs#L38) of [Outbox.cs](src/Tertius.Simulation/Events/Outbox.cs). A message arrives on the next tick, or after a delay.
+8. The comment at [lines 6 to 9](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventList.cs#L6-9) of [EventList.cs](src/Tertius.Simulation/Events/EventList.cs). After an `EventBuffer` grows to its longest list, filling it again allocates nothing. [Lines 10 and 11](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Tick.cs#L10-11) and [line 139](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Tick.cs#L139) of [World.Tick.cs](src/Tertius.Simulation/World.Tick.cs) keep one buffer for each worker thread.
+9. `EventList` at [line 158](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventList.cs#L158) of the same file. It is a `ref struct`, so it lives on the stack. `Of<T>` at [line 239](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventList.cs#L239) returns a query struct.
+10. `EventsOf<T>` at [line 12](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventsOf.cs#L12) of [EventsOf.cs](src/Tertius.Simulation/Events/EventsOf.cs). Its enumerator yields references at [lines 61 to 65](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventsOf.cs#L61-65), so a `foreach` edits each payload in place.
+11. `RefPredicate` at [lines 29 to 36](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Components/IComponent.cs#L29-36) of [IComponent.cs](src/Tertius.Simulation/Components/IComponent.cs). A predicate takes the item by reference and one value of state, so a static lambda needs no capture.
+12. The remarks at [lines 16 to 24](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Queries/EntityQuery.cs#L16-24) of [EntityQuery.cs](src/Tertius.Simulation/Queries/EntityQuery.cs). The masks, one `In`, one `Near` and one `Where` are inline. If an entity's run tries to build the heap part, `Append` at [line 208](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Queries/EntityQuery.cs#L208) throws.
+13. `QueryBuffers` at [line 107](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Queries/QueryPlanner.cs#L107) of [QueryPlanner.cs](src/Tertius.Simulation/Queries/QueryPlanner.cs). Each thread has a pool of buffers for the query runs that sort their candidates.
+14. The comment at [lines 7 to 12](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Physics/Internal/ContactListener.cs#L7-12) of [ContactListener.cs](src/Tertius.Physics/Internal/ContactListener.cs). A contact callback goes straight to the handler with the native pointers. It skips the lookup of managed wrappers in JoltPhysicsSharp.
+15. [EventQueryBenchmarks.cs](benchmarks/Tertius.Benchmarks/EventQueryBenchmarks.cs) compares `EventList.Of<T>()` with a `for` loop and with LINQ.
 
 These tests prove it:
 
@@ -265,8 +273,13 @@ These tests prove it:
 - `APayloadEditedByOneRecipientOfABroadcastIsUnchangedForTheOthers` in [PipelineEventsTests.cs](tests/Tertius.Simulation.Tests/PipelineEventsTests.cs).
 - `AMessageSentOnOneTickIsHandledOnTheNext` in [MessagingTests.cs](tests/Tertius.Simulation.Tests/MessagingTests.cs) of the Simulation tests, and `ADelayedSendArrivesOneTickAfterItsDueTick` in [MessagingDelayedTests.cs](tests/Tertius.Simulation.Tests/MessagingDelayedTests.cs).
 - `AFrameTopicReachesEveryEntityInThatFrameOnly` in [MessagingTopicTests.cs](tests/Tertius.Simulation.Tests/MessagingTopicTests.cs).
+- `ASteadyStateTickAllocatesNothingOnTheTickingThread` in [AllocationTests.cs](tests/Tertius.Simulation.Tests/AllocationTests.cs). 2,000 entities move, send direct, topic and delayed messages, and run every form of event query. After 60 ticks of warm-up, the test expects 0 bytes per tick over 100 ticks.
+- `SubscriptionChurnAllocatesNothingPerTickOnceTheWorldIsWarm` and `EntityQueryRunsAllocateNothingOnceTheWorldIsWarm` in the same file.
+- `SteadyStateUseDoesNotAllocate` in [EventListTests.cs](tests/Tertius.Simulation.Tests/EventListTests.cs) and `NoQueryAllocates` in [EventQueryTests.cs](tests/Tertius.Simulation.Tests/EventQueryTests.cs).
+- `StepsWithManyPersistingContactsAndAPendingPairAllocateNothingOnAnyThread` and `StepsWithContactsThroughAGhostThatStartAndEndAllocateNothingOnAnyThread` in [ContactListenerTests.cs](tests/Tertius.Physics.Tests/ContactListenerTests.cs). They count the bytes of all threads.
+- `ASteadyStateTickWithEveryKindOfUpAllocatesNothing` in [GravityAllocationTests.cs](tests/Tertius.Simulation.Tests/GravityAllocationTests.cs).
 
-The part "Hot paths allocate nothing in C#" names the tests that count the bytes of ticks that send messages.
+The tests in AllocationTests.cs run one worker and count the bytes of the ticking thread only. The tests that tick a world turn `WorldOptions.DebugChecks` off, because its checks allocate. The physics tests take the smaller of two windows, because the runtime can compile a hot method again once.
 
 ### Everyone reads the last tick
 
@@ -370,29 +383,6 @@ These tests prove it:
 - `AComponentCanSpawnABlueprintDuringATick` in the same file.
 
 A spawn also looks up one type id for each component, at [line 375](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Entities.cs#L375) of [World.Entities.cs](src/Tertius.Simulation/World.Entities.cs).
-
-### Hot paths allocate nothing in C#
-
-Read this code in this order:
-
-1. The comment at [lines 6 to 9](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventList.cs#L6-9) of [EventList.cs](src/Tertius.Simulation/Events/EventList.cs). After an `EventBuffer` grows to its longest list, filling it again allocates nothing. [Lines 10 and 11](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Tick.cs#L10-11) and [line 139](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Tick.cs#L139) of [World.Tick.cs](src/Tertius.Simulation/World.Tick.cs) keep one buffer for each worker thread.
-2. `EventList` at [line 158](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventList.cs#L158) of the same file. It is a `ref struct`, so it lives on the stack. `Of<T>` at [line 239](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventList.cs#L239) returns a query struct.
-3. `EventsOf<T>` at [line 12](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventsOf.cs#L12) of [EventsOf.cs](src/Tertius.Simulation/Events/EventsOf.cs). Its enumerator yields references at [lines 61 to 65](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventsOf.cs#L61-65), so a `foreach` edits each payload in place.
-4. `RefPredicate` at [lines 29 to 36](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Components/IComponent.cs#L29-36) of [IComponent.cs](src/Tertius.Simulation/Components/IComponent.cs). A predicate takes the item by reference and one value of state, so a static lambda needs no capture.
-5. The remarks at [lines 16 to 24](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Queries/EntityQuery.cs#L16-24) of [EntityQuery.cs](src/Tertius.Simulation/Queries/EntityQuery.cs). The masks, one `In`, one `Near` and one `Where` are inline. If an entity's run tries to build the heap part, `Append` at [line 208](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Queries/EntityQuery.cs#L208) throws.
-6. `QueryBuffers` at [line 107](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Queries/QueryPlanner.cs#L107) of [QueryPlanner.cs](src/Tertius.Simulation/Queries/QueryPlanner.cs). Each thread has a pool of buffers for the query runs that sort their candidates.
-7. The comment at [lines 7 to 12](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Physics/Internal/ContactListener.cs#L7-12) of [ContactListener.cs](src/Tertius.Physics/Internal/ContactListener.cs). A contact callback goes straight to the handler with the native pointers. It skips the lookup of managed wrappers in JoltPhysicsSharp.
-8. [EventQueryBenchmarks.cs](benchmarks/Tertius.Benchmarks/EventQueryBenchmarks.cs) compares `EventList.Of<T>()` with a `for` loop and with LINQ.
-
-These tests prove it:
-
-- `ASteadyStateTickAllocatesNothingOnTheTickingThread` in [AllocationTests.cs](tests/Tertius.Simulation.Tests/AllocationTests.cs). 2,000 entities move, send direct, topic and delayed messages, and run every form of event query. After 60 ticks of warm-up, the test expects 0 bytes per tick over 100 ticks.
-- `SubscriptionChurnAllocatesNothingPerTickOnceTheWorldIsWarm` and `EntityQueryRunsAllocateNothingOnceTheWorldIsWarm` in the same file.
-- `SteadyStateUseDoesNotAllocate` in [EventListTests.cs](tests/Tertius.Simulation.Tests/EventListTests.cs) and `NoQueryAllocates` in [EventQueryTests.cs](tests/Tertius.Simulation.Tests/EventQueryTests.cs).
-- `StepsWithManyPersistingContactsAndAPendingPairAllocateNothingOnAnyThread` and `StepsWithContactsThroughAGhostThatStartAndEndAllocateNothingOnAnyThread` in [ContactListenerTests.cs](tests/Tertius.Physics.Tests/ContactListenerTests.cs). They count the bytes of all threads.
-- `ASteadyStateTickWithEveryKindOfUpAllocatesNothing` in [GravityAllocationTests.cs](tests/Tertius.Simulation.Tests/GravityAllocationTests.cs).
-
-The tests in AllocationTests.cs run one worker and count the bytes of the ticking thread only. The tests that tick a world turn `WorldOptions.DebugChecks` off, because its checks allocate. The physics tests take the smaller of two windows, because the runtime can compile a hot method again once.
 
 ## Third-party code
 
