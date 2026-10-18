@@ -141,13 +141,12 @@ public sealed class CarryTests : IDisposable
     private Entity SpawnCrate(FrameHandle frame, Double3 at, Vector3 velocity = default) =>
         world.Spawn(Spec.Spawn(frame, new DPose(at, DQuaternion.Identity), velocity));
 
-    private void Post(InputKind kind, int code = 0, Vector2 delta = default) =>
-        world.Post(Event.Create(Topics.Input, Entity.Null, new InputEvent { Kind = kind, Code = code, Delta = delta }));
+    private void Post(InputEvent e) => world.Post(Event.Create(Topics.Input, Entity.Null, e));
 
     private void PressE()
     {
-        Post(InputKind.KeyDown, (int)Key.E);
-        Post(InputKind.KeyUp, (int)Key.E);
+        Post(InputEvent.KeyDown((int)Key.E));
+        Post(InputEvent.KeyUp((int)Key.E));
     }
 
     /// <summary>
@@ -157,11 +156,11 @@ public sealed class CarryTests : IDisposable
     private void UseCrate(Entity crate, Entity user) =>
         world.Post(Event.Create(crate, user, new Use { User = user }));
 
-    private void ButtonDown() => Post(InputKind.MouseDown, (int)MouseButton.Left);
+    private void ButtonDown() => Post(InputEvent.MouseDown((int)MouseButton.Left));
 
-    private void ButtonUp() => Post(InputKind.MouseUp, (int)MouseButton.Left);
+    private void ButtonUp() => Post(InputEvent.MouseUp((int)MouseButton.Left));
 
-    private void MoveMouse(float right, float down) => Post(InputKind.MouseMove, delta: new Vector2(right, down));
+    private void MoveMouse(float right, float down) => Post(InputEvent.MouseMove(new Vector2(right, down)));
 
     /// <summary>Every live entity that has a component of type <typeparamref name="T"/>, in slot order.</summary>
     private List<Entity> With<T>() where T : class, IComponent
@@ -667,7 +666,7 @@ public sealed class CarryTests : IDisposable
     {
         (FrameHandle space, Entity person) = FloatInSpace();
         TakeACrate(space, person);
-        Post(InputKind.MouseDown, (int)other);
+        Post(InputEvent.MouseDown((int)other));
         Ticks(30);
         // The release of the left button throws only a throw that a press of the left button charged.
         ButtonUp();
@@ -687,7 +686,7 @@ public sealed class CarryTests : IDisposable
         TakeACrate(space, person);
         ButtonDown();
         Ticks(15);
-        Post(InputKind.MouseUp, (int)other);
+        Post(InputEvent.MouseUp((int)other));
         Ticks(15);
 
         With<Crate>().Should().BeEmpty("the release of another button throws nothing");

@@ -98,12 +98,11 @@ public sealed class PersonControlTests : IDisposable
             world.Tick();
     }
 
-    private void Post(InputKind kind, int code = 0, Vector2 delta = default) =>
-        world.Post(Event.Create(Topics.Input, Entity.Null, new InputEvent { Kind = kind, Code = code, Delta = delta }));
+    private void Post(InputEvent e) => world.Post(Event.Create(Topics.Input, Entity.Null, e));
 
-    private void Press(Key key) => Post(InputKind.KeyDown, (int)key);
+    private void Press(Key key) => Post(InputEvent.KeyDown((int)key));
 
-    private void MoveMouse(float right, float down) => Post(InputKind.MouseMove, delta: new Vector2(right, down));
+    private void MoveMouse(float right, float down) => Post(InputEvent.MouseMove(new Vector2(right, down)));
 
     /// <summary>
     /// The velocity along the floor, in the room's axes, after the posted input has acted for a while. The part along
@@ -154,7 +153,7 @@ public sealed class PersonControlTests : IDisposable
     {
         Press(key);
         Ticks(20);
-        Post(InputKind.KeyUp, (int)key);
+        Post(InputEvent.KeyUp((int)key));
 
         ExpectNear(WalkingVelocity(), Vector3.Zero, 0.05f);
     }
@@ -188,8 +187,8 @@ public sealed class PersonControlTests : IDisposable
         // In a second room, gravity pulls along -X, so physics turns the person's +Y to +X: a quarter turn about -Z.
         Entity sideways = StandOnAFloor(Vector3.UnitX);
         world.Camera = sideways;
-        world.Post(Event.Create(sideways, Entity.Null, new InputEvent { Kind = InputKind.MouseMove, Delta = new Vector2(-MathF.PI / 2 / PersonControl.TurnPerPixel, 0) }));
-        world.Post(Event.Create(sideways, Entity.Null, new InputEvent { Kind = InputKind.KeyDown, Code = (int)Key.W }));
+        world.Post(Event.Create(sideways, Entity.Null, InputEvent.MouseMove(new Vector2(-MathF.PI / 2 / PersonControl.TurnPerPixel, 0))));
+        world.Post(Event.Create(sideways, Entity.Null, InputEvent.KeyDown((int)Key.W)));
 
         // The view's quarter turn left takes forward from -Z to -X in the person's axes, and the body's turn takes -X to
         // +Y in the room's: along the floor, which lies across +X.
@@ -265,7 +264,7 @@ public sealed class PersonControlTests : IDisposable
         double standing = world.Snapshot.PoseInOwnFrame(person).Position.Y;
         // Space goes up at once, so that its thrust does not add to the jump.
         Press(Key.Space);
-        Post(InputKind.KeyUp, (int)Key.Space);
+        Post(InputEvent.KeyUp((int)Key.Space));
         Ticks(3 + 24);
 
         // A jump at 4 m/s rises 0.82 m in 0.41 s, about 24 ticks. The jump speed is an instant velocity and physics moves
@@ -280,9 +279,9 @@ public sealed class PersonControlTests : IDisposable
         // The person handles all four events in one tick, in the order of the posts. The press that comes second must not
         // cancel the first one. Space goes up at the end, so that its thrust does not add to the jump.
         Press(Key.Space);
-        Post(InputKind.KeyUp, (int)Key.Space);
+        Post(InputEvent.KeyUp((int)Key.Space));
         Press(Key.Space);
-        Post(InputKind.KeyUp, (int)Key.Space);
+        Post(InputEvent.KeyUp((int)Key.Space));
         Ticks(3 + 24);
 
         // The plain jump of an instant 4 m/s, after 25 chords (see SpaceMakesAStandingPersonJump).
@@ -311,9 +310,9 @@ public sealed class PersonControlTests : IDisposable
         Press(Key.W);
         Ticks(20);
         Press(Key.Space);
-        Post(InputKind.KeyUp, (int)Key.Space);
+        Post(InputEvent.KeyUp((int)Key.Space));
         Ticks(10);
-        Post(InputKind.KeyUp, (int)Key.W);
+        Post(InputEvent.KeyUp((int)Key.W));
         world.Snapshot.IsStanding(person).Should().BeFalse("the person jumped");
         world.Snapshot.VelocityInOwnFrame(person).Z.Should().BeLessThan(-PersonControl.WalkSpeed, "the person keeps its walk in the air, and W thrusts it on");
         int ticks = 0;
@@ -333,7 +332,7 @@ public sealed class PersonControlTests : IDisposable
         Press(Key.W);
         Ticks(20);
         Press(Key.Space);
-        Post(InputKind.KeyUp, (int)Key.Space);
+        Post(InputEvent.KeyUp((int)Key.Space));
         Ticks(10);
         world.Snapshot.IsStanding(person).Should().BeFalse("the person jumped");
         int ticks = 0;
@@ -360,14 +359,14 @@ public sealed class PersonControlTests : IDisposable
     {
         double standing = world.Snapshot.PoseInOwnFrame(person).Position.Y;
         Press(Key.Space);
-        Post(InputKind.KeyUp, (int)Key.Space);
+        Post(InputEvent.KeyUp((int)Key.Space));
         // Physics jumps the person in the step of the third tick. The person touches the floor in the step of the 51st
         // tick, after 49 chords of its instant 4 m/s, and physics stands it again from the step of the 52nd. The test
         // posts the second press ticksBefore ticks before that tick. Space goes up at once, so that its thrust does not
         // change the jump.
         Ticks(52 - 1 - ticksBefore);
         Press(Key.Space);
-        Post(InputKind.KeyUp, (int)Key.Space);
+        Post(InputEvent.KeyUp((int)Key.Space));
         Ticks(ticksBefore);
         world.Snapshot.IsStanding(person).Should().BeFalse("the person is still in the air");
         Ticks(1);
@@ -407,7 +406,7 @@ public sealed class PersonControlTests : IDisposable
         // The person handles all three events in one tick, in the order of the posts. The press that comes second must
         // not cancel the first one, and the two presses make one use between them.
         Press(Key.E);
-        Post(InputKind.KeyUp, (int)Key.E);
+        Post(InputEvent.KeyUp((int)Key.E));
         Press(Key.E);
         Ticks(10);
 
@@ -533,7 +532,7 @@ public sealed class PersonControlTests : IDisposable
         Entity floating = FloatInSpace();
         Press(Key.D);
         Ticks(30);
-        Post(InputKind.KeyUp, (int)Key.D);
+        Post(InputEvent.KeyUp((int)Key.D));
         Ticks(5);
         Vector3 drift = world.Snapshot.VelocityInOwnFrame(floating);
         Ticks(60);
@@ -552,7 +551,7 @@ public sealed class PersonControlTests : IDisposable
         // The person handles the press in the second tick. Space goes up right after, so that its thrust adds only to its
         // own case. Physics drops the jump of a second press of Space, because the person is in the air by then.
         Ticks(2);
-        Post(InputKind.KeyUp, (int)Key.Space);
+        Post(InputEvent.KeyUp((int)Key.Space));
         Press(key);
         // Physics jumps the person in the step of the third tick and reports it in the air from the step of the fourth.
         // The person reads that report in the fifth tick, so the thrust acts from the step of the sixth tick on. With C the
@@ -583,7 +582,7 @@ public sealed class PersonControlTests : IDisposable
             top = Math.Max(top, world.Snapshot.PoseInOwnFrame(person).Position.Y);
         }
         double landed = world.Snapshot.PoseInOwnFrame(person).Position.Y;
-        Post(InputKind.KeyUp, (int)Key.Space);
+        Post(InputEvent.KeyUp((int)Key.Space));
         Ticks(3 + 10);
 
         // Physics jumps the person in the step of the third tick, and held Space thrusts it up from the step of the

@@ -44,7 +44,7 @@ A scene is a C# function that fills a new `World` and gives scene ids to some of
 - The run ends after the last step.
 - `to` is a union with `kind`: `{"kind": "entity", "id": "box"}`, `{"kind": "topic", "name": "input"}`, `{"kind": "frame", "id": "ship"}` (every entity in the frame that the entity `ship` owns), or `{"kind": "broadcast"}`.
 - `event` is the C# name of a payload type, such as `InputEvent`. The runner finds the type through reflection over the loaded assemblies. (User) Two payload types with one name make that name an error.
-- `payload` holds the fields of the payload by their camelCase names. A missing `payload` is the same as `{}`. A key for a read-only member is an unknown key, and a number out of the range of its field is an error.
+- `payload` holds the fields of the payload by their camelCase names. A missing `payload` is the same as `{}`. The exception is `InputEvent`, a union with its own JSON form: `{"kind":"keyDown","code":87}` for a key or a mouse button (`keyDown`, `keyUp`, `mouseDown`, `mouseUp`), and `{"kind":"mouseMove","delta":[3,-4]}` for a move or a scroll (`mouseMove`, `scroll`). A kind has exactly its own member, so a missing kind or member, an unknown kind and a member of another kind are errors. A key for a read-only member is an unknown key, and a number out of the range of its field is an error.
 - A target, or an entity field of a payload, must name a live entity.
 - A payload type must fit an event: no field that holds a reference, and at most 48 bytes. The runner checks this, because a type that reflection finds passed no compiler check.
 - The JSON follows the conventions of the content formats design: camelCase keys and enum values, `[x, y, z]` vectors, `[x, y, z, w]` quaternions, scene ids for entities, no comments, and an unknown key is an error.
@@ -110,7 +110,7 @@ dotnet run --project src/Tertius.Demo -- --script sessions/today.json --headless
 - The record holds these parts. The steps are in the order in which they happened.
   - The `scene` that you played, and the `window` size of the window.
   - A `camera` step for the world's camera at the start, if the scene gave that camera a scene id.
-  - A `post` step for every `InputEvent` that the game received, to the `input` topic. The payload is as it was posted: `kind`, `code` and `delta`, with floats that read back to the same bits.
+  - A `post` step for every `InputEvent` that the game received, to the `input` topic. The payload is as it was posted: `kind`, and then `code` for a key or a button, or `delta` for a move or a scroll, with floats that read back to the same bits.
   - A `camera` step for every switch of the view with V.
   - A `run` step for the ticks between any two of these steps.
   - At the end, a `run` step for the ticks since the last step, and a `dump` named `end`.

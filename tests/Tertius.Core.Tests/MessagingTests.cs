@@ -107,7 +107,8 @@ public class MessagingTests
     {
         EngineEvents.Register();
         Assert.True(EventType<Tick>.Id >= 0);
-        var c = Event.Create(Topics.Input, Entity.Null, new InputEvent { Kind = InputKind.MouseMove, Delta = new Vector2(3, 4) });
-        Assert.Equal(new Vector2(3, 4), c.As<InputEvent>().Delta);
+        var c = Event.Create(Topics.Input, Entity.Null, InputEvent.MouseMove(new Vector2(3, 4)));
+        Assert.True(c.As<InputEvent>().TryGetValue(out MouseMoved moved));
+        Assert.Equal(new Vector2(3, 4), moved.Delta);
     }
 }
