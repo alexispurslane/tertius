@@ -240,14 +240,14 @@ public sealed class PhysicsOutputCheck
 
     /// <summary>
     /// Why physics cannot release a step record of <paramref name="frame"/>, or null when it can: physics moves only a hull,
-    /// the body of the owner of a frame that has a parent, and a static hull moves only by a teleport, which this ticket
-    /// does not give it yet. The fault starts with the frame, because a stale frame has no owner to blame.
+    /// the body of the owner of a frame that has a parent. Every kind of hull can move: a dynamic one by the update, a
+    /// kinematic one by its sample, and a static one by its owner's teleport. The fault starts with the frame, because a
+    /// stale frame has no owner to blame.
     /// </summary>
     private static string? FrameRecordFault<TFacts>(FrameHandle frame, FrameTree frames, TFacts facts) where TFacts : IPhysicsOutputFacts =>
         !frames.IsAlive(frame) ? $"the stale frame {frame}" :
         frames.TreeParent(frame).IsNull ? $"{frame}, because it is a root frame, so its owner has no hull" :
         BodyFault(frame.Entity, facts) is { } fault ? $"{frame}, because {fault}" :
-        BodyDesc.FrameHullMotion(frames.Driver(frame)) == BodyMotion.Static ? $"{frame}, because its hull is static, so physics does not move it" :
         null;
 
     /// <summary>True when <paramref name="ancestor"/> is above <paramref name="frame"/> once the earlier hand-offs are applied.</summary>

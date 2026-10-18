@@ -216,8 +216,10 @@ public sealed partial class World
     // so they live here. Every other write of Self goes straight to its subsystem.
 
     /// <summary>
-    /// The running entity's back pose, for writing. Throws <see cref="InvalidOperationException"/> if physics, an
-    /// attachment parent or a frame driver owns the transform, and <see cref="StaleEntityException"/> for a stale handle.
+    /// The running entity's back pose, for writing. Throws <see cref="InvalidOperationException"/> if physics or an
+    /// attachment parent owns the transform, and <see cref="StaleEntityException"/> for a stale handle. The owner of a frame
+    /// without a body writes its transform whatever moves the frame otherwise: the frame takes the write at the sync point of
+    /// the tick, after its sample, so the write wins for one tick (see <see cref="FollowOwners"/>).
     /// </summary>
     internal ref DPose WritableTransform(Entity entity)
     {
@@ -226,9 +228,6 @@ public sealed partial class World
         Entity parent = attachments.ParentOf(entity);
         if (!parent.IsNull)
             throw new InvalidOperationException($"{entity} is attached to {parent}, so its transform follows the parent. Change Self.AttachOffset instead.");
-        FrameHandle own = entities.OwnedFrame(entity);
-        if (!own.IsNull && Frames.Driver(own) != MotionDriver.Static)
-            throw new InvalidOperationException($"{entity} owns a {Frames.Driver(own)} frame, so the frame's motion driver sets its pose.");
         return ref entities.WritableTransform(entity);
     }
 
@@ -306,6 +305,29 @@ public sealed partial class World
     }
 
     /// <summary>
+    /// The running entity's intent, for writing a request that sets its body's motion: <paramref name="call"/>, a kinematic
+    /// target or a velocity. Throws <see cref="InvalidOperationException"/> as <see cref="WritableIntent"/> does, and also
+    /// when the body is a kinematic hull, because only a motion sample tells the frame of a kinematic hull how to follow
+    /// (see <see cref="MoveOnRails"/>): a kinematic hull takes only <c>MoveOnRails</c> and <c>Teleport</c>.
+    /// </summary>
+    internal ref PhysicsIntent WritableMotionIntent(Entity entity, string call)
+    {
+        FrameHandle own = entities.OwnedFrame(entity);
+        if (!own.IsNull && entities.Body(entity) != null && HullMotion(own) == BodyMotion.Kinematic)
+            throw new InvalidOperationException(
+                $"{entity} owns {own}, whose body is a kinematic hull, so it cannot take {call}: a kinematic hull moves only by Self.MoveOnRails and Teleport.");
+        return ref WritableIntent(entity);
+    }
+
+    /// <summary>
+    /// The motion of the hull of <paramref name="own"/>, whose owner has a body, or null when the frame has no parent: a root
+    /// frame's owner has only the frame's static interior. In this ticket the frame's driver chooses the hull's motion (see
+    /// <see cref="BodyDesc.FrameHullMotion"/>).
+    /// </summary>
+    private BodyMotion? HullMotion(FrameHandle own) =>
+        Frames.Parent(own).IsNull ? null : BodyDesc.FrameHullMotion(Frames.Driver(own));
+
+    /// <summary>
     /// Writes the running entity's motion sample for the next physics step into the written buffer of the sample table,
     /// relative to the frame that the entity is in during the tick. The last write in a tick wins. Throws
     /// <see cref="InvalidOperationException"/> if the entity owns no frame, or if its frame has a parent and the entity has
@@ -322,9 +344,9 @@ public sealed partial class World
         FrameHandle own = entities.OwnedFrame(entity);
         if (own.IsNull)
             throw new InvalidOperationException($"{entity} owns no frame, so it has no frame to move on rails.");
-        if (!Frames.Parent(own).IsNull && entities.Body(entity) != null && BodyDesc.FrameHullMotion(Frames.Driver(own)) != BodyMotion.Kinematic)
+        if (entities.Body(entity) != null && HullMotion(own) is { } motion && motion != BodyMotion.Kinematic)
             throw new InvalidOperationException(
-                $"{entity} owns {own}, whose hull is {BodyDesc.FrameHullMotion(Frames.Driver(own))}, so the hull cannot follow a motion sample: only a kinematic hull can.");
+                $"{entity} owns {own}, whose hull is {motion}, so the hull cannot follow a motion sample: only a kinematic hull can.");
         Frames.Samples.Write(own, entities.FrontRow(entity).Frame, sample);
     }
 }

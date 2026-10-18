@@ -62,8 +62,9 @@ public readonly ref struct Self
 
     /// <summary>
     /// Sets this entity's pose in <see cref="Frame"/>. The new pose takes effect at the sync point. Throws
-    /// <see cref="InvalidOperationException"/> if physics or a frame driver owns the transform, or if the entity is
-    /// attached to a parent.
+    /// <see cref="InvalidOperationException"/> if the entity has a body, which physics moves, or if it is attached to a
+    /// parent. The owner of a frame without a body can write it: the frame takes the pose at the sync point of the tick,
+    /// and a frame on rails goes back on its rails with its next sample.
     /// </summary>
     public void SetTransform(in DPose pose) => world.WritableTransform(Entity) = pose;
 
@@ -187,27 +188,34 @@ public readonly ref struct BodyHandle
 
     /// <summary>
     /// Sets the linear velocity before the next step, relative to the entity's frame, in its axes. Physics converts it
-    /// when it applies it.
+    /// when it applies it. Throws <see cref="InvalidOperationException"/> for a kinematic hull, which moves only by
+    /// <see cref="Self.MoveOnRails"/> and <see cref="Teleport"/>.
     /// </summary>
     public void SetVelocity(Double3 velocity)
     {
-        ref PhysicsIntent intent = ref Intent;
+        ref PhysicsIntent intent = ref world.WritableMotionIntent(entity, nameof(SetVelocity));
         intent.Velocity = velocity;
         intent.Flags |= IntentFlags.SetVelocity;
     }
 
-    /// <summary>Sets the angular velocity before the next step.</summary>
+    /// <summary>
+    /// Sets the angular velocity before the next step. Throws <see cref="InvalidOperationException"/> for a kinematic hull,
+    /// which moves only by <see cref="Self.MoveOnRails"/> and <see cref="Teleport"/>.
+    /// </summary>
     public void SetAngularVelocity(Vector3 velocity)
     {
-        ref PhysicsIntent intent = ref Intent;
+        ref PhysicsIntent intent = ref world.WritableMotionIntent(entity, nameof(SetAngularVelocity));
         intent.AngularVelocity = velocity;
         intent.Flags |= IntentFlags.SetAngularVelocity;
     }
 
-    /// <summary>Moves a kinematic body to <paramref name="target"/> over the next step.</summary>
+    /// <summary>
+    /// Moves a kinematic body to <paramref name="target"/> over the next step. Throws <see cref="InvalidOperationException"/>
+    /// for a kinematic hull, which moves only by <see cref="Self.MoveOnRails"/> and <see cref="Teleport"/>.
+    /// </summary>
     public void MoveKinematic(in DPose target)
     {
-        ref PhysicsIntent intent = ref Intent;
+        ref PhysicsIntent intent = ref world.WritableMotionIntent(entity, nameof(MoveKinematic));
         intent.Target = target;
         intent.Flags |= IntentFlags.KinematicTarget;
     }

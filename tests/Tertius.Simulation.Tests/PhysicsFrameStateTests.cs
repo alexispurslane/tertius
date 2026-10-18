@@ -107,25 +107,6 @@ public class PhysicsFrameStateTests
     }
 
     [Fact]
-    public void AStepRecordForAFrameWithAStaticHullBreaksAContract()
-    {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
-        FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(100),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static),
-        }));
-        faults.EditNextOutput = output =>
-            output.Frames.Add(StepRecords.Of(dock, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
-
-        Action tick = () => test.World.Tick();
-
-        tick.Should().Throw<ContractException>().WithMessage("*hull is static*");
-    }
-
-    [Fact]
     public void AFrameStateForAFrameWhoseOwnerHasNoBodyBreaksAContract()
     {
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
@@ -165,27 +146,6 @@ public class PhysicsFrameStateTests
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain($"stale frame {gone}");
         test.World.Frames.LocalPose(other).Position.Should().Be(new Double3(100, 0, 0));
-    }
-
-    [Fact]
-    public void AStepRecordForAFrameWithAStaticHullIsReportedOnceAndMovesNothing()
-    {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
-        FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            Pose = TestWorld.At(100),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static),
-        }));
-        faults.EditNextOutput = output =>
-            output.Frames.Add(StepRecords.Of(dock, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
-
-        test.Run(1);
-
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"step record of {dock}").And.Contain("hull is static");
-        test.World.Frames.LocalPose(dock).Should().Be(TestWorld.At(100));
-        test.World.PoseInOwnFrame(dock.Entity).Should().Be(TestWorld.At(100));
     }
 
     [Fact]

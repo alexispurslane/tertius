@@ -287,12 +287,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             SwitchCharacterForms();
             // Before the hull velocities, so that a new hull's accelerometer starts from its chord.
             ConvertSpawnVelocities();
+            // Before the intents, so that it never moves a static hull back from a teleport, which the tree learns only at
+            // the next sync point.
+            FollowStaticHulls();
             CaptureHullVelocities();
             ApplyIntents(context);
             // After the intents, so that the teleport of a hull on rails applies first, and the target moves the hull on
             // from there.
             AimHullsOnRails();
-            FollowStaticHulls();
             CaptureHullVelocitiesAfterIntents();
             ApplyGravity();
             UpdateCharacters();
@@ -852,6 +854,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private MotionSample PredictRecord(FrameHandle frame)
     {
         BodyRecord? hull = OwnerRecord(frame);
+        // A static hull that teleported in the step stands at the teleport's pose, at rest.
+        if (hull is { Motion: BodyMotion.Static, HasPrimary: true } && hull.TeleportStep == stepIndex)
+            return new MotionSample(hull.TeleportPose, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, frames.ProperAcceleration(frame));
         if ((hull is null || hull.Motion == BodyMotion.Kinematic) && stepSamples.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
         {
             if (hull is { HasPrimary: true } && frames.InOrbitFrame(frame))

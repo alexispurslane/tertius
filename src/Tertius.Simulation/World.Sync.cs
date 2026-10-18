@@ -219,10 +219,12 @@ public sealed partial class World
     /// record per frame" in docs/plans/rails-components.md). The owner's kind decides where the record comes from:
     /// <list type="bullet">
     /// <item>A hull, the body of the owner of a frame that has a parent: the record that physics released for it, relative to
-    /// the frame's tree parent. Physics releases one when the hull is dynamic, or kinematic with a sample.</item>
+    /// the frame's tree parent. Physics releases one when the hull is dynamic, kinematic with a sample, or static and
+    /// teleported in the step.</item>
     /// <item>No hull: the sample of the step in the applied buffer, relative to the frame's semantic parent, and then a write
-    /// of the owner's transform in the tick, which the sync point turns into a record with no velocity. The write comes
-    /// last, so it wins for one tick, and the next sample puts the frame back on its rails.</item>
+    /// of the owner's transform in the tick, which the sync point turns into a record with no velocity that keeps the frame's
+    /// proper acceleration. The write comes last, so it wins for one tick, and the next sample puts the frame back on its
+    /// rails.</item>
     /// </list>
     /// A frame without a record holds still in its tree parent. Each record goes into the frame's slot of the applied buffer,
     /// relative to the frame's semantic parent, unless the slot holds a sample already, so that after step 4 the followed
@@ -251,13 +253,14 @@ public sealed partial class World
                 Frames.HoldStill(frame);
 
             // Gameplay can write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the
-            // world normalizes it here, and the owner's row follows the frame below (see MirrorFrameOwner).
+            // world normalizes it here, and the owner's row follows the frame below (see MirrorFrameOwner). The write moves
+            // the frame and changes nothing else, so the frame keeps its proper acceleration, as a frame that holds still.
             Entity owner = frame.Entity;
             if (!hull && entities.GameplayWroteTransform(owner))
             {
                 ref readonly TransformRow row = ref entities.BackRow(owner);
                 var write = new MotionSample(row.Pose.WithUnitRotation(), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
-                    Vector3.Zero);
+                    Frames.ProperAcceleration(frame));
                 Frames.Follow(frame, row.Frame, write);
                 KeepRecord(frame, row.Frame, write);
             }

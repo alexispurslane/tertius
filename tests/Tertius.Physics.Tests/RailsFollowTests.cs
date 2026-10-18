@@ -484,6 +484,7 @@ public class RailsFollowTests
     [InlineData("a kinematic hull on rails")]
     [InlineData("no body, on rails")]
     [InlineData("no body, and a transform write")]
+    [InlineData("a static hull that teleported")]
     public void TheFollowedBufferHoldsTheStepRecordThatMovedTheFrame(string owner)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
@@ -493,6 +494,13 @@ public class RailsFollowTests
             "a dynamic hull" => Scenes.ShipWithInterior(world, space, new Double3(1000, 0, 0)).Hull,
             "a kinematic hull on rails" => Hull(world, space, Slow),
             "no body, on rails" => Bodyless(world, space, Slow),
+            "a static hull that teleported" => world.Spawn(new SpawnDesc
+            {
+                Frame = space,
+                Body = Ball(),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Static),
+                Components = [new Hopper()],
+            }),
             _ => world.Spawn(new SpawnDesc
             {
                 Frame = space,
@@ -566,6 +574,20 @@ public class RailsFollowTests
     {
         double dot = Math.Abs(a.X * b.X + a.Y * b.Y + a.Z * b.Z + a.W * b.W) / Math.Sqrt(a.LengthSquared * b.LengthSquared);
         return 2 * Math.Acos(Math.Min(1, dot));
+    }
+
+    /// <summary>Teleports its owner's body 1 m higher in every tick.</summary>
+    private sealed class Hopper : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            DPose pose = self.PoseInOwnFrame();
+            self.Body.Teleport(pose with { Position = pose.Position + new Double3(0, 1, 0) });
+        }
     }
 
     /// <summary>Writes its owner's transform 1 m higher in every tick.</summary>

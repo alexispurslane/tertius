@@ -241,15 +241,6 @@ public class PhysicsOutputCheckTests
     }
 
     [Fact]
-    public void AStepRecordOfAFrameWithAStaticHullThrowsOutOfTheStep()
-    {
-        using var scene = new Scene();
-
-        scene.ShouldRefuse(output => output.Frames.Add(StepRecords.Of(scene.Dock, DPose.Identity, Double3.Zero, Vector3.Zero, Vector3.Zero)),
-            $"*step record of {scene.Dock}*hull is static*");
-    }
-
-    [Fact]
     public void AStepRecordOfAFrameWhoseOwnerHasNoBodyThrowsOutOfTheStep()
     {
         using var scene = new Scene();

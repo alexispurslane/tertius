@@ -96,6 +96,69 @@ public class RailsHullTests
         faults.Samples.Should().NotContain(record => record.Frame == frame && record.Tick == 2, "step 2 moves a dynamic hull");
     }
 
+    // ---- A kinematic hull takes only MoveOnRails and Teleport -----------------------------------------------------
+
+    [Theory]
+    [InlineData(MotionDriver.Kepler)]
+    [InlineData(MotionDriver.Spin)]
+    public void MoveKinematicOnAKinematicHullThrows(MotionDriver driver) =>
+        AssertTheKinematicHullRefuses(driver, body => body.MoveKinematic(At(1, 2, 3)));
+
+    [Theory]
+    [InlineData(MotionDriver.Kepler)]
+    [InlineData(MotionDriver.Spin)]
+    public void SetVelocityOnAKinematicHullThrows(MotionDriver driver) =>
+        AssertTheKinematicHullRefuses(driver, body => body.SetVelocity(new Double3(1, 0, 0)));
+
+    [Theory]
+    [InlineData(MotionDriver.Kepler)]
+    [InlineData(MotionDriver.Spin)]
+    public void SetAngularVelocityOnAKinematicHullThrows(MotionDriver driver) =>
+        AssertTheKinematicHullRefuses(driver, body => body.SetAngularVelocity(new Vector3(0, 1, 0)));
+
+    /// <summary>
+    /// The owner of a kinematic hull calls <paramref name="call"/> in a tick. Only a sample tells the frame of a kinematic
+    /// hull how to follow, so the call throws an <see cref="InvalidOperationException"/>, which the World records, and the
+    /// step gets no such intent.
+    /// </summary>
+    private static void AssertTheKinematicHullRefuses(MotionDriver driver, BodyCommand call)
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        var pilot = new Pilot { Once = call };
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), driver, pilot);
+
+        Tick(world, 2);
+
+        world.Errors.Should().ContainSingle().Which.Should().Contain(owner.ToString()).And.Contain(nameof(InvalidOperationException)).And.Contain("kinematic hull");
+        faults.Intents.Should().NotContain(record => record.Entity == owner &&
+            (record.Intent.Flags & (IntentFlags.KinematicTarget | IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity)) != 0);
+    }
+
+    /// <summary>
+    /// In one tick, the owner of a kinematic hull teleports it 10 m above (1, 2, 3) and writes a sample at (1, 2, 3). The
+    /// teleport applies first, and the sample's target moves the hull on from there: Jolt sweeps the hull down 10 m over the
+    /// step, at 600 m/s, so it meets what lies between. After the step the hull sits on the sample's pose, and the frame
+    /// stands on it at the sync point.
+    /// </summary>
+    [Fact]
+    public void InATickWithATeleportAndASampleOfAKinematicHullTheTeleportAppliesFirst()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        var pilot = new Pilot();
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), MotionDriver.Kepler, pilot, new WritesSample(Parked));
+        FrameHandle frame = world.GetOwnedFrame(owner);
+        Tick(world, 3);
+
+        pilot.Once = body => body.Teleport(At(1, 12, 3));
+        Tick(world, 2);
+
+        BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
+        hull.Pose.Position.Should().Be(Parked.Pose.Position);
+        (hull.LinearVelocity - new Vector3(0, -600, 0)).Length().Should().BeLessThan(0.01f, "the target moved the hull from the teleport's pose over the step");
+        world.Frames.LocalPose(frame).Should().Be(Parked.Pose);
+        world.Errors.Should().BeEmpty();
+    }
+
     // ---- The checks of a rails component ------------------------------------------------------------------------
 
     [Theory]

@@ -229,16 +229,28 @@ public class KeplerFrameTests
     }
 
     [Fact]
-    public void AKeplerFrameStaysOnItsOrbitWhenItsOwnerTriesToMoveIt()
+    public void WhenItsOwnerWritesItsTransformABodylessKeplerFrameMovesForOneTickAndItsNextSamplePutsItBackOnItsOrbit()
     {
         using var test = NewWorld();
+        bool write = false;
         Entity owner = SpawnKeplerFrame(test, Circle(1000),
-            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(5))));
+            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (write)
+                    self.SetTransform(TestWorld.At(5));
+                write = false;
+            }));
         FrameHandle moon = test.World.GetOwnedFrame(owner);
+        double mu = KeplerOrbit.MuFrom(test.World.Frames.Gravity(test.Root));
+        test.Run(3);
 
-        test.Run(TicksPerQuarterPeriod);
+        write = true;
+        test.Run(1);
 
-        test.World.Errors.Should().HaveCount(TicksPerQuarterPeriod, "each refused write is recorded");
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(moon).Position, new Double3(0, 0, -1000), 1e-6);
+        test.World.Errors.Should().BeEmpty();
+        test.World.Frames.LocalPose(moon).Position.Should().Be(new Double3(5, 0, 0), "the write moves the frame at the sync point of its tick");
+        test.Run(1);
+
+        test.World.Frames.LocalPose(moon).Position.Should().Be(Circle(1000).StateAt(test.World.Time, mu).Position, "the next sample puts the frame back on its orbit");
     }
 }

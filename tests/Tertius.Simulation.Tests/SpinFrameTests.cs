@@ -111,18 +111,61 @@ public class SpinFrameTests
     }
 
     [Fact]
-    public void ASpinFrameStaysOnItsSpinWhenItsOwnerTriesToMoveIt()
+    public void WhenItsOwnerWritesItsTransformABodylessSpinFrameTurnsAwayForOneTickAndItsNextSamplePutsItBackOnItsSpin()
     {
         using var test = NewWorld();
-        Entity owner = SpawnSpinFrame(test, QuarterTurnPerSecond,
-            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(5))));
+        var place = new Double3(5, 0, 0);
+        DQuaternion leaning = DQuaternion.FromAxisAngle(Double3.UnitZ, 1);
+        bool write = false;
+        Entity owner = SpawnSpinFrame(test, QuarterTurnPerSecond, place,
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (write)
+                    self.SetTransform(new DPose(place, leaning));
+                write = false;
+            }));
         FrameHandle ground = test.World.GetOwnedFrame(owner);
+        test.Run(3);
 
-        test.Run(TicksPerSecond);
+        write = true;
+        test.Run(1);
 
-        test.World.Errors.Should().HaveCount(TicksPerSecond, "each refused write is recorded");
-        test.World.Frames.LocalPose(ground).Position.Should().Be(Double3.Zero);
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX), new Double3(0, 0, -1), 1e-12);
+        test.World.Errors.Should().BeEmpty();
+        test.World.Frames.LocalPose(ground).Position.Should().Be(place);
+        PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX), leaning.Rotate(Double3.UnitX), 1e-12);
+        test.Run(1);
+
+        test.World.Frames.LocalPose(ground).Position.Should().Be(place);
+        PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX),
+            QuarterTurnPerSecond.RotationAt(test.World.Time).Rotate(Double3.UnitX), 1e-12);
+    }
+
+    [Fact]
+    public void WhenItsOwnerWritesItsTransformABodylessSpinFrameKeepsItsProperAcceleration()
+    {
+        using var test = NewWorld();
+        var weight = new Vector3(0, 9.81f, 0);
+        bool write = false;
+        Entity owner = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin),
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (write)
+                    self.SetTransform(TestWorld.At(5));
+                write = false;
+            })],
+        }.Spinning(test.World, QuarterTurnPerSecond, weight));
+        FrameHandle ground = test.World.GetOwnedFrame(owner);
+        test.Run(3);
+        test.World.Frames.ProperAcceleration(ground).Should().Be(weight, "the spin's sample gives the frame its proper acceleration");
+
+        write = true;
+        test.Run(1);
+
+        test.World.Frames.LocalPose(ground).Position.Should().Be(new Double3(5, 0, 0));
+        test.World.Frames.ProperAcceleration(ground).Should().Be(weight, "a write moves the frame and changes nothing else, as a frame that holds still keeps its proper acceleration");
     }
 
     [Fact]

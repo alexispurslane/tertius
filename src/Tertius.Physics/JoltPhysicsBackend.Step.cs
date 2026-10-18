@@ -80,6 +80,8 @@ public sealed partial class JoltPhysicsBackend
                 ApplyRigidCharacterIntent(record, intent);
             else if (record.Motion != BodyMotion.Static)
                 ApplyBodyIntent(record, intent, intent.Flags);
+            else if (record.IsHull && (intent.Flags & IntentFlags.Teleport) != 0)
+                TeleportStaticHull(record, intent.TeleportPose);
         }
 
         // A body that a target moved last step stops at the target, unless it got a new target or velocity.
@@ -92,6 +94,23 @@ public sealed partial class JoltPhysicsBackend
             record.World!.Bodies.SetLinearAndAngularVelocity(record.Body, Vector3.Zero, Vector3.Zero);
         }
         kinematicMoversLast.Clear();
+    }
+
+    /// <summary>
+    /// Puts the static hull <paramref name="hull"/> at <paramref name="pose"/>, which is in the hull's semantic frame, with a
+    /// unit rotation, and remembers the pose in its home for the frame's step record (see <see cref="PredictRecord"/>): the
+    /// frame takes it at the next sync point. Jolt does not simulate the jump, and a static body wakes nothing, so the bodies
+    /// around the hull's old and new places wake.
+    /// </summary>
+    private void TeleportStaticHull(BodyRecord hull, in DPose pose)
+    {
+        var inHome = new DPose(InHome(hull, pose.Position), pose.Rotation.Normalized());
+        FrameWorld world = hull.World!;
+        world.WakeAround(hull.Body);
+        world.Bodies.SetRPositionAndRotation(hull.Body, inHome.Position.ToJolt(), inHome.Rotation.ToJolt(), Activation.DontActivate);
+        world.WakeAround(hull.Body);
+        hull.TeleportStep = stepIndex;
+        hull.TeleportPose = inHome;
     }
 
     /// <summary>

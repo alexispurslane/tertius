@@ -385,13 +385,10 @@ internal sealed class ChaoticWorkload : IDisposable
             }
             else if (roll < 50 && !self.Body.Exists && self.AttachedTo.IsNull)
             {
-                // A frame that a driver moves cannot be moved from gameplay. Only the static ones are.
-                if (!self.Snapshot.Frames.TryGetFrame(self.Entity, out FrameHandle own) || self.Snapshot.Frames.Driver(own) == MotionDriver.Static)
-                {
-                    self.SetTransform(here);
-                    self.Render.Scale = new Vector3(1 + Next(3));
-                    tally.Moves++;
-                }
+                // Any entity without a body writes its transform, also the owner of a frame on rails.
+                self.SetTransform(here);
+                self.Render.Scale = new Vector3(1 + Next(3));
+                tally.Moves++;
             }
             else if (roll < 60 && !self.AttachedTo.IsNull)
             {

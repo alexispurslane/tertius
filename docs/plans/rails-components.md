@@ -198,7 +198,7 @@ A static frame follows its owner:
 
 - Without a body, the owner writes `self.SetTransform`. The frame takes the pose at the sync point of the same tick, as today. The rule that only the owner of a `Static` frame can write its transform goes. Any frame owner without a body can write it, unless it is attached.
 - With a static hull, the owner writes `self.Body.Teleport`. Physics moves the static hull at the start of the next step and wakes the bodies around its old and new places, with the code of the static branch of `DriveKinematicHulls`. Today physics ignores a teleport of a static body. The frame takes the teleport's pose, in doubles, at the next sync point.
-- Outside a tick, an edit of the tree, such as a reparent or `FrameTree.SetLocalPose`, still moves the hull at the next reconcile, as it does today. Only the push in every step goes.
+- Outside a tick, an edit of the tree still moves the hull. A reparent changes the tree's `Version`, so the next reconcile moves the hull. `FrameTree.SetLocalPose` does not change `Version`, so the reconcile does not see it. So at the start of each step, before the intents, physics puts each static hull whose place in Jolt differs from its frame's tree pose at that pose, and wakes the bodies around its old and new places (`FollowStaticHulls`, the old static branch of `DriveKinematicHulls`). It runs before the intents, so that it never moves a hull back from a teleport, which the tree learns only at the next sync point. `WorldWakeTests` fails without it. Only the push of the hulls on rails in every step goes.
 
 The cost of a frame without a body is one component call per tick, in a parallel chunk, and one copy at the sync point. Today it is a serial solve at the sync point. The orbit scene has two such frames, earth and earth-surface. `ter-6r8c` adds a benchmark to `WorldTickBenchmarks` with 1,000 Kepler frames without bodies, and it records the time of the tick and of the sync point before and after the change.
 
@@ -289,7 +289,7 @@ A swap has no gap: the old component's last sample covers the step before the ne
 
 ## State dumps and saved state
 
-`StateDump.FrameRecord(string Id, string? Parent, MotionDriver Driver)` becomes `FrameRecord(string Id, string? Parent, string Follows)`. `Follows` is `"rails"` when the frame took a sample in the step, `"physics"` when it has a dynamic hull, and `"static"` for every other frame. So a dump still shows which frames move on rails. The entities in a dump do not change: a frame owner's row still mirrors its frame, so its pose and velocities are those of its sample.
+`StateDump.FrameRecord(string Id, string? Parent, MotionDriver Driver)` becomes `FrameRecord(string Id, string? Parent, string Follows)`. `Follows` is `"rails"` when the frame took a sample in the step, `"physics"` when it has a dynamic hull, and `"static"` for every other frame. So a dump still shows which frames move on rails. The entities in a dump do not change: the float view of a frame entity is still filled from its exact table, so its pose and velocities are those of its sample.
 
 No save of a running world exists (`ter-72wp`). A rails component holds only its description, and the tree holds only the sample of the last step, which the next sample replaces. So a future save stores the components' properties, and the motion goes on exactly after a load.
 
