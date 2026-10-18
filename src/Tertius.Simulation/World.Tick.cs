@@ -232,23 +232,30 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Queues a ray cast or a shape cast of the running entity for this tick's sync point, in the frame that the entity is
-    /// in. A ray passes the default shape, which holds no shape and which a ray never reads, and a start pose with the
-    /// identity rotation. See <see cref="PhysicsQueries"/> for the arguments and the answer.
+    /// Queues a ray cast of the running entity for this tick's sync point, in the frame that the entity is in:
+    /// <see cref="RayCastKind.Nearest"/> for <see cref="PhysicsQueries.CastRay"/> and <see cref="RayCastKind.All"/> for
+    /// <see cref="PhysicsQueries.CastRayAll"/>, which give the arguments and the answer.
     /// </summary>
-    internal void RequestCast(ChunkState chunk, Entity entity, PhysicsRequestKind kind, in QueryShape shape, in DPose start, Double3 direction,
+    internal void RequestRay(ChunkState chunk, Entity entity, RayCastKind kind, Double3 from, Double3 direction, double length,
+        in EntityQuery query, int tag)
+    {
+        FrameHandle frame = QueryFrame(entity, "cast a ray");
+        Double3 origin = CheckedOrigin(from);
+        Double3 unit = CheckedSweep("A ray", direction, length);
+        chunk.PhysicsRequests.Add(new PhysicsRequest(entity, frame, new RayQuestion(origin, unit, length, kind), query, tag));
+    }
+
+    /// <summary>
+    /// Queues a shape cast of the running entity for this tick's sync point, in the frame that the entity is in. See
+    /// <see cref="PhysicsQueries.CastShape"/> for the arguments and the answer.
+    /// </summary>
+    internal void RequestShapeCast(ChunkState chunk, Entity entity, in QueryShape shape, in DPose start, Double3 direction,
         double length, in EntityQuery query, int tag)
     {
-        bool ray = kind is PhysicsRequestKind.Ray or PhysicsRequestKind.RayAll;
-        string what = ray ? "A ray" : "A shape cast";
-        FrameHandle frame = QueryFrame(entity, ray ? "cast a ray" : "cast a shape");
-        DPose pose = ray ? CheckedOrigin(start.Position) : CheckedPose(shape, start, what, nameof(start));
-        double size = direction.Length;
-        if (!(size > 0) || !double.IsFinite(size))
-            throw new ArgumentException($"{what} needs a finite direction that is not zero, not {direction}.", nameof(direction));
-        if (!(length > 0) || !double.IsFinite(length))
-            throw new ArgumentOutOfRangeException(nameof(length), length, $"{what} needs a finite length of more than 0 m.");
-        chunk.PhysicsRequests.Add(new PhysicsRequest(entity, frame, kind, shape, pose, direction / size, length, query, tag));
+        FrameHandle frame = QueryFrame(entity, "cast a shape");
+        DPose pose = CheckedPose(shape, start, "A shape cast", nameof(start));
+        Double3 unit = CheckedSweep("A shape cast", direction, length);
+        chunk.PhysicsRequests.Add(new PhysicsRequest(entity, frame, new ShapeCastQuestion(shape, pose, unit, length), query, tag));
     }
 
     /// <summary>
@@ -259,7 +266,7 @@ public sealed partial class World
     {
         FrameHandle frame = QueryFrame(entity, "test an overlap");
         DPose checkedPose = CheckedPose(shape, pose, "An overlap query", nameof(pose));
-        chunk.PhysicsRequests.Add(new PhysicsRequest(entity, frame, PhysicsRequestKind.Overlap, shape, checkedPose, Double3.Zero, 0, query, tag));
+        chunk.PhysicsRequests.Add(new PhysicsRequest(entity, frame, new OverlapQuestion(shape, checkedPose), query, tag));
     }
 
     /// <summary>The frame that a query of <paramref name="entity"/> works in: the frame the entity is in.</summary>
@@ -271,11 +278,22 @@ public sealed partial class World
         return frame;
     }
 
-    private static DPose CheckedOrigin(Double3 from)
+    private static Double3 CheckedOrigin(Double3 from)
     {
         if (!double.IsFinite(from.X) || !double.IsFinite(from.Y) || !double.IsFinite(from.Z))
             throw new ArgumentException($"A ray needs a finite origin, not {from}.", nameof(from));
-        return new DPose(from, DQuaternion.Identity);
+        return from;
+    }
+
+    /// <summary>The unit vector along <paramref name="direction"/>, after the checks of a cast's direction and length.</summary>
+    private static Double3 CheckedSweep(string what, Double3 direction, double length)
+    {
+        double size = direction.Length;
+        if (!(size > 0) || !double.IsFinite(size))
+            throw new ArgumentException($"{what} needs a finite direction that is not zero, not {direction}.", nameof(direction));
+        if (!(length > 0) || !double.IsFinite(length))
+            throw new ArgumentOutOfRangeException(nameof(length), length, $"{what} needs a finite length of more than 0 m.");
+        return direction / size;
     }
 
     /// <summary>The pose of a shape query with a unit rotation, after the checks of its shape and pose.</summary>

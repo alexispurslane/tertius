@@ -99,6 +99,13 @@ internal sealed class PhysicsQueryRunner
                 // An entity that died at this sync point would get no answer: routing drops events to stale handles.
                 if (!entities.IsAlive(request.Asker))
                     continue;
+                // The World builds every request from a checked case, so only a bug leaves the question empty.
+                if (!request.Question.HasValue)
+                {
+                    Contract.Assert(false, $"The physics request of {request.Asker} holds no question.");
+                    reportError($"tick {tick}: {request.Asker}: a physics request holds no question, which only a bug produces. It has no answer.");
+                    continue;
+                }
                 if (!linked)
                 {
                     LinkFrames();
@@ -113,19 +120,21 @@ internal sealed class PhysicsQueryRunner
                 // A broken contract is a bug, so it is not survived like one.
                 catch (Exception ex) when (ex is not ContractException)
                 {
-                    reportError($"tick {tick}: {request.Asker}: the {NameOf(request.Kind)} failed and has no answer: {ex.GetType().Name}: {ex.Message}");
+                    reportError($"tick {tick}: {request.Asker}: the {NameOf(request.Question)} failed and has no answer: {ex.GetType().Name}: {ex.Message}");
                 }
                 if (filter.DeadHits > 0)
-                    reportError($"tick {tick}: {request.Asker}: physics reported {filter.DeadHits} bodies of entities that are not live, which only a bug in the backend produces. The {NameOf(request.Kind)} skipped them.");
+                    reportError($"tick {tick}: {request.Asker}: physics reported {filter.DeadHits} bodies of entities that are not live, which only a bug in the backend produces. The {NameOf(request.Question)} skipped them.");
             }
         }
     }
 
-    private static string NameOf(PhysicsRequestKind kind) => kind switch
+    // Run refuses the empty question before it asks for a name, so the null arm only keeps the switch exhaustive.
+    private static string NameOf(in PhysicsQuestion question) => question switch
     {
-        PhysicsRequestKind.ShapeCast => "shape cast",
-        PhysicsRequestKind.Overlap => "overlap query",
-        _ => "ray cast",
+        RayQuestion => "ray cast",
+        ShapeCastQuestion => "shape cast",
+        OverlapQuestion => "overlap query",
+        null => "physics query",
     };
 
     private void LinkFrames()
@@ -158,19 +167,20 @@ internal sealed class PhysicsQueryRunner
 
     private void Walk(in PhysicsRequest request)
     {
-        bool firstOnly = request.Kind is PhysicsRequestKind.Ray or PhysicsRequestKind.ShapeCast;
-        double reach = request.HasShape ? request.Shape.BoundingRadius : 0;
+        PhysicsQuestion question = request.Question;
+        bool firstOnly = question.FirstHitOnly;
+        double reach = question.Reach, length = question.Length;
         // An overlap is a point, so any line through it tests whether it lies in a region.
-        Double3 line = request.Kind == PhysicsRequestKind.Overlap ? Double3.UnitX : request.Direction;
-        Double3 from = request.Pose.Position;
+        Double3 line = question is OverlapQuestion ? Double3.UnitX : question.Direction;
+        Double3 from = question.Origin;
         visits.Clear();
-        visits.Add(new Visit(request.Frame, 0, request.Length, FrameHandle.Null, GoesUp: true));
+        visits.Add(new Visit(request.Frame, 0, length, FrameHandle.Null, GoesUp: true));
         while (visits.Count > 0)
         {
             Visit visit = visits[visits.Count - 1];
             visits.Truncate(visits.Count - 1);
             // The first hit so far ends every later part of the query that would only find farther ones.
-            double end = Math.Min(visit.End, Limit(request, firstOnly));
+            double end = Math.Min(visit.End, Limit(length, firstOnly));
             if (visit.Start > end)
                 continue;
 
@@ -179,7 +189,7 @@ internal sealed class PhysicsQueryRunner
             DPose toVisit = frames.Relative(request.Frame, visit.Frame);
             Query(visit.Frame, request, toVisit, visit.Start, end);
 
-            double limit = Limit(request, firstOnly);
+            double limit = Limit(length, firstOnly);
             foreach (ref readonly FrameLink link in links.AsSpan())
             {
                 if (link.Parent != visit.Frame || link.Child == visit.CameFrom)
@@ -216,15 +226,15 @@ internal sealed class PhysicsQueryRunner
             }
         }
         filter.Skip(Entity.Null);
-        if (request.Kind == PhysicsRequestKind.Overlap)
+        if (question is OverlapQuestion)
             KeepEachEntityOnce();
         else
             hits.AsSpan().Sort(ByDistanceThenEntity);
     }
 
-    /// <summary>The farthest distance at which a hit can still count: the first hit so far, or the end of the query.</summary>
-    private double Limit(in PhysicsRequest request, bool firstOnly) =>
-        firstOnly && hits.Count > 0 ? Math.Min(request.Length, hits[0].Distance) : request.Length;
+    /// <summary>The farthest distance at which a hit can still count: the first hit so far, or the end of the query, <paramref name="length"/> meters from its start.</summary>
+    private double Limit(double length, bool firstOnly) =>
+        firstOnly && hits.Count > 0 ? Math.Min(length, hits[0].Distance) : length;
 
     /// <summary>
     /// The factor by which the bubble of <paramref name="frame"/> grows into its content, at least 1: the bubble times this
@@ -266,31 +276,28 @@ internal sealed class PhysicsQueryRunner
     private void Query(FrameHandle frame, in PhysicsRequest request, in DPose toFrame, double start, double end)
     {
         DQuaternion back = toFrame.Rotation.Conjugate();
-        switch (request.Kind)
+        switch (request.Question)
         {
-            case PhysicsRequestKind.Ray or PhysicsRequestKind.RayAll:
-            {
-                RayCastKind kind = request.Kind == PhysicsRequestKind.Ray ? RayCastKind.Nearest : RayCastKind.All;
+            case RayQuestion(var origin, var direction, _, var kind):
                 rayHits.Clear();
-                physics!.CastRay(frame, toFrame.TransformPoint(request.Pose.Position), toFrame.Rotation.Rotate(request.Direction), start, end, filter, kind, rayHits);
+                physics!.CastRay(frame, toFrame.TransformPoint(origin), toFrame.Rotation.Rotate(direction), start, end, filter, kind, rayHits);
                 foreach (RayCastHit found in rayHits)
-                    Keep(new Hit(found.Entity, found.Distance, request.Pose.Position + request.Direction * found.Distance, back.Rotate(found.Normal)));
+                    Keep(new Hit(found.Entity, found.Distance, origin + direction * found.Distance, back.Rotate(found.Normal)));
                 break;
-            }
-            case PhysicsRequestKind.ShapeCast:
+            case ShapeCastQuestion(var shape, var startPose, var direction, _):
                 shapeHits.Clear();
-                physics!.CastShape(frame, request.Shape, DPose.Compose(toFrame, request.Pose), toFrame.Rotation.Rotate(request.Direction), start, end, filter, shapeHits);
+                physics!.CastShape(frame, shape, DPose.Compose(toFrame, startPose), toFrame.Rotation.Rotate(direction), start, end, filter, shapeHits);
                 foreach (ShapeCastHit found in shapeHits)
                     Keep(new Hit(found.Entity, found.Distance, toFrame.InverseTransformPoint(found.Point), back.Rotate(found.Normal)));
                 break;
-            case PhysicsRequestKind.Overlap:
+            case OverlapQuestion(var shape, var pose):
                 overlapped.Clear();
-                physics!.Overlap(frame, request.Shape, DPose.Compose(toFrame, request.Pose), filter, overlapped);
+                physics!.Overlap(frame, shape, DPose.Compose(toFrame, pose), filter, overlapped);
                 foreach (Entity found in overlapped)
                     hits.Add(new Hit(found, 0, default, default));
                 return;
         }
-        if (request.Kind != PhysicsRequestKind.RayAll && hits.Count > 1)
+        if (request.Question.FirstHitOnly && hits.Count > 1)
             hits.AsSpan().Sort(ByDistanceThenEntity);
     }
 
@@ -327,43 +334,43 @@ internal sealed class PhysicsQueryRunner
     /// </summary>
     private void Emit(in PhysicsRequest request, bool frameAlive)
     {
+        PhysicsQuestion question = request.Question;
         FrameHandle askerFrame = entities.FrontRow(request.Asker).Frame;
         bool convert = frameAlive && !askerFrame.IsNull && askerFrame != request.Frame;
         DPose toAsker = convert ? frames.Relative(request.Frame, askerFrame) : DPose.Identity;
-        bool firstOnly = request.Kind is PhysicsRequestKind.Ray or PhysicsRequestKind.ShapeCast;
-        int count = firstOnly ? Math.Min(1, hits.Count) : hits.Count;
+        int count = question.FirstHitOnly ? Math.Min(1, hits.Count) : hits.Count;
         for (int i = 0; i < count; i++)
         {
             ref Hit hit = ref hits[i];
             Double3 point = convert ? toAsker.TransformPoint(hit.Point) : hit.Point;
             Vector3 normal = convert ? toAsker.Rotation.Rotate(hit.Normal) : hit.Normal;
-            switch (request.Kind)
+            switch (question)
             {
-                case PhysicsRequestKind.ShapeCast:
+                case RayQuestion:
+                    Send(request.Asker, new RayHit { Entity = hit.Entity, Point = point, Distance = (float)hit.Distance, Tag = request.Tag, Normal = normal });
+                    break;
+                case ShapeCastQuestion:
                     Send(request.Asker, new ShapeHit { Entity = hit.Entity, Point = point, Distance = (float)hit.Distance, Tag = request.Tag, Normal = normal });
                     break;
-                case PhysicsRequestKind.Overlap:
+                case OverlapQuestion:
                     Send(request.Asker, new OverlapHit { Entity = hit.Entity, Tag = request.Tag });
-                    break;
-                default:
-                    Send(request.Asker, new RayHit { Entity = hit.Entity, Point = point, Distance = (float)hit.Distance, Tag = request.Tag, Normal = normal });
                     break;
             }
         }
         if (count > 0)
             return;
-        Double3 end = request.Pose.Position + request.Direction * request.Length;
+        Double3 end = question.Origin + question.Direction * question.Length;
         Double3 missPoint = !frameAlive ? default : convert ? toAsker.TransformPoint(end) : end;
-        switch (request.Kind)
+        switch (question)
         {
-            case PhysicsRequestKind.ShapeCast:
-                Send(request.Asker, new ShapeHit { Point = missPoint, Distance = (float)request.Length, Tag = request.Tag });
+            case RayQuestion:
+                Send(request.Asker, new RayHit { Point = missPoint, Distance = (float)question.Length, Tag = request.Tag });
                 break;
-            case PhysicsRequestKind.Overlap:
+            case ShapeCastQuestion:
+                Send(request.Asker, new ShapeHit { Point = missPoint, Distance = (float)question.Length, Tag = request.Tag });
+                break;
+            case OverlapQuestion:
                 Send(request.Asker, new OverlapHit { Tag = request.Tag });
-                break;
-            default:
-                Send(request.Asker, new RayHit { Point = missPoint, Distance = (float)request.Length, Tag = request.Tag });
                 break;
         }
     }

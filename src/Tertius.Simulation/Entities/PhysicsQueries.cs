@@ -44,14 +44,14 @@ public readonly ref struct PhysicsQueries
     /// <see cref="InvalidOperationException"/> for an entity in no frame, the owner of a root frame.
     /// </summary>
     public void CastRay(Double3 from, Double3 direction, double length, in EntityQuery query, int tag) =>
-        world.RequestCast(chunk, entity, PhysicsRequestKind.Ray, default, new DPose(from, DQuaternion.Identity), direction, length, query, tag);
+        world.RequestRay(chunk, entity, RayCastKind.Nearest, from, direction, length, query, tag);
 
     /// <summary>
     /// Like <see cref="CastRay"/>, but answers with one <see cref="RayHit"/> for every entity along the ray that
     /// <paramref name="query"/> matches, nearest first, each entity once. A ray that hits nothing answers with one miss.
     /// </summary>
     public void CastRayAll(Double3 from, Double3 direction, double length, in EntityQuery query, int tag) =>
-        world.RequestCast(chunk, entity, PhysicsRequestKind.RayAll, default, new DPose(from, DQuaternion.Identity), direction, length, query, tag);
+        world.RequestRay(chunk, entity, RayCastKind.All, from, direction, length, query, tag);
 
     /// <summary>
     /// Moves <paramref name="shape"/> from <paramref name="start"/> along <paramref name="direction"/> for
@@ -63,7 +63,7 @@ public readonly ref struct PhysicsQueries
     /// a length that is not finite and positive, and <see cref="InvalidOperationException"/> for an entity in no frame.
     /// </summary>
     public void CastShape(in QueryShape shape, in DPose start, Double3 direction, double length, in EntityQuery query, int tag) =>
-        world.RequestCast(chunk, entity, PhysicsRequestKind.ShapeCast, shape, start, direction, length, query, tag);
+        world.RequestShapeCast(chunk, entity, shape, start, direction, length, query, tag);
 
     /// <summary>
     /// Asks which entities have a body that overlaps <paramref name="shape"/> at <paramref name="pose"/>, and answers in
@@ -76,28 +76,14 @@ public readonly ref struct PhysicsQueries
         world.RequestOverlap(chunk, entity, shape, pose, query, tag);
 }
 
-/// <summary>The kind of a physics query that an entity asked for, and so the kind of its answer.</summary>
-internal enum PhysicsRequestKind : byte
-{
-    /// <summary>The nearest hit of a ray: one <see cref="RayHit"/>.</summary>
-    Ray,
-    /// <summary>Every hit of a ray: a <see cref="RayHit"/> for each entity.</summary>
-    RayAll,
-    /// <summary>The first hit of a moving shape: one <see cref="ShapeHit"/>.</summary>
-    ShapeCast,
-    /// <summary>Every entity that a shape overlaps: an <see cref="OverlapHit"/> for each.</summary>
-    Overlap,
-}
-
 /// <summary>
-/// A physics query that an entity asked for during a tick, in the coordinates of <see cref="Frame"/>. A cast starts at
-/// <see cref="Pose"/>'s position and moves along the unit vector <see cref="Direction"/> for <see cref="Length"/> meters. An
-/// overlap has a zero direction and length. A shape has <see cref="Pose"/>'s rotation, which is a unit quaternion. A ray
-/// has no shape and the identity rotation.
+/// A physics query that an entity asked for during a tick: who asked, in which frame, what <see cref="Question"/> it asks,
+/// which entities the query may hit and the tag of the answer. The question's points, poses and directions are in the
+/// coordinates and axes of <see cref="Frame"/>, the frame that the asker was in when it asked.
 /// </summary>
-internal readonly record struct PhysicsRequest(
-    Entity Asker, FrameHandle Frame, PhysicsRequestKind Kind, QueryShape Shape, DPose Pose, Double3 Direction, double Length, EntityQuery Query, int Tag)
-{
-    /// <summary>True for a query that moves a shape or tests one in place, false for a ray.</summary>
-    public bool HasShape => Kind is PhysicsRequestKind.ShapeCast or PhysicsRequestKind.Overlap;
-}
+/// <param name="Asker">The entity that asked, and that gets the answer. Its own bodies are never hit.</param>
+/// <param name="Frame">The frame that the asker was in.</param>
+/// <param name="Question">A ray cast, a shape cast or an overlap test.</param>
+/// <param name="Query">Which entities the query may hit.</param>
+/// <param name="Tag">The tag that the answer carries.</param>
+internal readonly record struct PhysicsRequest(Entity Asker, FrameHandle Frame, PhysicsQuestion Question, EntityQuery Query, int Tag);

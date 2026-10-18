@@ -152,6 +152,38 @@ public class WorldShapeQueryTests
     }
 
     [Fact]
+    public void AShapeCastWithADirectionThatIsNotUnitLengthMovesTheShapeInMeters()
+    {
+        // The direction (6, 0, 0) is six meters long. The sphere still moves 9 m before it touches the box, not 9 m over 6.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        var probe = new Probe { Casts = [new Cast(QueryShape.Sphere(0.5f), At(0), new Double3(6, 0, 0), 50, default, Tag: 4)] };
+        Spawn(world, ground, Double3.Zero, null, probe);
+        Entity near = Spawn(world, ground, new Double3(10, 0, 0), StaticBox());
+
+        Tick(world, 2);
+
+        ShouldBeAt(probe.CastAnswersTo(4).Should().ContainSingle().Subject, near, new Double3(9.5, 0, 0), -Vector3.UnitX, 9);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AShapeCastWithADirectionThatIsNotUnitLengthMissesAtTheEndOfItsLengthInMeters()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        var probe = new Probe { Casts = [new Cast(QueryShape.Sphere(0.5f), At(1, 2, 3), new Double3(0, 0, 3), 50, default, Tag: 5)] };
+        Spawn(world, ground, new Double3(1, 2, 3), null, probe);
+
+        Tick(world, 2);
+
+        ShapeHit miss = probe.CastAnswersTo(5).Should().ContainSingle().Subject;
+        miss.IsHit.Should().BeFalse();
+        (miss.Point - new Double3(1, 2, 53)).Length.Should().BeLessThan(1e-9);
+        miss.Distance.Should().Be(50);
+    }
+
+    [Fact]
     public void ABoxCastMovesTheBoxTurnedByItsStartPose()
     {
         // A box 2 m long along its own Z, turned by 90° about +Y, so that its length lies along the ground's X: its front
@@ -490,6 +522,27 @@ public class WorldShapeQueryTests
 
         probe.OverlapAnswersTo(1).Should().Equal(above);
         probe.OverlapAnswersTo(2).Should().Equal(above);
+    }
+
+    [Fact]
+    public void AnOverlapWithARotationThatIsNotUnitLengthTurnsTheShapeAsTheUnitRotationDoes()
+    {
+        // The rotation of 90° about +Z, times 2. Like the unit rotation in the test above, it lays the box along the Y of
+        // the ground, so the box reaches the one above and not the one beside.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        double side = Math.Sqrt(0.5) * 2;
+        var probe = new Probe
+        {
+            Overlaps = [new Overlap(QueryShape.Box(new Vector3(4.5f, 0.5f, 0.5f)), new DPose(Double3.Zero, new DQuaternion(0, 0, side, side)), default, Tag: 1)],
+        };
+        Spawn(world, ground, Double3.Zero, null, probe);
+        Entity above = Spawn(world, ground, new Double3(0, 4.5, 0), StaticBox());
+        Spawn(world, ground, new Double3(4.5, 0, 0), StaticBox());
+
+        Tick(world, 2);
+
+        probe.OverlapAnswersTo(1).Should().Equal(above);
     }
 
     [Fact]
