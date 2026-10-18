@@ -85,7 +85,7 @@ public sealed partial class World : IDisposable
         router = new Router(entities, topics, workers);
         attachments = new Attachments(entities);
         spatial = new SpatialIndex(entities, Frames, workers);
-        renderBuilder = new RenderSnapshotBuilder(entities, Frames, parallelOptions);
+        renderBuilder = new RenderSnapshotBuilder(entities, Frames, workers);
         queryRunner = new PhysicsQueryRunner(this, physics, router, message => Report(message, isError: true));
         dyingMarks = entities.AddColumn<bool>();
         characterStanding = entities.AddColumn<bool>();
