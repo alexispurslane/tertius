@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Core.Tests;
 
@@ -106,7 +107,7 @@ public class FrameTreeOrbitFrameTests
         }).ToArray();
     }
 
-    private static (Double3 Position, Double3 Velocity) StateAt(KeplerOrbit orbit, double time) => orbit.StateAt(time, EarthMu);
+    private static (Double3 Position, Double3 Velocity) StateAt(KeplerOrbit orbit, double time) => KeplerRails.StateAt(orbit, time, EarthMu);
 
     [Fact]
     public void A_fast_Kepler_hull_alone_gets_an_orbit_frame_and_its_frame_hangs_at_the_orbit_frames_origin()
@@ -123,8 +124,8 @@ public class FrameTreeOrbitFrameTests
         frames.TreeLocalPose(station).Position.Should().Be(Double3.Zero, "the hull rests at the orbit frame's origin");
         frames.TreeLocalPose(orbit).Position.Should().Be(place, "the orbit frame is where the orbit is");
         frames.LocalPose(station).Position.Should().Be(place, "a read in earth is the orbit's place, to the last bit");
-        frames.LocalPose(station).Rotation.Should().Be(Low.RotationAt(Start, EarthMu), "the frame keeps its own rotation");
-        frames.LinearVelocity(orbit).Should().Be(NumericFrameRules.OrbitChord(place, velocity, EarthMu, Step));
+        frames.LocalPose(station).Rotation.Should().Be(KeplerRails.RotationAt(Low, Start, EarthMu), "the frame keeps its own rotation");
+        frames.LinearVelocity(orbit).Should().Be(KeplerRails.Chord(place, velocity, EarthMu, Step));
         (frames.LinearVelocity(station) - velocity).Length.Should().BeLessThan(1e-9, "a read in earth is the orbit's velocity");
         changes.FramesCreated.Should().Equal(orbit);
         moves.Should().Equal(new NumericMove(station.Entity, earth, orbit));
@@ -142,9 +143,9 @@ public class FrameTreeOrbitFrameTests
             frames.PlaceOnOrbit(station, time);
             (Double3 place, Double3 velocity) = StateAt(Low, time);
             frames.TreeLocalPose(orbit).Position.Should().Be(place);
-            frames.LinearVelocity(orbit).Should().Be(NumericFrameRules.OrbitChord(place, velocity, EarthMu, Step));
+            frames.LinearVelocity(orbit).Should().Be(KeplerRails.Chord(place, velocity, EarthMu, Step));
             frames.TreeLocalPose(station).Position.Should().Be(Double3.Zero);
-            frames.TreeLocalPose(station).Rotation.Should().Be(Low.RotationAt(time, EarthMu));
+            frames.TreeLocalPose(station).Rotation.Should().Be(KeplerRails.RotationAt(Low, time, EarthMu));
             frames.TreeLinearVelocity(station).Should().Be(velocity - frames.LinearVelocity(orbit), "the frame moves at the orbit's velocity in earth");
         }
         frames.AssertInvariants();
@@ -159,7 +160,7 @@ public class FrameTreeOrbitFrameTests
 
         frames.Update();
         frames.BeginNumericStep();
-        frames.HomeAcceleration(orbit, earth).Should().Be(NumericFrameRules.OrbitAcceleration(place, EarthMu));
+        frames.HomeAcceleration(orbit, earth).Should().Be(KeplerRails.Acceleration(place, EarthMu));
         frames.EffectiveGravity(orbit, Double3.Zero).Length().Should().BeLessThan(1e-6f, "a body at the hull feels the field minus the orbit's pull");
         frames.AdvanceNumericFrames(Step);
 
@@ -178,7 +179,7 @@ public class FrameTreeOrbitFrameTests
 
         after[1].Home.Should().Be(orbit);
         frames.NumericCount.Should().Be(1);
-        frames.LinearVelocity(orbit).Should().Be(NumericFrameRules.OrbitChord(place, velocity, EarthMu, Step), "an orbit frame never drains");
+        frames.LinearVelocity(orbit).Should().Be(KeplerRails.Chord(place, velocity, EarthMu, Step), "an orbit frame never drains");
     }
 
     [Fact]
@@ -293,7 +294,7 @@ public class FrameTreeOrbitFrameTests
         after[0].Home.Should().Be(space);
         frames.TreeParent(station).Should().Be(space);
         frames.IsAlive(orbit).Should().BeFalse("an orbit frame that its frame leaves falls, and one without bodies goes");
-        (frames.LocalPose(station).Position - near.StateAt(Start, 1e-9).Position).Length.Should().BeLessThan(1e-9);
+        (frames.LocalPose(station).Position - KeplerRails.StateAt(near, Start, 1e-9).Position).Length.Should().BeLessThan(1e-9);
     }
 
     [Fact]

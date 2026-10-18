@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Host;
 using Tertius.Simulation;
 
@@ -188,7 +189,7 @@ public static partial class DemoScenes
         /// <see cref="Lean"/>.
         /// </summary>
         public static KeplerOrbit OrbitAt(double time) =>
-            ShipOrbit with { Attitude = KeplerAttitude.Spin, AxialTilt = ShipOrbit.RotationAt(time, EarthMu) * Lean, SpinRate = 0, SpinPhaseAtEpoch = 0 };
+            ShipOrbit with { Attitude = KeplerAttitude.Spin, AxialTilt = KeplerRails.RotationAt(ShipOrbit, time, EarthMu) * Lean, SpinRate = 0, SpinPhaseAtEpoch = 0 };
 
         public static SceneInstance Build(World world, IRenderResources resources)
         {

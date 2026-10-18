@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
@@ -125,7 +126,7 @@ public class WorldPhysicsTests
 
         world.SetFrameDriver(station, MotionDriver.Kepler);
 
-        (Double3 onOrbit, Double3 orbitalVelocity) = orbit.StateAt(world.Time, planetMu);
+        (Double3 onOrbit, Double3 orbitalVelocity) = KeplerRails.StateAt(orbit, world.Time, planetMu);
         (world.Frames.LocalPose(station).Position - onOrbit).Length.Should().BeLessThan(1e-6, "the station moved onto its orbit at once");
         (world.Frames.LinearVelocity(station) - orbitalVelocity).Length.Should().BeLessThan(1e-6);
         world.PoseInOwnFrame(owner).Should().Be(world.Frames.LocalPose(station), "the owner mirrors its frame at once");
@@ -135,7 +136,7 @@ public class WorldPhysicsTests
         // The state of Jolt's hull after the tick: no tick has changed it since the step that read it.
         JoltPhysicsBackend.BodyFacts hull = backend.BodiesIn(planet).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
         hull.LinearVelocity.Length().Should().BeApproximately(10f, 0.01f, "the hull moves along the orbit, not across the gap");
-        (hull.Position - orbit.StateAt(world.Time, planetMu).Position).Length.Should().BeLessThan(0.01, "the hull is on the orbit");
+        (hull.Position - KeplerRails.StateAt(orbit, world.Time, planetMu).Position).Length.Should().BeLessThan(0.01, "the hull is on the orbit");
         world.Errors.Should().BeEmpty();
     }
 

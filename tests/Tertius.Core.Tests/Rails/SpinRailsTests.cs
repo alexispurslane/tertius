@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Core.Tests;
 
@@ -6,7 +7,7 @@ namespace Tertius.Core.Tests;
 /// The spin of a frame with the Spin driver: a lean by its tilt, then a steady turn about its own +Y. The tilt here
 /// leans the pole 23.44 degrees from the parent's +Y toward its +X, as Earth's axis leans from the pole of its orbit.
 /// </summary>
-public class FrameSpinTests
+public class SpinRailsTests
 {
     private static readonly DQuaternion Obliquity = DQuaternion.FromAxisAngle(new Double3(0, 0, 1), -23.44 * Math.PI / 180);
     private static readonly Double3 Pole = new(Math.Sin(23.44 * Math.PI / 180), Math.Cos(23.44 * Math.PI / 180), 0);
@@ -22,7 +23,7 @@ public class FrameSpinTests
     {
         var spin = new FrameSpin(Obliquity, 7.2921159e-5);
 
-        ExpectNear(spin.RotationAt(time).Rotate(new Double3(0, 1, 0)), Pole);
+        ExpectNear(SpinRails.RotationAt(spin, time).Rotate(new Double3(0, 1, 0)), Pole);
     }
 
     [Fact]
@@ -31,7 +32,7 @@ public class FrameSpinTests
         var spin = new FrameSpin(DQuaternion.Identity, 3, PhaseAtEpoch: Math.PI / 2, Epoch: 40);
 
         // A quarter turn about +Y, counterclockwise seen from above, takes +X to -Z.
-        ExpectNear(spin.RotationAt(40).Rotate(new Double3(1, 0, 0)), new Double3(0, 0, -1));
+        ExpectNear(SpinRails.RotationAt(spin, 40).Rotate(new Double3(1, 0, 0)), new Double3(0, 0, -1));
     }
 
     [Fact]
@@ -40,7 +41,7 @@ public class FrameSpinTests
         var spin = new FrameSpin(Obliquity, 0.25, PhaseAtEpoch: 0.7, Epoch: 3);
 
         // From t = 5 to t = 7 the frame turns 0.5 rad about its pole: the change of rotation is that turn.
-        DQuaternion change = spin.RotationAt(7) * spin.RotationAt(5).Conjugate();
+        DQuaternion change = SpinRails.RotationAt(spin, 7) * SpinRails.RotationAt(spin, 5).Conjugate();
         Double3 axisTimesSine = new Double3(change.X, change.Y, change.Z) * Math.Sign(change.W);
         ExpectNear(axisTimesSine, Pole * Math.Sin(0.25));
     }
@@ -48,7 +49,7 @@ public class FrameSpinTests
     [Fact]
     public void TheAngularVelocityIsTheRateAboutThePole()
     {
-        ExpectNear(new FrameSpin(Obliquity, 0.25).AngularVelocity, Pole * 0.25);
+        ExpectNear(SpinRails.AngularVelocity(new FrameSpin(Obliquity, 0.25)), Pole * 0.25);
     }
 
     [Fact]
@@ -56,8 +57,8 @@ public class FrameSpinTests
     {
         var spin = new FrameSpin(new DQuaternion(Obliquity.X * 1.5, Obliquity.Y * 1.5, Obliquity.Z * 1.5, Obliquity.W * 1.5), 0.25);
 
-        ExpectNear(spin.RotationAt(3).Rotate(new Double3(0, 1, 0)), Pole);
-        ExpectNear(spin.AngularVelocity, Pole * 0.25);
+        ExpectNear(SpinRails.RotationAt(spin, 3).Rotate(new Double3(0, 1, 0)), Pole);
+        ExpectNear(SpinRails.AngularVelocity(spin), Pole * 0.25);
     }
 
     [Fact]
@@ -66,8 +67,8 @@ public class FrameSpinTests
         FrameSpin spin = default;
 
         spin.IsValid.Should().BeTrue();
-        spin.RotationAt(1234).Should().Be(DQuaternion.Identity);
-        spin.AngularVelocity.Should().Be(Double3.Zero);
+        SpinRails.RotationAt(spin, 1234).Should().Be(DQuaternion.Identity);
+        SpinRails.AngularVelocity(spin).Should().Be(Double3.Zero);
     }
 
     [Theory]

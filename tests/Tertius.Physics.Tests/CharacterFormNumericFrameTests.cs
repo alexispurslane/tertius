@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
@@ -133,7 +134,7 @@ public class CharacterFormNumericFrameTests
         {
             Frame = earth, Body = Core, AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: LowOrbit),
         });
-        (Double3 place, Double3 velocity) = LowOrbit.StateAt(world.Time, Scenes.EarthMu);
+        (Double3 place, Double3 velocity) = KeplerRails.StateAt(LowOrbit, world.Time, Scenes.EarthMu);
         var offset = new Double3(0, -3.5, 0);
         Entity person = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + offset, DQuaternion.Identity), LinearVelocity = velocity, Body = Person });
         Tick(world, 2);

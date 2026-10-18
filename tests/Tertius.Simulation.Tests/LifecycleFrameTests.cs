@@ -1,4 +1,5 @@
 using AwesomeAssertions;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation.Tests;
 

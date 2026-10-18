@@ -1,5 +1,6 @@
 using System.Numerics;
 using JoltPhysicsSharp;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
@@ -64,7 +65,7 @@ public class DriverChangeTests
     private static (FrameHandle Planet, Entity Owner, FrameHandle Ship) ShipAbovePlanet(World world, MotionDriver driver)
     {
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)));
-        (Double3 position, Double3 velocity) = ShipOrbit.StateAt(world.Time, PlanetMu);
+        (Double3 position, Double3 velocity) = KeplerRails.StateAt(ShipOrbit, world.Time, PlanetMu);
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
@@ -174,7 +175,7 @@ public class DriverChangeTests
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Dynamic);
         FrameStatesSince(faults, station, reported).Should().HaveCount(60);
         // In free fall the hull stays on the orbit that the Kepler driver gave it, up to the float rounding of its velocity.
-        (world.Frames.LocalPose(station).Position - orbit.StateAt(world.Time, EarthMu).Position).Length.Should().BeLessThan(0.5);
+        (world.Frames.LocalPose(station).Position - KeplerRails.StateAt(orbit, world.Time, EarthMu).Position).Length.Should().BeLessThan(0.5);
 
         reported = faults.Outputs.Count;
         world.SetFrameDriver(station, MotionDriver.Kepler);
@@ -182,7 +183,7 @@ public class DriverChangeTests
 
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Kinematic);
         FrameStatesSince(faults, station, reported).Should().BeEmpty("the Kepler driver moves the frame again");
-        (world.Frames.LocalPose(station).Position - orbit.StateAt(world.Time, EarthMu).Position).Length.Should().BeLessThan(1e-6);
+        (world.Frames.LocalPose(station).Position - KeplerRails.StateAt(orbit, world.Time, EarthMu).Position).Length.Should().BeLessThan(1e-6);
         // At 7.5 km/s the hull rests at the origin of an orbit frame of its own (ter-dhkf rule 3), which follows the orbit.
         BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
         world.Frames.Numeric(hull.Frame).Should().Be(NumericMode.Orbiting);

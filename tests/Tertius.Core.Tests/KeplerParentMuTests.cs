@@ -1,5 +1,6 @@
 using System.Numerics;
 using AwesomeAssertions;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Core.Tests;
 
@@ -162,14 +163,14 @@ public class KeplerParentMuTests
     {
         KeplerOrbit orbit = KeplerOrbit.Circular(7e6);
 
-        orbit.MeanMotion(Mu / 4).Should().BeApproximately(orbit.MeanMotion(Mu) / 2, 1e-15);
-        orbit.Period(Mu / 4).Should().BeApproximately(orbit.Period(Mu) * 2, 1e-6);
+        KeplerRails.MeanMotion(orbit, Mu / 4).Should().BeApproximately(KeplerRails.MeanMotion(orbit, Mu) / 2, 1e-15);
+        KeplerRails.Period(orbit, Mu / 4).Should().BeApproximately(KeplerRails.Period(orbit, Mu) * 2, 1e-6);
     }
 
     [Fact]
     public void TheMeanMotionOfACircleIsTheSquareRootOfTheGMOverTheCubeOfItsRadius()
     {
-        KeplerOrbit.Circular(7e6).MeanMotion(Mu).Should().BeApproximately(Math.Sqrt(Mu / (7e6 * 7e6 * 7e6)), 1e-18);
+        KeplerRails.MeanMotion(KeplerOrbit.Circular(7e6), Mu).Should().BeApproximately(Math.Sqrt(Mu / (7e6 * 7e6 * 7e6)), 1e-18);
     }
 
     [Fact]
@@ -177,8 +178,8 @@ public class KeplerParentMuTests
     {
         KeplerOrbit orbit = KeplerOrbit.Circular(7e6);
 
-        orbit.StateAt(0, Mu).Velocity.Length.Should().BeApproximately(Math.Sqrt(Mu / 7e6), 1e-6);
-        orbit.StateAt(0, 4 * Mu).Velocity.Length.Should().BeApproximately(2 * Math.Sqrt(Mu / 7e6), 1e-6);
+        KeplerRails.StateAt(orbit, 0, Mu).Velocity.Length.Should().BeApproximately(Math.Sqrt(Mu / 7e6), 1e-6);
+        KeplerRails.StateAt(orbit, 0, 4 * Mu).Velocity.Length.Should().BeApproximately(2 * Math.Sqrt(Mu / 7e6), 1e-6);
     }
 
     [Theory]
@@ -188,7 +189,7 @@ public class KeplerParentMuTests
     {
         KeplerOrbit orbit = KeplerOrbit.Circular(7e6);
 
-        orbit.StateAt(123, parentMu).Should().Be((Double3.Zero, Double3.Zero));
+        KeplerRails.StateAt(orbit, 123, parentMu).Should().Be((Double3.Zero, Double3.Zero));
     }
 
     [Fact]
@@ -196,8 +197,8 @@ public class KeplerParentMuTests
     {
         KeplerOrbit orbit = KeplerOrbit.Circular(7e6, spinRate: 0.1);
 
-        orbit.RotationAt(50, Mu).Should().Be(orbit.RotationAt(50, 4 * Mu), "only the attitude that faces the parent follows the place on the orbit");
-        orbit.AngularVelocityAt(50, Mu).Should().Be(orbit.AngularVelocityAt(50, 4 * Mu));
+        KeplerRails.RotationAt(orbit, 50, Mu).Should().Be(KeplerRails.RotationAt(orbit, 50, 4 * Mu), "only the attitude that faces the parent follows the place on the orbit");
+        KeplerRails.AngularVelocityAt(orbit, 50, Mu).Should().Be(KeplerRails.AngularVelocityAt(orbit, 50, 4 * Mu));
     }
 
     [Theory]
@@ -209,8 +210,8 @@ public class KeplerParentMuTests
         KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.3) with { Attitude = KeplerAttitude.FacesParent };
         double parentMu = share * Mu;
 
-        Double3 position = orbit.StateAt(100, parentMu).Position;
-        Double3 belly = orbit.RotationAt(100, parentMu).Rotate(new Double3(0, -1, 0));
+        Double3 position = KeplerRails.StateAt(orbit, 100, parentMu).Position;
+        Double3 belly = KeplerRails.RotationAt(orbit, 100, parentMu).Rotate(new Double3(0, -1, 0));
 
         Double3.Distance(belly, -position.Normalized()).Should().BeLessThan(1e-9);
     }
@@ -220,9 +221,9 @@ public class KeplerParentMuTests
     {
         KeplerOrbit orbit = KeplerOrbit.Circular(7e6) with { Attitude = KeplerAttitude.FacesParent };
 
-        double rate = orbit.AngularVelocityAt(50, Mu).Length;
+        double rate = KeplerRails.AngularVelocityAt(orbit, 50, Mu).Length;
 
-        rate.Should().BeApproximately(orbit.MeanMotion(Mu), 1e-12);
-        orbit.AngularVelocityAt(50, 4 * Mu).Length.Should().BeApproximately(2 * rate, 1e-12);
+        rate.Should().BeApproximately(KeplerRails.MeanMotion(orbit, Mu), 1e-12);
+        KeplerRails.AngularVelocityAt(orbit, 50, 4 * Mu).Length.Should().BeApproximately(2 * rate, 1e-12);
     }
 }

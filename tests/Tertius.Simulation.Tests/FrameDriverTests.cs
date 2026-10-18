@@ -1,5 +1,6 @@
 using System.Numerics;
 using AwesomeAssertions;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation.Tests;
 
@@ -63,7 +64,7 @@ public class FrameDriverTests
         test.Run(1);
 
         test.World.Frames.Driver(ship).Should().Be(MotionDriver.Kepler);
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(ship).Position, KeplerOrbit.Circular(1000).StateAt(test.World.Time, 1e9).Position);
+        PoseChecks.AssertNear(test.World.Frames.LocalPose(ship).Position, KeplerRails.StateAt(KeplerOrbit.Circular(1000), test.World.Time, 1e9).Position);
     }
 
     // ---- Refusals -----------------------------------------------------------------------------------------------

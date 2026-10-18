@@ -1,5 +1,6 @@
 using System.Numerics;
 using AwesomeAssertions;
+using Tertius.Frames.Rails;
 using static Tertius.Simulation.Tests.RenderSnapshotSupport;
 
 namespace Tertius.Simulation.Tests;

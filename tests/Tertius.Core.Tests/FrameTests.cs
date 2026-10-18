@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius;
 
 namespace Tertius.Core.Tests;
@@ -60,9 +61,9 @@ public class FrameTests
         const double mu = 3.986004418e14, r = 7e6;
         var orbit = KeplerOrbit.Circular(r);
         double speed = Math.Sqrt(mu / r);
-        for (double t = 0; t < orbit.Period(mu); t += orbit.Period(mu) / 17)
+        for (double t = 0; t < KeplerRails.Period(orbit, mu); t += KeplerRails.Period(orbit, mu) / 17)
         {
-            var (p, v) = orbit.StateAt(t, mu);
+            var (p, v) = KeplerRails.StateAt(orbit, t, mu);
             Assert.Equal(r, p.Length, 3);
             Assert.Equal(speed, v.Length, 6);
             Assert.True(Math.Abs(Double3.Dot(p, v)) < 1e-3 * r * speed);
@@ -76,14 +77,14 @@ public class FrameTests
         var orbit = new KeplerOrbit(1e7, 0.6, 0.4, 1.0, 0.5, 0.3, 0, DQuaternion.Identity, 0, 0);
         const double mu = 3.986004418e14;
         double energy = -mu / (2 * orbit.SemiMajorAxis);
-        var (p0, _) = orbit.StateAt(0, mu);
-        for (double t = 0; t < orbit.Period(mu); t += orbit.Period(mu) / 23)
+        var (p0, _) = KeplerRails.StateAt(orbit, 0, mu);
+        for (double t = 0; t < KeplerRails.Period(orbit, mu); t += KeplerRails.Period(orbit, mu) / 23)
         {
-            var (p, v) = orbit.StateAt(t, mu);
+            var (p, v) = KeplerRails.StateAt(orbit, t, mu);
             double e = v.LengthSquared / 2 - mu / p.Length;
             Assert.True(Math.Abs((e - energy) / energy) < 1e-9, $"energy drift at t={t}");
         }
-        var (p1, _) = orbit.StateAt(orbit.Period(mu), mu);
+        var (p1, _) = KeplerRails.StateAt(orbit, KeplerRails.Period(orbit, mu), mu);
         Assert.True((p1 - p0).Length < 1e-3);
     }
 
@@ -92,9 +93,9 @@ public class FrameTests
     {
         var orbit = new KeplerOrbit(2e7, 0.3, 0.2, 0.1, 1.1, 0, 0, DQuaternion.Identity, 0, 0);
         const double mu = 3.986004418e14, t = 1234.5, h = 1e-3;
-        var (pa, _) = orbit.StateAt(t - h, mu);
-        var (pb, _) = orbit.StateAt(t + h, mu);
-        var (_, v) = orbit.StateAt(t, mu);
+        var (pa, _) = KeplerRails.StateAt(orbit, t - h, mu);
+        var (pb, _) = KeplerRails.StateAt(orbit, t + h, mu);
+        var (_, v) = KeplerRails.StateAt(orbit, t, mu);
         Double3 numeric = (pb - pa) / (2 * h);
         Assert.True((numeric - v).Length < 1e-3, $"{numeric} vs {v}");
     }
@@ -104,10 +105,10 @@ public class FrameTests
     {
         const double mu = 3.986004418e14;
         var orbit = KeplerOrbit.Circular(0, spinRate: Math.PI / 2);
-        DQuaternion q = orbit.RotationAt(1, mu);
+        DQuaternion q = KeplerRails.RotationAt(orbit, 1, mu);
         Double3 x = q.Rotate(Double3.UnitX);
         Assert.True((x - new Double3(0, 0, -1)).Length < 1e-12);
-        Assert.Equal(Math.PI / 2, orbit.AngularVelocityAt(0, mu).Y, 6);
+        Assert.Equal(Math.PI / 2, KeplerRails.AngularVelocityAt(orbit, 0, mu).Y, 6);
     }
 
     [Fact]

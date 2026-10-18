@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
@@ -182,7 +183,7 @@ public class HandOffTests
 
         HandOff? exit = TickUntilHandedOff(world, faults, ball, 1200, out Placed before);
         exit.Should().NotBeNull();
-        world.Time.Should().BeInRange(orbit.Period(mu) / 2 - 0.5, orbit.Period(mu) / 2 + 0.5);
+        world.Time.Should().BeInRange(KeplerRails.Period(orbit, mu) / 2 - 0.5, KeplerRails.Period(orbit, mu) / 2 + 0.5);
         world.GetFrame(ball).Should().Be(planet);
         world.VelocityInOwnFrame(ball).Should().Be(exit!.Value.LinearVelocity, "the World applied the hand-off that Jolt sent");
 
@@ -194,7 +195,7 @@ public class HandOffTests
         (exit.Value.LinearVelocity - expected).Length.Should().BeLessThan(0.05);
 
         // The turn rate matters: the rate at periapsis would be off by about 7 m/s.
-        FrameMotionData atPeriapsis = new(world.Frames.LocalPose(station), world.Frames.LinearVelocity(station), orbit.AngularVelocityAt(0, mu));
+        FrameMotionData atPeriapsis = new(world.Frames.LocalPose(station), world.Frames.LinearVelocity(station), KeplerRails.AngularVelocityAt(orbit, 0, mu));
         (ToParentVelocity(atPeriapsis, position, before.LinearVelocity) - expected).Length.Should().BeGreaterThan(5);
         world.Errors.Should().BeEmpty();
     }

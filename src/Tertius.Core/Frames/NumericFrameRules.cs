@@ -222,34 +222,6 @@ internal static class NumericFrameRules
             anchored: false, isFixed: false, thrusts: false, options) != NumericMode.None;
 
     /// <summary>
-    /// The pull of a point gravity of <paramref name="mu"/> m³/s² at <paramref name="position"/>, in m/s²: the acceleration
-    /// of a Kepler orbit there, which takes its G·M from that gravity (see <see cref="FrameTree.KeplerMu"/>).
-    /// </summary>
-    internal static Double3 OrbitAcceleration(Double3 position, double mu)
-    {
-        double r2 = position.LengthSquared;
-        return position * (-mu / (r2 * Math.Sqrt(r2)));
-    }
-
-    /// <summary>
-    /// The chord velocity of a Kepler orbit of <paramref name="mu"/> m³/s² over the step of <paramref name="dt"/> seconds
-    /// that ends where the orbit is at <paramref name="position"/> with <paramref name="velocity"/>: the change of place
-    /// over that step divided by its length. It is the velocity that Jolt gives a body that moves along the orbit, and a
-    /// frame that starts a step at it, with the orbit's acceleration (see <see cref="OrbitAcceleration"/>), ends the step on
-    /// the orbit in the scheme that Jolt uses for bodies. The Taylor series of the two-body motion to the jerk leaves out
-    /// terms of the fourth order in the step, under 1e-13 m over a step of 1/60 s in low orbit. It comes from the state, not
-    /// from the difference of two places, so it keeps every digit of a velocity far from the parent, where a place rounds.
-    /// </summary>
-    internal static Double3 OrbitChord(Double3 position, Double3 velocity, double mu, double dt)
-    {
-        double r2 = position.LengthSquared;
-        double pull = -mu / (r2 * Math.Sqrt(r2));
-        Double3 acceleration = position * pull;
-        Double3 jerk = (velocity - position * (3 * Double3.Dot(position, velocity) / r2)) * pull;
-        return velocity - acceleration * (dt / 2) + jerk * (dt * dt / 6);
-    }
-
-    /// <summary>
     /// The merge test: true when the bounding spheres of the two bodies, <paramref name="separation"/> apart, grown by their
     /// relative speed times the lookahead time, overlap or touch. Two bodies of one system, a numeric frame's or the
     /// semantic frame's own, stay linked up to the split margin farther, so that a body at the edge of the reach does not

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
@@ -58,7 +59,7 @@ public partial class NumericFrameOrbitTests
     private sealed record Station(FrameHandle Earth, Entity Owner, FrameHandle Frame, KeplerOrbit Orbit)
     {
         /// <summary>The place and velocity of the station on its orbit at <paramref name="time"/>, in earth.</summary>
-        public (Double3 Position, Double3 Velocity) StateAt(double time) => Orbit.StateAt(time, Scenes.EarthMu);
+        public (Double3 Position, Double3 Velocity) StateAt(double time) => KeplerRails.StateAt(Orbit, time, Scenes.EarthMu);
     }
 
     /// <summary>Earth with its point gravity, and in it a station on <paramref name="orbit"/>, or on <see cref="LowOrbit"/>.</summary>
@@ -116,7 +117,7 @@ public partial class NumericFrameOrbitTests
         }
         world.PhysicsHomeOf(station.Owner).Should().Be(home, "the hull keeps its orbit frame");
         worstVelocity.Should().BeLessThan(1e-8, "the row keeps the frame's velocity relative to K, about 7 cm/s, as a float");
-        world.PoseIn(station.Owner, station.Earth).Rotation.Should().Be(station.Orbit.RotationAt(world.Time, Scenes.EarthMu));
+        world.PoseIn(station.Owner, station.Earth).Rotation.Should().Be(KeplerRails.RotationAt(station.Orbit, world.Time, Scenes.EarthMu));
         world.Errors.Should().BeEmpty();
     }
 
@@ -236,7 +237,7 @@ public partial class NumericFrameOrbitTests
         {
             Frame = earth, Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f), AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: far),
         });
-        (Double3 place, Double3 velocity) = far.StateAt(world.Time, Scenes.EarthMu);
+        (Double3 place, Double3 velocity) = KeplerRails.StateAt(far, world.Time, Scenes.EarthMu);
         Entity crate = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Crate });
         world.Tick();
         FrameHandle home = world.PhysicsHomeOf(crate);
@@ -539,12 +540,12 @@ public partial class NumericFrameOrbitTests
 
         KeplerOrbit ahead = LowOrbit with { MeanAnomalyAtEpoch = LowOrbit.MeanAnomalyAtEpoch + 0.01 };
         world.SetFrameOrbit(station.Frame, ahead);
-        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(ahead.StateAt(world.Time, Scenes.EarthMu).Position, "the frame jumps to its new orbit");
+        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(KeplerRails.StateAt(ahead, world.Time, Scenes.EarthMu).Position, "the frame jumps to its new orbit");
         Double3 placeAfter = world.PoseIn(crate, station.Earth).Position, velocityAfter = world.VelocityIn(crate, station.Earth);
         Double3 podAfter = world.PoseIn(pod, station.Earth).Position;
 
         Tick(world, 60);
-        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(ahead.StateAt(world.Time, Scenes.EarthMu).Position);
+        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(KeplerRails.StateAt(ahead, world.Time, Scenes.EarthMu).Position);
         world.Errors.Should().BeEmpty();
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         // Jolt does not report a kinematic hull that rests, so the test reads it from Jolt.

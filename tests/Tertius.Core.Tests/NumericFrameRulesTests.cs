@@ -736,45 +736,6 @@ public class NumericFrameRulesTests
         group.FrameMass.Should().Be(1);
     }
 
-    // ---- The motion of an orbit frame ----------------------------------------------------------------------------
-
-    /// <summary>
-    /// A tight circular orbit, 100 m round a body with a G·M of 1e6 m³/s², so that it turns at 1 rad/s: its acceleration
-    /// of 100 m/s² and its jerk of 100 m/s³ show in the chord of one step.
-    /// </summary>
-    private static readonly KeplerOrbit Tight = KeplerOrbit.Circular(100, phase: 0.3);
-    private const double TightMu = 1e6;
-    private const double Step = 1.0 / 60;
-
-    [Fact]
-    public void The_chord_of_an_orbit_is_its_change_of_place_over_the_step_that_ends_now_divided_by_the_step()
-    {
-        (Double3 before, _) = Tight.StateAt(10 - Step, TightMu);
-        (Double3 now, Double3 velocity) = Tight.StateAt(10, TightMu);
-        Double3 chord = OrbitChord(now, velocity, TightMu, Step);
-        (chord - (now - before) / Step).Length.Should().BeLessThan(3e-5,
-            "the series stops at the jerk, so it leaves out the snap of 100 m/s⁴ times the cube of the step over 24, 2e-5 m/s");
-        (chord - velocity).Length.Should().BeGreaterThan(0.8, "the chord lags the instant velocity by half a step of the 100 m/s² acceleration");
-    }
-
-    [Fact]
-    public void A_frame_that_starts_a_step_at_the_chord_with_the_orbits_acceleration_ends_it_on_the_orbit()
-    {
-        // The scheme that Jolt uses for bodies, and the numeric update for falling frames: the velocity first, then the place.
-        (Double3 now, Double3 velocity) = Tight.StateAt(10, TightMu);
-        (Double3 next, _) = Tight.StateAt(10 + Step, TightMu);
-        Double3 chord = OrbitChord(now, velocity, TightMu, Step);
-        Double3 after = now + (chord + OrbitAcceleration(now, TightMu) * Step) * Step;
-        (after - next).Length.Should().BeLessThan(1e-6);
-    }
-
-    [Fact]
-    public void The_acceleration_of_an_orbit_is_the_pull_of_its_point_gravity()
-    {
-        OrbitAcceleration(new Double3(0, 0, 100), TightMu).Should().Be(new Double3(0, 0, -100));
-        OrbitAcceleration(new Double3(200, 0, 0), TightMu).Should().Be(new Double3(-25, 0, 0));
-    }
-
     // ---- Drain and origin ----------------------------------------------------------------------------------------
 
     private static readonly Double3 OrbitSpeed = X(7_700);
