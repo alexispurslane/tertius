@@ -14,31 +14,65 @@ namespace Tertius.Benchmarks;
 /// </summary>
 internal static class SyncSampler
 {
-    public static void Run(string scene, double seconds, string outDir)
+    /// <summary>Builds a scene by name: kepler, mixed or tick10k, then the gameplay parallelism, 1 or -1, such as "kepler1".</summary>
+    private static (Action Tick, Action Cleanup) Scene(string scene)
     {
-        Action tick;
-        Action cleanup;
-        switch (scene)
+        int dop = scene.EndsWith("-1") ? -1 : 1;
+        string name = scene[..^(dop == -1 ? 2 : 1)];
+        switch (name)
         {
-            case "kepler1":
+            case "kepler":
             {
-                var b = new KeplerFrameTickBenchmarks { MaxDegreeOfParallelism = 1 };
+                var b = new KeplerFrameTickBenchmarks { MaxDegreeOfParallelism = dop };
                 b.Setup();
-                tick = b.Tick;
-                cleanup = b.Cleanup;
-                break;
+                return (b.Tick, b.Cleanup);
             }
-            case "mixed1":
+            case "mixed":
             {
-                var b = new MixedBodiesTickBenchmarks { MaxDegreeOfParallelism = 1 };
+                var b = new MixedBodiesTickBenchmarks { MaxDegreeOfParallelism = dop };
                 b.Setup();
-                tick = b.Tick;
-                cleanup = b.Cleanup;
-                break;
+                return (b.Tick, b.Cleanup);
+            }
+            case "tick10k":
+            {
+                var b = new WorldTickBenchmarks { MaxDegreeOfParallelism = dop, Entities = 10_000 };
+                b.Setup();
+                return (b.Tick, b.Cleanup);
             }
             default:
                 throw new ArgumentException($"Unknown scene {scene}.");
         }
+    }
+
+    /// <summary>
+    /// Ticks a scene for 3 s, then for <paramref name="seconds"/> more, and prints the mean tick time and the profile of the
+    /// sync point over the second part (the cleanup prints it).
+    /// </summary>
+    public static void Quick(string scene, double seconds)
+    {
+        (Action tick, Action cleanup) = Scene(scene);
+        var warm = Stopwatch.StartNew();
+        while (warm.Elapsed.TotalSeconds < 3)
+            tick();
+        // The benchmark classes mark the profile at the end of their setup; this run reports from here on.
+        RemarkProfile?.Invoke();
+        var run = Stopwatch.StartNew();
+        long ticks = 0;
+        while (run.Elapsed.TotalSeconds < seconds)
+        {
+            tick();
+            ticks++;
+        }
+        Console.WriteLine($"QUICK|{scene}|mean tick|{run.Elapsed.TotalMilliseconds * 1000 / ticks:F2}|{ticks}");
+        cleanup();
+    }
+
+    /// <summary>Set by the benchmark class that the scene built, so that the quick run reports only its own ticks.</summary>
+    internal static Action? RemarkProfile;
+
+    public static void Run(string scene, double seconds, string outDir)
+    {
+        (Action tick, Action cleanup) = Scene(scene);
         // Warm up so that tiered compilation settles.
         var warm = Stopwatch.StartNew();
         while (warm.Elapsed.TotalSeconds < 5)

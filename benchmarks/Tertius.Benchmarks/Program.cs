@@ -16,6 +16,11 @@ public static class Program
     public static void Main(string[] args)
     {
         // ter-sn28 profiling aid: --sample <scene> <seconds> <out folder> samples the sync point (see SyncSampler).
+        if (args.Length == 3 && args[0] == "--quick")
+        {
+            SyncSampler.Quick(args[1], double.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture));
+            return;
+        }
         if (args.Length == 4 && args[0] == "--sample")
         {
             SyncSampler.Run(args[1], double.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture), args[3]);

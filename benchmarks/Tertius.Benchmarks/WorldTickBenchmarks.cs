@@ -67,6 +67,7 @@ public class WorldTickBenchmarks
         for (int i = 0; i < 20; i++)
             world.Tick();
         profile.Mark(world);
+        SyncSampler.RemarkProfile = () => profile.Mark(world);
     }
 
     [Benchmark]
@@ -126,6 +127,7 @@ public class KeplerFrameTickBenchmarks
         syncTimestampsAtStart = world.SyncTimestampTotal;
         syncCountAtStart = world.SyncCount;
         profile.Mark(world);
+        SyncSampler.RemarkProfile = () => profile.Mark(world);
     }
 
     [Benchmark]
@@ -218,6 +220,7 @@ public class MixedBodiesTickBenchmarks
         for (int i = 0; i < 20; i++)
             world.Tick();
         profile.Mark(world);
+        SyncSampler.RemarkProfile = () => profile.Mark(world);
     }
 
     [Benchmark]
