@@ -53,6 +53,21 @@ public class RailsComponentTests
         motion.Orbit.Should().Be(orbit);
     }
 
+    [Fact]
+    public void ABlueprintMakesASpinMotionFromItsProperties()
+    {
+        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), 0.7, PhaseAtEpoch: 0.3, Epoch: 2);
+        var properAcceleration = new Vector3(0, 9.81f, 0);
+        var blueprints = new Blueprints();
+        blueprints.Register(new Blueprint("ground",
+            [new ComponentSpec(typeof(SpinMotion), Fields(("Spin", spin), ("ProperAcceleration", properAcceleration)))]));
+
+        var motion = (SpinMotion)blueprints.Instantiate("ground").Single();
+
+        motion.Spin.Should().Be(spin);
+        motion.ProperAcceleration.Should().Be(properAcceleration);
+    }
+
     // ---- The samples --------------------------------------------------------------------------------------------
 
     [Fact]
