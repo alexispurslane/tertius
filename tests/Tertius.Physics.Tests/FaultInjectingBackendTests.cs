@@ -72,11 +72,19 @@ public class FaultInjectingBackendTests
         world.Tick();
         Tick(world, 5);
 
-        faults.AppliedChanges.Should().HaveCount(2, "the World sends a batch only when it holds a change");
-        faults.AppliedChanges[0].FramesCreated.Should().Equal(scene.Ground);
-        faults.AppliedChanges[0].BodiesCreated.Select(create => create.Entity).Should().BeEquivalentTo([scene.Floor, scene.Ball]);
-        faults.AppliedChanges[1].BodiesCreated.Select(create => create.Entity).Should().Equal(second);
+        List<PhysicsChanges> withChanges = faults.AppliedChanges.Where(HoldsAChange).ToList();
+        withChanges.Should().HaveCount(2, "the World sends a batch that holds a change only when it has one");
+        withChanges[0].FramesCreated.Should().Equal(scene.Ground);
+        withChanges[0].BodiesCreated.Select(create => create.Entity).Should().BeEquivalentTo([scene.Floor, scene.Ball]);
+        withChanges[1].BodiesCreated.Select(create => create.Entity).Should().Equal(second);
+        faults.AppliedChanges.Count(batch => !HoldsAChange(batch)).Should().Be(9,
+            "the last batch of every numeric update goes also when it is empty: 7 sync points, and 2 updates for spawns outside a tick");
     }
+
+    /// <summary>True when <paramref name="batch"/> holds a structural change. A batch that holds none is the last batch of a numeric update.</summary>
+    private static bool HoldsAChange(PhysicsChanges batch) =>
+        batch.FramesCreated.Count > 0 || batch.BodiesDestroyed.Count > 0 || batch.FramesDestroyed.Count > 0 || batch.FramesShifted.Count > 0 ||
+        batch.BodiesMoved.Count > 0 || batch.BodiesCreated.Count > 0;
 
     /// <summary>The ball is released 0.5 m above the floor, so it lands in 0.32 s, and then lies on the floor.</summary>
     private static CollisionLog ContactsHeardByABallOnTheFloor(bool removeContacts, out List<PhysicsStepOutput> outputs)
@@ -149,7 +157,7 @@ public class FaultInjectingBackendTests
 
         world.Errors.Should().ContainSingle().Which.Should().Contain("failed to apply changes").And.Contain("the batch broke");
         faults.ThrowFromApplyChanges.Should().BeNull("the exception is thrown once");
-        faults.AppliedChanges.Should().ContainSingle("the batch that threw has no entry, and the next batch applied").Which
+        faults.AppliedChanges.Where(HoldsAChange).Should().ContainSingle("the batch that threw has no entry, and the next batch applied").Which
             .BodiesCreated.Select(create => create.Entity).Should().Equal(ball);
         faults.Jolt.TryGetBodyFrame(ball, out FrameHandle frame).Should().BeTrue();
         frame.Should().Be(ground);

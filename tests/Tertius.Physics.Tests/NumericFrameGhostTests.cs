@@ -12,8 +12,10 @@ namespace Tertius.Physics.Tests;
 /// which bubbles a body meets. A frame's hull enters another frame only if it fits there: its bubble is less than half as
 /// wide as the other one. A hull that does not fit has a ghost in the other frame while the two bubbles overlap. The same
 /// rule holds for the hull of a frame that physics does not drive, which is an anchor, and for a body that sticks out of its
-/// frame's bubble, which has ghosts in the bubbles of its frame's semantic siblings that it touches. Such a body also has
-/// a ghost in its frame's semantic parent when the frame's tree parent is a numeric frame (ticket ter-wllb). These
+/// frame's bubble, which has ghosts in the bubbles of its frame's semantic siblings that it touches. Such a body has one
+/// more ghost, in its frame's tree parent, the home of the frame's hull, and none in the system of the semantic parent
+/// when that is another frame: the merge test links each body of the semantic parent that may touch the ghost to its
+/// place, so the body joins the hull's home and meets the ghost there (ticket ter-4psc). These
 /// tests run the World on the real backend, with the default numeric frame options, and with no numeric frames, where the
 /// hulls stay in the system of space. Under the default options, a group of free bodies gets a falling numeric frame from
 /// 1,000 m/s relative to its frame, a group with a body that thrusts gets one from 50 m/s, and a slow group 2^23 m (about
@@ -590,6 +592,36 @@ public class NumericFrameGhostTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The hull and the rock of <see cref="TheSyncPointDropsTheGhostOfAnAnchorThatTheNumericUpdateNoLongerNames"/>, and far
+    /// from the hull's path a static station with a bubble of radius 10 m, which hangs in space. A kinematic crate of 2 m
+    /// stands at the edge of that bubble, so it sticks out of the station and has a ghost in the station's tree parent,
+    /// space. The sync point whose update stops naming space to keep a ghost of the hull drops the hull's ghost there, and
+    /// keeps the crate's, which the tree still allows: the withdrawal drops only the ghosts that lost their place.
+    /// </summary>
+    [Fact]
+    public void TheSyncPointThatDropsTheGhostOfAnAnchorKeepsTheOtherGhostsThatTheTreeAllowsInItsHome()
+    {
+        using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        Entity hull = Scenes.FastKeplerHull(world, space, ShipHull);
+        world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
+        // 5.8 km from every point of the hull's orbit, beyond the reach of the merge test at 2 km/s.
+        FrameHandle station = EmptyFrame(world, space, At(0, 3_000), 10);
+        Entity crate = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 10), Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic) });
+        Tick(world, 2);
+        NamesAnchorGhost(world, hull, space).Should().BeTrue("the hull starts 100 m from the rock");
+        faults.Jolt.HasGhostIn(hull, space).Should().BeTrue();
+        faults.Jolt.HasGhostIn(crate, space).Should().BeTrue("the crate sticks out of the station into its tree parent");
+
+        TickUntil(world, () => !NamesAnchorGhost(world, hull, space), 300);
+
+        faults.Jolt.HasGhostIn(hull, space).Should().BeFalse("the update withdrew the place of the hull's ghost at this sync point");
+        faults.Jolt.HasGhostIn(crate, space).Should().BeTrue("the station still hangs in space, so the tree still allows the crate's ghost there");
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        world.Errors.Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -625,45 +657,42 @@ public class NumericFrameGhostTests
     /// <summary>
     /// The station scene with the ship in the lane y = 75, so that the ship's bubble stays 5 m away from the station's. The
     /// station's crate at (0, 40, 0) and the ship's crate at (0, -30, 0) stick out of their frames' bubbles, toward the other
-    /// frame, but each stays at least 5 m away from the other bubble. Each crate has a ghost only in the systems of its
-    /// frame's parent: the ship's crate in the ship's falling frame and in space, the ship's semantic parent, which are one
-    /// frame without numeric frames. The station's crate has a ghost in space, and while the ship's hull may touch it, one in
-    /// the hull's falling frame, a numeric frame of space, whose member meets the ghost in space without numeric frames
-    /// (ticket ter-2gg0). The lookahead is 0.8 s: the merge test then reaches 55 m between the two hulls, short of the lane,
-    /// and the test of the bodies that stick out of the station reaches about 97 m from its center, past the lane.
+    /// frame, but each stays at least 5 m away from the other bubble. Each crate has its one ghost outside its frame in the
+    /// frame's tree parent, the home of the frame's hull: the station's crate in space, the ship's crate in the home of the
+    /// ship's hull. The ship's hull passes 35 m from the station's crate, within the merge test's reach, but a ghost has the
+    /// ghost role, and the mask of a hull names only the static and hull roles. So the hull never meets the crate's ghost,
+    /// the merge test does not link the hull to the crate's place, and the hull falls in its numeric frame all along (review
+    /// of ter-4psc). No numeric frame keeps a ghost of the station's crate. The lookahead is 0.8 s: the merge test then
+    /// reaches 55 m between the two hulls, short of the lane.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void BodiesThatStayAwayFromABubbleHaveNoGhostThereButOneInEachSystemOfTheirFramesParent(bool numericFrames)
+    public void BodiesThatStayAwayFromABubbleHaveNoGhostThereButOneInTheirFramesTreeParent(bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults, lookahead: 0.8);
         StationScene scene = CratesPassingAStation(world, lane: 75, stationCrate: At(0, 40), shipCrate: At(0, -30));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
+        FrameHandle shipParent = world.Frames.TreeParent(scene.Ship);
 
         double closest = double.PositiveInfinity;
-        bool sawGhostInHullsFrame = false;
         for (int tick = 0; tick < 200; tick++)
         {
             world.Tick();
             closest = Math.Min(closest, ShipDistance(world, scene));
+            world.Frames.TreeParent(scene.Ship).Should().Be(shipParent, $"after tick {tick} the ship's hull is where it was, as nothing links it to space");
             faults.Jolt.HasGhostIn(scene.StationOwner, scene.Ship).Should().BeFalse($"after tick {tick} the ship's bubble is beyond the reach of the station's hull");
             faults.Jolt.HasGhostIn(scene.ShipCrate, scene.Station).Should().BeFalse($"after tick {tick} the ship's crate is away from the station's bubble");
             faults.Jolt.HasGhostIn(scene.Crate, scene.Ship).Should().BeFalse($"after tick {tick} the station's crate is away from the ship's bubble");
-            faults.Jolt.GhostCount(scene.ShipCrate).Should().Be(numericFrames ? 2 : 1,
-                "the ship's crate sticks out of the ship, so it has a ghost in the ship's tree parent and one in space, the ship's semantic parent, which is the tree parent without numeric frames");
-            faults.Jolt.HasGhostIn(scene.ShipCrate, world.Frames.TreeParent(scene.Ship)).Should().BeTrue();
-            faults.Jolt.HasGhostIn(scene.ShipCrate, scene.Space).Should().BeTrue();
+            faults.Jolt.HasGhostIn(scene.ShipCrate, shipParent).Should().BeTrue($"after tick {tick} the ship's crate sticks out of the ship into its tree parent");
+            faults.Jolt.GhostCount(scene.ShipCrate).Should().Be(1, $"after tick {tick} the ship's crate has no ghost but the one in the ship's tree parent");
             faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeTrue("the station's crate sticks out of the station into space");
-            bool inHullsFrame = numericFrames && faults.Jolt.HasGhostIn(scene.Crate, world.PhysicsHomeOf(scene.ShipOwner));
-            sawGhostInHullsFrame |= inHullsFrame;
-            faults.Jolt.GhostCount(scene.Crate).Should().Be(inHullsFrame ? 2 : 1,
-                "the station's crate has a ghost in space, and one in the falling frame of the ship's hull while the hull may touch it");
+            faults.Jolt.GhostCount(scene.Crate).Should().Be(1, $"after tick {tick} the station's crate has no ghost but the one in space");
         }
 
-        sawGhostInHullsFrame.Should().Be(numericFrames, "the ship's hull passes within 0.8 s at 60 m/s of the station's crate");
-
+        if (numericFrames)
+            world.Frames.Numeric(shipParent).Should().Be(NumericMode.Falling, "the ship's hull falls in its numeric frame all along");
         closest.Should().BeInRange(75, 75.01, "the ship passed the station");
         world.VelocityIn(scene.Crate, scene.Station).Length.Should().BeLessThan(1e-3, "nothing touched the station's crate");
         world.VelocityIn(scene.ShipCrate, scene.Ship).Length.Should().BeLessThan(1e-3, "nothing touched the ship's crate");
@@ -677,8 +706,10 @@ public class NumericFrameGhostTests
     /// warm-up, less what it fell. A crate at (-30, 0, 0) in the ship sticks out of the ship's bubble and into the
     /// station's, and a crate at (24, 32, 0) in the station sticks out of the station's bubble and into the ship's. The test
     /// reads the ghosts 3 ticks after the warm-up, when the station's crate has fallen about 1.4 m and its corners still
-    /// stick out of the station's bubble. The ship's falling frame and its hull accelerate, so their instant velocities at
-    /// the end of a step are half a step of gravity, about 0.08 m/s, faster than their chords.
+    /// stick out of the station's bubble. The ship's hull passes near the station's crate, but a hull never meets a ghost,
+    /// so the merge test does not link the hull to the crate's place, and the hull falls in its numeric frame. The ship's
+    /// falling frame and its hull accelerate, so their instant velocities at the end of a step are half a step of gravity,
+    /// about 0.08 m/s, faster than their chords.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -799,13 +830,15 @@ public class NumericFrameGhostTests
         world.Errors.Should().BeEmpty();
     }
 
-    // ---- The ghost in the semantic parent (ticket ter-wllb) ----
+    // ---- A body that sticks out of a ship in a numeric frame (ticket ter-4psc) ----
     //
     // A body that sticks out of a ship whose tree parent is a numeric frame is partly in the ship's semantic parent, as it
-    // is without numeric frames. The numeric frame holds only the bodies that the merge test links to the ship's hull. The
-    // other bodies of the semantic parent stay in its own system, so the body that sticks out has a ghost there too. A
-    // ghost is kinematic, so only a dynamic body collides with it: the engine never asks Jolt for contacts between a
-    // kinematic body and a static one, with numeric frames or without. So the rocks of these scenes are dynamic balls.
+    // is without numeric frames. Its one ghost outside the ship lives in the ship's tree parent, the home of the ship's
+    // hull. The merge test links each body of the semantic parent that may touch the ghost to the ghost's place, which no
+    // body can move, so that body joins the hull's group and meets the ghost in the hull's home. The system of the semantic
+    // parent keeps no ghost of the body. A ghost is kinematic, so only a dynamic body collides with it: the engine never
+    // asks Jolt for contacts between a kinematic body and a static one, with numeric frames or without. So the rocks of
+    // these scenes are dynamic balls.
 
     /// <summary>The radius of the big ship's bubble, in meters.</summary>
     private const float BigShipRadius = 200;
@@ -853,7 +886,10 @@ public class NumericFrameGhostTests
     /// (1000, -200.6, 0) in space, in the path of the part of the crate that sticks out, 0.1 m outside the ship's bubble, or
     /// the scene has none. The merge test reaches the bounding spheres of the hull and the rock, plus 2 s of their relative
     /// speed, plus a margin of 10 m, about 134 m in all. The rock stays at least 200 m from the hull, so the merge test
-    /// never links them, and the rock stays in the system of space.
+    /// never links the rock to the hull itself. It links the rock to the place of the crate's ghost, which it reaches up to
+    /// the bounding spheres of the crate and the rock plus 2 s of their relative speed, about 122 m: the crate is 99 m from
+    /// the rock after the first tick after the warm-up, so from that tick's sync point on the rock lives in the home of the
+    /// ship's hull, the falling frame where the crate's ghost lives.
     /// </summary>
     private static RockScene FallingShipPassingARock(World world, bool withRock = true, double crateY = -BigShipRadius,
         GravityField gravity = default)
@@ -869,10 +905,13 @@ public class NumericFrameGhostTests
     /// beyond the distance from which a slow group gets a resting frame, so its hull rests in a numeric frame of its own.
     /// The crate floats at (-200, 0, 0) in the ship, on the edge of its bubble, and so sticks out of it, or at
     /// (<paramref name="crateX"/>, 0, 0). The rock flies at 10 m/s along +X from <see cref="RestDistance"/> - 70 m in space
-    /// at the crate, or the scene has none. The rock is nearer than that distance to the origin of space and slow, so it
-    /// needs no numeric frame. The merge test reaches the bounding spheres of the hull and the rock plus 2 s of their
-    /// relative speed, about 24 m, so it never links the rock to the hull, 200 m away. The face of the crate that points at
-    /// the rock is 1 m outside the bubble, so the rock meets it before the rock touches the bubble.
+    /// at the crate, or the scene has none. The rock is nearer than that distance to the origin of space and slow, so alone
+    /// it would need no numeric frame. The merge test reaches the bounding spheres of the hull and the rock plus 2 s of their
+    /// relative speed, about 24 m, so it never links the rock to the hull itself, 200 m away. It links the rock to the place
+    /// of the crate's ghost, 20 m away, which it reaches up to the bounding spheres of the crate and the rock plus 2 s of
+    /// their relative speed, about 22 m, so from the first sync point on the rock rests in the home of the ship's hull, the
+    /// resting frame where the crate's ghost lives. The face of the crate that points at the rock is 1 m outside the bubble,
+    /// so the rock meets it before the rock touches the bubble.
     /// </summary>
     private static RockScene ShipRestingBesideARock(World world, bool withRock = true, double crateX = -BigShipRadius) =>
         ShipAndRock(world, At(RestDistance + 150), Double3.Zero, At(crateX), withRock ? At(RestDistance - 70) : null,
@@ -898,58 +937,95 @@ public class NumericFrameGhostTests
         }
     }
 
+    /// <summary>What a run of <see cref="RunTheRock"/> saw.</summary>
+    /// <param name="Ticks">The ticks after the first one until the contact with the crate's ghost had changed the rock's
+    /// velocity as the test asks.</param>
+    /// <param name="Position">The rock's position in space at the end of the run.</param>
+    /// <param name="Velocity">The rock's velocity in space at the end of the run.</param>
+    /// <param name="InSpace">True when the rock's semantic frame is still space at the end of the run.</param>
+    /// <param name="HitInHullsHome">True when the step of the tick that changed the rock's velocity ran with the rock in the
+    /// home of the ship's hull, where the crate's ghost lives.</param>
+    /// <param name="HitMode">The mode of the rock's home in that step.</param>
+    private sealed record RockRun(int Ticks, Double3 Position, Double3 Velocity, bool InSpace, bool HitInHullsHome, NumericMode HitMode);
+
     /// <summary>
     /// Runs the rock scene of <paramref name="build"/>, whose ship's hull rests or falls as <paramref name="mode"/> says,
-    /// until <paramref name="done"/> holds for the rock's velocity relative to space, at most 200 ticks. Returns the ticks
-    /// that it ran, the state of the rock then relative to space, and whether the rock is still in the system of space.
+    /// for 160 ticks after the first one, and records after how many of them <paramref name="done"/> first holds for the
+    /// rock's velocity relative to space. So two runs end at the same tick, also when the contact comes one tick apart.
+    /// With numeric frames, it checks after the first tick that the rock lives in the home of the ship's hull, because the
+    /// merge test links it to the place of the crate's ghost. The step of a tick runs with each body in the home that the
+    /// sync point of the tick before it gave the body, so the run reads the homes before each tick.
     /// </summary>
-    private static (int Ticks, Double3 Position, Double3 Velocity, bool InSpace) RunTheRock(bool numericFrames, Func<World, RockScene> build,
-        NumericMode mode, Func<Double3, bool> done)
+    private static RockRun RunTheRock(bool numericFrames, Func<World, RockScene> build, NumericMode mode, Func<Double3, bool> done)
     {
+        const int total = 160;
         using World world = NewWorld(numericFrames, out _);
         RockScene scene = build(world);
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames, mode);
-        world.PhysicsHomeOf(scene.Rock).Should().Be(scene.Space, "the rock needs no numeric frame, and the merge test does not link it to the hull");
+        world.PhysicsHomeOf(scene.Rock).Should().Be(world.PhysicsHomeOf(scene.ShipOwner),
+            "the merge test links the rock to the place of the crate's ghost, which lives in the home of the ship's hull");
 
-        int ticks = TickUntil(world, () => done(world.VelocityIn(scene.Rock, scene.Space)), 200);
+        FrameHandle rockHome = FrameHandle.Null, hullHome = FrameHandle.Null;
+        int ticks = TickUntil(world, () =>
+        {
+            if (done(world.VelocityIn(scene.Rock, scene.Space)))
+                return true;
+            rockHome = world.PhysicsHomeOf(scene.Rock);
+            hullHome = world.PhysicsHomeOf(scene.ShipOwner);
+            return false;
+        }, total);
+        Tick(world, total - ticks);
 
         world.Errors.Should().BeEmpty();
-        return (ticks, world.PoseIn(scene.Rock, scene.Space).Position, world.VelocityIn(scene.Rock, scene.Space),
-            world.GetFrame(scene.Rock) == scene.Space);
+        return new RockRun(ticks, world.PoseIn(scene.Rock, scene.Space).Position, world.VelocityIn(scene.Rock, scene.Space),
+            world.GetFrame(scene.Rock) == scene.Space, rockHome == hullHome, world.Frames.Numeric(rockHome));
     }
 
+    /// <summary>
+    /// The rock meets the crate's ghost in the ship's falling frame, where the rock moves at 60 m/s toward a ghost at rest,
+    /// while without numeric frames the ghost moves at 60 m/s toward the rock at rest in space. Without numeric frames, Jolt
+    /// pushes the rock only in the step after the crate's face reaches it, when the face has gone 0.5 m into the rock; in
+    /// the falling frame it stops the rock at the face in the step in which the face reaches it. So the push comes up to one
+    /// tick earlier with numeric frames, never later (a measured run: tick 98 against tick 99), and the runs compare the
+    /// rock 160 ticks after their first, when Jolt has pushed the rock out of the crate's face in both.
+    /// </summary>
     [Fact]
-    public void ACrateThatSticksOutOfAFallingShipPushesARockInSpaceThatTheMergeTestDoesNotLinkToTheHullAsItDoesWithoutNumericFrames()
+    public void ACrateThatSticksOutOfAFallingShipPushesARockBeyondTheReachOfTheHullInTheShipsFallingFrameAsItDoesWithoutNumericFrames()
     {
         Func<World, RockScene> build = world => FallingShipPassingARock(world);
-        var withNumericFrames = RunTheRock(numericFrames: true, build, NumericMode.Falling, velocity => velocity.Length > 10);
-        var withoutNumericFrames = RunTheRock(numericFrames: false, build, NumericMode.None, velocity => velocity.Length > 10);
+        RockRun withNumericFrames = RunTheRock(numericFrames: true, build, NumericMode.Falling, velocity => velocity.Length > 10);
+        RockRun withoutNumericFrames = RunTheRock(numericFrames: false, build, NumericMode.None, velocity => velocity.Length > 10);
 
         // The front of the crate reaches the back of the rock, at x = 1000.5 in space, after 98.5 m, or 1.64 s.
         withoutNumericFrames.Ticks.Should().BeInRange(96, 102, "the ghost of the crate in space reaches the rock after about 1.64 s");
         withoutNumericFrames.Velocity.X.Should().BeLessThan(-10, "the ghost pushed the rock along -X");
         withoutNumericFrames.InSpace.Should().BeTrue("the rock never touched the ship's bubble");
-        withNumericFrames.Ticks.Should().Be(withoutNumericFrames.Ticks,
-            "the crate also has a ghost in the system of space, the ship's semantic parent, although the ship hangs in a falling frame");
+        withNumericFrames.HitInHullsHome.Should().BeTrue(
+            "the merge test linked the rock to the place of the crate's ghost, so the rock met the ghost in the ship's falling frame");
+        withNumericFrames.HitMode.Should().Be(NumericMode.Falling);
+        withNumericFrames.Ticks.Should().BeInRange(withoutNumericFrames.Ticks - 1, withoutNumericFrames.Ticks,
+            "in the falling frame Jolt sweeps the rock into the ghost, so it stops the rock up to one step earlier");
         (withNumericFrames.Position - withoutNumericFrames.Position).Length.Should().BeLessThan(1e-3, "the ghost pushed the rock to the same place");
         (withNumericFrames.Velocity - withoutNumericFrames.Velocity).Length.Should().BeLessThan(1e-2, "the ghost moves at the same velocity");
         withNumericFrames.InSpace.Should().BeTrue();
     }
 
     [Fact]
-    public void ACrateThatSticksOutOfAShipThatRestsFarOutStopsARockInSpaceAsItDoesWithoutNumericFrames()
+    public void ACrateThatSticksOutOfAShipThatRestsFarOutStopsARockBeyondTheReachOfTheHullInTheShipsRestingFrameAsItDoesWithoutNumericFrames()
     {
         Func<World, RockScene> build = world => ShipRestingBesideARock(world);
-        var withNumericFrames = RunTheRock(numericFrames: true, build, NumericMode.Resting, velocity => velocity.Length < 1);
-        var withoutNumericFrames = RunTheRock(numericFrames: false, build, NumericMode.None, velocity => velocity.Length < 1);
+        RockRun withNumericFrames = RunTheRock(numericFrames: true, build, NumericMode.Resting, velocity => velocity.Length < 1);
+        RockRun withoutNumericFrames = RunTheRock(numericFrames: false, build, NumericMode.None, velocity => velocity.Length < 1);
 
         // The front of the rock reaches the face of the crate, at x = RestDistance - 51 in space, after 18.5 m, or 1.85 s.
         withoutNumericFrames.Ticks.Should().BeInRange(108, 114, "the rock reaches the ghost of the crate in space after about 1.85 s");
         withoutNumericFrames.Position.X.Should().BeLessThan(RestDistance - 51.4, "the rock stopped at the ghost, which did not let it through");
         withoutNumericFrames.InSpace.Should().BeTrue("the rock stopped before it touched the ship's bubble");
-        withNumericFrames.Ticks.Should().Be(withoutNumericFrames.Ticks,
-            "the crate also has a ghost in the system of space, the ship's semantic parent, although the ship hangs in a resting frame");
+        withNumericFrames.HitInHullsHome.Should().BeTrue(
+            "the merge test linked the rock to the place of the crate's ghost, so the rock met the ghost in the ship's resting frame");
+        withNumericFrames.HitMode.Should().Be(NumericMode.Resting);
+        withNumericFrames.Ticks.Should().Be(withoutNumericFrames.Ticks, "the crate's ghost in the ship's tree parent is at the same place");
         (withNumericFrames.Position - withoutNumericFrames.Position).Length.Should().BeLessThan(1e-3, "the ghost stopped the rock at the same place");
         (withNumericFrames.Velocity - withoutNumericFrames.Velocity).Length.Should().BeLessThan(1e-2);
         withNumericFrames.InSpace.Should().BeTrue();
@@ -957,14 +1033,15 @@ public class NumericFrameGhostTests
 
     /// <summary>
     /// The ship rests at <see cref="RestDistance"/> + 150 m along +X in space, beyond the distance from which a slow group
-    /// gets a resting frame, so its hull rests in a numeric frame, under which the ship's frame hangs. The crate floats at (-200, 0, 0) in the ship, on the edge of its bubble, and drifts outward along -X at 2 m/s. A rock
-    /// (a ball of radius 0.5 m and 1 kg, slowed by its damping) rests in space 0.1 m in front of the crate's face, outside
-    /// the bubble. The crate's ghost in space, the ship's semantic parent, reaches the rock at once and pushes it ahead.
-    /// When the crate is fully outside the bubble plus the exit margin, it leaves the ship into the ship's tree parent, the
-    /// numeric frame, while it still pushes the rock, whose body is in the system of space. Without numeric frames, the
-    /// crate leaves into space, and its body there takes over the contact of its ghost. With them, the sync point after
-    /// the hand-off links the two bodies and moves the rock into the numeric frame, and the next step finds their contact
-    /// there. In both runs, each entity hears one Collision and no end (review of ter-ejx9).
+    /// gets a resting frame, so its hull rests in a numeric frame, under which the ship's frame hangs. The crate floats at
+    /// (-200, 0, 0) in the ship, on the edge of its bubble, and drifts outward along -X at 2 m/s. A rock (a ball of radius
+    /// 0.5 m and 1 kg, slowed by its damping) rests in space 0.1 m in front of the crate's face, outside the bubble. The
+    /// merge test links the rock to the place of the crate's ghost, so from the first sync point the rock rests in the
+    /// hull's resting frame, the ship's tree parent, where the crate's ghost lives (ticket ter-4psc). The ghost reaches the
+    /// rock at once and pushes it ahead. When the crate is fully outside the bubble plus the exit margin, it leaves the ship
+    /// into the ship's tree parent while it still pushes the rock: into space without numeric frames, into the resting
+    /// frame with them. Either way the rock's body is in that system, and the crate's body there takes over the contact of
+    /// its ghost. In both runs, each entity hears one Collision and no end (review of ter-ejx9).
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -993,15 +1070,20 @@ public class NumericFrameGhostTests
             Frame = space, Pose = At(RestDistance - 51.6), Body = RockBody with { LinearDamping = 0.5f }, Components = [rockLog],
         });
 
-        int handOff = TickUntil(world, () => world.GetFrame(crate) == space, 400);
+        world.Tick();
+        if (numericFrames)
+            world.PhysicsHomeOf(rock).Should().Be(world.PhysicsHomeOf(shipOwner),
+                "the merge test links the rock to the place of the crate's ghost, which lives in the hull's resting frame");
+        int handOff = 1 + TickUntil(world, () => world.GetFrame(crate) == space, 400);
 
         world.GetFrame(crate).Should().Be(space, "the crate left the ship's bubble");
         if (numericFrames)
         {
-            world.Frames.Numeric(world.PhysicsHomeOf(crate)).Should().Be(NumericMode.Resting,
-                "the crate left into the ship's tree parent, and the sync point linked it to the rock there");
+            world.Frames.Numeric(world.PhysicsHomeOf(crate)).Should().Be(NumericMode.Resting, "the crate left into the ship's tree parent");
+            world.PhysicsHomeOf(crate).Should().Be(world.PhysicsHomeOf(rock), "the rock rests in the ship's tree parent");
             faults.Outputs[^1].HandOffs.Should().Contain(h => h.Entity == crate && world.Frames.IsNumeric(h.To));
-            // The contact is in no system until the next step finds it in the numeric frame, and the ledger still counts it.
+            // The crate's body has replaced its ghost, and the ledger still counts the contact until the next step finds it
+            // between the two bodies.
             faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         }
         Tick(world, 60);
@@ -1017,11 +1099,13 @@ public class NumericFrameGhostTests
     /// The reconcile at the start of a step drops each ghost that the frame tree does not allow. The test runs the
     /// reconcile alone, by applying an empty change batch after a change of the tree far away, and reads the backend before
     /// the next step, as <see cref="TheGhostOfAShipAtRestInTheFastShipThatHangsInAFallingFrameSurvivesAReconcile"/> does.
+    /// The crate's one ghost outside the ship lives in the ship's tree parent, the numeric frame of its hull, and neither
+    /// the ghost pass nor the reconcile puts one in the system of space, the ship's semantic parent.
     /// </summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void TheGhostInSpaceOfACrateThatSticksOutOfAShipInANumericFrameSurvivesAReconcile(bool shipRests)
+    public void TheGhostOfACrateThatSticksOutOfAShipInANumericFrameSurvivesAReconcileInTheShipsTreeParentAndNoneIsInSpace(bool shipRests)
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         RockScene scene = shipRests ? ShipRestingBesideARock(world, withRock: false) : FallingShipPassingARock(world, withRock: false);
@@ -1032,19 +1116,21 @@ public class NumericFrameGhostTests
         Tick(world, 2);
         ShipHomeShouldBe(world, scene, numericFrames: true, shipRests ? NumericMode.Resting : NumericMode.Falling);
         FrameHandle home = world.PhysicsHomeOf(scene.ShipOwner);
-        faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeTrue("the crate sticks out of the ship");
-        faults.Jolt.HasGhostIn(scene.Crate, home).Should().BeTrue();
+        faults.Jolt.HasGhostIn(scene.Crate, home).Should().BeTrue("the crate sticks out of the ship into its tree parent");
+        faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeFalse("no body of space may touch the crate's ghost");
 
         // A change far away makes the backend reconcile. The ship is still a semantic child of space.
         world.Frames.Reparent(buoy, depot);
         world.Frames.Update();
         faults.Jolt.ApplyChanges(new PhysicsChanges(), world.Frames);
 
-        faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeTrue(
-            "the crate sticks out of the ship, so it is partly in space, the ship's semantic parent, whose own system holds the bodies there that the merge test does not link to the hull");
-        faults.Jolt.HasGhostIn(scene.Crate, home).Should().BeTrue("the crate is partly in the ship's tree parent too");
+        faults.Jolt.HasGhostIn(scene.Crate, home).Should().BeTrue(
+            "the crate sticks out of the ship, so it is partly in the ship's tree parent, the home of the ship's hull");
+        faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeFalse("the tree allows the crate no ghost in the ship's semantic parent");
+        faults.Jolt.GhostCount(scene.Crate).Should().Be(1);
         world.Tick();
-        faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeTrue();
+        faults.Jolt.HasGhostIn(scene.Crate, home).Should().BeTrue();
+        faults.Jolt.GhostCount(scene.Crate).Should().Be(1);
         world.Errors.Should().BeEmpty();
     }
 
@@ -1077,27 +1163,31 @@ public class NumericFrameGhostTests
     /// <summary>
     /// A ghost follows the chord of its real body, the change of its position over the last step divided by the step.
     /// In uniform gravity of 9.81 m/s² along -Y, the ship falls with its crate at (0, -200, 0), which sticks out of its
-    /// bubble. The ship's falling frame accelerates, so its instant velocity at the end of a step is half a step of gravity,
-    /// about 0.08 m/s, faster than its chord. The test reads the ghost 3 ticks after the warm-up, when the ship's hull has
-    /// fallen in its numeric frame for 3 ticks.
+    /// bubble, so the crate has its ghost in the ship's tree parent, the home of the ship's hull: the hull's falling frame
+    /// with numeric frames, space without. The ship's falling frame accelerates, so its instant velocity at the end of a
+    /// step is half a step of gravity, about 0.08 m/s, faster than its chord. The test reads the ghost 3 ticks after the
+    /// warm-up, when the ship's hull has fallen in its numeric frame for 3 ticks, and compares it with the crate's place and
+    /// velocity relative to the ghost's frame. The crate has no other ghost.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void TheGhostInSpaceOfACrateThatSticksOutOfAFallingShipHasTheCratesPlaceAndItsVelocityOverTheLastStep(bool numericFrames)
+    public void TheGhostOfACrateThatSticksOutOfAFallingShipHasTheCratesPlaceAndItsVelocityOverTheLastStepInTheShipsTreeParent(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
         RockScene scene = FallingShipPassingARock(world, withRock: false, gravity: GravityField.Uniform(new Vector3(0, -9.81f, 0)));
         Tick(world, 3);
         ShipHomeShouldBe(world, scene, numericFrames, NumericMode.Falling);
 
-        JoltPhysicsBackend.BodyFacts ghost = GhostOf(faults, scene.Crate, scene.Space);
-        Double3 velocity = world.VelocityIn(scene.Crate, scene.Space);
+        FrameHandle treeParent = world.Frames.TreeParent(scene.Ship);
+        JoltPhysicsBackend.BodyFacts ghost = GhostOf(faults, scene.Crate, treeParent);
+        Double3 velocity = world.VelocityIn(scene.Crate, treeParent);
 
-        velocity.Y.Should().BeLessThan(-5, "the ship and its crate have fallen for 32 steps, about 0.53 s");
-        (ghost.Position - world.PoseIn(scene.Crate, scene.Space).Position).Length.Should().BeLessThan(1e-6,
-            "the ghost is where the crate is in space");
-        ((Double3)ghost.LinearVelocity - velocity).Length.Should().BeLessThan(1e-4, "the ghost moves in space with the crate's chord");
+        world.VelocityIn(scene.Crate, scene.Space).Y.Should().BeLessThan(-5, "the ship and its crate have fallen for 32 steps, about 0.53 s");
+        (ghost.Position - world.PoseIn(scene.Crate, treeParent).Position).Length.Should().BeLessThan(1e-6,
+            "the ghost is where the crate is in the ship's tree parent");
+        ((Double3)ghost.LinearVelocity - velocity).Length.Should().BeLessThan(1e-4, "the ghost moves in the ship's tree parent with the crate's chord");
+        faults.Jolt.GhostCount(scene.Crate).Should().Be(1, "no body of space may touch the crate's ghost, so the system of space keeps none");
         world.Errors.Should().BeEmpty();
     }
 }

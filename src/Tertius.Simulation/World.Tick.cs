@@ -83,14 +83,24 @@ public sealed partial class World
         entities.BeginTick(options.SpawnPoolSize);
     }
 
-    /// <summary>Hands this batch of structural changes to physics, which applies destroys before creates.</summary>
+    /// <summary>Hands this batch of structural changes to physics (see <see cref="ApplyPhysicsChanges"/>), unless it holds no change.</summary>
     private void FlushPhysicsChanges()
     {
         PhysicsChanges changes = physicsChanges;
-        if (changes.FramesCreated.Count == 0 && changes.BodiesDestroyed.Count == 0 &&
-            changes.FramesDestroyed.Count == 0 && changes.FramesShifted.Count == 0 && changes.BodiesMoved.Count == 0 &&
-            changes.GhostPlacesWithdrawn.Count == 0 && changes.BodiesCreated.Count == 0)
+        if (changes.FramesCreated.Count == 0 && changes.BodiesDestroyed.Count == 0 && changes.FramesDestroyed.Count == 0 &&
+            changes.FramesShifted.Count == 0 && changes.BodiesMoved.Count == 0 && changes.BodiesCreated.Count == 0)
             return;
+        ApplyPhysicsChanges();
+    }
+
+    /// <summary>
+    /// Hands this batch of structural changes to physics, also an empty one, and clears it. Physics applies destroys before
+    /// creates. When it applies a batch, physics also follows the tree in other ways: for example it drops the ghosts whose
+    /// place the numeric update withdrew (see <see cref="UpdateNumericFrames"/>).
+    /// </summary>
+    private void ApplyPhysicsChanges()
+    {
+        PhysicsChanges changes = physicsChanges;
         try
         {
             physics?.ApplyChanges(changes, Frames);

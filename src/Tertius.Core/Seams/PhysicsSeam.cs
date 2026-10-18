@@ -430,10 +430,10 @@ internal readonly record struct FrameShift(FrameHandle Frame, Double3 Offset, Do
 
 /// <summary>
 /// The structural changes of one sync point. Physics applies them in this order: <see cref="BodiesDestroyed"/>,
-/// <see cref="FramesDestroyed"/>, <see cref="FramesShifted"/>, <see cref="BodiesMoved"/>, <see cref="GhostPlacesWithdrawn"/>,
-/// <see cref="BodiesCreated"/>. <see cref="FramesCreated"/> is informational: a
-/// frame's physics system can be created lazily with its first body. A body that moves between frames outside a
-/// hand-off appears in <see cref="BodiesDestroyed"/> and then in <see cref="BodiesCreated"/> in the same batch.
+/// <see cref="FramesDestroyed"/>, <see cref="FramesShifted"/>, <see cref="BodiesMoved"/>, <see cref="BodiesCreated"/>.
+/// <see cref="FramesCreated"/> is informational: a frame's physics system can be created lazily with its first body. A
+/// body that moves between frames outside a hand-off appears in <see cref="BodiesDestroyed"/> and then in
+/// <see cref="BodiesCreated"/> in the same batch.
 /// </summary>
 public sealed class PhysicsChanges
 {
@@ -459,16 +459,6 @@ public sealed class PhysicsChanges
     internal readonly List<FrameShift> FramesShifted = new();
 
     /// <summary>
-    /// Frames that the numeric update of the last sync point named as a place for a ghost and this one does not: the home
-    /// of a group that keeps a ghost of a Kepler hull (see <see cref="FrameTree.AnchorGhosts"/>), which can be a semantic
-    /// frame's own system, or a numeric frame that keeps the ghosts of the bodies that stick out of a bubble (see
-    /// <see cref="FrameTree.StickOutGhosts"/>). Physics drops the ghosts there that
-    /// the tree no longer allows, at once, so that it keeps a ghost only where the tree allows one. Only the engine fills
-    /// it.
-    /// </summary>
-    internal readonly List<FrameHandle> GhostPlacesWithdrawn = new();
-
-    /// <summary>
     /// Filled by <see cref="IPhysicsBackend.ApplyChanges"/>: one message for each state that only a bug produces, which the
     /// backend found and skipped while it applied the batch, for example a change that it could not apply. A Debug build
     /// breaks a contract instead. The simulation records each message in its errors.
@@ -482,7 +472,6 @@ public sealed class PhysicsChanges
         FramesDestroyed.Clear();
         BodiesMoved.Clear();
         FramesShifted.Clear();
-        GhostPlacesWithdrawn.Clear();
         BodiesCreated.Clear();
         Errors.Clear();
     }
