@@ -60,6 +60,16 @@ public class MotionChangeTests
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.Body.AddForce(force);
     }
 
+    /// <summary>Destroys its entity in the first tick that it runs in. The entity dies at step 5 of that tick's sync point.</summary>
+    private sealed class DestroysItself : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.Destroy();
+    }
+
     /// <summary>
     /// A ship of 1000 kg in space, with a dynamic hull, that flies along +X at 10 m/s with no damping, after five ticks.
     /// <paramref name="components"/> run on its owner.
@@ -525,9 +535,11 @@ public class MotionChangeTests
 
     /// <summary>
     /// A hull that a destroy moves to another home gets a new body there, with the motion that it has now, not the motion of
-    /// its spawn description. The destroy comes at the sync point that takes the change, before physics has given the Jolt
-    /// body the new motion, or a tick later, when no change is left in the intents and only the body that physics creates
-    /// can carry the motion.
+    /// its spawn description. The hangar that the hull is in destroys itself in the tick in which the hull's owner writes the
+    /// change, so that step 5 of the sync point rehomes the hull after step 4 changed the motion in the tree and before
+    /// physics has given the Jolt body the new motion. Or the hangar destroys itself a tick later, when no change is left in
+    /// the intents and only the body that physics creates can carry the motion. Each case reads the new body before the next
+    /// step, which applies the change of motion in the intents.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -554,14 +566,16 @@ public class MotionChangeTests
 
         world.SetMotionNextTick(owner, BodyMotion.Dynamic);
         if (!atTheChange)
-            Tick(world, 2);
-        world.Destroy(hangarOwner);
-        world.Tick();
+            world.Tick();
+        world.AddComponent(hangarOwner, new DestroysItself());
         world.Tick();
 
+        world.IsAlive(hangarOwner).Should().BeFalse();
         world.Frames.Parent(ship).Should().Be(space);
         world.Frames.HullMotion(ship).Should().Be(BodyMotion.Dynamic);
         Hull(world, backend, owner).Motion.Should().Be(MotionType.Dynamic, "the description says Static, but the hull is dynamic now");
+        world.Tick();
+        Hull(world, backend, owner).Motion.Should().Be(MotionType.Dynamic);
         world.Errors.Should().BeEmpty();
     }
 
