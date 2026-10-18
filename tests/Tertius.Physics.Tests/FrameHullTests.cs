@@ -45,7 +45,7 @@ public class FrameHullTests
         {
             Frame = planet,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(10))),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler, Orbit: orbit),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, orbit));
         FrameHandle station = world.GetOwnedFrame(owner);
 

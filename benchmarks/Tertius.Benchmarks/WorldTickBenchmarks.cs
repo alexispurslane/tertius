@@ -108,7 +108,7 @@ public class KeplerFrameTickBenchmarks
                 Frame = root,
                 Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
                 LinearVelocity = velocity,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler, Orbit: orbit),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler),
                 Components = [new KeplerMotion { Orbit = orbit }],
             });
         }

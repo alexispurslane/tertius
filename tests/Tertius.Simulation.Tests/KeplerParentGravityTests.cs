@@ -6,10 +6,11 @@ namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// A Kepler frame takes its G·M from the point gravity of its parent frame, so a Kepler frame and the loose bodies in
-/// its parent fall on the same G·M. So the World refuses every call that would leave a Kepler frame under a parent
-/// without that field: a spawn, a new driver, a new orbit, a new gravity field for the parent. A destroyed parent is
-/// not a call that the World can refuse. There the Kepler frame goes to the grandparent, and stops if the grandparent
-/// has no point gravity.
+/// its parent fall on the same G·M. Its <see cref="KeplerMotion"/> checks that rule, and the World checks nothing
+/// (docs/plans/rails-components.md, "Where the checks of rails motion live"): a KeplerMotion whose parent has no point
+/// gravity with a G·M above 0 writes no sample, so its frame holds still, and it logs that once. So a spawn, a new driver
+/// and a new gravity field for the parent never throw, and a new G·M of the parent moves the frame from the next sample
+/// on. A frame whose parent dies moves up into the grandparent, and orbits the grandparent's G·M, or holds still there.
 /// </summary>
 public class KeplerParentGravityTests
 {
@@ -33,27 +34,20 @@ public class KeplerParentGravityTests
             AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, field),
         }));
 
-    /// <summary>Checks that two poses are at most 1 micrometre and a hair of rotation apart, and shows both if they are not.</summary>
-    private static void ShouldBeNear(DPose actual, DPose expected)
-    {
-        (actual.Position - expected.Position).Length.Should().BeLessThanOrEqualTo(1e-6, "{0} should be near {1}", actual, expected);
-        Math.Abs(actual.Rotation.X * expected.Rotation.X + actual.Rotation.Y * expected.Rotation.Y +
-                 actual.Rotation.Z * expected.Rotation.Z + actual.Rotation.W * expected.Rotation.W).Should().BeGreaterThan(1 - 1e-12);
-    }
-
+    /// <summary>A frame without a body at the parent's origin, whose <see cref="KeplerMotion"/> follows <see cref="MoonOrbit"/>.</summary>
     private static SpawnDesc KeplerMoon(FrameHandle parent) => new()
     {
         Frame = parent,
-        AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Kepler, Orbit: MoonOrbit),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Kepler),
         Components = [new KeplerMotion { Orbit = MoonOrbit }],
     };
 
-    /// <summary>A frame that does not move and has an orbit, which it keeps for a later Kepler driver.</summary>
+    /// <summary>A frame that does not move, without a rails component.</summary>
     private static FrameHandle SpawnParkedMoon(TestWorld t, FrameHandle parent) =>
         t.World.GetOwnedFrame(t.World.Spawn(new SpawnDesc
         {
             Frame = parent,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static, Orbit: MoonOrbit),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
         }));
 
     // ---- Spawn -----------------------------------------------------------------------------------------------------
@@ -71,52 +65,54 @@ public class KeplerParentGravityTests
 
     [Theory]
     [MemberData(nameof(FieldsWithoutPointGravity))]
-    public void AKeplerFrameIsNotSpawnedInAParentWithoutPointGravity(string why, GravityField field)
+    public void AKeplerFrameWhoseParentHasNoGMSpawnsWithoutAnErrorHoldsStillAndLogsOnce(string why, GravityField field)
     {
         using var t = new TestWorld();
+        var log = new List<string>();
+        t.World.Log += log.Add;
         FrameHandle planet = SpawnPlanet(t, field);
-        int live = t.World.Stats.LiveEntities;
 
-        Action spawn = () => t.World.Spawn(KeplerMoon(planet));
+        FrameHandle moon = t.World.GetOwnedFrame(t.World.Spawn(KeplerMoon(planet)));
+        DPose spawned = t.World.Frames.LocalPose(moon);
+        t.Run(3);
 
-        spawn.Should().Throw<ArgumentException>(why).WithMessage($"*{planet}*point gravity*");
-        t.World.Stats.LiveEntities.Should().Be(live);
+        t.World.Frames.LocalPose(moon).Should().Be(spawned, why);
+        t.World.Frames.LinearVelocity(moon).Should().Be(Double3.Zero);
+        log.Should().ContainSingle(line => line.Contains($"{moon}"));
+        t.World.Errors.Should().BeEmpty("the game chose the scene, so this is not a bug");
     }
 
     [Fact]
-    public void AKeplerFrameIsNotSpawnedAsARootFrame()
+    public void AKeplerFrameWithoutAParentSpawnsWithoutAnErrorHoldsStillAndLogsOnce()
     {
         using var t = new TestWorld();
-        int live = t.World.Stats.LiveEntities;
+        var log = new List<string>();
+        t.World.Log += log.Add;
 
-        Action spawn = () => t.World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Kepler, Orbit: MoonOrbit));
+        FrameHandle moon = t.World.GetOwnedFrame(t.World.Spawn(new SpawnDesc
+        {
+            Pose = TestWorld.At(5),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Kepler),
+            Components = [new KeplerMotion { Orbit = MoonOrbit }],
+        }));
+        t.Run(3);
 
-        spawn.Should().Throw<ArgumentException>().WithMessage("*root frame*no parent*");
-        t.World.Stats.LiveEntities.Should().Be(live);
+        t.World.Frames.LocalPose(moon).Should().Be(TestWorld.At(5));
+        log.Should().ContainSingle(line => line.Contains($"{moon}"));
+        t.World.Errors.Should().BeEmpty();
     }
 
     [Fact]
-    public void AKeplerFrameIsNotSpawnedDuringATickInAParentWithoutPointGravity()
+    public void AWorldWithAKeplerFrameUnderAParentWithoutGMPassesItsInvariantChecks()
     {
+        // The test world runs its invariant checks at the end of every sync point.
         using var t = new TestWorld();
         FrameHandle planet = SpawnPlanet(t, GravityField.None);
-        ArgumentException? caught = null;
-        t.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            try
-            {
-                self.Spawn(KeplerMoon(planet));
-            }
-            catch (ArgumentException ex)
-            {
-                caught = ex;
-            }
-        }));
+        t.World.Spawn(KeplerMoon(planet));
 
-        t.Run(1);
+        t.Run(3);
 
-        caught.Should().NotBeNull();
-        caught!.Message.Should().Contain($"{planet}");
+        t.World.Invoking(world => world.AssertInvariants()).Should().NotThrow();
     }
 
     // ---- A new driver ----------------------------------------------------------------------------------------------
@@ -134,65 +130,25 @@ public class KeplerParentGravityTests
 
     [Theory]
     [MemberData(nameof(FieldsWithoutPointGravity))]
-    public void TheKeplerDriverIsRefusedForAFrameInAParentWithoutPointGravity(string why, GravityField field)
+    public void AFrameInAParentWithoutPointGravityTakesTheKeplerDriver(string why, GravityField field)
     {
         using var t = new TestWorld();
         FrameHandle moon = SpawnParkedMoon(t, SpawnPlanet(t, field));
 
-        Action set = () => t.World.SetFrameDriver(moon, MotionDriver.Kepler);
+        t.World.SetFrameDriver(moon, MotionDriver.Kepler);
 
-        set.Should().Throw<ArgumentException>(why).WithMessage($"*{moon}*point gravity*");
-        t.World.Frames.Driver(moon).Should().Be(MotionDriver.Static);
+        t.World.Frames.Driver(moon).Should().Be(MotionDriver.Kepler, why);
     }
 
     [Fact]
-    public void TheKeplerDriverIsRefusedForARootFrame()
+    public void ARootFrameTakesTheKeplerDriver()
     {
         using var t = new TestWorld();
-        FrameHandle root = t.World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static, Orbit: MoonOrbit));
+        FrameHandle root = t.World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static));
 
-        Action set = () => t.World.SetFrameDriver(root, MotionDriver.Kepler);
+        t.World.SetFrameDriver(root, MotionDriver.Kepler);
 
-        set.Should().Throw<ArgumentException>().WithMessage($"*{root}*no parent*");
-        t.World.Frames.Driver(root).Should().Be(MotionDriver.Static);
-    }
-
-    // ---- A new orbit -----------------------------------------------------------------------------------------------
-
-    [Fact]
-    public void AnOrbitCanBeSetForAFrameInAParentWithPointGravity()
-    {
-        using var t = new TestWorld();
-        FrameHandle moon = SpawnParkedMoon(t, SpawnPlanet(t, GravityField.Point(Mu)));
-        KeplerOrbit wider = KeplerOrbit.Circular(2000);
-
-        t.World.SetFrameOrbit(moon, wider);
-
-        t.World.Frames.Orbit(moon).Should().Be(wider);
-    }
-
-    [Theory]
-    [MemberData(nameof(FieldsWithoutPointGravity))]
-    public void AnOrbitIsRefusedForAFrameInAParentWithoutPointGravity(string why, GravityField field)
-    {
-        using var t = new TestWorld();
-        FrameHandle moon = SpawnParkedMoon(t, SpawnPlanet(t, field));
-        KeplerOrbit wider = KeplerOrbit.Circular(2000);
-
-        Action set = () => t.World.SetFrameOrbit(moon, wider);
-
-        set.Should().Throw<ArgumentException>(why).WithMessage($"*{moon}*point gravity*");
-        t.World.Frames.Orbit(moon).Should().Be(MoonOrbit);
-    }
-
-    [Fact]
-    public void AnOrbitIsRefusedForARootFrame()
-    {
-        using var t = new TestWorld();
-
-        Action set = () => t.World.SetFrameOrbit(t.Root, MoonOrbit);
-
-        set.Should().Throw<ArgumentException>().WithMessage($"*{t.Root}*no parent*");
+        t.World.Frames.Driver(root).Should().Be(MotionDriver.Kepler);
     }
 
     // ---- A new gravity field for the parent ------------------------------------------------------------------------
@@ -210,30 +166,48 @@ public class KeplerParentGravityTests
     }
 
     [Theory]
-    [InlineData("no gravity", 0)]
-    [InlineData("a uniform field", 1)]
-    [InlineData("a point field with G·M 0", 2)]
-    [InlineData("a point field with a larger G·M", 3)]
-    [InlineData("a point field with a smaller G·M", 4)]
-    public void TheParentOfAKeplerFrameCannotTakeAFieldThatWouldMoveTheFrameOffItsOrbit(string why, int which)
+    [InlineData("a larger G·M", 2.0)]
+    [InlineData("a smaller G·M", 0.5)]
+    public void ANewGMOfAParentMovesTheFramesOnKeplerOrbitsInItFromTheNextSampleOn(string why, double factor)
     {
         using var t = new TestWorld();
         FrameHandle planet = SpawnPlanet(t, GravityField.Point(Mu));
         FrameHandle moon = t.World.GetOwnedFrame(t.World.Spawn(KeplerMoon(planet)));
-        GravityField field = which switch
-        {
-            0 => GravityField.None,
-            1 => GravityField.Uniform(new Vector3(0, -9.81f, 0)),
-            2 => GravityField.Point(0),
-            3 => GravityField.Point(Mu * 2),
-            4 => GravityField.Point(Mu / 2),
-            _ => throw new ArgumentOutOfRangeException(nameof(which), which, "No such field."),
-        };
+        t.Run(3);
 
-        Action set = () => t.World.SetFrameGravity(planet, field);
+        t.World.SetFrameGravity(planet, GravityField.Point(factor * Mu));
+        t.Run(1);
 
-        set.Should().Throw<ArgumentException>(why).WithMessage($"*{planet}*{moon}*");
-        t.World.Frames.Gravity(planet).Should().Be(GravityField.Point(Mu));
+        // The moon took the sample of the step that ended, which its component wrote before the change.
+        t.World.Frames.LocalPose(moon).Position.Should().Be(MoonOrbit.StateAt(t.World.Time, Mu).Position, why);
+        t.Run(1);
+        (Double3 place, Double3 velocity) = MoonOrbit.StateAt(t.World.Time, factor * Mu);
+        t.World.Frames.LocalPose(moon).Position.Should().Be(place, why);
+        t.World.Frames.LinearVelocity(moon).Should().Be(velocity, why);
+        t.World.Errors.Should().BeEmpty();
+    }
+
+    [Theory]
+    [MemberData(nameof(FieldsWithoutPointGravity))]
+    public void AKeplerFrameWhoseParentLosesItsGMHoldsStillAndLogsOnce(string why, GravityField field)
+    {
+        using var t = new TestWorld();
+        var log = new List<string>();
+        t.World.Log += log.Add;
+        FrameHandle planet = SpawnPlanet(t, GravityField.Point(Mu));
+        FrameHandle moon = t.World.GetOwnedFrame(t.World.Spawn(KeplerMoon(planet)));
+        t.Run(3);
+
+        t.World.SetFrameGravity(planet, field);
+        // The moon takes the sample that its component wrote before the change, for the step after it.
+        t.Run(1);
+        DPose stopped = t.World.Frames.LocalPose(moon);
+        t.Run(3);
+
+        t.World.Frames.LocalPose(moon).Should().Be(stopped, why);
+        t.World.Frames.LinearVelocity(moon).Should().Be(Double3.Zero);
+        log.Should().ContainSingle(line => line.Contains($"{moon}"));
+        t.World.Errors.Should().BeEmpty();
     }
 
     [Fact]
@@ -248,32 +222,12 @@ public class KeplerParentGravityTests
         t.World.Frames.Gravity(planet).Should().Be(GravityField.None);
     }
 
-    [Fact]
-    public void OnlyTheFrameThatAKeplerFrameOrbitsKeepsItsGM()
-    {
-        using var t = new TestWorld();
-        FrameHandle planet = SpawnPlanet(t, GravityField.Point(Mu));
-        // A station in the planet's frame has a point gravity of its own, and a Kepler frame orbits the station.
-        FrameHandle station = t.World.SpawnStaticFrame(planet, TestWorld.At(1e6), radius: 1e4f);
-        t.World.SetFrameGravity(station, GravityField.Point(1e3));
-        FrameHandle satellite = t.World.GetOwnedFrame(t.World.Spawn(new SpawnDesc
-        {
-            Frame = station,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(100)),
-        }));
-
-        Action planetChange = () => t.World.SetFrameGravity(planet, GravityField.None);
-        Action stationChange = () => t.World.SetFrameGravity(station, GravityField.Point(2e3));
-
-        planetChange.Should().NotThrow("the satellite is not a child of the planet, so it does not orbit the planet's G·M");
-        stationChange.Should().Throw<ArgumentException>().WithMessage($"*{station}*{satellite}*");
-    }
-
     // ---- A parent that is destroyed --------------------------------------------------------------------------------
 
     /// <summary>
-    /// A planet with point gravity in the root, which has none. A moon orbits the planet. The world ran two ticks, so
-    /// the moon is away from its first place. The log lines of the world are in <see cref="Lines"/>.
+    /// A planet with point gravity in the root, which has none unless the test gives it a field. A moon orbits the planet.
+    /// The world ran two ticks, so the moon is away from its first place. The log lines of the world are in
+    /// <see cref="Lines"/>.
     /// </summary>
     private sealed class PlanetScene : IDisposable
     {
@@ -282,7 +236,6 @@ public class KeplerParentGravityTests
         public Entity PlanetOwner { get; }
         public FrameHandle Planet { get; }
         public FrameHandle Moon { get; }
-        public DPose MoonInRootBefore { get; }
 
         public PlanetScene(GravityField rootField = default, params IComponent[] planetComponents)
         {
@@ -299,74 +252,59 @@ public class KeplerParentGravityTests
             Planet = T.World.GetOwnedFrame(PlanetOwner);
             Moon = T.World.GetOwnedFrame(T.World.Spawn(KeplerMoon(Planet)));
             T.Run(2);
-            MoonInRootBefore = T.World.Frames.Relative(Moon, T.Root);
         }
 
         public void Dispose() => T.Dispose();
     }
 
     [Fact]
-    public void AKeplerFrameStopsWhereItIsWhenItsParentIsDestroyedAndTheGrandparentHasNoPointGravity()
+    public void AKeplerFrameWhoseParentDiesMovesUpIntoTheNewParent()
     {
-        using var s = new PlanetScene();
+        using var s = new PlanetScene(GravityField.Point(4 * Mu));
 
         s.T.World.Destroy(s.PlanetOwner);
-
         s.T.World.Frames.Parent(s.Moon).Should().Be(s.T.Root);
-        s.T.World.Frames.Driver(s.Moon).Should().Be(MotionDriver.Static);
-        ShouldBeNear(s.T.World.Frames.Relative(s.Moon, s.T.Root), s.MoonInRootBefore);
-        s.T.World.Frames.LinearVelocity(s.Moon).Should().Be(Double3.Zero);
-        s.T.World.PoseInOwnFrame(s.Moon.Entity).Should().Be(s.T.World.Frames.LocalPose(s.Moon), "the owner mirrors its frame");
-        s.T.World.Invoking(world => world.AssertInvariants()).Should().NotThrow();
-    }
+        s.T.Run(2);
 
-    [Fact]
-    public void TheMoonThatStoppedStaysWhereItStoppedAsTimeGoesOn()
-    {
-        using var s = new PlanetScene();
-        s.T.World.Destroy(s.PlanetOwner);
-
-        s.T.Run(5);
-
-        ShouldBeNear(s.T.World.Frames.Relative(s.Moon, s.T.Root), s.MoonInRootBefore);
+        // From the second sync point after the destroy, the moon takes the samples that its component wrote with the root's
+        // G·M: it keeps its elements, so it jumps to the same orbit round the root.
+        (Double3 place, Double3 velocity) = MoonOrbit.StateAt(s.T.World.Time, 4 * Mu);
+        s.T.World.Frames.LocalPose(s.Moon).Position.Should().Be(place);
+        s.T.World.Frames.LinearVelocity(s.Moon).Should().Be(velocity);
+        s.T.World.Frames.Driver(s.Moon).Should().Be(MotionDriver.Kepler);
+        s.Lines.Should().NotContain(line => line.Contains($"{s.Moon}"));
         s.T.World.Errors.Should().BeEmpty();
     }
 
     [Fact]
-    public void TheWorldSaysThatAKeplerFrameStoppedBecauseItsParentWasDestroyed()
+    public void WhenTheNewParentOfAKeplerFrameHasNoGMTheFrameHoldsStillAndLogsOnce()
     {
         using var s = new PlanetScene();
 
         s.T.World.Destroy(s.PlanetOwner);
+        s.T.World.Frames.Parent(s.Moon).Should().Be(s.T.Root);
+        // The sample that the moon's component wrote before the destroy, for the next step, moves it for that step.
+        s.T.Run(1);
+        DPose stopped = s.T.World.Frames.LocalPose(s.Moon);
+        s.T.Run(5);
 
-        s.Lines.Should().ContainSingle(line => line.Contains($"{s.Moon}") && line.Contains("Static"))
-            .Which.Should().Contain($"{s.T.Root}");
+        s.T.World.Frames.LocalPose(s.Moon).Should().Be(stopped);
+        s.T.World.Frames.LinearVelocity(s.Moon).Should().Be(Double3.Zero);
+        s.T.World.PoseInOwnFrame(s.Moon.Entity).Should().Be(s.T.World.Frames.LocalPose(s.Moon), "the owner mirrors its frame");
+        s.Lines.Should().ContainSingle(line => line.Contains($"{s.Moon}"));
         s.T.World.Errors.Should().BeEmpty("the game destroyed the planet, so this is not a bug");
+        s.T.World.Invoking(world => world.AssertInvariants()).Should().NotThrow();
     }
 
     [Fact]
-    public void AKeplerFrameStopsWhenItsParentIsDestroyedDuringATick()
+    public void AKeplerFrameMovesUpWhenItsParentIsDestroyedDuringATick()
     {
         using var s = new PlanetScene(default, Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy()));
 
         s.T.Run(1);
 
         s.T.World.Frames.Parent(s.Moon).Should().Be(s.T.Root);
-        s.T.World.Frames.Driver(s.Moon).Should().Be(MotionDriver.Static);
         s.T.World.Errors.Should().BeEmpty();
-    }
-
-    [Fact]
-    public void AKeplerFrameKeepsItsDriverWhenItsParentIsDestroyedAndTheGrandparentHasPointGravity()
-    {
-        using var s = new PlanetScene(GravityField.Point(4 * Mu));
-
-        s.T.World.Destroy(s.PlanetOwner);
-
-        s.T.World.Frames.Parent(s.Moon).Should().Be(s.T.Root);
-        s.T.World.Frames.Driver(s.Moon).Should().Be(MotionDriver.Kepler);
-        s.Lines.Should().NotContain(line => line.Contains($"{s.Moon}"));
-        s.T.World.Invoking(world => world.AssertInvariants()).Should().NotThrow();
     }
 
     [Theory]
@@ -378,7 +316,7 @@ public class KeplerParentGravityTests
         FrameHandle pad = s.T.World.GetOwnedFrame(s.T.World.Spawn(new SpawnDesc
         {
             Frame = s.Planet,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Spin: new FrameSpin(DQuaternion.Identity, 0.5)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
         }));
 
         s.T.World.Destroy(s.PlanetOwner);
@@ -389,21 +327,7 @@ public class KeplerParentGravityTests
     }
 
     [Fact]
-    public void AKeplerFrameThatMovedToTheGrandparentOrbitsTheGMOfTheGrandparent()
-    {
-        using var s = new PlanetScene(GravityField.Point(4 * Mu));
-        s.T.World.Frames.LinearVelocity(s.Moon).Length.Should().BeApproximately(Math.Sqrt(Mu / 1000), 1e-6, "the moon orbited the planet's G·M");
-
-        s.T.World.Destroy(s.PlanetOwner);
-        s.T.Run(1);
-
-        // A circle of 1000 m round a parent with four times the G·M goes twice as fast.
-        s.T.World.Frames.LinearVelocity(s.Moon).Length.Should().BeApproximately(Math.Sqrt(4 * Mu / 1000), 1e-6);
-        s.T.World.Frames.LocalPose(s.Moon).Position.Length.Should().BeApproximately(1000, 1e-6, "the orbit is round the grandparent now");
-    }
-
-    [Fact]
-    public void AKeplerFrameStopsWhenBothItsParentAndItsGrandparentAreDestroyedAndTheGreatGrandparentHasNoPointGravity()
+    public void AKeplerFrameMovesUpToItsGreatGrandparentWhenBothItsParentAndItsGrandparentAreDestroyed()
     {
         using var t = new TestWorld();
         Entity outerOwner = t.World.Spawn(new SpawnDesc
@@ -426,7 +350,6 @@ public class KeplerParentGravityTests
 
         t.World.Frames.IsAlive(moon).Should().BeTrue();
         t.World.Frames.Parent(moon).Should().Be(t.Root);
-        t.World.Frames.Driver(moon).Should().Be(MotionDriver.Static);
         t.World.Errors.Should().BeEmpty();
     }
 }

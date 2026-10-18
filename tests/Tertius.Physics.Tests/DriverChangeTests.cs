@@ -72,7 +72,7 @@ public class DriverChangeTests
             Pose = new DPose(position, DQuaternion.Identity),
             LinearVelocity = driver == MotionDriver.Static ? Double3.Zero : velocity,
             Body = BoxBody(2, 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: ShipOrbit),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
         });
         return (planet, owner, world.GetOwnedFrame(owner));
     }
@@ -162,7 +162,7 @@ public class DriverChangeTests
         {
             Frame = planet,
             Body = BoxBody(10, 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler, Orbit: orbit),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, orbit));
         FrameHandle station = world.GetOwnedFrame(owner);
         Tick(world, 10);
@@ -331,7 +331,7 @@ public class DriverChangeTests
             Frame = space,
             Pose = At(50),
             Body = desc,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static, Orbit: ShipOrbit),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
         });
         FrameHandle dock = world.GetOwnedFrame(owner);
         world.Tick();

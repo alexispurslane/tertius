@@ -77,7 +77,7 @@ public class CharacterOrbitHandOffTests
         run.Earth = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = sun,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu), Orbit: KeplerOrbit.Circular(1.496e11)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu)),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(1.496e11))));
         var hull = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1));
         var cabin = new BoundingBox(new Vector3(-9.5f, -3.5f, -29.5f), new Vector3(9.5f, 3.5f, 29.5f));

@@ -18,7 +18,7 @@ public class BackendTests
         var frames = new FrameTree();
         var changes = new PhysicsChanges();
         var output = new PhysicsStepOutput();
-        FrameHandle space = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static, default, default);
+        FrameHandle space = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static, default);
         changes.FramesCreated.Add(space);
         using var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
         backend.ApplyChanges(changes, frames);

@@ -1,5 +1,4 @@
 using System.Numerics;
-using Tertius.Frames.Rails;
 
 namespace Tertius;
 
@@ -11,11 +10,6 @@ namespace Tertius;
 /// <para>
 /// Invariants, checked by <see cref="AssertInvariants"/>:
 /// <list type="bullet">
-/// <item>Every frame with the <see cref="MotionDriver.Kepler"/> driver has a parent whose gravity is a point field with a
-/// G·M above 0 (see <see cref="GravityField.CanBeOrbited"/>). An orbit has no G·M of its own. A Kepler frame takes the G·M
-/// of its parent's point gravity (see <see cref="KeplerMu"/>), the same G·M that pulls the loose bodies in that parent. The
-/// tree does not keep this invariant: its setters take what they are given. The World does, because it refuses every call
-/// that would break it.</item>
 /// <item>The rotation of every frame's local pose is a unit quaternion: the square of its length is within
 /// <see cref="DQuaternion.UnitTolerance"/> of 1. A frame whose rotation is a little long or short moves everything in its
 /// parent by that much of the distance to the parent's origin, as seen from the frame. The tree checks it in a build with
@@ -55,8 +49,6 @@ public sealed partial class FrameTree
     private Entity[] owner = new Entity[64];
     private FrameBounds[] bounds = new FrameBounds[64];
     private MotionDriver[] driver = new MotionDriver[64];
-    private KeplerOrbit[] orbit = new KeplerOrbit[64];
-    private FrameSpin[] spin = new FrameSpin[64];
     private GravityField[] gravity = new GravityField[64];
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
@@ -69,7 +61,7 @@ public sealed partial class FrameTree
     // it was at the end of the last UpdateNumericFrames.
     private double[] apartTime = new double[64];
     private int[] numericBodies = new int[64];
-    // The number of calls to SetDriver, SetOrbit and SetSpin for each frame, and for every frame together.
+    // The number of calls to SetDriver for each frame, and for every frame together.
     private int[] driverVersion = new int[64];
     private int driverChanges;
 
@@ -91,8 +83,8 @@ public sealed partial class FrameTree
     internal int NumericCount { get; private set; }
 
     /// <summary>
-    /// Changes on every structural change (add, remove or reparent) and on every call to <see cref="SetDriver"/>,
-    /// <see cref="SetOrbit"/> and <see cref="SetSpin"/>. Physics compares it with the version that it last followed.
+    /// Changes on every structural change (add, remove or reparent) and on every call to <see cref="SetDriver"/>. Physics
+    /// compares it with the version that it last followed.
     /// </summary>
     internal int Version => poses.Version + driverChanges;
 
@@ -102,9 +94,7 @@ public sealed partial class FrameTree
         in DPose localPose,
         FrameBounds frameBounds,
         MotionDriver motion,
-        GravityField field = default,
-        in KeplerOrbit kepler = default,
-        in FrameSpin spinning = default)
+        GravityField field = default)
     {
         if (frameOwner.IsNull)
             throw new ArgumentException("A frame needs an owner entity.", nameof(frameOwner));
@@ -112,21 +102,19 @@ public sealed partial class FrameTree
             throw new InvalidOperationException($"{frameOwner} already owns a frame.");
         Contract.Requires(localPose.Rotation.IsUnit);
 
-        FrameHandle handle = AddFrame(frameOwner, parent, localPose, frameBounds, motion, field, kepler, spinning, NumericMode.None);
+        FrameHandle handle = AddFrame(frameOwner, parent, localPose, frameBounds, motion, field, NumericMode.None);
         byOwner.Add(frameOwner, handle);
         return handle;
     }
 
     private FrameHandle AddFrame(Entity frameOwner, FrameHandle parent, in DPose localPose, FrameBounds frameBounds, MotionDriver motion,
-        GravityField field, in KeplerOrbit kepler, in FrameSpin spinning, NumericMode mode)
+        GravityField field, NumericMode mode)
     {
         PoseNode node = poses.Add(parent.IsNull ? PoseNode.Null : Node(parent), localPose);
         Grow(node.Id + 1);
         owner[node.Id] = frameOwner;
         bounds[node.Id] = frameBounds;
         driver[node.Id] = motion;
-        orbit[node.Id] = kepler;
-        spin[node.Id] = spinning;
         gravity[node.Id] = field;
         linearVelocity[node.Id] = Double3.Zero;
         angularVelocity[node.Id] = Vector3.Zero;
@@ -369,9 +357,9 @@ public sealed partial class FrameTree
     public MotionDriver Driver(FrameHandle frame) => driver[Node(frame).Id];
 
     /// <summary>
-    /// Changes on every call to <see cref="SetDriver"/>, <see cref="SetOrbit"/> or <see cref="SetSpin"/> for the frame, also
-    /// a call that gives the frame the driver, the orbit or the spin that it has. Each of them can change how the frame moves. Physics compares it with
-    /// the version that the frame's hull last followed.
+    /// Changes on every call to <see cref="SetDriver"/> for the frame, also a call that gives the frame the driver that it
+    /// has, because each can change how the frame's hull moves. Physics compares it with the version that the frame's hull
+    /// last followed.
     /// </summary>
     public int DriverVersion(FrameHandle frame) => driverVersion[Node(frame).Id];
 
@@ -406,42 +394,6 @@ public sealed partial class FrameTree
         }
     }
 
-    /// <summary>The orbit of the frame around its parent, which the Kepler driver follows. <see cref="SetOrbit"/> changes it.</summary>
-    public KeplerOrbit Orbit(FrameHandle frame) => orbit[Node(frame).Id];
-
-    /// <summary>
-    /// Gives a frame a new orbit. Like <see cref="SetDriver"/>, every call changes <see cref="Version"/> and
-    /// <see cref="DriverVersion"/>, so physics puts the frame's hull at the frame's pose and velocity in the tree at the
-    /// start of its next step. The frame keeps its pose and velocities: the caller moves a Kepler frame onto the new orbit.
-    /// Throws <see cref="InvalidOperationException"/> for a stale frame.
-    /// </summary>
-    /// <remarks>Only the simulation calls it, through <c>World.SetFrameOrbit</c>, which refuses an orbit that is not valid.</remarks>
-    internal void SetOrbit(FrameHandle frame, in KeplerOrbit value)
-    {
-        int id = Node(frame).Id;
-        orbit[id] = value;
-        driverVersion[id]++;
-        driverChanges++;
-    }
-
-    /// <summary>How the frame turns in place, which the Spin driver follows. <see cref="SetSpin"/> changes it.</summary>
-    public FrameSpin Spin(FrameHandle frame) => spin[Node(frame).Id];
-
-    /// <summary>
-    /// Gives a frame a new spin. Like <see cref="SetOrbit"/>, every call changes <see cref="Version"/> and
-    /// <see cref="DriverVersion"/>, so physics puts the frame's hull at the frame's pose and velocity in the tree at the
-    /// start of its next step. The frame keeps its pose and velocities: the caller turns a Spin frame to the new spin.
-    /// Throws <see cref="InvalidOperationException"/> for a stale frame.
-    /// </summary>
-    /// <remarks>Only the simulation calls it, through <c>World.SetFrameSpin</c>, which refuses a spin that is not valid.</remarks>
-    internal void SetSpin(FrameHandle frame, in FrameSpin value)
-    {
-        int id = Node(frame).Id;
-        spin[id] = value;
-        driverVersion[id]++;
-        driverChanges++;
-    }
-
     /// <summary>The gravity field of the frame. <see cref="SetGravity"/> changes it.</summary>
     public GravityField Gravity(FrameHandle frame) => gravity[Node(frame).Id];
 
@@ -450,28 +402,13 @@ public sealed partial class FrameTree
     /// <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     /// <remarks>
-    /// Only the simulation calls it, through <c>World.SetFrameGravity</c>, which refuses a field that is not valid, and a
-    /// field that would leave a Kepler child of the frame without the G·M that it orbits.
+    /// Only the simulation calls it, through <c>World.SetFrameGravity</c>, which refuses a field that is not valid.
     /// </remarks>
     internal void SetGravity(FrameHandle frame, in GravityField value) => gravity[Node(frame).Id] = value;
 
     /// <summary>
-    /// The G·M that the Kepler motion of <paramref name="frame"/> uses, in m³/s²: the G·M of the point gravity of its parent
-    /// frame. The orbit has none of its own (see <see cref="KeplerOrbit"/>), so a Kepler frame and the loose bodies in its
-    /// parent fall on the same G·M. Zero for a frame without a parent, or whose parent has no point gravity with a G·M above
-    /// 0 (see <see cref="KeplerOrbit.MuFrom"/>), which leaves <see cref="KeplerOrbit.StateAt"/> at zero. A frame with the
-    /// Kepler driver is never in that state (see <see cref="AssertInvariants"/>). Throws
-    /// <see cref="InvalidOperationException"/> for a stale frame.
-    /// </summary>
-    public double KeplerMu(FrameHandle frame)
-    {
-        FrameHandle parent = Parent(frame);
-        return parent.IsNull ? 0 : KeplerOrbit.MuFrom(Gravity(parent));
-    }
-
-    /// <summary>
-    /// Checks the invariants of the tree (see the class summary): every frame with the Kepler driver has a G·M to orbit, and
-    /// the rotation of every frame's local pose is unit length, and the numeric frames keep the rules of the class summary.
+    /// Checks the invariants of the tree (see the class summary): the rotation of every frame's local pose is unit length,
+    /// and the numeric frames keep the rules of the class summary.
     /// O(frames). It runs only on demand, so it works in every build.
     /// </summary>
     internal void AssertInvariants()
@@ -487,8 +424,6 @@ public sealed partial class FrameTree
         for (int i = 0; i < poses.Count; i++)
         {
             FrameHandle frame = AtDense(i);
-            if (Driver(frame) == MotionDriver.Kepler)
-                Contract.Invariant(KeplerMu(frame) > 0);
             Contract.Invariant(locals[i].Rotation.IsUnit);
             int id = poses.NodeAt(i).Id;
             FrameHandle parent = TreeParent(frame);
@@ -898,8 +833,6 @@ public sealed partial class FrameTree
         Array.Resize(ref owner, size);
         Array.Resize(ref bounds, size);
         Array.Resize(ref driver, size);
-        Array.Resize(ref orbit, size);
-        Array.Resize(ref spin, size);
         Array.Resize(ref gravity, size);
         Array.Resize(ref linearVelocity, size);
         Array.Resize(ref angularVelocity, size);

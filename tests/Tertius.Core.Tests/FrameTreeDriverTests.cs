@@ -1,6 +1,5 @@
 using System.Numerics;
 using AwesomeAssertions;
-using Tertius.Frames.Rails;
 
 namespace Tertius.Core.Tests;
 
@@ -144,36 +143,5 @@ public class FrameTreeDriverTests
         Action set = () => ship.Frames.SetDriver(ship.Hull, MotionDriver.Static);
 
         set.Should().Throw<InvalidOperationException>();
-    }
-
-    [Fact]
-    public void ANewSpinMovesTheVersionAndTheFramesDriverVersionOnSoThatPhysicsFollowsIt()
-    {
-        var ship = new Ship();
-        int version = ship.Frames.Version, driverVersion = ship.Frames.DriverVersion(ship.Hull);
-
-        ship.Frames.SetSpin(ship.Hull, new FrameSpin(DQuaternion.Identity, 0.5));
-
-        ship.Frames.Spin(ship.Hull).Rate.Should().Be(0.5);
-        ship.Frames.Version.Should().NotBe(version);
-        ship.Frames.DriverVersion(ship.Hull).Should().NotBe(driverVersion);
-    }
-
-    [Fact]
-    public void AHundredFramesKeepTheirOwnDriversOrbitsAndSpins()
-    {
-        var frames = new FrameTree();
-        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
-        var all = new List<FrameHandle>();
-        for (int i = 0; i < 100; i++)
-            all.Add(frames.Create(new Entity((uint)(i + 2), 1), root, DPose.Identity, FrameBounds.Sphere(1), (MotionDriver)(i % 4),
-                kepler: KeplerOrbit.Circular(1000 + i), spinning: new FrameSpin(DQuaternion.Identity, i)));
-
-        foreach (int i in new[] { 0, 63, 64, 99 })
-        {
-            frames.Driver(all[i]).Should().Be((MotionDriver)(i % 4));
-            frames.Orbit(all[i]).SemiMajorAxis.Should().Be(1000 + i);
-            frames.Spin(all[i]).Rate.Should().Be(i);
-        }
     }
 }

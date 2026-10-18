@@ -253,7 +253,7 @@ public static class HostTesting
         scene.Add("moon", world.Spawn(new SpawnDesc
         {
             Frame = space,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(1000)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(1000))));
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, 5) });
         return scene;

@@ -194,7 +194,7 @@ public class TransformTests
         test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: orbit),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(DPose.Identity))],
         });
 

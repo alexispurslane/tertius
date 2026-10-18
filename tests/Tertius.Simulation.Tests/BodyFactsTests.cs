@@ -43,8 +43,7 @@ public class BodyFactsTests
         Frame = space,
         Pose = WorldTesting.At(5000),
         Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, InteriorShape: interior),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: KeplerOrbit.Circular(5000, phase: 1.0),
-            Spin: new FrameSpin(DQuaternion.Identity, 0.1)),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
     });
 
     private static BodyFacts FactsOf(World world, Entity entity)

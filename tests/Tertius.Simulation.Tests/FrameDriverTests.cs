@@ -18,14 +18,14 @@ public class FrameDriverTests
     private static readonly MeshShapeDesc Ramp = new([new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)], [0, 2, 1, 0, 3, 2]);
 
     /// <summary>A frame with <paramref name="driver"/>, 100 m along +X in the root, whose owner has the hull <paramref name="hull"/>.</summary>
-    private static FrameHandle SpawnFrame(TestWorld test, MotionDriver driver, BodyDesc? hull, KeplerOrbit orbit = default) =>
+    private static FrameHandle SpawnFrame(TestWorld test, MotionDriver driver, BodyDesc? hull) =>
         test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
             Pose = TestWorld.At(100),
             LinearVelocity = ShipVelocity.ToVector3(),
             AngularVelocity = ShipSpin,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: orbit),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
             Body = hull,
         }));
 
@@ -53,15 +53,16 @@ public class FrameDriverTests
     }
 
     [Fact]
-    public void AFrameWithAValidOrbitTakesTheKeplerDriverAndFollowsItsOrbitFromTheNextTick()
+    public void AFrameThatTakesTheKeplerDriverAndAKeplerMotionFollowsItsOrbitFromTheSecondSyncPoint()
     {
+        // A change of motion is a new driver plus a swap of components (docs/plans/rails-components.md, "Changes of motion").
         using var test = new TestWorld();
         test.GiveRootPointGravity(1e9);
         FrameHandle ship = SpawnShip(test);
-        test.World.SetFrameOrbit(ship, KeplerOrbit.Circular(1000));
+        test.World.AddComponent(ship.Entity, new KeplerMotion { Orbit = KeplerOrbit.Circular(1000) });
 
         test.World.SetFrameDriver(ship, MotionDriver.Kepler);
-        test.Run(1);
+        test.Run(2);
 
         test.World.Frames.Driver(ship).Should().Be(MotionDriver.Kepler);
         PoseChecks.AssertNear(test.World.Frames.LocalPose(ship).Position, KeplerOrbit.Circular(1000).StateAt(test.World.Time, 1e9).Position);
@@ -147,7 +148,7 @@ public class FrameDriverTests
         test.GiveRootPointGravity(1e9);
         int before = test.World.Stats.LiveEntities;
 
-        Action spawn = () => SpawnFrame(test, MotionDriver.Kepler, new BodyDesc(Ramp, BodyMotion.Static), KeplerOrbit.Circular(1000));
+        Action spawn = () => SpawnFrame(test, MotionDriver.Kepler, new BodyDesc(Ramp, BodyMotion.Static));
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*mesh*Kepler driver*");
         test.World.Stats.LiveEntities.Should().Be(before);
@@ -206,7 +207,7 @@ public class FrameDriverTests
     {
         using var test = new TestWorld();
         test.GiveRootPointGravity(1e9);
-        FrameHandle dock = SpawnFrame(test, MotionDriver.Static, new BodyDesc(Ramp, BodyMotion.Static), KeplerOrbit.Circular(1000));
+        FrameHandle dock = SpawnFrame(test, MotionDriver.Static, new BodyDesc(Ramp, BodyMotion.Static));
 
         Action set = () => test.World.SetFrameDriver(dock, MotionDriver.Kepler);
 
@@ -214,7 +215,7 @@ public class FrameDriverTests
         test.World.Frames.Driver(dock).Should().Be(MotionDriver.Static);
     }
 
-    /// <summary>An orbit that the Kepler driver cannot follow. The default orbit would leave the frame at its parent's origin.</summary>
+    /// <summary>An orbit that a <see cref="KeplerMotion"/> cannot follow. The default orbit would leave the frame at its parent's origin.</summary>
     public static TheoryData<string, KeplerOrbit> OrbitsThatAreNotValid => new()
     {
         { "the default orbit", default },
@@ -227,16 +228,11 @@ public class FrameDriverTests
 
     [Theory]
     [MemberData(nameof(OrbitsThatAreNotValid))]
-    public void TheKeplerDriverIsRefusedForAFrameWithoutAValidOrbit(string why, KeplerOrbit orbit)
+    public void AKeplerMotionRefusesAnOrbitThatItCannotFollow(string why, KeplerOrbit orbit)
     {
-        using var test = new TestWorld();
-        test.GiveRootPointGravity(1e9);
-        // A frame with another driver keeps the orbit that it was spawned with, valid or not, until it gets the Kepler driver.
-        FrameHandle ship = SpawnFrame(test, MotionDriver.Physics, new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000), orbit);
+        // The component checks its orbit, not the World: the setter refuses it before any frame gets it.
+        Action make = () => new KeplerMotion { Orbit = orbit };
 
-        Action set = () => test.World.SetFrameDriver(ship, MotionDriver.Kepler);
-
-        set.Should().Throw<ArgumentException>(why).WithMessage($"*{ship}*orbit*");
-        test.World.Frames.Driver(ship).Should().Be(MotionDriver.Physics);
+        make.Should().Throw<ArgumentException>(why).WithMessage("*orbit*not valid*");
     }
 }

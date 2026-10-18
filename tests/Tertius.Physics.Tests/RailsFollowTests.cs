@@ -45,7 +45,7 @@ public class RailsFollowTests
     {
         Frame = space,
         Body = Ball(),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: Decoy(orbit)),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
     }.OnKeplerOrbit(world, orbit));
 
     /// <summary>The owner of a frame without a body on <paramref name="orbit"/> in <paramref name="space"/>, whose bubble has a radius of <paramref name="bubble"/> m.</summary>
@@ -245,7 +245,7 @@ public class RailsFollowTests
         {
             Frame = space,
             Body = withBody ? Ball() : null,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: Slow),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, Slow));
 
         world.Tick();
@@ -337,7 +337,7 @@ public class RailsFollowTests
             Frame = space,
             Pose = At(1e7),
             Body = Ball(),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Spin, Spin: turning),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Spin),
         }.Spinning(world, turning));
 
         Tick(world, 3);
@@ -421,7 +421,7 @@ public class RailsFollowTests
             Pose = At(1000),
             LinearVelocity = new Double3(0, 0, 100),
             Body = Ball(),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: Slow),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
         });
 
         Tick(world, 3);

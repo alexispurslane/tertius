@@ -744,7 +744,7 @@ public class PhysicsHandOffTests
         {
             Frame = test.Root,
             Pose = TestWorld.At(0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: driver == MotionDriver.Kepler ? KeplerOrbit.Circular(1) : default),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), driver == MotionDriver.Kepler ? BodyMotion.Kinematic : BodyMotion.Static),
         };
         Entity owner = test.World.Spawn(driver == MotionDriver.Kepler ? desc.OnKeplerOrbit(test.World, KeplerOrbit.Circular(1)) : desc);

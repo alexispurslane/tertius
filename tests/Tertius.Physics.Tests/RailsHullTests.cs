@@ -165,8 +165,7 @@ public class RailsHullTests
         Frame = space,
         Pose = new DPose(SpinPlace, DQuaternion.FromAxisAngle(Double3.UnitX, 1)),
         Body = Ball(),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), driver, Orbit: driver == MotionDriver.Kepler ? Orbit : default,
-            Spin: driver == MotionDriver.Spin ? Spin : default),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), driver),
         Components = components,
     });
 

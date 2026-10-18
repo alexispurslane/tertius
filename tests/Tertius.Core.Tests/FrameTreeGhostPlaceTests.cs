@@ -30,7 +30,7 @@ public class FrameTreeGhostPlaceTests
     /// </summary>
     private const double Far = 1 << 24;
 
-    private readonly FrameTree frames = new() { StepLength = Step };
+    private readonly FrameTree frames = new();
     private readonly FrameHandle ground;
     private readonly PhysicsChanges changes = new();
     private List<NumericMove> moves = [];
@@ -715,11 +715,11 @@ public class FrameTreeGhostPlaceTests
         FrameHandle space = frames.Create(new Entity(3, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static,
             GravityField.Point(mu));
         KeplerOrbit path = KeplerOrbit.Circular(Far);
-        FrameHandle station = frames.Create(new Entity(2, 1), space, DPose.Identity, FrameBounds.Sphere(40), MotionDriver.Kepler, kepler: path);
-        frames.PlaceOnOrbit(station, start);
+        (Double3 place, Double3 velocity) = path.StateAt(start, mu);
+        FrameHandle station = frames.Create(new Entity(2, 1), space, new DPose(place, path.RotationAt(start, mu)), FrameBounds.Sphere(40), MotionDriver.Kepler);
+        frames.TreeLinearVelocity(station) = velocity;
         FrameHandle orbit = Update(0.1, KeplerHull(station))[0].Home;
         frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
-        (Double3 place, Double3 velocity) = path.StateAt(start, mu);
         NumericBody pod = SpaceBody(space, 10, place + Y(41.5), velocity);
         NumericBody rock = SpaceBody(space, 12, place + Y(56.5), Double3.Zero) with { Static = true };
 
@@ -860,7 +860,7 @@ public class FrameTreeGhostPlaceTests
     /// </summary>
     private static (List<NumericMove> Moves, List<FrameHandle> Created, NumericGhost[] Ghosts) RunScene()
     {
-        var tree = new FrameTree { StepLength = Step };
+        var tree = new FrameTree();
         var changes = new PhysicsChanges();
         FrameHandle root = tree.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
         FrameHandle ship = tree.Create(new Entity(20, 1), root, new DPose(X(1_000), DQuaternion.Identity), FrameBounds.Sphere(200), MotionDriver.Physics);

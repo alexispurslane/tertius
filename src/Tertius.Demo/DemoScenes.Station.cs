@@ -206,14 +206,14 @@ public static partial class DemoScenes
                 LinearVelocity = stationVelocity,
                 AngularVelocity = orbit.AngularVelocityAt(world.Time, EarthMu).ToVector3(),
                 Components = [new KeplerMotion { Orbit = orbit }],
-                // The hull outside the frame: the solid module and the radiator. The Kepler driver makes it kinematic, and
-                // its KeplerMotion moves it.
+                // The hull outside the frame: the solid module and the radiator. It is kinematic, and its KeplerMotion
+                // moves it.
                 Body = new BodyDesc(new CompoundShapeDesc([
                         new CompoundChild(new BoxShapeDesc(Hull), new Pose(Vector3.Zero, Quaternion.Identity)),
                         new CompoundChild(new BoxShapeDesc(Radiator.Extents), new Pose(Radiator.Center, Quaternion.Identity)),
-                    ]), Mass: 2e5f,
+                    ]), BodyMotion.Kinematic, Mass: 2e5f,
                     InteriorShape: new CompoundShapeDesc([.. Interior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
-                AsFrame = new FrameSpec(new FrameBounds(Bubble), MotionDriver.Kepler, Orbit: orbit),
+                AsFrame = new FrameSpec(new FrameBounds(Bubble), MotionDriver.Kepler),
                 Render = Drawn(resources, HullMesh(), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 33),
             });
             scene.Add("station", station);
@@ -267,7 +267,7 @@ public static partial class DemoScenes
                     Frame = frame,
                     Pose = new DPose(start, DQuaternion.Identity),
                     LinearVelocity = velocity,
-                    Body = new BodyDesc(new BoxShapeDesc(new Vector3(PodHalfSize)), Mass: PodMass, LinearDamping: 0, AngularDamping: 0),
+                    Body = new BodyDesc(new BoxShapeDesc(new Vector3(PodHalfSize)), BodyMotion.Dynamic, Mass: PodMass, LinearDamping: 0, AngularDamping: 0),
                     AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Physics),
                     Render = pod,
                 }));

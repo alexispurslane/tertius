@@ -65,7 +65,7 @@ internal sealed class ChaoticWorkload : IDisposable
         star = SpawnFrame(root, TestWorld.At(0, 0, -30000), new FrameSpec(FrameBounds.Sphere(10000), MotionDriver.Static, GravityField.Point(1e6)));
         KeplerOrbit starOrbit = KeplerOrbit.Circular(2000, spinRate: 0.1);
         FrameHandle orbit = SpawnFrame(star, DPose.Identity,
-            new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Kepler, Orbit: starOrbit), desc => desc.OnKeplerOrbit(World, starOrbit));
+            new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Kepler), desc => desc.OnKeplerOrbit(World, starOrbit));
 
         // The shuttle is a frame whose hull is a body: physics drives the frame, and hands the hull off between frames. It
         // flies at 6 m/s, so that Jolt sends the state of its frame in every step.

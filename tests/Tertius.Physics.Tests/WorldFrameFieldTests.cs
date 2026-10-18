@@ -6,9 +6,10 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// The orbit and the gravity field of a frame, which a game changes through the World. The World refuses a value that
-/// the engine cannot use, at spawn and at a change. Before, a hyperbolic or NaN orbit made the frame, its hull and
-/// everything inside it NaN, with no error.
+/// The orbit and the gravity field of a frame. A game changes the gravity field through the World, which refuses a field
+/// that physics cannot apply. The orbit lives on the frame's <see cref="KeplerMotion"/>, whose setter refuses an orbit that
+/// the component cannot follow, and a game changes it by a swap of components. Before, a hyperbolic or NaN orbit made the
+/// frame, its hull and everything inside it NaN, with no error.
 /// </summary>
 public class WorldFrameFieldTests
 {
@@ -16,7 +17,7 @@ public class WorldFrameFieldTests
 
     private static readonly KeplerOrbit StationOrbit = KeplerOrbit.Circular(5000);
 
-    /// <summary>Orbits that the Kepler driver cannot follow, by the names that the theories use.</summary>
+    /// <summary>Orbits that a <see cref="KeplerMotion"/> cannot follow, by the names that the theories use.</summary>
     private static KeplerOrbit BadOrbit(string kind) => kind switch
     {
         "hyperbolic e = 1.2" => StationOrbit with { Eccentricity = 1.2 },
@@ -57,7 +58,7 @@ public class WorldFrameFieldTests
             {
                 Frame = Planet,
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler, Orbit: StationOrbit),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler),
             }.OnKeplerOrbit(World, StationOrbit));
             Station = World.GetOwnedFrame(Owner);
         }
@@ -77,106 +78,93 @@ public class WorldFrameFieldTests
     }
 
     /// <summary>
-    /// The reviewer's probes D10 and D10c. A station follows a valid orbit. The game tries to give it an orbit that the
-    /// Kepler driver cannot follow. The World refuses, and the station, its hull and a ball nearby stay on their courses.
-    /// </summary>
-    [Theory]
-    [InlineData("hyperbolic e = 1.2")]
-    [InlineData("NaN semi-major axis")]
-    [InlineData("infinite spin")]
-    [InlineData("default")]
-    public void SetFrameOrbitRefusesAnOrbitThatTheKeplerDriverCannotFollow(string kind)
-    {
-        using var scene = new OrbitScene();
-        World world = scene.World;
-        Tick(world, 10);
-
-        Action set = () => world.SetFrameOrbit(scene.Station, BadOrbit(kind));
-
-        set.Should().Throw<ArgumentException>().WithMessage("*orbit*not valid*");
-        world.Frames.Orbit(scene.Station).Should().Be(StationOrbit);
-        Tick(world, 30);
-        world.Frames.LocalPose(scene.Station).Position.Length.Should().BeApproximately(5000, 1e-6, "the station stays on its orbit");
-        Finite(scene.Hull.Position).Should().BeTrue();
-        Finite(world.PoseInOwnFrame(scene.Ball).Position).Should().BeTrue();
-        world.Errors.Should().BeEmpty();
-    }
-
-    /// <summary>
-    /// A station gets a larger orbit. It moves to its place on the new orbit at once, and its owner with it. Physics puts
-    /// the hull there before the next step, so the hull moves on at the orbital speed of the new orbit, √(μ / r), instead of
-    /// crossing 1 km in one step.
+    /// A station follows a valid orbit. The game replaces its <see cref="KeplerMotion"/> with one on a larger orbit. The new
+    /// component's first run teleports the hull onto the new orbit, so the hull moves on at the orbital speed of the new
+    /// orbit, √(μ / r), instead of crossing 1 km in one step (docs/plans/rails-components.md, "Changes of motion"). In the
+    /// tick of the swap the old component's last sample moves the frame, so the swap has no gap, and from the second sync
+    /// point after it the frame stands on the new orbit.
     /// </summary>
     [Fact]
-    public void ANewOrbitMovesAKeplerFrameAndItsHullAtOnce()
+    public void ANewKeplerMotionMovesAKeplerFrameAndItsHullOntoItsOrbitWithoutSweepingTheHullThere()
     {
         using var scene = new OrbitScene();
         World world = scene.World;
         Tick(world, 10);
         KeplerOrbit larger = KeplerOrbit.Circular(6000);
 
-        world.SetFrameOrbit(scene.Station, larger);
+        world.RemoveComponent(scene.Owner, world.GetComponent<KeplerMotion>(scene.Owner)!);
+        world.AddComponent(scene.Owner, new KeplerMotion { Orbit = larger });
+        world.Tick();
+        scene.Hull.LinearVelocity.Length().Should().BeApproximately((float)Math.Sqrt(PlanetMu / 5000), 0.01f, "the old component's last sample moves the hull");
+        world.Tick();
 
         world.Frames.LocalPose(scene.Station).Position.Length.Should().BeApproximately(6000, 1e-6);
-        world.PoseInOwnFrame(scene.Owner).Should().Be(world.Frames.LocalPose(scene.Station), "the owner mirrors its frame at once");
-        world.Tick();
-        double speed = Math.Sqrt(PlanetMu / 6000);
-        scene.Hull.LinearVelocity.Length().Should().BeApproximately((float)speed, 0.01f, "the hull follows the new orbit");
+        world.PoseInOwnFrame(scene.Owner).Should().Be(world.Frames.LocalPose(scene.Station), "the owner mirrors its frame");
+        scene.Hull.LinearVelocity.Length().Should().BeApproximately((float)Math.Sqrt(PlanetMu / 6000), 0.01f, "the hull follows the new orbit");
         (scene.Hull.Position - world.Frames.LocalPose(scene.Station).Position).Length.Should().BeLessThan(1e-3);
         world.Errors.Should().BeEmpty();
     }
 
-    /// <summary>The reviewer's probe D10b: spawn refuses a Kepler frame whose orbit the driver cannot follow.</summary>
+    /// <summary>
+    /// The reviewer's probe D10b, now for the component that checks the orbit: the spawn of a blueprint whose
+    /// <see cref="KeplerMotion"/> has an orbit that it cannot follow throws, because the component's setter refuses the orbit,
+    /// and nothing spawns. Before, a hyperbolic or NaN orbit made the frame, its hull and everything inside it NaN, with no
+    /// error.
+    /// </summary>
     [Theory]
     [InlineData("hyperbolic e = 1.2")]
     [InlineData("NaN semi-major axis")]
+    [InlineData("infinite spin")]
     [InlineData("default")]
-    public void SpawnRefusesAKeplerFrameWhoseOrbitTheDriverCannotFollow(string kind)
+    public void ABlueprintWithAnOrbitThatIsNotValidForKeplerMotionThrowsAtSpawn(string kind)
     {
         using World world = NewWorld(out _);
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)));
+        world.Blueprints.Register(new Blueprint("station",
+            [new ComponentSpec(typeof(KeplerMotion), new Dictionary<string, object?> { ["Orbit"] = BadOrbit(kind) })],
+            Body: new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
+            Frame: new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler)));
         int live = world.Stats.LiveEntities;
 
-        Action spawn = () => world.Spawn(new SpawnDesc
-        {
-            Frame = planet,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler, Orbit: BadOrbit(kind)),
-        });
+        Action spawn = () => world.Spawn("station", planet, DPose.Identity);
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*orbit*not valid*");
         world.Stats.LiveEntities.Should().Be(live);
     }
 
     /// <summary>
-    /// The World refuses every call that would leave a Kepler frame without a G·M to orbit, so only a bug can. A bug here
-    /// takes the point gravity from the planet behind the World's back, as <c>FrameTree.SetGravity</c> does when something
-    /// other than the World calls it. The world's debug checks find the Kepler frame at the end of the tick.
+    /// The planet that a station orbits loses its point gravity. The World checks nothing about Kepler frames, so the
+    /// station's <see cref="KeplerMotion"/> holds the frame still, and the world's debug checks, which run at the end of
+    /// every sync point, find nothing wrong.
     /// </summary>
     [Fact]
-    public void TheDebugChecksOfTheWorldFindAKeplerFrameWhoseParentLostItsPointGravity()
+    public void TheDebugChecksOfTheWorldPassAKeplerFrameWhoseParentLostItsPointGravity()
     {
         using var scene = new OrbitScene();
         scene.World.Tick();
-        scene.World.Frames.SetGravity(scene.Planet, GravityField.None);
+        scene.World.SetFrameGravity(scene.Planet, GravityField.None);
 
-        Action tick = () => scene.World.Tick();
+        Action tick = () => Tick(scene.World, 3);
 
-        tick.Should().Throw<ContractException>().WithMessage("*Invariant*");
+        tick.Should().NotThrow();
+        scene.World.Errors.Should().BeEmpty();
     }
 
     /// <summary>
     /// The game destroys the planet that a station orbits. The station moves up to the root frame, which has no point gravity,
-    /// so it has no G·M to orbit: the World gives it the static driver. Physics then makes the hull static where the frame
-    /// stopped, and nothing in either reports a problem.
+    /// so its <see cref="KeplerMotion"/> has no G·M to orbit: it writes no sample and logs that once. The World leaves the
+    /// frame's driver, so the hull stays kinematic and holds still where its last sample left it, and its frame with it.
+    /// Nothing in either reports a problem.
     /// </summary>
     [Fact]
-    public void TheHullOfAKeplerFrameStopsWhereTheFrameStoppedWhenItsPlanetIsDestroyed()
+    public void TheHullOfAKeplerFrameHoldsStillWithItsFrameWhenItsPlanetIsDestroyed()
     {
         var warnings = new List<string>();
         World world = NewWorld(out JoltPhysicsBackend backend, warnings);
         using (world)
         {
+            var log = new List<string>();
+            world.Log += log.Add;
             FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
             Entity planetOwner = world.Spawn(new SpawnDesc
             {
@@ -187,20 +175,24 @@ public class WorldFrameFieldTests
             {
                 Frame = world.GetOwnedFrame(planetOwner),
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler, Orbit: StationOrbit),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler),
             }.OnKeplerOrbit(world, StationOrbit));
             FrameHandle station = world.GetOwnedFrame(owner);
             Tick(world, 30);
 
             world.Destroy(planetOwner);
+            Tick(world, 2);
+            DPose stopped = world.Frames.LocalPose(station);
             Tick(world, 30);
 
-            world.Frames.Driver(station).Should().Be(MotionDriver.Static);
             world.Frames.Parent(station).Should().Be(space);
+            world.Frames.LocalPose(station).Should().Be(stopped, "the frame holds still");
+            world.Frames.LinearVelocity(station).Should().Be(Double3.Zero);
             JoltPhysicsBackend.BodyFacts hull = backend.BodiesIn(space)
                 .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
-            hull.Motion.Should().Be(JoltPhysicsSharp.MotionType.Static);
-            (hull.Position - world.Frames.LocalPose(station).Position).Length.Should().BeLessThan(1e-3);
+            hull.Motion.Should().Be(JoltPhysicsSharp.MotionType.Kinematic);
+            (hull.Position - stopped.Position).Length.Should().BeLessThan(1e-3);
+            log.Should().ContainSingle(line => line.Contains($"{station}"));
             world.Errors.Should().BeEmpty();
             warnings.Should().BeEmpty();
         }

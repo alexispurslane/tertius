@@ -100,13 +100,14 @@ public class WorldPhysicsTests
     }
 
     /// <summary>
-    /// A parked station rests 10 km from the point of its orbit where it belongs now. The game gives it the Kepler driver.
-    /// The station moves onto its orbit at once, as it does for a new orbit, and its owner with it. Physics then puts the
-    /// hull there at the start of the next step, so it never drives the hull across the gap: after one tick the hull is on
-    /// the orbit and moves at the orbital speed of 10 m/s.
+    /// A parked station rests 10 km from the point of its orbit where it belongs now. The game gives it the Kepler driver
+    /// and a <see cref="KeplerMotion"/> (docs/plans/rails-components.md, "Changes of motion": into orbit). The hull holds
+    /// still for the step in which the component first runs, as a kinematic hull without a sample does. Then the
+    /// component's first run teleports it onto its orbit, so physics never drives it across the gap: after two ticks the
+    /// station stands on its orbit, and the hull moves along it at the orbital speed of 10 m/s.
     /// </summary>
     [Fact]
-    public void AFrameThatGetsTheKeplerDriverMovesOntoItsOrbitAtOnceSoItsHullNeverCrossesTheGap()
+    public void AFrameThatGetsTheKeplerDriverAndAKeplerMotionJumpsOntoItsOrbitSoItsHullNeverCrossesTheGap()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         // At 5 km, a parent with this gravitational parameter gives an orbital speed of 10 m/s: √(5e5 / 5000).
@@ -122,21 +123,22 @@ public class WorldPhysicsTests
         FrameHandle station = world.GetOwnedFrame(owner);
         world.Tick();
         KeplerOrbit orbit = KeplerOrbit.Circular(5000);
-        world.SetFrameOrbit(station, orbit);
+        JoltPhysicsBackend.BodyFacts Hull() =>
+            backend.BodiesIn(planet).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
 
         world.SetFrameDriver(station, MotionDriver.Kepler);
-
-        (Double3 onOrbit, Double3 orbitalVelocity) = orbit.StateAt(world.Time, planetMu);
-        (world.Frames.LocalPose(station).Position - onOrbit).Length.Should().BeLessThan(1e-6, "the station moved onto its orbit at once");
-        (world.Frames.LinearVelocity(station) - orbitalVelocity).Length.Should().BeLessThan(1e-6);
-        world.PoseInOwnFrame(owner).Should().Be(world.Frames.LocalPose(station), "the owner mirrors its frame at once");
-
+        world.AddComponent(owner, new KeplerMotion { Orbit = orbit });
+        world.Tick();
+        Hull().LinearVelocity.Length().Should().BeLessThan(0.01f, "the hull holds still in the step before its first sample");
         world.Tick();
 
+        (Double3 onOrbit, Double3 orbitalVelocity) = orbit.StateAt(world.Time, planetMu);
+        (world.Frames.LocalPose(station).Position - onOrbit).Length.Should().BeLessThan(1e-6, "the station stands on its orbit");
+        (world.Frames.LinearVelocity(station) - orbitalVelocity).Length.Should().BeLessThan(1e-6);
+        world.PoseInOwnFrame(owner).Should().Be(world.Frames.LocalPose(station), "the owner mirrors its frame");
         // The state of Jolt's hull after the tick: no tick has changed it since the step that read it.
-        JoltPhysicsBackend.BodyFacts hull = backend.BodiesIn(planet).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
-        hull.LinearVelocity.Length().Should().BeApproximately(10f, 0.01f, "the hull moves along the orbit, not across the gap");
-        (hull.Position - orbit.StateAt(world.Time, planetMu).Position).Length.Should().BeLessThan(0.01, "the hull is on the orbit");
+        Hull().LinearVelocity.Length().Should().BeApproximately(10f, 0.01f, "the hull moves along the orbit, not across the gap");
+        (Hull().Position - onOrbit).Length.Should().BeLessThan(0.01, "the hull is on the orbit");
         world.Errors.Should().BeEmpty();
     }
 

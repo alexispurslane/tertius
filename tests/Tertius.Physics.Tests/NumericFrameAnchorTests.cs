@@ -362,7 +362,7 @@ public class NumericFrameAnchorTests
             Frame = station,
             Pose = At(0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Spin, Spin: new FrameSpin(DQuaternion.Identity, 0.5)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Spin),
         }.Spinning(world, new FrameSpin(DQuaternion.Identity, 0.5)));
         Entity ball = world.Spawn(new SpawnDesc
         {

@@ -85,7 +85,7 @@ public static class Scenes
         FrameHandle moon = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(bubbleRadius), MotionDriver.Kepler, Orbit: orbit),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(bubbleRadius), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, orbit)));
         return new MoonScene(planet, moon);
     }
@@ -116,7 +116,7 @@ public static class Scenes
     {
         Frame = space,
         Body = body,
-        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(5_000)),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
         Components = components,
     }.OnKeplerOrbit(world, KeplerOrbit.Circular(5_000)));
 

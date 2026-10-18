@@ -119,7 +119,7 @@ public class MotionSampleTableTests
         FrameHandle parent = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(7e6, phase: 0.8, spinRate: 0.02)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler),
         }));
         var sample = new MotionSample(new DPose(new Double3(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
             ChordVelocity: new Double3(1, 2, 3), Velocity: new Double3(1.5, 2.5, 3.5), Acceleration: new Double3(-0.1, 0.2, 0.3),

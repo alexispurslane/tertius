@@ -34,10 +34,9 @@ public sealed partial class World
     /// before anything changes, for a description that the world cannot make live: a pose that is not valid (see
     /// <see cref="DPose.IsValid"/>), a velocity that is not finite, a body that physics cannot create (see
     /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>), a frame with a driver that its hull
-    /// cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>), a Kepler frame whose orbit is not valid, a Kepler frame
-    /// without a parent frame or in a parent whose gravity is not a point field with a G·M above 0 (see
-    /// <see cref="GravityField.CanBeOrbited"/>), a Spin frame whose spin is not valid, a gravity field that is not valid,
-    /// or an attachment parent that is not live or that owns a root frame. An attached entity is live in the frame of its
+    /// cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>), a gravity field that is not valid, or an attachment
+    /// parent that is not live or that owns a root frame. The World checks nothing about rails motion: a rails component
+    /// checks its own rules (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). An attached entity is live in the frame of its
     /// parent, whatever frame the description names (see <see cref="SpawnDesc.AttachTo"/>).
     /// </summary>
     public Entity Spawn(SpawnDesc desc)
@@ -61,8 +60,8 @@ public sealed partial class World
 
     /// <summary>
     /// Destroys an entity at once, together with its attached children. If it owns a frame, the frame's contents move
-    /// to the parent frame (or are destroyed, for a root frame). A Kepler frame in it moves too, and it stops with the
-    /// static driver if the new parent has no point gravity to orbit (see <see cref="GravityField.CanBeOrbited"/>).
+    /// to the parent frame (or are destroyed, for a root frame). A child frame moves too, with its pose and velocity
+    /// converted. A <see cref="KeplerMotion"/> of the child reads the G·M of the new parent in the next tick.
     /// Returns false, and does nothing, if the entity is not live: a stale or null handle, or an entity destroyed before.
     /// Outside a tick only; during a tick, send a <see cref="Tertius.Destroy"/> message or call <see cref="Self.Destroy"/>.
     /// </summary>
@@ -131,25 +130,22 @@ public sealed partial class World
     /// <summary>
     /// Gives a frame a motion driver, for example to park a ship. Outside a tick only. A frame that gets the static driver
     /// stops where it is: both of its velocities become zero, and it keeps its proper acceleration, so the cargo of a ship
-    /// that is parked on the ground keeps its weight. A frame that gets the Kepler driver moves to its place on its orbit at
-    /// once, as for <see cref="SetFrameOrbit"/>, so physics never drives its hull across the gap. A frame that gets the
-    /// Spin driver keeps its place and turns to its spin at once, as for <see cref="SetFrameSpin"/>. A frame that gets the
-    /// physics driver keeps its pose and velocities until physics moves it. The owner's transform mirrors the frame at once. Physics follows at the start of its next
-    /// step: the hull gets the motion that the driver needs, at the frame's pose and velocity in the tree. Every call does
-    /// that, also a call that gives the frame the driver that it has, so a park and an unpark between two ticks stop the
-    /// ship.
+    /// that is parked on the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until
+    /// something moves it: physics for the physics driver, and the motion samples of a rails component of its owner (see
+    /// <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>) for the Kepler and Spin drivers, which both give the hull the
+    /// kinematic motion. The driver only chooses the motion of the hull: a change of motion is a new driver plus a swap of
+    /// components with <see cref="AddComponent"/> and <see cref="RemoveComponent"/> (docs/plans/rails-components.md,
+    /// "Changes of motion"). The owner's transform mirrors the frame at once. Physics follows at the start of its next step:
+    /// the hull gets the motion that the driver needs, at the frame's pose and velocity in the tree. Every call does that,
+    /// also a call that gives the frame the driver that it has, so a park and an unpark between two ticks stop the ship.
     /// </summary>
     /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A driver that <see cref="MotionDriver"/> does not define.</exception>
     /// <exception cref="ArgumentException">
     /// A frame that is gone. The physics driver for a frame with a parent whose owner's body cannot be dynamic: it has no
-    /// mass, or it is a mesh, which never moves. The Kepler driver for a frame with a parent whose owner's body is a mesh.
-    /// The Kepler driver for a frame whose orbit is not valid (see <see cref="KeplerOrbit.IsValid"/>). The Kepler driver for a
-    /// root frame, or for a frame whose parent has no point gravity with a G·M above 0 (see
-    /// <see cref="GravityField.CanBeOrbited"/>): the orbit takes its G·M from that field. The Spin driver for a
-    /// frame with a parent whose owner's body is a mesh, or for a frame whose spin is not valid (see
-    /// <see cref="FrameSpin.IsValid"/>). A root frame has no hull, so any body of its owner can have any driver. The frame
-    /// keeps its driver.
+    /// mass, or it is a mesh, which never moves. The Kepler or the Spin driver for a frame with a parent whose owner's body
+    /// is a mesh. A root frame has no hull, so any body of its owner can have any driver. The frame keeps its driver. The
+    /// World checks nothing about the frame's rails motion: its rails components check their own rules.
     /// </exception>
     public void SetFrameDriver(FrameHandle frame, MotionDriver driver)
     {
@@ -161,12 +157,6 @@ public sealed partial class World
         // A root frame has no parent, so its owner has no hull that must follow the driver.
         if (!Frames.Parent(frame).IsNull && entities.Body(frame.Entity)?.FrameHullProblem(driver) is { } problem)
             throw new ArgumentException($"Cannot give {frame} the {driver} driver: the hull of its owner {frame.Entity} {problem}.", nameof(driver));
-        if (driver == MotionDriver.Kepler && !Frames.Orbit(frame).IsValid)
-            throw new ArgumentException($"Cannot give {frame} the Kepler driver: its orbit is not valid. Call SetFrameOrbit first.", nameof(driver));
-        if (driver == MotionDriver.Kepler && KeplerParentProblem(Frames.Parent(frame)) is { } noGM)
-            throw new ArgumentException($"Cannot give {frame} the Kepler driver: {noGM}.", nameof(driver));
-        if (driver == MotionDriver.Spin && !Frames.Spin(frame).IsValid)
-            throw new ArgumentException($"Cannot give {frame} the Spin driver: its spin is not valid. Call SetFrameSpin first.", nameof(driver));
 
         // A frame that leaves its orbit frame for another driver leaves that frame falling (see FrameTree.SetDriver).
         Frames.SetDriver(frame, driver);
@@ -194,81 +184,14 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Gives a frame a new spin, outside a tick only. A frame with the Spin driver turns to its place on the new spin at
-    /// once, and its owner's transform follows. Physics follows at the start of its next step, as it follows a new driver.
-    /// A frame with another driver keeps the spin for a later <see cref="SetFrameDriver"/> with the Spin driver.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
-    /// <exception cref="ArgumentException">
-    /// A frame that is gone, or a spin that is not valid (see <see cref="FrameSpin.IsValid"/>). The frame keeps its spin.
-    /// </exception>
-    public void SetFrameSpin(FrameHandle frame, in FrameSpin spin)
-    {
-        ThrowIfInTick(nameof(SetFrameSpin));
-        if (!Frames.IsAlive(frame))
-            throw new ArgumentException($"Cannot set the spin of {frame}: the frame is gone.", nameof(frame));
-        if (!spin.IsValid)
-            throw new ArgumentException($"Cannot give {frame} this spin: the spin is not valid (see FrameSpin.IsValid).", nameof(spin));
-
-        Frames.SetSpin(frame, spin);
-        if (Frames.Driver(frame) == MotionDriver.Spin)
-        {
-            ApplySpin(frame, Time);
-            MirrorFrameOwner(frame);
-        }
-        FinishOutsideTickChange();
-    }
-
-    /// <summary>
-    /// Gives a frame a new orbit around its parent, outside a tick only. A frame with the Kepler driver moves to its place on
-    /// the new orbit at once, and its owner's transform follows. Physics follows at the start of its next step, as it
-    /// follows a new driver: the hull takes the frame's pose and velocity in the tree. A frame with another driver keeps the
-    /// orbit for a later <see cref="SetFrameDriver"/> with the Kepler driver.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
-    /// <exception cref="ArgumentException">
-    /// A frame that is gone, or an orbit that is not valid (see <see cref="KeplerOrbit.IsValid"/>). A root frame, or a frame
-    /// whose parent has no point gravity with a G·M above 0 (see <see cref="GravityField.CanBeOrbited"/>), because the orbit
-    /// takes its G·M from that field and so there is none to orbit. This holds for a frame with any driver, because the
-    /// frame can take the Kepler driver later. The frame keeps its orbit.
-    /// </exception>
-    public void SetFrameOrbit(FrameHandle frame, in KeplerOrbit orbit)
-    {
-        ThrowIfInTick(nameof(SetFrameOrbit));
-        if (!Frames.IsAlive(frame))
-            throw new ArgumentException($"Cannot set the orbit of {frame}: the frame is gone.", nameof(frame));
-        if (!orbit.IsValid)
-            throw new ArgumentException($"Cannot give {frame} this orbit: the orbit is not valid (see KeplerOrbit.IsValid).", nameof(orbit));
-        if (KeplerParentProblem(Frames.Parent(frame)) is { } noGM)
-            throw new ArgumentException($"Cannot give {frame} this orbit: {noGM}.", nameof(orbit));
-
-        Frames.SetOrbit(frame, orbit);
-        if (Frames.Driver(frame) == MotionDriver.Kepler)
-        {
-            // The frame jumps to the new orbit, and the bodies and frames beside its hull in its orbit frame stay where they
-            // are, as without numeric frames, where they lie in the semantic parent's own system. The rows of the bodies that
-            // stay lose the orbit frame's move, as for a drain, and physics shifts their bodies in the same batch.
-            Frames.MoveOnOrbit(frame, Time, physicsChanges);
-            foreach (FrameShift shift in physicsChanges.FramesShifted)
-                foreach (Entity entity in entities.LiveEntities)
-                    if (entity != frame.Entity && entities.Body(entity) != null && attachments.ParentOf(entity).IsNull &&
-                        entities.BackRow(entity).PhysicsHome == shift.Frame)
-                        ShiftRow(entity, shift);
-            FlushPhysicsChanges();
-            MirrorFrameOwner(frame);
-        }
-        FinishOutsideTickChange();
-    }
-
-    /// <summary>
     /// Gives a frame a new gravity field, outside a tick only. Physics wakes the frame's bodies at the start of its next
-    /// step, and they feel the new field from then on.
+    /// step, and they feel the new field from then on. The <see cref="KeplerMotion"/> of a child frame reads the G·M of the
+    /// new field in the next tick, so a new G·M moves the child from its next sample on, and a field without one holds the
+    /// child still.
     /// </summary>
     /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
     /// <exception cref="ArgumentException">
-    /// A frame that is gone, or a field that is not valid (see <see cref="GravityField.IsValid"/>). A field that is not a point
-    /// field with the same G·M as the current one, for a frame with a Kepler child: the child orbits that G·M, so another one
-    /// would make it jump. The frame keeps its field.
+    /// A frame that is gone, or a field that is not valid (see <see cref="GravityField.IsValid"/>). The frame keeps its field.
     /// </exception>
     public void SetFrameGravity(FrameHandle frame, in GravityField gravity)
     {
@@ -277,11 +200,6 @@ public sealed partial class World
             throw new ArgumentException($"Cannot set the gravity of {frame}: the frame is gone.", nameof(frame));
         if (!gravity.IsValid)
             throw new ArgumentException($"Cannot give {frame} this gravity field: the field is not valid (see GravityField.IsValid).", nameof(gravity));
-        bool keepsTheOrbitedMu = gravity is PointGravity { CanBeOrbited: true } next && Frames.Gravity(frame) is PointGravity current && next.Mu == current.Mu;
-        if (!keepsTheOrbitedMu && KeplerChildOf(frame) is { IsNull: false } orbiter)
-            throw new ArgumentException(
-                $"Cannot give {frame} this gravity field: its child {orbiter} has the Kepler driver and orbits the G·M {Frames.KeplerMu(orbiter)} m³/s² of the current field. " +
-                "The new field must be a point field with the same G·M, or the child would jump.", nameof(gravity));
 
         Frames.SetGravity(frame, gravity);
     }
@@ -337,12 +255,6 @@ public sealed partial class World
                 throw new ArgumentException("A frame needs a bubble with positive radii.", nameof(desc));
             if (!Enum.IsDefined(spec.Driver))
                 throw new ArgumentException($"MotionDriver does not define the driver {spec.Driver}.", nameof(desc));
-            if (spec.Driver == MotionDriver.Kepler && !spec.Orbit.IsValid)
-                throw new ArgumentException("A frame with the Kepler driver needs an orbit that it can follow: this orbit is not valid (see KeplerOrbit.IsValid).", nameof(desc));
-            if (spec.Driver == MotionDriver.Kepler && KeplerParentProblem(desc.Frame) is { } noGM)
-                throw new ArgumentException($"Cannot spawn a frame with the Kepler driver: {noGM}.", nameof(desc));
-            if (spec.Driver == MotionDriver.Spin && !spec.Spin.IsValid)
-                throw new ArgumentException("A frame with the Spin driver needs a spin that it can follow: this spin is not valid (see FrameSpin.IsValid).", nameof(desc));
             if (!spec.Gravity.IsValid)
                 throw new ArgumentException("A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).", nameof(desc));
             // So a frame with the physics driver whose owner has a body always has a dynamic hull. A root frame has no parent,
@@ -421,7 +333,7 @@ public sealed partial class World
         FrameHandle own = FrameHandle.Null;
         if (desc.AsFrame is { } spec)
         {
-            own = Frames.Create(entity, frame, pose, spec.Bounds, spec.Driver, spec.Gravity, spec.Orbit, spec.Spin);
+            own = Frames.Create(entity, frame, pose, spec.Bounds, spec.Driver, spec.Gravity);
             topics.AddFrame(own);
             // Every new frame stands at the pose of its spawn description, with its velocities. A frame on rails holds still
             // there for its first step, which runs before its components do, and the first sample of its rails component
@@ -595,49 +507,14 @@ public sealed partial class World
         dying.Clear();
 
         // Every dying frame is gone now, so the frame tree holds each moved child frame under its final parent, with
-        // its pose and velocity converted. A Kepler frame can have no G·M to orbit there. The owner's row mirrors the
-        // frame exactly.
+        // its pose and velocity converted. The owner's row mirrors the frame exactly. A KeplerMotion of the frame reads the
+        // G·M of the new parent in the next tick, and holds the frame still when that parent has none.
         foreach (Entity owner in movedFrameOwners)
         {
             FrameHandle moved = entities.OwnedFrame(owner);
-            StopKeplerFrameWithoutGM(moved);
             MirrorFrameOwner(moved);
         }
         movedFrameOwners.Clear();
-    }
-
-    /// <summary>
-    /// Why a Kepler frame cannot orbit in <paramref name="parent"/>, or null when it can. The Kepler motion takes its G·M
-    /// from the point gravity of the parent, so that a Kepler frame and the loose bodies in its parent fall on the same G·M.
-    /// A null parent is the virtual root above every root frame.
-    /// </summary>
-    private string? KeplerParentProblem(FrameHandle parent) =>
-        parent.IsNull ? "it is a root frame, so it has no parent and no G·M to orbit" :
-        !Frames.Gravity(parent).CanBeOrbited ? $"its parent {parent} has no point gravity with a G·M above 0, so it has no G·M to orbit" :
-        null;
-
-    /// <summary>The first child of <paramref name="frame"/> that has the Kepler driver, or null.</summary>
-    private FrameHandle KeplerChildOf(FrameHandle frame)
-    {
-        var children = new List<FrameHandle>();
-        Frames.GetChildren(frame, children);
-        foreach (FrameHandle child in children)
-            if (Frames.Driver(child) == MotionDriver.Kepler)
-                return child;
-        return FrameHandle.Null;
-    }
-
-    /// <summary>
-    /// A Kepler frame whose parent was destroyed has moved to the grandparent. If that frame has no point gravity, the
-    /// Kepler frame has no G·M to orbit, so it gets the static driver and stops where it is, as for
-    /// <see cref="SetFrameDriver"/>. The game caused this by destroying the parent, so it is a log line, not an error.
-    /// </summary>
-    private void StopKeplerFrameWithoutGM(FrameHandle frame)
-    {
-        if (Frames.Driver(frame) != MotionDriver.Kepler || KeplerParentProblem(Frames.Parent(frame)) is not { } noGM)
-            return;
-        Frames.SetDriver(frame, MotionDriver.Static);
-        Report($"tick {TickNumber}: {frame} stopped and got the Static driver, because its parent was destroyed and {noGM}.", isError: false);
     }
 
     /// <summary>The nearest ancestor of a frame whose owner is not in the destroy batch, or null.</summary>
@@ -820,25 +697,6 @@ public sealed partial class World
             LinearVelocity = Frames.TreeLinearVelocity(frame).ToVector3(),
             AngularVelocity = Frames.AngularVelocity(frame),
         };
-    }
-
-    /// <summary>
-    /// Puts a Kepler frame at its place on its orbit at <paramref name="time"/>. The orbit takes its G·M from the point
-    /// gravity of the parent, the field that pulls the loose bodies in the parent (see <see cref="FrameTree.KeplerMu"/>).
-    /// </summary>
-    private void ApplyKepler(FrameHandle frame, double time) => Frames.PlaceOnOrbit(frame, time);
-
-    /// <summary>
-    /// A Spin frame keeps its place in its parent and turns to its spin at <paramref name="time"/>. Like a static frame, it
-    /// keeps its proper acceleration, so the cargo of a landed ship that starts to turn keeps its weight. A new frame
-    /// starts with none.
-    /// </summary>
-    private void ApplySpin(FrameHandle frame, double time)
-    {
-        FrameSpin spin = Frames.Spin(frame);
-        Frames.SetLocalPose(frame, new DPose(Frames.LocalPose(frame).Position, spin.RotationAt(time)));
-        Frames.TreeLinearVelocity(frame) = Double3.Zero;
-        Frames.AngularVelocity(frame) = spin.AngularVelocity.ToVector3();
     }
 
     /// <summary>The owner's transform row mirrors the frame's local pose, which is the authoritative one.</summary>

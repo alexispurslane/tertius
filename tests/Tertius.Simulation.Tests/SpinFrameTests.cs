@@ -28,7 +28,7 @@ public class SpinFrameTests
         {
             Frame = test.Root,
             Pose = new DPose(place, DQuaternion.FromAxisAngle(Double3.UnitX, 1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin, Spin: spin),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin),
             Components = components,
         }.Spinning(test.World, spin));
 
@@ -163,7 +163,7 @@ public class SpinFrameTests
         test.World.Frames.AngularVelocity(ground).Should().Be(sample.AngularVelocity.ToVector3(), "the tree keeps the angular velocity in floats");
     }
 
-    // ---- Changing the driver or the spin ------------------------------------------------------------------------
+    // ---- Changing the driver ------------------------------------------------------------------------------
 
     [Fact]
     public void AFrameThatGetsTheSpinDriverKeepsItsPlaceAndTurnsToItsSpinAtOnce()
@@ -173,7 +173,7 @@ public class SpinFrameTests
         {
             Frame = test.Root,
             Pose = TestWorld.At(5),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static, Spin: QuarterTurnPerSecond),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
         }));
 
         test.World.SetFrameDriver(dock, MotionDriver.Spin);
@@ -192,7 +192,7 @@ public class SpinFrameTests
         {
             Frame = test.Root,
             LinearVelocity = new Vector3(10, 0, 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics, Spin: QuarterTurnPerSecond),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics),
         }));
         test.World.Frames.ProperAcceleration(ship) = new Vector3(0, 9.81f, 0);
 
@@ -205,36 +205,6 @@ public class SpinFrameTests
         test.World.Frames.ProperAcceleration(ship).Should().Be(new Vector3(0, 9.81f, 0), "a ship on a turntable keeps its cargo's weight, as a parked one does");
     }
 
-    [Fact]
-    public void ASpinFrameThatGetsANewSpinTurnsToItAtOnce()
-    {
-        using var test = NewWorld(startTime: 1);
-        FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, QuarterTurnPerSecond));
-
-        test.World.SetFrameSpin(ground, new FrameSpin(DQuaternion.Identity, Math.PI));
-
-        test.World.Frames.Spin(ground).Rate.Should().Be(Math.PI);
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX), new Double3(-1, 0, 0), 1e-12);
-        test.World.Frames.AngularVelocity(ground).Should().Be(new Vector3(0, MathF.PI, 0));
-        test.World.PoseInOwnFrame(ground.Entity).Should().Be(test.World.Frames.LocalPose(ground));
-    }
-
-    [Fact]
-    public void AFrameWithAnotherDriverKeepsANewSpinForLater()
-    {
-        using var test = NewWorld(startTime: 1);
-        FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
-        }));
-
-        test.World.SetFrameSpin(dock, QuarterTurnPerSecond);
-
-        test.World.Frames.Spin(dock).Should().Be(QuarterTurnPerSecond);
-        test.World.Frames.LocalPose(dock).Rotation.Should().Be(DQuaternion.Identity);
-    }
-
     // ---- Refusals -----------------------------------------------------------------------------------------------
 
     [Fact]
@@ -243,9 +213,10 @@ public class SpinFrameTests
         using var test = NewWorld();
         int before = test.World.Stats.LiveEntities;
 
+        // The SpinMotion of the spawn refuses the spin in its setter, so nothing spawns.
         Action spawn = () => SpawnSpinFrame(test, new FrameSpin(DQuaternion.Identity, double.NaN));
 
-        spawn.Should().Throw<ArgumentException>().WithMessage("*Spin driver*spin*");
+        spawn.Should().Throw<ArgumentException>().WithMessage("*SpinMotion*spin*not valid*");
         test.World.Stats.LiveEntities.Should().Be(before);
     }
 
@@ -258,7 +229,7 @@ public class SpinFrameTests
         Action spawn = () => test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin, Spin: QuarterTurnPerSecond),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin),
             Body = new BodyDesc(Ramp, BodyMotion.Static),
         }.Spinning(test.World, QuarterTurnPerSecond));
 
@@ -267,69 +238,20 @@ public class SpinFrameTests
     }
 
     [Fact]
-    public void ASpinThatIsNotValidIsRefusedAndTheFrameKeepsItsSpin()
+    public void ASpinMotionWithASpinThatIsNotValidIsRefusedBeforeItReachesTheFrame()
     {
         using var test = NewWorld();
-        FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, QuarterTurnPerSecond));
-
-        Action set = () => test.World.SetFrameSpin(ground, new FrameSpin(DQuaternion.Identity, double.PositiveInfinity));
-
-        set.Should().Throw<ArgumentException>().WithMessage($"*{ground}*spin*");
-        test.World.Frames.Spin(ground).Should().Be(QuarterTurnPerSecond);
-    }
-
-    [Fact]
-    public void ASpinForAFrameThatIsGoneIsRefused()
-    {
-        using var test = NewWorld();
-        FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, QuarterTurnPerSecond));
-        test.World.Destroy(ground.Entity);
-
-        Action set = () => test.World.SetFrameSpin(ground, QuarterTurnPerSecond);
-
-        set.Should().Throw<ArgumentException>().WithMessage($"*{ground}*");
-    }
-
-    [Fact]
-    public void ASpinChangeDuringATickIsRefused()
-    {
-        using var test = NewWorld();
-        FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, QuarterTurnPerSecond));
-        InvalidOperationException? caught = null;
-        test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            try
-            {
-                test.World.SetFrameSpin(ground, default);
-            }
-            catch (InvalidOperationException ex)
-            {
-                caught = ex;
-            }
-        }));
-
-        test.Run(1);
-
-        caught.Should().NotBeNull("physics reads the frame tree on its own thread during the tick");
-        caught!.Message.Should().Contain("World.SetFrameSpin");
-        test.World.Frames.Spin(ground).Should().Be(QuarterTurnPerSecond);
-    }
-
-    [Fact]
-    public void TheSpinDriverIsRefusedForAFrameWithoutAValidSpin()
-    {
-        using var test = NewWorld();
-        // A frame with another driver keeps the spin that it was spawned with, valid or not, until it gets the Spin driver.
         FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static, Spin: new FrameSpin(DQuaternion.Identity, double.NaN)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
         }));
 
-        Action set = () => test.World.SetFrameDriver(dock, MotionDriver.Spin);
+        // The component checks its spin, not the World: its setter refuses it.
+        Action add = () => test.World.AddComponent(dock.Entity, new SpinMotion { Spin = new FrameSpin(DQuaternion.Identity, double.NaN) });
 
-        set.Should().Throw<ArgumentException>().WithMessage($"*{dock}*spin*");
-        test.World.Frames.Driver(dock).Should().Be(MotionDriver.Static);
+        add.Should().Throw<ArgumentException>().WithMessage("*SpinMotion*spin*not valid*");
+        test.World.GetComponent<SpinMotion>(dock.Entity).Should().BeNull();
     }
 
     [Fact]
@@ -339,7 +261,7 @@ public class SpinFrameTests
         FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static, Spin: QuarterTurnPerSecond),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
             Body = new BodyDesc(Ramp, BodyMotion.Static),
         }));
 
