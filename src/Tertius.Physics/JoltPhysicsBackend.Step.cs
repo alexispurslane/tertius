@@ -69,8 +69,9 @@ public sealed partial class JoltPhysicsBackend
             if (entity.Index >= (uint)intents.Length || Find(entity) is not { } record)
                 continue;
             ref readonly PhysicsIntent intent = ref intents[(int)entity.Index];
-            // The changes of motion applied at the start of the step already (see ApplyMotionChanges). A static body and the
-            // owner of a root frame, which has only an interior, can change their groups too.
+            // Every hull took the motion in the tree at the start of the step already (see FollowHullMotions), so the change of
+            // motion in the intent, which the tree holds, is not read here. A static body and the owner of a root frame, which
+            // has only an interior, can change their groups too.
             if ((intent.Flags & IntentFlags.SetCollision) != 0)
                 SetCollision(record, intent.CollisionGroups, intent.CollisionMask);
             if (!record.HasPrimary)

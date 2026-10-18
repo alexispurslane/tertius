@@ -392,7 +392,9 @@ public sealed partial class FrameTree
     /// </summary>
     /// <remarks>
     /// Only the simulation calls it: at a spawn, and at step 4 of a sync point for a change of motion that the owner wrote in
-    /// the tick. It checks that the owner's body can take the motion (see <see cref="BodyDesc.Problem"/>).
+    /// the tick. It checks nothing, because the tree does not know the owner's body. The World checks that the body can take
+    /// the motion (see <see cref="BodyDesc.Problem"/>) before it calls this method: when it checks the spawn, and when the
+    /// owner writes the change (<c>World.WritableHullMotionIntent</c>). <c>World.AssertInvariants</c> checks it again.
     /// </remarks>
     internal void SetHullMotion(FrameHandle frame, BodyMotion? motion)
     {

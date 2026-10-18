@@ -397,8 +397,9 @@ public struct PhysicsIntent
     public CollisionMask CollisionMask;
     /// <summary>
     /// The new motion of a frame's hull. Used with <see cref="IntentFlags.SetMotion"/>. The sync point gives the hull this
-    /// motion in the frame tree before the step that applies the intent (see <see cref="FrameTree.HullMotion"/>), and physics
-    /// gives the Jolt body the motion at the start of that step.
+    /// motion in the frame tree before the step that applies the intent (see <see cref="FrameTree.HullMotion"/>). Physics
+    /// reads the motion from the tree, not from this field, and gives the Jolt body the motion at the start of the first step
+    /// that runs after that sync point.
     /// </summary>
     public BodyMotion Motion;
     public IntentFlags Flags;

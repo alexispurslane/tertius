@@ -565,6 +565,31 @@ public class MotionChangeTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The frame tree is the one store of a hull's motion, and physics follows it at the start of every step, as the
+    /// reconcile follows the tree's structure. So a step that fails loses no change of motion: the tree keeps the change,
+    /// and the next step that runs gives the hull its new motion, although its tick wrote no change.
+    /// </summary>
+    [Theory]
+    [InlineData(BodyMotion.Dynamic, BodyMotion.Static)]
+    [InlineData(BodyMotion.Static, BodyMotion.Dynamic)]
+    [InlineData(BodyMotion.Kinematic, BodyMotion.Dynamic)]
+    public void AHullTakesAChangeOfMotionThatAFailedStepMissedAtTheNextStep(BodyMotion from, BodyMotion to)
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        var (_, owner, ship) = ShipAbovePlanet(world, from);
+        world.Tick();
+        world.SetMotionNextTick(owner, to);
+        world.Tick();
+        ApplyThePendingChangesWithoutAStep(world, faults);
+
+        world.Tick();
+
+        world.Frames.HullMotion(ship).Should().Be(to);
+        Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionOf(to), "the step after the failed one followed the tree");
+        world.Errors.Should().BeEmpty();
+    }
+
     // ---- Bugs -----------------------------------------------------------------------------------------------------
 
     /// <summary>A change of motion that a hull cannot take.</summary>
@@ -579,19 +604,20 @@ public class MotionChangeTests
     }
 
     /// <summary>
-    /// <c>SetMotion</c> refuses a motion that the hull cannot take, so such a change in a step's intents comes only from a
-    /// bug. A test stands in for that bug: it puts the change in the intents of the next step, past the World. Physics then
-    /// breaks a contract in a Debug build. A Release build skips the change: the hull keeps its motion, and physics reports
-    /// the bug once in the errors of the step output, not as a warning, and reports no state for the frame.
+    /// <c>SetMotion</c> refuses a motion that the hull cannot take, and so does a spawn, so such a motion in the frame tree
+    /// comes only from a bug. A test stands in for that bug: it puts the motion in the tree past the World, and turns off the
+    /// World's own checks, which would find it first. Physics then breaks a contract in a Debug build. A Release build skips
+    /// the motion in every step that finds it: the hull keeps its motion, and physics reports the bug in the errors of each
+    /// step output, not as a warning, and reports no state for the frame.
     /// </summary>
     [Theory]
     [InlineData(ImpossibleChange.MeshToDynamic)]
     [InlineData(ImpossibleChange.MeshToKinematic)]
     [InlineData(ImpossibleChange.MasslessToDynamic)]
-    public void AChangeOfMotionThatAHullCannotTakeComesOnlyFromABug(ImpossibleChange change)
+    public void AMotionInTheTreeThatAHullCannotTakeComesOnlyFromABug(ImpossibleChange change)
     {
         var warnings = new List<string>();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings, debugChecks: false);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         var ramp = new MeshShapeDesc([new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)], [0, 2, 1, 0, 3, 2]);
         BodyDesc desc = change == ImpossibleChange.MasslessToDynamic
@@ -608,64 +634,19 @@ public class MotionChangeTests
         world.Tick();
         int reported = faults.Outputs.Count;
         BodyMotion motion = change == ImpossibleChange.MeshToKinematic ? BodyMotion.Kinematic : BodyMotion.Dynamic;
-        faults.EditNextIntents = intents => intents.Add((owner, new PhysicsIntent { Frame = space, Motion = motion, Flags = IntentFlags.SetMotion }));
+        world.Frames.SetHullMotion(dock, motion);
         Action ticks = () => Tick(world, 3);
 
 #if TERTIUS_CONTRACTS
         ticks.Should().Throw<ContractException>().WithMessage($"*{owner}*Only a bug*");
 #else
         ticks.Should().NotThrow();
-        world.Errors.Should().ContainSingle().Which.Should().Contain(owner.ToString()).And.Contain("Only a bug");
+        world.Errors.Should().HaveCount(3, "each of the three steps found the motion").And
+            .AllSatisfy(error => error.Should().Contain(owner.ToString()).And.Contain(motion.ToString()).And.Contain("Only a bug"));
         warnings.Should().BeEmpty();
         FrameStatesSince(faults, dock, reported).Should().BeEmpty();
-        world.Frames.HullMotion(dock).Should().Be(BodyMotion.Static);
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
 #endif
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Static);
     }
-
-    /// <summary>
-    /// Only a hull can change its motion, so a change of motion for a plain body in a step's intents comes only from a bug.
-    /// A Debug build breaks a contract. A Release build skips the change: the body keeps its motion, and physics reports the
-    /// bug once in the errors of the step output, not as a warning.
-    /// </summary>
-    [Fact]
-    public void AChangeOfMotionForABodyThatIsNoHullComesOnlyFromABug()
-    {
-        var warnings = new List<string>();
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
-        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(5), Body = BoxBody(0.5f, 10) });
-        world.Tick();
-        faults.EditNextIntents = intents => intents.Add((crate, new PhysicsIntent { Frame = space, Motion = BodyMotion.Static, Flags = IntentFlags.SetMotion }));
-        Action ticks = () => Tick(world, 3);
-
-#if TERTIUS_CONTRACTS
-        ticks.Should().Throw<ContractException>().WithMessage($"*{crate}*no hull*Only a bug*");
-#else
-        ticks.Should().NotThrow();
-        world.Errors.Should().ContainSingle().Which.Should().Contain(crate.ToString()).And.Contain("no hull").And.Contain("Only a bug");
-        warnings.Should().BeEmpty();
-#endif
-        Hull(world, faults.Jolt, crate).Motion.Should().Be(MotionType.Dynamic);
-    }
-
-#if TERTIUS_CONTRACTS
-    /// <summary>
-    /// The frame tree keeps a hull's motion, and the World changes it only with a change of motion, which physics applies at
-    /// the start of the next step. So after that, every hull has the motion that the tree keeps. A test stands in for a bug
-    /// that changes the tree past the World, and the step finds it, in a Debug build.
-    /// </summary>
-    [Fact]
-    public void TheStepFindsAHullWhoseMotionDiffersFromTheMotionThatTheTreeKeeps()
-    {
-        using World world = NewWorld(out _);
-        var (_, owner, ship) = FlyingShip(world);
-
-        world.Frames.SetHullMotion(ship, BodyMotion.Static);
-        Action tick = () => world.Tick();
-
-        tick.Should().Throw<ContractException>().WithMessage($"*{owner}*");
-    }
-#endif
 }

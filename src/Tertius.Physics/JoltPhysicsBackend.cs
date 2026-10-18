@@ -98,9 +98,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// frame that the simulation reparents on its own are handled here or at the start of the next step, whichever comes
     /// first. A hull has the motion that the frame tree keeps for it (see <see cref="FrameTree.HullMotion"/>): the motion of
     /// its description at spawn, and the motion of a change that its owner wrote in a tick, which the hull takes at the start
-    /// of the step after that tick's sync point (see <see cref="ApplyMotionChanges"/>). The simulation never sends a change
-    /// that the hull cannot take. Such a change comes only from a bug: it breaks a contract in a Debug build, and a Release
-    /// build keeps the hull's motion and reports the bug (see <see cref="ReportBug"/>).
+    /// of the first step that runs after that tick's sync point (see <see cref="FollowHullMotions"/>). The simulation never
+    /// puts in the tree a motion that the hull cannot take. Such a motion comes only from a bug: it breaks a contract in a
+    /// Debug build, and a Release build keeps the hull's motion and reports the bug (see <see cref="ReportBug"/>).
     /// </para>
     /// <para>
     /// After the moves and the reconcile, the backend drops each ghost whose place the numeric update of the sync point
@@ -189,8 +189,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>
     /// Runs one physics step for every frame with awake bodies or characters: puts every frame hull where the frame tree
     /// says, which drops the hand-offs of the last step that the simulation refused and follows changes to the tree that no
-    /// change batch announced, then gives each hull whose owner changed its motion in the tick before the new motion (see
-    /// <see cref="ApplyMotionChanges"/>), then gives every character the form that the
+    /// change batch announced, then gives each hull the motion that the frame tree keeps for it (see
+    /// <see cref="FollowHullMotions"/>), then gives every character the form that the
     /// gravity at it asks for, applies intents, aims the kinematic frame hulls at their samples, applies gravity, moves the characters in the
     /// walking form, updates every system, then reports contacts, hands bodies between frames, updates ghosts and writes
     /// body, character and frame states to <paramref name="output"/>.
@@ -286,7 +286,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             RefreshFrameStructure();
             // Before anything reads a record's motion: a hull that becomes dynamic joins the spawned rigid bodies, whose
             // velocities the next pass converts into chords.
-            ApplyMotionChanges(context);
+            FollowHullMotions();
             // Before the intents and the gravity, which act on the form that a character has for the whole step, and before
             // the spawn velocities, which a spawned character that turns rigid needs as chords too.
             SwitchCharacterForms();
@@ -547,7 +547,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// hand-off before this runs, so a hull whose hand-off the tree did not take, or whose frame the simulation moved on its
     /// own, goes where the tree says, with the tree's pose and velocity and its own motion. A system that is full grows to
     /// take the hull. A change of a hull's motion is no change of the tree's structure, so it is not handled here (see
-    /// <see cref="ApplyMotionChanges"/>). Afterwards <see cref="AssertInvariants"/> holds: every system belongs to a live
+    /// <see cref="FollowHullMotions"/>). Afterwards <see cref="AssertInvariants"/> holds: every system belongs to a live
     /// frame, every record has the bodies that it must have, every hull is in the system of its frame's parent in the tree,
     /// and every ghost is in a frame next to its body's frame.
     /// </summary>
@@ -628,8 +628,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
     /// and the owner of a root frame has no hull.</item>
     /// <item>Jolt moves every hull with the motion of its record. The record takes a change of the motion that the frame tree
-    /// keeps for the hull (see <see cref="FrameTree.HullMotion"/>) at the start of the step after the sync point that made
-    /// it, so it can lag the tree until then (see <see cref="ApplyMotionChanges"/>).</item>
+    /// keeps for the hull (see <see cref="FrameTree.HullMotion"/>) at the start of the first step that runs after the sync
+    /// point that made it, so it can lag the tree until then (see <see cref="FollowHullMotions"/>).</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame among the semantic
     /// frames, or in the home of a group that keeps a ghost of an anchor, the body's own or the hull of its home's semantic
     /// frame (see <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
@@ -721,7 +721,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             else
                 Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
             // A hull has the Jolt motion type of its record's motion. The record takes a change of motion at the start of the
-            // step after the sync point that changed the tree, so it lags the tree until then (see ApplyMotionChanges).
+            // first step that runs after the sync point that changed the tree, so it lags the tree until then (see
+            // FollowHullMotions).
             if (owner.HasPrimary)
                 Contract.Invariant(owner.World!.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
         }

@@ -234,7 +234,7 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// What a rigid body is apart from its state. The backend changes none of it after the body exists, except the motion
     /// of a body whose <see cref="MotionChanges"/> is true: the hull of a frame takes a change of motion (see
-    /// <see cref="ApplyMotionChanges"/>), and a ghost of a mesh is static or kinematic as it holds still or moves (see
+    /// <see cref="FollowHullMotions"/>), and a ghost of a mesh is static or kinematic as it holds still or moves (see
     /// <see cref="GhostMotion"/>). Its spec then has the new motion. So the spec of a body and its state rebuild the body
     /// exactly.
     /// </summary>
@@ -531,64 +531,39 @@ public sealed partial class JoltPhysicsBackend
     // ---- Changes of a hull's motion ----
 
     /// <summary>
-    /// Gives each hull whose owner wrote a change of motion in the tick before (see <see cref="IntentFlags.SetMotion"/>) the
-    /// Jolt motion type of the change. It runs at the start of the step, before anything reads a record's motion: the spawn
-    /// velocities, the static hulls, the hull velocities and the intents. The sync point gave the hull the motion in the frame
-    /// tree already (see <see cref="FrameTree.HullMotion"/>), so afterwards every hull has the motion that the tree keeps. The
-    /// hull keeps its body, its system and its contacts, and takes the frame's pose and velocity from the tree (see
-    /// <see cref="ApplyHullMotion"/>). Its ghosts meet what a body of its new motion meets. A change to the motion that the
-    /// hull has changes nothing.
+    /// Gives each hull the motion that the frame tree keeps for it (see <see cref="FrameTree.HullMotion"/>), when the hull's
+    /// record has another motion. The tree is the one store of a hull's motion: the sync point of a tick in which the owner
+    /// wrote a change of motion changes it there, and physics follows the tree, as the reconcile follows the tree's structure
+    /// (see <see cref="ReconcileFrames"/>). So a step that failed loses no change: the next step that runs takes it. It runs
+    /// at the start of the step, before anything reads a record's motion: the spawn velocities, the static hulls, the hull
+    /// velocities and the intents. The hull keeps its body, its system and its contacts, and takes the frame's pose and
+    /// velocity from the tree (see <see cref="ApplyHullMotion"/>). Its ghosts meet what a body of its new motion meets.
     /// </summary>
     /// <remarks>
-    /// <c>SetMotion</c> refuses a change that the hull cannot take, so such a change in the intents comes only from a bug (see
-    /// <see cref="ReportBug"/>). A Release build skips it: the hull keeps its motion.
+    /// The simulation puts in the tree only a motion that the hull can take (see <see cref="BodyDesc.Problem"/>), so another
+    /// motion there comes only from a bug (see <see cref="ReportBug"/>). A Release build skips it in every step that finds it:
+    /// the hull keeps its motion.
     /// </remarks>
-    private void ApplyMotionChanges(in PhysicsStepContext context)
-    {
-        ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
-        foreach (Entity entity in context.IntentEntities.Span)
-        {
-            if (entity.Index >= (uint)intents.Length || Find(entity) is not { } record)
-                continue;
-            ref readonly PhysicsIntent intent = ref intents[(int)entity.Index];
-            if ((intent.Flags & IntentFlags.SetMotion) == 0)
-                continue;
-            if (MotionChangeProblem(record, intent.Motion) is { } problem)
-            {
-                ReportBug($"Physics: the body of {entity} cannot take the motion {intent.Motion}: it {problem}. " +
-                          $"Only a bug sends such a change of motion, so the body keeps the motion {record.Motion}.");
-                continue;
-            }
-            if (record.Motion == intent.Motion)
-                continue;
-            record.Motion = intent.Motion;
-            ApplyHullMotion(record);
-            // A ghost meets what its real body meets, and a static body meets less (see FrameWorld.StandsForStaticBody).
-            if (record.Ghosts is { } ghosts)
-                foreach (GhostBody ghost in ghosts)
-                    ghost.World.SetGhostOfStaticBody(ghost.Body, !record.IsMovable);
-        }
-        EnsureHullsHaveTheTreesMotion();
-    }
-
-    /// <summary>
-    /// Why the body of <paramref name="record"/> cannot take <paramref name="motion"/> in a change of motion, or null: only a
-    /// hull can change its motion, and only to a motion that a hull with its description can have (see
-    /// <see cref="BodyDesc.Problem"/>).
-    /// </summary>
-    private static string? MotionChangeProblem(BodyRecord record, BodyMotion motion) =>
-        !record.IsHull || !record.HasPrimary
-            ? "is no hull, because its entity owns no frame or a root frame"
-            : (record.Desc with { Motion = motion }).Problem(BodyRole.Hull);
-
-    /// <summary>The postcondition of <see cref="ApplyMotionChanges"/>: every hull has the motion that the frame tree keeps for it. Debug builds only.</summary>
-    [Conditional("TERTIUS_CONTRACTS")]
-    private void EnsureHullsHaveTheTreesMotion()
+    private void FollowHullMotions()
     {
         foreach (BodyRecord owner in frameOwners)
-            if (owner.HasPrimary)
-                Contract.Ensures(owner.Motion == frames.HullMotion(owner.OwnedFrame),
-                    $"The hull of {owner.Entity} is {owner.Motion}, but the frame tree keeps {frames.HullMotion(owner.OwnedFrame)} for {owner.OwnedFrame}.");
+        {
+            // The owner of a root frame has no hull, and the tree keeps no motion for it.
+            if (!owner.HasPrimary || frames.HullMotion(owner.OwnedFrame) is not { } motion || motion == owner.Motion)
+                continue;
+            if ((owner.Desc with { Motion = motion }).Problem(BodyRole.Hull) is { } problem)
+            {
+                ReportBug($"Physics: the frame tree keeps the motion {motion} for the hull of {owner.Entity}, but as a hull its body {problem}. " +
+                          $"Only a bug puts that motion in the tree, so the hull keeps the motion {owner.Motion}.");
+                continue;
+            }
+            owner.Motion = motion;
+            ApplyHullMotion(owner);
+            // A ghost meets what its real body meets, and a static body meets less (see FrameWorld.StandsForStaticBody).
+            if (owner.Ghosts is { } ghosts)
+                foreach (GhostBody ghost in ghosts)
+                    ghost.World.SetGhostOfStaticBody(ghost.Body, !owner.IsMovable);
+        }
     }
 
     /// <summary>
