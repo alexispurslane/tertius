@@ -53,27 +53,18 @@ public sealed partial class FrameTree
     /// <summary>
     /// Step 2 of the sync point: <paramref name="frame"/> takes its step record, <paramref name="record"/>, its motion over the
     /// step that just ended (docs/plans/rails-components.md, "One motion record per frame"). The record is relative to
-    /// <paramref name="relativeTo"/>, the frame's tree parent (a record that physics releases) or its semantic parent (a
-    /// sample or a write from an owner without a body). The frame takes the record's pose, its instant velocity, less the
-    /// velocity of the numeric frames between the two parents, its angular velocity, narrowed to a float, and its proper
-    /// acceleration. A frame at the origin of its orbit frame that takes a record with another place left that origin in
+    /// <paramref name="relativeTo"/>, the frame's tree parent. A record that physics releases is relative to it. A sample or
+    /// a write from an owner without a body is relative to the semantic parent, which is the same frame, because only a
+    /// frame with a hull hangs in a numeric frame (see the class summary). The frame takes the record's pose, its instant
+    /// velocity, its angular velocity, narrowed to a float, and its proper acceleration. A frame at the origin of its orbit frame that takes a record with another place left that origin in
     /// the step, because its hull teleported: <see cref="JumpFollowingFrame"/> brings it back.
     /// </summary>
     internal void Follow(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
     {
         int id = Node(frame).Id;
-        FrameHandle parent = TreeParent(frame);
-        if (relativeTo == parent)
-        {
-            SetTreeLocalPose(frame, record.Pose);
-            linearVelocity[id] = record.Velocity;
-        }
-        else
-        {
-            Contract.Requires(!parent.IsNull && relativeTo == SemanticOf(parent));
-            SetLocalPose(frame, record.Pose);
-            linearVelocity[id] = record.Velocity - HomeVelocity(parent, relativeTo);
-        }
+        Contract.Requires(relativeTo == TreeParent(frame));
+        SetTreeLocalPose(frame, record.Pose);
+        linearVelocity[id] = record.Velocity;
         angularVelocity[id] = record.AngularVelocity.ToVector3();
         properAcceleration[id] = record.ProperAcceleration;
     }

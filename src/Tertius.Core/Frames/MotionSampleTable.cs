@@ -119,8 +119,8 @@ internal sealed class MotionSampleTable
     /// <summary>Gives each buffer a row for every frame index below <paramref name="capacity"/>.</summary>
     internal void Grow(int capacity)
     {
-        if (capacity <= writtenRows.Length)
-            return;
+        // FrameTree.Grow calls this only to grow, so a smaller size, which would drop samples, is a bug.
+        Contract.Requires(capacity > writtenRows.Length);
         Array.Resize(ref writtenRows, capacity);
         Array.Resize(ref appliedRows, capacity);
         Array.Resize(ref followedRows, capacity);
