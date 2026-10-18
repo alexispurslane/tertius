@@ -73,6 +73,17 @@ public sealed partial class FrameTree
     private int[] driverVersion = new int[64];
     private int driverChanges;
 
+    public FrameTree()
+    {
+        Samples = new MotionSampleTable(this, owner.Length);
+    }
+
+    /// <summary>
+    /// The motion samples that the owners of frames write, by frame index (see <see cref="MotionSampleTable"/>). The tree
+    /// sizes it with its own rows, so that every frame has a row in each buffer from its creation on.
+    /// </summary>
+    internal MotionSampleTable Samples { get; }
+
     /// <summary>How many frames the tree holds, numeric frames included.</summary>
     internal int Count => poses.Count;
 
@@ -899,5 +910,6 @@ public sealed partial class FrameTree
         Array.Resize(ref numericBodies, size);
         Array.Resize(ref orbiter, size);
         Array.Resize(ref driverVersion, size);
+        Samples.Grow(size);
     }
 }

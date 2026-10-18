@@ -170,6 +170,10 @@ public sealed partial class World
 
         // A frame that leaves its orbit frame for another driver leaves that frame falling (see FrameTree.SetDriver).
         Frames.SetDriver(frame, driver);
+        // A hull that stops being kinematic follows no motion sample, so the samples that its owner wrote before go: no step
+        // applies them, and none is left when the hull hands off (see AssertSamplesNeedNoConversion).
+        if (!Frames.Parent(frame).IsNull && entities.Body(frame.Entity) != null && BodyDesc.FrameHullMotion(driver) != BodyMotion.Kinematic)
+            Frames.Samples.Drop(frame);
         PlaceByDriver(frame, driver);
         // A frame whose spin or whose owner's writes move it moves relative to its semantic parent, and a frame whose orbit
         // moves it fast or far hangs in an orbit frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). So a
@@ -606,6 +610,7 @@ public sealed partial class World
             }
         }
         ConvertIntentsOfDyingFrames();
+        ConvertSamplesOfMovedFrames();
 
         foreach (Entity entity in dying)
             FreeEntity(entity);
@@ -684,6 +689,18 @@ public sealed partial class World
             if (!intent.Frame.IsNull && dyingMarks[intent.Frame.Entity])
                 ConvertIntent(ref intent, row.Frame, row.Pose.Position);
         }
+    }
+
+    /// <summary>
+    /// Converts the applied and the followed motion samples of each frame that the destroy batch moves into the frame that
+    /// its owner moved to, before the dying frames go. Each such sample is relative to the frame's semantic parent, which
+    /// dies. Both buffers hold samples at step 5: the followed samples of the step that ended, which the numeric update of
+    /// step 6c reads, and the applied samples of the next step.
+    /// </summary>
+    private void ConvertSamplesOfMovedFrames()
+    {
+        foreach (Entity owner in movedFrameOwners)
+            Frames.Samples.ConvertInto(entities.OwnedFrame(owner), entities.BackRow(owner).Frame);
     }
 
     /// <summary>Moves an entity from a dying frame into an ancestor frame, keeping its pose and velocity relative to everything else.</summary>

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 
 namespace Tertius.Simulation;
@@ -67,10 +68,14 @@ public sealed partial class World
             entities.AssertInvariants();
 
         // 4. The step applied the intents of the previous tick, so their collision groups and masks become the bodies' rows,
-        //    which step 8 publishes. Then this tick's intents become the input of the next physics step.
+        //    which step 8 publishes. Then this tick's intents become the input of the next physics step. The motion samples
+        //    move on with them, also without a physics backend, because a frame without a body follows its samples too:
+        //    the samples of the step that ended become the ones the frames follow, and this tick's samples the ones that the
+        //    next step applies.
         if (physics != null)
             entities.ApplyCollisionIntents();
         entities.SwapIntents(keep: physics != null);
+        Frames.Samples.MoveOn();
 
         // 5. Subscriptions first, while every entity that asked is still live, then the destroy batch.
         ApplySubscriptionChanges();
@@ -108,8 +113,10 @@ public sealed partial class World
         // 7b. The intents that the next step applies convert into the frames of the entities that this sync point moved:
         //     after the hand-offs of step 2 and the rehomes of step 5, which move entities, and after step 7, so that every
         //     entity is in the frame of the next tick; after 6b, so that every frame stands where the next step starts.
-        //     The destroy batch of step 5 converted the intents that name its dying frames, which are gone by now.
+        //     The destroy batch of step 5 converted the intents that name its dying frames, which are gone by now. The
+        //     motion samples need no conversion here (see AssertSamplesNeedNoConversion).
         ConvertMovedIntents();
+        AssertSamplesNeedNoConversion();
 
         // 8. The back tables become the front tables.
         SwapSnapshot();
@@ -416,6 +423,31 @@ public sealed partial class World
             ref readonly TransformRow row = ref entities.BackRow(entity);
             if (intent.Frame != row.Frame)
                 ConvertIntent(ref intent, row.Frame, row.Pose.Position);
+        }
+    }
+
+    /// <summary>
+    /// Step 7b for the motion samples, which needs no conversion: each applied and followed sample is relative to the frame
+    /// that its frame's owner is in. Step 5 converted the samples of the frames that the destroy batch moved (see
+    /// <see cref="ConvertSamplesOfMovedFrames"/>). Every other move of an entity at a sync point is a hand-off of a dynamic
+    /// body, and an owner with a dynamic hull writes no sample, because <see cref="MoveOnRails"/> refuses it. A hull that
+    /// stops being kinematic between two ticks drops its samples (see <see cref="SetFrameDriver"/>), so no step after that
+    /// applies one, and no sample of it is left when its hull hands off. So a sample that needs a conversion here is a bug.
+    /// </summary>
+    [Conditional("DEBUG")]
+    private void AssertSamplesNeedNoConversion()
+    {
+        int n = Frames.Count;
+        for (int i = 0; i < n; i++)
+        {
+            FrameHandle frame = Frames.AtDense(i);
+            if (Frames.IsNumeric(frame))
+                continue;
+            FrameHandle ownerFrame = entities.BackRow(frame.Entity).Frame;
+            if (Frames.Samples.Applied.TryGet(frame, out _, out FrameHandle applied))
+                Contract.Assert(applied == ownerFrame, $"The applied sample of {frame} is relative to {applied}, but its owner is in {ownerFrame}.");
+            if (Frames.Samples.Followed.TryGet(frame, out _, out FrameHandle followed))
+                Contract.Assert(followed == ownerFrame, $"The followed sample of {frame} is relative to {followed}, but its owner is in {ownerFrame}.");
         }
     }
 

@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation;
 
@@ -37,6 +38,17 @@ public readonly ref struct Self
     public double Time => world.Time;
 
     /// <summary>
+    /// The simulation time at the start of tick <paramref name="tick"/>, in seconds: the same double that
+    /// <see cref="World.Time"/> holds during that tick. Use it for a time in another tick, because a sum such as
+    /// <c>Time + 2 * DeltaTime</c> can round to another double. The intent that this tick writes acts in the step that ends
+    /// at <c>TimeAt(Tick + 2)</c>.
+    /// </summary>
+    public double TimeAt(long tick) => world.TimeAt(tick);
+
+    /// <summary>The frame that this entity owns, or null when it owns none.</summary>
+    public FrameHandle OwnedFrame => world.Entities.OwnedFrame(Entity);
+
+    /// <summary>
     /// This entity's pose in <paramref name="frame"/>, from the front snapshot (the end of the previous tick). Throws
     /// <see cref="ArgumentException"/> for a stale frame.
     /// </summary>
@@ -57,6 +69,17 @@ public readonly ref struct Self
 
     /// <summary>A proxy over this entity's physics intent for this tick. Physics receives it in the next step.</summary>
     public BodyHandle Body => new(world, Entity);
+
+    /// <summary>
+    /// Writes the motion of the frame that this entity owns over the next physics step: the step in which this tick's
+    /// intents act, which ends at <c>TimeAt(Tick + 2)</c>. The sample is relative to <see cref="Frame"/>, the frame's
+    /// semantic parent, in its axes, except its proper acceleration, which is in the frame's own axes. The last write in a
+    /// tick wins. A frame whose owner writes no sample in a tick has none in the next step. Throws
+    /// <see cref="InvalidOperationException"/> if the entity owns no frame, or if the frame has a parent and the entity has a
+    /// body that is not kinematic: that body is the frame's hull, and only a kinematic hull follows a sample. A frame without
+    /// a body can write a sample, and so can the owner of a root frame, whose body is the frame's static interior.
+    /// </summary>
+    public void MoveOnRails(in MotionSample sample) => world.MoveOnRails(Entity, sample);
 
     /// <summary>This entity's physics queries, such as ray casts. Each answer arrives as an event in the next tick.</summary>
     public PhysicsQueries Physics => new(world, chunk, Entity);

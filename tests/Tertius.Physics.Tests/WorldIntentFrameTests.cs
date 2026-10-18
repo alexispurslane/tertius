@@ -48,7 +48,7 @@ public class WorldIntentFrameTests
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
-            var place = new DPose(At(self.Time + 2.0 * self.DeltaTime), DQuaternion.Identity);
+            var place = new DPose(At(self.TimeAt(self.Tick + 2)), DQuaternion.Identity);
             self.Body.MoveKinematic(DPose.Compose(self.Snapshot.Frames.Relative(space, self.Frame), place));
         }
     }

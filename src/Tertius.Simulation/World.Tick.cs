@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.ExceptionServices;
+using Tertius.Frames.Rails;
 using DestroyEvent = Tertius.Destroy;
 using TickEvent = Tertius.Tick;
 
@@ -33,7 +34,7 @@ public sealed partial class World
             if (physicsWorker != null)
             {
                 stepOutput.Clear();
-                physicsWorker.Begin(new PhysicsStepContext(TickNumber, DeltaTime, Time, Frames, entities.FrontIntents, entities.IntentEntities));
+                physicsWorker.Begin(new PhysicsStepContext(TickNumber, DeltaTime, Time, Frames, entities.FrontIntents, entities.IntentEntities, Frames.Samples.Applied));
                 stepping = true;
             }
 
@@ -72,7 +73,7 @@ public sealed partial class World
     /// <summary>The number of sync points that <see cref="SyncTimestampTotal"/> sums.</summary>
     internal long SyncCount { get; private set; }
 
-    private double TimeAt(long tick) => options.StartTime + tick * (double)DeltaTime;
+    internal double TimeAt(long tick) => options.StartTime + tick * (double)DeltaTime;
 
     private void PrepareTick()
     {
@@ -302,5 +303,28 @@ public sealed partial class World
         if (entities.Body(entity) == null)
             throw new InvalidOperationException($"{entity} has no physics body.");
         return ref entities.WritableIntent(entity);
+    }
+
+    /// <summary>
+    /// Writes the running entity's motion sample for the next physics step into the written buffer of the sample table,
+    /// relative to the frame that the entity is in during the tick. The last write in a tick wins. Throws
+    /// <see cref="InvalidOperationException"/> if the entity owns no frame, or if its frame has a parent and the entity has
+    /// a body that is not kinematic, and <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    /// <remarks>
+    /// When the frame has a parent, the owner's body is the frame's hull, and only a kinematic hull follows a sample. A frame
+    /// without a body has no hull, so the sample acts on its transform. A root frame has no parent, so its owner's body is
+    /// only the frame's static interior, not a hull. In this ticket a hull is kinematic when its frame has a driver whose
+    /// hull motion is kinematic (see <see cref="BodyDesc.FrameHullMotion"/>).
+    /// </remarks>
+    internal void MoveOnRails(Entity entity, in MotionSample sample)
+    {
+        FrameHandle own = entities.OwnedFrame(entity);
+        if (own.IsNull)
+            throw new InvalidOperationException($"{entity} owns no frame, so it has no frame to move on rails.");
+        if (!Frames.Parent(own).IsNull && entities.Body(entity) != null && BodyDesc.FrameHullMotion(Frames.Driver(own)) != BodyMotion.Kinematic)
+            throw new InvalidOperationException(
+                $"{entity} owns {own}, whose hull is {BodyDesc.FrameHullMotion(Frames.Driver(own))}, so the hull cannot follow a motion sample: only a kinematic hull can.");
+        Frames.Samples.Write(own, entities.FrontRow(entity).Frame, sample);
     }
 }
