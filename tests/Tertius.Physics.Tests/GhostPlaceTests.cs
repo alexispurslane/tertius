@@ -662,4 +662,40 @@ public class GhostPlaceTests
         world.Tick();
         world.Errors.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// The station and the rock of
+    /// <see cref="TheGhostsOfAKeplerHullAndOfTheCrateThatSticksOutOfItsFrameGoAtTheSyncPointWhoseUpdateStopsNamingTheirHome"/>.
+    /// The rock lies far out, so it rests in a numeric frame, the home of the group that links it to the hull, and that
+    /// home keeps a ghost of the hull. The game destroys the rock between two ticks. The numeric update that follows
+    /// collects the rock's home, which has no member left, and stops naming it to keep the ghost, so one batch takes both
+    /// to physics: the home's system goes with the frame, and the withdrawal of the ghost's place finds no system left to
+    /// scan. Physics applies the whole batch and reports no error.
+    /// </summary>
+    [Fact]
+    public void AHomeThatKeepsTheGhostOfAKeplerHullDiesInTheBatchThatWithdrawsTheGhostsPlace()
+    {
+        using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
+        FarStation scene = SpawnFarStation(world);
+        Double3 hullPlace = world.Frames.LocalPose(scene.Station).Position;
+        Entity rock = world.Spawn(new SpawnDesc
+        {
+            Frame = scene.Space, Pose = new DPose(hullPlace + hullPlace / hullPlace.Length * 8 + scene.Forward * 4, DQuaternion.Identity),
+            Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static),
+        });
+        Tick(world, 2);
+        FrameHandle home = world.PhysicsHomeOf(rock);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Resting, "the rock lies 16,777 km from the origin of space");
+        NamesAnchorGhost(world, scene.Owner, home).Should().BeTrue("the hull starts 8.9 m from the rock");
+        faults.Jolt.HasGhostIn(scene.Owner, home).Should().BeTrue();
+
+        world.Destroy(rock);
+        world.Tick();
+
+        world.Frames.IsAlive(home).Should().BeFalse("the rock's home has no member left");
+        NamesAnchorGhost(world, scene.Owner, home).Should().BeFalse();
+        faults.Jolt.HasGhostIn(scene.Owner, home).Should().BeFalse();
+        world.Errors.Should().BeEmpty("physics applied the whole batch");
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+    }
 }

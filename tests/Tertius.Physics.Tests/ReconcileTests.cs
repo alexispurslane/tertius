@@ -172,11 +172,11 @@ public class ReconcileTests
     /// World refuses it and the tree keeps the fighter in space. A Debug build breaks a contract at the broken output. A
     /// Release build skips the fighter's whole update and records one error.
     /// <para>
-    /// Step 4 of the plan: here a tick would change the state under test. The next tick reconciles, and then Jolt hands the
-    /// fighter into the carrier again, this time with a correct report, so the hull would end in the carrier's system and
-    /// not in space. So the test reads the backend between the step and the reconcile, calls the reconcile alone (see
-    /// <see cref="Reconcile"/>), and reads it again before the next step. After that it ticks once more, to show that the
-    /// World and the backend agree in the next step too.
+    /// The World hands physics a batch at every sync point, also an empty one, and the batch reconciles (see
+    /// <c>World.UpdateNumericFrames</c>). So the reconcile runs at the sync point of the refused report, and the broken state
+    /// never shows between two ticks. The test reads the backend in the one place where it still shows: right before Jolt
+    /// applies the first batch after the step that made the report. After the tick it reads the backend again, with no
+    /// reconcile of its own. Then it ticks once more, to show that the World and the backend agree in the next step too.
     /// </para>
     /// </summary>
     [Fact]
@@ -194,12 +194,17 @@ public class ReconcileTests
             Body = ShipHull(),
             AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
         }));
-        // The backend hands the fighter into the carrier. The test gives the report a wrong origin, as a bug would.
+        // The backend hands the fighter into the carrier. The test gives the report a wrong origin, as a bug would. In a
+        // Release build, the first batch after that step reads which system holds the fighter's hull before Jolt applies it.
+        FrameHandle hullFrameBeforeTheBatch = FrameHandle.Null;
         faults.EditOutput = output =>
         {
             for (int i = 0; i < output.HandOffs.Count; i++)
                 if (output.HandOffs[i].Entity == fighter.Entity)
+                {
                     output.HandOffs[i] = output.HandOffs[i] with { From = carrier };
+                    faults.EditNextChanges = _ => faults.Jolt.TryGetBodyFrame(fighter.Entity, out hullFrameBeforeTheBatch);
+                }
         };
 
 #if TERTIUS_CONTRACTS
@@ -213,11 +218,8 @@ public class ReconcileTests
         HandOffs(faults).Should().ContainSingle().Which.To.Should().Be(carrier);
         world.Frames.Parent(fighter).Should().Be(space, "the World refused the hand-off, so the tree keeps the fighter in space");
 
-        // The step left the fighter's hull in the carrier's system, and the tree refused to follow.
-        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().Throw<ContractException>();
-
-        Reconcile(faults, world);
-
+        hullFrameBeforeTheBatch.Should().Be(carrier, "the step left the fighter's hull in the carrier's system, and the tree refused to follow");
+        // The batch of the same sync point reconciled: it put the hull back where the tree has the fighter's frame.
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         faults.Jolt.TryGetBodyFrame(fighter.Entity, out FrameHandle hullFrame).Should().BeTrue();
         hullFrame.Should().Be(space);
@@ -227,8 +229,7 @@ public class ReconcileTests
 
         HandOffs(faults).Should().HaveCount(2).And.Contain(handOff => handOff.Entity == fighter.Entity && handOff.From == space && handOff.To == carrier);
         world.Frames.Parent(fighter).Should().Be(carrier);
-        // The invariants hold again after the next reconcile, which finds the hull where the tree has the fighter's frame.
-        Reconcile(faults, world);
+        // The batch of that sync point reconciled too, and found the hull where the tree has the fighter's frame.
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         faults.Jolt.TryGetBodyFrame(fighter.Entity, out hullFrame).Should().BeTrue();
         hullFrame.Should().Be(carrier);

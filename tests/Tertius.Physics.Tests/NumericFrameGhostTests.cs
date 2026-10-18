@@ -592,6 +592,36 @@ public class NumericFrameGhostTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The hull and the rock of <see cref="TheSyncPointDropsTheGhostOfAnAnchorThatTheNumericUpdateNoLongerNames"/>, and far
+    /// from the hull's path a static station with a bubble of radius 10 m, which hangs in space. A kinematic crate of 2 m
+    /// stands at the edge of that bubble, so it sticks out of the station and has a ghost in the station's tree parent,
+    /// space. The sync point whose update stops naming space to keep a ghost of the hull drops the hull's ghost there, and
+    /// keeps the crate's, which the tree still allows: the withdrawal drops only the ghosts that lost their place.
+    /// </summary>
+    [Fact]
+    public void TheSyncPointThatDropsTheGhostOfAnAnchorKeepsTheOtherGhostsThatTheTreeAllowsInItsHome()
+    {
+        using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        Entity hull = Scenes.FastKeplerHull(world, space, ShipHull);
+        world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
+        // 5.8 km from every point of the hull's orbit, beyond the reach of the merge test at 2 km/s.
+        FrameHandle station = EmptyFrame(world, space, At(0, 3_000), 10);
+        Entity crate = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 10), Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic) });
+        Tick(world, 2);
+        NamesAnchorGhost(world, hull, space).Should().BeTrue("the hull starts 100 m from the rock");
+        faults.Jolt.HasGhostIn(hull, space).Should().BeTrue();
+        faults.Jolt.HasGhostIn(crate, space).Should().BeTrue("the crate sticks out of the station into its tree parent");
+
+        TickUntil(world, () => !NamesAnchorGhost(world, hull, space), 300);
+
+        faults.Jolt.HasGhostIn(hull, space).Should().BeFalse("the update withdrew the place of the hull's ghost at this sync point");
+        faults.Jolt.HasGhostIn(crate, space).Should().BeTrue("the station still hangs in space, so the tree still allows the crate's ghost there");
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        world.Errors.Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

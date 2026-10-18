@@ -277,8 +277,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             stepTime = context.Time;
             stepEndTime = context.Time + context.DeltaTime;
 
-            // The simulation skips ApplyChanges when a sync point has no changes, but it has still applied or refused
-            // the hand-offs of the last step, and it can also have changed the tree on its own, for example to dock a ship.
+            // The World hands physics a batch at every sync point, which reconciles, but the game can change the tree
+            // between two ticks with no batch, for example to dock a ship, and a batch that failed reconciled nothing.
             ReconcileFrames();
             RefreshFrameStructure();
             // Before the intents and the gravity, which act on the form that a character has for the whole step, and before
