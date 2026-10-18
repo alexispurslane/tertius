@@ -23,7 +23,7 @@ public class EntityTableParallelCopyTests : EntityTableDirtyRowTests
     {
         EngineEvents.Register();
         return parallel
-            ? new EntityTable(ChunkSize, initialCapacity: 8, new ParallelOptions { MaxDegreeOfParallelism = 4 }, parallelCopyThreshold: 1)
+            ? new EntityTable(ChunkSize, initialCapacity: 8, new ParallelOptions { MaxDegreeOfParallelism = 4 }) { ParallelCopyThreshold = 1 }
             : new EntityTable(ChunkSize, initialCapacity: 8);
     }
 
@@ -111,5 +111,18 @@ public class EntityTableParallelCopyTests : EntityTableDirtyRowTests
 
         serial.Should().AllSatisfy(result => result.Moved.Length.Should().BeGreaterThan(20));
         serial[^1].Index[2].Should().NotBeEmpty("gameplay added components, which the copy indexes");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void AThresholdOfTheCopyOnTheWorkersBelowOneRowIsRefused(int threshold)
+    {
+        EntityTable table = NewTable(parallel: false);
+
+        Action set = () => table.ParallelCopyThreshold = threshold;
+
+        set.Should().Throw<ArgumentOutOfRangeException>();
+        table.ParallelCopyThreshold.Should().Be(EntityTable.DefaultParallelCopyThreshold, "a refused threshold changes nothing");
     }
 }

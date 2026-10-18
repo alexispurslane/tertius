@@ -140,12 +140,7 @@ public sealed partial class World
         Profile.Lap(14);
 
         // 8. The back tables become the front tables.
-        entities.CopyDirtyRows();
-        Profile.Lap(15);
-        Frames.Update();
-        Profile.Lap(16);
-        spatial.Update(options.MaxDegreeOfParallelism == 1 ? null : parallelOptions);
-        Profile.Lap(17);
+        SwapSnapshot();
 
         // 9. The physics queries of this tick, against Jolt at the end of the step with this sync's destroys and spawns, and
         //    against the new front snapshot, which describes the same moment: its component flags, collision groups,
@@ -609,12 +604,16 @@ public sealed partial class World
 
     /// <summary>
     /// Step 8, and the end of an outside-tick change: the back rows become the front rows, and the frame tree and the
-    /// spatial grids catch up with the new front state.
+    /// spatial grids catch up with the new front state. The entity table and the spatial index run their large steps on
+    /// the workers in both cases. The laps record only inside the sync point (see <see cref="SyncProfile"/>).
     /// </summary>
     private void SwapSnapshot()
     {
         entities.CopyDirtyRows();
+        Profile.Lap(15);
         Frames.Update();
+        Profile.Lap(16);
         spatial.Update();
+        Profile.Lap(17);
     }
 }

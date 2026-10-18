@@ -30,7 +30,6 @@ public class SpatialUpdateBenchmarks
     private EntityTable entities = null!;
     private SpatialIndex spatial = null!;
     private Entity[] movers = [];
-    private ParallelOptions? workers;
     private bool shifted;
 
     [Params(16384, 32768, 65536, 98304)]
@@ -47,8 +46,8 @@ public class SpatialUpdateBenchmarks
     {
         entities = new EntityTable(chunkSize: 64, initialCapacity: Moved + 64);
         var frames = new FrameTree();
-        spatial = new SpatialIndex(entities, frames) { ParallelThreshold = Mode == UpdateMode.Workers ? 1 : int.MaxValue };
-        workers = Mode == UpdateMode.Workers ? new ParallelOptions { MaxDegreeOfParallelism = -1 } : null;
+        ParallelOptions? workers = Mode == UpdateMode.Workers ? new ParallelOptions { MaxDegreeOfParallelism = -1 } : null;
+        spatial = new SpatialIndex(entities, frames, workers) { ParallelThreshold = 1 };
         // The owner of the root is a handle that the table never hands out, so it is in no grid.
         FrameHandle root = frames.Create(new Entity((uint)Moved + 1000, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e12f), MotionDriver.Static);
         double spacing = ChangeCells ? 40 : 2;
@@ -79,6 +78,6 @@ public class SpatialUpdateBenchmarks
         if (Mode == UpdateMode.TakeOnly)
             entities.TakeMoved();
         else if (Mode != UpdateMode.CopyOnly)
-            spatial.Update(workers);
+            spatial.Update();
     }
 }

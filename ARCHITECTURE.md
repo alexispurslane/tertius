@@ -69,7 +69,7 @@ The Main, Simulation and Render threads exist only in the window. A headless run
 
 One tick has three parts. First, one thread prepares the tick. Then, during the parallel part, gameplay and physics run at the same time. Both read only state that is fixed for the tick: the front snapshot of tick N-1 and the frame tree. Last, during the sync part, one thread merges the results.
 
-In a large world, the sync thread hands four pieces of the sync part to the gameplay workers, as independent work items. Each one runs on the workers only when `WorldOptions.MaxDegreeOfParallelism` is not 1 and the piece has at least a threshold of work. One `Parallel.For` costs about 5 us and 2 KB, so a small world runs every piece on the sync thread and pays nothing. The thresholds of steps 8 and 10 were measured on an Apple M1 Max with all workers (ter-sn28), and the comment on each constant gives its measurement.
+In a large world, the sync thread hands four pieces of the sync part to the gameplay workers, as independent work items. Each one runs on the workers only when `WorldOptions.MaxDegreeOfParallelism` is not 1 and the piece has at least a threshold of work. One `Parallel.For` costs about 5 us and 2 KB, so a small world runs every piece on the sync thread and pays nothing. The thresholds of steps 8 and 10 were measured on an Apple M1 Max with all workers (ter-sn28), and the comment on each constant gives its measurement. Step 8 also ends each change that a game makes outside a tick, through the same method, with the same pieces and thresholds.
 
 | Step | Piece on the workers | Threshold | Work item |
 |---|---|---|---|

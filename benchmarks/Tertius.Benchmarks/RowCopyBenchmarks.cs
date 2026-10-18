@@ -31,7 +31,7 @@ internal static class RowCopyBenchmarks
 
         public Table(int rows, bool parallel)
         {
-            Entities = new EntityTable(ChunkSize, rows, parallel ? AllWorkers : null, parallelCopyThreshold: 1);
+            Entities = new EntityTable(ChunkSize, rows, parallel ? AllWorkers : null) { ParallelCopyThreshold = 1 };
             Live = new Entity[rows];
             for (int i = 0; i < rows; i++)
             {

@@ -93,9 +93,20 @@ internal sealed class Router
 
     /// <summary>
     /// The fewest messages for which a routing runs on the workers: the engine events, the outbox messages and the due
-    /// delayed sends, not the posted events. Below it the work items cost more than they save. Tests lower it.
+    /// delayed sends, not the posted events. 1 or more. Below it the work items cost more than they save. Both paths
+    /// fill the same inboxes, so only tests change it: at 1, every routing with a message takes the workers.
     /// </summary>
-    internal int ParallelThreshold { get; set; } = DefaultParallelThreshold;
+    internal int ParallelThreshold
+    {
+        get => parallelThreshold;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            parallelThreshold = value;
+        }
+    }
+
+    private int parallelThreshold = DefaultParallelThreshold;
 
     /// <summary>
     /// How many blocks a routing on the workers cuts the chunks into, and the most slot ranges it cuts the slots into.

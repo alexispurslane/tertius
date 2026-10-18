@@ -304,9 +304,9 @@ internal sealed class EntityTable
     // One bit per slot, set while the slot is live with a body: bit (slot % 64) of word slot / 64.
     private ulong[] bodySlots = [];
     // The workers that copy the rows that gameplay wrote, or null to copy them on the sync thread, and the fewest such rows
-    // for which they do.
+    // for which they do (see ParallelCopyThreshold).
     private readonly ParallelOptions? copyParallelism;
-    private readonly int parallelCopyThreshold;
+    private int parallelCopyThreshold = DefaultParallelCopyThreshold;
 
     private readonly SlotColumn<SlotFlags> flags;
     private readonly SlotColumn<Record> records;
@@ -340,17 +340,11 @@ internal sealed class EntityTable
     /// The workers on which <see cref="CopyDirtyRows"/> copies the rows that gameplay wrote, or null to copy every row on
     /// the calling thread.
     /// </param>
-    /// <param name="parallelCopyThreshold">
-    /// The fewest rows that gameplay wrote in a tick for which <see cref="CopyDirtyRows"/> copies them on the workers. 1 or
-    /// more.
-    /// </param>
-    public EntityTable(int chunkSize, int initialCapacity, ParallelOptions? copyParallelism = null,
-        int parallelCopyThreshold = DefaultParallelCopyThreshold)
+    public EntityTable(int chunkSize, int initialCapacity, ParallelOptions? copyParallelism = null)
     {
-        Contract.Requires(chunkSize > 0 && initialCapacity >= 0 && parallelCopyThreshold >= 1);
+        Contract.Requires(chunkSize > 0 && initialCapacity >= 0);
         this.chunkSize = chunkSize;
         this.copyParallelism = copyParallelism;
-        this.parallelCopyThreshold = parallelCopyThreshold;
         flags = AddSlotColumn<SlotFlags>();
         records = AddSlotColumn<Record>();
         masks = AddSlotColumn<EventMask>();
@@ -1024,6 +1018,21 @@ internal sealed class EntityTable
     /// the 8,000 rows of the Mixed tick benchmark copied faster on one thread.
     /// </summary>
     internal const int DefaultParallelCopyThreshold = 8192;
+
+    /// <summary>
+    /// The fewest rows that gameplay wrote in a tick for which <see cref="CopyDirtyRows"/> copies them on the workers. 1 or
+    /// more. Both copies end in the same state, so only tests change it: at 1, a small world takes the workers in every
+    /// tick.
+    /// </summary>
+    internal int ParallelCopyThreshold
+    {
+        get => parallelCopyThreshold;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            parallelCopyThreshold = value;
+        }
+    }
 
     // The copy of one chunk on a worker, kept so that a parallel copy allocates no delegate.
     private Action<int>? copyChunk;

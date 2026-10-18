@@ -23,20 +23,27 @@ public class SpatialIndexSubsystemTests
         // Frame owners are entity handles that the table never hands out, so that no frame owner is a live entity here.
         private uint nextOwnerSlot = 100_000;
 
-        // The workers of every update, or null for updates on this thread only.
-        private readonly ParallelOptions? workers;
-
         /// <param name="onWorkers">
         /// If true, every update finds the cells of the moved entities on four workers, however few entities moved.
         /// </param>
         public Scene(bool onWorkers = false)
         {
-            Spatial = new SpatialIndex(Entities, Frames);
-            if (onWorkers)
+            Spatial = onWorkers
+                ? new SpatialIndex(Entities, Frames, new ParallelOptions { MaxDegreeOfParallelism = 4 }) { ParallelThreshold = 1 }
+                : new SpatialIndex(Entities, Frames);
+            Root = NewFrame(FrameHandle.Null);
+        }
+
+        /// <summary>
+        /// A scene whose index was given four workers on <paramref name="workers"/>, and finds the cells on them from
+        /// <paramref name="threshold"/> moved entities on.
+        /// </summary>
+        public Scene(TaskScheduler workers, int threshold)
+        {
+            Spatial = new SpatialIndex(Entities, Frames, new ParallelOptions { MaxDegreeOfParallelism = 4, TaskScheduler = workers })
             {
-                Spatial.ParallelThreshold = 1;
-                workers = new ParallelOptions { MaxDegreeOfParallelism = 4 };
-            }
+                ParallelThreshold = threshold,
+            };
             Root = NewFrame(FrameHandle.Null);
         }
 
@@ -58,7 +65,7 @@ public class SpatialIndexSubsystemTests
         public void Settle()
         {
             Entities.CopyDirtyRows();
-            Spatial.Update(workers);
+            Spatial.Update();
             Spatial.AssertInvariants();
         }
 
@@ -496,6 +503,32 @@ public class SpatialIndexSubsystemTests
         }
     }
 
+    [Fact]
+    public void AnUpdateWithFewerMovedEntitiesThanTheThresholdFindsTheirCellsOnTheCallingThread()
+    {
+        var workers = new CountingScheduler();
+        var scene = new Scene(workers, threshold: 10);
+        Entity[] spawned = Enumerable.Range(0, 9).Select(i => scene.Add(scene.Root, new Double3(i * 100, 0, 0))).ToArray();
+
+        scene.Settle();
+
+        workers.Queued.Should().Be(0);
+        scene.Find(scene.Root, Double3.Zero, 1e4).Should().Equal(spawned);
+    }
+
+    [Fact]
+    public void AnUpdateWithAsManyMovedEntitiesAsTheThresholdFindsTheirCellsOnTheWorkersTheIndexWasGiven()
+    {
+        var workers = new CountingScheduler();
+        var scene = new Scene(workers, threshold: 10);
+        Entity[] spawned = Enumerable.Range(0, 10).Select(i => scene.Add(scene.Root, new Double3(i * 100, 0, 0))).ToArray();
+
+        scene.Settle();
+
+        workers.Queued.Should().BeGreaterThan(0);
+        scene.Find(scene.Root, Double3.Zero, 1e4).Should().Equal(spawned);
+    }
+
     // The model is a plain list of (entity, frame, position). Some moves are small steps, which mostly stay in the cell, and
     // some are jumps, which leave it; some change the frame; entities also die and new ones take their slots. Each seed
     // runs once with every update on this thread and once with every update on the workers.
@@ -752,5 +785,18 @@ public class SpatialIndexSubsystemTests
         Action query = () => scene.Spatial.QueryRadius(scene.Root, Double3.Zero, 1, null!);
 
         query.Should().Throw<ArgumentNullException>();
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void AThresholdOfTheCellSearchOnTheWorkersBelowOneMovedEntityIsRefused(int threshold)
+    {
+        var scene = new Scene();
+
+        Action set = () => scene.Spatial.ParallelThreshold = threshold;
+
+        set.Should().Throw<ArgumentOutOfRangeException>();
+        scene.Spatial.ParallelThreshold.Should().Be(SpatialIndex.DefaultParallelThreshold, "a refused threshold changes nothing");
     }
 }

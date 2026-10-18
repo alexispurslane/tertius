@@ -309,6 +309,19 @@ public class RouterOnWorkersTests
         h.Pings(entities[1]).Should().Equal(0);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void AThresholdOfARoutingOnTheWorkersBelowOneMessageIsRefused(int threshold)
+    {
+        RouterHarness h = RouterHarness.OnWorkers(threshold: null);
+
+        Action set = () => h.Router.ParallelThreshold = threshold;
+
+        set.Should().Throw<ArgumentOutOfRangeException>();
+        h.Router.ParallelThreshold.Should().Be(Router.DefaultParallelThreshold, "a refused threshold changes nothing");
+    }
+
     /// <summary>What a test compares of an event: its target, its type and its payload, which every test makes unique.</summary>
     private static List<string> Describe(ReadOnlySpan<Event> events)
     {

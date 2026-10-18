@@ -33,6 +33,7 @@ internal sealed class SpatialIndex
 
     private readonly EntityTable entities;
     private readonly FrameTree frames;
+    private readonly ParallelOptions? workers;
     private readonly EntityTable.Column<Placement> placements;
     private SpatialGrid?[] grids = new SpatialGrid?[16];
 
@@ -46,29 +47,50 @@ internal sealed class SpatialIndex
     private int movedCount;
     private Action<int>? findItemMoves;
 
-    public SpatialIndex(EntityTable entities, FrameTree frames)
+    /// <param name="entities">The entity table whose front rows the grids index.</param>
+    /// <param name="frames">The frame tree whose frames have the grids.</param>
+    /// <param name="workers">
+    /// The workers on which a large <see cref="Update"/> finds the new cells, or null to run every update on the calling
+    /// thread.
+    /// </param>
+    public SpatialIndex(EntityTable entities, FrameTree frames, ParallelOptions? workers = null)
     {
         this.entities = entities;
         this.frames = frames;
+        this.workers = workers;
         placements = entities.AddColumn<Placement>(Remove);
     }
 
     /// <summary>
-    /// The fewest moved entities for which <see cref="Update"/> finds their new cells on the workers. Tests set it to 1.
+    /// The default of <see cref="ParallelThreshold"/>. Measured with SpatialUpdateBenchmarks on an M1 Max: while the rows
+    /// that an update reads fit in the caches of the sync thread, up to about 50,000 moved entities, the workers save
+    /// nothing. From 65,536 on they save 8 to 10 percent there, and a third to a half of step 8c in the 100,000-entity
+    /// tick benchmark.
     /// </summary>
-    /// <remarks>
-    /// Measured with SpatialUpdateBenchmarks on an M1 Max: while the rows that an update reads fit in the caches of the
-    /// sync thread, up to about 50,000 moved entities, the workers save nothing. From 65,536 on they save 8 to 10
-    /// percent there, and a third to a half of step 8c in the 100,000-entity tick benchmark.
-    /// </remarks>
-    internal int ParallelThreshold { get; set; } = 65_536;
+    internal const int DefaultParallelThreshold = 65_536;
 
     /// <summary>
-    /// Moves each entity whose front transform changed since the last update into its current cell. With
-    /// <paramref name="parallel"/> and at least <see cref="ParallelThreshold"/> moved entities, the workers find the
-    /// new cells; the grids end in the same state either way.
+    /// The fewest moved entities for which <see cref="Update"/> finds their new cells on the workers. 1 or more. Both
+    /// paths end in the same grids, so only tests change it: at 1, every update with a moved entity takes the workers.
     /// </summary>
-    public void Update(ParallelOptions? parallel = null)
+    internal int ParallelThreshold
+    {
+        get => parallelThreshold;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            parallelThreshold = value;
+        }
+    }
+
+    private int parallelThreshold = DefaultParallelThreshold;
+
+    /// <summary>
+    /// Moves each entity whose front transform changed since the last update into its current cell. With workers and at
+    /// least <see cref="ParallelThreshold"/> moved entities, the workers find the new cells; the grids end in the same
+    /// state either way.
+    /// </summary>
+    public void Update()
     {
         // An update finds the moves first and applies them after, in the order of the moved entities. Finding the move of
         // an entity reads only that entity's placement and front row, and applying a move writes only that entity's
@@ -77,7 +99,7 @@ internal sealed class SpatialIndex
         ReadOnlySpan<Entity> moved = entities.TakeMoved();
         if (moves.Length < moved.Length)
             moves = new Move[Math.Max(moved.Length, moves.Length * 2)];
-        if (parallel == null || moved.Length < ParallelThreshold)
+        if (workers == null || moved.Length < parallelThreshold)
         {
             Apply(moves.AsSpan(0, FindMoves(moved, moves)));
             return;
@@ -90,7 +112,7 @@ internal sealed class SpatialIndex
         moved.CopyTo(movedForWorkers);
         movedCount = moved.Length;
         int items = Math.Min(movedCount, ParallelItems);
-        Parallel.For(0, items, parallel, findItemMoves ??= FindItemMoves);
+        Parallel.For(0, items, workers, findItemMoves ??= FindItemMoves);
         for (int item = 0; item < items; item++)
             Apply(moves.AsSpan(ItemStart(item, items), movesPerItem[item]));
     }

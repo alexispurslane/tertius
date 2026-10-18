@@ -76,13 +76,15 @@ public sealed partial class World : IDisposable
         parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = this.options.MaxDegreeOfParallelism };
         runChunk = RunChunk;
 
-        entities = new EntityTable(this.options.ChunkSize, this.options.InitialCapacity,
-            this.options.MaxDegreeOfParallelism == 1 ? null : parallelOptions, this.options.ParallelRowCopyThreshold);
+        // The subsystems with a step on the workers take them here, or null when the world has one thread. Each decides
+        // from its own measured threshold whether a step is large enough for them.
+        ParallelOptions? workers = this.options.MaxDegreeOfParallelism == 1 ? null : parallelOptions;
+        entities = new EntityTable(this.options.ChunkSize, this.options.InitialCapacity, workers);
         // The order of the subsystems is the order in which they let go of a released entity.
         topics = new TopicSets(entities);
-        router = new Router(entities, topics, this.options.MaxDegreeOfParallelism == 1 ? null : parallelOptions);
+        router = new Router(entities, topics, workers);
         attachments = new Attachments(entities);
-        spatial = new SpatialIndex(entities, Frames);
+        spatial = new SpatialIndex(entities, Frames, workers);
         renderBuilder = new RenderSnapshotBuilder(entities, Frames, parallelOptions);
         queryRunner = new PhysicsQueryRunner(this, physics, router, message => Report(message, isError: true));
         dyingMarks = entities.AddColumn<bool>();

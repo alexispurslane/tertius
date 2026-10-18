@@ -5,7 +5,7 @@ namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// Step 8 of the sync point copies the rows that gameplay wrote on the world's workers once there are at least
-/// <see cref="WorldOptions.ParallelRowCopyThreshold"/> of them. A world on four workers with that threshold at its lowest,
+/// <see cref="EntityTable.ParallelCopyThreshold"/> of them. A world on four workers with that threshold at its lowest,
 /// one row, copies on the workers in every tick in which gameplay wrote a row, and must end in the world of a run on one
 /// worker, which copies on the ticking thread. The entities move, change their render rows and their components, spawn,
 /// die, and read their neighbors from the spatial grid, which takes the moved entities in the order of the copy, so a
@@ -79,8 +79,8 @@ public class ParallelRowCopyWorldTests
             ChunkSize = 8,
             SpawnPoolSize = 8,
             DebugChecks = true,
-            ParallelRowCopyThreshold = 1,
         });
+        world.Entities.ParallelCopyThreshold = 1;
         FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
         var random = new Random(20261018);
         for (int i = 0; i < 120; i++)
@@ -108,13 +108,5 @@ public class ParallelRowCopyWorldTests
         ulong fourWorkers = Run(maxDop: 4);
 
         fourWorkers.Should().Be(oneWorker);
-    }
-
-    [Fact]
-    public void AThresholdBelowOneRowIsRefusedWhenTheWorldIsCreated()
-    {
-        Action create = () => new World(new WorldOptions { ParallelRowCopyThreshold = 0 }).Dispose();
-
-        create.Should().Throw<ArgumentOutOfRangeException>().WithParameterName(nameof(WorldOptions.ParallelRowCopyThreshold));
     }
 }
