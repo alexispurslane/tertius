@@ -901,8 +901,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// update (see <see cref="ComputeProperAccelerations"/>); Jolt's angular velocity and the change of it in the update;
     /// and the proper acceleration. A hull that handed off in the step is in its new home: Jolt's velocity is the chord of
     /// its first step there, so its acceleration is the one that the hand-off made that chord with, in the new home's axes
-    /// (see <see cref="HandedOffVelocities"/>), and the instant velocity is the one that the hand-off carried. False for
-    /// any other frame.
+    /// (see <see cref="HandedOffVelocities"/>), the instant velocity is the one that the hand-off carried, and the angular
+    /// acceleration is the one of the update, turned into the new home's axes (see
+    /// <see cref="FrameMotion.AngularAccelerationToParent"/>). False for any other frame.
     /// </summary>
     private bool TryHullRecord(FrameHandle frame, out MotionSample record)
     {

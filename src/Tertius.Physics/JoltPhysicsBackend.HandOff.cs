@@ -9,8 +9,9 @@ public sealed partial class JoltPhysicsBackend
 {
     /// <summary>
     /// A hand-off decided after the step, with the body's state already converted to the target frame: its pose, the
-    /// velocities that Jolt gets there, and the acceleration relative to the target that turned the linear velocity into
-    /// its chord (see <see cref="HandedOffVelocities"/>).
+    /// velocities that Jolt gets there, the acceleration relative to the target that turned the linear velocity into its
+    /// chord (see <see cref="HandedOffVelocities"/>), and the angular acceleration of the step's update in the target's
+    /// axes (see <see cref="FrameMotion.AngularAccelerationToParent"/>).
     /// </summary>
     private readonly record struct HandOffPlan(
         BodyRecord Record,
@@ -20,6 +21,7 @@ public sealed partial class JoltPhysicsBackend
         Vector3 LinearVelocity,
         Vector3 AngularVelocity,
         Double3 ChordAcceleration,
+        Vector3 AngularAcceleration,
         DQuaternion Turn);
 
     /// <summary>
@@ -144,7 +146,8 @@ public sealed partial class JoltPhysicsBackend
                     var (linear, angular, acceleration) = HandedOffVelocities(member, parent, frameMotion.Pose.TransformPoint(centerInBubble),
                         frameMotion.VelocityToParent(centerInBubble, InstantVelocity(member, s) + homeVelocity),
                         frameMotion.AngularToParent(InstantAngularVelocity(member, s)));
-                    handOffPlans.Add(new HandOffPlan(member, frame, parent, pose, linear, angular, acceleration, frameMotion.Pose.Rotation));
+                    handOffPlans.Add(new HandOffPlan(member, frame, parent, pose, linear, angular, acceleration,
+                        frameMotion.AngularAccelerationToParent(member.AngularAcceleration).ToVector3(), frameMotion.Pose.Rotation));
                     continue;
                 }
 
@@ -178,7 +181,7 @@ public sealed partial class JoltPhysicsBackend
                         motion.VelocityFromParent(centerInParent, InstantVelocity(member, s) + entry.Velocity),
                         motion.AngularFromParent(InstantAngularVelocity(member, s)));
                     handOffPlans.Add(new HandOffPlan(member, frame, entry.Frame, motion.PoseFromParent(poseInParent), linear, angular, acceleration,
-                        motion.Pose.Rotation.Conjugate()));
+                        motion.AngularAccelerationFromParent(member.AngularAcceleration).ToVector3(), motion.Pose.Rotation.Conjugate()));
                 }
             }
         }
@@ -289,8 +292,10 @@ public sealed partial class JoltPhysicsBackend
         {
             MoveFrame(record.OwnedFrame, plan.From, plan.To);
             // Jolt's velocity is the chord of the hull's first step in the new home now, so its frame's record takes the
-            // acceleration that made that chord, in the new home's axes (see TryHullRecord).
+            // acceleration that made that chord, in the new home's axes (see TryHullRecord). The angular acceleration of the
+            // update turns into the new home's axes, as the angular velocity does.
             record.StepAcceleration = plan.ChordAcceleration;
+            record.AngularAcceleration = plan.AngularAcceleration;
         }
         // A contact that no system takes over can wait for the numeric update of the sync point (see ResolveLooseContacts).
         handedOff.Add(record.Entity);

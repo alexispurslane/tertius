@@ -175,7 +175,7 @@ The step record of a frame is a `MotionSample` that describes the frame's motion
 
 | Owner | Who fills the step record |
 |---|---|
-| A dynamic hull | Physics, right after the Jolt update: the hull's pose, its chord (Jolt's velocity), its instant velocity (the chord plus half a step of its acceleration, `InstantMotionOf`), its acceleration and its angular acceleration measured from the change of Jolt's velocities over the step, Jolt's angular velocity, and the measured proper acceleration |
+| A dynamic hull | Physics, right after the Jolt update: the hull's pose, its chord (Jolt's velocity), its instant velocity (the chord plus half a step of its acceleration, `InstantMotionOf`), its acceleration and its angular acceleration measured from the change of Jolt's velocities over the step, Jolt's angular velocity, and the measured proper acceleration. A hull that hands off in the step has the record relative to its new parent, in the new parent's axes: the acceleration is the one that made Jolt's chord there, and the angular acceleration turns into the new axes as a direction, as step 5 converts the angular acceleration of a sample (`FrameMotion.AngularAccelerationToParent`, `ter-nw4p`) |
 | A kinematic hull with a sample | Physics, after it snaps the hull onto the sample's pose: the sample that it applied, with every field exact, so the sample's doubles and not Jolt's float velocities |
 | No body, with a sample | The component's sample in the applied buffer, which already is one |
 | A static hull, or a kinematic hull without a sample, that teleported in the step | Physics: the teleport's pose, with zero velocities and accelerations |
