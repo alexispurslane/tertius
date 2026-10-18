@@ -115,6 +115,28 @@ public class DynamicHullRecordTests
     }
 
     [Fact]
+    public void TheRecordOfAShipThatFallsInANumericFrameHoldsEarthsGravityAtTheShipAsItsAccelerationInEarth()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle earth = Earth(world);
+        Entity ship = ShipInOrbit(world, earth);
+        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+
+        Tick(world, 10);
+
+        // Physics measures the record relative to the ship's numeric home, which falls at Earth's field at its origin, so
+        // in the home the ship accelerates by the tidal difference only. In Earth, where the table keeps the record, it
+        // accelerates by Earth's field at its place at the start of the step, about 8.7 m/s², as Jolt pulled it. A record
+        // that left out the home's own acceleration would be 8.7 m/s² off.
+        InFallingFrame(world, ship).Should().BeTrue();
+        world.Frames.Samples.Followed.TryGet(shipFrame, out MotionSample record, out FrameHandle relativeTo).Should().BeTrue();
+        relativeTo.Should().Be(earth);
+        Double3 start = record.Pose.Position - record.ChordVelocity * world.DeltaTime;
+        (record.Acceleration - GravityField.Point(EarthMu).AtPrecise(start)).Length.Should().BeLessThan(1e-4);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
     public void AShipInANumericFrameThatPhysicsPlacesFromTheTreeAgainKeepsToTheOrbitOfAShipLeftAlone()
     {
         using World placed = NewWorld(out _);

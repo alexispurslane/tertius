@@ -32,12 +32,15 @@ public class FrameTreeNumericMotionTests
     private static Double3 X(double x) => new(x, 0, 0);
 
     /// <summary>The numeric frame that a numeric update gives one body of Earth at <paramref name="position"/>.</summary>
-    private FrameHandle FrameFor(Double3 position, Double3 velocity)
+    private FrameHandle FrameFor(Double3 position, Double3 velocity) => FrameFor(earth, position, velocity);
+
+    /// <summary>The numeric frame that a numeric update gives one body of <paramref name="semantic"/> at <paramref name="position"/>.</summary>
+    private FrameHandle FrameFor(FrameHandle semantic, Double3 position, Double3 velocity)
     {
         FrameHandle home = FrameHandle.Null;
         var body = new NumericBody
         {
-            Entity = new Entity(10, 1), Semantic = earth, Home = earth, Position = position, HomePosition = position,
+            Entity = new Entity(10, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
             Velocity = velocity, Radius = 1, Mass = 1,
         };
         frames.UpdateNumericFrames([body], 0.1, new PhysicsChanges(), moves => home = moves.Single().To);
@@ -52,6 +55,34 @@ public class FrameTreeNumericMotionTests
         FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
         frames.HomeAcceleration(pod, earth).Should().Be(Earth.AtPrecise(X(OrbitRadius)));
         frames.EffectiveGravity(pod, Double3.Zero).Should().Be(Vector3.Zero);
+    }
+
+    [Fact]
+    public void A_falling_frame_accelerates_relative_to_its_semantic_frame_by_its_step_acceleration()
+    {
+        FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
+        frames.AccelerationRelative(pod, earth).Should().Be(Earth.AtPrecise(X(OrbitRadius)));
+    }
+
+    [Fact]
+    public void The_semantic_frame_accelerates_relative_to_a_falling_frame_against_the_frames_step_acceleration()
+    {
+        FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
+        frames.AccelerationRelative(earth, pod).Should().Be(-Earth.AtPrecise(X(OrbitRadius)));
+    }
+
+    [Fact]
+    public void A_falling_frame_in_a_turned_frame_accelerates_relative_to_the_turned_frames_parent_by_its_step_acceleration_in_the_parents_axes()
+    {
+        // A frame at Earth's origin, turned by 0.9 rad about Z, with Earth's field in its own axes. A fast body in it gets a
+        // falling frame, which keeps the field at its origin, in the turned frame's axes, as its step acceleration.
+        DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.9);
+        FrameHandle turned = frames.Create(new Entity(2, 1), earth, new DPose(Double3.Zero, turn), FrameBounds.Sphere(1e9f), MotionDriver.Static, Earth);
+        FrameHandle pod = FrameFor(turned, X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
+        frames.TreeParent(pod).Should().Be(turned);
+
+        Double3 expected = turn.Rotate(Earth.AtPrecise(X(OrbitRadius)));
+        (frames.AccelerationRelative(pod, earth) - expected).Length.Should().BeLessThan(1e-12);
     }
 
     [Fact]

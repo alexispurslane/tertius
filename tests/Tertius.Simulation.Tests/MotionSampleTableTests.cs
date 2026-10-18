@@ -158,6 +158,8 @@ public class MotionSampleTableTests
             Distance(converted.Pose.Rotation, composed.Rotation).Should().BeLessThan(1e-12, $"the {buffer} rotation");
             Distance(converted.ChordVelocity, turn.Rotate(sample.ChordVelocity) + carried).Should().BeLessThan(1e-9, $"the {buffer} chord");
             Distance(converted.Velocity, turn.Rotate(sample.Velocity) + carried).Should().BeLessThan(1e-9, $"the {buffer} velocity");
+            // The tree keeps no acceleration of a semantic frame in its parent, so the parent's acceleration on its orbit is
+            // not in it (see FrameTree.AccelerationRelative).
             Distance(converted.Acceleration, turn.Rotate(sample.Acceleration)).Should().BeLessThan(1e-12, $"the {buffer} acceleration");
             Distance(converted.AngularVelocity, turn.Rotate(sample.AngularVelocity) + parentSpin).Should().BeLessThan(1e-12, $"the {buffer} angular velocity");
             Distance(converted.AngularAcceleration, turn.Rotate(sample.AngularAcceleration)).Should().BeLessThan(1e-12, $"the {buffer} angular acceleration");

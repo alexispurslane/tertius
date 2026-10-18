@@ -106,9 +106,10 @@ internal sealed class MotionSampleTable
     /// Converts the applied and the followed sample of <paramref name="frame"/>, each when it is relative to another frame
     /// than <paramref name="to"/>, into <paramref name="to"/>, with the relation of the two frames now. The pose converts as
     /// a pose, the chord velocity and the instant velocity with the motion of one frame relative to the other at the
-    /// sample's place at the end of its step, the angular velocity with the spin of one frame relative to the other, and the
-    /// accelerations as directions. The proper acceleration is in the frame's own axes, so it stays. Both frames must be
-    /// live: the World converts the samples of the frames in a frame that dies before it dies.
+    /// sample's place at the end of its step, the angular velocity with the spin of one frame relative to the other, the
+    /// acceleration with the acceleration of one frame relative to the other (see <see cref="FrameTree.AccelerationRelative"/>),
+    /// and the angular acceleration as a direction. The proper acceleration is in the frame's own axes, so it stays. Both
+    /// frames must be live: the World converts the samples of the frames in a frame that dies before it dies.
     /// </summary>
     internal void ConvertInto(FrameHandle frame, FrameHandle to)
     {
@@ -146,7 +147,7 @@ internal sealed class MotionSampleTable
             DPose.Compose(relative, sample.Pose),
             frames.ConvertVelocity(from, to, place, sample.ChordVelocity),
             frames.ConvertVelocity(from, to, place, sample.Velocity),
-            relative.TransformDirection(sample.Acceleration),
+            relative.TransformDirection(sample.Acceleration) + frames.AccelerationRelative(from, to),
             relative.TransformDirection(sample.AngularVelocity) + frames.AngularVelocityRelative(from, to),
             relative.TransformDirection(sample.AngularAcceleration),
             sample.ProperAcceleration);
