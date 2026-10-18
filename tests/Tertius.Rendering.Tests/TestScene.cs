@@ -95,25 +95,20 @@ internal sealed class TestScene
         instances.Add(Gpu.Instance(Sphere, PlanetMaterial, PlanetCenter, new Vector3(PlanetRadius), flags: RenderFlags.Celestial | RenderFlags.CastsShadow));
         instances.Add(Gpu.Instance(Sphere, StarMaterial, StarCenter, new Vector3(StarRadius), flags: RenderFlags.Celestial));
 
-        snapshot.Lights.Add(new RenderLight
-        {
-            Kind = LightKind.Point,
-            Position = new Vector3(-0.4f, 0.4f, -4.4f),
-            Color = new Vector3(1f, 0.7f, 0.4f),
-            Intensity = 6f,
-            Range = 10f,
-        });
-        snapshot.Lights.Add(new RenderLight
-        {
-            Kind = LightKind.Spot,
-            Position = new Vector3(2.5f, 3.5f, -4.2f),
-            Direction = Vector3.Normalize(BlueSphere - new Vector3(2.5f, 3.5f, -4.2f)),
-            Color = new Vector3(0.6f, 0.8f, 1f),
-            Intensity = 40f,
-            Range = 15f,
-            InnerConeAngle = 0.25f,
-            OuterConeAngle = 0.4f,
-        });
+        snapshot.Lights.Add(new PointRenderLight(
+            Position: new Vector3(-0.4f, 0.4f, -4.4f),
+            Color: new Vector3(1f, 0.7f, 0.4f),
+            Intensity: 6f,
+            Range: 10f));
+        Vector3 spotPosition = new(2.5f, 3.5f, -4.2f);
+        snapshot.Lights.Add(new SpotRenderLight(
+            Position: spotPosition,
+            Direction: Vector3.Normalize(BlueSphere - spotPosition),
+            Color: new Vector3(0.6f, 0.8f, 1f),
+            Intensity: 40f,
+            Range: 15f,
+            InnerConeAngle: 0.25f,
+            OuterConeAngle: 0.4f));
         return snapshot;
     }
 }

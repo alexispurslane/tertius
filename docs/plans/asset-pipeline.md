@@ -861,10 +861,16 @@ public readonly record struct ModelId { ... }   // like MeshId: the value is sto
 /// <summary>One mesh with one material, placed by an offset from the model origin.</summary>
 public readonly record struct ModelPart(MeshId Mesh, MaterialId Material, Pose Offset, bool Transparent);
 
-/// <summary>A point or spot light of a model. Units as RenderLight. A spot light points along -Z of its offset.</summary>
-public readonly record struct ModelLight(
-    Pose Offset, LightKind Kind, Vector3 Color, float Intensity, float Range,
-    float InnerConeAngle, float OuterConeAngle, bool CastsShadow);
+/// <summary>A point light of a model, placed by an offset from the model origin. Units as PointRenderLight.</summary>
+public readonly record struct PointModelLight(Pose Offset, Vector3 Color, float Intensity, float Range, bool CastsShadow);
+
+/// <summary>A spot light of a model. Units as SpotRenderLight. It points along -Z of its offset.</summary>
+public readonly record struct SpotModelLight(
+    Pose Offset, Vector3 Color, float Intensity, float Range, float InnerConeAngle, float OuterConeAngle, bool CastsShadow);
+
+/// <summary>A light of a model: a PointModelLight or a SpotModelLight. A custom [Union], as RenderLight is. default holds no light.</summary>
+[Union]
+public readonly struct ModelLight : IEquatable<ModelLight> { ... }
 
 /// <summary>The sphere bounds every part, in model space.</summary>
 public sealed record ModelDesc(
@@ -1454,7 +1460,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
 
 1. Add the tools to the flake: `ktx-tools`, the meshoptimizer variables, `native/vhacd.nix` and the `assets` shell. Blender is a download of about 620 MiB, which unpacks to 1.7 GiB. Ask the user before the first build of the `assets` shell. Add `.tertius/`, `dist/`, `*.blend[0-9]*` and `*.blend@` to the root `.gitignore`. Tests first: smoke tests that load each native library and call one function. The Blender smoke test skips with a reason outside the `assets` shell. Done: `nix develop .#assets --command bash -c 'blender -b --factory-startup --python-exit-code 1 --python-expr "import bpy; print(bpy.app.version_string)"'` prints 5.2.2.
 2. Create the projects and the fixtures. Write `FixtureGenerator` with SharpGLTF.Toolkit, and make the glTF and image fixtures of "Testing". Make the Blender fixtures with a script in the `assets` shell. Add them to the repository with a `Fixtures/README.md` that lists how each was made. Done: a test reads every fixture.
-3. Make the Core and Physics changes. Add the value types `ModelId`, `ModelPart`, `ModelLight`, `ModelDesc`, `MeshLod`, `TextureFormat` and `TextureMips`. Add `MaterialDesc.EmissiveMap`, `IPhysicsBackend.Prepare` with its Jolt implementation, and `ShapeCooker`. This step adds no `IRenderer` member. Tests: `ReduceConvexHull` keeps at most 256 points, all on the input hull. After `Prepare`, a spawn builds no shape at the sync point, which a count of shape builds shows.
+3. Make the Core and Physics changes. Add the value types `ModelId`, `ModelPart`, `ModelLight` with its cases `PointModelLight` and `SpotModelLight`, `ModelDesc`, `MeshLod`, `TextureFormat` and `TextureMips`. Add `MaterialDesc.EmissiveMap`, `IPhysicsBackend.Prepare` with its Jolt implementation, and `ShapeCooker`. This step adds no `IRenderer` member. Tests: `ReduceConvexHull` keeps at most 256 points, all on the input hull. After `Prepare`, a spawn builds no shape at the sync point, which a count of shape builds shows.
 4. Write the KTX2 writer and reader and the cooked format. Tests: round trips for every `TextureFormat`, `ktx validate` on every written file, a `cooked.json` round trip, offsets in `geometry.bin`, and AS8003 for damaged files.
 5. Make the renderer and Simulation changes from the table in "Engine changes", one row at a time. Each new `IRenderer` member comes in the same row as its Vulkan implementation, and every fake renderer of the tests gets it too. Each row writes its CPU tests and snapshot scenes first. Done: every existing snapshot is unchanged, and each new reference image is approved after a real review.
 6. Write image decoding and texture processing. Tests:
