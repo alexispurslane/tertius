@@ -1,6 +1,5 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation;
 
@@ -36,8 +35,8 @@ public sealed partial class World
     /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>), a frame with a driver that its hull
     /// cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>), a gravity field that is not valid, or an attachment
     /// parent that is not live or that owns a root frame. The World checks nothing about rails motion: a rails component
-    /// checks its own rules (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). An attached entity is live in the frame of its
-    /// parent, whatever frame the description names (see <see cref="SpawnDesc.AttachTo"/>).
+    /// checks its own rules (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). An attached entity is live in
+    /// the frame of its parent, whatever frame the description names (see <see cref="SpawnDesc.AttachTo"/>).
     /// </summary>
     public Entity Spawn(SpawnDesc desc)
     {
