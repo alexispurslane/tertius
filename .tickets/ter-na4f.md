@@ -1,7 +1,7 @@
 ---
 id: ter-na4f
 status: open
-deps: [ter-ozm8, ter-2n31]
+deps: [ter-ozm8]
 links: []
 created: 2026-10-18T14:08:42Z
 type: task
