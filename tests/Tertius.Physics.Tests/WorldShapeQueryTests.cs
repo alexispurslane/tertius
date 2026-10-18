@@ -603,6 +603,8 @@ public class WorldShapeQueryTests
     public static TheoryData<string, QueryShape, double, double, double, bool> BadQueries() => new()
     {
         { "radius", QueryShape.Sphere(0), 1, 1, 10, false },
+        { "default shape", default(QueryShape), 1, 1, 10, false },
+        { "default shape", default(QueryShape), 1, 1, 10, true },
         { "half extents", QueryShape.Box(new Vector3(1, float.NaN, 1)), 1, 1, 10, false },
         { "half height", QueryShape.Capsule(-1, 0.5f), 1, 1, 10, true },
         { "position", QueryShape.Sphere(1), double.PositiveInfinity, 1, 10, true },

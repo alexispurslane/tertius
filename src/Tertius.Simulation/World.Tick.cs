@@ -233,8 +233,8 @@ public sealed partial class World
 
     /// <summary>
     /// Queues a ray cast or a shape cast of the running entity for this tick's sync point, in the frame that the entity is
-    /// in. A ray passes the default shape and a start pose with the identity rotation. See <see cref="PhysicsQueries"/> for
-    /// the arguments and the answer.
+    /// in. A ray passes the default shape, which holds no shape and which a ray never reads, and a start pose with the
+    /// identity rotation. See <see cref="PhysicsQueries"/> for the arguments and the answer.
     /// </summary>
     internal void RequestCast(ChunkState chunk, Entity entity, PhysicsRequestKind kind, in QueryShape shape, in DPose start, Double3 direction,
         double length, in EntityQuery query, int tag)

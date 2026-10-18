@@ -204,7 +204,7 @@ foreach (ref OverlapHit hit in events.Of<OverlapHit>())
 
 where
 
-- `QueryShape` = a sphere, a box or a capsule, as a value, so that a request allocates nothing. Its center is at the pose's position, and its axes are the pose's axes.
+- `QueryShape` = a sphere, a box or a capsule, as a value, so that a request allocates nothing. It is a custom C# 15 union of `QuerySphere`, `QueryBox` and `QueryCapsule`, so code reads it with a `switch` or with `TryGetValue`, and neither boxes. The default value holds no shape, and every query refuses it. Its center is at the pose's position, and its axes are the pose's axes.
 - `start`, `direction`, `20` = the shape's start pose, the direction of its move, and the length of the move, in meters.
 - `ShapeHit` = the answer to a cast: the entity hit, the point where the shape touched it, the surface normal there, how far the shape moved before it touched, and the tag. A shape that overlaps a body at its start touches it at a distance of 0.
 - `OverlapHit` = one answer to an overlap: an entity and the tag. An overlap that finds nothing answers once, with no entity.

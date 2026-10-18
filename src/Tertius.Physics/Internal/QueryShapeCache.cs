@@ -39,12 +39,14 @@ internal sealed class QueryShapeCache : IDisposable
         shapes.Clear();
     }
 
-    private static Shape Create(in QueryShape shape) => shape.Kind switch
+    private static Shape Create(in QueryShape shape) => shape switch
     {
         // A query box has sharp edges: no convex radius rounds them.
-        QueryShapeKind.Box => NativeOwnership.Owned(new BoxShape(shape.HalfExtents, 0)),
+        QueryBox(var halfExtents) => NativeOwnership.Owned(new BoxShape(halfExtents, 0)),
+        QueryCapsule(var halfHeight, var radius) when halfHeight > 0 => NativeOwnership.Owned(new CapsuleShape(halfHeight, radius)),
         // Jolt does not accept a capsule without a cylinder part. That capsule is a sphere.
-        QueryShapeKind.Capsule when shape.HalfHeight > 0 => NativeOwnership.Owned(new CapsuleShape(shape.HalfHeight, shape.Radius)),
-        _ => NativeOwnership.Owned(new SphereShape(shape.Radius)),
+        QueryCapsule(_, var radius) => NativeOwnership.Owned(new SphereShape(radius)),
+        QuerySphere(var radius) => NativeOwnership.Owned(new SphereShape(radius)),
+        null => throw new ArgumentException("The default shape holds no sphere, box or capsule, so it has no native shape.", nameof(shape)),
     };
 }
