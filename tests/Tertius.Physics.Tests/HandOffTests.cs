@@ -386,7 +386,7 @@ public class HandOffTests
         // The fighter's own contents do not move.
         world.GetFrame(pilot).Should().Be(fighter);
         // It entered on first touch: its hull sphere reached the carrier's bubble.
-        float hullRadius = faults.BoundingRadius(fighterHull.Shape);
+        float hullRadius = fighterHull.Shape.BoundingRadius();
         (entry.Pose.Position.Length - 200).Should().BeInRange(hullRadius - 60 * Dt - 1e-3, hullRadius);
         entry.LinearVelocity.X.Should().BeApproximately(-60, 5e-4f);
 
@@ -542,7 +542,7 @@ public class HandOffTests
         // the bubble writes the stop, and the step of the next tick starts from the tree's pose with no speed.
         var pilot = new Pilot();
         var (space, carrier, fighterOwner, fighter) = FighterApproachingCarrier(world, pilot);
-        double touchingX = 1000 + 200 + faults.BoundingRadius(BoxBody(2).Shape);
+        double touchingX = 1000 + 200 + BoxBody(2).Shape.BoundingRadius();
         pilot.EveryTick = body =>
         {
             if (world.PoseIn(fighterOwner, space).Position.X <= touchingX + 60 * Dt)
