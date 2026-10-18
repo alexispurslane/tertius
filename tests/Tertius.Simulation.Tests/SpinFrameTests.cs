@@ -140,6 +140,38 @@ public class SpinFrameTests
             QuarterTurnPerSecond.RotationAt(test.World.Time).Rotate(Double3.UnitX), 1e-12);
     }
 
+    /// <summary>
+    /// The spin's sample of the tick of the write starts where the sample before it ends, so the write moves the frame for one
+    /// tick only, and the frame then turns at its old place for good (docs/plans/rails-components.md, "Tests").
+    /// </summary>
+    [Fact]
+    public void WhenItsOwnerWritesANewPlaceABodylessSpinFrameStandsThereForOneTickAndThenTurnsAtItsOldPlaceForGood()
+    {
+        using var test = NewWorld();
+        var place = new Double3(5, 0, 0);
+        bool write = false;
+        Entity owner = SpawnSpinFrame(test, QuarterTurnPerSecond, place,
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (write)
+                    self.SetTransform(TestWorld.At(8));
+                write = false;
+            }));
+        FrameHandle ground = test.World.GetOwnedFrame(owner);
+        test.Run(3);
+
+        write = true;
+        test.Run(1);
+        test.World.Frames.LocalPose(ground).Position.Should().Be(new Double3(8, 0, 0), "the write moves the frame at the sync point of its tick");
+
+        for (int tick = 0; tick < 4; tick++)
+        {
+            test.Run(1);
+
+            test.World.Frames.LocalPose(ground).Position.Should().Be(place, "the spin's samples keep the place where the frame stood before the write");
+        }
+    }
+
     [Fact]
     public void WhenItsOwnerWritesItsTransformABodylessSpinFrameKeepsItsProperAcceleration()
     {
@@ -247,7 +279,8 @@ public class SpinFrameTests
     /// at 9.81 m/s², so its cargo has weight. The game parks it on a turntable: the Spin driver, and a <see cref="SpinMotion"/>
     /// in place of the flight, into which the game copies the frame's proper acceleration (docs/plans/rails-components.md,
     /// "The rails components"). The flight's last sample moves the ship in the step of the swap, so the swap has no gap. From
-    /// the second sync point after the swap, the ship stands still at one place and turns there.
+    /// the second sync point after the swap, the ship stands still and turns at the place where that last sample left it: the
+    /// spin's first sample starts where the flight's last sample ends.
     /// </summary>
     [Fact]
     public void AMovingFrameThatGetsTheSpinDriverAndASpinMotionStopsButKeepsItsProperAcceleration()
@@ -275,8 +308,9 @@ public class SpinFrameTests
         test.World.SetFrameDriver(ship, MotionDriver.Spin);
         test.World.RemoveComponent(owner, flight);
         test.World.AddComponent(owner, new SpinMotion { Spin = QuarterTurnPerSecond, ProperAcceleration = test.World.Frames.ProperAcceleration(ship) });
-        test.Run(2);
+        test.Run(1);
         Double3 parked = test.World.Frames.LocalPose(ship).Position;
+        parked.Should().Be(velocity * test.World.Time, "the flight's last sample moves the ship in the step of the swap");
 
         for (int tick = 0; tick < 4; tick++)
         {

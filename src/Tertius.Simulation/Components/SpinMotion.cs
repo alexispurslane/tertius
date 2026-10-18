@@ -5,8 +5,8 @@ namespace Tertius.Simulation;
 
 /// <summary>
 /// Turns the frame that its entity owns in place, as the ground of a planet turns. In each tick it writes the spin's motion
-/// sample for the step in which the tick's intents act (see <see cref="Self.MoveOnRails"/>), at the place where its frame
-/// stands in its parent, with <see cref="ProperAcceleration"/>. The spin is an exact function of time, so no error builds
+/// sample for the step in which the tick's intents act (see <see cref="Self.MoveOnRails"/>), at the place in its parent where
+/// its frame stands when that step starts, with <see cref="ProperAcceleration"/>. The spin is an exact function of time, so no error builds
 /// up.
 /// </summary>
 /// <remarks>
@@ -62,10 +62,23 @@ public sealed class SpinMotion : IComponent
             loggedNotKinematic = true;
             return;
         }
-        Double3 place = self.Snapshot.Frames.LocalPose(self.OwnedFrame).Position;
+        Double3 place = PlaceAtStepStart(self);
         if (!started && RailsHull.Exists(self))
             self.Body.Teleport(new DPose(place, spin.RotationAt(self.TimeAt(self.Tick + 1))));
         started = true;
         self.MoveOnRails(spin.Sample(place, ProperAcceleration, self.TimeAt(self.Tick + 2), self.DeltaTime));
     }
+
+    /// <summary>
+    /// The place in its parent where the frame stands at the start of the step that this tick's sample describes, which is
+    /// the end of the step that runs beside this tick. A sample that the frame follows in that step puts it at the sample's
+    /// place, so the spin starts where the motion before it, such as the last sample of a component that this one replaced,
+    /// leaves the frame. Without such a sample the frame holds still in that step, at its place in the front snapshot. The
+    /// applied sample is relative to the frame that the owner is in, which is the frame's parent (see
+    /// <see cref="World.AssertSamplesNeedNoConversion"/>).
+    /// </summary>
+    private static Double3 PlaceAtStepStart(Self self) =>
+        self.Snapshot.Frames.Samples.Applied.TryGet(self.OwnedFrame, out MotionSample current)
+            ? current.Pose.Position
+            : self.Snapshot.Frames.LocalPose(self.OwnedFrame).Position;
 }

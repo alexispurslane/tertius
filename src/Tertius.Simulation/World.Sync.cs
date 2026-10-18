@@ -226,7 +226,8 @@ public sealed partial class World
     /// proper acceleration. The write comes last, so it wins for one tick, and the next sample puts the frame back on its
     /// rails.</item>
     /// </list>
-    /// A frame without a record holds still in its tree parent. Each record goes into the frame's slot of the applied buffer,
+    /// A frame without a record holds still in its tree parent, unless the output check skipped its owner's update in a
+    /// Release build (see <see cref="SkipBrokenPhysicsUpdates"/>): then the frame keeps its state. Each record goes into the frame's slot of the applied buffer,
     /// relative to the frame's semantic parent, unless the slot holds a sample already, so that after step 4 the followed
     /// buffer holds the record of every frame that moved in the step. Then an orbit frame whose anchor's hull teleported jumps
     /// with it (see <see cref="FrameTree.JumpFollowingFrame"/>), and the rows of the bodies in it and the bodies in physics
@@ -249,7 +250,8 @@ public sealed partial class World
             }
             else if (!hull && Frames.Samples.Applied.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
                 Frames.Follow(frame, relativeTo, sample);
-            else
+            // A skipped update changes nothing, so the frame keeps the velocities that it had before the step.
+            else if (!physicsOutputCheck.IsSkipped(frame.Entity))
                 Frames.HoldStill(frame);
 
             // Gameplay can write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the
