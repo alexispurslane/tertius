@@ -116,7 +116,12 @@ public sealed record RunStep(int Ticks) : ScriptStep;
 /// </summary>
 /// <param name="To">Who receives the event.</param>
 /// <param name="Event">The C# name of the payload type, such as <c>InputEvent</c>.</param>
-/// <param name="Payload">The payload's fields by their camelCase names. Null is the same as an empty object.</param>
+/// <param name="Payload">
+/// The payload's fields by their camelCase names. Null is the same as an empty object. A payload type with its own JSON
+/// converter takes the form of that converter instead: an <see cref="InputEvent"/> is <c>{"kind":"keyDown","code":87}</c>
+/// or <c>{"kind":"mouseMove","delta":[3,-4]}</c> (see <c>InputEventJsonConverter</c>), and a null payload is refused for it,
+/// because an input event needs a kind.
+/// </param>
 public sealed record PostStep(MessageTarget To, string Event, JsonElement? Payload = null) : ScriptStep;
 
 /// <summary>Takes a state dump named <paramref name="Name"/>, written to <c>&lt;out&gt;/&lt;name&gt;.json</c>.</summary>

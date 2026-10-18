@@ -217,17 +217,39 @@ public class InputEventJsonTests
         read.Should().Throw<JsonException>().Which.Message.Should().Contain(named);
     }
 
+    // The member of another kind is refused when it holds anything but zero. The zero value is the exception of old
+    // recordings, below.
     [Theory]
-    [InlineData("""{"kind":"keyDown","code":1,"delta":[0,0]}""", "A keyDown event has a code, not a delta")]
-    [InlineData("""{"kind":"mouseUp","code":1,"delta":[0,0]}""", "A mouseUp event has a code, not a delta")]
+    [InlineData("""{"kind":"keyDown","code":1,"delta":[0,0.5]}""", "A keyDown event has a code, not a delta")]
+    [InlineData("""{"kind":"mouseUp","code":1,"delta":[-1,0]}""", "A mouseUp event has a code, not a delta")]
     [InlineData("""{"kind":"mouseMove","delta":[0,0],"code":1}""", "A mouseMove event has a delta, not a code")]
     [InlineData("""{"code":1,"kind":"scroll","delta":[0,0]}""", "A scroll event has a delta, not a code")]
+    [InlineData("""{"kind":"scroll","delta":[1,2],"code":-1}""", "A scroll event has a delta, not a code")]
     public void AMemberOfAnotherKindIsRefused(string json, string named)
     {
         Action read = () => Read(json);
 
         read.Should().Throw<JsonException>().Which.Message.Should().Contain(named);
     }
+
+    /// <summary>
+    /// Posts as the recorder wrote them before the input event was a union: every member of the old struct, with zero for
+    /// the member that the kind does not use, and the delta in the form of every other vector of a recording.
+    /// </summary>
+    public static TheoryData<string, InputEvent> OldRecordedForms => new()
+    {
+        { """{"kind":"keyDown","code":87,"delta":[0, 0]}""", InputEvent.KeyDown(87) },
+        { """{"kind":"keyUp","code":87,"delta":[0, 0]}""", InputEvent.KeyUp(87) },
+        { """{"kind":"mouseDown","code":0,"delta":[0, 0]}""", InputEvent.MouseDown(0) },
+        { """{"kind":"mouseUp","code":1,"delta":[0, 0]}""", InputEvent.MouseUp(1) },
+        { """{"kind":"mouseMove","code":0,"delta":[3, -4]}""", InputEvent.MouseMove(new Vector2(3, -4)) },
+        { """{"kind":"scroll","code":0,"delta":[0, 1]}""", InputEvent.Scroll(new Vector2(0, 1)) },
+    };
+
+    [Theory]
+    [MemberData(nameof(OldRecordedForms))]
+    public void APostThatTheRecorderWroteBeforeTheUnionReadsAsItsKind(string json, InputEvent expected) =>
+        Read(json).Should().Be(expected);
 
     [Theory]
     [InlineData("""{"kind":"keyDown","code":1,"code":2}""", "The code is given twice")]
@@ -263,13 +285,21 @@ public class InputEventJsonTests
     [InlineData("""{"kind":"mouseMove","delta":{"x":1,"y":2}}""")]
     [InlineData("""{"kind":"scroll","delta":["1","2"]}""")]
     [InlineData("""{"kind":"scroll","delta":[1,null]}""")]
-    [InlineData("""{"kind":"scroll","delta":[1e39,0]}""")]
-    [InlineData("""{"kind":"scroll","delta":[0,-1e39]}""")]
-    public void ADeltaThatIsNotTwoFiniteNumbersIsRefused(string json)
+    public void ADeltaThatIsNotAnArrayOfTwoNumbersIsRefused(string json)
     {
         Action read = () => Read(json);
 
-        read.Should().Throw<JsonException>().Which.Message.Should().Contain("The delta must be an array of 2 finite numbers");
+        read.Should().Throw<JsonException>().Which.Message.Should().Contain("Expected the delta, an array of 2 numbers");
+    }
+
+    [Theory]
+    [InlineData("""{"kind":"scroll","delta":[1e39,0]}""")]
+    [InlineData("""{"kind":"scroll","delta":[0,-1e39]}""")]
+    public void ADeltaWithANumberThatRoundsToInfinityIsRefused(string json)
+    {
+        Action read = () => Read(json);
+
+        read.Should().Throw<JsonException>().Which.Message.Should().Contain("The number is out of the range of a float");
     }
 
     [Theory]

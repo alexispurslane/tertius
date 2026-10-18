@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -19,16 +18,23 @@ namespace Tertius;
 /// the kind does not have, a member that is given twice, and a value of the wrong form.
 /// </para>
 /// <para>
+/// The one exception is the zero value of the member that a kind does not have: <c>"delta":[0, 0]</c> beside a code, and
+/// <c>"code":0</c> beside a delta. Reading ignores it, because the recorder wrote it into every input post before the
+/// input event was a union. The old type had all three members, and the recorder wrote zero for the member that the kind
+/// did not use. So a recording made then still plays. A member of another kind that is not zero is still refused.
+/// </para>
+/// <para>
 /// The member names do not follow the naming policy of the options, so the form is the same in every serializer. Writing
 /// is lenient, as a state dump has to be. The default event, which holds no case, is <c>null</c>, which reading refuses.
-/// A delta is written on one line, and a number that JSON cannot hold, such as NaN, becomes a string.
+/// A delta has the form of every other vector of a script or a dump (<see cref="JsonVectors"/>): it is written on one
+/// line, and a number that JSON cannot hold, such as NaN, becomes a string.
 /// </para>
 /// </remarks>
 internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
 {
     private const string KeyDown = "keyDown", KeyUp = "keyUp", MouseDown = "mouseDown", MouseUp = "mouseUp", MouseMove = "mouseMove", Scroll = "scroll";
     private const string Form = "an input event, an object with a kind and its code or its delta";
-    private const string DeltaForm = "delta must be an array of 2 finite numbers";
+    private const string DeltaForm = "the delta, an array of 2 numbers";
 
     public override InputEvent Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
@@ -58,7 +64,8 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
             {
                 if (delta != null)
                     throw new JsonException("The delta is given twice.");
-                delta = ReadDelta(ref reader);
+                reader.Read();
+                delta = JsonVectors.ReadVector2(ref reader, DeltaForm);
             }
             else
             {
@@ -105,40 +112,23 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
         }
     }
 
-    // The members of a kind of key or button event: its code and nothing else.
+    // The members of a kind of key or button event: its code, and no delta but the zero delta of an old recording.
     private static int CodeOf(string kind, int? code, Vector2? delta)
     {
-        if (delta != null)
+        if (delta is { } given && given != Vector2.Zero)
             throw new JsonException($"A {kind} event has a code, not a delta.");
         return code ?? throw new JsonException($"A {kind} event needs a code.");
     }
 
-    // The members of a kind of move or scroll event: its delta and nothing else.
+    // The members of a kind of move or scroll event: its delta, and no code but the zero code of an old recording.
     private static Vector2 DeltaOf(string kind, int? code, Vector2? delta)
     {
-        if (code != null)
+        if (code is { } given && given != 0)
             throw new JsonException($"A {kind} event has a delta, not a code.");
         return delta ?? throw new JsonException($"A {kind} event needs a delta.");
     }
 
     private static bool Is(string kind, string name) => string.Equals(kind, name, StringComparison.OrdinalIgnoreCase);
-
-    // The reader is at the name of the member. A delta reads from an array with its exact count of numbers: StartArray, then
-    // a number twice, then EndArray.
-    private static Vector2 ReadDelta(ref Utf8JsonReader reader)
-    {
-        if (!reader.Read() || reader.TokenType != JsonTokenType.StartArray)
-            throw new JsonException($"The {DeltaForm}.");
-        var delta = new Vector2(NextFinite(ref reader), NextFinite(ref reader));
-        if (!reader.Read() || reader.TokenType != JsonTokenType.EndArray)
-            throw new JsonException($"The {DeltaForm}.");
-        return delta;
-    }
-
-    private static float NextFinite(ref Utf8JsonReader reader) =>
-        reader.Read() && reader.TokenType == JsonTokenType.Number && reader.TryGetSingle(out float value) && float.IsFinite(value)
-            ? value
-            : throw new JsonException($"The {DeltaForm}.");
 
     private static void WriteCode(Utf8JsonWriter writer, string kind, int code)
     {
@@ -153,12 +143,7 @@ internal sealed class InputEventJsonConverter : JsonConverter<InputEvent>
         writer.WriteStartObject();
         writer.WriteString("kind", kind);
         writer.WritePropertyName("delta");
-        writer.WriteRawValue($"[{Number(delta.X)}, {Number(delta.Y)}]", skipInputValidation: true);
+        JsonVectors.WriteVector2(writer, delta);
         writer.WriteEndObject();
     }
-
-    // The shortest text that reads back to the same value. Adding +0 turns -0 into 0, so that two equal events write equal text.
-    // A value that JSON cannot hold, such as NaN, becomes a string, so that a dump of a broken state still writes.
-    private static string Number(float value) =>
-        float.IsFinite(value) ? (value + 0f).ToString("R", CultureInfo.InvariantCulture) : $"\"{value.ToString(CultureInfo.InvariantCulture)}\"";
 }

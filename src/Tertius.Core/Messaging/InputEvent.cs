@@ -15,7 +15,12 @@ public readonly record struct KeyChanged(int Code, bool IsDown);
 public readonly record struct MouseButtonChanged(int Code, bool IsDown);
 
 /// <summary>The case in which the mouse moved.</summary>
-/// <param name="Delta">The movement since the last event of this case, in pixels: X to the right, Y down.</param>
+/// <param name="Delta">
+/// The movement in pixels since the mouse position that the window reported before, X to the right, Y down. The host's
+/// <c>MouseTracker</c> measures it from report to report, so it is not the sum of the movements since the last event of this
+/// case: the host posts no movement while the fly camera is on, and the first report after the cursor mode changes moves
+/// nothing.
+/// </param>
 public readonly record struct MouseMoved(Vector2 Delta);
 
 /// <summary>The case in which the wheel or the pad scrolled.</summary>

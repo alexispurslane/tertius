@@ -222,6 +222,18 @@ public sealed class PersonControlTests : IDisposable
     }
 
     [Fact]
+    public void TheEmptyEventAScrollAndAMouseButtonNeitherTurnTheViewNorWalkThePerson()
+    {
+        Post(default(InputEvent));
+        Post(InputEvent.Scroll(new Vector2(300, 200)));
+        Post(InputEvent.MouseDown((int)MouseButton.Left));
+        Post(InputEvent.MouseUp((int)MouseButton.Left));
+
+        ExpectNear(WalkingVelocity(), Vector3.Zero, 0.05f);
+        View.Should().Be(Quaternion.Identity);
+    }
+
+    [Fact]
     public void WhileAnotherViewIsOnThePersonIgnoresTheKeysAndTheMouse()
     {
         world.Camera = world.Spawn(new SpawnDesc { Frame = world.Snapshot.FrameOf(person), Render = new RenderData() });

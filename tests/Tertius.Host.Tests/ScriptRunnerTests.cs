@@ -87,6 +87,22 @@ public class ScriptRunnerTests
     }
 
     [Fact]
+    public void AnInputPostThatTheRecorderWroteBeforeTheUnionStillRuns()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        // The recorder wrote every member of the old struct, with zero for the member that the kind does not use.
+        Run(world, scene,
+            """{"do":"post","to":{"kind":"entity","id":"probe"},"event":"InputEvent","payload":{"kind":"keyDown","code":87,"delta":[0, 0]}}""",
+            """{"do":"post","to":{"kind":"entity","id":"probe"},"event":"InputEvent","payload":{"kind":"mouseMove","code":0,"delta":[3, -4]}}""",
+            """{ "do": "run", "ticks": 2 }""");
+
+        ProbeOf(world, scene, "probe").Seen.Select(seen => seen.Event.As<InputEvent>()).Should()
+            .Equal(InputEvent.KeyDown(87), InputEvent.MouseMove(new Vector2(3, -4)));
+    }
+
+    [Fact]
     public void APayloadIsReadIntoTheFieldsOfItsTypeByTheirCamelCaseNames()
     {
         using World world = NewWorld();

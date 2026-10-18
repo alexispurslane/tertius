@@ -68,12 +68,14 @@ public class InputScriptFormatTests
     }
 
     [Fact]
-    public void TheScriptsPostInputOfEveryKindThatTheyUse()
+    public void TheScriptsPostOnlyKnownKindsOfInputWithAKindOfEachFormAmongThem()
     {
         List<(string File, int Step, JsonElement Payload)> posts = InputPosts();
+        string[] kinds = posts.Select(post => post.Payload.GetProperty("kind").GetString()!).Distinct().ToArray();
 
-        posts.Select(post => post.Payload.GetProperty("kind").GetString()).Distinct().Should()
-            .BeEquivalentTo("keyDown", "keyUp", "mouseDown", "mouseUp", "mouseMove");
+        kinds.Should().NotBeEmpty().And.BeSubsetOf(MemberOfKind.Keys);
+        // A kind with a code and a kind with a delta, so that the tests below compare posts of both forms.
+        kinds.Should().Contain(kind => MemberOfKind[kind] == "code").And.Contain(kind => MemberOfKind[kind] == "delta");
         posts.Select(post => post.File).Distinct().Count().Should().BeGreaterThanOrEqualTo(5);
     }
 
@@ -115,5 +117,51 @@ public class InputScriptFormatTests
             """{"kind":"mouseUp","code":0}""",
             """{"kind":"mouseMove","delta":[12.5,-3]}""",
             """{"kind":"scroll","delta":[0,1]}""");
+    }
+
+    /// <summary>The vector that <paramref name="read"/> reads, or null when it refuses the JSON.</summary>
+    private static Vector2? ReadOrNull(Func<Vector2> read)
+    {
+        try
+        {
+            return read();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    [Theory]
+    [InlineData(1.5f, -2f)]
+    [InlineData(-0f, 0.1f)]
+    [InlineData(float.NaN, float.NegativeInfinity)]
+    public void AnInputEventWritesItsDeltaAsEveryOtherVectorIsWritten(float x, float y)
+    {
+        var delta = new Vector2(x, y);
+
+        using JsonDocument written = JsonDocument.Parse(JsonSerializer.Serialize(InputEvent.Scroll(delta), ScriptJson.Recordings));
+
+        written.RootElement.GetProperty("delta").GetRawText().Should().Be(JsonSerializer.Serialize(delta, ScriptJson.Recordings));
+    }
+
+    [Theory]
+    [InlineData("[1.5, -2]")]
+    [InlineData("[3e38, -1e-45]")]
+    [InlineData("[1e39, 0]")]
+    [InlineData("[1, 2, 3]")]
+    [InlineData("[1]")]
+    [InlineData("""["1", 2]""")]
+    [InlineData("{}")]
+    public void AnInputEventReadsItsDeltaAsEveryOtherVectorIsRead(string array)
+    {
+        Vector2? vector = ReadOrNull(() => JsonSerializer.Deserialize<Vector2>(array, ScriptJson.Scripts));
+        Vector2? delta = ReadOrNull(() => JsonSerializer.Deserialize<InputEvent>($$"""{"kind":"scroll","delta":{{array}}}""", ScriptJson.Scripts) switch
+        {
+            Scrolled(var read) => read,
+            _ => throw new InvalidOperationException("A scroll read as another case."),
+        });
+
+        delta.Should().Be(vector);
     }
 }

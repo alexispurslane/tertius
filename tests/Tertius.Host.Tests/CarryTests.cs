@@ -759,6 +759,31 @@ public sealed class CarryTests : IDisposable
     }
 
     [Fact]
+    public void TheEmptyInputEventNeitherChargesNorThrowsAndKeepsAChargeThatIsOn()
+    {
+        (FrameHandle space, Entity person) = FloatInSpace();
+        TakeACrate(space, person);
+        Post(default(InputEvent));
+        Ticks(30);
+        // The release of the left button throws only a throw that a press of the left button charged.
+        ButtonUp();
+        Ticks(4);
+        With<Crate>().Should().BeEmpty("the empty event charged nothing and threw nothing");
+
+        ButtonDown();
+        Ticks(15);
+        Post(default(InputEvent));
+        Ticks(15);
+        With<Crate>().Should().BeEmpty("the empty event threw nothing");
+        ButtonUp();
+        Ticks(4);
+
+        // The charge ran from the press of the left button to its release: 30 ticks of 0.2 m/s.
+        Entity thrown = With<Crate>().Should().ContainSingle().Which;
+        ExpectNear(world.Snapshot.VelocityInOwnFrame(thrown), new Vector3(0, 0, -6), 1e-3f);
+    }
+
+    [Fact]
     public void WhenItsViewGoesOffThePersonDropsTheChargeAndKeepsTheCrate()
     {
         (FrameHandle space, Entity person) = FloatInSpace();

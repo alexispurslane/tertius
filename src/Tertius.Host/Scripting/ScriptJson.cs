@@ -1,10 +1,10 @@
-using System.Globalization;
 using System.Numerics;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Tertius.Simulation;
+using static Tertius.JsonVectors;
 
 namespace Tertius.Host.Scripting;
 
@@ -132,40 +132,10 @@ internal static class ScriptJson
                 info.Properties.RemoveAt(i);
     }
 
-    // A vector reads from an array with its exact count of numbers: StartArray, then Next once per number, then EndArray.
-    // C# evaluates arguments left to right, so new Vector3(Next(..), Next(..), Next(..)) reads x, y, z in order.
-
-    private static void StartArray(ref Utf8JsonReader reader, string form)
-    {
-        if (reader.TokenType != JsonTokenType.StartArray)
-            throw new JsonException($"Expected {form}.");
-    }
-
-    private static float NextSingle(ref Utf8JsonReader reader, string form)
-    {
-        if (!reader.Read() || reader.TokenType != JsonTokenType.Number)
-            throw new JsonException($"Expected {form}.");
-        return Finite(reader.GetSingle());
-    }
-
-    private static double NextDouble(ref Utf8JsonReader reader, string form)
-    {
-        if (!reader.Read() || reader.TokenType != JsonTokenType.Number)
-            throw new JsonException($"Expected {form}.");
-        return Finite(reader.GetDouble());
-    }
-
-    private static void EndArray(ref Utf8JsonReader reader, string form)
-    {
-        if (!reader.Read() || reader.TokenType != JsonTokenType.EndArray)
-            throw new JsonException($"Expected {form}.");
-    }
-
-    private static float Finite(float value) =>
-        float.IsFinite(value) ? value : throw new JsonException("The number is out of the range of a float.");
-
-    private static double Finite(double value) =>
-        double.IsFinite(value) ? value : throw new JsonException("The number is out of the range of a double.");
+    // A vector reads and writes with the methods of JsonVectors, which the converter of InputEvent calls too, so that a
+    // vector has one form in every script and dump. It reads from an array with its exact count of numbers: StartArray,
+    // then Next once per number, then EndArray. C# evaluates arguments left to right, so
+    // new Vector3(Next(..), Next(..), Next(..)) reads x, y, z in order.
 
     /// <summary>Reads a float, and refuses a number that rounds to infinity, such as 1e39. Reading only.</summary>
     private sealed class FiniteSingleConverter : JsonConverter<float>
@@ -185,34 +155,13 @@ internal static class ScriptJson
         public override void Write(Utf8JsonWriter writer, double value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
     }
 
-    /// <summary>
-    /// Writes the numbers as one array on one line. Each number is the shortest text that reads back to the same value.
-    /// A value that JSON cannot hold, such as NaN, becomes a string, so that a dump of a broken state still writes.
-    /// </summary>
-    private static void WriteArray(Utf8JsonWriter writer, params ReadOnlySpan<string> numbers) =>
-        writer.WriteRawValue($"[{string.Join(", ", numbers.ToArray())}]", skipInputValidation: true);
-
-    // Adding +0 turns -0 into 0, so that two dumps of equal values compare equal as text.
-    private static string Number(float value) =>
-        float.IsFinite(value) ? (value + 0f).ToString("R", CultureInfo.InvariantCulture) : $"\"{value.ToString(CultureInfo.InvariantCulture)}\"";
-
-    private static string Number(double value) =>
-        double.IsFinite(value) ? (value + 0.0).ToString("R", CultureInfo.InvariantCulture) : $"\"{value.ToString(CultureInfo.InvariantCulture)}\"";
-
     private sealed class Vector2Converter : JsonConverter<Vector2>
     {
         private const string Form = "a Vector2, an array of 2 numbers";
 
-        public override Vector2 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-        {
-            StartArray(ref reader, Form);
-            var value = new Vector2(NextSingle(ref reader, Form), NextSingle(ref reader, Form));
-            EndArray(ref reader, Form);
-            return value;
-        }
+        public override Vector2 Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) => ReadVector2(ref reader, Form);
 
-        public override void Write(Utf8JsonWriter writer, Vector2 value, JsonSerializerOptions options) =>
-            WriteArray(writer, Number(value.X), Number(value.Y));
+        public override void Write(Utf8JsonWriter writer, Vector2 value, JsonSerializerOptions options) => WriteVector2(writer, value);
     }
 
     private sealed class Vector3Converter : JsonConverter<Vector3>
