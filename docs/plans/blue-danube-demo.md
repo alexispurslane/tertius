@@ -44,17 +44,16 @@ From a survey of the code on 2026-10-18.
 
 ## Proof in the video
 
-The video shows numbers from the engine next to numbers that a viewer can check, and lets them agree on screen.
+The video shows numbers from the engine next to numbers that a viewer can check (user choices, 2026-10-18):
 
 | Proof | What the viewer sees | Engine change |
 |---|---|---|
 | Live readouts | Speed, altitude, distance to the station and a g-meter for the character, drawn on each frame from a per-tick log that a demo component writes | No |
-| Textbook checks | The orbit at 400 km takes about 92 minutes on the sim clock. The g-meter reads 1.00 at the pad, 0.00 in orbit, and ω²r at the wheel, with ω and r shown. | No |
-| A predicted landing spot | The character drops a ball in the wheel. A marker shows where the formula for a turning station says it lands, and the ball lands on it. | No |
-| Automatic frames off, side by side | The same orbit scene with the automatic frames switched off on one side: a gentle thruster does nothing, and a thrusting person drifts about 10 m in a minute | Probably no: make sure that the option of the tests reaches the demo |
 | The frames made visible | A cut-in that outlines each frame's bubble, with a label when the engine makes one | Maybe: the renderer needs debug outlines |
-| Formation flight | Two ships side by side at 7.7 km/s, with a gap readout that stays steady to the millimeter | No |
-| Run it yourself | The script, the command and the per-tick log, published with the video | No |
+| Frames on and off, side by side | One part of the script shown twice in a split view, with the automatic frames on in one half and off in the other: a gentle thruster does nothing, and a thrusting person drifts about 10 m in a minute | Probably no: make sure that the option of the tests reaches the demo |
+| Textbook checks | The sim clock shows that things take the time that physics predicts, for example about 92 minutes for one orbit at 400 km | No |
+
+The strongest proof is outside the video: a guide in the README that tells a reader which code and tests to read to make sure that each claim is real. Ticket `ter-sb5w` holds that work.
 
 ## Engine questions for the user
 

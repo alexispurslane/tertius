@@ -20,3 +20,7 @@ Step 7 of docs/plans/blue-danube-demo.md. Cut the captured frames, add title car
 **2026-10-18T15:17:27Z**
 
 Include the proofs of docs/plans/blue-danube-demo.md 'Proof in the video' (user question, 2026-10-18): live readouts from a per-tick log, textbook checks, the predicted landing spot of a dropped ball, the side-by-side with automatic frames off, formation flight, and the published script and log.
+
+**2026-10-18T15:20:45Z**
+
+Correction (user, 2026-10-18): the proofs in the video are only the live readouts, the frames made visible, the split view with frames on and off, and the textbook checks of sim time. No predicted landing spot, no formation flight, and the script and log are not part of the video (the repository will be published). The README code guide is ticket ter-sb5w.
