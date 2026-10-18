@@ -209,14 +209,18 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
         get { EnsureOrder(); return parent.AsSpan(0, count); }
     }
 
-    /// <summary>The stable id of the node at each dense index. Valid until the next structural change.</summary>
-    public ReadOnlySpan<int> IdsDense
+    /// <summary>
+    /// The stable id of the node at each dense index. Valid until the next structural change. Internal, like
+    /// <see cref="Generations"/>: with both, code could build a live <see cref="PoseNode"/> for any index without the
+    /// generation check, so only the frame tree's walks in this module read them.
+    /// </summary>
+    internal ReadOnlySpan<int> IdsDense
     {
         get { EnsureOrder(); return idAt.AsSpan(0, count); }
     }
 
-    /// <summary>The generation of each stable id.</summary>
-    public ReadOnlySpan<uint> Generations => generation.AsSpan(0, idCount);
+    /// <summary>The generation of each stable id. Internal, see <see cref="IdsDense"/>.</summary>
+    internal ReadOnlySpan<uint> Generations => generation.AsSpan(0, idCount);
 
     public ReadOnlySpan<TPose> LocalPoses
     {

@@ -272,7 +272,11 @@ internal sealed class Router
         blockChunks[blockCount] = chunkCount;
     }
 
-    /// <summary>Runs <paramref name="body"/> for each of <paramref name="count"/> work items: on the workers, or in order on this thread.</summary>
+    /// <summary>
+    /// Runs <paramref name="body"/> for each of <paramref name="count"/> work items: on the workers, or in order on this
+    /// thread. On the workers, <c>Parallel.For</c> allocates about 2 KB for its bookkeeping, the one allocation that
+    /// ARCHITECTURE.md accepts on the hot path ("Threads and the tick"). On this thread, a routing allocates nothing.
+    /// </summary>
     private void Run(int count, Action<int> body)
     {
         if (onWorkers)
