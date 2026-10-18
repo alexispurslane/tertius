@@ -1,6 +1,6 @@
 ---
 id: ter-foin
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-18T16:03:26Z
