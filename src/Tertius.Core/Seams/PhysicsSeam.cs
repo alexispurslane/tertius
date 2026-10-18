@@ -567,8 +567,9 @@ public readonly record struct FrameStepRecord(FrameHandle Frame, MotionSample Mo
 /// not null. An ended contact names two different entities, and one of them may be gone, because destroying a body ends
 /// its contacts. A hand-off leaves
 /// the frame that its entity is in, each entity hands off at most once, and the owner of a frame hands off only when
-/// the frame has the physics driver. A frame's step record names a frame with a parent, whose owner has a body that is
-/// not static: its hull. A contact names two different entities. A character state names a live character, and each character has
+/// the frame has the physics driver. A frame's step record names a frame with a parent, whose owner has a body: its hull,
+/// which is dynamic, kinematic with a sample, or static or kinematic without a sample and teleported in the step. A
+/// contact names two different entities. A character state names a live character, and each character has
 /// at most one state in a step. <see cref="PhysicsOutputCheck"/> holds the full rules. The sync point treats any other
 /// output as a bug in the backend: see ARCHITECTURE.md, "Threads and the tick", step 2.
 /// </summary>

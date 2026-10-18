@@ -91,9 +91,11 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Step 2 of the sync point, after <paramref name="anchor"/> took a record that put it away from the origin of its orbit
-    /// frame: its hull teleported in the step, so physics aimed it at its sample's place and not at that origin (see
-    /// docs/plans/rails-components.md, "Numeric frames"). The orbit frame jumps to the anchor's applied sample: it takes the
-    /// sample's place and chord, and the anchor goes back to its origin. Everything else in the orbit frame keeps its place
+    /// frame: its hull teleported in the step, so physics aimed it at its sample's place and not at that origin, or, in a
+    /// step without a sample, left it at rest at the teleport's place (see docs/plans/rails-components.md, "Numeric
+    /// frames"). The orbit frame jumps to the anchor's applied sample, which is the anchor's step record when the step had
+    /// no sample (see <see cref="MotionSampleTable.Record"/>): it takes the sample's place and chord, and the anchor goes
+    /// back to its origin. Everything else in the orbit frame keeps its place
     /// and velocity in the semantic frame, as without numeric frames: the other frames lose the orbit frame's move, and the
     /// move goes into <paramref name="changes"/>, so that physics shifts the bodies in the orbit frame's system, the hull
     /// with them, and the World the rows.
@@ -103,7 +105,8 @@ public sealed partial class FrameTree
         Contract.Requires(InOrbitFrame(anchor));
         bool sampled = Samples.Applied.TryGet(anchor, out MotionSample sample, out FrameHandle relativeTo);
         FrameHandle orbitFrame = TreeParent(anchor);
-        // Physics moves a hull away from the origin of its orbit frame only toward the place of the sample that it applied.
+        // Physics moves a hull away from the origin of its orbit frame only toward the place of the sample that it applied,
+        // or by a teleport in a step without a sample, whose record then fills the applied buffer.
         Contract.Requires(sampled && relativeTo == Parent(orbitFrame));
         int orbitId = Node(orbitFrame).Id;
         ref DPose orbitLocal = ref poses.Local(Node(orbitFrame));

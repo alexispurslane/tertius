@@ -155,6 +155,55 @@ public class PhysicsStepTests
         world.Errors.Should().ContainSingle();
     }
 
+    /// <summary>
+    /// A step that fails releases no step records, and Jolt may have moved the bodies or not. So the update of every hull
+    /// counts as skipped: its frame keeps the state that it had before the step, and the next step that works moves it on
+    /// from Jolt's state. A frame that held still in place of a skipped update would lose its velocity for a tick.
+    /// </summary>
+    [Fact]
+    public void AFailedStepLeavesTheFrameOfADynamicHullWithTheVelocityThatItHad()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Body = Ball(),
+            LinearVelocity = new Double3(5, 0, 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(2), MotionDriver.Physics),
+        });
+        FrameHandle frame = world.GetOwnedFrame(ship);
+        world.Run(2);
+        Double3 velocity = world.Frames.LinearVelocity(frame);
+        velocity.Should().NotBe(Double3.Zero, "the ship coasts");
+        faults.ThrowFromStep = new InvalidOperationException("solver exploded");
+
+        world.Run(1);
+
+        world.Frames.LinearVelocity(frame).Should().Be(velocity);
+    }
+
+    /// <summary>
+    /// The anchor of an orbit frame keeps the instant velocity of its sample less the sample's chord, which the orbit frame
+    /// carries, so that a read in the semantic frame gives the instant velocity. A failed step keeps it too.
+    /// </summary>
+    [Fact]
+    public void AFailedStepLeavesTheAnchorOfAnOrbitFrameWithTheVelocityThatItHadInIt()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        Entity hull = Scenes.FastKeplerHull(world, Scenes.AsteroidSpace(world), Ball());
+        FrameHandle frame = world.GetOwnedFrame(hull);
+        world.Run(5);
+        world.Frames.Numeric(world.Frames.TreeParent(frame)).Should().Be(NumericMode.Orbiting);
+        Double3 velocity = world.Frames.TreeLinearVelocity(frame);
+        velocity.Should().NotBe(Double3.Zero, "the sample's instant velocity is half a step of its acceleration past its chord");
+        faults.ThrowFromStep = new InvalidOperationException("solver exploded");
+
+        world.Run(1);
+
+        world.Frames.TreeLinearVelocity(frame).Should().Be(velocity);
+    }
+
     [Fact]
     public void ABackendThatFailsToApplyChangesIsReportedAndTheWorldGoesOn()
     {

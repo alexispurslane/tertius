@@ -72,7 +72,7 @@ public sealed partial class World
         physicsTouched.Clear();
         if (physics != null)
             ApplyPhysicsOutput();
-        FollowOwners();
+        FollowOwners(stepFailed: physicsError != null);
         if (physics != null)
             RouteStepContacts();
 
@@ -219,21 +219,23 @@ public sealed partial class World
     /// record per frame" in docs/plans/rails-components.md). The owner's kind decides where the record comes from:
     /// <list type="bullet">
     /// <item>A hull, the body of the owner of a frame that has a parent: the record that physics released for it, relative to
-    /// the frame's tree parent. Physics releases one when the hull is dynamic, kinematic with a sample, or static and
-    /// teleported in the step.</item>
+    /// the frame's tree parent. Physics releases one when the hull is dynamic, kinematic with a sample, or static or
+    /// kinematic without a sample and teleported in the step.</item>
     /// <item>No hull: the sample of the step in the applied buffer, relative to the frame's semantic parent, and then a write
     /// of the owner's transform in the tick, which the sync point turns into a record with no velocity that keeps the frame's
     /// proper acceleration. The write comes last, so it wins for one tick, and the next sample puts the frame back on its
     /// rails.</item>
     /// </list>
-    /// A frame without a record holds still in its tree parent, unless the output check skipped its owner's update in a
-    /// Release build (see <see cref="SkipBrokenPhysicsUpdates"/>): then the frame keeps its state. Each record goes into the frame's slot of the applied buffer,
+    /// A frame without a record holds still in its tree parent, unless its owner's update was skipped: the output check
+    /// skipped it in a Release build (see <see cref="SkipBrokenPhysicsUpdates"/>), or the owner has a hull and the step
+    /// failed (<paramref name="stepFailed"/>), so that physics released no record and may have moved the hull or not. Then
+    /// the frame keeps its state, and the next step that works moves it on from Jolt's state. Each record goes into the frame's slot of the applied buffer,
     /// relative to the frame's semantic parent, unless the slot holds a sample already, so that after step 4 the followed
     /// buffer holds the record of every frame that moved in the step. Then an orbit frame whose anchor's hull teleported jumps
     /// with it (see <see cref="FrameTree.JumpFollowingFrame"/>), and the rows of the bodies in it and the bodies in physics
     /// shift at once. Last, every frame owner mirrors its frame, whose state changed; a body state of a hull wrote no row.
     /// </summary>
-    private void FollowOwners()
+    private void FollowOwners(bool stepFailed)
     {
         int n = Frames.Count;
         for (int i = 0; i < n; i++)
@@ -251,7 +253,7 @@ public sealed partial class World
             else if (!hull && Frames.Samples.Applied.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
                 Frames.Follow(frame, relativeTo, sample);
             // A skipped update changes nothing, so the frame keeps the velocities that it had before the step.
-            else if (!physicsOutputCheck.IsSkipped(frame.Entity))
+            else if (!(hull && stepFailed) && !physicsOutputCheck.IsSkipped(frame.Entity))
                 Frames.HoldStill(frame);
 
             // Gameplay can write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the

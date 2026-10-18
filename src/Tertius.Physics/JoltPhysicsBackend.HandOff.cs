@@ -752,8 +752,9 @@ public sealed partial class JoltPhysicsBackend
     /// reports relative to its new parent, and a hull at the origin of its orbit frame reports at that origin. There the
     /// record keeps the rest of the sample's velocity past its chord: the tree keeps the velocity of a frame in a numeric
     /// frame relative to the numeric frame's chord, so a read in the semantic parent gives the sample's instant velocity
-    /// (see <see cref="FrameTree.Follow"/>). A static hull that teleported in the step releases the teleport's pose, at rest.
-    /// Any other static hull, and a kinematic hull without a sample, held still.
+    /// (see <see cref="FrameTree.Follow"/>). A static hull, or a kinematic hull without a sample, that teleported in the step
+    /// releases the teleport's pose in its home, at rest: a kinematic hull holds still in its home after a teleport too (see
+    /// <see cref="ApplyBodyIntent"/>). Any other static hull, and a kinematic hull without a sample, held still.
     /// </summary>
     private void WriteFrames(PhysicsStepOutput output)
     {
@@ -771,7 +772,7 @@ public sealed partial class JoltPhysicsBackend
                     record = record with { Velocity = sample.Velocity - sample.ChordVelocity };
                 output.Frames.Add(new FrameStepRecord(frame, record));
             }
-            else if (owner.Motion == BodyMotion.Static && owner.TeleportStep == stepIndex)
+            else if (owner.TeleportStep == stepIndex)
             {
                 output.Frames.Add(new FrameStepRecord(frame, StepRecordOf(frame)));
             }

@@ -159,6 +159,72 @@ public class RailsHullTests
         world.Errors.Should().BeEmpty();
     }
 
+    // ---- A teleport without a sample ----------------------------------------------------------------------------
+
+    /// <summary>
+    /// A kinematic hull without a sample holds still in its tree parent, and its owner can still teleport it. Physics moves
+    /// the hull at the start of the next step and releases the teleport's pose, with a unit rotation and at rest, as the
+    /// frame's step record, as for a static hull. So the frame stands where its hull is at the sync point after the step.
+    /// </summary>
+    [Theory]
+    [InlineData(MotionDriver.Kepler)]
+    [InlineData(MotionDriver.Spin)]
+    public void TheFrameOfAKinematicHullThatTeleportsInAStepWithoutASampleTakesTheTeleportsPose(MotionDriver driver)
+    {
+        using World world = NewWorld(out _);
+        var pilot = new Pilot();
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), driver, pilot);
+        FrameHandle frame = world.GetOwnedFrame(owner);
+        Tick(world, 3);
+
+        var there = new DPose(new Double3(1, 12, 3), DQuaternion.FromAxisAngle(new Double3(0.6, 0, 0.8), 0.5));
+        pilot.Once = body => body.Teleport(there);
+        Tick(world, 2);
+
+        world.Frames.LocalPose(frame).Should().Be(new DPose(there.Position, there.Rotation.Normalized()));
+        world.Frames.LinearVelocity(frame).Should().Be(Double3.Zero);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A fast hull lives at the origin of its orbit frame, which goes on falling when the hull has no sample. The hull holds
+    /// still in the orbit frame then, also after a teleport: it does not keep the velocity of a body at rest in the semantic
+    /// frame, which in the orbit frame is about minus the orbit frame's 2 km/s. The orbit frame jumps with the hull, as for a
+    /// teleport with a sample, so the hull and its frame stand at the orbit frame's origin at every sync point after the
+    /// teleport. The step before the teleport has no sample either, so no rule that stops a hull after its last sample
+    /// applies to the step of the teleport.
+    /// </summary>
+    [Fact]
+    public void AKinematicHullThatTeleportsWithoutASampleInItsOrbitFrameStaysWithItsFrame()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        var pilot = new Pilot();
+        var rails = new KeplerMotion { Orbit = Orbit };
+        Entity owner = Hull(world, space, MotionDriver.Kepler, rails, pilot);
+        FrameHandle frame = world.GetOwnedFrame(owner);
+        Tick(world, 4);
+        world.Frames.Numeric(world.Frames.TreeParent(frame)).Should().Be(NumericMode.Orbiting, "the hull moves at 2 km/s");
+
+        // Tick 3 wrote the last sample, for step 4. Step 5 has none, and the teleport of tick 5 acts in step 6.
+        world.RemoveComponent(owner, rails);
+        Tick(world, 1);
+        FrameHandle orbitFrame = world.Frames.TreeParent(frame);
+        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting, "the orbit frame falls on without a sample");
+        DPose there = world.PoseIn(owner, space);
+        pilot.Once = body => body.Teleport(new DPose(there.Position + new Double3(0, 100, 0), DQuaternion.Identity));
+        Tick(world, 2);
+
+        world.Frames.TreeParent(frame).Should().Be(orbitFrame, "the orbit frame jumped with its anchor");
+        for (int i = 0; i < 10; i++)
+        {
+            Double3 apart = HullPosition(backend, orbitFrame, owner) - world.Frames.TreeLocalPose(frame).Position;
+            apart.Length.Should().BeLessThan(1e-6, "the hull stands where its frame is at sync point {0}", world.TickNumber);
+            Tick(world, 1);
+        }
+        world.Errors.Should().BeEmpty();
+    }
+
     // ---- The checks of a rails component ------------------------------------------------------------------------
 
     [Theory]
@@ -231,6 +297,10 @@ public class RailsHullTests
         AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), driver),
         Components = components,
     });
+
+    /// <summary>Where Jolt holds the hull of <paramref name="owner"/> in the system of <paramref name="frame"/>.</summary>
+    private static Double3 HullPosition(JoltPhysicsBackend backend, FrameHandle frame, Entity owner) =>
+        backend.BodiesIn(frame).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner)).Position;
 
     private static IComponent Rails(string component) =>
         component == "KeplerMotion" ? new KeplerMotion { Orbit = Orbit } : new SpinMotion { Spin = Spin };

@@ -145,7 +145,7 @@ internal sealed class BodyRecord
     public Vector3 AngularAcceleration;
     /// <summary>The step whose intent teleported the body, or -1.</summary>
     public long TeleportStep = -1;
-    /// <summary>For a static hull: the pose in its home, with a unit rotation, at which the teleport of <see cref="TeleportStep"/> put it.</summary>
+    /// <summary>The pose in its home, with a unit rotation, at which the teleport of <see cref="TeleportStep"/> put the body.</summary>
     public DPose TeleportPose;
     /// <summary>
     /// The effective gravity that the last step applied to the body, in the axes of its home: to a dynamic rigid body
