@@ -824,10 +824,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// releases for the tree differs there (see <see cref="WriteFrames"/>).</item>
     /// <item>A kinematic hull, or no body, with a sample: the sample, in the tree parent. A hull at the origin of its orbit
     /// frame rests there, with the sample's rotation and no velocity (see <see cref="RailsTarget"/>): the orbit frame's own
-    /// chord and instant velocity are the sample's, to the jerk of its motion times the square of a step, and physics takes
-    /// a numeric home's instant velocity half a step of its acceleration past its chord (see "Instant velocities and chords"
-    /// in JoltPhysicsBackend.Chords.cs). The record that physics releases for the tree differs there (see
-    /// <see cref="WriteFrames"/>).</item>
+    /// chord and instant velocity are the sample's (see <see cref="FrameTree.HomeInstantVelocityOverChord"/>). The record that
+    /// physics releases for the tree differs there (see <see cref="WriteFrames"/>).</item>
     /// <item>A static hull, or a kinematic hull without a sample, that teleported in the step: the teleport's pose in the
     /// hull's home, the tree parent, with no velocity. The record that physics releases for the tree differs in a numeric
     /// home (see <see cref="WriteFrames"/>).</item>

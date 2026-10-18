@@ -85,6 +85,31 @@ public class FrameTreeNumericMotionTests
         (frames.AccelerationRelative(pod, earth) - expected).Length.Should().BeLessThan(1e-12);
     }
 
+    // Step 2 of every sync point converts the record of each frame in a numeric home into its semantic parent, on the serial
+    // sync point, with the acceleration and the angular velocity of the home relative to that parent. The walk only goes up.
+
+    [Fact]
+    public void The_acceleration_of_a_falling_frame_relative_to_its_semantic_frame_allocates_nothing()
+    {
+        FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
+        frames.AccelerationRelative(pod, earth);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        frames.AccelerationRelative(pod, earth);
+        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
+    }
+
+    [Fact]
+    public void The_angular_velocity_of_a_falling_frame_relative_to_its_semantic_frame_allocates_nothing()
+    {
+        FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
+        frames.AngularVelocityRelative(pod, earth);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        frames.AngularVelocityRelative(pod, earth);
+        (GC.GetAllocatedBytesForCurrentThread() - before).Should().Be(0);
+    }
+
     [Fact]
     public void A_body_away_from_the_origin_of_a_falling_frame_feels_the_tidal_gravity_from_doubles()
     {

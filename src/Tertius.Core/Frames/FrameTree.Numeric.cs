@@ -1136,7 +1136,10 @@ public sealed partial class FrameTree
         Contract.Requires(mode == NumericMode.Falling || linearVelocity[node.Id] == Double3.Zero);
         numeric[node.Id] = mode;
         if (mode == NumericMode.Resting)
+        {
             stepAcceleration[node.Id] = Double3.Zero;
+            sampleVelocityPastChord[node.Id] = null;
+        }
     }
 
     /// <summary>
@@ -1144,8 +1147,9 @@ public sealed partial class FrameTree
     /// frame at its origin, relative to its parent. That is the field minus the acceleration of the numeric frames above
     /// it, which the dense order, parents first, has fixed already. An orbit frame, which lies in its semantic frame, keeps
     /// the acceleration of its anchor's sample that the step applies, so that it ends the step on the sample to its
-    /// rounding (see <see cref="NumericMode.Orbiting"/>). An orbit frame whose anchor has no sample for the step falls as a
-    /// falling frame, with its anchor at rest in it. A resting frame has none. Call it after
+    /// rounding (see <see cref="NumericMode.Orbiting"/>), and it keeps the sample's instant velocity past its chord as its
+    /// own at the end of the step (see <see cref="HomeInstantVelocityOverChord"/>). An orbit frame whose anchor has no sample
+    /// for the step falls as a falling frame, with its anchor at rest in it. A resting frame has none. Call it after
     /// <see cref="Update"/> and before the physics step, which reads it through <see cref="EffectiveGravity"/>.
     /// </summary>
     internal void BeginNumericStep()
@@ -1155,11 +1159,13 @@ public sealed partial class FrameTree
         for (int i = 0; i < poses.Count; i++)
         {
             int id = poses.NodeAt(i).Id;
+            sampleVelocityPastChord[id] = null;
             // The sample that the next step applies tells how the anchor moves in it. An anchor without one holds still in
             // its orbit frame, which falls as a falling frame does.
             if (numeric[id] == NumericMode.Orbiting && Samples.Applied.TryGet(orbiter[id], out MotionSample sample))
             {
                 stepAcceleration[id] = sample.Acceleration;
+                sampleVelocityPastChord[id] = sample.Velocity - sample.ChordVelocity;
                 continue;
             }
             if (numeric[id] is not (NumericMode.Falling or NumericMode.Orbiting))

@@ -642,6 +642,93 @@ public class RailsFollowTests
         world.Errors.Should().BeEmpty();
     }
 
+    [Fact]
+    public void AShipThatFloatsAtAStationsPlaceInItsOrbitFrameReadsInSpaceTheStationsVelocityPlusItsOwnInTheOrbitFrame()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        Entity station = Hull(world, space, FastStill);
+        FrameHandle stationFrame = world.GetOwnedFrame(station);
+        // The ship starts at the station's place, with the station's velocity, and passes through the station's hull, so the
+        // two fall together in the station's orbit frame.
+        (Double3 place, Double3 velocity) = FastStill.StateAt(world.Time, Mu);
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = new DPose(place, DQuaternion.Identity),
+            LinearVelocity = velocity,
+            Body = Ball() with { CollisionMask = CollisionMask.Empty },
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Physics),
+        });
+
+        Tick(world, 6);
+
+        FrameHandle orbitFrame = world.PhysicsHomeOf(station);
+        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting);
+        world.PhysicsHomeOf(ship).Should().Be(orbitFrame, "the ship joined the station's orbit frame");
+        MotionSample sample = faults.Samples.Single(record => record.Frame == stationFrame && record.Tick == world.TickNumber - 1).Sample;
+        // Physics releases the ship's record in the orbit frame, with Jolt's chord there and the acceleration that the step
+        // gave the ship there, so the ship's own instant velocity in the orbit frame is half a step of that acceleration past
+        // the chord. The orbit frame's instant velocity at the end of the step is the station's, the sample's.
+        double dt = world.DeltaTime;
+        MotionSample released = faults.Outputs[^1].Frames.Single(record => record.Frame == world.GetOwnedFrame(ship)).Motion;
+        Double3 own = released.ChordVelocity + released.Acceleration * (dt / 2);
+        (world.VelocityIn(ship, space) - (sample.Velocity + own)).Length.Should().BeLessThan(1e-6);
+        (sample.Velocity - sample.ChordVelocity - sample.Acceleration * (dt / 2)).Length.Should().BeGreaterThan(0.01,
+            "half a step of the orbit's pull at the start of the step misses the change of the pull over the step by 3 cm/s");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A body 3 m from a station that moves as the station does, in an <see cref="Scenes.AsteroidSpace"/>, with a
+    /// <see cref="Kicker"/>, so that it joins the station's orbit frame.
+    /// </summary>
+    private static (FrameHandle Space, Entity Station, Entity Body, Kicker Kicker) BodyBesideAStation(World world, BodyDesc body)
+    {
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        Entity station = Hull(world, space, FastStill);
+        (Double3 place, Double3 velocity) = FastStill.StateAt(world.Time, Mu);
+        var kicker = new Kicker();
+        Entity entity = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = new DPose(place + new Double3(0, 3, 0), DQuaternion.Identity),
+            LinearVelocity = velocity,
+            Body = body,
+            Components = [kicker],
+        });
+        return (space, station, entity, kicker);
+    }
+
+    [Fact]
+    public void ACharacterInTheAirAndABallThatGameplayGivesOneVelocityInAStationsOrbitFrameMoveAlike()
+    {
+        using World characterWorld = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World ballWorld = NewWorld(out _);
+        var person = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+        (FrameHandle space, Entity station, Entity character, Kicker characterKicker) = BodyBesideAStation(characterWorld, person);
+        (FrameHandle ballSpace, Entity ballStation, Entity ball, Kicker ballKicker) = BodyBesideAStation(ballWorld, Ball());
+        Tick(characterWorld, 5);
+        Tick(ballWorld, 5);
+        characterWorld.PhysicsHomeOf(character).Should().Be(characterWorld.PhysicsHomeOf(station), "the character joined the station's orbit frame");
+        ballWorld.PhysicsHomeOf(ball).Should().Be(ballWorld.PhysicsHomeOf(ballStation), "the ball joined the station's orbit frame");
+        // Space pulls the character 3 m from the orbit frame's origin by more than twice the threshold of weightlessness.
+        faults.Jolt.HasRigidForm(character).Should().BeFalse("the character walks, in the air");
+
+        // The kick is 1 m/s along Z past the station's velocity in space. Gameplay writes it in the next tick, and the step
+        // of the tick after applies it.
+        Double3 kick = characterWorld.VelocityIn(station, space) + new Double3(0, 0, 1);
+        characterKicker.Velocity = kick;
+        ballKicker.Velocity = kick;
+        Tick(characterWorld, 2);
+        Tick(ballWorld, 2);
+
+        characterWorld.Snapshot.IsStanding(character).Should().BeFalse();
+        (characterWorld.VelocityIn(character, space) - ballWorld.VelocityIn(ball, ballSpace)).Length.Should().BeLessThan(1e-4);
+        characterWorld.Errors.Should().BeEmpty();
+        ballWorld.Errors.Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData("a kinematic hull on rails")]
     [InlineData("no body, on rails")]
@@ -704,6 +791,24 @@ public class RailsFollowTests
         {
             DPose pose = self.PoseInOwnFrame();
             self.Body.Teleport(pose with { Position = pose.Position + new Double3(0, 1, 0) });
+        }
+    }
+
+    /// <summary>Gives its owner <see cref="Velocity"/> in its own frame in the next tick, once.</summary>
+    private sealed class Kicker : IComponent
+    {
+        public Double3? Velocity;
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (Velocity is not { } velocity)
+                return;
+            self.Body.SetVelocity(velocity);
+            Velocity = null;
         }
     }
 

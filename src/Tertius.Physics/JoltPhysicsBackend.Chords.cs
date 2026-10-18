@@ -18,9 +18,10 @@ namespace Tertius.Physics;
 //
 // A velocity relative to a numeric home has two forms. A velocity that gameplay gives is relative to the home's frame
 // velocity in the step, as LocalVelocity gives it. The home's frame velocity is a chord too, because the numeric update
-// steps it the way that Jolt steps a body (see FrameTree.AdvanceNumericFrames), so the home's instant velocity is half a
-// step of its acceleration further on. Only the velocity relative to that instant velocity is the body's local instant
-// velocity, whose chord Jolt needs.
+// steps it the way that Jolt steps a body (see FrameTree.AdvanceNumericFrames), so the home's instant velocity lies further
+// on: half a step of its acceleration for a falling frame, and for an orbit frame whose hull has a sample, the sample's
+// instant velocity past its chord (see FrameTree.HomeInstantVelocityOverChord). Only the velocity relative to that instant
+// velocity is the body's local instant velocity, whose chord Jolt needs.
 //
 // The paths that carry a chord on as a chord need no conversion: a move between the systems of one semantic frame and a
 // shift of a numeric frame (both homes' velocities are chords, and the body's acceleration in the semantic frame stays
@@ -38,8 +39,9 @@ public sealed partial class JoltPhysicsBackend
     private readonly List<BodyRecord> spawnedRigid = new();
 
     /// <summary>
-    /// How much the instant velocity of the origin of <paramref name="home"/> exceeds its frame velocity in the step, relative
-    /// to its semantic frame: half a step of the home's acceleration, zero for a semantic frame (see
+    /// How much the instant velocity of the origin of <paramref name="home"/> at the end of the step exceeds its frame
+    /// velocity, relative to its semantic frame: half a step of a falling frame's acceleration, the sample's instant velocity
+    /// past its chord for an orbit frame whose hull has a sample, zero for a semantic frame (see
     /// <see cref="FrameTree.HomeInstantVelocityOverChord"/>). A velocity relative to the home's frame velocity is this much
     /// more than the same velocity relative to the home's instant velocity.
     /// </summary>
@@ -53,7 +55,7 @@ public sealed partial class JoltPhysicsBackend
     private Vector3 LinearChord(BodyRecord record, FrameHandle home, Double3 center, Double3 velocity)
     {
         Contract.Requires(stepDt > 0);
-        // The local instant velocity: relative to the home's instant velocity, half a step of its acceleration on.
+        // The local instant velocity: relative to the home's instant velocity, past its frame velocity.
         Double3 local = velocity - HomeInstantVelocityOverChord(home);
         return (local - ChordAcceleration(record, home, center, local) * (0.5 * stepDt)).ToVector3();
     }
@@ -135,8 +137,8 @@ public sealed partial class JoltPhysicsBackend
             Double3 acceleration = record.Standing ? Double3.Zero : (Double3)frames.EffectiveGravity(to, center);
             return ((linear - acceleration * half).ToVector3(), Vector3.Zero, acceleration);
         }
-        // The frame velocity of a numeric home in the next step is its velocity at the end of this step, which is half a
-        // step of its acceleration behind its instant velocity.
+        // The frame velocity of a numeric home in the next step is its velocity at the end of this step, which lies behind
+        // its instant velocity by the home's instant velocity past its chord.
         Double3 velocity = linear + HomeInstantVelocityOverChord(to);
         return (LinearChord(record, to, center, velocity), AngularChord(record, angular.ToVector3()), ChordAcceleration(record, to, center, linear));
     }
@@ -165,7 +167,7 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// The instant velocity of the origin of <paramref name="home"/> relative to <paramref name="semantic"/>, the home itself
     /// or an ancestor of it, at the end of the step: the frame velocity after the step (see
-    /// <see cref="FrameTree.HomeVelocityAfter"/>), which is a chord, plus half a step of the home's acceleration (see
+    /// <see cref="FrameTree.HomeVelocityAfter"/>), which is a chord, plus the home's instant velocity past its chord (see
     /// <see cref="FrameTree.HomeInstantVelocityOverChord"/>).
     /// </summary>
     private Double3 InstantHomeVelocity(FrameHandle home, FrameHandle semantic) =>

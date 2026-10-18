@@ -584,12 +584,12 @@ public sealed partial class JoltPhysicsBackend
             // character moves by the chord of the step, which is half a step of its acceleration less (see LinearChord).
             // A jump is relative to the ground, so to the home's instant velocity: its acceleration is the effective
             // gravity. A velocity that the game gave is relative to the home's frame velocity in the step, as
-            // LocalVelocity gives it, so it also loses half a step of a numeric home's acceleration: together that is
-            // the semantic frame's gravity.
+            // LocalVelocity gives it, so it also loses the home's instant velocity past its frame velocity, as LinearChord
+            // takes it from a rigid body's.
             if (standing)
                 next -= gravity * (dt * 0.5f);
             else if (record.InstantVelocityStep == stepIndex)
-                next -= semanticGravity * (dt * 0.5f);
+                next -= gravity * (dt * 0.5f) + HomeInstantVelocityOverChord(world.Frame).ToVector3();
             next += gravity * dt;
         }
         record.GravityApplied = held ? Vector3.Zero : gravity;

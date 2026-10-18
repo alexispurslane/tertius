@@ -772,10 +772,10 @@ public sealed partial class JoltPhysicsBackend
     /// the tree again takes the velocity that it had (see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>).
     /// Physics keeps a velocity relative to the home's instant velocity. So each record that physics releases adds the
     /// home's instant velocity past its chord (see <see cref="FrameTree.HomeInstantVelocityOverChord"/>), zero in a semantic
-    /// home. The one record that knows its instant velocity in the semantic parent itself is the sample of a hull at the
-    /// origin of its orbit frame: it keeps the sample's instant velocity less the sample's chord, which is the orbit frame's
-    /// frame velocity after the step (see <see cref="FrameTree.PlaceFollowingFrame"/>). Half a step of the orbit frame's
-    /// acceleration would miss the change of the orbit's acceleration over the step.
+    /// home. A hull at the origin of its orbit frame rests there, so its record keeps just that term: for an orbit frame
+    /// whose hull has a sample, the sample's instant velocity less the sample's chord, which is the orbit frame's frame
+    /// velocity after the step (see <see cref="FrameTree.PlaceFollowingFrame"/>). Every other frame in that orbit frame adds
+    /// the same term, so it reads its velocity in the semantic parent relative to the hull's.
     /// </para>
     /// </summary>
     private void WriteFrames(PhysicsStepOutput output)
@@ -785,15 +785,11 @@ public sealed partial class JoltPhysicsBackend
             if (!owner.HasPrimary || owner.Character is not null)
                 continue;
             FrameHandle frame = owner.OwnedFrame;
-            MotionSample sample = default;
-            bool sampled = owner.Motion == BodyMotion.Kinematic && stepSamples.TryGet(frame, out sample);
+            bool sampled = owner.Motion == BodyMotion.Kinematic && stepSamples.TryGet(frame, out _);
             if (owner.Motion != BodyMotion.Dynamic && !sampled && owner.TeleportStep != stepIndex)
                 continue;
             MotionSample record = StepRecordOf(frame);
-            Double3 velocity = sampled && frames.InOrbitFrame(frame)
-                ? sample.Velocity - sample.ChordVelocity
-                : record.Velocity + HomeInstantVelocityOverChord(owner.Frame);
-            output.Frames.Add(new FrameStepRecord(frame, record with { Velocity = velocity }));
+            output.Frames.Add(new FrameStepRecord(frame, record with { Velocity = record.Velocity + HomeInstantVelocityOverChord(owner.Frame) }));
         }
     }
 }
