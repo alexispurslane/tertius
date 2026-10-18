@@ -390,17 +390,12 @@ public sealed class ImpostorManagerTests
             RenderSnapshot snapshot = Snapshot();
             snapshot.Instances.Add(Ball(1, position));
             Vector3 lightPosition = position + lightOffset;
-            snapshot.Lights.Add(new RenderLight
-            {
-                Kind = spot ? LightKind.Spot : LightKind.Point,
-                Position = lightPosition,
-                Direction = Vector3.Transform(Vector3.Normalize(position - lightPosition), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, spotTurn)),
-                Color = new Vector3(1f, 0.8f, 0.6f),
-                Intensity = intensity,
-                Range = range,
-                InnerConeAngle = 0.3f,
-                OuterConeAngle = 0.5f,
-            });
+            Vector3 color = new(1f, 0.8f, 0.6f);
+            // A point light has no direction. Only the spot light is turned.
+            Vector3 direction = Vector3.Transform(Vector3.Normalize(position - lightPosition), Quaternion.CreateFromAxisAngle(Vector3.UnitZ, spotTurn));
+            snapshot.Lights.Add(spot
+                ? new SpotRenderLight(lightPosition, direction, color, intensity, range, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f)
+                : new PointRenderLight(lightPosition, color, intensity, range));
             return snapshot;
         }
         int Captures(RenderSnapshot snapshot)

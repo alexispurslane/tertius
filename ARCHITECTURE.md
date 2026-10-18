@@ -104,7 +104,7 @@ Each live entity has a row in three parallel tables, indexed by the slot index:
 
 - Transform: the frame that the entity is in, a frame-local `DPose`, and linear and angular velocity. Positions are double, because Jolt gives double positions and a planet frame is millions of meters across.
 - Physics: an optional body description and the double-buffered `PhysicsIntent`.
-- Render: mesh, material, scale, bounding radius, render flags and an optional light.
+- Render: mesh, material, scale, bounding radius, render flags and an optional light (a `LightData`: a point light, a spot light or none).
 
 Each entity also has a list of components, which are classes that implement `IComponent`. The list is sorted by `Priority`. Components with the same priority keep the order in which they were added.
 
@@ -538,7 +538,7 @@ The snapshot also carries:
 
 - The camera: its current and previous position and rotation, and its vertical field of view.
 - The sun: its direction from the render origin toward the origin of `World.SunFrame`, and its angular radius, atan(r / d). Here r is the bounding radius of the owner of the sun's frame, and d is its distance.
-- The ambient light, and one `RenderLight` for each point or spot light. A light comes from the light row of an entity, at `Light.Offset` from the entity.
+- The ambient light, and one `RenderLight` for each light that an entity carries: a `PointRenderLight` or a `SpotRenderLight` (see "Shading"). A light sits at the pose of its entity composed with the offset of its `LightData`.
 - `OriginInFrame` and `OriginFrameId`: the render origin in the camera's frame, and an id of that frame. The shadow texel grid uses them.
 - `RootRotation` and `PreviousRootRotation`, for the star field (see "Shading").
 
@@ -587,6 +587,10 @@ The G-buffer has these targets:
 Transparent objects use one forward pass after the lighting pass, sorted back to front across ranges. They test occlusion against the distance target, not the depth buffer.
 
 Dynamic point and spot lights are shaded in the deferred lighting pass. The sun is a directional light.
+
+An entity carries its light as `RenderData.Light`, a `LightData`. It is a custom C# 15 union, as `HemisphereUp` is. Its cases are `PointLightData(Offset, Color, Intensity, Range)` and `SpotLightData(Offset, Color, Intensity, Range, InnerConeAngle, OuterConeAngle)`. The empty union holds no light, so there is no `Enabled` flag: an entity whose light is the default carries none, and a component that switches a light off and on keeps the light value and writes the default over it. The light sits at the pose of the entity composed with `Offset`, and a spot light points along the local -Z axis of that pose.
+
+The snapshot gives each light as a `RenderLight`, a second custom union. Its cases are `PointRenderLight(Position, Color, Intensity, Range)` and `SpotRenderLight(Position, Direction, Color, Intensity, Range, InnerConeAngle, OuterConeAngle)`. The two unions have their own case types and do not share them. The snapshot builder switches on the case of the `LightData` and makes the matching case of the `RenderLight`, with the position relative to the render origin and, for a spot light, the direction in the axes of the camera's frame. `SceneBatcher` switches on the case again and writes one `GpuLight`. It leaves out a light of either case whose range or intensity is zero or less, or whose sphere of reach is outside the frustum. `GpuLight` keeps its std430 layout of 64 bytes. A point light writes kind 0 and leaves its direction and cone fields zero, because the shader and the impostor lighting read them only for a spot light. A spot light writes kind 1, a unit direction (straight down when the direction is zero), the cosine of the outer angle, and the cosine of the inner angle, which is never less than the outer cosine plus 1e-4, so that the shader's smoothstep has a non-empty interval.
 
 The sky is a procedural star field, fixed to the axes of the root frame of the camera's frame tree. The render snapshot carries the root's axes in the axes of the camera's frame, as `RenderSnapshot.RootRotation`, and the renderer interpolates them as it interpolates the camera. So the stars do not turn with a ship that the camera rides in, and a switch of the camera to another frame does not move them.
 
