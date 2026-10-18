@@ -90,7 +90,9 @@ public sealed partial class World
                 OwnedFrame = own,
             });
         }
+        Profile.Lap(23);
         Frames.UpdateNumericFrames(CollectionsMarshal.AsSpan(numericBodies), dt, physicsChanges, applyNumericMoves ??= ApplyNumericMoves);
+        Profile.Lap(24);
         ApplyPhysicsChanges();
         pendingCreates.Clear();
     }
