@@ -227,4 +227,62 @@ public class KeplerOrbitTests
         sample.Acceleration.Should().Be(Double3.Zero);
         sample.AngularAcceleration.Should().Be(Double3.Zero);
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void A_parent_without_GM_gives_an_infinite_period(double mu)
+    {
+        // A G·M below 0 has no square root, so there the mean motion is NaN, and 2π over it would be NaN as well. A G·M
+        // of 0 gives a mean motion of 0 and 2π / 0 is infinite anyway, so only the second case pins the guard.
+        InclinedOval.Period(mu).Should().Be(double.PositiveInfinity);
+    }
+
+    // ---- An orbit with no size ----------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1e7)]
+    public void An_orbit_with_a_semi_major_axis_of_0_or_below_does_not_turn_and_never_comes_round(double semiMajorAxis)
+    {
+        KeplerOrbit orbit = InclinedOval with { SemiMajorAxis = semiMajorAxis };
+
+        orbit.MeanMotion(Mu).Should().Be(0);
+        orbit.Period(Mu).Should().Be(double.PositiveInfinity);
+    }
+
+    [Theory]
+    [InlineData(0, KeplerAttitude.Spin)]
+    [InlineData(0, KeplerAttitude.FacesParent)]
+    [InlineData(-1e7, KeplerAttitude.Spin)]
+    [InlineData(-1e7, KeplerAttitude.FacesParent)]
+    public void An_orbit_with_a_semi_major_axis_of_0_or_below_sits_at_the_origin_of_its_parent_with_no_velocity(
+        double semiMajorAxis, KeplerAttitude attitude)
+    {
+        KeplerOrbit orbit = InclinedOval with { SemiMajorAxis = semiMajorAxis, Attitude = attitude };
+
+        foreach (double time in StepEnds)
+            orbit.StateAt(time, Mu).Should().Be((Double3.Zero, Double3.Zero), $"at {time} s");
+    }
+
+    [Theory]
+    [InlineData(0, KeplerAttitude.Spin)]
+    [InlineData(0, KeplerAttitude.FacesParent)]
+    [InlineData(-1e7, KeplerAttitude.Spin)]
+    [InlineData(-1e7, KeplerAttitude.FacesParent)]
+    public void A_sample_of_an_orbit_with_a_semi_major_axis_of_0_or_below_rests_at_the_origin_without_chord_or_acceleration(
+        double semiMajorAxis, KeplerAttitude attitude)
+    {
+        KeplerOrbit orbit = InclinedOval with { SemiMajorAxis = semiMajorAxis, Attitude = attitude };
+
+        // The pull and the chord of a frame at the parent's origin would divide zero by zero, so a mutant that lets such an
+        // orbit through gives NaN here.
+        MotionSample sample = orbit.Sample(Mu, 1334.56, Tick);
+
+        sample.Pose.Position.Should().Be(Double3.Zero);
+        sample.Velocity.Should().Be(Double3.Zero);
+        sample.ChordVelocity.Should().Be(Double3.Zero);
+        sample.Acceleration.Should().Be(Double3.Zero);
+        sample.AngularAcceleration.Should().Be(Double3.Zero);
+    }
 }

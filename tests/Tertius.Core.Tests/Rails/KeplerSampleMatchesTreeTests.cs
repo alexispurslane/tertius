@@ -4,11 +4,14 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The sample of an orbit (<see cref="KeplerOrbit.Sample"/>) against what the frame tree computes for a Kepler frame
-/// today: <see cref="FrameTree.KeplerMotion"/>, which physics reads, and <see cref="FrameTree.PlaceOnOrbit"/> and
-/// <see cref="FrameTree.BeginNumericStep"/>, which move an orbit frame. These pin the library to the tree until rails
-/// components replace the tree's versions (docs/plans/rails-components.md). The tree is built in the test, with a step of
-/// 1/60 s, round an earth whose point gravity the orbits take their G·M from.
+/// What the frame tree computes for a Kepler frame today, against the rails library. <see cref="FrameTree.KeplerMotion"/>,
+/// which physics reads, calls <see cref="KeplerOrbit.Sample"/> itself. So these tests compare it with the separate
+/// functions <see cref="KeplerOrbit.StateAt"/>, <see cref="KeplerOrbit.RotationAt"/> and
+/// <see cref="KeplerOrbit.AngularVelocityAt"/>, which are what it computed before the sample existed: a fault in the
+/// sample's math cannot pass both. <see cref="FrameTree.PlaceOnOrbit"/> and <see cref="FrameTree.BeginNumericStep"/>, which
+/// move an orbit frame, compute their own values, and these tests compare those with the sample. They pin the library to
+/// the tree until rails components replace the tree's versions (docs/plans/rails-components.md). The tree is built in the
+/// test, with a step of 1/60 s, round an earth whose point gravity the orbits take their G·M from.
 /// </summary>
 public class KeplerSampleMatchesTreeTests
 {
@@ -68,32 +71,29 @@ public class KeplerSampleMatchesTreeTests
     [Theory]
     [InlineData(KeplerAttitude.Spin)]
     [InlineData(KeplerAttitude.FacesParent)]
-    public void The_tree_moves_a_Kepler_frame_in_its_semantic_parent_as_its_sample_says(KeplerAttitude attitude)
+    public void The_tree_moves_a_Kepler_frame_in_its_semantic_parent_along_the_state_rotation_and_angular_velocity_of_its_orbit(KeplerAttitude attitude)
     {
         KeplerOrbit orbit = Oval with { Attitude = attitude };
         FrameHandle station = Station(orbit, Times[0]);
 
         foreach (double time in Times)
         {
-            MotionSample sample = orbit.Sample(EarthMu, time, Step);
+            (Double3 position, Double3 velocity) = orbit.StateAt(time, EarthMu);
 
-            frames.KeplerMotion(station, time).Should().Be((sample.Pose, sample.Velocity, sample.AngularVelocity), $"at {time} s");
+            frames.KeplerMotion(station, time).Should().Be(
+                (new DPose(position, orbit.RotationAt(time, EarthMu)), velocity, orbit.AngularVelocityAt(time, EarthMu)), $"at {time} s");
         }
     }
 
     [Fact]
-    public void The_tree_rests_a_Kepler_frame_at_the_origin_of_its_orbit_frame_with_the_rotation_and_angular_velocity_of_its_sample()
+    public void The_tree_rests_a_Kepler_frame_at_the_origin_of_its_orbit_frame_with_the_rotation_and_angular_velocity_of_its_orbit()
     {
         FrameHandle station = Station(Low, Times[0]);
         OrbitFrameOf(station);
 
         foreach (double time in Times)
-        {
-            MotionSample sample = Low.Sample(EarthMu, time, Step);
-
             frames.KeplerMotion(station, time).Should().Be(
-                (new DPose(Double3.Zero, sample.Pose.Rotation), Double3.Zero, sample.AngularVelocity), $"at {time} s");
-        }
+                (new DPose(Double3.Zero, Low.RotationAt(time, EarthMu)), Double3.Zero, Low.AngularVelocityAt(time, EarthMu)), $"at {time} s");
     }
 
     [Fact]
