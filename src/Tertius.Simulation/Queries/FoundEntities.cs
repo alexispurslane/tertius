@@ -63,7 +63,7 @@ public readonly ref struct FoundEntities
 
     // Each chain word puts its filter inline while the query's slot for it is free, so it never builds a heap part.
     private FoundEntities WithNear(scoped in QueryFilter filter) =>
-        query.NearFilter.Kind == QueryFilterKind.None ? new(snapshot, query.WithNear(filter), stack) : new(snapshot, query, stack.With(filter));
+        !query.NearFilter.HasValue ? new(snapshot, query.WithNear(filter), stack) : new(snapshot, query, stack.With(filter));
 
     /// <summary>Returns the enumerator that <c>foreach</c> uses. It picks the index when it starts.</summary>
     public Enumerator GetEnumerator() => new(snapshot, query, stack);

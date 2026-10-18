@@ -39,7 +39,7 @@ public readonly record struct EntityQuery
     /// <summary>The frame of the inline <see cref="In"/>, or null.</summary>
     internal FrameHandle InFrame { get; private init; }
 
-    /// <summary>The inline <c>Near</c>, or a filter of kind <see cref="QueryFilterKind.None"/>.</summary>
+    /// <summary>The inline <c>Near</c>, or the empty filter (<see cref="QueryFilter.HasValue"/> is false) when the slot is free.</summary>
     internal QueryFilter NearFilter { get; private init; }
 
     /// <summary>The predicate of the inline <see cref="Where"/>, or null.</summary>
@@ -113,7 +113,7 @@ public readonly record struct EntityQuery
 
     /// <summary>This query with a Near filter: inline while the inline Near is free, else in the heap part.</summary>
     internal EntityQuery WithNear(in QueryFilter filter) =>
-        NearFilter.Kind == QueryFilterKind.None ? this with { NearFilter = filter } : WithExtra(filter);
+        !NearFilter.HasValue ? this with { NearFilter = filter } : WithExtra(filter);
 
     private EntityQuery WithExtra(in QueryFilter filter) => this with { Extras = QueryExtras.Append(Extras, filter) };
 

@@ -70,26 +70,40 @@ internal static class QueryPlanner
 
     private static void Consider(scoped ref QueryPlan best, in Snapshot snapshot, in QueryFilter filter)
     {
-        if (filter.Kind == QueryFilterKind.In)
+        switch (filter)
         {
-            ConsiderFrame(ref best, snapshot.World, filter.Frame);
-            return;
+            case InFilter(var frame):
+                ConsiderFrame(ref best, snapshot.World, frame);
+                break;
+            case NearAsker when snapshot.Asker.IsNull:
+                throw new InvalidOperationException(
+                    "Near(radius) is around the entity that runs the query, and this snapshot has none. Run it from a component's Self.Snapshot, or use Near(other, radius) or Near(frame, point, radius).");
+            case NearAsker(var radius):
+                ConsiderNear(ref best, snapshot, filter, radius);
+                break;
+            case NearEntity(_, var radius):
+                ConsiderNear(ref best, snapshot, filter, radius);
+                break;
+            case NearPoint(_, _, var radius):
+                ConsiderNear(ref best, snapshot, filter, radius);
+                break;
+            // Where and the empty filter have no index.
         }
-        if (!filter.IsNear)
-            return;
-        if (filter.Kind == QueryFilterKind.NearAsker && snapshot.Asker.IsNull)
-            throw new InvalidOperationException(
-                "Near(radius) is around the entity that runs the query, and this snapshot has none. Run it from a component's Self.Snapshot, or use Near(other, radius) or Near(frame, point, radius).");
-        if (!filter.TryCenter(snapshot, out FrameHandle frame, out Double3 point))
+    }
+
+    /// <summary>The Near filter <paramref name="near"/>, whose radius is <paramref name="radius"/>, as an index: the frame of its center and the grid around it.</summary>
+    private static void ConsiderNear(scoped ref QueryPlan best, in Snapshot snapshot, in QueryFilter near, double radius)
+    {
+        if (!near.TryCenter(snapshot, out FrameHandle frame, out Double3 point))
         {
             best = new QueryPlan { Index = QueryIndex.Nothing, Count = 0 };
             return;
         }
         // Everything near the center is in the center's frame, so the frame's members are an index of the filter too.
         ConsiderFrame(ref best, snapshot.World, frame);
-        int inCells = snapshot.World.Spatial.CountNear(frame, point, filter.Radius);
+        int inCells = snapshot.World.Spatial.CountNear(frame, point, radius);
         if (inCells >= 0 && inCells < best.Count)
-            best = new QueryPlan { Index = QueryIndex.Grid, Count = inCells, Frame = frame, Point = point, Radius = filter.Radius };
+            best = new QueryPlan { Index = QueryIndex.Grid, Count = inCells, Frame = frame, Point = point, Radius = radius };
     }
 
     private static void ConsiderFrame(scoped ref QueryPlan best, World world, FrameHandle frame)

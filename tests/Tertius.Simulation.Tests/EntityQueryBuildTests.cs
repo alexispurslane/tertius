@@ -51,7 +51,7 @@ public class EntityQueryBuildTests
 
         query.Extras.Should().BeNull();
         query.InFrame.IsNull.Should().BeFalse();
-        query.NearFilter.Kind.Should().Be(QueryFilterKind.NearAsker);
+        query.NearFilter.Should().Be(new QueryFilter(new NearAsker(3)));
         query.WherePredicate.Should().NotBeNull();
     }
 
@@ -62,7 +62,7 @@ public class EntityQueryBuildTests
 
         EntityQuery query = EntityQuery.Where(Always).Near(3).In(frame).Where(Always).Near(new Entity(2, 1), 4).In(frame);
 
-        query.Extras!.Filters.ToArray().Select(f => f.Kind).Should().Equal(QueryFilterKind.Where, QueryFilterKind.NearEntity, QueryFilterKind.In);
+        query.Extras!.Filters.ToArray().Should().Equal(QueryFilter.Where(Always), QueryFilter.Near(new Entity(2, 1), 4), QueryFilter.In(frame));
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class EntityQueryBuildTests
         nullEntity.Should().Throw<ArgumentException>();
         nullFrame.Should().Throw<ArgumentException>();
         badPoint.Should().Throw<ArgumentException>();
-        EntityQuery.Near(0).NearFilter.Radius.Should().Be(0);
+        EntityQuery.Near(0).NearFilter.Should().Be(new QueryFilter(new NearAsker(0)));
     }
 
     [Fact]

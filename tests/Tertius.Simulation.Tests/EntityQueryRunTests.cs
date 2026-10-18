@@ -373,6 +373,29 @@ public class EntityQueryRunTests
     }
 
     [Fact]
+    public void TheShorthandChainKeepsItsFirstNearInlineSoNineNearsFitAndATenthIsRefused()
+    {
+        using var t = new TestWorld();
+        FoundEntities chain = t.World.Snapshot.Entities.Near(t.Root, default, 1e6);
+        for (int i = 0; i < StackFilters.Capacity; i++)
+            chain = chain.Near(t.Root, default, 1e6);
+
+        chain.Count().Should().Be(0, "the world has no entities, and nine Nears are not refused");
+        InvalidOperationException? refused = null;
+        try
+        {
+            chain.Near(t.Root, default, 1e6);
+        }
+        catch (InvalidOperationException ex)
+        {
+            refused = ex;
+        }
+
+        refused.Should().NotBeNull();
+        refused!.Message.Should().Match("*at most 8*");
+    }
+
+    [Fact]
     public void FiltersAddedToTheRunOfAStoredQueryNarrowIt()
     {
         using var t = new TestWorld();
@@ -430,6 +453,47 @@ public class EntityQueryRunTests
 
         PlanOf(run).Should().Be((QueryIndex.Grid, 3));
         Found(run).Should().Equal(c, a, b);
+    }
+
+    /// <summary>
+    /// Metal entities far apart along x, and three close together at x = 300, 301 and 302. The entity at 302 takes the
+    /// lowest slot index. Returns the three, in the order of their positions.
+    /// </summary>
+    private static (Entity At300, Entity At301, Entity At302) SpawnMetalClusterAmongFarEntities(TestWorld t)
+    {
+        Entity early = t.SpawnAt(new Double3(5000, 0, 0), new Metal());
+        for (int i = 0; i < 30; i++)
+            t.SpawnAt(new Double3(1000 + i * 100, 0, 0), new Metal());
+        Entity at300 = t.SpawnAt(new Double3(300, 0, 0), new Metal());
+        Entity at301 = t.SpawnAt(new Double3(301, 0, 0), new Metal());
+        t.World.Destroy(early);
+        Entity at302 = t.SpawnAt(new Double3(302, 0, 0), new Metal());
+        return (at300, at301, at302);
+    }
+
+    [Fact]
+    public void ARunWithASmallNearAroundAnEntityStartsFromTheGridCellsAroundItAndFindsEveryEntityWithinTheRadius()
+    {
+        using var t = new TestWorld();
+        (Entity at300, Entity at301, Entity at302) = SpawnMetalClusterAmongFarEntities(t);
+
+        FoundEntities run = t.World.Snapshot.Find(EntityQuery.With<Metal>().Near(at301, 2));
+
+        PlanOf(run).Should().Be((QueryIndex.Grid, 3));
+        Found(run).Should().Equal(at302, at300, at301);
+    }
+
+    [Fact]
+    public void ARunWithASmallNearAroundTheAskerStartsFromTheGridCellsAroundItAndFindsEveryEntityWithinTheRadius()
+    {
+        using var t = new TestWorld();
+        (Entity at300, Entity at301, Entity at302) = SpawnMetalClusterAmongFarEntities(t);
+        var snapshot = new Snapshot(t.World, at301);
+
+        FoundEntities run = snapshot.Find(EntityQuery.With<Metal>().Near(2));
+
+        PlanOf(run).Should().Be((QueryIndex.Grid, 3));
+        Found(run).Should().Equal(at302, at300, at301);
     }
 
     [Fact]
