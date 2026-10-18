@@ -73,7 +73,7 @@ internal static class SyncSampler
         cleanup();
     }
 
-    /// <summary>Ticks a scene <paramref name="ticks"/> times after its setup and prints the hash of the state (see World.ProfileStateHash).</summary>
+    /// <summary>Ticks a scene <paramref name="ticks"/> times after its setup and prints the hash of the state (see <see cref="WorldStateHash"/>).</summary>
     public static void Hash(string scene, int ticks)
     {
         (Action tick, Action cleanup) = Scene(scene);

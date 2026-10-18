@@ -109,10 +109,14 @@ public sealed partial class FrameTree
     /// <summary>
     /// Changes on every change of the state that an owner view reads (see <see cref="FrameOwnerView"/>): a write of the local
     /// pose, the linear velocity or the angular velocity of any frame, and every add, remove or move of a frame. Every such
-    /// change passes through the writers of the section "Writes that an owner view reads", which increase it. Reads leave it
-    /// as it is, and so do the writes of what no owner view reads: the proper acceleration, the gravity field, the driver and
-    /// the numeric state. The World compares it with its value at the World's last pass over every owner view, to skip a
-    /// pass that would change no row.
+    /// change passes through the writers of the section "Writes that an owner view reads", which increase it. An owner view
+    /// also reads whether each frame is numeric: a numeric frame has no owner view, and the walk up from a frame's parent
+    /// passes every numeric frame to find the semantic frame and adds its position. Only an add or a remove changes whether
+    /// a frame is numeric, because a numeric frame only changes from one numeric mode to another (the contracts of
+    /// <see cref="SetNumericMode"/> and <see cref="LeaveOrbit"/> require it), so the mode needs no increase of its own.
+    /// Reads leave it as it is, and so do the writes of what no owner view reads: the proper acceleration, the gravity
+    /// field, the driver, and the mode of a frame that stays numeric. The World compares it with its value at the World's
+    /// last pass over every owner view, to skip a pass that would change no row.
     /// </summary>
     internal long OwnerViewStamp => ownerViewStamp;
 
@@ -962,7 +966,9 @@ public sealed partial class FrameTree
     // ---- Writes that an owner view reads ------------------------------------------------------------------------
     // Every change of a frame's local pose, linear velocity or angular velocity, and every add, remove or move of a frame,
     // passes through these six members, which increase ownerViewStamp (see OwnerViewStamp). AddFrame fills the new frame's
-    // row after its add, so that row needs no write of its own.
+    // row after its add, so that row needs no write of its own. An owner view also reads whether each frame is numeric,
+    // which only an add or a remove changes: a write that makes a frame numeric, or stops it being numeric, any other way
+    // must increase ownerViewStamp too.
 
     private PoseNode AddNode(PoseNode parent, in DPose localPose)
     {

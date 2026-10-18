@@ -53,7 +53,7 @@ namespace Tertius.Simulation;
 /// The gameplay workers call only the members documented as worker-safe, and only for entities of the chunk they run.
 /// </para>
 /// </remarks>
-internal sealed class EntityTable
+internal sealed partial class EntityTable
 {
     private const int MaxSpawnPool = 1024;
 
@@ -242,47 +242,6 @@ internal sealed class EntityTable
         }
     }
 
-    /// <summary>
-    /// The live entities with a body, in slot order, as handles: the set bits of the table's body bits, a word of 64 slots
-    /// at a time. Use it with <c>foreach</c>; it allocates nothing. Nothing may release or make live an entity while it
-    /// runs.
-    /// </summary>
-    public struct BodyEntityEnumerator
-    {
-        private readonly EntityTable? table;
-        private readonly int words;
-        private int word;
-        private ulong bits;
-        private Entity current;
-
-        internal BodyEntityEnumerator(EntityTable table)
-        {
-            this.table = table;
-            words = (table.SlotCount + 63) / 64;
-            word = -1;
-            bits = 0;
-            current = default;
-        }
-
-        public readonly BodyEntityEnumerator GetEnumerator() => this;
-
-        public readonly Entity Current => current;
-
-        public bool MoveNext()
-        {
-            while (bits == 0)
-            {
-                if (++word >= words)
-                    return false;
-                bits = table!.bodySlots[word];
-            }
-            uint slot = (uint)(word * 64 + BitOperations.TrailingZeroCount(bits));
-            bits &= bits - 1;
-            current = new Entity(slot, table!.generation[slot]);
-            return true;
-        }
-    }
-
     private readonly int chunkSize;
     private readonly List<IColumn> columns = new();
     private readonly List<Action<Entity>> releaseHooks = new();
@@ -301,8 +260,8 @@ internal sealed class EntityTable
     private readonly Queue<uint> freeSlots = new();
     private ChunkState[] chunks = [];
     private ChunkBook[] books = [];
-    // One bit per slot, set while the slot is live with a body: bit (slot % 64) of word slot / 64.
-    private ulong[] bodySlots = [];
+    // The slots that are live with a body.
+    private readonly BodySlots bodySlots = new();
     // The workers that copy the rows that gameplay wrote, or null to copy them on the sync thread, and the fewest such rows
     // for which they do.
     private readonly ParallelOptions? copyParallelism;
@@ -584,7 +543,7 @@ internal sealed class EntityTable
             InteriorBoundingRadius = body?.InteriorShape is { } interior ? interior.BoundingRadius() : radius, OwnedFrame = ownedFrame,
         };
         if (body != null)
-            bodySlots[slot / 64] |= BodyBit(slot);
+            bodySlots.Add(slot);
         frontTransform[slot] = row;
         backTransform[slot] = row;
         frontRender[slot] = render;
@@ -620,7 +579,7 @@ internal sealed class EntityTable
             foreach (Action<Entity> release in releaseHooks)
                 release(entity);
             componentIndex.Remove(entity, frontComponents[slot]);
-            bodySlots[slot / 64] &= ~BodyBit(slot);
+            bodySlots.Remove(slot);
             foreach (IColumn column in columns)
                 column.Clear(slot);
             liveCount--;
@@ -1077,7 +1036,7 @@ internal sealed class EntityTable
     {
         Contract.Invariant(!gameplayRunning);
         Contract.Invariant(slotCount <= capacity && ChunkCountFor(capacity) <= chunks.Length && books.Length == chunks.Length);
-        Contract.Invariant(generation.Length == capacity && state.Length == capacity && bodySlots.Length == (capacity + 63) / 64);
+        Contract.Invariant(generation.Length == capacity && state.Length == capacity && bodySlots.WordCount == BodySlots.WordsFor(capacity));
 
         var inFreeList = new bool[capacity];
         foreach (uint slot in freeSlots)
@@ -1150,7 +1109,7 @@ internal sealed class EntityTable
                 Contract.Invariant(inFreeList[slot]);
             if (s == SlotState.Reserved)
                 reserved++;
-            Contract.Invariant(((bodySlots[slot / 64] & BodyBit((uint)slot)) != 0) == (s == SlotState.Live && records[slot].Body != null));
+            Contract.Invariant(bodySlots.Contains((uint)slot) == (s == SlotState.Live && records[slot].Body != null));
             if (s != SlotState.Live)
             {
                 foreach (IColumn column in columns)
@@ -1235,9 +1194,6 @@ internal sealed class EntityTable
 
     private int ChunkCountFor(int slots) => (slots + chunkSize - 1) / chunkSize;
 
-    /// <summary>The bit of <paramref name="slot"/> in its word of <see cref="bodySlots"/>.</summary>
-    private static ulong BodyBit(uint slot) => 1UL << (int)(slot % 64);
-
     private SlotColumn<T> AddSlotColumn<T>()
     {
         var column = new SlotColumn<T>(capacity);
@@ -1271,7 +1227,7 @@ internal sealed class EntityTable
         int size = Math.Max(needed, Math.Max(capacity * 2, 64));
         Array.Resize(ref generation, size);
         Array.Resize(ref state, size);
-        Array.Resize(ref bodySlots, (size + 63) / 64);
+        bodySlots.Grow(size);
         foreach (IColumn column in columns)
             column.Grow(size);
         capacity = size;

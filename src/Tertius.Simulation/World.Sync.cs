@@ -26,7 +26,8 @@ public sealed partial class World
     // itself.
     private readonly PhysicsOutputCheck physicsOutputCheck = new();
 
-    // ter-sn28 profiling: the time of each step of the sync point.
+    // The time of each step of the sync point (see SyncProfile). A build without SYNC_PROFILE compiles every lap away, but a
+    // call that compiles away must still name a member, so the field stays: one array of a few longs per World.
     internal readonly SyncProfile Profile = new();
 
     /// <summary>What the entity table knows about an entity, for the check of the physics output.</summary>
