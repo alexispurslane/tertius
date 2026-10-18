@@ -1,6 +1,6 @@
 ---
 id: ter-nims
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-18T17:50:48Z

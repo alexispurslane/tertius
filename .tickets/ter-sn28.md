@@ -1,6 +1,6 @@
 ---
 id: ter-sn28
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-18T18:04:36Z
