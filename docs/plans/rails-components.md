@@ -61,25 +61,23 @@ The user made the decisions marked (User).
 
 ## The rails library
 
-The namespace `Tertius.Frames.Rails` holds the data types `KeplerOrbit`, `KeplerAttitude`, `FrameSpin` and `MotionSample`, and two static classes, `KeplerRails` and `SpinRails`. The records keep their `IsValid` checks. Everything is public and pure.
+The namespace `Tertius.Frames.Rails` holds the data types `KeplerOrbit`, `KeplerAttitude`, `FrameSpin` and `MotionSample`. Every rails function lives in its struct: a function of an orbit or a spin is an instance method, and a function of two-body motion that takes no orbit elements is a static method of `KeplerOrbit`. The records keep their `IsValid` checks. Everything is public and pure. The user chose this on 2026-10-18.
 
 | Today | In the library |
 |---|---|
-| `KeplerOrbit.StateAt(time, parentMu)` | `KeplerRails.StateAt(in KeplerOrbit orbit, double time, double mu)` |
-| `KeplerOrbit.RotationAt`, `AngularVelocityAt` | `KeplerRails.RotationAt`, `KeplerRails.AngularVelocityAt` |
-| `KeplerOrbit.MeanMotion`, `Period` | `KeplerRails.MeanMotion`, `KeplerRails.Period` |
-| The private `EccentricAnomalyAt`, `FacingParentAt`, `PerifocalToParent` and `Spin` | Private members of `KeplerRails` |
-| `NumericFrameRules.OrbitChord` | `KeplerRails.Chord(Double3 position, Double3 velocity, double mu, double step)` |
-| `NumericFrameRules.OrbitAcceleration` | `KeplerRails.Acceleration(Double3 position, double mu)` |
-| The body of `FrameTree.KeplerMu` | `KeplerRails.OrbitMu(in GravityField parentGravity)`: the G·M of a point field that `CanBeOrbited`, else 0 |
-| `FrameSpin.RotationAt`, `FrameSpin.AngularVelocity` | `SpinRails.RotationAt(in FrameSpin spin, double time)`, `SpinRails.AngularVelocity(in FrameSpin spin)` |
-| `FrameTree.KeplerMotion` | `KeplerRails.Sample`. The tree's method calls it in `ter-k8cg` and goes in `ter-6r8c`. |
+| `KeplerOrbit.StateAt`, `RotationAt`, `AngularVelocityAt`, `MeanMotion`, `Period` | The same methods of `KeplerOrbit`, with the parameter `mu` |
+| The private `EccentricAnomalyAt`, `FacingParentAt`, `PerifocalToParent` and `Spin` | Private members of `KeplerOrbit` |
+| `NumericFrameRules.OrbitChord` | the static `KeplerOrbit.Chord(Double3 position, Double3 velocity, double mu, double step)` |
+| `NumericFrameRules.OrbitAcceleration` | the static `KeplerOrbit.Acceleration(Double3 position, double mu)` |
+| The body of `FrameTree.KeplerMu` | the static `KeplerOrbit.ParentMu(in GravityField parentGravity)`: the G·M of a point field that `CanBeOrbited`, else 0 |
+| `FrameSpin.RotationAt`, `FrameSpin.AngularVelocity` | The same members of `FrameSpin` |
+| `FrameTree.KeplerMotion` | `KeplerOrbit.Sample`. The tree's method calls it in `ter-k8cg` and goes in `ter-6r8c`. |
 
 New functions:
 
-- `KeplerRails.AngularAccelerationAt(in KeplerOrbit orbit, double time, double mu)`. It is zero for the attitude `Spin`. For `FacesParent` it is the change of `Cross(position, velocity) / position.LengthSquared`.
-- `KeplerRails.Sample(in KeplerOrbit orbit, double mu, double stepEnd, double step)`. It solves Kepler's equation once, at `stepEnd`, for the pose, the instant velocity and the angular velocity. The chord comes from `Chord`. The acceleration is `Acceleration` at the place where the step starts, the end place minus the chord times the step. That is the step acceleration of an orbit frame today, to rounding. The angular acceleration comes from `AngularAccelerationAt`, at the start of the step. The proper acceleration is zero.
-- `SpinRails.Sample(in FrameSpin spin, Double3 place, Vector3 properAcceleration, double stepEnd, double step)`. The pose is the place with `RotationAt(stepEnd)`. The chord, the velocity, the acceleration and the angular acceleration are zero. The angular velocity is the spin's. The proper acceleration is the argument.
+- `KeplerOrbit.AngularAccelerationAt(double time, double mu)`. It is zero for the attitude `Spin`. For `FacesParent` it is the change of `Cross(position, velocity) / position.LengthSquared`.
+- `KeplerOrbit.Sample(double mu, double stepEnd, double step)`. It solves Kepler's equation once, at `stepEnd`, for the pose, the instant velocity and the angular velocity. The chord comes from `Chord`. The acceleration is `Acceleration` at the place where the step starts, the end place minus the chord times the step. That is the step acceleration of an orbit frame today, to rounding. The angular acceleration comes from `AngularAccelerationAt`, at the start of the step. The proper acceleration is zero.
+- `FrameSpin.Sample(Double3 place, Vector3 properAcceleration, double stepEnd, double step)`. The pose is the place with `RotationAt(stepEnd)`. The chord, the velocity, the acceleration and the angular acceleration are zero. The angular velocity is the spin's. The proper acceleration is the argument.
 
 ## The rails components
 
@@ -94,10 +92,10 @@ public sealed class KeplerMotion : IComponent
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
-        double mu = self.Frame.IsNull ? 0 : KeplerRails.OrbitMu(self.Snapshot.Frames.Gravity(self.Frame));
+        double mu = self.Frame.IsNull ? 0 : KeplerOrbit.ParentMu(self.Snapshot.Frames.Gravity(self.Frame));
         ...
         double stepEnd = self.TimeAt(self.Tick + 2);
-        self.MoveOnRails(KeplerRails.Sample(Orbit, mu, stepEnd, self.DeltaTime));
+        self.MoveOnRails(Orbit.Sample(mu, stepEnd, self.DeltaTime));
     }
 }
 ```
@@ -106,7 +104,7 @@ where
 
 - `Orbit` = the orbit elements and their epoch, relative to the frame's semantic parent, in its axes. They hold no G·M.
 - `self.Frame` = the owner's row frame, which is the frame's semantic parent. It is null only for the owner of a root frame.
-- `KeplerRails.OrbitMu` = the G·M of the parent's point gravity, or 0.
+- `KeplerOrbit.ParentMu` = the G·M of the parent's point gravity, or 0.
 - `self.TimeAt(tick)` = new: the World's simulation time at the start of a tick, in seconds.
 - `stepEnd` = the end of the step in which this tick's intent acts, in seconds.
 - `self.DeltaTime` = the step length in seconds, a float that widens to the same double that the World uses.
@@ -116,7 +114,7 @@ where
   - When the owner has a body that is not kinematic, the component logs once, writes no sample and returns.
   - On its first run, the component teleports the owner's hull onto its rails, so that the hull jumps to its orbit and does not sweep through the bodies in between. A frame without a body needs no teleport, because its first sample alone puts it on its rails.
 
-`SpinMotion` holds a `FrameSpin` and a property `ProperAcceleration`, a `Vector3` that is zero by default. A component that starts a turntable copies the frame's proper acceleration into it. `SpinMotion` does the same with `SpinRails.Sample(Spin, place, ProperAcceleration, stepEnd, self.DeltaTime)`. It needs no G·M, so it has only the second and the third rule of the `...`. It reads its place from its own frame: `self.Snapshot.Frames.LocalPose(self.OwnedFrame).Position`, where the new `Self.OwnedFrame` is the frame that the entity owns. A spin frame does not move, so the place stays the same from tick to tick. A destroy of the parent moves the frame up, and the component reads the new place.
+`SpinMotion` holds a `FrameSpin` and a property `ProperAcceleration`, a `Vector3` that is zero by default. A component that starts a turntable copies the frame's proper acceleration into it. `SpinMotion` does the same with `Spin.Sample(place, ProperAcceleration, stepEnd, self.DeltaTime)`. It needs no G·M, so it has only the second and the third rule of the `...`. It reads its place from its own frame: `self.Snapshot.Frames.LocalPose(self.OwnedFrame).Position`, where the new `Self.OwnedFrame` is the frame that the entity owns. A spin frame does not move, so the place stays the same from tick to tick. A destroy of the parent moves the frame up, and the component reads the new place.
 
 The timing:
 
@@ -291,7 +289,7 @@ What changes:
 What the new tests prove:
 
 1. The library's sample matches the orbit: its chord equals the change of place over the step to rounding, and its angular acceleration equals the change of the angular velocity.
-2. A frame on rails stands at `KeplerRails.StateAt(orbit, World.Time, mu)` to the last bit at every sync point from the second one after its spawn, for ten minutes, with a body and without, in its semantic parent and in a following frame.
+2. A frame on rails stands at `orbit.StateAt(World.Time, mu)` to the last bit at every sync point from the second one after its spawn, for ten minutes, with a body and without, in its semantic parent and in a following frame.
 3. After each step, the hull's place in Jolt equals its target exactly.
 4. A body that sticks out of a frame on rails has a ghost with the sample's chord, and a body that leaves the bubble hands off with the sample's instant velocity.
 5. A new frame on rails holds still at its spawn pose for its first step, and stands on its rails at the second sync point after its spawn. A swap of components has no gap.
