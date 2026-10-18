@@ -56,7 +56,8 @@ public class FrameDriverTests
     public void AFrameThatTakesTheKeplerDriverAndAKeplerMotionFollowsItsOrbitFromTheSecondSyncPoint()
     {
         // A change of motion is a new driver plus a swap of components (docs/plans/rails-components.md, "Changes of motion").
-        using var test = new TestWorld();
+        // The ship has a hull, and only real physics releases a hull's motion record, so the world runs on Jolt.
+        using var test = TestWorld.OnJolt(out _);
         test.GiveRootPointGravity(1e9);
         FrameHandle ship = SpawnShip(test);
         test.World.AddComponent(ship.Entity, new KeplerMotion { Orbit = KeplerOrbit.Circular(1000) });
