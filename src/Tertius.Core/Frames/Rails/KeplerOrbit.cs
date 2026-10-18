@@ -20,8 +20,8 @@ public enum KeplerAttitude : byte
 /// times seconds. The reference plane is the parent's XZ plane, with +Y as the orbit normal at zero inclination.
 /// <para>
 /// The orbit has no G·M of its own. A member that needs the G·M of the parent, in m³/s², takes it as a parameter, called
-/// <c>mu</c>. The World and physics take it from the point gravity of the parent frame (see <see cref="FrameTree.KeplerMu"/>
-/// and <see cref="MuFrom"/>), so a Kepler frame and the loose bodies in its parent fall on the same G·M. The members are
+/// <c>mu</c>. A <c>KeplerMotion</c> takes it from the point gravity of its frame's parent in every tick (see
+/// <see cref="MuFrom"/>), so a Kepler frame and the loose bodies in its parent fall on the same G·M. The members are
 /// pure functions. The instance members are functions of the orbit, the time and the G·M. The static members need no
 /// orbit elements: <see cref="Chord"/> and <see cref="Acceleration"/> are functions of a state and a G·M,
 /// <see cref="MuFrom"/> reads the G·M from a gravity field, and <see cref="Circular"/> makes an orbit.
@@ -45,10 +45,10 @@ public record struct KeplerOrbit(
         new(radius, 0, 0, 0, 0, phase, 0, DQuaternion.Identity, spinRate, 0);
 
     /// <summary>
-    /// True for an orbit whose own elements the Kepler driver can follow: a closed orbit, with an eccentricity from 0 up to
-    /// but not including 1 and a positive semi-major axis, and every element, the tilt and the spin finite. The default
+    /// True for an orbit whose own elements a <c>KeplerMotion</c> can follow: a closed orbit, with an eccentricity from 0 up
+    /// to but not including 1 and a positive semi-major axis, and every element, the tilt and the spin finite. The default
     /// orbit is not valid: it would leave the frame at its parent's origin. The orbit holds no G·M, so this does not check
-    /// the parent: the World does (see <see cref="GravityField.CanBeOrbited"/>).
+    /// the parent: the component does, in every tick (see <see cref="MuFrom"/>).
     /// </summary>
     public readonly bool IsValid =>
         SemiMajorAxis > 0 && double.IsFinite(SemiMajorAxis) &&
@@ -80,9 +80,9 @@ public record struct KeplerOrbit(
     /// Position and velocity relative to the parent, in parent axes, at <paramref name="time"/>, for a parent with the G·M
     /// <paramref name="mu"/>. Gives zero when the semi-major axis is 0 or below, or when <paramref name="mu"/> is
     /// 0 or below. This is the only check. An orbit that is not valid for another reason, such as an eccentricity of 1.5 or a
-    /// semi-major axis of NaN, and a G·M of NaN or infinity, give NaN or an ordinary state. The World checks
-    /// <see cref="IsValid"/> and <see cref="GravityField.CanBeOrbited"/> before it gives a frame the Kepler driver, so a
-    /// Kepler frame never meets these cases.
+    /// semi-major axis of NaN, and a G·M of NaN or infinity, give NaN or an ordinary state. A <c>KeplerMotion</c> takes only
+    /// an orbit that <see cref="IsValid"/>, and samples it only for a G·M above 0 from <see cref="MuFrom"/>, so a Kepler
+    /// frame never meets these cases.
     /// </summary>
     public readonly (Double3 Position, Double3 Velocity) StateAt(double time, double mu) =>
         Orbits(mu) ? StateAtAnomaly(EccentricAnomalyAt(time, mu, out _), mu) : (Double3.Zero, Double3.Zero);

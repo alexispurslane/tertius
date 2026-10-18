@@ -65,7 +65,7 @@ public sealed partial class World
             ref readonly TransformRow row = ref entities.BackRow(entity);
             if (row.Frame.IsNull)
                 continue;
-            // The body of a frame owner is its frame's hull, which moves as the frame's driver says.
+            // The body of a frame owner is its frame's hull, whose motion the frame's driver chooses in this ticket.
             BodyMotion motion = own.IsNull ? desc.Motion : BodyDesc.FrameHullMotion(Frames.Driver(own));
             double mass = desc.Mass > 0 ? desc.Mass : 1;
             numericBodies.Add(new NumericBody
@@ -82,8 +82,10 @@ public sealed partial class World
                 ThrustAcceleration = ThrustAcceleration(entity, motion, mass),
                 Static = motion == BodyMotion.Static,
                 Kinematic = motion == BodyMotion.Kinematic,
-                Fixed = !own.IsNull && Frames.Driver(own) != MotionDriver.Physics,
-                Orbits = !own.IsNull && Frames.Driver(own) == MotionDriver.Kepler,
+                // A hull that is not dynamic moves only as its frame's step records say, and a kinematic one follows the
+                // samples of its owner, so it lives in an orbit frame of its own when they move it fast or far.
+                Fixed = !own.IsNull && motion != BodyMotion.Dynamic,
+                Orbits = !own.IsNull && motion == BodyMotion.Kinematic,
                 Sensor = desc.IsSensor,
                 OwnedFrame = own,
             });

@@ -69,8 +69,8 @@ public partial class NumericFrameOrbitTests
         FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(Scenes.EarthMu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
-            Frame = earth, Body = StationHull, AsFrame = new FrameSpec(FrameBounds.Sphere(BubbleRadius), MotionDriver.Kepler, Orbit: path),
-        });
+            Frame = earth, Body = StationHull, AsFrame = new FrameSpec(FrameBounds.Sphere(BubbleRadius), MotionDriver.Kepler),
+        }.OnKeplerOrbit(world, path));
         return new Station(earth, owner, world.GetOwnedFrame(owner), path);
     }
 
@@ -235,8 +235,8 @@ public partial class NumericFrameOrbitTests
         KeplerOrbit far = KeplerOrbit.Circular(3.84e8, phase: 0.4);
         Entity hull = world.Spawn(new SpawnDesc
         {
-            Frame = earth, Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f), AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: far),
-        });
+            Frame = earth, Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f), AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
+        }.OnKeplerOrbit(world, far));
         (Double3 place, Double3 velocity) = far.StateAt(world.Time, Scenes.EarthMu);
         Entity crate = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Crate });
         world.Tick();
@@ -375,8 +375,8 @@ public partial class NumericFrameOrbitTests
         {
             Frame = space,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f, Restitution: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(FarOrbitRadius)),
-        });
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
+        }.OnKeplerOrbit(world, KeplerOrbit.Circular(FarOrbitRadius)));
         Entity rock = world.Spawn(new SpawnDesc
         {
             Frame = space, Pose = At(FarOrbitRadius + 8, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static),
@@ -455,13 +455,16 @@ public partial class NumericFrameOrbitTests
     // ---- Driver changes ------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// A station in low orbit, with a crate beside its hull in the orbit frame, gets the Static driver and then the Kepler
-    /// driver again. With the Static driver the frame stops where it is in earth, and its hull lives in earth's own system,
-    /// a fixed hull that the crate's group joins. A second crate comes to rest beside the stopped hull. With the Kepler
-    /// driver again, the frame takes its place on the orbit at the world's time, and its hull rests in a new orbit frame,
-    /// while the second crate stays where it was, as without numeric frames: the numeric update links the hull to the
-    /// bodies at the place to which its driver moved it, here the crate 640 m behind it for the encounter. Every read in
-    /// earth is the orbit's state again.
+    /// A station in low orbit, with a crate beside its hull in the orbit frame, stops and then goes back on its orbit. Each
+    /// change of motion is a new driver plus a swap of components (docs/plans/rails-components.md, "Changes of motion"). To
+    /// stop, the game removes the station's <see cref="KeplerMotion"/> and gives the frame the Static driver: the frame
+    /// stops where it is in earth, and its hull lives in earth's own system, a fixed hull that the crate's group joins. A
+    /// second crate, at rest at its spawn 20 m below the stopped hull, starts to fall to earth. To go back, the game adds a
+    /// new <see cref="KeplerMotion"/> on the same orbit and gives the frame the Kepler driver. The kinematic hull holds still
+    /// for one step, as a hull without a sample does, and the new component's first run teleports it at the start of the
+    /// next step onto its orbit, about 640 m ahead. So from the second sync point after the swap the hull stands on its orbit
+    /// and rests in a new orbit frame, and every read in earth is the orbit's state again. The second crate falls on as
+    /// before: neither the swap nor the hull's jump moves it.
     /// </summary>
     [Fact]
     public void AFrameWhoseDriverChangesFromKeplerToStaticAndBackLeavesItsOrbitFrameAndGetsANewOne()
@@ -477,6 +480,7 @@ public partial class NumericFrameOrbitTests
         world.PhysicsHomeOf(crate).Should().Be(orbit);
 
         DPose stopped = world.PoseIn(station.Owner, station.Earth);
+        world.RemoveComponent(station.Owner, world.GetComponent<KeplerMotion>(station.Owner)!).Should().BeTrue();
         world.SetFrameDriver(station.Frame, MotionDriver.Static);
         world.Frames.TreeParent(station.Frame).Should().Be(station.Earth, "a frame that physics does not drive and that no orbit moves hangs in its semantic parent");
         world.PhysicsHomeOf(station.Owner).Should().Be(station.Earth);
@@ -486,18 +490,29 @@ public partial class NumericFrameOrbitTests
         Tick(world, 3);
         world.Frames.IsAlive(orbit).Should().BeFalse("the orbit frame lost its frame and its bodies");
         world.PoseIn(station.Owner, station.Earth).Position.Should().Be(stopped.Position);
-        Entity resting = world.Spawn(new SpawnDesc { Frame = station.Earth, Pose = new DPose(stopped.Position + new Double3(0, -20, 0), DQuaternion.Identity), Body = Crate });
+        Double3 secondSpawn = stopped.Position + new Double3(0, -20, 0);
+        double secondSpawnTime = world.Time;
+        Entity second = world.Spawn(new SpawnDesc { Frame = station.Earth, Pose = new DPose(secondSpawn, DQuaternion.Identity), Body = Crate });
+        // The second crate falls from rest by earth's pull alone, 8.6 m/s² here, from the step after its spawn on: 1.2 mm in
+        // the first step and 1.1 cm in the first three. A run measured 6 µm between its place and this free fall.
+        Double3 pull = -Scenes.EarthMu / Math.Pow(secondSpawn.Length, 3) * secondSpawn;
+        Double3 FreeFall() => secondSpawn + 0.5 * Math.Pow(world.Time - secondSpawnTime, 2) * pull;
         Tick(world, 1);
-        Double3 restingPlace = world.PoseIn(resting, station.Earth).Position;
 
+        world.AddComponent(station.Owner, new KeplerMotion { Orbit = station.Orbit });
         world.SetFrameDriver(station.Frame, MotionDriver.Kepler);
+        world.Tick();
+        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(stopped.Position, "the kinematic hull holds still for the step without a sample");
+        world.PhysicsHomeOf(station.Owner).Should().Be(station.Earth, "a hull that holds still 6,800 km from earth's origin needs no orbit frame");
+        world.Tick();
         FrameHandle again = world.PhysicsHomeOf(station.Owner);
+        again.Should().NotBe(orbit);
         world.Frames.Numeric(again).Should().Be(NumericMode.Orbiting);
         world.Frames.TreeParent(station.Frame).Should().Be(again);
-        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(station.StateAt(world.Time).Position);
-        world.PoseIn(resting, station.Earth).Position.Should().Be(restingPlace, "the crate beside the stopped hull does not jump with the hull");
+        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(station.StateAt(world.Time).Position, "from the second sync point after the swap the hull stands on its orbit");
+        (world.PoseIn(second, station.Earth).Position - FreeFall()).Length.Should().BeLessThan(0.01, "the crate beside the stopped hull does not jump with the hull");
         world.Tick();
-        (world.PoseIn(resting, station.Earth).Position - restingPlace).Length.Should().BeLessThan(0.01, "nor in the step after");
+        (world.PoseIn(second, station.Earth).Position - FreeFall()).Length.Should().BeLessThan(0.01, "nor in the step after");
         Tick(world, 60);
         world.PoseIn(station.Owner, station.Earth).Position.Should().Be(station.StateAt(world.Time).Position);
         world.PhysicsHomeOf(station.Owner).Should().Be(again);
@@ -506,9 +521,9 @@ public partial class NumericFrameOrbitTests
     }
 
     /// <summary>
-    /// What a run of <see cref="NewOrbit"/> saw: the crate's place and velocity in earth just before and just after the new
-    /// orbit, and at the end; the crate's home at the end; the hull's place in its home at the end, and its frame's pose
-    /// there; and the cargo pod's place in earth just before and just after the new orbit.
+    /// What a run of <see cref="NewOrbit"/> saw: the crate's place and velocity in earth at the sync points before and after
+    /// the station's jump to its new orbit, and at the end; the crate's home at the end; the hull's place in its home at the
+    /// end, and its frame's pose there; and the cargo pod's place in earth at the sync points before and after the jump.
     /// </summary>
     private sealed record OrbitChange(Double3 PlaceBefore, Double3 VelocityBefore, Double3 PlaceAfter, Double3 VelocityAfter, Double3 PlaceAtEnd,
         Double3 VelocityAtEnd, string CrateHome, Double3 HullInHome, DPose FrameInHome, Double3 PodBefore, Double3 PodAfter);
@@ -516,8 +531,10 @@ public partial class NumericFrameOrbitTests
     /// <summary>
     /// A station in low orbit, with a crate 20 m below its core and a cargo pod (see <see cref="PodFrame"/>) 20 m to the
     /// side of it, outside the bubble, at the station's velocity, so that with numeric frames both share the station's orbit
-    /// frame, and the pod's frame hangs in it. After two ticks the game gives the station a new orbit 0.01 rad ahead on the
-    /// same circle, 68 km away, and the world runs on for a second.
+    /// frame, and the pod's frame hangs in it. After two ticks the game replaces the station's <see cref="KeplerMotion"/>
+    /// with one on an orbit 0.01 rad ahead on the same circle, 68 km away, and the world runs on for a second. The old
+    /// component's last sample moves the station in the tick of the swap, and the new component's first run teleports the
+    /// hull at the start of the next step, so the station jumps at the second sync point after the swap.
     /// </summary>
     private static OrbitChange NewOrbit(bool numericFrames)
     {
@@ -535,11 +552,14 @@ public partial class NumericFrameOrbitTests
             world.PhysicsHomeOf(crate).Should().Be(world.PhysicsHomeOf(station.Owner), "the crate shares the hull's orbit frame");
             world.Frames.TreeParent(world.GetOwnedFrame(pod)).Should().Be(world.PhysicsHomeOf(station.Owner), "the pod's frame hangs in the orbit frame");
         }
+        KeplerOrbit ahead = LowOrbit with { MeanAnomalyAtEpoch = LowOrbit.MeanAnomalyAtEpoch + 0.01 };
+        world.RemoveComponent(station.Owner, world.GetComponent<KeplerMotion>(station.Owner)!);
+        world.AddComponent(station.Owner, new KeplerMotion { Orbit = ahead });
+        world.Tick();
+        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(station.StateAt(world.Time).Position, "the old component's last sample moves the frame");
         Double3 placeBefore = world.PoseIn(crate, station.Earth).Position, velocityBefore = world.VelocityIn(crate, station.Earth);
         Double3 podBefore = world.PoseIn(pod, station.Earth).Position;
-
-        KeplerOrbit ahead = LowOrbit with { MeanAnomalyAtEpoch = LowOrbit.MeanAnomalyAtEpoch + 0.01 };
-        world.SetFrameOrbit(station.Frame, ahead);
+        world.Tick();
         world.PoseIn(station.Owner, station.Earth).Position.Should().Be(ahead.StateAt(world.Time, Scenes.EarthMu).Position, "the frame jumps to its new orbit");
         Double3 placeAfter = world.PoseIn(crate, station.Earth).Position, velocityAfter = world.VelocityIn(crate, station.Earth);
         Double3 podAfter = world.PoseIn(pod, station.Earth).Position;
@@ -558,10 +578,10 @@ public partial class NumericFrameOrbitTests
     }
 
     /// <summary>
-    /// A new orbit moves the station's frame to its place on that orbit at once, and the crate beside its hull stays where
-    /// it was, at its velocity, as without numeric frames, where the crate lies in earth's own system. So the station's
-    /// orbit frame moves to the new place, and the crate, which it held, loses that move. The hull follows its frame there
-    /// at the start of the next step, as for any new orbit. The crate falls on in a frame of its own, far from the hull.
+    /// A new <see cref="KeplerMotion"/> teleports the station's hull to its place on the new orbit, and the crate beside the
+    /// hull moves on in the step of the jump as it does without numeric frames, where the crate lies in earth's own system.
+    /// So the station's orbit frame jumps with the hull, and the crate and the pod's frame, which it held, lose that jump
+    /// (docs/plans/rails-components.md, "Numeric frames"). The crate falls on in a frame of its own, far from the hull.
     /// </summary>
     [Fact]
     public void ANewOrbitMovesTheStationAndLeavesTheCrateInItsOrbitFrameWhereItWasAsWithoutNumericFrames()
@@ -569,11 +589,12 @@ public partial class NumericFrameOrbitTests
         OrbitChange with = NewOrbit(numericFrames: true);
         OrbitChange without = NewOrbit(numericFrames: false);
 
-        (with.PlaceAfter - with.PlaceBefore).Length.Should().BeLessThan(1e-6, "the crate stays where it was");
-        (with.PodAfter - with.PodBefore).Length.Should().BeLessThan(1e-6, "the pod's frame stays where it was");
-        (without.PodAfter - without.PodBefore).Length.Should().BeLessThan(1e-6);
-        (with.VelocityAfter - with.VelocityBefore).Length.Should().BeLessThan(1e-4, "the crate keeps its velocity, to the float of its new local velocity");
-        (without.PlaceAfter - without.PlaceBefore).Length.Should().BeLessThan(1e-6);
+        ((with.PlaceAfter - with.PlaceBefore) - (without.PlaceAfter - without.PlaceBefore)).Length.Should().BeLessThan(0.01,
+            "the crate moves in the step of the jump as without numeric frames");
+        ((with.PodAfter - with.PodBefore) - (without.PodAfter - without.PodBefore)).Length.Should().BeLessThan(0.01,
+            "the pod's frame moves in the step of the jump as without numeric frames");
+        ((with.VelocityAfter - with.VelocityBefore) - (without.VelocityAfter - without.VelocityBefore)).Length.Should().BeLessThan(0.01,
+            "the crate keeps its velocity through the jump");
         with.CrateHome.Should().Be("Falling", "the crate is 68 km from the hull");
         without.CrateHome.Should().Be("earth");
         // Without numeric frames each step's pull rounds in a float velocity of 7.66 km/s.

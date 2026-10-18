@@ -68,7 +68,7 @@ public class UnitRotationTests
             worstInTheWorld = Math.Max(worstInTheWorld, Math.Max(Excess(world.Frames.LocalPose(ship).Rotation), Excess(world.PoseIn(owner, space).Rotation)));
         }
 
-        double worstFrameState = faults.Outputs.SelectMany(output => output.Frames).Where(state => state.Frame == ship).Max(state => Excess(state.LocalPose.Rotation));
+        double worstFrameState = faults.Outputs.SelectMany(output => output.Frames).Where(state => state.Frame == ship).Max(state => Excess(state.Motion.Pose.Rotation));
         faults.Outputs.SelectMany(output => output.Frames).Count(state => state.Frame == ship).Should().Be(120, "the hull reports a state of the frame in every step");
         worstFrameState.Should().BeLessThan(Tolerance, "the local pose that Jolt sent for the ship frame");
         WorstReportedBodyRotation(faults, owner).Should().BeLessThan(Tolerance);

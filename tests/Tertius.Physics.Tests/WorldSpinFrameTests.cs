@@ -19,8 +19,8 @@ public class WorldSpinFrameTests
     {
         Frame = parent,
         Body = hull ?? new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(bubble), MotionDriver.Spin, Spin: Turning),
-    });
+        AsFrame = new FrameSpec(FrameBounds.Sphere(bubble), MotionDriver.Spin),
+    }.Spinning(world, Turning));
 
     [Fact]
     public void TheHullOfASpinFrameIsKinematicAndTurnsWithTheFrame()
@@ -42,8 +42,14 @@ public class WorldSpinFrameTests
         }
     }
 
+    /// <summary>
+    /// The game replaces the turntable's <see cref="SpinMotion"/> with one a quarter turn ahead. The new component's first
+    /// run teleports the hull to its new rotation, so the hull never sweeps the quarter turn in one tick, which would spin it
+    /// at about 94 rad/s for that tick. The old component's last sample turns it in the tick of the swap, so the swap has no
+    /// gap (docs/plans/rails-components.md, "Changes of motion").
+    /// </summary>
     [Fact]
-    public void ANewSpinPutsTheHullAtItsNewPoseAtOnceInsteadOfSweepingItThere()
+    public void ANewSpinMotionPutsTheHullAtItsNewPoseInsteadOfSweepingItThere()
     {
         World world = NewWorld(out JoltPhysicsBackend backend);
         using (world)
@@ -51,15 +57,19 @@ public class WorldSpinFrameTests
             FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
             Entity owner = SpawnTurntable(world, space, bubble: 50);
             Tick(world, 10);
+            FrameSpin ahead = Turning with { PhaseAtEpoch = Math.PI / 2 };
+            JoltPhysicsBackend.BodyFacts Hull() => backend.BodiesIn(space)
+                .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
 
-            // A quarter turn more at once. Swept over one tick, it would spin the hull at about 94 rad/s for that tick.
-            world.SetFrameSpin(world.GetOwnedFrame(owner), Turning with { PhaseAtEpoch = Math.PI / 2 });
+            world.RemoveComponent(owner, world.GetComponent<SpinMotion>(owner)!);
+            world.AddComponent(owner, new SpinMotion { Spin = ahead });
+            Tick(world, 1);
+            Hull().AngularVelocity.Y.Should().BeApproximately((float)Rate, 0.01f, "the old component's last sample turns the hull");
             Tick(world, 1);
 
-            JoltPhysicsBackend.BodyFacts hull = backend.BodiesIn(space)
-                .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
-            hull.AngularVelocity.Y.Should().BeApproximately((float)Rate, 0.01f);
-            MathF.Abs(Quaternion.Dot(hull.Rotation, world.PoseInOwnFrame(owner).Rotation.ToQuaternion())).Should().BeGreaterThan(1 - 1e-5f);
+            Hull().AngularVelocity.Y.Should().BeApproximately((float)Rate, 0.01f);
+            MathF.Abs(Quaternion.Dot(Hull().Rotation, world.PoseInOwnFrame(owner).Rotation.ToQuaternion())).Should().BeGreaterThan(1 - 1e-5f);
+            MathF.Abs(Quaternion.Dot(Hull().Rotation, ahead.RotationAt(world.Time).ToQuaternion())).Should().BeGreaterThan(1 - 1e-5f, "the hull turns on the new spin");
             world.Errors.Should().BeEmpty();
         }
     }

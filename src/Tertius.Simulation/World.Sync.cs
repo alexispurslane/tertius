@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Numerics;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation;
 
@@ -7,6 +9,11 @@ public sealed partial class World
     // Entities whose back row physics wrote this sync, in the order of the writes. An entity that physics wrote twice
     // is here twice; its second entry finds its membership already moved.
     private readonly List<Entity> physicsTouched = new();
+
+    // The step record of each frame whose hull physics moved in the step, which the check did not skip, in the order of the
+    // output. Step 2 fills it from the output and FollowOwners puts each frame on its record (see "One motion record per
+    // frame" in docs/plans/rails-components.md). It is empty without a physics backend and after a step that failed.
+    private readonly Dictionary<FrameHandle, MotionSample> stepRecords = new();
 
     // Per entity: true when physics stood the character on walkable ground under gravity in its last step. The sync
     // point writes it from each step's character states, and gameplay reads it in the next tick. Nothing writes it
@@ -53,13 +60,21 @@ public sealed partial class World
         }
 
         // 2. The falling numeric frames move over the step that physics made, with the acceleration that physics used.
-        //    Then a check of the whole report and the hand-offs' reparents, which decides the skipped updates, then body
-        //    states and hand-offs, whose rows take the new places of their numeric homes, then the physics frames' states
-        //    and their owners' rows: a state is relative to the parent after the hand-offs, and must land before step 5
-        //    can destroy that parent or move the hull. Contacts last.
+        //    Then a check of the whole report and the hand-offs' reparents, which decides the skipped updates, then each
+        //    orbit frame takes its anchor's sample, then body states and hand-offs, whose rows take the new places of their
+        //    numeric homes, exactly. Then every frame takes its step record and every frame owner mirrors its frame (see
+        //    FollowOwners): a record from physics is relative to the parent after the hand-offs, and every record must land
+        //    before step 5 can destroy that parent or move the frame, so that a write in the tick in which a frame's parent
+        //    dies converts with the frame. The samples that the step applied are still in the applied buffer, which step 4
+        //    moves on. Contacts last, so that a point converted between frames uses the frame poses after the step.
         Frames.AdvanceNumericFrames(DeltaTime);
+        stepRecords.Clear();
+        physicsTouched.Clear();
         if (physics != null)
             ApplyPhysicsOutput();
+        FollowOwners(stepFailed: physicsError != null);
+        if (physics != null)
+            RouteStepContacts();
 
         // 3. Physics owns the transform of every entity with a body. The entity table refuses such writes, and checks
         //    that none got through among its invariants.
@@ -67,49 +82,44 @@ public sealed partial class World
             entities.AssertInvariants();
 
         // 4. The step applied the intents of the previous tick, so their collision groups and masks become the bodies' rows,
-        //    which step 8 publishes. Then this tick's intents become the input of the next physics step.
+        //    which step 8 publishes. Then this tick's intents become the input of the next physics step. The motion samples
+        //    move on with them, also without a physics backend, because a frame without a body follows its samples too:
+        //    the samples of the step that ended become the ones the frames follow, and this tick's samples the ones that the
+        //    next step applies.
         if (physics != null)
             entities.ApplyCollisionIntents();
         entities.SwapIntents(keep: physics != null);
+        Frames.Samples.MoveOn();
 
         // 5. Subscriptions first, while every entity that asked is still live, then the destroy batch.
         ApplySubscriptionChanges();
         DestroyRequestedEntities();
 
         // 6. New entities, after the destroy batch, so that a spawn into a frame that just died is dropped.
-        MakeSpawnsLive(endTime);
+        MakeSpawnsLive();
 
-        // 6b. Kepler and Spin frames advance to the end of the tick, and static frames take their owners' gameplay writes,
-        //     with their owners' rows: every frame that physics does not drive reaches its place at the end of the tick.
-        //     The bodies' rows and the frames that physics drives hold the end of the step since step 2, so the numeric
-        //     update of 6c tests them against bubbles of the same moment: a station that orbits at 7.5 km/s would else be
-        //     126 m behind its bodies. A Kepler frame in its orbit frame puts that frame on the orbit, which step 2 moved
-        //     there to its rounding, so the frame's place in its semantic parent is the orbit's to the last bit at every
-        //     sync point, and the update of 6c makes a new orbit frame from the orbit's place at the end of the tick, the
-        //     moment at which it clusters every body. After the destroy batch and the spawns, because this step mirrors the
-        //     owners of the frames that they move and create, and because a frame whose orbit frame lost it to a destroy
-        //     places itself in its new tree parent. Nothing between this step and step 7 reads these frames at the start of
-        //     the tick: the update and the flush of 6c read them at its end, as physics does in its next step.
-        AdvanceDrivenFrames(endTime);
-
-        // 6c. Bodies move into numeric frames and out of them, after physics output, destroys, spawns and the frames of
-        //     6b, so that every body that is live at the end of the sync point is clustered where it is now. The structural
+        // 6c. Bodies move into numeric frames and out of them, after physics output, destroys and spawns, so that every
+        //     body that is live at the end of the sync point is clustered where it is now. Every frame took its record in
+        //     step 2, so the bodies' rows and the frames hold the end of the step, and the update tests them against bubbles
+        //     of the same moment: a station that orbits at 7.5 km/s is not 126 m behind its bodies. The structural
         //     changes of this sync reach physics with the update's first batch, so that a spawn that joins a numeric frame
         //     is created in it, with its velocity converted in doubles.
         if (physics != null)
             UpdateNumericFrames(DeltaTime);
         FlushPhysicsChanges();
 
-        // 7. The owner of every frame that physics drives mirrors its frame, after the numeric update, which can move such
-        //    a frame among numeric frames. Then every attached entity follows.
-        MirrorPhysicsFrameOwners();
+        // 7. The owner of every frame mirrors its frame, after the numeric update, which can move a frame among numeric
+        //    frames. Then every attached entity follows.
+        MirrorFrameOwners();
         DeriveAttachments();
 
         // 7b. The intents that the next step applies convert into the frames of the entities that this sync point moved:
         //     after the hand-offs of step 2 and the rehomes of step 5, which move entities, and after step 7, so that every
-        //     entity is in the frame of the next tick; after 6b, so that every frame stands where the next step starts.
-        //     The destroy batch of step 5 converted the intents that name its dying frames, which are gone by now.
+        //     entity is in the frame of the next tick, and every frame stands where the next step starts.
+        //     The destroy batch of step 5 converted the intents that name its dying frames, which are gone by now. The
+        //     motion samples need no conversion here (see AssertSamplesNeedNoConversion).
         ConvertMovedIntents();
+        AssertSamplesNeedNoConversion();
 
         // 8. The back tables become the front tables.
         SwapSnapshot();
@@ -148,14 +158,13 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Step 2: the check of the report and the frame owners' reparents of the hand-offs, then body states and hand-offs
-    /// into the back table, then whether physics stood each character, then the new states of the physics-driven frames
-    /// and their owners' rows, then contacts as Collision events. The contacts come after the frame states, so that a
-    /// point converted between frames uses the frame poses after the step, like the bodies' own poses.
+    /// Step 2: the check of the report and the frame owners' reparents of the hand-offs, then the frames' step records and
+    /// the orbit frames that their anchors' samples place, then body states and hand-offs into the back table, then whether
+    /// physics stood each character. The frames take their records after this (see <see cref="FollowOwners"/>), and the
+    /// contacts come last (see <see cref="RouteStepContacts"/>).
     /// </summary>
     private void ApplyPhysicsOutput()
     {
-        physicsTouched.Clear();
         // The states that only a bug produces, which the backend found and skipped during the step in a Release build.
         foreach (string error in stepOutput.Errors)
             Report($"tick {TickNumber}: {error}", isError: true);
@@ -163,11 +172,26 @@ public sealed partial class World
         SkipBrokenPhysicsUpdates();
         MoveHandedOffFrames();
 
-        // The check put every entity that is not live, or has no body, among the skipped updates.
+        // The reparents already put each frame under the parent that its record is relative to. A frame that is gone has
+        // its owner's update skipped.
+        foreach (FrameStepRecord record in stepOutput.Frames)
+            if (!physicsOutputCheck.IsSkipped(record.Frame.Entity))
+                stepRecords[record.Frame] = record.Motion;
+
+        // Each orbit frame takes its anchor's sample before the rows of its members take the end of the step, so that
+        // they are relative to its exact place. Physics aims a hull at the origin of its orbit frame, so the hull's record
+        // is there, unless the hull teleported in the step: then the orbit frame jumps after the rows (see FollowOwners).
+        foreach ((FrameHandle frame, MotionSample record) in stepRecords)
+            if (record.Pose.Position == Double3.Zero && Frames.InOrbitFrame(frame))
+                Frames.PlaceFollowingFrame(frame);
+
+        // The check put every entity that is not live, or has no body, among the skipped updates. The body of the owner of
+        // a frame is its hull, whose frame's record moves the frame, and the owner's row mirrors the frame (see
+        // FollowOwners), so its body state writes no row.
         foreach (BodyState state in stepOutput.Bodies)
         {
             Entity entity = state.Entity;
-            if (physicsOutputCheck.IsSkipped(entity))
+            if (physicsOutputCheck.IsSkipped(entity) || !entities.OwnedFrame(entity).IsNull)
                 continue;
             entities.SetBackTransform(entity, PhysicsRow(state.Frame, state.Pose, state.LinearVelocity, state.AngularVelocity));
             physicsTouched.Add(entity);
@@ -188,24 +212,106 @@ public sealed partial class World
             if (!physicsOutputCheck.IsCharacterStateSkipped(i))
                 characterStanding[stepOutput.Characters[i].Entity] = stepOutput.Characters[i].Standing;
         }
+    }
 
-        // The reparents already put each frame under the parent that its state is relative to. The owner's row mirrors
-        // the new state at once, so that a hull that the destroy batch moves to another physics system starts from the
-        // state after the step. A frame that is gone has its owner's update skipped.
-        foreach (FrameState state in stepOutput.Frames)
+    /// <summary>
+    /// Step 2, after the physics output: every frame takes its step record, in the tree's dense order (see "One motion
+    /// record per frame" in docs/plans/rails-components.md). The owner's kind decides where the record comes from:
+    /// <list type="bullet">
+    /// <item>A hull, the body of the owner of a frame that has a parent: the record that physics released for it, relative to
+    /// the frame's tree parent. Physics releases one when the hull is dynamic, kinematic with a sample, or static or
+    /// kinematic without a sample and teleported in the step.</item>
+    /// <item>No hull: the sample of the step in the applied buffer, relative to the frame's semantic parent, and then a write
+    /// of the owner's transform in the tick, which the sync point turns into a record with no velocity that keeps the frame's
+    /// proper acceleration. The write comes last, so it wins for one tick, and the next sample puts the frame back on its
+    /// rails.</item>
+    /// </list>
+    /// A frame without a record holds still in its tree parent, unless its owner's update was skipped: the output check
+    /// skipped it in a Release build (see <see cref="SkipBrokenPhysicsUpdates"/>), or the owner has a hull and the step
+    /// failed (<paramref name="stepFailed"/>), so that physics released no record and may have moved the hull or not. Then
+    /// the frame keeps its state, and the next step that works moves it on from Jolt's state. Each record goes into the frame's slot of the applied buffer,
+    /// relative to the frame's semantic parent, unless the slot holds a sample already, so that after step 4 the followed
+    /// buffer holds the record of every frame that moved in the step. Then an orbit frame whose anchor's hull teleported jumps
+    /// with it (see <see cref="FrameTree.JumpFollowingFrame"/>), and the rows of the bodies in it and the bodies in physics
+    /// shift at once. Last, every frame owner mirrors its frame, whose state changed; a body state of a hull wrote no row.
+    /// </summary>
+    private void FollowOwners(bool stepFailed)
+    {
+        int n = Frames.Count;
+        for (int i = 0; i < n; i++)
         {
-            if (physicsOutputCheck.IsSkipped(state.Frame.Entity))
+            FrameHandle frame = Frames.AtDense(i);
+            if (Frames.IsNumeric(frame))
                 continue;
-            Frames.SetTreeLocalPose(state.Frame, state.LocalPose);
-            Frames.TreeLinearVelocity(state.Frame) = state.LinearVelocity;
-            Frames.AngularVelocity(state.Frame) = state.AngularVelocity;
-            Frames.ProperAcceleration(state.Frame) = state.ProperAcceleration;
-            Entity owner = state.Frame.Entity;
-            entities.SetBackTransform(owner, FrameOwnerRow(state.Frame));
-            physicsTouched.Add(owner);
+            bool hull = !Frames.Parent(frame).IsNull && entities.Body(frame.Entity) != null;
+            if (stepRecords.TryGetValue(frame, out MotionSample record))
+            {
+                FrameHandle parent = Frames.TreeParent(frame);
+                Frames.Follow(frame, parent, record);
+                KeepRecord(frame, parent, record);
+            }
+            else if (!hull && Frames.Samples.Applied.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
+                Frames.Follow(frame, relativeTo, sample);
+            // A skipped update changes nothing, so the frame keeps the velocities that it had before the step.
+            else if (!(hull && stepFailed) && !physicsOutputCheck.IsSkipped(frame.Entity))
+                Frames.HoldStill(frame);
+
+            // Gameplay can write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the
+            // world normalizes it here, and the owner's row follows the frame below (see MirrorFrameOwner). The write moves
+            // the frame and changes nothing else, so the frame keeps its proper acceleration, as a frame that holds still.
+            Entity owner = frame.Entity;
+            if (!hull && entities.GameplayWroteTransform(owner))
+            {
+                ref readonly TransformRow row = ref entities.BackRow(owner);
+                var write = new MotionSample(row.Pose.WithUnitRotation(), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
+                    Frames.ProperAcceleration(frame));
+                Frames.Follow(frame, row.Frame, write);
+                KeepRecord(frame, row.Frame, write);
+            }
         }
 
-        // Each entity that physics moved to another frame changes topic and hears about it once.
+        // A hull that teleported in the step left the origin of its orbit frame, toward its sample's place.
+        bool jumped = false;
+        foreach ((FrameHandle frame, MotionSample record) in stepRecords)
+        {
+            if (record.Pose.Position == Double3.Zero || !Frames.InOrbitFrame(frame))
+                continue;
+            Frames.JumpFollowingFrame(frame, physicsChanges);
+            jumped = true;
+        }
+        if (jumped)
+        {
+            // The rows of the bodies that stay lose the orbit frame's move, as for a drain, and physics shifts their bodies
+            // and the hull in one batch.
+            foreach (FrameShift shift in physicsChanges.FramesShifted)
+                foreach (Entity entity in entities.LiveEntities)
+                    if (entities.Body(entity) != null && attachments.ParentOf(entity).IsNull && entities.BackRow(entity).PhysicsHome == shift.Frame)
+                        ShiftRow(entity, shift);
+            FlushPhysicsChanges();
+        }
+
+        MirrorFrameOwners();
+    }
+
+    /// <summary>
+    /// Puts the step record of <paramref name="frame"/>, relative to <paramref name="relativeTo"/>, into its slot of the applied
+    /// buffer, converted into the frame's semantic parent, unless the slot holds a sample already.
+    /// </summary>
+    private void KeepRecord(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
+    {
+        if (!Frames.Samples.Record(frame, relativeTo, record))
+            return;
+        FrameHandle semantic = Frames.Parent(frame);
+        if (relativeTo != semantic)
+            Frames.Samples.ConvertInto(frame, semantic);
+    }
+
+    /// <summary>
+    /// Step 2, after every frame took its record: each entity that physics moved to another frame changes topic and hears
+    /// about it once, then the contacts become Collision events.
+    /// </summary>
+    private void RouteStepContacts()
+    {
         foreach (Entity entity in physicsTouched)
             MoveMembership(entity, entities.BackRow(entity).Frame, sendFrameChanged: true);
 
@@ -347,55 +453,19 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Step 6b: Kepler and Spin frames from time, static frames from their owners' gameplay writes, then each one's owner's
-    /// row from its frame. These frames hang in semantic frames, or a Kepler frame in its orbit frame, which it places on
-    /// the orbit with itself (see <see cref="FrameTree.PlaceOnOrbit"/>); the loop skips the orbit frame, which has no owner.
-    /// The numeric update moves such a frame only into or out of its orbit frame, which keeps its place, and it writes the
-    /// owner's row when it does, so the owners' rows hold after it.
+    /// Steps 2 and 7: the row of the owner of every frame mirrors its frame. In step 2 every frame took its record (see
+    /// <see cref="FollowOwners"/>). In step 7 the destroy batch and the numeric update wrote the rows of the frames that they
+    /// move or shift, but a numeric frame above the frame that moves under a nesting frame, or a nesting frame that jumps,
+    /// changes no row, and it changes the sum that gives the frame's place in its semantic frame, which can then round to
+    /// another double.
     /// </summary>
-    private void AdvanceDrivenFrames(double endTime)
+    private void MirrorFrameOwners()
     {
         int n = Frames.Count;
         for (int i = 0; i < n; i++)
         {
             FrameHandle frame = Frames.AtDense(i);
-            // A numeric frame moved in step 2, and it has no owner to follow it. A physics frame got its state in step 2.
-            if (Frames.IsNumeric(frame) || Frames.Driver(frame) == MotionDriver.Physics)
-                continue;
-            switch (Frames.Driver(frame))
-            {
-                case MotionDriver.Kepler:
-                    ApplyKepler(frame, endTime);
-                    break;
-                case MotionDriver.Spin:
-                    ApplySpin(frame, endTime);
-                    break;
-                case MotionDriver.Static:
-                    // A static frame whose owner has no body moves when gameplay writes the owner's transform. Gameplay can
-                    // write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the world
-                    // normalizes it here, and the owner's row follows the frame (see MirrorFrameOwner).
-                    Entity owner = frame.Entity;
-                    if (entities.GameplayWroteTransform(owner))
-                        Frames.SetLocalPose(frame, entities.BackRow(owner).Pose.WithUnitRotation());
-                    break;
-            }
-            MirrorFrameOwner(frame);
-        }
-    }
-
-    /// <summary>
-    /// Step 7: the row of the owner of every frame that physics drives mirrors its frame. Step 2 wrote it from the frame's
-    /// state, and the destroy batch and the numeric update write the rows of the frames that they move or shift. A numeric
-    /// frame above the frame that moves under a nesting frame, or a nesting frame that jumps, changes no row, but it changes
-    /// the sum that gives the frame's place in its semantic frame, which can then round to another double.
-    /// </summary>
-    private void MirrorPhysicsFrameOwners()
-    {
-        int n = Frames.Count;
-        for (int i = 0; i < n; i++)
-        {
-            FrameHandle frame = Frames.AtDense(i);
-            if (!Frames.IsNumeric(frame) && Frames.Driver(frame) == MotionDriver.Physics)
+            if (!Frames.IsNumeric(frame))
                 MirrorFrameOwner(frame);
         }
     }
@@ -416,6 +486,35 @@ public sealed partial class World
             ref readonly TransformRow row = ref entities.BackRow(entity);
             if (intent.Frame != row.Frame)
                 ConvertIntent(ref intent, row.Frame, row.Pose.Position);
+        }
+    }
+
+    /// <summary>
+    /// Step 7b for the rows of the sample table, which need no conversion: each applied and followed row is relative to the
+    /// frame that its frame's owner is in, the frame's semantic parent. A sample is relative to the frame that its owner was
+    /// in when it wrote it, and a record to the frame's semantic parent when the frame took it in step 2, after the hand-offs
+    /// (see <see cref="KeepRecord"/>). Step 5 converted the rows that are relative to a dying frame (see
+    /// <see cref="ConvertSamplesOfMovedFrames"/>). Every other move of an entity at a sync point is a hand-off of a dynamic
+    /// body in step 2, before the records, and an owner with a dynamic hull writes no sample, because
+    /// <see cref="MoveOnRails"/> refuses it. A hull that stops being kinematic between two ticks drops its samples (see
+    /// <see cref="SetFrameDriver"/>), so no step after that applies one, and no sample of it is left when its hull hands off.
+    /// The numeric update of step 6c moves hulls only between the systems of one semantic frame. So a row that needs a
+    /// conversion here is a bug.
+    /// </summary>
+    [Conditional("DEBUG")]
+    private void AssertSamplesNeedNoConversion()
+    {
+        int n = Frames.Count;
+        for (int i = 0; i < n; i++)
+        {
+            FrameHandle frame = Frames.AtDense(i);
+            if (Frames.IsNumeric(frame))
+                continue;
+            FrameHandle ownerFrame = entities.BackRow(frame.Entity).Frame;
+            if (Frames.Samples.Applied.TryGet(frame, out _, out FrameHandle applied))
+                Contract.Assert(applied == ownerFrame, $"The applied sample of {frame} is relative to {applied}, but its owner is in {ownerFrame}.");
+            if (Frames.Samples.Followed.TryGet(frame, out _, out FrameHandle followed))
+                Contract.Assert(followed == ownerFrame, $"The followed sample of {frame} is relative to {followed}, but its owner is in {ownerFrame}.");
         }
     }
 

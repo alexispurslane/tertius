@@ -38,7 +38,7 @@ public class DriverChangeTests
             .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
 
     /// <summary>Every frame state that Jolt sent for <paramref name="frame"/>, from the output at index <paramref name="from"/> on.</summary>
-    private static List<FrameState> FrameStatesSince(FaultInjectingBackend faults, FrameHandle frame, int from) =>
+    private static List<FrameStepRecord> FrameStatesSince(FaultInjectingBackend faults, FrameHandle frame, int from) =>
         faults.Outputs.Skip(from).SelectMany(output => output.Frames).Where(state => state.Frame == frame).ToList();
 
     /// <summary>A ship in space, with the physics driver, that flies along +X at 10 m/s with no damping, after five ticks.</summary>
@@ -72,7 +72,7 @@ public class DriverChangeTests
             Pose = new DPose(position, DQuaternion.Identity),
             LinearVelocity = driver == MotionDriver.Static ? Double3.Zero : velocity,
             Body = BoxBody(2, 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: ShipOrbit),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
         });
         return (planet, owner, world.GetOwnedFrame(owner));
     }
@@ -152,37 +152,73 @@ public class DriverChangeTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The sample that the step of tick <paramref name="tick"/> applied to <paramref name="frame"/>, or null when that step
+    /// applied none. The component of the frame's owner wrote it during the tick before.
+    /// </summary>
+    private static SampleRecord? AppliedSample(FaultInjectingBackend faults, FrameHandle frame, long tick) =>
+        faults.Samples.Where(record => record.Frame == frame && record.Tick == tick).Cast<SampleRecord?>().SingleOrDefault();
+
+    /// <summary>
+    /// A game changes the motion of a frame on rails by changing the driver, which chooses the motion of the hull, and by a
+    /// swap of the rails component (docs/plans/rails-components.md, "Changes of motion"). The engines come on when the game
+    /// removes the <see cref="KeplerMotion"/> and gives the frame the physics driver: the hull coasts on with the velocity
+    /// of its last sample. The ship goes back into orbit when the game gives the frame the Kepler driver and a new
+    /// <see cref="KeplerMotion"/>: the hull holds still for one step, because the new component has written no sample yet,
+    /// and then every step has a sample, which physics releases as the step record of the frame.
+    /// </summary>
     [Fact]
     public void AKeplerFrameThatGetsThePhysicsDriverCoastsOnItsOrbitAndFollowsTheOrbitAgainWithTheKeplerDriver()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
-        var orbit = KeplerOrbit.Circular(7_000_000, phase: 1.0);
+        // The orbit turns the frame at 0.05 rad/s, so that the rotation and the angular velocity of a sample differ from zero.
+        var orbit = KeplerOrbit.Circular(7_000_000, phase: 1.0, spinRate: 0.05);
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
             Body = BoxBody(10, 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler, Orbit: orbit),
-        });
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler),
+        }.OnKeplerOrbit(world, orbit));
         FrameHandle station = world.GetOwnedFrame(owner);
         Tick(world, 10);
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Kinematic);
         int reported = faults.Outputs.Count;
 
+        world.RemoveComponent(owner, world.GetComponent<KeplerMotion>(owner)!);
         world.SetFrameDriver(station, MotionDriver.Physics);
         Tick(world, 60);
 
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Dynamic);
         FrameStatesSince(faults, station, reported).Should().HaveCount(60);
+        faults.Samples.Where(record => record.Frame == station && record.Tick >= faults.Steps[^60].Tick).Should().BeEmpty("physics moves the frame now");
         // In free fall the hull stays on the orbit that the Kepler driver gave it, up to the float rounding of its velocity.
         (world.Frames.LocalPose(station).Position - orbit.StateAt(world.Time, EarthMu).Position).Length.Should().BeLessThan(0.5);
 
-        reported = faults.Outputs.Count;
         world.SetFrameDriver(station, MotionDriver.Kepler);
-        Tick(world, 10);
+        world.AddComponent(owner, new KeplerMotion { Orbit = orbit });
+        for (int i = 0; i < 10; i++)
+        {
+            reported = faults.Outputs.Count;
+            world.Tick();
+
+            List<FrameStepRecord> records = FrameStatesSince(faults, station, reported);
+            SampleRecord? sample = AppliedSample(faults, station, faults.Steps[^1].Tick);
+            (sample is null).Should().Be(i == 0, "only the first step after the swap has no sample: the new component writes its first one in the first tick, and the next step applies it");
+            if (sample is not { } applied)
+            {
+                records.Should().BeEmpty("a step without a sample leaves the hull and its frame where they are");
+                continue;
+            }
+            // The step releases the sample that it applied, and the frame stands on it at the sync point.
+            MotionSample record = records.Should().ContainSingle().Subject.Motion;
+            record.Pose.Rotation.Should().Be(applied.Sample.Pose.Rotation);
+            record.AngularVelocity.Should().Be(applied.Sample.AngularVelocity);
+            (world.Frames.LocalPose(station).Position - applied.Sample.Pose.Position).Length.Should().BeLessThan(1e-6, "the frame stands on its sample after tick {0}", i);
+            (world.Frames.LinearVelocity(station) - applied.Sample.Velocity).Length.Should().BeLessThan(1e-6);
+        }
 
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Kinematic);
-        FrameStatesSince(faults, station, reported).Should().BeEmpty("the Kepler driver moves the frame again");
         (world.Frames.LocalPose(station).Position - orbit.StateAt(world.Time, EarthMu).Position).Length.Should().BeLessThan(1e-6);
         // At 7.5 km/s the hull rests at the origin of an orbit frame of its own (ter-dhkf rule 3), which follows the orbit.
         BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
@@ -331,7 +367,7 @@ public class DriverChangeTests
             Frame = space,
             Pose = At(50),
             Body = desc,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static, Orbit: ShipOrbit),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
         });
         FrameHandle dock = world.GetOwnedFrame(owner);
         world.Tick();

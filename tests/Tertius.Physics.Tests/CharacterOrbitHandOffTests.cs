@@ -40,7 +40,7 @@ public class CharacterOrbitHandOffTests
         public BodyState BeforeExit;
         public HandOff Exit;
         /// <summary>The ship's state after the step of the hand-off out, relative to <c>earth</c>.</summary>
-        public FrameState ShipAtExit;
+        public FrameStepRecord ShipAtExit;
 
         /// <summary>The person's state in <c>earth</c> after each step there, the step of the hand-off out first.</summary>
         public List<BodyState> InEarth = new();
@@ -77,8 +77,8 @@ public class CharacterOrbitHandOffTests
         run.Earth = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = sun,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu), Orbit: KeplerOrbit.Circular(1.496e11)),
-        }));
+            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu)),
+        }.OnKeplerOrbit(world, KeplerOrbit.Circular(1.496e11))));
         var hull = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1));
         var cabin = new BoundingBox(new Vector3(-9.5f, -3.5f, -29.5f), new Vector3(9.5f, 3.5f, 29.5f));
         Entity shipOwner = world.Spawn(new SpawnDesc
@@ -102,7 +102,7 @@ public class CharacterOrbitHandOffTests
         Entity person = run.Person;
 
         HandOff? handOff = null;
-        FrameState shipState = default;
+        FrameStepRecord shipState = default;
         BodyState StateNow() => new(person, world.GetFrame(person), world.PoseInOwnFrame(person), world.VelocityInOwnFrame(person), world.AngularVelocityInOwnFrame(person));
         void Step()
         {
@@ -168,9 +168,9 @@ public class CharacterOrbitHandOffTests
         // In the ship the person coasts in a straight line, so at the end of the step it is one step further along.
         Double3 inShip = run.BeforeExit.Pose.Position + (Double3)run.BeforeExit.LinearVelocity * Dt;
         inShip.Length.Should().BeInRange(102, 104, "the person leaves the bubble of 100 m once it is fully outside it, with a margin");
-        DPose ship = run.ShipAtExit.LocalPose;
+        DPose ship = run.ShipAtExit.Motion.Pose;
         (run.Exit.Pose.Position - ship.TransformPoint(inShip)).Length.Should().BeLessThan(1e-2);
-        Double3 velocity = run.ShipAtExit.LinearVelocity + ship.TransformDirection(run.BeforeExit.LinearVelocity);
+        Double3 velocity = run.ShipAtExit.Motion.ChordVelocity + ship.TransformDirection(run.BeforeExit.LinearVelocity);
         ((Double3)run.Exit.LinearVelocity - velocity).Length.Should().BeLessThan(1e-2);
     }
 

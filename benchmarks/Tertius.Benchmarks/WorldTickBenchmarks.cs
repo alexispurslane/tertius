@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using BenchmarkDotNet.Attributes;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 
 namespace Tertius.Benchmarks;
@@ -70,4 +72,63 @@ public class WorldTickBenchmarks
 
     [GlobalCleanup]
     public void Cleanup() => world.Dispose();
+}
+
+/// <summary>
+/// The cost of one tick of 1,000 frames without bodies on Kepler orbits around one root, with no physics backend and no
+/// other gameplay. The <see cref="KeplerMotion"/> of each frame solves its orbit in its tick, in the parallel chunks, and
+/// the sync point only puts each frame on the sample that its component wrote a tick before. The cleanup also prints the
+/// mean time of the sync point per tick, in microseconds, so that a run tells the two parts apart. The results before and
+/// after the rails components are in a note on the ticket ter-6r8c.
+/// </summary>
+[MemoryDiagnoser]
+public class KeplerFrameTickBenchmarks
+{
+    private const int FrameCount = 1_000;
+    private const double EarthMu = 3.986004418e14;
+
+    private World world = null!;
+    private long syncTimestampsAtStart;
+    private long syncCountAtStart;
+
+    [Params(1, -1)]
+    public int MaxDegreeOfParallelism;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = FrameCount + 1024 });
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
+        for (int i = 0; i < FrameCount; i++)
+        {
+            double radius = 7e6 + i * 35e3;
+            double phase = i * 2.399963229728653;
+            var orbit = KeplerOrbit.Circular(radius, phase: phase);
+            (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
+            world.Spawn(new SpawnDesc
+            {
+                Frame = root,
+                Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
+                LinearVelocity = velocity,
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler),
+                Components = [new KeplerMotion { Orbit = orbit }],
+            });
+        }
+        for (int i = 0; i < 20; i++)
+            world.Tick();
+        syncTimestampsAtStart = world.SyncTimestampTotal;
+        syncCountAtStart = world.SyncCount;
+    }
+
+    [Benchmark]
+    public void Tick() => world.Tick();
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        long syncs = world.SyncCount - syncCountAtStart;
+        double meanMicroseconds = syncs == 0 ? 0 : (world.SyncTimestampTotal - syncTimestampsAtStart) * 1e6 / Stopwatch.Frequency / syncs;
+        Console.WriteLine($"KeplerFrameSync MaxDegreeOfParallelism={MaxDegreeOfParallelism}: mean sync point {meanMicroseconds:F2} us per tick over {syncs} ticks");
+        world.Dispose();
+    }
 }

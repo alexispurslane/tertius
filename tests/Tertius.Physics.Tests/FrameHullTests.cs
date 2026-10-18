@@ -34,6 +34,14 @@ public class FrameHullTests
     /// docs/plans/numeric-frames.md, "Anchors", rule 3), so its body state is at the frame's pose in that orbit frame, the
     /// orbit frame's origin with the frame's rotation, and its kinematic velocity there, added to the orbit frame's chord,
     /// is the orbital velocity. Before rule 3, the hull lived in the planet's own system at the orbit's place.
+    /// <para>
+    /// A new frame on rails holds still at the pose of its spawn description for its first step, because its component has
+    /// written no sample yet. The component's first run teleports the hull onto its rails, and the hull's first sample acts
+    /// one step later (docs/plans/rails-components.md, "Other rules" in "The rails components"). So the test checks the hull
+    /// from the sync point of the third tick on. In the step of the second tick, physics aims the hull at the place of its
+    /// first sample, and the orbit frame jumps to the hull at the sync point, so the body state of that step is a few
+    /// millimetres from the tree's origin.
+    /// </para>
     /// </summary>
     [Fact]
     public void TheKinematicHullOfAKeplerFrameFollowsTheTreePoseInTheOrbitFrameWhereItRests()
@@ -45,9 +53,11 @@ public class FrameHullTests
         {
             Frame = planet,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(10))),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler, Orbit: orbit),
-        });
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler),
+        }.OnKeplerOrbit(world, orbit));
         FrameHandle station = world.GetOwnedFrame(owner);
+        const int ticksBeforeTheHullIsOnItsRails = 2;
+        Tick(world, ticksBeforeTheHullIsOnItsRails);
 
         for (int i = 0; i < 60; i++)
         {
@@ -59,7 +69,7 @@ public class FrameHullTests
             world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting);
             hull.Frame.Should().Be(orbitFrame, "the hull rests in the orbit frame");
             tree.Position.Should().Be(Double3.Zero);
-            (hull.Pose.Position - tree.Position).Length.Should().BeLessThan(1e-3, "the hull is at the tree pose after tick {0}", i);
+            (hull.Pose.Position - tree.Position).Length.Should().BeLessThan(1e-3, "the hull is at the tree pose after tick {0}", i + ticksBeforeTheHullIsOnItsRails);
             Math.Abs(Dot(hull.Pose.Rotation, tree.Rotation)).Should().BeGreaterThan(1 - 1e-6);
             // The kinematic velocity in the orbit frame and the orbit frame's own are chords over one step, close to the
             // orbital velocity together.

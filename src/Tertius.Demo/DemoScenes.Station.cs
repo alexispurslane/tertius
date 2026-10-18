@@ -8,7 +8,7 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The scene <c>station</c>: a station whose Kepler driver carries it round Earth on the orbit scene's circle, 400 km
+    /// The scene <c>station</c>: a station whose KeplerMotion carries it round Earth on the orbit scene's circle, 400 km
     /// up, at 7.67 km/s, with the orbit scene's sun and Earth (see <see cref="Orbit"/>). It shows the two cases of
     /// ter-dhkf (docs/plans/numeric-frames.md, "Anchors"). A fast hull on rails lives in an orbit frame of its own, a
     /// numeric frame that follows its orbit, so cargo that drifts out of the station's bubble joins that frame, where
@@ -196,17 +196,24 @@ public static partial class DemoScenes
             var scene = new SceneInstance();
             FrameHandle earth = SunAndEarth(world, resources, scene);
 
+            // The station starts on its orbit at the world's time, and its KeplerMotion moves it on from the second sync point.
+            KeplerOrbit orbit = OrbitAt(world.Time);
+            (Double3 stationPlace, Double3 stationVelocity) = orbit.StateAt(world.Time, EarthMu);
             Entity station = world.Spawn(new SpawnDesc
             {
                 Frame = earth,
-                // The hull outside the frame: the solid module and the radiator. The Kepler driver moves it, so physics
-                // keeps it kinematic.
+                Pose = new DPose(stationPlace, orbit.RotationAt(world.Time, EarthMu)),
+                LinearVelocity = stationVelocity,
+                AngularVelocity = orbit.AngularVelocityAt(world.Time, EarthMu).ToVector3(),
+                Components = [new KeplerMotion { Orbit = orbit }],
+                // The hull outside the frame: the solid module and the radiator. It is kinematic, and its KeplerMotion
+                // moves it.
                 Body = new BodyDesc(new CompoundShapeDesc([
                         new CompoundChild(new BoxShapeDesc(Hull), new Pose(Vector3.Zero, Quaternion.Identity)),
                         new CompoundChild(new BoxShapeDesc(Radiator.Extents), new Pose(Radiator.Center, Quaternion.Identity)),
-                    ]), Mass: 2e5f,
+                    ]), BodyMotion.Kinematic, Mass: 2e5f,
                     InteriorShape: new CompoundShapeDesc([.. Interior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
-                AsFrame = new FrameSpec(new FrameBounds(Bubble), MotionDriver.Kepler, Orbit: OrbitAt(world.Time)),
+                AsFrame = new FrameSpec(new FrameBounds(Bubble), MotionDriver.Kepler),
                 Render = Drawn(resources, HullMesh(), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 33),
             });
             scene.Add("station", station);
@@ -260,7 +267,7 @@ public static partial class DemoScenes
                     Frame = frame,
                     Pose = new DPose(start, DQuaternion.Identity),
                     LinearVelocity = velocity,
-                    Body = new BodyDesc(new BoxShapeDesc(new Vector3(PodHalfSize)), Mass: PodMass, LinearDamping: 0, AngularDamping: 0),
+                    Body = new BodyDesc(new BoxShapeDesc(new Vector3(PodHalfSize)), BodyMotion.Dynamic, Mass: PodMass, LinearDamping: 0, AngularDamping: 0),
                     AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Physics),
                     Render = pod,
                 }));

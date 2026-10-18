@@ -396,7 +396,7 @@ public class PhysicsHandOffTests
         {
             output.Bodies.Add(new BodyState(fighterOwner, gone, TestWorld.At(-1), AnyVelocity, AnySpin));
             output.HandOffs.Add(new HandOff(fighterOwner, test.Root, gone, TestWorld.At(-1), AnyVelocity, AnySpin));
-            output.Frames.Add(new FrameState(fighter, TestWorld.At(-1), new Double3(1, 2, 3), AnySpin, Vector3.Zero));
+            output.Frames.Add(StepRecords.Of(fighter, TestWorld.At(-1), new Double3(1, 2, 3), AnySpin, Vector3.Zero));
         };
 
         test.Run(1);
@@ -632,7 +632,7 @@ public class PhysicsHandOffTests
                 output.Bodies.Add(new BodyState(Owner, Cockpit, TestWorld.At(-1), AnyVelocity, AnySpin));
                 output.HandOffs.Add(new HandOff(Owner, Test.Root, Cockpit, TestWorld.At(-1), AnyVelocity, AnySpin));
                 if (report == RefusedReport.BodyAndFrameState)
-                    output.Frames.Add(new FrameState(Fighter, TestWorld.At(-1), new Double3(1, 2, 3), AnySpin, new Vector3(0, -2, 0)));
+                    output.Frames.Add(StepRecords.Of(Fighter, TestWorld.At(-1), new Double3(1, 2, 3), AnySpin, new Vector3(0, -2, 0)));
             };
         }
 
@@ -740,13 +740,14 @@ public class PhysicsHandOffTests
         // The Kepler frame takes its G·M from the point gravity of the root: 1 m³/s², so that it circles at 1 m in 2π s.
         if (driver == MotionDriver.Kepler)
             test.GiveRootPointGravity(1);
-        Entity owner = test.World.Spawn(new SpawnDesc
+        var desc = new SpawnDesc
         {
             Frame = test.Root,
             Pose = TestWorld.At(0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: driver == MotionDriver.Kepler ? KeplerOrbit.Circular(1) : default),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), driver == MotionDriver.Kepler ? BodyMotion.Kinematic : BodyMotion.Static),
-        });
+        };
+        Entity owner = test.World.Spawn(driver == MotionDriver.Kepler ? desc.OnKeplerOrbit(test.World, KeplerOrbit.Circular(1)) : desc);
         frame = test.World.GetOwnedFrame(owner);
         return owner;
     }

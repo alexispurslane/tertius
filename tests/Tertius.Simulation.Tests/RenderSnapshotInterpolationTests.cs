@@ -144,11 +144,14 @@ public class RenderSnapshotInterpolationTests
         FrameHandle moon = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler, Orbit: orbit),
-        }));
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler),
+        }.OnKeplerOrbit(test.World, orbit)));
         Entity satellite = test.Show(moon, TestWorld.At(100, 0, 0));
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
-        test.Run(2);
+        // A new frame on rails holds still for its first step and stands on its rails at the second sync point after its
+        // spawn (docs/plans/rails-components.md, "The rails components"). So the third tick is the first one in which the
+        // frame moves along its orbit from the sync point before to the sync point after.
+        test.Run(3);
 
         RenderInstance instance = test.World.Latest().InstanceOf(satellite);
 
@@ -167,8 +170,8 @@ public class RenderSnapshotInterpolationTests
         FrameHandle moon = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler, Orbit: orbit),
-        }));
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler),
+        }.OnKeplerOrbit(test.World, orbit)));
         FrameHandle dock = test.SpawnStaticFrame(new DPose(new Double3(-3e6, 1e5, 42.5), PoseChecks.QuarterTurnAboutY), radius: 1e6f);
         FrameHandle yard = test.SpawnStaticFrame(
             new DPose(new Double3(4e6, -2e5, 7.25), DQuaternion.FromAxisAngle(new Double3(1, 1, 0), 0.3)), radius: 1e6f);

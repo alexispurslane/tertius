@@ -45,6 +45,7 @@ The user made the decisions marked (User).
 | What replaces `MotionDriver` | Nothing. The enum and `BodyDesc.FrameHullMotion` go. The motion of the owner's body says how a frame follows. (User) | A second value beside the body's motion can disagree with it. |
 | A change of motion | A swap of components plus a change of the body's motion. (User) The row "How a body changes its motion after spawn" below says how the body's motion changes. | Today only a frame driver changes a body's motion after spawn. |
 | The rails math | Public pure functions in the namespace `Tertius.Frames.Rails`, in `src/Tertius.Core/Frames/Rails/`. Every function lives in its struct: an instance method for a function of an orbit or a spin, a static method of `KeplerOrbit` for two-body math that takes no orbit elements (see "The rails library"). (User, 2026-10-18) | Components and engine code call one copy. It is public, because the Demo and the Host cannot see the internals of Core. |
+| How a frame takes its motion | One step record per frame, a `MotionSample`, for every kind of owner. Physics releases it for every hull (a dynamic hull, a kinematic hull from the sample it applied, a static teleport); an owner without a body writes it (a rails sample, or a transform write at the sync point). One loop, `FollowOwners`, applies it, and physics predicts every frame from it. `FrameState` goes. (User, 2026-10-18) | One rule for every frame, with no special path for physics. See "One motion record per frame". |
 | The reverse path | `DriveKinematicHulls` and step 6b (`AdvanceDrivenFrames`) go. (User) | The tree no longer moves a frame on rails, so nothing pushes a hull after it. |
 | Which epic comes first | This epic, then spin gravity (`ter-s9m0`). (User) | Spin gravity reads the exact angular velocity and angular acceleration from the sample. |
 | A fast or far body on rails | It lives in a following frame. The frame takes its place and velocity at each sync point, and its acceleration in each step, from the sample. Every kinematic hull gets one by the speeds and distances of free bodies, not only a Kepler hull. `NumericBody.Fixed` and `Orbits` come from the hull's motion. | An anchor needs a home in which it is at rest (rule 3 of "Anchors" in [Numeric frames](numeric-frames.md)). With motion on components, the tree cannot tell a Kepler hull from another kinematic hull. |
@@ -114,7 +115,7 @@ where
   - When the owner has a body that is not kinematic, the component logs once, writes no sample and returns.
   - On its first run, the component teleports the owner's hull onto its rails, so that the hull jumps to its orbit and does not sweep through the bodies in between. A frame without a body needs no teleport, because its first sample alone puts it on its rails.
 
-`SpinMotion` holds a `FrameSpin` and a property `ProperAcceleration`, a `Vector3` that is zero by default. A component that starts a turntable copies the frame's proper acceleration into it. `SpinMotion` does the same with `Spin.Sample(place, ProperAcceleration, stepEnd, self.DeltaTime)`. It needs no G·M, so it has only the second and the third rule of the `...`. It reads its place from its own frame: `self.Snapshot.Frames.LocalPose(self.OwnedFrame).Position`, where the new `Self.OwnedFrame` is the frame that the entity owns. A spin frame does not move, so the place stays the same from tick to tick. A destroy of the parent moves the frame up, and the component reads the new place.
+`SpinMotion` holds a `FrameSpin` and a property `ProperAcceleration`, a `Vector3` that is zero by default. A component that starts a turntable copies the frame's proper acceleration into it. `SpinMotion` does the same with `Spin.Sample(place, ProperAcceleration, stepEnd, self.DeltaTime)`. It needs no G·M, so it has only the second and the third rule of the `...`. It reads its place from its own frame: the place where the frame stands when the step of its sample starts. That is the place of the sample that the frame takes in the step beside the tick, from the new public read `self.Snapshot.Frames.TryGetAppliedSample(self.OwnedFrame, out MotionSample current)`, or, when the frame has none, `self.Snapshot.Frames.LocalPose(self.OwnedFrame).Position`. The new `Self.OwnedFrame` is the frame that the entity owns. `LocalPose` alone is one step behind: after a swap from a moving motion, the spin would start one step of the old motion back. Both reads are public, so a mod's rails component can do the same. A spin frame does not move, so the place stays the same from tick to tick. A destroy of the parent moves the frame up, and the component reads the new place.
 
 The timing:
 
@@ -166,6 +167,29 @@ Every field except `ProperAcceleration` is relative to the frame's semantic pare
 
 A kinematic hull takes `MoveOnRails` and `Teleport`, and the teleport applies first. `MoveKinematic` and `SetVelocity` throw for a kinematic hull, because only a sample tells its frame how to follow. In a step without a sample, a kinematic hull holds still in its tree parent: physics sets its velocity to zero, as it stops a kinematic body after its last target today.
 
+## One motion record per frame
+
+Every frame takes its motion the same way, whatever its owner is. The user chose this on 2026-10-18: one record type, one loop that applies it, and one prediction rule in physics. An entity with a body writes intents (forces, `MoveOnRails`, `Teleport`), physics moves the body, and for a hull physics releases the frame's record. An entity without a body writes the record itself: a rails sample, or a transform write.
+
+The step record of a frame is a `MotionSample` that describes the frame's motion over the step that just ended. Its owner's kind decides who fills it:
+
+| Owner | Who fills the step record |
+|---|---|
+| A dynamic hull | Physics, right after the Jolt update: the hull's pose, its chord (Jolt's velocity), its instant velocity (the chord plus half a step of its acceleration, `InstantMotionOf`), its acceleration and its angular acceleration measured from the change of Jolt's velocities over the step, Jolt's angular velocity, and the measured proper acceleration |
+| A kinematic hull with a sample | Physics, after it snaps the hull onto the sample's pose: the sample that it applied, with every field exact, so the sample's doubles and not Jolt's float velocities |
+| No body, with a sample | The component's sample in the applied buffer, which already is one |
+| A static hull, or a kinematic hull without a sample, that teleported in the step | Physics: the teleport's pose, with zero velocities and accelerations |
+| No body, and the owner wrote its transform in the tick | The sync point: the written pose, with zero velocities and accelerations. This one acts in the same tick, because no physics step stands between the write and the frame. |
+| Anything else | No record. The frame holds still. |
+
+Rules:
+
+- Physics hands back a record for every hull whose frame moved in the step, in the step output, in place of `FrameState`, which goes. A record from physics is relative to the frame's tree parent, as `FrameState` is today, so a frame with a dynamic hull keeps its exact place in a numeric home. For a kinematic hull at the origin of its following frame, that is the origin with the sample's rotation, and the sample's instant velocity minus its chord. A sample from a component is relative to the frame's semantic parent. These agree for a frame on rails in its semantic parent.
+- In step 2, `FollowOwners` is the one loop: each frame with a step record takes it, in the tree's dense order. The frame takes the pose, the instant velocity (minus the home's velocity under a numeric parent), the angular velocity narrowed to the tree's float field, and the proper acceleration. The tree keeps the instant velocity for every frame. Today it keeps the chord for a frame with a dynamic hull, so that frame's tree velocity changes by half a step of its acceleration. If a behavior, not only a pinned number, depends on the chord, that is the misbehavior that would justify an exception.
+- Each record that a frame takes goes into the frame's slot of the applied buffer in step 2, if a sample is not already there. So after step 4 moves the buffers on, the followed buffer holds the record of every frame that moved in the step, and the numeric update and the following frames read one place.
+- Physics predicts every frame at the end of the step from its step record: the pose from the record's pose, ghosts take the record's chord velocity, hand-offs take its instant velocity, and the angular velocity is the record's. A frame without a record predicts its tree pose with zero velocities. This replaces the three rows of the table "Predictions of a frame at the end of a step".
+- The entity and its frame are one entity with two tables: the frame tree row is the exact table, and the transform row is the float view of the same entity. After `FollowOwners`, the float view of each frame entity is filled from its exact table. A body state of a hull never writes the float view.
+
 ## Frames without a body, and static frames
 
 A frame without a body follows its sample, or its owner's transform write, or holds still. A frame with no sample and no body is a static frame. This replaces the `Physics` frame without a body, which nothing moves today.
@@ -174,7 +198,7 @@ A static frame follows its owner:
 
 - Without a body, the owner writes `self.SetTransform`. The frame takes the pose at the sync point of the same tick, as today. The rule that only the owner of a `Static` frame can write its transform goes. Any frame owner without a body can write it, unless it is attached.
 - With a static hull, the owner writes `self.Body.Teleport`. Physics moves the static hull at the start of the next step and wakes the bodies around its old and new places, with the code of the static branch of `DriveKinematicHulls`. Today physics ignores a teleport of a static body. The frame takes the teleport's pose, in doubles, at the next sync point.
-- Outside a tick, an edit of the tree, such as a reparent or `FrameTree.SetLocalPose`, still moves the hull at the next reconcile, as it does today. Only the push in every step goes.
+- Outside a tick, an edit of the tree still moves the hull. A reparent changes the tree's `Version`, so the next reconcile moves the hull. `FrameTree.SetLocalPose` does not change `Version`, so the reconcile does not see it. So at the start of each step, before the intents, physics puts each static hull whose place in Jolt differs from its frame's tree pose at that pose, and wakes the bodies around its old and new places (`FollowStaticHulls`, the old static branch of `DriveKinematicHulls`). It runs before the intents, so that it never moves a hull back from a teleport, which the tree learns only at the next sync point. `WorldWakeTests` fails without it. Only the push of the hulls on rails in every step goes.
 
 The cost of a frame without a body is one component call per tick, in a parallel chunk, and one copy at the sync point. Today it is a serial solve at the sync point. The orbit scene has two such frames, earth and earth-surface. `ter-6r8c` adds a benchmark to `WorldTickBenchmarks` with 1,000 Kepler frames without bodies, and it records the time of the tick and of the sync point before and after the change.
 
@@ -182,13 +206,13 @@ The cost of a frame without a body is one component call per tick, in a parallel
 
 | Step | Today | After |
 |---|---|---|
-| 2 | `AdvanceNumericFrames` integrates the falling frames and the orbit frames. `ApplyPhysicsOutput` applies the hand-offs, the body states and the states of `Physics` frames. | `AdvanceNumericFrames` integrates the falling frames and puts each following frame on its anchor's sample. `ApplyPhysicsOutput` applies the hand-offs, the body states and the states of frames with a dynamic hull. Then `FollowOwners`: each frame with a sample in the step takes it (its pose, its velocities and its proper acceleration), each frame whose static hull took a teleport in the step takes the teleport's pose, and each frame without a body whose owner wrote its transform in the tick takes that pose. Each owner then mirrors its frame. A body state of a hull never writes its owner's row. |
+| 2 | `AdvanceNumericFrames` integrates the falling frames and the orbit frames. `ApplyPhysicsOutput` applies the hand-offs, the body states and the states of `Physics` frames. | `AdvanceNumericFrames` integrates the falling frames and puts each following frame on its anchor's sample. `ApplyPhysicsOutput` applies the hand-offs and the body states. Then `FollowOwners`, the one loop of "One motion record per frame": each frame with a step record takes it. Then the float view of each frame entity is filled from its exact table. A body state of a hull never writes the float view. |
 | 4 | The collision intents, then the swap of the intents | The collision intents and the `SetMotion` intents change their rows, then the intents swap and the sample table moves its buffers on |
 | 5 | The destroys. A frame that is not a `Physics` frame moves to the semantic parent. `StopKeplerFrameWithoutGM` stops a Kepler frame whose new parent has no G·M. | The destroys. A frame without a dynamic hull moves to the semantic parent. A sample that names a dying frame converts first. Nothing stops a Kepler frame. A `KeplerMotion` whose new parent has no G·M writes no sample from the next tick on, and logs once. |
 | 6 | The spawns. `MakeLive` places each Kepler and Spin frame by its driver. | The spawns. A new frame stands at the pose of its spawn description. It holds still there for its first step, because it has no sample yet. |
 | 6b | `AdvanceDrivenFrames` places the Kepler and Spin frames and the moved static frames at the end of the tick. | Gone. Step 2 does this work. |
 | 6c | The numeric update. `NumericBody.Fixed` and `Orbits` come from the driver. A new orbit frame starts from the orbit. | The numeric update. `Fixed` and `Follows` come from the hull's motion. A new following frame starts from the frame's sample of the step that ended. |
-| 7 | The owners of `Physics` frames mirror their frames. | Every frame owner mirrors its frame. |
+| 7 | The float view of each `Physics` frame entity is filled from its exact table. | The float view of each frame entity is filled from its exact table. |
 | 7b | The intents convert. | The intents and the samples convert. |
 | Next `PrepareTick` | `BeginNumericStep` gives an orbit frame the orbit's acceleration at its origin, from the orbiter's G·M. | `BeginNumericStep` gives a following frame its anchor's `Acceleration` from the sample that the next step applies. |
 
@@ -197,7 +221,7 @@ The order holds for these reasons:
 - Step 2 reads the samples that step N applied before step 4 swaps them away.
 - The numeric update in step 6c still sees every bubble at the end of the tick. Each sample's pose is at `t_{N+1}`, and the destroys and the spawns still come before step 6c. So the reason for step 6b stays met: a station that orbits at 7.5 km/s is not 126 m behind the bodies beside it (see "Bubbles and ghosts" in [Numeric frames](numeric-frames.md)).
 - A following frame takes its place before `ApplyPhysicsOutput` writes the rows of its members, so their rows are relative to its exact place.
-- A frame without a body takes its owner's write before the destroys. So a write in the tick in which its parent dies converts with the frame. Today step 5 mirrors the owner and loses the write.
+- A frame without a body takes its owner's write before the destroys. So a write in the tick in which its parent dies converts with the frame. Today step 5 fills the float view of the frame entity from its exact table, and so loses the write.
 - Step 11 builds the render snapshot from the tree, which holds the end of the tick. The sample for the next step never enters the tree before that step runs.
 
 Determinism: the components run in parallel chunks, but each one writes only its own frame's sample. A sample is a pure function of the component's description, `self.TimeAt`, the step, the frame's place and the parent's gravity in the front snapshot. No sample depends on another sample or on the order of the chunks. The sync point applies the samples in the tree's dense order, and each frame reads only its own sample. `DeterminismTests` with one and eight workers checks this.
@@ -209,7 +233,7 @@ Kinematic targets and the snap:
 - `ApplyIntents` gives a body on rails `MoveKinematic` to the sample's pose in its physics home, minus `HomeOffsetAfterStep`, as it does for a gameplay target. A frame at the origin of its following frame gets that origin as its target.
 - Right after the Jolt update, before the contacts, the hand-offs and the ghosts read the end of the step, physics puts each body on rails exactly on its target (`SetRPositionAndRotation`, without a change of activation).
 
-Predictions of a frame at the end of a step replace `PredictMotion` and `OrbitMatchesTree`:
+Predictions of a frame at the end of a step replace `PredictMotion` and `OrbitMatchesTree`. Since 2026-10-18 they all read the frame's step record (see "One motion record per frame"). The table below says where each record comes from:
 
 | The frame's owner | Pose | Velocity for ghosts | Velocity for hand-offs | Angular velocity |
 |---|---|---|---|---|
@@ -265,7 +289,7 @@ A swap has no gap: the old component's last sample covers the step before the ne
 
 ## State dumps and saved state
 
-`StateDump.FrameRecord(string Id, string? Parent, MotionDriver Driver)` becomes `FrameRecord(string Id, string? Parent, string Follows)`. `Follows` is `"rails"` when the frame took a sample in the step, `"physics"` when it has a dynamic hull, and `"static"` for every other frame. So a dump still shows which frames move on rails. The entities in a dump do not change: a frame owner's row still mirrors its frame, so its pose and velocities are those of its sample.
+`StateDump.FrameRecord(string Id, string? Parent, MotionDriver Driver)` becomes `FrameRecord(string Id, string? Parent, string Follows)`. `Follows` is `"rails"` when the frame took a sample in the step, `"physics"` when it has a dynamic hull, and `"static"` for every other frame. So a dump still shows which frames move on rails. The entities in a dump do not change: the float view of a frame entity is still filled from its exact table, so its pose and velocities are those of its sample.
 
 No save of a running world exists (`ter-72wp`). A rails component holds only its description, and the tree holds only the sample of the last step, which the next sample replaces. So a future save stores the components' properties, and the motion goes on exactly after a load.
 

@@ -1,3 +1,4 @@
+using Tertius.Frames.Rails;
 using Tertius.Physics;
 
 namespace Tertius.Testing;
@@ -14,6 +15,13 @@ public readonly record struct StepRecord(long Tick, double Time, int ThreadId, b
 /// <param name="Entity">The entity that wrote the intent during the previous tick.</param>
 /// <param name="Intent">A copy of what it wrote.</param>
 public readonly record struct IntentRecord(long Tick, Entity Entity, PhysicsIntent Intent);
+
+/// <summary>The motion sample of one frame that a step applied.</summary>
+/// <param name="Tick">The number of the tick the step belongs to.</param>
+/// <param name="Frame">The frame that the sample moves.</param>
+/// <param name="RelativeTo">The frame that the sample is relative to: the frame's semantic parent when its owner wrote it.</param>
+/// <param name="Sample">A copy of the sample, which the owner wrote during the previous tick.</param>
+public readonly record struct SampleRecord(long Tick, FrameHandle Frame, FrameHandle RelativeTo, MotionSample Sample);
 
 /// <summary>
 /// The real Jolt backend plus the power to edit what the World sends it, edit what it sends back, or make a call throw.
@@ -58,6 +66,12 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
     /// steps. The World hands the backend one table of intents and reuses it, so these are copies.
     /// </summary>
     public List<IntentRecord> Intents { get; } = [];
+
+    /// <summary>
+    /// The motion sample of each frame that had one when a step began, in the order of the steps, and in each step in the
+    /// tree's dense order of the frames. The World hands the backend a buffer that it reuses, so these are copies.
+    /// </summary>
+    public List<SampleRecord> Samples { get; } = [];
 
     /// <summary>Edits the next change batch before Jolt applies it, once. Null edits nothing.</summary>
     public Action<PhysicsChanges>? EditNextChanges { get; set; }
@@ -104,6 +118,12 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
         ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
         foreach (Entity entity in context.IntentEntities.Span)
             Intents.Add(new IntentRecord(context.Tick, entity, intents[(int)entity.Index]));
+        for (int i = 0; i < context.Frames.Count; i++)
+        {
+            FrameHandle frame = context.Frames.AtDense(i);
+            if (context.Samples.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
+                Samples.Add(new SampleRecord(context.Tick, frame, relativeTo, sample));
+        }
         if (ThrowFromStep is { } fault)
         {
             ThrowFromStep = null;

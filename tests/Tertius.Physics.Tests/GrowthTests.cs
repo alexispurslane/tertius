@@ -223,10 +223,10 @@ public class GrowthTests
         PhysicsStepOutput lastStep = faults.Outputs[^1];
         if (frameHull)
         {
-            FrameState sent = lastStep.Frames.Single(state => state.Frame.Entity == flyer);
+            FrameStepRecord sent = lastStep.Frames.Single(state => state.Frame.Entity == flyer);
             world.Frames.Parent(sent.Frame).Should().Be(hangar);
-            world.Frames.LocalPose(sent.Frame).Should().Be(sent.LocalPose);
-            world.VelocityInOwnFrame(flyer).Should().Be(sent.LinearVelocity.ToVector3());
+            world.Frames.LocalPose(sent.Frame).Should().Be(sent.Motion.Pose);
+            world.VelocityInOwnFrame(flyer).Should().Be(sent.Motion.Velocity.ToVector3());
         }
         else
         {

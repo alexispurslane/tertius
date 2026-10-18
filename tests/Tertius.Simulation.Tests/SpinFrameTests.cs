@@ -28,9 +28,9 @@ public class SpinFrameTests
         {
             Frame = test.Root,
             Pose = new DPose(place, DQuaternion.FromAxisAngle(Double3.UnitX, 1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin, Spin: spin),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin),
             Components = components,
-        });
+        }.Spinning(test.World, spin));
 
     // ---- How a spin frame moves ---------------------------------------------------------------------------------
 
@@ -111,18 +111,93 @@ public class SpinFrameTests
     }
 
     [Fact]
-    public void ASpinFrameStaysOnItsSpinWhenItsOwnerTriesToMoveIt()
+    public void WhenItsOwnerWritesItsTransformABodylessSpinFrameTurnsAwayForOneTickAndItsNextSamplePutsItBackOnItsSpin()
     {
         using var test = NewWorld();
-        Entity owner = SpawnSpinFrame(test, QuarterTurnPerSecond,
-            components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(TestWorld.At(5))));
+        var place = new Double3(5, 0, 0);
+        DQuaternion leaning = DQuaternion.FromAxisAngle(Double3.UnitZ, 1);
+        bool write = false;
+        Entity owner = SpawnSpinFrame(test, QuarterTurnPerSecond, place,
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (write)
+                    self.SetTransform(new DPose(place, leaning));
+                write = false;
+            }));
         FrameHandle ground = test.World.GetOwnedFrame(owner);
+        test.Run(3);
 
-        test.Run(TicksPerSecond);
+        write = true;
+        test.Run(1);
 
-        test.World.Errors.Should().HaveCount(TicksPerSecond, "each refused write is recorded");
-        test.World.Frames.LocalPose(ground).Position.Should().Be(Double3.Zero);
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX), new Double3(0, 0, -1), 1e-12);
+        test.World.Errors.Should().BeEmpty();
+        test.World.Frames.LocalPose(ground).Position.Should().Be(place);
+        PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX), leaning.Rotate(Double3.UnitX), 1e-12);
+        test.Run(1);
+
+        test.World.Frames.LocalPose(ground).Position.Should().Be(place);
+        PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX),
+            QuarterTurnPerSecond.RotationAt(test.World.Time).Rotate(Double3.UnitX), 1e-12);
+    }
+
+    /// <summary>
+    /// The spin's sample of the tick of the write starts where the sample before it ends, so the write moves the frame for one
+    /// tick only, and the frame then turns at its old place for good (docs/plans/rails-components.md, "Tests").
+    /// </summary>
+    [Fact]
+    public void WhenItsOwnerWritesANewPlaceABodylessSpinFrameStandsThereForOneTickAndThenTurnsAtItsOldPlaceForGood()
+    {
+        using var test = NewWorld();
+        var place = new Double3(5, 0, 0);
+        bool write = false;
+        Entity owner = SpawnSpinFrame(test, QuarterTurnPerSecond, place,
+            Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (write)
+                    self.SetTransform(TestWorld.At(8));
+                write = false;
+            }));
+        FrameHandle ground = test.World.GetOwnedFrame(owner);
+        test.Run(3);
+
+        write = true;
+        test.Run(1);
+        test.World.Frames.LocalPose(ground).Position.Should().Be(new Double3(8, 0, 0), "the write moves the frame at the sync point of its tick");
+
+        for (int tick = 0; tick < 4; tick++)
+        {
+            test.Run(1);
+
+            test.World.Frames.LocalPose(ground).Position.Should().Be(place, "the spin's samples keep the place where the frame stood before the write");
+        }
+    }
+
+    [Fact]
+    public void WhenItsOwnerWritesItsTransformABodylessSpinFrameKeepsItsProperAcceleration()
+    {
+        using var test = NewWorld();
+        var weight = new Vector3(0, 9.81f, 0);
+        bool write = false;
+        Entity owner = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin),
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (write)
+                    self.SetTransform(TestWorld.At(5));
+                write = false;
+            })],
+        }.Spinning(test.World, QuarterTurnPerSecond, weight));
+        FrameHandle ground = test.World.GetOwnedFrame(owner);
+        test.Run(3);
+        test.World.Frames.ProperAcceleration(ground).Should().Be(weight, "the spin's sample gives the frame its proper acceleration");
+
+        write = true;
+        test.Run(1);
+
+        test.World.Frames.LocalPose(ground).Position.Should().Be(new Double3(5, 0, 0));
+        test.World.Frames.ProperAcceleration(ground).Should().Be(weight, "a write moves the frame and changes nothing else, as a frame that holds still keeps its proper acceleration");
     }
 
     [Fact]
@@ -163,76 +238,89 @@ public class SpinFrameTests
         test.World.Frames.AngularVelocity(ground).Should().Be(sample.AngularVelocity.ToVector3(), "the tree keeps the angular velocity in floats");
     }
 
-    // ---- Changing the driver or the spin ------------------------------------------------------------------------
+    // ---- Changing the motion ------------------------------------------------------------------------------
+    // Until the driver goes, a change of motion is a new driver plus a swap of components with World.AddComponent and
+    // World.RemoveComponent (docs/plans/rails-components.md, "Order of the work", item 2). The driver chooses only the motion
+    // of a hull, so for these frames without a body the components alone decide how the frame moves.
 
+    /// <summary>
+    /// A component that is new on an entity runs first in the next tick, and its first sample acts in the step after that
+    /// tick. So the frame holds still at its pose for the first step and stands on its spin from the second sync point on
+    /// (docs/plans/rails-components.md, "Other rules" in "The rails components"). The world starts two ticks before 1 s, so
+    /// the second sync point ends at 1 s, when the spin has turned a quarter turn.
+    /// </summary>
     [Fact]
-    public void AFrameThatGetsTheSpinDriverKeepsItsPlaceAndTurnsToItsSpinAtOnce()
+    public void AFrameThatGetsTheSpinDriverAndASpinMotionKeepsItsPlaceAndTurnsByItsSpinFromTheSecondSyncPoint()
     {
-        using var test = NewWorld(startTime: 1);
-        FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        using var test = NewWorld(startTime: 1 - 2.0 / TicksPerSecond);
+        Entity owner = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
             Pose = TestWorld.At(5),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static, Spin: QuarterTurnPerSecond),
-        }));
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
+        });
+        FrameHandle dock = test.World.GetOwnedFrame(owner);
 
         test.World.SetFrameDriver(dock, MotionDriver.Spin);
-
-        test.World.Frames.LocalPose(dock).Position.Should().Be(new Double3(5, 0, 0));
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(dock).Rotation.Rotate(Double3.UnitX), new Double3(0, 0, -1), 1e-12);
-        test.World.PoseInOwnFrame(dock.Entity).Should().Be(test.World.Frames.LocalPose(dock));
-    }
-
-    [Fact]
-    public void AMovingFrameThatGetsTheSpinDriverStopsButKeepsItsProperAcceleration()
-    {
-        using var test = NewWorld();
-        // A ship that landed under the physics driver reads the ground's push on its accelerometer, so its cargo has weight.
-        FrameHandle ship = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            LinearVelocity = new Vector3(10, 0, 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics, Spin: QuarterTurnPerSecond),
-        }));
-        test.World.Frames.ProperAcceleration(ship) = new Vector3(0, 9.81f, 0);
-
-        test.World.SetFrameDriver(ship, MotionDriver.Spin);
-        test.World.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
-        test.World.Frames.ProperAcceleration(ship).Should().Be(new Vector3(0, 9.81f, 0));
+        test.World.AddComponent(owner, new SpinMotion { Spin = QuarterTurnPerSecond });
+        test.Run(1);
+        test.World.Frames.LocalPose(dock).Should().Be(TestWorld.At(5), "the component's first sample acts in the step after its first tick");
         test.Run(1);
 
-        test.World.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
-        test.World.Frames.ProperAcceleration(ship).Should().Be(new Vector3(0, 9.81f, 0), "a ship on a turntable keeps its cargo's weight, as a parked one does");
+        test.World.Time.Should().Be(1);
+        test.World.Frames.LocalPose(dock).Position.Should().Be(new Double3(5, 0, 0));
+        PoseChecks.AssertNear(test.World.Frames.LocalPose(dock).Rotation.Rotate(Double3.UnitX), new Double3(0, 0, -1), 1e-12);
+        test.World.Frames.AngularVelocity(dock).Should().Be(new Vector3(0, MathF.PI / 2, 0));
+        test.World.PoseInOwnFrame(owner).Should().Be(test.World.Frames.LocalPose(dock));
     }
 
+    /// <summary>
+    /// A ship without a body flies along +X at 10 m/s, on samples that a scripted flight writes, and its engines push it up
+    /// at 9.81 m/s², so its cargo has weight. The game parks it on a turntable: the Spin driver, and a <see cref="SpinMotion"/>
+    /// in place of the flight, into which the game copies the frame's proper acceleration (docs/plans/rails-components.md,
+    /// "The rails components"). The flight's last sample moves the ship in the step of the swap, so the swap has no gap. From
+    /// the second sync point after the swap, the ship stands still and turns at the place where that last sample left it: the
+    /// spin's first sample starts where the flight's last sample ends.
+    /// </summary>
     [Fact]
-    public void ASpinFrameThatGetsANewSpinTurnsToItAtOnce()
+    public void AMovingFrameThatGetsTheSpinDriverAndASpinMotionStopsButKeepsItsProperAcceleration()
     {
-        using var test = NewWorld(startTime: 1);
-        FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, QuarterTurnPerSecond));
-
-        test.World.SetFrameSpin(ground, new FrameSpin(DQuaternion.Identity, Math.PI));
-
-        test.World.Frames.Spin(ground).Rate.Should().Be(Math.PI);
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(ground).Rotation.Rotate(Double3.UnitX), new Double3(-1, 0, 0), 1e-12);
-        test.World.Frames.AngularVelocity(ground).Should().Be(new Vector3(0, MathF.PI, 0));
-        test.World.PoseInOwnFrame(ground.Entity).Should().Be(test.World.Frames.LocalPose(ground));
-    }
-
-    [Fact]
-    public void AFrameWithAnotherDriverKeepsANewSpinForLater()
-    {
-        using var test = NewWorld(startTime: 1);
-        FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        using var test = NewWorld();
+        var velocity = new Double3(10, 0, 0);
+        var weight = new Vector3(0, 9.81f, 0);
+        Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            double stepEnd = self.TimeAt(self.Tick + 2);
+            self.MoveOnRails(new MotionSample(new DPose(velocity * stepEnd, DQuaternion.Identity), velocity, velocity, Double3.Zero,
+                Double3.Zero, Double3.Zero, weight));
+        });
+        Entity owner = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
-        }));
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics),
+            Components = [flight],
+        });
+        FrameHandle ship = test.World.GetOwnedFrame(owner);
+        test.Run(TicksPerSecond);
+        test.World.Frames.LinearVelocity(ship).Should().Be(velocity, "the ship flies before the swap");
+        test.World.Frames.ProperAcceleration(ship).Should().Be(weight);
 
-        test.World.SetFrameSpin(dock, QuarterTurnPerSecond);
+        test.World.SetFrameDriver(ship, MotionDriver.Spin);
+        test.World.RemoveComponent(owner, flight);
+        test.World.AddComponent(owner, new SpinMotion { Spin = QuarterTurnPerSecond, ProperAcceleration = test.World.Frames.ProperAcceleration(ship) });
+        test.Run(1);
+        Double3 parked = test.World.Frames.LocalPose(ship).Position;
+        parked.Should().Be(velocity * test.World.Time, "the flight's last sample moves the ship in the step of the swap");
 
-        test.World.Frames.Spin(dock).Should().Be(QuarterTurnPerSecond);
-        test.World.Frames.LocalPose(dock).Rotation.Should().Be(DQuaternion.Identity);
+        for (int tick = 0; tick < 4; tick++)
+        {
+            test.Run(1);
+
+            test.World.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
+            test.World.Frames.AngularVelocity(ship).Should().Be(new Vector3(0, MathF.PI / 2, 0), "the ship turns by its spin");
+            test.World.Frames.ProperAcceleration(ship).Should().Be(weight, "a ship on a turntable keeps its cargo's weight, as a parked one does");
+            test.World.Frames.LocalPose(ship).Position.Should().Be(parked, "a ship on a turntable turns in place");
+        }
     }
 
     // ---- Refusals -----------------------------------------------------------------------------------------------
@@ -243,9 +331,10 @@ public class SpinFrameTests
         using var test = NewWorld();
         int before = test.World.Stats.LiveEntities;
 
+        // The SpinMotion of the spawn refuses the spin in its setter, so nothing spawns.
         Action spawn = () => SpawnSpinFrame(test, new FrameSpin(DQuaternion.Identity, double.NaN));
 
-        spawn.Should().Throw<ArgumentException>().WithMessage("*Spin driver*spin*");
+        spawn.Should().Throw<ArgumentException>().WithMessage("*SpinMotion*spin*not valid*");
         test.World.Stats.LiveEntities.Should().Be(before);
     }
 
@@ -258,78 +347,29 @@ public class SpinFrameTests
         Action spawn = () => test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin, Spin: QuarterTurnPerSecond),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin),
             Body = new BodyDesc(Ramp, BodyMotion.Static),
-        });
+        }.Spinning(test.World, QuarterTurnPerSecond));
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*mesh*Spin driver*");
         test.World.Stats.LiveEntities.Should().Be(before);
     }
 
     [Fact]
-    public void ASpinThatIsNotValidIsRefusedAndTheFrameKeepsItsSpin()
+    public void ASpinMotionWithASpinThatIsNotValidIsRefusedBeforeItReachesTheFrame()
     {
         using var test = NewWorld();
-        FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, QuarterTurnPerSecond));
-
-        Action set = () => test.World.SetFrameSpin(ground, new FrameSpin(DQuaternion.Identity, double.PositiveInfinity));
-
-        set.Should().Throw<ArgumentException>().WithMessage($"*{ground}*spin*");
-        test.World.Frames.Spin(ground).Should().Be(QuarterTurnPerSecond);
-    }
-
-    [Fact]
-    public void ASpinForAFrameThatIsGoneIsRefused()
-    {
-        using var test = NewWorld();
-        FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, QuarterTurnPerSecond));
-        test.World.Destroy(ground.Entity);
-
-        Action set = () => test.World.SetFrameSpin(ground, QuarterTurnPerSecond);
-
-        set.Should().Throw<ArgumentException>().WithMessage($"*{ground}*");
-    }
-
-    [Fact]
-    public void ASpinChangeDuringATickIsRefused()
-    {
-        using var test = NewWorld();
-        FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, QuarterTurnPerSecond));
-        InvalidOperationException? caught = null;
-        test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            try
-            {
-                test.World.SetFrameSpin(ground, default);
-            }
-            catch (InvalidOperationException ex)
-            {
-                caught = ex;
-            }
-        }));
-
-        test.Run(1);
-
-        caught.Should().NotBeNull("physics reads the frame tree on its own thread during the tick");
-        caught!.Message.Should().Contain("World.SetFrameSpin");
-        test.World.Frames.Spin(ground).Should().Be(QuarterTurnPerSecond);
-    }
-
-    [Fact]
-    public void TheSpinDriverIsRefusedForAFrameWithoutAValidSpin()
-    {
-        using var test = NewWorld();
-        // A frame with another driver keeps the spin that it was spawned with, valid or not, until it gets the Spin driver.
         FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static, Spin: new FrameSpin(DQuaternion.Identity, double.NaN)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
         }));
 
-        Action set = () => test.World.SetFrameDriver(dock, MotionDriver.Spin);
+        // The component checks its spin, not the World: its setter refuses it.
+        Action add = () => test.World.AddComponent(dock.Entity, new SpinMotion { Spin = new FrameSpin(DQuaternion.Identity, double.NaN) });
 
-        set.Should().Throw<ArgumentException>().WithMessage($"*{dock}*spin*");
-        test.World.Frames.Driver(dock).Should().Be(MotionDriver.Static);
+        add.Should().Throw<ArgumentException>().WithMessage("*SpinMotion*spin*not valid*");
+        test.World.GetComponent<SpinMotion>(dock.Entity).Should().BeNull();
     }
 
     [Fact]
@@ -339,7 +379,7 @@ public class SpinFrameTests
         FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static, Spin: QuarterTurnPerSecond),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
             Body = new BodyDesc(Ramp, BodyMotion.Static),
         }));
 

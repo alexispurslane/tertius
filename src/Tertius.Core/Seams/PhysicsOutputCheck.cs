@@ -28,7 +28,7 @@ public enum PhysicsOutputKind : byte
 {
     BodyState,
     HandOff,
-    FrameState,
+    FrameRecord,
     Contact,
     CharacterState,
     ContactEnd,
@@ -61,8 +61,10 @@ public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Ind
 /// owner's body cannot be dynamic, at spawn and when the driver changes (see <see cref="BodyDesc.FrameHullProblem"/>). So
 /// the driver alone tells whether the hull can move. The hull of a frame with another driver is static or kinematic, and
 /// physics never hands it off. So the owner of a frame hands off only when its frame has the physics driver.</item>
-/// <item>For the same reason, a frame state names a live frame with the physics driver and a parent, whose owner has a
-/// body: the hull. A root frame has no parent, so its owner has no hull, and physics never reports its state.</item>
+/// <item>A frame's step record names a live frame with a parent whose owner has a body: the hull, which physics moves. That
+/// is a dynamic hull, a kinematic hull with a sample, or a static hull or a kinematic hull without a sample that
+/// teleported in the step. A root frame has no parent, so its owner has no hull, and physics never releases its
+/// record.</item>
 /// <item>The hand-offs of a step, applied in their order, never put a frame under itself or under a frame inside it.
 /// Each hull starts the step in the system of its frame's parent, so its frame can only enter a sibling or leave for its
 /// parent's parent. It enters a sibling only when its bubble fits in the sibling's, and fitting is a strict order of
@@ -76,8 +78,8 @@ public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Ind
 /// </list>
 /// <para>
 /// An output that breaks a rule gets one <see cref="PhysicsOutputFault"/>, however many rules it breaks. The step skips
-/// the whole update of every entity that a broken output names (for a frame state, the frame's owner): its body state,
-/// its hand-off, the state of the frame that it owns, its contacts and its character state. <see cref="IsSkipped"/> is
+/// the whole update of every entity that a broken output names (for a frame's step record, the frame's owner): its body state,
+/// its hand-off, the step record of the frame that it owns, its contacts and its character state. <see cref="IsSkipped"/> is
 /// true for those entities. A broken character state is the one exception: it changes nothing but whether its character
 /// stands, so the step skips only that state. <see cref="IsCharacterStateSkipped"/> is true for each broken character
 /// state, and for each character state of an entity whose whole update the step skips.
@@ -97,7 +99,7 @@ public sealed class PhysicsOutputCheck
     private readonly Dictionary<FrameHandle, FrameHandle> parentsAfter = new();
 
     /// <summary>
-    /// The broken outputs of the last run: body states first, then hand-offs, frame states, contacts, ended contacts, the
+    /// The broken outputs of the last run: body states first, then hand-offs, frames' step records, contacts, ended contacts, the
     /// hand-offs that the tree refuses, and last the character states. Valid until the next run.
     /// </summary>
     public ReadOnlySpan<PhysicsOutputFault> Faults => CollectionsMarshal.AsSpan(faults);
@@ -151,8 +153,8 @@ public sealed class PhysicsOutputCheck
         for (int i = 0; i < output.Frames.Count; i++)
         {
             FrameHandle frame = output.Frames[i].Frame;
-            if (DrivenFrameFault(frame, frames, facts) is { } fault)
-                Add(PhysicsOutputKind.FrameState, i, $"ignored the state of {fault}", frame.Entity);
+            if (FrameRecordFault(frame, frames, facts) is { } fault)
+                Add(PhysicsOutputKind.FrameRecord, i, $"ignored the step record of {fault}", frame.Entity);
         }
         for (int i = 0; i < output.Contacts.Count; i++)
         {
@@ -238,12 +240,13 @@ public sealed class PhysicsOutputCheck
     }
 
     /// <summary>
-    /// Why physics cannot report the state of <paramref name="frame"/>, or null when it can. The fault starts with the
-    /// frame, because a stale frame has no owner to blame.
+    /// Why physics cannot release a step record of <paramref name="frame"/>, or null when it can: physics moves only a hull,
+    /// the body of the owner of a frame that has a parent. Every kind of hull can move: a dynamic one by the update, a
+    /// kinematic one by its sample, and a static one by its owner's teleport. The fault starts with the frame, because a
+    /// stale frame has no owner to blame.
     /// </summary>
-    private static string? DrivenFrameFault<TFacts>(FrameHandle frame, FrameTree frames, TFacts facts) where TFacts : IPhysicsOutputFacts =>
+    private static string? FrameRecordFault<TFacts>(FrameHandle frame, FrameTree frames, TFacts facts) where TFacts : IPhysicsOutputFacts =>
         !frames.IsAlive(frame) ? $"the stale frame {frame}" :
-        frames.Driver(frame) != MotionDriver.Physics ? $"{frame}, because physics does not drive it" :
         frames.TreeParent(frame).IsNull ? $"{frame}, because it is a root frame, so its owner has no hull" :
         BodyFault(frame.Entity, facts) is { } fault ? $"{frame}, because {fault}" :
         null;

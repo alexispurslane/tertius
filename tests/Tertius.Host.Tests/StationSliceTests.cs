@@ -43,7 +43,7 @@ internal sealed record StationSample(long Tick, double Time, IReadOnlyDictionary
         Entity station = scene["station"];
         FrameHandle frame = world.GetOwnedFrame(station), earth = world.GetOwnedFrame(scene["earth"]), hullHome = world.PhysicsHomeOf(station);
         double mu = world.Frames.Gravity(earth) is PointGravity { Mu: var m } ? m : double.NaN;
-        Double3 orbitPlace = world.Frames.Orbit(frame).StateAt(world.Time, mu).Position;
+        Double3 orbitPlace = world.GetComponent<KeplerMotion>(station)!.Orbit.StateAt(world.Time, mu).Position;
         return new StationSample(world.TickNumber, world.Time,
             BodyIds.ToDictionary(id => id, id => StationBody.Take(world, scene[id], frame, hullHome)), hullHome, world.Frames.Numeric(hullHome),
             (world.PoseIn(station, earth).Position - orbitPlace).Length);
@@ -250,7 +250,9 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
     [Fact]
     public void EveryReadOfTheStationInEarthIsItsOrbitsPlace()
     {
-        Samples.Max(s => s.HullOffEarthOrbit).Should().BeLessThan(1e-6, "the orbit frame puts the hull on its orbit at every sync point");
+        // A new frame on rails stands on its rails from the second sync point after its spawn (docs/plans/rails-components.md,
+        // "Other rules" in "The rails components"). At the first, it is one step of its motion behind, about 1.2 mm.
+        Samples.Where(s => s.Tick >= 2).Max(s => s.HullOffEarthOrbit).Should().BeLessThan(1e-6, "the orbit frame puts the hull on its orbit at every sync point");
     }
 
     [Fact]

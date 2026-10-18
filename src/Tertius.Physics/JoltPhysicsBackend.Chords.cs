@@ -1,5 +1,6 @@
 using System.Numerics;
 using JoltPhysicsSharp;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Physics;
 
@@ -23,9 +24,12 @@ namespace Tertius.Physics;
 //
 // The paths that carry a chord on as a chord need no conversion: a move between the systems of one semantic frame and a
 // shift of a numeric frame (both homes' velocities are chords, and the body's acceleration in the semantic frame stays
-// the same), a growth of a system, a ghost (a kinematic copy, which Jolt does not accelerate, and which follows the real
-// body's chord), and a frame's hull that takes the tree's velocity of a physics-driven frame, which is the hull's own
-// chord. Every velocity that physics reports is Jolt's: the chord of the last step.
+// the same), a growth of a system, and a ghost (a kinematic copy, which Jolt does not accelerate, and which follows the
+// chord of its real body or of its frame's step record). A frame's hull that takes the tree's velocity takes the frame's
+// instant velocity of its last record, half a step of the hull's acceleration past the chord: a hull is placed from the
+// tree only when the tree changes between two steps, and a kinematic hull takes no velocity from the tree at all. Every
+// velocity of a body that physics reports is Jolt's: the chord of the last step. The step record of a frame holds both
+// velocities (see StepRecordOf).
 
 public sealed partial class JoltPhysicsBackend
 {
@@ -47,11 +51,20 @@ public sealed partial class JoltPhysicsBackend
         double half = 0.5 * stepDt;
         // The local instant velocity: relative to the home's instant velocity, half a step of its acceleration on.
         Double3 local = velocity - HomeAccelerationOf(home) * half;
-        if (record.Motion != BodyMotion.Dynamic)
-            return local.ToVector3();
-        Double3 acceleration = (Double3)frames.EffectiveGravity(home, center) - record.Material.LinearDamping * local;
-        return (local - acceleration * half).ToVector3();
+        return (local - ChordAcceleration(record, home, center, local) * half).ToVector3();
     }
+
+    /// <summary>
+    /// The acceleration relative to <paramref name="home"/> that the coming step gives the rigid body of
+    /// <paramref name="record"/>, with its center of mass at <paramref name="center"/> and the local instant velocity
+    /// <paramref name="local"/>, which turns that velocity into Jolt's chord (see
+    /// <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>): the home's effective gravity and Jolt's linear
+    /// damping for a dynamic body, nothing for a kinematic one.
+    /// </summary>
+    private Double3 ChordAcceleration(BodyRecord record, FrameHandle home, Double3 center, Double3 local) =>
+        record.Motion == BodyMotion.Dynamic
+            ? (Double3)frames.EffectiveGravity(home, center) - record.Material.LinearDamping * local
+            : Double3.Zero;
 
     /// <summary>The chord for a rigid body in the system of its home: see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>.</summary>
     private Vector3 LinearChord(BodyRecord record, Double3 center, Double3 velocity) => LinearChord(record, record.Frame, center, velocity);
@@ -103,9 +116,11 @@ public sealed partial class JoltPhysicsBackend
     /// Jolt's velocities for the body of <paramref name="record"/> that a hand-off moves into the system of
     /// <paramref name="to"/>, with its center of mass at <paramref name="center"/> there, when its instant velocities
     /// relative to the instant motion of <paramref name="to"/> at the end of the step are <paramref name="linear"/> and
-    /// <paramref name="angular"/>: the chords of the next step. Call it only after the update of a step.
+    /// <paramref name="angular"/>: the chords of the next step, and the acceleration relative to <paramref name="to"/> that
+    /// turned the linear velocity into its chord. Call it only after the update of a step.
     /// </summary>
-    private (Vector3 Linear, Vector3 Angular) HandedOffVelocities(BodyRecord record, FrameHandle to, Double3 center, Double3 linear, Double3 angular)
+    private (Vector3 Linear, Vector3 Angular, Double3 Acceleration) HandedOffVelocities(BodyRecord record, FrameHandle to, Double3 center,
+        Double3 linear, Double3 angular)
     {
         Contract.Requires(stepDt > 0);
         double half = 0.5 * stepDt;
@@ -114,12 +129,12 @@ public sealed partial class JoltPhysicsBackend
             // A character that stood in the step stands in its new frame too, as a rule, where the ground holds it, so its
             // chord is its instant velocity. One that did not stand falls freely there.
             Double3 acceleration = record.Standing ? Double3.Zero : (Double3)frames.EffectiveGravity(to, center);
-            return ((linear - acceleration * half).ToVector3(), Vector3.Zero);
+            return ((linear - acceleration * half).ToVector3(), Vector3.Zero, acceleration);
         }
         // The frame velocity of a numeric home in the next step is its velocity at the end of this step, which is half a
         // step of its acceleration behind its instant velocity.
         Double3 velocity = linear + HomeAccelerationOf(to) * half;
-        return (LinearChord(record, to, center, velocity), AngularChord(record, angular.ToVector3()));
+        return (LinearChord(record, to, center, velocity), AngularChord(record, angular.ToVector3()), ChordAcceleration(record, to, center, linear));
     }
 
     /// <summary>
@@ -152,18 +167,15 @@ public sealed partial class JoltPhysicsBackend
         frames.HomeVelocityAfter(home, semantic, stepDt) + frames.HomeAcceleration(home, semantic) * (0.5 * stepDt);
 
     /// <summary>
-    /// The motion of <paramref name="frame"/> relative to its current parent at the end of the step, as
-    /// <see cref="MotionOf"/> gives it, but with the frame's instant velocity there. Jolt's velocity of the hull of a
-    /// physics-driven frame is the chord of the step, so the hull's acceleration over the step, its gravity plus its
-    /// proper acceleration, carries it half a step further on. The motion of every other frame has its instant velocity
-    /// already (see <see cref="PredictMotion"/>). Call it only after <see cref="ComputeProperAccelerations"/>.
+    /// The motion of <paramref name="frame"/> relative to its current parent at the end of the step, with the instant velocity
+    /// of its step record, which a hand-off carries into the parent (see <see cref="StepRecordOf"/>). Jolt's velocity of a
+    /// dynamic hull is the chord of the step, so its record takes the hull's acceleration over the step, its gravity plus its
+    /// proper acceleration, half a step further on. A sample has its instant velocity already. Call it only after
+    /// <see cref="ComputeProperAccelerations"/>.
     /// </summary>
     private FrameMotion InstantMotionOf(FrameHandle frame)
     {
-        if (!TryHullMotion(frame, out FrameMotion motion))
-            return PredictedMotion(frame);
-        BodyRecord hull = OwnerRecord(frame)!;
-        Double3 acceleration = (Double3)hull.GravityApplied + motion.Pose.Rotation.Rotate((Double3)hull.ProperAcceleration);
-        return motion with { Velocity = motion.Velocity + acceleration * (0.5 * stepDt) };
+        MotionSample record = StepRecordOf(frame);
+        return new FrameMotion(record.Pose, record.Velocity, record.AngularVelocity);
     }
 }

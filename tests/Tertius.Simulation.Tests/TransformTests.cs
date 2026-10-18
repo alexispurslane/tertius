@@ -1,13 +1,13 @@
 using System.Numerics;
 using AwesomeAssertions;
-using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
 /// An entity's transform has two views. Reads see the front snapshot, the state at the end of the previous tick. Writes
 /// go to the back rows and show after the sync point. Only gameplay may write the transform, and only when nothing else
-/// owns it: physics, an attachment parent and a frame driver each own the transform of the entities they move.
+/// owns it: physics owns the transform of an entity with a body, and an attachment parent the transform of its children.
+/// The owner of a frame without a body writes its transform, and the frame takes the write at the sync point.
 /// </summary>
 public class TransformTests
 {
@@ -180,43 +180,28 @@ public class TransformTests
         test.World.Errors.Should().ContainSingle().Which.Should().Contain("has no physics body");
     }
 
-    // ---- A frame driver owns the transform of the frame's owner ----------------------------------------------------
+    // ---- The owner of a frame without a body writes its transform ----------------------------------------------------
 
     [Theory]
+    [InlineData(MotionDriver.Static)]
     [InlineData(MotionDriver.Kepler)]
+    [InlineData(MotionDriver.Spin)]
     [InlineData(MotionDriver.Physics)]
-    public void TheOwnerOfAFrameThatADriverMovesCannotWriteItsTransform(MotionDriver driver)
-    {
-        using var test = new TestWorld();
-        // A Kepler frame needs an orbit and a G·M to orbit. A physics frame without a hull body reaches the driver check of the world.
-        test.GiveRootPointGravity(1e9);
-        var orbit = driver == MotionDriver.Kepler ? KeplerOrbit.Circular(1000) : default;
-        test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver, Orbit: orbit),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(DPose.Identity))],
-        });
-
-        test.Run(1);
-
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"owns a {driver} frame");
-    }
-
-    [Fact]
-    public void TheOwnerOfAStaticFrameMayWriteItsTransform()
+    public void AnOwnerWithoutABodyWritesItsFramesTransformWhateverItsDriver(MotionDriver driver)
     {
         using var test = new TestWorld();
         Entity owner = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
             Components = [new Mover(new Double3(0, 2, 0))],
         });
+        FrameHandle frame = test.World.GetOwnedFrame(owner);
 
         test.Run(1);
 
         test.World.Errors.Should().BeEmpty();
+        test.World.Frames.LocalPose(frame).Position.Should().Be(new Double3(0, 2, 0), "the frame takes its owner's write at the sync point of the tick");
         test.World.PoseInOwnFrame(owner).Position.Should().Be(new Double3(0, 2, 0));
     }
 }

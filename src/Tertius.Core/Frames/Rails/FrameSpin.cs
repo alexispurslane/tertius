@@ -3,7 +3,7 @@ using System.Numerics;
 namespace Tertius.Frames.Rails;
 
 /// <summary>
-/// How a frame with the <see cref="MotionDriver.Spin"/> driver turns: it leans by <see cref="Tilt"/>, then it turns about
+/// How a frame on rails turns in place, for a <c>SpinMotion</c>: it leans by <see cref="Tilt"/>, then it turns about
 /// its own +Y, its pole, at <see cref="Rate"/>. Angles are radians, rates radians per second, times seconds. The default
 /// spin holds the frame still, with its axes parallel to its parent's. Its members are pure functions of the spin and the time.
 /// </summary>

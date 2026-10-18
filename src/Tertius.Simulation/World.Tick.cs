@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
+using Tertius.Frames.Rails;
 using DestroyEvent = Tertius.Destroy;
 using TickEvent = Tertius.Tick;
 
@@ -32,7 +34,7 @@ public sealed partial class World
             if (physicsWorker != null)
             {
                 stepOutput.Clear();
-                physicsWorker.Begin(new PhysicsStepContext(TickNumber, DeltaTime, Time, Frames, entities.FrontIntents, entities.IntentEntities));
+                physicsWorker.Begin(new PhysicsStepContext(TickNumber, DeltaTime, Time, Frames, entities.FrontIntents, entities.IntentEntities, Frames.Samples.Applied));
                 stepping = true;
             }
 
@@ -48,7 +50,10 @@ public sealed partial class World
             // It escapes here, on the ticking thread, with the stack of the physics thread where it broke.
             if (physicsError?.SourceException is ContractException)
                 physicsError.Throw();
+            long syncStart = Stopwatch.GetTimestamp();
             Sync(physicsError?.SourceException);
+            SyncTimestampTotal += Stopwatch.GetTimestamp() - syncStart;
+            SyncCount++;
         }
         finally
         {
@@ -59,7 +64,16 @@ public sealed partial class World
         FlushLog();
     }
 
-    private double TimeAt(long tick) => options.StartTime + tick * (double)DeltaTime;
+    /// <summary>
+    /// The time that the sync points of this world took, in <see cref="Stopwatch"/> timestamp units, summed over
+    /// <see cref="SyncCount"/> sync points. The benchmarks read it, because a sync point has no timer of its own.
+    /// </summary>
+    internal long SyncTimestampTotal { get; private set; }
+
+    /// <summary>The number of sync points that <see cref="SyncTimestampTotal"/> sums.</summary>
+    internal long SyncCount { get; private set; }
+
+    internal double TimeAt(long tick) => options.StartTime + tick * (double)DeltaTime;
 
     private void PrepareTick()
     {
@@ -202,8 +216,10 @@ public sealed partial class World
     // so they live here. Every other write of Self goes straight to its subsystem.
 
     /// <summary>
-    /// The running entity's back pose, for writing. Throws <see cref="InvalidOperationException"/> if physics, an
-    /// attachment parent or a frame driver owns the transform, and <see cref="StaleEntityException"/> for a stale handle.
+    /// The running entity's back pose, for writing. Throws <see cref="InvalidOperationException"/> if physics or an
+    /// attachment parent owns the transform, and <see cref="StaleEntityException"/> for a stale handle. The owner of a frame
+    /// without a body writes its transform whatever moves the frame otherwise: the frame takes the write at the sync point of
+    /// the tick, after its sample, so the write wins for one tick (see <see cref="FollowOwners"/>).
     /// </summary>
     internal ref DPose WritableTransform(Entity entity)
     {
@@ -212,9 +228,6 @@ public sealed partial class World
         Entity parent = attachments.ParentOf(entity);
         if (!parent.IsNull)
             throw new InvalidOperationException($"{entity} is attached to {parent}, so its transform follows the parent. Change Self.AttachOffset instead.");
-        FrameHandle own = entities.OwnedFrame(entity);
-        if (!own.IsNull && Frames.Driver(own) != MotionDriver.Static)
-            throw new InvalidOperationException($"{entity} owns a {Frames.Driver(own)} frame, so the frame's motion driver sets its pose.");
         return ref entities.WritableTransform(entity);
     }
 
@@ -289,5 +302,68 @@ public sealed partial class World
         if (entities.Body(entity) == null)
             throw new InvalidOperationException($"{entity} has no physics body.");
         return ref entities.WritableIntent(entity);
+    }
+
+    /// <summary>
+    /// The running entity's intent, for writing a request that sets its body's motion: <paramref name="call"/>, a kinematic
+    /// target or a velocity. Throws <see cref="InvalidOperationException"/> as <see cref="WritableIntent"/> does, and also
+    /// when the body is a kinematic hull, because only a motion sample tells the frame of a kinematic hull how to follow
+    /// (see <see cref="MoveOnRails"/>): a kinematic hull takes only <c>MoveOnRails</c> and <c>Teleport</c>.
+    /// </summary>
+    internal ref PhysicsIntent WritableMotionIntent(Entity entity, string call)
+    {
+        FrameHandle own = entities.OwnedFrame(entity);
+        if (!own.IsNull && entities.Body(entity) != null && HullMotion(own) == BodyMotion.Kinematic)
+            throw new InvalidOperationException(
+                $"{entity} owns {own}, whose body is a kinematic hull, so it cannot take {call}: a kinematic hull moves only by Self.MoveOnRails and Teleport.");
+        return ref WritableIntent(entity);
+    }
+
+    /// <summary>
+    /// The motion of the hull of <paramref name="own"/>, whose owner has a body, or null when the frame has no parent: a root
+    /// frame's owner has only the frame's static interior. In this ticket the frame's driver chooses the hull's motion (see
+    /// <see cref="BodyDesc.FrameHullMotion"/>).
+    /// </summary>
+    private BodyMotion? HullMotion(FrameHandle own) =>
+        Frames.Parent(own).IsNull ? null : BodyDesc.FrameHullMotion(Frames.Driver(own));
+
+    /// <summary>
+    /// Writes the running entity's motion sample for the next physics step into the written buffer of the sample table,
+    /// relative to the frame that the entity is in during the tick, with its rotation made unit length. The last write in a
+    /// tick wins. Throws <see cref="InvalidOperationException"/> if the entity owns no frame, or if its frame has a parent
+    /// and the entity has a body that is not kinematic, <see cref="ArgumentException"/> for a sample with a field that is not
+    /// a finite number or with a zero rotation, and <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    /// <remarks>
+    /// When the frame has a parent, the owner's body is the frame's hull, and only a kinematic hull follows a sample. A frame
+    /// without a body has no hull, so the sample acts on its transform. A root frame has no parent, so its owner's body is
+    /// only the frame's static interior, not a hull. In this ticket a hull is kinematic when its frame has a driver whose
+    /// hull motion is kinematic (see <see cref="BodyDesc.FrameHullMotion"/>).
+    /// </remarks>
+    internal void MoveOnRails(Entity entity, in MotionSample sample)
+    {
+        FrameHandle own = entities.OwnedFrame(entity);
+        if (own.IsNull)
+            throw new InvalidOperationException($"{entity} owns no frame, so it has no frame to move on rails.");
+        if (entities.Body(entity) != null && HullMotion(own) is { } motion && motion != BodyMotion.Kinematic)
+            throw new InvalidOperationException(
+                $"{entity} owns {own}, whose hull is {motion}, so the hull cannot follow a motion sample: only a kinematic hull can.");
+        Frames.Samples.Write(own, entities.FrontRow(entity).Frame, CheckedSample(sample));
+    }
+
+    /// <summary>
+    /// The sample with its rotation made unit length, after the checks that every field is a finite number and that the
+    /// rotation is not zero. Gameplay can write any rotation, but the local pose of a frame must be unit length (see
+    /// <see cref="FrameTree"/>), so the World normalizes it, as it does for a write of a transform (see FollowOwners).
+    /// </summary>
+    private static MotionSample CheckedSample(in MotionSample sample)
+    {
+        if (!IsFinite(sample.Pose.Position) || !IsFinite(sample.ChordVelocity) || !IsFinite(sample.Velocity) || !IsFinite(sample.Acceleration)
+            || !IsFinite(sample.AngularVelocity) || !IsFinite(sample.AngularAcceleration) || !IsFinite(sample.ProperAcceleration))
+            throw new ArgumentException($"A motion sample needs fields that are finite numbers, not {sample}.", nameof(sample));
+        double rotationSize = sample.Pose.Rotation.LengthSquared;
+        if (!(rotationSize > 0) || !double.IsFinite(rotationSize))
+            throw new ArgumentException($"A motion sample needs a finite rotation that is not zero, not {sample.Pose.Rotation}.", nameof(sample));
+        return sample with { Pose = sample.Pose.WithUnitRotation() };
     }
 }

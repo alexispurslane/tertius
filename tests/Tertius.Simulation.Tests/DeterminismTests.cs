@@ -167,8 +167,8 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
         FrameHandle east = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(1000, spinRate: 0.05)),
-        }));
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Kepler),
+        }.OnKeplerOrbit(world, KeplerOrbit.Circular(1000, spinRate: 0.05))));
 
         var random = new Random(seed);
         for (int i = 0; i < 160; i++)

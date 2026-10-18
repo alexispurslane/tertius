@@ -5,9 +5,9 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// An orbit holds no G·M. Each member that needs one takes the G·M of the parent as <c>mu</c>. The frame tree
-/// supplies it, from the point gravity of the parent frame, so a Kepler frame and the loose bodies in its parent fall on
-/// the same G·M. The tree checks that every Kepler frame has such a parent when it is asked to.
+/// An orbit holds no G·M. Each member that needs one takes the G·M of the parent as <c>mu</c>. A <c>KeplerMotion</c>
+/// takes it from the point gravity of its frame's parent (see <see cref="KeplerOrbit.MuFrom"/>), so a Kepler frame and the
+/// loose bodies in its parent fall on the same G·M. Which fields can be orbited, and what an orbit does with a G·M.
 /// </summary>
 public class KeplerParentMuTests
 {
@@ -24,20 +24,6 @@ public class KeplerParentMuTests
         { "a point field with an infinite G·M", GravityField.Point(double.PositiveInfinity) },
     };
 
-    private sealed class Planet
-    {
-        public readonly FrameTree Frames = new();
-        public readonly FrameHandle Root;
-        public readonly FrameHandle Moon;
-
-        public Planet(GravityField field, MotionDriver moonDriver = MotionDriver.Kepler)
-        {
-            Root = Frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static, field);
-            Moon = Frames.Create(new Entity(2, 1), Root, DPose.Identity, FrameBounds.Sphere(50), moonDriver, kepler: KeplerOrbit.Circular(7e6));
-            Frames.Update();
-        }
-    }
-
     // ---- The G·M of a field ----------------------------------------------------------------------------------------
 
     [Fact]
@@ -51,102 +37,6 @@ public class KeplerParentMuTests
     public void AFieldThatIsNotAPointFieldWithAPositiveGMCannotBeOrbited(string why, GravityField field)
     {
         field.CanBeOrbited.Should().BeFalse(why);
-    }
-
-    // ---- The G·M of a Kepler frame ---------------------------------------------------------------------------------
-
-    [Fact]
-    public void AKeplerFrameTakesTheGMOfThePointGravityOfItsParent()
-    {
-        var planet = new Planet(GravityField.Point(Mu));
-
-        planet.Frames.KeplerMu(planet.Moon).Should().Be(Mu);
-    }
-
-    [Fact]
-    public void TheGMOfAKeplerFrameFollowsTheGravityOfItsParentWhenItChanges()
-    {
-        var planet = new Planet(GravityField.Point(Mu));
-
-        planet.Frames.SetGravity(planet.Root, GravityField.Point(2 * Mu));
-
-        planet.Frames.KeplerMu(planet.Moon).Should().Be(2 * Mu, "the orbit holds no G·M, so there is no second copy to forget");
-    }
-
-    [Theory]
-    [MemberData(nameof(FieldsWithoutPointGravity))]
-    public void AFrameWhoseParentHasNoPointGravityHasNoGMToOrbit(string why, GravityField field)
-    {
-        var planet = new Planet(field);
-
-        planet.Frames.KeplerMu(planet.Moon).Should().Be(0, why);
-    }
-
-    [Fact]
-    public void ARootFrameHasNoGMToOrbit()
-    {
-        var planet = new Planet(GravityField.Point(Mu));
-
-        planet.Frames.KeplerMu(planet.Root).Should().Be(0);
-    }
-
-    [Fact]
-    public void TheGMOfAStaleFrameIsRefused()
-    {
-        var planet = new Planet(GravityField.Point(Mu));
-        planet.Frames.Destroy(planet.Moon);
-
-        Action ask = () => planet.Frames.KeplerMu(planet.Moon);
-
-        ask.Should().Throw<InvalidOperationException>();
-    }
-
-    // ---- The invariant of the tree ---------------------------------------------------------------------------------
-
-    [Fact]
-    public void AKeplerFrameInAParentWithPointGravityKeepsTheInvariants()
-    {
-        var planet = new Planet(GravityField.Point(Mu));
-
-        Action check = planet.Frames.AssertInvariants;
-
-        check.Should().NotThrow();
-    }
-
-    [Theory]
-    [MemberData(nameof(FieldsWithoutPointGravity))]
-    public void AKeplerFrameWhoseParentHasNoPointGravityBreaksTheInvariants(string why, GravityField field)
-    {
-        var planet = new Planet(GravityField.Point(Mu));
-        planet.Frames.SetGravity(planet.Root, field);
-
-        Action check = planet.Frames.AssertInvariants;
-
-        check.Should().Throw<ContractException>(why).WithMessage("*Invariant*");
-    }
-
-    [Fact]
-    public void AKeplerRootFrameBreaksTheInvariants()
-    {
-        var frames = new FrameTree();
-        frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(10), MotionDriver.Kepler, GravityField.Point(Mu), KeplerOrbit.Circular(7e6));
-
-        Action check = frames.AssertInvariants;
-
-        check.Should().Throw<ContractException>();
-    }
-
-    [Theory]
-    [InlineData(MotionDriver.Static)]
-    [InlineData(MotionDriver.Physics)]
-    [InlineData(MotionDriver.Spin)]
-    public void AFrameWithAnotherDriverNeedsNoGM(MotionDriver driver)
-    {
-        var planet = new Planet(GravityField.None, driver);
-
-        Action check = planet.Frames.AssertInvariants;
-
-        check.Should().NotThrow();
     }
 
     // ---- An orbit without a G·M ------------------------------------------------------------------------------------

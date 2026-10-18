@@ -14,3 +14,9 @@ tags: [physics, character]
 
 Design: docs/plans/spin-gravity.md. Section 'Characters'. Field plus rotation terms on the velocity; up and standing from field plus centrifugal, also in the air; pressed along the ground normal and moving along the ground plane while standing.
 
+
+## Notes
+
+**2026-10-18T14:08:43Z**
+
+From the Blue Danube demo survey (2026-10-18): check whether the choice between the walking and the weightless form (CharacterForms.cs ~155, EffectiveGravity) counts the centrifugal term near the hub of a turning frame.

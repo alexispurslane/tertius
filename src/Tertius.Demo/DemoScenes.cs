@@ -121,7 +121,7 @@ public static partial class DemoScenes
             AngularVelocity = start.AngularVelocityAt(world.Time, earthMu).ToVector3(),
             // In Earth's frame the hull is a solid box. Inside the ship's own frame it is hollow: the person walks on its
             // floor, and goes out through the airlock along its outer faces.
-            Body = new BodyDesc(new BoxShapeDesc(Hull), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
+            Body = new BodyDesc(new BoxShapeDesc(Hull), BodyMotion.Dynamic, Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,
                 InteriorShape: new CompoundShapeDesc([.. ShipInterior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
             // The bubble is the smallest ellipsoid that holds the hull grown by 2 m (see ShipBubble), so a person or a crate
             // that leaves the ship passes into earth near it. The ship falls freely, so only its own field acts inside it: one standard gravity toward its
@@ -253,21 +253,31 @@ public static partial class DemoScenes
         const double eccentricity = 0.01671123, perihelion = 102.93768193 * Math.PI / 180;
         // At the March equinox, Earth is at longitude 180 degrees from the sun.
         double meanAnomaly = MeanAnomaly(Math.PI - perihelion, eccentricity);
+        var earthOrbit = new KeplerOrbit(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, obliquity, 0, 0);
+        // Earth starts on its orbit at the world's time, and its KeplerMotion moves it on from the second sync point.
+        (Double3 earthPlace, Double3 earthVelocity) = earthOrbit.StateAt(world.Time, SunMu);
         Entity earthOwner = world.Spawn(new SpawnDesc
         {
             Frame = sun,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu),
-                new KeplerOrbit(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, obliquity, 0, 0)),
+            Pose = new DPose(earthPlace, earthOrbit.RotationAt(world.Time, SunMu)),
+            LinearVelocity = earthVelocity,
+            AngularVelocity = earthOrbit.AngularVelocityAt(world.Time, SunMu).ToVector3(),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu)),
+            Components = [new KeplerMotion { Orbit = earthOrbit }],
         });
         scene.Add("earth", earthOwner);
         FrameHandle earth = world.GetOwnedFrame(earthOwner);
 
+        // The ground turns with the sidereal day, from its turn at the world's time on.
+        var turning = new FrameSpin(DQuaternion.Identity, SiderealRate);
         scene.Add("earth-surface", world.Spawn(new SpawnDesc
         {
             Frame = earth,
+            Pose = new DPose(Double3.Zero, turning.RotationAt(world.Time)),
+            AngularVelocity = turning.AngularVelocity.ToVector3(),
             // The bubble holds the air, 100 km up, and ends below the ship's orbit.
-            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + 100e3)), MotionDriver.Spin, GravityField.Point(EarthMu),
-                Spin: new FrameSpin(DQuaternion.Identity, SiderealRate)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + 100e3)), MotionDriver.Spin, GravityField.Point(EarthMu)),
+            Components = [new SpinMotion { Spin = turning }],
             Render = new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Sphere((float)EarthRadius, 256, 128)),

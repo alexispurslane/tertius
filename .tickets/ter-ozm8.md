@@ -71,3 +71,7 @@ User rules from 2026-10-17 (also in memory): start with the pure, orthogonal mod
 Process that worked: Sonnet readers map the code; an Opus builder in the main checkout lands the core change and a failing list; Opus fallout agents in worktrees by file group; the orchestrator merges, runs every suite in Debug and Release, runs coverage on changed lines (tools/README.md), and one Opus reviewer reads the whole diff; fix agents confirm each finding with a failing test. Run the full Release suite too: one Release-only failure appeared only there. Never cd into a worktree from the session shell (use git -C and absolute paths).
 
 Open follow-ups: ter-91p8 (Jolt's linear cast holds a resting body back beside a ghost in a fast home), ter-me1y (item 1 partly, item 3). About 41 old worktrees from earlier sessions sit in .claude/worktrees; they are not this session's.
+
+**2026-10-18T14:14:58Z**
+
+When this epic closes: start the spin gravity epic ter-s9m0 and the demo steps ter-2n31, ter-na4f and ter-m13s (epic ter-rb26) as two parallel workflows (user, 2026-10-18). See the note on ter-rb26.

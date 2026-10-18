@@ -49,7 +49,8 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     /// SpacewalkSliceTests finds the person's. In the ship's frame, these are the crate's own. In earth, they come from the
     /// poses and velocities of the crate and the ship there. The ship's frame turns with the ship, so a point at rest in
     /// it moves at the ship's velocity plus the ship's angular velocity crossed with the point's offset from the ship's
-    /// center.
+    /// center. A body's velocity is Jolt's chord of the last tick, and a frame's is its instant velocity at the end of the
+    /// tick, so in earth the crate's chord first takes the half tick of Earth's gravity that it is behind.
     /// </summary>
     private (Double3 Position, Double3 Velocity) RelativeToShip(string name)
     {
@@ -59,7 +60,8 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         crate.Pose.Frame.Should().Be("earth");
         ship.Pose.Frame.Should().Be("earth");
         Double3 offset = crate.Pose.Position - ship.Pose.Position;
-        Double3 velocity = (Double3)crate.Velocity - ship.Velocity - Double3.Cross(ship.AngularVelocity, offset);
+        Double3 crateVelocity = (Double3)crate.Velocity + GravityField.Point(DemoScenes.EarthMu).AtPrecise(crate.Pose.Position) * (0.5 / 60);
+        Double3 velocity = crateVelocity - ship.Velocity - Double3.Cross(ship.AngularVelocity, offset);
         DQuaternion toShip = ship.Pose.Rotation.Conjugate();
         return (toShip.Rotate(offset), toShip.Rotate(velocity));
     }

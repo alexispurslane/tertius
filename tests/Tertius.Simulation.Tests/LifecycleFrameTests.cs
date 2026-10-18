@@ -456,8 +456,8 @@ public class LifecycleFrameTests
             MoonOwner = T.World.Spawn(new SpawnDesc
             {
                 Frame = T.Root,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(7e6, spinRate: 0.01)),
-            });
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler),
+            }.OnKeplerOrbit(T.World, KeplerOrbit.Circular(7e6, spinRate: 0.01)));
             FrameHandle moon = T.World.GetOwnedFrame(MoonOwner);
             Pod = T.SpawnStaticFrame(TestWorld.At(100, 20, -30), 10, moon);
             Passenger = T.World.SpawnAt(Pod, new Double3(1, 0, 0));

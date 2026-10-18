@@ -78,8 +78,8 @@ public class PhysicsOutputCheckTests
             {
                 Frame = Space,
                 Body = BoxBody(1, 10),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(200, phase: 1.0)),
-            }));
+                AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Kepler),
+            }.OnKeplerOrbit(World, KeplerOrbit.Circular(200, phase: 1.0))));
             Entity goneOwner = World.Spawn(new SpawnDesc
             {
                 Frame = Space,
@@ -241,30 +241,21 @@ public class PhysicsOutputCheckTests
     }
 
     [Fact]
-    public void AFrameStateOfAFrameThatPhysicsDoesNotDriveThrowsOutOfTheStep()
+    public void AStepRecordOfAFrameWhoseOwnerHasNoBodyThrowsOutOfTheStep()
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.Frames.Add(new FrameState(scene.Cockpit, DPose.Identity, Double3.Zero, Vector3.Zero, Vector3.Zero)),
-            $"*state of {scene.Cockpit}*physics does not drive it*");
+        scene.ShouldRefuse(output => output.Frames.Add(StepRecords.Of(scene.Drifter, DPose.Identity, Double3.Zero, Vector3.Zero, Vector3.Zero)),
+            $"*step record of {scene.Drifter}*has no body*");
     }
 
     [Fact]
-    public void AFrameStateOfAFrameWhoseOwnerHasNoBodyThrowsOutOfTheStep()
+    public void AStepRecordOfARootFrameThrowsOutOfTheStep()
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.Frames.Add(new FrameState(scene.Drifter, DPose.Identity, Double3.Zero, Vector3.Zero, Vector3.Zero)),
-            $"*state of {scene.Drifter}*has no body*");
-    }
-
-    [Fact]
-    public void AFrameStateOfARootFrameThrowsOutOfTheStep()
-    {
-        using var scene = new Scene();
-
-        scene.ShouldRefuse(output => output.Frames.Add(new FrameState(scene.Raft, DPose.Identity, Double3.Zero, Vector3.Zero, Vector3.Zero)),
-            $"*state of {scene.Raft}*root frame*");
+        scene.ShouldRefuse(output => output.Frames.Add(StepRecords.Of(scene.Raft, DPose.Identity, Double3.Zero, Vector3.Zero, Vector3.Zero)),
+            $"*step record of {scene.Raft}*root frame*");
     }
 
     [Theory]
@@ -282,12 +273,12 @@ public class PhysicsOutputCheckTests
     }
 
     [Fact]
-    public void AFrameStateOfAFrameThatIsGoneThrowsOutOfTheStep()
+    public void AStepRecordOfAFrameThatIsGoneThrowsOutOfTheStep()
     {
         using var scene = new Scene();
 
-        scene.ShouldRefuse(output => output.Frames.Add(new FrameState(scene.Gone, DPose.Identity, Double3.Zero, Vector3.Zero, Vector3.Zero)),
-            $"*state of the stale frame {scene.Gone}*");
+        scene.ShouldRefuse(output => output.Frames.Add(StepRecords.Of(scene.Gone, DPose.Identity, Double3.Zero, Vector3.Zero, Vector3.Zero)),
+            $"*step record of the stale frame {scene.Gone}*");
     }
 
     [Fact]

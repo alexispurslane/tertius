@@ -87,17 +87,15 @@ public sealed partial class World : IDisposable
         dyingMarks = entities.AddColumn<bool>();
         characterStanding = entities.AddColumn<bool>();
         Frames.NumericOptions = this.options.NumericFrames;
-        // Physics steps by one tick, so an orbit frame's velocity is the chord of its orbit over one tick.
-        Frames.StepLength = DeltaTime;
         if (physics != null)
             physicsWorker = new PhysicsWorker(physics, stepOutput);
     }
 
     /// <summary>
-    /// The reference frames. Read it freely. Outside a tick, a game gives a frame a new motion driver, orbit or gravity field
-    /// with <see cref="SetFrameDriver"/>, <see cref="SetFrameOrbit"/> and <see cref="SetFrameGravity"/>. They refuse a value
-    /// that the engine cannot use, and the owner of the frame follows the change at once. Make every other change through
-    /// the world.
+    /// The reference frames. Read it freely. Outside a tick, a game gives a frame a new motion driver or gravity field with
+    /// <see cref="SetFrameDriver"/> and <see cref="SetFrameGravity"/>. They refuse a value that the engine cannot use, and
+    /// the owner of the frame follows the change at once. A frame on rails takes its orbit or its spin from a component of
+    /// its owner (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). Make every other change through the world.
     /// </summary>
     public FrameTree Frames { get; } = new();
 
@@ -307,8 +305,6 @@ public sealed partial class World : IDisposable
     /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state. Every live
     /// frame's topic resolves.</item>
     /// <item>Only a character can be standing.</item>
-    /// <item>Every frame with the Kepler driver has a parent whose gravity is a point field with a G·M above 0
-    /// (see <see cref="FrameTree.AssertInvariants"/>).</item>
     /// <item>Every intent that the next physics step applies names its entity's frame (see
     /// <see cref="PhysicsIntent.Frame"/>).</item>
     /// </list>

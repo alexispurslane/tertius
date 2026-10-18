@@ -382,7 +382,10 @@ public class GhostPlaceTests
         JoltPhysicsBackend.BodyFacts ghost = faults.Jolt.BodiesIn(space)
             .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, crate));
         (ghost.Position - world.PoseIn(crate, space).Position).Length.Should().BeLessThan(1e-3, "the ghost keeps the crate's place in space");
-        ((Double3)ghost.LinearVelocity - world.VelocityIn(crate, space)).Length.Should().BeLessThan(1e-3, "the ghost keeps the crate's velocity in space");
+        // The tree keeps the ship's instant velocity, half a step of its braking past its chord, which the ghost follows.
+        MotionSample shipRecord = faults.Outputs[^1].Frames.Single(state => state.Frame == bubble).Motion;
+        Double3 crateChord = world.VelocityIn(crate, space) - (shipRecord.Velocity - shipRecord.ChordVelocity);
+        ((Double3)ghost.LinearVelocity - crateChord).Length.Should().BeLessThan(1e-3, "the ghost keeps the crate's velocity in space");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         world.Tick();
         faults.Jolt.HasGhostIn(crate, space).Should().BeTrue();
@@ -540,8 +543,8 @@ public class GhostPlaceTests
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(FarMu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
-            Frame = space, Body = ShipHull, AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(Far)),
-        });
+            Frame = space, Body = ShipHull, AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Kepler),
+        }.OnKeplerOrbit(world, KeplerOrbit.Circular(Far)));
         FrameHandle station = world.GetOwnedFrame(owner);
         Entity crate = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 40), Body = CrateBody });
         Double3 cratePlace = world.Frames.PointToParent(station, new Double3(0, 40, 0));

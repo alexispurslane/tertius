@@ -88,9 +88,11 @@ public sealed class TestWorld : IDisposable
     public void Run(int ticks) => World.Run(ticks);
 
     /// <summary>
-    /// Gives <see cref="Root"/> a point gravity with this G·M, in m³/s². A Kepler frame in the root takes its G·M from it
-    /// (see <see cref="FrameTree.KeplerMu"/>), and so does everything that falls in the root with real physics. Call it
-    /// before the first Kepler frame spawns, and only in a test that wants a Kepler frame in the root.
+    /// Gives <see cref="Root"/> a point gravity with this G·M, in m³/s². A <see cref="KeplerMotion"/> of a frame in the root
+    /// takes its G·M from it (see <see cref="Tertius.Frames.Rails.KeplerOrbit.MuFrom"/>), and so does everything that falls in
+    /// the root with real physics. Call it before the first Kepler frame spawns, so that the spawn helpers place the frame
+    /// with the same G·M (see <see cref="Tertius.Testing.RailsSpawn"/>), and only in a test that wants a Kepler frame in the
+    /// root.
     /// </summary>
     public void GiveRootPointGravity(double mu) => World.SetFrameGravity(Root, GravityField.Point(mu));
 

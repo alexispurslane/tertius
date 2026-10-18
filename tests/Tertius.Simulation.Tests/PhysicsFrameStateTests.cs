@@ -33,7 +33,7 @@ public class PhysicsFrameStateTests
     }
 
     /// <summary>The state of the frame that Jolt sent in the step of tick <paramref name="tick"/>.</summary>
-    private static FrameState StateSent(FaultInjectingBackend faults, FrameHandle frame, int tick = 0) =>
+    private static FrameStepRecord StateSent(FaultInjectingBackend faults, FrameHandle frame, int tick = 0) =>
         faults.Outputs[tick].Frames.Single(state => state.Frame == frame);
 
     [Fact]
@@ -46,14 +46,14 @@ public class PhysicsFrameStateTests
 
         test.Run(2);
 
-        FrameState sent = StateSent(faults, ship, tick: 1);
-        sent.LocalPose.Position.Should().NotBe(new Double3(1, 2, 3), "the ship moved");
-        sent.AngularVelocity.Should().NotBe(Vector3.Zero);
-        sent.ProperAcceleration.Should().NotBe(Vector3.Zero, "the force acted in the step");
-        test.World.Frames.LocalPose(ship).Should().Be(sent.LocalPose);
-        test.World.Frames.LinearVelocity(ship).Should().Be(sent.LinearVelocity);
-        test.World.Frames.AngularVelocity(ship).Should().Be(sent.AngularVelocity);
-        test.World.Frames.ProperAcceleration(ship).Should().Be(sent.ProperAcceleration);
+        FrameStepRecord sent = StateSent(faults, ship, tick: 1);
+        sent.Motion.Pose.Position.Should().NotBe(new Double3(1, 2, 3), "the ship moved");
+        sent.Motion.AngularVelocity.Should().NotBe(Double3.Zero);
+        sent.Motion.ProperAcceleration.Should().NotBe(Vector3.Zero, "the force acted in the step");
+        test.World.Frames.LocalPose(ship).Should().Be(sent.Motion.Pose);
+        test.World.Frames.LinearVelocity(ship).Should().Be(sent.Motion.Velocity);
+        test.World.Frames.AngularVelocity(ship).Should().Be(sent.Motion.AngularVelocity.ToVector3());
+        test.World.Frames.ProperAcceleration(ship).Should().Be(sent.Motion.ProperAcceleration);
     }
 
     [Fact]
@@ -64,11 +64,11 @@ public class PhysicsFrameStateTests
 
         test.Run(1);
 
-        FrameState sent = StateSent(faults, ship);
-        sent.LocalPose.Position.Should().NotBe(new Double3(1, 2, 3), "the ship moved");
-        test.World.PoseInOwnFrame(owner).Should().Be(sent.LocalPose);
-        test.World.VelocityInOwnFrame(owner).Should().Be(sent.LinearVelocity.ToVector3());
-        test.World.AngularVelocityInOwnFrame(owner).Should().Be(sent.AngularVelocity);
+        FrameStepRecord sent = StateSent(faults, ship);
+        sent.Motion.Pose.Position.Should().NotBe(new Double3(1, 2, 3), "the ship moved");
+        test.World.PoseInOwnFrame(owner).Should().Be(sent.Motion.Pose);
+        test.World.VelocityInOwnFrame(owner).Should().Be(sent.Motion.Velocity.ToVector3());
+        test.World.AngularVelocityInOwnFrame(owner).Should().Be(sent.Motion.AngularVelocity.ToVector3());
     }
 
     [Fact]
@@ -81,11 +81,11 @@ public class PhysicsFrameStateTests
         test.Run(1);
 
         // The ship flew 0.1 m along +X in its step. The pilot is 1 m above the ship's origin and did not move in the ship.
-        FrameState sent = StateSent(faults, ship);
-        PoseChecks.AssertNear(sent.LocalPose.Position, new Double3(0.1, 0, 0), 1e-6);
+        FrameStepRecord sent = StateSent(faults, ship);
+        PoseChecks.AssertNear(sent.Motion.Pose.Position, new Double3(0.1, 0, 0), 1e-6);
         test.World.PoseInOwnFrame(pilot).Position.Should().Be(new Double3(0, 1, 0));
         test.World.Snapshot.TryGetPoseIn(pilot, test.Root, out DPose inRoot).Should().BeTrue();
-        PoseChecks.AssertNear(inRoot.Position, sent.LocalPose.Position + new Double3(0, 1, 0));
+        PoseChecks.AssertNear(inRoot.Position, sent.Motion.Pose.Position + new Double3(0, 1, 0));
     }
 
     // Physics hears of a destroyed frame before its next step, and it drives a frame only through the hull of a frame
@@ -99,24 +99,11 @@ public class PhysicsFrameStateTests
         SpawnShip(test, test.Root, out FrameHandle gone);
         test.World.Destroy(gone.Entity);
         faults.EditNextOutput = output =>
-            output.Frames.Add(new FrameState(gone, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
+            output.Frames.Add(StepRecords.Of(gone, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
 
         Action tick = () => test.World.Tick();
 
         tick.Should().Throw<ContractException>();
-    }
-
-    [Fact]
-    public void AFrameStateForAFrameThatPhysicsDoesNotDriveBreaksAContract()
-    {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
-        FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
-        faults.EditNextOutput = output =>
-            output.Frames.Add(new FrameState(dock, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
-
-        Action tick = () => test.World.Tick();
-
-        tick.Should().Throw<ContractException>().WithMessage("*physics does not drive it*");
     }
 
     [Fact]
@@ -125,7 +112,7 @@ public class PhysicsFrameStateTests
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         FrameHandle drifter = SpawnBodilessPhysicsFrame(test);
         faults.EditNextOutput = output =>
-            output.Frames.Add(new FrameState(drifter, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
+            output.Frames.Add(StepRecords.Of(drifter, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
 
         Action tick = () => test.World.Tick();
 
@@ -138,11 +125,11 @@ public class PhysicsFrameStateTests
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         FrameHandle raft = SpawnRootPhysicsFrameWithBody(test);
         faults.EditNextOutput = output =>
-            output.Frames.Add(new FrameState(raft, TestWorld.At(1000), new Double3(5, 0, 0), Vector3.Zero, Vector3.Zero));
+            output.Frames.Add(StepRecords.Of(raft, TestWorld.At(1000), new Double3(5, 0, 0), Vector3.Zero, Vector3.Zero));
 
         Action tick = () => test.World.Tick();
 
-        tick.Should().Throw<ContractException>().WithMessage($"*state of {raft}*root frame*");
+        tick.Should().Throw<ContractException>().WithMessage($"*step record of {raft}*root frame*");
     }
 #else
     [Fact]
@@ -153,7 +140,7 @@ public class PhysicsFrameStateTests
         SpawnShip(test, test.Root, out FrameHandle other, TestWorld.At(100));
         test.World.Destroy(gone.Entity);
         faults.EditNextOutput = output =>
-            output.Frames.Add(new FrameState(gone, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
+            output.Frames.Add(StepRecords.Of(gone, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
 
         test.Run(1);
 
@@ -162,31 +149,16 @@ public class PhysicsFrameStateTests
     }
 
     [Fact]
-    public void AFrameStateForAFrameThatPhysicsDoesNotDriveIsReportedOnceAndMovesNothing()
-    {
-        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
-        FrameHandle dock = test.SpawnStaticFrame(TestWorld.At(100), radius: 50);
-        faults.EditNextOutput = output =>
-            output.Frames.Add(new FrameState(dock, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
-
-        test.Run(1);
-
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"state of {dock}").And.Contain("physics does not drive it");
-        test.World.Frames.LocalPose(dock).Should().Be(TestWorld.At(100));
-        test.World.PoseInOwnFrame(dock.Entity).Should().Be(TestWorld.At(100));
-    }
-
-    [Fact]
     public void AFrameStateForAFrameWhoseOwnerHasNoBodyIsReportedOnceAndMovesNothing()
     {
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         FrameHandle drifter = SpawnBodilessPhysicsFrame(test);
         faults.EditNextOutput = output =>
-            output.Frames.Add(new FrameState(drifter, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
+            output.Frames.Add(StepRecords.Of(drifter, TestWorld.At(5, 6, 7), Double3.Zero, Vector3.Zero, Vector3.Zero));
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"state of {drifter}").And.Contain($"{drifter.Entity} has no body");
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"step record of {drifter}").And.Contain($"{drifter.Entity} has no body");
         test.World.Frames.LocalPose(drifter).Should().Be(TestWorld.At(100));
     }
 
@@ -196,11 +168,11 @@ public class PhysicsFrameStateTests
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         FrameHandle raft = SpawnRootPhysicsFrameWithBody(test);
         faults.EditNextOutput = output =>
-            output.Frames.Add(new FrameState(raft, TestWorld.At(1000), new Double3(5, 0, 0), Vector3.Zero, Vector3.Zero));
+            output.Frames.Add(StepRecords.Of(raft, TestWorld.At(1000), new Double3(5, 0, 0), Vector3.Zero, Vector3.Zero));
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"state of {raft}").And.Contain("root frame");
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"step record of {raft}").And.Contain("root frame");
         test.World.Frames.LocalPose(raft).Should().Be(DPose.Identity);
         test.World.Frames.LinearVelocity(raft).Should().Be(Double3.Zero);
     }
@@ -252,14 +224,14 @@ public class PhysicsFrameStateTests
         test.Run(1);
 
         faults.Outputs[0].HandOffs.Should().ContainSingle().Which.To.Should().Be(carrier);
-        FrameState sent = StateSent(faults, fighter);
-        PoseChecks.AssertNear(sent.LocalPose.Position, new Double3(100.1, 0, 0), 1e-6);
+        FrameStepRecord sent = StateSent(faults, fighter);
+        PoseChecks.AssertNear(sent.Motion.Pose.Position, new Double3(100.1, 0, 0), 1e-6);
         test.World.Frames.Parent(fighter).Should().Be(carrier);
-        test.World.Frames.LocalPose(fighter).Should().Be(sent.LocalPose, "the state is relative to the carrier, so the world keeps it as it is");
-        test.World.Frames.LinearVelocity(fighter).Should().Be(sent.LinearVelocity);
-        PoseChecks.AssertNear(sent.LinearVelocity, new Double3(6, 0, 0), 1e-6);
+        test.World.Frames.LocalPose(fighter).Should().Be(sent.Motion.Pose, "the state is relative to the carrier, so the world keeps it as it is");
+        test.World.Frames.LinearVelocity(fighter).Should().Be(sent.Motion.Velocity);
+        PoseChecks.AssertNear(sent.Motion.Velocity, new Double3(6, 0, 0), 1e-6);
         test.World.GetFrame(fighterOwner).Should().Be(carrier);
-        test.World.PoseInOwnFrame(fighterOwner).Position.Should().Be(sent.LocalPose.Position);
+        test.World.PoseInOwnFrame(fighterOwner).Position.Should().Be(sent.Motion.Pose.Position);
     }
 
     /// <summary>
@@ -289,12 +261,12 @@ public class PhysicsFrameStateTests
 
         // The state is relative to the dock: about 5 m along the dock's +X, and 2 m/s along it. The quarter turn about +Y
         // maps the dock's +X to the root's -Z, so the shuttle is at about (1000, 0, -5) in the root, and moves along -Z.
-        FrameState sent = StateSent(faults, shuttle);
-        sent.LocalPose.Position.X.Should().BeGreaterThan(5, "the shuttle moved along the dock's +X in its step");
+        FrameStepRecord sent = StateSent(faults, shuttle);
+        sent.Motion.Pose.Position.X.Should().BeGreaterThan(5, "the shuttle moved along the dock's +X in its step");
         test.World.Frames.IsAlive(dock).Should().BeFalse();
         test.World.Frames.Parent(shuttle).Should().Be(test.Root);
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(shuttle).Position, DockPointInRoot(sent.LocalPose.Position));
-        PoseChecks.AssertNear(test.World.Frames.LinearVelocity(shuttle), PoseChecks.QuarterTurnAboutY.Rotate(sent.LinearVelocity));
+        PoseChecks.AssertNear(test.World.Frames.LocalPose(shuttle).Position, DockPointInRoot(sent.Motion.Pose.Position));
+        PoseChecks.AssertNear(test.World.Frames.LinearVelocity(shuttle), PoseChecks.QuarterTurnAboutY.Rotate(sent.Motion.Velocity));
         PoseChecks.AssertNear(test.World.Frames.LinearVelocity(shuttle), new Double3(0, 0, -2), 1e-6);
         test.World.GetFrame(shuttle.Entity).Should().Be(test.Root);
         test.World.PoseInOwnFrame(shuttle.Entity).Should().Be(test.World.Frames.LocalPose(shuttle));
@@ -313,11 +285,11 @@ public class PhysicsFrameStateTests
 
         // The dock died at this sync point, so the hull moved to the root's physics system. It starts from the pose and
         // velocity after the step, converted through the dock's quarter turn, not from the pose before the step.
-        FrameState sent = StateSent(faults, shuttle);
+        FrameStepRecord sent = StateSent(faults, shuttle);
         BodyCreate hull = batches.SelectMany(batch => batch.BodiesCreated).Last(create => create.Entity == shuttleOwner);
         hull.Frame.Should().Be(test.Root);
-        PoseChecks.AssertNear(hull.Pose.Position, DockPointInRoot(sent.LocalPose.Position));
-        PoseChecks.AssertNear(hull.LinearVelocity, PoseChecks.QuarterTurnAboutY.Rotate(sent.LinearVelocity));
+        PoseChecks.AssertNear(hull.Pose.Position, DockPointInRoot(sent.Motion.Pose.Position));
+        PoseChecks.AssertNear(hull.LinearVelocity, PoseChecks.QuarterTurnAboutY.Rotate(sent.Motion.Velocity));
         PoseChecks.AssertNear(hull.Pose.Position, new Double3(1000, 0, -5), 0.1);
         test.World.Errors.Should().BeEmpty();
     }

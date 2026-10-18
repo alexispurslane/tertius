@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 using static Tertius.Testing.NumericFrameTesting;
@@ -270,7 +271,8 @@ public class NumericFrameGhostTests
 
         JoltPhysicsBackend.BodyFacts ghost = faults.Jolt.BodiesIn(station)
             .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, shipOwner));
-        Double3 velocity = world.VelocityIn(shipOwner, station);
+        // The tree keeps the ship's instant velocity, and the ghost follows its chord.
+        Double3 velocity = world.VelocityIn(shipOwner, station) - InstantPastChord(faults, world.GetOwnedFrame(shipOwner));
 
         velocity.Y.Should().BeLessThan(-5, "the ship has fallen for 32 steps, about 0.53 s");
         ((Double3)ghost.LinearVelocity - velocity).Length.Should().BeLessThan(1e-4, "the ghost moves with the ship's chord");
@@ -724,8 +726,10 @@ public class NumericFrameGhostTests
 
         JoltPhysicsBackend.BodyFacts shipCratesGhost = GhostOf(faults, scene.ShipCrate, scene.Station);
         JoltPhysicsBackend.BodyFacts stationCratesGhost = GhostOf(faults, scene.Crate, scene.Ship);
-        Double3 shipCratesVelocity = world.VelocityIn(scene.ShipCrate, scene.Station);
-        Double3 stationCratesVelocity = world.VelocityIn(scene.Crate, scene.Ship);
+        // The tree keeps the ship's instant velocity, and the ghosts follow the ship's chord.
+        Double3 shipPastChord = InstantPastChord(faults, scene.Ship);
+        Double3 shipCratesVelocity = world.VelocityIn(scene.ShipCrate, scene.Station) - shipPastChord;
+        Double3 stationCratesVelocity = world.VelocityIn(scene.Crate, scene.Ship) + shipPastChord;
 
         shipCratesVelocity.Y.Should().BeLessThan(-5, "the ship and its crate have fallen for 32 steps, about 0.53 s");
         ((Double3)shipCratesGhost.LinearVelocity - shipCratesVelocity).Length.Should().BeLessThan(1e-4,
@@ -733,6 +737,17 @@ public class NumericFrameGhostTests
         ((Double3)stationCratesGhost.LinearVelocity - stationCratesVelocity).Length.Should().BeLessThan(1e-4,
             "the ghost of the station's crate moves in the ship with the crate's chord relative to the ship");
         world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// How far the instant velocity of the frame of a dynamic hull at the end of the last step, which the tree keeps, is past
+    /// its chord, which the ghosts follow: half a step of the hull's acceleration (see "One motion record per frame" in
+    /// docs/plans/rails-components.md). Numeric frames do not turn, so it is the same in every frame that does not turn.
+    /// </summary>
+    private static Double3 InstantPastChord(FaultInjectingBackend faults, FrameHandle frame)
+    {
+        MotionSample record = faults.Outputs[^1].Frames.Single(state => state.Frame == frame).Motion;
+        return record.Velocity - record.ChordVelocity;
     }
 
     /// <summary>The one ghost of <paramref name="entity"/> in the system of <paramref name="frame"/>.</summary>
@@ -1181,7 +1196,8 @@ public class NumericFrameGhostTests
 
         FrameHandle treeParent = world.Frames.TreeParent(scene.Ship);
         JoltPhysicsBackend.BodyFacts ghost = GhostOf(faults, scene.Crate, treeParent);
-        Double3 velocity = world.VelocityIn(scene.Crate, treeParent);
+        // The tree keeps the ship's instant velocity, and the ghost follows its chord.
+        Double3 velocity = world.VelocityIn(scene.Crate, treeParent) - InstantPastChord(faults, scene.Ship);
 
         world.VelocityIn(scene.Crate, scene.Space).Y.Should().BeLessThan(-5, "the ship and its crate have fallen for 32 steps, about 0.53 s");
         (ghost.Position - world.PoseIn(scene.Crate, treeParent).Position).Length.Should().BeLessThan(1e-6,
