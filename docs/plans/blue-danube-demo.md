@@ -2,7 +2,7 @@
 
 ## Goal
 
-A long demo video of the engine, recorded from one unbroken scripted run with the real renderer. The camera follows one character capsule from a launch terminal on Earth's surface to the outer wheel of a spinning station. The centerpiece recreates the docking sequence from "2001: A Space Odyssey". The graphics are gray-box procedural meshes without textures. Title cards and music are added after the run.
+A long demo video of the engine, recorded from one unbroken scripted run with the real renderer. The camera follows one character capsule from a launch terminal on Earth's surface to the outer wheel of a spinning station. The centerpiece recreates the docking sequence from "2001: A Space Odyssey". The graphics are gray-box procedural meshes without textures. The demo shows the physics only, so it adds no sky and no anti-aliasing: the engine is unfinished, and viewers know it (user, 2026-10-18). Title cards and music are added after the run.
 
 ## The sequence
 
@@ -27,11 +27,9 @@ From a survey of the code on 2026-10-18.
 | Scripts of 100,000 ticks and more | Exists (`scripts/orbit.json` runs about 332,700 ticks) | A generator that writes the long script |
 | One image per frame | Partial: only a `capture` step writes a PNG, synchronously, about 0.1 to 0.15 s per 720p frame (estimate) | The generator alternates `run` and `capture`. Measure 600 frames first. |
 | Video | Missing: no ffmpeg in the dev shell | Add `pkgs.ffmpeg` to the flake. Encode, cut, add title cards and music with ffmpeg. |
-| Smooth edges | No anti-aliasing yet | Render at twice the size and scale down with ffmpeg |
 | A camera that follows the character | Partial: the camera is an entity, a camera step is a hard cut, `AttachTo` follows a parent | A chase camera component on an entity attached to the character |
 | Character walking, floating, grabbing | Exists (`MoveCharacter`, `Jump`, grab within 3 m) | A path-following walker component. A capsule hides that the rigid form never turns. A pen as a small grab item. |
 | Seat | Missing | A static box in the hull's interior |
-| Sky on the ground | Missing: the sky is black with stars, even at noon | An inward-facing blue dome mesh flagged `Celestial`, or a sky term in the renderer (engine) |
 | Ground at the pad | Earth's sphere sags about 480 m between vertices | A large static slab under the pad, as in the surface yard |
 | Cylinders, rings, tori | Missing: only box, sphere and plane meshes | Mesh generators and matching compound or convex shapes for the wheel, spokes, barrel and chute |
 | Ship thrust and steering | Partial: thrusters exist in the test project only | Autopilot components: the climb to orbit, the rendezvous, the spin match and the docking |
@@ -48,9 +46,8 @@ From a survey of the code on 2026-10-18.
 
 These come up during the demo work and need the user's decision:
 
-1. Sky: a dome mesh in the demo, or a sky term in `lighting.frag`.
-2. Capture speed: an asynchronous PNG encode for headless runs (ticket `ter-viyi` covers the window only), or raw frames piped to ffmpeg.
-3. A script step that captures every N ticks, instead of a generated list of steps.
+1. Capture speed: an asynchronous PNG encode for headless runs (ticket `ter-viyi` covers the window only), or raw frames piped to ffmpeg.
+2. A script step that captures every N ticks, instead of a generated list of steps.
 
 Two questions belong to the spin gravity epic, and its tickets carry notes about them:
 
@@ -60,7 +57,7 @@ Two questions belong to the spin gravity epic, and its tickets carry notes about
 ## Order of the work
 
 1. The video pipeline: ffmpeg, the script generator, the chase camera, a measured frame time.
-2. The surface: the pad, the terminal, the sky, the walker, the boarding.
+2. The surface: the pad, the terminal, the walker, the boarding.
 3. The launch and the climb to orbit: the ramp, the shuttle's autopilot, the weightless cabin, the seat and the pen.
 4. The station and the rendezvous: the mesh generators, the wheel, the spokes, the barrel with its slot, the station on its orbit, the rendezvous autopilot.
 5. The spin match and the docking.

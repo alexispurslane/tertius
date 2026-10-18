@@ -12,5 +12,5 @@ tags: [demo]
 ---
 # Demo surface: launch pad, boarding terminal, sky, a walker component and the boarding
 
-Step 2 of docs/plans/blue-danube-demo.md. A static slab with gray-box buildings, a sky dome (or the engine sky term if the user chooses it), a path-following walker component, and the walk onto the shuttle.
+Step 2 of docs/plans/blue-danube-demo.md. A static slab with gray-box buildings, a path-following walker component, and the walk onto the shuttle.
 
