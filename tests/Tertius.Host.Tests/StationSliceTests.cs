@@ -1,3 +1,4 @@
+using Tertius.Frames.Rails;
 using Tertius.Host.Scripting;
 using Tertius.Physics;
 using Tertius.Simulation;

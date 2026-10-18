@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius;
 
 namespace Tertius.Core.Tests;

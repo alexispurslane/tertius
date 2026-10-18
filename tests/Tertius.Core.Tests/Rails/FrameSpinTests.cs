@@ -1,4 +1,6 @@
+using System.Numerics;
 using AwesomeAssertions;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Core.Tests;
 
@@ -94,5 +96,44 @@ public class FrameSpinTests
         };
 
         spin.IsValid.Should().BeFalse();
+    }
+
+    // ---- The sample of a spin over a step ----------------------------------------------------------------------
+
+    private static readonly FrameSpin Turning = new(Obliquity, 0.25, PhaseAtEpoch: 0.7, Epoch: 3);
+    private static readonly Double3 Place = new(5, -6, 7e6);
+    private const double Tick = 1.0 / 60;
+
+    [Fact]
+    public void A_spin_sample_stands_at_its_place_with_the_rotation_of_the_spin_at_the_end_of_its_step()
+    {
+        Turning.Sample(Place, Vector3.Zero, 12.5, Tick).Pose.Should().Be(new DPose(Place, Turning.RotationAt(12.5)));
+    }
+
+    [Fact]
+    public void A_spin_sample_does_not_move()
+    {
+        MotionSample sample = Turning.Sample(Place, Vector3.Zero, 12.5, Tick);
+
+        sample.ChordVelocity.Should().Be(Double3.Zero);
+        sample.Velocity.Should().Be(Double3.Zero);
+        sample.Acceleration.Should().Be(Double3.Zero);
+    }
+
+    [Fact]
+    public void A_spin_sample_turns_steadily_at_the_angular_velocity_of_the_spin()
+    {
+        MotionSample sample = Turning.Sample(Place, Vector3.Zero, 12.5, Tick);
+
+        sample.AngularVelocity.Should().Be(Turning.AngularVelocity);
+        sample.AngularAcceleration.Should().Be(Double3.Zero);
+    }
+
+    [Fact]
+    public void A_spin_sample_keeps_the_proper_acceleration_that_it_is_given()
+    {
+        var weight = new Vector3(0, 9.81f, 0.5f);
+
+        Turning.Sample(Place, weight, 12.5, Tick).ProperAcceleration.Should().Be(weight);
     }
 }

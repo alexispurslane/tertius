@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Numerics;
 using AwesomeAssertions;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation.Tests;
 

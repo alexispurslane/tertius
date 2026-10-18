@@ -55,6 +55,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 | Frameless reads such as `Self.Pose` and `Self.Velocity` beside reads in a frame | Every read of a position or velocity names its frame. Writes stay relative to `self.Frame`, and directions stay in its axes. | A read can be about any entity, but an entity writes only itself. |
 | A pure planner that returns a plan, plus a separate module that keeps numeric frames coherent | One choke-point method on `FrameTree` that calls internal pure predicates and acts directly | No plan object and no second module beside the owner of the state. |
 | Fake physics backends, kept in line with Jolt by a conformance suite | Every test uses the real World and the real Jolt backend. The only physics test double is a wrapper around real Jolt that injects faults. | A stand-in drifts from the code that it copies. A survey found 20 gaps between the stand-ins and the real code. See `docs/plans/real-physics-in-tests.md`. |
+| A library of static methods that take the orbit or the spin as an `in` parameter, such as `KeplerRails.StateAt(in KeplerOrbit orbit, ...)` | Every function lives in the struct that it belongs to: a function of an orbit is an instance method of `KeplerOrbit`, and two-body math that takes no orbit elements is a static method of `KeplerOrbit`, such as `KeplerOrbit.Chord(position, velocity, mu, step)`. No separate static class. | The user said so on 2026-10-18 for the rails library (ter-k8cg). |
 
 ## Code style
 

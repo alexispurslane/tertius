@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using Tertius.Demo;
+using Tertius.Frames.Rails;
 using Tertius.Host.Scripting;
 using Tertius.Simulation;
 

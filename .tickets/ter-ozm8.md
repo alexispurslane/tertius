@@ -41,6 +41,7 @@ Decisions of the design doc (the user decided Q1 to Q4 on 2026-10-17, and the or
 User decisions (2026-10-17):
 - The full version, for consistency. The state of the Kepler, Spin and Static drivers moves from the frame tree onto components of the frame's entity. Every frame with an owner follows its owner, as a frame with the Physics driver follows its hull today. The reverse path goes away: the tree moving a frame on rails, and physics pushing the frame's hull after it (DriveKinematicHulls).
 - The math of the rails moves into a library of static methods, in a namespace under the frame tree code. Components and engine readers both call it. Examples: a Kepler orbit's place, velocity and angular velocity at a time, the orbit's chord over a step (NumericFrameRules.OrbitChord), the orbit's acceleration, a spin's turn over a step, and the prediction of a frame at the end of a step (FrameTree.KeplerMotion).
+- Changed on 2026-10-18 (User): no static rails class. Every rails function lives in its struct: instance methods of KeplerOrbit and FrameSpin for functions of an orbit or a spin, static methods of KeplerOrbit (Chord, Acceleration, MuFrom) for two-body math without orbit elements.
 - The spin gravity epic (ter-s9m0) waits for this epic. This epic comes after the numeric frames epic (ter-uu1x), whose ghost change edits the same orbit frames and anchors.
 
 Points that the design must settle:
