@@ -1,6 +1,6 @@
 ---
 id: ter-k8cg
-status: in_progress
+status: closed
 deps: [ter-skca]
 links: []
 created: 2026-10-17T21:44:05Z
