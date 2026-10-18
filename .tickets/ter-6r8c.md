@@ -1,6 +1,6 @@
 ---
 id: ter-6r8c
-status: in_progress
+status: closed
 deps: [ter-k8cg]
 links: []
 created: 2026-10-17T21:44:05Z
