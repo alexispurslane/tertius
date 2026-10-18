@@ -827,9 +827,9 @@ public sealed partial class World
     private void ApplySpin(FrameHandle frame, double time)
     {
         FrameSpin spin = Frames.Spin(frame);
-        Frames.SetLocalPose(frame, new DPose(Frames.LocalPose(frame).Position, SpinRails.RotationAt(spin, time)));
+        Frames.SetLocalPose(frame, new DPose(Frames.LocalPose(frame).Position, spin.RotationAt(time)));
         Frames.TreeLinearVelocity(frame) = Double3.Zero;
-        Frames.AngularVelocity(frame) = SpinRails.AngularVelocity(spin).ToVector3();
+        Frames.AngularVelocity(frame) = spin.AngularVelocity.ToVector3();
     }
 
     /// <summary>The owner's transform row mirrors the frame's local pose, which is the authoritative one.</summary>

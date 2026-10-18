@@ -55,10 +55,10 @@ public static partial class DemoScenes
     /// </summary>
     public static (DPose Pose, Double3 Velocity) BesideTheShip(Double3 offset, double time)
     {
-        (Double3 position, Double3 velocity) = KeplerRails.StateAt(ShipOrbit, time, EarthMu);
-        DQuaternion rotation = KeplerRails.RotationAt(ShipOrbit, time, EarthMu);
+        (Double3 position, Double3 velocity) = ShipOrbit.StateAt(time, EarthMu);
+        DQuaternion rotation = ShipOrbit.RotationAt(time, EarthMu);
         Double3 arm = rotation.Rotate(offset);
-        return (new DPose(position + arm, rotation), velocity + Double3.Cross(KeplerRails.AngularVelocityAt(ShipOrbit, time, EarthMu), arm));
+        return (new DPose(position + arm, rotation), velocity + Double3.Cross(ShipOrbit.AngularVelocityAt(time, EarthMu), arm));
     }
 
     /// <summary>

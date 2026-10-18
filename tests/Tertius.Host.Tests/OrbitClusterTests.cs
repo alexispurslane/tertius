@@ -320,8 +320,8 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
     /// </summary>
     private Double3 ThrustStep(int key, long tick)
     {
-        DQuaternion walker = KeplerRails.RotationAt(DemoScenes.ShipOrbit, Start.Time, DemoScenes.EarthMu);
-        DQuaternion ship = KeplerRails.RotationAt(DemoScenes.ShipOrbit, Start.Time + tick * TickSeconds, DemoScenes.EarthMu);
+        DQuaternion walker = DemoScenes.ShipOrbit.RotationAt(Start.Time, DemoScenes.EarthMu);
+        DQuaternion ship = DemoScenes.ShipOrbit.RotationAt(Start.Time + tick * TickSeconds, DemoScenes.EarthMu);
         return ship.Conjugate().Rotate(walker.Rotate(new Double3(0, 0, key))) * (PersonControl.ThrustForce / SpacewalkerMass * TickSeconds * TickSeconds);
     }
 
@@ -355,7 +355,7 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
         StateDump back = Dump(name);
         Double3 measured = back.Entity("spacewalker").Pose.Position - back.Entity("ship").Pose.Position;
 
-        (Double3 shipPosition, Double3 shipVelocity) = KeplerRails.StateAt(DemoScenes.ShipOrbit, Start.Time, DemoScenes.EarthMu);
+        (Double3 shipPosition, Double3 shipVelocity) = DemoScenes.ShipOrbit.StateAt(Start.Time, DemoScenes.EarthMu);
         (DPose walker, Double3 walkerVelocity) = DemoScenes.BesideTheShip(DemoScenes.SpacewalkerStart, Start.Time);
         Double3 walkerPosition = walker.Position;
         int[] keys = KeysAlongBack(run.Script, back.Tick - Start.Tick);
@@ -424,7 +424,7 @@ public sealed class OrbitClusterTests(OrbitClusterRun run) : IClassFixture<Orbit
         StateDump dump = Dump(minute);
         Double3 measured = dump.Entity(crate).Pose.Position - dump.Entity("ship").Pose.Position;
 
-        (Double3 shipPosition, Double3 shipVelocity) = KeplerRails.StateAt(DemoScenes.ShipOrbit, Start.Time, DemoScenes.EarthMu);
+        (Double3 shipPosition, Double3 shipVelocity) = DemoScenes.ShipOrbit.StateAt(Start.Time, DemoScenes.EarthMu);
         double n = Math.Sqrt(DemoScenes.EarthMu / (shipPosition.LengthSquared * shipPosition.Length));
         Double3 up = shipPosition.Normalized(), normal = Double3.Cross(shipPosition, shipVelocity).Normalized();
         Double3 along = Double3.Cross(normal, up);

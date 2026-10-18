@@ -112,13 +112,13 @@ public static partial class DemoScenes
         // Stryker disable once String : the scene gives earth point gravity above, so nothing reaches this guard of its own construction.
         double earthMu = world.Frames.Gravity(earth) is PointGravity { Mu: var mu } ? mu : throw new InvalidOperationException("Earth has no point gravity.");
         KeplerOrbit start = ShipOrbit;
-        (Double3 position, Double3 velocity) = KeplerRails.StateAt(start, world.Time, earthMu);
+        (Double3 position, Double3 velocity) = start.StateAt(world.Time, earthMu);
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = earth,
-            Pose = new DPose(position, KeplerRails.RotationAt(start, world.Time, earthMu)),
+            Pose = new DPose(position, start.RotationAt(world.Time, earthMu)),
             LinearVelocity = velocity,
-            AngularVelocity = KeplerRails.AngularVelocityAt(start, world.Time, earthMu).ToVector3(),
+            AngularVelocity = start.AngularVelocityAt(world.Time, earthMu).ToVector3(),
             // In Earth's frame the hull is a solid box. Inside the ship's own frame it is hollow: the person walks on its
             // floor, and goes out through the airlock along its outer faces.
             Body = new BodyDesc(new BoxShapeDesc(Hull), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0,

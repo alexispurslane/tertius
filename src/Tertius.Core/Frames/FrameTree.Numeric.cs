@@ -52,14 +52,14 @@ public sealed partial class FrameTree
         Contract.Requires(driver[id] == MotionDriver.Kepler && StepLength > 0);
         KeplerOrbit path = orbit[id];
         double mu = KeplerMu(frame);
-        (Double3 position, Double3 velocity) = KeplerRails.StateAt(path, time, mu);
-        DQuaternion rotation = KeplerRails.RotationAt(path, time, mu);
-        angularVelocity[id] = KeplerRails.AngularVelocityAt(path, time, mu).ToVector3();
+        (Double3 position, Double3 velocity) = path.StateAt(time, mu);
+        DQuaternion rotation = path.RotationAt(time, mu);
+        angularVelocity[id] = path.AngularVelocityAt(time, mu).ToVector3();
         properAcceleration[id] = Vector3.Zero;
         FrameHandle parent = TreeParent(frame);
         if (InOrbitFrame(frame))
         {
-            Double3 chord = KeplerRails.Chord(position, velocity, mu, StepLength);
+            Double3 chord = KeplerOrbit.Chord(position, velocity, mu, StepLength);
             poses.Local(Node(parent)) = new DPose(position, DQuaternion.Identity);
             linearVelocity[parent.Index] = chord;
             poses.Local(Node(frame)) = new DPose(Double3.Zero, rotation);
@@ -115,18 +115,15 @@ public sealed partial class FrameTree
     /// in JoltPhysicsBackend.Chords.cs), and both of those of the orbit frame are the frame's own, to the orbit's jerk times
     /// the square of a step, under 1e-6 m/s in low orbit. The tree keeps the frame's velocity relative to the orbit frame's
     /// chord instead (see <see cref="PlaceOnOrbit"/>), so that a read in the semantic parent gives the orbit's instant
-    /// velocity.
+    /// velocity. It reads the orbit's sample of the step of <see cref="StepLength"/> that ends at <paramref name="time"/>
+    /// (see <see cref="KeplerOrbit.Sample"/>).
     /// </summary>
     internal (DPose Pose, Double3 Velocity, Double3 AngularVelocity) KeplerMotion(FrameHandle frame, double time)
     {
-        KeplerOrbit path = Orbit(frame);
-        double mu = KeplerMu(frame);
-        DQuaternion rotation = KeplerRails.RotationAt(path, time, mu);
-        Double3 angular = KeplerRails.AngularVelocityAt(path, time, mu);
+        MotionSample sample = Orbit(frame).Sample(KeplerMu(frame), time, StepLength);
         if (InOrbitFrame(frame))
-            return (new DPose(Double3.Zero, rotation), Double3.Zero, angular);
-        (Double3 position, Double3 velocity) = KeplerRails.StateAt(path, time, mu);
-        return (new DPose(position, rotation), velocity, angular);
+            return (new DPose(Double3.Zero, sample.Pose.Rotation), Double3.Zero, sample.AngularVelocity);
+        return (sample.Pose, sample.Velocity, sample.AngularVelocity);
     }
 
     /// <summary>True when <paramref name="frame"/> hangs in its orbit frame: an orbit frame whose orbiter it is.</summary>
@@ -151,7 +148,7 @@ public sealed partial class FrameTree
         DPose local = TreeLocalPose(frame);
         Double3 position = InSemantic(treeParent, semantic, local.Position);
         Double3 velocity = HomeVelocity(treeParent, semantic) + linearVelocity[frame.Index];
-        Double3 chord = KeplerRails.Chord(position, velocity, KeplerMu(frame), StepLength);
+        Double3 chord = KeplerOrbit.Chord(position, velocity, KeplerMu(frame), StepLength);
         FrameHandle orbitFrame = CreateNumeric(semantic, position, chord, NumericMode.Orbiting);
         orbiter[orbitFrame.Index] = frame;
         Reparent(frame, orbitFrame);
@@ -1155,7 +1152,7 @@ public sealed partial class FrameTree
             int id = poses.NodeAt(i).Id;
             if (numeric[id] == NumericMode.Orbiting)
             {
-                stepAcceleration[id] = KeplerRails.Acceleration(poses.LocalPoses[i].Position, KeplerMu(orbiter[id]));
+                stepAcceleration[id] = KeplerOrbit.Acceleration(poses.LocalPoses[i].Position, KeplerMu(orbiter[id]));
                 continue;
             }
             if (numeric[id] != NumericMode.Falling)

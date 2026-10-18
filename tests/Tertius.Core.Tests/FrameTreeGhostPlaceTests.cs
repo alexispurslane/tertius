@@ -719,7 +719,7 @@ public class FrameTreeGhostPlaceTests
         frames.PlaceOnOrbit(station, start);
         FrameHandle orbit = Update(0.1, KeplerHull(station))[0].Home;
         frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
-        (Double3 place, Double3 velocity) = KeplerRails.StateAt(path, start, mu);
+        (Double3 place, Double3 velocity) = path.StateAt(start, mu);
         NumericBody pod = SpaceBody(space, 10, place + Y(41.5), velocity);
         NumericBody rock = SpaceBody(space, 12, place + Y(56.5), Double3.Zero) with { Static = true };
 

@@ -1,3 +1,4 @@
+using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
 
@@ -7,7 +8,7 @@ namespace Tertius.Core.Tests;
 /// The spin of a frame with the Spin driver: a lean by its tilt, then a steady turn about its own +Y. The tilt here
 /// leans the pole 23.44 degrees from the parent's +Y toward its +X, as Earth's axis leans from the pole of its orbit.
 /// </summary>
-public class SpinRailsTests
+public class FrameSpinTests
 {
     private static readonly DQuaternion Obliquity = DQuaternion.FromAxisAngle(new Double3(0, 0, 1), -23.44 * Math.PI / 180);
     private static readonly Double3 Pole = new(Math.Sin(23.44 * Math.PI / 180), Math.Cos(23.44 * Math.PI / 180), 0);
@@ -23,7 +24,7 @@ public class SpinRailsTests
     {
         var spin = new FrameSpin(Obliquity, 7.2921159e-5);
 
-        ExpectNear(SpinRails.RotationAt(spin, time).Rotate(new Double3(0, 1, 0)), Pole);
+        ExpectNear(spin.RotationAt(time).Rotate(new Double3(0, 1, 0)), Pole);
     }
 
     [Fact]
@@ -32,7 +33,7 @@ public class SpinRailsTests
         var spin = new FrameSpin(DQuaternion.Identity, 3, PhaseAtEpoch: Math.PI / 2, Epoch: 40);
 
         // A quarter turn about +Y, counterclockwise seen from above, takes +X to -Z.
-        ExpectNear(SpinRails.RotationAt(spin, 40).Rotate(new Double3(1, 0, 0)), new Double3(0, 0, -1));
+        ExpectNear(spin.RotationAt(40).Rotate(new Double3(1, 0, 0)), new Double3(0, 0, -1));
     }
 
     [Fact]
@@ -41,7 +42,7 @@ public class SpinRailsTests
         var spin = new FrameSpin(Obliquity, 0.25, PhaseAtEpoch: 0.7, Epoch: 3);
 
         // From t = 5 to t = 7 the frame turns 0.5 rad about its pole: the change of rotation is that turn.
-        DQuaternion change = SpinRails.RotationAt(spin, 7) * SpinRails.RotationAt(spin, 5).Conjugate();
+        DQuaternion change = spin.RotationAt(7) * spin.RotationAt(5).Conjugate();
         Double3 axisTimesSine = new Double3(change.X, change.Y, change.Z) * Math.Sign(change.W);
         ExpectNear(axisTimesSine, Pole * Math.Sin(0.25));
     }
@@ -49,7 +50,7 @@ public class SpinRailsTests
     [Fact]
     public void TheAngularVelocityIsTheRateAboutThePole()
     {
-        ExpectNear(SpinRails.AngularVelocity(new FrameSpin(Obliquity, 0.25)), Pole * 0.25);
+        ExpectNear(new FrameSpin(Obliquity, 0.25).AngularVelocity, Pole * 0.25);
     }
 
     [Fact]
@@ -57,8 +58,8 @@ public class SpinRailsTests
     {
         var spin = new FrameSpin(new DQuaternion(Obliquity.X * 1.5, Obliquity.Y * 1.5, Obliquity.Z * 1.5, Obliquity.W * 1.5), 0.25);
 
-        ExpectNear(SpinRails.RotationAt(spin, 3).Rotate(new Double3(0, 1, 0)), Pole);
-        ExpectNear(SpinRails.AngularVelocity(spin), Pole * 0.25);
+        ExpectNear(spin.RotationAt(3).Rotate(new Double3(0, 1, 0)), Pole);
+        ExpectNear(spin.AngularVelocity, Pole * 0.25);
     }
 
     [Fact]
@@ -67,8 +68,8 @@ public class SpinRailsTests
         FrameSpin spin = default;
 
         spin.IsValid.Should().BeTrue();
-        SpinRails.RotationAt(spin, 1234).Should().Be(DQuaternion.Identity);
-        SpinRails.AngularVelocity(spin).Should().Be(Double3.Zero);
+        spin.RotationAt(1234).Should().Be(DQuaternion.Identity);
+        spin.AngularVelocity.Should().Be(Double3.Zero);
     }
 
     [Theory]
@@ -95,5 +96,44 @@ public class SpinRailsTests
         };
 
         spin.IsValid.Should().BeFalse();
+    }
+
+    // ---- The sample of a spin over a step ----------------------------------------------------------------------
+
+    private static readonly FrameSpin Turning = new(Obliquity, 0.25, PhaseAtEpoch: 0.7, Epoch: 3);
+    private static readonly Double3 Place = new(5, -6, 7e6);
+    private const double Tick = 1.0 / 60;
+
+    [Fact]
+    public void A_spin_sample_stands_at_its_place_with_the_rotation_of_the_spin_at_the_end_of_its_step()
+    {
+        Turning.Sample(Place, Vector3.Zero, 12.5, Tick).Pose.Should().Be(new DPose(Place, Turning.RotationAt(12.5)));
+    }
+
+    [Fact]
+    public void A_spin_sample_does_not_move()
+    {
+        MotionSample sample = Turning.Sample(Place, Vector3.Zero, 12.5, Tick);
+
+        sample.ChordVelocity.Should().Be(Double3.Zero);
+        sample.Velocity.Should().Be(Double3.Zero);
+        sample.Acceleration.Should().Be(Double3.Zero);
+    }
+
+    [Fact]
+    public void A_spin_sample_turns_steadily_at_the_angular_velocity_of_the_spin()
+    {
+        MotionSample sample = Turning.Sample(Place, Vector3.Zero, 12.5, Tick);
+
+        sample.AngularVelocity.Should().Be(Turning.AngularVelocity);
+        sample.AngularAcceleration.Should().Be(Double3.Zero);
+    }
+
+    [Fact]
+    public void A_spin_sample_keeps_the_proper_acceleration_that_it_is_given()
+    {
+        var weight = new Vector3(0, 9.81f, 0.5f);
+
+        Turning.Sample(Place, weight, 12.5, Tick).ProperAcceleration.Should().Be(weight);
     }
 }

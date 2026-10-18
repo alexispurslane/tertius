@@ -144,6 +144,23 @@ public class SpinFrameTests
         PoseChecks.AssertNear(inRoot.Position, new Double3(0, -10, 0), 1e-9);
     }
 
+    // ---- The spin sample matches the World ----------------------------------------------------------------------
+
+    [Fact]
+    public void After_a_sync_point_a_spin_frame_has_the_pose_and_the_angular_velocity_of_its_spin_sample()
+    {
+        using var test = NewWorld(startTime: 1);
+        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), 0.7, PhaseAtEpoch: 0.3, Epoch: 2);
+        var place = new Double3(5, -6, 7);
+        FrameHandle ground = test.World.GetOwnedFrame(SpawnSpinFrame(test, spin, place));
+
+        test.Run(10);
+
+        MotionSample sample = spin.Sample(place, Vector3.Zero, test.World.Time, test.World.DeltaTime);
+        test.World.Frames.LocalPose(ground).Should().Be(sample.Pose);
+        test.World.Frames.AngularVelocity(ground).Should().Be(sample.AngularVelocity.ToVector3(), "the tree keeps the angular velocity in floats");
+    }
+
     // ---- Changing the driver or the spin ------------------------------------------------------------------------
 
     [Fact]

@@ -43,7 +43,7 @@ internal sealed record StationSample(long Tick, double Time, IReadOnlyDictionary
         Entity station = scene["station"];
         FrameHandle frame = world.GetOwnedFrame(station), earth = world.GetOwnedFrame(scene["earth"]), hullHome = world.PhysicsHomeOf(station);
         double mu = world.Frames.Gravity(earth) is PointGravity { Mu: var m } ? m : double.NaN;
-        Double3 orbitPlace = KeplerRails.StateAt(world.Frames.Orbit(frame), world.Time, mu).Position;
+        Double3 orbitPlace = world.Frames.Orbit(frame).StateAt(world.Time, mu).Position;
         return new StationSample(world.TickNumber, world.Time,
             BodyIds.ToDictionary(id => id, id => StationBody.Take(world, scene[id], frame, hullHome)), hullHome, world.Frames.Numeric(hullHome),
             (world.PoseIn(station, earth).Position - orbitPlace).Length);
