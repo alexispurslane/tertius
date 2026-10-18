@@ -507,17 +507,12 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// The pass of <see cref="MirrorFrameOwners"/>: the owner's row takes the frame's view, as <see cref="MirrorFrameOwner"/>
-    /// does for one frame.
+    /// The pass of <see cref="MirrorFrameOwners"/>: the owner of each frame mirrors it by the rule of
+    /// <see cref="MirrorOwner"/>, which <see cref="MirrorFrameOwner"/> applies to one frame.
     /// </summary>
     private readonly struct OwnerMirror(World world) : IOwnerViewVisitor
     {
-        public void Visit(in FrameOwnerView view)
-        {
-            Entity owner = view.Frame.Entity;
-            world.entities.SetBackTransform(owner, OwnerRow(view));
-            world.MoveMembership(owner, view.Semantic, sendFrameChanged: true);
-        }
+        public void Visit(in FrameOwnerView view) => world.MirrorOwner(view);
     }
 
     /// <summary>

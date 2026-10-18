@@ -697,12 +697,21 @@ public sealed partial class World
         AngularVelocity = view.AngularVelocity,
     };
 
-    /// <summary>The owner's transform row mirrors the frame's local pose, which is the authoritative one.</summary>
-    private void MirrorFrameOwner(FrameHandle frame)
+    /// <summary>The owner's transform row mirrors the frame's local pose, which is the authoritative one (see <see cref="MirrorOwner"/>).</summary>
+    private void MirrorFrameOwner(FrameHandle frame) => MirrorOwner(Frames.OwnerView(frame));
+
+    /// <summary>
+    /// The mirror rule, for one frame and for the pass of <see cref="MirrorFrameOwners"/>: the row of the owner of the frame
+    /// whose owner view is <paramref name="view"/> takes the view (see <see cref="OwnerRow"/>), and the owner joins the
+    /// members of the row's frame, the frame's semantic parent, and hears a <see cref="FrameChanged"/> when that frame is new.
+    /// </summary>
+    /// <remarks>Inlined, so that the pass of <see cref="MirrorFrameOwners"/> pays no call per frame for it.</remarks>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private void MirrorOwner(in FrameOwnerView view)
     {
-        Entity owner = frame.Entity;
-        entities.SetBackTransform(owner, FrameOwnerRow(frame));
-        MoveMembership(owner, entities.BackRow(owner).Frame, sendFrameChanged: true);
+        Entity owner = view.Frame.Entity;
+        entities.SetBackTransform(owner, OwnerRow(view));
+        MoveMembership(owner, view.Semantic, sendFrameChanged: true);
     }
 
     /// <summary>
