@@ -8,7 +8,7 @@ Let point lights and spot lights cast shadows, within a fixed budget, so that in
 
 ## Design
 
-- `RenderLight` gets a `CastsShadow` flag. This is a change to Core.
+- `RenderLight` is a union of `PointRenderLight` and `SpotRenderLight`, so both case records get a `CastsShadow` flag, and the union stores it once for both. This is a change to Core.
 - All local-light shadows share one tiled shadow atlas, a large depth texture divided into tiles. A spot light uses one perspective tile. A point light uses six tiles, one for each cube face.
 - Every frame, the renderer ranks the shadow-casting lights by importance: projected size on screen, intensity and distance. Only the top lights get tiles, within a tile budget.
 - The renderer caches a tile while its light and its casters do not move. A cached tile costs nothing to render.

@@ -104,11 +104,12 @@ internal sealed class MotionSampleTable
 
     /// <summary>
     /// Converts the applied and the followed sample of <paramref name="frame"/>, each when it is relative to another frame
-    /// than <paramref name="to"/>, into <paramref name="to"/>, with the relation of the two frames now. The pose converts as
-    /// a pose, the chord velocity and the instant velocity with the motion of one frame relative to the other at the
-    /// sample's place at the end of its step, the angular velocity with the spin of one frame relative to the other, and the
-    /// accelerations as directions. The proper acceleration is in the frame's own axes, so it stays. Both frames must be
-    /// live: the World converts the samples of the frames in a frame that dies before it dies.
+    /// than <paramref name="to"/>, into <paramref name="to"/>, with the relation of the two frames now. The pose, the chord
+    /// velocity and the instant velocity at the sample's place at the end of its step, the angular velocity and the angular
+    /// acceleration convert with the motion of one frame relative to the other, by the rule of a hand-off (see
+    /// <see cref="FrameMotion"/>). The acceleration converts with the acceleration of one frame relative to the other (see
+    /// <see cref="FrameTree.AccelerationRelative"/>). The proper acceleration is in the frame's own axes, so it stays. Both
+    /// frames must be live: the World converts the samples of the frames in a frame that dies before it dies.
     /// </summary>
     internal void ConvertInto(FrameHandle frame, FrameHandle to)
     {
@@ -139,16 +140,19 @@ internal sealed class MotionSampleTable
             return;
         FrameHandle from = row.RelativeTo;
         Contract.Requires(frames.IsAlive(from) && frames.IsAlive(to));
-        DPose relative = frames.Relative(from, to);
+        // The motion of the old relative frame in the new one now, by which the sample converts as a body that hands off
+        // between the two frames does.
+        var motion = new FrameMotion(frames.Relative(from, to), frames.ConvertVelocity(from, to, Double3.Zero, Double3.Zero),
+            frames.AngularVelocityRelative(from, to));
         MotionSample sample = row.Sample;
         Double3 place = sample.Pose.Position;
         var converted = new MotionSample(
-            DPose.Compose(relative, sample.Pose),
-            frames.ConvertVelocity(from, to, place, sample.ChordVelocity),
-            frames.ConvertVelocity(from, to, place, sample.Velocity),
-            relative.TransformDirection(sample.Acceleration),
-            relative.TransformDirection(sample.AngularVelocity) + frames.AngularVelocityRelative(from, to),
-            relative.TransformDirection(sample.AngularAcceleration),
+            motion.PoseToParent(sample.Pose),
+            motion.VelocityToParent(place, sample.ChordVelocity),
+            motion.VelocityToParent(place, sample.Velocity),
+            motion.Pose.TransformDirection(sample.Acceleration) + frames.AccelerationRelative(from, to),
+            motion.AngularToParent(sample.AngularVelocity),
+            motion.AngularAccelerationToParent(sample.AngularAcceleration),
             sample.ProperAcceleration);
         row = new Row(frame, to, converted, row.Round);
     }

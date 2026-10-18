@@ -85,16 +85,17 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
             }
             else if (viewOn && e.Is<InputEvent>())
             {
-                ref InputEvent input = ref e.As<InputEvent>();
-                if (input.Kind == InputKind.MouseDown && (MouseButton)input.Code == MouseButton.Left && !copy.IsNull)
+                // The left button charges a throw when it goes down with a crate in hand, and throws when it goes up.
+                switch (e.As<InputEvent>())
                 {
-                    charging = true;
-                    chargeStart = self.Tick;
-                }
-                else if (input.Kind == InputKind.MouseUp && (MouseButton)input.Code == MouseButton.Left && charging)
-                {
-                    charging = false;
-                    Throw(self, outbox);
+                    case MouseButtonChanged(var button, true) when (MouseButton)button == MouseButton.Left && !copy.IsNull:
+                        charging = true;
+                        chargeStart = self.Tick;
+                        break;
+                    case MouseButtonChanged(var button, false) when (MouseButton)button == MouseButton.Left && charging:
+                        charging = false;
+                        Throw(self, outbox);
+                        break;
                 }
             }
         }

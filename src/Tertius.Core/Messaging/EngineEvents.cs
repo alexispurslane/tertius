@@ -151,27 +151,6 @@ internal static class OctahedralNormal
     private static float SignNotZero(float v) => v >= 0 ? 1 : -1;
 }
 
-public enum InputKind : byte
-{
-    KeyDown,
-    KeyUp,
-    MouseDown,
-    MouseUp,
-    MouseMove,
-    Scroll,
-}
-
-/// <summary>
-/// The host sends input to <see cref="Topics.Input"/>. <see cref="Code"/> is a Silk.NET <c>Key</c> or
-/// <c>MouseButton</c> value. <see cref="Delta"/> is the mouse movement in pixels, or the scroll amount.
-/// </summary>
-public struct InputEvent : IEventPayload
-{
-    public InputKind Kind;
-    public int Code;
-    public Vector2 Delta;
-}
-
 /// <summary>Registers the engine payload types first, so that their ids are always 0 to 9.</summary>
 public static class EngineEvents
 {

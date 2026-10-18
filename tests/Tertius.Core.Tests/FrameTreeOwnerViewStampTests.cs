@@ -95,7 +95,7 @@ public class FrameTreeOwnerViewStampTests
 
     [Fact]
     public void A_frame_that_holds_still_changes_the_stamp() =>
-        StampChanges(() => frames.HoldStill(ship)).Should().BeTrue();
+        StampChanges(() => frames.HoldStill(ship, 1.0 / 60)).Should().BeTrue();
 
     [Fact]
     public void A_frame_that_gets_the_static_driver_changes_the_stamp()

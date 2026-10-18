@@ -85,9 +85,9 @@ internal struct GpuLight
     public Vector4 PositionRange;
     /// <summary>rgb color × intensity, w kind: 0 point, 1 spot.</summary>
     public Vector4 RadianceKind;
-    /// <summary>xyz unit spot direction, w cos(outer half-angle).</summary>
+    /// <summary>xyz unit spot direction, w cos(outer half-angle). Zero for a point light, which has no cone.</summary>
     public Vector4 DirectionCosOuter;
-    /// <summary>x cos(inner half-angle).</summary>
+    /// <summary>x cos(inner half-angle). Zero for a point light.</summary>
     public Vector4 Spot;
 }
 

@@ -56,8 +56,11 @@ public sealed partial class FrameTree
     /// <paramref name="relativeTo"/>, the frame's tree parent. A record that physics releases is relative to it. A sample or
     /// a write from an owner without a body is relative to the semantic parent, which is the same frame, because only a
     /// frame with a hull hangs in a numeric frame (see the class summary). The frame takes the record's pose, its instant
-    /// velocity, its angular velocity, narrowed to a float, and its proper acceleration. A frame at the origin of its orbit frame that takes a record with another place left that origin in
-    /// the step, because its hull teleported: <see cref="JumpFollowingFrame"/> brings it back.
+    /// velocity, its angular velocity, narrowed to a float, and its proper acceleration. Under a numeric parent the record's
+    /// instant velocity is relative to the parent's frame velocity, the chord of the step, so that a read in the semantic
+    /// parent gives the instant velocity (see <see cref="HomeInstantVelocityOverChord"/>). A frame at the origin of its orbit
+    /// frame that takes a record with another place left that origin in the step, because its hull teleported:
+    /// <see cref="JumpFollowingFrame"/> brings it back.
     /// </summary>
     internal void Follow(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
     {
@@ -72,13 +75,17 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Step 2 of the sync point: a frame without a step record holds still in its tree parent. It keeps its pose and its
-    /// proper acceleration, so the cargo of a parked ship keeps its weight, and it has no velocity.
+    /// Step 2 of the sync point, after a step of <paramref name="dt"/> seconds: a frame without a step record holds still in
+    /// its tree parent. It keeps its pose and its proper acceleration, so the cargo of a parked ship keeps its weight, and it
+    /// does not turn. It moves with its tree parent, so a read in the semantic parent gives the parent's instant velocity:
+    /// under a numeric parent, the frame keeps the parent's instant velocity past its frame velocity (see
+    /// <see cref="HomeInstantVelocityOverChord"/>), and in a semantic parent no velocity.
     /// </summary>
-    internal void HoldStill(FrameHandle frame)
+    internal void HoldStill(FrameHandle frame, double dt)
     {
         int id = Node(frame).Id;
-        LinearVelocityForWrite(id) = Double3.Zero;
+        FrameHandle treeParent = TreeParent(frame);
+        LinearVelocityForWrite(id) = treeParent.IsNull ? Double3.Zero : HomeInstantVelocityOverChord(treeParent, SemanticOf(treeParent), dt);
         AngularVelocityForWrite(id) = Vector3.Zero;
     }
 
@@ -1131,7 +1138,10 @@ public sealed partial class FrameTree
         Contract.Requires(mode == NumericMode.Falling || linearVelocity[node.Id] == Double3.Zero);
         numeric[node.Id] = mode;
         if (mode == NumericMode.Resting)
+        {
             stepAcceleration[node.Id] = Double3.Zero;
+            sampleVelocityPastChord[node.Id] = null;
+        }
     }
 
     /// <summary>
@@ -1139,8 +1149,9 @@ public sealed partial class FrameTree
     /// frame at its origin, relative to its parent. That is the field minus the acceleration of the numeric frames above
     /// it, which the dense order, parents first, has fixed already. An orbit frame, which lies in its semantic frame, keeps
     /// the acceleration of its anchor's sample that the step applies, so that it ends the step on the sample to its
-    /// rounding (see <see cref="NumericMode.Orbiting"/>). An orbit frame whose anchor has no sample for the step falls as a
-    /// falling frame, with its anchor at rest in it. A resting frame has none. Call it after
+    /// rounding (see <see cref="NumericMode.Orbiting"/>), and it keeps the sample's instant velocity past its chord as its
+    /// own at the end of the step (see <see cref="HomeInstantVelocityOverChord"/>). An orbit frame whose anchor has no sample
+    /// for the step falls as a falling frame, with its anchor at rest in it. A resting frame has none. Call it after
     /// <see cref="Update"/> and before the physics step, which reads it through <see cref="EffectiveGravity"/>.
     /// </summary>
     internal void BeginNumericStep()
@@ -1150,11 +1161,13 @@ public sealed partial class FrameTree
         for (int i = 0; i < poses.Count; i++)
         {
             int id = poses.NodeAt(i).Id;
+            sampleVelocityPastChord[id] = null;
             // The sample that the next step applies tells how the anchor moves in it. An anchor without one holds still in
             // its orbit frame, which falls as a falling frame does.
             if (numeric[id] == NumericMode.Orbiting && Samples.Applied.TryGet(orbiter[id], out MotionSample sample))
             {
                 stepAcceleration[id] = sample.Acceleration;
+                sampleVelocityPastChord[id] = sample.Velocity - sample.ChordVelocity;
                 continue;
             }
             if (numeric[id] is not (NumericMode.Falling or NumericMode.Orbiting))

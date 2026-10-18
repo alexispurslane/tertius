@@ -310,7 +310,7 @@ public sealed partial class World
             Frames.Follow(frame, relativeTo, sample);
         // A skipped update changes nothing, so the frame keeps the velocities that it had before the step.
         else if (!(hull && stepFailed) && !physicsOutputCheck.IsSkipped(frame.Entity))
-            Frames.HoldStill(frame);
+            Frames.HoldStill(frame, DeltaTime);
 
         // Gameplay can write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the
         // world normalizes it here, and the owner's row follows the frame below (see MirrorFrameOwner). The write moves

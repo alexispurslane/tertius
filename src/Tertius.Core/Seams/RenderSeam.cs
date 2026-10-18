@@ -128,29 +128,6 @@ public struct RenderInstance
     };
 }
 
-public enum LightKind : byte
-{
-    Point,
-    Spot,
-}
-
-/// <summary>A dynamic light. Position and direction follow the same rules as <see cref="RenderInstance"/>.</summary>
-public struct RenderLight
-{
-    public LightKind Kind;
-    public Vector3 Position;
-    public Vector3 Direction;
-    /// <summary>Linear RGB.</summary>
-    public Vector3 Color;
-    /// <summary>Luminous intensity: irradiance at distance d is Color · Intensity / d², with a smooth window to zero at <see cref="Range"/>.</summary>
-    public float Intensity;
-    public float Range;
-    /// <summary>Half-angle of the full-intensity cone of a spot light, in radians.</summary>
-    public float InnerConeAngle;
-    /// <summary>Half-angle of the outer edge of a spot light, in radians.</summary>
-    public float OuterConeAngle;
-}
-
 /// <summary>The camera. Its current position is the render origin, so <see cref="Position"/> is zero.</summary>
 public struct RenderCamera
 {

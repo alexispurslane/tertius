@@ -35,7 +35,7 @@ public class RenderSnapshotParallelBuildTests
         {
             RenderData render = Visible(i % 5);
             if (i % 50 == 0)
-                render.Light = new LightData { Enabled = true, Kind = LightKind.Point, Color = new Vector3(1, 0.5f, 0.25f), Range = 20 };
+                render.Light = new PointLightData(Pose.Identity, new Vector3(1, 0.5f, 0.25f), Intensity: 1, Range: 20);
             test.World.Spawn(new SpawnDesc
             {
                 Frame = i % 3 == 0 ? side : test.Root,

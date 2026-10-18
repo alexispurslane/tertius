@@ -332,7 +332,7 @@ internal sealed class RenderSnapshotBuilder
             ref readonly RenderData render = ref entities.FrontRender(entity);
             // A default mesh is none, so a render row that never set a mesh draws nothing even with Visible set.
             bool visible = (render.Flags & RenderFlags.Visible) != 0 && !render.Mesh.IsNone;
-            if (!visible && !render.Light.Enabled)
+            if (!visible && !render.Light.HasValue)
                 continue;
             if (!TryGetRenderPoses(entity, out DPose current, out DPose previous, out int dense, out Vector3 place))
                 continue;
@@ -355,27 +355,36 @@ internal sealed class RenderSnapshotBuilder
                 instance.PreviousPosition = (previous.Position - origin).ToVector3();
                 instance.PreviousRotation = previous.Rotation.ToQuaternion();
             }
-            if (render.Light.Enabled)
+            // The default light holds no case, so no arm takes it and the entity adds no light.
+            switch (render.Light)
             {
-                ref readonly LightData light = ref render.Light;
-                // The rotation of current is unit length, because TryGetRenderPoses gives the pose of a frame or the result of
-                // ComposeUnitParent.
-                DPose pose = DPose.ComposeUnitParent(current, Poses.Safe(light.Offset).ToDPose());
-                ref RenderLight output = ref lights.AddRef();
-                output = new RenderLight
+                case PointLightData(var offset, var color, var intensity, var range):
                 {
-                    Kind = light.Kind,
-                    Position = (pose.Position - origin).ToVector3(),
-                    Direction = pose.Rotation.Rotate(LightForward).ToVector3(),
-                    Color = light.Color,
-                    Intensity = light.Intensity,
-                    Range = light.Range,
-                    InnerConeAngle = light.InnerConeAngle,
-                    OuterConeAngle = light.OuterConeAngle,
-                };
+                    DPose pose = LightPose(current, offset);
+                    lights.AddRef() = new PointRenderLight((pose.Position - origin).ToVector3(), color, intensity, range);
+                    break;
+                }
+                case SpotLightData(var offset, var color, var intensity, var range, var innerConeAngle, var outerConeAngle):
+                {
+                    DPose pose = LightPose(current, offset);
+                    lights.AddRef() = new SpotRenderLight(
+                        (pose.Position - origin).ToVector3(),
+                        pose.Rotation.Rotate(LightForward).ToVector3(),
+                        color, intensity, range, innerConeAngle, outerConeAngle);
+                    break;
+                }
             }
         }
     }
+
+    /// <summary>
+    /// The pose of a light in the camera's frame: the pose of the entity that carries it, composed with the light's offset.
+    /// A zeroed rotation in the offset, as in a defaulted pose, counts as the identity.
+    /// </summary>
+    private static DPose LightPose(in DPose carrier, Pose offset) =>
+        // The rotation of the carrier is unit length, because TryGetRenderPoses gives the pose of a frame or the result of
+        // ComposeUnitParent.
+        DPose.ComposeUnitParent(carrier, Poses.Safe(offset).ToDPose());
 
     /// <summary>
     /// The entity's pose relative to the camera frame now and at the previous build. A frame owner uses its frame's

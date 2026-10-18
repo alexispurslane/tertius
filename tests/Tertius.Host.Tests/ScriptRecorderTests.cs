@@ -11,8 +11,6 @@ public class ScriptRecorderTests
 {
     private static readonly ScriptWindow Size = new(1280, 720);
 
-    private static InputEvent Key(InputKind kind, int code) => new() { Kind = kind, Code = code };
-
     private static InputEvent PayloadOf(PostStep post) => post.Payload!.Value.Deserialize<InputEvent>(ScriptJson.Scripts);
 
     /// <summary>A step as one short line, so that a test states the steps it expects as text.</summary>
@@ -21,12 +19,19 @@ public class ScriptRecorderTests
         RunStep run => $"run {run.Ticks}",
         CameraStep camera => $"camera {camera.Entity}",
         DumpStep dump => $"dump {dump.Name}",
-        PostStep { To: ToTopic topic } post => $"post {topic.Name} {post.Event} {KindName(PayloadOf(post).Kind)} {PayloadOf(post).Code}",
+        PostStep { To: ToTopic topic } post => $"post {topic.Name} {post.Event} {Describe(PayloadOf(post))}",
         _ => throw new InvalidOperationException($"The test does not describe the step {step}."),
     };
 
-    // The name of an input kind as a script writes it: KeyDown is keyDown.
-    private static string KindName(InputKind kind) => char.ToLowerInvariant(kind.ToString()[0]) + kind.ToString()[1..];
+    // An input event as a script names its kind, then its code or its delta: a key that went down is "keyDown 87".
+    private static string Describe(InputEvent e) => e switch
+    {
+        KeyChanged(var code, var isDown) => $"{(isDown ? "keyDown" : "keyUp")} {code}",
+        MouseButtonChanged(var code, var isDown) => $"{(isDown ? "mouseDown" : "mouseUp")} {code}",
+        MouseMoved(var delta) => $"mouseMove {delta}",
+        Scrolled(var delta) => $"scroll {delta}",
+        null => throw new InvalidOperationException("The test does not describe the empty input event."),
+    };
 
     internal static string[] Describe(Script script) => script.Steps.Select(Describe).ToArray();
 
@@ -47,8 +52,8 @@ public class ScriptRecorderTests
     {
         var recorder = new ScriptRecorder("orbit", Size, "chase");
 
-        recorder.Post(0, Key(InputKind.KeyDown, 87));
-        recorder.Post(5, Key(InputKind.KeyUp, 87));
+        recorder.Post(0, InputEvent.KeyDown(87));
+        recorder.Post(5, InputEvent.KeyUp(87));
         Script script = recorder.ToScript(endTick: 8);
 
         Describe(script).Should().Equal(
@@ -65,9 +70,9 @@ public class ScriptRecorderTests
     {
         var recorder = new ScriptRecorder("orbit", Size, "chase");
 
-        recorder.Post(4, Key(InputKind.KeyDown, 87));
+        recorder.Post(4, InputEvent.KeyDown(87));
         recorder.SwitchCamera(4, "far");
-        recorder.Post(4, Key(InputKind.MouseDown, 0));
+        recorder.Post(4, InputEvent.MouseDown(0));
         Script script = recorder.ToScript(endTick: 4);
 
         Describe(script).Should().Equal(
@@ -84,7 +89,7 @@ public class ScriptRecorderTests
     {
         var recorder = new ScriptRecorder("orbit", Size, "chase");
 
-        recorder.Post(5, Key(InputKind.KeyDown, 87));
+        recorder.Post(5, InputEvent.KeyDown(87));
         Script script = recorder.ToScript(endTick: 5);
 
         Describe(script).Should().Equal("camera chase", "run 5", "post input InputEvent keyDown 87", "dump end");
@@ -121,14 +126,12 @@ public class ScriptRecorderTests
     public void ThePayloadReadsBackAsTheEventThatWasPostedToTheLastBit()
     {
         var recorder = new ScriptRecorder("orbit", Size, "chase");
-        var moved = new InputEvent { Kind = InputKind.MouseMove, Delta = new Vector2(0.1f, -1f / 3f) };
+        InputEvent moved = InputEvent.MouseMove(new Vector2(0.1f, -1f / 3f));
 
         recorder.Post(2, moved);
 
         var post = (PostStep)recorder.ToScript(2).Steps.Single(step => step is PostStep);
-        InputEvent read = PayloadOf(post);
-        read.Kind.Should().Be(InputKind.MouseMove);
-        read.Code.Should().Be(0);
+        PayloadOf(post).TryGetValue(out MouseMoved read).Should().BeTrue();
         BitConverter.SingleToInt32Bits(read.Delta.X).Should().Be(BitConverter.SingleToInt32Bits(0.1f));
         BitConverter.SingleToInt32Bits(read.Delta.Y).Should().Be(BitConverter.SingleToInt32Bits(-1f / 3f));
     }
@@ -137,9 +140,9 @@ public class ScriptRecorderTests
     public void ATickBeforeAnEarlierStepIsRefused()
     {
         var recorder = new ScriptRecorder("orbit", Size, "chase");
-        recorder.Post(5, Key(InputKind.KeyDown, 87));
+        recorder.Post(5, InputEvent.KeyDown(87));
 
-        Action post = () => recorder.Post(3, Key(InputKind.KeyUp, 87));
+        Action post = () => recorder.Post(3, InputEvent.KeyUp(87));
         Action camera = () => recorder.SwitchCamera(4, "far");
         Action end = () => recorder.ToScript(4);
 
@@ -162,11 +165,11 @@ public class ScriptRecorderTests
     public void AskingForTheScriptTwiceGivesTheSameScriptAndKeepsRecording()
     {
         var recorder = new ScriptRecorder("orbit", Size, "chase");
-        recorder.Post(1, Key(InputKind.KeyDown, 87));
+        recorder.Post(1, InputEvent.KeyDown(87));
 
         string[] first = Describe(recorder.ToScript(3));
         string[] again = Describe(recorder.ToScript(3));
-        recorder.Post(4, Key(InputKind.KeyUp, 87));
+        recorder.Post(4, InputEvent.KeyUp(87));
 
         again.Should().Equal(first);
         Describe(recorder.ToScript(4)).Should().Equal(
@@ -177,10 +180,10 @@ public class ScriptRecorderTests
     public void TheJsonOfARecordParsesBackAsTheSameScript()
     {
         var recorder = new ScriptRecorder("orbit", new ScriptWindow(800, 600), "chase");
-        recorder.Post(2, Key(InputKind.KeyDown, 87));
-        recorder.Post(2, new InputEvent { Kind = InputKind.MouseMove, Delta = new Vector2(12.5f, -3f) });
+        recorder.Post(2, InputEvent.KeyDown(87));
+        recorder.Post(2, InputEvent.MouseMove(new Vector2(12.5f, -3f)));
         recorder.SwitchCamera(9, "far");
-        recorder.Post(9, new InputEvent { Kind = InputKind.Scroll, Delta = new Vector2(0, 1) });
+        recorder.Post(9, InputEvent.Scroll(new Vector2(0, 1)));
         Script script = recorder.ToScript(20);
 
         Script parsed = Script.Parse(script.ToJson());
@@ -190,11 +193,9 @@ public class ScriptRecorderTests
         parsed.Steps.Should().HaveCount(script.Steps.Count);
         parsed.Steps.Select(step => step.GetType()).Should().Equal(script.Steps.Select(step => step.GetType()));
         var moved = (PostStep)parsed.Steps[3];
-        PayloadOf(moved).Kind.Should().Be(InputKind.MouseMove);
-        PayloadOf(moved).Delta.Should().Be(new Vector2(12.5f, -3f));
+        (PayloadOf(moved) == InputEvent.MouseMove(new Vector2(12.5f, -3f))).Should().BeTrue();
         var scrolled = (PostStep)parsed.Steps[6];
-        PayloadOf(scrolled).Kind.Should().Be(InputKind.Scroll);
-        PayloadOf(scrolled).Delta.Should().Be(new Vector2(0, 1));
+        (PayloadOf(scrolled) == InputEvent.Scroll(new Vector2(0, 1))).Should().BeTrue();
         ((CameraStep)parsed.Steps[0]).Entity.Should().Be("chase");
         ((CameraStep)parsed.Steps[5]).Entity.Should().Be("far");
         ((DumpStep)parsed.Steps[^1]).Name.Should().Be("end");
@@ -205,7 +206,7 @@ public class ScriptRecorderTests
     {
         var recorder = new ScriptRecorder("orbit", Size, "chase");
         for (int tick = 0; tick < 10; tick++)
-            recorder.Post(tick, Key(InputKind.KeyDown, 65 + tick));
+            recorder.Post(tick, InputEvent.KeyDown(65 + tick));
         Script script = recorder.ToScript(10);
 
         string json = script.ToJson();
@@ -232,7 +233,7 @@ public class ScriptRecorderTests
         // The probe of the "probes" scene hears the topic "test", so the recorded input reaches nobody. The run must still
         // be valid: the scene id of the camera, the topic and the payload type all resolve.
         var recorder = new ScriptRecorder("probes", Size, "probe");
-        recorder.Post(1, Key(InputKind.KeyDown, 87));
+        recorder.Post(1, InputEvent.KeyDown(87));
         recorder.SwitchCamera(2, "crew");
         Script script = Script.Parse(recorder.ToScript(3).ToJson());
         using World world = NewJoltWorld();

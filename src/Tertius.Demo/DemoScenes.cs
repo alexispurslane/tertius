@@ -150,7 +150,7 @@ public static partial class DemoScenes
                     Material = lampMaterial,
                     BoundingRadius = 0.85f,
                     Flags = RenderFlags.Visible,
-                    Light = new LightData { Enabled = true, Color = new Vector3(1, 0.9f, 0.75f), Intensity = 100, Range = 20, Offset = new Pose(new Vector3(0, -0.1f, 0), Quaternion.Identity) },
+                    Light = new PointLightData(new Pose(new Vector3(0, -0.1f, 0), Quaternion.Identity), new Vector3(1, 0.9f, 0.75f), Intensity: 100, Range: 20),
                 },
             });
 

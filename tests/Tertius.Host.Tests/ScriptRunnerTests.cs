@@ -72,19 +72,47 @@ public class ScriptRunnerTests
     }
 
     [Fact]
+    public void AnInputEventPayloadIsReadInTheFormOfItsKind()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene,
+            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "delta": [1.5, -2] } }""",
+            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "keyUp", "code": 87 } }""",
+            """{ "do": "run", "ticks": 2 }""");
+
+        ProbeOf(world, scene, "probe").Seen.Select(seen => seen.Event.As<InputEvent>()).Should()
+            .Equal(InputEvent.MouseMove(new Vector2(1.5f, -2)), InputEvent.KeyUp(87));
+    }
+
+    [Fact]
+    public void AnInputPostThatTheRecorderWroteBeforeTheUnionStillRuns()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+
+        // The recorder wrote every member of the old struct, with zero for the member that the kind does not use.
+        Run(world, scene,
+            """{"do":"post","to":{"kind":"entity","id":"probe"},"event":"InputEvent","payload":{"kind":"keyDown","code":87,"delta":[0, 0]}}""",
+            """{"do":"post","to":{"kind":"entity","id":"probe"},"event":"InputEvent","payload":{"kind":"mouseMove","code":0,"delta":[3, -4]}}""",
+            """{ "do": "run", "ticks": 2 }""");
+
+        ProbeOf(world, scene, "probe").Seen.Select(seen => seen.Event.As<InputEvent>()).Should()
+            .Equal(InputEvent.KeyDown(87), InputEvent.MouseMove(new Vector2(3, -4)));
+    }
+
+    [Fact]
     public void APayloadIsReadIntoTheFieldsOfItsTypeByTheirCamelCaseNames()
     {
         using World world = NewWorld();
         SceneInstance scene = Probes(world);
 
         Run(world, scene,
-            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "code": 7, "delta": [1.5, -2] } }""",
+            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1, 2, 3] } }""",
             """{ "do": "run", "ticks": 2 }""");
 
-        InputEvent input = ProbeOf(world, scene, "probe").Seen.Single().Event.As<InputEvent>();
-        input.Kind.Should().Be(InputKind.MouseMove);
-        input.Code.Should().Be(7);
-        input.Delta.Should().Be(new Vector2(1.5f, -2));
+        ProbeOf(world, scene, "probe").Seen.Single().Event.As<Aim>().Direction.Should().Be(new Vector3(1, 2, 3));
     }
 
     [Fact]
@@ -137,7 +165,12 @@ public class ScriptRunnerTests
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1e39 } }""", "amount")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1e39, 0, 0] } }""", "direction")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1, 2] } }""", "direction")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "point": [4, 5] } }""", "point")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Spin", "payload": { "attitude": [0, 0.6, 0] } }""", "attitude")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": 4 } }""", "kind")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "code": 7, "delta": [1.5, -2] } }""", "code")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "keyDown" } }""", "code")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent" }""", "kind")]
     [InlineData("""{ "do": "camera", "entity": "ghost" }""", "ghost")]
     public void AStepThatCannotRunStopsTheRunBeforeTheFirstTick(string badStep, string named)
     {
