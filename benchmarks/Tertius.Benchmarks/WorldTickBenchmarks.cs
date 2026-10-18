@@ -95,6 +95,7 @@ public class KeplerFrameTickBenchmarks
     private const double EarthMu = 3.986004418e14;
 
     private World world = null!;
+    internal World World => world;
     private long syncTimestampsAtStart;
     private long syncCountAtStart;
     private readonly SyncProfileReport profile = new();

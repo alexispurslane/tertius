@@ -61,3 +61,26 @@ internal sealed class SyncProfile
         last = now;
     }
 }
+
+public sealed partial class World
+{
+    /// <summary>
+    /// ter-sn28 profiling aid: runs one float view fill pass over every frame that is not numeric, outside a tick, so that a
+    /// micro benchmark can compare them: 0 the pass of the sync point, 1 the pass before ter-sn28, frame by frame.
+    /// </summary>
+    internal void ProfileMirrorPart(int part)
+    {
+        if (part == 0)
+        {
+            MirrorFrameOwners();
+            return;
+        }
+        int n = Frames.Count;
+        for (int i = 0; i < n; i++)
+        {
+            FrameHandle frame = Frames.AtDense(i);
+            if (!Frames.IsNumeric(frame))
+                MirrorFrameOwner(frame);
+        }
+    }
+}
