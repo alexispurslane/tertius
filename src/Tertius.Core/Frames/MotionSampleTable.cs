@@ -16,7 +16,10 @@ namespace Tertius;
 /// <para>
 /// Each row holds the frame that its sample moves, so a lookup checks the frame's generation, and a frame that reuses the
 /// index of a dead frame has no sample. It also holds the frame that the sample is relative to: the semantic parent of the
-/// frame when its owner wrote it, which the World needs when it converts samples into another frame.
+/// frame when its owner wrote it, which the World needs when it converts samples into another frame. And it holds what
+/// made it, a <see cref="FollowKind"/>: <see cref="FollowKind.Rails"/> for a sample that the owner wrote, and for a record
+/// what moved the frame in the step (see <see cref="Record"/>). So the followed buffer tells how each frame followed its
+/// owner at the last sync point (see <see cref="FrameTree.Followed"/>).
 /// </para>
 /// <para>
 /// Each buffer has a round: the number of the turn of <see cref="MoveOn"/> in which it was the written buffer. A row
@@ -65,7 +68,7 @@ internal sealed class MotionSampleTable
     internal void Write(FrameHandle frame, FrameHandle relativeTo, in MotionSample sample)
     {
         Contract.Requires(frames.IsAlive(frame));
-        writtenRows[frame.Index] = new Row(frame, relativeTo, sample, round);
+        writtenRows[frame.Index] = new Row(frame, relativeTo, sample, round, FollowKind.Rails);
     }
 
     /// <summary>
@@ -74,15 +77,33 @@ internal sealed class MotionSampleTable
     /// already, which is then the record (see "One motion record per frame" in docs/plans/rails-components.md). So after
     /// <see cref="MoveOn"/>, the followed buffer holds the record of every frame that moved in the step. Returns true when it
     /// put the record there.
+    /// <para>
+    /// The record of a frame whose hull was dynamic in the step is the move that physics made (<see cref="FollowKind.Physics"/>).
+    /// Any other record is a teleport of the frame's hull or a write of its owner's transform, which a static frame follows
+    /// (<see cref="FollowKind.Static"/>). The motion of the hull in the step that ended comes from the intents that the step
+    /// applied, <paramref name="stepIntents"/> (see <see cref="FrameTree.HullMotionInStep"/>): the stored motion takes
+    /// their changes only at step 4, after this step.
+    /// </para>
     /// </summary>
-    internal bool Record(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
+    internal bool Record(FrameHandle frame, FrameHandle relativeTo, in MotionSample record, ReadOnlySpan<PhysicsIntent> stepIntents)
     {
         Contract.Requires(frames.IsAlive(frame));
         ref Row row = ref appliedRows[frame.Index];
         if (row.Round == round - 1 && row.Frame == frame)
             return false;
-        row = new Row(frame, relativeTo, record, round - 1);
+        FollowKind kind = frames.HullMotionInStep(frame, stepIntents) == BodyMotion.Dynamic ? FollowKind.Physics : FollowKind.Static;
+        row = new Row(frame, relativeTo, record, round - 1, kind);
         return true;
+    }
+
+    /// <summary>
+    /// How <paramref name="frame"/> followed its owner at the last sync point: the kind of its row in the followed buffer, or
+    /// <see cref="FollowKind.Static"/> when it has none.
+    /// </summary>
+    internal FollowKind KindFollowed(FrameHandle frame)
+    {
+        ref readonly Row row = ref followedRows[frame.Index];
+        return row.Round == round - 2 && row.Frame == frame ? row.Kind : FollowKind.Static;
     }
 
     /// <summary>
@@ -95,12 +116,8 @@ internal sealed class MotionSampleTable
         round++;
     }
 
-    /// <summary>Drops the written and the applied sample of <paramref name="frame"/>, so that no step applies a sample of it until its owner writes again.</summary>
-    internal void Drop(FrameHandle frame)
-    {
-        Clear(writtenRows, frame);
-        Clear(appliedRows, frame);
-    }
+    /// <summary>Drops the sample that the owner of <paramref name="frame"/> wrote in the running tick, so that the next step applies none.</summary>
+    internal void DropWritten(FrameHandle frame) => Clear(writtenRows, frame);
 
     /// <summary>
     /// Converts the applied and the followed sample of <paramref name="frame"/>, each when it is relative to another frame
@@ -154,11 +171,14 @@ internal sealed class MotionSampleTable
             motion.AngularToParent(sample.AngularVelocity),
             motion.AngularAccelerationToParent(sample.AngularAcceleration),
             sample.ProperAcceleration);
-        row = new Row(frame, to, converted, row.Round);
+        row = row with { RelativeTo = to, Sample = converted };
     }
 
-    /// <summary>A row of a buffer: the sample of <paramref name="Frame"/>, relative to <paramref name="RelativeTo"/>, written in the round <paramref name="Round"/>.</summary>
-    internal readonly record struct Row(FrameHandle Frame, FrameHandle RelativeTo, MotionSample Sample, long Round);
+    /// <summary>
+    /// A row of a buffer: the sample of <paramref name="Frame"/>, relative to <paramref name="RelativeTo"/>, written in the
+    /// round <paramref name="Round"/>, which <paramref name="Kind"/> made.
+    /// </summary>
+    internal readonly record struct Row(FrameHandle Frame, FrameHandle RelativeTo, MotionSample Sample, long Round, FollowKind Kind);
 }
 
 /// <summary>

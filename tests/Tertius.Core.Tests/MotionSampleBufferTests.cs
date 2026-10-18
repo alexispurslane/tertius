@@ -18,8 +18,8 @@ public class MotionSampleBufferTests
 
     public MotionSampleBufferTests()
     {
-        root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
-        frame = frames.Create(new Entity(2, 1), root, DPose.Identity, FrameBounds.Sphere(10), MotionDriver.Kepler);
+        root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        frame = frames.Create(new Entity(2, 1), root, DPose.Identity, FrameBounds.Sphere(10));
     }
 
     /// <summary>A sample whose every field differs from the default, so that only the table can have given it back.</summary>

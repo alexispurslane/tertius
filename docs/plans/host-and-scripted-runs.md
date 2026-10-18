@@ -166,7 +166,7 @@ So an event that the record puts after `n` ticks is handled during the tick that
       "angularVelocity": [0, 0, 0]
     }
   ],
-  "frames": [ { "id": "ground", "parent": null, "driver": "static" } ],
+  "frames": [ { "id": "ground", "parent": null, "follows": "static" } ],
   "events": [ { "tick": 31, "event": "Collision", "to": { "kind": "entity", "id": "box" }, "from": null, "payload": { "other": "floor", "point": [0, 0, 0], "normal": [0, 1, 0], "impulse": 12.5 } } ],
   "errors": []
 }
@@ -175,7 +175,7 @@ So an event that the record puts after `n` ticks is handled during the tick that
 - `tick` is `World.TickNumber`, the number of completed ticks.
 - `entities` lists every live entity in slot order. An entity without a scene id appears as `#index.generation`.
 - `pose` is the pose in the entity's own frame. `rootPose` is the pose in the root frame of its frame tree. (User) The owner of a root frame has no frame, so its `pose.frame` is null.
-- `frames` lists every frame in the dense order of the frame tree, which puts each parent before its children.
+- `frames` lists every frame in the dense order of the frame tree, which puts each parent before its children. Its `follows` says how the frame followed its owner at the dump's sync point, which is what moved it in the step that ended there: `rails` for a frame that took a motion sample that its owner wrote one tick before, `physics` for a frame whose hull was dynamic in that step, and `static` for every other frame. A change of a hull's motion in a tick acts from the next step, so it shows in the dump of the tick after. A new frame on rails holds still at its first sync point, so it shows `rails` from the dump of its second tick on.
 - `events` lists every event that the sync points routed since the previous dump, or since the start of the run. (User) Each event carries the tick count after the sync point that routed it. The order is by tick, then routing order.
 - `errors` is `World.Errors` at the time of the dump, oldest first.
 - `World.RoutedEvents` is the source of `events`: the events that the last sync point routed, in routing order. `Tick` and `Spawned` go straight into each entity's own event list, so they are never routed and never in a dump.
@@ -210,7 +210,7 @@ The demo shows the engine's main idea working end to end:
 
 Step 1, the ship's orbit (tickets `ter-fe04` and `ter-uucg`), is the Demo's scene `orbit` and the script `scripts/orbit.json`. The user chose each point marked (User).
 
-- The frame tree follows the real sky. (User) The sun is the root frame, with the sun's gravity and real radius, and it is the light. The frame `earth` goes round it on Earth's real orbit and does not turn. It leans by Earth's 23.44 degree obliquity, so its axes follow the equator. The frame `earth-surface` sits at Earth's center and turns once per sidereal day with the Spin driver (User). It draws the planet and casts its shadow.
+- The frame tree follows the real sky. (User) The sun is the root frame, with the sun's gravity and real radius, and it is the light. The frame `earth` goes round it on Earth's real orbit and does not turn. It leans by Earth's 23.44 degree obliquity, so its axes follow the equator. The frame `earth-surface` sits at Earth's center and turns once per sidereal day with a `SpinMotion` (User). It draws the planet and casts its shadow.
 - The ship falls freely round Earth: Jolt integrates it in Earth's gravity, with no damping. (User) It starts on a circle 400 km up, tilted 51.64 degrees to the equator as the ISS flies, once in 92.4 minutes. Its spin keeps its belly toward Earth and its nose along its motion. Over one orbit it falls about 350 m behind the exact circle, and the lag grows by about 0.4 km per orbit, about 7 km per day, because Jolt keeps velocities as floats. Its height swings by about 64 m and its place along the track by about 128 m, because Jolt adds each tick's pull to the velocity before it moves the ship, and the start velocity is the exact one, not one offset by half a tick of gravity. Compare a dump with the circle at the dump's own `time`: the script's quarters each end 2.9 ms late. The ship holds its attitude only because Jolt leaves out the gyroscopic torque and the scene leaves out the gravity-gradient torque. Its spin axis is its middle axis of inertia, so with the gyroscopic torque on, it would tumble within a few orbits.
 - The ship orbits `earth`, not `earth-surface`, because an orbit in a turning frame turns with it.
 - The scene starts at the March equinox, with the sun straight above the ship. The ship is in Earth's shadow from about 110 to 250 degrees along its orbit. The script captures the chase view inside the shadow at 120 degrees, where the face that the camera sees points at the sun.

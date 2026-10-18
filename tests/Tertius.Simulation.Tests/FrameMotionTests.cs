@@ -17,7 +17,7 @@ public class FrameMotionTests
         Entity owner = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = [new Mover(new Double3(0, 2, 0))],
         });
         FrameHandle frame = test.World.GetOwnedFrame(owner);
@@ -35,7 +35,7 @@ public class FrameMotionTests
         FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = [new Mover(new Double3(0, 2, 0))],
         }));
         Entity passenger = test.World.SpawnAt(frame, new Double3(1, 0, 0));
@@ -55,7 +55,7 @@ public class FrameMotionTests
         {
             Frame = test.Root,
             Pose = TestWorld.At(10),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
                 self.SetTransform(self.PoseInOwnFrame() with { Rotation = PoseChecks.QuarterTurnAboutY }))],
         }));
@@ -77,7 +77,7 @@ public class FrameMotionTests
         {
             Frame = test.Root,
             Pose = TestWorld.At(100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1000), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1000)),
             Components = [new Mover(new Double3(1, 0, 0))],
         }));
         FrameHandle inner = test.World.SpawnStaticFrame(outer, TestWorld.At(0, 10), radius: 10);
@@ -123,7 +123,7 @@ public class FrameMotionTests
         FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
             {
                 if (self.Tick == 1)
@@ -149,7 +149,7 @@ public class FrameMotionTests
         {
             Frame = test.Root,
             Pose = dockPose,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
             {
                 if (self.Tick == 1)
@@ -160,7 +160,7 @@ public class FrameMotionTests
         FrameHandle room = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = dock,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
             {
                 if (self.Tick == 1)

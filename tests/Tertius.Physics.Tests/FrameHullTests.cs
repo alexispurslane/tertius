@@ -19,18 +19,18 @@ public class FrameHullTests
         new(new BoxShapeDesc(new Vector3(half)), Mass: mass, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     private static FrameHandle SpaceFrame(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
 
-    /// <summary>A frame with the static driver and no body, with a bubble of <paramref name="radius"/> m.</summary>
+    /// <summary>A frame with no body, with a bubble of <paramref name="radius"/> m.</summary>
     private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius) =>
-        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static) }));
+        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius)) }));
 
     /// <summary>The latest body state of <paramref name="entity"/> that Jolt sent, or null when Jolt never sent one.</summary>
     private static BodyState? LastReport(FaultInjectingBackend faults, Entity entity) =>
         faults.Outputs.SelectMany(output => output.Bodies).Where(state => state.Entity == entity).Cast<BodyState?>().LastOrDefault();
 
     /// <summary>
-    /// The hull of a frame whose Kepler driver moves it at 7.5 km/s rests in an orbit frame of its own (ter-dhkf,
+    /// The kinematic hull of a frame whose Kepler orbit moves it at 7.5 km/s rests in an orbit frame of its own (ter-dhkf,
     /// docs/plans/numeric-frames.md, "Anchors", rule 3), so its body state is at the frame's pose in that orbit frame, the
     /// orbit frame's origin with the frame's rotation, and its kinematic velocity there, added to the orbit frame's chord,
     /// is the orbital velocity. Before rule 3, the hull lived in the planet's own system at the orbit's place.
@@ -47,13 +47,13 @@ public class FrameHullTests
     public void TheKinematicHullOfAKeplerFrameFollowsTheTreePoseInTheOrbitFrameWhereItRests()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
         var orbit = KeplerOrbit.Circular(7_000_000, phase: 1.0, spinRate: 0.05);
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10))),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10)), BodyMotion.Kinematic),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
         }.OnKeplerOrbit(world, orbit));
         FrameHandle station = world.GetOwnedFrame(owner);
         const int ticksBeforeTheHullIsOnItsRails = 2;
@@ -90,7 +90,7 @@ public class FrameHullTests
             Frame = space,
             Pose = At(10),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
         });
         world.Tick();
 
@@ -103,7 +103,7 @@ public class FrameHullTests
         Entity root = world.Spawn(new SpawnDesc
         {
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
         });
         world.Tick();
         backend.TryGetBodyFrame(root, out _).Should().BeFalse();
@@ -127,7 +127,7 @@ public class FrameHullTests
             Frame = space,
             Pose = At(10),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100, InteriorShape: new BoxShapeDesc(new Vector3(0.5f))),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
         });
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
         Entity crate = world.Spawn(new SpawnDesc { Frame = shipFrame, Pose = At(0, 2), Body = BoxBody(0.25f, 1) });
@@ -163,7 +163,7 @@ public class FrameHullTests
             Frame = space,
             Pose = At(100),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(20)), BodyMotion.Static, InteriorShape: new BoxShapeDesc(new Vector3(1))),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200)),
         });
         FrameHandle carrierFrame = world.GetOwnedFrame(carrier);
         Entity fighter = world.Spawn(new SpawnDesc
@@ -172,7 +172,7 @@ public class FrameHullTests
             Pose = At(0, 50),
             LinearVelocity = new Double3(1, 0, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
         FrameHandle fighterFrame = world.GetOwnedFrame(fighter);
         Tick(world, 3);
@@ -204,7 +204,7 @@ public class FrameHullTests
             LinearVelocity = new Double3(0, 0, 20),
             AngularVelocity = new Vector3(0, 0.2f, 0),
             Body = carrierHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200)),
         });
         FrameHandle carrierFrame = world.GetOwnedFrame(carrier);
         var fighterHull = new BodyDesc(new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(0.5f));
@@ -215,7 +215,7 @@ public class FrameHullTests
             LinearVelocity = new Double3(1, 0, 0),
             AngularVelocity = new Vector3(0, 0, 0.5f),
             Body = fighterHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
         FrameHandle fighterFrame = world.GetOwnedFrame(fighter);
         Tick(world, 10);
@@ -263,14 +263,14 @@ public class FrameHullTests
             Frame = space,
             Pose = At(10),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(3)), Mass: 100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
         });
         Entity towerOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(-50),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         });
         world.Tick();
         faults.Jolt.HasInterior(shipOwner).Should().BeTrue();
@@ -305,7 +305,7 @@ public class FrameHullTests
         var warnings = new List<string>();
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
         FrameHandle space = SpaceFrame(world);
-        Entity bubbleOwner = world.Spawn(new SpawnDesc { Frame = space, Pose = At(50), AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static) });
+        Entity bubbleOwner = world.Spawn(new SpawnDesc { Frame = space, Pose = At(50), AsFrame = new FrameSpec(FrameBounds.Sphere(20)) });
         FrameHandle bubble = world.GetOwnedFrame(bubbleOwner);
         // The ball sticks out of the bubble, so space holds a ghost of it.
         Entity ball = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(19.8), Body = Ball() });
@@ -348,7 +348,7 @@ public class FrameHullTests
             Frame = space,
             Pose = At(505),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
         FrameHandle shuttle = world.GetOwnedFrame(shuttleOwner);
         world.Tick();
@@ -386,7 +386,7 @@ public class FrameHullTests
             Pose = At(25),
             LinearVelocity = new Double3(10, 0, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = [pilot],
         });
         FrameHandle shuttle = world.GetOwnedFrame(shuttleOwner);

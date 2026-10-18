@@ -19,7 +19,7 @@ public sealed class DoorTests : IDisposable
 
     public DoorTests()
     {
-        room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static));
+        room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
         door = SpawnDoor(DQuaternion.Identity);
         Ticks(5);
     }
@@ -152,7 +152,7 @@ public sealed class DoorTests : IDisposable
     {
         Frame = room,
         Pose = new DPose(new Double3(1, 5, 3), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(0.5f), MotionDriver.Static),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(0.5f)),
     });
 
     /// <summary>
@@ -194,7 +194,7 @@ public sealed class DoorTests : IDisposable
     {
         // A cabin in the room, far from the other door, turned a quarter about +Z, so that the door's +Y is the room's -X there.
         var cabinPose = new DPose(new Double3(100, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
-        Entity cabin = world.Spawn(new SpawnDesc { Frame = room, Pose = cabinPose, AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static) });
+        Entity cabin = world.Spawn(new SpawnDesc { Frame = room, Pose = cabinPose, AsFrame = new FrameSpec(FrameBounds.Sphere(20)) });
         Entity inCabin = SpawnDoor(world.GetOwnedFrame(cabin), DQuaternion.Identity);
         Ticks(5);
         Order<OpenDoor>(inCabin);

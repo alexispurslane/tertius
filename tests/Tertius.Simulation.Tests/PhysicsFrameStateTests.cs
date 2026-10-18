@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// A frame with the physics driver, such as a ship, is moved by physics: after each step physics reports a
+/// A frame with a dynamic hull, such as a ship, is moved by physics: after each step physics reports a
 /// <see cref="FrameState"/>, the frame's pose and motion relative to its parent. The world applies it to the frame, and
 /// the frame's owner mirrors it. The tests run the world on real Jolt and compare the world with the states that Jolt really
 /// sent. A test of a state that only a bug produces adds it to the output of one step, through <see cref="FaultInjectingBackend"/>.
@@ -24,7 +24,7 @@ public class PhysicsFrameStateTests
             Pose = pose ?? DPose.Identity,
             LinearVelocity = velocity,
             AngularVelocity = spin,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(10)), Layer: BodyLayer.FrameHull, LinearDamping: 0, AngularDamping: 0),
             Components = components,
         });
@@ -89,8 +89,8 @@ public class PhysicsFrameStateTests
     }
 
     // Physics hears of a destroyed frame before its next step, and it drives a frame only through the hull of a frame
-    // with the physics driver. So only a bug in the backend reports a state for a frame that is gone, a frame with
-    // another driver, a frame whose owner has no body, or a root frame, whose owner has no hull.
+    // with a dynamic hull. So only a bug in the backend reports a state for a frame that is gone, a frame with a hull of
+    // another motion, a frame whose owner has no body, or a root frame, whose owner has no hull.
 #if TERTIUS_CONTRACTS
     [Fact]
     public void AFrameStateForAFrameThatIsGoneBreaksAContract()
@@ -179,21 +179,21 @@ public class PhysicsFrameStateTests
 #endif
 
     /// <summary>
-    /// A second root frame with the physics driver, whose owner has a body. A root frame has no parent, so the body is only
+    /// A second root frame whose owner has a dynamic body. A root frame has no parent, so the body is only
     /// the interior in the frame's own system, and physics has no hull to drive the frame with.
     /// </summary>
     private static FrameHandle SpawnRootPhysicsFrameWithBody(TestWorld test) => test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
     {
-        AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Physics),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f)),
         Body = new BodyDesc(new SphereShapeDesc(10), Mass: 1),
     }));
 
-    /// <summary>A frame with the physics driver, 100 m along +X, whose owner has no body, so physics has nothing to drive it with.</summary>
+    /// <summary>A frame 100 m along +X whose owner has no body, so physics has nothing to drive it with.</summary>
     private static FrameHandle SpawnBodilessPhysicsFrame(TestWorld test) => test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
     {
         Frame = test.Root,
         Pose = TestWorld.At(100),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
     }));
 
     [Fact]
@@ -242,7 +242,7 @@ public class PhysicsFrameStateTests
     {
         Frame = test.Root,
         Pose = new DPose(new Double3(1000, 0, 0), PoseChecks.QuarterTurnAboutY),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(500), MotionDriver.Static),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(500)),
         Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())],
     }));
 

@@ -47,7 +47,7 @@ public static class Scenes
 
     /// <summary>
     /// A ship in <paramref name="space"/>: a dynamic hull of 10 m by 6 m by 30 m at <paramref name="position"/>, and a frame
-    /// whose bubble has a radius of <paramref name="bubbleRadius"/> m and whose driver is the physics driver. The inside
+    /// whose bubble has a radius of <paramref name="bubbleRadius"/> m. The inside
     /// is a deck of 9 m by 0.5 m by 29 m, whose top is at <see cref="DeckTop"/> in the ship's frame. The ship has a
     /// uniform gravity of <paramref name="g"/> m/s² along -Y in its own frame, or none when <paramref name="g"/> is 0. The
     /// ship starts at rest.
@@ -61,7 +61,7 @@ public static class Scenes
             Frame = space,
             Pose = At(position.X, position.Y, position.Z),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: deck),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(bubbleRadius), MotionDriver.Physics, gravity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(bubbleRadius), gravity),
         });
         return new ShipScene(hull, world.GetOwnedFrame(hull));
     }
@@ -80,12 +80,12 @@ public static class Scenes
     /// </summary>
     public static MoonScene MoonOnKeplerOrbit(World world, double planetMu = EarthMu, double orbitRadius = 7e6, float bubbleRadius = 50, double phase = 0.7)
     {
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(planetMu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(planetMu)));
         var orbit = KeplerOrbit.Circular(orbitRadius, phase: phase);
         FrameHandle moon = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(bubbleRadius), MotionDriver.Kepler),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(bubbleRadius)),
         }.OnKeplerOrbit(world, orbit)));
         return new MoonScene(planet, moon);
     }
@@ -99,12 +99,12 @@ public static class Scenes
     /// </summary>
     public const double AsteroidMu = 2e10;
 
-    /// <summary>A root frame with a point gravity of <see cref="AsteroidMu"/>, so that a frame in it can take the Kepler driver.</summary>
+    /// <summary>A root frame with a point gravity of <see cref="AsteroidMu"/>, so that a frame in it can follow a Kepler orbit.</summary>
     public static FrameHandle AsteroidSpace(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(AsteroidMu)));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(AsteroidMu)));
 
     /// <summary>
-    /// The owner of a frame with the Kepler driver in <paramref name="space"/>, an <see cref="AsteroidSpace"/>, whose
+    /// The owner of a frame on a Kepler orbit in <paramref name="space"/>, an <see cref="AsteroidSpace"/>, whose
     /// <see cref="KeplerMotion"/> moves it on a circular orbit of 5 km at phase 0 (see <see cref="RailsSpawn"/>): its hull, of
     /// <paramref name="body"/>, starts on the orbit at the world's time, at (5000, 0, 0) at time 0, and moves along -Z at 2 km/s,
     /// so it lives in an orbit frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). Its bubble is a sphere
@@ -116,7 +116,7 @@ public static class Scenes
     {
         Frame = space,
         Body = body,
-        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         Components = components,
     }.OnKeplerOrbit(world, KeplerOrbit.Circular(5_000)));
 

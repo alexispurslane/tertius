@@ -14,7 +14,8 @@ namespace Tertius.Simulation;
 /// orbit makes, because the property's setter never runs, has nothing to follow: it writes no sample, so the frame holds
 /// still, and it logs that once. A parent without a point gravity whose G·M is above 0 has nothing to
 /// orbit: the component writes no sample, so the frame holds still, and it logs that once. A hull that is not kinematic
-/// cannot follow a sample: the component writes none and logs that once. Each log line goes to <see cref="World.Log"/>,
+/// in the next step, the one that applies the sample, cannot follow a sample (see <see cref="BodyHandle.NextStepMotion"/>):
+/// the component writes none and logs that once. Each log line goes to <see cref="World.Log"/>,
 /// never to <see cref="World.Errors"/>, because the game chose the scene. The component reads the parent's G·M in every
 /// tick, so a frame that moves to another parent takes the same orbit around it.
 /// </para>
@@ -97,9 +98,10 @@ internal static class RailsHull
     public static bool Exists(Self self) => !self.Frame.IsNull && self.Snapshot.TryGetBody(self.Entity, out _);
 
     /// <summary>
-    /// True when the running entity has a hull that is not kinematic, which <see cref="Self.MoveOnRails"/> refuses. A root
+    /// True when the running entity has a hull that is not kinematic in the next step, the step that applies the sample of
+    /// this tick, which <see cref="Self.MoveOnRails"/> then refuses (see <see cref="BodyHandle.NextStepMotion"/>). A root
     /// frame has no parent, so its owner's body is only the frame's static interior, not a hull.
     /// </summary>
     public static bool IsNotKinematic(Self self) =>
-        !self.Frame.IsNull && self.Snapshot.TryGetBody(self.Entity, out BodyFacts body) && body.Motion != BodyMotion.Kinematic;
+        !self.Frame.IsNull && self.Body.NextStepMotion is { } motion && motion != BodyMotion.Kinematic;
 }

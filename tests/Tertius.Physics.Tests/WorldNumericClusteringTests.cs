@@ -30,7 +30,7 @@ public class WorldNumericClusteringTests
         InteriorShape: new SphereShapeDesc(0.05f));
 
     private static FrameHandle Earth(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
 
     private static Entity CrateInEarth(World world, FrameHandle earth, Double3 offset, Double3 relativeVelocity, params IComponent[] components) =>
         world.Spawn(new SpawnDesc
@@ -191,7 +191,7 @@ public class WorldNumericClusteringTests
             Pose = At(OrbitRadius),
             LinearVelocity = Orbit,
             Body = Hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         });
         world.Frames.TryGetFrame(owner, out FrameHandle ship).Should().BeTrue();
         // Thrown out of the ship along its Z axis at 3 m/s, from beside the hull.

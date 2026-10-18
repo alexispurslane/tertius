@@ -7,7 +7,9 @@ namespace Tertius.Core.Tests;
 /// <summary>
 /// The solution of Kepler's equation behind <see cref="KeplerOrbit.StateAt"/> and the attitudes: the frame moves without a
 /// jump at every eccentricity that the orbit allows, and its clock starts at its epoch. Also the sample of an orbit over a
-/// step (<see cref="KeplerOrbit.Sample"/>) and the angular acceleration of a frame that faces its parent.
+/// step (<see cref="KeplerOrbit.Sample"/>) and the angular acceleration of a frame that faces its parent. And the G·M rule:
+/// an orbit holds no G·M, and each member that needs one takes the G·M of the parent as <c>mu</c>, so a Kepler frame and
+/// the loose bodies in its parent fall on the same G·M.
 /// </summary>
 public class KeplerOrbitTests
 {
@@ -284,5 +286,83 @@ public class KeplerOrbitTests
         sample.ChordVelocity.Should().Be(Double3.Zero);
         sample.Acceleration.Should().Be(Double3.Zero);
         sample.AngularAcceleration.Should().Be(Double3.Zero);
+    }
+
+    // ---- The G·M of the parent ------------------------------------------------------------------------------------
+
+    [Fact]
+    public void AnOrbitIsValidWithoutAGM()
+    {
+        KeplerOrbit.Circular(7e6).IsValid.Should().BeTrue();
+        default(KeplerOrbit).IsValid.Should().BeFalse("it would leave the frame at its parent's origin");
+    }
+
+    [Fact]
+    public void TheSameOrbitTurnsHalfAsFastAroundAParentWithAQuarterOfTheGM()
+    {
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6);
+
+        orbit.MeanMotion(Mu / 4).Should().BeApproximately(orbit.MeanMotion(Mu) / 2, 1e-15);
+        orbit.Period(Mu / 4).Should().BeApproximately(orbit.Period(Mu) * 2, 1e-6);
+    }
+
+    [Fact]
+    public void TheMeanMotionOfACircleIsTheSquareRootOfTheGMOverTheCubeOfItsRadius()
+    {
+        KeplerOrbit.Circular(7e6).MeanMotion(Mu).Should().BeApproximately(Math.Sqrt(Mu / (7e6 * 7e6 * 7e6)), 1e-18);
+    }
+
+    [Fact]
+    public void TheSameOrbitMovesAtTheSpeedOfTheGMThatItIsGiven()
+    {
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6);
+
+        orbit.StateAt(0, Mu).Velocity.Length.Should().BeApproximately(Math.Sqrt(Mu / 7e6), 1e-6);
+        orbit.StateAt(0, 4 * Mu).Velocity.Length.Should().BeApproximately(2 * Math.Sqrt(Mu / 7e6), 1e-6);
+    }
+
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(-1.0)]
+    public void AnOrbitAroundAParentWithoutAGMStaysAtTheOriginOfTheParent(double parentMu)
+    {
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6);
+
+        orbit.StateAt(123, parentMu).Should().Be((Double3.Zero, Double3.Zero));
+    }
+
+    [Fact]
+    public void ASpinAttitudeIgnoresTheGMOfTheParent()
+    {
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, spinRate: 0.1);
+
+        orbit.RotationAt(50, Mu).Should().Be(orbit.RotationAt(50, 4 * Mu), "only the attitude that faces the parent follows the place on the orbit");
+        orbit.AngularVelocityAt(50, Mu).Should().Be(orbit.AngularVelocityAt(50, 4 * Mu));
+    }
+
+    [Theory]
+    [InlineData(0.25)]
+    [InlineData(1.0)]
+    [InlineData(4.0)]
+    public void ABellyThatFacesTheParentPointsAtItWhateverTheGMThatMovesTheFrame(double share)
+    {
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.3) with { Attitude = KeplerAttitude.FacesParent };
+        double parentMu = share * Mu;
+
+        Double3 position = orbit.StateAt(100, parentMu).Position;
+        Double3 belly = orbit.RotationAt(100, parentMu).Rotate(new Double3(0, -1, 0));
+
+        Double3.Distance(belly, -position.Normalized()).Should().BeLessThan(1e-9);
+    }
+
+    [Fact]
+    public void ARotationThatFacesTheParentFollowsTheGMThatMovesTheFrame()
+    {
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6) with { Attitude = KeplerAttitude.FacesParent };
+
+        double rate = orbit.AngularVelocityAt(50, Mu).Length;
+
+        rate.Should().BeApproximately(orbit.MeanMotion(Mu), 1e-12);
+        orbit.AngularVelocityAt(50, 4 * Mu).Length.Should().BeApproximately(2 * rate, 1e-12);
     }
 }

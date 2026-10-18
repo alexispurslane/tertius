@@ -25,7 +25,7 @@ public class BallisticDriftMeasurement
         public override Double3 Motion => -Double3.UnitY;
 
         public override FrameSpec Space =>
-            new(FrameBounds.Sphere(MotionDrift.SpaceRadius), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -Gravity, 0)));
+            new(FrameBounds.Sphere(MotionDrift.SpaceRadius), GravityField.Uniform(new Vector3(0, -Gravity, 0)));
 
         public override Entity[] Spawn(World world, FrameHandle space, Double3 start, Double3 common) =>
         [

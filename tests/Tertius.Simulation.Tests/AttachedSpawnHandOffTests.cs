@@ -36,7 +36,7 @@ public class AttachedSpawnHandOffTests
         {
             var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
             World = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, backend);
-            Space = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+            Space = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
             Station = World.SpawnStaticFrame(Space, TestWorld.At(10), radius: 5);
             Ball = World.Spawn(new SpawnDesc
             {

@@ -58,14 +58,14 @@ internal sealed class ChaoticWorkload : IDisposable
         // its parent, so the root has one too. It is so weak that it moves nothing: 1e-3 m³/s² pulls a body at 15 m with 4e-6 m/s².
         World.SetFrameGravity(root, GravityField.Point(1e-3));
 
-        West = SpawnFrame(root, TestWorld.At(-500), new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Static));
-        East = SpawnFrame(root, TestWorld.At(500), new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Static));
-        FrameHandle bay = SpawnFrame(East, TestWorld.At(10), new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static));
+        West = SpawnFrame(root, TestWorld.At(-500), new FrameSpec(FrameBounds.Sphere(300)));
+        East = SpawnFrame(root, TestWorld.At(500), new FrameSpec(FrameBounds.Sphere(300)));
+        FrameHandle bay = SpawnFrame(East, TestWorld.At(10), new FrameSpec(FrameBounds.Sphere(40)));
         // The Kepler frame orbits a star, far from every other frame. The star's gravity is strong, and nothing is spawned in it.
-        star = SpawnFrame(root, TestWorld.At(0, 0, -30000), new FrameSpec(FrameBounds.Sphere(10000), MotionDriver.Static, GravityField.Point(1e6)));
+        star = SpawnFrame(root, TestWorld.At(0, 0, -30000), new FrameSpec(FrameBounds.Sphere(10000), GravityField.Point(1e6)));
         KeplerOrbit starOrbit = KeplerOrbit.Circular(2000, spinRate: 0.1);
         FrameHandle orbit = SpawnFrame(star, DPose.Identity,
-            new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Kepler), desc => desc.OnKeplerOrbit(World, starOrbit));
+            new FrameSpec(FrameBounds.Sphere(300)), desc => desc.OnKeplerOrbit(World, starOrbit));
 
         // The shuttle is a frame whose hull is a body: physics drives the frame, and hands the hull off between frames. It
         // flies at 6 m/s, so that Jolt sends the state of its frame in every step.
@@ -74,7 +74,7 @@ internal sealed class ChaoticWorkload : IDisposable
             Frame = root,
             Pose = TestWorld.At(50),
             LinearVelocity = new Vector3(6, 0, 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull, LinearDamping: 0, AngularDamping: 0),
             // It refuses Destroy messages, so that the frame that physics drives lives through the run and gets its state every step.
             Components = [new Invulnerable()],
@@ -333,7 +333,7 @@ internal sealed class ChaoticWorkload : IDisposable
                 {
                     Frame = self.Frame,
                     Pose = here,
-                    AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+                    AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
                     Components = [Child(3)],
                     Subscriptions = [Chatter],
                 });

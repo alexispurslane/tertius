@@ -126,7 +126,7 @@ public static partial class DemoScenes
             // The bubble is the smallest ellipsoid that holds the hull grown by 2 m (see ShipBubble), so a person or a crate
             // that leaves the ship passes into earth near it. The ship falls freely, so only its own field acts inside it: one standard gravity toward its
             // belly, in the cabin alone.
-            AsFrame = new FrameSpec(new FrameBounds(ShipBubble), MotionDriver.Physics,
+            AsFrame = new FrameSpec(new FrameBounds(ShipBubble),
                 GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(-Cabin, Cabin))),
             Render = Drawn(resources, HullMesh(), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 32),
         });
@@ -231,7 +231,7 @@ public static partial class DemoScenes
     private static FrameHandle SunAndEarth(World world, IRenderResources resources, SceneInstance scene)
     {
         FrameHandle sun = world.CreateRootFrame(
-            new FrameSpec(FrameBounds.Sphere(1e13f), MotionDriver.Static, GravityField.Point(SunMu)),
+            new FrameSpec(FrameBounds.Sphere(1e13f), GravityField.Point(SunMu)),
             new RenderData
             {
                 Mesh = resources.CreateMesh(Primitives.Sphere((float)SunRadius, 64, 32)),
@@ -262,7 +262,7 @@ public static partial class DemoScenes
             Pose = new DPose(earthPlace, earthOrbit.RotationAt(world.Time, SunMu)),
             LinearVelocity = earthVelocity,
             AngularVelocity = earthOrbit.AngularVelocityAt(world.Time, SunMu).ToVector3(),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), GravityField.Point(EarthMu)),
             Components = [new KeplerMotion { Orbit = earthOrbit }],
         });
         scene.Add("earth", earthOwner);
@@ -276,7 +276,7 @@ public static partial class DemoScenes
             Pose = new DPose(Double3.Zero, turning.RotationAt(world.Time)),
             AngularVelocity = turning.AngularVelocity.ToVector3(),
             // The bubble holds the air, 100 km up, and ends below the ship's orbit.
-            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + 100e3)), MotionDriver.Spin, GravityField.Point(EarthMu)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + 100e3)), GravityField.Point(EarthMu)),
             Components = [new SpinMotion { Spin = turning }],
             Render = new RenderData
             {
@@ -515,7 +515,7 @@ public static partial class DemoScenes
     private static SceneInstance DropBox(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
         scene.Add("ground", ground);
         scene.Add("floor", world.Spawn(new SpawnDesc
         {
@@ -544,7 +544,7 @@ public static partial class DemoScenes
         {
             Frame = ground,
             Pose = new DPose(new Double3(30, 50, 40), DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
         });
         scene.Add("sun", sun);
         world.SunFrame = world.GetOwnedFrame(sun);

@@ -18,7 +18,7 @@ public class RenderSnapshotHemisphereTests
         {
             Frame = test.Root,
             Pose = pose,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static, gravity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), gravity),
         }));
 
     private static HemisphereUp HemisphereOf(TestWorld test, Entity entity)
@@ -76,7 +76,7 @@ public class RenderSnapshotHemisphereTests
         {
             Frame = test.Root,
             Pose = new DPose(new Double3(0, -3e6, 1e5), DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, GravityField.Point(4e14)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Point(4e14)),
             Render = RenderSnapshotSupport.Visible(),
         });
 
@@ -134,7 +134,7 @@ public class RenderSnapshotHemisphereTests
         {
             Frame = test.Root,
             Pose = new DPose(new Double3(0, 0, -5), QuarterTurnAboutX),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100),
                 GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(new Vector3(-1), new Vector3(1)))),
             Render = RenderSnapshotSupport.Visible(),
         });

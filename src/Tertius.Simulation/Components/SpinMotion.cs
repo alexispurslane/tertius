@@ -11,8 +11,9 @@ namespace Tertius.Simulation;
 /// </summary>
 /// <remarks>
 /// <para>
-/// A hull that is not kinematic cannot follow a sample: the component writes none and logs that once, to
-/// <see cref="World.Log"/>, never to <see cref="World.Errors"/>. With its first sample, the component teleports its
+/// A hull that is not kinematic in the next step, the one that applies the sample, cannot follow a sample (see
+/// <see cref="BodyHandle.NextStepMotion"/>): the component writes none and logs that once, to <see cref="World.Log"/>,
+/// never to <see cref="World.Errors"/>. With its first sample, the component teleports its
 /// entity's hull to the spin's pose at the start of the step. A frame without a body needs no teleport. A new component on
 /// the same entity teleports again.
 /// </para>

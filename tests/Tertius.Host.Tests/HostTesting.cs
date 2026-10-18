@@ -182,10 +182,10 @@ public static class HostTesting
         new(new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = true, DisposePhysics = true }, new JoltPhysicsBackend());
 
     private static FrameHandle Space(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
 
     private static FrameHandle ChildFrame(World world, FrameHandle parent, DPose pose) =>
-        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static) }));
+        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(100)) }));
 
     /// <summary>
     /// The scene "probes", with no physics. In the root frame <c>space</c>: <c>probe</c>, which subscribes to the topic
@@ -253,7 +253,7 @@ public static class HostTesting
         scene.Add("moon", world.Spawn(new SpawnDesc
         {
             Frame = space,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(1000))));
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, 5) });
         return scene;
@@ -267,7 +267,7 @@ public static class HostTesting
     public static SceneInstance BoxOnFloor(World world)
     {
         var scene = new SceneInstance();
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
         scene.Add("ground", ground);
         scene.Add("floor", world.Spawn(new SpawnDesc
         {

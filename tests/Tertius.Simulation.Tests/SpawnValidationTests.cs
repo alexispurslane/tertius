@@ -10,7 +10,7 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class SpawnValidationTests
 {
-    private static readonly FrameSpec SmallFrame = new(FrameBounds.Sphere(10), MotionDriver.Static);
+    private static readonly FrameSpec SmallFrame = new(FrameBounds.Sphere(10));
 
     public static TheoryData<string> Defects => new(
         "no frame", "a destroyed frame", "an attached body", "an attached frame", "a null component",
@@ -28,7 +28,7 @@ public class SpawnValidationTests
             "an attached frame" => new SpawnDesc { Frame = root, AttachTo = liveParent, AsFrame = SmallFrame },
             "a null component" => new SpawnDesc { Frame = root, Components = [null!] },
             "the same component twice" => new SpawnDesc { Frame = root, Components = [shared, shared] },
-            "a frame with no bubble" => new SpawnDesc { Frame = root, AsFrame = new FrameSpec(default, MotionDriver.Static) },
+            "a frame with no bubble" => new SpawnDesc { Frame = root, AsFrame = new FrameSpec(default) },
             "a stale attachment parent" => new SpawnDesc { Frame = root, AttachTo = staleParent },
             // The owner of a root frame is in no frame, so it has none to give a child.
             "an attachment parent that owns a root frame" => new SpawnDesc { AttachTo = root.Entity },

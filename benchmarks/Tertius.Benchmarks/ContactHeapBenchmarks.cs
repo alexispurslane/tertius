@@ -39,7 +39,7 @@ public class ContactHeapBenchmarks
     {
         var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
         world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static,
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f),
             GravityField.Uniform(new Vector3(0, -9.81f, 0))));
         world.Spawn(new SpawnDesc
         {

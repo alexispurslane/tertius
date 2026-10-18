@@ -8,8 +8,7 @@ namespace Tertius.Core.Tests;
 /// the test: the kinematic hull of a frame whose samples move it fast or far in its semantic frame lives in a numeric frame
 /// of its own, K, that follows the frame's motion samples (docs/plans/rails-components.md, "Numeric frames"), and the hull's
 /// frame hangs at K's origin. The tests feed the samples to the tree's sample table and do at each sync point what the
-/// World and physics do with them (see <see cref="Sync"/>). In this ticket the Kepler and the Spin driver make a hull
-/// kinematic. The tests run
+/// World and physics do with them (see <see cref="Sync"/>). The tests run
 /// <see cref="FrameTree.UpdateNumericFrames"/> with plain body records, at the defaults of <see cref="NumericFrameOptions"/>.
 /// A group of free bodies gets a falling frame from 1,000 m/s and keeps it down to 400 m/s. A group with a body that
 /// thrusts, such as a character, gets one from 50 m/s and keeps it down to 20 m/s. A slow group gets a resting frame from
@@ -38,17 +37,18 @@ public class FrameTreeOrbitFrameTests
     private List<NumericMove> moves = [];
 
     public FrameTreeOrbitFrameTests() =>
-        earth = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static,
+        earth = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f),
             GravityField.Point(EarthMu));
 
     /// <summary>
-    /// A frame of the owner <paramref name="id"/> in <paramref name="parent"/>, or in earth, with <paramref name="driver"/>, at the
+    /// A frame of the owner <paramref name="id"/> in <paramref name="parent"/>, or in earth, with a kinematic hull, at the
     /// place, rotation and velocity of <paramref name="orbit"/> at <see cref="Start"/>, as a spawn from the rails library puts it.
     /// </summary>
-    private FrameHandle Station(uint id, KeplerOrbit orbit, FrameHandle parent = default, MotionDriver driver = MotionDriver.Kepler)
+    private FrameHandle Station(uint id, KeplerOrbit orbit, FrameHandle parent = default)
     {
         FrameHandle space = parent.IsNull ? earth : parent;
-        FrameHandle frame = frames.Create(new Entity(id, 1), space, DPose.Identity, FrameBounds.Sphere(40), driver);
+        FrameHandle frame = frames.Create(new Entity(id, 1), space, DPose.Identity, FrameBounds.Sphere(40));
+        frames.SetHullMotion(frame, BodyMotion.Kinematic);
         double mu = KeplerOrbit.MuFrom(frames.Gravity(space));
         (Double3 place, Double3 velocity) = orbit.StateAt(Start, mu);
         frames.SetLocalPose(frame, new DPose(place, orbit.RotationAt(Start, mu)));
@@ -275,10 +275,10 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void A_far_Spin_hull_gets_an_orbit_frame_as_any_kinematic_hull_does()
+    public void A_far_kinematic_hull_that_turns_in_place_gets_an_orbit_frame_as_any_kinematic_hull_does()
     {
         // 10,000 km out, past the create distance of 2^23 m (about 8,389 km), a hull that turns in place is slow but far.
-        FrameHandle station = Station(10, Far, driver: MotionDriver.Spin);
+        FrameHandle station = Station(10, Far);
         frames.TreeLinearVelocity(station) = Double3.Zero;
 
         FrameHandle orbit = Update(Hull(station) with { Velocity = Double3.Zero })[0].Home;
@@ -291,7 +291,8 @@ public class FrameTreeOrbitFrameTests
     public void An_orbit_frame_jumps_with_its_anchors_teleport_and_its_other_contents_keep_their_places_and_velocities_in_earth()
     {
         FrameHandle station = Station(10, Low);
-        FrameHandle pod = frames.Create(new Entity(11, 1), earth, DPose.Identity, FrameBounds.Sphere(1), MotionDriver.Physics);
+        FrameHandle pod = frames.Create(new Entity(11, 1), earth, DPose.Identity, FrameBounds.Sphere(1));
+        frames.SetHullMotion(pod, BodyMotion.Dynamic);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
         frames.SetLocalPose(pod, new DPose(place + new Double3(5, 0, 0), DQuaternion.Identity));
         frames.TreeLinearVelocity(pod) = velocity + new Double3(0, 1, 0);
@@ -358,7 +359,7 @@ public class FrameTreeOrbitFrameTests
     {
         // A circular orbit of 1 km in a field of 1e-9 m³/s² moves at 1 µm/s. The fast body is a character, which always
         // thrusts, so at 60 m/s it would fall in a frame of its own.
-        FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static,
+        FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f),
             GravityField.Point(1e-9));
         FrameHandle station = Station(10, KeplerOrbit.Circular(1_000), space);
         NumericBody character = Crate(11, new Double3(1_000, 3, 0), new Double3(60, 0, 0), home: space) with { Character = true };
@@ -434,7 +435,7 @@ public class FrameTreeOrbitFrameTests
     {
         // 10,000 km out in a field of 1e-9 m³/s², the hull is slow but far: past the create distance of 2^23 m (about
         // 8,389 km), so it lives in an orbit frame. Then it moves to an orbit of 1 km, within the leave distance of 2^22 m.
-        FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e8f), MotionDriver.Static,
+        FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e8f),
             GravityField.Point(1e-9));
         FrameHandle station = Station(10, KeplerOrbit.Circular(1e7), space);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -451,18 +452,77 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void A_frame_that_leaves_its_orbit_frame_for_another_driver_turns_that_frame_into_a_falling_frame()
+    public void A_next_step_motion_that_is_not_kinematic_leaves_the_orbit_frame_falling()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
         Double3 velocity = frames.LinearVelocity(orbit);
 
-        frames.SetDriver(station, MotionDriver.Physics);
+        frames.PlanHullMotion(station, BodyMotion.Dynamic);
 
-        frames.Numeric(orbit).Should().Be(NumericMode.Falling, "a frame that physics drives may hang in a falling frame");
+        frames.Numeric(orbit).Should().Be(NumericMode.Falling, "a frame with a dynamic hull may hang in a falling frame");
+        frames.InOrbitFrame(station).Should().BeFalse();
         frames.LinearVelocity(orbit).Should().Be(velocity, "it falls on from where it was");
         frames.TreeParent(station).Should().Be(orbit);
+        frames.HullMotion(station).Should().Be(BodyMotion.Kinematic, "the stored motion changes only after the next step");
+        frames.AssertInvariants(StepIntents.Changing(station, BodyMotion.Dynamic));
+    }
+
+    [Fact]
+    public void A_kinematic_next_step_motion_keeps_the_frame_in_its_orbit_frame()
+    {
+        FrameHandle station = Station(10, Low);
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+
+        frames.PlanHullMotion(station, BodyMotion.Kinematic);
+
+        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.InOrbitFrame(station).Should().BeTrue();
         frames.AssertInvariants();
+    }
+
+    /// <summary>
+    /// The stored motion describes the last finished step, and the orbit frame was planned for the step that applies the
+    /// intents. So storing a motion changes nothing else: the frame left its orbit frame when the change was planned.
+    /// </summary>
+    [Fact]
+    public void Storing_a_hull_motion_leaves_the_orbit_frame_as_it_is()
+    {
+        FrameHandle station = Station(10, Low);
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+
+        frames.SetHullMotion(station, BodyMotion.Dynamic);
+
+        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.InOrbitFrame(station).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// The invariants judge the numeric frames by the motion of the step that applies the intents they are given: the
+    /// frame of a hull that is dynamic in that step may hang in a falling frame, although its stored motion is kinematic.
+    /// </summary>
+    [Fact]
+    public void The_invariants_judge_a_frame_in_a_falling_frame_by_the_motion_of_the_step_that_applies_the_intents()
+    {
+        FrameHandle station = Station(10, Low);
+        Update(Hull(station));
+        frames.PlanHullMotion(station, BodyMotion.Dynamic);
+
+        frames.Invoking(tree => tree.AssertInvariants(StepIntents.Changing(station, BodyMotion.Dynamic))).Should().NotThrow();
+        frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>("without the change the hull is kinematic, and so cannot hang in a falling frame");
+    }
+
+    [Fact]
+    public void A_frame_away_from_the_origin_of_its_orbit_frame_breaks_an_invariant()
+    {
+        FrameHandle station = Station(10, Low);
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+        frames.InOrbitFrame(station).Should().BeTrue();
+
+        frames.SetTreeLocalPose(station, new DPose(new Double3(1, 0, 0), frames.TreeLocalPose(station).Rotation));
+
+        frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();
+        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
     }
 
     [Fact]
@@ -518,7 +578,7 @@ public class FrameTreeOrbitFrameTests
     public void Destroying_the_semantic_frame_of_an_orbit_frame_dissolves_it_and_drops_the_ghosts_of_its_hull()
     {
         // Earth is a semantic child of the sun, which has no gravity of its own here.
-        FrameHandle sun = frames.Create(new Entity(3, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
+        FrameHandle sun = frames.Create(new Entity(3, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
         frames.Reparent(earth, sun);
         FrameHandle station = Station(10, Far);
         FrameHandle orbit = Update(Hull(station))[0].Home;

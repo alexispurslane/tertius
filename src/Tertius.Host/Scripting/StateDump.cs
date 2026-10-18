@@ -55,8 +55,15 @@ public sealed record FramePose(string? Frame, Double3 Position, DQuaternion Rota
 /// <summary>One frame of the frame tree.</summary>
 /// <param name="Id">The scene id of the entity that owns the frame.</param>
 /// <param name="Parent">The scene id of the parent frame's owner, or null for a root frame.</param>
-/// <param name="Driver">What moves the frame.</param>
-public sealed record FrameRecord(string Id, string? Parent, MotionDriver Driver);
+/// <param name="Follows">
+/// How the frame followed its owner at the dump's sync point, which is what moved it in the step that ended there:
+/// <c>"rails"</c> for a frame that took a motion sample that its owner wrote one tick before (see <c>Self.MoveOnRails</c>),
+/// <c>"physics"</c> for a frame whose hull was dynamic in that step, and <c>"static"</c> for every other frame. A change of
+/// a hull's motion in the tick acts from the next step, so it shows in the dump of the tick after. The motion of the hull
+/// in a step comes from the intents that the step applied, or else from the stored motion (see
+/// <c>FrameTree.HullMotionInStep</c>), because the tree stores a change only after the frames took their records.
+/// </param>
+public sealed record FrameRecord(string Id, string? Parent, string Follows);
 
 /// <summary>One routed event.</summary>
 /// <param name="Tick">The number of completed ticks after the sync point that routed it.</param>

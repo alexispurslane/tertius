@@ -26,7 +26,7 @@ public class ThrustDriftMeasurement
         public override string Measurement => "thrust-drift";
         public override Double3 AxisDirection => Double3.UnitY;
         public override Double3 Motion => Double3.UnitX;
-        public override FrameSpec Space => new(FrameBounds.Sphere(MotionDrift.SpaceRadius), MotionDriver.Static);
+        public override FrameSpec Space => new(FrameBounds.Sphere(MotionDrift.SpaceRadius));
 
         public override Entity[] Spawn(World world, FrameHandle space, Double3 start, Double3 common)
         {

@@ -276,15 +276,19 @@ public sealed record BodyDesc(
     public bool IsSensor { get; init; }
 
     /// <summary>
-    /// Why no physics backend can create a body from this description, or null when one can. The message completes a
-    /// sentence that names the body. <paramref name="ownsFrame"/> is true for the owner of a frame. Its body is the frame's
-    /// static interior, and when the frame has a parent, also a hull in the parent frame. The hull's motion comes from the
-    /// frame's driver (see <see cref="FrameHullProblem"/>), so the description's motion and mass do not matter here. Any
-    /// other body has the motion of the description. A backend can also refuse a shape that only it can tell is broken
-    /// (see <see cref="IPhysicsBackend.ShapeProblem"/>).
+    /// Why no physics backend can create a body from this description in the role <paramref name="role"/>, or null when
+    /// one can. The message completes a sentence that names the body. The body of a frame owner is the frame's static
+    /// interior, so it cannot be a character or a sensor. A hull, the body of the owner of a frame with a parent, is also a
+    /// body in the parent frame with the motion of the description, so it obeys the rules of any body with that motion: a
+    /// shape that is or holds a mesh only when it is static, and a mass above zero when it is dynamic. The owner of a root
+    /// frame has no hull, so its motion and mass are not checked. A backend can also refuse a shape that only it can tell
+    /// is broken (see <see cref="IPhysicsBackend.ShapeProblem"/>).
     /// </summary>
-    public string? Problem(bool ownsFrame)
+    /// <exception cref="ArgumentOutOfRangeException">A role that <see cref="BodyRole"/> does not define.</exception>
+    public string? Problem(BodyRole role)
     {
+        if (!Enum.IsDefined(role))
+            throw new ArgumentOutOfRangeException(nameof(role), role, "BodyRole does not define this role.");
         if (Shape is null)
             return "has no shape";
         if (!Enum.IsDefined(Motion))
@@ -301,18 +305,24 @@ public sealed record BodyDesc(
         if ((NotFinite("friction", Friction) ?? NotFinite("restitution", Restitution) ?? NotFinite("linear damping", LinearDamping) ??
              NotFinite("angular damping", AngularDamping)) is { } material)
             return material;
-        if (ownsFrame)
+        if (role == BodyRole.OwnsNoFrame)
+        {
+            if (Motion == BodyMotion.Character && IsSensor)
+                return "is a character, so it cannot be a sensor";
+            if (Motion == BodyMotion.Character && Shape is not CapsuleShapeDesc)
+                return $"is a character, so its shape must be a CapsuleShapeDesc, not a {Shape.GetType().Name}";
+        }
+        else
         {
             if (Motion == BodyMotion.Character)
                 return "owns a frame, so it cannot be a character";
             if (IsSensor)
                 return "owns a frame, so it cannot be a sensor";
-            return InteriorShape?.Problem() is { } interior ? $"has an interior shape that {interior}" : null;
+            if (InteriorShape?.Problem() is { } interior)
+                return $"has an interior shape that {interior}";
+            if (role == BodyRole.OwnsRootFrame)
+                return null;
         }
-        if (Motion == BodyMotion.Character && IsSensor)
-            return "is a character, so it cannot be a sensor";
-        if (Motion == BodyMotion.Character && Shape is not CapsuleShapeDesc)
-            return $"is a character, so its shape must be a CapsuleShapeDesc, not a {Shape.GetType().Name}";
         if (Motion != BodyMotion.Static && Shape.ContainsMesh())
             return $"is {Motion.ToString().ToLowerInvariant()}, and its shape is or holds a mesh, which only a static body or a frame interior can have";
         if (Motion == BodyMotion.Dynamic && !(Mass > 0))
@@ -321,31 +331,22 @@ public sealed record BodyDesc(
     }
 
     private static string? NotFinite(string name, float value) => float.IsFinite(value) ? null : $"has the {name} {value}, which must be finite";
+}
+
+/// <summary>What a body is to its entity, which decides the rules that its description obeys (see <see cref="BodyDesc.Problem"/>).</summary>
+public enum BodyRole
+{
+    /// <summary>The body of an entity that owns no frame. It is a body in its entity's frame, with the motion of its description.</summary>
+    OwnsNoFrame,
 
     /// <summary>
-    /// The motion that the hull of a frame with <paramref name="driver"/> has: dynamic for the physics driver, kinematic for
-    /// the Kepler and Spin drivers, which move it on rails, and static for the static driver. Only a frame with a parent
-    /// has a hull. The description's own <see cref="Motion"/> does not count for a hull.
+    /// The body of the owner of a frame with a parent: the frame's hull, a body in the parent frame with the motion of its
+    /// description, and the frame's static interior.
     /// </summary>
-    public static BodyMotion FrameHullMotion(MotionDriver driver) => driver switch
-    {
-        MotionDriver.Physics => BodyMotion.Dynamic,
-        MotionDriver.Kepler or MotionDriver.Spin => BodyMotion.Kinematic,
-        _ => BodyMotion.Static,
-    };
+    Hull,
 
-    /// <summary>
-    /// Why the hull of a frame with this description cannot move the way that <paramref name="driver"/> needs, or null
-    /// when it can. The physics driver needs a dynamic hull, which has mass and is not a mesh. The Kepler driver needs a
-    /// kinematic hull, which is not a mesh. Any hull can be static. The message completes a sentence that names the hull.
-    /// </summary>
-    public string? FrameHullProblem(MotionDriver driver) => driver switch
-    {
-        MotionDriver.Physics or MotionDriver.Kepler or MotionDriver.Spin when Shape.ContainsMesh() =>
-            $"is a mesh, which never moves, so it cannot follow the {driver} driver",
-        MotionDriver.Physics when !(Mass > 0) => $"has a mass of {Mass}, so it cannot be dynamic for the Physics driver",
-        _ => null,
-    };
+    /// <summary>The body of the owner of a root frame, which has no parent and so no hull: only the frame's static interior.</summary>
+    OwnsRootFrame,
 }
 
 [Flags]
@@ -359,6 +360,7 @@ public enum IntentFlags : ushort
     CharacterMove = 1 << 4,
     Jump = 1 << 5,
     SetCollision = 1 << 6,
+    SetMotion = 1 << 7,
 }
 
 /// <summary>
@@ -393,6 +395,14 @@ public struct PhysicsIntent
     public CollisionGroups CollisionGroups;
     /// <summary>The body's new collision mask, which holds only an any-of set. Used with <see cref="IntentFlags.SetCollision"/>.</summary>
     public CollisionMask CollisionMask;
+    /// <summary>
+    /// The new motion of a frame's hull. Used with <see cref="IntentFlags.SetMotion"/>. It is the motion of the hull in the
+    /// step that applies the intent: physics gives the Jolt body this motion at the start of that step, and every reader that
+    /// asks about that step derives it from this field (see <see cref="FrameTree.HullMotionInStep"/>). At the sync point
+    /// after that step, the frame tree stores it as the motion of the last finished step (see
+    /// <see cref="FrameTree.HullMotion"/>).
+    /// </summary>
+    public BodyMotion Motion;
     public IntentFlags Flags;
 
     public readonly bool IsEmpty =>
@@ -403,8 +413,11 @@ public struct PhysicsIntent
 }
 
 /// <summary>
-/// A body that physics must create at the sync point. <see cref="Desc"/> holds the collision groups and mask that the body
-/// has now: a body created again after a move holds those of its last SetCollision intent, not those of its spawn.
+/// A body that physics must create at the sync point. <see cref="Desc"/> holds the body as it is now: the collision groups
+/// and mask that it has now, and for the hull of a frame, the motion that the hull has in the next step, the one that
+/// the body is created for, which counts a change that its owner wrote in the tick (see <c>World.NextStepHullMotion</c>).
+/// So a body created again after a move holds the groups of its last SetCollision intent and the motion of its last change
+/// of motion, not those of its spawn.
 /// </summary>
 public readonly record struct BodyCreate(
     Entity Entity,
@@ -499,7 +512,11 @@ public readonly struct PhysicsStepContext
     public double Time { get; }
     /// <summary>The frame tree. Read-only during the step.</summary>
     public FrameTree Frames { get; }
-    /// <summary>Intents by entity slot index. Only the slots in <see cref="IntentEntities"/> are meaningful.</summary>
+    /// <summary>
+    /// Intents by entity slot index. The slots of the entities in <see cref="IntentEntities"/> hold what they wrote, and the
+    /// slot of every other live entity holds an empty intent. So the motion of a hull in the step can be read from the slot
+    /// of its owner (see <see cref="FrameTree.HullMotionInStep"/>).
+    /// </summary>
     public ReadOnlyMemory<PhysicsIntent> Intents { get; }
     /// <summary>The entities that wrote an intent during the previous tick.</summary>
     public ReadOnlyMemory<Entity> IntentEntities { get; }
@@ -567,7 +584,7 @@ public readonly record struct FrameStepRecord(FrameHandle Frame, MotionSample Mo
 /// not null. An ended contact names two different entities, and one of them may be gone, because destroying a body ends
 /// its contacts. A hand-off leaves
 /// the frame that its entity is in, each entity hands off at most once, and the owner of a frame hands off only when
-/// the frame has the physics driver. A frame's step record names a frame with a parent, whose owner has a body: its hull,
+/// the frame's hull is dynamic. A frame's step record names a frame with a parent, whose owner has a body: its hull,
 /// which is dynamic, kinematic with a sample, or static or kinematic without a sample and teleported in the step. A
 /// contact names two different entities. A character state names a live character, and each character has
 /// at most one state in a step. <see cref="PhysicsOutputCheck"/> holds the full rules. The sync point treats any other
@@ -594,7 +611,7 @@ public sealed class PhysicsStepOutput
 
     /// <summary>
     /// One message for each state that only a bug produces, which the backend found and skipped during the step, for
-    /// example a frame whose driver its hull cannot follow. A Debug build breaks a contract instead. The sync point records
+    /// example a change of motion that a hull cannot take. A Debug build breaks a contract instead. The sync point records
     /// each message in the simulation's errors.
     /// </summary>
     public readonly List<string> Errors = new();

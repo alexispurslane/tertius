@@ -91,11 +91,11 @@ public class KeplerFrameWithLooseBodyTests
     private static (World World, FrameHandle Planet, FrameHandle Ship) PlanetWithShip()
     {
         World world = NewWorld(out _);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(PlanetMu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(PlanetMu)));
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(OrbitRadius, phase: 0.7))));
         Tick(world, 5);
         return (world, planet, ship);

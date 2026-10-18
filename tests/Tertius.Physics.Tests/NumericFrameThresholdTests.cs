@@ -31,7 +31,7 @@ public class NumericFrameThresholdTests
     private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
 
     /// <summary>A root frame without gravity, with a bubble of 1,000 km.</summary>
-    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
 
     /// <summary>A crate at the origin of <paramref name="space"/> that drifts along +X at 60 m/s, with <paramref name="components"/>.</summary>
     private static Entity CrateAt60MetersPerSecond(World world, FrameHandle space, params IComponent[] components) =>
@@ -202,7 +202,7 @@ public class NumericFrameThresholdTests
 
     /// <summary>A root frame with a uniform gravity of 9.81 m/s² along -Y and a bubble of 20,000 km.</summary>
     private static FrameHandle Planet(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(2e7f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(2e7f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
 
     /// <summary>
     /// A static floor of 100 m by 100 m in <paramref name="planet"/>, with its top at height 0, <paramref name="distance"/> m

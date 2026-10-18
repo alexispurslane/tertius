@@ -71,7 +71,7 @@ public class ContactLifetimeTests
             return box;
         }
 
-        /// <summary>Adds a lander, a frame with a hull that has the physics driver, 2 m above the floor.</summary>
+        /// <summary>Adds a lander, a frame with a dynamic hull, 2 m above the floor.</summary>
         public FrameHandle Lander()
         {
             Entity owner = World.Spawn(new SpawnDesc
@@ -79,7 +79,7 @@ public class ContactLifetimeTests
                 Frame = Frame,
                 Pose = At(0, 2),
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Physics),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
             });
             return World.GetOwnedFrame(owner);
         }
@@ -153,9 +153,9 @@ public class ContactLifetimeTests
     }
 
     /// <summary>
-    /// The reviewer's probe C1. A lander with the physics driver rests on the floor. The game parks the lander for a second
-    /// and then gives it the physics driver again. Jolt drops the contact of two static bodies, but the lander never left
-    /// the floor.
+    /// The reviewer's probe C1. A lander with a dynamic hull rests on the floor. The game parks the lander for a second and
+    /// then unparks it, each with a change of the hull's motion in a tick. Jolt drops the contact of two static bodies, but
+    /// the lander never left the floor.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -169,9 +169,9 @@ public class ContactLifetimeTests
         Tick(ground.World, 120);
         ground.ContactsOf(lander.Entity, ground.Floor).Should().Be(1);
 
-        ground.World.SetFrameDriver(lander, MotionDriver.Static);
+        ground.World.SetMotionNextTick(lander.Entity, BodyMotion.Static);
         Tick(ground.World, 60);
-        ground.World.SetFrameDriver(lander, MotionDriver.Physics);
+        ground.World.SetMotionNextTick(lander.Entity, BodyMotion.Dynamic);
         Tick(ground.World, 60);
 
         ground.ContactsOf(lander.Entity, ground.Floor).Should().Be(1, "the lander never left the floor");
@@ -211,14 +211,14 @@ public class ContactLifetimeTests
         FrameHandle lander = ground.Lander();
         Tick(ground.World, 120);
         ground.ContactsOf(lander.Entity, ground.Floor).Should().Be(1);
-        ground.World.SetFrameDriver(lander, MotionDriver.Static);
+        ground.World.SetMotionNextTick(lander.Entity, BodyMotion.Static);
         Tick(ground.World, 30);
 
         // A static frame moves where the game puts it.
         DPose parked = ground.World.Frames.LocalPose(lander);
         ground.World.Frames.SetLocalPose(lander, parked with { Position = parked.Position + new Double3(0, 3, 0) });
         Tick(ground.World, 30);
-        ground.World.SetFrameDriver(lander, MotionDriver.Physics);
+        ground.World.SetMotionNextTick(lander.Entity, BodyMotion.Dynamic);
         Tick(ground.World, 120);
 
         ground.World.Frames.LocalPose(lander).Position.Y.Should().BeApproximately(2, 0.01, "the lander fell back onto the floor");

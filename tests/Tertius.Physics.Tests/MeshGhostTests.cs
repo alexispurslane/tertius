@@ -224,13 +224,13 @@ public class MeshGhostTests
 
     private static DockScene CrateOnAStationsMeshHull(World world)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         var hull = new MeshShapeDesc([new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)], [0, 2, 1, 0, 3, 2]);
         Entity station = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Body = new BodyDesc(hull, BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(3), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
         });
         var pilot = new Pilot();
         Entity shipOwner = world.Spawn(new SpawnDesc
@@ -238,7 +238,7 @@ public class MeshGhostTests
             Frame = space,
             Pose = At(12, 20),
             Body = new BodyDesc(new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics, GravityField.Uniform(new Vector3(0, -G, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30), GravityField.Uniform(new Vector3(0, -G, 0))),
             Components = [pilot],
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);

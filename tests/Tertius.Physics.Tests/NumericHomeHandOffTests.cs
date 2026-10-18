@@ -96,14 +96,14 @@ public class NumericHomeHandOffTests
     private static ShipScene CrateThrownInAShip(World world, ShipMotion shipMotion, Double3 throwDirection, bool withStation = false,
         GravityField shipGravity = default)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         Entity shipOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(0),
             LinearVelocity = shipMotion.Velocity,
             Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(ShipRadius), MotionDriver.Physics, shipGravity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(ShipRadius), shipGravity),
             Components = shipMotion.Thrusts ? [new Thruster(ShipHull.Mass) { Direction = Vector3.Normalize(shipMotion.Velocity) }] : [],
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
@@ -125,7 +125,7 @@ public class NumericHomeHandOffTests
                 Frame = space,
                 Pose = At(60),
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(40)),
             });
             station = world.GetOwnedFrame(stationOwner);
             stationCrate = world.Spawn(new SpawnDesc { Frame = station, Pose = At(-28), Body = CrateBody });
@@ -400,7 +400,7 @@ public class NumericHomeHandOffTests
 
     /// <summary>A frame with no body, in <paramref name="parent"/>, at <paramref name="pose"/>, with a bubble of <paramref name="radius"/> m.</summary>
     private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius) =>
-        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static) }));
+        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius)) }));
 
     /// <summary>
     /// The reconcile at the start of a step drops each ghost that the frame tree does not allow, and the ghost pass at the

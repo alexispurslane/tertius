@@ -44,7 +44,7 @@ public class LifecycleFrameTests
             {
                 Frame = T.Root,
                 Pose = new DPose(new Double3(1000, 0, 0), QuarterTurnAboutY),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
             });
             Ship = T.World.GetOwnedFrame(ShipOwner);
             Crew = T.World.Spawn(new SpawnDesc { Frame = Ship, Pose = TestWorld.At(10), Body = TestWorld.Ball, Components = [CrewLog] });
@@ -456,7 +456,7 @@ public class LifecycleFrameTests
             MoonOwner = T.World.Spawn(new SpawnDesc
             {
                 Frame = T.Root,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f)),
             }.OnKeplerOrbit(T.World, KeplerOrbit.Circular(7e6, spinRate: 0.01)));
             FrameHandle moon = T.World.GetOwnedFrame(MoonOwner);
             Pod = T.SpawnStaticFrame(TestWorld.At(100, 20, -30), 10, moon);
@@ -563,7 +563,7 @@ public class LifecycleFrameTests
         doomed = t.World.GetOwnedFrame(t.World.Spawn(new SpawnDesc
         {
             Frame = t.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())],
         }));
         FrameHandle target = doomed;

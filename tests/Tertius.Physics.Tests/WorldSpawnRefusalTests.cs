@@ -8,7 +8,7 @@ namespace Tertius.Physics.Tests;
 /// Spawn refuses every body that physics cannot create, with an <see cref="ArgumentException"/>, before anything changes.
 /// So a change batch that reaches the backend holds only bodies that it can create, and a creation that fails there
 /// comes only from a bug. Spawn refuses nothing that physics can create: the owner of a root frame has no hull, so its
-/// body only needs to be a valid static interior, whatever the frame's driver.
+/// body only needs to be a valid static interior, whatever the motion of its description.
 /// </summary>
 public class WorldSpawnRefusalTests
 {
@@ -110,30 +110,113 @@ public class WorldSpawnRefusalTests
     }
 
     /// <summary>
-    /// The hull of a frame is a body too. Its mass counts while the frame has the physics driver, and the hull keeps it for
-    /// that time while the frame has another driver, so it must be a mass that physics can use, whatever the driver.
+    /// The hull of a frame is a body too. Its mass counts while the hull is dynamic, and a hull with another motion keeps it
+    /// for a later change to dynamic, so it must be a mass that physics can use, whatever the motion.
     /// </summary>
     [Theory]
-    [InlineData(MotionDriver.Physics, float.PositiveInfinity)]
-    [InlineData(MotionDriver.Physics, 1e-40f)]
-    [InlineData(MotionDriver.Static, 1e-40f)]
-    [InlineData(MotionDriver.Static, float.NaN)]
-    public void SpawnRefusesAFrameWhoseHullHasAMassThatPhysicsCannotUse(MotionDriver driver, float mass)
+    [InlineData(BodyMotion.Dynamic, float.PositiveInfinity)]
+    [InlineData(BodyMotion.Dynamic, 1e-40f)]
+    [InlineData(BodyMotion.Static, 1e-40f)]
+    [InlineData(BodyMotion.Static, float.NaN)]
+    public void SpawnRefusesAFrameWhoseHullHasAMassThatPhysicsCannotUse(BodyMotion motion, float mass)
     {
         using World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         int live = world.Stats.LiveEntities;
 
         Action spawn = () => world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(100),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: mass),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), motion, Mass: mass),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*mass*");
         world.Stats.LiveEntities.Should().Be(live, "nothing changed");
+    }
+
+    /// <summary>
+    /// A frame 100 m along +X in <paramref name="space"/>, whose owner has the hull <paramref name="hull"/>.
+    /// </summary>
+    private static Action SpawnHull(World world, FrameHandle space, BodyDesc hull) => () => world.Spawn(new SpawnDesc
+    {
+        Frame = space,
+        Pose = At(100),
+        Body = hull,
+        AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+    });
+
+    /// <summary>A hull with a mesh, which Jolt never moves, by the names that the theory uses.</summary>
+    private static ShapeDesc MeshOf(string shape) => shape == "a mesh" ? Triangle : new CompoundShapeDesc([new CompoundChild(Triangle, Pose.Identity)]);
+
+    /// <summary>A hull whose shape is or holds a mesh can only be static, because Jolt never moves a mesh.</summary>
+    [Theory]
+    [InlineData("a mesh", BodyMotion.Kinematic)]
+    [InlineData("a mesh", BodyMotion.Dynamic)]
+    [InlineData("a mesh in a compound", BodyMotion.Kinematic)]
+    [InlineData("a mesh in a compound", BodyMotion.Dynamic)]
+    public void SpawnRefusesAMeshHullWhoseBodyIsNotStatic(string shape, BodyMotion motion)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        int live = world.Stats.LiveEntities;
+
+        Action spawn = SpawnHull(world, space, new BodyDesc(MeshOf(shape), motion, Mass: 1000));
+
+        spawn.Should().Throw<ArgumentException>().WithMessage($"*{motion.ToString().ToLowerInvariant()}*mesh*");
+        world.Stats.LiveEntities.Should().Be(live, "nothing changed");
+        world.Stats.Frames.Should().Be(1, "only the space exists");
+    }
+
+    /// <summary>
+    /// The reviewer's probe S8. A dynamic hull needs a mass, or physics could not move it, and the frame would never get a
+    /// state from physics. So every frame with a dynamic hull moves with its hull.
+    /// </summary>
+    [Fact]
+    public void SpawnRefusesADynamicHullWithoutMass()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        int live = world.Stats.LiveEntities;
+
+        Action spawn = SpawnHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Dynamic, Mass: 0));
+
+        spawn.Should().Throw<ArgumentException>().WithMessage("*dynamic*mass*");
+        world.Stats.LiveEntities.Should().Be(live, "nothing changed");
+        world.Stats.Frames.Should().Be(1, "only the space exists");
+    }
+
+    /// <summary>Only a dynamic hull moves by its mass, so a static or a kinematic hull needs none.</summary>
+    [Theory]
+    [InlineData(BodyMotion.Static)]
+    [InlineData(BodyMotion.Kinematic)]
+    public void SpawnAcceptsAHullWithoutMassThatIsNotDynamic(BodyMotion motion)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+
+        SpawnHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(2)), motion, Mass: 0))();
+        world.Tick();
+
+        world.Stats.Frames.Should().Be(2);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>A hull whose shape is or holds a mesh can be static.</summary>
+    [Theory]
+    [InlineData("a mesh")]
+    [InlineData("a mesh in a compound")]
+    public void SpawnAcceptsAStaticMeshHull(string shape)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+
+        SpawnHull(world, space, new BodyDesc(MeshOf(shape), BodyMotion.Static))();
+        world.Tick();
+
+        world.Stats.Frames.Should().Be(2);
+        world.Errors.Should().BeEmpty();
     }
 
     /// <summary>
@@ -201,7 +284,7 @@ public class WorldSpawnRefusalTests
         {
             Frame = ground,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static, InteriorShape: interior),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
 
         spawn.Should().Throw<ArgumentException>(why).WithMessage("*interior*");
@@ -223,7 +306,7 @@ public class WorldSpawnRefusalTests
         {
             Frame = ground,
             Pose = At(10, 2),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
             Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
         });
         spawn.Should().Throw<ArgumentException>().WithMessage("*character*");
@@ -235,11 +318,11 @@ public class WorldSpawnRefusalTests
         world.Errors.Should().BeEmpty();
     }
 
-    /// <summary>The owner of a frame cannot be a sensor: its hull and its interior push, whatever its driver.</summary>
+    /// <summary>The owner of a frame cannot be a sensor: its hull and its interior push, whatever its motion.</summary>
     [Theory]
-    [InlineData(MotionDriver.Static)]
-    [InlineData(MotionDriver.Physics)]
-    public void SpawnRefusesAFrameOwnerWhoseBodyIsASensor(MotionDriver driver)
+    [InlineData(BodyMotion.Static)]
+    [InlineData(BodyMotion.Dynamic)]
+    public void SpawnRefusesAFrameOwnerWhoseBodyIsASensor(BodyMotion motion)
     {
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
@@ -249,8 +332,8 @@ public class WorldSpawnRefusalTests
         {
             Frame = ground,
             Pose = At(0, 5),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5), driver),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 10) { IsSensor = true },
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), motion, Mass: 10) { IsSensor = true },
         });
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*sensor*");
@@ -262,14 +345,14 @@ public class WorldSpawnRefusalTests
     public void AStaticFrameMayHaveAMeshInterior()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
 
         Entity hangar = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(100),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(10)), BodyMotion.Static, InteriorShape: Triangle),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
         });
         world.Tick();
 
@@ -278,13 +361,13 @@ public class WorldSpawnRefusalTests
 
     /// <summary>
     /// The reviewer's probe D13. A root frame has no parent, so its owner has no hull: its body is only the static interior
-    /// of the frame. So any driver is fine for a root frame whose owner's body is a mesh or has no mass, at spawn and later.
-    /// A ball lands on the mesh.
+    /// of the frame. So the owner of a root frame may have a body that could not be a hull: a mesh, or a box without mass
+    /// with the default dynamic motion. A ball lands on it.
     /// </summary>
     [Theory]
     [InlineData("a mesh")]
     [InlineData("a box without mass")]
-    public void ARootFrameWithThePhysicsDriverMayHaveABodyThatCouldNotBeAHull(string body)
+    public void ARootFrameMayHaveABodyThatCouldNotBeAHull(string body)
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         BodyDesc interior = body == "a mesh" ? new BodyDesc(Triangle, BodyMotion.Static) : new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), Mass: 0);
@@ -292,15 +375,12 @@ public class WorldSpawnRefusalTests
 
         Entity owner = world.Spawn(new SpawnDesc
         {
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Physics, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
             Body = interior,
         });
         FrameHandle root = world.GetOwnedFrame(owner);
         Entity ball = world.Spawn(new SpawnDesc { Frame = root, Pose = At(0, 3), Body = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 1) });
-        Tick(world, 120);
-        world.SetFrameDriver(root, MotionDriver.Static);
-        world.SetFrameDriver(root, MotionDriver.Physics);
-        Tick(world, 10);
+        Tick(world, 130);
 
         world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(top + 0.5, 0.01, "the ball rests on the root frame's interior");
         backend.HasInterior(owner).Should().BeTrue();

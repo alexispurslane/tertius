@@ -45,7 +45,7 @@ public static partial class DemoScenes
     private static SceneInstance Doorway(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
         scene.Add("ground", ground);
         scene.Add("floor", world.Spawn(new SpawnDesc
         {
@@ -107,7 +107,7 @@ public static partial class DemoScenes
         {
             Frame = ground,
             Pose = new DPose(new Double3(30, 50, 20), DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
         });
         scene.Add("sun", sun);
         world.SunFrame = world.GetOwnedFrame(sun);

@@ -65,8 +65,9 @@ public sealed partial class World
             ref readonly TransformRow row = ref entities.BackRow(entity);
             if (row.Frame.IsNull)
                 continue;
-            // The body of a frame owner is its frame's hull, whose motion the frame's driver chooses in this ticket.
-            BodyMotion motion = own.IsNull ? desc.Motion : BodyDesc.FrameHullMotion(Frames.Driver(own));
+            // The body of a frame owner is its frame's hull here, because its frame has a parent. The update plans the next
+            // step, so it reads the hull's motion in that step, which counts a change written in the tick that ends.
+            BodyMotion motion = own.IsNull ? desc.Motion : NextStepHullMotion(own)!.Value;
             double mass = desc.Mass > 0 ? desc.Mass : 1;
             numericBodies.Add(new NumericBody
             {

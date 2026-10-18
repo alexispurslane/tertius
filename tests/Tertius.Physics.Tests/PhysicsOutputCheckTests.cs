@@ -26,9 +26,9 @@ public class PhysicsOutputCheckTests
 
     /// <summary>
     /// A world that holds: a ship frame that physics drives, 10 m along +X in space, with a cockpit frame inside it, a ball in
-    /// space, a frame with the physics driver whose owner has no body, a second root frame whose owner has a body, a third
-    /// root frame with the physics driver whose owner has a body, a dock frame with a static hull and a moon frame with the
-    /// Kepler driver and a kinematic hull, both in space, a bubble frame that is gone from the tree, a wreck whose body is
+    /// space, a frame whose owner has no body, a second root frame whose owner has a static body, a third root frame whose
+    /// owner has a dynamic body, a dock frame with a static hull and a moon frame on a Kepler orbit with a kinematic hull,
+    /// both in space, a bubble frame that is gone from the tree, a wreck whose body is
     /// gone, and a person, whose body is a character, in space. Space has a point gravity with a tiny G·M, because the
     /// Kepler moon needs a G·M to orbit. It pulls a body at 100 m with 0.0001 m/s², which no test notices.
     /// </summary>
@@ -38,13 +38,13 @@ public class PhysicsOutputCheckTests
         {
             World = NewWorldWithFaults(out FaultInjectingBackend faults);
             Faults = faults;
-            Space = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, GravityField.Point(1)));
+            Space = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Point(1)));
             Entity shipOwner = World.Spawn(new SpawnDesc
             {
                 Frame = Space,
                 Pose = At(10),
                 Body = BoxBody(3, 100),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
             });
             Ship = World.GetOwnedFrame(shipOwner);
             Cockpit = FrameOf(Ship, At(1), 2);
@@ -55,36 +55,36 @@ public class PhysicsOutputCheckTests
             {
                 Frame = Space,
                 Pose = At(300),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Physics),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
             }));
             Island = World.GetOwnedFrame(World.Spawn(new SpawnDesc
             {
                 Body = new BodyDesc(new SphereShapeDesc(5), BodyMotion.Static),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             }));
             Raft = World.GetOwnedFrame(World.Spawn(new SpawnDesc
             {
                 Body = BoxBody(2, 100),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             }));
             Dock = World.GetOwnedFrame(World.Spawn(new SpawnDesc
             {
                 Frame = Space,
                 Pose = At(0, -200),
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
             }));
             Moon = World.GetOwnedFrame(World.Spawn(new SpawnDesc
             {
                 Frame = Space,
-                Body = BoxBody(1, 10),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Kepler),
+                Body = BoxBody(1, 10) with { Motion = BodyMotion.Kinematic },
+                AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
             }.OnKeplerOrbit(World, KeplerOrbit.Circular(200, phase: 1.0))));
             Entity goneOwner = World.Spawn(new SpawnDesc
             {
                 Frame = Space,
                 Pose = At(-500),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
             });
             Gone = World.GetOwnedFrame(goneOwner);
             World.Tick();
@@ -109,7 +109,7 @@ public class PhysicsOutputCheckTests
         public FrameHandle Gone { get; }
 
         private FrameHandle FrameOf(FrameHandle parent, DPose pose, float radius) =>
-            World.GetOwnedFrame(World.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static) }));
+            World.GetOwnedFrame(World.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius)) }));
 
         /// <summary>
         /// Adds <paramref name="broken"/> to the output of the next step, and expects the sync point to refuse the output. A
@@ -259,15 +259,15 @@ public class PhysicsOutputCheckTests
     }
 
     [Theory]
-    [InlineData(MotionDriver.Static)]
-    [InlineData(MotionDriver.Kepler)]
-    public void AHandOffOfTheOwnerOfAFrameThatPhysicsDoesNotDriveThrowsOutOfTheStep(MotionDriver driver)
+    [InlineData(BodyMotion.Static)]
+    [InlineData(BodyMotion.Kinematic)]
+    public void AHandOffOfTheOwnerOfAFrameWithoutADynamicHullThrowsOutOfTheStep(BodyMotion motion)
     {
         using var scene = new Scene();
-        FrameHandle frame = driver == MotionDriver.Kepler ? scene.Moon : scene.Dock;
+        FrameHandle frame = motion == BodyMotion.Kinematic ? scene.Moon : scene.Dock;
 
         scene.ShouldRefuse(output => output.HandOffs.Add(HandOffOf(frame.Entity, scene.Space, scene.Ship)),
-            $"*hand-off of {frame.Entity}*physics does not drive {frame}*");
+            $"*hand-off of {frame.Entity}*hull of {frame}*only a dynamic hull hands off*");
 
         scene.World.Frames.Parent(frame).Should().Be(scene.Space);
     }
@@ -345,12 +345,12 @@ public class PhysicsOutputCheckTests
     /// </summary>
     private static (FrameHandle Space, FrameHandle Carrier, Entity Fighter) FighterApproachingCarrier(World world, bool fighterOwnsFrame)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         FrameHandle carrier = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200)),
         }));
         Entity fighter = world.Spawn(new SpawnDesc
         {
@@ -358,7 +358,7 @@ public class PhysicsOutputCheckTests
             Pose = At(1260),
             LinearVelocity = new Double3(-45, 0, 0),
             Body = BoxBody(2, 1000),
-            AsFrame = fighterOwnsFrame ? new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics) : null,
+            AsFrame = fighterOwnsFrame ? new FrameSpec(FrameBounds.Sphere(10)) : null,
         });
         return (space, carrier, fighter);
     }
@@ -456,12 +456,12 @@ public class PhysicsOutputCheckTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         var gravity = GravityField.Uniform(new Vector3(0, -9.81f, 0));
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, gravity));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), gravity));
         world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(100, 0.5f, 100)), BodyMotion.Static) });
         FrameHandle building = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = ground,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static, gravity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), gravity),
         }));
         world.Spawn(new SpawnDesc { Frame = building, Pose = At(0, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(15, 0.5f, 15)), BodyMotion.Static) });
         var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new Vector3(4, 0, 0)) };

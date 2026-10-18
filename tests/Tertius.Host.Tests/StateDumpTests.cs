@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Host.Scripting;
 using Tertius.Simulation;
 using static Tertius.Host.Tests.HostTesting;
@@ -100,19 +101,141 @@ public class StateDumpTests
         dump.Entities.Select(e => e.Id).Should().Equal([.. named, $"#{unnamed.Index}.{unnamed.Generation}"]);
     }
 
+    /// <summary>
+    /// The moon's <see cref="KeplerMotion"/> writes a sample in every tick, and the moon follows each sample at the sync point
+    /// after the step that applies it. So a dump after two ticks shows that the moon moves on rails. No sample and no dynamic
+    /// hull moves the other frames.
+    /// </summary>
     [Fact]
-    public void ADumpListsTheFramesWithTheirParentsAndDriversParentsFirst()
+    public void ADumpListsTheFramesWithTheirParentsAndWhatTheyFollowParentsFirst()
     {
         using World world = NewWorld();
         SceneInstance scene = ShipWithCrate(world);
 
-        StateDump dump = Run(world, scene, DumpNow).Dump("now");
+        StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 2 }""", DumpNow).Dump("now");
 
         dump.Frames.Should().Equal(
-            new FrameRecord("space", null, MotionDriver.Static),
-            new FrameRecord("ship", "space", MotionDriver.Static),
-            new FrameRecord("shuttle", "ship", MotionDriver.Static),
-            new FrameRecord("moon", "space", MotionDriver.Kepler));
+            new FrameRecord("space", null, "static"),
+            new FrameRecord("ship", "space", "static"),
+            new FrameRecord("shuttle", "ship", "static"),
+            new FrameRecord("moon", "space", "rails"));
+    }
+
+    /// <summary>
+    /// A new frame goes live before its rails component first runs, so the step of its first tick has no sample, and the
+    /// frame holds still at its spawn pose at that tick's sync point (docs/plans/rails-components.md, "Other rules"). The
+    /// sample that the component writes in the first tick moves the frame at the second sync point.
+    /// </summary>
+    [Fact]
+    public void ANewFrameOnRailsFollowsRailsFromTheSecondSyncPointOnBecauseItHoldsStillAtTheFirst()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = ShipWithCrate(world);
+
+        RunResult run = Run(world, scene, """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "first" }""",
+            """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "second" }""");
+
+        FollowsOf(run.Dump("first"), "moon").Should().Be("static");
+        FollowsOf(run.Dump("second"), "moon").Should().Be("rails");
+    }
+
+    /// <summary>
+    /// The moon's <see cref="KeplerMotion"/> runs first in its entity, so it writes its last sample in the tick in which a
+    /// later component removes it. The moon follows that sample at the sync point of the next tick, and then nothing moves it.
+    /// </summary>
+    [Fact]
+    public void AFrameFollowsTheLastSampleOfARailsComponentThatWentAtTheSyncPointAfterTheStepThatAppliesIt()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = ShipWithCrate(world);
+        WorldTesting.Tick(world, 2);
+        world.AddComponent(scene["moon"], new RemovesOnce(world.GetComponent<KeplerMotion>(scene["moon"])!));
+
+        RunResult run = Run(world, scene, """{ "do": "run", "ticks": 2 }""", """{ "do": "dump", "name": "last-sample" }""",
+            """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "after" }""");
+
+        FollowsOf(run.Dump("last-sample"), "moon").Should().Be("rails");
+        FollowsOf(run.Dump("after"), "moon").Should().Be("static");
+    }
+
+    /// <summary>
+    /// The new motion of a hull acts from the step after the tick in which its owner writes it. So physics moves a dynamic
+    /// hull that parks in a tick in the step of that tick, and the frame follows that step at the tick's sync point.
+    /// </summary>
+    [Fact]
+    public void AFrameWhoseHullParksInATickFollowsPhysicsAtThatTicksSyncPoint()
+    {
+        using World world = NewJoltWorld();
+        (SceneInstance scene, Entity owner) = ShipInSpace(world, BodyMotion.Dynamic);
+        world.SetMotionNextTick(owner, BodyMotion.Static);
+
+        RunResult run = Run(world, scene, """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "parked" }""",
+            """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "after" }""");
+
+        FollowsOf(run.Dump("parked"), "ship").Should().Be("physics");
+        FollowsOf(run.Dump("after"), "ship").Should().Be("static");
+    }
+
+    /// <summary>
+    /// A Kepler hull that becomes dynamic in a tick is still kinematic in the step of that tick, which applies the sample of
+    /// the tick before. So the frame follows that sample at the tick's sync point, and physics moves it from the next step on.
+    /// </summary>
+    [Fact]
+    public void AFrameWhoseKeplerHullBecomesDynamicInATickFollowsRailsAtThatTicksSyncPoint()
+    {
+        using World world = NewJoltWorld();
+        (SceneInstance scene, Entity owner) = ShipInSpace(world, BodyMotion.Kinematic);
+        world.SetMotionNextTick(owner, BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner));
+
+        RunResult run = Run(world, scene, """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "changed" }""",
+            """{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "after" }""");
+
+        FollowsOf(run.Dump("changed"), "ship").Should().Be("rails");
+        FollowsOf(run.Dump("after"), "ship").Should().Be("physics");
+    }
+
+    private static string FollowsOf(StateDump dump, string id) => dump.Frames.Single(frame => frame.Id == id).Follows;
+
+    /// <summary>
+    /// The root frame <c>space</c>, with a point gravity of G·M 5e5 m³/s², and the frame <c>ship</c> on a circle of 5 km round
+    /// it, at 10 m/s, after five ticks. That is slow and close to the origin, so the engine puts no numeric frame round the
+    /// ship. The ship's hull is a box of 1000 kg with <paramref name="motion"/>: a dynamic hull starts with the circle's
+    /// velocity and falls round it, and a kinematic hull moves on the circle with a <see cref="KeplerMotion"/>.
+    /// </summary>
+    private static (SceneInstance Scene, Entity Owner) ShipInSpace(World world, BodyMotion motion)
+    {
+        const double mu = 5e5;
+        var scene = new SceneInstance();
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
+        scene.Add("space", space);
+        var orbit = KeplerOrbit.Circular(5000, phase: 1.0);
+        (Double3 position, Double3 velocity) = orbit.StateAt(world.Time, mu);
+        var desc = new SpawnDesc
+        {
+            Frame = space,
+            Pose = new DPose(position, DQuaternion.Identity),
+            LinearVelocity = velocity,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), motion, Mass: 1000),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+        };
+        Entity owner = world.Spawn(motion == BodyMotion.Kinematic ? desc.OnKeplerOrbit(world, orbit) : desc);
+        scene.Add("ship", owner);
+        WorldTesting.Tick(world, 5);
+        return (scene, owner);
+    }
+
+    /// <summary>Removes itself and <paramref name="other"/> from its entity in the first tick in which it runs.</summary>
+    private sealed class RemovesOnce(IComponent other) : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            self.RemoveComponent(this);
+            self.RemoveComponent(other);
+        }
     }
 
     [Fact]

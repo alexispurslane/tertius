@@ -118,7 +118,7 @@ public class RenderSnapshotInterpolationTests
         FrameHandle hangar = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
             Components = [new Mover(new Double3(1, 0, 0))],
         }));
         Entity crate = test.Show(hangar, TestWorld.At(0, 0, -10));
@@ -144,7 +144,7 @@ public class RenderSnapshotInterpolationTests
         FrameHandle moon = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f)),
         }.OnKeplerOrbit(test.World, orbit)));
         Entity satellite = test.Show(moon, TestWorld.At(100, 0, 0));
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
@@ -170,7 +170,7 @@ public class RenderSnapshotInterpolationTests
         FrameHandle moon = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f)),
         }.OnKeplerOrbit(test.World, orbit)));
         FrameHandle dock = test.SpawnStaticFrame(new DPose(new Double3(-3e6, 1e5, 42.5), PoseChecks.QuarterTurnAboutY), radius: 1e6f);
         FrameHandle yard = test.SpawnStaticFrame(

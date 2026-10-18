@@ -30,7 +30,7 @@ public class GravityAllocationTests
         {
             Frame = test.Root,
             Pose = new DPose(at, DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1000), MotionDriver.Static, field),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1000), field),
         }));
 
     [Fact]

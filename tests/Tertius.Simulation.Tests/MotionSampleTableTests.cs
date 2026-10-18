@@ -125,7 +125,7 @@ public class MotionSampleTableTests
         FrameHandle parent = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f)),
         }.OnKeplerOrbit(test.World, orbit)));
         var sample = new MotionSample(new DPose(new Double3(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
             ChordVelocity: new Double3(1, 2, 3), Velocity: new Double3(1.5, 2.5, 3.5), Acceleration: new Double3(-0.1, 0.2, 0.3),
@@ -194,19 +194,6 @@ public class MotionSampleTableTests
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain(plain.ToString()).And.Contain(nameof(InvalidOperationException))
             .And.Contain("owns no frame");
-    }
-
-    [Fact]
-    public void AFrameWithoutABodyCanWriteASample()
-    {
-        using var test = new TestWorld();
-        // The Physics driver would make a hull dynamic, but this frame has no body, so it has no hull.
-        FrameHandle frame = SpawnFrame(test, driver: MotionDriver.Physics, components: WritesTheTickNumber());
-
-        test.Run(1);
-
-        test.World.Errors.Should().BeEmpty();
-        Applied(test, frame).Should().Be(SampleOfTick(0));
     }
 
     // ---- What a sample must hold --------------------------------------------------------------------------------
@@ -399,12 +386,11 @@ public class MotionSampleTableTests
         Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(SampleOfTick(self.Tick)));
 
     /// <summary>Spawns a frame without a body at the origin of <paramref name="parent"/>, or of the root, and returns it.</summary>
-    private static FrameHandle SpawnFrame(TestWorld test, FrameHandle parent = default, MotionDriver driver = MotionDriver.Static,
-        params IComponent[] components) =>
+    private static FrameHandle SpawnFrame(TestWorld test, FrameHandle parent = default, params IComponent[] components) =>
         test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = parent.IsNull ? test.Root : parent,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = components,
         }));
 

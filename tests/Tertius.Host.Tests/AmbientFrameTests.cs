@@ -21,7 +21,7 @@ public sealed class AmbientFrameTests : IDisposable
     private static SceneInstance Build(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
         world.SunIntensity = 0;
         world.Ambient = new AmbientLight { SkyColor = new Vector3(0.6f, 0, 0), GroundColor = new Vector3(0, 0, 0.6f), Intensity = 1 };
         world.Spawn(new SpawnDesc
@@ -43,7 +43,7 @@ public sealed class AmbientFrameTests : IDisposable
         {
             Frame = ground,
             Pose = turn,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
         }));
         scene.Add("root-camera", world.Spawn(new SpawnDesc { Frame = ground, Pose = DPose.Identity, Render = new RenderData() }));
         scene.Add("turned-camera", world.Spawn(new SpawnDesc { Frame = turned, Pose = turn.Inverse(), Render = new RenderData() }));

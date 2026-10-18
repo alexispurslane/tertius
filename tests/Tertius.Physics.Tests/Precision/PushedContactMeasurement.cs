@@ -177,7 +177,7 @@ public class PushedContactMeasurement
         });
         var options = new WorldOptions { MaxDegreeOfParallelism = 1, DebugChecks = false, DisposePhysics = true, NumericFrames = WithoutNumericFrames };
         using var world = new World(options, backend);
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f), MotionDriver.Static));
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f)));
 
         double pusherMass = scene.Pusher.Mass;
         double pushedMass = scene.Pushed.Mass;

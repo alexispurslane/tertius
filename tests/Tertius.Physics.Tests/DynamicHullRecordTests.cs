@@ -37,7 +37,7 @@ public class DynamicHullRecordTests
     private static readonly Double3 Approach = new(-60, 0, 0);
 
     private static FrameHandle Earth(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
 
     private static bool InFallingFrame(World world, Entity entity) =>
         world.Frames.Numeric(world.PhysicsHomeOf(entity)) == NumericMode.Falling;
@@ -54,7 +54,7 @@ public class DynamicHullRecordTests
         LinearVelocity = velocity,
         AngularVelocity = spin,
         Body = hull,
-        AsFrame = new FrameSpec(FrameBounds.Sphere(bubble), MotionDriver.Physics),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(bubble)),
     });
 
     /// <summary>A ship in low orbit, 400 km above Earth, which falls in a numeric frame of its own within its first ticks.</summary>
@@ -72,7 +72,7 @@ public class DynamicHullRecordTests
             Frame = frame,
             Pose = new DPose(Double3.Zero, StationTurn),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics, GravityField.Uniform(stationGravity)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200), GravityField.Uniform(stationGravity)),
         }));
 
     /// <summary>The hull of a ship of 8 m by 4 m by 2 m and 1 t, with the linear damping <paramref name="damping"/> and the angular damping <paramref name="angularDamping"/>.</summary>
@@ -129,6 +129,13 @@ public class DynamicHullRecordTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Two ships on the same circular orbit of Earth: one with a dynamic hull from its spawn on, and one with a kinematic
+    /// hull on a <see cref="KeplerMotion"/>, which rests in an orbit frame of its own. The engines of the second come on: in
+    /// one tick its owner removes the component and makes the hull dynamic. Physics then places the hull from the tree, with
+    /// the tree's velocity relative to the orbit frame, which falls on, and that velocity becomes Jolt's chord at the start
+    /// of the next step. So the second ship coasts on the orbit of the first.
+    /// </summary>
     [Fact]
     public void TheRecordOfAShipThatFallsInANumericFrameHoldsEarthsGravityAtTheShipAsItsAccelerationInEarth()
     {
@@ -152,21 +159,28 @@ public class DynamicHullRecordTests
     }
 
     [Fact]
-    public void AShipInANumericFrameThatPhysicsPlacesFromTheTreeAgainKeepsToTheOrbitOfAShipLeftAlone()
+    public void AShipInANumericFrameThatPhysicsPlacesFromTheTreeKeepsToTheOrbitOfAShipLeftAlone()
     {
         using World placed = NewWorld(out _);
         using World alone = NewWorld(out _);
         FrameHandle placedEarth = Earth(placed), aloneEarth = Earth(alone);
-        Entity placedShip = ShipInOrbit(placed, placedEarth), aloneShip = ShipInOrbit(alone, aloneEarth);
+        var orbit = KeplerOrbit.Circular(OrbitRadius);
+        Entity placedShip = placed.Spawn(new SpawnDesc
+        {
+            Frame = placedEarth,
+            Body = Hull with { Motion = BodyMotion.Kinematic },
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
+        }.OnKeplerOrbit(placed, orbit));
+        (Double3 start, Double3 startVelocity) = orbit.StateAt(alone.Time, EarthMu);
+        Entity aloneShip = Ship(alone, aloneEarth, start, startVelocity, Hull, 20);
         Tick(placed, 3);
         Tick(alone, 3);
-        InFallingFrame(placed, placedShip).Should().BeTrue();
+        placed.Frames.Numeric(placed.PhysicsHomeOf(placedShip)).Should().Be(NumericMode.Orbiting);
 
-        // Every call gives the frame a new driver version, so physics puts the hull where the tree says, with the tree's
-        // velocity, which becomes Jolt's chord at the start of the next step.
-        placed.SetFrameDriver(placed.GetOwnedFrame(placedShip), MotionDriver.Physics);
+        placed.SetMotionNextTick(placedShip, BodyMotion.Dynamic, remove: placed.GetComponent<KeplerMotion>(placedShip));
         Tick(placed, 60);
         Tick(alone, 60);
+        InFallingFrame(placed, placedShip).Should().BeTrue();
 
         // A chord that half a step of the numeric frame's acceleration put off would move the ship 7 cm away in the second.
         (placed.PoseIn(placedShip, placedEarth).Position - alone.PoseIn(aloneShip, aloneEarth).Position).Length.Should().BeLessThan(1e-4);
@@ -203,7 +217,7 @@ public class DynamicHullRecordTests
     public void ADampedShipThatDriftsIntoATurnedStationSlowsSmoothlyThroughTheHandOff()
     {
         using World world = NewWorldWithoutNumericFrames(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         const float damping = 0.1f;
         (FrameHandle station, Entity ship, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world, space, Vector3.Zero, damping);
 
@@ -247,7 +261,7 @@ public class DynamicHullRecordTests
     public void TheRecordOfASpinningShipThatEntersATurnedStationHoldsItsAngularAccelerationInTheStationsAxes()
     {
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world, space, Vector3.Zero,
             shipAngularDamping: 0.1f, shipSpin: new Vector3(0.5f, 0, 0));
 
@@ -273,7 +287,7 @@ public class DynamicHullRecordTests
     public void TheRecordOfASpinningShipThatLeavesATurnedStationHoldsItsAngularAccelerationInTheAxesOfSpace()
     {
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         FrameHandle station = TurnedStation(world, space, Vector3.Zero);
         FrameHandle shipFrame = world.GetOwnedFrame(Ship(world, station, new Double3(150, 0, 0), new Double3(60, 0, 0),
             ShipHull(0, 0.1f), 10, new Vector3(0.5f, 0, 0)));

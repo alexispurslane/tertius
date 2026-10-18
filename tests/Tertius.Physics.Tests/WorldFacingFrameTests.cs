@@ -26,12 +26,12 @@ public class WorldFacingFrameTests
     private static (World World, JoltPhysicsBackend Backend, FrameHandle Planet, Entity Owner) Station(double mu = PlanetMu)
     {
         World world = NewWorld(out JoltPhysicsBackend backend);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(mu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), Mass: 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Kinematic, Mass: 1000),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
         }.OnKeplerOrbit(world, Facing));
         return (world, backend, planet, owner);
     }
@@ -71,14 +71,14 @@ public class WorldFacingFrameTests
         World world = NewWorld(out _);
         using (world)
         {
-            FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)));
+            FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(PlanetMu)));
             // Periapsis at t = 0, apoapsis at half the 31.4 s period.
             var oval = new KeplerOrbit(5000, 0.3, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
             Entity owner = world.Spawn(new SpawnDesc
             {
                 Frame = planet,
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), Mass: 1000),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler),
+                Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Kinematic, Mass: 1000),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
             }.OnKeplerOrbit(world, oval));
 
             Tick(world, 942);

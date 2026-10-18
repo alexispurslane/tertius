@@ -92,10 +92,11 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>
-    /// The reference frames. Read it freely. Outside a tick, a game gives a frame a new motion driver or gravity field with
-    /// <see cref="SetFrameDriver"/> and <see cref="SetFrameGravity"/>. They refuse a value that the engine cannot use, and
-    /// the owner of the frame follows the change at once. A frame on rails takes its orbit or its spin from a component of
-    /// its owner (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). Make every other change through the world.
+    /// The reference frames. Read it freely. Outside a tick, a game gives a frame a new gravity field with
+    /// <see cref="SetFrameGravity"/>, which refuses a field that the engine cannot use. A frame on rails takes its orbit or
+    /// its spin from a component of its owner (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>), and a hull's
+    /// owner changes the hull's motion in a tick with <see cref="BodyHandle.SetMotion"/>. Make every other change through
+    /// the world.
     /// </summary>
     public FrameTree Frames { get; } = new();
 
@@ -202,7 +203,11 @@ public sealed partial class World : IDisposable
     /// <summary>The frame that this entity is, or null. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
     public FrameHandle GetOwnedFrame(Entity entity) => entities.OwnedFrame(entity);
 
-    /// <summary>The entity's physics body, or null if it has none. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
+    /// <summary>
+    /// The description of the entity's physics body at its spawn, or null if it has none. A hull's motion can change after the
+    /// spawn: <see cref="FrameTree.HullMotion"/> gives the motion that it had in the last finished step. Throws
+    /// <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
     public BodyDesc? GetBody(Entity entity) => entities.Body(entity);
 
     /// <summary>A copy of the entity's components, in pipeline order. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
@@ -304,6 +309,10 @@ public sealed partial class World : IDisposable
     /// position plus the home's offset is the pose's position, within rounding.</item>
     /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state. Every live
     /// frame's topic resolves.</item>
+    /// <item>A frame without a parent, or whose owner has no body, has no stored hull motion (see
+    /// <see cref="FrameTree.HullMotion"/>). Every other frame has a stored hull motion that its owner's body can take: not a
+    /// character, static for a body whose shape is or holds a mesh, and dynamic only with a mass above zero (see
+    /// <see cref="BodyDesc.Problem"/>).</item>
     /// <item>Only a character can be standing.</item>
     /// <item>Every intent that the next physics step applies names its entity's frame (see
     /// <see cref="PhysicsIntent.Frame"/>).</item>
@@ -346,6 +355,11 @@ public sealed partial class World : IDisposable
                 Contract.Invariant(row.Frame == mirror.Frame && row.PhysicsHome == mirror.PhysicsHome && Poses.BitEquals(row.Pose, mirror.Pose)
                     && Poses.BitEquals(row.HomePose, mirror.HomePose));
                 Contract.Invariant(row.LinearVelocity.Equals(mirror.LinearVelocity) && row.AngularVelocity.Equals(mirror.AngularVelocity));
+                BodyMotion? hullMotion = Frames.HullMotion(own);
+                if (Frames.Parent(own).IsNull || entities.Body(entity) is not { } hull)
+                    Contract.Invariant(hullMotion is null);
+                else
+                    Contract.Invariant(hullMotion is { } motion && (hull with { Motion = motion }).Problem(BodyRole.Hull) is null);
             }
             if (characterStanding[entity])
                 Contract.Invariant(entities.Body(entity) is { Motion: BodyMotion.Character });
@@ -358,7 +372,8 @@ public sealed partial class World : IDisposable
                 continue;
             Contract.Invariant(entities.IsAlive(frame.Entity) && entities.OwnedFrame(frame.Entity) == frame && topics.IsLive(frame));
         }
-        Frames.AssertInvariants();
+        // The numeric frames are planned for the next step, which applies the front intents.
+        Frames.AssertInvariants(entities.FrontIntents.Span);
     }
 
     // ---- Helpers --------------------------------------------------------------------------------------------------

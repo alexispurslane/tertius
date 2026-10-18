@@ -16,7 +16,7 @@ public class WorldFrameReadTests
 
     /// <summary>A weightless root frame, so that a body keeps the velocity that it was given.</summary>
     private static FrameHandle Space(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
 
     /// <summary>A frame 10 m along X in <paramref name="parent"/>, tilted, that turns at 0.5 rad/s.</summary>
     private static FrameHandle SpinningChild(World world, FrameHandle parent)
@@ -26,7 +26,7 @@ public class WorldFrameReadTests
         {
             Frame = parent,
             Pose = WorldTesting.At(10, 0, 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
         }.Spinning(world, spin));
         return world.GetOwnedFrame(owner);
     }
@@ -38,7 +38,7 @@ public class WorldFrameReadTests
         {
             Frame = parent,
             Pose = WorldTesting.At(-20),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         }));
         world.Destroy(frame.Entity);
         world.Tick();

@@ -8,7 +8,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// Orbit frames (ter-dhkf, docs/plans/numeric-frames.md, "Anchors", rule 3), on the World and the real backend. The hull of
-/// a frame whose Kepler driver moves it fast or far in its semantic frame lives in a numeric frame K of its own that
+/// a frame whose Kepler orbit moves it fast or far in its semantic frame lives in a numeric frame K of its own that
 /// follows the orbit, and the frame hangs at K's origin, as a ship's frame hangs under its hull's numeric frame. So the
 /// hull rests in K, and the bodies near it join K, where they are slow, and where the hull is a real body that Jolt
 /// sweeps them against. Each scene runs with the default numeric frames, under which a hull on rails or a group of free
@@ -41,13 +41,13 @@ public partial class NumericFrameOrbitTests
 
     /// <summary>
     /// The station's hull: a core, a box of 4 m at the frame's origin, and a plate of 16 m by 0.5 m by 16 m outside the
-    /// bubble, across the +Y axis, whose face toward the core is 19.75 m from it. Its frame's Kepler driver moves it, so
-    /// physics keeps it kinematic.
+    /// bubble, across the +Y axis, whose face toward the core is 19.75 m from it. It is kinematic, so the samples of its
+    /// frame's <see cref="KeplerMotion"/> move it.
     /// </summary>
     private static readonly BodyDesc StationHull = new(new CompoundShapeDesc([
         new CompoundChild(new BoxShapeDesc(new Vector3(2)), new Pose(Vector3.Zero, Quaternion.Identity)),
         new CompoundChild(new BoxShapeDesc(new Vector3(8, 0.25f, 8)), new Pose(new Vector3(0, 20, 0), Quaternion.Identity)),
-    ]), Mass: 1e5f, Restitution: 0);
+    ]), BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
 
     /// <summary>A crate, a box of 50 cm and 2 kg that nothing slows down and that does not bounce.</summary>
     private static readonly BodyDesc Crate = new(new BoxShapeDesc(new Vector3(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
@@ -66,10 +66,10 @@ public partial class NumericFrameOrbitTests
     private static Station KeplerStation(World world, KeplerOrbit? orbit = null)
     {
         KeplerOrbit path = orbit ?? LowOrbit;
-        FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(Scenes.EarthMu)));
+        FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
-            Frame = earth, Body = StationHull, AsFrame = new FrameSpec(FrameBounds.Sphere(BubbleRadius), MotionDriver.Kepler),
+            Frame = earth, Body = StationHull, AsFrame = new FrameSpec(FrameBounds.Sphere(BubbleRadius)),
         }.OnKeplerOrbit(world, path));
         return new Station(earth, owner, world.GetOwnedFrame(owner), path);
     }
@@ -124,12 +124,12 @@ public partial class NumericFrameOrbitTests
     // ---- Crates that drift out of the station ----------------------------------------------------------------------
 
     /// <summary>
-    /// A cargo pod: a frame with the Physics driver and a bubble of 1 cm, whose hull is a box of 50 cm and 2 kg that
+    /// A cargo pod: a frame with a dynamic hull and a bubble of 1 cm, whose hull is a box of 50 cm and 2 kg that
     /// nothing slows down and that does not bounce. A hull meets only static bodies and other hulls (see ARCHITECTURE.md,
     /// "Collision groups"), so only a hull bumps the station's hull outside its bubble; a crate meets the station's
     /// interior inside the bubble instead.
     /// </summary>
-    private static readonly FrameSpec PodFrame = new(FrameBounds.Sphere(0.01f), MotionDriver.Physics);
+    private static readonly FrameSpec PodFrame = new(FrameBounds.Sphere(0.01f));
 
     /// <summary>
     /// What one body did: its homes in order, the ticks at which it heard a Collision with the station's hull, its place in
@@ -231,11 +231,11 @@ public partial class NumericFrameOrbitTests
     public void ACrateAtRestBesideAKeplerHullSleepsInTheOrbitFrameAndMovesWithItInEarth()
     {
         using World world = NewWorld(numericFrames: true, threads: 1, out FaultInjectingBackend faults);
-        FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(Scenes.EarthMu)));
+        FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
         KeplerOrbit far = KeplerOrbit.Circular(3.84e8, phase: 0.4);
         Entity hull = world.Spawn(new SpawnDesc
         {
-            Frame = earth, Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f), AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
+            Frame = earth, Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic, Mass: 1e4f), AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         }.OnKeplerOrbit(world, far));
         (Double3 place, Double3 velocity) = far.StateAt(world.Time, Scenes.EarthMu);
         Entity crate = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Crate });
@@ -370,12 +370,12 @@ public partial class NumericFrameOrbitTests
     /// </summary>
     private static HullScene HullAndRock(World world, CollisionLog log)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(2e7f), MotionDriver.Static, GravityField.Point(FarOrbitMu)));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(2e7f), GravityField.Point(FarOrbitMu)));
         Entity hull = world.Spawn(new SpawnDesc
         {
             Frame = space,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f, Restitution: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(FarOrbitRadius)));
         Entity rock = world.Spawn(new SpawnDesc
         {
@@ -452,22 +452,24 @@ public partial class NumericFrameOrbitTests
         largestPlaceDifference.Should().BeLessThan(6e-5, "the ghost pushes the pod to the same place, but for its lag");
     }
 
-    // ---- Driver changes ------------------------------------------------------------------------------------------
+    // ---- Changes of motion ---------------------------------------------------------------------------------------
 
     /// <summary>
     /// A station in low orbit, with a crate beside its hull in the orbit frame, stops and then goes back on its orbit. Each
-    /// change of motion is a new driver plus a swap of components (docs/plans/rails-components.md, "Changes of motion"). To
-    /// stop, the game removes the station's <see cref="KeplerMotion"/> and gives the frame the Static driver: the frame
-    /// stops where it is in earth, and its hull lives in earth's own system, a fixed hull that the crate's group joins. A
-    /// second crate, at rest at its spawn 20 m below the stopped hull, starts to fall to earth. To go back, the game adds a
-    /// new <see cref="KeplerMotion"/> on the same orbit and gives the frame the Kepler driver. The kinematic hull holds still
-    /// for one step, as a hull without a sample does, and the new component's first run teleports it at the start of the
-    /// next step onto its orbit, about 640 m ahead. So from the second sync point after the swap the hull stands on its orbit
-    /// and rests in a new orbit frame, and every read in earth is the orbit's state again. The second crate falls on as
-    /// before: neither the swap nor the hull's jump moves it.
+    /// change of motion is a swap of components plus a change of the hull's motion, which the station's own components
+    /// write in one tick (docs/plans/rails-components.md, "Changes of motion"). To stop, the station removes its
+    /// <see cref="KeplerMotion"/> and makes its hull static. At the sync point of that tick, the numeric update moves the
+    /// static hull, with its frame, into earth's own system, a fixed hull that the crate's group joins, and the frame stops
+    /// at the next sync point, where its hull held still. A second crate, at rest at its spawn 20 m below the stopped hull,
+    /// starts to fall to earth. To go back, the station adds a new <see cref="KeplerMotion"/> on the same orbit and makes
+    /// its hull kinematic. The kinematic hull holds still for one step, in which the new component first runs, as a hull
+    /// without a sample does, and that first run teleports it at the start of the next step onto its orbit, about 640 m
+    /// ahead. So from the second sync point after the change the hull stands on its orbit and rests in a new orbit frame,
+    /// and every read in earth is the orbit's state again. The second crate falls on as before: neither the change nor the
+    /// hull's jump moves it.
     /// </summary>
     [Fact]
-    public void AFrameWhoseDriverChangesFromKeplerToStaticAndBackLeavesItsOrbitFrameAndGetsANewOne()
+    public void AStationThatGoesFromKeplerToStaticAndBackLeavesItsOrbitFrameAndGetsANewOne()
     {
         using World world = NewWorld(numericFrames: true, threads: 1, out FaultInjectingBackend faults);
         Station station = KeplerStation(world);
@@ -479,15 +481,16 @@ public partial class NumericFrameOrbitTests
         world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
         world.PhysicsHomeOf(crate).Should().Be(orbit);
 
+        world.SetMotionNextTick(station.Owner, BodyMotion.Static, remove: world.GetComponent<KeplerMotion>(station.Owner));
+        world.Tick();
         DPose stopped = world.PoseIn(station.Owner, station.Earth);
-        world.RemoveComponent(station.Owner, world.GetComponent<KeplerMotion>(station.Owner)!).Should().BeTrue();
-        world.SetFrameDriver(station.Frame, MotionDriver.Static);
-        world.Frames.TreeParent(station.Frame).Should().Be(station.Earth, "a frame that physics does not drive and that no orbit moves hangs in its semantic parent");
+        world.Frames.TreeParent(station.Frame).Should().Be(station.Earth, "a frame with a static hull hangs in its semantic parent");
         world.PhysicsHomeOf(station.Owner).Should().Be(station.Earth);
         world.PhysicsHomeOf(crate).Should().Be(station.Earth, "the crate's group joins the fixed hull's home");
-        world.Frames.LinearVelocity(station.Frame).Should().Be(Double3.Zero, "a frame that gets the Static driver stops where it is");
+        world.Tick();
+        world.Frames.LinearVelocity(station.Frame).Should().Be(Double3.Zero, "a frame with a static hull stops at the sync point after the change");
         world.PoseIn(station.Owner, station.Earth).Position.Should().Be(stopped.Position);
-        Tick(world, 3);
+        Tick(world, 2);
         world.Frames.IsAlive(orbit).Should().BeFalse("the orbit frame lost its frame and its bodies");
         world.PoseIn(station.Owner, station.Earth).Position.Should().Be(stopped.Position);
         Double3 secondSpawn = stopped.Position + new Double3(0, -20, 0);
@@ -499,9 +502,8 @@ public partial class NumericFrameOrbitTests
         Double3 FreeFall() => secondSpawn + 0.5 * Math.Pow(world.Time - secondSpawnTime, 2) * pull;
         Tick(world, 1);
 
-        world.AddComponent(station.Owner, new KeplerMotion { Orbit = station.Orbit });
-        world.SetFrameDriver(station.Frame, MotionDriver.Kepler);
-        world.Tick();
+        world.SetMotionNextTick(station.Owner, BodyMotion.Kinematic, add: new KeplerMotion { Orbit = station.Orbit });
+        Tick(world, 2);
         world.PoseIn(station.Owner, station.Earth).Position.Should().Be(stopped.Position, "the kinematic hull holds still for the step without a sample");
         world.PhysicsHomeOf(station.Owner).Should().Be(station.Earth, "a hull that holds still 6,800 km from earth's origin needs no orbit frame");
         world.Tick();
@@ -509,7 +511,7 @@ public partial class NumericFrameOrbitTests
         again.Should().NotBe(orbit);
         world.Frames.Numeric(again).Should().Be(NumericMode.Orbiting);
         world.Frames.TreeParent(station.Frame).Should().Be(again);
-        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(station.StateAt(world.Time).Position, "from the second sync point after the swap the hull stands on its orbit");
+        world.PoseIn(station.Owner, station.Earth).Position.Should().Be(station.StateAt(world.Time).Position, "from the second sync point after the change the hull stands on its orbit");
         (world.PoseIn(second, station.Earth).Position - FreeFall()).Length.Should().BeLessThan(0.01, "the crate beside the stopped hull does not jump with the hull");
         world.Tick();
         (world.PoseIn(second, station.Earth).Position - FreeFall()).Length.Should().BeLessThan(0.01, "nor in the step after");
@@ -607,12 +609,11 @@ public partial class NumericFrameOrbitTests
     // ---- The station dies ------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// A station in low orbit holds a room: a frame with the Static driver and no body, 5 m from the station's origin,
-    /// which only marks a region. The game destroys the station, and its room moves to earth, the station's semantic
-    /// parent, where it holds still at the place that it had, as every frame whose driver is not Physics hangs in its
-    /// semantic parent. With numeric frames the station hangs in its orbit frame K. Before, the destroy moved the room to
+    /// A station in low orbit holds a room: a frame without a body, 5 m from the station's origin, which only marks a
+    /// region. The game destroys the station, and its room moves to earth, the station's semantic parent, where it holds
+    /// still at the place that it had, as every frame without a dynamic hull hangs in its semantic parent. With numeric frames the station hangs in its orbit frame K. Before, the destroy moved the room to
     /// the station's tree parent, K, which lost its orbiter and fell on at 7.66 km/s with the room in it, and the next
-    /// check of the tree's invariants failed: only a frame with the Physics driver may hang in a falling frame. No numeric
+    /// check of the tree's invariants failed: only a frame with a dynamic hull may hang in a falling frame. No numeric
     /// update moved the room out, because it has no body.
     /// </summary>
     [Theory]
@@ -624,7 +625,7 @@ public partial class NumericFrameOrbitTests
         Station station = KeplerStation(world);
         Entity room = world.Spawn(new SpawnDesc
         {
-            Frame = station.Frame, Pose = At(0, 0, 5), AsFrame = new FrameSpec(FrameBounds.Sphere(2), MotionDriver.Static),
+            Frame = station.Frame, Pose = At(0, 0, 5), AsFrame = new FrameSpec(FrameBounds.Sphere(2)),
         });
         Tick(world, 2);
         if (numericFrames)

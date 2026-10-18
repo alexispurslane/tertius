@@ -195,7 +195,7 @@ public class RenderSnapshotTests
         {
             Frame = test.Root,
             Pose = TestWorld.At(0, 0, -1e7),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e8f), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e8f)),
             Render = Visible(radius: 6e6f),
         });
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
@@ -214,7 +214,7 @@ public class RenderSnapshotTests
         {
             Frame = outer,
             Pose = TestWorld.At(0, 5, 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Render = Visible(),
         });
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);

@@ -78,7 +78,7 @@ public class WeightlessCharacterPushTests
     private static Pair CharacterBehindCrate(double startGap, Double3 commonVelocity = default)
     {
         World world = NewWorld(out _, configure: options => options.NumericFrames = WithoutNumericFrames);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         var pilot = new Pilot();
         Entity person = world.Spawn(new SpawnDesc
         {

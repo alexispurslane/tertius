@@ -62,15 +62,15 @@ public class NumericFrameAnchorTests
     }
 
     /// <summary>
-    /// Space without gravity, and at its origin a station-like frame: a frame with the Static driver, no body and no
+    /// Space without gravity, and at its origin a station-like frame: a frame with no body and no
     /// gravity, with a bubble of radius <paramref name="radius"/> m.
     /// </summary>
     private static FrameHandle Station(World world, float radius = 1000)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         return world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
-            Frame = space, Pose = At(0), AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static),
+            Frame = space, Pose = At(0), AsFrame = new FrameSpec(FrameBounds.Sphere(radius)),
         }));
     }
 
@@ -205,13 +205,13 @@ public class NumericFrameAnchorTests
     /// </summary>
     private static Scene ThrowAtAnInteriorWall(World world, CollisionLog log)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static, InteriorShape: ThinWall.Shape),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1000), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1000)),
         });
         FrameHandle station = world.GetOwnedFrame(owner);
         Entity crate = world.Spawn(new SpawnDesc
@@ -349,8 +349,8 @@ public class NumericFrameAnchorTests
     }
 
     /// <summary>
-    /// A frame with the Spin driver at the station's origin: a box hull of 10 m by 6 m by 30 m that turns at 0.5 rad/s about
-    /// Y, inside a bubble of radius 20 m. A ball of radius 0.5 m with a gentle thruster (see <see cref="Across"/>) flies past
+    /// A frame that turns in place at the station's origin with a <see cref="SpinMotion"/>: a kinematic box hull of 10 m by
+    /// 6 m by 30 m that turns at 0.5 rad/s about Y, inside a bubble of radius 20 m. A ball of radius 0.5 m with a gentle thruster (see <see cref="Across"/>) flies past
     /// along +X at 80 m/s, 30 m to the side of the hull's center, outside the bubble, so that it neither enters the frame
     /// nor touches the hull. It thrusts from tick 30 on, 260 m before the hull.
     /// </summary>
@@ -361,8 +361,8 @@ public class NumericFrameAnchorTests
         {
             Frame = station,
             Pose = At(0),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Spin),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Kinematic),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         }.Spinning(world, new FrameSpin(DQuaternion.Identity, 0.5)));
         Entity ball = world.Spawn(new SpawnDesc
         {
@@ -464,7 +464,7 @@ public class NumericFrameAnchorTests
     private sealed record Planetoid(Entity Owner, Entity Rock);
 
     /// <summary>
-    /// A planetoid: a frame with the Static driver whose owner has a static hull of 2 m in space and as its interior a
+    /// A planetoid: a frame whose owner has a static hull of 2 m in space and as its interior a
     /// static sphere whose surface lies 10 m within the <see cref="RestingDistance"/>, at the frame's origin, with a bubble
     /// of radius 9,000 km. A static rock of radius 1 m lies on the X axis 20 m beyond the resting distance, 30 m above the
     /// interior's surface, in a resting frame of its own. A ball with a gentle thruster (see <see cref="Across"/>) flies
@@ -472,14 +472,14 @@ public class NumericFrameAnchorTests
     /// </summary>
     private static Scene FlyBetweenTheInteriorAndARock(World world, CollisionLog log, out Planetoid planetoid)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static,
                 InteriorShape: new SphereShapeDesc((float)(RestingDistance - 10))),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(9e6f), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(9e6f)),
         });
         FrameHandle frame = world.GetOwnedFrame(owner);
         Entity rock = world.Spawn(new SpawnDesc { Frame = frame, Pose = At(RestingDistance + 20), Body = Rock });
@@ -538,7 +538,7 @@ public class NumericFrameAnchorTests
     public void AShipsHullThatAStaticRockKeepsInTheSystemOfSpaceHasALeaveClockThatTheInvariantsFindOnTheHull()
     {
         using World world = NewWorld(numericFrames: true, threads: 1, out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         Entity rock = world.Spawn(new SpawnDesc { Frame = space, Pose = At(RestingDistance - 10), Body = Rock });
         Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, new Double3(RestingDistance + 5, 0, 0));
 
@@ -563,28 +563,30 @@ public class NumericFrameAnchorTests
     /// A move between numeric frames keeps the moved body's ghosts in other systems, but not one in its new home. Only the
     /// ghost of an anchor lies in a home of its own semantic frame: here the hull of a Kepler frame that flies at 2 km/s in
     /// an orbit frame of its own past a static rock 8 m to the side of its path (see <see cref="Scenes.FastKeplerHull"/>),
-    /// so that the system of space, the rock's home, keeps a ghost of the hull. Then the game gives the frame the Static
-    /// driver. The hull is a fixed anchor in the system of space now, and the numeric update moves it there, with its frame,
-    /// in the same batch that withdraws the place of its old ghost there. The move drops that ghost, and so does the
-    /// withdrawal later in the batch, so no step runs with the hull and its ghost in one system. Before ter-dhkf rule 3,
-    /// the scene was a still Kepler hull whose ghost a falling crate's frame kept, and which joined that frame when the
-    /// game gave it the Physics driver.
+    /// so that the system of space, the rock's home, keeps a ghost of the hull. Then the game parks the hull: in one tick
+    /// its owner removes its <see cref="KeplerMotion"/> and makes the hull static. At the sync point of that tick the hull
+    /// is a fixed anchor in the system of space, and the numeric update moves it there, with its frame, in the same batch
+    /// that withdraws the place of its old ghost there. The move drops that ghost, and so does the withdrawal later in the
+    /// batch, so no step runs with the hull and its ghost in one system. Before ter-dhkf rule 3, the scene was a still
+    /// Kepler hull whose ghost a falling crate's frame kept, and which joined that frame when the game made its hull
+    /// dynamic.
     /// </summary>
     [Fact]
-    public void AKeplerHullThatTheGameGivesTheStaticDriverJoinsTheSystemThatKeptItsGhostWithoutTheGhost()
+    public void AKeplerHullThatTheGameParksJoinsTheSystemThatKeptItsGhostWithoutTheGhost()
     {
         using World world = NewWorld(numericFrames: true, threads: 1, out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity hull = Scenes.FastKeplerHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 1, LinearDamping: 0, AngularDamping: 0));
+        Entity hull = Scenes.FastKeplerHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic, Mass: 1, LinearDamping: 0, AngularDamping: 0));
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = Rock });
         Tick(world, 2);
         FrameHandle orbit = world.PhysicsHomeOf(hull);
         world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
         faults.Jolt.HasGhostIn(hull, space).Should().BeTrue("the rock's home keeps a ghost of the Kepler hull");
 
-        world.SetFrameDriver(world.GetOwnedFrame(hull), MotionDriver.Static);
+        world.SetMotionNextTick(hull, BodyMotion.Static, remove: world.GetComponent<KeplerMotion>(hull));
+        world.Tick();
 
-        world.PhysicsHomeOf(hull).Should().Be(space, "the hull of a Static frame lives in its semantic frame's own system");
+        world.PhysicsHomeOf(hull).Should().Be(space, "a static hull lives in its semantic frame's own system");
         world.Frames.IsAlive(orbit).Should().BeFalse("the orbit frame lost its frame and its hull");
         world.Tick();
         faults.Jolt.HasGhostIn(hull, space).Should().BeFalse("the hull is a real body of the system");

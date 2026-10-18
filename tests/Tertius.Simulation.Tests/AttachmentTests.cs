@@ -304,7 +304,7 @@ public class AttachmentTests
         {
             Frame = test.Root,
             Pose = TestWorld.At(100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.Destroy())],
         });
         FrameHandle ship = test.World.GetOwnedFrame(shipOwner);
