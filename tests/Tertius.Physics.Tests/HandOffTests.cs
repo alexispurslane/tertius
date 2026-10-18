@@ -594,7 +594,7 @@ public class HandOffTests
         // Between ticks, with no change batch, the game moves the fighter back into space and turns it around at
         // 120 m/s, fast enough that it leaves the carrier's bubble in one step.
         world.Frames.Reparent(fighter, space);
-        world.Frames.TreeLinearVelocity(fighter) = new Double3(120, 0, 0);
+        world.Frames.SetTreeLinearVelocity(fighter, new Double3(120, 0, 0));
         world.Frames.Update();
         Double3 expected = world.Frames.LocalPose(fighter).Position + new Double3(120 * (double)Dt, 0, 0);
         world.Tick();

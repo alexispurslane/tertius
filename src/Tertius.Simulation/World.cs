@@ -302,7 +302,9 @@ public sealed partial class World : IDisposable
     /// root frame, which is in no frame.</item>
     /// <item>Every live entity's physics home is its row frame or a live frame below it. When the home is below, the home
     /// position plus the home's offset is the pose's position, within rounding.</item>
-    /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state. Every live
+    /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state, its owner view,
+    /// to the bit. Step 7 of the sync point skips its pass over the owner views while the frame tree's owner view stamp has
+    /// not changed since the pass of step 2, so a write of the tree that leaves the stamp as it is breaks this. Every live
     /// frame's topic resolves.</item>
     /// <item>Only a character can be standing.</item>
     /// <item>Every intent that the next physics step applies names its entity's frame (see

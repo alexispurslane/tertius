@@ -6,7 +6,7 @@ namespace Tertius.Benchmarks;
 /// <summary>
 /// ter-sn28 profiling aid: prints the mean time of each step of the sync point per tick, and its share of the sync
 /// point, over the ticks since <see cref="Mark"/>. Each line starts with "SYNCPROFILE|" so that a script can pick it out
-/// of the log.
+/// of the log. The engine records the laps only in a build with -p:SyncProfile=true (see SyncProfile).
 /// </summary>
 internal sealed class SyncProfileReport
 {
@@ -24,6 +24,11 @@ internal sealed class SyncProfileReport
         long syncs = world.SyncCount - syncsAtMark;
         if (syncs == 0)
             return;
+        if (!SyncProfile.Enabled)
+        {
+            Console.WriteLine($"SYNCPROFILE|{scene}|no step laps: build with -p:SyncProfile=true to record them");
+            return;
+        }
         long[] totals = world.Profile.Totals;
         double sum = 0;
         var means = new double[totals.Length];

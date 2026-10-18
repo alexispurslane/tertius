@@ -1,4 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The step laps of the sync point (SyncProfile) compile in only when a build sets the property SyncProfile=true, for
+    example dotnet run -c Release -p:SyncProfile=true in benchmarks/Tertius.Benchmarks. A normal build compiles them away.
+  -->
+  <PropertyGroup Condition="'$(SyncProfile)' == 'true'">
+    <DefineConstants>$(DefineConstants);SYNC_PROFILE</DefineConstants>
+  </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../Tertius.Core/Tertius.Core.csproj" />
   </ItemGroup>

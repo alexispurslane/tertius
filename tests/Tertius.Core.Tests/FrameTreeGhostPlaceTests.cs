@@ -135,7 +135,7 @@ public class FrameTreeGhostPlaceTests
         // ahead of it flies at 50 m/s, so the crate comes at it at 10 m/s: the merge test reaches 2 m plus 2 s of that. The
         // rock is 215 m from the hull, and alone it falls at 50 m/s in a frame of its own.
         FrameHandle ship = Station(20, X(1_000), MotionDriver.Physics, bubble: 200);
-        frames.TreeLinearVelocity(ship) = X(60);
+        frames.SetTreeLinearVelocity(ship, X(60));
         NumericBody hull = Body(20, X(1_000), X(60), character: true, radius: 2) with { OwnedFrame = ship };
         NumericBody rock = Body(10, X(1_215), X(50), character: true);
 
@@ -227,7 +227,7 @@ public class FrameTreeGhostPlaceTests
         // The station turns at 1 rad/s about Z, so the crate at 40 m on its Y axis moves at 40 m/s along -X. The slow body
         // 50 m ahead of it is within 2 m plus 2 s of 40 m/s.
         FrameHandle station = Station(2, X(Far));
-        frames.AngularVelocity(station) = new System.Numerics.Vector3(0, 0, 1);
+        frames.SetAngularVelocity(station, new System.Numerics.Vector3(0, 0, 1));
 
         NumericBody[] after = Update(0.1, Body(10, new Double3(Far - 50, 40, 0)), BodyOf(station, 11, Y(40)));
 
@@ -253,7 +253,7 @@ public class FrameTreeGhostPlaceTests
         // Both rocks fly with the ship at 60 m/s, so the merge test reaches only the radii, and the split margin in one
         // system. The first rock is 3 m from the crate at 1,200 m and 203 m from the hull; the second is 50 m from the crate.
         FrameHandle ship = Station(20, X(1_000), MotionDriver.Physics, bubble: 200);
-        frames.TreeLinearVelocity(ship) = X(60);
+        frames.SetTreeLinearVelocity(ship, X(60));
         NumericBody hull = Body(20, X(1_000), X(60), character: true, radius: 2) with { OwnedFrame = ship };
 
         NumericBody[] after = Update(0.1, hull, Body(10, X(1_203), X(60), character: true), Body(12, X(1_150), X(60), character: true),
@@ -272,7 +272,7 @@ public class FrameTreeGhostPlaceTests
         // crate, the rock is beyond the reach of 2 m but within the split margin, so it stays, although a whole split
         // cooldown passes.
         FrameHandle ship = Station(20, X(1_000), MotionDriver.Physics, bubble: 200);
-        frames.TreeLinearVelocity(ship) = X(60);
+        frames.SetTreeLinearVelocity(ship, X(60));
         NumericBody[] before = Update(0.1, Body(20, X(1_000), X(60), character: true, radius: 2) with { OwnedFrame = ship },
             Body(10, X(1_203), X(60), character: true), BodyOf(ship, 11, X(200)));
         FrameHandle pod = before[0].Home;
@@ -308,7 +308,7 @@ public class FrameTreeGhostPlaceTests
             BodyOf(ship, 11, X(200)));
         still[1].Home.Should().Be(ground, "the rock shares the group of the still hull");
 
-        frames.TreeLinearVelocity(ship) = X(60);
+        frames.SetTreeLinearVelocity(ship, X(60));
         NumericBody[] after = Update(0.1, Body(20, X(1_000), X(60), character: true, radius: 2) with { OwnedFrame = ship },
             Body(10, X(1_250), X(60), character: true), BodyOf(ship, 11, X(200)));
 
@@ -384,7 +384,7 @@ public class FrameTreeGhostPlaceTests
         // never meets the crate's ghost and keeps falling in its numeric frame.
         FrameHandle station = Station(2, X(1_000));
         FrameHandle ship = Station(20, new Double3(1_000, 75, 0), MotionDriver.Physics, bubble: 30);
-        frames.TreeLinearVelocity(ship) = X(-60);
+        frames.SetTreeLinearVelocity(ship, X(-60));
         NumericBody hull = Body(20, new Double3(1_000, 75, 0), X(-60), character: true, radius: 2) with { OwnedFrame = ship };
 
         NumericBody[] after = Update(0.1, hull, BodyOf(station, 11, Y(40)));
@@ -467,7 +467,7 @@ public class FrameTreeGhostPlaceTests
         // The rock lies still 15 m outside the station's bubble, beyond the split margin, and the station comes at it at
         // 10 m/s, so the rock can touch the bubble within 2 s. The body in the station flies at 60 m/s 17 m from the rock.
         FrameHandle station = Station(2, X(1_000), MotionDriver.Physics);
-        frames.TreeLinearVelocity(station) = Y(10);
+        frames.SetTreeLinearVelocity(station, Y(10));
         NumericBody inside = BodyOf(station, 12, Y(38), X(60)) with { Character = true };
 
         NumericBody[] after = Update(0.1, Body(10, new Double3(1_000, 55, 0)), inside);
@@ -481,7 +481,7 @@ public class FrameTreeGhostPlaceTests
         // The station turns at 0.2 rad/s, so in its axes the rock, still in ground 21 m outside the bubble, moves at
         // 12.2 m/s, and 2 s of that reach the bubble. The body in the station flies at 60 m/s 23 m from the rock.
         FrameHandle station = Station(2, X(1_000));
-        frames.AngularVelocity(station) = new System.Numerics.Vector3(0, 0, 0.2f);
+        frames.SetAngularVelocity(station, new System.Numerics.Vector3(0, 0, 0.2f));
         NumericBody inside = BodyOf(station, 12, Y(38), X(60)) with { Character = true };
 
         NumericBody[] after = Update(0.1, Body(10, new Double3(1_000, 61, 0)), inside);
@@ -552,7 +552,7 @@ public class FrameTreeGhostPlaceTests
         // touch that bubble within 2 s. The body in the station flies at 60 m/s 22 m from it.
         FrameHandle station = Station(2, X(1_000));
         FrameHandle depot = Station(3, X(1_100), MotionDriver.Physics);
-        frames.TreeLinearVelocity(depot) = X(-10);
+        frames.SetTreeLinearVelocity(depot, X(-10));
         NumericBody inside = BodyOf(station, 12, X(38), Y(60)) with { Character = true };
 
         NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(-40)), inside);
@@ -581,7 +581,7 @@ public class FrameTreeGhostPlaceTests
         // 10 m/s, and 2 s of that reach the bubble. The body in the station flies at 60 m/s 22 m from it.
         FrameHandle station = Station(2, X(1_000));
         FrameHandle depot = Station(3, X(1_100));
-        frames.AngularVelocity(depot) = new System.Numerics.Vector3(0, 0, 0.25f);
+        frames.SetAngularVelocity(depot, new System.Numerics.Vector3(0, 0, 0.25f));
         NumericBody inside = BodyOf(station, 12, X(38), Y(60)) with { Character = true };
 
         NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(-40)), inside);
@@ -596,7 +596,7 @@ public class FrameTreeGhostPlaceTests
         // station's bubble, moves at 15 m/s, and 2 s of that reach the bubble. The body in the station flies at 60 m/s 22 m
         // from it.
         FrameHandle station = Station(2, X(1_000));
-        frames.AngularVelocity(station) = new System.Numerics.Vector3(0, 0, 0.25f);
+        frames.SetAngularVelocity(station, new System.Numerics.Vector3(0, 0, 0.25f));
         FrameHandle depot = Station(3, X(1_100));
         NumericBody inside = BodyOf(station, 12, X(38), Y(60)) with { Character = true };
 
@@ -717,7 +717,7 @@ public class FrameTreeGhostPlaceTests
         KeplerOrbit path = KeplerOrbit.Circular(Far);
         (Double3 place, Double3 velocity) = path.StateAt(start, mu);
         FrameHandle station = frames.Create(new Entity(2, 1), space, new DPose(place, path.RotationAt(start, mu)), FrameBounds.Sphere(40), MotionDriver.Kepler);
-        frames.TreeLinearVelocity(station) = velocity;
+        frames.SetTreeLinearVelocity(station, velocity);
         FrameHandle orbit = Update(0.1, KeplerHull(station))[0].Home;
         frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
         NumericBody pod = SpaceBody(space, 10, place + Y(41.5), velocity);
@@ -776,7 +776,7 @@ public class FrameTreeGhostPlaceTests
     private (FrameHandle Ship, FrameHandle Pod, FrameHandle Room) RoomInAFallingShip()
     {
         FrameHandle ship = Station(20, X(1_000), MotionDriver.Physics, bubble: 200);
-        frames.TreeLinearVelocity(ship) = X(60);
+        frames.SetTreeLinearVelocity(ship, X(60));
         FrameHandle pod = Update(0.1, Body(20, X(1_000), X(60), character: true, radius: 2) with { OwnedFrame = ship })[0].Home;
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
         FrameHandle room = frames.Create(new Entity(30, 1), ship, DPose.Identity, FrameBounds.Sphere(20), MotionDriver.Physics);
@@ -864,7 +864,7 @@ public class FrameTreeGhostPlaceTests
         var changes = new PhysicsChanges();
         FrameHandle root = tree.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
         FrameHandle ship = tree.Create(new Entity(20, 1), root, new DPose(X(1_000), DQuaternion.Identity), FrameBounds.Sphere(200), MotionDriver.Physics);
-        tree.TreeLinearVelocity(ship) = X(60);
+        tree.SetTreeLinearVelocity(ship, X(60));
         FrameHandle station = tree.Create(new Entity(2, 1), root, new DPose(X(-1_000), DQuaternion.Identity), FrameBounds.Sphere(40), MotionDriver.Static);
         NumericBody Free(uint id, Double3 position, Double3 velocity, FrameHandle frame) => new()
         {

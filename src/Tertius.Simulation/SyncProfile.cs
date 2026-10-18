@@ -3,12 +3,23 @@ using System.Diagnostics;
 namespace Tertius.Simulation;
 
 /// <summary>
-/// Profiling aid of ter-sn28, on the profiling branch only: the time that each step of the sync point took, summed over
-/// sync points, in <see cref="Stopwatch"/> timestamp units. The sync point calls <see cref="Start"/> once and
-/// <see cref="Lap"/> after each step, so each lap is the time since the previous one.
+/// The time that each step of the sync point took, summed over sync points, in <see cref="Stopwatch"/> timestamp units
+/// (ter-sn28). The sync point calls <see cref="Start"/> once and <see cref="Lap"/> after each step, so each lap is the time
+/// since the previous one. Both are <see cref="ConditionalAttribute"/> on the symbol SYNC_PROFILE, which a build defines only
+/// with the MSBuild property SyncProfile=true (see Tertius.Simulation.csproj), so a normal build compiles every call away and
+/// pays nothing. The benchmarks print the laps when they run on such a build:
+/// <c>dotnet run -c Release -p:SyncProfile=true --project benchmarks/Tertius.Benchmarks -- --quick kepler1 10</c>.
 /// </summary>
 internal sealed class SyncProfile
 {
+    /// <summary>True when this build records the laps (SYNC_PROFILE is defined).</summary>
+    internal static readonly bool Enabled =
+#if SYNC_PROFILE
+        true;
+#else
+        false;
+#endif
+
     internal static readonly string[] Names =
     [
         "1 end gameplay, chunk messages, component types",
@@ -44,12 +55,14 @@ internal sealed class SyncProfile
     // PrepareTick, records nothing.
     private bool active;
 
+    [Conditional("SYNC_PROFILE")]
     internal void Start()
     {
         last = Stopwatch.GetTimestamp();
         active = true;
     }
 
+    [Conditional("SYNC_PROFILE")]
     internal void Lap(int step)
     {
         if (!active)
@@ -66,7 +79,8 @@ public sealed partial class World
 {
     /// <summary>
     /// ter-sn28 profiling aid: runs one float view fill pass over every frame that is not numeric, outside a tick, so that a
-    /// micro benchmark can compare them: 0 the pass of the sync point, 1 the pass before ter-sn28, frame by frame.
+    /// micro benchmark can compare them: 0 the pass of the sync point, 1 a pass frame by frame through MirrorFrameOwner, with a
+    /// handle check per frame, as the pass before ter-sn28 walked.
     /// </summary>
     internal void ProfileMirrorPart(int part)
     {

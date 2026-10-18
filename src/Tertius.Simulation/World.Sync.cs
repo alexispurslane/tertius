@@ -121,9 +121,11 @@ public sealed partial class World
         FlushPhysicsChanges();
         Profile.Lap(11);
 
-        // 7. The owner of every frame mirrors its frame, after the numeric update, which can move a frame among numeric
-        //    frames. Then every attached entity follows.
-        MirrorFrameOwners();
+        // 7. The owner of every frame mirrors its frame again, after the numeric update, which can move a frame among numeric
+        //    frames, unless nothing has changed the frame tree since the pass of step 2 (see MirrorFrameOwners). Then every
+        //    attached entity follows.
+        if (Frames.OwnerViewStamp != mirroredStamp)
+            MirrorFrameOwners();
         Profile.Lap(12);
         DeriveAttachments();
         Profile.Lap(13);
@@ -487,39 +489,39 @@ public sealed partial class World
             DestroyDying();
     }
 
+    // The owner view stamp of the frame tree (see FrameTree.OwnerViewStamp) at the end of the last pass of MirrorFrameOwners.
+    // From that pass to the end of the sync point, only a write of the frame tree changes what the owners' rows must
+    // mirror, so while the tree's stamp equals this one, every frame owner's row mirrors its frame. Gameplay writes the rows
+    // of frames without a hull during the tick, so the pass of step 2 always runs.
+    private long mirroredStamp = -1;
+
     /// <summary>
     /// Steps 2 and 7: the row of the owner of every frame mirrors its frame. In step 2 every frame took its record (see
     /// <see cref="FollowOwners"/>). In step 7 the destroy batch and the numeric update wrote the rows of the frames that they
     /// move or shift, but a numeric frame above the frame that moves under a nesting frame, or a nesting frame that jumps,
     /// changes no row, and it changes the sum that gives the frame's place in its semantic frame, which can then round to
-    /// another double.
+    /// another double (see WorldFrameOwnerRowTests). So step 7 runs the pass whenever the frame tree changed since the pass
+    /// of step 2, and only then: when nothing wrote the tree between them, as in a scene of frames on rails that no spawn,
+    /// destroy or numeric update changed, the second pass found every row equal, at about 26 ns per frame.
     /// </summary>
     private void MirrorFrameOwners()
     {
         var mirror = new OwnerMirror(this);
         Frames.VisitOwnerViews(ref mirror);
+        mirroredStamp = Frames.OwnerViewStamp;
     }
 
     /// <summary>
     /// The pass of <see cref="MirrorFrameOwners"/>: the owner's row takes the frame's view, as <see cref="MirrorFrameOwner"/>
-    /// does for one frame (see <see cref="FrameOwnerRow"/>).
+    /// does for one frame.
     /// </summary>
     private readonly struct OwnerMirror(World world) : IOwnerViewVisitor
     {
         public void Visit(in FrameOwnerView view)
         {
             Entity owner = view.Frame.Entity;
-            var row = new TransformRow
-            {
-                Frame = view.Semantic,
-                PhysicsHome = view.Home,
-                Pose = new DPose(view.PositionInSemantic, view.LocalPose.Rotation),
-                HomePosition = view.LocalPose.Position,
-                LinearVelocity = view.LinearVelocity.ToVector3(),
-                AngularVelocity = view.AngularVelocity,
-            };
-            world.entities.SetBackTransform(owner, row);
-            world.MoveMembership(owner, row.Frame, sendFrameChanged: true);
+            world.entities.SetBackTransform(owner, OwnerRow(view));
+            world.MoveMembership(owner, view.Semantic, sendFrameChanged: true);
         }
     }
 

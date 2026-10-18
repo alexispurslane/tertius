@@ -52,7 +52,7 @@ public class FrameTreeOrbitFrameTests
         double mu = KeplerOrbit.MuFrom(frames.Gravity(space));
         (Double3 place, Double3 velocity) = orbit.StateAt(Start, mu);
         frames.SetLocalPose(frame, new DPose(place, orbit.RotationAt(Start, mu)));
-        frames.TreeLinearVelocity(frame) = velocity;
+        frames.SetTreeLinearVelocity(frame, velocity);
         return frame;
     }
 
@@ -279,7 +279,7 @@ public class FrameTreeOrbitFrameTests
     {
         // 10,000 km out, past the create distance of 2^23 m (about 8,389 km), a hull that turns in place is slow but far.
         FrameHandle station = Station(10, Far, driver: MotionDriver.Spin);
-        frames.TreeLinearVelocity(station) = Double3.Zero;
+        frames.SetTreeLinearVelocity(station, Double3.Zero);
 
         FrameHandle orbit = Update(Hull(station) with { Velocity = Double3.Zero })[0].Home;
 
@@ -294,7 +294,7 @@ public class FrameTreeOrbitFrameTests
         FrameHandle pod = frames.Create(new Entity(11, 1), earth, DPose.Identity, FrameBounds.Sphere(1), MotionDriver.Physics);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
         frames.SetLocalPose(pod, new DPose(place + new Double3(5, 0, 0), DQuaternion.Identity));
-        frames.TreeLinearVelocity(pod) = velocity + new Double3(0, 1, 0);
+        frames.SetTreeLinearVelocity(pod, velocity + new Double3(0, 1, 0));
         NumericBody podHull = Crate(11, place + new Double3(5, 0, 0), velocity + new Double3(0, 1, 0)) with { OwnedFrame = pod };
         NumericBody[] after = Update(Hull(station), podHull);
         FrameHandle orbit = after[0].Home;

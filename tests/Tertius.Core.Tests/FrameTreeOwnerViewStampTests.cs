@@ -1,0 +1,186 @@
+using System.Numerics;
+using AwesomeAssertions;
+using Tertius.Frames.Rails;
+
+namespace Tertius.Core.Tests;
+
+/// <summary>
+/// <see cref="FrameTree.OwnerViewStamp"/>, the number that changes on every change of the state that an owner view reads
+/// (see <see cref="FrameTree.VisitOwnerViews"/>): the local pose, the linear velocity and the angular velocity of a frame,
+/// and the shape of the tree. The World skips the second mirror pass of a sync point while the stamp has not changed since
+/// the first, so a write that leaves the stamp as it is would leave an owner's row behind its frame. Reads leave the stamp
+/// as it is, so that the pass is skipped when nothing changed.
+/// </summary>
+public class FrameTreeOwnerViewStampTests
+{
+    private readonly FrameTree frames = new();
+    private readonly FrameHandle ground;
+    private readonly FrameHandle ship;
+
+    public FrameTreeOwnerViewStampTests()
+    {
+        ground = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
+        ship = frames.Create(new Entity(2, 1), ground, new DPose(X(100), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+    }
+
+    private static Double3 X(double x) => new(x, 0, 0);
+
+    /// <summary>Runs <paramref name="change"/> and returns whether the stamp changed.</summary>
+    private bool StampChanges(Action change)
+    {
+        long before = frames.OwnerViewStamp;
+        change();
+        return frames.OwnerViewStamp != before;
+    }
+
+    /// <summary>
+    /// One numeric update over a character body of ground at <paramref name="x"/>, moving at <paramref name="vx"/> along X,
+    /// whose physics home is <paramref name="home"/> or ground, with its frame <paramref name="owned"/> if any. Returns the
+    /// body's home after the update.
+    /// </summary>
+    private FrameHandle Update(double x, double vx, FrameHandle home = default, FrameHandle owned = default)
+    {
+        FrameHandle physicsHome = home.IsNull ? ground : home;
+        var body = new NumericBody
+        {
+            Entity = owned.IsNull ? new Entity(10, 1) : owned.Entity, Semantic = ground, Home = physicsHome, Position = X(x),
+            HomePosition = X(x) - frames.HomeOffset(physicsHome, ground), Velocity = X(vx), Radius = 1, Mass = 1, Character = true,
+            OwnedFrame = owned,
+        };
+        FrameHandle after = physicsHome;
+        frames.UpdateNumericFrames([body], 0.1, new PhysicsChanges(), moves =>
+        {
+            foreach (NumericMove move in moves)
+                after = move.To;
+        });
+        frames.AssertInvariants();
+        return after;
+    }
+
+    [Fact]
+    public void A_new_frame_changes_the_stamp() =>
+        StampChanges(() => frames.Create(new Entity(3, 1), ground, DPose.Identity, FrameBounds.Sphere(5), MotionDriver.Static))
+            .Should().BeTrue();
+
+    [Fact]
+    public void A_frame_that_dies_changes_the_stamp() =>
+        StampChanges(() => frames.Destroy(ship)).Should().BeTrue();
+
+    [Fact]
+    public void A_frame_that_moves_under_another_parent_changes_the_stamp()
+    {
+        FrameHandle dock = frames.Create(new Entity(3, 1), ground, new DPose(X(-100), DQuaternion.Identity), FrameBounds.Sphere(500), MotionDriver.Static);
+        StampChanges(() => frames.Reparent(ship, dock)).Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_new_local_pose_changes_the_stamp() =>
+        StampChanges(() => frames.SetLocalPose(ship, new DPose(X(200), DQuaternion.Identity))).Should().BeTrue();
+
+    [Fact]
+    public void A_new_linear_velocity_changes_the_stamp() =>
+        StampChanges(() => frames.SetTreeLinearVelocity(ship, X(5))).Should().BeTrue();
+
+    [Fact]
+    public void A_new_angular_velocity_changes_the_stamp() =>
+        StampChanges(() => frames.SetAngularVelocity(ship, new Vector3(0, 0.1f, 0))).Should().BeTrue();
+
+    [Fact]
+    public void A_frame_that_takes_its_step_record_changes_the_stamp()
+    {
+        var record = new MotionSample(new DPose(X(101), DQuaternion.Identity), X(60), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
+            Vector3.Zero);
+        StampChanges(() => frames.Follow(ship, ground, record)).Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_frame_that_holds_still_changes_the_stamp() =>
+        StampChanges(() => frames.HoldStill(ship)).Should().BeTrue();
+
+    [Fact]
+    public void A_frame_that_gets_the_static_driver_changes_the_stamp()
+    {
+        frames.SetTreeLinearVelocity(ship, X(5));
+        StampChanges(() => frames.SetDriver(ship, MotionDriver.Static)).Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_falling_frame_that_moves_over_a_step_changes_the_stamp()
+    {
+        Update(x: 50, vx: 60);
+        frames.Update();
+        frames.BeginNumericStep();
+        StampChanges(() => frames.AdvanceNumericFrames(0.1)).Should().BeTrue();
+    }
+
+    [Fact]
+    public void A_numeric_update_that_takes_a_frame_into_a_falling_frame_changes_the_stamp()
+    {
+        frames.SetTreeLinearVelocity(ship, X(60));
+        FrameHandle pod = FrameHandle.Null;
+        StampChanges(() => pod = Update(x: 100, vx: 60, owned: ship)).Should().BeTrue();
+        frames.TreeParent(ship).Should().Be(pod);
+    }
+
+    [Fact]
+    public void A_nest_that_jumps_after_its_frames_changes_the_stamp()
+    {
+        // As in FrameTreeNumericUpdateTests: a pod 3·2^30 m out nests, then drifts 2e9 m, and its nest jumps after it.
+        const double place = 3L << 30;
+        FrameHandle pod = Update(x: place, vx: 60);
+        FrameHandle nest = frames.TreeParent(pod);
+        frames.Numeric(nest).Should().Be(NumericMode.Nesting);
+        frames.Update();
+        frames.BeginNumericStep();
+        frames.AdvanceNumericFrames(2e9 / 60);
+        double drift = frames.TreeLocalPose(pod).Position.X;
+        Double3 nestPlace = frames.TreeLocalPose(nest).Position;
+
+        StampChanges(() => Update(x: place + drift, vx: 60, home: pod)).Should().BeTrue();
+        frames.TreeLocalPose(nest).Position.Should().NotBe(nestPlace, "the nest jumped");
+    }
+
+    [Fact]
+    public void A_numeric_update_that_changes_no_frame_leaves_the_stamp_as_it_is() =>
+        StampChanges(() => Update(x: 100, vx: 0)).Should().BeFalse("a slow body near the origin of its frame needs no numeric frame");
+
+    [Fact]
+    public void Reads_leave_the_stamp_as_it_is()
+    {
+        frames.SetTreeLinearVelocity(ship, X(5));
+        frames.Update();
+        StampChanges(() =>
+        {
+            var views = new ViewCounter();
+            frames.VisitOwnerViews(ref views);
+            var links = new LinksCounter();
+            frames.VisitFrames(ref links);
+            _ = frames.OwnerView(ship);
+            _ = frames.LocalPose(ship);
+            _ = frames.TreeLocalPose(ship);
+            _ = frames.LinearVelocity(ship);
+            _ = frames.TreeLinearVelocity(ship);
+            _ = frames.AngularVelocity(ship);
+            _ = frames.Relative(ship, ground);
+            _ = frames.InSemantic(ship, ship, X(1));
+            _ = frames.Parent(ship);
+            _ = frames.ConvertVelocity(ship, ground, X(1), X(1));
+            frames.GetAll([]);
+            frames.Update();
+        }).Should().BeFalse();
+    }
+
+    private struct ViewCounter : IOwnerViewVisitor
+    {
+        public int Count;
+
+        public void Visit(in FrameOwnerView view) => Count++;
+    }
+
+    private struct LinksCounter : IFrameVisitor
+    {
+        public int Count;
+
+        public void Visit(in FrameLinks links) => Count++;
+    }
+}

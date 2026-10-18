@@ -337,8 +337,8 @@ public sealed partial class World
             // Every new frame stands at the pose of its spawn description, with its velocities. A frame on rails holds still
             // there for its first step, which runs before its components do, and the first sample of its rails component
             // puts it on its rails (docs/plans/rails-components.md, "Other rules" in "The rails components").
-            Frames.TreeLinearVelocity(own) = desc.LinearVelocity;
-            Frames.AngularVelocity(own) = desc.AngularVelocity;
+            Frames.SetTreeLinearVelocity(own, desc.LinearVelocity);
+            Frames.SetAngularVelocity(own, desc.AngularVelocity);
             physicsChanges.FramesCreated.Add(own);
             row = FrameOwnerRow(own);
             velocity = Frames.LinearVelocity(own);
@@ -677,26 +677,25 @@ public sealed partial class World
 
     // ---- Frames, membership and topics ----------------------------------------------------------------------------
 
+    /// <summary>The pose, velocities and parent of a frame, as the owner's transform row (see <see cref="OwnerRow"/>).</summary>
+    private TransformRow FrameOwnerRow(FrameHandle frame) => OwnerRow(Frames.OwnerView(frame));
+
     /// <summary>
-    /// The pose, velocities and parent of a frame, as the owner's transform row. The hull of a frame lives in the system of
-    /// the frame's tree parent, so that parent is the owner's physics home, and the row frame is its semantic frame. The
-    /// pose moves from the home into the row frame in doubles. The velocity stays relative to the home.
+    /// The transform row of the owner of a frame whose owner view is <paramref name="view"/>. The hull of a frame lives in the
+    /// system of the frame's tree parent, so that parent is the owner's physics home, and the row frame is its semantic
+    /// frame. The pose moves from the home into the row frame in doubles. The velocity stays relative to the home.
     /// </summary>
-    private TransformRow FrameOwnerRow(FrameHandle frame)
+    /// <remarks>Inlined: as a call that returns the 136-byte row, it cost the mirror pass about 10 ns per frame.</remarks>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private static TransformRow OwnerRow(in FrameOwnerView view) => new()
     {
-        FrameHandle home = Frames.TreeParent(frame);
-        FrameHandle semantic = home.IsNull ? home : Frames.SemanticOf(home);
-        DPose local = Frames.TreeLocalPose(frame);
-        return new TransformRow
-        {
-            Frame = semantic,
-            PhysicsHome = home,
-            Pose = home == semantic ? local : new DPose(Frames.InSemantic(home, semantic, local.Position), local.Rotation),
-            HomePosition = local.Position,
-            LinearVelocity = Frames.TreeLinearVelocity(frame).ToVector3(),
-            AngularVelocity = Frames.AngularVelocity(frame),
-        };
-    }
+        Frame = view.Semantic,
+        PhysicsHome = view.Home,
+        Pose = new DPose(view.PositionInSemantic, view.LocalPose.Rotation),
+        HomePosition = view.LocalPose.Position,
+        LinearVelocity = view.LinearVelocity.ToVector3(),
+        AngularVelocity = view.AngularVelocity,
+    };
 
     /// <summary>The owner's transform row mirrors the frame's local pose, which is the authoritative one.</summary>
     private void MirrorFrameOwner(FrameHandle frame)
