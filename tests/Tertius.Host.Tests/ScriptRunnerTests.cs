@@ -165,6 +165,8 @@ public class ScriptRunnerTests
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1e39 } }""", "amount")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1e39, 0, 0] } }""", "direction")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "direction": [1, 2] } }""", "direction")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Aim", "payload": { "point": [4, 5] } }""", "point")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Spin", "payload": { "attitude": [0, 0.6, 0] } }""", "attitude")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": 4 } }""", "kind")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "code": 7, "delta": [1.5, -2] } }""", "code")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "keyDown" } }""", "code")]

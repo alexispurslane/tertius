@@ -165,11 +165,13 @@ public class InputEventTests
     public void AnInputEventBuiltFromACaseIsTheOneThatTheFactoryBuilds()
     {
         InputEvent viaConstructor = new(new KeyChanged(KeyW, true));
+        InputEvent viaKey = new KeyChanged(KeyW, true);
         InputEvent viaButton = new MouseButtonChanged(1, false);
         InputEvent viaMove = new MouseMoved(Moved);
         InputEvent viaScroll = new Scrolled(Moved);
 
         (viaConstructor == InputEvent.KeyDown(KeyW)).Should().BeTrue();
+        (viaKey == InputEvent.KeyDown(KeyW)).Should().BeTrue();
         (viaButton == InputEvent.MouseUp(1)).Should().BeTrue();
         (viaMove == InputEvent.MouseMove(Moved)).Should().BeTrue();
         (viaScroll == InputEvent.Scroll(Moved)).Should().BeTrue();
