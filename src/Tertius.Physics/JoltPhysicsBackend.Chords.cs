@@ -51,11 +51,20 @@ public sealed partial class JoltPhysicsBackend
         double half = 0.5 * stepDt;
         // The local instant velocity: relative to the home's instant velocity, half a step of its acceleration on.
         Double3 local = velocity - HomeAccelerationOf(home) * half;
-        if (record.Motion != BodyMotion.Dynamic)
-            return local.ToVector3();
-        Double3 acceleration = (Double3)frames.EffectiveGravity(home, center) - record.Material.LinearDamping * local;
-        return (local - acceleration * half).ToVector3();
+        return (local - ChordAcceleration(record, home, center, local) * half).ToVector3();
     }
+
+    /// <summary>
+    /// The acceleration relative to <paramref name="home"/> that the coming step gives the rigid body of
+    /// <paramref name="record"/>, with its center of mass at <paramref name="center"/> and the local instant velocity
+    /// <paramref name="local"/>, which turns that velocity into Jolt's chord (see
+    /// <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>): the home's effective gravity and Jolt's linear
+    /// damping for a dynamic body, nothing for a kinematic one.
+    /// </summary>
+    private Double3 ChordAcceleration(BodyRecord record, FrameHandle home, Double3 center, Double3 local) =>
+        record.Motion == BodyMotion.Dynamic
+            ? (Double3)frames.EffectiveGravity(home, center) - record.Material.LinearDamping * local
+            : Double3.Zero;
 
     /// <summary>The chord for a rigid body in the system of its home: see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>.</summary>
     private Vector3 LinearChord(BodyRecord record, Double3 center, Double3 velocity) => LinearChord(record, record.Frame, center, velocity);
@@ -107,9 +116,11 @@ public sealed partial class JoltPhysicsBackend
     /// Jolt's velocities for the body of <paramref name="record"/> that a hand-off moves into the system of
     /// <paramref name="to"/>, with its center of mass at <paramref name="center"/> there, when its instant velocities
     /// relative to the instant motion of <paramref name="to"/> at the end of the step are <paramref name="linear"/> and
-    /// <paramref name="angular"/>: the chords of the next step. Call it only after the update of a step.
+    /// <paramref name="angular"/>: the chords of the next step, and the acceleration relative to <paramref name="to"/> that
+    /// turned the linear velocity into its chord. Call it only after the update of a step.
     /// </summary>
-    private (Vector3 Linear, Vector3 Angular) HandedOffVelocities(BodyRecord record, FrameHandle to, Double3 center, Double3 linear, Double3 angular)
+    private (Vector3 Linear, Vector3 Angular, Double3 Acceleration) HandedOffVelocities(BodyRecord record, FrameHandle to, Double3 center,
+        Double3 linear, Double3 angular)
     {
         Contract.Requires(stepDt > 0);
         double half = 0.5 * stepDt;
@@ -118,12 +129,12 @@ public sealed partial class JoltPhysicsBackend
             // A character that stood in the step stands in its new frame too, as a rule, where the ground holds it, so its
             // chord is its instant velocity. One that did not stand falls freely there.
             Double3 acceleration = record.Standing ? Double3.Zero : (Double3)frames.EffectiveGravity(to, center);
-            return ((linear - acceleration * half).ToVector3(), Vector3.Zero);
+            return ((linear - acceleration * half).ToVector3(), Vector3.Zero, acceleration);
         }
         // The frame velocity of a numeric home in the next step is its velocity at the end of this step, which is half a
         // step of its acceleration behind its instant velocity.
         Double3 velocity = linear + HomeAccelerationOf(to) * half;
-        return (LinearChord(record, to, center, velocity), AngularChord(record, angular.ToVector3()));
+        return (LinearChord(record, to, center, velocity), AngularChord(record, angular.ToVector3()), ChordAcceleration(record, to, center, linear));
     }
 
     /// <summary>

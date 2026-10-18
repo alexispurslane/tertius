@@ -139,7 +139,9 @@ internal sealed class BodyRecord
     /// <summary>
     /// For a dynamic hull: its acceleration and angular acceleration in the last update, in the axes of its home: the
     /// gravity that the step applied plus its proper acceleration, less the change of velocity that the intents made
-    /// before the update, and the change of Jolt's angular velocity in the update, each divided by the step.
+    /// before the update, and the change of Jolt's angular velocity in the update, each divided by the step. A hand-off
+    /// in the step gives the linear one the acceleration that made Jolt's chord in the new home, in the new home's axes
+    /// (see JoltPhysicsBackend.HandedOffVelocities). The angular one keeps the axes of the home that it was measured in.
     /// </summary>
     public Double3 StepAcceleration;
     public Vector3 AngularAcceleration;
