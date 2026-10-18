@@ -37,8 +37,13 @@ public sealed partial class JoltPhysicsBackend
     // of the next step turns into chords (see ConvertSpawnVelocities).
     private readonly List<BodyRecord> spawnedRigid = new();
 
-    /// <summary>The acceleration of the origin of <paramref name="home"/> relative to its semantic frame in the step: zero for a semantic frame.</summary>
-    private Double3 HomeAccelerationOf(FrameHandle home) => frames.HomeAcceleration(home, frames.SemanticOf(home));
+    /// <summary>
+    /// How much the instant velocity of the origin of <paramref name="home"/> exceeds its frame velocity in the step, relative
+    /// to its semantic frame: half a step of the home's acceleration, zero for a semantic frame (see
+    /// <see cref="FrameTree.HomeInstantVelocityOverChord"/>). A velocity relative to the home's frame velocity is this much
+    /// more than the same velocity relative to the home's instant velocity.
+    /// </summary>
+    private Double3 HomeInstantVelocityOverChord(FrameHandle home) => frames.HomeInstantVelocityOverChord(home, frames.SemanticOf(home), stepDt);
 
     /// <summary>
     /// Jolt's linear velocity for the rigid body of <paramref name="record"/> in the system of <paramref name="home"/>,
@@ -48,10 +53,9 @@ public sealed partial class JoltPhysicsBackend
     private Vector3 LinearChord(BodyRecord record, FrameHandle home, Double3 center, Double3 velocity)
     {
         Contract.Requires(stepDt > 0);
-        double half = 0.5 * stepDt;
         // The local instant velocity: relative to the home's instant velocity, half a step of its acceleration on.
-        Double3 local = velocity - HomeAccelerationOf(home) * half;
-        return (local - ChordAcceleration(record, home, center, local) * half).ToVector3();
+        Double3 local = velocity - HomeInstantVelocityOverChord(home);
+        return (local - ChordAcceleration(record, home, center, local) * (0.5 * stepDt)).ToVector3();
     }
 
     /// <summary>
@@ -133,7 +137,7 @@ public sealed partial class JoltPhysicsBackend
         }
         // The frame velocity of a numeric home in the next step is its velocity at the end of this step, which is half a
         // step of its acceleration behind its instant velocity.
-        Double3 velocity = linear + HomeAccelerationOf(to) * half;
+        Double3 velocity = linear + HomeInstantVelocityOverChord(to);
         return (LinearChord(record, to, center, velocity), AngularChord(record, angular.ToVector3()), ChordAcceleration(record, to, center, linear));
     }
 
@@ -161,10 +165,11 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// The instant velocity of the origin of <paramref name="home"/> relative to <paramref name="semantic"/>, the home itself
     /// or an ancestor of it, at the end of the step: the frame velocity after the step (see
-    /// <see cref="FrameTree.HomeVelocityAfter"/>), which is a chord, plus half a step of the home's acceleration.
+    /// <see cref="FrameTree.HomeVelocityAfter"/>), which is a chord, plus half a step of the home's acceleration (see
+    /// <see cref="FrameTree.HomeInstantVelocityOverChord"/>).
     /// </summary>
     private Double3 InstantHomeVelocity(FrameHandle home, FrameHandle semantic) =>
-        frames.HomeVelocityAfter(home, semantic, stepDt) + frames.HomeAcceleration(home, semantic) * (0.5 * stepDt);
+        frames.HomeVelocityAfter(home, semantic, stepDt) + frames.HomeInstantVelocityOverChord(home, semantic, stepDt);
 
     /// <summary>
     /// The motion of <paramref name="frame"/> relative to its current parent at the end of the step, with the instant velocity

@@ -387,11 +387,13 @@ public class RailsFollowTests
         place.Should().Be(RailsPose(Fast, world.Time).Position, "the last sample put the orbit frame on the orbit");
 
         double dt = world.DeltaTime;
+        Double3 gravity = default;
         for (int i = 0; i < 10; i++)
         {
             world.Tick();
             // A falling frame steps as Jolt steps a body, with the pull of space at its origin.
-            velocity += GravityField.Point(Mu).AtPrecise(place) * dt;
+            gravity = GravityField.Point(Mu).AtPrecise(place);
+            velocity += gravity * dt;
             place += velocity * dt;
         }
 
@@ -399,7 +401,8 @@ public class RailsFollowTests
         world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting, "the hull is still kinematic");
         (world.Frames.TreeLocalPose(orbitFrame).Position - place).Length.Should().BeLessThan(1e-6);
         world.Frames.TreeLocalPose(frame).Position.Should().Be(Double3.Zero, "the hull holds still at the orbit frame's origin");
-        world.Frames.TreeLinearVelocity(frame).Should().Be(Double3.Zero);
+        // It moves with the orbit frame, whose instant velocity is half a step of the step's pull past its chord.
+        (world.Frames.TreeLinearVelocity(frame) - gravity * (dt / 2)).Length.Should().BeLessThan(1e-6);
         world.Errors.Should().BeEmpty();
     }
 
@@ -560,6 +563,124 @@ public class RailsFollowTests
         var gravity = new Double3(0, -g, 0);
         Double3 expected = record.Velocity + record.Pose.TransformDirection(velocityBefore) - gravity * (world.DeltaTime / 2.0);
         ((Double3)exit.Value.LinearVelocity - expected).Length.Should().BeLessThan(1e-3);
+        world.Errors.Should().BeEmpty();
+    }
+
+    // ---- Velocity reads in the semantic parent ----------------------------------------------------------------------
+    //
+    // Every kind of frame in the table "Who fills the step record" (docs/plans/rails-components.md, "One motion record per
+    // frame") reads its instant velocity in its semantic parent. Under a numeric home the tree keeps a frame's velocity
+    // relative to the home's frame velocity, the chord of the step, so a frame at rest in the home keeps the home's instant
+    // velocity past its chord. Two kinds of frame live under a numeric home: a dynamic hull in a falling frame (see
+    // DynamicHullRecordTests.AShipThatFallsInANumericFrameReadsTheInstantVelocityOfItsOrbitInEarth) and a kinematic hull at
+    // the origin of its orbit frame, with a sample (see
+    // TheAnchorOfAnOrbitFrameSitsAtItsOriginWithTheSamplesVelocityLessTheChordSoAReadInItsParentGivesTheSamplesVelocity) or
+    // without one, below. A frame without a body, and a static hull, live in their semantic parent always.
+
+    /// <summary>
+    /// A fast hull that lives in its orbit frame, whose rails component <paramref name="world"/> removes after five ticks and
+    /// replaces with <paramref name="next"/>, if any. From the second tick after that, the hull has no sample.
+    /// </summary>
+    private static (Entity Owner, FrameHandle OrbitFrame) FastHullWhoseSamplesStop(World world, FrameHandle space, IComponent? next = null)
+    {
+        Entity owner = Hull(world, space, FastStill);
+        Tick(world, 5);
+        FrameHandle orbitFrame = world.PhysicsHomeOf(owner);
+        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting);
+        world.RemoveComponent(owner, world.GetComponent<KeplerMotion>(owner)!);
+        if (next is not null)
+            world.AddComponent(owner, next);
+        // The last sample moves the frame in the step of the next tick.
+        world.Tick();
+        return (owner, orbitFrame);
+    }
+
+    /// <summary>
+    /// Ticks once, and gives the instant velocity in space of the origin of <paramref name="orbitFrame"/> at the end of the
+    /// step. The orbit frame falls as Jolt steps a body: its frame velocity is the chord of the step, and its instant velocity
+    /// at the end of the step is half the step's change of velocity further on. A jump of the orbit frame keeps its chord.
+    /// </summary>
+    private static Double3 TickAndReadInstantVelocity(World world, FrameHandle orbitFrame)
+    {
+        Double3 chordBefore = world.Frames.LinearVelocity(orbitFrame);
+        world.Tick();
+        Double3 chord = world.Frames.LinearVelocity(orbitFrame);
+        return chord + (chord - chordBefore) / 2;
+    }
+
+    [Fact]
+    public void AKinematicHullThatHoldsStillAtTheOriginOfItsFallingOrbitFrameReadsTheOrbitFramesInstantVelocityInSpace()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        (Entity owner, FrameHandle orbitFrame) = FastHullWhoseSamplesStop(world, space);
+        Tick(world, 2);
+
+        Double3 instant = TickAndReadInstantVelocity(world, orbitFrame);
+
+        // The orbit frame falls at about 800 m/s², so a hull that missed half a step of it would be 6.7 m/s off.
+        world.PhysicsHomeOf(owner).Should().Be(orbitFrame);
+        world.Frames.TreeLocalPose(world.GetOwnedFrame(owner)).Position.Should().Be(Double3.Zero, "the hull holds still at the orbit frame's origin");
+        (world.VelocityIn(owner, space) - instant).Length.Should().BeLessThan(1e-4);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AKinematicHullWithoutASampleThatTeleportsInItsOrbitFrameReadsTheOrbitFramesInstantVelocityInSpace()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        (Entity owner, FrameHandle orbitFrame) = FastHullWhoseSamplesStop(world, space, new Hopper());
+        Tick(world, 2);
+
+        Double3 instant = TickAndReadInstantVelocity(world, orbitFrame);
+
+        // The teleport leaves the hull at rest in its orbit frame, which jumps with it.
+        world.PhysicsHomeOf(owner).Should().Be(orbitFrame);
+        world.Frames.TreeLocalPose(world.GetOwnedFrame(owner)).Position.Should().Be(Double3.Zero, "the orbit frame jumped with the hull");
+        (world.VelocityIn(owner, space) - instant).Length.Should().BeLessThan(1e-4);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("a kinematic hull on rails")]
+    [InlineData("no body, on rails")]
+    [InlineData("a static hull that teleported")]
+    [InlineData("a kinematic hull without a sample that teleported")]
+    [InlineData("no body, and a transform write")]
+    [InlineData("a static hull that holds still")]
+    [InlineData("a kinematic hull without a sample that holds still")]
+    public void AFrameInItsSemanticParentReadsThereTheInstantVelocityOfItsStepRecord(string owner)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        bool onRails = owner.EndsWith("on rails", StringComparison.Ordinal);
+        Entity entity = owner switch
+        {
+            "a kinematic hull on rails" => Hull(world, space, Slow),
+            "no body, on rails" => Bodyless(world, space, Slow),
+            "no body, and a transform write" => world.Spawn(new SpawnDesc
+            {
+                Frame = space,
+                Pose = At(1000),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static),
+                Components = [new Climber()],
+            }),
+            _ => world.Spawn(new SpawnDesc
+            {
+                Frame = space,
+                Pose = At(1000),
+                Body = Ball(),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), owner.Contains("static", StringComparison.Ordinal) ? MotionDriver.Static : MotionDriver.Kepler),
+                Components = owner.EndsWith("teleported", StringComparison.Ordinal) ? [new Hopper()] : [],
+            }),
+        };
+
+        Tick(world, 4);
+
+        world.PhysicsHomeOf(entity).Should().Be(space, "the frame lives in its semantic parent");
+        Double3 expected = onRails ? Slow.StateAt(world.Time, Mu).Velocity : Double3.Zero;
+        (world.VelocityIn(entity, space) - expected).Length.Should().BeLessThan(1e-4);
         world.Errors.Should().BeEmpty();
     }
 

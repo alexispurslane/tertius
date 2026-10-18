@@ -655,6 +655,20 @@ public sealed partial class FrameTree
         HomeVelocity(home, semantic) + HomeAcceleration(home, semantic) * dt;
 
     /// <summary>
+    /// How much the instant velocity of the origin of <paramref name="home"/> exceeds its frame velocity, relative to
+    /// <paramref name="semantic"/>, the home itself or an ancestor of it, in a step of <paramref name="dt"/> seconds: half a
+    /// step of the home's acceleration in the current step (see <see cref="HomeAcceleration"/>). A numeric frame steps as
+    /// Jolt steps a body (see <see cref="AdvanceNumericFrames"/>), so its frame velocity is the chord of a step, and its
+    /// instant velocity at the end of the step is half a step of its acceleration further on. Zero for a semantic frame.
+    /// The tree keeps the velocity of a frame under a numeric home relative to the home's frame velocity, so that a read in
+    /// the semantic frame gives the frame's instant velocity. Physics keeps a velocity relative to the home's instant
+    /// velocity. So a velocity converts from physics into the tree by the addition of this one term: a frame at rest in its
+    /// home keeps it (see <see cref="HoldStill"/>), and a step record that physics releases adds it.
+    /// </summary>
+    internal Double3 HomeInstantVelocityOverChord(FrameHandle home, FrameHandle semantic, double dt) =>
+        HomeAcceleration(home, semantic) * (0.5 * dt);
+
+    /// <summary>
     /// The position of the origin of <paramref name="of"/> in <paramref name="to"/>, two frames of one semantic frame (the
     /// semantic frame itself or numeric frames below it), at the end of a step of <paramref name="dt"/> seconds that starts
     /// now. It sums through their lowest common ancestor, so no large number enters between two frames near each other.

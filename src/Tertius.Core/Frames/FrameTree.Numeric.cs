@@ -56,8 +56,11 @@ public sealed partial class FrameTree
     /// <paramref name="relativeTo"/>, the frame's tree parent. A record that physics releases is relative to it. A sample or
     /// a write from an owner without a body is relative to the semantic parent, which is the same frame, because only a
     /// frame with a hull hangs in a numeric frame (see the class summary). The frame takes the record's pose, its instant
-    /// velocity, its angular velocity, narrowed to a float, and its proper acceleration. A frame at the origin of its orbit frame that takes a record with another place left that origin in
-    /// the step, because its hull teleported: <see cref="JumpFollowingFrame"/> brings it back.
+    /// velocity, its angular velocity, narrowed to a float, and its proper acceleration. Under a numeric parent the record's
+    /// instant velocity is relative to the parent's frame velocity, the chord of the step, so that a read in the semantic
+    /// parent gives the instant velocity (see <see cref="HomeInstantVelocityOverChord"/>). A frame at the origin of its orbit
+    /// frame that takes a record with another place left that origin in the step, because its hull teleported:
+    /// <see cref="JumpFollowingFrame"/> brings it back.
     /// </summary>
     internal void Follow(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
     {
@@ -70,13 +73,17 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Step 2 of the sync point: a frame without a step record holds still in its tree parent. It keeps its pose and its
-    /// proper acceleration, so the cargo of a parked ship keeps its weight, and it has no velocity.
+    /// Step 2 of the sync point, after a step of <paramref name="dt"/> seconds: a frame without a step record holds still in
+    /// its tree parent. It keeps its pose and its proper acceleration, so the cargo of a parked ship keeps its weight, and it
+    /// does not turn. It moves with its tree parent, so a read in the semantic parent gives the parent's instant velocity:
+    /// under a numeric parent, the frame keeps the parent's instant velocity past its frame velocity (see
+    /// <see cref="HomeInstantVelocityOverChord"/>), and in a semantic parent no velocity.
     /// </summary>
-    internal void HoldStill(FrameHandle frame)
+    internal void HoldStill(FrameHandle frame, double dt)
     {
         int id = Node(frame).Id;
-        linearVelocity[id] = Double3.Zero;
+        FrameHandle treeParent = TreeParent(frame);
+        linearVelocity[id] = treeParent.IsNull ? Double3.Zero : HomeInstantVelocityOverChord(treeParent, SemanticOf(treeParent), dt);
         angularVelocity[id] = Vector3.Zero;
     }
 

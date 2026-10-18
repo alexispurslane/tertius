@@ -759,18 +759,24 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Releases the step record of the frame of every hull that moved in the step (see <see cref="StepRecordOf"/>): every
-    /// dynamic hull, from Jolt's state after the update, and every kinematic hull that followed a sample, from the sample
-    /// that it applied, exactly. A record is relative to the frame's tree parent, so a frame that a hand-off moved this step
-    /// reports relative to its new parent, and a hull at the origin of its orbit frame reports at that origin. The tree
-    /// keeps the velocity of a frame in a numeric frame relative to the numeric frame's chord, so that a read in the
-    /// semantic parent gives the frame's instant velocity (see <see cref="FrameTree.Follow"/>), and a hull that physics
-    /// places from the tree again takes the velocity that it had (see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>).
-    /// Physics keeps a velocity relative to the numeric frame's instant velocity, which is half a step of the frame's
-    /// acceleration further on. So the record of a dynamic hull adds that half step to its instant velocity, and the
-    /// record of a hull at the origin of its orbit frame keeps the rest of the sample's velocity past its chord. A static
-    /// hull, or a kinematic hull without a sample, that teleported in the step releases the teleport's pose in its home, at
-    /// rest: a kinematic hull holds still in its home after a teleport too (see <see cref="ApplyBodyIntent"/>). Any other
-    /// static hull, and a kinematic hull without a sample, held still.
+    /// dynamic hull, from Jolt's state after the update; every kinematic hull that followed a sample, from the sample that
+    /// it applied, exactly; and every static hull, or kinematic hull without a sample, that teleported in the step, at the
+    /// teleport's pose in its home, at rest there: a kinematic hull holds still in its home after a teleport too (see
+    /// <see cref="ApplyBodyIntent"/>). Any other static hull, and a kinematic hull without a sample, held still, and the
+    /// sync point holds its frame still in its home (see <see cref="FrameTree.HoldStill"/>). A record is relative to the
+    /// frame's tree parent, the hull's home, so a frame that a hand-off moved this step reports relative to its new parent,
+    /// and a hull at the origin of its orbit frame reports at that origin.
+    /// <para>
+    /// The tree keeps the velocity of a frame in a numeric home relative to the home's frame velocity, the chord of the
+    /// step, so that a read in the semantic parent gives the frame's instant velocity, and a hull that physics places from
+    /// the tree again takes the velocity that it had (see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>).
+    /// Physics keeps a velocity relative to the home's instant velocity. So each record that physics releases adds the
+    /// home's instant velocity past its chord (see <see cref="FrameTree.HomeInstantVelocityOverChord"/>), zero in a semantic
+    /// home. The one record that knows its instant velocity in the semantic parent itself is the sample of a hull at the
+    /// origin of its orbit frame: it keeps the sample's instant velocity less the sample's chord, which is the orbit frame's
+    /// frame velocity after the step (see <see cref="FrameTree.PlaceFollowingFrame"/>). Half a step of the orbit frame's
+    /// acceleration would miss the change of the orbit's acceleration over the step.
+    /// </para>
     /// </summary>
     private void WriteFrames(PhysicsStepOutput output)
     {
@@ -779,23 +785,15 @@ public sealed partial class JoltPhysicsBackend
             if (!owner.HasPrimary || owner.Character is not null)
                 continue;
             FrameHandle frame = owner.OwnedFrame;
-            if (owner.Motion == BodyMotion.Dynamic)
-            {
-                // Relative to the home's chord, not to its instant velocity. A semantic home has no acceleration.
-                MotionSample record = StepRecordOf(frame);
-                output.Frames.Add(new FrameStepRecord(frame, record with { Velocity = record.Velocity + HomeAccelerationOf(owner.Frame) * (0.5 * stepDt) }));
-            }
-            else if (owner.Motion == BodyMotion.Kinematic && stepSamples.TryGet(frame, out MotionSample sample))
-            {
-                MotionSample record = StepRecordOf(frame);
-                if (frames.InOrbitFrame(frame))
-                    record = record with { Velocity = sample.Velocity - sample.ChordVelocity };
-                output.Frames.Add(new FrameStepRecord(frame, record));
-            }
-            else if (owner.TeleportStep == stepIndex)
-            {
-                output.Frames.Add(new FrameStepRecord(frame, StepRecordOf(frame)));
-            }
+            MotionSample sample = default;
+            bool sampled = owner.Motion == BodyMotion.Kinematic && stepSamples.TryGet(frame, out sample);
+            if (owner.Motion != BodyMotion.Dynamic && !sampled && owner.TeleportStep != stepIndex)
+                continue;
+            MotionSample record = StepRecordOf(frame);
+            Double3 velocity = sampled && frames.InOrbitFrame(frame)
+                ? sample.Velocity - sample.ChordVelocity
+                : record.Velocity + HomeInstantVelocityOverChord(owner.Frame);
+            output.Frames.Add(new FrameStepRecord(frame, record with { Velocity = velocity }));
         }
     }
 }

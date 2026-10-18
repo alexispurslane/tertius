@@ -829,7 +829,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// in JoltPhysicsBackend.Chords.cs). The record that physics releases for the tree differs there (see
     /// <see cref="WriteFrames"/>).</item>
     /// <item>A static hull, or a kinematic hull without a sample, that teleported in the step: the teleport's pose in the
-    /// hull's home, the tree parent, with no velocity.</item>
+    /// hull's home, the tree parent, with no velocity. The record that physics releases for the tree differs in a numeric
+    /// home (see <see cref="WriteFrames"/>).</item>
     /// <item>Anything else: the tree pose, with no velocity. The frame holds still.</item>
     /// </list>
     /// The records of the frames without a dynamic hull do not change during the step, so each is made once a step. Call it
