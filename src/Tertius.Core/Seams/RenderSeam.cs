@@ -82,7 +82,7 @@ public struct RenderInstance
 {
     /// <summary>The entity slot. With <see cref="Part"/>, it identifies the object from tick to tick.</summary>
     public uint EntityIndex;
-    /// <summary>Which of the entity's render parts this is, 0 for the first. The renderer keys impostor state on (EntityIndex, Part).</summary>
+    /// <summary>Which of the entity's render parts this is, 0 for the first. The renderer keys impostor state on (EntityIndex, Part, Mesh, Material), so a part that changes its mesh or material gets a new capture.</summary>
     public ushort Part;
     public MeshId Mesh;
     public MaterialId Material;

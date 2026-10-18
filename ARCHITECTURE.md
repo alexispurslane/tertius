@@ -21,24 +21,35 @@ These features are out of scope. Do not design for them.
 | Graphics | Vulkan 1.3 through Silk.NET 2.23.0, MoltenVK on macOS |
 | Windowing and input | Silk.NET.Windowing and Silk.NET.Input (GLFW) |
 | Shaders | GLSL 4.60, compiled to SPIR-V with `glslc` at build time |
-| Tests | xUnit v3 |
+| Tests | xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions. Coverage uses Microsoft.Testing.Extensions.CodeCoverage. |
+| Images | StbImageWriteSharp writes the PNG captures. The tests read PNG files with StbImageSharp. |
+| Benchmarks | BenchmarkDotNet 0.15.8 |
+| Platforms | The flake supports `aarch64-darwin`, `x86_64-linux` and `aarch64-linux`. |
 
-You build the Jolt library with `native/build-joltc.sh`. The script pins the joltc commit and the Jolt tag. `Directory.Build.targets` copies the library next to the output of every project that sets `<UsesJolt>true</UsesJolt>`.
+The dev shell builds the double-precision Jolt library with Nix from `native/joltc.nix`. That file pins the joltc commit and the Jolt tag by hash. The dev shell sets `TERTIUS_JOLTC_DIR` to the folder of the library. The script `native/build-joltc.sh` is a fallback. It builds the same sources without a hash check, into `native/osx-arm64` or `native/linux-x64`, and it supports only these two platforms.
+
+`Directory.Build.targets` copies the Jolt library next to the output of every project that sets `<UsesJolt>true</UsesJolt>`. It takes the library from `TERTIUS_JOLTC_DIR`. When that variable is not set, it takes the library from the folder of the script. It also copies the Vulkan loader from `TERTIUS_VULKAN_DIR` next to the output of every project that sets `<UsesVulkan>true</UsesVulkan>`. It defines `TERTIUS_CONTRACTS` only in Debug builds, so the contract checks compile out of Release builds.
 
 ## Projects and dependency rules
 
 ```
-src/Tertius.Core        math, handles, messages, PoseTree, FrameTree data, physics and render seams
-src/Tertius.Simulation  entities, components, scheduler, router, sync point, snapshots, rails components, blueprints
+src/Tertius.Core        math, handles, messages, contracts, TripleBuffer, PoseTree, FrameTree with the numeric
+                        frame rules and the motion sample table, the rails library (Kepler and spin math),
+                        gravity fields, physics and render seams
+src/Tertius.Simulation  World, entities, components, rails components, chunked gameplay runs, router, sync point,
+                        snapshots, spatial index, render snapshot builder, blueprints
 src/Tertius.Physics     Jolt backend: one PhysicsSystem per frame, intents, gravity, hand-off, ghosts
 src/Tertius.Rendering   Vulkan deferred renderer: G-buffer, depth ranges, lighting, shadows, impostors
-src/Tertius.Host        threads, window, input, frame pacing, wiring of all modules
-src/Tertius.Demo        the vertical slice game
-tests/*                 one test project per module
+src/Tertius.Host        threads, window, input, tick pacing, scripted and headless runs, state dumps,
+                        wiring of all modules
+src/Tertius.Demo        the vertical slice game: its scenes and components (its scripts are in scripts/)
+tests/Tertius.*.Tests   one test project per engine module, and Tertius.Host.Tests also tests the Demo
+tests/Tertius.Testing   shared test helpers: FaultInjectingBackend, WorldTesting, Scenes, test components
+benchmarks/             BenchmarkDotNet benchmarks
 ```
 
 - `Tertius.Core` depends on nothing but the base library.
-- `Tertius.Simulation`, `Tertius.Physics` and `Tertius.Rendering` depend only on `Tertius.Core`. They never reference each other.
+- `Tertius.Simulation`, `Tertius.Physics` and `Tertius.Rendering` depend only on `Tertius.Core`. They never reference each other. The test projects are the exception. `Tertius.Testing` and the Simulation, Physics and Host test projects reference several modules together. The reason is that every physics test runs the real World on the real Jolt backend.
 - `Tertius.Host` references all modules and connects them through the seams in `Tertius.Core`.
 - `Tertius.Demo` references `Tertius.Host`.
 
@@ -54,20 +65,30 @@ The simulation runs at a fixed 60 ticks per second. Physics steps once per tick 
 | Simulation | Runs the ticks and their sync points, and a scripted run's steps. In the window, it paces the ticks by the wall clock. |
 | Render | Draws the latest render snapshot and interpolates between the last two. |
 
-One tick has two parts. During the parallel part, gameplay and physics run at the same time. Both read only state that is fixed for the tick: the front snapshot of tick N-1 and the frame tree. During the sync part, one thread merges the results.
+The Main, Simulation and Render threads exist only in the window. A headless run has none of them. Its calling thread runs the ticks, the steps of the script and the captures (see "Host and scripted runs").
+
+One tick has three parts. First, one thread prepares the tick. Then, during the parallel part, gameplay and physics run at the same time. Both read only state that is fixed for the tick: the front snapshot of tick N-1 and the frame tree. Last, during the sync part, one thread merges the results.
+
+The preparation does these steps in this order:
+
+- If a change outside a tick made the numeric update due, run it, derive the attachments and swap the snapshot. So a body that a spawn outside a tick made joins its numeric frame before physics creates it.
+- Hand physics the batch of spawns and destroys made outside the tick, before the step that can touch them.
+- Update the frame tree. Fix the accelerations of the falling numeric frames and the orbit frames for the step. Physics reads them, and the sync point follows them.
+- Apply the queued changes of the indexes that entity queries start from, so that the workers only read them.
+- Reserve a pool of free slots for each chunk that has live entities, in chunk order. A pool holds the larger of `WorldOptions.SpawnPoolSize` (8 by default) and twice the spawns of its chunk in the last tick, up to 1,024. When the pools need more slots, the tables grow here. A spawn during the tick takes its slot from the pool of its chunk, so spawned handles are the same in every run.
 
 The sync point does these steps in this order:
 
-1. Wait for all gameplay chunks and for the physics step.
-2. Move the falling numeric frames over the step. Check the physics output before any of it lands. If an output can only come from a bug in the backend, skip the physics update of each entity that it names. "Output that only a bug produces" under "Physics" gives the checks. Then move each handed-off frame under its new parent in the frame tree, and put each orbit frame on its anchor's sample. Copy body poses, velocities and hand-offs into the back transform table. A body state of a hull writes no row. Keep whether physics stood each character. Then every frame takes its step record, in one loop (`FollowOwners`, see "Rails components and the sample table"), and the float view of each frame entity, its transform row, is filled from its exact table, its row in the frame tree. A record from physics is relative to the frame's parent after its hand-off. So it must come after the hand-offs, and before step 5 destroys any frame. A frame without a body takes its owner's write of its transform here too, so a write in the tick in which the frame's parent dies converts with the frame. Send the contacts that started as `Collision` events last, and then the contacts that ended as `CollisionEnded` events, so that a contact that starts and ends in one step reaches each entity in that order.
-3. Make sure that no entity with a body wrote its own transform. This is a debug assertion.
-4. Swap the physics intent buffers, so that physics gets this tick's forces in the next step. The sample table moves its buffers on with them, also without a physics backend, because a frame without a body follows its samples too.
-5. Free dead entities. Increment the generation of each slot and return the slot to the free list. Tell physics to destroy their bodies. Before the dying frames go, each intent that the next step applies and that names one of them converts into its entity's new frame (see "Ownership of transforms"), because step 7b cannot relate a frame that is gone. So does each motion sample that is relative to one of them, in the applied and the followed buffers.
-6. Make new entities live. If the tables are full, grow them. Tell physics to create the new bodies. An attached entity becomes live in the frame of its parent at this moment, after steps 2 and 5 have moved the parent. A new frame stands at the pose of its spawn description, and holds still there for its first step, because it has no sample yet.
+1. Wait for all gameplay chunks and for the physics step. Grow the tables over the slots that spawns took after the pool of their chunk ran dry. Such a spawn takes a slot with an atomic increment. Its slot then depends on thread timing, so the world logs a note that the run is no longer deterministic.
+2. Move the falling numeric frames over the step, with the acceleration that physics used. Then check the physics output before any of it lands. If an output can only come from a bug in the backend, skip the physics update of each entity that it names. "Output that only a bug produces" under "Physics" gives the checks. Then move each handed-off frame under its new parent in the frame tree, and put each orbit frame on its anchor's sample. Copy body poses, velocities and hand-offs into the back transform table. A body state of a hull writes no row. Keep whether physics stood each character. Then every frame takes its step record, in one loop (`FollowOwners`, see "Rails components and the sample table"), and the float view of each frame entity, its transform row, is filled from its exact table, its row in the frame tree. A record from physics is relative to the frame's parent after its hand-off. So it must come after the hand-offs, and before step 5 destroys any frame. A frame without a body takes its owner's write of its transform here too, so a write in the tick in which the frame's parent dies converts with the frame. Send the contacts that started as `Collision` events last, and then the contacts that ended as `CollisionEnded` events. So a contact that starts and ends in one step reaches each entity in that order.
+3. Make sure that no entity with a body wrote its own transform. In every build, such a write throws `InvalidOperationException`, so none gets through. When `WorldOptions.DebugChecks` is on, this step checks every invariant of the entity table, this one included. That check costs time in proportion to the capacity of the table.
+4. The step applied the intents of the last tick. So their collision groups and masks become the back collision rows of the bodies, which step 8 publishes. Then swap the physics intent buffers, so that physics gets this tick's forces in the next step. With no physics backend, the swap drops the intents. The sample table moves its buffers on with them, also without a physics backend, because a frame without a body follows its samples too.
+5. Apply the subscribe and unsubscribe requests of the chunks, in chunk order, while every entity that asked is still live. Then free dead entities. The destroy batch grows to the attached children of each dying entity. It also grows to the members of each dying frame that has no surviving ancestor. The survivors in a dying frame move into the nearest ancestor frame that survives. Increment the generation of each freed slot and return the slot to the free list. Queue the destroys of their bodies for physics, which gets the batch in step 6c. Before the dying frames go, convert each intent of the next step that names one of them into its entity's new frame. "Ownership of transforms" tells how. Step 7b cannot relate a frame that is gone. Each motion sample that is relative to one of them, in the applied and the followed buffers, converts in the same way.
+6. Make new entities live, in chunk order. Each spawn reserved its slot during the tick, so no table grows here. The world drops a spawn into a frame that step 5 destroyed, and it records an error. Queue the new bodies for physics. An attached entity becomes live in the frame of its parent at this moment, after steps 2 and 5 moved the parent. A new frame stands at the pose of its spawn description, and holds still there for its first step, because it has no sample yet.
    - 6c. Run the numeric update (`FrameTree.UpdateNumericFrames`, see "Numeric frames"), after the physics output, the destroys and the spawns, so that it clusters every live body where it is at the end of the tick. Every frame took its step record in step 2, so the rows of the bodies and the frames both hold the end of the step, and the update tests the bodies against bubbles of the same moment. (Before the review of ter-2gg0, the frames on rails moved after the update, and the update placed the bubble of a station that orbits at 7.5 km/s 126 m behind the bodies beside it.) A new orbit frame starts from its anchor's sample of the step that ended. Then hand this sync point's changes to physics. The update before this one can name a home for the ghost of an anchor. Then physics gets the changes even when there are none, so that it drops the ghosts whose home this update stops naming.
 7. The float view of each frame entity is filled from its exact table again, after the numeric update, which can move a frame among numeric frames. Then every attached entity takes its frame, pose and velocities from the root of its chain.
    - 7b. Each intent that the next step applies and that names another frame than its entity's converts into the entity's frame (see "Ownership of transforms"). This comes after steps 2 and 5, which move entities between frames, and after step 7, so that every entity is in its frame for the next tick. It comes after step 2, so that every frame stands where the next step starts, the moment at which a velocity of the intent applies. The motion samples need no conversion here: only a dynamic hull moves between frames at a sync point, and its owner writes no sample. A contract checks it in a Debug build.
-8. Swap the snapshot. The back tables become the front tables. Copy only dirty slots forward.
+8. Swap the snapshot. The back tables become the front tables. Copy only dirty slots forward. Then the frame tree and the spatial grids catch up with the new front rows.
 9. Run the physics queries that components asked for during the tick, the ray casts, shape casts and overlap queries, in entity order. Jolt is at the end of the step, with the destroys and spawns of steps 5 and 6, and the new front snapshot describes the same moment: its component flags, collision groups, poses and frames. Queue each answer as an engine event.
 10. Route the outboxes, and the answers of step 9, into inboxes.
 11. Build the render snapshot and publish it to the render thread through a triple buffer.
@@ -107,7 +128,7 @@ If an entity has no body, gameplay owns its transform and writes it through `sel
 
 ### Creation and destruction
 
-`self.Spawn(...)` takes a slot at once from an atomic free list and returns the new handle. The new entity starts to run on the next tick. The tables grow only at the sync point. An entity can destroy itself with `self.Destroy()`. To destroy another entity, send it a `Destroy` message. Both take effect at the sync point.
+`self.Spawn(...)` takes a slot at once from the spawn pool of its chunk and returns the new handle. The preparation of the tick reserves the pools in chunk order, so a spawn gets the same handle in every run. If a pool runs dry, the spawn takes a new slot with an atomic increment, and the run is no longer deterministic. The new entity starts to run on the next tick. The tables never grow during the parallel part of a tick. They grow in two places. The preparation of the tick grows them to fill the pools. Step 1 of the sync point grows them over the slots that dry pools gave out. An entity can destroy itself with `self.Destroy()`. To destroy another entity, send it a `Destroy` message. Both take effect at the sync point.
 
 No other operation is deferred. There is no general command buffer.
 
@@ -202,13 +223,13 @@ The engine defines these payload types in `Tertius.Core`:
 | `RayHit` | The answer to a ray cast that the entity asked for in the previous tick: the entity hit, or a miss |
 | `ShapeHit` | The answer to a shape cast that the entity asked for in the previous tick: the first entity that the shape touched, or a miss |
 | `OverlapHit` | One answer to an overlap query that the entity asked for in the previous tick: one entity that overlaps the shape, or no entity when none does |
-| `InputEvent` | The host forwards input to the entities that subscribe to the input topic |
+| `InputEvent` | The host forwards input to the entities that subscribe to the input topic, between two ticks (see "Host and scripted runs") |
 
 ## Snapshots
 
-The transform, physics and render tables are double-buffered. During a tick, everyone reads the front buffer. Each entity writes only its own row of the back buffer. At the sync point, the back buffer becomes the front buffer. Only slots that changed are copied forward. An entity that did not run costs nothing.
+The transform, render, component flag and collision rows are double-buffered. During a tick, everyone reads the front rows. Each entity writes only its own back rows. In step 8 of the sync point, the back rows become the front rows. That step copies forward only the slots that changed. An entity that did not run costs nothing. The physics intents are double-buffered too, but step 4 swaps them instead of copying them forward.
 
-The snapshot also holds one spatial grid per frame for radius queries. The sync point rebuilds the grid of each frame.
+The world also keeps one spatial grid per frame for radius queries. `SpatialIndex` owns the grids, and `Snapshot.QueryRadius` and entity queries read them. Each grid is a sparse hash grid of 32 m cubes with 64-bit cell coordinates. The owner of a root frame is in no grid. In step 8, the index moves only the entities whose front transform changed, from their old cell to their new one.
 
 ## Reference frames
 
@@ -487,19 +508,51 @@ The skip does not change physics. At the next reconcile, a frame hull goes back 
 
 The renderer is a deferred Vulkan renderer. It gets a flat list of instances, each relative to the render origin, and it knows nothing about frames.
 
+### The order of a rendered frame
+
+The renderer records each rendered frame in this order. `FrameGraph.Stage` fixes the order of the passes.
+
+1. Uploads of new meshes, textures and materials.
+2. Batching on the CPU (`SceneBatcher`): interpolation by alpha, frustum culling, depth ranges, sorting and indirect commands. The impostor manager takes its impostors out of the batch and chooses the captures of the rendered frame.
+3. The shadow maps of the sun.
+4. Impostor captures.
+5. The G-buffer pass: the far, middle and near ranges. Each range draws the impostor billboards in it after its geometry.
+6. The lighting pass, into the HDR target.
+7. The transparent forward pass.
+8. Tone mapping: an exposure scale, then the ACES curve in Stephen Hill's fit.
+9. The readback of a requested capture.
+
+A pass is a `RenderPass` in one stage of the `FrameGraph`. Shadows and impostors use three hooks:
+
+- A `RenderPass` in a stage.
+- An `IRangeDrawer`, which draws inside each depth range of the G-buffer pass.
+- An `IInstanceProcessor`, which gets the culled instances before batching.
+
 ### The render snapshot
 
-The snapshot builder runs at the sync point. It computes every frame's pose relative to the camera's frame in doubles, along the path through the common ancestor. It then writes each instance relative to the render origin, which is the camera position at the current tick. Each instance has a current and a previous transform relative to the same origin, so that the render thread can interpolate.
+The snapshot builder runs at the sync point, in step 11. It computes the pose of every frame relative to the camera's physics home (see "Numeric frames"). It computes in doubles, along the path through the lowest common ancestor. The home has the axes of the camera's frame, and it is near the camera. So positions near the camera stay exact far from the origin of the camera's frame. The builder then writes each instance relative to the render origin, which is the camera position at the current tick. Each instance has a current and a previous transform relative to the same origin, so that the render thread can interpolate.
+
+The builder interpolates only between two consecutive builds of the same camera in the same frame. In any other build, the previous transform is the current one. The previous pose of a frame uses the tree of this build with the local poses of the last build. So a frame that moved between the builds carries its contents along. The builder keeps the last pose of each entity and the frame that the pose was in, in the `PoseMemory` column of the entity table. So an entity that a hand-off moved to another frame interpolates smoothly.
+
+The snapshot also carries:
+
+- The camera: its current and previous position and rotation, and its vertical field of view.
+- The sun: its direction from the render origin toward the origin of `World.SunFrame`, and its angular radius, atan(r / d). Here r is the bounding radius of the owner of the sun's frame, and d is its distance.
+- The ambient light, and one `RenderLight` for each point or spot light. A light comes from the light row of an entity, at `Light.Offset` from the entity.
+- `OriginInFrame` and `OriginFrameId`: the render origin in the camera's frame, and an id of that frame. The shadow texel grid uses them.
+- `RootRotation` and `PreviousRootRotation`, for the star field (see "Shading").
+
+A build of 8,192 or more slots runs on the thread pool, in chunks of 1,024 slots. The chunks join in slot order, so the order of the instances does not depend on threads.
 
 ### Instances and draws
 
-All instances go into one large instance buffer. Textures live in one bindless array. Draws use multi-draw indirect, with one indirect command per mesh. MoltenVK does not support `drawIndirectCount`, so the CPU sets the draw count.
+All instances of a rendered frame go into one instance array, shadow casters and impostor billboards included. The array goes into one storage buffer for each frame in flight. Textures live in one bindless array. The batcher sorts the opaque instances by depth range and mesh. It writes one indirect command for each run of instances with the same range and mesh. It sorts the transparent instances by range and then back to front, so a transparent command usually holds one object. Each depth range, each shadow cascade and the transparent pass issue one `vkCmdDrawIndexedIndirect` over their part of the commands. MoltenVK does not support `drawIndirectCount`, so the CPU sets the draw count.
 
 ### Depth ranges
 
-There are three depth ranges, drawn from far to near into the same G-buffer. An instance belongs to every range that its bounding sphere touches, measured in view depth, so an object that straddles a boundary is drawn twice.
+There are three depth ranges, drawn from far to near into the same G-buffer. Each range is a slab of view depth that reaches 1% past its nominal boundaries in the table below, so neighbor slabs overlap. The batcher puts an opaque instance in each slab that its bounding sphere overlaps, from near to far. It stops at the first slab that holds the far side of the sphere. So an object that straddles a boundary draws twice, and an object that fits in one slab draws once. A transparent instance draws once, in the range that holds its center, with depth clamping on.
 
-| Range | Distance |
+| Range | Nominal view depth |
 |---|---|
 | Far | 2,000 km to infinity (infinite reversed-Z) |
 | Middle | 2 km to 2,000 km |
@@ -545,33 +598,78 @@ The up costs about 5 ns per instance in the snapshot build. On one thread, `Rend
 
 ### Shadows
 
-Shadow casters are selected by distance from the camera, not by frame, so an object shadows objects in any frame. Every caster has the `CastsShadow` flag, and the sun has none. A caster casts two kinds of shadow:
+Shadow casters are selected by distance from the camera, not by frame, so an object shadows objects in any frame. Every caster has the `CastsShadow` flag, and the sun has none. The renderer lets an instance cast a shadow without the `Visible` flag. But the snapshot builder emits only visible instances, so today an entity without `Visible` casts no shadow. A caster casts two kinds of shadow:
 
 - Map shadows. Cascaded shadow maps for the sun cover receivers in the first 2 km of view depth, with four cascades and blending at the seams. They draw every caster whose bounding sphere comes within 2 km of the camera, however big it is, for example a ground plane or a planet under the camera. Map shadows have the caster's real shape.
 - Far shadows. Every caster is also a sphere of its bounding radius, tested analytically in the lighting shader against the sun's disc, so the edge is soft. A sphere never shadows a point inside it, so a caster never shadows its own surface, and a planet's ground needs no such shadow: it faces away from the sun at night. A caster that the maps draw counts as a sphere only beyond the maps' reach, faded in over the last cascade's blend, so no receiver gets both shadows from one caster. A long or flat caster shadows as a rough sphere there.
 
-A far shadow counts only while the sun lights the scene, and only when it can be noticed. A caster beyond the maps must cover a pixel, or a fifth of the sun's angular radius, seen from the camera. A caster in the maps must hide 4% of the sun from 2 km away, where its far receivers start: a 50 m ship 500 m away qualifies, and a crate or a person does not. So the cost per pixel grows only with the shadows that can show. The sun is still the one light with shadows. Making every far light work the same way belongs to the point and spot light shadows epic.
+A far shadow counts only while the sun lights the scene. It must also be big enough to notice. A caster beyond the maps must cover a pixel, or a fifth of the sun's angular radius, seen from the camera. A caster in the maps must hide 4% of the sun, seen from where its far receivers start. They start 2 km from the camera. So the distance is 2 km minus the distance of the caster from the camera, and at least the radius of the caster. A 50 m ship 500 m away qualifies, and a crate or a person does not. So the cost per pixel grows only with the shadows that can show. The sun is still the one light with shadows. Making every far light work the same way belongs to the point and spot light shadows epic, which is planned (ticket `ter-s9cv`, `docs/plans/local-light-shadows.md`).
 
-The texel grid of each cascade snaps to a world-fixed anchor: the origin of the camera's frame. As a result, shadows do not shimmer as the camera moves. On MoltenVK, a steep caster clipped at the edge of the shadow map gets a flat, wrong depth plane. To avoid it, each cascade box is 16 times deeper than it is wide.
+The texel grid of each cascade snaps to a world-fixed anchor: the origin of the camera's frame. As a result, shadows do not shimmer as the camera moves. On MoltenVK, a steep caster clipped at the edge of the shadow map gets a flat, wrong depth plane. To avoid it, each cascade box is 16 times deeper than it is wide, with a D32 shadow map. When the device cannot filter D32, the map uses D16, which has less precision to spare. The box is then 4 times deeper than it is wide.
 
 ### Impostors
 
-- Below a projected height of 200 px, an object becomes an impostor. Above 300 px, it returns to geometry.
-- The impostor is captured on demand, into a 512 px texture.
-- If the view direction changes by more than 2 / h radians, the renderer captures it again. Here h is the projected height in pixels. A change in sun direction uses the same rule.
-- Captures go through a priority queue ordered by error, with a budget of 4 captures per frame.
+- The projected height h of an object is the diameter in pixels of the image of its bounding sphere at the center of the screen. Below 200 px, an object becomes an impostor. Above 300 px, it returns to geometry.
+- An instance with the `NoImpostor`, `Celestial` or `Transparent` flag never becomes an impostor. Neither does an instance with a bounding radius of 0, or with the eye closer than 1.05 bounding radii to its center.
+- The impostor is captured on demand, into a 512 px tile of the impostor atlas, which has `RendererOptions.ImpostorTiles` tiles. A first capture takes a free tile. If none is free, it takes the least recently used tile whose object is out of view or back to geometry. Without such a tile, the first capture waits. Until it has a capture, an impostor draws as geometry.
+- A capture records the view direction, the sun direction, the light that reaches the object and the scale, in object space. It also records r / d, the bounding radius over the distance of the eye. The error of a capture is the largest of these changes since the capture:
+  - The angle between the current and the captured view direction.
+  - The change of r / d, the parallax between the front and the back of the sphere.
+  - The angle between the current and the captured sun direction.
+  - The relative change of the light that reaches the object. That light counts the radiance of the sun times its visibility past the far shadows. It also counts both ambient colors and the hemisphere up in object space. It also counts the irradiance of the point and spot lights, with its direction.
+  - How far the scale has become non-uniform.
+- If error × h is more than 2, about one pixel, the capture is stale. For the view direction, that is a change of more than 2 / h radians.
+- Each rendered frame makes the 4 captures of highest priority. They come from two binary heaps, one of recaptures and one of first captures, merged by priority. A recapture of an impostor that the last rendered frame drew has the priority error × h. That impostor draws its stale capture until the recapture. Any other capture has the priority π × h, the error of the worst view. Its object draws as geometry until the capture.
 - A capture uses a perspective camera at the real eye position, fitted to the bounding sphere. An orthographic capture looked wrong at the switch distance.
-- A capture bakes the sun, ambient light, eclipses and point and spot lights, but not shadow-map shadows.
+- A capture bakes the sun, ambient light, far shadows and point and spot lights, but not shadow-map shadows.
 - A billboard writes its per-pixel depth, so impostors intersect the ground like the real object.
-- The renderer keys impostor state on the entity index and the render part.
+- The renderer keys impostor state on the entity index, the render part, the mesh and the resolved material slot (`ImpostorKey`). So a part that changes its mesh or its material gets a new key, and it never draws an old capture.
+
+### Switches
+
+`RendererOptions` holds the switches of the renderer.
+
+| Option | Default | Effect |
+|---|---|---|
+| `Validation` | Off | The layer `VK_LAYER_KHRONOS_validation`, with synchronization checks. It costs CPU time. |
+| `FramesInFlight` | 2 | How many frames the CPU records while the GPU works on earlier ones, from 1 to 4. |
+| `VSync` | On | FIFO presentation. A headless renderer ignores it. |
+| `Width`, `Height` | 0 | The output size in pixels. A headless renderer needs both. For a window, 0 means the framebuffer size. |
+| `ShadowMapSize` | 2048 | The side of each of the four shadow cascades, in texels. The maps take size² × 16 bytes, 64 MB at the default. |
+| `Impostors` | On | Draws small objects as impostors. |
+| `ImpostorTiles` | 64 | The number of 512 px tiles in the impostor atlas. Each tile takes about 3.3 MB, so the default takes about 213 MB. |
+
+A switch that makes rendering deterministic for snapshot tests is planned, not built (ticket `ter-rtxu`, `docs/plans/renderer-snapshot-tests.md`).
 
 ## Blueprints
 
-A blueprint is a name, a list of component types with optional field values, and optional transform, body and render data. Reflection runs only at blueprint load time. For each component type, the loader compiles one factory delegate. Spawning then costs one delegate call per component.
+A blueprint is a name, a list of component types with optional field values, optional body, render and frame data, and an optional parent. It has no pose. The spawn call gives the frame and the pose (`Blueprints.CreateSpawnDesc`). Frame data, a `FrameSpec`, makes the new entity the owner of a frame.
+
+A blueprint with a parent starts from the resolved blueprint of its parent, which must be registered first. A component type that the parent also lists keeps its place in the list of the parent. Its field values merge, and the values of the child win. The other types of the child come after the types of the parent.
+
+Reflection runs only in `Blueprints.Register`, which C# code calls. For each component type and set of field names, it compiles one factory delegate, which every registry shares. Spawning then costs one delegate call per component. No loader reads blueprint files yet. The file formats and the loader are planned (ticket `ter-jwzd`, `docs/plans/content-formats.md`).
+
+## Host and scripted runs
+
+`Tertius.Host` wires the modules into a program. `ScriptCommand.Run` reads the command line and starts one of three runs. The design is in `docs/plans/host-and-scripted-runs.md`.
+
+| Run | Command line | What it does |
+|---|---|---|
+| Headless script | `--script <file> --headless --out <folder>` | No window and no threads of its own. The calling thread runs the steps of the script, with the ticks back to back. It makes a headless renderer only for a script with a capture step. So a script with dumps only runs on a machine with no GPU. |
+| Script in the window | `--script <file> --out <folder> [--speed <factor>]` | The same script in a window. The simulation thread paces the ticks by the wall clock, times the speed factor. |
+| Free play | `--scene <name> [--speed <factor>] [--record <file>]` | The scene in a window, until the window closes. With `--record`, the host writes the session to the file as a script that replays it. |
+
+- A scene is a named C# function (`Scene`). It fills a new `World` and gives scene ids to some of its entities (`SceneInstance`). The table `DemoScenes.All` lists the scenes of the Demo. A script names its scene.
+- A script is a JSON file of steps, which run in file order: `run`, `post`, `dump`, `capture` and `camera`. Only a `run` step advances time. The ticks run in lock-step with the steps, not with the wall clock.
+- A `dump` step writes a JSON state dump: poses, frames, routed events and errors. A `capture` step renders the current state and writes a PNG image, at the size of the window of the script.
+- A headless capture builds the render snapshot at that moment. It draws the snapshot on the calling thread at interpolation alpha 1, with impostors off. In the window, the simulation thread gives the path of the capture to the render thread. Then it waits until the render thread saves the image.
+- During a script, live input reaches no entity, so a script runs the same with or without a person at the keyboard.
+- In free play, the main thread decides where each input event goes (`InputRouter`). Esc closes the window, F1 switches the debug fly camera on and off, and V makes the next view of the scene the camera. The game sees none of these keys. The window host queues every other event. The simulation thread posts the queued events to the `input` topic before its next tick. So each event joins a known tick, and a recording replays it exactly.
+- The command returns an exit code (`ScriptCommand`). 0 is success, 1 a wrong command line, 2 a file problem, 3 a script problem and 4 a bug. 5 means that the renderer or the window cannot start.
 
 ## Rules for references
 
 - A `ref` into a table never lives past one `Handle` call.
-- Tables grow only at the sync point, so a `ref` taken during a tick is always valid for that tick.
+- Tables grow only outside the parallel part of a tick, so a `ref` taken during a tick is always valid for that tick.
 - A component that needs another entity later stores its `Entity` handle and checks it on use.
 - Mod support will need a registry that drops every reference to mod types before unloading. That work is deferred.

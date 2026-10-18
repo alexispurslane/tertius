@@ -178,7 +178,7 @@ The step record of a frame is a `MotionSample` that describes the frame's motion
 | A dynamic hull | Physics, right after the Jolt update: the hull's pose, its chord (Jolt's velocity), its instant velocity (the chord plus half a step of its acceleration, `InstantMotionOf`), its acceleration and its angular acceleration measured from the change of Jolt's velocities over the step, Jolt's angular velocity, and the measured proper acceleration |
 | A kinematic hull with a sample | Physics, after it snaps the hull onto the sample's pose: the sample that it applied, with every field exact, so the sample's doubles and not Jolt's float velocities |
 | No body, with a sample | The component's sample in the applied buffer, which already is one |
-| A static hull that teleported in the step | Physics: the teleport's pose, with zero velocities and accelerations |
+| A static hull, or a kinematic hull without a sample, that teleported in the step | Physics: the teleport's pose, with zero velocities and accelerations |
 | No body, and the owner wrote its transform in the tick | The sync point: the written pose, with zero velocities and accelerations. This one acts in the same tick, because no physics step stands between the write and the frame. |
 | Anything else | No record. The frame holds still. |
 
