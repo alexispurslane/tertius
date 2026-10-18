@@ -27,13 +27,13 @@ namespace Tertius;
 /// tree parents of a numeric frame ends at a semantic frame: a falling or resting frame lies in a semantic frame or a
 /// nesting frame, an orbit frame lies in a semantic frame, and a nesting frame lies in a semantic frame, on a whole
 /// multiple of <see cref="NumericFrameOptions.NestGrid"/>, and holds only numeric frames. An orbit frame, and only an
-/// orbit frame, has an orbiter: a frame with the Kepler driver that hangs in it, at its origin. At the end of
+/// orbit frame, has an orbiter: a frame with a kinematic hull that hangs in it, at its origin. At the end of
 /// <see cref="UpdateNumericFrames"/>, every falling or resting frame is the home of a body or holds a frame, and every
 /// nesting frame holds a frame and is the home of no body; between updates, the count of bodies is the one of the last
 /// update. <see cref="NumericCount"/> is the number of numeric frames. A semantic frame has an owner and no step
 /// acceleration, and a semantic frame whose tree parent is a numeric frame has the Physics driver, or it is the orbiter of
-/// that frame: a frame that its spin or its owner's writes move moves relative to its semantic parent, and a frame that
-/// its orbit moves hangs in its semantic parent or in its orbit frame, which follows the orbit. Such a frame also owns a
+/// that frame: a frame with a static hull or without a hull moves relative to its semantic parent, and a frame with a
+/// kinematic hull hangs in its semantic parent or in its orbit frame, which follows the frame's motion samples. Such a frame also owns a
 /// hull that was a body of the last update: only the update moves a frame into a numeric frame, with its hull, and a frame
 /// without a hull goes to the semantic frame when the frame that holds it dies (see <see cref="Heir"/>). Every ghost of
 /// <see cref="AnchorGhosts"/> names the hull of the orbiter of a live orbit frame and a live frame of that orbiter's
@@ -382,7 +382,7 @@ public sealed partial class FrameTree
     /// it. Every call changes <see cref="Version"/> and <see cref="DriverVersion"/>, also a call that gives the frame the
     /// driver that it has. So physics follows the call at the start of its next step, the same way that it follows a
     /// reparent: it puts the frame's hull at the frame's pose and velocity in the tree. A frame that hangs in its orbit
-    /// frame and gets another driver than Kepler leaves that frame falling, because no orbit moves it any more: a frame
+    /// frame and gets a driver whose hull is not kinematic leaves that frame falling, because no sample moves it any more: a frame
     /// with the Physics driver may hang in a falling frame, and the numeric update moves any other one, with its hull, into
     /// its semantic parent. Throws <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
@@ -394,7 +394,7 @@ public sealed partial class FrameTree
     {
         Contract.Requires(Enum.IsDefined(motion));
         int id = Node(frame).Id;
-        if (motion != MotionDriver.Kepler && InOrbitFrame(frame))
+        if (BodyDesc.FrameHullMotion(motion) != BodyMotion.Kinematic && InOrbitFrame(frame))
             LeaveOrbit(TreeParent(frame));
         driver[id] = motion;
         driverVersion[id]++;
@@ -499,10 +499,10 @@ public sealed partial class FrameTree
                 Contract.Invariant(orbiter[id].IsNull);
                 // A nesting frame holds only numeric frames.
                 Contract.Invariant(parentMode != NumericMode.Nesting);
-                // A frame that its spin or its owner's writes move moves relative to its semantic parent, and a frame that its
-                // orbit moves hangs in its semantic parent or at the origin of its orbit frame.
+                // A frame with a static hull or without a hull moves relative to its semantic parent, and a frame with a kinematic
+                // hull hangs in its semantic parent or at the origin of its orbit frame.
                 if (parentMode == NumericMode.Orbiting && orbiter[parent.Index] == frame)
-                    Contract.Invariant(Driver(frame) == MotionDriver.Kepler && locals[i].Position == Double3.Zero);
+                    Contract.Invariant(BodyDesc.FrameHullMotion(Driver(frame)) == BodyMotion.Kinematic && locals[i].Position == Double3.Zero);
                 else if (parentMode != NumericMode.None)
                     Contract.Invariant(Driver(frame) == MotionDriver.Physics);
                 // Only a frame with a hull hangs in a numeric frame.

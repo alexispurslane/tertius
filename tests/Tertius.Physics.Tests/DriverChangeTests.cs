@@ -163,7 +163,7 @@ public class DriverChangeTests
             Frame = planet,
             Body = BoxBody(10, 1000),
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler, Orbit: orbit),
-        });
+        }.OnKeplerOrbit(world, orbit));
         FrameHandle station = world.GetOwnedFrame(owner);
         Tick(world, 10);
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Kinematic);

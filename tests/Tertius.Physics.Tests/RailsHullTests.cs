@@ -110,8 +110,9 @@ public class RailsHullTests
 
         Tick(world, 3);
 
+        // The applied buffer holds what the tick wrote. The followed buffer holds the step record that physics measured for
+        // the dynamic hull, which is no sample of the component.
         world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out _).Should().BeFalse();
-        world.Frames.Samples.Followed.TryGet(world.GetOwnedFrame(owner), out _).Should().BeFalse();
         log.Where(line => line.Contains(owner.ToString())).Should().ContainSingle();
         world.Errors.Should().BeEmpty();
     }

@@ -145,7 +145,7 @@ public class RenderSnapshotInterpolationTests
         {
             Frame = test.Root,
             AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler, Orbit: orbit),
-        }));
+        }.OnKeplerOrbit(test.World, orbit)));
         Entity satellite = test.Show(moon, TestWorld.At(100, 0, 0));
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
         test.Run(2);
@@ -168,7 +168,7 @@ public class RenderSnapshotInterpolationTests
         {
             Frame = test.Root,
             AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler, Orbit: orbit),
-        }));
+        }.OnKeplerOrbit(test.World, orbit)));
         FrameHandle dock = test.SpawnStaticFrame(new DPose(new Double3(-3e6, 1e5, 42.5), PoseChecks.QuarterTurnAboutY), radius: 1e6f);
         FrameHandle yard = test.SpawnStaticFrame(
             new DPose(new Double3(4e6, -2e5, 7.25), DQuaternion.FromAxisAngle(new Double3(1, 1, 0), 0.3)), radius: 1e6f);

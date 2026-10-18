@@ -74,17 +74,19 @@ public static class Scenes
     /// <summary>
     /// A planet with a G·M of <paramref name="planetMu"/> m³/s² as the root frame, and a moon on a circular orbit of
     /// <paramref name="orbitRadius"/> m round it, with the moon's bubble at <paramref name="bubbleRadius"/> m. The moon
-    /// starts at the angle <paramref name="phase"/> rad round the planet's +Y. The moon takes its G·M from the planet's
-    /// point gravity, and so does every loose body in the planet's frame.
+    /// starts at the angle <paramref name="phase"/> rad round the planet's +Y, at its place on the orbit at the world's time,
+    /// and a <see cref="KeplerMotion"/> moves it from the second sync point after its spawn on (see <see cref="RailsSpawn"/>).
+    /// The moon takes its G·M from the planet's point gravity, and so does every loose body in the planet's frame.
     /// </summary>
     public static MoonScene MoonOnKeplerOrbit(World world, double planetMu = EarthMu, double orbitRadius = 7e6, float bubbleRadius = 50, double phase = 0.7)
     {
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(planetMu)));
+        var orbit = KeplerOrbit.Circular(orbitRadius, phase: phase);
         FrameHandle moon = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(bubbleRadius), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(orbitRadius, phase: phase)),
-        }));
+            AsFrame = new FrameSpec(FrameBounds.Sphere(bubbleRadius), MotionDriver.Kepler, Orbit: orbit),
+        }.OnKeplerOrbit(world, orbit)));
         return new MoonScene(planet, moon);
     }
 
@@ -102,8 +104,9 @@ public static class Scenes
         world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(AsteroidMu)));
 
     /// <summary>
-    /// The owner of a frame with the Kepler driver in <paramref name="space"/>, an <see cref="AsteroidSpace"/>, on a circular
-    /// orbit of 5 km at phase 0: its hull, of <paramref name="body"/>, starts at (5000, 0, 0) and moves along -Z at 2 km/s,
+    /// The owner of a frame with the Kepler driver in <paramref name="space"/>, an <see cref="AsteroidSpace"/>, whose
+    /// <see cref="KeplerMotion"/> moves it on a circular orbit of 5 km at phase 0 (see <see cref="RailsSpawn"/>): its hull, of
+    /// <paramref name="body"/>, starts on the orbit at the world's time, at (5000, 0, 0) at time 0, and moves along -Z at 2 km/s,
     /// so it lives in an orbit frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). Its bubble is a sphere
     /// of 1 cm, so that no body near the hull enters it. A static body that the hull passes is an anchor at rest, which no
     /// home shares with the hull: a group that links the two lives in the static body's home, and that home keeps a ghost
@@ -115,7 +118,7 @@ public static class Scenes
         Body = body,
         AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(5_000)),
         Components = components,
-    });
+    }.OnKeplerOrbit(world, KeplerOrbit.Circular(5_000)));
 
     /// <summary>Where a ball starts and how fast it flies, so that it enters a bubble in a chosen tick. See <see cref="BallApproachingBubble"/>.</summary>
     /// <param name="Pose">The pose of the ball in the frame of the bubble's parent, in meters.</param>

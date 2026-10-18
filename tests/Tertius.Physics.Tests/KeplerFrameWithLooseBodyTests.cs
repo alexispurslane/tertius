@@ -96,7 +96,7 @@ public class KeplerFrameWithLooseBodyTests
         {
             Frame = planet,
             AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(OrbitRadius, phase: 0.7)),
-        }));
+        }.OnKeplerOrbit(world, KeplerOrbit.Circular(OrbitRadius, phase: 0.7))));
         Tick(world, 5);
         return (world, planet, ship);
     }

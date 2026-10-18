@@ -45,6 +45,7 @@ public class KeplerParentGravityTests
     {
         Frame = parent,
         AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Kepler, Orbit: MoonOrbit),
+        Components = [new KeplerMotion { Orbit = MoonOrbit }],
     };
 
     /// <summary>A frame that does not move and has an orbit, which it keeps for a later Kepler driver.</summary>

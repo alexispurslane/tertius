@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Numerics;
 using JoltPhysicsSharp;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Physics;
 
@@ -50,15 +51,16 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private readonly List<FrameWorld> lostWorlds = new();
     private int reconciledFrameVersion = -1;
 
-    // Predicted end-of-step motion of frames that physics does not drive, by frame index, valid for one step.
-    private FrameMotion[] predicted = new FrameMotion[16];
+    // The step record at the end of the step of each frame without a dynamic hull, by frame index, valid for one step (see
+    // StepRecordOf).
+    private MotionSample[] predicted = new MotionSample[16];
     // Steps count from 1, so a fresh entry of 0 never counts as cached. Only Step uses the cache.
     private long[] predictedStep = new long[16];
 
     private FrameTree frames = null!;
+    // The motion samples that the current step applies, by frame (see PhysicsStepContext.Samples).
+    private MotionSamples stepSamples;
     private long stepIndex;
-    private double stepTime;
-    private double stepEndTime;
     private float stepDt;
     private bool disposed;
 
@@ -274,8 +276,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             bugReport = output.Errors;
             stepIndex++;
             stepDt = context.DeltaTime;
-            stepTime = context.Time;
-            stepEndTime = context.Time + context.DeltaTime;
+            stepSamples = context.Samples;
 
             // The World hands physics a batch at every sync point, which reconciles, but the game can change the tree
             // between two ticks with no batch, for example to dock a ship, and a batch that failed reconciled nothing.
@@ -288,10 +289,16 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             ConvertSpawnVelocities();
             CaptureHullVelocities();
             ApplyIntents(context);
-            DriveKinematicHulls();
+            // After the intents, so that the teleport of a hull on rails applies first, and the target moves the hull on
+            // from there.
+            AimHullsOnRails();
+            FollowStaticHulls();
+            CaptureHullVelocitiesAfterIntents();
             ApplyGravity();
             UpdateCharacters();
             UpdateSystems();
+            // Before anything reads the end of the step: the proper accelerations, the contacts, the hand-offs and the ghosts.
+            SnapHullsOnRails();
             ComputeProperAccelerations();
             CollectContacts(output);
             HandOffBodies(output);
@@ -804,9 +811,28 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         queryBodyFilter?.ForgetBodies();
     }
 
-    /// <summary>Predicted motion of a frame that physics does not drive, at the end of the current step, relative to its tree parent.</summary>
-    private FrameMotion PredictedMotion(FrameHandle frame)
+    /// <summary>
+    /// The step record of <paramref name="frame"/> at the end of the current step, relative to its tree parent now, after any
+    /// hand-off of the step (see "One motion record per frame" in docs/plans/rails-components.md). Physics predicts every
+    /// frame from it: ghosts take its chord (see <see cref="MotionOf"/>), hand-offs its instant velocity (see
+    /// <see cref="InstantMotionOf"/>). The owner's kind decides it:
+    /// <list type="bullet">
+    /// <item>A dynamic hull: Jolt's state after the update (see <see cref="TryHullRecord"/>).</item>
+    /// <item>A kinematic hull, or no body, with a sample: the sample, in the tree parent. A hull at the origin of its orbit
+    /// frame rests there, with the sample's rotation and no velocity (see <see cref="RailsTarget"/>): the orbit frame's own
+    /// chord and instant velocity are the sample's, to the jerk of its motion times the square of a step, and physics takes
+    /// a numeric home's instant velocity half a step of its acceleration past its chord (see "Instant velocities and chords"
+    /// in JoltPhysicsBackend.Chords.cs). The record that physics releases for the tree differs there (see
+    /// <see cref="WriteFrames"/>).</item>
+    /// <item>Anything else: the tree pose, with no velocity. The frame holds still.</item>
+    /// </list>
+    /// The records of the frames without a dynamic hull do not change during the step, so each is made once a step. Call it
+    /// only after <see cref="ComputeProperAccelerations"/>.
+    /// </summary>
+    private MotionSample StepRecordOf(FrameHandle frame)
     {
+        if (TryHullRecord(frame, out MotionSample record))
+            return record;
         int index = frame.Index;
         if (index >= predicted.Length)
         {
@@ -816,68 +842,68 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         }
         if (predictedStep[index] == stepIndex)
             return predicted[index];
-        FrameMotion motion = PredictMotion(frame, stepEndTime);
-        predicted[index] = motion;
+        record = PredictRecord(frame);
+        predicted[index] = record;
         predictedStep[index] = stepIndex;
-        return motion;
+        return record;
     }
 
-    /// <summary>
-    /// The motion of a frame relative to its tree parent at <paramref name="time"/>. A Kepler frame uses its orbit, as the
-    /// tree places it (see <see cref="FrameTree.KeplerMotion"/>), when the tree pose matches the orbit at the step start:
-    /// at the orbit's place in its semantic parent, or at the origin of its orbit frame, with the rest of the orbit's
-    /// velocity. Anything else extrapolates the tree pose with the tree velocities. A Spin frame turns at a steady rate in
-    /// place, so that extrapolation is its exact motion.
-    /// </summary>
-    private FrameMotion PredictMotion(FrameHandle frame, double time)
+    /// <summary>The step record of a frame without a dynamic hull at the end of the current step (see <see cref="StepRecordOf"/>).</summary>
+    private MotionSample PredictRecord(FrameHandle frame)
     {
-        DPose pose = frames.TreeLocalPose(frame);
-        MotionDriver driver = frames.Driver(frame);
-        if (driver == MotionDriver.Static)
-            return new FrameMotion(pose, Double3.Zero, Double3.Zero);
-
-        if (driver == MotionDriver.Kepler && OrbitMatchesTree(frames.KeplerMotion(frame, stepTime).Pose, pose))
+        BodyRecord? hull = OwnerRecord(frame);
+        if ((hull is null || hull.Motion == BodyMotion.Kinematic) && stepSamples.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
         {
-            (DPose onOrbit, Double3 orbitVelocity, Double3 orbitAngular) = frames.KeplerMotion(frame, time);
-            return new FrameMotion(onOrbit, orbitVelocity, orbitAngular);
+            if (hull is { HasPrimary: true } && frames.InOrbitFrame(frame))
+            {
+                DPose target = RailsTarget(hull, sample, relativeTo);
+                return sample with
+                {
+                    Pose = new DPose(target.Position, sample.Pose.Rotation),
+                    ChordVelocity = Double3.Zero,
+                    Velocity = Double3.Zero,
+                    Acceleration = Double3.Zero,
+                };
+            }
+            // A frame with a sample hangs in its semantic parent, which the sample is relative to (see FrameTree).
+            Contract.Assert(relativeTo == frames.TreeParent(frame), $"The sample of {frame} is relative to {relativeTo}, not to its tree parent {frames.TreeParent(frame)}.");
+            return sample;
         }
-
-        double ahead = time - stepTime;
-        Double3 linear = frames.TreeLinearVelocity(frame);
-        Double3 angular = frames.AngularVelocity(frame);
-        var extrapolated = new DPose(pose.Position + linear * ahead, Rotations.Integrate(pose.Rotation, angular, ahead));
-        return new FrameMotion(extrapolated, linear, angular);
-    }
-
-    private static bool OrbitMatchesTree(in DPose orbitPose, in DPose treePose)
-    {
-        double tolerance = 1e-3 + 1e-9 * treePose.Position.Length;
-        if ((orbitPose.Position - treePose.Position).Length > tolerance)
-            return false;
-        DQuaternion rotation = orbitPose.Rotation;
-        DQuaternion q = treePose.Rotation;
-        double dot = Math.Abs(rotation.X * q.X + rotation.Y * q.Y + rotation.Z * q.Z + rotation.W * q.W);
-        return dot > 1 - 1e-6;
+        return new MotionSample(frames.TreeLocalPose(frame), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
+            frames.ProperAcceleration(frame));
     }
 
     /// <summary>
-    /// The motion of <paramref name="frame"/> relative to its current parent at the end of the step. A
-    /// physics-driven frame reads its hull body; other frames use their prediction. Call it only during a step.
+    /// The motion of <paramref name="frame"/> relative to its current parent at the end of the step, with the chord of its
+    /// step record as its velocity, which a ghost follows (see <see cref="StepRecordOf"/>). Call it only during a step.
     /// </summary>
-    private FrameMotion MotionOf(FrameHandle frame) =>
-        TryHullMotion(frame, out FrameMotion motion) ? motion : PredictedMotion(frame);
-
-    private bool TryHullMotion(FrameHandle frame, out FrameMotion motion)
+    private FrameMotion MotionOf(FrameHandle frame)
     {
-        if (frames.Driver(frame) == MotionDriver.Physics && OwnerRecord(frame) is { HasPrimary: true, Character: null } hull)
+        MotionSample record = StepRecordOf(frame);
+        return new FrameMotion(record.Pose, record.ChordVelocity, record.AngularVelocity);
+    }
+
+    /// <summary>
+    /// The step record of the frame of a dynamic hull at the end of the step, from Jolt's state after the update, relative
+    /// to the hull's system: the hull's pose; the velocity of the frame's origin, the chord of the step, as Jolt keeps it;
+    /// the instant velocity at the end of the step, half a step of the hull's acceleration further on; that acceleration in
+    /// the update, the change of Jolt's velocity without its float noise and without what the intents set before the
+    /// update (see <see cref="ComputeProperAccelerations"/>); Jolt's angular velocity and the change of it in the update;
+    /// and the proper acceleration. False for any other frame.
+    /// </summary>
+    private bool TryHullRecord(FrameHandle frame, out MotionSample record)
+    {
+        if (OwnerRecord(frame) is { Motion: BodyMotion.Dynamic, HasPrimary: true, Character: null } hull)
         {
             BodySnapshot s = ReadPrimary(hull);
             // Jolt's velocity is at the center of mass. The frame origin is the body origin.
-            Double3 originVelocity = (Double3)s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);
-            motion = new FrameMotion(s.Pose, originVelocity, s.Angular);
+            Double3 chord = (Double3)s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);
+            Double3 acceleration = hull.StepAcceleration;
+            record = new MotionSample(s.Pose, chord, chord + acceleration * (0.5 * stepDt), acceleration, s.Angular, hull.AngularAcceleration,
+                hull.ProperAcceleration);
             return true;
         }
-        motion = default;
+        record = default;
         return false;
     }
 }

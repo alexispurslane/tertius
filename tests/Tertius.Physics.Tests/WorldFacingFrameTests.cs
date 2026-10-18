@@ -32,7 +32,7 @@ public class WorldFacingFrameTests
             Frame = planet,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), Mass: 1000),
             AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler, Orbit: Facing),
-        });
+        }.OnKeplerOrbit(world, Facing));
         return (world, backend, planet, owner);
     }
 
@@ -79,7 +79,7 @@ public class WorldFacingFrameTests
                 Frame = planet,
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), Mass: 1000),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler, Orbit: oval),
-            });
+            }.OnKeplerOrbit(world, oval));
 
             Tick(world, 942);
 

@@ -70,7 +70,7 @@ public partial class NumericFrameOrbitTests
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = earth, Body = StationHull, AsFrame = new FrameSpec(FrameBounds.Sphere(BubbleRadius), MotionDriver.Kepler, Orbit: path),
-        });
+        }.OnKeplerOrbit(world, path));
         return new Station(earth, owner, world.GetOwnedFrame(owner), path);
     }
 
@@ -236,7 +236,7 @@ public partial class NumericFrameOrbitTests
         Entity hull = world.Spawn(new SpawnDesc
         {
             Frame = earth, Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f), AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: far),
-        });
+        }.OnKeplerOrbit(world, far));
         (Double3 place, Double3 velocity) = far.StateAt(world.Time, Scenes.EarthMu);
         Entity crate = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Crate });
         world.Tick();
@@ -376,7 +376,7 @@ public partial class NumericFrameOrbitTests
             Frame = space,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f, Restitution: 0),
             AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(FarOrbitRadius)),
-        });
+        }.OnKeplerOrbit(world, KeplerOrbit.Circular(FarOrbitRadius)));
         Entity rock = world.Spawn(new SpawnDesc
         {
             Frame = space, Pose = At(FarOrbitRadius + 8, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static),

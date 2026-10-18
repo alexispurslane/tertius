@@ -27,7 +27,7 @@ public class WorldFrameReadTests
             Frame = parent,
             Pose = WorldTesting.At(10, 0, 0),
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin, Spin: spin),
-        });
+        }.Spinning(world, spin));
         return world.GetOwnedFrame(owner);
     }
 

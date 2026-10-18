@@ -31,16 +31,6 @@ internal static class Conversions
 /// <summary>Rotation helpers in double precision.</summary>
 internal static class Rotations
 {
-    /// <summary>Turns <paramref name="rotation"/> by the angular velocity <paramref name="omega"/> (parent axes) for <paramref name="time"/> seconds.</summary>
-    public static DQuaternion Integrate(DQuaternion rotation, Double3 omega, double time)
-    {
-        double speed = omega.Length;
-        double angle = speed * time;
-        if (angle == 0)
-            return rotation;
-        return (DQuaternion.FromAxisAngle(omega / speed, angle) * rotation).Normalized();
-    }
-
     /// <summary>The constant angular velocity (parent axes) that turns <paramref name="from"/> into <paramref name="to"/> in <paramref name="time"/> seconds.</summary>
     public static Double3 AngularVelocity(DQuaternion from, DQuaternion to, double time)
     {

@@ -1,4 +1,6 @@
+using System.Numerics;
 using AwesomeAssertions;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation.Tests;
 
@@ -109,5 +111,67 @@ public class FrameMotionTests
 
         test.World.PoseInOwnFrame(station.Entity).Should().Be(test.World.Frames.LocalPose(station));
         test.World.PoseInOwnFrame(station.Entity).Position.Should().Be(new Double3(50, 6, 7));
+    }
+
+    // ---- The step record of a write (docs/plans/rails-components.md, "One motion record per frame") ----------------
+
+    [Fact]
+    public void AFrameWithoutABodyFollowsItsOwnersWriteAtTheSyncPointOfTheTickAndTakesItAsItsStepRecord()
+    {
+        using var test = new TestWorld();
+        var written = new DPose(new Double3(3, 4, 5), PoseChecks.QuarterTurnAboutY);
+        FrameHandle frame = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (self.Tick == 1)
+                    self.SetTransform(written);
+            })],
+        }));
+
+        test.Run(2);
+
+        test.World.Frames.LocalPose(frame).Should().Be(written);
+        test.World.Frames.Samples.Followed.TryGet(frame, out MotionSample record, out FrameHandle relativeTo).Should().BeTrue();
+        relativeTo.Should().Be(test.Root);
+        record.Should().Be(new MotionSample(written, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Vector3.Zero),
+            "a write moves the frame with no velocity");
+    }
+
+    [Fact]
+    public void WhenItsParentDiesAtTheSameSyncPointAFrameWithoutABodyStillFollowsItsOwnersWrite()
+    {
+        using var test = new TestWorld();
+        var dockPose = new DPose(new Double3(100, 0, 0), PoseChecks.QuarterTurnAboutY);
+        FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Pose = dockPose,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static),
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (self.Tick == 1)
+                    self.Destroy();
+            })],
+        }));
+        var written = new DPose(new Double3(3, 4, 5), DQuaternion.Identity);
+        FrameHandle room = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        {
+            Frame = dock,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static),
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (self.Tick == 1)
+                    self.SetTransform(written);
+            })],
+        }));
+
+        test.Run(2);
+
+        test.World.Frames.IsAlive(dock).Should().BeFalse();
+        test.World.Frames.Parent(room).Should().Be(test.Root);
+        PoseChecks.AssertNear(test.World.Frames.LocalPose(room).Position, DPose.Compose(dockPose, written).Position);
     }
 }

@@ -4,7 +4,8 @@ namespace Tertius;
 
 /// <summary>
 /// The motion samples of the frames, by frame index, in three buffers. A sample is one step of rails motion that the owner
-/// of a frame wrote with <c>Self.MoveOnRails</c> (see <see cref="MotionSample"/>). The tree that owns the table sizes it
+/// of a frame wrote with <c>Self.MoveOnRails</c> (see <see cref="MotionSample"/>), or the step record that a frame took at a
+/// sync point (see <see cref="Record"/>). The tree that owns the table sizes it
 /// with its own rows (see <see cref="FrameTree.Samples"/>).
 /// <list type="bullet">
 /// <item><see cref="Written"/>: the samples that gameplay writes during the running tick.</item>
@@ -65,6 +66,23 @@ internal sealed class MotionSampleTable
     {
         Contract.Requires(frames.IsAlive(frame));
         writtenRows[frame.Index] = new Row(frame, relativeTo, sample, round);
+    }
+
+    /// <summary>
+    /// Step 2 of the sync point: puts the step record that <paramref name="frame"/> took, relative to
+    /// <paramref name="relativeTo"/>, into the frame's slot of the applied buffer, unless the slot holds a sample of the frame
+    /// already, which is then the record (see "One motion record per frame" in docs/plans/rails-components.md). So after
+    /// <see cref="MoveOn"/>, the followed buffer holds the record of every frame that moved in the step. Returns true when it
+    /// put the record there.
+    /// </summary>
+    internal bool Record(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
+    {
+        Contract.Requires(frames.IsAlive(frame));
+        ref Row row = ref appliedRows[frame.Index];
+        if (row.Round == round - 1 && row.Frame == frame)
+            return false;
+        row = new Row(frame, relativeTo, record, round - 1);
+        return true;
     }
 
     /// <summary>

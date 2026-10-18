@@ -30,7 +30,7 @@ public class SpinFrameTests
             Pose = new DPose(place, DQuaternion.FromAxisAngle(Double3.UnitX, 1)),
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin, Spin: spin),
             Components = components,
-        });
+        }.Spinning(test.World, spin));
 
     // ---- How a spin frame moves ---------------------------------------------------------------------------------
 
@@ -260,7 +260,7 @@ public class SpinFrameTests
             Frame = test.Root,
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin, Spin: QuarterTurnPerSecond),
             Body = new BodyDesc(Ramp, BodyMotion.Static),
-        });
+        }.Spinning(test.World, QuarterTurnPerSecond));
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*mesh*Spin driver*");
         test.World.Stats.LiveEntities.Should().Be(before);

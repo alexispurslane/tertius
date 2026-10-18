@@ -132,6 +132,20 @@ internal sealed class BodyRecord
     // Per-step bookkeeping.
     public Vector3 VelocityBefore;
     /// <summary>
+    /// For a dynamic hull: Jolt's velocities after the intents of the step, which can set them or add an impulse, and
+    /// before the update, for its frame's acceleration and angular acceleration over the step.
+    /// </summary>
+    public Vector3 VelocityAfterIntents, AngularVelocityAfterIntents;
+    /// <summary>
+    /// For a dynamic hull: its acceleration and angular acceleration in the last update, in the axes of its home: the
+    /// gravity that the step applied plus its proper acceleration, less the change of velocity that the intents made
+    /// before the update, and the change of Jolt's angular velocity in the update, each divided by the step.
+    /// </summary>
+    public Double3 StepAcceleration;
+    public Vector3 AngularAcceleration;
+    /// <summary>The step whose intent teleported the body, or -1.</summary>
+    public long TeleportStep = -1;
+    /// <summary>
     /// The effective gravity that the last step applied to the body, in the axes of its home: to a dynamic rigid body
     /// while it was awake, and to a character that the ground did not hold (zero when it did).
     /// </summary>

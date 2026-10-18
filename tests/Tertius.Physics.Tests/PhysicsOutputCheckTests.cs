@@ -79,7 +79,7 @@ public class PhysicsOutputCheckTests
                 Frame = Space,
                 Body = BoxBody(1, 10),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(200, phase: 1.0)),
-            }));
+            }.OnKeplerOrbit(World, KeplerOrbit.Circular(200, phase: 1.0))));
             Entity goneOwner = World.Spawn(new SpawnDesc
             {
                 Frame = Space,

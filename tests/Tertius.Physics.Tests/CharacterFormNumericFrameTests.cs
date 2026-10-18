@@ -133,7 +133,7 @@ public class CharacterFormNumericFrameTests
         Entity hull = world.Spawn(new SpawnDesc
         {
             Frame = earth, Body = Core, AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler, Orbit: LowOrbit),
-        });
+        }.OnKeplerOrbit(world, LowOrbit));
         (Double3 place, Double3 velocity) = LowOrbit.StateAt(world.Time, Scenes.EarthMu);
         var offset = new Double3(0, -3.5, 0);
         Entity person = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + offset, DQuaternion.Identity), LinearVelocity = velocity, Body = Person });
@@ -192,7 +192,7 @@ public class CharacterFormNumericFrameTests
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = earth, Body = plate ? StationHull : Core, AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius), MotionDriver.Kepler, Orbit: LowOrbit),
-        });
+        }.OnKeplerOrbit(world, LowOrbit));
         FrameHandle station = world.GetOwnedFrame(owner);
         Entity person = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 10), LinearVelocity = new Double3(0, 1, 0), Body = Person });
 

@@ -49,7 +49,7 @@ public sealed partial class World
             throw new ArgumentException($"Cannot attach: {problem}", nameof(desc));
 
         Entity entity = entities.Reserve();
-        MakeLive(entity, desc, plan, frame, Time);
+        MakeLive(entity, desc, plan, frame);
         if (!desc.AttachTo.IsNull)
             attachments.Attach(entity, desc.AttachTo, desc.AttachOffset);
         FinishOutsideTickChange();
@@ -174,37 +174,23 @@ public sealed partial class World
         // applies them, and none is left when the hull hands off (see AssertSamplesNeedNoConversion).
         if (!Frames.Parent(frame).IsNull && entities.Body(frame.Entity) != null && BodyDesc.FrameHullMotion(driver) != BodyMotion.Kinematic)
             Frames.Samples.Drop(frame);
-        PlaceByDriver(frame, driver);
-        // A frame whose spin or whose owner's writes move it moves relative to its semantic parent, and a frame whose orbit
-        // moves it fast or far hangs in an orbit frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). So a
-        // numeric update moves the hull, with its frame, into the home that the new driver gives it, at once: out of a
-        // numeric frame for the Static and Spin drivers, and into or out of an orbit frame for the Kepler driver. It runs
-        // after the driver placed the frame, so that the merge test sees the hull where the driver put it and links the
-        // bodies there, as without numeric frames, where the hull meets them there in the next step; a hull that jumps to
-        // its orbit takes no body along from where it was. The move carries the velocity of the old home into the frame,
-        // so the driver places the frame again in its new home: a frame that gets the static driver stops where it is.
-        if (physics != null && (driver == MotionDriver.Kepler ||
-            driver != MotionDriver.Physics && Frames.TreeParent(frame) is { IsNull: false } treeParent && Frames.IsNumeric(treeParent)))
+        MirrorFrameOwner(frame);
+        // A frame with a static hull moves relative to its semantic parent, and a frame with a kinematic hull hangs there or
+        // in an orbit frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3; see FrameTree). So when the frame
+        // hangs in another numeric frame, a numeric update moves the hull, with its frame, into the home that the new driver
+        // gives it, at once: out of the numeric frame for a static hull, and out of it or into an orbit frame of its own for
+        // a kinematic one. The frame keeps its place, so the merge test sees the hull where it is. The move carries the
+        // velocity of the old home into the frame, so a frame that gets the Static driver gets it again and stops there. A
+        // frame in its semantic parent stays there until the numeric update of the next sync point.
+        if (physics != null && driver != MotionDriver.Physics && Frames.TreeParent(frame) is { IsNull: false } treeParent &&
+            Frames.IsNumeric(treeParent) && !Frames.InOrbitFrame(frame))
         {
             UpdateNumericFrames(0);
             if (driver == MotionDriver.Static)
                 Frames.SetDriver(frame, driver);
-            PlaceByDriver(frame, driver);
+            MirrorFrameOwner(frame);
         }
         FinishOutsideTickChange();
-    }
-
-    /// <summary>
-    /// Puts a frame where its new driver puts it at the world's time, and its owner's row with it: a Kepler frame on its
-    /// orbit, a Spin frame turned to its spin. A Static or Physics frame keeps its pose.
-    /// </summary>
-    private void PlaceByDriver(FrameHandle frame, MotionDriver driver)
-    {
-        if (driver == MotionDriver.Kepler)
-            ApplyKepler(frame, Time);
-        else if (driver == MotionDriver.Spin)
-            ApplySpin(frame, Time);
-        MirrorFrameOwner(frame);
     }
 
     /// <summary>
@@ -416,7 +402,7 @@ public sealed partial class World
     /// Makes a reserved entity live in <paramref name="frame"/>: writes its rows and registers it with frames, physics and
     /// topics. The frame is the one that the description names, or for an attached entity the frame of its parent.
     /// </summary>
-    private void MakeLive(Entity entity, SpawnDesc desc, SpawnPlan plan, FrameHandle frame, double time)
+    private void MakeLive(Entity entity, SpawnDesc desc, SpawnPlan plan, FrameHandle frame)
     {
         // The description is the caller's, and its rotation can be any rotation that spawn accepted. The local pose of a
         // frame must be unit length (see FrameTree), so the world normalizes it here, and does not refuse it.
@@ -437,19 +423,11 @@ public sealed partial class World
         {
             own = Frames.Create(entity, frame, pose, spec.Bounds, spec.Driver, spec.Gravity, spec.Orbit, spec.Spin);
             topics.AddFrame(own);
-            if (spec.Driver == MotionDriver.Kepler)
-            {
-                ApplyKepler(own, time);
-            }
-            else if (spec.Driver == MotionDriver.Spin)
-            {
-                ApplySpin(own, time);
-            }
-            else
-            {
-                Frames.TreeLinearVelocity(own) = desc.LinearVelocity;
-                Frames.AngularVelocity(own) = desc.AngularVelocity;
-            }
+            // Every new frame stands at the pose of its spawn description, with its velocities. A frame on rails holds still
+            // there for its first step, which runs before its components do, and the first sample of its rails component
+            // puts it on its rails (docs/plans/rails-components.md, "Other rules" in "The rails components").
+            Frames.TreeLinearVelocity(own) = desc.LinearVelocity;
+            Frames.AngularVelocity(own) = desc.AngularVelocity;
             physicsChanges.FramesCreated.Add(own);
             row = FrameOwnerRow(own);
             velocity = Frames.LinearVelocity(own);
@@ -471,7 +449,7 @@ public sealed partial class World
     /// after its parent, because each one takes the frame of its parent. So a child can also name a parent that a later
     /// chunk spawned in the same tick.
     /// </summary>
-    private void MakeSpawnsLive(double time)
+    private void MakeSpawnsLive()
     {
         foreach (ChunkState chunk in entities.Chunks)
         {
@@ -489,10 +467,10 @@ public sealed partial class World
                     entities.Release(spawn.Entity);
                     continue;
                 }
-                MakeLive(spawn.Entity, spawn.Desc, spawn.Plan, frame, time);
+                MakeLive(spawn.Entity, spawn.Desc, spawn.Plan, frame);
             }
         }
-        MakeAttachedSpawnsLive(time);
+        MakeAttachedSpawnsLive();
     }
 
     /// <summary>
@@ -503,7 +481,7 @@ public sealed partial class World
     /// pass makes none live, the rest never become live: the parent died in the destroy batch, or it was never live, or
     /// the spawns wait for each other in a loop. The world drops each of them and records an error.
     /// </summary>
-    private void MakeAttachedSpawnsLive(double time)
+    private void MakeAttachedSpawnsLive()
     {
         for (bool madeOneLive = true; madeOneLive;)
         {
@@ -514,7 +492,7 @@ public sealed partial class World
                 PendingSpawn spawn = waitingAttachedSpawns[i];
                 if (attachments.CheckParent(spawn.Desc.AttachTo, out FrameHandle frame) is null)
                 {
-                    MakeLive(spawn.Entity, spawn.Desc, spawn.Plan, frame, time);
+                    MakeLive(spawn.Entity, spawn.Desc, spawn.Plan, frame);
                     attachments.Attach(spawn.Entity, spawn.Desc.AttachTo, spawn.Desc.AttachOffset);
                     madeOneLive = true;
                 }
@@ -692,16 +670,30 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Converts the applied and the followed motion samples of each frame that the destroy batch moves into the frame that
-    /// its owner moved to, before the dying frames go. Each such sample is relative to the frame's semantic parent, which
-    /// dies. Both buffers hold samples at step 5: the followed samples of the step that ended, which the numeric update of
-    /// step 6c reads, and the applied samples of the next step.
+    /// Converts each applied and followed row of the sample table that is relative to a dying frame, or to a numeric frame in
+    /// one, into the frame that the row's frame's owner is in after the rehomes, before the dying frames go. Each row names
+    /// the frame that it is relative to: a sample its owner's frame when the owner wrote it, and a record the frame's
+    /// semantic parent when the frame took it (see <see cref="KeepRecord"/>). So the rows of the frames that the destroy batch
+    /// moves out of a dying frame convert here. Both buffers hold rows at step 5: the followed rows of the step that ended,
+    /// which the numeric update of step 6c reads, and the applied samples of the next step. The rows of a dying frame die
+    /// with it: a frame that reuses its index has another generation.
     /// </summary>
     private void ConvertSamplesOfMovedFrames()
     {
-        foreach (Entity owner in movedFrameOwners)
-            Frames.Samples.ConvertInto(entities.OwnedFrame(owner), entities.BackRow(owner).Frame);
+        int n = Frames.Count;
+        for (int i = 0; i < n; i++)
+        {
+            FrameHandle frame = Frames.AtDense(i);
+            if (Frames.IsNumeric(frame) || dyingMarks[frame.Entity])
+                continue;
+            if (IsRelativeToDyingFrame(Frames.Samples.Applied, frame) || IsRelativeToDyingFrame(Frames.Samples.Followed, frame))
+                Frames.Samples.ConvertInto(frame, entities.BackRow(frame.Entity).Frame);
+        }
     }
+
+    /// <summary>True when <paramref name="samples"/> holds a row of <paramref name="frame"/> that is relative to a frame that dies in this batch.</summary>
+    private bool IsRelativeToDyingFrame(MotionSamples samples, FrameHandle frame) =>
+        samples.TryGet(frame, out _, out FrameHandle relativeTo) && Frames.IsAlive(relativeTo) && dyingMarks[Frames.SemanticOf(relativeTo).Entity];
 
     /// <summary>Moves an entity from a dying frame into an ancestor frame, keeping its pose and velocity relative to everything else.</summary>
     private void Rehome(Entity entity, FrameHandle from, FrameHandle to)

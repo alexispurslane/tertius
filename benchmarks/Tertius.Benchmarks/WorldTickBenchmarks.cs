@@ -101,10 +101,15 @@ public class KeplerFrameTickBenchmarks
         {
             double radius = 7e6 + i * 35e3;
             double phase = i * 2.399963229728653;
+            var orbit = KeplerOrbit.Circular(radius, phase: phase);
+            (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
             world.Spawn(new SpawnDesc
             {
                 Frame = root,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(radius, phase: phase)),
+                Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
+                LinearVelocity = velocity,
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler, Orbit: orbit),
+                Components = [new KeplerMotion { Orbit = orbit }],
             });
         }
         for (int i = 0; i < 20; i++)

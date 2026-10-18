@@ -56,7 +56,7 @@ public class KeplerFrameTests
             Frame = parent.IsNull ? test.Root : parent,
             AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler, gravity, orbit),
             Components = components,
-        });
+        }.OnKeplerOrbit(test.World, orbit));
 
     [Fact]
     public void AKeplerFrameIsPlacedOnItsOrbitAtTheStartTimeAsSoonAsItExists()

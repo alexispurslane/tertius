@@ -126,6 +126,102 @@ public sealed partial class FrameTree
         return (sample.Pose, sample.Velocity, sample.AngularVelocity);
     }
 
+    /// <summary>
+    /// Step 2 of the sync point, before the rows of the bodies take the end of the step: the orbit frame in which
+    /// <paramref name="anchor"/> hangs takes the place and the chord of the anchor's applied sample, the sample of the step
+    /// that just ended (docs/plans/rails-components.md, "Numeric frames"). Its integration over the step put it there to its
+    /// rounding (see <see cref="AdvanceNumericFrames"/>), so its contents keep their places in it: the move is that rounding.
+    /// An anchor without an applied sample leaves its orbit frame where its fall put it. The anchor itself takes the record
+    /// that physics releases for its hull (see <see cref="Follow"/>).
+    /// </summary>
+    internal void PlaceFollowingFrame(FrameHandle anchor)
+    {
+        Contract.Requires(InOrbitFrame(anchor));
+        if (!Samples.Applied.TryGet(anchor, out MotionSample sample, out FrameHandle relativeTo))
+            return;
+        FrameHandle orbitFrame = TreeParent(anchor);
+        // The sample is relative to the anchor's semantic parent, in which the orbit frame lies (see the class summary).
+        Contract.Assert(relativeTo == Parent(orbitFrame));
+        poses.Local(Node(orbitFrame)) = new DPose(sample.Pose.Position, DQuaternion.Identity);
+        linearVelocity[orbitFrame.Index] = sample.ChordVelocity;
+    }
+
+    /// <summary>
+    /// Step 2 of the sync point: <paramref name="frame"/> takes its step record, <paramref name="record"/>, its motion over the
+    /// step that just ended (docs/plans/rails-components.md, "One motion record per frame"). The record is relative to
+    /// <paramref name="relativeTo"/>, the frame's tree parent (a record that physics releases) or its semantic parent (a
+    /// sample or a write from an owner without a body). The frame takes the record's pose, its instant velocity, less the
+    /// velocity of the numeric frames between the two parents, its angular velocity, narrowed to a float, and its proper
+    /// acceleration. A frame at the origin of its orbit frame that takes a record with another place left that origin in
+    /// the step, because its hull teleported: <see cref="JumpFollowingFrame"/> brings it back.
+    /// </summary>
+    internal void Follow(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
+    {
+        int id = Node(frame).Id;
+        FrameHandle parent = TreeParent(frame);
+        if (relativeTo == parent)
+        {
+            SetTreeLocalPose(frame, record.Pose);
+            linearVelocity[id] = record.Velocity;
+        }
+        else
+        {
+            Contract.Requires(!parent.IsNull && relativeTo == SemanticOf(parent));
+            SetLocalPose(frame, record.Pose);
+            linearVelocity[id] = record.Velocity - HomeVelocity(parent, relativeTo);
+        }
+        angularVelocity[id] = record.AngularVelocity.ToVector3();
+        properAcceleration[id] = record.ProperAcceleration;
+    }
+
+    /// <summary>
+    /// Step 2 of the sync point: a frame without a step record holds still in its tree parent. It keeps its pose and its
+    /// proper acceleration, so the cargo of a parked ship keeps its weight, and it has no velocity.
+    /// </summary>
+    internal void HoldStill(FrameHandle frame)
+    {
+        int id = Node(frame).Id;
+        linearVelocity[id] = Double3.Zero;
+        angularVelocity[id] = Vector3.Zero;
+    }
+
+    /// <summary>
+    /// Step 2 of the sync point, after <paramref name="anchor"/> took a record that put it away from the origin of its orbit
+    /// frame: its hull teleported in the step, so physics aimed it at its sample's place and not at that origin (see
+    /// docs/plans/rails-components.md, "Numeric frames"). The orbit frame jumps to the anchor's applied sample: it takes the
+    /// sample's place and chord, and the anchor goes back to its origin. Everything else in the orbit frame keeps its place
+    /// and velocity in the semantic frame, as without numeric frames: the other frames lose the orbit frame's move, and the
+    /// move goes into <paramref name="changes"/>, so that physics shifts the bodies in the orbit frame's system, the hull
+    /// with them, and the World the rows.
+    /// </summary>
+    internal void JumpFollowingFrame(FrameHandle anchor, PhysicsChanges changes)
+    {
+        Contract.Requires(InOrbitFrame(anchor));
+        bool sampled = Samples.Applied.TryGet(anchor, out MotionSample sample, out FrameHandle relativeTo);
+        FrameHandle orbitFrame = TreeParent(anchor);
+        // Physics moves a hull away from the origin of its orbit frame only toward the place of the sample that it applied.
+        Contract.Requires(sampled && relativeTo == Parent(orbitFrame));
+        int orbitId = Node(orbitFrame).Id;
+        ref DPose orbitLocal = ref poses.Local(Node(orbitFrame));
+        Double3 offset = sample.Pose.Position - orbitLocal.Position, change = sample.ChordVelocity - linearVelocity[orbitId];
+        orbitLocal = new DPose(sample.Pose.Position, DQuaternion.Identity);
+        linearVelocity[orbitId] = sample.ChordVelocity;
+        ref DPose anchorLocal = ref poses.Local(Node(anchor));
+        anchorLocal = new DPose(Double3.Zero, anchorLocal.Rotation);
+        shiftChildren.Clear();
+        GetTreeChildren(orbitFrame, shiftChildren);
+        foreach (FrameHandle child in shiftChildren)
+        {
+            if (child == anchor)
+                continue;
+            PoseNode childNode = Node(child);
+            ref DPose childLocal = ref poses.Local(childNode);
+            childLocal = new DPose(childLocal.Position - offset, childLocal.Rotation);
+            linearVelocity[childNode.Id] -= change;
+        }
+        changes.FramesShifted.Add(new FrameShift(orbitFrame, offset, change));
+    }
+
     /// <summary>True when <paramref name="frame"/> hangs in its orbit frame: an orbit frame whose orbiter it is.</summary>
     internal bool InOrbitFrame(FrameHandle frame)
     {
@@ -134,21 +230,24 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Creates the orbit frame of the Kepler frame <paramref name="frame"/>, whose hull the numeric update moves into it, and
-    /// moves the frame under it: the new frame lies in the frame's semantic parent at the frame's place, with the chord of
-    /// the frame's orbit over one step as its velocity, and the frame rests at its origin and keeps the rest of its velocity
-    /// (see <see cref="PlaceOnOrbit"/>). The frame's place and velocity in the semantic parent stay what they were, which is
-    /// where its orbit put it at this sync point.
+    /// Creates the orbit frame of <paramref name="frame"/>, whose kinematic hull the numeric update moves into it, and moves
+    /// the frame under it. The new frame lies in the frame's semantic parent at the place of the frame's followed sample,
+    /// the sample of the step that ended at this sync point, with the sample's chord as its velocity (see
+    /// <see cref="NumericMode.Orbiting"/>); before the hull's first sample, at the frame's place, with the frame's velocity.
+    /// The frame rests at its origin and keeps the rest of its velocity (see <see cref="PlaceFollowingFrame"/>). The frame's
+    /// place and velocity in the semantic parent stay what they were, which is where its record put it at this sync point.
     /// </summary>
     private FrameHandle CreateOrbitFrame(FrameHandle frame)
     {
-        Contract.Requires(Driver(frame) == MotionDriver.Kepler && !IsNumeric(frame) && !InOrbitFrame(frame) && StepLength > 0);
+        Contract.Requires(BodyDesc.FrameHullMotion(Driver(frame)) == BodyMotion.Kinematic && !IsNumeric(frame) && !InOrbitFrame(frame));
         FrameHandle treeParent = TreeParent(frame);
         FrameHandle semantic = SemanticOf(treeParent);
         DPose local = TreeLocalPose(frame);
         Double3 position = InSemantic(treeParent, semantic, local.Position);
         Double3 velocity = HomeVelocity(treeParent, semantic) + linearVelocity[frame.Index];
-        Double3 chord = KeplerOrbit.Chord(position, velocity, KeplerMu(frame), StepLength);
+        Double3 chord = velocity;
+        if (Samples.Followed.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo) && relativeTo == semantic)
+            (position, chord) = (sample.Pose.Position, sample.ChordVelocity);
         FrameHandle orbitFrame = CreateNumeric(semantic, position, chord, NumericMode.Orbiting);
         orbiter[orbitFrame.Index] = frame;
         Reparent(frame, orbitFrame);
@@ -1139,8 +1238,9 @@ public sealed partial class FrameTree
     /// Fixes the acceleration that each falling numeric frame keeps for the step that starts now: the field of its semantic
     /// frame at its origin, relative to its parent. That is the field minus the acceleration of the numeric frames above
     /// it, which the dense order, parents first, has fixed already. An orbit frame, which lies in its semantic frame, keeps
-    /// the acceleration of its orbit at its origin, the pull of the point gravity whose G·M the orbit takes, so that it
-    /// ends the step on the orbit (see <see cref="NumericMode.Orbiting"/>). A resting frame has none. Call it after
+    /// the acceleration of its anchor's sample that the step applies, so that it ends the step on the sample to its
+    /// rounding (see <see cref="NumericMode.Orbiting"/>). An orbit frame whose anchor has no sample for the step falls as a
+    /// falling frame, with its anchor at rest in it. A resting frame has none. Call it after
     /// <see cref="Update"/> and before the physics step, which reads it through <see cref="EffectiveGravity"/>.
     /// </summary>
     internal void BeginNumericStep()
@@ -1150,12 +1250,14 @@ public sealed partial class FrameTree
         for (int i = 0; i < poses.Count; i++)
         {
             int id = poses.NodeAt(i).Id;
-            if (numeric[id] == NumericMode.Orbiting)
+            // The sample that the next step applies tells how the anchor moves in it. An anchor without one holds still in
+            // its orbit frame, which falls as a falling frame does.
+            if (numeric[id] == NumericMode.Orbiting && Samples.Applied.TryGet(orbiter[id], out MotionSample sample))
             {
-                stepAcceleration[id] = KeplerOrbit.Acceleration(poses.LocalPoses[i].Position, KeplerMu(orbiter[id]));
+                stepAcceleration[id] = sample.Acceleration;
                 continue;
             }
-            if (numeric[id] != NumericMode.Falling)
+            if (numeric[id] is not (NumericMode.Falling or NumericMode.Orbiting))
                 continue;
             FrameHandle frame = AtDense(i);
             FrameHandle semantic = SemanticOf(frame);
@@ -1167,8 +1269,8 @@ public sealed partial class FrameTree
     /// <summary>
     /// Moves each falling numeric frame and each orbit frame over a step of <paramref name="dt"/> seconds, in doubles, with
     /// the scheme that Jolt uses for bodies: the velocity gains the step acceleration times the step, then the position
-    /// gains the new velocity times the step. A resting frame does not move. An orbit frame ends the step on its orbit, to
-    /// its rounding, and the next placement on the orbit puts it there exactly (see <see cref="PlaceOnOrbit"/>).
+    /// gains the new velocity times the step. A resting frame does not move. An orbit frame ends the step on its anchor's
+    /// sample, to its rounding, and step 2 puts it there exactly (see <see cref="PlaceFollowingFrame"/>).
     /// </summary>
     internal void AdvanceNumericFrames(double dt)
     {

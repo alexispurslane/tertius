@@ -20,7 +20,7 @@ public class WorldSpinFrameTests
         Frame = parent,
         Body = hull ?? new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
         AsFrame = new FrameSpec(FrameBounds.Sphere(bubble), MotionDriver.Spin, Spin: Turning),
-    });
+    }.Spinning(world, Turning));
 
     [Fact]
     public void TheHullOfASpinFrameIsKinematicAndTurnsWithTheFrame()

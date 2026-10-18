@@ -58,7 +58,7 @@ public class WorldFrameFieldTests
                 Frame = Planet,
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler, Orbit: StationOrbit),
-            });
+            }.OnKeplerOrbit(World, StationOrbit));
             Station = World.GetOwnedFrame(Owner);
         }
 
@@ -188,7 +188,7 @@ public class WorldFrameFieldTests
                 Frame = world.GetOwnedFrame(planetOwner),
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler, Orbit: StationOrbit),
-            });
+            }.OnKeplerOrbit(world, StationOrbit));
             FrameHandle station = world.GetOwnedFrame(owner);
             Tick(world, 30);
 

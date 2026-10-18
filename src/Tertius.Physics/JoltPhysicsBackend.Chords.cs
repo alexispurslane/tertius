@@ -1,5 +1,6 @@
 using System.Numerics;
 using JoltPhysicsSharp;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Physics;
 
@@ -23,9 +24,12 @@ namespace Tertius.Physics;
 //
 // The paths that carry a chord on as a chord need no conversion: a move between the systems of one semantic frame and a
 // shift of a numeric frame (both homes' velocities are chords, and the body's acceleration in the semantic frame stays
-// the same), a growth of a system, a ghost (a kinematic copy, which Jolt does not accelerate, and which follows the real
-// body's chord), and a frame's hull that takes the tree's velocity of a physics-driven frame, which is the hull's own
-// chord. Every velocity that physics reports is Jolt's: the chord of the last step.
+// the same), a growth of a system, and a ghost (a kinematic copy, which Jolt does not accelerate, and which follows the
+// chord of its real body or of its frame's step record). A frame's hull that takes the tree's velocity takes the frame's
+// instant velocity of its last record, half a step of the hull's acceleration past the chord: a hull is placed from the
+// tree only when the tree changes between two steps, and a kinematic hull takes no velocity from the tree at all. Every
+// velocity of a body that physics reports is Jolt's: the chord of the last step. The step record of a frame holds both
+// velocities (see StepRecordOf).
 
 public sealed partial class JoltPhysicsBackend
 {
@@ -152,18 +156,15 @@ public sealed partial class JoltPhysicsBackend
         frames.HomeVelocityAfter(home, semantic, stepDt) + frames.HomeAcceleration(home, semantic) * (0.5 * stepDt);
 
     /// <summary>
-    /// The motion of <paramref name="frame"/> relative to its current parent at the end of the step, as
-    /// <see cref="MotionOf"/> gives it, but with the frame's instant velocity there. Jolt's velocity of the hull of a
-    /// physics-driven frame is the chord of the step, so the hull's acceleration over the step, its gravity plus its
-    /// proper acceleration, carries it half a step further on. The motion of every other frame has its instant velocity
-    /// already (see <see cref="PredictMotion"/>). Call it only after <see cref="ComputeProperAccelerations"/>.
+    /// The motion of <paramref name="frame"/> relative to its current parent at the end of the step, with the instant velocity
+    /// of its step record, which a hand-off carries into the parent (see <see cref="StepRecordOf"/>). Jolt's velocity of a
+    /// dynamic hull is the chord of the step, so its record takes the hull's acceleration over the step, its gravity plus its
+    /// proper acceleration, half a step further on. A sample has its instant velocity already. Call it only after
+    /// <see cref="ComputeProperAccelerations"/>.
     /// </summary>
     private FrameMotion InstantMotionOf(FrameHandle frame)
     {
-        if (!TryHullMotion(frame, out FrameMotion motion))
-            return PredictedMotion(frame);
-        BodyRecord hull = OwnerRecord(frame)!;
-        Double3 acceleration = (Double3)hull.GravityApplied + motion.Pose.Rotation.Rotate((Double3)hull.ProperAcceleration);
-        return motion with { Velocity = motion.Velocity + acceleration * (0.5 * stepDt) };
+        MotionSample record = StepRecordOf(frame);
+        return new FrameMotion(record.Pose, record.Velocity, record.AngularVelocity);
     }
 }

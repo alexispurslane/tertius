@@ -78,7 +78,7 @@ public class CharacterOrbitHandOffTests
         {
             Frame = sun,
             AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu), Orbit: KeplerOrbit.Circular(1.496e11)),
-        }));
+        }.OnKeplerOrbit(world, KeplerOrbit.Circular(1.496e11))));
         var hull = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1));
         var cabin = new BoundingBox(new Vector3(-9.5f, -3.5f, -29.5f), new Vector3(9.5f, 3.5f, 29.5f));
         Entity shipOwner = world.Spawn(new SpawnDesc
@@ -170,7 +170,7 @@ public class CharacterOrbitHandOffTests
         inShip.Length.Should().BeInRange(102, 104, "the person leaves the bubble of 100 m once it is fully outside it, with a margin");
         DPose ship = run.ShipAtExit.Motion.Pose;
         (run.Exit.Pose.Position - ship.TransformPoint(inShip)).Length.Should().BeLessThan(1e-2);
-        Double3 velocity = run.ShipAtExit.Motion.Velocity + ship.TransformDirection(run.BeforeExit.LinearVelocity);
+        Double3 velocity = run.ShipAtExit.Motion.ChordVelocity + ship.TransformDirection(run.BeforeExit.LinearVelocity);
         ((Double3)run.Exit.LinearVelocity - velocity).Length.Should().BeLessThan(1e-2);
     }
 

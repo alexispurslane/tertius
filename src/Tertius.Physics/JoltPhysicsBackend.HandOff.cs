@@ -746,19 +746,30 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// Reports every physics-driven frame from its hull: pose and origin velocity relative to the parent, and the
-    /// proper acceleration in frame axes. A frame that a hand-off moved this step reports relative to its new parent.
+    /// Releases the step record of the frame of every hull that moved in the step (see <see cref="StepRecordOf"/>): every
+    /// dynamic hull, from Jolt's state after the update, and every kinematic hull that followed a sample, from the sample
+    /// that it applied, exactly. A record is relative to the frame's tree parent, so a frame that a hand-off moved this step
+    /// reports relative to its new parent, and a hull at the origin of its orbit frame reports at that origin. There the
+    /// record keeps the rest of the sample's velocity past its chord: the tree keeps the velocity of a frame in a numeric
+    /// frame relative to the numeric frame's chord, so a read in the semantic parent gives the sample's instant velocity
+    /// (see <see cref="FrameTree.Follow"/>). A static hull, and a kinematic hull without a sample, held still.
     /// </summary>
     private void WriteFrames(PhysicsStepOutput output)
     {
         foreach (BodyRecord owner in frameOwners)
         {
-            if (owner.Motion != BodyMotion.Dynamic || !owner.HasPrimary)
+            if (!owner.HasPrimary || owner.Character is not null)
                 continue;
-            BodySnapshot s = ReadPrimary(owner);
-            Double3 originVelocity = (Double3)s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);
-            output.Frames.Add(new FrameStepRecord(owner.OwnedFrame,
-                new MotionSample(s.Pose, originVelocity, originVelocity, Double3.Zero, s.Angular, Double3.Zero, owner.ProperAcceleration)));
+            FrameHandle frame = owner.OwnedFrame;
+            if (owner.Motion == BodyMotion.Dynamic)
+                output.Frames.Add(new FrameStepRecord(frame, StepRecordOf(frame)));
+            else if (owner.Motion == BodyMotion.Kinematic && stepSamples.TryGet(frame, out MotionSample sample))
+            {
+                MotionSample record = StepRecordOf(frame);
+                if (frames.InOrbitFrame(frame))
+                    record = record with { Velocity = sample.Velocity - sample.ChordVelocity };
+                output.Frames.Add(new FrameStepRecord(frame, record));
+            }
         }
     }
 }

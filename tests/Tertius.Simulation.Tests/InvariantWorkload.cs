@@ -63,8 +63,9 @@ internal sealed class ChaoticWorkload : IDisposable
         FrameHandle bay = SpawnFrame(East, TestWorld.At(10), new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static));
         // The Kepler frame orbits a star, far from every other frame. The star's gravity is strong, and nothing is spawned in it.
         star = SpawnFrame(root, TestWorld.At(0, 0, -30000), new FrameSpec(FrameBounds.Sphere(10000), MotionDriver.Static, GravityField.Point(1e6)));
+        KeplerOrbit starOrbit = KeplerOrbit.Circular(2000, spinRate: 0.1);
         FrameHandle orbit = SpawnFrame(star, DPose.Identity,
-            new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Kepler, Orbit: KeplerOrbit.Circular(2000, spinRate: 0.1)));
+            new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Kepler, Orbit: starOrbit), desc => desc.OnKeplerOrbit(World, starOrbit));
 
         // The shuttle is a frame whose hull is a body: physics drives the frame, and hands the hull off between frames. It
         // flies at 6 m/s, so that Jolt sends the state of its frame in every step.
@@ -252,8 +253,15 @@ internal sealed class ChaoticWorkload : IDisposable
             Tally.BodySpawns++;
     }
 
-    private FrameHandle SpawnFrame(FrameHandle parent, DPose pose, FrameSpec spec) =>
-        World.GetOwnedFrame(World.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = spec }));
+    /// <summary>
+    /// Spawns a frame without a body in <paramref name="parent"/> at <paramref name="pose"/>, after <paramref name="rails"/>, when
+    /// it is given, puts it on its rails (see <see cref="RailsSpawn"/>).
+    /// </summary>
+    private FrameHandle SpawnFrame(FrameHandle parent, DPose pose, FrameSpec spec, Func<SpawnDesc, SpawnDesc>? rails = null)
+    {
+        var desc = new SpawnDesc { Frame = parent, Pose = pose, AsFrame = spec };
+        return World.GetOwnedFrame(World.Spawn(rails is null ? desc : rails(desc)));
+    }
 
     private Churn NewChurn() => new((ulong)random.NextInt64(), this);
 

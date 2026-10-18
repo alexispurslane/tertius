@@ -211,14 +211,18 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The velocities that the hull of a record's frame needs, in Jolt's terms, to move like the frame in the tree when the
-    /// hull is at <paramref name="pose"/>: the linear velocity of the hull's center of mass, and the angular velocity.
+    /// hull is at <paramref name="pose"/>: the linear velocity of the hull's center of mass, and the angular velocity. A
+    /// kinematic hull gets none: it moves only toward the targets of its frame's samples, so without a sample it holds still
+    /// in its tree parent, also in its first step (docs/plans/rails-components.md, "The motion sample").
     /// </summary>
     private (Vector3 Linear, Vector3 Angular) HullVelocityFromTree(BodyRecord record, in DPose pose)
     {
+        if (record.Motion == BodyMotion.Kinematic)
+            return (Vector3.Zero, Vector3.Zero);
         // The tree holds the frame's velocity relative to its tree parent, the hull's physics home, so it is the local
-        // velocity already: there is no frame velocity of the home to subtract. Jolt gets it as it is: for a
-        // physics-driven frame, the tree's velocity is the hull's own chord from the last step. Only a new frame's hull
-        // has the game's instant velocities, which the next step turns into chords (see ConvertSpawnVelocities).
+        // velocity already: there is no frame velocity of the home to subtract. It is the frame's instant velocity, from its
+        // last step record or from its spawn, so a dynamic hull waits among the spawned bodies for the next step to turn it
+        // into a chord (see ConvertSpawnVelocities).
         FrameHandle frame = record.OwnedFrame;
         Vector3 angular = frames.AngularVelocity(frame);
         Double3 centerOffset = pose.TransformDirection(shapes.Get(record.Desc.Shape).CenterOfMass);
@@ -511,6 +515,8 @@ public sealed partial class JoltPhysicsBackend
         if (parent.IsNull)
             return;
         CreateHullFromTree(owner, parent);
+        if (owner.Motion == BodyMotion.Dynamic)
+            spawnedRigid.Add(owner);
         if (owner.Motion == BodyMotion.Static)
             owner.World!.WakeAround(owner.Body);
     }
@@ -595,6 +601,8 @@ public sealed partial class JoltPhysicsBackend
         {
             var (linear, angular) = HullVelocityFromTree(owner, pose);
             bodies.SetLinearAndAngularVelocity(hull, linear, angular);
+            if (owner.Motion == BodyMotion.Dynamic)
+                spawnedRigid.Add(owner);
         }
     }
 }
