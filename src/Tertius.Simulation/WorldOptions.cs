@@ -44,6 +44,13 @@ public sealed class WorldOptions
     /// </summary>
     internal NumericFrameOptions NumericFrames { get; set; } = new();
 
+    /// <summary>
+    /// The fewest rows that gameplay wrote in a tick for which step 8 of the sync point copies them forward on the workers
+    /// instead of the ticking thread, when <see cref="MaxDegreeOfParallelism"/> is not 1. 1 or more. Both copies end in the
+    /// same state, so only the engine's tests change it: at 1, a small world takes the parallel path in every tick.
+    /// </summary>
+    internal int ParallelRowCopyThreshold { get; set; } = EntityTable.DefaultParallelCopyThreshold;
+
     internal void Validate()
     {
         if (TickRate <= 0)
@@ -60,6 +67,8 @@ public sealed class WorldOptions
             throw new ArgumentOutOfRangeException(nameof(MaxErrors), MaxErrors, "The error limit cannot be negative.");
         if (!double.IsFinite(StartTime))
             throw new ArgumentOutOfRangeException(nameof(StartTime), StartTime, "The start time must be finite.");
+        if (ParallelRowCopyThreshold < 1)
+            throw new ArgumentOutOfRangeException(nameof(ParallelRowCopyThreshold), ParallelRowCopyThreshold, "The threshold must be 1 or more.");
         ArgumentNullException.ThrowIfNull(NumericFrames, nameof(NumericFrames));
         NumericFrames.Validate();
     }

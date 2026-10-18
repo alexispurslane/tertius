@@ -26,6 +26,13 @@ public static class Program
             SyncSampler.Hash(args[1], int.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture));
             return;
         }
+        // ter-sn28: --rowcopy <rows> <rounds> times the copy of the rows that gameplay wrote (see RowCopyBenchmarks).
+        if (args.Length == 3 && args[0] == "--rowcopy")
+        {
+            RowCopyBenchmarks.Run(int.Parse(args[1], System.Globalization.CultureInfo.InvariantCulture),
+                int.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture));
+            return;
+        }
         if (args.Length == 4 && args[0] == "--sample")
         {
             SyncSampler.Run(args[1], double.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture), args[3]);
