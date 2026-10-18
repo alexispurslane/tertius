@@ -56,9 +56,10 @@ public sealed record FramePose(string? Frame, Double3 Position, DQuaternion Rota
 /// <param name="Id">The scene id of the entity that owns the frame.</param>
 /// <param name="Parent">The scene id of the parent frame's owner, or null for a root frame.</param>
 /// <param name="Follows">
-/// What moved the frame in the tick that the dump closes: <c>"physics"</c> for a frame with a dynamic hull, <c>"rails"</c> for a
-/// frame whose owner wrote a motion sample in that tick, which the next step applies (see <c>Self.MoveOnRails</c>), and
-/// <c>"static"</c> for every other frame.
+/// How the frame followed its owner at the dump's sync point, which is what moved it in the step that ended there:
+/// <c>"rails"</c> for a frame that took a motion sample that its owner wrote one tick before (see <c>Self.MoveOnRails</c>),
+/// <c>"physics"</c> for a frame whose hull was dynamic in that step, and <c>"static"</c> for every other frame. A change of
+/// a hull's motion in the tick acts from the next step, so it shows in the dump of the tick after.
 /// </param>
 public sealed record FrameRecord(string Id, string? Parent, string Follows);
 

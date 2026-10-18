@@ -307,13 +307,13 @@ A change of motion in the intents that the hull cannot take comes only from a bu
 
 In each tick, a rails component hands the engine one motion sample, `MotionSample` (in `Tertius.Frames.Rails`), with `self.MoveOnRails`. A sample describes the frame's motion over the step in which the tick's intents act, which ends at `self.TimeAt(self.Tick + 2)`: the pose at the end of the step, the chord velocity over the step, the instant velocity at its end, the acceleration over the step, the angular velocity and the angular acceleration, all in doubles and relative to `self.Frame`, and the proper acceleration in the frame's own axes. `Self.TimeAt` gives the same double that `World.Time` holds in that tick, so a place on an orbit matches the World's time to the last bit. The engine never calls into a component at the sync point: the solve runs in the parallel part of the tick, and the sync point only copies samples. A sample is a pure function of the component's description, the time, the step, the frame's place and the parent's gravity in the front snapshot, so the result does not depend on the order of the chunks. The design is in `docs/plans/rails-components.md`.
 
-The sample table (`MotionSampleTable`, reached as `FrameTree.Samples`) is indexed by the frame's index. Each row holds the frame that it moves, with its generation, and the frame that it is relative to. It has three buffers:
+The sample table (`MotionSampleTable`, reached as `FrameTree.Samples`) is indexed by the frame's index. Each row holds the frame that it moves, with its generation, the frame that it is relative to, and what made it (`FollowKind`): `Rails` for a sample that the owner wrote, `Physics` for the record of a frame whose hull is dynamic, and `Static` for any other record. It has three buffers:
 
 | Buffer | What it holds |
 |---|---|
 | Written | The samples that gameplay writes in this tick. The last write in a tick wins. |
 | Applied | The samples that the physics step of this tick applies, which gameplay wrote one tick before. Physics gets this buffer in `PhysicsStepContext.Samples`. |
-| Followed | The step record of each frame that moved in the step that ended. The numeric update reads it. |
+| Followed | The step record of each frame that moved in the step that ended. The numeric update reads it. `FrameTree.Followed` reads the kind of its row: how the frame followed its owner at the last sync point, `Static` for a frame without a row. A state dump reports it as `follows`. |
 
 The steps of the sync point that touch the table:
 

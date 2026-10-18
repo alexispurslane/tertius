@@ -16,7 +16,10 @@ namespace Tertius;
 /// <para>
 /// Each row holds the frame that its sample moves, so a lookup checks the frame's generation, and a frame that reuses the
 /// index of a dead frame has no sample. It also holds the frame that the sample is relative to: the semantic parent of the
-/// frame when its owner wrote it, which the World needs when it converts samples into another frame.
+/// frame when its owner wrote it, which the World needs when it converts samples into another frame. And it holds what
+/// made it, a <see cref="FollowKind"/>: <see cref="FollowKind.Rails"/> for a sample that the owner wrote, and for a record
+/// what moved the frame in the step (see <see cref="Record"/>). So the followed buffer tells how each frame followed its
+/// owner at the last sync point (see <see cref="FrameTree.Followed"/>).
 /// </para>
 /// <para>
 /// Each buffer has a round: the number of the turn of <see cref="MoveOn"/> in which it was the written buffer. A row
@@ -65,7 +68,7 @@ internal sealed class MotionSampleTable
     internal void Write(FrameHandle frame, FrameHandle relativeTo, in MotionSample sample)
     {
         Contract.Requires(frames.IsAlive(frame));
-        writtenRows[frame.Index] = new Row(frame, relativeTo, sample, round);
+        writtenRows[frame.Index] = new Row(frame, relativeTo, sample, round, FollowKind.Rails);
     }
 
     /// <summary>
@@ -74,6 +77,12 @@ internal sealed class MotionSampleTable
     /// already, which is then the record (see "One motion record per frame" in docs/plans/rails-components.md). So after
     /// <see cref="MoveOn"/>, the followed buffer holds the record of every frame that moved in the step. Returns true when it
     /// put the record there.
+    /// <para>
+    /// The record of a frame whose hull is dynamic is the move that physics made (<see cref="FollowKind.Physics"/>). Any other
+    /// record is a teleport of the frame's hull or a write of its owner's transform, which a static frame follows
+    /// (<see cref="FollowKind.Static"/>). Step 4 changes the motions of the hulls after this step, so the motion here is that
+    /// of the step that ended.
+    /// </para>
     /// </summary>
     internal bool Record(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
     {
@@ -81,8 +90,19 @@ internal sealed class MotionSampleTable
         ref Row row = ref appliedRows[frame.Index];
         if (row.Round == round - 1 && row.Frame == frame)
             return false;
-        row = new Row(frame, relativeTo, record, round - 1);
+        FollowKind kind = frames.HullMotion(frame) == BodyMotion.Dynamic ? FollowKind.Physics : FollowKind.Static;
+        row = new Row(frame, relativeTo, record, round - 1, kind);
         return true;
+    }
+
+    /// <summary>
+    /// How <paramref name="frame"/> followed its owner at the last sync point: the kind of its row in the followed buffer, or
+    /// <see cref="FollowKind.Static"/> when it has none.
+    /// </summary>
+    internal FollowKind KindFollowed(FrameHandle frame)
+    {
+        ref readonly Row row = ref followedRows[frame.Index];
+        return row.Round == round - 2 && row.Frame == frame ? row.Kind : FollowKind.Static;
     }
 
     /// <summary>
@@ -146,11 +166,14 @@ internal sealed class MotionSampleTable
             relative.TransformDirection(sample.AngularVelocity) + frames.AngularVelocityRelative(from, to),
             relative.TransformDirection(sample.AngularAcceleration),
             sample.ProperAcceleration);
-        row = new Row(frame, to, converted, row.Round);
+        row = row with { RelativeTo = to, Sample = converted };
     }
 
-    /// <summary>A row of a buffer: the sample of <paramref name="Frame"/>, relative to <paramref name="RelativeTo"/>, written in the round <paramref name="Round"/>.</summary>
-    internal readonly record struct Row(FrameHandle Frame, FrameHandle RelativeTo, MotionSample Sample, long Round);
+    /// <summary>
+    /// A row of a buffer: the sample of <paramref name="Frame"/>, relative to <paramref name="RelativeTo"/>, written in the
+    /// round <paramref name="Round"/>, which <paramref name="Kind"/> made.
+    /// </summary>
+    internal readonly record struct Row(FrameHandle Frame, FrameHandle RelativeTo, MotionSample Sample, long Round, FollowKind Kind);
 }
 
 /// <summary>
