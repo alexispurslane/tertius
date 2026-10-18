@@ -548,11 +548,11 @@ public sealed partial class JoltPhysicsBackend
         ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
         foreach (Entity entity in context.IntentEntities.Span)
         {
-            if (entity.Index >= (uint)intents.Length || Find(entity) is not { } record)
+            // The flag first: most intents change no motion, and the flag is cheaper to read than the body's record.
+            if (entity.Index >= (uint)intents.Length || (intents[(int)entity.Index].Flags & IntentFlags.SetMotion) == 0
+                || Find(entity) is not { } record)
                 continue;
             ref readonly PhysicsIntent intent = ref intents[(int)entity.Index];
-            if ((intent.Flags & IntentFlags.SetMotion) == 0)
-                continue;
             if (MotionChangeProblem(record, intent.Motion) is { } problem)
             {
                 ReportBug($"Physics: the body of {entity} cannot take the motion {intent.Motion}: it {problem}. " +

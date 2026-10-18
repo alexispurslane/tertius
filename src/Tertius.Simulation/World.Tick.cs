@@ -320,13 +320,14 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// The running entity's intent, for writing a change of its hull's motion to <paramref name="motion"/>. Throws
+    /// Writes a change of the running entity's hull motion to <paramref name="motion"/> into its intent, which step 4 of the
+    /// sync point applies (see <see cref="EntityTable.WriteMotionChange"/>). Throws
     /// <see cref="InvalidOperationException"/> if the entity's body is no hull: it has no body, owns no frame, or owns a root
     /// frame, whose owner's body is only the frame's static interior. Throws <see cref="ArgumentException"/> for a motion that
     /// the hull cannot take (see <see cref="BodyDesc.Problem"/> with <see cref="BodyRole.Hull"/>), and
     /// <see cref="StaleEntityException"/> for a stale handle.
     /// </summary>
-    internal ref PhysicsIntent WritableHullMotionIntent(Entity entity, BodyMotion motion)
+    internal void WriteHullMotion(Entity entity, BodyMotion motion)
     {
         FrameHandle own = entities.OwnedFrame(entity);
         string owner = own.IsNull ? $"{entity}" : $"{entity}, which owns {own},";
@@ -339,7 +340,7 @@ public sealed partial class World
                 $"{owner} has a root frame, so its body is only the frame's static interior, not a hull: only a hull can change its motion.");
         if ((body with { Motion = motion }).Problem(BodyRole.Hull) is { } problem)
             throw new ArgumentException($"The hull of {owner} cannot take the motion {motion}: as a hull it {problem}.", nameof(motion));
-        return ref entities.WritableIntent(entity);
+        entities.WriteMotionChange(entity, motion);
     }
 
     /// <summary>

@@ -289,12 +289,7 @@ public readonly ref struct BodyHandle
     /// A motion that the hull cannot take: a value that <see cref="BodyMotion"/> does not define, a character, a dynamic
     /// motion for a hull without mass, or any motion but static for a hull whose shape is or holds a mesh.
     /// </exception>
-    public void SetMotion(BodyMotion motion)
-    {
-        ref PhysicsIntent intent = ref world.WritableHullMotionIntent(entity, motion);
-        intent.Motion = motion;
-        intent.Flags |= IntentFlags.SetMotion;
-    }
+    public void SetMotion(BodyMotion motion) => world.WriteHullMotion(entity, motion);
 
     private ref PhysicsIntent Intent => ref world.WritableIntent(entity);
 }
