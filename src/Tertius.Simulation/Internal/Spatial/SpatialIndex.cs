@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Tertius.Simulation;
 
 /// <summary>
@@ -17,12 +19,56 @@ namespace Tertius.Simulation;
 /// </remarks>
 internal sealed class SpatialIndex
 {
-    /// <summary>Where one entity is in the grids.</summary>
-    private struct Placement
+    /// <summary>The case of a <see cref="Placement"/> of an entity that a grid lists.</summary>
+    /// <param name="Frame">The index of the frame whose grid lists the entity.</param>
+    /// <param name="Cell">The cell of that grid that lists the entity.</param>
+    private readonly record struct InCell(int Frame, CellKey Cell);
+
+    /// <summary>
+    /// Where one entity is in the grids: <see cref="InCell"/>, or in no grid. The empty value is <see cref="NotInGrid"/>,
+    /// the all-zero default, so the row that the entity table clears for a released slot is in no grid.
+    /// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> method let the compiler
+    /// pattern-match it without boxing. <see cref="Value"/> boxes, so use it only for debugging.
+    /// </summary>
+    [Union]
+    private readonly struct Placement : IEquatable<Placement>
     {
-        public bool InGrid;
-        public int Frame;
-        public CellKey Cell;
+        private const byte KindNotInGrid = 0, KindInCell = 1;
+
+        private readonly byte kind;
+        private readonly int frame;
+        private readonly CellKey cell;
+
+        public Placement(InCell inCell) { kind = KindInCell; frame = inCell.Frame; cell = inCell.Cell; }
+
+        public static implicit operator Placement(InCell inCell) => new(inCell);
+
+        /// <summary>In no grid.</summary>
+        public static Placement NotInGrid => default;
+
+        /// <summary>False for <see cref="NotInGrid"/>.</summary>
+        public bool HasValue => kind != KindNotInGrid;
+
+        public bool TryGetValue(out InCell value)
+        {
+            value = kind == KindInCell ? new InCell(frame, cell) : default;
+            return kind == KindInCell;
+        }
+
+        public object? Value => kind == KindInCell ? new InCell(frame, cell) : null;
+
+        // The fields of NotInGrid are always zero, so comparing every field compares the cases.
+        public bool Equals(Placement other) => kind == other.kind && frame == other.frame && cell == other.cell;
+        public override bool Equals(object? obj) => obj is Placement other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(kind, frame, cell);
+        public static bool operator ==(Placement a, Placement b) => a.Equals(b);
+        public static bool operator !=(Placement a, Placement b) => !a.Equals(b);
+
+        public override string ToString() => this switch
+        {
+            InCell at => $"Placement({at})",
+            _ => "Placement(not in a grid)",
+        };
     }
 
     /// <summary>A moved entity and the placement that <see cref="Update"/> found for it, before the grids change.</summary>
@@ -204,12 +250,12 @@ internal sealed class SpatialIndex
         {
             ref readonly Placement placement = ref placements[entity];
             ref readonly TransformRow row = ref entities.FrontRow(entity);
-            Contract.Invariant(placement.InGrid == !row.Frame.IsNull);
-            if (!placement.InGrid)
+            Contract.Invariant(placement.HasValue == !row.Frame.IsNull);
+            if (placement is not InCell at)
                 continue;
             placed++;
-            Contract.Invariant(placement.Frame == row.Frame.Index && placement.Cell == SpatialGrid.CellOf(row.Pose.Position));
-            Contract.Invariant(grids[placement.Frame] is { } grid && grid.TryGetCell(placement.Cell, out List<Entity>? cell) && cell.Contains(entity));
+            Contract.Invariant(at.Frame == row.Frame.Index && at.Cell == SpatialGrid.CellOf(row.Pose.Position));
+            Contract.Invariant(grids[at.Frame] is { } grid && grid.TryGetCell(at.Cell, out List<Entity>? cell) && cell.Contains(entity));
         }
         int listed = 0;
         for (int frame = 0; frame < grids.Length; frame++)
@@ -222,8 +268,7 @@ internal sealed class SpatialIndex
                 foreach (Entity entity in cell.Value)
                 {
                     Contract.Invariant(entities.IsAlive(entity));
-                    ref readonly Placement placement = ref placements[entity];
-                    Contract.Invariant(placement.InGrid && placement.Frame == frame && placement.Cell == cell.Key);
+                    Contract.Invariant(placements[entity] == new InCell(frame, cell.Key));
                     listed++;
                 }
             }
@@ -241,14 +286,10 @@ internal sealed class SpatialIndex
         int count = 0;
         foreach (Entity entity in moved)
         {
-            ref readonly Placement placement = ref placements[entity];
             ref readonly TransformRow row = ref entities.FrontRow(entity);
-            bool inGrid = !row.Frame.IsNull;
-            int frame = inGrid ? row.Frame.Index : 0;
-            CellKey cell = inGrid ? SpatialGrid.CellOf(row.Pose.Position) : default;
-            if (placement.InGrid == inGrid && (!inGrid || (placement.Frame == frame && placement.Cell == cell)))
-                continue;
-            into[count++] = new Move(entity, new Placement { InGrid = inGrid, Frame = frame, Cell = cell });
+            Placement to = row.Frame.IsNull ? Placement.NotInGrid : new InCell(row.Frame.Index, SpatialGrid.CellOf(row.Pose.Position));
+            if (placements[entity] != to)
+                into[count++] = new Move(entity, to);
         }
         return count;
     }
@@ -270,26 +311,29 @@ internal sealed class SpatialIndex
         foreach (ref readonly Move move in found)
         {
             ref Placement placement = ref placements[move.Entity];
-            Placement to = move.To;
-            if (placement.InGrid && to.InGrid && placement.Frame == to.Frame)
-                GridAt(to.Frame).Move(placement.Cell, to.Cell, move.Entity);
-            else
+            switch (placement, move.To)
             {
-                if (placement.InGrid)
-                    grids[placement.Frame]?.Remove(placement.Cell, move.Entity);
-                if (to.InGrid)
-                    GridAt(to.Frame).Add(to.Cell, move.Entity);
+                case (InCell from, InCell to) when from.Frame == to.Frame:
+                    // Within one grid: one lookup per cell.
+                    GridAt(to.Frame).Move(from.Cell, to.Cell, move.Entity);
+                    break;
+                case (var from, var to):
+                    // Into the grid of another frame, out of every grid, or into a grid from none.
+                    if (from is InCell left)
+                        grids[left.Frame]?.Remove(left.Cell, move.Entity);
+                    if (to is InCell entered)
+                        GridAt(entered.Frame).Add(entered.Cell, move.Entity);
+                    break;
             }
-            placement = to;
+            placement = move.To;
         }
     }
 
     /// <summary>Takes a released entity, still live while this runs, out of its cell. The entity table clears its placement next.</summary>
     private void Remove(Entity entity)
     {
-        ref Placement placement = ref placements[entity];
-        if (placement.InGrid)
-            grids[placement.Frame]?.Remove(placement.Cell, entity);
+        if (placements[entity] is InCell at)
+            grids[at.Frame]?.Remove(at.Cell, entity);
     }
 
     private SpatialGrid GridAt(int frame)
