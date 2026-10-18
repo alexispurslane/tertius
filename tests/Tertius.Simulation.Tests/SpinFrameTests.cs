@@ -206,46 +206,87 @@ public class SpinFrameTests
         test.World.Frames.AngularVelocity(ground).Should().Be(sample.AngularVelocity.ToVector3(), "the tree keeps the angular velocity in floats");
     }
 
-    // ---- Changing the driver ------------------------------------------------------------------------------
+    // ---- Changing the motion ------------------------------------------------------------------------------
+    // Until the driver goes, a change of motion is a new driver plus a swap of components with World.AddComponent and
+    // World.RemoveComponent (docs/plans/rails-components.md, "Order of the work", item 2). The driver chooses only the motion
+    // of a hull, so for these frames without a body the components alone decide how the frame moves.
 
+    /// <summary>
+    /// A component that is new on an entity runs first in the next tick, and its first sample acts in the step after that
+    /// tick. So the frame holds still at its pose for the first step and stands on its spin from the second sync point on
+    /// (docs/plans/rails-components.md, "Other rules" in "The rails components"). The world starts two ticks before 1 s, so
+    /// the second sync point ends at 1 s, when the spin has turned a quarter turn.
+    /// </summary>
     [Fact]
-    public void AFrameThatGetsTheSpinDriverKeepsItsPlaceAndTurnsToItsSpinAtOnce()
+    public void AFrameThatGetsTheSpinDriverAndASpinMotionKeepsItsPlaceAndTurnsByItsSpinFromTheSecondSyncPoint()
     {
-        using var test = NewWorld(startTime: 1);
-        FrameHandle dock = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        using var test = NewWorld(startTime: 1 - 2.0 / TicksPerSecond);
+        Entity owner = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
             Pose = TestWorld.At(5),
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
-        }));
+        });
+        FrameHandle dock = test.World.GetOwnedFrame(owner);
 
         test.World.SetFrameDriver(dock, MotionDriver.Spin);
-
-        test.World.Frames.LocalPose(dock).Position.Should().Be(new Double3(5, 0, 0));
-        PoseChecks.AssertNear(test.World.Frames.LocalPose(dock).Rotation.Rotate(Double3.UnitX), new Double3(0, 0, -1), 1e-12);
-        test.World.PoseInOwnFrame(dock.Entity).Should().Be(test.World.Frames.LocalPose(dock));
-    }
-
-    [Fact]
-    public void AMovingFrameThatGetsTheSpinDriverStopsButKeepsItsProperAcceleration()
-    {
-        using var test = NewWorld();
-        // A ship that landed under the physics driver reads the ground's push on its accelerometer, so its cargo has weight.
-        FrameHandle ship = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            LinearVelocity = new Vector3(10, 0, 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics),
-        }));
-        test.World.Frames.ProperAcceleration(ship) = new Vector3(0, 9.81f, 0);
-
-        test.World.SetFrameDriver(ship, MotionDriver.Spin);
-        test.World.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
-        test.World.Frames.ProperAcceleration(ship).Should().Be(new Vector3(0, 9.81f, 0));
+        test.World.AddComponent(owner, new SpinMotion { Spin = QuarterTurnPerSecond });
+        test.Run(1);
+        test.World.Frames.LocalPose(dock).Should().Be(TestWorld.At(5), "the component's first sample acts in the step after its first tick");
         test.Run(1);
 
-        test.World.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
-        test.World.Frames.ProperAcceleration(ship).Should().Be(new Vector3(0, 9.81f, 0), "a ship on a turntable keeps its cargo's weight, as a parked one does");
+        test.World.Time.Should().Be(1);
+        test.World.Frames.LocalPose(dock).Position.Should().Be(new Double3(5, 0, 0));
+        PoseChecks.AssertNear(test.World.Frames.LocalPose(dock).Rotation.Rotate(Double3.UnitX), new Double3(0, 0, -1), 1e-12);
+        test.World.Frames.AngularVelocity(dock).Should().Be(new Vector3(0, MathF.PI / 2, 0));
+        test.World.PoseInOwnFrame(owner).Should().Be(test.World.Frames.LocalPose(dock));
+    }
+
+    /// <summary>
+    /// A ship without a body flies along +X at 10 m/s, on samples that a scripted flight writes, and its engines push it up
+    /// at 9.81 m/s², so its cargo has weight. The game parks it on a turntable: the Spin driver, and a <see cref="SpinMotion"/>
+    /// in place of the flight, into which the game copies the frame's proper acceleration (docs/plans/rails-components.md,
+    /// "The rails components"). The flight's last sample moves the ship in the step of the swap, so the swap has no gap. From
+    /// the second sync point after the swap, the ship stands still at one place and turns there.
+    /// </summary>
+    [Fact]
+    public void AMovingFrameThatGetsTheSpinDriverAndASpinMotionStopsButKeepsItsProperAcceleration()
+    {
+        using var test = NewWorld();
+        var velocity = new Double3(10, 0, 0);
+        var weight = new Vector3(0, 9.81f, 0);
+        Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            double stepEnd = self.TimeAt(self.Tick + 2);
+            self.MoveOnRails(new MotionSample(new DPose(velocity * stepEnd, DQuaternion.Identity), velocity, velocity, Double3.Zero,
+                Double3.Zero, Double3.Zero, weight));
+        });
+        Entity owner = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics),
+            Components = [flight],
+        });
+        FrameHandle ship = test.World.GetOwnedFrame(owner);
+        test.Run(TicksPerSecond);
+        test.World.Frames.LinearVelocity(ship).Should().Be(velocity, "the ship flies before the swap");
+        test.World.Frames.ProperAcceleration(ship).Should().Be(weight);
+
+        test.World.SetFrameDriver(ship, MotionDriver.Spin);
+        test.World.RemoveComponent(owner, flight);
+        test.World.AddComponent(owner, new SpinMotion { Spin = QuarterTurnPerSecond, ProperAcceleration = test.World.Frames.ProperAcceleration(ship) });
+        test.Run(2);
+        Double3 parked = test.World.Frames.LocalPose(ship).Position;
+
+        for (int tick = 0; tick < 4; tick++)
+        {
+            test.Run(1);
+
+            test.World.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
+            test.World.Frames.AngularVelocity(ship).Should().Be(new Vector3(0, MathF.PI / 2, 0), "the ship turns by its spin");
+            test.World.Frames.ProperAcceleration(ship).Should().Be(weight, "a ship on a turntable keeps its cargo's weight, as a parked one does");
+            test.World.Frames.LocalPose(ship).Position.Should().Be(parked, "a ship on a turntable turns in place");
+        }
     }
 
     // ---- Refusals -----------------------------------------------------------------------------------------------
