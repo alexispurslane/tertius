@@ -14,11 +14,11 @@ public class FrameTreeHullMotionTests
     private readonly FrameHandle root;
 
     public FrameTreeHullMotionTests() =>
-        root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
+        root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
 
     /// <summary>A frame of the owner <paramref name="id"/>, 100 m along +X in <paramref name="parent"/>.</summary>
     private FrameHandle Child(uint id, FrameHandle parent) =>
-        frames.Create(new Entity(id, 1), parent, new DPose(new Double3(100, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(10), MotionDriver.Static);
+        frames.Create(new Entity(id, 1), parent, new DPose(new Double3(100, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(10));
 
     [Theory]
     [InlineData(BodyMotion.Static)]

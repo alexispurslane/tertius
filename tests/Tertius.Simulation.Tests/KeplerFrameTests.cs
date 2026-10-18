@@ -54,7 +54,7 @@ public class KeplerFrameTests
         test.World.Spawn(new SpawnDesc
         {
             Frame = parent.IsNull ? test.Root : parent,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler, gravity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1), gravity),
             Components = components,
         }.OnKeplerOrbit(test.World, orbit));
 

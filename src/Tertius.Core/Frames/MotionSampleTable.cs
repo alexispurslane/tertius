@@ -98,13 +98,6 @@ internal sealed class MotionSampleTable
     /// <summary>Drops the sample that the owner of <paramref name="frame"/> wrote in the running tick, so that the next step applies none.</summary>
     internal void DropWritten(FrameHandle frame) => Clear(writtenRows, frame);
 
-    /// <summary>Drops the written and the applied sample of <paramref name="frame"/>, so that no step applies a sample of it until its owner writes again.</summary>
-    internal void Drop(FrameHandle frame)
-    {
-        Clear(writtenRows, frame);
-        Clear(appliedRows, frame);
-    }
-
     /// <summary>
     /// Converts the applied and the followed sample of <paramref name="frame"/>, each when it is relative to another frame
     /// than <paramref name="to"/>, into <paramref name="to"/>, with the relation of the two frames now. The pose converts as

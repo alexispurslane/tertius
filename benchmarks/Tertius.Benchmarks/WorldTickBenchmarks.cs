@@ -47,7 +47,7 @@ public class WorldTickBenchmarks
     public void Setup()
     {
         world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = Entities + 1024 });
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
         Topic topic = Topics.Get("benchmarks.squad");
         var mesh = new RenderData { Mesh = new MeshId(0), Flags = RenderFlags.Visible, BoundingRadius = 0.5f };
         Entity previous = default;
@@ -98,7 +98,7 @@ public class KeplerFrameTickBenchmarks
     public void Setup()
     {
         world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = FrameCount + 1024 });
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
         for (int i = 0; i < FrameCount; i++)
         {
             double radius = 7e6 + i * 35e3;
@@ -110,7 +110,7 @@ public class KeplerFrameTickBenchmarks
                 Frame = root,
                 Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
                 LinearVelocity = velocity,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
                 Components = [new KeplerMotion { Orbit = orbit }],
             });
         }

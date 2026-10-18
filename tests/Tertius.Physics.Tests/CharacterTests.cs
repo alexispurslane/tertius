@@ -219,7 +219,7 @@ public class CharacterTests
     private static (World World, FrameHandle Space, Entity Person, Pilot Pilot) Floating()
     {
         World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         var pilot = new Pilot();
         Entity person = SpawnPerson(world, space, At(0, 0, 0), pilot);
         world.Tick();
@@ -386,7 +386,7 @@ public class CharacterTests
     {
         using World world = NewWorld(out _);
         // 0.04 m/s², too weak to stand in, as when a ship thrusts gently.
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static,
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f),
             GravityField.Uniform(new Vector3(0, 0, 0.04f))));
         Entity person = SpawnPerson(world, space, At(0, 0, 0));
         Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(3, 0, 0), Body = Box(0.25f, mass: 5) });
@@ -421,7 +421,7 @@ public class CharacterTests
         using World world = NewWorld(out _);
         // Gravity acts only where x < 0. The floor goes on to x = 1, so the character walks out of the gravity on the
         // floor and then off its edge.
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static,
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f),
             GravityField.Uniform(new Vector3(0, -9.81f, 0), new BoundingBox(new Vector3(-50), new Vector3(0, 50, 50)))));
         world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-4, -0.5, 0), Body = StaticBox(new Vector3(5, 0.5f, 5)) });
         var pilot = new Pilot();
@@ -447,7 +447,7 @@ public class CharacterTests
     {
         using World world = NewWorld(out _);
         const double radius = 6_371_000, mu = 3.986004418e14;
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(mu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(mu)));
         // Stand on the side of the planet along +X, where up is +X.
         var slabRotation = DQuaternion.FromAxisAngle(Double3.UnitZ, -Math.PI / 2);
         world.Spawn(new SpawnDesc

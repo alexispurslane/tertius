@@ -52,14 +52,14 @@ public class WorldNumericNestingTests
             if (options is not null)
                 o.NumericFrames = options;
         });
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e18f), MotionDriver.Static, GravityField.None));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e18f), GravityField.None));
         Entity hull = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = WorldTesting.At(LightYear),
             LinearVelocity = new Double3(speed, 0, 0),
             Body = PodHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         });
         FrameHandle pod = world.GetOwnedFrame(hull);
         Entity crate = world.Spawn(new SpawnDesc

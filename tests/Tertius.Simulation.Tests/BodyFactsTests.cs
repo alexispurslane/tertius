@@ -22,7 +22,7 @@ public class BodyFactsTests
     private static World NewWorld(out FrameHandle space)
     {
         World world = WorldTesting.NewWorld(out JoltPhysicsBackend _);
-        space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(SpaceMu)));
+        space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(SpaceMu)));
         return world;
     }
 
@@ -36,20 +36,14 @@ public class BodyFactsTests
 
     /// <summary>
     /// A ship 5 km from the origin of <paramref name="space"/>: a box hull of 4 m and 1000 kg with <paramref name="motion"/>,
-    /// and a bubble of 10 m. Until the frame driver goes (ter-ru5u), the frame names the driver that gives its hull that
-    /// motion.
+    /// and a bubble of 10 m.
     /// </summary>
     private static Entity Ship(World world, FrameHandle space, BodyMotion motion, ShapeDesc? interior = null) => world.Spawn(new SpawnDesc
     {
         Frame = space,
         Pose = WorldTesting.At(5000),
         Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), motion, Mass: 1000, InteriorShape: interior),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(10), motion switch
-        {
-            BodyMotion.Dynamic => MotionDriver.Physics,
-            BodyMotion.Kinematic => MotionDriver.Kepler,
-            _ => MotionDriver.Static,
-        }),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
     });
 
     /// <summary>A triangle mesh, which only a static body or the interior of a frame can have.</summary>
@@ -99,26 +93,6 @@ public class BodyFactsTests
         world.Errors.Should().BeEmpty();
     }
 
-    [Fact]
-    public void ANewDriverGivesTheHullItsMotionAtOnce()
-    {
-        using World world = NewWorld(out FrameHandle space);
-        Entity ship = Ship(world, space, BodyMotion.Dynamic);
-        FrameHandle frame = world.GetOwnedFrame(ship);
-        world.Tick();
-
-        world.SetFrameDriver(frame, MotionDriver.Static);
-        BodyMotion parked = FactsOf(world, ship).Motion;
-        world.Tick();
-        BodyMotion parkedAfterAStep = FactsOf(world, ship).Motion;
-        world.SetFrameDriver(frame, MotionDriver.Physics);
-
-        parked.Should().Be(BodyMotion.Static, "physics gives the hull the new motion at the start of the next step");
-        parkedAfterAStep.Should().Be(BodyMotion.Static);
-        FactsOf(world, ship).Motion.Should().Be(BodyMotion.Dynamic);
-        world.Errors.Should().BeEmpty();
-    }
-
     /// <summary>
     /// A root frame has no parent, so its owner has no hull: its body is only the frame's static interior. So a body that
     /// could not be a dynamic hull, without mass or with a mesh, is fine with the default dynamic motion.
@@ -131,7 +105,7 @@ public class BodyFactsTests
         using World world = NewWorld(out _);
         Entity owner = world.Spawn(new SpawnDesc
         {
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f)),
             Body = body == "a mesh" ? new BodyDesc(Ramp) : new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), Mass: 0),
         });
         world.Tick();
@@ -149,7 +123,7 @@ public class BodyFactsTests
         {
             Frame = space,
             Pose = WorldTesting.At(5000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
         world.Tick();
 

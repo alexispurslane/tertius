@@ -230,7 +230,7 @@ public class WorldRayCastTests
         {
             Frame = parent,
             Pose = new DPose(new Double3(100, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         });
         return world.GetOwnedFrame(owner);
     }
@@ -244,7 +244,7 @@ public class WorldRayCastTests
         {
             Frame = parent,
             Pose = new DPose(at, DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(radius)),
         }));
 
     /// <summary>
@@ -345,11 +345,11 @@ public class WorldRayCastTests
         FrameHandle ground = Ground(world, 0);
         FrameHandle home = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
-            Frame = ground, Pose = At(100), AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+            Frame = ground, Pose = At(100), AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         }));
         FrameHandle sibling = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
-            Frame = ground, Pose = At(150), AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+            Frame = ground, Pose = At(150), AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         }));
         var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 100, default, Tag: 1));
         Spawn(world, home, Double3.Zero, null, aim);
@@ -389,7 +389,7 @@ public class WorldRayCastTests
             Frame = ground,
             Pose = new DPose(new Double3(100, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)),
             Body = StaticBox(2),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         });
         FrameHandle child = world.GetOwnedFrame(owner);
         var aim = new Aim(new Ray(Double3.Zero, Double3.UnitX, 200, default, Tag: 5, All: true));
@@ -571,7 +571,7 @@ public class WorldRayCastTests
         {
             Frame = ground,
             Pose = new DPose(new Double3(100, 0, 0), DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
             Components = [new DestroySelf(0)],
         });
         FrameHandle child = world.GetOwnedFrame(owner);

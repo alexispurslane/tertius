@@ -57,13 +57,13 @@ public class NumericFrameEntryTests
     /// </summary>
     private static Scene ParkedStation(World world, BodyMotion hullMotion)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(1000),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), hullMotion, Mass: 1e5f),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius)),
         }));
         Entity crate = world.Spawn(new SpawnDesc
         {
@@ -179,14 +179,14 @@ public class NumericFrameEntryTests
     private static (FrameHandle Space, FrameHandle Ship, Entity Crate) FastShip(World world, float bubbleRadius, Double3 position, Vector3 velocity)
     {
         const float hullMass = 1000;
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = new DPose(position, DQuaternion.Identity),
             LinearVelocity = velocity,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: hullMass, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(bubbleRadius), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(bubbleRadius)),
             Components = [new Thruster(hullMass) { Direction = Vector3.Normalize(velocity) }],
         }));
         Entity crate = world.Spawn(new SpawnDesc

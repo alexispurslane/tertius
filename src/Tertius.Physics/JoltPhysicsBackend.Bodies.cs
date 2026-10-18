@@ -101,11 +101,7 @@ public sealed partial class JoltPhysicsBackend
         };
         record.Motion = motion;
         if (ownsFrame)
-        {
             record.OwnedFrame = owned;
-            record.Driver = frames.Driver(owned);
-            record.DriverVersion = frames.DriverVersion(owned);
-        }
         else if (create.Frame.IsNull || !frames.IsAlive(create.Frame))
         {
             log($"Physics: {entity} was not created because its frame {create.Frame} is not alive.");
@@ -237,8 +233,8 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// What a rigid body is apart from its state. The backend changes none of it after the body exists, except the motion
-    /// of a body whose <see cref="MotionChanges"/> is true: the hull of a frame follows the frame's driver (see
-    /// <see cref="FollowDriver"/>), and a ghost of a mesh is static or kinematic as it holds still or moves (see
+    /// of a body whose <see cref="MotionChanges"/> is true: the hull of a frame takes a change of motion (see
+    /// <see cref="ApplyMotionChanges"/>), and a ghost of a mesh is static or kinematic as it holds still or moves (see
     /// <see cref="GhostMotion"/>). Its spec then has the new motion. So the spec of a body and its state rebuild the body
     /// exactly.
     /// </summary>
@@ -532,47 +528,6 @@ public sealed partial class JoltPhysicsBackend
         return (position.ToDouble3() - pose.Position).LengthSquared <= 1e-12 && difference.LengthSquared() <= 1e-12f;
     }
 
-    // ---- Following a frame's driver ----
-    // A hull gets the motion that the tree keeps for it (see FrameTree.HullMotion). The simulation gives a frame only a
-    // driver that its hull can follow (see BodyDesc.FrameHullProblem), with the hull motion that the driver needs.
-
-    /// <summary>
-    /// Makes the record of a frame owner follow its frame's driver, after the simulation gave the frame a driver (see
-    /// <see cref="FrameTree.DriverVersion"/>). Sets the record's driver, and for a hull, the motion that the tree keeps for
-    /// it. Changes no body. Returns true when the frame got a driver since the record last followed it, also the driver that
-    /// it had: the hull, if the owner has one, then needs <see cref="ApplyHullMotion"/>, which puts it at the frame's pose
-    /// and velocity in the tree.
-    /// </summary>
-    /// <remarks>
-    /// The simulation refuses a driver that the hull cannot follow, so such a driver in the tree comes only from a bug (see
-    /// <see cref="ReportBug"/>). A Release build skips it: the record keeps its driver and motion, and physics reports no
-    /// state for the frame, because the hull is not dynamic.
-    /// </remarks>
-    private bool FollowDriver(BodyRecord owner)
-    {
-        int version = frames.DriverVersion(owner.OwnedFrame);
-        if (version == owner.DriverVersion)
-            return false;
-        MotionDriver driver = frames.Driver(owner.OwnedFrame);
-        // A root frame has no parent, so its owner has no hull, and only a hull has to follow the driver.
-        if (!frames.TreeParent(owner.OwnedFrame).IsNull && owner.Desc.FrameHullProblem(driver) is { } problem)
-        {
-            ReportBug($"Physics: {owner.OwnedFrame} has the {driver} driver, but the hull of {owner.Entity} {problem}. " +
-                      $"Only a bug gives a frame that driver. The hull keeps the {owner.Driver} driver.");
-            owner.DriverVersion = version;
-            return false;
-        }
-        owner.DriverVersion = version;
-        owner.Driver = driver;
-        // A root frame has no hull, so its owner's record keeps its motion.
-        owner.Motion = frames.HullMotion(owner.OwnedFrame) ?? owner.Motion;
-        // A ghost meets what its real body meets, and a static body meets less (see FrameWorld.StandsForStaticBody).
-        if (owner.Ghosts is { } ghosts)
-            foreach (GhostBody ghost in ghosts)
-                ghost.World.SetGhostOfStaticBody(ghost.Body, !owner.IsMovable);
-        return true;
-    }
-
     // ---- Changes of a hull's motion ----
 
     /// <summary>
@@ -664,6 +619,9 @@ public sealed partial class JoltPhysicsBackend
         {
             var (linear, angular) = HullVelocityFromTree(owner, pose);
             bodies.SetLinearAndAngularVelocity(hull, linear, angular);
+            // The step set the hull's velocity, so a hull that a target moved in the step before, as a kinematic hull on
+            // rails, does not stop at that target (see ApplyIntents): a hull whose engines come on coasts on.
+            owner.VelocitySetStep = stepIndex;
             if (owner.Motion == BodyMotion.Dynamic)
                 spawnedRigid.Add(owner);
         }

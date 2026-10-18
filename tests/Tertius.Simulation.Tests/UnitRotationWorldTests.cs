@@ -40,7 +40,7 @@ public class UnitRotationWorldTests
         {
             Frame = test.Root,
             Pose = new DPose(new Double3(6.77e6, 0, 0), given),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
         });
 
         FrameHandle frame = test.World.GetOwnedFrame(owner);
@@ -106,7 +106,7 @@ public class UnitRotationWorldTests
         {
             Frame = test.Root,
             Pose = new DPose(new Double3(6.77e6, 0, 0), DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.SetTransform(self.PoseInOwnFrame() with { Rotation = given }))],
         });
         FrameHandle frame = test.World.GetOwnedFrame(owner);
@@ -128,7 +128,7 @@ public class UnitRotationWorldTests
             Pose = new DPose(new Double3(6.77e6, 0, 0), DQuaternion.Identity),
             LinearVelocity = new Vector3(0, 7700, 0),
             AngularVelocity = new Vector3(0.0011f, 0.0007f, 0.0013f),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0),
         });
         FrameHandle ship = test.World.GetOwnedFrame(owner);

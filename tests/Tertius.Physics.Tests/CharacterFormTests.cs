@@ -41,7 +41,7 @@ public class CharacterFormTests
 
     private static readonly Vector3 Down = new(0, -9.81f, 0);
 
-    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
 
     private static Entity SpawnPerson(World world, FrameHandle frame, DPose pose, Double3 velocity = default, params IComponent[] components) =>
         world.Spawn(new SpawnDesc { Frame = frame, Pose = pose, LinearVelocity = velocity, Body = Person, Components = components });
@@ -111,7 +111,7 @@ public class CharacterFormTests
     public void ACharacterThatLeavesZeroGravityStandsAndWalksAgain()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Floor(world, ground);
         var pilot = new Pilot();
         Entity person = SpawnPerson(world, ground, At(0, StandingHeight), components: [pilot]);
@@ -258,7 +258,7 @@ public class CharacterFormTests
     public void ACharacterThatSpawnedInAWeakGravityStandsAndWalks()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
-        FrameHandle moon = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, BandGravity));
+        FrameHandle moon = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), BandGravity));
         Floor(world, moon);
         var pilot = new Pilot();
         Entity person = SpawnPerson(world, moon, At(0, StandingHeight), components: [pilot]);
@@ -335,7 +335,7 @@ public class CharacterFormTests
     public void ACharacterWhoseGravityHoversAroundTheThresholdSwitchesOnceAndKeepsItsForm()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static,
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f),
             GravityField.Uniform(new Vector3(0, -0.06f, 0))));
         Entity person = SpawnPerson(world, space, At(0));
         world.Tick();
@@ -383,7 +383,7 @@ public class CharacterFormTests
         FrameHandle space = Space(world);
         FrameHandle bay = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
-            Frame = space, Pose = At(40), AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            Frame = space, Pose = At(40), AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         }));
         // The capsule's bounding sphere has a radius of 0.9 m.
         Scenes.Approach approach = Scenes.ApproachToBubble(world, bay, tick: 30, ballRadius: 0.9f, speed: 6, lateral: 1);
@@ -498,7 +498,7 @@ public class CharacterFormTests
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         // Gravity along -X, so the character's up is +X.
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static,
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f),
             GravityField.Uniform(new Vector3(-9.81f, 0, 0))));
         Entity person = SpawnPerson(world, space, At(0));
         world.Tick();

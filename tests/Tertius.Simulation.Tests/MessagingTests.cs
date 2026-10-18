@@ -147,7 +147,7 @@ public class MessagingTests
         {
             Frame = t.Root,
             Components = [ownerInbox],
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
         });
         FrameHandle ship = t.World.GetOwnedFrame(owner);
         t.World.SpawnWith(ship, memberInbox);

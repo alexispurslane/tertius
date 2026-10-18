@@ -61,7 +61,7 @@ public static partial class DemoScenes
     {
         var scene = new SceneInstance();
         // The frame's bounds do not matter for a root frame, which nothing leaves.
-        FrameHandle surface = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f), MotionDriver.Static, GravityField.Point(EarthMu)));
+        FrameHandle surface = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f), GravityField.Point(EarthMu)));
         scene.Add("earth-surface", surface.Entity);
 
         scene.Add("floor", world.Spawn(new SpawnDesc
@@ -122,7 +122,7 @@ public static partial class DemoScenes
         {
             Frame = surface,
             Pose = new DPose(new Double3(30, EarthRadius + 50, 20), DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
         });
         scene.Add("sun", sun);
         world.SunFrame = world.GetOwnedFrame(sun);

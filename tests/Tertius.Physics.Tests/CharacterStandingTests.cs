@@ -85,7 +85,7 @@ public class CharacterStandingTests
     public void ACharacterThatAForcePressesOntoAFloorInZeroGravityDoesNotStand()
     {
         using World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Floor(world, space);
         // 70 N on 70 kg presses the character onto the floor at 1 m/s², so Jolt finds the floor under it in every
         // update, as it does under gravity. The force of tick i acts in the step of tick i + 1, so 31 ticks hold 30 steps
@@ -160,7 +160,7 @@ public class CharacterStandingTests
     {
         using World world = NewWorld(out _);
         // The frame has no gravity yet, so physics creates the character with the tilt of its pose.
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Floor(world, ground);
         double tilt = tiltDegrees * Math.PI / 180;
         var rotation = DQuaternion.FromAxisAngle(Double3.UnitZ, tilt);
@@ -217,12 +217,12 @@ public class CharacterStandingTests
         World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         double lean = leanDegrees * Math.PI / 180;
         var down = new Vector3((float)Math.Sin(lean), -(float)Math.Cos(lean), 0);
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, GravityField.Uniform(9.81f * down)));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(9.81f * down)));
         world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, -0.5, 0), Body = StaticBox(new Vector3(100, 0.5f, 100)) });
         Entity buildingOwner = world.Spawn(new SpawnDesc
         {
             Frame = ground,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         });
         FrameHandle building = world.GetOwnedFrame(buildingOwner);
         world.Spawn(new SpawnDesc { Frame = building, Pose = At(0, -0.5, 0), Body = StaticBox(new Vector3(15, 0.5f, 15)) });

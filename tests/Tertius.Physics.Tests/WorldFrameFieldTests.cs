@@ -46,7 +46,7 @@ public class WorldFrameFieldTests
         {
             World = NewWorld(out JoltPhysicsBackend backend);
             Backend = backend;
-            Planet = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)));
+            Planet = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(PlanetMu)));
             Ball = World.Spawn(new SpawnDesc
             {
                 Frame = Planet,
@@ -58,7 +58,7 @@ public class WorldFrameFieldTests
             {
                 Frame = Planet,
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), BodyMotion.Kinematic, Mass: 1000),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
             }.OnKeplerOrbit(World, StationOrbit));
             Station = World.GetOwnedFrame(Owner);
         }
@@ -119,11 +119,11 @@ public class WorldFrameFieldTests
     public void ABlueprintWithAnOrbitThatIsNotValidForKeplerMotionThrowsAtSpawn(string kind)
     {
         using World world = NewWorld(out _);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(PlanetMu)));
         world.Blueprints.Register(new Blueprint("station",
             [new ComponentSpec(typeof(KeplerMotion), new Dictionary<string, object?> { ["Orbit"] = BadOrbit(kind) })],
             Body: new BodyDesc(new BoxShapeDesc(new Vector3(5)), BodyMotion.Kinematic, Mass: 1000),
-            Frame: new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler)));
+            Frame: new FrameSpec(FrameBounds.Sphere(50))));
         int live = world.Stats.LiveEntities;
 
         Action spawn = () => world.Spawn("station", planet, DPose.Identity);
@@ -152,8 +152,8 @@ public class WorldFrameFieldTests
 
     /// <summary>
     /// The game destroys the planet that a station orbits. The station moves up to the root frame, which has no point gravity,
-    /// so its <see cref="KeplerMotion"/> has no G·M to orbit: it writes no sample and logs that once. The World leaves the
-    /// frame's driver, so the hull stays kinematic and holds still where its last sample left it, and its frame with it.
+    /// so its <see cref="KeplerMotion"/> has no G·M to orbit: it writes no sample and logs that once. The hull keeps its
+    /// motion, so it stays kinematic and holds still where its last sample left it, and its frame with it.
     /// Nothing in either reports a problem.
     /// </summary>
     [Fact]
@@ -165,17 +165,17 @@ public class WorldFrameFieldTests
         {
             var log = new List<string>();
             world.Log += log.Add;
-            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
+            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
             Entity planetOwner = world.Spawn(new SpawnDesc
             {
                 Frame = space,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(PlanetMu)),
             });
             Entity owner = world.Spawn(new SpawnDesc
             {
                 Frame = world.GetOwnedFrame(planetOwner),
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), BodyMotion.Kinematic, Mass: 1000),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
             }.OnKeplerOrbit(world, StationOrbit));
             FrameHandle station = world.GetOwnedFrame(owner);
             Tick(world, 30);
@@ -226,7 +226,7 @@ public class WorldFrameFieldTests
     public void ABoxFallsWhenTheGameTurnsOnTheGravityOfItsFrame()
     {
         using World world = NewWorld(out _);
-        FrameHandle room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Entity box = world.Spawn(new SpawnDesc { Frame = room, Pose = At(0, 100), Body = Cube() });
         Tick(world, 60);
 
@@ -258,7 +258,7 @@ public class WorldFrameFieldTests
             "another G·M" => (GravityField.Point(PlanetMu), GravityField.Point(2 * PlanetMu), 100.0),
             _ => throw new ArgumentOutOfRangeException(nameof(change), change, "No such change."),
         };
-        FrameHandle frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, before));
+        FrameHandle frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), before));
         Floor(world, frame, top);
         Entity box = world.Spawn(new SpawnDesc { Frame = frame, Pose = At(0, top + 0.5), Body = Cube() });
         world.Tick();
@@ -277,9 +277,9 @@ public class WorldFrameFieldTests
     public void SpawnRefusesAFrameWithAGravityFieldThatPhysicsCannotApply(string kind)
     {
         using World world = NewWorld(out _);
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
 
-        Action spawn = () => world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static, BadGravity(kind)) });
+        Action spawn = () => world.Spawn(new SpawnDesc { Frame = root, AsFrame = new FrameSpec(FrameBounds.Sphere(50), BadGravity(kind)) });
 
         spawn.Should().Throw<ArgumentException>().WithMessage("*gravity*not valid*");
     }

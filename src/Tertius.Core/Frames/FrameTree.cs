@@ -18,7 +18,7 @@ namespace Tertius;
 /// caller gives it, and physics normalizes the rotation that leaves Jolt. The poses that the tree composes itself, when it
 /// moves or destroys a frame, are unit length.</item>
 /// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner, a parent, no bubble, the identity rotation, no
-/// spin, the Static driver, no gravity and no hull motion. A resting or nesting one has no velocity and no step acceleration. The chain of
+/// spin, no gravity and no hull motion. A resting or nesting one has no velocity and no step acceleration. The chain of
 /// tree parents of a numeric frame ends at a semantic frame: a falling or resting frame lies in a semantic frame or a
 /// nesting frame, an orbit frame lies in a semantic frame, and a nesting frame lies in a semantic frame, on a whole
 /// multiple of <see cref="NumericFrameOptions.NestGrid"/>, and holds only numeric frames. An orbit frame, and only an
@@ -50,7 +50,6 @@ public sealed partial class FrameTree
 
     private Entity[] owner = new Entity[64];
     private FrameBounds[] bounds = new FrameBounds[64];
-    private MotionDriver[] driver = new MotionDriver[64];
     // The motion of each frame's hull now, or null for a frame without a hull (see HullMotion).
     private BodyMotion?[] hullMotion = new BodyMotion?[64];
     private GravityField[] gravity = new GravityField[64];
@@ -65,9 +64,6 @@ public sealed partial class FrameTree
     // it was at the end of the last UpdateNumericFrames.
     private double[] apartTime = new double[64];
     private int[] numericBodies = new int[64];
-    // The number of calls to SetDriver for each frame, and for every frame together.
-    private int[] driverVersion = new int[64];
-    private int driverChanges;
 
     public FrameTree()
     {
@@ -100,17 +96,16 @@ public sealed partial class FrameTree
     internal int NumericCount { get; private set; }
 
     /// <summary>
-    /// Changes on every structural change (add, remove or reparent) and on every call to <see cref="SetDriver"/>. Physics
-    /// compares it with the version that it last followed.
+    /// Changes on every structural change (add, remove or reparent). Physics compares it with the version that it last
+    /// followed.
     /// </summary>
-    internal int Version => poses.Version + driverChanges;
+    internal int Version => poses.Version;
 
     public FrameHandle Create(
         Entity frameOwner,
         FrameHandle parent,
         in DPose localPose,
         FrameBounds frameBounds,
-        MotionDriver motion,
         GravityField field = default)
     {
         if (frameOwner.IsNull)
@@ -119,19 +114,18 @@ public sealed partial class FrameTree
             throw new InvalidOperationException($"{frameOwner} already owns a frame.");
         Contract.Requires(localPose.Rotation.IsUnit);
 
-        FrameHandle handle = AddFrame(frameOwner, parent, localPose, frameBounds, motion, field, NumericMode.None);
+        FrameHandle handle = AddFrame(frameOwner, parent, localPose, frameBounds, field, NumericMode.None);
         byOwner.Add(frameOwner, handle);
         return handle;
     }
 
-    private FrameHandle AddFrame(Entity frameOwner, FrameHandle parent, in DPose localPose, FrameBounds frameBounds, MotionDriver motion,
+    private FrameHandle AddFrame(Entity frameOwner, FrameHandle parent, in DPose localPose, FrameBounds frameBounds,
         GravityField field, NumericMode mode)
     {
         PoseNode node = poses.Add(parent.IsNull ? PoseNode.Null : Node(parent), localPose);
         Grow(node.Id + 1);
         owner[node.Id] = frameOwner;
         bounds[node.Id] = frameBounds;
-        driver[node.Id] = motion;
         hullMotion[node.Id] = null;
         gravity[node.Id] = field;
         linearVelocity[node.Id] = Double3.Zero;
@@ -142,7 +136,6 @@ public sealed partial class FrameTree
         apartTime[node.Id] = 0;
         numericBodies[node.Id] = 0;
         orbiter[node.Id] = FrameHandle.Null;
-        driverVersion[node.Id] = 0;
         return new FrameHandle(frameOwner, node.Id, node.Generation);
     }
 
@@ -175,15 +168,15 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// The frame that takes each semantic frame that a dying frame holds, when <paramref name="parent"/> is the tree parent of
-    /// the dying frame: the semantic frame of that parent, whatever the driver of the frame that moves. That parent is
-    /// numeric for the frame of a Kepler hull in its orbit frame, which falls on when its orbiter dies, and for the frame of
-    /// a ship in a numeric frame. The World moves the bodies of the dying frame into the own system of the nearest semantic
-    /// frame that survives, the hull of each frame that moves among them, so each such frame hangs where its hull lives. The
-    /// next numeric update moves the hull, with its frame, into a numeric frame when its group needs one. So only the update
-    /// puts a frame in a numeric frame, and only for a hull in its input. A frame without a hull, such as a room with no
-    /// body, is in no update, and nothing would move it out of a numeric frame (see the invariants of the class). Before the
-    /// review of ter-4psc, a frame with the Physics driver went to the numeric parent, and such a room then kept the ghosts
-    /// of its bodies there.
+    /// the dying frame: the semantic frame of that parent, whatever the hull of the frame that moves (see
+    /// <see cref="HullMotion"/>). That parent is numeric for the frame of a kinematic hull in its orbit frame, which falls
+    /// on when its orbiter dies, and for the frame of a ship in a numeric frame. The World moves the bodies of the dying
+    /// frame into the own system of the nearest semantic frame that survives, the hull of each frame that moves among them,
+    /// so each such frame hangs where its hull lives. The next numeric update moves the hull, with its frame, into a numeric
+    /// frame when its group needs one. So only the update puts a frame in a numeric frame, and only for a hull in its input.
+    /// A frame without a hull, such as a room with no body, is in no update, and nothing would move it out of a numeric
+    /// frame (see the invariants of the class). Before the review of ter-4psc, the heir depended on how the moving frame
+    /// moved, so a room without a body could go to the numeric parent, and it then kept the ghosts of its bodies there.
     /// </summary>
     private FrameHandle Heir(FrameHandle parent) => parent.IsNull ? parent : SemanticOf(parent);
 
@@ -371,44 +364,6 @@ public sealed partial class FrameTree
     /// <summary>The bubble of the frame. It never changes after the frame is created.</summary>
     public FrameBounds Bounds(FrameHandle frame) => bounds[Node(frame).Id];
 
-    /// <summary>What moves the frame. <see cref="SetDriver"/> changes it.</summary>
-    public MotionDriver Driver(FrameHandle frame) => driver[Node(frame).Id];
-
-    /// <summary>
-    /// Changes on every call to <see cref="SetDriver"/> for the frame, also a call that gives the frame the driver that it
-    /// has, because each can change how the frame's hull moves. Physics compares it with the version that the frame's hull
-    /// last followed.
-    /// </summary>
-    public int DriverVersion(FrameHandle frame) => driverVersion[Node(frame).Id];
-
-    /// <summary>
-    /// Gives a frame a motion driver, for example to park a ship. A frame that gets the static driver stops where it is:
-    /// both of its velocities become zero, and it keeps its proper acceleration, so the cargo of a ship that is parked on
-    /// the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until that driver moves
-    /// it. Every call changes <see cref="Version"/> and <see cref="DriverVersion"/>, also a call that gives the frame the
-    /// driver that it has. So physics follows the call at the start of its next step, the same way that it follows a
-    /// reparent: it puts the frame's hull at the frame's pose and velocity in the tree, with the motion of
-    /// <see cref="HullMotion"/>. Throws <see cref="InvalidOperationException"/> for a stale frame.
-    /// </summary>
-    /// <remarks>
-    /// Only the simulation calls it, through <c>World.SetFrameDriver</c>, which refuses a driver that the frame cannot
-    /// follow, gives the hull the motion of the driver first (see <see cref="SetHullMotion"/>) and keeps the owner of the
-    /// frame in step.
-    /// </remarks>
-    internal void SetDriver(FrameHandle frame, MotionDriver motion)
-    {
-        Contract.Requires(Enum.IsDefined(motion));
-        int id = Node(frame).Id;
-        driver[id] = motion;
-        driverVersion[id]++;
-        driverChanges++;
-        if (motion == MotionDriver.Static)
-        {
-            linearVelocity[id] = Double3.Zero;
-            angularVelocity[id] = Vector3.Zero;
-        }
-    }
-
     /// <summary>
     /// The motion that the frame's hull has now: the body of the frame's owner, in the system of the frame's parent. Null
     /// for a frame without a hull: a root frame, whose owner's body is only the frame's static interior, a frame whose owner
@@ -513,7 +468,7 @@ public sealed partial class FrameTree
             numericFrames++;
             Contract.Invariant(owner[id].IsNull && !parent.IsNull && bounds[id] == default);
             Contract.Invariant(locals[i].Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
-            Contract.Invariant(driver[id] == MotionDriver.Static && !gravity[id].HasValue && !hullMotion[id].HasValue);
+            Contract.Invariant(!gravity[id].HasValue && !hullMotion[id].HasValue);
             if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
                 Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero);
             // Only an orbit frame has an orbiter, a live frame that hangs in it.
@@ -888,7 +843,6 @@ public sealed partial class FrameTree
         int size = Math.Max(needed, owner.Length * 2);
         Array.Resize(ref owner, size);
         Array.Resize(ref bounds, size);
-        Array.Resize(ref driver, size);
         Array.Resize(ref hullMotion, size);
         Array.Resize(ref gravity, size);
         Array.Resize(ref linearVelocity, size);
@@ -899,7 +853,6 @@ public sealed partial class FrameTree
         Array.Resize(ref apartTime, size);
         Array.Resize(ref numericBodies, size);
         Array.Resize(ref orbiter, size);
-        Array.Resize(ref driverVersion, size);
         Samples.Grow(size);
     }
 }

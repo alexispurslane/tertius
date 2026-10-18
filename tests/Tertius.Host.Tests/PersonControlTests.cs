@@ -30,7 +30,7 @@ public sealed class PersonControlTests : IDisposable
     /// </summary>
     private Entity StandOnAFloor(Vector3 up)
     {
-        FrameHandle room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static, GravityField.Uniform(-9.81f * up)));
+        FrameHandle room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), GravityField.Uniform(-9.81f * up)));
         world.Spawn(new SpawnDesc
         {
             Frame = room,
@@ -62,7 +62,7 @@ public sealed class PersonControlTests : IDisposable
     /// </summary>
     private Entity FloatInSpace(DQuaternion rotation)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
         Entity floating = world.Spawn(new SpawnDesc
         {
             Frame = space,

@@ -64,61 +64,63 @@ public class WorldPhysicsTests
     }
 
     /// <summary>
-    /// The reviewer's probe W4: a ship flies through space at 10 m/s, and between ticks the game parks it by giving its
-    /// frame the static driver. Physics follows the change, so it reports no state for the parked frame, and the sync
-    /// point finds nothing wrong, in a Debug build and in a Release build.
+    /// The reviewer's probe W4: a ship flies through space at 10 m/s, and the game parks it: in one tick its owner changes
+    /// the hull's motion to static. The step of that tick still moves the ship, and the frame stops at the next sync point,
+    /// where the pose that the step left it at stays. Physics follows the change, so it reports no state for the parked
+    /// frame, and the sync point finds nothing wrong, in a Debug build and in a Release build.
     /// </summary>
     [Fact]
     public void AShipThatTheGameParksStopsWhereItIsWithNoError()
     {
         var warnings = new List<string>();
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             LinearVelocity = new Double3(10, 0, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
         Tick(world, 5);
-        DPose parked = world.Frames.LocalPose(ship);
-        parked.Position.X.Should().BeGreaterThan(0.5, "the ship flew for 5 ticks");
-        faults.Outputs.Should().OnlyContain(output => output.Frames.Any(state => state.Frame == ship), "while the ship flies, Jolt reports the state of its frame in every step");
 
-        world.SetFrameDriver(ship, MotionDriver.Static);
-        world.VelocityInOwnFrame(owner).Should().Be(Vector3.Zero, "the owner mirrors its frame at once");
+        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.Tick();
+        DPose parked = world.Frames.LocalPose(ship);
+        parked.Position.X.Should().BeGreaterThan(0.5, "the ship flew for 6 steps");
+        faults.Outputs.Should().OnlyContain(output => output.Frames.Any(state => state.Frame == ship), "while the ship flies, Jolt reports the state of its frame in every step");
         Tick(world, 3);
 
         world.Errors.Should().BeEmpty();
         warnings.Should().BeEmpty();
-        faults.Outputs.Skip(5).SelectMany(output => output.Frames).Should().BeEmpty("Jolt reports no state for a parked frame");
+        faults.Outputs.Skip(6).SelectMany(output => output.Frames).Should().BeEmpty("Jolt reports no state for a parked frame");
         world.Frames.LocalPose(ship).Should().Be(parked);
         world.PoseInOwnFrame(owner).Should().Be(parked);
         world.VelocityInOwnFrame(owner).Should().Be(Vector3.Zero);
     }
 
     /// <summary>
-    /// A parked station rests 10 km from the point of its orbit where it belongs now. The game gives it the Kepler driver
-    /// and a <see cref="KeplerMotion"/> (docs/plans/rails-components.md, "Changes of motion": into orbit). The hull holds
-    /// still for the step in which the component first runs, as a kinematic hull without a sample does. Then the
-    /// component's first run teleports it onto its orbit, so physics never drives it across the gap: after two ticks the
-    /// station stands on its orbit, and the hull moves along it at the orbital speed of 10 m/s.
+    /// A parked station rests 10 km from the point of its orbit where it belongs now. The game puts it into orbit: in one
+    /// tick its owner adds a <see cref="KeplerMotion"/> and changes the hull's motion to kinematic
+    /// (docs/plans/rails-components.md, "Changes of motion": into orbit). The hull is kinematic from the next step on, and
+    /// holds still for that step, in which the component first runs, as a kinematic hull without a sample does. Then the
+    /// component's first run teleports it onto its orbit, so physics never drives it across the gap: at the second sync
+    /// point after the change, the station stands on its orbit, and the hull moves along it at the orbital speed of 10 m/s.
     /// </summary>
     [Fact]
-    public void AFrameThatGetsTheKeplerDriverAndAKeplerMotionJumpsOntoItsOrbitSoItsHullNeverCrossesTheGap()
+    public void AParkedStationThatGoesIntoOrbitJumpsOntoItsOrbitSoItsHullNeverCrossesTheGap()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         // At 5 km, a parent with this gravitational parameter gives an orbital speed of 10 m/s: √(5e5 / 5000).
         const double planetMu = 5000.0 * 100;
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(planetMu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(planetMu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
             Pose = At(-5000),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), BodyMotion.Static, Mass: 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
         });
         FrameHandle station = world.GetOwnedFrame(owner);
         world.Tick();
@@ -126,9 +128,8 @@ public class WorldPhysicsTests
         JoltPhysicsBackend.BodyFacts Hull() =>
             backend.BodiesIn(planet).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
 
-        world.SetFrameDriver(station, MotionDriver.Kepler);
-        world.AddComponent(owner, new KeplerMotion { Orbit = orbit });
-        world.Tick();
+        world.SetMotionNextTick(owner, BodyMotion.Kinematic, add: new KeplerMotion { Orbit = orbit });
+        Tick(world, 2);
         Hull().LinearVelocity.Length().Should().BeLessThan(0.01f, "the hull holds still in the step before its first sample");
         world.Tick();
 
@@ -143,32 +144,62 @@ public class WorldPhysicsTests
     }
 
     /// <summary>
-    /// The reviewer's probe W7. Between two ticks, or with one tick between, the game parks a ship that flies at 10 m/s and
-    /// gives it the physics driver again. The ship stays where it was parked.
+    /// The reviewer's probe W7, within one tick. The game parks a ship that flies at 10 m/s and unparks it in the same tick.
+    /// The last change of motion in a tick wins, and a change to the motion that the hull has changes nothing, so the ship
+    /// flies on.
     /// </summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void AShipThatTheGameParksAndUnparksStaysWhereItWasParked(bool tickBetween)
+    [Fact]
+    public void AShipThatTheGameParksAndUnparksWithinOneTickFliesOn()
     {
         var warnings = new List<string>();
         using World world = NewWorld(out _, warnings);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             LinearVelocity = new Double3(10, 0, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
         Tick(world, 5);
-        DPose parked = world.Frames.LocalPose(ship);
+        DPose before = world.Frames.LocalPose(ship);
 
-        world.SetFrameDriver(ship, MotionDriver.Static);
-        if (tickBetween)
-            world.Tick();
-        world.SetFrameDriver(ship, MotionDriver.Physics);
+        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        Tick(world, 60);
+
+        world.Frames.LinearVelocity(ship).X.Should().BeApproximately(10, 1e-6, "the ship never parked");
+        world.Frames.LocalPose(ship).Position.X.Should().BeApproximately(before.Position.X + 10 * 60 * world.DeltaTime, 1e-3);
+        world.Errors.Should().BeEmpty();
+        warnings.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The reviewer's probe W7, with one tick between. The game parks a ship that flies at 10 m/s, and unparks it in the
+    /// next tick. The ship stops at the sync point after the step in which its hull is static, and the unpark gives its hull
+    /// the frame's velocity in the tree, which is zero. So the ship stays where it was parked.
+    /// </summary>
+    [Fact]
+    public void AShipThatTheGameParksForOneStepStaysWhereItWasParked()
+    {
+        var warnings = new List<string>();
+        using World world = NewWorld(out _, warnings);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            LinearVelocity = new Double3(10, 0, 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+        });
+        FrameHandle ship = world.GetOwnedFrame(owner);
+        Tick(world, 5);
+
+        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.Tick();
+        DPose parked = world.Frames.LocalPose(ship);
+        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
         Tick(world, 60);
 
         (world.Frames.LocalPose(ship).Position - parked.Position).Length.Should().BeLessThan(1e-6, "the parked ship had no velocity left");

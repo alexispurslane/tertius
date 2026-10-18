@@ -44,7 +44,7 @@ public class HandOffTests
     private static BodyDesc FloorBody(float half) => new(new BoxShapeDesc(new Vector3(half, 0.5f, half)), BodyMotion.Static);
 
     private static FrameHandle Space(World world, float radius = 1e7f) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(radius)));
 
     /// <summary>A frame without a body, as a child of <paramref name="parent"/>.</summary>
     private static FrameHandle Bubble(World world, FrameHandle parent, DPose pose, float radius, GravityField gravity = default) =>
@@ -52,7 +52,7 @@ public class HandOffTests
         {
             Frame = parent,
             Pose = pose,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static, gravity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(radius), gravity),
         }));
 
     /// <summary>The hand-offs that Jolt sent, in the order of the steps.</summary>
@@ -90,7 +90,7 @@ public class HandOffTests
             LinearVelocity = new Vector3(0, 0, 20),
             AngularVelocity = new Vector3(0, 0.2f, 0),
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         Entity ball = world.Spawn(new SpawnDesc { Frame = ship, Pose = At(8), LinearVelocity = new Vector3(6, 0, 1), Body = BallBody(0.25f) });
@@ -129,14 +129,14 @@ public class HandOffTests
         // At 7.5 km/s the station's hull would rest in an orbit frame of its own, which would be the frame that Jolt names.
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         const double mu = 3.986004418e14;
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(mu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(mu)));
         var orbit = KeplerOrbit.Circular(7_000_000, phase: 0.3, spinRate: 0.15);
         var hull = new BodyDesc(new BoxShapeDesc(new Vector3(4)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = planet,
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(25), MotionDriver.Kepler),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(25)),
         }.OnKeplerOrbit(world, orbit)));
         Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 3, 10), LinearVelocity = new Vector3(0, 1, 8), Body = BallBody(0.2f) });
 
@@ -167,7 +167,7 @@ public class HandOffTests
         // frames.
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         const double mu = 5e9;
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(mu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
         // Periapsis at t = 0 and apoapsis at half the 31.4 s period. The station turns at 0.389 rad/s at periapsis and
         // at 0.113 rad/s at apoapsis.
         var orbit = new KeplerOrbit(5000, 0.3, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
@@ -176,7 +176,7 @@ public class HandOffTests
         {
             Frame = planet,
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(25), MotionDriver.Kepler),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(25)),
         }.OnKeplerOrbit(world, orbit)));
         // The ball drifts out along +Z at 1 m/s and leaves the bubble about 15.7 s later, near apoapsis.
         Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 0, 10), LinearVelocity = new Vector3(0, 0, 1), Body = BallBody(0.2f) });
@@ -220,13 +220,13 @@ public class HandOffTests
         {
             using World world = numericFrames ? NewWorldWithFaults(out _) : NewWorldWithoutNumericFrames(out _);
             const double mu = 5e9;
-            FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(mu)));
+            FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), GravityField.Point(mu)));
             var orbit = new KeplerOrbit(5000, 0.3, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
             FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
             {
                 Frame = planet,
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(4)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1)),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(25), MotionDriver.Kepler),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(25)),
             }.OnKeplerOrbit(world, orbit)));
             BodyDesc ballBody = BallBody(0.2f);
             Entity ball = world.Spawn(new SpawnDesc
@@ -357,7 +357,7 @@ public class HandOffTests
             Frame = space,
             Pose = At(0),
             Body = carrierHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200)),
         });
         FrameHandle carrier = world.GetOwnedFrame(carrierOwner);
         var cockpitFloor = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(1, 0.1f, 1)), new Pose(new Vector3(0, -0.9f, 0), Quaternion.Identity))]);
@@ -368,7 +368,7 @@ public class HandOffTests
             Pose = At(260),
             LinearVelocity = new Vector3(-60, 0, 0),
             Body = fighterHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
         FrameHandle fighter = world.GetOwnedFrame(fighterOwner);
         Entity pilot = world.Spawn(new SpawnDesc { Frame = fighter, Pose = At(0), Body = BoxBody(0.3f) });
@@ -409,7 +409,7 @@ public class HandOffTests
             Frame = space,
             Pose = At(0),
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
         });
         Entity ownerB = world.Spawn(new SpawnDesc
         {
@@ -417,7 +417,7 @@ public class HandOffTests
             Pose = At(40),
             LinearVelocity = new Vector3(-10, 0, 0),
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(60), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(60)),
         });
         FrameHandle a = world.GetOwnedFrame(ownerA), b = world.GetOwnedFrame(ownerB);
         // The bubbles overlap from the start, so each hull has a ghost in the other frame.
@@ -449,7 +449,7 @@ public class HandOffTests
             Frame = space,
             Pose = At(0),
             Body = BoxBody(2, mass: 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         // A big hall inside the ship. The ship's hull would fit in the hall's bubble, and touches it.
@@ -473,7 +473,7 @@ public class HandOffTests
             Frame = space,
             Pose = At(0),
             Body = BoxBody(2, mass: 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         // A big annex of the ship, whose hull is outside the ship's bubble, so every step hands the annex out into
@@ -485,7 +485,7 @@ public class HandOffTests
             Frame = ship,
             Pose = At(33),
             Body = BoxBody(1, mass: 10),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
         });
         FrameHandle annex = world.GetOwnedFrame(annexOwner);
         faults.EditOutput = output =>
@@ -526,7 +526,7 @@ public class HandOffTests
             Pose = At(1260),
             LinearVelocity = new Vector3(-60, 0, 0),
             Body = BoxBody(2, mass: 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = pilot is null ? [] : [pilot],
         });
         return (space, carrier, fighterOwner, world.GetOwnedFrame(fighterOwner));
@@ -623,7 +623,7 @@ public class HandOffTests
             Pose = At(1040),
             LinearVelocity = new Vector3(-60, 0, 0),
             Body = BoxBody(2, mass: 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         TickUntil(world, () => HandOffsSent(faults).Count > 0, 60);
@@ -649,7 +649,7 @@ public class HandOffTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         var gravity = GravityField.Uniform(new Vector3(0, -9.81f, 0));
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, gravity));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), gravity));
         world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, -0.5), Body = FloorBody(100) });
         // A frame for a building on the ground. The same gravity holds inside.
         FrameHandle building = Bubble(world, ground, At(0, 0, 0), 10, gravity);

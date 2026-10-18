@@ -51,7 +51,7 @@ public class InvariantHandOffTests
             {
                 Frame = Test.Root,
                 Pose = TestWorld.At(100),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Physics),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
                 Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
                 LinearVelocity = new Vector3(1, 2, 3),
             });
@@ -166,7 +166,7 @@ public class InvariantHandOffTests
         {
             Frame = test.Root,
             Pose = TestWorld.At(100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
             Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
             LinearVelocity = new Vector3(1, 2, 3),
         });

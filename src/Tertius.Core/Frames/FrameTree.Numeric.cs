@@ -371,8 +371,8 @@ public sealed partial class FrameTree
     /// <see cref="NumericFrameRules.ThrustClock"/>) into the clocks of the current update, and returns true when the body
     /// thrusts: a character always does, and any other body when its clock says so. A clock without thrust time is a clock
     /// at zero, so it gets no entry. A static body has no clock: no force moves it. That is also the interior of a frame
-    /// owner, so the owner's one clock is the one of its hull, and the hull of a frame that the Static driver parks drops
-    /// its clock.
+    /// owner, so the owner's one clock is the one of its hull, and a hull that parks, with the static motion, drops its
+    /// clock.
     /// </summary>
     private bool Thrusts(in NumericBody body, double dt)
     {
@@ -1063,7 +1063,7 @@ public sealed partial class FrameTree
         Contract.Requires(!IsNumeric(parent));
         Contract.Requires(mode != NumericMode.Nesting || NumericFrameRules.OnGrid(position, NumericOptions.NestGrid));
         Node(parent);
-        FrameHandle handle = AddFrame(Entity.Null, parent, new DPose(position, DQuaternion.Identity), default, MotionDriver.Static,
+        FrameHandle handle = AddFrame(Entity.Null, parent, new DPose(position, DQuaternion.Identity), default,
             GravityField.None, mode);
         linearVelocity[handle.Index] = velocity;
         NumericCount++;

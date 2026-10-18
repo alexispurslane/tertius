@@ -39,7 +39,7 @@ public static partial class DemoScenes
     /// <item>Three cargo pods, <c>pod-1</c> to <c>pod-3</c>, float in the chamber one above the other and drift at 1 m/s
     /// toward the hatch (see <see cref="Pods"/>), out of the station and along its port side toward the radiator. They
     /// leave the bubble 11.5 to 12.7 s after the start, pod-3 first, and bump the radiator 19.7, 21.4 and 23.7 s after it,
-    /// pod-1 first. Each pod is a cube of 0.7 m and 20 kg, and it is a frame of its own with the Physics driver and a
+    /// pod-1 first. Each pod is a cube of 0.7 m and 20 kg, and it is a frame of its own with a dynamic hull and a
     /// bubble of 1 cm, so that its body is a hull: outside a bubble, a hull meets only static bodies and other hulls
     /// (ARCHITECTURE.md, "Collision groups"), so only a hull bumps the station's hull there. A loose crate would pass
     /// through the radiator. The pods glow faintly in their orange, as marker lights do.</item>
@@ -213,7 +213,7 @@ public static partial class DemoScenes
                         new CompoundChild(new BoxShapeDesc(Radiator.Extents), new Pose(Radiator.Center, Quaternion.Identity)),
                     ]), BodyMotion.Kinematic, Mass: 2e5f,
                     InteriorShape: new CompoundShapeDesc([.. Interior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
-                AsFrame = new FrameSpec(new FrameBounds(Bubble), MotionDriver.Kepler),
+                AsFrame = new FrameSpec(new FrameBounds(Bubble)),
                 Render = Drawn(resources, HullMesh(), new Vector4(0.8f, 0.8f, 0.82f, 1), boundingRadius: 33),
             });
             scene.Add("station", station);
@@ -268,7 +268,7 @@ public static partial class DemoScenes
                     Pose = new DPose(start, DQuaternion.Identity),
                     LinearVelocity = velocity,
                     Body = new BodyDesc(new BoxShapeDesc(new Vector3(PodHalfSize)), BodyMotion.Dynamic, Mass: PodMass, LinearDamping: 0, AngularDamping: 0),
-                    AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Physics),
+                    AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
                     Render = pod,
                 }));
 

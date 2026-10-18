@@ -19,7 +19,7 @@ public class FrameTreeThrustTests
     private readonly PhysicsChanges changes = new();
 
     public FrameTreeThrustTests() =>
-        ground = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
+        ground = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
 
     private static Double3 X(double x) => new(x, 0, 0);
 

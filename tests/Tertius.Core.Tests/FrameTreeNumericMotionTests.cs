@@ -27,7 +27,7 @@ public class FrameTreeNumericMotionTests
     private readonly FrameHandle earth;
 
     public FrameTreeNumericMotionTests() =>
-        earth = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static, Earth);
+        earth = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), Earth);
 
     private static Double3 X(double x) => new(x, 0, 0);
 

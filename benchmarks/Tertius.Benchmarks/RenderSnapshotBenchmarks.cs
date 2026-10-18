@@ -20,12 +20,12 @@ public class RenderSnapshotBenchmarks
     public void Setup()
     {
         world = new World(new WorldOptions { MaxDegreeOfParallelism = 1 });
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = ground,
             Pose = new DPose(new Double3(0, 0, -50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e4f), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         }));
         for (int i = 0; i < Entities; i++)
             world.Spawn(new SpawnDesc

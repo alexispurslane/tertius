@@ -7,8 +7,7 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// Motion samples and rails components on the owner of a frame that has a body: who may write a sample, what the rails
-/// components check, and the teleport with which a rails component puts a hull on its rails. In this ticket a hull is
-/// kinematic when its frame has the Kepler or the Spin driver. These tests read the sample table and what each step
+/// components check, and the teleport with which a rails component puts a hull on its rails. These tests read the sample table and what each step
 /// received; RailsFollowTests checks how frames follow the samples. The world runs on the real backend.
 /// </summary>
 public class RailsHullTests
@@ -34,12 +33,12 @@ public class RailsHullTests
     // ---- Who can write a sample ---------------------------------------------------------------------------------
 
     [Theory]
-    [InlineData(MotionDriver.Physics)]
-    [InlineData(MotionDriver.Static)]
-    public void MoveOnRailsThrowsForTheOwnerOfAFrameWhoseHullIsNotKinematic(MotionDriver driver)
+    [InlineData(BodyMotion.Dynamic)]
+    [InlineData(BodyMotion.Static)]
+    public void MoveOnRailsThrowsForTheOwnerOfAFrameWhoseHullIsNotKinematic(BodyMotion motion)
     {
         using World world = NewWorld(out _);
-        Entity owner = Hull(world, Scenes.AsteroidSpace(world), driver, new WritesSample(Parked));
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), motion, new WritesSample(Parked));
 
         Tick(world, 1);
 
@@ -47,13 +46,11 @@ public class RailsHullTests
         world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out _).Should().BeFalse();
     }
 
-    [Theory]
-    [InlineData(MotionDriver.Kepler)]
-    [InlineData(MotionDriver.Spin)]
-    public void MoveOnRailsTakesASampleFromTheOwnerOfAKinematicHull(MotionDriver driver)
+    [Fact]
+    public void MoveOnRailsTakesASampleFromTheOwnerOfAKinematicHull()
     {
         using World world = NewWorld(out _);
-        Entity owner = Hull(world, Scenes.AsteroidSpace(world), driver, new WritesSample(Parked));
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, new WritesSample(Parked));
 
         Tick(world, 1);
 
@@ -70,7 +67,7 @@ public class RailsHullTests
         Entity owner = world.Spawn(new SpawnDesc
         {
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f)),
             Components = [new WritesSample(Parked)],
         });
 
@@ -80,52 +77,53 @@ public class RailsHullTests
         world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out _).Should().BeTrue();
     }
 
+    /// <summary>
+    /// The owner writes a sample in tick 2, and then makes its hull dynamic in the same tick. Step 2 still moves the
+    /// kinematic hull by the sample of tick 1. The change acts at the sync point of tick 2, so the sample of tick 2 goes, and
+    /// step 3, which moves a dynamic hull, gets no sample.
+    /// </summary>
     [Fact]
-    public void AHullThatStopsBeingKinematicDropsItsAppliedSample()
+    public void AHullThatStopsBeingKinematicSendsNoSampleToTheStepAfterTheChange()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        Entity owner = Hull(world, Scenes.AsteroidSpace(world), MotionDriver.Kepler, new WritesSample(Parked));
+        var rails = new WritesSample(Parked);
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, rails);
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 2);
         world.Frames.Samples.Applied.TryGet(frame, out _).Should().BeTrue("tick 1 wrote a sample for step 2");
 
-        world.SetFrameDriver(frame, MotionDriver.Physics);
+        world.SetMotionNextTick(owner, BodyMotion.Dynamic, remove: rails);
+        Tick(world, 2);
 
-        world.Frames.Samples.Applied.TryGet(frame, out _).Should().BeFalse();
-        Tick(world, 1);
-        faults.Samples.Should().NotContain(record => record.Frame == frame && record.Tick == 2, "step 2 moves a dynamic hull");
+        faults.Samples.Should().Contain(record => record.Frame == frame && record.Tick == 2, "step 2 moves the kinematic hull by the sample of tick 1");
+        faults.Samples.Should().NotContain(record => record.Frame == frame && record.Tick == 3, "step 3 moves a dynamic hull");
+        world.Errors.Should().BeEmpty();
     }
 
     // ---- A kinematic hull takes only MoveOnRails and Teleport -----------------------------------------------------
 
-    [Theory]
-    [InlineData(MotionDriver.Kepler)]
-    [InlineData(MotionDriver.Spin)]
-    public void MoveKinematicOnAKinematicHullThrows(MotionDriver driver) =>
-        AssertTheKinematicHullRefuses(driver, body => body.MoveKinematic(At(1, 2, 3)));
+    [Fact]
+    public void MoveKinematicOnAKinematicHullThrows() =>
+        AssertTheKinematicHullRefuses(body => body.MoveKinematic(At(1, 2, 3)));
 
-    [Theory]
-    [InlineData(MotionDriver.Kepler)]
-    [InlineData(MotionDriver.Spin)]
-    public void SetVelocityOnAKinematicHullThrows(MotionDriver driver) =>
-        AssertTheKinematicHullRefuses(driver, body => body.SetVelocity(new Double3(1, 0, 0)));
+    [Fact]
+    public void SetVelocityOnAKinematicHullThrows() =>
+        AssertTheKinematicHullRefuses(body => body.SetVelocity(new Double3(1, 0, 0)));
 
-    [Theory]
-    [InlineData(MotionDriver.Kepler)]
-    [InlineData(MotionDriver.Spin)]
-    public void SetAngularVelocityOnAKinematicHullThrows(MotionDriver driver) =>
-        AssertTheKinematicHullRefuses(driver, body => body.SetAngularVelocity(new Vector3(0, 1, 0)));
+    [Fact]
+    public void SetAngularVelocityOnAKinematicHullThrows() =>
+        AssertTheKinematicHullRefuses(body => body.SetAngularVelocity(new Vector3(0, 1, 0)));
 
     /// <summary>
     /// The owner of a kinematic hull calls <paramref name="call"/> in a tick. Only a sample tells the frame of a kinematic
     /// hull how to follow, so the call throws an <see cref="InvalidOperationException"/>, which the World records, and the
     /// step gets no such intent.
     /// </summary>
-    private static void AssertTheKinematicHullRefuses(MotionDriver driver, BodyCommand call)
+    private static void AssertTheKinematicHullRefuses(BodyCommand call)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         var pilot = new Pilot { Once = call };
-        Entity owner = Hull(world, Scenes.AsteroidSpace(world), driver, pilot);
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, pilot);
 
         Tick(world, 2);
 
@@ -145,7 +143,7 @@ public class RailsHullTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         var pilot = new Pilot();
-        Entity owner = Hull(world, Scenes.AsteroidSpace(world), MotionDriver.Kepler, pilot, new WritesSample(Parked));
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, pilot, new WritesSample(Parked));
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 3);
 
@@ -166,14 +164,12 @@ public class RailsHullTests
     /// the hull at the start of the next step and releases the teleport's pose, with a unit rotation and at rest, as the
     /// frame's step record, as for a static hull. So the frame stands where its hull is at the sync point after the step.
     /// </summary>
-    [Theory]
-    [InlineData(MotionDriver.Kepler)]
-    [InlineData(MotionDriver.Spin)]
-    public void TheFrameOfAKinematicHullThatTeleportsInAStepWithoutASampleTakesTheTeleportsPose(MotionDriver driver)
+    [Fact]
+    public void TheFrameOfAKinematicHullThatTeleportsInAStepWithoutASampleTakesTheTeleportsPose()
     {
         using World world = NewWorld(out _);
         var pilot = new Pilot();
-        Entity owner = Hull(world, Scenes.AsteroidSpace(world), driver, pilot);
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, pilot);
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 3);
 
@@ -201,7 +197,7 @@ public class RailsHullTests
         FrameHandle space = Scenes.AsteroidSpace(world);
         var pilot = new Pilot();
         var rails = new KeplerMotion { Orbit = Orbit };
-        Entity owner = Hull(world, space, MotionDriver.Kepler, rails, pilot);
+        Entity owner = Hull(world, space, BodyMotion.Kinematic, rails, pilot);
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 4);
         world.Frames.Numeric(world.Frames.TreeParent(frame)).Should().Be(NumericMode.Orbiting, "the hull moves at 2 km/s");
@@ -235,7 +231,7 @@ public class RailsHullTests
         using World world = NewWorld(out _);
         var log = new List<string>();
         world.Log += log.Add;
-        Entity owner = Hull(world, Scenes.AsteroidSpace(world), MotionDriver.Physics, Rails(component));
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Dynamic, Rails(component));
 
         Tick(world, 3);
 
@@ -254,7 +250,7 @@ public class RailsHullTests
     public void TheFirstSampleOfARailsComponentComesWithATeleportOfItsHullToTheRailsPoseAtTheStartOfTheStep(string component)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        Entity owner = Hull(world, Scenes.AsteroidSpace(world), component == "KeplerMotion" ? MotionDriver.Kepler : MotionDriver.Spin, Rails(component));
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, Rails(component));
 
         Tick(world, 4);
 
@@ -270,7 +266,7 @@ public class RailsHullTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         var first = new KeplerMotion { Orbit = Orbit };
-        Entity owner = Hull(world, Scenes.AsteroidSpace(world), MotionDriver.Kepler, first);
+        Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, first);
         Tick(world, 3);
 
         world.RemoveComponent(owner, first);
@@ -285,16 +281,15 @@ public class RailsHullTests
     // ---- Helpers ------------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// The owner of a frame in <paramref name="space"/> whose hull is a ball, with <paramref name="driver"/>: on
-    /// <see cref="Orbit"/> for Kepler, at <see cref="SpinPlace"/> with <see cref="Spin"/> for Spin, and at
-    /// <see cref="SpinPlace"/> for the others.
+    /// The owner of a frame at <see cref="SpinPlace"/> in <paramref name="space"/> whose hull is a ball with
+    /// <paramref name="motion"/>. A rails component among <paramref name="components"/> puts the hull on its rails.
     /// </summary>
-    private static Entity Hull(World world, FrameHandle space, MotionDriver driver, params IComponent[] components) => world.Spawn(new SpawnDesc
+    private static Entity Hull(World world, FrameHandle space, BodyMotion motion, params IComponent[] components) => world.Spawn(new SpawnDesc
     {
         Frame = space,
         Pose = new DPose(SpinPlace, DQuaternion.FromAxisAngle(Double3.UnitX, 1)),
-        Body = Ball() with { Motion = BodyDesc.FrameHullMotion(driver) },
-        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), driver),
+        Body = Ball() with { Motion = motion },
+        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         Components = components,
     });
 

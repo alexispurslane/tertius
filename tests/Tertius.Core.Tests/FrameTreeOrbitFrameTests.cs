@@ -8,8 +8,7 @@ namespace Tertius.Core.Tests;
 /// the test: the kinematic hull of a frame whose samples move it fast or far in its semantic frame lives in a numeric frame
 /// of its own, K, that follows the frame's motion samples (docs/plans/rails-components.md, "Numeric frames"), and the hull's
 /// frame hangs at K's origin. The tests feed the samples to the tree's sample table and do at each sync point what the
-/// World and physics do with them (see <see cref="Sync"/>). In this ticket the Kepler and the Spin driver make a hull
-/// kinematic. The tests run
+/// World and physics do with them (see <see cref="Sync"/>). The tests run
 /// <see cref="FrameTree.UpdateNumericFrames"/> with plain body records, at the defaults of <see cref="NumericFrameOptions"/>.
 /// A group of free bodies gets a falling frame from 1,000 m/s and keeps it down to 400 m/s. A group with a body that
 /// thrusts, such as a character, gets one from 50 m/s and keeps it down to 20 m/s. A slow group gets a resting frame from
@@ -38,18 +37,18 @@ public class FrameTreeOrbitFrameTests
     private List<NumericMove> moves = [];
 
     public FrameTreeOrbitFrameTests() =>
-        earth = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static,
+        earth = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f),
             GravityField.Point(EarthMu));
 
     /// <summary>
-    /// A frame of the owner <paramref name="id"/> in <paramref name="parent"/>, or in earth, with <paramref name="driver"/>, at the
+    /// A frame of the owner <paramref name="id"/> in <paramref name="parent"/>, or in earth, with a kinematic hull, at the
     /// place, rotation and velocity of <paramref name="orbit"/> at <see cref="Start"/>, as a spawn from the rails library puts it.
     /// </summary>
-    private FrameHandle Station(uint id, KeplerOrbit orbit, FrameHandle parent = default, MotionDriver driver = MotionDriver.Kepler)
+    private FrameHandle Station(uint id, KeplerOrbit orbit, FrameHandle parent = default)
     {
         FrameHandle space = parent.IsNull ? earth : parent;
-        FrameHandle frame = frames.Create(new Entity(id, 1), space, DPose.Identity, FrameBounds.Sphere(40), driver);
-        frames.SetHullMotion(frame, BodyDesc.FrameHullMotion(driver));
+        FrameHandle frame = frames.Create(new Entity(id, 1), space, DPose.Identity, FrameBounds.Sphere(40));
+        frames.SetHullMotion(frame, BodyMotion.Kinematic);
         double mu = KeplerOrbit.MuFrom(frames.Gravity(space));
         (Double3 place, Double3 velocity) = orbit.StateAt(Start, mu);
         frames.SetLocalPose(frame, new DPose(place, orbit.RotationAt(Start, mu)));
@@ -276,10 +275,10 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void A_far_Spin_hull_gets_an_orbit_frame_as_any_kinematic_hull_does()
+    public void A_far_kinematic_hull_that_turns_in_place_gets_an_orbit_frame_as_any_kinematic_hull_does()
     {
         // 10,000 km out, past the create distance of 2^23 m (about 8,389 km), a hull that turns in place is slow but far.
-        FrameHandle station = Station(10, Far, driver: MotionDriver.Spin);
+        FrameHandle station = Station(10, Far);
         frames.TreeLinearVelocity(station) = Double3.Zero;
 
         FrameHandle orbit = Update(Hull(station) with { Velocity = Double3.Zero })[0].Home;
@@ -292,7 +291,7 @@ public class FrameTreeOrbitFrameTests
     public void An_orbit_frame_jumps_with_its_anchors_teleport_and_its_other_contents_keep_their_places_and_velocities_in_earth()
     {
         FrameHandle station = Station(10, Low);
-        FrameHandle pod = frames.Create(new Entity(11, 1), earth, DPose.Identity, FrameBounds.Sphere(1), MotionDriver.Physics);
+        FrameHandle pod = frames.Create(new Entity(11, 1), earth, DPose.Identity, FrameBounds.Sphere(1));
         frames.SetHullMotion(pod, BodyMotion.Dynamic);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
         frames.SetLocalPose(pod, new DPose(place + new Double3(5, 0, 0), DQuaternion.Identity));
@@ -360,7 +359,7 @@ public class FrameTreeOrbitFrameTests
     {
         // A circular orbit of 1 km in a field of 1e-9 m³/s² moves at 1 µm/s. The fast body is a character, which always
         // thrusts, so at 60 m/s it would fall in a frame of its own.
-        FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f), MotionDriver.Static,
+        FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e7f),
             GravityField.Point(1e-9));
         FrameHandle station = Station(10, KeplerOrbit.Circular(1_000), space);
         NumericBody character = Crate(11, new Double3(1_000, 3, 0), new Double3(60, 0, 0), home: space) with { Character = true };
@@ -436,7 +435,7 @@ public class FrameTreeOrbitFrameTests
     {
         // 10,000 km out in a field of 1e-9 m³/s², the hull is slow but far: past the create distance of 2^23 m (about
         // 8,389 km), so it lives in an orbit frame. Then it moves to an orbit of 1 km, within the leave distance of 2^22 m.
-        FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e8f), MotionDriver.Static,
+        FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e8f),
             GravityField.Point(1e-9));
         FrameHandle station = Station(10, KeplerOrbit.Circular(1e7), space);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -547,7 +546,7 @@ public class FrameTreeOrbitFrameTests
     public void Destroying_the_semantic_frame_of_an_orbit_frame_dissolves_it_and_drops_the_ghosts_of_its_hull()
     {
         // Earth is a semantic child of the sun, which has no gravity of its own here.
-        FrameHandle sun = frames.Create(new Entity(3, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
+        FrameHandle sun = frames.Create(new Entity(3, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
         frames.Reparent(earth, sun);
         FrameHandle station = Station(10, Far);
         FrameHandle orbit = Update(Hull(station))[0].Home;

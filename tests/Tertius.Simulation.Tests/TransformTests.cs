@@ -182,18 +182,14 @@ public class TransformTests
 
     // ---- The owner of a frame without a body writes its transform ----------------------------------------------------
 
-    [Theory]
-    [InlineData(MotionDriver.Static)]
-    [InlineData(MotionDriver.Kepler)]
-    [InlineData(MotionDriver.Spin)]
-    [InlineData(MotionDriver.Physics)]
-    public void AnOwnerWithoutABodyWritesItsFramesTransformWhateverItsDriver(MotionDriver driver)
+    [Fact]
+    public void AnOwnerWithoutABodyWritesItsFramesTransform()
     {
         using var test = new TestWorld();
         Entity owner = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = [new Mover(new Double3(0, 2, 0))],
         });
         FrameHandle frame = test.World.GetOwnedFrame(owner);

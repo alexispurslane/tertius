@@ -228,13 +228,13 @@ public class RailsComponentTests
 
     // ---- Helpers ------------------------------------------------------------------------------------------------
 
-    /// <summary>Spawns a frame without a body and with the Static driver at <paramref name="place"/> in the root, and returns it.</summary>
+    /// <summary>Spawns a frame without a body at <paramref name="place"/> in the root, and returns it.</summary>
     private static FrameHandle SpawnFrame(TestWorld test, Double3 place = default, params IComponent[] components) =>
         test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
             Pose = new DPose(place, DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = components,
         }));
 

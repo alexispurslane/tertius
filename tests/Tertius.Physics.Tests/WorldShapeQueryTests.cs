@@ -103,7 +103,7 @@ public class WorldShapeQueryTests
     {
         Frame = parent,
         Pose = Turned(new Double3(100, 0, 0), Double3.UnitY, Math.PI / 2),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
     }));
 
     /// <summary>
@@ -115,7 +115,7 @@ public class WorldShapeQueryTests
         {
             Frame = parent,
             Pose = new DPose(at, DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(radius)),
         }));
 
     /// <summary>

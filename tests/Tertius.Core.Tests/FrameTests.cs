@@ -115,8 +115,8 @@ public class FrameTests
     public void FrameTreeVelocityConversionIncludesSpin()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e12f), MotionDriver.Static);
-        FrameHandle station = frames.Create(new Entity(2, 1), root, new DPose(new Double3(1000, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(200), MotionDriver.Kepler);
+        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e12f));
+        FrameHandle station = frames.Create(new Entity(2, 1), root, new DPose(new Double3(1000, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(200));
         frames.TreeLinearVelocity(station) = new Double3(0, 0, 50);
         frames.AngularVelocity(station) = new Vector3(0, 0.1f, 0);
         frames.Update();
@@ -135,9 +135,9 @@ public class FrameTests
     public void FrameTreeReparentKeepsPose()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
-        FrameHandle carrier = frames.Create(new Entity(2, 1), root, new DPose(new Double3(5000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5)), FrameBounds.Sphere(400), MotionDriver.Physics);
-        FrameHandle fighter = frames.Create(new Entity(3, 1), root, new DPose(new Double3(5100, 10, 0), DQuaternion.Identity), FrameBounds.Sphere(15), MotionDriver.Physics);
+        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        FrameHandle carrier = frames.Create(new Entity(2, 1), root, new DPose(new Double3(5000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5)), FrameBounds.Sphere(400));
+        FrameHandle fighter = frames.Create(new Entity(3, 1), root, new DPose(new Double3(5100, 10, 0), DQuaternion.Identity), FrameBounds.Sphere(15));
         frames.TreeLinearVelocity(carrier) = new Double3(10, 0, 0);
         frames.TreeLinearVelocity(fighter) = new Double3(12, 0, 0);
         frames.Update();
@@ -157,8 +157,8 @@ public class FrameTests
     public void FrameTreeRejectsStaleHandles()
     {
         var frames = new FrameTree();
-        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(10), MotionDriver.Static);
-        FrameHandle child = frames.Create(new Entity(2, 1), root, DPose.Identity, FrameBounds.Sphere(1), MotionDriver.Static);
+        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(10));
+        FrameHandle child = frames.Create(new Entity(2, 1), root, DPose.Identity, FrameBounds.Sphere(1));
         frames.Destroy(child);
         Assert.False(frames.IsAlive(child));
         Assert.Throws<InvalidOperationException>(() => frames.LocalPose(child));

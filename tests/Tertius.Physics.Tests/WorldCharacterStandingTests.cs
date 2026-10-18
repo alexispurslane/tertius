@@ -123,7 +123,7 @@ public class WorldCharacterStandingTests
     public void ACharacterThatAForcePressesOntoAFloorInZeroGravityDoesNotStand()
     {
         using World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Floor(world, space);
         // 70 N on 70 kg presses the character onto the floor at 1 m/s², so Jolt finds the floor under it in every
         // update, as it does under gravity.

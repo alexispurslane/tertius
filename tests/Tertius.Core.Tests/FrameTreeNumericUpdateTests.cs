@@ -30,7 +30,7 @@ public class FrameTreeNumericUpdateTests
     private List<NumericMove> moves = [];
 
     public FrameTreeNumericUpdateTests() =>
-        ground = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
+        ground = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
 
     private static Double3 X(double x) => new(x, 0, 0);
 
@@ -390,7 +390,7 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void A_fixed_hull_in_a_numeric_frame_goes_back_to_its_semantic_frame_with_its_frame()
     {
-        FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+        FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.TreeLinearVelocity(hull) = X(60);
         NumericBody owner = Body(20, x: 50, vx: 60, character: true) with { OwnedFrame = hull };
@@ -414,7 +414,7 @@ public class FrameTreeNumericUpdateTests
     [InlineData(null)]
     public void A_frame_without_a_dynamic_hull_under_a_numeric_frame_breaks_an_invariant(BodyMotion? motion)
     {
-        FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+        FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         Update(0.1, Body(20, x: 50, vx: 60, character: true) with { OwnedFrame = hull });
         frames.Numeric(frames.TreeParent(hull)).Should().Be(NumericMode.Falling);
@@ -512,7 +512,7 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void Bodies_of_two_semantic_frames_never_link()
     {
-        FrameHandle other = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
+        FrameHandle other = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
         NumericBody[] after = Update(0.1, Body(10, x: 0, vx: 60, character: true),
             Body(11, x: 0, vx: 60, character: true) with { Semantic = other, Home = other });
         after[0].Home.Should().NotBe(after[1].Home);
@@ -534,7 +534,7 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void A_drain_and_a_recenter_keep_the_pose_and_velocity_of_a_ship_frame_in_its_semantic_frame()
     {
-        FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+        FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.TreeLinearVelocity(hull) = X(60);
         FrameHandle pod = Update(0.1, Body(20, x: 50, vx: 60, character: true) with { OwnedFrame = hull })[0].Home;
@@ -573,7 +573,7 @@ public class FrameTreeNumericUpdateTests
     [Fact]
     public void A_moving_owner_takes_its_frame_into_its_new_home()
     {
-        FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+        FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         FrameHandle home = Update(0.1, Body(20, x: 50, vx: 60, character: true) with { OwnedFrame = hull })[0].Home;
         frames.Numeric(home).Should().Be(NumericMode.Falling);
@@ -679,9 +679,9 @@ public class FrameTreeNumericUpdateTests
     public void A_semantic_frame_that_dies_takes_its_numeric_frames_with_it_and_its_ship_frames_keep_their_places()
     {
         DQuaternion turned = DQuaternion.FromAxisAngle(new Double3(0, 1, 0), 0.5);
-        FrameHandle station = frames.Create(new Entity(2, 1), ground, new DPose(X(1_000), turned), FrameBounds.Sphere(1e6f), MotionDriver.Static);
+        FrameHandle station = frames.Create(new Entity(2, 1), ground, new DPose(X(1_000), turned), FrameBounds.Sphere(1e6f));
         frames.AngularVelocity(station) = new System.Numerics.Vector3(0, 0.1f, 0);
-        FrameHandle hull = frames.Create(new Entity(20, 1), station, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+        FrameHandle hull = frames.Create(new Entity(20, 1), station, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.TreeLinearVelocity(hull) = X(60);
         NumericBody owner = Body(20, x: 50, vx: 60, character: true) with { Semantic = station, Home = station, HomePosition = X(50), OwnedFrame = hull };

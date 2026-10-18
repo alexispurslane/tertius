@@ -5,7 +5,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The spin of a frame with the Spin driver: a lean by its tilt, then a steady turn about its own +Y. The tilt here
+/// The spin of a frame that turns in place: a lean by its tilt, then a steady turn about its own +Y. The tilt here
 /// leans the pole 23.44 degrees from the parent's +Y toward its +X, as Earth's axis leans from the pole of its orbit.
 /// </summary>
 public class FrameSpinTests

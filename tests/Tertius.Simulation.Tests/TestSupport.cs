@@ -108,7 +108,7 @@ public sealed class TestWorld : IDisposable
         var options = new WorldOptions { MaxDegreeOfParallelism = maxDop, ChunkSize = chunkSize, DebugChecks = debugChecks };
         configure?.Invoke(options);
         var world = new World(options, physics);
-        root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e12f), MotionDriver.Static));
+        root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e12f)));
         return world;
     }
 
@@ -142,7 +142,7 @@ public static class WorldTestExtensions
         {
             Frame = parent,
             Pose = pose,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(radius)),
         }));
 
     /// <summary>Runs this many ticks.</summary>

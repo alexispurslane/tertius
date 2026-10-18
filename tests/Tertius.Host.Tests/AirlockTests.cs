@@ -20,7 +20,7 @@ public sealed class AirlockTests : IDisposable
 
     public AirlockTests()
     {
-        room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static));
+        room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
         (inner, outer, airlock) = SpawnAirlock(x: 0, cycleSeconds: 1);
     }
 

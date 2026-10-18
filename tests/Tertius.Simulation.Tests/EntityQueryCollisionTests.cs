@@ -15,7 +15,7 @@ public class EntityQueryCollisionTests
     private static World NewWorld(out FrameHandle space)
     {
         World world = WorldTesting.NewWorld(out JoltPhysicsBackend _);
-        space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         return world;
     }
 

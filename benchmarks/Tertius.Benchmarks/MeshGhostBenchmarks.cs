@@ -43,20 +43,20 @@ public class MeshGhostBenchmarks
     {
         var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
         world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         var hull = new MeshShapeDesc([new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)], [0, 2, 1, 0, 3, 2]);
         Entity station = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Body = new BodyDesc(hull, BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(3), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
         });
         Entity shipOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(12, 20, 0),
             Body = new BodyDesc(new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
             Components = ShipShuttles ? [new Shuttle()] : [],
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);

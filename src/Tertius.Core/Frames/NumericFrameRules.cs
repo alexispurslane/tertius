@@ -261,8 +261,8 @@ internal static class NumericFrameRules
     /// True when <paramref name="body"/>, a body of the frame whose bubble is <paramref name="bubble"/>, can stick out of that
     /// bubble before the next update, so that physics can give it a ghost in the frame's tree parent: it can move, and its
     /// bounding sphere, grown by how far it can move (see <see cref="Allowance"/>), reaches outside the bubble. A static body
-    /// never moves, and a static body that is not a hull has no such ghost. The hull of a frame that its driver moves is not
-    /// static, and it never leaves the bubble, so it sticks out by as far as it lies.
+    /// never moves, and a static body that is not a hull has no such ghost. A hull that moves is not static, and it never
+    /// leaves the bubble, so it sticks out by as far as it lies.
     /// </summary>
     internal static bool MayStickOut(FrameBounds bubble, in NumericBody body, NumericFrameOptions options) =>
         !body.Static && bubble.SignedDistance(body.Position) > -(body.Radius + Allowance(body.Velocity.Length, options));

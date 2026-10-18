@@ -244,8 +244,8 @@ public class ContactAllocationTests
     public void StepsWithContactsThroughAGhostThatStartAndEndAllocateNothingOnAnyThread()
     {
         using World world = NewWorld(out _, debugChecks: false);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
-        FrameHandle bubble = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static) }));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
+        FrameHandle bubble = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10)) }));
         var blockContacts = new ContactCounter();
         world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(10), Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic), Components = [blockContacts] });
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(13.75), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.25f, 1, 1)), BodyMotion.Static) });

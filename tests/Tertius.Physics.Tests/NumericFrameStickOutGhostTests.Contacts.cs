@@ -34,13 +34,13 @@ public partial class NumericFrameStickOutGhostTests
     private static HandOffOutcome RunCrateThatLeavesAStation(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(FarOut),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(40)),
         });
         FrameHandle station = world.GetOwnedFrame(owner);
         var rockLog = new CollisionLog();
@@ -89,13 +89,13 @@ public partial class NumericFrameStickOutGhostTests
     private static HandOffOutcome RunCrateThatEntersAnEmptyStation(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(FarOut),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(40)),
         });
         FrameHandle station = world.GetOwnedFrame(owner);
         var rockLog = new CollisionLog();
@@ -164,11 +164,11 @@ public partial class NumericFrameStickOutGhostTests
     private static HandOffOutcome RunCrateThatEntersAFallingShip(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space, Pose = At(150), LinearVelocity = new Double3(-60, 0, 0), Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics), Components = [new Thruster(ShipHull.Mass)],
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200)), Components = [new Thruster(ShipHull.Mass)],
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
         var rockLog = new CollisionLog();

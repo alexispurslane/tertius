@@ -27,7 +27,7 @@ public class GravityTests
 
     /// <summary>The planet: a root frame with the point gravity of the Earth.</summary>
     private static FrameHandle Planet(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
 
     /// <summary>Every body state of <paramref name="entity"/> that Jolt sent, from the output at index <paramref name="from"/> on.</summary>
     private static List<BodyState> ReportsOf(FaultInjectingBackend faults, Entity entity, int from = 0) =>
@@ -126,7 +126,7 @@ public class GravityTests
     public void UniformArtificialGravityActsInShipAxes()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         // The ship lies on its side in space. Its gravity points along its own -Y, which is space +X.
         var shipPose = new DPose(new Double3(1000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
         var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(10, 0.25f, 10)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
@@ -136,7 +136,7 @@ public class GravityTests
             Frame = space,
             Pose = shipPose,
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(40), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         }));
         Entity crate = world.Spawn(new SpawnDesc { Frame = ship, Pose = At(0, 1), Body = BoxBody(0.5f, 5) });
 
@@ -159,7 +159,7 @@ public class GravityTests
     public void ThrustingShipPushesLooseCrateTowardStern()
     {
         using World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         // The ship's bow (+Z in ship axes) points along space +X.
         var shipPose = new DPose(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2));
         var sternWall = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(5, 3, 0.25f)), new Pose(new Vector3(0, 0, -9.25f), Quaternion.Identity))]);
@@ -170,7 +170,7 @@ public class GravityTests
             Frame = space,
             Pose = shipPose,
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
             Components = [pilot],
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
@@ -216,7 +216,7 @@ public class GravityTests
             Frame = planet,
             Pose = At(0, EarthRadius + 2.05),
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         }));
         Entity crate = world.Spawn(new SpawnDesc { Frame = ship, Pose = At(0, 0, 0), Body = BoxBody(0.25f, 1) });
 
@@ -244,7 +244,7 @@ public class GravityTests
             Pose = At(radius),
             LinearVelocity = new Double3(0, 0, -speed),
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
         }));
         Entity crate = world.Spawn(new SpawnDesc { Frame = ship, Pose = At(5), Body = BoxBody(0.25f, 1) });
 

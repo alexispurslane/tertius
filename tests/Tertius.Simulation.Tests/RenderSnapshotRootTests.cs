@@ -59,7 +59,7 @@ public class RenderSnapshotRootTests
         FrameHandle turning = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
         }.Spinning(test.World, new FrameSpin(DQuaternion.Identity, 1))));
         test.World.Camera = test.SpawnCamera(turning, DPose.Identity);
         test.Run(1);

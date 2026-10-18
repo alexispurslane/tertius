@@ -72,7 +72,7 @@ public sealed partial class JoltPhysicsBackend
             PendingMove move = pendingMoves[i];
             BodyRecord record = move.Record;
             // The body keeps its ghosts, but not one in its new home, so that no system holds a body and its ghost. Only an
-            // anchor's ghost lies in a home of the body's semantic frame: a Kepler hull that the game gives another driver
+            // anchor's ghost lies in a home of the body's semantic frame: a kinematic hull whose owner changes its motion
             // can join the home of a group that kept its ghost a sync point before. The update stops naming that home at
             // the same sync point, but the batch drops withdrawn ghosts only after the moves and the reconcile (see
             // DropWithdrawnAnchorGhosts).

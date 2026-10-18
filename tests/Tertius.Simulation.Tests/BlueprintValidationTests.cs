@@ -222,7 +222,7 @@ public class BlueprintValidationTests
     public void ASpawnDescriptionCarriesTheBodyRenderRowAndFrameOfTheResolvedBlueprint()
     {
         var blueprints = new Blueprints();
-        var spec = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Static);
+        var spec = new FrameSpec(FrameBounds.Sphere(30));
         blueprints.Register(new Blueprint("hull", [], TestWorld.Ball, new RenderData { Mesh = new MeshId(6) }, spec));
 
         SpawnDesc desc = blueprints.CreateSpawnDesc("hull", default, DPose.Identity);

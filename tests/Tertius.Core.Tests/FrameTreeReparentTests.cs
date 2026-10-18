@@ -26,9 +26,9 @@ public class FrameTreeReparentTests
 
         public Ship()
         {
-            Root = Frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
-            Hull = Frames.Create(new Entity(2, 1), Root, HullPose, FrameBounds.Sphere(50), MotionDriver.Physics);
-            Cabin = Frames.Create(new Entity(3, 1), Hull, new DPose(new Double3(10, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(5), MotionDriver.Static);
+            Root = Frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+            Hull = Frames.Create(new Entity(2, 1), Root, HullPose, FrameBounds.Sphere(50));
+            Cabin = Frames.Create(new Entity(3, 1), Hull, new DPose(new Double3(10, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(5));
             Frames.TreeLinearVelocity(Hull) = HullVelocity;
             Frames.AngularVelocity(Hull) = HullSpin;
             Frames.Update();

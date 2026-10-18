@@ -24,7 +24,7 @@ public class ScenesTests
     public void ABallReleasedInAShipWithGravityLiesOnItsDeck()
     {
         using World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, g: 9.81f);
         Entity ball = world.Spawn(new SpawnDesc { Frame = ship.Interior, Pose = At(0, Scenes.DeckTop + 1), Body = Ball() });
 
@@ -39,7 +39,7 @@ public class ScenesTests
     public void AShipWithoutGravityStaysWhereItIsInSpace()
     {
         using World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space, position: new Double3(100, 200, 300), bubbleRadius: 30);
 
         Tick(world, 60);
@@ -70,12 +70,12 @@ public class ScenesTests
     public void ABallApproachingABubbleIsHandedOffInTheStepOfTheTickThatWasAskedFor(int tick, double lateral)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(500, 3, -2),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
         }));
         Scenes.Approach approach = Scenes.ApproachToBubble(world, station, tick, lateral: lateral);
         Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Ball() });

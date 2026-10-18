@@ -33,7 +33,7 @@ public class ReconcileTests
 
     /// <summary>A frame with no body, in <paramref name="parent"/>, at <paramref name="pose"/>, with a bubble of <paramref name="radius"/> m.</summary>
     private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius) =>
-        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static) }));
+        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius)) }));
 
     /// <summary>
     /// Probe P1 of the review, with physics systems of at most 8 bodies. A hangar bubble of radius 30 m, 1 km along +X,
@@ -54,7 +54,7 @@ public class ReconcileTests
             World = NewWorldWithFaultsAndSmallSystems(8, out FaultInjectingBackend faults,
                 configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
             Faults = faults;
-            Space = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+            Space = World.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
             Hangar = EmptyFrame(World, Space, At(1000), 30);
             BodyDesc hull = ShipHull();
             Ship = World.GetOwnedFrame(World.Spawn(new SpawnDesc
@@ -63,7 +63,7 @@ public class ReconcileTests
                 Pose = At(1070),
                 LinearVelocity = new Vector3(-60, 0, 0),
                 Body = hull,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
                 Components = [new Thruster(hull.Mass) { Direction = -Vector3.UnitX }],
             }));
             Storage = EmptyFrame(World, Space, At(-5000), 50);
@@ -79,7 +79,7 @@ public class ReconcileTests
                 Frame = Space,
                 Pose = At(-3000),
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
             }));
         }
 
@@ -184,7 +184,7 @@ public class ReconcileTests
     {
         // Numeric frames off: the Release branch checks that the system of space holds the fighter's hull.
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults, configure: options => options.NumericFrames = WithoutNumericFrames);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         FrameHandle carrier = EmptyFrame(world, space, At(1000), 200);
         FrameHandle fighter = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
@@ -192,7 +192,7 @@ public class ReconcileTests
             Pose = At(1260),
             LinearVelocity = new Vector3(-60, 0, 0),
             Body = ShipHull(),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         }));
         // The backend hands the fighter into the carrier. The test gives the report a wrong origin, as a bug would. In a
         // Release build, the first batch after that step reads which system holds the fighter's hull before Jolt applies it.
@@ -244,13 +244,13 @@ public class ReconcileTests
     /// </summary>
     private static (FrameHandle Space, FrameHandle Hangar, FrameHandle Ship) ShipBesideHangar(World world, FaultInjectingBackend faults)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         FrameHandle hangar = EmptyFrame(world, space, At(20), 15);
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = space,
             Body = ShipHull(),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         }));
         world.Tick();
         faults.Jolt.HasGhostIn(ship.Entity, hangar).Should().BeTrue();
@@ -290,7 +290,7 @@ public class ReconcileTests
     public void ABodyHasNoGhostInAFrameThatTheGameMovedAwayFromItsFrame()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         FrameHandle bubble = EmptyFrame(world, space, At(50), 20);
         FrameHandle station = EmptyFrame(world, space, At(-500), 200);
         // The ball sticks out of the bubble, so space holds a ghost of it.

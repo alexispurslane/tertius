@@ -4,8 +4,8 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Tertius.Core.Tests" />
-    <!-- FrameTree.SetDriver is for the simulation alone, which keeps a frame's owner in step with the frame. The physics
-         tests stand in for the simulation. -->
+    <!-- The setters of FrameTree, such as SetHullMotion, are for the simulation alone, which keeps a frame's owner in step
+         with the frame. The physics tests stand in for the simulation. -->
     <InternalsVisibleTo Include="Tertius.Simulation" />
     <InternalsVisibleTo Include="Tertius.Physics.Tests" />
     <!-- The tree-level members of FrameTree (dense order, counts) are internal, because they show numeric frames. -->

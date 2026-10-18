@@ -165,8 +165,8 @@ public class WorldCollisionGroupTests
     {
         CollisionGroup phantom = registry.Register("Phantom");
         using World world = NewWorld(out JoltPhysicsBackend backend);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
-        Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static) });
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
+        Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10)) });
         FrameHandle bubble = world.GetOwnedFrame(owner);
         var block = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic);
         Entity blockEntity = Spawn(world, bubble, At(10), theBlockIsSolid
@@ -197,8 +197,8 @@ public class WorldCollisionGroupTests
     {
         CollisionGroup phantom = registry.Register("Phantom");
         using World world = NewWorld(out JoltPhysicsBackend backend);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
-        Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static) });
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
+        Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10)) });
         FrameHandle bubble = world.GetOwnedFrame(owner);
         var pilot = new Pilot();
         Entity block = Spawn(world, bubble, At(10), new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic), pilot);
@@ -294,13 +294,13 @@ public class WorldCollisionGroupTests
         CollisionGroup hull = registry.Register("Hull");
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
-        Entity carrier = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 50), AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Static) });
+        Entity carrier = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 50), AsFrame = new FrameSpec(FrameBounds.Sphere(200)) });
         var pilot = new Pilot();
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = world.GetOwnedFrame(carrier),
             Body = StaticBox(new Vector3(5, 0.5f, 5)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
             Components = [pilot],
         });
         FrameHandle shipFrame = world.GetOwnedFrame(ship);
@@ -333,7 +333,7 @@ public class WorldCollisionGroupTests
         {
             Frame = ground,
             Pose = At(0, 8),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(4), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(4)),
             Components = ownerComponents,
         });
         Entity ball = Spawn(world, world.GetOwnedFrame(owner), At(0), Ball() with { CollisionGroups = groups, CollisionMask = mask }, pilot);
@@ -375,7 +375,7 @@ public class WorldCollisionGroupTests
         Entity owner = world.Spawn(new SpawnDesc
         {
             Body = theOwnerIsSolid ? deck : deck with { CollisionGroups = CollisionGroups.Of(hull), CollisionMask = CollisionMask.Empty.InAny(hull) },
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
         Entity ball = Spawn(world, ship, At(0, 2), Ball());
@@ -398,7 +398,7 @@ public class WorldCollisionGroupTests
         Entity owner = world.Spawn(new SpawnDesc
         {
             Body = StaticBox(new Vector3(5, 0.5f, 5)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
             Components = [pilot],
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
@@ -522,7 +522,7 @@ public class WorldCollisionGroupTests
         {
             Frame = ground,
             Body = StaticBox(new Vector3(5, 0.5f, 5)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
         });
         Entity ball = Spawn(world, ground, At(3, 2), Ball() with { CollisionMask = CollisionMask.Empty });
 

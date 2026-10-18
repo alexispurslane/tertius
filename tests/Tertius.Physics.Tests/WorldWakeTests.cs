@@ -51,8 +51,8 @@ public class WorldWakeTests
 
     /// <summary>
     /// A lander falls asleep on the roof of a parked platform. Both are frames with hulls in the ground frame, and neither
-    /// bubble fits into the other, so the two hulls touch in the ground frame. The platform has the static driver, so its
-    /// hull is static. Between two ticks, the game moves the platform 20 m away through the frame tree. Physics puts the
+    /// bubble fits into the other, so the two hulls touch in the ground frame. The platform's hull is
+    /// static. Between two ticks, the game moves the platform 20 m away through the frame tree. Physics puts the
     /// static hull there without simulating the move, and the lander falls to the floor.
     /// </summary>
     [Fact]
@@ -66,7 +66,7 @@ public class WorldWakeTests
             Frame = ground,
             Pose = At(0, 1),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static, Mass: 1000),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(3), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
         });
         FrameHandle platform = world.GetOwnedFrame(platformOwner);
         Entity lander = world.Spawn(new SpawnDesc
@@ -74,7 +74,7 @@ public class WorldWakeTests
             Frame = ground,
             Pose = At(0, 2.5),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(3), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
         });
         world.Tick();
         TickUntil(world, () => !IsAwake(backend, ground, lander), 600);
@@ -205,7 +205,7 @@ public class WorldWakeTests
         Frame = ground,
         Pose = At(0, 1),
         Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(3), MotionDriver.Static),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
         Components = components,
     });
 
@@ -215,7 +215,7 @@ public class WorldWakeTests
         Frame = ground,
         Pose = pose,
         Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 100),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(3), MotionDriver.Physics),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
     });
 
     /// <summary>Where Jolt holds the hull of <paramref name="owner"/> in the system of <paramref name="frame"/>.</summary>

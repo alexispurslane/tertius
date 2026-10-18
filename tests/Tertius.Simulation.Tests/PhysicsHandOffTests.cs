@@ -319,15 +319,14 @@ public class PhysicsHandOffTests
         tick.Should().Throw<ContractException>();
     }
 
-    // Only a dynamic hull hands off. The hull of a static frame is static and the hull of a Kepler frame is kinematic, and
-    // physics hands neither of them off.
+    // Only a dynamic hull hands off. Physics hands neither a static hull nor a kinematic hull on a Kepler orbit off.
     [Theory]
-    [InlineData(MotionDriver.Static)]
-    [InlineData(MotionDriver.Kepler)]
-    public void AHandOffOfTheOwnerOfAFrameWithoutADynamicHullBreaksAContract(MotionDriver driver)
+    [InlineData(BodyMotion.Static)]
+    [InlineData(BodyMotion.Kinematic)]
+    public void AHandOffOfTheOwnerOfAFrameWithoutADynamicHullBreaksAContract(BodyMotion motion)
     {
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
-        Entity owner = SpawnFrameWithHull(test, driver, out FrameHandle frame);
+        Entity owner = SpawnFrameWithHull(test, motion, out FrameHandle frame);
         FrameHandle yard = test.SpawnStaticFrame(TestWorld.At(5), radius: 100);
         faults.EditOutput = output => output.HandOffs.Add(new HandOff(owner, test.Root, yard, TestWorld.At(-5), default, default));
 
@@ -464,12 +463,12 @@ public class PhysicsHandOffTests
     }
 
     [Theory]
-    [InlineData(MotionDriver.Static)]
-    [InlineData(MotionDriver.Kepler)]
-    public void AHandOffOfTheOwnerOfAFrameWithoutADynamicHullIsReportedOnceAndTheFrameStaysUnderItsParent(MotionDriver driver)
+    [InlineData(BodyMotion.Static)]
+    [InlineData(BodyMotion.Kinematic)]
+    public void AHandOffOfTheOwnerOfAFrameWithoutADynamicHullIsReportedOnceAndTheFrameStaysUnderItsParent(BodyMotion motion)
     {
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
-        Entity owner = SpawnFrameWithHull(test, driver, out FrameHandle frame);
+        Entity owner = SpawnFrameWithHull(test, motion, out FrameHandle frame);
         FrameHandle yard = test.SpawnStaticFrame(TestWorld.At(5), radius: 100);
         faults.EditOutputOfTick(0, output => output.HandOffs.Add(new HandOff(owner, test.Root, yard, TestWorld.At(-5), default, default)));
 
@@ -621,7 +620,7 @@ public class PhysicsHandOffTests
                 Pose = TestWorld.At(100),
                 LinearVelocity = OwnVelocity,
                 AngularVelocity = OwnSpin,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
                 Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
                 Components = ownerComponents,
             });
@@ -727,27 +726,27 @@ public class PhysicsHandOffTests
     /// </summary>
     private static Entity SpawnRootWithBody(TestWorld test) => test.World.Spawn(new SpawnDesc
     {
-        AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
         Body = new BodyDesc(new SphereShapeDesc(5), BodyMotion.Static),
     });
 
     /// <summary>
-    /// A frame of radius 10 m near the origin of the root, with <paramref name="driver"/>, whose owner has a hull in the root:
-    /// a static body for the static driver, a kinematic one for the Kepler driver. A Kepler frame circles the origin at 1 m.
+    /// A frame of radius 10 m near the origin of the root, whose owner has a hull in the root with <paramref name="motion"/>,
+    /// static or kinematic. A kinematic hull has a <see cref="KeplerMotion"/> that circles the origin at 1 m.
     /// </summary>
-    private static Entity SpawnFrameWithHull(TestWorld test, MotionDriver driver, out FrameHandle frame)
+    private static Entity SpawnFrameWithHull(TestWorld test, BodyMotion motion, out FrameHandle frame)
     {
         // The Kepler frame takes its G·M from the point gravity of the root: 1 m³/s², so that it circles at 1 m in 2π s.
-        if (driver == MotionDriver.Kepler)
+        if (motion == BodyMotion.Kinematic)
             test.GiveRootPointGravity(1);
         var desc = new SpawnDesc
         {
             Frame = test.Root,
             Pose = TestWorld.At(0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), driver == MotionDriver.Kepler ? BodyMotion.Kinematic : BodyMotion.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), motion),
         };
-        Entity owner = test.World.Spawn(driver == MotionDriver.Kepler ? desc.OnKeplerOrbit(test.World, KeplerOrbit.Circular(1)) : desc);
+        Entity owner = test.World.Spawn(motion == BodyMotion.Kinematic ? desc.OnKeplerOrbit(test.World, KeplerOrbit.Circular(1)) : desc);
         frame = test.World.GetOwnedFrame(owner);
         return owner;
     }
@@ -759,7 +758,7 @@ public class PhysicsHandOffTests
         {
             Frame = test.Root,
             Pose = pose,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
             Components = components,
         });

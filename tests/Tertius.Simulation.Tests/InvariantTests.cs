@@ -96,7 +96,7 @@ public class InvariantTests(ITestOutputHelper output)
         {
             Frame = test.Root,
             Pose = TestWorld.At(100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Body = hull,
         }));
 

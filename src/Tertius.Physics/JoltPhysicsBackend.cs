@@ -94,13 +94,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// poses and velocities converted. The hulls of those child frames move with them and take pose and velocity from
     /// the tree. Any other body still in the destroyed frame is removed with a warning, and so is the hull of an owner
     /// that outlives its frame. A frame in FramesDestroyed that the tree still has keeps its system, with a warning,
-    /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, a
-    /// frame that the simulation reparents on its own, and a frame whose driver the game changes are handled here or at
-    /// the start of the next step, whichever comes first. A hull has the motion that the frame tree keeps for it (see
-    /// <see cref="FrameTree.HullMotion"/>), which the simulation sets with the driver that the hull needs. The simulation
-    /// never gives a frame a driver that its hull cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>). Such a
-    /// driver comes only from a bug: it breaks a contract in a Debug build, and a Release build keeps the hull's motion and
-    /// reports the bug (see <see cref="ReportBug"/>).
+    /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, and a
+    /// frame that the simulation reparents on its own are handled here or at the start of the next step, whichever comes
+    /// first. A hull has the motion that the frame tree keeps for it (see <see cref="FrameTree.HullMotion"/>): the motion of
+    /// its description at spawn, and the motion of a change that its owner wrote in a tick, which the hull takes at the start
+    /// of the step after that tick's sync point (see <see cref="ApplyMotionChanges"/>). The simulation never sends a change
+    /// that the hull cannot take. Such a change comes only from a bug: it breaks a contract in a Debug build, and a Release
+    /// build keeps the hull's motion and reports the bug (see <see cref="ReportBug"/>).
     /// </para>
     /// <para>
     /// After the moves and the reconcile, the backend drops each ghost whose place the numeric update of the sync point
@@ -542,15 +542,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>
     /// Brings physics in line with the frame tree, which is the authority: drops the hand-offs of frames from the last
-    /// step, removes the systems of frames that left the tree, gives every frame hull the motion that its frame's driver
-    /// needs, puts every frame hull in the system of the parent that the tree names, and removes every ghost that the tree
-    /// no longer allows. The sync point has applied or refused each hand-off before this runs, so a hull whose hand-off
-    /// the tree did not take, or whose frame the simulation moved on its own, goes where the tree says, with the tree's
-    /// pose and velocity. A hull whose frame got a driver keeps its body and takes the tree's pose and velocity too, also
-    /// when the driver is the one that the frame had. A
-    /// system that is full grows to take the hull. Afterwards <see cref="AssertInvariants"/> holds: every system belongs
-    /// to a live frame, every record has the bodies that it must have, every hull is in the system of its frame's parent
-    /// in the tree and has the motion of its frame's driver, and every ghost is in a frame next to its body's frame.
+    /// step, removes the systems of frames that left the tree, puts every frame hull in the system of the parent that the
+    /// tree names, and removes every ghost that the tree no longer allows. The sync point has applied or refused each
+    /// hand-off before this runs, so a hull whose hand-off the tree did not take, or whose frame the simulation moved on its
+    /// own, goes where the tree says, with the tree's pose and velocity and its own motion. A system that is full grows to
+    /// take the hull. A change of a hull's motion is no change of the tree's structure, so it is not handled here (see
+    /// <see cref="ApplyMotionChanges"/>). Afterwards <see cref="AssertInvariants"/> holds: every system belongs to a live
+    /// frame, every record has the bodies that it must have, every hull is in the system of its frame's parent in the tree,
+    /// and every ghost is in a frame next to its body's frame.
     /// </summary>
     private void ReconcileFrames()
     {
@@ -561,7 +560,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         bool handedOffFrames = parentOverrides.Count > 0;
         parentOverrides.Clear();
 
-        // Every structural change of the tree, removals included, and every driver change changes its version.
+        // Every structural change of the tree, removals included, changes its version.
         // Stryker disable once Statement : the check only saves work; reconciling an unchanged tree changes nothing.
         if (frames.Version == reconciledFrameVersion && !handedOffFrames)
             return;
@@ -591,14 +590,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // After the sweep every owner's frame is alive, so this test is only a guard.
             if (!frames.IsAlive(owner.OwnedFrame))
                 continue;
-            // The hull's motion follows the frame's driver, and its system follows the frame's parent. A hull that moves
-            // to another system has its new motion there from the start. Either way it starts from the tree.
-            bool newDriver = FollowDriver(owner);
+            // The hull's system follows the frame's parent. A hull that moves to another system keeps its motion and
+            // starts from the tree's pose and velocity.
             FrameHandle parent = frames.TreeParent(owner.OwnedFrame);
             if (owner.Frame != parent)
                 PlaceHullFromTree(owner, parent);
-            else if (newDriver && owner.HasPrimary)
-                ApplyHullMotion(owner);
         }
 
         // Ghosts follow the tree too. A frame that the game moved, or a hull that the tree moved, can leave a ghost in a

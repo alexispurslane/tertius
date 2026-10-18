@@ -92,10 +92,11 @@ public sealed partial class World : IDisposable
     }
 
     /// <summary>
-    /// The reference frames. Read it freely. Outside a tick, a game gives a frame a new motion driver or gravity field with
-    /// <see cref="SetFrameDriver"/> and <see cref="SetFrameGravity"/>. They refuse a value that the engine cannot use, and
-    /// the owner of the frame follows the change at once. A frame on rails takes its orbit or its spin from a component of
-    /// its owner (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). Make every other change through the world.
+    /// The reference frames. Read it freely. Outside a tick, a game gives a frame a new gravity field with
+    /// <see cref="SetFrameGravity"/>, which refuses a field that the engine cannot use. A frame on rails takes its orbit or
+    /// its spin from a component of its owner (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>), and a hull's
+    /// owner changes the hull's motion in a tick with <see cref="BodyHandle.SetMotion"/>. Make every other change through
+    /// the world.
     /// </summary>
     public FrameTree Frames { get; } = new();
 

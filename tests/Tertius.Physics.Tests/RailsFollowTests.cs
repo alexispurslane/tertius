@@ -13,8 +13,8 @@ namespace Tertius.Physics.Tests;
 /// predicts the frame's ghosts and hand-offs from the record. A new frame on rails holds still for its first step, so it
 /// stands on its rails from the second sync point after its spawn.
 /// <para>
-/// In this ticket the Kepler driver still makes a hull kinematic, but the tree keeps no orbit, so only the component puts
-/// the frame where the test expects it. A frame without a body needs no driver, so it has the Static driver.
+/// The tree keeps no orbit, so only the component puts the frame where the test expects it. A hull that follows samples is
+/// kinematic, and a frame without a body follows its samples with no hull.
 /// </para>
 /// </summary>
 public class RailsFollowTests
@@ -41,14 +41,14 @@ public class RailsFollowTests
     {
         Frame = space,
         Body = Ball() with { Motion = BodyMotion.Kinematic },
-        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
     }.OnKeplerOrbit(world, orbit));
 
     /// <summary>The owner of a frame without a body on <paramref name="orbit"/> in <paramref name="space"/>, whose bubble has a radius of <paramref name="bubble"/> m.</summary>
     private static Entity Bodyless(World world, FrameHandle space, KeplerOrbit orbit, float bubble = 5) => world.Spawn(new SpawnDesc
     {
         Frame = space,
-        AsFrame = new FrameSpec(FrameBounds.Sphere(bubble), MotionDriver.Static),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(bubble)),
     }.OnKeplerOrbit(world, orbit));
 
     private static Entity Owner(World world, FrameHandle space, KeplerOrbit orbit, bool withBody) =>
@@ -241,7 +241,7 @@ public class RailsFollowTests
         {
             Frame = space,
             Body = withBody ? Ball() with { Motion = BodyMotion.Kinematic } : null,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         }.OnKeplerOrbit(world, Slow));
 
         world.Tick();
@@ -325,7 +325,7 @@ public class RailsFollowTests
     public void AFarSpinHullLivesInAnOrbitFrameOfItsOwnAsAnyFarKinematicHullDoes()
     {
         using World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f)));
         // 10,000 km from the origin, past the 2^23 m (8,389 km) from which a body gets a numeric frame.
         var turning = new FrameSpin(DQuaternion.Identity, 0.1);
         Entity owner = world.Spawn(new SpawnDesc
@@ -333,7 +333,7 @@ public class RailsFollowTests
             Frame = space,
             Pose = At(1e7),
             Body = Ball() with { Motion = BodyMotion.Kinematic },
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Spin),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         }.Spinning(world, turning));
 
         Tick(world, 3);
@@ -417,7 +417,7 @@ public class RailsFollowTests
             Pose = At(1000),
             LinearVelocity = new Double3(0, 0, 100),
             Body = Ball() with { Motion = BodyMotion.Kinematic },
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         });
 
         Tick(world, 3);
@@ -432,7 +432,7 @@ public class RailsFollowTests
     public void ABodyStateOfAHullNeverWritesItsOwnersRow()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space);
         // The body state of the hull says that the hull is far away; the frame's step record says where it is.
         faults.EditOutput = output =>
@@ -494,13 +494,13 @@ public class RailsFollowTests
             {
                 Frame = space,
                 Body = Ball() with { Motion = BodyMotion.Static },
-                AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
                 Components = [new Hopper()],
             }),
             _ => world.Spawn(new SpawnDesc
             {
                 Frame = space,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
                 Components = [new Climber()],
             }),
         };

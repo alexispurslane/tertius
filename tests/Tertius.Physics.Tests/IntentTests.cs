@@ -15,7 +15,7 @@ public class IntentTests
     private static (World World, FrameHandle Space) ZeroGravity()
     {
         World world = NewWorld(out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         return (world, space);
     }
 
@@ -232,13 +232,13 @@ public class IntentTests
     public void FrameHullTakesForcesFromItsOwnerIntent()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         var pilot = new Pilot();
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Body = new BodyDesc(new SphereShapeDesc(2), Mass: 500, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
             Components = [pilot],
         });
         FrameHandle ship = world.GetOwnedFrame(owner);

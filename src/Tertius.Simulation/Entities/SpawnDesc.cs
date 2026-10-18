@@ -55,15 +55,13 @@ public sealed class SpawnDesc
 
 /// <summary>Makes a spawned entity a reference frame.</summary>
 /// <param name="Bounds">The bubble that decides which objects belong to the frame.</param>
-/// <param name="Driver">
-/// The motion that the frame's hull needs: dynamic for <see cref="MotionDriver.Physics"/>, kinematic for
-/// <see cref="MotionDriver.Kepler"/> and <see cref="MotionDriver.Spin"/>, and static for <see cref="MotionDriver.Static"/>
-/// (see <see cref="BodyDesc.FrameHullMotion"/>). The hull has the motion of its description, which must state this
-/// motion until the driver goes (ter-ru5u).
-/// </param>
 /// <param name="Gravity">The gravity field that objects inside feel.</param>
 /// <remarks>
-/// A frame on rails takes its orbit or its spin from a component of its entity, <see cref="KeplerMotion"/> or
-/// <see cref="SpinMotion"/>, not from this description (docs/plans/rails-components.md).
+/// The frame moves as its owner's body moves, not as this description says. For a frame with a parent, the owner's body
+/// is the frame's hull, and the hull's motion is the motion of its description (see <see cref="BodyDesc.Motion"/>): a
+/// dynamic hull falls and coasts in the parent's physics system, a kinematic hull follows the motion samples of a rails
+/// component of its entity, such as <see cref="KeplerMotion"/> or <see cref="SpinMotion"/>, and a static hull holds
+/// still. The owner changes the motion later with <see cref="BodyHandle.SetMotion"/>. A frame without a body follows the
+/// samples of its rails component, or its owner's transform write, or holds still (docs/plans/rails-components.md).
 /// </remarks>
-public sealed record FrameSpec(FrameBounds Bounds, MotionDriver Driver, GravityField Gravity = default);
+public sealed record FrameSpec(FrameBounds Bounds, GravityField Gravity = default);

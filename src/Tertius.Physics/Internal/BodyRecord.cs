@@ -72,13 +72,6 @@ internal sealed class BodyRecord
     /// </summary>
     public BodyMotion Motion;
     /// <summary>
-    /// For the owner of a frame: the driver of <see cref="OwnedFrame"/> that <see cref="Motion"/> follows. It is the
-    /// frame's driver when the record was created or at the last reconcile, whichever came later.
-    /// </summary>
-    public MotionDriver Driver;
-    /// <summary>For the owner of a frame: the <see cref="FrameTree.DriverVersion"/> of <see cref="OwnedFrame"/> that <see cref="Driver"/> follows.</summary>
-    public int DriverVersion;
-    /// <summary>
     /// The entity's collision groups and mask now: those of <see cref="Desc"/>, until a collision intent changes them.
     /// Every Jolt body of the record carries them, except the hull of a frame (see <see cref="Layers"/>).
     /// </summary>

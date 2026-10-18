@@ -479,7 +479,7 @@ public class ReboundTests
         FrameHandle space = Ground(world, G);
         FrameHandle bubble = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
-            Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         }));
         Entity block = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(0, 10), Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic) });
         var ballLog = new CollisionLog();
@@ -527,7 +527,7 @@ public class ReboundTests
     public void ABallThatFallsOntoTheGhostOfAMovingMeshBouncesAsOnTheRealFloor(float shipVelocity, double drop, bool bounces)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         // The station's hull: 40 m by 40 m of triangles at y = 0, facing up. Its bubble is 3 m around the origin, far from
         // where the ball lands, so the ball never enters it.
         var hull = new MeshShapeDesc([new(-20, 0, -20), new(20, 0, -20), new(20, 0, 20), new(-20, 0, 20)], [0, 2, 1, 0, 3, 2]);
@@ -535,7 +535,7 @@ public class ReboundTests
         {
             Frame = space,
             Body = new BodyDesc(hull, BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(3), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
         });
         Entity shipOwner = world.Spawn(new SpawnDesc
         {
@@ -543,7 +543,7 @@ public class ReboundTests
             Pose = At(12, 20),
             LinearVelocity = new Vector3(0, shipVelocity, 0),
             Body = new BodyDesc(new SphereShapeDesc(2), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics, GravityField.Uniform(new Vector3(0, -G, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30), GravityField.Uniform(new Vector3(0, -G, 0))),
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         Entity ball = world.Spawn(new SpawnDesc

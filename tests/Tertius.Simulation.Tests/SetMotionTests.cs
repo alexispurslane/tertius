@@ -19,24 +19,13 @@ public class SetMotionTests
     /// <summary>A box of 1000 kg with sides of 4 m, which can take every motion of a hull.</summary>
     private static readonly BodyDesc ShipBody = new(new BoxShapeDesc(new Vector3(2)), Mass: 1000);
 
-    /// <summary>
-    /// The driver that a frame needs for a hull with <paramref name="motion"/>, as the spawn demands until the driver goes
-    /// (ter-ru5u, stage 3).
-    /// </summary>
-    private static MotionDriver DriverOf(BodyMotion motion) => motion switch
-    {
-        BodyMotion.Dynamic => MotionDriver.Physics,
-        BodyMotion.Kinematic => MotionDriver.Kepler,
-        _ => MotionDriver.Static,
-    };
-
     /// <summary>A frame 100 m along +X in the root, whose owner has the hull <paramref name="body"/> with <paramref name="motion"/>.</summary>
     private static FrameHandle SpawnHull(TestWorld test, BodyMotion motion, BodyDesc body, params IComponent[] components) =>
         test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
             Pose = TestWorld.At(100),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), DriverOf(motion)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Body = body with { Motion = motion },
             Components = components,
         }));
@@ -222,13 +211,13 @@ public class SetMotionTests
             "a plain body" => test.World.Spawn(new SpawnDesc { Frame = test.Root, Body = ShipBody }),
             "a root frame's owner" => test.World.Spawn(new SpawnDesc
             {
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
                 Body = ShipBody,
             }),
             _ => test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
             {
                 Frame = test.Root,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             })).Entity,
         };
         test.Run(1);

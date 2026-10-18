@@ -12,7 +12,7 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class BlueprintInheritanceTests
 {
-    private static readonly FrameSpec Outpost = new(FrameBounds.Sphere(30), MotionDriver.Static);
+    private static readonly FrameSpec Outpost = new(FrameBounds.Sphere(30));
 
     // ---- Components and fields --------------------------------------------------------------------------------
 
@@ -154,7 +154,7 @@ public class BlueprintInheritanceTests
     public void AChildsOwnFrameSpecReplacesItsParents()
     {
         var blueprints = new Blueprints();
-        var bigger = new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Static);
+        var bigger = new FrameSpec(FrameBounds.Sphere(300));
         blueprints.Register(new Blueprint("parent", [], Frame: Outpost));
         blueprints.Register(new Blueprint("child", [], Frame: bigger, Parent: "parent"));
 

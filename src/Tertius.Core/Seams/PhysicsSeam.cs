@@ -331,32 +331,6 @@ public sealed record BodyDesc(
     }
 
     private static string? NotFinite(string name, float value) => float.IsFinite(value) ? null : $"has the {name} {value}, which must be finite";
-
-    /// <summary>
-    /// The motion that the hull of a frame with <paramref name="driver"/> needs: dynamic for the physics driver, kinematic
-    /// for the Kepler and Spin drivers, which move it on rails, and static for the static driver. Only a frame with a parent
-    /// has a hull. A hull has the motion of its description, and until the driver goes (ter-ru5u), a spawn refuses a hull
-    /// whose description does not state the motion of its frame's driver.
-    /// </summary>
-    public static BodyMotion FrameHullMotion(MotionDriver driver) => driver switch
-    {
-        MotionDriver.Physics => BodyMotion.Dynamic,
-        MotionDriver.Kepler or MotionDriver.Spin => BodyMotion.Kinematic,
-        _ => BodyMotion.Static,
-    };
-
-    /// <summary>
-    /// Why the hull of a frame with this description cannot move the way that <paramref name="driver"/> needs, or null
-    /// when it can. The physics driver needs a dynamic hull, which has mass and is not a mesh. The Kepler driver needs a
-    /// kinematic hull, which is not a mesh. Any hull can be static. The message completes a sentence that names the hull.
-    /// </summary>
-    public string? FrameHullProblem(MotionDriver driver) => driver switch
-    {
-        MotionDriver.Physics or MotionDriver.Kepler or MotionDriver.Spin when Shape.ContainsMesh() =>
-            $"is a mesh, which never moves, so it cannot follow the {driver} driver",
-        MotionDriver.Physics when !(Mass > 0) => $"has a mass of {Mass}, so it cannot be dynamic for the Physics driver",
-        _ => null,
-    };
 }
 
 /// <summary>What a body is to its entity, which decides the rules that its description obeys (see <see cref="BodyDesc.Problem"/>).</summary>
@@ -603,7 +577,7 @@ public readonly record struct FrameStepRecord(FrameHandle Frame, MotionSample Mo
 /// not null. An ended contact names two different entities, and one of them may be gone, because destroying a body ends
 /// its contacts. A hand-off leaves
 /// the frame that its entity is in, each entity hands off at most once, and the owner of a frame hands off only when
-/// the frame has the physics driver. A frame's step record names a frame with a parent, whose owner has a body: its hull,
+/// the frame's hull is dynamic. A frame's step record names a frame with a parent, whose owner has a body: its hull,
 /// which is dynamic, kinematic with a sample, or static or kinematic without a sample and teleported in the step. A
 /// contact names two different entities. A character state names a live character, and each character has
 /// at most one state in a step. <see cref="PhysicsOutputCheck"/> holds the full rules. The sync point treats any other
@@ -630,7 +604,7 @@ public sealed class PhysicsStepOutput
 
     /// <summary>
     /// One message for each state that only a bug produces, which the backend found and skipped during the step, for
-    /// example a frame whose driver its hull cannot follow. A Debug build breaks a contract instead. The sync point records
+    /// example a change of motion that a hull cannot take. A Debug build breaks a contract instead. The sync point records
     /// each message in the simulation's errors.
     /// </summary>
     public readonly List<string> Errors = new();

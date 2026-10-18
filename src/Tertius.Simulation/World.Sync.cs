@@ -530,9 +530,9 @@ public sealed partial class World
     /// (see <see cref="KeepRecord"/>). Step 5 converted the rows that are relative to a dying frame (see
     /// <see cref="ConvertSamplesOfMovedFrames"/>). Every other move of an entity at a sync point is a hand-off of a dynamic
     /// body in step 2, before the records, and an owner with a dynamic hull writes no sample, because
-    /// <see cref="MoveOnRails"/> refuses it. A hull that stops being kinematic in a tick drops the sample written in the tick
-    /// (see <see cref="ApplyMotionChanges"/>), and one that stops between two ticks drops its samples (see
-    /// <see cref="SetFrameDriver"/>), so no step after that applies one, and no sample of it is left when its hull hands off.
+    /// <see cref="MoveOnRails"/> refuses it. A hull changes its motion only at step 4, and one that stops being kinematic drops
+    /// the sample written in the tick (see <see cref="ApplyMotionChanges"/>), so no step after that applies one, and no
+    /// sample of it is left when its hull hands off.
     /// The numeric update of step 6c moves hulls only between the systems of one semantic frame. So a row that needs a
     /// conversion here is a bug.
     /// </summary>

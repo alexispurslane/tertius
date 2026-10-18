@@ -33,8 +33,7 @@ public sealed partial class World
     /// before anything changes, for a description that the world cannot make live: a pose that is not valid (see
     /// <see cref="DPose.IsValid"/>), a velocity that is not finite, a body that physics cannot create (see
     /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>, which checks a frame's hull as a body
-    /// with the motion of its description), a hull whose description does not state the motion that its frame's driver
-    /// needs (until the driver goes, ter-ru5u), a gravity field that is not valid, or an attachment
+    /// with the motion of its description), a gravity field that is not valid, or an attachment
     /// parent that is not live or that owns a root frame. The World checks nothing about rails motion: a rails component
     /// checks its own rules (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). An attached entity is live in
     /// the frame of its parent, whatever frame the description names (see <see cref="SpawnDesc.AttachTo"/>).
@@ -128,66 +127,6 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Gives a frame a motion driver, for example to park a ship. Outside a tick only. A frame that gets the static driver
-    /// stops where it is: both of its velocities become zero, and it keeps its proper acceleration, so the cargo of a ship
-    /// that is parked on the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until
-    /// something moves it: physics for the physics driver, and the motion samples of a rails component of its owner (see
-    /// <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>) for the Kepler and Spin drivers, which both give the hull the
-    /// kinematic motion. The driver only chooses the motion of the hull, which the frame tree keeps (see
-    /// <see cref="FrameTree.HullMotion"/>): a change of motion is a new driver plus a swap of components with
-    /// <see cref="AddComponent"/> and <see cref="RemoveComponent"/> (docs/plans/rails-components.md, "Changes of motion").
-    /// The owner's transform mirrors the frame at once. Physics follows at the start of its next step:
-    /// the hull gets the motion that the driver needs, at the frame's pose and velocity in the tree. Every call does that,
-    /// also a call that gives the frame the driver that it has, so a park and an unpark between two ticks stop the ship.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">During a tick, when physics reads the frame tree on its own thread.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">A driver that <see cref="MotionDriver"/> does not define.</exception>
-    /// <exception cref="ArgumentException">
-    /// A frame that is gone. The physics driver for a frame with a parent whose owner's body cannot be dynamic: it has no
-    /// mass, or it is a mesh, which never moves. The Kepler or the Spin driver for a frame with a parent whose owner's body
-    /// is a mesh. A root frame has no hull, so any body of its owner can have any driver. The frame keeps its driver. The
-    /// World checks nothing about the frame's rails motion: its rails components check their own rules.
-    /// </exception>
-    public void SetFrameDriver(FrameHandle frame, MotionDriver driver)
-    {
-        ThrowIfInTick(nameof(SetFrameDriver));
-        if (!Enum.IsDefined(driver))
-            throw new ArgumentOutOfRangeException(nameof(driver), driver, "MotionDriver does not define this driver.");
-        if (!Frames.IsAlive(frame))
-            throw new ArgumentException($"Cannot set the driver of {frame}: the frame is gone.", nameof(frame));
-        // A root frame has no parent, so its owner has no hull that must follow the driver.
-        if (!Frames.Parent(frame).IsNull && entities.Body(frame.Entity)?.FrameHullProblem(driver) is { } problem)
-            throw new ArgumentException($"Cannot give {frame} the {driver} driver: the hull of its owner {frame.Entity} {problem}.", nameof(driver));
-
-        // The hull takes the motion that the driver needs. A frame that leaves its orbit frame for another motion leaves that
-        // frame falling (see FrameTree.SetHullMotion).
-        if (!Frames.Parent(frame).IsNull && entities.Body(frame.Entity) != null)
-            Frames.SetHullMotion(frame, BodyDesc.FrameHullMotion(driver));
-        Frames.SetDriver(frame, driver);
-        // A hull that stops being kinematic follows no motion sample, so the samples that its owner wrote before go: no step
-        // applies them, and none is left when the hull hands off (see AssertSamplesNeedNoConversion).
-        if (!Frames.Parent(frame).IsNull && entities.Body(frame.Entity) != null && BodyDesc.FrameHullMotion(driver) != BodyMotion.Kinematic)
-            Frames.Samples.Drop(frame);
-        MirrorFrameOwner(frame);
-        // A frame with a static hull moves relative to its semantic parent, and a frame with a kinematic hull hangs there or
-        // in an orbit frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3; see FrameTree). So when the frame
-        // hangs in another numeric frame, a numeric update moves the hull, with its frame, into the home that the new driver
-        // gives it, at once: out of the numeric frame for a static hull, and out of it or into an orbit frame of its own for
-        // a kinematic one. The frame keeps its place, so the merge test sees the hull where it is. The move carries the
-        // velocity of the old home into the frame, so a frame that gets the Static driver gets it again and stops there. A
-        // frame in its semantic parent stays there until the numeric update of the next sync point.
-        if (physics != null && driver != MotionDriver.Physics && Frames.TreeParent(frame) is { IsNull: false } treeParent &&
-            Frames.IsNumeric(treeParent) && !Frames.InOrbitFrame(frame))
-        {
-            UpdateNumericFrames(0);
-            if (driver == MotionDriver.Static)
-                Frames.SetDriver(frame, driver);
-            MirrorFrameOwner(frame);
-        }
-        FinishOutsideTickChange();
-    }
-
-    /// <summary>
     /// Gives a frame a new gravity field, outside a tick only. Physics wakes the frame's bodies at the start of its next
     /// step, and they feel the new field from then on. The <see cref="KeplerMotion"/> of a child frame reads the G·M of the
     /// new field in the next tick, so a new G·M moves the child from its next sample on, and a field without one holds the
@@ -259,19 +198,8 @@ public sealed partial class World
         {
             if (!(spec.Bounds.MinRadius > 0))
                 throw new ArgumentException("A frame needs a bubble with positive radii.", nameof(desc));
-            if (!Enum.IsDefined(spec.Driver))
-                throw new ArgumentException($"MotionDriver does not define the driver {spec.Driver}.", nameof(desc));
             if (!spec.Gravity.IsValid)
                 throw new ArgumentException("A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).", nameof(desc));
-            // A temporary check that goes with FrameSpec.Driver in stage 3 of ter-ru5u. A hull has the motion of its
-            // description, and the driver still moves the frame: a hull whose description does not state the motion that the
-            // driver needs would move one way in Jolt and its frame another. So until the driver goes, a test or a scene that
-            // relies on a driver to choose the hull's motion fails here, loudly, instead of changing its behavior silently later.
-            if (!desc.Frame.IsNull && desc.Body is { } hull && hull.Motion != BodyDesc.FrameHullMotion(spec.Driver))
-                throw new ArgumentException(
-                    $"The hull of a frame owner spawned in {desc.Frame} at {desc.Pose.Position} has the motion {hull.Motion}, but its frame has " +
-                    $"the {spec.Driver} driver, which gives a hull the motion {BodyDesc.FrameHullMotion(spec.Driver)}. A hull must state that motion.",
-                    nameof(desc));
         }
 
         IReadOnlyList<IComponent> source = desc.Components ?? [];
@@ -344,7 +272,7 @@ public sealed partial class World
         FrameHandle own = FrameHandle.Null;
         if (desc.AsFrame is { } spec)
         {
-            own = Frames.Create(entity, frame, pose, spec.Bounds, spec.Driver, spec.Gravity);
+            own = Frames.Create(entity, frame, pose, spec.Bounds, spec.Gravity);
             // A frame with a parent whose owner has a body has a hull, with the motion of the body's description. A root frame
             // has no hull, and neither has a frame without a body: the tree gives a new frame no hull motion.
             if (!frame.IsNull && desc.Body is { } hullBody)

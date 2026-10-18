@@ -42,7 +42,7 @@ public class WorldContactEndTests
     {
         Frame = parent,
         Pose = At(x),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
     }));
 
     [Fact]
@@ -396,7 +396,7 @@ public class WorldContactEndTests
         {
             Frame = space,
             Body = new BodyDesc(block, Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: block),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(3), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
             Components = [ownerLog],
         });
         Entity crate = world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(owner), Pose = At(0, 1.5), Body = Cube(), Components = crateComponents });
@@ -514,7 +514,7 @@ public class WorldContactEndTests
         {
             Frame = ground,
             Pose = At(20, 0.5),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         }));
         var floorLog = new CollisionLog();
         Entity floor = LoggedFloor(world, ground, floorLog);

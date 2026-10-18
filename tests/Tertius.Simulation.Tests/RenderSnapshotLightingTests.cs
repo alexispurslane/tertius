@@ -258,7 +258,7 @@ public class RenderSnapshotLightingTests
         {
             Frame = test.Root,
             Pose = TestWorld.At(1.5e11),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1e9f)),
             Render = new RenderData { BoundingRadius = 7e8f },
         }));
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);

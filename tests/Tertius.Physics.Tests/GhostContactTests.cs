@@ -18,14 +18,14 @@ public class GhostContactTests
     private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
 
     private static FrameHandle Space(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
 
     /// <summary>A frame without a body and with no gravity, with a bubble of <paramref name="radius"/> m at (<paramref name="x"/>, <paramref name="y"/>, 0) in <paramref name="parent"/>.</summary>
     private static FrameHandle Bubble(World world, FrameHandle parent, double x, float radius, double y = 0) => world.GetOwnedFrame(world.Spawn(new SpawnDesc
     {
         Frame = parent,
         Pose = At(x, y),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(radius)),
     }));
 
     /// <summary>
@@ -398,8 +398,8 @@ public class GhostContactTests
     /// overlaps the station's, and which does not fit in it. A kinematic sensor ball in that frame flies at 4 m/s along -X
     /// through the ghost. With no numeric frame in the scene, the ghost of the hull is kinematic too, as for every hull
     /// that is not a mesh. It stands for a static hull, so the sensor does not detect it, as it does not detect the static
-    /// interior of the station inside the station's bubble. The same holds when physics drove the station until the game
-    /// parked it in the first tick, which made the hull static while it kept its ghost.
+    /// interior of the station inside the station's bubble. The same holds when the station's hull was dynamic until the
+    /// game parked it in the second tick, which made the hull static while it kept its ghost.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -414,7 +414,7 @@ public class GhostContactTests
             Frame = space,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), parkedByTheGame ? BodyMotion.Dynamic : BodyMotion.Static, Mass: 1000,
                 LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(40), parkedByTheGame ? MotionDriver.Physics : MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(40)),
             Components = [stationLog],
         });
         FrameHandle beside = Bubble(world, space, 20, 30);
@@ -426,7 +426,7 @@ public class GhostContactTests
         world.Tick();
         faults.Jolt.HasGhostIn(stationOwner, beside).Should().BeTrue("the bubbles overlap, and the station does not fit in the other frame");
         if (parkedByTheGame)
-            world.SetFrameDriver(world.GetOwnedFrame(stationOwner), MotionDriver.Static);
+            world.SetMotionNextTick(stationOwner, BodyMotion.Static);
 
         bool ghostSeen = false;
         for (int tick = 0; tick < 150; tick++)
@@ -591,7 +591,7 @@ public class GhostContactTests
             {
                 InteriorShape = new SphereShapeDesc(0.05f),
             },
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
             Components = [shipLog],
         });
         var crateLog = new CollisionLog();

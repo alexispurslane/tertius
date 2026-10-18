@@ -26,7 +26,7 @@ public class GhostPlaceTests
         NewWorldWithFaults(out faults, configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
 
     /// <summary>A root frame without gravity and with a bubble of radius 10,000 km.</summary>
-    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
 
     /// <summary>A hull of 4 m by 4 m by 4 m and 1000 kg that nothing slows down and that does not bounce.</summary>
     private static readonly BodyDesc ShipHull = new(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
@@ -113,7 +113,7 @@ public class GhostPlaceTests
         FrameHandle space = Space(world);
         Entity station = world.Spawn(new SpawnDesc
         {
-            Frame = space, Pose = At(1000), Body = StaticHull, AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Static),
+            Frame = space, Pose = At(1000), Body = StaticHull, AsFrame = new FrameSpec(FrameBounds.Sphere(200)),
         });
         FrameHandle bubble = world.GetOwnedFrame(station);
         Entity crate = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(0, 200.5), Body = CrateBody });
@@ -172,7 +172,7 @@ public class GhostPlaceTests
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = space, Pose = At(180), LinearVelocity = new Double3(-60, 0, 0), Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics), Components = [new Thruster(ShipHull.Mass)],
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200)), Components = [new Thruster(ShipHull.Mass)],
         });
         FrameHandle bubble = world.GetOwnedFrame(ship);
         Entity crate = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(0, -200), Body = CrateBody });
@@ -248,13 +248,13 @@ public class GhostPlaceTests
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = space, Pose = At(180), LinearVelocity = new Double3(-60, 0, 0), Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics), Components = [new Thruster(ShipHull.Mass)],
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200)), Components = [new Thruster(ShipHull.Mass)],
         });
         FrameHandle bubble = world.GetOwnedFrame(ship);
         Entity crate = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(0, -200), Body = CrateBody });
         Entity station = world.Spawn(new SpawnDesc
         {
-            Frame = space, Pose = At(2000), Body = StaticHull, AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static),
+            Frame = space, Pose = At(2000), Body = StaticHull, AsFrame = new FrameSpec(FrameBounds.Sphere(40)),
         });
         Entity stationCrate = world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(station), Pose = At(0, 40.5), Body = CrateBody });
         Tick(world, 2);
@@ -302,7 +302,7 @@ public class GhostPlaceTests
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = space, Pose = At(180), LinearVelocity = new Double3(-60, 0, 0), Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics), Components = [new Thruster(ShipHull.Mass)],
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200)), Components = [new Thruster(ShipHull.Mass)],
         });
         FrameHandle bubble = world.GetOwnedFrame(ship);
         Entity crate = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(0, -200), Body = CrateBody });
@@ -363,7 +363,7 @@ public class GhostPlaceTests
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = space, Pose = At(180), LinearVelocity = new Double3(-60, 0, 0), Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics), Components = [hullThruster],
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200)), Components = [hullThruster],
         });
         FrameHandle bubble = world.GetOwnedFrame(ship);
         var crateThruster = new Thruster(CrateBody.Mass);
@@ -401,7 +401,7 @@ public class GhostPlaceTests
 
     /// <summary>
     /// Space, and at (180, 0, 0) in it a ship that flies at 60 m/s along -X with a gentle thrust: a hull that physics
-    /// drives, with a bubble of radius 200 m. The ship holds a room at its origin: a frame with the Physics driver and no
+    /// drives, with a bubble of radius 200 m. The ship holds a room at its origin: a frame with no
     /// body, with a bubble of radius 20 m. A crate floats at (0, -20, 0) in the room, on the edge of its bubble, and so
     /// sticks out of it. After the 30 ticks of onset, the ship's hull falls in a numeric frame of its own. Then the game
     /// destroys the ship, and the run goes on for 60 ticks.
@@ -413,11 +413,11 @@ public class GhostPlaceTests
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = space, Pose = At(180), LinearVelocity = new Double3(-60, 0, 0), Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics), Components = [new Thruster(ShipHull.Mass)],
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200)), Components = [new Thruster(ShipHull.Mass)],
         });
         Entity room = world.Spawn(new SpawnDesc
         {
-            Frame = world.GetOwnedFrame(ship), Pose = DPose.Identity, AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics),
+            Frame = world.GetOwnedFrame(ship), Pose = DPose.Identity, AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         });
         FrameHandle roomFrame = world.GetOwnedFrame(room);
         Entity crate = world.Spawn(new SpawnDesc { Frame = roomFrame, Pose = At(0, -20), Body = CrateBody });
@@ -437,7 +437,7 @@ public class GhostPlaceTests
 
     /// <summary>
     /// A frame without a hull never hangs in a numeric frame: when the frame that holds it dies, it goes to the semantic
-    /// frame, as every frame does (review of ter-4psc). Before, a frame with the Physics driver went to the dying frame's
+    /// frame, as every frame does (review of ter-4psc). Before, a room like this one went to the dying frame's
     /// tree parent, here the ship's falling frame. That frame fell on with the room in it, and no numeric update moved the
     /// room out, because it has no hull. The update also took the places of the crate's ghost to be fixed in the system of
     /// space, while physics kept the ghost in the falling frame.
@@ -471,10 +471,10 @@ public class GhostPlaceTests
     {
         using World world = NewWorld(numericFrames, out _);
         FrameHandle space = Space(world);
-        FrameHandle d = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static) }));
+        FrameHandle d = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(100)) }));
         Entity e = world.Spawn(new SpawnDesc
         {
-            Frame = space, Pose = At(101), Body = StaticHull, AsFrame = new FrameSpec(FrameBounds.Sphere(300), MotionDriver.Static),
+            Frame = space, Pose = At(101), Body = StaticHull, AsFrame = new FrameSpec(FrameBounds.Sphere(300)),
         });
         var crateLog = new CollisionLog();
         Entity crate = world.Spawn(new SpawnDesc
@@ -540,10 +540,10 @@ public class GhostPlaceTests
 
     private static FarStation SpawnFarStation(World world)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(FarMu)));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(FarMu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
-            Frame = space, Body = ShipHull with { Motion = BodyMotion.Kinematic }, AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Kepler),
+            Frame = space, Body = ShipHull with { Motion = BodyMotion.Kinematic }, AsFrame = new FrameSpec(FrameBounds.Sphere(40)),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(Far)));
         FrameHandle station = world.GetOwnedFrame(owner);
         Entity crate = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 40), Body = CrateBody });

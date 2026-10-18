@@ -7,7 +7,7 @@ using static Tertius.Testing.WorldTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// A frame with the Spin driver on the World and the real Jolt backend: its hull in the parent's system is kinematic and
+/// A frame that turns in place with a <see cref="SpinMotion"/>, on the World and the real Jolt backend: its hull in the parent's system is kinematic and
 /// turns with it, so it carries what rests on it, and a body that leaves it keeps the velocity of the ground under it.
 /// </summary>
 public class WorldSpinFrameTests
@@ -19,7 +19,7 @@ public class WorldSpinFrameTests
     {
         Frame = parent,
         Body = hull ?? new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1)),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(bubble), MotionDriver.Spin),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(bubble)),
     }.Spinning(world, Turning));
 
     [Fact]
@@ -28,7 +28,7 @@ public class WorldSpinFrameTests
         World world = NewWorld(out JoltPhysicsBackend backend);
         using (world)
         {
-            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
             Entity owner = SpawnTurntable(world, space, bubble: 50);
 
             Tick(world, 100);
@@ -54,7 +54,7 @@ public class WorldSpinFrameTests
         World world = NewWorld(out JoltPhysicsBackend backend);
         using (world)
         {
-            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
             Entity owner = SpawnTurntable(world, space, bubble: 50);
             Tick(world, 10);
             FrameSpin ahead = Turning with { PhaseAtEpoch = Math.PI / 2 };
@@ -82,7 +82,7 @@ public class WorldSpinFrameTests
         {
             FrameHandle ground = Ground(world, 9.81f);
             // Frame hulls touch only each other and static bodies, so the thing that rests on the platform's hull is the
-            // hull of another frame: a small ship with the physics driver. Both bubbles are small, so neither frame enters
+            // hull of another frame: a small ship with a dynamic hull. Both bubbles are small, so neither frame enters
             // the other, and the ship's hull rests on the platform's hull in the ground frame.
             var platform = new BodyDesc(new BoxShapeDesc(new Vector3(10, 0.5f, 10)), BodyMotion.Kinematic, Friction: 1, InteriorShape: new SphereShapeDesc(0.05f));
             SpawnTurntable(world, ground, bubble: 0.1f, platform);
@@ -91,7 +91,7 @@ public class WorldSpinFrameTests
                 Frame = ground,
                 Pose = At(5, 1),
                 Body = Cube() with { Friction = 1, InteriorShape = new SphereShapeDesc(0.05f) },
-                AsFrame = new FrameSpec(FrameBounds.Sphere(0.1f), MotionDriver.Physics),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(0.1f)),
             });
 
             Tick(world, 60);
@@ -111,7 +111,7 @@ public class WorldSpinFrameTests
         World world = NewWorld(out _);
         using (world)
         {
-            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
             FrameHandle carousel = world.GetOwnedFrame(SpawnTurntable(world, space, bubble: 25));
             // The ball drifts out along +Z of the carousel at 5 m/s and leaves the bubble after about 3 s.
             Entity ball = world.Spawn(new SpawnDesc

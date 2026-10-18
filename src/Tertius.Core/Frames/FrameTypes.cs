@@ -1,23 +1,6 @@
 using System.Numerics;
-using Tertius.Frames.Rails;
 
 namespace Tertius;
-
-/// <summary>What moves a reference frame.</summary>
-public enum MotionDriver : byte
-{
-    /// <summary>The pose never changes.</summary>
-    Static,
-    /// <summary>The pose is a function of time: a Kepler orbit around the parent, plus a spin.</summary>
-    Kepler,
-    /// <summary>The frame's hull is a dynamic body in the parent frame's physics system.</summary>
-    Physics,
-    /// <summary>
-    /// The frame stays at its place in its parent and turns in place, as the ground of a planet does: its rotation is a
-    /// function of time, set by its <see cref="FrameSpin"/>.
-    /// </summary>
-    Spin,
-}
 
 /// <summary>
 /// The bubble of a frame: an ellipsoid with semi-axes <see cref="Radii"/> along the frame's axes.

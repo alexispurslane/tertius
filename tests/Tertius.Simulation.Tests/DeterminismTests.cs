@@ -162,12 +162,12 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
             options.SpawnPoolSize = 16;
         });
         // The Kepler frame below takes its G·M from the point gravity of the root, which also pulls the bodies in the root.
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e12f), MotionDriver.Static, GravityField.Point(1e8)));
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e12f), GravityField.Point(1e8)));
         FrameHandle west = world.SpawnStaticFrame(root, TestWorld.At(-1000), radius: 200);
         FrameHandle east = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Kepler),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200)),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(1000, spinRate: 0.05))));
 
         var random = new Random(seed);

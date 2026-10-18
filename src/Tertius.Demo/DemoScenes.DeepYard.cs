@@ -83,7 +83,7 @@ public static partial class DemoScenes
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere((float)(2 * LightYear)), MotionDriver.Static, GravityField.None));
+            FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere((float)(2 * LightYear)), GravityField.None));
             scene.Add("space", space.Entity);
             // The light comes from space's origin, behind the person as it faces the crates. A face that the light does
             // not reach gets the same dim light from every direction.

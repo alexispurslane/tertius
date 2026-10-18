@@ -51,7 +51,7 @@ public static class WorldTesting
 
     /// <summary>A root frame with uniform gravity of <paramref name="g"/> m/s² along -Y and a large bubble.</summary>
     public static FrameHandle Ground(World world, float g) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -g, 0))));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -g, 0))));
 
     /// <summary>A static floor of 100 m by 100 m whose top is at <paramref name="top"/>.</summary>
     public static Entity Floor(World world, FrameHandle frame, double top = 0) => world.Spawn(new SpawnDesc

@@ -30,8 +30,8 @@ public class FrameTreeUnitRotationTests
 
         public OrbitingShip()
         {
-            Earth = Frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
-            Ship = Frames.Create(new Entity(2, 1), Earth, new DPose(InOrbit, DQuaternion.FromAxisAngle(Double3.UnitX, 0.4)), FrameBounds.Sphere(100), MotionDriver.Physics);
+            Earth = Frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+            Ship = Frames.Create(new Entity(2, 1), Earth, new DPose(InOrbit, DQuaternion.FromAxisAngle(Double3.UnitX, 0.4)), FrameBounds.Sphere(100));
             Frames.Update();
         }
 
@@ -116,7 +116,7 @@ public class FrameTreeUnitRotationTests
         // A move that keeps the world pose composes poses. Its result must be a unit rotation too.
         var test = new OrbitingShip();
         FrameHandle station = test.Frames.Create(new Entity(3, 1), test.Earth, new DPose(InOrbit + new Double3(500, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 1.1)),
-            FrameBounds.Sphere(300), MotionDriver.Static);
+            FrameBounds.Sphere(300));
         test.Frames.Update();
 
         test.Frames.Reparent(test.Ship, station);
@@ -146,7 +146,7 @@ public class FrameTreeUnitRotationTests
     {
         var test = new OrbitingShip();
 
-        Action create = () => test.Frames.Create(new Entity(3, 1), test.Earth, new DPose(InOrbit, rotation), FrameBounds.Sphere(10), MotionDriver.Static);
+        Action create = () => test.Frames.Create(new Entity(3, 1), test.Earth, new DPose(InOrbit, rotation), FrameBounds.Sphere(10));
 
         create.Should().Throw<ContractException>(why).WithMessage("Precondition*");
     }
