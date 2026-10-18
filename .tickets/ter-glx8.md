@@ -86,3 +86,9 @@ Speed: statements and expressions go through the same lowering code in the compi
 ## Acceptance Criteria
 
 A new member or subtype fails the build at every switch that dispatches on it. This holds for MotionDriver, BodyMotion, BodyKind and KeplerAttitude. It also holds for a new case of GravityField or HemisphereUp, and for ShapeDesc, ScriptStep, MessageTarget and ReadyStep. The only exceptions are the statement switches over unions and closed types in step 6, which throw at run time. No switch expression over a closed set has a discard arm. Every suite passes.
+
+## Notes
+
+**2026-10-18T21:23:39Z**
+
+ter-ru5u removed World.SetFrameDriver and BodyDesc.FrameHullProblem, with the MotionDriver enum and BodyDesc.FrameHullMotion. A change of motion is now the intent Self.Body.SetMotion, which World.WritableHullMotionIntent guards. The hull rules live in BodyDesc.Problem(BodyRole), with the roles OwnsNoFrame, Hull and OwnsRootFrame. So the items of this ticket on FrameHullProblem and the MotionDriver chains have no code left to change.

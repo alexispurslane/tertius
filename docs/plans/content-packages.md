@@ -328,7 +328,7 @@ The mod API in `Tertius.Core`:
 - Engine payloads: `Tick`, `Spawned`, `Destroy`, `FrameChanged`, `Collision`, `InputEvent` and `InputKind`.
 - Render values: `MeshId`, `ModelId` (from the asset pipeline), `MaterialId`, `TextureId`, `TextureSlot` (from content formats), `RenderFlags` and `LightKind`.
 - Physics values: `BodyDesc`, the shape records, `CompoundChild`, `BodyMotion`, `BodyLayer`, `PhysicsIntent` and `IntentFlags`.
-- Frame values: `FrameBounds`, `MotionDriver`, `GravityField`, its case types `UniformGravity` and `PointGravity`, and `KeplerOrbit`.
+- Frame values: `FrameBounds`, `GravityField`, its case types `UniformGravity` and `PointGravity`, and the rails values `KeplerOrbit`, `KeplerAttitude`, `FrameSpin` and `MotionSample`.
 
 The mod API in `Tertius.Simulation`:
 
@@ -803,8 +803,7 @@ public readonly struct FrameView
     public DPose LocalPose(FrameHandle frame);
     public DPose Relative(FrameHandle from, FrameHandle to);
     public FrameBounds Bounds(FrameHandle frame);
-    public MotionDriver Driver(FrameHandle frame);
-    public KeplerOrbit Orbit(FrameHandle frame);
+    public BodyMotion? HullMotion(FrameHandle frame);
     public GravityField Gravity(FrameHandle frame);
     public Double3 LinearVelocity(FrameHandle frame);
     public Vector3 AngularVelocity(FrameHandle frame);

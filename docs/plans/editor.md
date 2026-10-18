@@ -30,7 +30,7 @@ The first useful editor has a viewport, a hierarchy, an inspector and play mode 
 7. The theme is dark, with one blue accent. A dark window keeps the attention on space scenes, and current IDEs use the same scheme. The fonts are Inter and JetBrains Mono, and the icons are Lucide. All three are in the pinned nixpkgs, under the OFL and ISC licenses.
 8. The editor edits documents and never edits a World directly. A document is the immutable content of one file (see "Documents, edits and undo"). The worlds of the editor only show the documents. So agents, git and the CLI always see the real source of truth.
 9. Undo and redo keep a list of immutable document states. No edit has a command object or an inverse. (User: no command pattern.) Each state shares the unchanged parts of the state before it, so an edit of one entity costs only that entity.
-10. The edit world shows the documents in edit mode. It follows an edit in one of two ways. A change of a pose, an attach offset, a render section, an orbit or component values applies in place. Every other change rebuilds the edit world. A property test makes sure that both ways give the same world.
+10. The edit world shows the documents in edit mode. It follows an edit in one of two ways. A change of a pose, an attach offset, a render section or component values, such as the orbit of a `KeplerMotion`, applies in place. Every other change rebuilds the edit world. A property test makes sure that both ways give the same world.
 11. The edit world has no physics backend and never ticks. It shows the start state of the scene. With physics, bodies move away from the poses that the user edits.
 12. Play mode spawns a new world, the play world, from the documents in memory. Stop disposes it. So stop restores the edit state exactly, by construction.
 13. The editor runs the UI, the ticks and the recording of GPU commands on the main thread. The World API belongs to one thread, and Dear ImGui draw data lives only until the next UI frame. The simulation result does not depend on the thread that ticks.
@@ -403,7 +403,6 @@ After each UI frame with edits, `WorldSync` compares the old and the new documen
 | `pose` | In place | `World.SetPose` |
 | `attachOffset` | In place | `World.SetAttachOffset` |
 | `render` | In place | `World.SetRender` |
-| `asFrame.orbit` only | In place | `World.SetOrbit`, which applies the orbit at the start time |
 | Component field values, same component names | In place | `World.ReplaceComponent` with a new instance from the recipe |
 | `velocity`, `angularVelocity`, `topics`, `body` | Prepared entity only | The edit world does not tick, so it shows none of these. The collision overlay of edit mode reads the body from the prepared entity. |
 | Scene keys `camera`, `verticalFov`, `sun`, `ambient` | In place | The World properties of the same names |
@@ -609,7 +608,7 @@ The gizmo is ImGuizmo. It draws into the draw list of the Scene view window, ove
 - World mode uses the axes of the entity's frame. Local mode uses the axes of the entity.
 - The editor reads the delta matrix of ImGuizmo and applies it to the document pose in doubles. Errors therefore do not add up over a long drag.
 - An attached entity moves its `attachOffset`, in the axes of its parent.
-- A Kepler frame has no translation gizmo, because its orbit sets its pose. The inspector edits the orbit.
+- A frame on rails has a translation gizmo for the `pose` of its entry, where it stands for its first step. Its rails component moves it once the world ticks. The inspector edits an orbit as the field `orbit` of `KeplerMotion`, like any component field.
 - The scale tool changes the render scale only. For an entity with a body, the toolbar warns that collision does not scale.
 - Snap steps: 0.1 m, 15° and 0.1. A toolbar menu changes them.
 - The view cube of ImGuizmo (`ViewManipulate`) sits in the top right corner of the Scene view.
@@ -756,7 +755,7 @@ Every engine-only member gets `[EngineOnly]` from the content packages work. Eac
 | Rendering | `RenderView`, `CreateView`, `RenderFrame`, the main G-buffer only on demand | Scene, Game and preview views | A4 |
 | Simulation | `CameraView`, `World.BuildRenderSnapshot(RenderSnapshot, in CameraView)` | The editor camera | A4 |
 | Simulation | `ColorAttribute` in the mod API | The inspector | B3 |
-| Simulation | `World.SetPose`, `SetAttachOffset`, `SetRender`, `SetOrbit`, `ReplaceComponent`, outside a tick only | The in-place path | B4 |
+| Simulation | `World.SetPose`, `SetAttachOffset`, `SetRender`, `ReplaceComponent`, outside a tick only | The in-place path | B4 |
 | Core | `RenderInstance.EntityGeneration` | Picking returns a full handle | B5 |
 | Rendering | The line pass, the pick pass, the distance probe | Overlays, picking, flight speed | B5 |
 | Simulation | `World.GetAttachParent`, `World.GetBlueprint`, `World.GetBody`, `Blueprints.NameOf(BlueprintId)` | The play hierarchy, collision overlays | B6 |
@@ -932,7 +931,6 @@ public readonly struct TickTimings
 //   public void SetPose(Entity entity, in DPose pose);
 //   public void SetAttachOffset(Entity entity, in Pose offset);
 //   public void SetRender(Entity entity, in RenderData render);
-//   public void SetOrbit(FrameHandle frame, in KeplerOrbit orbit);
 //   public void ReplaceComponent(Entity entity, IComponent old, IComponent replacement);   // keeps the position in the list
 //   public Entity GetAttachParent(Entity entity);
 //   public BlueprintId GetBlueprint(Entity entity);

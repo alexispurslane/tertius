@@ -148,7 +148,7 @@ internal sealed class BodyRecord
     /// while it was awake, and to a character that the ground did not hold (zero when it did).
     /// </summary>
     public Vector3 GravityApplied;
-    /// <summary>For a physics-driven frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>
+    /// <summary>For a dynamic frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>
     public Vector3 ProperAcceleration;
     public long KinematicTargetStep = -1;
     public long VelocitySetStep = -1;

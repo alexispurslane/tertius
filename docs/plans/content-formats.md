@@ -233,14 +233,14 @@ A blueprint file has these top-level keys.
 
 Components run in `Priority` order. The order in the file only breaks ties of `Priority`. A merge keeps the order of the parent and appends new components at the end.
 
-The first example is an abstract parent, `content/tertius.demo/blueprints/ships/ship-base.blueprint.json`. Its id is `tertius.demo:ships/ship-base`. Every ship is a Kepler frame with no gravity of its own, and a child blueprint adds the hull, the bubble and the model.
+The first example is an abstract parent, `content/tertius.demo/blueprints/ships/ship-base.blueprint.json`. Its id is `tertius.demo:ships/ship-base`. Every ship is a Kepler frame: it lists `KeplerMotion` among its components, and it has no gravity of its own. A child blueprint adds the hull, the bubble and the model.
 
 ```json
 {
   "$schema": "../../.schemas/blueprint.schema.json",
   "abstract": true,
-  "components": { "Health": { "max": 1000 } },
-  "asFrame": { "driver": "kepler", "gravity": { "kind": "none" } }
+  "components": { "Health": { "max": 1000 }, "KeplerMotion": {} },
+  "asFrame": { "gravity": { "kind": "none" } }
 }
 ```
 
@@ -257,6 +257,7 @@ The child, `content/tertius.demo/blueprints/ships/corvette.blueprint.json`, has 
   "body": {
     "shape": { "kind": "asset", "asset": "ships/corvette.blend#Hull" },
     "interiorShape": { "kind": "asset", "asset": "ships/corvette.blend#Hull" },
+    "motion": "kinematic",
     "mass": 3.2e5
   },
   "render": { "model": "ships/corvette.blend#Hull" },
@@ -267,8 +268,8 @@ The child, `content/tertius.demo/blueprints/ships/corvette.blueprint.json`, has 
 In this example:
 
 - `Health` resolves to `tertius.base:Health`, because `tertius.demo` depends on `tertius.base`. `Thruster` comes from the DLL of `tertius.demo`.
-- The resolved corvette has `Health` with `max` 1200 at the position of the parent's `Health`, then `Thruster`. `maxThrust` is in N, `mass` in kg, and `nozzles` and the ellipsoid radii `bounds` in m in ship axes.
-- The frame section of the corvette merges with the parent's: driver `kepler`, no gravity, and the ellipsoid bubble. The orbit comes from the scene.
+- The resolved corvette has `Health` with `max` 1200 at the position of the parent's `Health`, then `KeplerMotion`, then `Thruster`. `maxThrust` is in N, `mass` in kg, and `nozzles` and the ellipsoid radii `bounds` in m in ship axes.
+- The frame section of the corvette merges with the parent's: no gravity, and the ellipsoid bubble. The hull is kinematic, because only a kinematic hull follows the samples of `KeplerMotion`. The orbit, the `orbit` field of `KeplerMotion`, comes from the scene.
 - `ships/corvette.blend#Hull` is the piece `Hull` of the Blender file `assets/ships/corvette.blend`. A piece is a node of a model that renders as one unit (see the asset pipeline design). `render.model` draws every part and light of the piece.
 - One piece gives two shapes. The body is a moving use, so it gets the convex collision markers of the piece. The interior is a static use, so it gets the triangle mesh markers. The asset pipeline design defines the markers.
 
@@ -414,23 +415,22 @@ The frame section `asFrame` maps to `FrameSpec`.
 | Key | Form | Default | Notes |
 |---|---|---|---|
 | `bounds` | A radius, or 3 radii (m) | None | The bubble. The resolved frame section must have one (CT3009). |
-| `driver` | `"static"`, `"kepler"`, `"spin"` or `"physics"` | `"static"` | |
 | `gravity` | `{"kind": "none"}`, `{"kind": "uniform", "acceleration": [x, y, z], "region": {"min": [...], "max": [...]}}` or `{"kind": "point", "mu": μ}` | None | `region` is optional. |
-| `orbit` | An orbit | None | A Kepler frame must have one, and other frames must not (CT7007). |
-| `spin` | `{"tilt": a rotation, "rate": rad/s, "phaseAtEpoch": rad, "epoch": s}` | None, which holds the frame still | Maps to `FrameSpin`, for a Spin frame. |
+A frame section says nothing about how the frame moves. Every frame follows its owner, and the owner's components move it (see `docs/plans/rails-components.md`). A frame on rails lists a rails component among its components, and its hull, if it has one, has the motion `kinematic`:
 
-An orbit has one of two kinds:
+- A Kepler frame lists `KeplerMotion`. Its field `orbit` is an orbit, below.
+- A Spin frame lists `SpinMotion`. Its field `spin` is `{"tilt": a rotation, "rate": rad/s, "phaseAtEpoch": rad, "epoch": s}`, which maps to `FrameSpin`. Its field `properAcceleration` is the frame's proper acceleration, `[0, 0, 0]` by default.
+
+A frame on rails takes its `pose` and `velocity` as any frame does. It holds still at that pose for its first step, and then the first sample of its rails component puts it on its rails.
+
+An orbit, the value of the field `orbit` of `KeplerMotion`, has one of two kinds:
 
 - `{"kind": "elements", ...}` holds the elements of `KeplerOrbit`: `semiMajorAxis` (m), `eccentricity`, `inclination`, `longitudeOfAscendingNode`, `argumentOfPeriapsis`, `meanAnomalyAtEpoch` (rad), `epoch` (s), `axialTilt` (a rotation), `spinRate` (rad/s) and `spinPhaseAtEpoch` (rad).
 - `{"kind": "circular", "radius": r, "phase": p, "spinRate": s}` calls `KeplerOrbit.Circular`.
 
-An orbit has no μ. (User) The Kepler motion takes μ from the point gravity of the parent frame, so μ lives in one place, and a Kepler frame and the loose bodies in its parent fall on the same G·M. If the parent frame has no point gravity with a μ above 0, that is error CT7006. The orbit conventions are the engine's. The reference plane is the XZ plane of the parent, and +Y is the orbit normal at zero inclination. The rotation order is Ω about +Y, then i about +X, then ω about +Y.
+An orbit has no μ. (User) `KeplerMotion` takes μ from the point gravity of the parent frame, so μ lives in one place, and a Kepler frame and the loose bodies in its parent fall on the same G·M. The orbit conventions are the engine's. The reference plane is the XZ plane of the parent, and +Y is the orbit normal at zero inclination. The rotation order is Ω about +Y, then i about +X, then ω about +Y.
 
-A blueprint can leave out the orbit, as the corvette does, because the scene gives it. Three rules keep an incomplete orbit out of a running world:
-
-- The scene preparer makes sure that every Kepler frame has an orbit with a semi-major axis above 0 (CT7007), and a parent frame with point gravity (CT7006).
-- A `BlueprintId` field that names a Kepler blueprint without a complete orbit is error CT3012. A component can then never spawn a frame that stays at the origin of its parent.
-- `World.Spawn` rejects such a `FrameSpec` with an ordinary argument guard (see "Engine changes for this plan").
+A blueprint can leave out the orbit, as the corvette does, because the scene gives it. The rails components check their own rules, so neither the loader nor the World checks an orbit (see "The rails components" in `docs/plans/rails-components.md`). The setter of `orbit` refuses an orbit that is not valid, which the binder reports at the value. A `KeplerMotion` without an orbit, or whose parent frame has no point gravity with a μ above 0, writes no sample, so its frame holds still, and it logs that once. A rails component on a hull that is not kinematic does the same.
 
 ### Scene files
 
@@ -465,11 +465,8 @@ Before it spawns anything, the preparer enforces these rules. Each broken rule i
 
 - An entity with no `frame` and no `attachTo` must have a frame section, and it becomes a root frame. A root frame has no pose, no velocity and no body (CT7004, CT7005).
 - An attached entity has no `frame`, `pose`, `velocity`, body or frame section (CT7004).
-- A Kepler frame has no `pose` and no `velocity`, because its orbit sets both (CT7004).
 - `frame` names a frame entity of the same scene (CT7002, CT7003).
 - The `frame` and `attachTo` references form no cycle (CT7001).
-- Every Kepler frame has a complete orbit, and no other frame has an orbit (CT7007).
-- The parent frame of every Kepler frame has a point gravity with a μ above 0 (CT7006).
 - `camera` names an entity, and `sun.frame` names a frame entity (CT7008).
 
 The spawner spawns every entity with `World.Spawn(SpawnDesc)`, root frames too. A root frame gets a `SpawnDesc` with `AsFrame` set and no `Frame`, so it keeps its components, subscriptions and render data. `World.CreateRootFrame` takes no components, so the spawner does not use it.
@@ -492,23 +489,25 @@ This example scene is `content/tertius.demo/scenes/start.scene.json`. It has a s
     "sol": { "blueprint": "stars/sol" },
     "terra": {
       "blueprint": "planets/terra", "frame": "sol",
-      "asFrame": {
-        "orbit": {
-          "kind": "elements", "semiMajorAxis": 1.495978707e11, "eccentricity": 0.0167,
-          "inclination": 0, "longitudeOfAscendingNode": 0,
-          "argumentOfPeriapsis": { "deg": 102.9 }, "meanAnomalyAtEpoch": { "deg": 100.5 }, "epoch": 0,
-          "axialTilt": { "axis": [1, 0, 0], "angle": { "deg": -23.44 } },
-          "spinRate": 0, "spinPhaseAtEpoch": 0
+      "components": {
+        "KeplerMotion": {
+          "orbit": {
+            "kind": "elements", "semiMajorAxis": 1.495978707e11, "eccentricity": 0.0167,
+            "inclination": 0, "longitudeOfAscendingNode": 0,
+            "argumentOfPeriapsis": { "deg": 102.9 }, "meanAnomalyAtEpoch": { "deg": 100.5 }, "epoch": 0,
+            "axialTilt": { "axis": [1, 0, 0], "angle": { "deg": -23.44 } },
+            "spinRate": 0, "spinPhaseAtEpoch": 0
+          }
         }
       }
     },
     "terra-surface": {
       "blueprint": "planets/terra-surface", "frame": "terra",
-      "asFrame": { "driver": "spin", "spin": { "rate": 7.2921159e-5 } }
+      "components": { "SpinMotion": { "spin": { "rate": 7.2921159e-5 } } }
     },
     "corvette": {
       "blueprint": "ships/corvette", "frame": "terra",
-      "asFrame": { "orbit": { "kind": "circular", "radius": 6.771e6, "phase": { "deg": 40 } } }
+      "components": { "KeplerMotion": { "orbit": { "kind": "circular", "radius": 6.771e6, "phase": { "deg": 40 } } } }
     },
     "pilot": {
       "blueprint": "people/crew", "frame": "corvette",
@@ -539,11 +538,13 @@ This example scene is `content/tertius.demo/scenes/start.scene.json`. It has a s
 In this example:
 
 - `sol` is the root frame, with no `frame` and no pose. `stars/sol` has point gravity with μ 1.32712440018e20 m³/s² and a 1e13 m bubble.
-- `planets/terra` has a Kepler driver, point gravity with μ 3.986004418e14 m³/s² and a 9e8 m bubble. Its orbit holds no μ: it uses the μ of the point gravity of `sol`. It does not turn: its tilt makes its axes follow the equator.
-- `planets/terra-surface` has the Spin driver, point gravity with the same μ, a bubble that ends at the top of the air, and the 6.371e6 m sphere. It turns once per sidereal day and holds the ground.
+- `planets/terra` lists `KeplerMotion`, and has point gravity with μ 3.986004418e14 m³/s² and a 9e8 m bubble. Its orbit holds no μ: its `KeplerMotion` uses the μ of the point gravity of `sol`. It does not turn: its tilt makes its axes follow the equator.
+- `planets/terra-surface` lists `SpinMotion`, and has point gravity with the same μ, a bubble that ends at the top of the air, and the 6.371e6 m sphere as a kinematic hull. It turns once per sidereal day and holds the ground.
 - `corvette` orbits 400 km above the surface, in `terra`, not in `terra-surface`. A Kepler orbit is in the axes of its parent, so in the turning frame the orbit would turn once a day with the ground. The entities in the corvette's frame have poses in ship axes.
 - The doors take their poses from nodes of the ship model, and only `airlock-outer` overrides `openSeconds`. `innerDoor` and `outerDoor` are `Entity` fields with scene ids.
 - The lamp follows the outer door, and its render section changes only the light color.
+
+The scene gives `terra`, `terra-surface` and `corvette` no pose, so each holds still at the origin of its parent for its first step, until the first sample of its rails component puts it on its rails.
 
 The spawn order of this scene is `sol`, `terra`, `terra-surface`, `corvette`, `pilot`, `crate-1`, `airlock-inner`, `airlock-outer`, `airlock`, `outer-lamp`. The lamp waits for its parent, and every other entity keeps its file position.
 
@@ -682,15 +683,12 @@ This plan owns the codes CT2xxx (JSON syntax), CT3xxx (values) and CT7xxx (scene
 | CT3009 | A required key is missing from the resolved tree. |
 | CT3010 | Unknown `kind` |
 | CT3011 | A render section has `model` together with `mesh` or `material`. |
-| CT3012 | A `BlueprintId` value names a Kepler frame blueprint without a complete orbit. |
 | CT3013 | Two cases of one union have the same `kind`. |
 | CT7001 | The frames or attachments of a scene form a cycle. |
 | CT7002 | `frame` names an entity that is not a frame. |
 | CT7003 | Unknown scene id |
 | CT7004 | The entry has a key that this kind of entity cannot have. |
 | CT7005 | The entry has no frame, no attachment parent and no frame section. |
-| CT7006 | A Kepler orbit's parent frame has no point gravity |
-| CT7007 | A Kepler frame has no complete orbit, or a frame with another driver has an orbit. |
 | CT7008 | `camera` or `sun.frame` names a wrong entity. |
 
 ### Code
@@ -925,7 +923,7 @@ Each change goes into Simulation or Core test-first, and the existing tests stay
 5. `BlueprintId`: an index into one registry plus the tag of that registry, with no public constructor. A registry tag is a number that is unique to one registry. `Blueprints.Declare(IReadOnlyList<string>)` gives every blueprint id its `BlueprintId` before any blueprint registers. The loader declares the ids in ordinal order, so a field can name a blueprint that registers later, or its own blueprint. `World.Spawn(BlueprintId, ...)` and `Self.Spawn(BlueprintId, ...)` use it. A component field of this type resolves at load time, so a typo fails at load and not in the middle of a game. A spawn with the tag of another registry throws, like a stale entity handle. `Blueprints.IdOf(string)` gives the id of a declared blueprint to engine code and tests.
 6. `Blueprints.Freeze()`: after it, `Register` throws. A content set freezes its registry, so worlds can share it safely.
 7. `WorldOptions.Blueprints`: the registry to share. Null keeps today's behavior, a fresh empty registry.
-8. `KeplerOrbit` has no `ParentMu`. (User) Each member that needs a G·M takes it as a parameter: `StateAt(time, parentMu)`, `RotationAt(time, parentMu)`, `AngularVelocityAt(time, parentMu)`, `MeanMotion(parentMu)` and `Period(parentMu)`. `KeplerOrbit.Circular(radius, phase, spinRate)` has no μ. The World and physics take μ from the point gravity of the parent frame (`FrameTree.KeplerMu`). `World.Spawn` rejects a Kepler `FrameSpec` whose orbit has a `SemiMajorAxis` that is not above 0, and a Kepler `FrameSpec` without a parent frame or in a parent whose gravity is not a point field with a G·M above 0. `SetFrameDriver` and `SetFrameOrbit` refuse the same frames, and `SetFrameGravity` refuses any field but a point field with the same G·M for a frame with a Kepler child. These are ordinary argument guards in every build. `StateAt` of a default `KeplerOrbit` returns zero, so without the guard such a frame stays at the origin of its parent with no error.
+8. `KeplerOrbit` has no `ParentMu`. (User) Each member that needs a G·M takes it as a parameter: `StateAt(time, parentMu)`, `RotationAt(time, parentMu)`, `AngularVelocityAt(time, parentMu)`, `MeanMotion(parentMu)` and `Period(parentMu)`. `KeplerOrbit.Circular(radius, phase, spinRate)` has no μ. `KeplerMotion` takes μ from the point gravity of the parent frame in the front snapshot (`KeplerOrbit.MuFrom`). The epic on rails components made this change (`docs/plans/rails-components.md`). The rails components check their own rules, so the World checks no orbit. A `KeplerMotion` without a valid orbit, or whose parent has no point gravity with a G·M above 0, holds its frame still and logs once.
 9. `TextureSlot` in Core, and `TextureSlotAttribute` and `UnionCaseAttribute` in Simulation, as shown in "Code".
 
 The string overloads `World.Spawn(string, ...)` and `Self.Spawn(string, ...)` stay for tests and tools. The content packages work marks the `Self` overload `[EngineOnly]`, so mod code spawns only through `BlueprintId` fields that the loader checked.
@@ -981,7 +979,7 @@ Loading never runs during a tick.
 - The Blueprints section: blueprints come from files, inheritance uses the merge rule, the registry is frozen and shared per content set, and `BlueprintId` exists. Bound field values are immutable and shared by every spawn.
 - A new section, "Content files": the units, the degree and sRGB literals, the value grammar, the merge rule and the scene spawn order. It also states that content files are plain JSON, which System.Text.Json binds with one options instance per code set.
 - Projects: `src/Tertius.Content` depends on Core and Simulation.
-- Frames: `World.Spawn` rejects an incomplete Kepler orbit, and a Kepler frame whose parent has no point gravity. The orbit holds no G·M.
+- Frames: a frame on rails lists a rails component, `KeplerMotion` or `SpinMotion`, in its blueprint or its scene entry. The orbit holds no G·M.
 
 ## Steps
 
@@ -997,7 +995,7 @@ Each step writes its tests first and sees them fail for the right reason. The en
 8. Make the Simulation and Core changes 2 to 9, one at a time, each with its tests first.
 9. Write the file model types and their mapping to engine types. Test each example section of this plan against hand-built `BodyDesc`, `RenderData` and `FrameSpec` values. Use a fake `IAssetResolver` that records its calls. The keys `render.model` and `emissiveMap` bind from step 14 of the asset pipeline design, so their tests come with that step.
 10. Load blueprints with a fake `IContentScope` that holds one package from a test folder. Test the qualification of references, inheritance, an abstract parent without required keys, topics, shared `ShapeDesc` objects, and inline primitives and materials. Test the order of the resolver calls. Done: the example blueprints without `render.model` register and spawn.
-11. Prepare and spawn scenes. Test the spawn order, root frames with components and topics, CT7006 and attachments. Test `Entity` and `FrameHandle` fields, the scene-wide values and every CT7xxx code. Done: the example scene spawns, and one tick runs.
+11. Prepare and spawn scenes. Test the spawn order, root frames with components and topics, frames on rails and attachments. Test `Entity` and `FrameHandle` fields, the scene-wide values and every CT7xxx code. Done: the example scene spawns, and one tick runs.
 12. Write the schema writer. Approve the generated schemas of the example package after a review. Add `check-jsonschema` to the dev shell and write the conformance test. Open the examples in VS Code. Make sure that component names, keys, enum names and union kinds complete, and that a wrong value gets a mark.
 13. Write benchmarks for the budgets and report the numbers.
 
@@ -1009,7 +1007,7 @@ The content packages work then replaces the fake scope with real packages.
 - A corpus of files in `tests/Tertius.Content.Tests/Corpus/good/` and `bad/`. Each bad file has an `.expected.json` file with the expected code, line and column of each error. A new wording of a message does not break a test, but a new code or position does.
 - Determinism: one scene spawned into two fresh worlds gives the same handles and poses. A parallel parse of the corpus gives the same trees and diagnostics as a serial parse.
 - Lock-in tests for the decisions:
-  - The degree literal, the default render flags and the single source of μ: an orbit has no `parentMu`, and a Kepler frame without a parent that has point gravity is CT7006.
+  - The degree literal, the default render flags and the single source of μ: an orbit has no `parentMu`, and a Kepler frame without a parent that has point gravity holds still and logs once.
   - The union rule of the merge: a member named `kind` outside a union merges field by field.
   - Arrays and converter values that replace, and the spawn order tie-break.
   - Two spawns of one blueprint share one `ImmutableArray`, and a mutable member type gives CT3005.

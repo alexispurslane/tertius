@@ -191,7 +191,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// says, which drops the hand-offs of the last step that the simulation refused and follows changes to the tree that no
     /// change batch announced, then gives each hull whose owner changed its motion in the tick before the new motion (see
     /// <see cref="ApplyMotionChanges"/>), then gives every character the form that the
-    /// gravity at it asks for, applies intents, drives kinematic frame hulls, applies gravity, moves the characters in the
+    /// gravity at it asks for, applies intents, aims the kinematic frame hulls at their samples, applies gravity, moves the characters in the
     /// walking form, updates every system, then reports contacts, hands bodies between frames, updates ghosts and writes
     /// body, character and frame states to <paramref name="output"/>.
     /// </summary>
@@ -239,8 +239,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// character in the rigid form never stands.
     /// <see cref="PhysicsStepOutput.HandOffs"/> holds each body that moved to another frame, with its pose there. For a
     /// character that is the rotation that it got in its new frame, which a turn to the new gravity can change.
-    /// <see cref="PhysicsStepOutput.Frames"/> holds every physics-driven frame with a hull, relative to its parent
-    /// after any hand-off in this step, with the velocity of the frame origin. Apply hand-offs before frame states.
+    /// <see cref="PhysicsStepOutput.Frames"/> holds the step record of each frame whose hull moved in the step, relative to
+    /// its parent after any hand-off in this step, with the velocity of the frame origin. Apply hand-offs before the step records.
     /// <see cref="PhysicsStepOutput.Contacts"/> holds each pair of entities whose contact started, with A before B in
     /// entity order and the normal from A to B. A contact between the body of one entity and the ghost of another
     /// entity's body is a contact of the two entities, and a pair of two ghosts is none. A body pair starts at a real
