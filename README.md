@@ -24,7 +24,7 @@ The engine measures the center of each slow group from the origin of its semanti
 
 A double at 2^23 m steps by 2^-29 m, about 2 nm. That number is the resolution of a position, not a measured error. The measurements found no error from distance up to 9,000 km in thrust and ballistic drift.
 
-Frames that lie very far apart nest. A numeric frame more than 10^9 m from the origin of its parent moves under a nesting frame on a grid of 2^20 m. The game places only the frames that mean something, such as a star system. The engine makes the rest. A test keeps millimeter steps one light-year out. The design doc states that the grid stays exact to about a million light-years.
+Frames that lie very far apart nest. A numeric frame more than 10^9 m from the origin of its parent moves under a nesting frame on a grid of 2^20 m. The game places only the frames that mean something, such as a star system. The engine makes the rest. A test keeps millimeter steps one light-year out. The design doc states that the grid stays exact to about a million light-years. By that number, two levels of frames that a game places cover the whole observable universe. One frame holds the universe. One frame holds each region up to about a million light-years across, such as a galaxy. The engine makes all the frames inside.
 
 ### 2. Ships in ships
 
