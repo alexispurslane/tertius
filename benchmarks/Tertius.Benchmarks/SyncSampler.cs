@@ -39,6 +39,12 @@ internal static class SyncSampler
                 b.Setup();
                 return (b.Tick, b.Cleanup);
             }
+            case "tick100k":
+            {
+                var b = new WorldTickBenchmarks { MaxDegreeOfParallelism = dop, Entities = 100_000 };
+                b.Setup();
+                return (b.Tick, b.Cleanup);
+            }
             default:
                 throw new ArgumentException($"Unknown scene {scene}.");
         }
