@@ -8,8 +8,8 @@ namespace Tertius.Physics.Tests;
 /// <summary>
 /// Motion samples and rails components on the owner of a frame that has a body: who may write a sample, what the rails
 /// components check, and the teleport with which a rails component puts a hull on its rails. In this ticket a hull is
-/// kinematic when its frame has the Kepler or the Spin driver. Nothing follows the samples yet, so these tests read the
-/// sample table and what each step received. The world runs on the real backend.
+/// kinematic when its frame has the Kepler or the Spin driver. These tests read the sample table and what each step
+/// received; RailsFollowTests checks how frames follow the samples. The world runs on the real backend.
 /// </summary>
 public class RailsHullTests
 {

@@ -8,7 +8,8 @@ namespace Tertius.Simulation.Tests;
 /// <summary>
 /// The rails components <see cref="KeplerMotion"/> and <see cref="SpinMotion"/> on frames without a body: what they check,
 /// and the sample that each writes in each tick. The tests of rails components on hulls are in Physics.Tests
-/// (RailsHullTests). Nothing follows the samples yet, so these tests read the sample table.
+/// (RailsHullTests). These tests read the sample table; KeplerFrameTests, SpinFrameTests and RailsFollowTests (Physics.Tests)
+/// check how frames follow the samples.
 /// </summary>
 public class RailsComponentTests
 {

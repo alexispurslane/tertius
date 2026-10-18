@@ -13,8 +13,7 @@ namespace Tertius.Physics.Tests;
 /// predicts the frame's ghosts and hand-offs from the record. A new frame on rails holds still for its first step, so it
 /// stands on its rails from the second sync point after its spawn.
 /// <para>
-/// In this ticket the Kepler driver still makes a hull kinematic. The tree still keeps the orbit of the frame spec, which
-/// nothing follows any more: these tests give it another orbit, <see cref="Decoy"/>, so that only the component can put
+/// In this ticket the Kepler driver still makes a hull kinematic, but the tree keeps no orbit, so only the component puts
 /// the frame where the test expects it. A frame without a body needs no driver, so it has the Static driver.
 /// </para>
 /// </summary>
@@ -36,9 +35,6 @@ public class RailsFollowTests
 
     /// <summary>A fast orbit of 5 km at 2 km/s, whose frame does not turn, so that a body at rest in it moves with its origin.</summary>
     private static readonly KeplerOrbit FastStill = KeplerOrbit.Circular(5_000, phase: 0.3);
-
-    /// <summary>The orbit that the frame spec of a hull names: the same orbit 1 rad further on, which nothing follows any more.</summary>
-    private static KeplerOrbit Decoy(KeplerOrbit orbit) => orbit with { MeanAnomalyAtEpoch = orbit.MeanAnomalyAtEpoch + 1 };
 
     /// <summary>The owner of a frame on <paramref name="orbit"/> in <paramref name="space"/>, whose hull is a ball of 0.5 m.</summary>
     private static Entity Hull(World world, FrameHandle space, KeplerOrbit orbit) => world.Spawn(new SpawnDesc
@@ -240,7 +236,7 @@ public class RailsFollowTests
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
         DPose spawnPose = RailsPose(Slow, world.Time);
-        // The frame spec names the component's orbit, which the Kepler driver would follow at once.
+        // The spawn gives the frame the velocities of its orbit, which it does not take before its component's first sample.
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,

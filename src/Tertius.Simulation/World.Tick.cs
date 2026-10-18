@@ -329,9 +329,10 @@ public sealed partial class World
 
     /// <summary>
     /// Writes the running entity's motion sample for the next physics step into the written buffer of the sample table,
-    /// relative to the frame that the entity is in during the tick. The last write in a tick wins. Throws
-    /// <see cref="InvalidOperationException"/> if the entity owns no frame, or if its frame has a parent and the entity has
-    /// a body that is not kinematic, and <see cref="StaleEntityException"/> for a stale handle.
+    /// relative to the frame that the entity is in during the tick, with its rotation made unit length. The last write in a
+    /// tick wins. Throws <see cref="InvalidOperationException"/> if the entity owns no frame, or if its frame has a parent
+    /// and the entity has a body that is not kinematic, <see cref="ArgumentException"/> for a sample with a field that is not
+    /// a finite number or with a zero rotation, and <see cref="StaleEntityException"/> for a stale handle.
     /// </summary>
     /// <remarks>
     /// When the frame has a parent, the owner's body is the frame's hull, and only a kinematic hull follows a sample. A frame
@@ -347,6 +348,22 @@ public sealed partial class World
         if (entities.Body(entity) != null && HullMotion(own) is { } motion && motion != BodyMotion.Kinematic)
             throw new InvalidOperationException(
                 $"{entity} owns {own}, whose hull is {motion}, so the hull cannot follow a motion sample: only a kinematic hull can.");
-        Frames.Samples.Write(own, entities.FrontRow(entity).Frame, sample);
+        Frames.Samples.Write(own, entities.FrontRow(entity).Frame, CheckedSample(sample));
+    }
+
+    /// <summary>
+    /// The sample with its rotation made unit length, after the checks that every field is a finite number and that the
+    /// rotation is not zero. Gameplay can write any rotation, but the local pose of a frame must be unit length (see
+    /// <see cref="FrameTree"/>), so the World normalizes it, as it does for a write of a transform (see FollowOwners).
+    /// </summary>
+    private static MotionSample CheckedSample(in MotionSample sample)
+    {
+        if (!IsFinite(sample.Pose.Position) || !IsFinite(sample.ChordVelocity) || !IsFinite(sample.Velocity) || !IsFinite(sample.Acceleration)
+            || !IsFinite(sample.AngularVelocity) || !IsFinite(sample.AngularAcceleration) || !IsFinite(sample.ProperAcceleration))
+            throw new ArgumentException($"A motion sample needs fields that are finite numbers, not {sample}.", nameof(sample));
+        double rotationSize = sample.Pose.Rotation.LengthSquared;
+        if (!(rotationSize > 0) || !double.IsFinite(rotationSize))
+            throw new ArgumentException($"A motion sample needs a finite rotation that is not zero, not {sample.Pose.Rotation}.", nameof(sample));
+        return sample with { Pose = sample.Pose.WithUnitRotation() };
     }
 }
