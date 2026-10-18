@@ -42,12 +42,27 @@ From a survey of the code on 2026-10-18.
 - The station's bubble must be at least twice the size of the ship's bubble so that it can hold it. A sphere suits the wheel better than a flat ellipsoid.
 - The launch needs a surface frame that does not turn, or the spin gravity ticket for numeric frames inside turning frames (`ter-vja8`).
 
+## Proof in the video
+
+The video shows numbers from the engine next to numbers that a viewer can check, and lets them agree on screen.
+
+| Proof | What the viewer sees | Engine change |
+|---|---|---|
+| Live readouts | Speed, altitude, distance to the station and a g-meter for the character, drawn on each frame from a per-tick log that a demo component writes | No |
+| Textbook checks | The orbit at 400 km takes about 92 minutes on the sim clock. The g-meter reads 1.00 at the pad, 0.00 in orbit, and ω²r at the wheel, with ω and r shown. | No |
+| A predicted landing spot | The character drops a ball in the wheel. A marker shows where the formula for a turning station says it lands, and the ball lands on it. | No |
+| Automatic frames off, side by side | The same orbit scene with the automatic frames switched off on one side: a gentle thruster does nothing, and a thrusting person drifts about 10 m in a minute | Probably no: make sure that the option of the tests reaches the demo |
+| The frames made visible | A cut-in that outlines each frame's bubble, with a label when the engine makes one | Maybe: the renderer needs debug outlines |
+| Formation flight | Two ships side by side at 7.7 km/s, with a gap readout that stays steady to the millimeter | No |
+| Run it yourself | The script, the command and the per-tick log, published with the video | No |
+
 ## Engine questions for the user
 
 These come up during the demo work and need the user's decision:
 
 1. Capture speed: an asynchronous PNG encode for headless runs (ticket `ter-viyi` covers the window only), or raw frames piped to ffmpeg.
 2. A script step that captures every N ticks, instead of a generated list of steps.
+3. Debug outlines of frame bubbles in the renderer, for the cut-in that makes the frames visible.
 
 Two questions belong to the spin gravity epic, and its tickets carry notes about them:
 

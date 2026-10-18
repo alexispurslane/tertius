@@ -14,3 +14,9 @@ tags: [demo, video]
 
 Step 7 of docs/plans/blue-danube-demo.md. Cut the captured frames, add title cards and a freely licensed recording of The Blue Danube (a yes for each download), and render the final video.
 
+
+## Notes
+
+**2026-10-18T15:17:27Z**
+
+Include the proofs of docs/plans/blue-danube-demo.md 'Proof in the video' (user question, 2026-10-18): live readouts from a per-tick log, textbook checks, the predicted landing spot of a dropped ball, the side-by-side with automatic frames off, formation flight, and the published script and log.
