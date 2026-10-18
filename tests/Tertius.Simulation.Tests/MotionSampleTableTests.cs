@@ -176,7 +176,8 @@ public class MotionSampleTableTests
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain(plain.ToString()).And.Contain(nameof(InvalidOperationException));
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain(plain.ToString()).And.Contain(nameof(InvalidOperationException))
+            .And.Contain("owns no frame");
     }
 
     [Fact]
