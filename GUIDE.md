@@ -206,6 +206,7 @@ These terms have the same meaning here and in the code:
 - A slot is a row in the entity tables. Only the entity table sees slots.
 - A component is a class on an entity that implements `IComponent`. It holds behavior and state.
 - A message is an `Event`: a target, a sender, a type id and a payload of up to 48 bytes.
+- A topic is a list of subscribers that a message can target. Every frame has a topic, and every entity in the frame subscribes to it.
 - A tick is one run of gameplay. Each entity with something to handle runs once.
 - A chunk is a block of slots, 64 by default. One worker runs all the entities of a chunk.
 - The front tables hold the state at the end of the last tick, and every component reads them. The back tables take the writes of this tick.
@@ -235,19 +236,57 @@ Read this code in this order:
 2. `HasComponent` at [line 58](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Snapshot.cs#L58) of [Snapshot.cs](src/Tertius.Simulation/Snapshot.cs). A component can learn whether another entity has a component type. No member gives it the component of another entity.
 3. `ThrowIfInTick` at [line 381](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.cs#L381) of [World.cs](src/Tertius.Simulation/World.cs). The public write methods of `World` call it, so they throw during a tick.
 4. `AddForce` at [line 154](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Entities/Self.cs#L154) and `SetVelocity` at [line 169](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Entities/Self.cs#L169) of [Self.cs](src/Tertius.Simulation/Entities/Self.cs), in `BodyHandle`. A push on a body is an intent in the row of its own entity. Forces add up, and a velocity keeps the last value.
-5. [Event.cs](src/Tertius.Core/Messaging/Event.cs), [lines 7 to 31](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Messaging/Event.cs#L7-31). A message holds its payload in 48 inline bytes. `MaxPayloadSize` at [line 21](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Messaging/EventTypes.cs#L21) of [EventTypes.cs](src/Tertius.Core/Messaging/EventTypes.cs) sets that limit.
-6. [Target.cs](src/Tertius.Core/Handles/Target.cs), [lines 10 to 46](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Handles/Target.cs#L10-46). The target is a custom C# 15 union of `Entity`, `Topic` and `Broadcast`.
-7. `Expand` at [line 185](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Messaging/Router.cs#L185) of [Router.cs](src/Tertius.Simulation/Internal/Messaging/Router.cs). A `switch` turns each target into deliveries, and the router stores each message once.
-8. `Send` at [line 27](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/Outbox.cs#L27) and `SendAfter` at [line 38](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/Outbox.cs#L38) of [Outbox.cs](src/Tertius.Simulation/Events/Outbox.cs). A message arrives on the next tick, or after a delay.
-9. [ARCHITECTURE.md](ARCHITECTURE.md), [lines 101 to 113](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/ARCHITECTURE.md#L101-113), on who owns a transform. There is no general command buffer.
+5. [ARCHITECTURE.md](ARCHITECTURE.md), [lines 101 to 113](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/ARCHITECTURE.md#L101-113), on who owns a transform. There is no general command buffer.
+
+The part "Messages that allocate nothing" shows how a message reaches the other entity.
 
 These tests prove it:
 
 - `AnIntentWrittenInOneTickReachesPhysicsInTheStepOfTheNextTickOnly`, `ForcesWrittenInOneTickAddUp` and `AVelocityWrittenTwiceInOneTickKeepsTheLastValue` in [PhysicsIntentTests.cs](tests/Tertius.Simulation.Tests/PhysicsIntentTests.cs).
-- `AnEventIsStoredOnceHoweverManyRecipientsItHas` in [RouterTests.cs](tests/Tertius.Simulation.Tests/RouterTests.cs).
-- `APayloadEditedByOneRecipientOfABroadcastIsUnchangedForTheOthers` in [PipelineEventsTests.cs](tests/Tertius.Simulation.Tests/PipelineEventsTests.cs).
 
 No test checks that the write methods of `World` throw during a tick. Subscriptions, physics queries and added components also wait for a later point in the tick. So the rule is "no general command buffer", not "only spawn and destroy wait".
+
+### Messages that allocate nothing
+
+Read this code in this order:
+
+1. [Event.cs](src/Tertius.Core/Messaging/Event.cs), [lines 7 to 31](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Messaging/Event.cs#L7-31). A message holds its payload in 48 inline bytes, and `Create` writes the payload in place. `Extra` at [line 23](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Messaging/Event.cs#L23) is an optional reference for rare managed data.
+2. [EventTypes.cs](src/Tertius.Core/Messaging/EventTypes.cs), [lines 11 to 15](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Messaging/EventTypes.cs#L11-15). Each payload type gets a dense integer id on first use. `MaxPayloadSize` at [line 21](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Messaging/EventTypes.cs#L21) sets the limit, and [lines 39 and 40](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Messaging/EventTypes.cs#L39-40) refuse a larger payload.
+3. [Target.cs](src/Tertius.Core/Handles/Target.cs), [lines 10 to 46](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Handles/Target.cs#L10-46). The target is a custom C# 15 union of `Entity`, `Topic` and `Broadcast`. `HasValue` and the `TryGetValue` methods let the compiler match it without boxing. Only `Value` at [line 47](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Handles/Target.cs#L47) boxes, and it is for debugging.
+4. `Expand` at [line 185](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Messaging/Router.cs#L185) of [Router.cs](src/Tertius.Simulation/Internal/Messaging/Router.cs). A `switch` turns each target into deliveries. A `Delivery` at [line 33](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Messaging/Router.cs#L33) holds a recipient slot and a message index. The list `routed` at [line 48](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Messaging/Router.cs#L48) holds each message once.
+5. `CopyInbox` at [line 96](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Messaging/Router.cs#L96) of the same file. [Line 161](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Tick.cs#L161) of [World.Tick.cs](src/Tertius.Simulation/World.Tick.cs) calls it on the worker that runs the entity. So the copy for each recipient happens on the workers, not at the sync point.
+6. `Topic` at [line 37](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Handles/Entity.cs#L37) of [Entity.cs](src/Tertius.Core/Handles/Entity.cs). Every frame has a topic, and every entity in the frame subscribes to it.
+7. `Send` at [line 27](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/Outbox.cs#L27) and `SendAfter` at [line 38](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/Outbox.cs#L38) of [Outbox.cs](src/Tertius.Simulation/Events/Outbox.cs). A message arrives on the next tick, or after a delay.
+
+These tests prove it:
+
+- `TargetMatchesEachCaseWithoutDefaultArm` and `PayloadOverLimitIsRejected` in [MessagingTests.cs](tests/Tertius.Core.Tests/MessagingTests.cs) of the Core tests.
+- `AnEventIsStoredOnceHoweverManyRecipientsItHas` in [RouterTests.cs](tests/Tertius.Simulation.Tests/RouterTests.cs).
+- `APayloadEditedByOneRecipientOfABroadcastIsUnchangedForTheOthers` in [PipelineEventsTests.cs](tests/Tertius.Simulation.Tests/PipelineEventsTests.cs).
+- `AMessageSentOnOneTickIsHandledOnTheNext` in [MessagingTests.cs](tests/Tertius.Simulation.Tests/MessagingTests.cs) of the Simulation tests, and `ADelayedSendArrivesOneTickAfterItsDueTick` in [MessagingDelayedTests.cs](tests/Tertius.Simulation.Tests/MessagingDelayedTests.cs).
+- `AFrameTopicReachesEveryEntityInThatFrameOnly` in [MessagingTopicTests.cs](tests/Tertius.Simulation.Tests/MessagingTopicTests.cs).
+
+The part "Hot paths allocate nothing in C#" names the tests that count the bytes of ticks that send messages.
+
+### Everyone reads the last tick
+
+Read this code in this order:
+
+1. [Lines 247 to 256](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Entities/EntityTable.cs#L247-256) of [EntityTable.cs](src/Tertius.Simulation/Internal/Entities/EntityTable.cs). Each kind of data that changes during a tick has a front column and a back column.
+2. The comment at [lines 5 to 11](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Entities/Self.cs#L5-11) of [Self.cs](src/Tertius.Simulation/Entities/Self.cs). Reads come from the front snapshot of the previous tick. Writes go to the back rows of the running entity, or into the lists of its chunk.
+3. `WritableTransform` at [line 713](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Entities/EntityTable.cs#L713) of [EntityTable.cs](src/Tertius.Simulation/Internal/Entities/EntityTable.cs). A write marks the row of the entity dirty and returns its back row.
+4. `CopyDirtyRows` at [line 878](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Entities/EntityTable.cs#L878) of the same file. It copies only the dirty rows from back to front. `SwapSnapshot` at [line 460](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Sync.cs#L460) of [World.Sync.cs](src/Tertius.Simulation/World.Sync.cs) calls it in step 8 of the sync point, at [lines 114 and 115](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Sync.cs#L114-115).
+5. The comment at [lines 5 to 10](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Snapshot.cs#L5-10) of [Snapshot.cs](src/Tertius.Simulation/Snapshot.cs). The snapshot is a read-only view of the front tables, and any thread can read it during a tick. `Self.Snapshot` at [line 80](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Entities/Self.cs#L80) of [Self.cs](src/Tertius.Simulation/Entities/Self.cs) gives it to a component, for reading other entities.
+6. `Find` at [line 93](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Snapshot.cs#L93) of [Snapshot.cs](src/Tertius.Simulation/Snapshot.cs), and `Choose` at [line 50](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Queries/QueryPlanner.cs#L50) of [QueryPlanner.cs](src/Tertius.Simulation/Queries/QueryPlanner.cs). An entity query runs on the snapshot. The planner starts from the index with the fewest candidates.
+
+These tests prove it:
+
+- `AnEntityReadsAnotherEntitysPoseAsItWasAtTheEndOfThePreviousTick` in [TransformTests.cs](tests/Tertius.Simulation.Tests/TransformTests.cs). A watcher that runs before the mover and a watcher that runs after it see the same poses.
+- `AnEntityReadsItsOwnPoseAsItWasAtTheEndOfThePreviousTickEvenAfterWritingANewOne` and `AnEntityReadsAnotherEntitysVelocityAsItWasAtTheEndOfThePreviousTick` in the same file.
+- `ManyWorkersReadTheFlagsAtOnceWhileEntitiesChangeTheirOwnAndAllSeeTheEndOfThePreviousTick` in [ComponentFlagsWorldTests.cs](tests/Tertius.Simulation.Tests/ComponentFlagsWorldTests.cs). With eight workers, the entities count the same neighbors as with one.
+- `EntitiesThatNobodyWroteKeepTheirRowsAndAreNotMoved` and `ACopyWithNothingNewToCopyChangesNothingAndMovesNobody` in [EntityTableDirtyRowTests.cs](tests/Tertius.Simulation.Tests/EntityTableDirtyRowTests.cs).
+
+An entity can read some of its own back rows during its run. An example is `Pending` at [line 151](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Entities/Self.cs#L151) of [Self.cs](src/Tertius.Simulation/Entities/Self.cs), the intent that it wrote so far. No other entity sees those rows until the next tick.
 
 ### Deterministic parallel gameplay
 
@@ -259,9 +298,10 @@ Read this code in this order:
 4. [ARCHITECTURE.md](ARCHITECTURE.md), [lines 148 to 158](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/ARCHITECTURE.md#L148-158). Outboxes belong to chunks and merge in chunk order.
 5. [ChunkState.cs](src/Tertius.Simulation/Internal/ChunkState.cs), [lines 25 to 40](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/ChunkState.cs#L25-40). Each chunk has its own outbox, spawn list and destroy list. Only the worker that runs the chunk writes them.
 6. `Join` at [line 163](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Messaging/Router.cs#L163) of [Router.cs](src/Tertius.Simulation/Internal/Messaging/Router.cs). It joins the outboxes in chunk order.
-7. [Lines 247 to 256](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Entities/EntityTable.cs#L247-256) of [EntityTable.cs](src/Tertius.Simulation/Internal/Entities/EntityTable.cs). Each kind of data has a front column and a back column. `CopyDirtyRows` at [line 878](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Entities/EntityTable.cs#L878) copies only the rows that changed.
-8. [Lines 142 to 146](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Sync.cs#L142-146) of [World.Sync.cs](src/Tertius.Simulation/World.Sync.cs). A chunk can run out of its spawn slots. Then the world reports that the run is no longer deterministic.
-9. The comment at [lines 6 to 11](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Components/ComponentTypes.cs#L6-11) of [ComponentTypes.cs](src/Tertius.Simulation/Components/ComponentTypes.cs). Component type ids follow the order of full names, not the order of loading.
+7. [Lines 142 to 146](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Sync.cs#L142-146) of [World.Sync.cs](src/Tertius.Simulation/World.Sync.cs). A chunk can run out of its spawn slots. Then the world reports that the run is no longer deterministic.
+8. The comment at [lines 6 to 11](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Components/ComponentTypes.cs#L6-11) of [ComponentTypes.cs](src/Tertius.Simulation/Components/ComponentTypes.cs). Component type ids follow the order of full names, not the order of loading.
+
+The part "Everyone reads the last tick" shows why no chunk sees the writes of another chunk during a tick.
 
 These tests prove it:
 
@@ -272,7 +312,6 @@ These tests prove it:
 - `AnInboxListsTheChunkOutboxesInChunkOrderWhateverOrderTheyWereFilledIn` in [RouterTests.cs](tests/Tertius.Simulation.Tests/RouterTests.cs).
 - `EachChunkSpawnsFromItsOwnPoolWhicheverChunkSpawnsFirst` and `SpawnsInterleavedBetweenChunksGetTheSameHandlesAsAnyOtherOrder` in [EntityTableSpawnPoolTests.cs](tests/Tertius.Simulation.Tests/EntityTableSpawnPoolTests.cs).
 - `NoSpawnTakesItsSlotFromTheGlobalFallbackBecauseThatMakesSlotsDependOnThreadTiming` in [DeterminismTests.cs](tests/Tertius.Simulation.Tests/DeterminismTests.cs).
-- `EntitiesThatNobodyWroteKeepTheirRowsAndAreNotMoved` in [EntityTableDirtyRowTests.cs](tests/Tertius.Simulation.Tests/EntityTableDirtyRowTests.cs).
 
 The test with eight workers keeps Jolt at two job threads. The other tests of this kind compare one and four threads. The Jolt build sets no flag for determinism across platforms.
 
@@ -294,6 +333,27 @@ These tests prove it:
 - `AMemberThatReadsOrWritesAnEntityRefusesAHandleThatNamesNoLiveEntity` and `AMemberWhoseGoalAlreadyHoldsAnswersFalseForAHandleThatNamesNoLiveEntity` in [StaleHandleWorldTests.cs](tests/Tertius.Simulation.Tests/StaleHandleWorldTests.cs). Each one runs over a list of members.
 - `AMessagePostedToADestroyedEntitysHandleDoesNotReachTheEntityThatTookItsSlot` and `AMessageAlreadyWaitingForAnEntityThatIsDestroyedIsNotDeliveredToTheEntityThatTakesItsSlot` in the same file.
 
+### Frames are entities
+
+Read this code in this order:
+
+1. `FrameHandle` at [lines 24 to 40](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Handles/Entity.cs#L24-40) of [Entity.cs](src/Tertius.Core/Handles/Entity.cs). A frame handle holds the entity that is the frame, plus the index and generation of the frame's row in the frame tree. It converts to `Entity` at [line 34](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Handles/Entity.cs#L34).
+2. `AsFrame` at [line 35](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Entities/SpawnDesc.cs#L35) and `FrameSpec` at [line 66](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Entities/SpawnDesc.cs#L66) of [SpawnDesc.cs](src/Tertius.Simulation/Entities/SpawnDesc.cs). Any spawn can make its entity a frame. `CreateRootFrame` at [line 24](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Entities.cs#L24) of [World.Entities.cs](src/Tertius.Simulation/World.Entities.cs) makes the entity of a root frame with the same `Spawn`.
+3. `OwnedFrame` at [line 101](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Entities/EntityTable.cs#L101) of [EntityTable.cs](src/Tertius.Simulation/Internal/Entities/EntityTable.cs). The record of an entity that is a frame keeps the handle of that frame.
+4. [Line 23](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Core/Handles/Target.cs#L23) of [Target.cs](src/Tertius.Core/Handles/Target.cs). A message to a frame handle goes to the entity that is the frame.
+5. `DestroyDying` at [line 568](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Entities.cs#L568) of [World.Entities.cs](src/Tertius.Simulation/World.Entities.cs). When the entity of a frame dies, the frame ends. [Lines 587 to 600](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Entities.cs#L587-600) move what was in it to the nearest frame that survives.
+6. [TransformRow.cs](src/Tertius.Simulation/Internal/Entities/TransformRow.cs), [lines 6 to 35](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Entities/TransformRow.cs#L6-35). Each entity row stores its frame and a pose in that frame, in doubles.
+7. `PoseIn`, `VelocityIn` and `AngularVelocityIn` at [lines 43 to 49](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Entities/Self.cs#L43-49) of [Self.cs](src/Tertius.Simulation/Entities/Self.cs). Each read takes a frame, and `Self` has no read without one. `SetTransform` at [line 56](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Entities/Self.cs#L56) writes the pose in `Self.Frame`.
+8. `PoseIn` at [line 17](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Internal/Entities/FrameReads.cs#L17) of [FrameReads.cs](src/Tertius.Simulation/Internal/Entities/FrameReads.cs). A read in another frame converts through the frame tree in doubles.
+9. `TryGetPoseIn` at [line 115](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Snapshot.cs#L115) of [Snapshot.cs](src/Tertius.Simulation/Snapshot.cs). The reads of the snapshot give false for a stale entity or a stale frame.
+
+These tests prove it:
+
+- `AMessageSentToAFrameHandleReachesTheEntityThatOwnsTheFrameNotItsMembers` in [MessagingTests.cs](tests/Tertius.Simulation.Tests/MessagingTests.cs) of the Simulation tests. A component on the entity of the frame gets the message.
+- `DestroyingAFrameEndsTheFrameButNotWhatWasInsideIt` and `TheEntitiesOfADestroyedFrameMoveToItsParentFrame` in [LifecycleFrameTests.cs](tests/Tertius.Simulation.Tests/LifecycleFrameTests.cs). The test destroys the frame with `World.Destroy`, as for any entity.
+- `AnEntityInAChildFrameHasItsPoseComposedWithTheFramesInTheParentFrame`, `AnEntityInTheParentFrameHasItsPoseInAChildFrameThroughTheInverseOfTheFramesPose` and `AnEntityInASiblingFrameHasItsPoseComposedThroughTheParentFrame` in [FramePoseQueryTests.cs](tests/Tertius.Simulation.Tests/FramePoseQueryTests.cs).
+- `AFrameThatHasBeenDestroyedCannotBeAskedForAPose` in the same file.
+
 ### Blueprints
 
 Read this code in this order:
@@ -310,6 +370,29 @@ These tests prove it:
 - `AComponentCanSpawnABlueprintDuringATick` in the same file.
 
 A spawn also looks up one type id for each component, at [line 375](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Entities.cs#L375) of [World.Entities.cs](src/Tertius.Simulation/World.Entities.cs).
+
+### Hot paths allocate nothing in C#
+
+Read this code in this order:
+
+1. The comment at [lines 6 to 9](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventList.cs#L6-9) of [EventList.cs](src/Tertius.Simulation/Events/EventList.cs). After an `EventBuffer` grows to its longest list, filling it again allocates nothing. [Lines 10 and 11](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Tick.cs#L10-11) and [line 139](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/World.Tick.cs#L139) of [World.Tick.cs](src/Tertius.Simulation/World.Tick.cs) keep one buffer for each worker thread.
+2. `EventList` at [line 158](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventList.cs#L158) of the same file. It is a `ref struct`, so it lives on the stack. `Of<T>` at [line 239](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventList.cs#L239) returns a query struct.
+3. `EventsOf<T>` at [line 12](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventsOf.cs#L12) of [EventsOf.cs](src/Tertius.Simulation/Events/EventsOf.cs). Its enumerator yields references at [lines 61 to 65](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Events/EventsOf.cs#L61-65), so a `foreach` edits each payload in place.
+4. `RefPredicate` at [lines 29 to 36](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Components/IComponent.cs#L29-36) of [IComponent.cs](src/Tertius.Simulation/Components/IComponent.cs). A predicate takes the item by reference and one value of state, so a static lambda needs no capture.
+5. The remarks at [lines 16 to 24](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Queries/EntityQuery.cs#L16-24) of [EntityQuery.cs](src/Tertius.Simulation/Queries/EntityQuery.cs). The masks, one `In`, one `Near` and one `Where` are inline. If an entity's run tries to build the heap part, `Append` at [line 208](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Queries/EntityQuery.cs#L208) throws.
+6. `QueryBuffers` at [line 107](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Simulation/Queries/QueryPlanner.cs#L107) of [QueryPlanner.cs](src/Tertius.Simulation/Queries/QueryPlanner.cs). Each thread has a pool of buffers for the query runs that sort their candidates.
+7. The comment at [lines 7 to 12](https://tangled.org/xenolandscapes.com/tertius-engine/blob/1e7e1beb4111954aa16183a23040652c850e0dd0/src/Tertius.Physics/Internal/ContactListener.cs#L7-12) of [ContactListener.cs](src/Tertius.Physics/Internal/ContactListener.cs). A contact callback goes straight to the handler with the native pointers. It skips the lookup of managed wrappers in JoltPhysicsSharp.
+8. [EventQueryBenchmarks.cs](benchmarks/Tertius.Benchmarks/EventQueryBenchmarks.cs) compares `EventList.Of<T>()` with a `for` loop and with LINQ.
+
+These tests prove it:
+
+- `ASteadyStateTickAllocatesNothingOnTheTickingThread` in [AllocationTests.cs](tests/Tertius.Simulation.Tests/AllocationTests.cs). 2,000 entities move, send direct, topic and delayed messages, and run every form of event query. After 60 ticks of warm-up, the test expects 0 bytes per tick over 100 ticks.
+- `SubscriptionChurnAllocatesNothingPerTickOnceTheWorldIsWarm` and `EntityQueryRunsAllocateNothingOnceTheWorldIsWarm` in the same file.
+- `SteadyStateUseDoesNotAllocate` in [EventListTests.cs](tests/Tertius.Simulation.Tests/EventListTests.cs) and `NoQueryAllocates` in [EventQueryTests.cs](tests/Tertius.Simulation.Tests/EventQueryTests.cs).
+- `StepsWithManyPersistingContactsAndAPendingPairAllocateNothingOnAnyThread` and `StepsWithContactsThroughAGhostThatStartAndEndAllocateNothingOnAnyThread` in [ContactListenerTests.cs](tests/Tertius.Physics.Tests/ContactListenerTests.cs). They count the bytes of all threads.
+- `ASteadyStateTickWithEveryKindOfUpAllocatesNothing` in [GravityAllocationTests.cs](tests/Tertius.Simulation.Tests/GravityAllocationTests.cs).
+
+The tests in AllocationTests.cs run one worker and count the bytes of the ticking thread only. The tests that tick a world turn `WorldOptions.DebugChecks` off, because its checks allocate. The physics tests take the smaller of two windows, because the runtime can compile a hot method again once.
 
 ## Third-party code
 
