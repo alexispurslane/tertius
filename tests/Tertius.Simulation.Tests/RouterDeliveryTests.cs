@@ -9,6 +9,9 @@ namespace Tertius.Simulation.Tests;
 /// </summary>
 public class RouterDeliveryTests
 {
+    /// <summary>The harness that every test of this class routes in. A subclass runs the same tests on the workers.</summary>
+    private protected virtual RouterHarness NewHarness() => new();
+
     private static readonly Topic Squad = Topics.Get("tests.routerdelivery.squad");
     private static readonly Topic Convoy = Topics.Get("tests.routerdelivery.convoy");
 
@@ -17,7 +20,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ADirectMessageReachesOnlyItsTarget()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         Entity b = h.Spawn(EventMask.Of<Ping>());
         h.Send(0, b, new Ping { Value = 1 });
@@ -31,7 +34,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ATopicMessageReachesEverySubscriberOnceAndNobodyElse()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         Entity b = h.Spawn(EventMask.Of<Ping>());
         Entity outsider = h.Spawn(EventMask.Of<Ping>());
@@ -52,7 +55,7 @@ public class RouterDeliveryTests
     [Fact]
     public void AnEntityInTwoTopicsHearsEachMessageOnceInRoutingOrder()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         h.Subscribe(a, Squad);
         h.Subscribe(a, Convoy);
@@ -68,7 +71,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ABroadcastReachesEveryLiveEntity()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         Entity b = h.Spawn(EventMask.Of<Ping>());
         Entity c = h.Spawn(EventMask.Of<Ping>());
@@ -86,7 +89,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ADirectMessageIsDroppedWhenItsTargetDoesNotWantItsType()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity pings = h.Spawn(EventMask.Of<Ping>());
         Entity heals = h.Spawn(EventMask.Of<Heal>());
         h.Send(0, heals, new Ping { Value = 1 });
@@ -102,7 +105,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ATopicMessageSkipsSubscribersThatDoNotWantItsType()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity pings = h.Spawn(EventMask.Of<Ping>());
         Entity heals = h.Spawn(EventMask.Of<Heal>());
         h.Subscribe(pings, Squad);
@@ -119,7 +122,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ABroadcastSkipsEntitiesThatDoNotWantItsType()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity pings = h.Spawn(EventMask.Of<Ping>());
         Entity heals = h.Spawn(EventMask.Of<Heal>());
         Entity both = h.Spawn(EventMask.Of<Ping>().And<Heal>());
@@ -138,7 +141,7 @@ public class RouterDeliveryTests
     [Fact]
     public void AnEntityThatWantsTwoTypesGetsBothInRoutingOrder()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity both = h.Spawn(EventMask.Of<Ping>().And<Heal>());
         h.Send(0, both, new Ping { Value = 1 });
         h.Send(0, both, new Heal { Amount = 2 });
@@ -153,7 +156,7 @@ public class RouterDeliveryTests
     [Fact]
     public void AnEventNobodyWantsIsRoutedButWritesNoDelivery()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity heals = h.Spawn(EventMask.Of<Heal>());
         h.Send(0, heals, new Ping { Value = 1 });
 
@@ -168,7 +171,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ADirectDestroyReachesAnEntityThatWantsNothing()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity deaf = h.Spawn(EventMask.None);
         h.Send(0, deaf, new Destroy());
 
@@ -180,7 +183,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ATopicDestroyReachesEverySubscriberWhateverTheyWant()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity deaf = h.Spawn(EventMask.None);
         Entity heals = h.Spawn(EventMask.Of<Heal>());
         h.Subscribe(deaf, Squad);
@@ -196,7 +199,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ABroadcastDestroyReachesEveryLiveEntityWhateverTheyWant()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity deaf = h.Spawn(EventMask.None);
         Entity heals = h.Spawn(EventMask.Of<Heal>());
         h.Send(0, new Broadcast(), new Destroy());
@@ -212,7 +215,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ADirectMessageForAStaleHandleReachesNeitherItsOldNorItsNewOwner()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity doomed = h.Spawn(EventMask.Of<Ping>());
         h.Entities.Release(doomed);
         Entity reused = h.Spawn(EventMask.Of<Ping>());
@@ -228,7 +231,7 @@ public class RouterDeliveryTests
     [Fact]
     public void AMessageToTheNullEntityReachesNobody()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         h.Send(0, Entity.Null, new Ping { Value = 1 });
 
@@ -241,7 +244,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ADestroyForAStaleHandleDoesNotReachTheEntityThatReusedItsSlot()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity doomed = h.Spawn(EventMask.None);
         h.Entities.Release(doomed);
         Entity reused = h.Spawn(EventMask.None);
@@ -256,7 +259,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ADelayedMessageForAnEntityThatWasReleasedBeforeItWasDueIsDropped()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity doomed = h.Spawn(EventMask.Of<Ping>());
         h.SendAt(0, 3, doomed, new Ping { Value = 1 });
         h.Route(tick: 2);
@@ -273,7 +276,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ABroadcastSkipsEntitiesThatWereReleased()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         Entity gone = h.Spawn(EventMask.Of<Ping>());
         Entity c = h.Spawn(EventMask.Of<Ping>());
@@ -290,7 +293,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ABroadcastReachesTheEntityThatTookTheSlotOfAReleasedOne()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity a = h.Spawn(EventMask.Of<Ping>());
         Entity gone = h.Spawn(EventMask.Of<Ping>());
         h.Send(0, new Broadcast(), new Ping { Value = 7 });
@@ -307,7 +310,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ABroadcastReachesAnEntityThatWentLiveAfterItWasSentButBeforeItWasRouted()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity early = h.Spawn(EventMask.Of<Ping>());
         h.Send(0, new Broadcast(), new Ping { Value = 7 });
         Entity late = h.Spawn(EventMask.Of<Ping>());
@@ -321,7 +324,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ATopicMessageReachesWhoeverSubscribedBeforeItWasRouted()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity early = h.Spawn(EventMask.Of<Ping>());
         Entity late = h.Spawn(EventMask.Of<Ping>());
         h.Subscribe(early, Squad);
@@ -337,7 +340,7 @@ public class RouterDeliveryTests
     [Fact]
     public void ATopicMessageSkipsWhoeverUnsubscribedBeforeItWasRouted()
     {
-        var h = new RouterHarness();
+        RouterHarness h = NewHarness();
         Entity stays = h.Spawn(EventMask.Of<Ping>());
         Entity leaves = h.Spawn(EventMask.Of<Ping>());
         h.Subscribe(stays, Squad);

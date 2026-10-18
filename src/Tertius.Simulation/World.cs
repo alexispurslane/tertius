@@ -79,7 +79,7 @@ public sealed partial class World : IDisposable
         entities = new EntityTable(this.options.ChunkSize, this.options.InitialCapacity);
         // The order of the subsystems is the order in which they let go of a released entity.
         topics = new TopicSets(entities);
-        router = new Router(entities, topics);
+        router = new Router(entities, topics, this.options.MaxDegreeOfParallelism == 1 ? null : parallelOptions);
         attachments = new Attachments(entities);
         spatial = new SpatialIndex(entities, Frames);
         renderBuilder = new RenderSnapshotBuilder(entities, Frames, parallelOptions);
