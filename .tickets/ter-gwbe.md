@@ -1,6 +1,6 @@
 ---
 id: ter-gwbe
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-18T17:50:48Z
