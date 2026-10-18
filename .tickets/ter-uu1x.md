@@ -1,6 +1,6 @@
 ---
 id: ter-uu1x
-status: in_progress
+status: closed
 deps: []
 links: [ter-kugq, ter-jwzd, ter-dhkf]
 created: 2026-10-17T14:34:17Z
@@ -49,3 +49,7 @@ Other tickets filed today, not in this epic: ter-w7cw (a character in the air pu
 **2026-10-17T20:59:04Z**
 
 2026-10-17: change 1's rule that no numeric frame falls inside a turning frame is dropped (ter-9yvr closed): the user wants no stopgaps for planned work, and ter-vja8 in the spin gravity epic builds those frames. Order now: ter-3xs6, then ter-4psc, then the spin gravity epic ter-s9m0 (ter-1bnq, ter-vja8, ter-1b21, ter-n44b).
+
+**2026-10-18T01:54:51Z**
+
+Closed 2026-10-18: ter-3xs6 and ter-4psc merged, ter-9yvr closed by the user's rule against stopgaps (ter-vja8 in the spin gravity epic builds falling frames inside turning frames). Open follow-ups: ter-91p8, ter-me1y.

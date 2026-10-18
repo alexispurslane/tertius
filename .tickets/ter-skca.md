@@ -1,6 +1,6 @@
 ---
 id: ter-skca
-status: open
+status: closed
 deps: [ter-4psc]
 links: []
 created: 2026-10-17T21:44:05Z
@@ -29,3 +29,7 @@ Part of the epic on frames that follow their owners. Read the epic first. Write 
 **2026-10-17T22:38:46Z**
 
 2026-10-17: the design doc docs/plans/rails-components.md is written and final. The user decided questions 1 to 4 (how rails motion starts, how a body changes its motion after spawn, where the checks of rails motion live, the proper acceleration of a frame on rails). Questions 5 and 6 (where the motion sample lives, what a state dump records about a frame) took the doc's recommendation. The epic's tickets are adjusted: ter-k8cg, ter-6r8c, the new ticket ter-ru5u (a body's motion changes after spawn, and the MotionDriver enum goes) and ter-zg77.
+
+**2026-10-18T01:54:51Z**
+
+Design merged 2026-10-18 (e9ffc94): docs/plans/rails-components.md is final.

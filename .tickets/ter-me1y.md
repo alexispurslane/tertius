@@ -19,3 +19,7 @@ From ter-2gg0 (2026-10-17): (1) A body that moves into a numeric frame at a sync
 **2026-10-18T01:24:54Z**
 
 Review of ter-4psc (2026-10-17): item 1 is fixed for the ghosts of the bodies that stick out of a frame whose hull a numeric update moves. The move takes those ghosts from the hull's old home into its new one at once (JoltPhysicsBackend.MoveGhostsThatStickOut). Item 1 still holds for a home that an update names for the first time to keep a ghost of an anchor, and for the ghosts beside it: they appear at the end of the next step.
+
+**2026-10-18T01:54:51Z**
+
+ter-4psc (2026-10-18): item 2 is fixed (place links use the split margin, and place existence has the split margin as a floor). Item 1 is partly fixed: the ghosts of bodies that stick out of a moved hull's frame now move with the hull at once; a home that the update names for the first time to keep a Kepler hull's anchor ghost still gets its ghosts one step late. Item 3: places got a coarse first test (NumericFramePlaceBenchmarks: 1,354 to 635 us at 10,000 rocks); the merge test of two bodies still calls Relative per pair.

@@ -51,3 +51,22 @@ Points that the design must settle:
 5. Driver changes (World.SetFrameDriver, FrameTree.MoveOnOrbit, LeaveOrbit, DriverChangeTests), and what replaces the MotionDriver enum.
 6. Determinism, state dumps and saved state.
 
+
+## Notes
+
+**2026-10-18T01:55:10Z**
+
+HANDOFF for the next session (2026-10-18). Start here and from tk ready.
+
+State of main (after e9ffc94): the numeric frames epic ter-uu1x is closed.
+- ter-3xs6: free groups fall from 1,000 m/s (leave 400), groups with a body that thrusts from 50 (leave 20), resting frames from 2^23 m (leave 2^22). Every character thrusts; any other dynamic body after 0.5 s of thrust ticks within 20 s. Tests use the real defaults (user decision): Core tests mark fast hand-built bodies as characters, World tests use tests/Tertius.Testing/Components/Thruster.cs with a 30-tick warm-up, bodies above 1,000 m/s, or scenes past 8,389 km.
+- ter-4psc: ghost places are inputs of the merge test (docs/plans/numeric-frames.md 'Ghosts as infinitely heavy'). Heir sends every frame of a dying frame to its semantic parent. The numeric update always hands physics its last batch, so physics reconciles at every sync point.
+- This epic's design is final: docs/plans/rails-components.md. Decisions of 2026-10-17 (User): the full version (state on components, every frame follows its owner), rails math as static methods in Tertius.Frames.Rails, a motion sample per tick through one intent, the snap to the target, a new frame off its rails for one tick, SetMotion as an intent, components check their own rules, ProperAcceleration in the sample. Internal: samples in a table of their own with three buffers, dumps record FrameRecord(Id, Parent, Follows).
+
+Order: ter-k8cg (library, no behavior change), ter-6r8c (components and samples), ter-ru5u (SetMotion, MotionDriver goes), ter-zg77 (following frames for any fast kinematic hull). Then the spin gravity epic ter-s9m0 (ter-1bnq, ter-vja8, ter-1b21, ter-n44b).
+
+User rules from 2026-10-17 (also in memory): start with the pure, orthogonal model and add exceptions only when it misbehaves; no stopgaps for planned work; workflows of about 4 or 5 agents grouped by shared context (the cost of a long agent grows with the square of its turns, the duplication only linearly).
+
+Process that worked: Sonnet readers map the code; an Opus builder in the main checkout lands the core change and a failing list; Opus fallout agents in worktrees by file group; the orchestrator merges, runs every suite in Debug and Release, runs coverage on changed lines (tools/README.md), and one Opus reviewer reads the whole diff; fix agents confirm each finding with a failing test. Run the full Release suite too: one Release-only failure appeared only there. Never cd into a worktree from the session shell (use git -C and absolute paths).
+
+Open follow-ups: ter-91p8 (Jolt's linear cast holds a resting body back beside a ghost in a fast home), ter-me1y (item 1 partly, item 3). About 41 old worktrees from earlier sessions sit in .claude/worktrees; they are not this session's.
