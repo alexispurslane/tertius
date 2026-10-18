@@ -212,7 +212,7 @@ The cost of a frame without a body is one component call per tick, in a parallel
 | 6 | The spawns. `MakeLive` places each Kepler and Spin frame by its driver. | The spawns. A new frame stands at the pose of its spawn description. It holds still there for its first step, because it has no sample yet. |
 | 6b | `AdvanceDrivenFrames` places the Kepler and Spin frames and the moved static frames at the end of the tick. | Gone. Step 2 does this work. |
 | 6c | The numeric update. `NumericBody.Fixed` and `Orbits` come from the driver. A new orbit frame starts from the orbit. | The numeric update. `Fixed` and `Follows` come from the hull's motion. A new following frame starts from the frame's sample of the step that ended. |
-| 7 | The owners of `Physics` frames mirror their frames. | Every frame owner mirrors its frame. |
+| 7 | The float view of each `Physics` frame entity is filled from its exact table. | The float view of each frame entity is filled from its exact table. |
 | 7b | The intents convert. | The intents and the samples convert. |
 | Next `PrepareTick` | `BeginNumericStep` gives an orbit frame the orbit's acceleration at its origin, from the orbiter's G·M. | `BeginNumericStep` gives a following frame its anchor's `Acceleration` from the sample that the next step applies. |
 
@@ -221,7 +221,7 @@ The order holds for these reasons:
 - Step 2 reads the samples that step N applied before step 4 swaps them away.
 - The numeric update in step 6c still sees every bubble at the end of the tick. Each sample's pose is at `t_{N+1}`, and the destroys and the spawns still come before step 6c. So the reason for step 6b stays met: a station that orbits at 7.5 km/s is not 126 m behind the bodies beside it (see "Bubbles and ghosts" in [Numeric frames](numeric-frames.md)).
 - A following frame takes its place before `ApplyPhysicsOutput` writes the rows of its members, so their rows are relative to its exact place.
-- A frame without a body takes its owner's write before the destroys. So a write in the tick in which its parent dies converts with the frame. Today step 5 mirrors the owner and loses the write.
+- A frame without a body takes its owner's write before the destroys. So a write in the tick in which its parent dies converts with the frame. Today step 5 fills the float view of the frame entity from its exact table, and so loses the write.
 - Step 11 builds the render snapshot from the tree, which holds the end of the tick. The sample for the next step never enters the tree before that step runs.
 
 Determinism: the components run in parallel chunks, but each one writes only its own frame's sample. A sample is a pure function of the component's description, `self.TimeAt`, the step, the frame's place and the parent's gravity in the front snapshot. No sample depends on another sample or on the order of the chunks. The sync point applies the samples in the tree's dense order, and each frame reads only its own sample. `DeterminismTests` with one and eight workers checks this.
