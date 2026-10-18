@@ -956,9 +956,9 @@ public class NumericFrameGhostTests
     /// The rock meets the crate's ghost in the ship's falling frame, where the rock moves at 60 m/s toward a ghost at rest,
     /// while without numeric frames the ghost moves at 60 m/s toward the rock at rest in space. Without numeric frames, Jolt
     /// pushes the rock only in the step after the crate's face reaches it, when the face has gone 0.5 m into the rock; in
-    /// the falling frame it stops the rock at the face in the step in which the face reaches it. So the push may come one
-    /// tick earlier with numeric frames, and the runs compare the rock 160 ticks after their first, when Jolt has pushed
-    /// the rock out of the crate's face in both.
+    /// the falling frame it stops the rock at the face in the step in which the face reaches it. So the push comes up to one
+    /// tick earlier with numeric frames, never later (a measured run: tick 98 against tick 99), and the runs compare the
+    /// rock 160 ticks after their first, when Jolt has pushed the rock out of the crate's face in both.
     /// </summary>
     [Fact]
     public void ACrateThatSticksOutOfAFallingShipPushesARockBeyondTheReachOfTheHullInTheShipsFallingFrameAsItDoesWithoutNumericFrames()
@@ -974,8 +974,8 @@ public class NumericFrameGhostTests
         withNumericFrames.HitInHullsHome.Should().BeTrue(
             "the merge test linked the rock to the place of the crate's ghost, so the rock met the ghost in the ship's falling frame");
         withNumericFrames.HitMode.Should().Be(NumericMode.Falling);
-        withNumericFrames.Ticks.Should().BeInRange(withoutNumericFrames.Ticks - 1, withoutNumericFrames.Ticks + 1,
-            "the crate's ghost in the ship's tree parent is at the same place");
+        withNumericFrames.Ticks.Should().BeInRange(withoutNumericFrames.Ticks - 1, withoutNumericFrames.Ticks,
+            "in the falling frame Jolt sweeps the rock into the ghost, so it stops the rock up to one step earlier");
         (withNumericFrames.Position - withoutNumericFrames.Position).Length.Should().BeLessThan(1e-3, "the ghost pushed the rock to the same place");
         (withNumericFrames.Velocity - withoutNumericFrames.Velocity).Length.Should().BeLessThan(1e-2, "the ghost moves at the same velocity");
         withNumericFrames.InSpace.Should().BeTrue();

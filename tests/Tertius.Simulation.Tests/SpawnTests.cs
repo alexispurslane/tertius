@@ -370,15 +370,17 @@ public class SpawnTests
     {
         using var t = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<PhysicsChanges> batches = faults.AppliedChanges;
-        var batchesAppliedAtEachStep = new List<int>();
-        faults.EditOutput = _ => batchesAppliedAtEachStep.Add(batches.Count);
-        Entity ball = t.World.Spawn(new SpawnDesc { Frame = t.Root, Body = TestWorld.Ball });
+        Entity ball = default;
+        var ballCreatedAtEachStep = new List<bool>();
+        faults.EditOutput = _ => ballCreatedAtEachStep.Add(batches.Any(batch => batch.BodiesCreated.Any(create => create.Entity == ball)));
+        ball = t.World.Spawn(new SpawnDesc { Frame = t.Root, Body = TestWorld.Ball });
 
         t.Run(1);
 
         batches[0].BodiesCreated.Select(create => create.Entity).Should().Equal(ball);
-        // One step ran, and the batch with the ball had been applied when it began.
-        batchesAppliedAtEachStep.Should().Equal(1);
+        // One step ran, and the batch with the ball had been applied when it began. The numeric update of the spawn hands
+        // physics an empty last batch after it, also before the step.
+        ballCreatedAtEachStep.Should().Equal(true);
     }
 
     [Fact]

@@ -232,11 +232,15 @@ public class GhostPlaceTests
     /// The ship of <see cref="RunShipOverARock"/> without the rock. Before the 30 ticks of onset, the hull flies at 60 m/s
     /// in the system of space, so the crate's ghost lives there. At the sync point of the 30th tick, the hull moves into a
     /// falling frame of its own, and the ship's frame with it. From then on the tree allows the crate a ghost in that frame
-    /// and none in the system of space, so the reconcile of that sync point drops the ghost in space at once. The ghost pass
-    /// makes the one in the falling frame at the end of the next step.
+    /// and none in the system of space, so the move takes the ghost with the hull into the falling frame at once, at the
+    /// crate's place and velocity in space (review of ter-4psc). Before, the reconcile of that sync point dropped the ghost
+    /// in space, and the ghost pass made the one in the falling frame only at the end of the next step. A parked station at
+    /// (2000, 0, 0) in space, with a static hull and a bubble of radius 40 m, holds a second crate at (0, 40.5, 0), which
+    /// sticks out of the station into space. Its ghost is in the system of space too, the old home of the ship's hull, and
+    /// it stays there: only the ghosts of the bodies that stick out of the ship move with the ship's hull.
     /// </summary>
     [Fact]
-    public void TheSyncPointThatMovesAShipsHullIntoAFallingFrameDropsTheGhostInSpaceOfACrateThatSticksOutOfTheShip()
+    public void TheSyncPointThatMovesAShipsHullIntoAFallingFrameMovesTheGhostOfACrateThatSticksOutOfTheShipFromSpaceIntoTheFallingFrame()
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         FrameHandle space = Space(world);
@@ -247,17 +251,140 @@ public class GhostPlaceTests
         });
         FrameHandle bubble = world.GetOwnedFrame(ship);
         Entity crate = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(0, -200), Body = CrateBody });
+        Entity station = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(2000), Body = StaticHull, AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static),
+        });
+        Entity stationCrate = world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(station), Pose = At(0, 40.5), Body = CrateBody });
         Tick(world, 2);
         faults.Jolt.HasGhostIn(crate, space).Should().BeTrue("the hull flies in the system of space, and the crate sticks out of the ship");
+        faults.Jolt.HasGhostIn(stationCrate, space).Should().BeTrue("the second crate sticks out of the station into space");
 
         int ticks = TickUntil(world, () => world.Frames.IsNumeric(world.Frames.TreeParent(bubble)), 40);
 
         ticks.Should().Be(OnsetTicks - 2, "the hull thrusts from its 30th tick of thrust");
         FrameHandle falling = world.Frames.TreeParent(bubble);
         faults.Jolt.HasGhostIn(crate, space).Should().BeFalse("the ship's frame hangs in the hull's falling frame now");
+        faults.Jolt.HasGhostIn(crate, falling).Should().BeTrue("the ghost moved with the hull");
+        faults.Jolt.GhostCount(crate).Should().Be(1);
+        JoltPhysicsBackend.BodyFacts ghost = faults.Jolt.BodiesIn(falling)
+            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, crate));
+        Double3 ghostInSpace = ghost.Position + world.Frames.Relative(falling, space).Position;
+        Double3 crateInSpace = world.PoseIn(crate, space).Position;
+        (ghostInSpace - crateInSpace).Length.Should().BeLessThan(1e-3, "the ghost keeps the crate's place in space");
+        Double3 ghostVelocity = (Double3)ghost.LinearVelocity + world.Frames.HomeVelocity(falling, space);
+        (ghostVelocity - world.VelocityIn(crate, space)).Length.Should().BeLessThan(1e-3, "the ghost keeps the crate's velocity in space");
+        faults.Jolt.HasGhostIn(stationCrate, space).Should().BeTrue("the station's crate does not stick out of the ship");
+        faults.Jolt.GhostCount(stationCrate).Should().Be(1);
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         world.Tick();
         faults.Jolt.HasGhostIn(crate, falling).Should().BeTrue();
         faults.Jolt.HasGhostIn(crate, space).Should().BeFalse();
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The ship of <see cref="RunShipOverARock"/>, and a rock that flies at 60 m/s along +X in space from (118, -200.6, 0),
+    /// head on at the part of the crate that sticks out of the ship, 0.1 m outside the ship's bubble. The merge test links
+    /// the rock to the crate's place from the spawn, within the reach of their bounding spheres plus 2 s of their relative
+    /// speed of 120 m/s. Before the onset the hull flies in the system of space, so the rock lives there with it, and so does
+    /// the crate's ghost. At the sync point of the 30th tick, the hull moves into a falling frame of its own, the ship's frame
+    /// hangs under it, and the rock moves with the hull. Then the rock's front is 0.5 m from the crate's face, and the two
+    /// close at 120 m/s, 2 m a step. So the crate's ghost meets the rock in the step right after the move, in the falling
+    /// frame. Without numeric frames, it meets the rock in that step in the system of space. The run ends 30 ticks after the
+    /// onset, with the rock's place and velocity in the ship's frame.
+    /// </summary>
+    private static Outcome RunRockAtTheShipsOnset(bool numericFrames)
+    {
+        using World world = NewWorld(numericFrames, out _);
+        FrameHandle space = Space(world);
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(180), LinearVelocity = new Double3(-60, 0, 0), Body = ShipHull,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics), Components = [new Thruster(ShipHull.Mass)],
+        });
+        FrameHandle bubble = world.GetOwnedFrame(ship);
+        Entity crate = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(0, -200), Body = CrateBody });
+        var rockLog = new CollisionLog();
+        Entity rock = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(118, -200.6), LinearVelocity = new Double3(60, 0, 0), Body = RockBody, Components = [rockLog],
+        });
+        Tick(world, OnsetTicks - 1);
+        world.PhysicsHomeOf(rock).Should().Be(world.PhysicsHomeOf(ship), "the merge test links the rock to the crate's place, whose target is the ship's hull");
+        world.PhysicsHomeOf(ship).Should().Be(space, "the hull thrusts only from its 30th tick of thrust");
+
+        Outcome outcome = Watch(world, rock, rockLog, crate, () => world.PhysicsHomeOf(ship), bubble, 31);
+        if (numericFrames)
+            world.Frames.Numeric(world.PhysicsHomeOf(ship)).Should().Be(NumericMode.Falling, "the hull thrusts at 60 m/s");
+        world.GetFrame(rock).Should().Be(space, "the rock never touched the bubble");
+        world.GetFrame(crate).Should().Be(bubble, "the crate never left the bubble");
+        return outcome;
+    }
+
+    /// <summary>
+    /// A moved body keeps its ghosts, and the ghost of a body that sticks out of a frame moves with the frame's hull (review
+    /// of ter-4psc). Before, the reconcile of the sync point that moved the hull into its falling frame dropped the crate's
+    /// ghost in space, and the ghost pass made the one in the falling frame only at the end of the next step. So in that
+    /// step the rock met no ghost and flew 2 m on, into the place of the crate.
+    /// </summary>
+    [Fact]
+    public void ARockThatTheGhostOfACrateMeetsInTheStepAfterTheShipsHullMovesIntoAFallingFrameStopsAtItAsWithoutNumericFrames()
+    {
+        Outcome with = RunRockAtTheShipsOnset(numericFrames: true);
+        Outcome without = RunRockAtTheShipsOnset(numericFrames: false);
+
+        without.HitTick.Should().BeInRange(30, 33, "the ghost of the crate meets the rock in the step after the 30th tick");
+        without.Position.X.Should().BeLessThan(-1.4, "the rock stays in front of the crate's face, at x = -1 in the ship");
+        without.Velocity.Length.Should().BeLessThan(1, "the ghost of the crate stopped the rock and pushes it with the ship");
+        with.HitInExpectedHome.Should().BeTrue("the rock moved with the hull into its falling frame");
+        with.HitMode.Should().Be(NumericMode.Falling);
+        with.HitTick.Should().Be(without.HitTick, "the ghost of the crate is in the falling frame in the step after the move");
+        (with.Position - without.Position).Length.Should().BeLessThan(1e-3, "the ghost stopped the rock at the same place in the ship");
+        (with.Velocity - without.Velocity).Length.Should().BeLessThan(0.1);
+        with.News.Should().Equal(without.News);
+        with.News.Should().StartWith(ContactNews.Started);
+    }
+
+    /// <summary>
+    /// The ship of <see cref="RunShipOverARock"/> without the rock. After the onset the hull falls in a numeric frame of its
+    /// own. Then the hull and the crate brake together at 50 m/s², so the crate keeps its place in the ship, until the hull
+    /// is slower than 20 m/s relative to space, the leave speed of a group that thrusts. At that sync point the hull moves
+    /// back into the system of space, and the ship's frame with it. The move takes the crate's ghost out of the falling frame
+    /// into space at once, at the crate's place and velocity in space (review of ter-4psc).
+    /// </summary>
+    [Fact]
+    public void TheSyncPointThatMovesAShipsHullOutOfAFallingFrameMovesTheGhostOfACrateThatSticksOutOfTheShipIntoSpace()
+    {
+        using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
+        FrameHandle space = Space(world);
+        var hullThruster = new Thruster(ShipHull.Mass);
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(180), LinearVelocity = new Double3(-60, 0, 0), Body = ShipHull,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics), Components = [hullThruster],
+        });
+        FrameHandle bubble = world.GetOwnedFrame(ship);
+        var crateThruster = new Thruster(CrateBody.Mass);
+        Entity crate = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(0, -200), Body = CrateBody, Components = [crateThruster] });
+        Tick(world, OnsetTicks + 1);
+        FrameHandle falling = world.Frames.TreeParent(bubble);
+        world.Frames.Numeric(falling).Should().Be(NumericMode.Falling, "the hull thrusts at 60 m/s");
+        faults.Jolt.HasGhostIn(crate, falling).Should().BeTrue("the crate sticks out of the ship into its tree parent");
+
+        hullThruster.Acceleration = crateThruster.Acceleration = 50;
+        int ticks = TickUntil(world, () => world.Frames.TreeParent(bubble) == space, 200);
+
+        ticks.Should().BeLessThan(200, "the hull brakes below 20 m/s after about 0.8 s");
+        faults.Jolt.HasGhostIn(crate, space).Should().BeTrue("the ghost moved with the hull");
+        faults.Jolt.GhostCount(crate).Should().Be(1);
+        JoltPhysicsBackend.BodyFacts ghost = faults.Jolt.BodiesIn(space)
+            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, crate));
+        (ghost.Position - world.PoseIn(crate, space).Position).Length.Should().BeLessThan(1e-3, "the ghost keeps the crate's place in space");
+        ((Double3)ghost.LinearVelocity - world.VelocityIn(crate, space)).Length.Should().BeLessThan(1e-3, "the ghost keeps the crate's velocity in space");
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        world.Tick();
+        faults.Jolt.HasGhostIn(crate, space).Should().BeTrue();
         world.Errors.Should().BeEmpty();
     }
 

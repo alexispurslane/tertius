@@ -2,7 +2,7 @@
 id: ter-4psc
 status: in_progress
 deps: [ter-dhkf, ter-3xs6]
-links: [ter-tenw, ter-me1y]
+links: [ter-tenw, ter-me1y, ter-91p8]
 created: 2026-10-17T14:34:17Z
 type: feature
 priority: 1

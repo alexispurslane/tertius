@@ -102,8 +102,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <para>
     /// After the moves and the reconcile, the backend drops each ghost whose place the numeric update of the sync point
     /// withdrew: a home that the update no longer names to keep a ghost of an anchor (see
-    /// <see cref="DropWithdrawnAnchorGhosts"/>). The World calls this at every sync point whose update follows one that
-    /// named such a home, also with no other change.
+    /// <see cref="DropWithdrawnAnchorGhosts"/>). The World hands physics the last batch of every numeric update, also an
+    /// empty one, so this happens at the sync point of the update, also with no other change.
     /// </para>
     /// <para>
     /// The simulation refuses at spawn every body that physics cannot create, so a change that fails here comes only from
@@ -255,9 +255,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// holds a body of each entity that can touch the other one there, after the hand-offs and the ghosts of the step. So
     /// a contact goes on when two touching bodies move to another system together, by a hand-off or a move between
     /// numeric frames, and when one of them leaves while the other touches its ghost. A contact that no system takes over
-    /// after a hand-off of one of its bodies, while a body of it is in a numeric frame, waits one more step, for the numeric
-    /// update of the sync point to link the bodies or to name the numeric frame that keeps a ghost of one of them (see
-    /// <see cref="ResolveLooseContacts"/>).
+    /// after a hand-off of one of its bodies, while a body of it or a ghost of one is in a numeric frame, waits one more
+    /// step, for the numeric update of the sync point to link the bodies, or to name the home of their group for the ghost
+    /// of a Kepler hull that lives apart from the group (see <see cref="ResolveLooseContacts"/>).
     /// </para>
     /// </remarks>
     public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
@@ -587,9 +587,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 ApplyHullMotion(owner);
         }
 
-        // Ghosts follow the tree too. A frame that the game moved, or a hull that moved, can leave a ghost in a frame
-        // that is no longer next to its body's frame, even inside the frame that the body owns. The ghost pass at the
-        // end of the step adds the ghosts that the new tree wants.
+        // Ghosts follow the tree too. A frame that the game moved, or a hull that the tree moved, can leave a ghost in a
+        // frame that is no longer next to its body's frame, even inside the frame that the body owns. The ghost pass at
+        // the end of the step adds the ghosts that the new tree wants. A hull that a numeric update moved took the ghosts
+        // of the bodies that stick out of its frame along already (see ApplyMoves).
         DropGhostsThatTheTreeForbids();
         reconciledFrameVersion = frames.Version;
         EnsureFollowsTree();

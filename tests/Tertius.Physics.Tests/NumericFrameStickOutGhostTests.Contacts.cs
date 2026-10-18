@@ -142,4 +142,71 @@ public partial class NumericFrameStickOutGhostTests
         (withNumericFrames.RockPosition - withoutNumericFrames.RockPosition).Length.Should().BeLessThan(1e-2);
         (withNumericFrames.RockVelocity - withoutNumericFrames.RockVelocity).Length.Should().BeLessThan(1e-2);
     }
+
+    /// <summary>
+    /// Space, and at (150, 0, 0) in it a ship that flies at 60 m/s along -X with a gentle thrust: a hull of 4 m by 4 m by 4 m
+    /// and 1000 kg that physics drives, with a bubble of radius 200 m. A crate rests at (0, -199.5, 0) in space, and a rock
+    /// rests at (0, -201, 0), against the crate's bottom face, so the two touch from the first step. Both are slow and near
+    /// the origin of space, so they rest in the system of space. After the 30 ticks of onset, the hull thrusts, so it falls
+    /// in a numeric frame of its own, under which the ship's frame hangs. The hull stays at least 200 m from the crate and
+    /// the rock, beyond the merge test's reach of the hull, about 124 m. About 1.5 s later the crate's bounding sphere
+    /// touches the ship's bubble, and the crate enters the ship. Its center passes 199.5 m from the ship's center, so it
+    /// stays in the ship. The rock's center passes 201 m from the ship's center, 0.5 m more than the bubble's radius plus
+    /// the rock's own, so the rock never touches the bubble. In the step of the hand-off the crate's ghost goes into the
+    /// ship's tree parent, the hull's falling frame, while the rock lives in the system of space, and neither body is in a
+    /// numeric frame. So the contact waits one step, until the next update links the rock to the place of the crate's ghost,
+    /// which joins it to the hull's falling frame. Without numeric frames, the ship's tree parent is space, where the ghost
+    /// of the crate carries the contact at once (review of ter-4psc). The outcome's mode is the mode of the rock's home 20
+    /// ticks after the hand-off. In that home the rock and the ghost of the crate both move at 60 m/s, and Jolt's linear
+    /// cast of the rock along the ghost that it touches holds the rock back by 0.58 m along X over the first steps (ticket
+    /// ter-91p8). So the test compares the rock's place across X only.
+    /// </summary>
+    private static HandOffOutcome RunCrateThatEntersAFallingShip(bool numericFrames)
+    {
+        using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(150), LinearVelocity = new Double3(-60, 0, 0), Body = ShipHull,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics), Components = [new Thruster(ShipHull.Mass)],
+        });
+        FrameHandle ship = world.GetOwnedFrame(owner);
+        var rockLog = new CollisionLog();
+        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, -199.5), Body = CrateBody });
+        Entity rock = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, -201), Body = RockBody, Components = [rockLog] });
+        Tick(world, OnsetTicks);
+        rockLog.NewsOf(crate).Should().Equal([ContactNews.Started], "the crate and the rock touch from the first step");
+        world.PhysicsHomeOf(rock).Should().Be(space, "the rock is slow and near the origin of space");
+        if (numericFrames)
+            world.Frames.Numeric(world.PhysicsHomeOf(owner)).Should().Be(NumericMode.Falling, "the ship's hull thrusts at 60 m/s");
+
+        int ticks = TickUntil(world, () => world.GetFrame(crate) == ship, 200);
+
+        ticks.Should().BeInRange(80, 100, "the crate touches the ship's bubble about 1.5 s after the onset");
+        faults.Jolt.HasGhostIn(crate, world.Frames.TreeParent(ship)).Should().BeTrue("the crate sticks out of the ship into its tree parent");
+        world.PhysicsHomeOf(rock).Should().Be(world.Frames.TreeParent(ship),
+            "the update of the hand-off's sync point links the rock to the place of the crate's ghost, in the home of the ship's hull");
+        if (numericFrames)
+            world.Frames.IsNumeric(world.Frames.TreeParent(ship)).Should().BeTrue("the ship's frame hangs in the hull's falling frame");
+        Tick(world, 20);
+        world.GetFrame(rock).Should().Be(space, "the rock never touches the bubble");
+        world.GetFrame(crate).Should().Be(ship, "the crate stays in the ship");
+        world.Errors.Should().BeEmpty();
+        return new HandOffOutcome(rockLog.NewsOf(crate), world.PoseIn(rock, space).Position, world.VelocityIn(rock, space), world.GetFrame(crate),
+            world.PhysicsHomeOf(rock), world.Frames.Numeric(world.PhysicsHomeOf(rock)));
+    }
+
+    [Fact]
+    public void AContactOfACrateThatEntersAFallingShipWhileItTouchesARockInSpaceGoesOnThroughItsGhost()
+    {
+        HandOffOutcome withNumericFrames = RunCrateThatEntersAFallingShip(numericFrames: true);
+        HandOffOutcome withoutNumericFrames = RunCrateThatEntersAFallingShip(numericFrames: false);
+
+        withoutNumericFrames.RockNews.Should().Equal([ContactNews.Started], "the ghost of the crate in space carries the contact");
+        withNumericFrames.RockMode.Should().Be(NumericMode.Falling, "the rock joined the hull's falling frame, where the ghost of the crate lives");
+        withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews, "numeric frames do not change which events gameplay hears");
+        withNumericFrames.RockPosition.Y.Should().BeApproximately(withoutNumericFrames.RockPosition.Y, 1e-3);
+        withNumericFrames.RockPosition.Z.Should().BeApproximately(withoutNumericFrames.RockPosition.Z, 1e-3);
+        (withNumericFrames.RockVelocity - withoutNumericFrames.RockVelocity).Length.Should().BeLessThan(1e-2);
+    }
 }

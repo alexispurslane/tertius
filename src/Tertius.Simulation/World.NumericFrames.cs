@@ -31,9 +31,9 @@ public sealed partial class World
     /// the destroys, the spawns and the frames that physics does not drive have reached the end of the tick, on one thread. The structural changes that wait in the batch for physics reach it with
     /// the update's first batch, so that a body that physics has not created yet is created in its numeric frame, with its
     /// state converted in doubles. The update's changes reach physics in two batches. The last one goes also when it is
-    /// empty, after an update that named a home to keep a ghost of an anchor (see <see cref="FrameTree.AnchorGhosts"/>):
-    /// physics drops the ghosts in each home that this update stops naming at this sync point, so that it keeps a ghost
-    /// only where the tree allows one.
+    /// empty: physics drops the ghosts in each home that this update stops naming to keep a ghost of an anchor (see
+    /// <see cref="FrameTree.AnchorGhosts"/>) at this sync point, so that it keeps a ghost only where the tree allows one.
+    /// That costs physics one empty batch per sync point, and the World needs no rule of its own for when physics needs one.
     /// </summary>
     private void UpdateNumericFrames(double dt)
     {
@@ -88,9 +88,8 @@ public sealed partial class World
                 OwnedFrame = own,
             });
         }
-        bool namedAnchorGhosts = !Frames.AnchorGhosts.IsEmpty;
         Frames.UpdateNumericFrames(CollectionsMarshal.AsSpan(numericBodies), dt, physicsChanges, applyNumericMoves ??= ApplyNumericMoves);
-        FlushPhysicsChanges(evenIfEmpty: namedAnchorGhosts);
+        ApplyPhysicsChanges();
         pendingCreates.Clear();
     }
 
