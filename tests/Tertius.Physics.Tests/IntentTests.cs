@@ -246,9 +246,9 @@ public class IntentTests
 
         world.Tick();
 
-        FrameState sent = faults.Outputs[^1].Frames.Single(state => state.Frame == ship);
-        world.Frames.LinearVelocity(ship).Should().Be(sent.LinearVelocity, "the World takes the velocity of the frame from the output that Jolt sent");
-        world.Frames.ProperAcceleration(ship).Should().Be(sent.ProperAcceleration);
+        FrameStepRecord sent = faults.Outputs[^1].Frames.Single(state => state.Frame == ship);
+        world.Frames.LinearVelocity(ship).Should().Be(sent.Motion.Velocity, "the World takes the velocity of the frame from the output that Jolt sent");
+        world.Frames.ProperAcceleration(ship).Should().Be(sent.Motion.ProperAcceleration);
         world.Frames.LinearVelocity(ship).Z.Should().BeApproximately(2, 5e-5);
         // An impulse is a jolt: the accelerometer sees Δv / dt for that one step.
         world.Frames.ProperAcceleration(ship).Z.Should().BeApproximately(2 / world.DeltaTime, 0.05f);

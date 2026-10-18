@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 
 namespace Tertius;
 
@@ -548,10 +549,17 @@ public readonly record struct ContactStarted(Entity A, Entity B, FrameHandle Fra
 public readonly record struct ContactEnded(Entity A, Entity B);
 
 /// <summary>
-/// The new state of a physics-driven frame, relative to its parent after this step. If the step also handed the
-/// frame off, the parent is the hand-off's <see cref="HandOff.To"/>, so the sync point applies hand-offs first.
+/// The step record of a frame whose hull physics moved in the step: the frame's motion over the step that just ended (see
+/// "One motion record per frame" in docs/plans/rails-components.md). Every field of <see cref="Motion"/> except its proper
+/// acceleration is relative to the frame's tree parent after this step, in its axes; the proper acceleration is in the
+/// frame's own axes. If the step also handed the frame off, the parent is the hand-off's <see cref="HandOff.To"/>, so the
+/// sync point applies hand-offs first. The sync point puts the frame on its record (see <c>World.FollowOwners</c>).
 /// </summary>
-public readonly record struct FrameState(FrameHandle Frame, DPose LocalPose, Double3 LinearVelocity, Vector3 AngularVelocity, Vector3 ProperAcceleration);
+/// <param name="Frame">The frame whose hull moved.</param>
+/// <param name="Motion">The frame's motion over the step: the pose at its end, the chord, the instant velocity at its end,
+/// the acceleration and the angular acceleration over the step, the angular velocity at its end and the proper
+/// acceleration.</param>
+public readonly record struct FrameStepRecord(FrameHandle Frame, MotionSample Motion);
 
 /// <summary>
 /// Results of one step. The backend fills it on the physics thread. The sync point reads and clears it. Every entity
@@ -559,8 +567,8 @@ public readonly record struct FrameState(FrameHandle Frame, DPose LocalPose, Dou
 /// not null. An ended contact names two different entities, and one of them may be gone, because destroying a body ends
 /// its contacts. A hand-off leaves
 /// the frame that its entity is in, each entity hands off at most once, and the owner of a frame hands off only when
-/// the frame has the physics driver. A frame state names a frame with the physics driver and a parent, whose owner has
-/// a body. A contact names two different entities. A character state names a live character, and each character has
+/// the frame has the physics driver. A frame's step record names a frame with a parent, whose owner has a body that is
+/// not static: its hull. A contact names two different entities. A character state names a live character, and each character has
 /// at most one state in a step. <see cref="PhysicsOutputCheck"/> holds the full rules. The sync point treats any other
 /// output as a bug in the backend: see ARCHITECTURE.md, "Threads and the tick", step 2.
 /// </summary>
@@ -574,7 +582,8 @@ public sealed class PhysicsStepOutput
     /// <summary>The contacts that ended in the step, after the contacts that started, in entity order.</summary>
     public readonly List<ContactEnded> ContactsEnded = new();
 
-    public readonly List<FrameState> Frames = new();
+    /// <summary>The step record of each frame whose hull moved in the step, once each.</summary>
+    public readonly List<FrameStepRecord> Frames = new();
 
     /// <summary>
     /// The state of every character, once each, after the hand-offs of the step. So a character that a hand-off moved

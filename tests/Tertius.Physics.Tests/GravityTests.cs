@@ -254,9 +254,9 @@ public class GravityTests
             world.Tick();
             world.Frames.ProperAcceleration(ship).Should().Be(Vector3.Zero);
         }
-        List<FrameState> sent = faults.Outputs.SelectMany(output => output.Frames).ToList();
+        List<FrameStepRecord> sent = faults.Outputs.SelectMany(output => output.Frames).ToList();
         sent.Should().NotBeEmpty("Jolt reports the state of the ship's frame");
-        sent.Should().OnlyContain(state => state.ProperAcceleration == Vector3.Zero, "Jolt reported no proper acceleration for the ship in any step");
+        sent.Should().OnlyContain(state => state.Motion.ProperAcceleration == Vector3.Zero, "Jolt reported no proper acceleration for the ship in any step");
         (world.PoseInOwnFrame(crate).Position - new Double3(5, 0, 0)).Length.Should().BeLessThan(1e-9);
         // The ship really orbits: in 3 s it flew 22.6 km and curved about 36 m toward the planet, at constant radius.
         Double3 position = world.Frames.LocalPose(ship).Position;

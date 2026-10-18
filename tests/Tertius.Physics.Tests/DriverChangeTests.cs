@@ -38,7 +38,7 @@ public class DriverChangeTests
             .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner));
 
     /// <summary>Every frame state that Jolt sent for <paramref name="frame"/>, from the output at index <paramref name="from"/> on.</summary>
-    private static List<FrameState> FrameStatesSince(FaultInjectingBackend faults, FrameHandle frame, int from) =>
+    private static List<FrameStepRecord> FrameStatesSince(FaultInjectingBackend faults, FrameHandle frame, int from) =>
         faults.Outputs.Skip(from).SelectMany(output => output.Frames).Where(state => state.Frame == frame).ToList();
 
     /// <summary>A ship in space, with the physics driver, that flies along +X at 10 m/s with no damping, after five ticks.</summary>

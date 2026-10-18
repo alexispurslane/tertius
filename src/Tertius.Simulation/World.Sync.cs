@@ -199,14 +199,14 @@ public sealed partial class World
         // The reparents already put each frame under the parent that its state is relative to. The owner's row mirrors
         // the new state at once, so that a hull that the destroy batch moves to another physics system starts from the
         // state after the step. A frame that is gone has its owner's update skipped.
-        foreach (FrameState state in stepOutput.Frames)
+        foreach (FrameStepRecord state in stepOutput.Frames)
         {
             if (physicsOutputCheck.IsSkipped(state.Frame.Entity))
                 continue;
-            Frames.SetTreeLocalPose(state.Frame, state.LocalPose);
-            Frames.TreeLinearVelocity(state.Frame) = state.LinearVelocity;
-            Frames.AngularVelocity(state.Frame) = state.AngularVelocity;
-            Frames.ProperAcceleration(state.Frame) = state.ProperAcceleration;
+            Frames.SetTreeLocalPose(state.Frame, state.Motion.Pose);
+            Frames.TreeLinearVelocity(state.Frame) = state.Motion.Velocity;
+            Frames.AngularVelocity(state.Frame) = state.Motion.AngularVelocity.ToVector3();
+            Frames.ProperAcceleration(state.Frame) = state.Motion.ProperAcceleration;
             Entity owner = state.Frame.Entity;
             entities.SetBackTransform(owner, FrameOwnerRow(state.Frame));
             physicsTouched.Add(owner);

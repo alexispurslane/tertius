@@ -97,7 +97,7 @@ public class HandOffTests
 
         HandOff? exit = TickUntilHandedOff(world, faults, ball, 400, out Placed before);
         exit.Should().NotBeNull("the ball leaves the ship within 400 ticks");
-        FrameState shipAtExit = faults.Outputs[^1].Frames.Single(f => f.Frame == ship);
+        FrameStepRecord shipAtExit = faults.Outputs[^1].Frames.Single(f => f.Frame == ship);
 
         HandOff result = exit!.Value;
         result.From.Should().Be(ship);
@@ -111,7 +111,7 @@ public class HandOffTests
         // In ship coordinates the ball coasts in a straight line (no Coriolis force acts), so at the end of the
         // hand-off step it is one step further along. Its parent velocity includes ω × r of the spinning ship.
         Double3 position = before.Pose.Position + (Double3)before.LinearVelocity * Dt;
-        var shipMotion = new FrameMotionData(shipAtExit.LocalPose, shipAtExit.LinearVelocity, shipAtExit.AngularVelocity);
+        var shipMotion = new FrameMotionData(shipAtExit.Motion.Pose, shipAtExit.Motion.Velocity, shipAtExit.Motion.AngularVelocity);
         Double3 expected = ToParentVelocity(shipMotion, position, before.LinearVelocity);
         Double3 actual = result.LinearVelocity;
         (actual - expected).Length.Should().BeLessThan(1e-3 * expected.Length);
@@ -576,8 +576,8 @@ public class HandOffTests
         world.GetFrame(fighterOwner).Should().Be(space);
         (world.PoseInOwnFrame(fighterOwner).Position - inSpace.Position).Length.Should().BeLessThan(1e-6);
         // Relative to the carrier, the fighter would be about 1 km closer to the origin.
-        FrameState reported = faults.Outputs[^1].Frames.Single(state => state.Frame == fighter);
-        (reported.LocalPose.Position - inSpace.Position).Length.Should().BeLessThan(1e-6);
+        FrameStepRecord reported = faults.Outputs[^1].Frames.Single(state => state.Frame == fighter);
+        (reported.Motion.Pose.Position - inSpace.Position).Length.Should().BeLessThan(1e-6);
         world.Errors.Should().ContainSingle("the second step sent no hand-off");
 #endif
     }
@@ -603,9 +603,9 @@ public class HandOffTests
         hullFrame.Should().Be(space);
         world.GetFrame(fighterOwner).Should().Be(space);
         (world.PoseInOwnFrame(fighterOwner).Position - expected).Length.Should().BeLessThan(1e-5);
-        FrameState reported = faults.Outputs[^1].Frames.Single(state => state.Frame == fighter);
-        (reported.LocalPose.Position - expected).Length.Should().BeLessThan(1e-5);
-        reported.LinearVelocity.X.Should().BeApproximately(120, 1e-3);
+        FrameStepRecord reported = faults.Outputs[^1].Frames.Single(state => state.Frame == fighter);
+        (reported.Motion.Pose.Position - expected).Length.Should().BeLessThan(1e-5);
+        reported.Motion.Velocity.X.Should().BeApproximately(120, 1e-3);
         HandOffsSent(faults).Should().ContainSingle("the fighter is out of the carrier's bubble");
         world.Errors.Should().BeEmpty();
     }

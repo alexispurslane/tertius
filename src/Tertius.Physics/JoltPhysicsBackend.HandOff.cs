@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using JoltPhysicsSharp;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Physics;
 
@@ -756,7 +757,8 @@ public sealed partial class JoltPhysicsBackend
                 continue;
             BodySnapshot s = ReadPrimary(owner);
             Double3 originVelocity = (Double3)s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);
-            output.Frames.Add(new FrameState(owner.OwnedFrame, s.Pose, originVelocity, s.Angular, owner.ProperAcceleration));
+            output.Frames.Add(new FrameStepRecord(owner.OwnedFrame,
+                new MotionSample(s.Pose, originVelocity, originVelocity, Double3.Zero, s.Angular, Double3.Zero, owner.ProperAcceleration)));
         }
     }
 }

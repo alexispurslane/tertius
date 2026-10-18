@@ -396,7 +396,7 @@ public class PhysicsHandOffTests
         {
             output.Bodies.Add(new BodyState(fighterOwner, gone, TestWorld.At(-1), AnyVelocity, AnySpin));
             output.HandOffs.Add(new HandOff(fighterOwner, test.Root, gone, TestWorld.At(-1), AnyVelocity, AnySpin));
-            output.Frames.Add(new FrameState(fighter, TestWorld.At(-1), new Double3(1, 2, 3), AnySpin, Vector3.Zero));
+            output.Frames.Add(StepRecords.Of(fighter, TestWorld.At(-1), new Double3(1, 2, 3), AnySpin, Vector3.Zero));
         };
 
         test.Run(1);
@@ -632,7 +632,7 @@ public class PhysicsHandOffTests
                 output.Bodies.Add(new BodyState(Owner, Cockpit, TestWorld.At(-1), AnyVelocity, AnySpin));
                 output.HandOffs.Add(new HandOff(Owner, Test.Root, Cockpit, TestWorld.At(-1), AnyVelocity, AnySpin));
                 if (report == RefusedReport.BodyAndFrameState)
-                    output.Frames.Add(new FrameState(Fighter, TestWorld.At(-1), new Double3(1, 2, 3), AnySpin, new Vector3(0, -2, 0)));
+                    output.Frames.Add(StepRecords.Of(Fighter, TestWorld.At(-1), new Double3(1, 2, 3), AnySpin, new Vector3(0, -2, 0)));
             };
         }
 
