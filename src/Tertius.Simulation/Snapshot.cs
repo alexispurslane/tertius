@@ -79,8 +79,9 @@ public readonly struct Snapshot
 
     /// <summary>
     /// The motion of a body with the description <paramref name="body"/> whose entity owns <paramref name="ownedFrame"/>,
-    /// or no frame when it is null: the motion of the frame's hull, or static for the owner of a root frame, whose body is
-    /// only the frame's static interior. The frame tree does not change during a tick, so any worker may read it.
+    /// or no frame when it is null, in the last finished step: the stored motion of the frame's hull, or static for the owner
+    /// of a root frame, whose body is only the frame's static interior. The frame tree does not change during a tick, so any
+    /// worker may read it.
     /// </summary>
     private BodyMotion MotionOf(BodyDesc body, FrameHandle ownedFrame) =>
         ownedFrame.IsNull ? body.Motion : world.Frames.HullMotion(ownedFrame) ?? BodyMotion.Static;

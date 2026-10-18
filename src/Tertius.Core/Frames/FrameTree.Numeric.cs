@@ -135,16 +135,17 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Creates the orbit frame of <paramref name="frame"/>, whose kinematic hull the numeric update moves into it, and moves
-    /// the frame under it. The new frame lies in the frame's semantic parent at the place of the frame's followed sample,
+    /// Creates the orbit frame of the frame that <paramref name="hull"/> owns, a hull that is kinematic in the step that the
+    /// update plans (<see cref="NumericBody.Orbits"/>), which the numeric update moves into it, and moves the frame under it. The new frame lies in the frame's semantic parent at the place of the frame's followed sample,
     /// the sample of the step that ended at this sync point, with the sample's chord as its velocity (see
     /// <see cref="NumericMode.Orbiting"/>); before the hull's first sample, at the frame's place, with the frame's velocity.
     /// The frame rests at its origin and keeps the rest of its velocity (see <see cref="PlaceFollowingFrame"/>). The frame's
     /// place and velocity in the semantic parent stay what they were, which is where its record put it at this sync point.
     /// </summary>
-    private FrameHandle CreateOrbitFrame(FrameHandle frame)
+    private FrameHandle CreateOrbitFrame(in NumericBody hull)
     {
-        Contract.Requires(HullMotion(frame) == BodyMotion.Kinematic && !IsNumeric(frame) && !InOrbitFrame(frame));
+        FrameHandle frame = hull.OwnedFrame;
+        Contract.Requires(hull.Orbits && !IsNumeric(frame) && !InOrbitFrame(frame));
         FrameHandle treeParent = TreeParent(frame);
         FrameHandle semantic = SemanticOf(treeParent);
         DPose local = TreeLocalPose(frame);
@@ -164,7 +165,7 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// The orbit frame <paramref name="orbitFrame"/> lost its orbiter, which moved out, died or got a hull motion other than
-    /// kinematic (see <see cref="SetHullMotion"/>). It turns into a falling frame that falls on from its place, at its
+    /// kinematic for the next step (see <see cref="PlanHullMotion"/>). It turns into a falling frame that falls on from its place, at its
     /// velocity: the bodies in it keep their motion, and the next numeric update takes it as any falling frame. The ghosts
     /// of the orbiter's hull go, because the hull no longer lives in an orbit frame (see <see cref="AnchorGhosts"/>).
     /// </summary>
@@ -894,7 +895,7 @@ public sealed partial class FrameTree
         if (home.IsNull)
         {
             Double3 velocity = group.Mode == NumericMode.Falling ? group.Motion.Velocity : Double3.Zero;
-            home = group.Mode == NumericMode.Orbiting ? CreateOrbitFrame(members[group.Motion.Orbiter].OwnedFrame)
+            home = group.Mode == NumericMode.Orbiting ? CreateOrbitFrame(members[group.Motion.Orbiter])
                 : CreateNumeric(semantic, group.Motion.Center, velocity, group.Mode);
             changes.FramesCreated.Add(home);
         }
@@ -918,7 +919,7 @@ public sealed partial class FrameTree
     /// </summary>
     private void MoveIntoOrbitFrame(ref NumericBody body, PhysicsChanges changes)
     {
-        FrameHandle orbitFrame = CreateOrbitFrame(body.OwnedFrame);
+        FrameHandle orbitFrame = CreateOrbitFrame(body);
         changes.FramesCreated.Add(orbitFrame);
         moves.Add(new NumericMove(body.Entity, body.Home, orbitFrame));
         body = body with { Home = orbitFrame, HomeMode = NumericMode.Orbiting };

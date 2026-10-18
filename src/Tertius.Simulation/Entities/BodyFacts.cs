@@ -5,13 +5,15 @@ namespace Tertius.Simulation;
 /// <see cref="Snapshot.TryGetBody"/>, for example to decide whether it can push, lift or stand on another entity.
 /// </summary>
 /// <param name="Motion">
-/// How the body moves. A body that owns no frame has the motion of its description, and a character has
-/// <see cref="BodyMotion.Character"/>. The body of a frame owner is its frame's hull in the parent frame, with the motion
-/// that the frame tree keeps for it (see <see cref="FrameTree.HullMotion"/>): at spawn, the motion of its description, and
-/// after a change of motion (see <see cref="BodyHandle.SetMotion"/>), the new motion. A root frame has no parent and so no
-/// hull, so the body of its owner is only the frame's static interior, with <see cref="BodyMotion.Static"/>. A hull's motion
-/// changes only at a sync point, and physics follows it at the start of its next step, so the motion is the one of the step
-/// that runs during this tick.
+/// How the body moved in the last finished step, the step that ran during the previous tick. A body that owns no frame has
+/// the motion of its description, and a character has <see cref="BodyMotion.Character"/>. The body of a frame owner is its
+/// frame's hull in the parent frame, with the stored motion that the frame tree keeps for it (see
+/// <see cref="FrameTree.HullMotion"/>): at spawn, the motion of its description, and after a change of motion (see
+/// <see cref="BodyHandle.SetMotion"/>), the new motion from the sync point after the step that applies it. So a
+/// <c>SetMotion</c> in tick N shows here from tick N + 2 on, like a <see cref="BodyHandle.SetCollision"/>. A root frame has
+/// no parent and so no hull, so the body of its owner is only the frame's static interior, with
+/// <see cref="BodyMotion.Static"/>. The entity itself reads the motion of the step that applies its writes with
+/// <see cref="BodyHandle.NextStepMotion"/>.
 /// </param>
 /// <param name="Mass">The mass of the description, in kg. Only a dynamic body moves by its mass.</param>
 /// <param name="ShapeKind">The kind of the body's shape. For a frame owner, that is the shape of its hull.</param>

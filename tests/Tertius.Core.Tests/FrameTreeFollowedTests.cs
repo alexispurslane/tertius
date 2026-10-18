@@ -52,7 +52,7 @@ public class FrameTreeFollowedTests
     {
         FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
 
-        frames.Samples.Record(ship, root, Sample);
+        frames.Samples.Record(ship, root, Sample, []);
         SyncPoint();
 
         frames.Followed(ship).Should().Be(FollowKind.Physics);
@@ -63,11 +63,38 @@ public class FrameTreeFollowedTests
     {
         FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
 
-        frames.Samples.Record(ship, root, Sample);
+        frames.Samples.Record(ship, root, Sample, []);
         frames.SetHullMotion(ship, BodyMotion.Static);
         SyncPoint();
 
         frames.Followed(ship).Should().Be(FollowKind.Physics, "step 4 changes the motion after step 2 took the record of the step");
+    }
+
+    /// <summary>
+    /// The intents of the step that ended hold a change that made the hull dynamic. The stored motion takes it only at step
+    /// 4, after the record, but the record is of a step in which the hull was dynamic: the move that physics made.
+    /// </summary>
+    [Fact]
+    public void AFrameWhoseHullBecameDynamicInTheStepFollowsPhysicsAtThatSyncPoint()
+    {
+        FrameHandle ship = Child(2, root, BodyMotion.Static);
+
+        frames.Samples.Record(ship, root, Sample, StepIntents.Changing(ship, BodyMotion.Dynamic));
+        SyncPoint();
+
+        frames.Followed(ship).Should().Be(FollowKind.Physics);
+    }
+
+    /// <summary>The intents of the step that ended hold a change that parked the hull, so the record is of a static hull.</summary>
+    [Fact]
+    public void AFrameWhoseHullParkedInTheStepFollowsItsRecordAsStatic()
+    {
+        FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
+
+        frames.Samples.Record(ship, root, Sample, StepIntents.Changing(ship, BodyMotion.Static));
+        SyncPoint();
+
+        frames.Followed(ship).Should().Be(FollowKind.Static);
     }
 
     [Theory]
@@ -77,7 +104,7 @@ public class FrameTreeFollowedTests
     {
         FrameHandle ship = Child(2, root, motion);
 
-        frames.Samples.Record(ship, root, Sample);
+        frames.Samples.Record(ship, root, Sample, []);
         SyncPoint();
 
         frames.Followed(ship).Should().Be(FollowKind.Static);
@@ -88,7 +115,7 @@ public class FrameTreeFollowedTests
     {
         FrameHandle room = Child(2, root, motion: null);
 
-        frames.Samples.Record(room, root, Sample);
+        frames.Samples.Record(room, root, Sample, []);
         SyncPoint();
 
         frames.Followed(room).Should().Be(FollowKind.Static);
@@ -101,7 +128,7 @@ public class FrameTreeFollowedTests
         frames.Samples.Write(station, root, Sample);
         SyncPoint();
 
-        frames.Samples.Record(station, root, Sample).Should().BeFalse("the sample is the record of the step");
+        frames.Samples.Record(station, root, Sample, []).Should().BeFalse("the sample is the record of the step");
         SyncPoint();
 
         frames.Followed(station).Should().Be(FollowKind.Rails);
@@ -111,7 +138,7 @@ public class FrameTreeFollowedTests
     public void AFrameWithoutARowFollowsNothing()
     {
         FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
-        frames.Samples.Record(ship, root, Sample);
+        frames.Samples.Record(ship, root, Sample, []);
         SyncPoint();
 
         SyncPoint();

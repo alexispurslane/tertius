@@ -83,8 +83,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// body. An entity that owns a frame gets two bodies: its hull in the parent frame's system on the
     /// <see cref="BodyLayer.FrameHull"/> layer, and its interior as static geometry in its own frame's system. The
     /// frame must exist in <paramref name="frames"/> before its owner's body is created; the hull starts at the
-    /// frame's pose and velocity in the tree, with the motion of its description, which is the motion that the hull has now
-    /// (see <see cref="BodyCreate"/>).
+    /// frame's pose and velocity in the tree, with the motion of its description, which is the motion that the hull has in
+    /// the next step (see <see cref="BodyCreate"/>).
     /// </summary>
     /// <remarks>
     /// <para>
@@ -96,11 +96,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// that outlives its frame. A frame in FramesDestroyed that the tree still has keeps its system, with a warning,
     /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, and a
     /// frame that the simulation reparents on its own are handled here or at the start of the next step, whichever comes
-    /// first. A hull has the motion that the frame tree keeps for it (see <see cref="FrameTree.HullMotion"/>): the motion of
-    /// its description at spawn, and the motion of a change that its owner wrote in a tick, which the hull takes at the start
-    /// of the first step that runs after that tick's sync point (see <see cref="FollowHullMotions"/>). The simulation never
-    /// puts in the tree a motion that the hull cannot take. Such a motion comes only from a bug: it breaks a contract in a
-    /// Debug build, and a Release build keeps the hull's motion and reports the bug (see <see cref="ReportBug"/>).
+    /// first. A hull has the motion of its description at spawn. A change of motion that its owner wrote in a tick is in the
+    /// intents of the next step, and the hull takes it at the start of that step; any step takes the motion that the hull
+    /// has in it, from the change in the step's intents or else from the stored motion of the last finished step (see
+    /// <see cref="FollowHullMotions"/> and <see cref="FrameTree.RunningStepHullMotion"/>). The simulation never gives a hull
+    /// a motion that it cannot take. Such a motion comes only from a bug: it breaks a contract in a Debug build, and a
+    /// Release build keeps the hull's motion and reports the bug (see <see cref="ReportBug"/>).
     /// </para>
     /// <para>
     /// After the moves and the reconcile, the backend drops each ghost whose place the numeric update of the sync point
@@ -189,7 +190,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>
     /// Runs one physics step for every frame with awake bodies or characters: puts every frame hull where the frame tree
     /// says, which drops the hand-offs of the last step that the simulation refused and follows changes to the tree that no
-    /// change batch announced, then gives each hull the motion that the frame tree keeps for it (see
+    /// change batch announced, then gives each hull the motion that it has in this step (see
     /// <see cref="FollowHullMotions"/>), then gives every character the form that the
     /// gravity at it asks for, applies intents, aims the kinematic frame hulls at their samples, applies gravity, moves the characters in the
     /// walking form, updates every system, then reports contacts, hands bodies between frames, updates ghosts and writes
@@ -286,7 +287,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             RefreshFrameStructure();
             // Before anything reads a record's motion: a hull that becomes dynamic joins the spawned rigid bodies, whose
             // velocities the next pass converts into chords.
-            FollowHullMotions();
+            FollowHullMotions(context.Intents.Span);
             // Before the intents and the gravity, which act on the form that a character has for the whole step, and before
             // the spawn velocities, which a spawned character that turns rigid needs as chords too.
             SwitchCharacterForms();
@@ -627,9 +628,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// character. Each system counts its members that are characters, and those in the walking form.</item>
     /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
     /// and the owner of a root frame has no hull.</item>
-    /// <item>Jolt moves every hull with the motion of its record. The record takes a change of the motion that the frame tree
-    /// keeps for the hull (see <see cref="FrameTree.HullMotion"/>) at the start of the first step that runs after the sync
-    /// point that made it, so it can lag the tree until then (see <see cref="FollowHullMotions"/>).</item>
+    /// <item>Jolt moves every hull with the motion of its record. The record takes the motion of each step at the start of
+    /// that step (see <see cref="FollowHullMotions"/>), so between steps it holds the motion of the last step that ran.</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame among the semantic
     /// frames, or in the home of a group that keeps a ghost of an anchor, the body's own or the hull of its home's semantic
     /// frame (see <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
@@ -720,9 +720,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(!owner.HasPrimary);
             else
                 Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
-            // A hull has the Jolt motion type of its record's motion. The record takes a change of motion at the start of the
-            // first step that runs after the sync point that changed the tree, so it lags the tree until then (see
-            // FollowHullMotions).
+            // A hull has the Jolt motion type of its record's motion. The record takes the motion of each step at the start of
+            // that step (see FollowHullMotions).
             if (owner.HasPrimary)
                 Contract.Invariant(owner.World!.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
         }

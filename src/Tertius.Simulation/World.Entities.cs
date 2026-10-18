@@ -535,11 +535,12 @@ public sealed partial class World
         MoveMembership(entity, to, sendFrameChanged: true);
 
         // The body moves to the other physics system: physics destroys it before it creates the new one, as the body is
-        // now: with the collision groups and mask that it has now, and for a hull, the motion that the frame tree keeps.
+        // now: with the collision groups and mask that it has now, and for a hull, the motion of the next step, which the
+        // new body runs first.
         if (entities.BodyToRecreate(entity) is { } body)
         {
             FrameHandle own = entities.OwnedFrame(entity);
-            if (!own.IsNull && Frames.HullMotion(own) is { } motion && motion != body.Motion)
+            if (!own.IsNull && NextStepHullMotion(own) is { } motion && motion != body.Motion)
                 body = body with { Motion = motion };
             physicsChanges.BodiesDestroyed.Add(entity);
             physicsChanges.BodiesCreated.Add(new BodyCreate(entity, to, body, moved.Pose, velocity, moved.AngularVelocity));

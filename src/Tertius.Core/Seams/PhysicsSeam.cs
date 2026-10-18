@@ -396,10 +396,11 @@ public struct PhysicsIntent
     /// <summary>The body's new collision mask, which holds only an any-of set. Used with <see cref="IntentFlags.SetCollision"/>.</summary>
     public CollisionMask CollisionMask;
     /// <summary>
-    /// The new motion of a frame's hull. Used with <see cref="IntentFlags.SetMotion"/>. The sync point gives the hull this
-    /// motion in the frame tree before the step that applies the intent (see <see cref="FrameTree.HullMotion"/>). Physics
-    /// reads the motion from the tree, not from this field, and gives the Jolt body the motion at the start of the first step
-    /// that runs after that sync point.
+    /// The new motion of a frame's hull. Used with <see cref="IntentFlags.SetMotion"/>. It is the motion of the hull in the
+    /// step that applies the intent: physics gives the Jolt body this motion at the start of that step, and every reader that
+    /// asks about that step derives it from this field (see <see cref="FrameTree.RunningStepHullMotion"/>). At the sync point
+    /// after that step, the frame tree stores it as the motion of the last finished step (see
+    /// <see cref="FrameTree.HullMotion"/>).
     /// </summary>
     public BodyMotion Motion;
     public IntentFlags Flags;
@@ -413,9 +414,10 @@ public struct PhysicsIntent
 
 /// <summary>
 /// A body that physics must create at the sync point. <see cref="Desc"/> holds the body as it is now: the collision groups
-/// and mask that it has now, and for the hull of a frame, the motion that the hull has now (see
-/// <see cref="FrameTree.HullMotion"/>). So a body created again after a move holds the groups of its last SetCollision intent
-/// and the motion of its last change of motion, not those of its spawn.
+/// and mask that it has now, and for the hull of a frame, the motion that the hull has in the next step, the one that
+/// the body is created for, which counts a change that its owner wrote in the tick (see <c>World.NextStepHullMotion</c>).
+/// So a body created again after a move holds the groups of its last SetCollision intent and the motion of its last change
+/// of motion, not those of its spawn.
 /// </summary>
 public readonly record struct BodyCreate(
     Entity Entity,
@@ -510,7 +512,11 @@ public readonly struct PhysicsStepContext
     public double Time { get; }
     /// <summary>The frame tree. Read-only during the step.</summary>
     public FrameTree Frames { get; }
-    /// <summary>Intents by entity slot index. Only the slots in <see cref="IntentEntities"/> are meaningful.</summary>
+    /// <summary>
+    /// Intents by entity slot index. The slots of the entities in <see cref="IntentEntities"/> hold what they wrote, and the
+    /// slot of every other live entity holds an empty intent. So the motion of a hull in the step can be read from the slot
+    /// of its owner (see <see cref="FrameTree.RunningStepHullMotion"/>).
+    /// </summary>
     public ReadOnlyMemory<PhysicsIntent> Intents { get; }
     /// <summary>The entities that wrote an intent during the previous tick.</summary>
     public ReadOnlyMemory<Entity> IntentEntities { get; }

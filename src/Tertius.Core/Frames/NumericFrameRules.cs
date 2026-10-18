@@ -33,8 +33,9 @@ internal readonly record struct NumericBody
 
     /// <summary>
     /// Physics keeps the body static, so it cannot take a velocity, and its group cannot fall. That is the motion of the
-    /// description, or for the hull of a frame, the motion that the frame tree keeps for the hull (see
-    /// <see cref="FrameTree.HullMotion"/>).
+    /// description, or for the hull of a frame, the motion that the hull has in the step that the update plans, the next
+    /// one. A change of motion that its owner wrote in the tick counts, although the frame tree stores it only when that
+    /// step has finished (see <see cref="FrameTree.HullMotion"/>).
     /// </summary>
     public bool Static { get; init; }
 

@@ -78,19 +78,20 @@ internal sealed class MotionSampleTable
     /// <see cref="MoveOn"/>, the followed buffer holds the record of every frame that moved in the step. Returns true when it
     /// put the record there.
     /// <para>
-    /// The record of a frame whose hull is dynamic is the move that physics made (<see cref="FollowKind.Physics"/>). Any other
-    /// record is a teleport of the frame's hull or a write of its owner's transform, which a static frame follows
-    /// (<see cref="FollowKind.Static"/>). Step 4 changes the motions of the hulls after this step, so the motion here is that
-    /// of the step that ended.
+    /// The record of a frame whose hull was dynamic in the step is the move that physics made (<see cref="FollowKind.Physics"/>).
+    /// Any other record is a teleport of the frame's hull or a write of its owner's transform, which a static frame follows
+    /// (<see cref="FollowKind.Static"/>). The motion of the hull in the step that ended comes from the intents that the step
+    /// applied, <paramref name="stepIntents"/> (see <see cref="FrameTree.RunningStepHullMotion"/>): the stored motion takes
+    /// their changes only at step 4, after this step.
     /// </para>
     /// </summary>
-    internal bool Record(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
+    internal bool Record(FrameHandle frame, FrameHandle relativeTo, in MotionSample record, ReadOnlySpan<PhysicsIntent> stepIntents)
     {
         Contract.Requires(frames.IsAlive(frame));
         ref Row row = ref appliedRows[frame.Index];
         if (row.Round == round - 1 && row.Frame == frame)
             return false;
-        FollowKind kind = frames.HullMotion(frame) == BodyMotion.Dynamic ? FollowKind.Physics : FollowKind.Static;
+        FollowKind kind = frames.RunningStepHullMotion(frame, stepIntents) == BodyMotion.Dynamic ? FollowKind.Physics : FollowKind.Static;
         row = new Row(frame, relativeTo, record, round - 1, kind);
         return true;
     }

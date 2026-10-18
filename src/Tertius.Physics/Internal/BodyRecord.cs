@@ -64,8 +64,8 @@ internal sealed class BodyRecord
     /// <summary>The bounding-sphere radius of the primary shape, about the body origin.</summary>
     public float Radius;
     /// <summary>
-    /// The motion of the primary body as Jolt sees it. For a frame hull it is the motion that the frame tree keeps for the
-    /// hull (see <see cref="FrameTree.HullMotion"/>), and the owner of a root frame, which has no hull, gets the static
+    /// The motion of the primary body as Jolt sees it. For a frame hull it is the motion of the hull in the last step that
+    /// ran (see <see cref="FrameTree.RunningStepHullMotion"/>), and the owner of a root frame, which has no hull, gets the static
     /// motion of its interior. For a character it is its form: <see cref="BodyMotion.Character"/> for the walking form, a
     /// Jolt CharacterVirtual in <see cref="Character"/>, and <see cref="BodyMotion.Dynamic"/> for the rigid form, a dynamic
     /// Jolt body in <see cref="Body"/> whose rotation is locked (see <c>JoltPhysicsBackend.NextCharacterMotion</c>).

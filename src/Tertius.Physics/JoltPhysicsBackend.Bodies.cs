@@ -71,7 +71,7 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Creates the record and the bodies of one BodyCreate. Throws <see cref="ArgumentException"/> for a body that physics
     /// cannot create (see <see cref="BodyDesc.Problem"/> and <see cref="ShapeProblem"/>) before any state changes. Every body
-    /// gets the motion of its description, which for a hull is the motion that the hull has now (see <see cref="BodyCreate"/>),
+    /// gets the motion of its description, which for a hull is the motion that the hull has in the next step (see <see cref="BodyCreate"/>),
     /// and the interior of the owner of a root frame is static. If anything fails after that, the record and every body that
     /// it got are removed before the exception leaves, so a failed creation leaves nothing behind.
     /// </summary>
@@ -531,30 +531,32 @@ public sealed partial class JoltPhysicsBackend
     // ---- Changes of a hull's motion ----
 
     /// <summary>
-    /// Gives each hull the motion that the frame tree keeps for it (see <see cref="FrameTree.HullMotion"/>), when the hull's
-    /// record has another motion. The tree is the one store of a hull's motion: the sync point of a tick in which the owner
-    /// wrote a change of motion changes it there, and physics follows the tree, as the reconcile follows the tree's structure
-    /// (see <see cref="ReconcileFrames"/>). So a step that failed loses no change: the next step that runs takes it. It runs
-    /// at the start of the step, before anything reads a record's motion: the spawn velocities, the static hulls, the hull
-    /// velocities and the intents. The hull keeps its body, its system and its contacts, and takes the frame's pose and
-    /// velocity from the tree (see <see cref="ApplyHullMotion"/>). Its ghosts meet what a body of its new motion meets.
+    /// Gives each hull the motion that it has in the running step, when the hull's record has another motion: the change of
+    /// motion in the intent of its owner that the step applies, or else the stored motion of the last finished step (see
+    /// <see cref="FrameTree.RunningStepHullMotion"/>, with the intents of <paramref name="intents"/>). Physics follows that
+    /// motion at every step, as the reconcile follows the tree's structure (see <see cref="ReconcileFrames"/>). The tree stores
+    /// a change at the sync point after the step that applied it, also when that step failed, so a step that failed loses no
+    /// change: the next step that runs takes it from the stored motion. It runs at the start of the step, before anything
+    /// reads a record's motion: the spawn velocities, the static hulls, the hull velocities and the intents. The hull keeps
+    /// its body, its system and its contacts, and takes the frame's pose and velocity from the tree (see
+    /// <see cref="ApplyHullMotion"/>). Its ghosts meet what a body of its new motion meets.
     /// </summary>
     /// <remarks>
-    /// The simulation puts in the tree only a motion that the hull can take (see <see cref="BodyDesc.Problem"/>), so another
-    /// motion there comes only from a bug (see <see cref="ReportBug"/>). A Release build skips it in every step that finds it:
-    /// the hull keeps its motion.
+    /// The simulation lets a hull take only a motion that the hull can take (see <see cref="BodyDesc.Problem"/>), so another
+    /// motion comes only from a bug (see <see cref="ReportBug"/>). A Release build skips it in every step that finds it: the
+    /// hull keeps its motion.
     /// </remarks>
-    private void FollowHullMotions()
+    private void FollowHullMotions(ReadOnlySpan<PhysicsIntent> intents)
     {
         foreach (BodyRecord owner in frameOwners)
         {
             // The owner of a root frame has no hull, and the tree keeps no motion for it.
-            if (!owner.HasPrimary || frames.HullMotion(owner.OwnedFrame) is not { } motion || motion == owner.Motion)
+            if (!owner.HasPrimary || frames.RunningStepHullMotion(owner.OwnedFrame, intents) is not { } motion || motion == owner.Motion)
                 continue;
             if ((owner.Desc with { Motion = motion }).Problem(BodyRole.Hull) is { } problem)
             {
-                ReportBug($"Physics: the frame tree keeps the motion {motion} for the hull of {owner.Entity}, but as a hull its body {problem}. " +
-                          $"Only a bug puts that motion in the tree, so the hull keeps the motion {owner.Motion}.");
+                ReportBug($"Physics: the running step gives the hull of {owner.Entity} the motion {motion}, but as a hull its body {problem}. " +
+                          $"Only a bug gives it that motion, so the hull keeps the motion {owner.Motion}.");
                 continue;
             }
             owner.Motion = motion;

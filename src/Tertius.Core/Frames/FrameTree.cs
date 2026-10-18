@@ -28,9 +28,11 @@ namespace Tertius;
 /// nesting frame holds a frame and is the home of no body; between updates, the count of bodies is the one of the last
 /// update. <see cref="NumericCount"/> is the number of numeric frames. A semantic frame has an owner, no step
 /// acceleration and no sample's instant velocity past its chord, and a semantic frame whose tree parent is a numeric frame
-/// has a dynamic hull (see <see cref="HullMotion"/>), or it is the orbiter of that frame, whose hull is kinematic: a frame
-/// with a static hull or without a hull moves relative to its semantic parent, and a frame with a
-/// kinematic hull hangs in its semantic parent or in its orbit frame, which follows the frame's motion samples. Such a frame also owns a
+/// has a dynamic hull, or it is the orbiter of that frame, whose hull is kinematic: a frame with a static hull or without a
+/// hull moves relative to its semantic parent, and a frame with a kinematic hull hangs in its semantic parent or in its
+/// orbit frame, which follows the frame's motion samples. The motion of a hull here is its motion in the step that the
+/// numeric frames are planned for, which a change of motion can make differ from the stored motion of the last finished
+/// step (see <see cref="RunningStepHullMotion"/> and <see cref="PlanHullMotion"/>). Such a frame also owns a
 /// hull that was a body of the last update: only the update moves a frame into a numeric frame, with its hull, and a frame
 /// without a hull goes to the semantic frame when the frame that holds it dies (see <see cref="Heir"/>). Every ghost of
 /// <see cref="AnchorGhosts"/> names the hull of the orbiter of a live orbit frame and a live frame of that orbiter's
@@ -51,7 +53,8 @@ public sealed partial class FrameTree
 
     private Entity[] owner = new Entity[64];
     private FrameBounds[] bounds = new FrameBounds[64];
-    // The motion of each frame's hull now, or null for a frame without a hull (see HullMotion).
+    // The stored motion of each frame's hull, the motion of the last finished step, or null for a frame without a hull
+    // (see HullMotion).
     private BodyMotion?[] hullMotion = new BodyMotion?[64];
     private GravityField[] gravity = new GravityField[64];
     private Double3[] linearVelocity = new Double3[64];
@@ -382,13 +385,16 @@ public sealed partial class FrameTree
     public FrameBounds Bounds(FrameHandle frame) => bounds[Node(frame).Id];
 
     /// <summary>
-    /// The motion that the frame's hull has now: the body of the frame's owner, in the system of the frame's parent. Null
-    /// for a frame without a hull: a root frame, whose owner's body is only the frame's static interior, a frame whose owner
-    /// has no body, and a numeric frame. A frame becomes a root when its root parent dies, and it then has no hull. The World
-    /// sets the motion at spawn from the body's description (see <see cref="BodyDesc.Motion"/>), and at step 4 of the sync
-    /// point of a tick in which the owner wrote a change of motion (<c>Self.Body.SetMotion</c>). Physics gives the Jolt body
-    /// that motion at the start of the next step. The tree changes only at sync points, so the motion is stable during a
-    /// tick, and any worker may read it. Throws
+    /// The stored motion of the frame's hull, the body of the frame's owner in the system of the frame's parent: the motion
+    /// that the hull had in the last finished step. Null for a frame without a hull: a root frame, whose owner's body is
+    /// only the frame's static interior, a frame whose owner has no body, and a numeric frame. A frame becomes a root when
+    /// its root parent dies, and it then has no hull. The World sets the motion at spawn from the body's description (see
+    /// <see cref="BodyDesc.Motion"/>), and at step 4 of each sync point from the changes of motion in the intents that the
+    /// step that ended applied (<c>Self.Body.SetMotion</c>, written one tick before), where the collision rows of the bodies
+    /// change too. So like every state that a tick reads, it describes the last finished step. The motion of a step that
+    /// has not finished is derived from the pending change of motion, and never stored: see
+    /// <see cref="RunningStepHullMotion"/> and <c>World.NextStepHullMotion</c>. The tree changes only at sync points, so
+    /// the stored motion is stable during a tick, and any worker may read it. Throws
     /// <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     public BodyMotion? HullMotion(FrameHandle frame)
@@ -398,29 +404,68 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Gives the hull of <paramref name="frame"/> the motion <paramref name="motion"/>, or none, and keeps the frame's orbit
-    /// frame and its samples coherent with it. Only a kinematic hull follows a sample. So a frame that hangs in its orbit frame
-    /// and gets a motion other than kinematic leaves that frame falling: a frame with a dynamic hull may hang in a falling
-    /// frame, and the numeric update moves any other one, with its hull, into its semantic parent. And a hull that gets a
-    /// motion other than kinematic drops the sample that its owner wrote in the running tick, so that no step applies it. The
-    /// sample that the running step applies stays: at the next sync point it becomes the sample that the frame follows. It
-    /// changes no velocity of the frame, and not <see cref="Version"/>. Throws <see cref="InvalidOperationException"/> for a
-    /// stale frame.
+    /// The motion that the frame's hull has in the running step: the step that applies <paramref name="stepIntents"/>, which
+    /// gameplay wrote in the tick before that step. That is the change of motion in the intent of the frame's owner there
+    /// (<see cref="IntentFlags.SetMotion"/>), or else the stored motion of the last finished step (see
+    /// <see cref="HullMotion"/>). Null for a frame without a hull, whatever the intents hold. With the intents that the World
+    /// calls front, it answers for step k during tick k, which runs beside step k, and at the sync point after tick k until
+    /// step 4 swaps the intents, where the sync point reads the output of step k. Physics asks it at the start of each step
+    /// with the intents of its context, and so do the check of the step's output (see <see cref="PhysicsOutputCheck"/>) and
+    /// the record that each frame takes of the step (see <see cref="MotionSampleTable.Record"/>), with the same intents.
+    /// Throws <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    /// <param name="frame">The frame whose hull it asks about.</param>
+    /// <param name="stepIntents">
+    /// The intents that the step applies, by entity slot (<see cref="Entity.Index"/>), as
+    /// <see cref="PhysicsStepContext.Intents"/> holds them. A slot past their end holds no intent.
+    /// </param>
+    public BodyMotion? RunningStepHullMotion(FrameHandle frame, ReadOnlySpan<PhysicsIntent> stepIntents)
+    {
+        BodyMotion? stored = HullMotion(frame);
+        uint slot = frame.Entity.Index;
+        if (stored is null || slot >= (uint)stepIntents.Length)
+            return stored;
+        ref readonly PhysicsIntent intent = ref stepIntents[(int)slot];
+        return (intent.Flags & IntentFlags.SetMotion) != 0 ? intent.Motion : stored;
+    }
+
+    /// <summary>
+    /// Stores <paramref name="motion"/>, or none, as the motion of the hull of <paramref name="frame"/> in the last finished
+    /// step (see <see cref="HullMotion"/>). It changes nothing else: the numeric frames and the samples follow the motion of
+    /// the step that they are for, which a change gets before it runs (see <see cref="PlanHullMotion"/>). It changes no
+    /// velocity of the frame, and not <see cref="Version"/>. Throws <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     /// <remarks>
-    /// Only the simulation calls it: at a spawn, and at step 4 of a sync point for a change of motion that the owner wrote in
-    /// the tick. It checks nothing, because the tree does not know the owner's body. The World checks that the body can take
-    /// the motion (see <see cref="BodyDesc.Problem"/>) before it calls this method: when it checks the spawn, and when the
-    /// owner writes the change (<c>World.WritableHullMotionIntent</c>). <c>World.AssertInvariants</c> checks it again.
+    /// Only the simulation calls it: at a spawn, and at step 4 of a sync point for a change of motion that the step that
+    /// ended applied. It checks nothing, because the tree does not know the owner's body. The World checks that the body can
+    /// take the motion (see <see cref="BodyDesc.Problem"/>) before the motion gets here: when it checks the spawn, and when
+    /// the owner writes the change (<c>World.WriteHullMotion</c>). <c>World.AssertInvariants</c> checks it again.
     /// </remarks>
-    internal void SetHullMotion(FrameHandle frame, BodyMotion? motion)
+    internal void SetHullMotion(FrameHandle frame, BodyMotion? motion) => hullMotion[Node(frame).Id] = motion;
+
+    /// <summary>
+    /// Keeps <paramref name="frame"/> coherent with <paramref name="nextStepMotion"/>, the motion that its hull has in the
+    /// next step, which its owner wrote in the running tick. The tree stores that motion only when the step has finished
+    /// (see <see cref="SetHullMotion"/>). Only a kinematic hull follows a sample. So a hull that is not kinematic in the next
+    /// step leaves its orbit frame falling: a frame with a dynamic hull may hang in a falling frame, and the numeric update
+    /// moves any other one, with its hull, into its semantic parent. And it drops the sample that its owner wrote in the
+    /// running tick, so that no step applies it. The sample that the running step applies stays: at the next sync point it
+    /// becomes the sample that the frame follows. It changes no velocity of the frame, and not <see cref="Version"/>. Throws
+    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    /// <remarks>
+    /// Only the simulation calls it, at step 4 of a sync point before the intents swap, for each owner that wrote a change
+    /// of motion in the tick, whatever the motion of the running step: a sample or an orbit frame of a hull that is not
+    /// kinematic in the next step is wrong in any case.
+    /// </remarks>
+    internal void PlanHullMotion(FrameHandle frame, BodyMotion nextStepMotion)
     {
-        int id = Node(frame).Id;
-        if (motion != BodyMotion.Kinematic && InOrbitFrame(frame))
+        Contract.Requires(HullMotion(frame) is not null);
+        if (nextStepMotion == BodyMotion.Kinematic)
+            return;
+        if (InOrbitFrame(frame))
             LeaveOrbit(TreeParent(frame));
-        if (motion is { } hull && hull != BodyMotion.Kinematic)
-            Samples.DropWritten(frame);
-        hullMotion[id] = motion;
+        Samples.DropWritten(frame);
     }
 
     /// <summary>The gravity field of the frame. <see cref="SetGravity"/> changes it.</summary>
@@ -436,11 +481,19 @@ public sealed partial class FrameTree
     internal void SetGravity(FrameHandle frame, in GravityField value) => gravity[Node(frame).Id] = value;
 
     /// <summary>
-    /// Checks the invariants of the tree (see the class summary): the rotation of every frame's local pose is unit length,
-    /// and the numeric frames keep the rules of the class summary.
-    /// O(frames). It runs only on demand, so it works in every build.
+    /// Checks the invariants of the tree for a step whose intents hold no change of motion (see
+    /// <see cref="AssertInvariants(ReadOnlySpan{PhysicsIntent})"/>).
     /// </summary>
-    internal void AssertInvariants()
+    internal void AssertInvariants() => AssertInvariants([]);
+
+    /// <summary>
+    /// Checks the invariants of the tree (see the class summary): the rotation of every frame's local pose is unit length,
+    /// and the numeric frames keep the rules of the class summary. The numeric frames are planned for the step that applies
+    /// <paramref name="stepIntents"/>, so the rules about the motion of a hull read the motion of that step (see
+    /// <see cref="RunningStepHullMotion"/>). At the end of a sync point, the World passes the intents that the next step
+    /// applies. O(frames). It runs only on demand, so it works in every build.
+    /// </summary>
+    internal void AssertInvariants(ReadOnlySpan<PhysicsIntent> stepIntents)
     {
         ReadOnlySpan<DPose> locals = poses.LocalPoses;
         var holdsFrame = new bool[owner.Length];
@@ -464,12 +517,12 @@ public sealed partial class FrameTree
                 // A nesting frame holds only numeric frames.
                 Contract.Invariant(parentMode != NumericMode.Nesting);
                 // A frame with a static hull or without a hull moves relative to its semantic parent, and a frame with a kinematic
-                // hull hangs in its semantic parent or at the origin of its orbit frame. So a frame in any other numeric frame
-                // has a dynamic hull.
+                // hull hangs in its semantic parent or at the origin of its orbit frame, in the step that the numeric frames
+                // are for. So a frame in any other numeric frame has a dynamic hull in that step.
                 if (parentMode == NumericMode.Orbiting && orbiter[parent.Index] == frame)
-                    Contract.Invariant(hullMotion[id] == BodyMotion.Kinematic && locals[i].Position == Double3.Zero);
+                    Contract.Invariant(RunningStepHullMotion(frame, stepIntents) == BodyMotion.Kinematic && locals[i].Position == Double3.Zero);
                 else if (parentMode != NumericMode.None)
-                    Contract.Invariant(hullMotion[id] == BodyMotion.Dynamic);
+                    Contract.Invariant(RunningStepHullMotion(frame, stepIntents) == BodyMotion.Dynamic);
                 // Only a frame with a hull hangs in a numeric frame.
                 if (parentMode != NumericMode.None)
                 {

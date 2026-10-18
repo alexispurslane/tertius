@@ -45,7 +45,9 @@ namespace Tertius.Simulation;
 /// which skips it: releasing it cleared its slot.</item>
 /// <item>A live entity is in its chunk's list of motion changers, once, exactly when its back intent has
 /// <see cref="IntentFlags.SetMotion"/>. Each motion changer is also an intent writer. A changer that died stays in the
-/// list until the swap, as a dead intent writer does.</item>
+/// list until the swap, as a dead intent writer does. A live entity is in the list of front motion changers, once, exactly
+/// when its front intent has <see cref="IntentFlags.SetMotion"/>. A front motion changer that died stays in that list
+/// until the next swap, which clears it: releasing it cleared its slot.</item>
 /// <item>Every live entity whose front transform changed since the last <see cref="TakeMoved"/> is in the moved
 /// list.</item>
 /// </list>
@@ -266,6 +268,9 @@ internal sealed class EntityTable
     private readonly ComponentIndex componentIndex = new();
 
     private readonly RefList<Entity> frontIntentEntities = new(64);
+    // The entities whose front intent holds a change of their hull's motion, in the order of the swap: the motion changers
+    // of the tick before. Step 4 stores their changes after the step that applied them (see CollectFrontMotionChanges).
+    private readonly List<Entity> frontMotionChangers = new();
     // Set when a live slot is released after the intent swap: the intent list may name it until the list is next read.
     private bool intentEntitiesMayHoldDead;
     // Back rows that the sync point changed. The chunk books hold the rows that gameplay changed.
@@ -790,6 +795,31 @@ internal sealed class EntityTable
     }
 
     /// <summary>
+    /// Adds to <paramref name="changers"/> each live entity whose front intent holds a change of its hull's motion: the
+    /// changes that the running step applies, which the motion changers of the tick before wrote. It visits only those
+    /// entities, not every entity with a front intent. For step 4 of the sync point, before <see cref="SwapIntents"/>, where
+    /// the changes become the stored motions of the step that ended.
+    /// </summary>
+    public void CollectFrontMotionChanges(List<Entity> changers)
+    {
+        Contract.Requires(!gameplayRunning);
+        foreach (Entity changer in frontMotionChangers)
+            if (IsAlive(changer))
+                changers.Add(changer);
+    }
+
+    /// <summary>
+    /// The change of its hull's motion that <paramref name="entity"/> wrote in this tick so far (see
+    /// <see cref="WriteMotionChange"/>), or null when it wrote none. After <see cref="SwapIntents"/>, until the next tick
+    /// starts, null. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe for the running entity.
+    /// </summary>
+    public BodyMotion? WrittenMotionChange(Entity entity)
+    {
+        ref readonly PhysicsIntent intent = ref backIntent[LiveSlot(entity)];
+        return (intent.Flags & IntentFlags.SetMotion) != 0 ? intent.Motion : null;
+    }
+
+    /// <summary>
     /// The intent that <paramref name="entity"/> wrote during this tick, for the sync point before <see cref="SwapIntents"/>.
     /// The entity must have written one. Throws <see cref="StaleEntityException"/> for a stale handle.
     /// </summary>
@@ -862,7 +892,9 @@ internal sealed class EntityTable
 
     /// <summary>
     /// The intents that the next physics step reads, indexed by slot (<see cref="Entity.Index"/>), the layout that the
-    /// physics seam in Core defines. Only the entries of the entities in <see cref="IntentEntities"/> matter.
+    /// physics seam in Core defines. The entries of the entities in <see cref="IntentEntities"/> hold what they wrote, and
+    /// the entry of every other live entity is empty (see the invariants), so the change of motion of any owner can be read
+    /// from its entry (see <see cref="FrameTree.RunningStepHullMotion"/>).
     /// </summary>
     public ReadOnlyMemory<PhysicsIntent> FrontIntents => frontIntent.AsReadOnlyMemory();
 
@@ -890,7 +922,9 @@ internal sealed class EntityTable
 
     /// <summary>
     /// Makes this tick's intents the input of the next physics step and clears the back intents. With
-    /// <paramref name="keep"/> false, as with no physics backend, the intents are dropped.
+    /// <paramref name="keep"/> false, as with no physics backend, the intents are dropped, except each change of a hull's
+    /// motion: the World still counts its steps without a backend, and the stored motion takes the change from the front
+    /// intents at the next sync point (see <see cref="CollectFrontMotionChanges"/>).
     /// </summary>
     public void SwapIntents(bool keep)
     {
@@ -898,6 +932,7 @@ internal sealed class EntityTable
         foreach (Entity entity in frontIntentEntities.AsSpan())
             frontIntent[entity.Index] = default;
         frontIntentEntities.Clear();
+        frontMotionChangers.Clear();
         intentEntitiesMayHoldDead = false;
 
         int count = ChunkCountFor(slotCount);
@@ -911,13 +946,23 @@ internal sealed class EntityTable
                     continue;
                 uint slot = writer.Index;
                 flags[slot] &= ~SlotFlags.IntentRegistered;
+                ref PhysicsIntent back = ref backIntent[slot];
                 if (keep)
                 {
-                    frontIntent[slot] = backIntent[slot];
+                    frontIntent[slot] = back;
                     frontIntentEntities.Add(writer);
                 }
-                backIntent[slot] = default;
+                else if ((back.Flags & IntentFlags.SetMotion) != 0)
+                {
+                    frontIntent[slot] = new PhysicsIntent { Frame = back.Frame, Motion = back.Motion, Flags = IntentFlags.SetMotion };
+                    frontIntentEntities.Add(writer);
+                }
+                back = default;
             }
+            // Each motion changer is an intent writer, so the loop above moved its change to the front intents.
+            foreach (Entity changer in books[c].MotionChangers)
+                if (IsAlive(changer))
+                    frontMotionChangers.Add(changer);
             books[c].IntentWriters.Clear();
             books[c].MotionChangers.Clear();
         }
@@ -987,6 +1032,14 @@ internal sealed class EntityTable
                 Contract.Invariant(!inIntentList[entity.Index]);
                 inIntentList[entity.Index] = true;
             }
+        }
+        var frontMotionChangerListed = new bool[capacity];
+        foreach (Entity changer in frontMotionChangers)
+        {
+            if (!IsAlive(changer))
+                continue;
+            Contract.Invariant(!frontMotionChangerListed[changer.Index]);
+            frontMotionChangerListed[changer.Index] = true;
         }
 
         var dirtyListed = new bool[capacity];
@@ -1088,6 +1141,7 @@ internal sealed class EntityTable
             Contract.Invariant(((backIntent[slot].Flags & IntentFlags.SetMotion) != 0) == motionChangerListed[slot]);
             if (!inIntentList[slot])
                 Contract.Invariant(IsDefault(in frontIntent[slot]));
+            Contract.Invariant(((frontIntent[slot].Flags & IntentFlags.SetMotion) != 0) == frontMotionChangerListed[slot]);
             if ((f & SlotFlags.FrontMoved) != 0)
                 Contract.Invariant(movedListed[slot]);
         }

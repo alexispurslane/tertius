@@ -8,10 +8,12 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// A change of motion is a swap of components and a change of the hull's motion (docs/plans/rails-components.md, "Changes
-/// of motion"). The owner of a frame changes its hull's motion in a tick with <c>Self.Body.SetMotion</c>. The hull motion
-/// that the frame tree keeps changes at the sync point of that tick, and physics gives the Jolt body the new motion type
-/// at the start of the next step. These tests run the World on the real backend, and the owner writes each change with
-/// <see cref="MotionChanges.SetMotionNextTick"/>.
+/// of motion"). The owner of a frame changes its hull's motion in a tick with <c>Self.Body.SetMotion</c>. Step k is the
+/// physics step that runs beside tick k. A change written in tick 1 is in the intents that step 2 applies: physics gives
+/// the Jolt body the new motion type at the start of step 2, and every reader that asks about step 2 derives the new
+/// motion from that intent. The stored motion that the frame tree keeps describes the last finished step, like the
+/// collision rows, so it changes at step 4 of the sync point after step 2. These tests run the World on the real backend,
+/// and the owner writes each change with <see cref="MotionChanges.SetMotionNextTick"/>.
 /// </summary>
 public class MotionChangeTests
 {
@@ -272,8 +274,9 @@ public class MotionChangeTests
     }
 
     /// <summary>
-    /// The tree takes the change at the sync point of the writing tick, and Jolt at the start of the next step, before that
-    /// step moves anything: the lander falls for the whole step.
+    /// Jolt takes the change at the start of the step after the writing tick, before that step moves anything: the lander
+    /// falls for the whole step. The stored motion describes the last finished step, so it takes the change at the sync
+    /// point after that step.
     /// </summary>
     [Fact]
     public void PhysicsChangesTheJoltMotionTypeAtTheStartOfTheStepAfterTheSyncPoint()
@@ -293,9 +296,9 @@ public class MotionChangeTests
         world.SetMotionNextTick(owner, BodyMotion.Dynamic);
         world.Tick();
 
-        world.Frames.HullMotion(lander).Should().Be(BodyMotion.Dynamic);
+        world.Frames.HullMotion(lander).Should().Be(BodyMotion.Static, "the stored motion describes the last finished step, which had the old motion");
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Static, "no step has run since the sync point");
-        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow("the hull's record lags the tree until the next step, by design");
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         int reported = faults.Outputs.Count;
 
         world.Tick();
@@ -304,6 +307,120 @@ public class MotionChangeTests
         FrameStatesSince(faults, lander, reported).Should().ContainSingle("the hull fell in that step");
         double dt = world.DeltaTime;
         (100 - world.Frames.LocalPose(lander).Position.Y).Should().BeApproximately(0.5 * 9.81 * dt * dt, 1e-6, "a fall from rest over one whole step");
+        world.Frames.HullMotion(lander).Should().Be(BodyMotion.Dynamic, "step 4 of the sync point after that step took the change that the step applied");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// FollowOwners reads the step that ended with the motion that the step had. So the frame of a hull that became dynamic
+    /// follows its measured record as a move of physics at the sync point after the step that applies the change, not as a
+    /// teleport of a static hull.
+    /// </summary>
+    [Fact]
+    public void AHullThatBecameDynamicFollowsPhysicsAtTheSyncPointAfterTheStepThatAppliesTheChange()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(0, 100),
+            Body = BoxBody(2, 1000) with { Motion = BodyMotion.Static },
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+        });
+        FrameHandle lander = world.GetOwnedFrame(owner);
+        Tick(world, 3);
+
+        world.SetMotionNextTick(owner, BodyMotion.Dynamic);
+        world.Tick();
+
+        world.Frames.Followed(lander).Should().Be(FollowKind.Static, "the step of the writing tick held the static hull still");
+
+        world.Tick();
+
+        world.Frames.Followed(lander).Should().Be(FollowKind.Physics, "the hull fell in the step that applied the change");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>Unparks its entity's hull in the first tick that it runs in, and sets its velocity after the change.</summary>
+    private sealed class Unparks(Double3 velocity) : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            self.RemoveComponent(this);
+            self.Body.SetMotion(BodyMotion.Dynamic);
+            self.Body.SetVelocity(velocity);
+        }
+    }
+
+    /// <summary>
+    /// A parked ship waits half a step short of the bubble of a station. It unparks and flies at the station, so physics
+    /// hands its hull into the station's bubble in the step after the writing tick, the first step in which the hull is
+    /// dynamic. The check of that step's output judges it by the motion of that step, so the hand-off is no bug.
+    /// </summary>
+    [Fact]
+    public void TheFirstHandOffOfAnUnparkedHullIsNoBug()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
+        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
+        }));
+        BodyDesc hull = BoxBody(1, 1000) with { Motion = BodyMotion.Static };
+        Scenes.Approach approach = Scenes.ApproachToBubble(world, station, tick: 0, ballRadius: hull.Shape.BoundingRadius());
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = approach.Pose,
+            Body = hull,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+        });
+        FrameHandle ship = world.GetOwnedFrame(owner);
+        Tick(world, 3);
+        world.Frames.Parent(ship).Should().Be(space, "the parked ship waits outside the station's bubble");
+
+        world.AddComponent(owner, new Unparks(approach.Velocity));
+        world.Tick();
+        world.Frames.Parent(ship).Should().Be(space);
+        world.Tick();
+
+        world.Frames.Parent(ship).Should().Be(station, "physics handed the hull into the station's bubble in its first dynamic step");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A ship at 2 km/s lives in a falling frame of its own. It parks in a tick. The numeric update of that tick's sync point
+    /// plans the next step, in which the hull is static, so it moves the hull into the semantic frame's own system there,
+    /// before the step that applies the change runs.
+    /// </summary>
+    [Fact]
+    public void TheNumericUpdateOfTheWritingTicksSyncPointPlansTheNextStepWithTheNewMotion()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            LinearVelocity = new Double3(2000, 0, 0),
+            Body = BoxBody(2, 1000),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+        });
+        FrameHandle ship = world.GetOwnedFrame(owner);
+        Tick(world, 5);
+        world.Frames.Numeric(world.Frames.TreeParent(ship)).Should().Be(NumericMode.Falling, "at 2 km/s the hull has a falling frame of its own");
+
+        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.Tick();
+
+        world.Frames.TreeParent(ship).Should().Be(space, "a static hull lives in its semantic frame's own system");
+        world.Frames.HullMotion(ship).Should().Be(BodyMotion.Dynamic, "the step that applies the change has not run");
         world.Errors.Should().BeEmpty();
     }
 
@@ -500,7 +617,7 @@ public class MotionChangeTests
     }
 
     /// <summary>
-    /// A growth rebuilds every body from its spec. The spec of a hull has the motion that the hull has now, and a hull whose
+    /// A growth rebuilds every body from its spec. The spec of a hull has the motion of its record, and a hull whose
     /// motion changed has the motion quality and the mass of a hull that the backend creates with that motion. So the growth
     /// rebuilds the hull as it is. A step moves the hull, and its velocity with it, so the test compares the hull before and
     /// after the growth with no step between them (see <see cref="ApplyThePendingChangesWithoutAStep"/>).
@@ -534,13 +651,13 @@ public class MotionChangeTests
     }
 
     /// <summary>
-    /// A hull that a destroy moves to another home gets a new body there, with the motion that it has now, not the motion of
-    /// its spawn description. The hangar that the hull is in destroys itself in the tick in which the hull's owner writes the
-    /// change, so that step 5 of the sync point rehomes the hull after step 4 changed the motion in the tree and before
-    /// physics has given the Jolt body the new motion. Or the hangar destroys itself a tick later, after physics gave the old
-    /// body the new motion. Each case reads the new body before the next step, which would give it the motion in the tree
-    /// (see <c>JoltPhysicsBackend.FollowHullMotions</c>), so at that moment only the body that the rehome creates carries the
-    /// motion.
+    /// A hull that a destroy moves to another home gets a new body there, with the motion that it has in the next step, not
+    /// the motion of its spawn description. The hangar that the hull is in destroys itself in the tick in which the hull's
+    /// owner writes the change, so that step 5 of the sync point rehomes the hull after the intents swapped, while the change
+    /// is only in the intents of the next step and the stored motion is still the old one. Or the hangar destroys itself a
+    /// tick later, after physics gave the old body the new motion. Each case reads the new body before the next step, which
+    /// would give it the motion of that step (see <c>JoltPhysicsBackend.FollowHullMotions</c>), so at that moment only the
+    /// body that the rehome creates carries the motion.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -573,17 +690,19 @@ public class MotionChangeTests
 
         world.IsAlive(hangarOwner).Should().BeFalse();
         world.Frames.Parent(ship).Should().Be(space);
-        world.Frames.HullMotion(ship).Should().Be(BodyMotion.Dynamic);
-        Hull(world, backend, owner).Motion.Should().Be(MotionType.Dynamic, "the description says Static, but the hull is dynamic now");
+        world.Frames.HullMotion(ship).Should().Be(atTheChange ? BodyMotion.Static : BodyMotion.Dynamic,
+            "the stored motion takes the change at the sync point after the step that applies it");
+        Hull(world, backend, owner).Motion.Should().Be(MotionType.Dynamic, "the description says Static, but the hull is dynamic in the next step");
         world.Tick();
         Hull(world, backend, owner).Motion.Should().Be(MotionType.Dynamic);
         world.Errors.Should().BeEmpty();
     }
 
     /// <summary>
-    /// The frame tree is the one store of a hull's motion, and physics follows it at the start of every step, as the
-    /// reconcile follows the tree's structure. So a step that fails loses no change of motion: the tree keeps the change,
-    /// and the next step that runs gives the hull its new motion, although its tick wrote no change.
+    /// Physics derives the motion of each step from the change in the intents that the step applies, or else from the stored
+    /// motion, at the start of every step, as the reconcile follows the tree's structure. The stored motion takes the change
+    /// at the sync point after the step that applied it, also when that step failed. So a step that fails loses no change of
+    /// motion: the next step that runs gives the hull its new motion, although its tick wrote no change.
     /// </summary>
     [Theory]
     [InlineData(BodyMotion.Dynamic, BodyMotion.Static)]

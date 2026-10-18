@@ -452,32 +452,64 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void A_hull_motion_that_is_not_kinematic_leaves_the_orbit_frame_falling()
+    public void A_next_step_motion_that_is_not_kinematic_leaves_the_orbit_frame_falling()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
         Double3 velocity = frames.LinearVelocity(orbit);
 
-        frames.SetHullMotion(station, BodyMotion.Dynamic);
+        frames.PlanHullMotion(station, BodyMotion.Dynamic);
 
         frames.Numeric(orbit).Should().Be(NumericMode.Falling, "a frame with a dynamic hull may hang in a falling frame");
         frames.InOrbitFrame(station).Should().BeFalse();
         frames.LinearVelocity(orbit).Should().Be(velocity, "it falls on from where it was");
         frames.TreeParent(station).Should().Be(orbit);
-        frames.AssertInvariants();
+        frames.HullMotion(station).Should().Be(BodyMotion.Kinematic, "the stored motion changes only after the next step");
+        frames.AssertInvariants(StepIntents.Changing(station, BodyMotion.Dynamic));
     }
 
     [Fact]
-    public void A_kinematic_hull_motion_keeps_the_frame_in_its_orbit_frame()
+    public void A_kinematic_next_step_motion_keeps_the_frame_in_its_orbit_frame()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
 
-        frames.SetHullMotion(station, BodyMotion.Kinematic);
+        frames.PlanHullMotion(station, BodyMotion.Kinematic);
 
         frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
         frames.InOrbitFrame(station).Should().BeTrue();
         frames.AssertInvariants();
+    }
+
+    /// <summary>
+    /// The stored motion describes the last finished step, and the orbit frame was planned for the step that applies the
+    /// intents. So storing a motion changes nothing else: the frame left its orbit frame when the change was planned.
+    /// </summary>
+    [Fact]
+    public void Storing_a_hull_motion_leaves_the_orbit_frame_as_it_is()
+    {
+        FrameHandle station = Station(10, Low);
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+
+        frames.SetHullMotion(station, BodyMotion.Dynamic);
+
+        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.InOrbitFrame(station).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// The invariants judge the numeric frames by the motion of the step that applies the intents they are given: the
+    /// frame of a hull that is dynamic in that step may hang in a falling frame, although its stored motion is kinematic.
+    /// </summary>
+    [Fact]
+    public void The_invariants_judge_a_frame_in_a_falling_frame_by_the_motion_of_the_step_that_applies_the_intents()
+    {
+        FrameHandle station = Station(10, Low);
+        Update(Hull(station));
+        frames.PlanHullMotion(station, BodyMotion.Dynamic);
+
+        frames.Invoking(tree => tree.AssertInvariants(StepIntents.Changing(station, BodyMotion.Dynamic))).Should().NotThrow();
+        frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>("without the change the hull is kinematic, and so cannot hang in a falling frame");
     }
 
     [Fact]

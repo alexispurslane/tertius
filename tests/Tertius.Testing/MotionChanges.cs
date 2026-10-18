@@ -12,9 +12,9 @@ public static class MotionChanges
     /// <summary>
     /// Makes <paramref name="owner"/> change the motion of its hull to <paramref name="motion"/> in the next tick, outside a
     /// tick only. A one-shot component runs in that tick: it removes itself and <paramref name="remove"/>, adds
-    /// <paramref name="add"/>, and calls <c>Self.Body.SetMotion</c>. The hull motion changes at the sync point of that tick,
-    /// and physics gives the Jolt body the new motion at the start of the step after it. A refusal of <c>SetMotion</c> lands
-    /// in <see cref="World.Errors"/>, as any exception of a component does.
+    /// <paramref name="add"/>, and calls <c>Self.Body.SetMotion</c>. Physics gives the Jolt body the new motion at the start
+    /// of the step after that tick, and the frame tree stores it at the sync point after that step. A refusal of
+    /// <c>SetMotion</c> lands in <see cref="World.Errors"/>, as any exception of a component does.
     /// </summary>
     public static void SetMotionNextTick(this World world, Entity owner, BodyMotion motion, IComponent? add = null, IComponent? remove = null) =>
         world.AddComponent(owner, new SetsMotionOnce(motion, add, remove));
