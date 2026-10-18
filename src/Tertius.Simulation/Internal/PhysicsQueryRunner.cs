@@ -170,8 +170,15 @@ internal sealed class PhysicsQueryRunner
         PhysicsQuestion question = request.Question;
         bool firstOnly = question.FirstHitOnly;
         double reach = question.Reach, length = question.Length;
-        // An overlap is a point, so any line through it tests whether it lies in a region.
-        Double3 line = question is OverlapQuestion ? Double3.UnitX : question.Direction;
+        // An overlap is a point, so any line through it tests whether it lies in a region. Run refuses the empty question
+        // before it walks, so the null arm only keeps the switch exhaustive.
+        Double3 line = question switch
+        {
+            RayQuestion ray => ray.Direction,
+            ShapeCastQuestion shapeCast => shapeCast.Direction,
+            OverlapQuestion => Double3.UnitX,
+            null => Double3.Zero,
+        };
         Double3 from = question.Origin;
         visits.Clear();
         visits.Add(new Visit(request.Frame, 0, length, FrameHandle.Null, GoesUp: true));
@@ -226,10 +233,15 @@ internal sealed class PhysicsQueryRunner
             }
         }
         filter.Skip(Entity.Null);
-        if (question is OverlapQuestion)
-            KeepEachEntityOnce();
-        else
-            hits.AsSpan().Sort(ByDistanceThenEntity);
+        switch (question)
+        {
+            case RayQuestion or ShapeCastQuestion:
+                hits.AsSpan().Sort(ByDistanceThenEntity);
+                break;
+            case OverlapQuestion:
+                KeepEachEntityOnce();
+                break;
+        }
     }
 
     /// <summary>The farthest distance at which a hit can still count: the first hit so far, or the end of the query, <paramref name="length"/> meters from its start.</summary>

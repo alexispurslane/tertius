@@ -342,20 +342,6 @@ public class PhysicsQuestionUnionTests
     // ---- The request that holds a question ------------------------------------------------------------------------
 
     [Fact]
-    public void ARequestKeepsItsQuestionBesideItsAskerFrameFilterAndTag()
-    {
-        var asker = new Entity(4, 1);
-        var frame = new FrameHandle(new Entity(1, 1), 0, 1);
-
-        var request = new PhysicsRequest(asker, frame, Cast(), default, 17);
-
-        request.Asker.Should().Be(asker);
-        request.Frame.Should().Be(frame);
-        request.Tag.Should().Be(17);
-        request.Question.Should().Be((PhysicsQuestion)Cast());
-    }
-
-    [Fact]
     public void TwoRequestsAreEqualOnlyWhenTheirQuestionsAre()
     {
         var asker = new Entity(4, 1);

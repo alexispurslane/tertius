@@ -43,7 +43,9 @@ internal readonly record struct OverlapQuestion(QueryShape Shape, DPose Pose);
 /// Every question has the same sweep: a ball of radius <see cref="Reach"/> that moves from <see cref="Origin"/> along
 /// <see cref="Direction"/> for <see cref="Length"/> meters. A ray reaches 0 sideways. An overlap moves nowhere: its length
 /// and direction are zero, and its ball is its shape's bounding sphere. The runner walks the frames by this sweep, and
-/// asks the held case only for what the case alone decides: the Jolt call and the answer event.
+/// switches over the held case only for what the case alone decides: the line along which the walk tests the bubbles
+/// (an overlap, which moves nowhere, takes any line through its center), the Jolt call, whether an entity counts once
+/// however many of its bodies are hit (only for an overlap), and the answer event.
 /// </para>
 /// </remarks>
 [Union]
@@ -125,20 +127,52 @@ internal readonly struct PhysicsQuestion : IEquatable<PhysicsQuestion>
         _ => null,
     };
 
+    // The sweep view switches over the cases with no discard arm, so a new case breaks the build here until it answers.
+
     /// <summary>Where the sweep starts, in the request's frame, in meters: a ray's origin, a shape's center at the start, or an overlap's center. Zero for the default question.</summary>
-    public Double3 Origin => position;
+    public Double3 Origin => this switch
+    {
+        RayQuestion ray => ray.Origin,
+        ShapeCastQuestion shapeCast => shapeCast.Start.Position,
+        OverlapQuestion overlap => overlap.Pose.Position,
+        null => Double3.Zero,
+    };
 
     /// <summary>The unit direction of the sweep in the axes of the request's frame. Zero for an overlap, which moves nowhere, and for the default question.</summary>
-    public Double3 Direction => kind is KindRay or KindShapeCast ? direction : Double3.Zero;
+    public Double3 Direction => this switch
+    {
+        RayQuestion ray => ray.Direction,
+        ShapeCastQuestion shapeCast => shapeCast.Direction,
+        OverlapQuestion => Double3.Zero,
+        null => Double3.Zero,
+    };
 
     /// <summary>How far the sweep moves, in meters. 0 for an overlap, which moves nowhere, and for the default question.</summary>
-    public double Length => kind is KindRay or KindShapeCast ? length : 0;
+    public double Length => this switch
+    {
+        RayQuestion ray => ray.Length,
+        ShapeCastQuestion shapeCast => shapeCast.Length,
+        OverlapQuestion => 0,
+        null => 0,
+    };
 
-    /// <summary>How far from its line the sweep reaches, in meters: the bounding radius of the shape of a shape cast or an overlap, and 0 for a ray.</summary>
-    public double Reach => kind is KindShapeCast or KindOverlap ? shape.BoundingRadius : 0;
+    /// <summary>How far from its line the sweep reaches, in meters: the bounding radius of the shape of a shape cast or an overlap, and 0 for a ray and for the default question.</summary>
+    public double Reach => this switch
+    {
+        RayQuestion => 0,
+        ShapeCastQuestion shapeCast => shapeCast.Shape.BoundingRadius,
+        OverlapQuestion overlap => overlap.Shape.BoundingRadius,
+        null => 0,
+    };
 
-    /// <summary>True when only the nearest hit is the answer: for a ray of kind <see cref="RayCastKind.Nearest"/> and for a shape cast. False for a ray of kind <see cref="RayCastKind.All"/> and for an overlap.</summary>
-    public bool FirstHitOnly => kind == KindShapeCast || (kind == KindRay && rayKind == RayCastKind.Nearest);
+    /// <summary>True when only the nearest hit is the answer: for a ray of kind <see cref="RayCastKind.Nearest"/> and for a shape cast. False for a ray of kind <see cref="RayCastKind.All"/>, for an overlap and for the default question.</summary>
+    public bool FirstHitOnly => this switch
+    {
+        RayQuestion ray => ray.Kind == RayCastKind.Nearest,
+        ShapeCastQuestion => true,
+        OverlapQuestion => false,
+        null => false,
+    };
 
     // The held case alone decides equality: the fields of the other cases are not compared.
     public bool Equals(PhysicsQuestion other) => kind == other.kind && kind switch

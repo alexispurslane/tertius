@@ -93,10 +93,14 @@ public class QueryShapeCacheTests
         using var cache = new QueryShapeCache();
 
         // The backend refuses the default shape before it asks the cache, so only a bug gets here. A Debug build fails the
-        // precondition of Get (a ContractException), and a Release build fails in Create (an ArgumentException).
+        // precondition of Get, and a Release build fails in Create.
         Action ask = () => cache.Get(default);
 
-        ask.Should().Throw<Exception>();
+#if TERTIUS_CONTRACTS
+        ask.Should().Throw<ContractException>();
+#else
+        ask.Should().Throw<ArgumentException>().WithMessage("The default shape holds no sphere, box or capsule*").Which.ParamName.Should().Be("shape");
+#endif
         cache.Count.Should().Be(0);
     }
 }
