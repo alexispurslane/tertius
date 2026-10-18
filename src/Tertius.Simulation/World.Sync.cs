@@ -341,12 +341,13 @@ public sealed partial class World
 
     /// <summary>
     /// Step 2, after every frame took its record: each entity that physics moved to another frame changes topic and hears
-    /// about it once, then the contacts become Collision events.
+    /// about it once, then the contacts become Collision events. The owner of a frame whose hull physics handed off moved
+    /// already, in the pass of <see cref="MirrorFrameOwners"/> (see <see cref="MoveMembership"/>).
     /// </summary>
     private void RouteStepContacts()
     {
         foreach (Entity entity in physicsTouched)
-            MoveMembership(entity, entities.BackRow(entity).Frame, sendFrameChanged: true);
+            MoveMembership(entity, entities.BackRow(entity).Frame);
 
         foreach (ContactStarted contact in stepOutput.Contacts)
             RouteContact(contact);

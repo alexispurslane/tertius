@@ -350,7 +350,8 @@ public sealed partial class World
         if (desc.Body != null)
             physicsChanges.BodiesCreated.Add(new BodyCreate(entity, row.Frame, desc.Body, row.Pose, velocity, row.AngularVelocity));
 
-        MoveMembership(entity, row.Frame, sendFrameChanged: false);
+        // A new entity joins the members of its frame. That is no change of frame, so it hears no FrameChanged.
+        topics.MoveMember(entity, row.Frame, out _);
         foreach (Topic topic in plan.Subscriptions)
             SubscribeEntity(entity, topic);
     }
@@ -588,7 +589,7 @@ public sealed partial class World
             AngularVelocity = (relative.TransformDirection(row.AngularVelocity) + Frames.AngularVelocityRelative(from, to)).ToVector3(),
         };
         entities.SetBackTransform(entity, moved);
-        MoveMembership(entity, to, sendFrameChanged: true);
+        MoveMembership(entity, to);
 
         // The body moves to the other physics system: physics destroys it before it creates the new one, with the
         // collision groups and mask that it has now.
@@ -702,8 +703,11 @@ public sealed partial class World
 
     /// <summary>
     /// The mirror rule, for one frame and for the pass of <see cref="MirrorFrameOwners"/>: the row of the owner of the frame
-    /// whose owner view is <paramref name="view"/> takes the view (see <see cref="OwnerRow"/>), and the owner joins the
-    /// members of the row's frame, the frame's semantic parent, and hears a <see cref="FrameChanged"/> when that frame is new.
+    /// whose owner view is <paramref name="view"/> is filled from the view (see <see cref="OwnerRow"/>), and the owner moves
+    /// to the members of the row's frame, the frame's semantic parent (see <see cref="MoveMembership"/>). The frame tree
+    /// holds the owner's exact frame, so this is where the owner follows every move of its frame under another parent:
+    /// a hand-off of its hull, which reparents the frame before the pass of step 2, and a move that the game makes
+    /// itself, such as a docking, which the pass of step 2 of the next tick finds.
     /// </summary>
     /// <remarks>Inlined, so that the pass of <see cref="MirrorFrameOwners"/> pays no call per frame for it.</remarks>
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
@@ -711,16 +715,29 @@ public sealed partial class World
     {
         Entity owner = view.Frame.Entity;
         entities.SetBackTransform(owner, OwnerRow(view));
-        MoveMembership(owner, view.Semantic, sendFrameChanged: true);
+        MoveMembership(owner, view.Semantic);
     }
 
     /// <summary>
-    /// Moves an entity to the member set of <paramref name="to"/>. If it was a member of another frame, it optionally
-    /// gets a <see cref="FrameChanged"/> on the next tick.
+    /// Moves an entity to the member set of <paramref name="to"/>, its frame, and when that is a change of frame, sends it
+    /// one <see cref="FrameChanged"/>, which the next routing delivers. A call for an entity that is a member of
+    /// <paramref name="to"/> already changes nothing and sends nothing. So however many of the paths below see one change,
+    /// the entity hears it once, from the first of them:
+    /// <list type="bullet">
+    /// <item>A hand-off moves a plain body (see <see cref="RouteStepContacts"/>).</item>
+    /// <item>A move of a frame under another parent moves the frame's owner (see <see cref="MirrorOwner"/>): a hand-off of the
+    /// hull, or a move that the game makes itself. Step 2 fills the owners' rows before it routes the hand-offs, so this
+    /// path comes first for a hand-off of a hull.</item>
+    /// <item>The death of the entity's frame moves it to the nearest ancestor that survives (see <see cref="Rehome"/>). For
+    /// the owner of a frame, this comes before the owner's row is filled from the moved frame.</item>
+    /// <item>A change of frame of an attached entity's chain root moves the attached entity (see
+    /// <see cref="DeriveAttachments"/>).</item>
+    /// </list>
+    /// A new entity joins the members of its frame without it, because that is no change of frame.
     /// </summary>
-    private void MoveMembership(Entity entity, FrameHandle to, bool sendFrameChanged)
+    private void MoveMembership(Entity entity, FrameHandle to)
     {
-        if (!topics.MoveMember(entity, to, out FrameHandle from) || !sendFrameChanged)
+        if (!topics.MoveMember(entity, to, out FrameHandle from))
             return;
         router.AddEngineEvent(Event.Create(new Target(entity), Entity.Null, new FrameChanged { From = from, To = to }));
     }
@@ -740,7 +757,7 @@ public sealed partial class World
     {
         attachments.Derive();
         foreach (Entity attached in attachments.Attached)
-            MoveMembership(attached, entities.BackRow(attached).Frame, sendFrameChanged: true);
+            MoveMembership(attached, entities.BackRow(attached).Frame);
     }
 
     /// <summary>Applies the effects of an outside-tick change that the sync point would otherwise apply.</summary>

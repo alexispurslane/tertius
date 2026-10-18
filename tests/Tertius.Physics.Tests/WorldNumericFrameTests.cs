@@ -249,6 +249,32 @@ public class WorldNumericFrameTests
         (world.Snapshot.Frames.LocalPose(ship).Position - new Double3(-20, 0, 3)).Length.Should().BeLessThan(1e-6);
     }
 
+    // The numeric update moves the ship's frame under its hull's resting frame, a numeric frame. That changes the frame's
+    // tree parent and the owner's physics home, but not the frame's parent, which is the owner's frame.
+    [Fact]
+    public void TheOwnerOfAFrameWhoseHullMovesIntoANumericFrameHearsNoFrameChanged()
+    {
+        using World world = NewWorld(out _, configure: o => o.NumericFrames = EverySlowGroupRests);
+        FrameHandle ground = Ground(world, 0);
+        var frames = new FrameChangedLog();
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(-20, 0, 3),
+            Body = Cube(100) with { InteriorShape = new SphereShapeDesc(0.05f) },
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Physics),
+            Components = [frames],
+        });
+        FrameHandle ship = world.GetOwnedFrame(owner);
+
+        Tick(world, 5);
+
+        world.Errors.Should().BeEmpty();
+        world.Frames.IsNumeric(world.Frames.TreeParent(ship)).Should().BeTrue("the ship's frame lies in its hull's numeric frame");
+        world.GetFrame(owner).Should().Be(ground);
+        frames.Seen.Should().BeEmpty();
+    }
+
     [Fact]
     public void APersonWhoseHomeIsAFallingNumericFrameDoesNotStandOnAFloorThatFallsWithIt()
     {
