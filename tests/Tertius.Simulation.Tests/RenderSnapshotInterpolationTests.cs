@@ -148,7 +148,10 @@ public class RenderSnapshotInterpolationTests
         }.OnKeplerOrbit(test.World, orbit)));
         Entity satellite = test.Show(moon, TestWorld.At(100, 0, 0));
         test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
-        test.Run(2);
+        // A new frame on rails holds still for its first step and stands on its rails at the second sync point after its
+        // spawn (docs/plans/rails-components.md, "The rails components"). So the third tick is the first one in which the
+        // frame moves along its orbit from the sync point before to the sync point after.
+        test.Run(3);
 
         RenderInstance instance = test.World.Latest().InstanceOf(satellite);
 
