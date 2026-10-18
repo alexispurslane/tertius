@@ -188,4 +188,42 @@ public sealed class DumpFileTests : IDisposable
 
         dump.GetProperty("events")[0].GetProperty("payload").GetProperty("direction").GetRawText().Should().Be("[0, 1, 0]");
     }
+
+    [Fact]
+    public void ADumpFileWritesAnInputEventInTheFormThatAScriptReads()
+    {
+        JsonElement dump = RunAndRead(NewWorld, Probes, Parse(
+            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "keyDown", "code": 87 } }""",
+            """{ "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "InputEvent", "payload": { "kind": "mouseMove", "delta": [1.5, -2] } }""",
+            """{ "do": "run", "ticks": 1 }""",
+            """{ "do": "dump", "name": "now" }"""), "now");
+
+        JsonElement[] payloads = dump.GetProperty("events").EnumerateArray().Select(e => e.GetProperty("payload")).ToArray();
+        payloads[0].EnumerateObject().Select(member => member.Name).Should().Equal("kind", "code");
+        payloads[0].GetProperty("kind").GetString().Should().Be("keyDown");
+        payloads[0].GetProperty("code").GetInt32().Should().Be(87);
+        payloads[1].EnumerateObject().Select(member => member.Name).Should().Equal("kind", "delta");
+        payloads[1].GetProperty("kind").GetString().Should().Be("mouseMove");
+        payloads[1].GetProperty("delta").GetRawText().Should().Be("[1.5, -2]");
+    }
+
+    [Fact]
+    public void ADumpOfAnInputEventThatHoldsNoCaseOrANaNStillWrites()
+    {
+        JsonElement dump = RunAndRead(NewWorld, world =>
+        {
+            SceneInstance scene = Probes(world);
+            Entity probe = scene["probe"];
+            world.Spawn(new SpawnDesc
+            {
+                Frame = world.GetOwnedFrame(scene["space"]),
+                Components = [SendOnce.Of(probe, default(InputEvent)), SendOnce.Of(probe, InputEvent.Scroll(new System.Numerics.Vector2(float.NaN, 1)))],
+            });
+            return scene;
+        }, Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""), "now");
+
+        JsonElement[] payloads = dump.GetProperty("events").EnumerateArray().Select(e => e.GetProperty("payload")).ToArray();
+        payloads[0].ValueKind.Should().Be(JsonValueKind.Null);
+        payloads[1].GetProperty("delta")[0].GetString().Should().Be("NaN");
+    }
 }

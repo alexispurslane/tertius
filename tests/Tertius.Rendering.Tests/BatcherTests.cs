@@ -220,21 +220,113 @@ public sealed class BatcherTests
     {
         RenderSnapshot snapshot = Empty();
         snapshot.Camera.PreviousPosition = new Vector3(0, 0, 2);
-        snapshot.Lights.Add(new RenderLight { Kind = LightKind.Point, Position = new Vector3(0, 1, -5), Color = new Vector3(1, 0.5f, 0.25f), Intensity = 4, Range = 10 });
-        snapshot.Lights.Add(new RenderLight { Kind = LightKind.Spot, Position = new Vector3(0, 3, -5), Direction = new Vector3(0, -2, 0), Color = Vector3.One, Intensity = 1, Range = 8, InnerConeAngle = 0.3f, OuterConeAngle = 0.5f });
-        snapshot.Lights.Add(new RenderLight { Kind = LightKind.Point, Position = new Vector3(0, 0, 50), Color = Vector3.One, Intensity = 1, Range = 10 });   // behind
-        snapshot.Lights.Add(new RenderLight { Kind = LightKind.Point, Position = new Vector3(0, 0, -5), Color = Vector3.One, Intensity = 1, Range = 0 });    // no range
+        snapshot.Lights.Add(new PointRenderLight(new Vector3(0, 1, -5), new Vector3(1, 0.5f, 0.25f), Intensity: 4, Range: 10));
+        snapshot.Lights.Add(new SpotRenderLight(new Vector3(0, 3, -5), new Vector3(0, -2, 0), Vector3.One, Intensity: 1, Range: 8, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f));
+        snapshot.Lights.Add(new PointRenderLight(new Vector3(0, 0, 50), Vector3.One, Intensity: 1, Range: 10));   // behind
+        snapshot.Lights.Add(new PointRenderLight(new Vector3(0, 0, -5), Vector3.One, Intensity: 1, Range: 0));    // no range
         PreparedScene scene = Prepare(snapshot, alpha: 0.5f);
 
         scene.LightCount.Should().Be(2);
         GpuLight point = scene.Lights[0], spot = scene.Lights[1];
         point.PositionRange.Should().Be(new Vector4(0, 1, -6, 10));
         point.RadianceKind.Should().Be(new Vector4(4, 2, 1, 0));
+        // Each case has its own arm in the batcher, so each case's position relative to the camera, and its range, needs its own check.
+        spot.PositionRange.Should().Be(new Vector4(0, 3, -6, 8));
         spot.RadianceKind.W.Should().Be(1f);
         new Vector3(spot.DirectionCosOuter.X, spot.DirectionCosOuter.Y, spot.DirectionCosOuter.Z).Should().Be(new Vector3(0, -1, 0));
         spot.DirectionCosOuter.W.Should().BeApproximately(MathF.Cos(0.5f), 1e-5f);
         spot.Spot.X.Should().BeApproximately(MathF.Cos(0.3f), 1e-5f);
         scene.Constants.LightCount.Should().Be(2u);
+    }
+
+    [Fact]
+    public void ALightThatCannotLightAnythingIsLeftOutWhateverItsCase()
+    {
+        RenderSnapshot snapshot = Empty();
+        // The negative range is far ahead: close to the eye, the frustum test would leave a light of negative range out by itself.
+        Vector3 ahead = new(0, 0, -5), farAhead = new(0, 0, -50), behind = new(0, 0, 50);
+        // Each reason to leave a light out, once for each case: no range, a negative range, no intensity, and a sphere of reach outside the view.
+        foreach ((Vector3 position, float intensity, float range) in new[] { (ahead, 1f, 0f), (farAhead, 1f, -3f), (ahead, 0f, 10f), (behind, 1f, 10f) })
+        {
+            snapshot.Lights.Add(new PointRenderLight(position, Vector3.One, intensity, range));
+            snapshot.Lights.Add(new SpotRenderLight(position, -Vector3.UnitY, Vector3.One, intensity, range, 0.3f, 0.5f));
+        }
+        snapshot.Lights.Add(default);
+        // One of each case that reaches the view, to show that the others were left out and not everything.
+        snapshot.Lights.Add(new PointRenderLight(ahead, Vector3.One, 1, 10));
+        snapshot.Lights.Add(new SpotRenderLight(ahead, -Vector3.UnitY, Vector3.One, 1, 10, 0.3f, 0.5f));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.LightCount.Should().Be(2, "the empty light holds no light, and the eight lights that reach nothing are left out");
+        scene.Lights[0].RadianceKind.W.Should().Be(0f);
+        scene.Lights[1].RadianceKind.W.Should().Be(1f);
+    }
+
+    [Fact]
+    public void APointLightLeavesTheDirectionAndTheConeOfItsGpuLightZeroBecauseItHasNone()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Lights.Add(new PointRenderLight(new Vector3(0, 1, -5), Vector3.One, 1, 10));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.LightCount.Should().Be(1);
+        GpuLight point = scene.Lights[0];
+        point.PositionRange.W.Should().Be(10f);
+        point.RadianceKind.W.Should().Be(0f);
+        point.DirectionCosOuter.Should().Be(Vector4.Zero);
+        point.Spot.Should().Be(Vector4.Zero);
+    }
+
+    [Fact]
+    public void ASpotLightWithoutADirectionShinesStraightDown()
+    {
+        RenderSnapshot snapshot = Empty();
+        snapshot.Lights.Add(new SpotRenderLight(new Vector3(0, 1, -5), Vector3.Zero, Vector3.One, 1, 10, 0.3f, 0.5f));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.LightCount.Should().Be(1);
+        GpuLight spot = scene.Lights[0];
+        new Vector3(spot.DirectionCosOuter.X, spot.DirectionCosOuter.Y, spot.DirectionCosOuter.Z).Should().Be(new Vector3(0, -1, 0));
+    }
+
+    [Fact]
+    public void ASpotLightWhoseInnerConeIsNotNarrowerThanItsOuterConeStillFadesOverANonEmptyInterval()
+    {
+        // The shader's smoothstep needs an inner cosine above the outer one, so the batcher widens an empty or inverted interval.
+        RenderSnapshot snapshot = Empty();
+        snapshot.Lights.Add(new SpotRenderLight(new Vector3(0, 1, -5), -Vector3.UnitY, Vector3.One, 1, 10, InnerConeAngle: 0.6f, OuterConeAngle: 0.4f));
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.LightCount.Should().Be(1);
+        GpuLight spot = scene.Lights[0];
+        spot.Spot.X.Should().BeGreaterThan(spot.DirectionCosOuter.W);
+        spot.DirectionCosOuter.W.Should().BeApproximately(MathF.Cos(0.4f), 1e-5f);
+    }
+
+    [Fact]
+    public void ManyLightsOfBothCasesGrowTheLightArrayAndKeepTheirOrder()
+    {
+        // The array starts at 16 lights. Light i has the intensity i + 1 and is a point light when i is even, a spot light when it is odd.
+        RenderSnapshot snapshot = Empty();
+        for (int i = 0; i < 40; i++)
+        {
+            snapshot.Lights.Add(i % 2 == 0
+                ? new PointRenderLight(new Vector3(0, 1, -5), Vector3.One, Intensity: i + 1, Range: 10)
+                : new SpotRenderLight(new Vector3(0, 1, -5), -Vector3.UnitY, Vector3.One, Intensity: i + 1, Range: 10, InnerConeAngle: 0.3f, OuterConeAngle: 0.5f));
+        }
+
+        PreparedScene scene = Prepare(snapshot);
+
+        scene.LightCount.Should().Be(40);
+        for (int i = 0; i < 40; i++)
+        {
+            scene.Lights[i].RadianceKind.X.Should().Be(i + 1, $"light {i} keeps its place");
+            scene.Lights[i].RadianceKind.W.Should().Be(i % 2 == 0 ? 0f : 1f, $"light {i} keeps its case");
+        }
     }
 
     [Fact]

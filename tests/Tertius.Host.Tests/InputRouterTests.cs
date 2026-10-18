@@ -25,8 +25,6 @@ public class InputRouterTests
         public void NextView() => ViewChanges++;
     }
 
-    private static (InputKind Kind, int Code) Of(InputEvent e) => (e.Kind, e.Code);
-
     [Fact]
     public void EscapeClosesTheWindow()
     {
@@ -62,7 +60,7 @@ public class InputRouterTests
         router.Key(Key.W, down: true);
         router.Key(Key.W, down: false);
 
-        window.Posted.Select(Of).Should().Equal((InputKind.KeyDown, (int)Key.W), (InputKind.KeyUp, (int)Key.W));
+        window.Posted.Should().Equal(InputEvent.KeyDown((int)Key.W), InputEvent.KeyUp((int)Key.W));
     }
 
     [Fact]
@@ -77,12 +75,12 @@ public class InputRouterTests
         router.MouseButton(MouseButton.Left, down: false);
         router.Scroll(new Vector2(0, -2));
 
-        window.Posted.Select(e => (e.Kind, e.Code, e.Delta)).Should().Equal(
-            (InputKind.MouseMove, 0, Vector2.Zero),
-            (InputKind.MouseMove, 0, new Vector2(3, -4)),
-            (InputKind.MouseDown, (int)MouseButton.Left, Vector2.Zero),
-            (InputKind.MouseUp, (int)MouseButton.Left, Vector2.Zero),
-            (InputKind.Scroll, 0, new Vector2(0, -2)));
+        window.Posted.Should().Equal(
+            InputEvent.MouseMove(Vector2.Zero),
+            InputEvent.MouseMove(new Vector2(3, -4)),
+            InputEvent.MouseDown((int)MouseButton.Left),
+            InputEvent.MouseUp((int)MouseButton.Left),
+            InputEvent.Scroll(new Vector2(0, -2)));
     }
 
     [Fact]
@@ -143,7 +141,7 @@ public class InputRouterTests
 
         router.Key(Key.F1, down: true);
 
-        window.Posted.Select(Of).Should().BeEquivalentTo([(InputKind.KeyUp, (int)Key.W), (InputKind.MouseUp, (int)MouseButton.Right)]);
+        window.Posted.Should().HaveCount(2).And.Contain(InputEvent.KeyUp((int)Key.W)).And.Contain(InputEvent.MouseUp((int)MouseButton.Right));
     }
 
     [Fact]
@@ -176,7 +174,7 @@ public class InputRouterTests
 
         router.MouseMove(new Vector2(12, 10));
 
-        window.Posted.Should().ContainSingle().Which.Delta.Should().Be(Vector2.Zero);
+        window.Posted.Should().Equal(InputEvent.MouseMove(Vector2.Zero));
     }
 
     [Fact]

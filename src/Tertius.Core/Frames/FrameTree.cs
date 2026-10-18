@@ -18,17 +18,18 @@ namespace Tertius;
 /// caller gives it, and physics normalizes the rotation that leaves Jolt. The poses that the tree composes itself, when it
 /// moves or destroys a frame, are unit length.</item>
 /// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner, a parent, no bubble, the identity rotation, no
-/// spin, no gravity and no hull motion. A resting or nesting one has no velocity and no step acceleration. The chain of
+/// spin, no gravity and no hull motion. A resting or nesting one has no velocity, no step acceleration and no sample's
+/// instant velocity past its chord (see <see cref="HomeInstantVelocityOverChord"/>). The chain of
 /// tree parents of a numeric frame ends at a semantic frame: a falling or resting frame lies in a semantic frame or a
 /// nesting frame, an orbit frame lies in a semantic frame, and a nesting frame lies in a semantic frame, on a whole
 /// multiple of <see cref="NumericFrameOptions.NestGrid"/>, and holds only numeric frames. An orbit frame, and only an
 /// orbit frame, has an orbiter: a frame with a kinematic hull that hangs in it, at its origin. At the end of
 /// <see cref="UpdateNumericFrames"/>, every falling or resting frame is the home of a body or holds a frame, and every
 /// nesting frame holds a frame and is the home of no body; between updates, the count of bodies is the one of the last
-/// update. <see cref="NumericCount"/> is the number of numeric frames. A semantic frame has an owner and no step
-/// acceleration, and a semantic frame whose tree parent is a numeric frame has a dynamic hull (see <see cref="HullMotion"/>),
-/// or it is the orbiter of that frame, whose hull is kinematic: a frame with a static hull or without a hull moves relative
-/// to its semantic parent, and a frame with a
+/// update. <see cref="NumericCount"/> is the number of numeric frames. A semantic frame has an owner, no step
+/// acceleration and no sample's instant velocity past its chord, and a semantic frame whose tree parent is a numeric frame
+/// has a dynamic hull (see <see cref="HullMotion"/>), or it is the orbiter of that frame, whose hull is kinematic: a frame
+/// with a static hull or without a hull moves relative to its semantic parent, and a frame with a
 /// kinematic hull hangs in its semantic parent or in its orbit frame, which follows the frame's motion samples. Such a frame also owns a
 /// hull that was a body of the last update: only the update moves a frame into a numeric frame, with its hull, and a frame
 /// without a hull goes to the semantic frame when the frame that holds it dies (see <see cref="Heir"/>). Every ghost of
@@ -60,6 +61,9 @@ public sealed partial class FrameTree
     // parent. A semantic frame has the mode None and no step acceleration.
     private NumericMode[] numeric = new NumericMode[64];
     private Double3[] stepAcceleration = new Double3[64];
+    // For an orbit frame whose orbiter has a sample for the current step, how much the sample's instant velocity exceeds its
+    // chord, which the orbit frame takes as its own (see HomeInstantVelocityOverChord). Null for every other frame.
+    private Double3?[] sampleVelocityPastChord = new Double3?[64];
     // How long the members of each numeric frame have been apart, in seconds, and the number of bodies whose physics home
     // it was at the end of the last UpdateNumericFrames.
     private double[] apartTime = new double[64];
@@ -145,6 +149,7 @@ public sealed partial class FrameTree
         properAcceleration[node.Id] = Vector3.Zero;
         numeric[node.Id] = mode;
         stepAcceleration[node.Id] = Double3.Zero;
+        sampleVelocityPastChord[node.Id] = null;
         apartTime[node.Id] = 0;
         numericBodies[node.Id] = 0;
         orbiter[node.Id] = FrameHandle.Null;
@@ -454,7 +459,7 @@ public sealed partial class FrameTree
             NumericMode parentMode = parent.IsNull ? NumericMode.None : numeric[parent.Index];
             if (numeric[id] == NumericMode.None)
             {
-                Contract.Invariant(!owner[id].IsNull && stepAcceleration[id] == Double3.Zero);
+                Contract.Invariant(!owner[id].IsNull && stepAcceleration[id] == Double3.Zero && sampleVelocityPastChord[id] is null);
                 Contract.Invariant(orbiter[id].IsNull);
                 // A nesting frame holds only numeric frames.
                 Contract.Invariant(parentMode != NumericMode.Nesting);
@@ -484,7 +489,7 @@ public sealed partial class FrameTree
             Contract.Invariant(locals[i].Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
             Contract.Invariant(!gravity[id].HasValue && !hullMotion[id].HasValue);
             if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
-                Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero);
+                Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero && sampleVelocityPastChord[id] is null);
             // Only an orbit frame has an orbiter, a live frame that hangs in it.
             if (numeric[id] == NumericMode.Orbiting)
                 Contract.Invariant(IsAlive(orbiter[id]) && TreeParent(orbiter[id]) == frame);
@@ -629,7 +634,8 @@ public sealed partial class FrameTree
     /// <summary>
     /// The acceleration of the origin of <paramref name="home"/> relative to <paramref name="semantic"/>, which is the home
     /// itself or an ancestor of it, during the current step: the sum of the step accelerations of the numeric frames
-    /// between them.
+    /// between them. It equals <see cref="AccelerationRelative"/> of the two frames, without its turns, because a numeric
+    /// frame never turns in its parent.
     /// </summary>
     internal Double3 HomeAcceleration(FrameHandle home, FrameHandle semantic)
     {
@@ -663,6 +669,35 @@ public sealed partial class FrameTree
     /// </summary>
     internal Double3 HomeVelocityAfter(FrameHandle home, FrameHandle semantic, double dt) =>
         HomeVelocity(home, semantic) + HomeAcceleration(home, semantic) * dt;
+
+    /// <summary>
+    /// How much the instant velocity of the origin of <paramref name="home"/> at the end of the current step, a step of
+    /// <paramref name="dt"/> seconds, exceeds its frame velocity, relative to <paramref name="semantic"/>, the home itself or
+    /// an ancestor of it: the sum of that excess for each numeric frame between them. A numeric frame steps as Jolt steps a
+    /// body (see <see cref="AdvanceNumericFrames"/>), so its frame velocity is the chord of the step. A falling frame keeps
+    /// one acceleration over the step, so its instant velocity at the end of the step is half a step of that acceleration
+    /// past the chord. An orbit frame whose orbiter has a sample for the step moves as the sample does, so the excess is
+    /// the sample's instant velocity less its chord, which takes in the change of the orbit's pull over the step (see
+    /// <see cref="BeginNumericStep"/>). Zero for a semantic frame.
+    /// <para>
+    /// The tree keeps the velocity of a frame under a numeric home relative to the home's frame velocity, so that a read in
+    /// the semantic frame gives the frame's instant velocity. Physics keeps a velocity relative to the home's instant
+    /// velocity. So a velocity converts from physics into the tree by the addition of this one term, and back by its
+    /// subtraction: a frame at rest in its home keeps it (see <see cref="HoldStill"/>), every step record that physics
+    /// releases adds it, and the gameplay velocity of a body loses it when physics gives the body its chord.
+    /// </para>
+    /// </summary>
+    internal Double3 HomeInstantVelocityOverChord(FrameHandle home, FrameHandle semantic, double dt)
+    {
+        Contract.Requires(home == semantic || IsAncestorOf(semantic, home));
+        Double3 excess = Double3.Zero;
+        for (FrameHandle f = home; f != semantic; f = TreeParent(f))
+        {
+            int id = Node(f).Id;
+            excess += sampleVelocityPastChord[id] ?? stepAcceleration[id] * (0.5 * dt);
+        }
+        return excess;
+    }
 
     /// <summary>
     /// The position of the origin of <paramref name="of"/> in <paramref name="to"/>, two frames of one semantic frame (the
@@ -839,6 +874,8 @@ public sealed partial class FrameTree
             omega = TreeLocalPose(x).TransformDirection(omega) + angularVelocity[Node(x).Id];
             x = parent;
         }
+        if (x == to)
+            return omega;
         var path = new Stack<FrameHandle>();
         for (FrameHandle y = to; !y.IsNull && y != x; y = TreeParent(y))
             path.Push(y);
@@ -848,6 +885,42 @@ public sealed partial class FrameTree
             omega = TreeLocalPose(child).InverseTransformDirection(omega - angularVelocity[Node(child).Id]);
         }
         return omega;
+    }
+
+    /// <summary>
+    /// The linear acceleration of the origin of frame <paramref name="of"/> relative to frame <paramref name="to"/> in the
+    /// current step, in <paramref name="to"/> axes. An acceleration in <paramref name="of"/> converts into
+    /// <paramref name="to"/> as the acceleration turned into <paramref name="to"/> axes plus this, as a velocity converts with
+    /// the motion of one frame relative to the other (see <see cref="ConvertVelocity"/>). It adds the acceleration of each
+    /// frame on the path through the common ancestor relative to its tree parent, level by level. The tree keeps that
+    /// acceleration for a numeric frame, its step acceleration (see <see cref="BeginNumericStep"/>), so between a physics home
+    /// and its semantic frame this equals <see cref="HomeAcceleration"/>. Two terms are not in it yet. A semantic frame adds
+    /// none, because the tree keeps no acceleration of a semantic frame in its parent: only the frame's step record holds it.
+    /// And a turning frame on the path adds no rotation terms (Euler, centrifugal and Coriolis), which spin gravity brings
+    /// (docs/plans/spin-gravity.md). A null frame is the virtual root above every root frame.
+    /// </summary>
+    internal Double3 AccelerationRelative(FrameHandle of, FrameHandle to)
+    {
+        // Sum the accelerations up to the common ancestor in its axes, then subtract the path down to 'to'.
+        FrameHandle x = of;
+        Double3 acceleration = Double3.Zero;
+        while (!x.IsNull && x != to && !IsAncestorOrNull(x, to))
+        {
+            FrameHandle parent = TreeParent(x);
+            acceleration = TreeLocalPose(x).TransformDirection(acceleration) + stepAcceleration[Node(x).Id];
+            x = parent;
+        }
+        if (x == to)
+            return acceleration;
+        var path = new Stack<FrameHandle>();
+        for (FrameHandle y = to; !y.IsNull && y != x; y = TreeParent(y))
+            path.Push(y);
+        while (path.Count > 0)
+        {
+            FrameHandle child = path.Pop();
+            acceleration = TreeLocalPose(child).InverseTransformDirection(acceleration - stepAcceleration[Node(child).Id]);
+        }
+        return acceleration;
     }
 
     private void Grow(int needed)
@@ -864,6 +937,7 @@ public sealed partial class FrameTree
         Array.Resize(ref properAcceleration, size);
         Array.Resize(ref numeric, size);
         Array.Resize(ref stepAcceleration, size);
+        Array.Resize(ref sampleVelocityPastChord, size);
         Array.Resize(ref apartTime, size);
         Array.Resize(ref numericBodies, size);
         Array.Resize(ref orbiter, size);

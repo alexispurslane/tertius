@@ -42,12 +42,17 @@ public class DynamicHullRecordTests
     private static bool InFallingFrame(World world, Entity entity) =>
         world.Frames.Numeric(world.PhysicsHomeOf(entity)) == NumericMode.Falling;
 
-    /// <summary>A ship whose frame physics drives, at <paramref name="start"/> in <paramref name="frame"/>, with the instant velocity <paramref name="velocity"/>.</summary>
-    private static Entity Ship(World world, FrameHandle frame, Double3 start, Double3 velocity, BodyDesc hull, float bubble) => world.Spawn(new SpawnDesc
+    /// <summary>
+    /// A ship whose frame physics drives, at <paramref name="start"/> in <paramref name="frame"/>, with the instant velocity
+    /// <paramref name="velocity"/> and the angular velocity <paramref name="spin"/>, in rad/s.
+    /// </summary>
+    private static Entity Ship(World world, FrameHandle frame, Double3 start, Double3 velocity, BodyDesc hull, float bubble,
+        Vector3 spin = default) => world.Spawn(new SpawnDesc
     {
         Frame = frame,
         Pose = new DPose(start, DQuaternion.Identity),
         LinearVelocity = velocity,
+        AngularVelocity = spin,
         Body = hull,
         AsFrame = new FrameSpec(FrameBounds.Sphere(bubble)),
     });
@@ -59,24 +64,34 @@ public class DynamicHullRecordTests
     /// <summary>
     /// A station of 10 m whose frame physics drives, with a bubble of 200 m and the gravity <paramref name="stationGravity"/>
     /// inside, in its own axes, at the origin of <paramref name="frame"/> and at rest there, turned by
-    /// <see cref="StationTurn"/>. A ship with a bubble of 10 m starts 260 m out along X and flies at it with
-    /// <see cref="Approach"/>. Nothing slows the station down; the ship has the linear damping <paramref name="shipDamping"/>.
-    /// In a frame with gravity both fall alike, so the ship flies straight at the station, and it enters the station's
-    /// bubble after about 55 ticks. In a world without numeric frames both hulls stay in the system of
-    /// <paramref name="frame"/> until the hand-off.
+    /// <see cref="StationTurn"/>. Nothing slows it down.
     /// </summary>
-    private static (FrameHandle Station, Entity Ship, FrameHandle ShipFrame) ShipThatFliesIntoAStation(World world, FrameHandle frame,
-        Vector3 stationGravity, float shipDamping = 0)
-    {
-        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+    private static FrameHandle TurnedStation(World world, FrameHandle frame, Vector3 stationGravity) =>
+        world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = frame,
             Pose = new DPose(Double3.Zero, StationTurn),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1e6f, LinearDamping: 0, AngularDamping: 0),
             AsFrame = new FrameSpec(FrameBounds.Sphere(200), GravityField.Uniform(stationGravity)),
         }));
-        var shipHull = new BodyDesc(new BoxShapeDesc(new Vector3(2, 1, 4)), Mass: 1000, LinearDamping: shipDamping, AngularDamping: 0);
-        Entity ship = Ship(world, frame, new Double3(260, 0, 0), Approach, shipHull, 10);
+
+    /// <summary>The hull of a ship of 8 m by 4 m by 2 m and 1 t, with the linear damping <paramref name="damping"/> and the angular damping <paramref name="angularDamping"/>.</summary>
+    private static BodyDesc ShipHull(float damping, float angularDamping) =>
+        new(new BoxShapeDesc(new Vector3(2, 1, 4)), Mass: 1000, LinearDamping: damping, AngularDamping: angularDamping);
+
+    /// <summary>
+    /// A <see cref="TurnedStation"/> in <paramref name="frame"/>, and a ship with a bubble of 10 m that starts 260 m out
+    /// along X and flies at it with <see cref="Approach"/>, and spins with <paramref name="shipSpin"/>, in rad/s. The ship
+    /// has the linear damping <paramref name="shipDamping"/> and the angular damping <paramref name="shipAngularDamping"/>.
+    /// In a frame with gravity both fall alike, so the ship flies straight at the station, and it enters the station's
+    /// bubble after about 55 ticks. In a world without numeric frames both hulls stay in the system of
+    /// <paramref name="frame"/> until the hand-off.
+    /// </summary>
+    private static (FrameHandle Station, Entity Ship, FrameHandle ShipFrame) ShipThatFliesIntoAStation(World world, FrameHandle frame,
+        Vector3 stationGravity, float shipDamping = 0, float shipAngularDamping = 0, Vector3 shipSpin = default)
+    {
+        FrameHandle station = TurnedStation(world, frame, stationGravity);
+        Entity ship = Ship(world, frame, new Double3(260, 0, 0), Approach, ShipHull(shipDamping, shipAngularDamping), 10, shipSpin);
         return (station, ship, world.GetOwnedFrame(ship));
     }
 
@@ -121,6 +136,28 @@ public class DynamicHullRecordTests
     /// the tree's velocity relative to the orbit frame, which falls on, and that velocity becomes Jolt's chord at the start
     /// of the next step. So the second ship coasts on the orbit of the first.
     /// </summary>
+    [Fact]
+    public void TheRecordOfAShipThatFallsInANumericFrameHoldsEarthsGravityAtTheShipAsItsAccelerationInEarth()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle earth = Earth(world);
+        Entity ship = ShipInOrbit(world, earth);
+        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+
+        Tick(world, 10);
+
+        // Physics measures the record relative to the ship's numeric home, which falls at Earth's field at its origin, so
+        // in the home the ship accelerates by the tidal difference only. In Earth, where the table keeps the record, it
+        // accelerates by Earth's field at its place at the start of the step, about 8.7 m/s², as Jolt pulled it. A record
+        // that left out the home's own acceleration would be 8.7 m/s² off.
+        InFallingFrame(world, ship).Should().BeTrue();
+        world.Frames.Samples.Followed.TryGet(shipFrame, out MotionSample record, out FrameHandle relativeTo).Should().BeTrue();
+        relativeTo.Should().Be(earth);
+        Double3 start = record.Pose.Position - record.ChordVelocity * world.DeltaTime;
+        (record.Acceleration - GravityField.Point(EarthMu).AtPrecise(start)).Length.Should().BeLessThan(1e-4);
+        world.Errors.Should().BeEmpty();
+    }
+
     [Fact]
     public void AShipInANumericFrameThatPhysicsPlacesFromTheTreeKeepsToTheOrbitOfAShipLeftAlone()
     {
@@ -217,6 +254,56 @@ public class DynamicHullRecordTests
         world.Frames.Parent(shipFrame).Should().Be(station);
         MotionSample record = faults.Outputs[^1].Frames.Single(r => r.Frame == shipFrame).Motion;
         (record.Acceleration - (Double3)StationGravity).Length.Should().BeLessThan(1e-6);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void TheRecordOfASpinningShipThatEntersATurnedStationHoldsItsAngularAccelerationInTheStationsAxes()
+    {
+        using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world, space, Vector3.Zero,
+            shipAngularDamping: 0.1f, shipSpin: new Vector3(0.5f, 0, 0));
+
+        TickUntil(world, () => world.Frames.Parent(shipFrame) == station, 80);
+
+        // The ship spins about X, one of its principal axes, and its angular damping slows the spin by 0.17 % a tick: an
+        // angular acceleration of -0.1 times the spin, about -0.046 rad/s² along X in the axes of space when the ship
+        // enters, which changes by 1e-4 rad/s² from one step to the next. The station rests in space, turned 0.9 rad about
+        // Z, so in the station's axes the same angular acceleration is turned back by 0.9 rad about Z. A record of the step
+        // of the hand-off that kept the axes of space would be 0.04 rad/s² off.
+        world.Frames.Parent(shipFrame).Should().Be(station);
+        MotionSample inSpace = faults.Outputs[^2].Frames.Single(r => r.Frame == shipFrame).Motion;
+        MotionSample inStation = faults.Outputs[^1].Frames.Single(r => r.Frame == shipFrame).Motion;
+        inSpace.AngularAcceleration.X.Should().BeInRange(-0.05, -0.04, "the damping slows the spin in space");
+        new Double3(0, inSpace.AngularAcceleration.Y, inSpace.AngularAcceleration.Z).Length.Should().BeLessThan(1e-4,
+            "the spin stays about X");
+        (inStation.AngularAcceleration - StationTurn.Conjugate().Rotate(inSpace.AngularAcceleration)).Length.Should().BeLessThan(1e-3,
+            "the record in the station holds the angular acceleration in the station's axes");
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void TheRecordOfASpinningShipThatLeavesATurnedStationHoldsItsAngularAccelerationInTheAxesOfSpace()
+    {
+        using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle station = TurnedStation(world, space, Vector3.Zero);
+        FrameHandle shipFrame = world.GetOwnedFrame(Ship(world, station, new Double3(150, 0, 0), new Double3(60, 0, 0),
+            ShipHull(0, 0.1f), 10, new Vector3(0.5f, 0, 0)));
+
+        TickUntil(world, () => world.Frames.Parent(shipFrame) == space, 120);
+
+        // The ship flies out of the station along the station's X and spins about that axis, and its angular damping slows
+        // the spin: an angular acceleration of about -0.046 rad/s² along X in the station's axes when it leaves. In the axes
+        // of space the same angular acceleration is turned by 0.9 rad about Z, as the station is. A record of the step of
+        // the hand-off that kept the station's axes would be 0.04 rad/s² off.
+        world.Frames.Parent(shipFrame).Should().Be(space);
+        MotionSample inStation = faults.Outputs[^2].Frames.Single(r => r.Frame == shipFrame).Motion;
+        MotionSample inSpace = faults.Outputs[^1].Frames.Single(r => r.Frame == shipFrame).Motion;
+        inStation.AngularAcceleration.X.Should().BeInRange(-0.05, -0.04, "the damping slows the spin in the station");
+        (inSpace.AngularAcceleration - StationTurn.Rotate(inStation.AngularAcceleration)).Length.Should().BeLessThan(1e-3,
+            "the record in space holds the angular acceleration in the axes of space");
         world.Errors.Should().BeEmpty();
     }
 }

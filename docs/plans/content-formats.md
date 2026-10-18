@@ -396,7 +396,7 @@ An inline material maps to `MaterialDesc`. Each texture key passes its slot to t
 
 The loader creates one material for each distinct inline value and one mesh for each distinct primitive.
 
-The light section maps to `LightData` with `Enabled` set to true. A spot light points along -Z of its offset.
+The light section maps to `LightData`, a union of two cases: a `PointLightData` when `kind` is `"point"`, and a `SpotLightData` when it is `"spot"`. A point light takes no cone angles, so the mapping ignores `innerConeAngle` and `outerConeAngle` for it. A spot light points along -Z of its offset. A blueprint with no light section carries the default `LightData`, which holds no light.
 
 | Key | Form | Default |
 |---|---|---|
@@ -408,7 +408,7 @@ The light section maps to `LightData` with `Enabled` set to true. A spot light p
 | `outerConeAngle` | rad | 0.5 |
 | `offset` | A pose | Identity |
 
-The `kind` of a light section is an enum, not the case of a union. So a merge changes it like any other value (see "The merge rule").
+The `kind` of a light section is an enum, not the case of a union, even though `LightData` is a union. So a merge changes it like any other value (see "The merge rule"), and the mapping picks the case of `LightData` from the merged value.
 
 The frame section `asFrame` maps to `FrameSpec`.
 
@@ -586,7 +586,7 @@ The merge fills a source map. It maps the JSON Pointer of each value that a patc
 | `body` | `BodySection` | `BodyDesc` |
 | A shape | `ShapeSection` and its cases | `ShapeDesc` and its subtypes |
 | `render` | `RenderSection` | `RenderData` |
-| `render.light` | `LightSection` | `LightData` |
+| `render.light` | `LightSection` | `LightData`, with its cases `PointLightData` and `SpotLightData` |
 | An inline material | `MaterialSection` | `MaterialDesc` |
 | `asFrame` | `FrameSection` | `FrameSpec` |
 | An orbit | `OrbitSection` and its cases | `KeplerOrbit` |

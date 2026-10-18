@@ -115,14 +115,15 @@ public sealed class PersonControl(Vector3 eye) : IComponent
 
     private void Read(in InputEvent input)
     {
-        switch (input.Kind)
+        // The person reads the keys and the mouse movement. A mouse button, a scroll and the empty event mean nothing to it.
+        switch (input)
         {
-            case InputKind.KeyDown or InputKind.KeyUp:
-                Hold((Key)input.Code, input.Kind == InputKind.KeyDown);
+            case KeyChanged(var code, var isDown):
+                Hold((Key)code, isDown);
                 break;
-            case InputKind.MouseMove:
-                yaw = MathF.IEEERemainder(yaw - input.Delta.X * TurnPerPixel, 2 * MathF.PI);
-                pitch = Math.Clamp(pitch - input.Delta.Y * TurnPerPixel, -MaxPitch, MaxPitch);
+            case MouseMoved(var delta):
+                yaw = MathF.IEEERemainder(yaw - delta.X * TurnPerPixel, 2 * MathF.PI);
+                pitch = Math.Clamp(pitch - delta.Y * TurnPerPixel, -MaxPitch, MaxPitch);
                 break;
         }
     }

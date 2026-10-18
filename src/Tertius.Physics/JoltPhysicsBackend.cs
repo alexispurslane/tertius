@@ -827,12 +827,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// releases for the tree differs there (see <see cref="WriteFrames"/>).</item>
     /// <item>A kinematic hull, or no body, with a sample: the sample, in the tree parent. A hull at the origin of its orbit
     /// frame rests there, with the sample's rotation and no velocity (see <see cref="RailsTarget"/>): the orbit frame's own
-    /// chord and instant velocity are the sample's, to the jerk of its motion times the square of a step, and physics takes
-    /// a numeric home's instant velocity half a step of its acceleration past its chord (see "Instant velocities and chords"
-    /// in JoltPhysicsBackend.Chords.cs). The record that physics releases for the tree differs there (see
-    /// <see cref="WriteFrames"/>).</item>
+    /// chord and instant velocity are the sample's (see <see cref="FrameTree.HomeInstantVelocityOverChord"/>). The record that
+    /// physics releases for the tree differs there (see <see cref="WriteFrames"/>).</item>
     /// <item>A static hull, or a kinematic hull without a sample, that teleported in the step: the teleport's pose in the
-    /// hull's home, the tree parent, with no velocity.</item>
+    /// hull's home, the tree parent, with no velocity. The record that physics releases for the tree differs in a numeric
+    /// home (see <see cref="WriteFrames"/>).</item>
     /// <item>Anything else: the tree pose, with no velocity. The frame holds still.</item>
     /// </list>
     /// The records of the frames without a dynamic hull do not change during the step, so each is made once a step. Call it
@@ -904,8 +903,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// update (see <see cref="ComputeProperAccelerations"/>); Jolt's angular velocity and the change of it in the update;
     /// and the proper acceleration. A hull that handed off in the step is in its new home: Jolt's velocity is the chord of
     /// its first step there, so its acceleration is the one that the hand-off made that chord with, in the new home's axes
-    /// (see <see cref="HandedOffVelocities"/>), and the instant velocity is the one that the hand-off carried. False for
-    /// any other frame.
+    /// (see <see cref="HandedOffVelocities"/>), the instant velocity is the one that the hand-off carried, and the angular
+    /// acceleration is the one of the update, turned into the new home's axes (see
+    /// <see cref="FrameMotion.AngularAccelerationToParent"/>). False for any other frame.
     /// </summary>
     private bool TryHullRecord(FrameHandle frame, out MotionSample record)
     {

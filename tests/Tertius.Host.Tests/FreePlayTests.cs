@@ -121,6 +121,14 @@ public sealed class FreePlayTests : IDisposable
 
     private static Script Written(string path) => Script.Parse(File.ReadAllText(path));
 
+    /// <summary>The code of a key event or of a mouse button event. Every input that these tests post is one of the two.</summary>
+    private static int CodeOf(InputEvent e) => e switch
+    {
+        KeyChanged(var code, _) => code,
+        MouseButtonChanged(var code, _) => code,
+        _ => throw new InvalidOperationException($"{e} is not a key or mouse button event."),
+    };
+
     /// <summary>The (tick, code) of each post step of a script: the number of ticks that run before the post, and the key code.</summary>
     private static (long Tick, int Code)[] PostsOf(Script script)
     {
@@ -131,13 +139,13 @@ public sealed class FreePlayTests : IDisposable
             if (step is RunStep run)
                 tick += run.Ticks;
             else if (step is PostStep post)
-                posts.Add((tick, post.Payload!.Value.Deserialize<InputEvent>(ScriptJson.Scripts).Code));
+                posts.Add((tick, CodeOf(post.Payload!.Value.Deserialize<InputEvent>(ScriptJson.Scripts))));
         }
         return posts.ToArray();
     }
 
     private static (long Tick, int Code)[] SeenInput(World world, SceneInstance scene) =>
-        ProbeOf(world, scene, "probe").Seen.Select(seen => (seen.Tick, seen.Event.As<InputEvent>().Code)).ToArray();
+        ProbeOf(world, scene, "probe").Seen.Select(seen => (seen.Tick, CodeOf(seen.Event.As<InputEvent>()))).ToArray();
 
     [Fact]
     public void AKeyThatTheWindowGetsBeforeATickReachesTheWorldDuringTheTickAfterThat()
@@ -480,7 +488,7 @@ public sealed class FreePlayTests : IDisposable
             {
                 for (int code = 0; code < 1500; code++)
                 {
-                    freePlay.Post(new InputEvent { Kind = InputKind.KeyDown, Code = code });
+                    freePlay.Post(InputEvent.KeyDown(code));
                     if (code % 100 == 99)
                         Thread.Sleep(1);
                 }

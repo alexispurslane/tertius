@@ -235,27 +235,61 @@ internal sealed class SceneBatcher
         CameraView camera = scene.Camera;
         foreach (ref readonly RenderLight light in CollectionsMarshal.AsSpan(snapshot.Lights))
         {
-            if (light.Range <= 0f || light.Intensity <= 0f)
-                continue;
-            Vector3 position = light.Position - camera.Offset;
-            // A light whose sphere of influence is outside the frustum cannot reach a visible surface.
-            if (camera.Culls(position, light.Range))
-                continue;
-            Vector3 direction = light.Direction.LengthSquared() > 1e-12f ? Vector3.Normalize(light.Direction) : -Vector3.UnitY;
-            float cosOuter = MathF.Cos(Math.Clamp(light.OuterConeAngle, 0f, MathF.PI));
-            float cosInner = MathF.Cos(Math.Clamp(light.InnerConeAngle, 0f, MathF.PI));
-            // smoothstep needs a non-empty edge interval.
-            cosInner = MathF.Max(cosInner, cosOuter + 1e-4f);
-            if (scene.LightCount == scene.Lights.Length)
-                Array.Resize(ref scene.Lights, scene.Lights.Length * 2);
-            scene.Lights[scene.LightCount++] = new GpuLight
+            // The default light holds no case, so no arm takes it. A light of either case is left out when it cannot reach
+            // a visible surface (see Reaches).
+            switch (light)
             {
-                PositionRange = new Vector4(position, light.Range),
-                RadianceKind = new Vector4(light.Color * light.Intensity, light.Kind == LightKind.Spot ? 1f : 0f),
-                DirectionCosOuter = new Vector4(direction, cosOuter),
-                Spot = new Vector4(cosInner, 0f, 0f, 0f),
-            };
+                case PointRenderLight(var worldPosition, var color, var intensity, var range):
+                {
+                    if (!Reaches(camera, worldPosition, intensity, range, out Vector3 position))
+                        continue;
+                    // A point light has no direction and no cone, so those fields of its GpuLight stay zero. The shader and the
+                    // impostor lighting read them only for a spot light.
+                    Append(scene, new GpuLight
+                    {
+                        PositionRange = new Vector4(position, range),
+                        RadianceKind = new Vector4(color * intensity, 0f),
+                    });
+                    break;
+                }
+                case SpotRenderLight(var worldPosition, var axis, var color, var intensity, var range, var innerConeAngle, var outerConeAngle):
+                {
+                    if (!Reaches(camera, worldPosition, intensity, range, out Vector3 position))
+                        continue;
+                    Vector3 direction = axis.LengthSquared() > 1e-12f ? Vector3.Normalize(axis) : -Vector3.UnitY;
+                    float cosOuter = MathF.Cos(Math.Clamp(outerConeAngle, 0f, MathF.PI));
+                    float cosInner = MathF.Cos(Math.Clamp(innerConeAngle, 0f, MathF.PI));
+                    // smoothstep needs a non-empty edge interval.
+                    cosInner = MathF.Max(cosInner, cosOuter + 1e-4f);
+                    Append(scene, new GpuLight
+                    {
+                        PositionRange = new Vector4(position, range),
+                        RadianceKind = new Vector4(color * intensity, 1f),
+                        DirectionCosOuter = new Vector4(direction, cosOuter),
+                        Spot = new Vector4(cosInner, 0f, 0f, 0f),
+                    });
+                    break;
+                }
+            }
         }
+    }
+
+    /// <summary>
+    /// True if a light of this intensity and range at <paramref name="worldPosition"/> can reach a visible surface: both are
+    /// above zero, and the light's sphere of influence is not outside the frustum. Also gives the position relative to the
+    /// camera, which is what the GPU light holds.
+    /// </summary>
+    private static bool Reaches(in CameraView camera, Vector3 worldPosition, float intensity, float range, out Vector3 position)
+    {
+        position = worldPosition - camera.Offset;
+        return !(range <= 0f || intensity <= 0f) && !camera.Culls(position, range);
+    }
+
+    private static void Append(PreparedScene scene, in GpuLight light)
+    {
+        if (scene.LightCount == scene.Lights.Length)
+            Array.Resize(ref scene.Lights, scene.Lights.Length * 2);
+        scene.Lights[scene.LightCount++] = light;
     }
 
     /// <summary>

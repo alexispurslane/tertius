@@ -1,6 +1,6 @@
 ---
 id: ter-nw4p
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-18T18:02:11Z
