@@ -927,8 +927,8 @@ internal sealed partial class EntityTable
     /// in that order, and the component index takes the changed component flags in that order.
     /// </summary>
     /// <remarks>
-    /// With workers, and at least the threshold of rows that gameplay wrote (see the constructor), the workers copy those
-    /// rows, a chunk per work item. A chunk's dirty list holds only the chunk's own slots, so the workers write disjoint
+    /// With workers (see the constructor), and at least <see cref="ParallelCopyThreshold"/> rows that gameplay wrote, the
+    /// workers copy those rows, a chunk per work item. A chunk's dirty list holds only the chunk's own slots, so the workers write disjoint
     /// rows and flags. What the copy on one thread appends to the moved list and the component flag copies waits in each
     /// chunk's book instead, and joins them here in chunk order. So both lists end in the order of the copy on one thread,
     /// whatever order the workers ran in, and the table ends the same bit for bit. The rows that the sync point wrote stay
