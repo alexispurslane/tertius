@@ -325,7 +325,7 @@ The mod API in `Tertius.Core`:
 - Math: `Double3`, `DQuaternion`, `Pose`, `DPose` and `BoundingBox`.
 - Handles: `Entity`, `FrameHandle`, `Topic`, `Topics`, `Broadcast` and `Target`.
 - Events: `Event`, `IEventPayload`, `EventType<T>`, `EventMask` and `PayloadBytes`.
-- Engine payloads: `Tick`, `Spawned`, `Destroy`, `FrameChanged`, `Collision`, `InputEvent` and `InputKind`.
+- Engine payloads: `Tick`, `Spawned`, `Destroy`, `FrameChanged`, `Collision` and `InputEvent`, with its case types `KeyChanged`, `MouseButtonChanged`, `MouseMoved` and `Scrolled`.
 - Render values: `MeshId`, `ModelId` (from the asset pipeline), `MaterialId`, `TextureId`, `TextureSlot` (from content formats) and `RenderFlags`.
 - Physics values: `BodyDesc`, the shape records, `CompoundChild`, `BodyMotion`, `BodyLayer`, `PhysicsIntent` and `IntentFlags`.
 - Frame values: `FrameBounds`, `MotionDriver`, `GravityField`, its case types `UniformGravity` and `PointGravity`, and `KeplerOrbit`.

@@ -18,5 +18,8 @@
     <InternalsVisibleTo Include="Tertius.Testing" />
     <!-- The benchmark of the numeric update drives FrameTree.UpdateNumericFrames directly, without physics. -->
     <InternalsVisibleTo Include="Tertius.Benchmarks" />
+    <!-- The script options of the host read and write vectors with JsonVectors, as the converter of InputEvent does, so that
+         a vector has one form in every script and dump. -->
+    <InternalsVisibleTo Include="Tertius.Host" />
   </ItemGroup>
 </Project>

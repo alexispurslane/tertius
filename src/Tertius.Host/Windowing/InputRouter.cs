@@ -86,11 +86,11 @@ public sealed class InputRouter(bool freePlay, IInputTarget target)
         if (down)
         {
             heldKeys.Add(key);
-            Post(InputKind.KeyDown, (int)key, Vector2.Zero);
+            Post(InputEvent.KeyDown((int)key));
         }
         else if (heldKeys.Remove(key))
         {
-            Post(InputKind.KeyUp, (int)key, Vector2.Zero);
+            Post(InputEvent.KeyUp((int)key));
         }
     }
 
@@ -101,11 +101,11 @@ public sealed class InputRouter(bool freePlay, IInputTarget target)
         if (down)
         {
             heldButtons.Add(button);
-            Post(InputKind.MouseDown, (int)button, Vector2.Zero);
+            Post(InputEvent.MouseDown((int)button));
         }
         else if (heldButtons.Remove(button))
         {
-            Post(InputKind.MouseUp, (int)button, Vector2.Zero);
+            Post(InputEvent.MouseUp((int)button));
         }
     }
 
@@ -115,13 +115,13 @@ public sealed class InputRouter(bool freePlay, IInputTarget target)
         if (flying)
             target.Turn(movement);
         else if (freePlay)
-            Post(InputKind.MouseMove, 0, movement);
+            Post(InputEvent.MouseMove(movement));
     }
 
     public void Scroll(Vector2 amount)
     {
         if (!flying && freePlay)
-            Post(InputKind.Scroll, 0, amount);
+            Post(InputEvent.Scroll(amount));
     }
 
     private void SwitchFlyCamera()
@@ -131,17 +131,16 @@ public sealed class InputRouter(bool freePlay, IInputTarget target)
         if (flying)
         {
             foreach (Key key in heldKeys)
-                Post(InputKind.KeyUp, (int)key, Vector2.Zero);
+                Post(InputEvent.KeyUp((int)key));
             foreach (MouseButton button in heldButtons)
-                Post(InputKind.MouseUp, (int)button, Vector2.Zero);
+                Post(InputEvent.MouseUp((int)button));
             heldKeys.Clear();
             heldButtons.Clear();
         }
         target.FlyChanged(flying);
     }
 
-    private void Post(InputKind kind, int code, Vector2 delta) =>
-        target.Post(new InputEvent { Kind = kind, Code = code, Delta = delta });
+    private void Post(InputEvent e) => target.Post(e);
 
     private static FlyKey? FlyKeyOf(Key key) => key switch
     {
