@@ -35,6 +35,7 @@ public class FrameTreeVisitTests
         public readonly void Visit(in FrameOwnerView view) => seen.Add(view);
     }
 
+#if TERTIUS_CONTRACTS
     /// <summary>A visitor that moves the frame <paramref name="frame"/> under <paramref name="parent"/> when the walk reaches it.</summary>
     private struct Mover(FrameTree frames, FrameHandle frame, FrameHandle parent) : IFrameVisitor
     {
@@ -50,6 +51,7 @@ public class FrameTreeVisitTests
     {
         public readonly void Visit(in FrameOwnerView view) => frames.SetTreeLinearVelocity(view.Frame, X(1));
     }
+#endif
 
     private List<FrameLinks> Links()
     {
@@ -172,6 +174,8 @@ public class FrameTreeVisitTests
         view.Semantic.Should().Be(ground);
     }
 
+#if TERTIUS_CONTRACTS
+    // The walks check these with Contract.Assert, which compiles out of Release builds, so the two tests run only in Debug.
     [Fact]
     public void A_frame_visitor_that_moves_a_frame_during_the_walk_breaks_a_contract()
     {
@@ -195,4 +199,5 @@ public class FrameTreeVisitTests
 
         walk.Should().Throw<ContractException>();
     }
+#endif
 }
