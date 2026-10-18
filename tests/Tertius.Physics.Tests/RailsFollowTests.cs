@@ -658,7 +658,7 @@ public class RailsFollowTests
             Pose = new DPose(place, DQuaternion.Identity),
             LinearVelocity = velocity,
             Body = Ball() with { CollisionMask = CollisionMask.Empty },
-            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         });
 
         Tick(world, 6);
@@ -750,15 +750,15 @@ public class RailsFollowTests
             {
                 Frame = space,
                 Pose = At(1000),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
                 Components = [new Climber()],
             }),
             _ => world.Spawn(new SpawnDesc
             {
                 Frame = space,
                 Pose = At(1000),
-                Body = Ball(),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), owner.Contains("static", StringComparison.Ordinal) ? MotionDriver.Static : MotionDriver.Kepler),
+                Body = Ball() with { Motion = owner.Contains("static", StringComparison.Ordinal) ? BodyMotion.Static : BodyMotion.Kinematic },
+                AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
                 Components = owner.EndsWith("teleported", StringComparison.Ordinal) ? [new Hopper()] : [],
             }),
         };

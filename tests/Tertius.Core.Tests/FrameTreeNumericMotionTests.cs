@@ -77,7 +77,7 @@ public class FrameTreeNumericMotionTests
         // A frame at Earth's origin, turned by 0.9 rad about Z, with Earth's field in its own axes. A fast body in it gets a
         // falling frame, which keeps the field at its origin, in the turned frame's axes, as its step acceleration.
         DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.9);
-        FrameHandle turned = frames.Create(new Entity(2, 1), earth, new DPose(Double3.Zero, turn), FrameBounds.Sphere(1e9f), MotionDriver.Static, Earth);
+        FrameHandle turned = frames.Create(new Entity(2, 1), earth, new DPose(Double3.Zero, turn), FrameBounds.Sphere(1e9f), Earth);
         FrameHandle pod = FrameFor(turned, X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
         frames.TreeParent(pod).Should().Be(turned);
 

@@ -261,7 +261,7 @@ public class DynamicHullRecordTests
     public void TheRecordOfASpinningShipThatEntersATurnedStationHoldsItsAngularAccelerationInTheStationsAxes()
     {
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         (FrameHandle station, _, FrameHandle shipFrame) = ShipThatFliesIntoAStation(world, space, Vector3.Zero,
             shipAngularDamping: 0.1f, shipSpin: new Vector3(0.5f, 0, 0));
 
@@ -287,7 +287,7 @@ public class DynamicHullRecordTests
     public void TheRecordOfASpinningShipThatLeavesATurnedStationHoldsItsAngularAccelerationInTheAxesOfSpace()
     {
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         FrameHandle station = TurnedStation(world, space, Vector3.Zero);
         FrameHandle shipFrame = world.GetOwnedFrame(Ship(world, station, new Double3(150, 0, 0), new Double3(60, 0, 0),
             ShipHull(0, 0.1f), 10, new Vector3(0.5f, 0, 0)));
