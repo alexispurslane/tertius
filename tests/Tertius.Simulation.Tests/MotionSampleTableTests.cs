@@ -115,24 +115,35 @@ public class MotionSampleTableTests
         using var test = new TestWorld();
         const double mu = 4e14;
         test.GiveRootPointGravity(mu);
-        // The parent is away from the root's origin, turned, moving and spinning, so the conversion moves, turns and adds
-        // the parent's motion.
+        // The parent goes round the root on a Kepler orbit and spins about a tilted axis, so it is away from the root's origin,
+        // turned, moving and spinning, and the conversion moves, turns and adds the parent's motion.
+        KeplerOrbit orbit = KeplerOrbit.Circular(7e6, phase: 0.8, spinRate: 0.02) with
+        {
+            AxialTilt = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5),
+            SpinPhaseAtEpoch = 1.1,
+        };
         FrameHandle parent = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
             AsFrame = new FrameSpec(FrameBounds.Sphere(1e5f), MotionDriver.Kepler),
-        }));
+        }.OnKeplerOrbit(test.World, orbit)));
         var sample = new MotionSample(new DPose(new Double3(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
             ChordVelocity: new Double3(1, 2, 3), Velocity: new Double3(1.5, 2.5, 3.5), Acceleration: new Double3(-0.1, 0.2, 0.3),
             AngularVelocity: new Double3(0.01, 0.02, 0.03), AngularAcceleration: new Double3(0.001, -0.002, 0.003),
             ProperAcceleration: new Vector3(0, 9.81f, 0));
         FrameHandle child = SpawnFrame(test, parent, components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(sample)));
+        // After two ticks the parent stands on its rails: it followed the first sample of its KeplerMotion at the second
+        // sync point.
         test.Run(2);
         FrameTree frames = test.World.Frames;
         DPose parentPose = frames.LocalPose(parent);
         Double3 parentVelocity = frames.LinearVelocity(parent);
         Double3 parentSpin = frames.AngularVelocity(parent);
         DQuaternion turn = parentPose.Rotation;
+        parentPose.Position.Length.Should().BeGreaterThan(6e6, "the parent is on its orbit, far from the root's origin");
+        Distance(turn, DQuaternion.Identity).Should().BeGreaterThan(0.1, "the parent is turned");
+        parentVelocity.Length.Should().BeGreaterThan(1e3, "the parent moves on its orbit");
+        parentSpin.Length.Should().BeGreaterThan(1e-3, "the parent spins");
         DPose composed = DPose.Compose(parentPose, sample.Pose);
         // A point that moves with the child's sample, at the sample's place at the end of the step.
         Double3 carried = parentVelocity + Double3.Cross(parentSpin, turn.Rotate(sample.Pose.Position));

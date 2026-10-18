@@ -76,8 +76,10 @@ public class WorldTickBenchmarks
 
 /// <summary>
 /// The cost of one tick of 1,000 frames without bodies on Kepler orbits around one root, with no physics backend and no
-/// gameplay. Most of the work is in the sync point, where each frame takes its place on its orbit, so the cleanup also
-/// prints the mean time of the sync point per tick, in microseconds.
+/// other gameplay. The <see cref="KeplerMotion"/> of each frame solves its orbit in its tick, in the parallel chunks, and
+/// the sync point only puts each frame on the sample that its component wrote a tick before. The cleanup also prints the
+/// mean time of the sync point per tick, in microseconds, so that a run tells the two parts apart. The results before and
+/// after the rails components are in a note on the ticket ter-6r8c.
 /// </summary>
 [MemoryDiagnoser]
 public class KeplerFrameTickBenchmarks
