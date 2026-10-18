@@ -33,7 +33,9 @@ internal readonly record struct WhereFilter(EntityPredicate Predicate);
 /// <remarks>
 /// This is a custom C# 15 union of <see cref="InFilter"/>, <see cref="NearAsker"/>, <see cref="NearEntity"/>,
 /// <see cref="NearPoint"/> and <see cref="WhereFilter"/>. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let
-/// the compiler pattern-match it without boxing. <see cref="Value"/> boxes, so use it only for debugging. The default
+/// the compiler pattern-match it without boxing. <see cref="Value"/> boxes, so use it only for debugging. The
+/// constructors, and so the implicit conversions and the static factories, refuse a case that breaks the invariants that
+/// its record documents, so a filter that holds a case always meets them. The default
 /// value holds no case: it is the empty filter, which passes every entity. The cases share their fields: the frame of
 /// <c>In</c> and of <c>NearPoint</c> is one field, and the radius of the three Near cases is one field. A case reads
 /// only its own fields, so the fields of the cases that a filter does not hold may hold anything and never matter.
@@ -54,11 +56,52 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
     private readonly double radius;
     private readonly EntityPredicate? predicate;
 
-    public QueryFilter(InFilter filter) { kind = KindIn; frame = filter.Frame; }
-    public QueryFilter(NearAsker filter) { kind = KindNearAsker; radius = filter.Radius; }
-    public QueryFilter(NearEntity filter) { kind = KindNearEntity; centerEntity = filter.Other; radius = filter.Radius; }
-    public QueryFilter(NearPoint filter) { kind = KindNearPoint; frame = filter.Frame; point = filter.Point; radius = filter.Radius; }
-    public QueryFilter(WhereFilter filter) { kind = KindWhere; predicate = filter.Predicate; }
+    // Every way to build a filter goes through these five constructors, so they check the invariants that the case
+    // records document. An exception names the parameter of the matching factory, because EntityQuery and FoundEntities
+    // pass their arguments straight to the factories and their callers know those names.
+
+    public QueryFilter(InFilter filter)
+    {
+        if (filter.Frame.IsNull)
+            throw new ArgumentException("In needs a frame, not the null frame.", "frame");
+        kind = KindIn;
+        frame = filter.Frame;
+    }
+
+    public QueryFilter(NearAsker filter)
+    {
+        kind = KindNearAsker;
+        radius = CheckRadius(filter.Radius);
+    }
+
+    public QueryFilter(NearEntity filter)
+    {
+        if (filter.Other.IsNull)
+            throw new ArgumentException("Near needs an entity as its center, not the null handle.", "other");
+        kind = KindNearEntity;
+        centerEntity = filter.Other;
+        radius = CheckRadius(filter.Radius);
+    }
+
+    public QueryFilter(NearPoint filter)
+    {
+        if (filter.Frame.IsNull)
+            throw new ArgumentException("Near needs the frame of its point, not the null frame.", "frame");
+        Double3 center = filter.Point;
+        if (!double.IsFinite(center.X) || !double.IsFinite(center.Y) || !double.IsFinite(center.Z))
+            throw new ArgumentException($"Near needs a finite point, not {center}.", "point");
+        kind = KindNearPoint;
+        frame = filter.Frame;
+        point = center;
+        radius = CheckRadius(filter.Radius);
+    }
+
+    public QueryFilter(WhereFilter filter)
+    {
+        ArgumentNullException.ThrowIfNull(filter.Predicate, "predicate");
+        kind = KindWhere;
+        predicate = filter.Predicate;
+    }
 
     public static implicit operator QueryFilter(InFilter filter) => new(filter);
     public static implicit operator QueryFilter(NearAsker filter) => new(filter);
@@ -109,36 +152,15 @@ internal readonly struct QueryFilter : IEquatable<QueryFilter>
         _ => null,
     };
 
-    public static QueryFilter In(FrameHandle frame)
-    {
-        if (frame.IsNull)
-            throw new ArgumentException("In needs a frame, not the null frame.", nameof(frame));
-        return new QueryFilter(new InFilter(frame));
-    }
+    public static QueryFilter In(FrameHandle frame) => new(new InFilter(frame));
 
-    public static QueryFilter Near(double radius) => new(new NearAsker(CheckRadius(radius)));
+    public static QueryFilter Near(double radius) => new(new NearAsker(radius));
 
-    public static QueryFilter Near(Entity other, double radius)
-    {
-        if (other.IsNull)
-            throw new ArgumentException("Near needs an entity as its center, not the null handle.", nameof(other));
-        return new QueryFilter(new NearEntity(other, CheckRadius(radius)));
-    }
+    public static QueryFilter Near(Entity other, double radius) => new(new NearEntity(other, radius));
 
-    public static QueryFilter Near(FrameHandle frame, Double3 point, double radius)
-    {
-        if (frame.IsNull)
-            throw new ArgumentException("Near needs the frame of its point, not the null frame.", nameof(frame));
-        if (!double.IsFinite(point.X) || !double.IsFinite(point.Y) || !double.IsFinite(point.Z))
-            throw new ArgumentException($"Near needs a finite point, not {point}.", nameof(point));
-        return new QueryFilter(new NearPoint(frame, point, CheckRadius(radius)));
-    }
+    public static QueryFilter Near(FrameHandle frame, Double3 point, double radius) => new(new NearPoint(frame, point, radius));
 
-    public static QueryFilter Where(EntityPredicate predicate)
-    {
-        ArgumentNullException.ThrowIfNull(predicate);
-        return new QueryFilter(new WhereFilter(predicate));
-    }
+    public static QueryFilter Where(EntityPredicate predicate) => new(new WhereFilter(predicate));
 
     /// <summary>
     /// The frame and position of a Near filter's center in the snapshot. False when the center is not in a frame: the
