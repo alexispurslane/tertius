@@ -41,7 +41,8 @@ public readonly record struct SpotRenderLight(
 /// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let the compiler pattern-match
 /// it without boxing. <see cref="Value"/> boxes, so use it only for debugging. A light reads only the fields of its own
 /// case, so the fields of the case that it does not hold may hold anything and never matter. The two cases keep the
-/// fields that they share (position, color, intensity and range) in the same place. The union is as big as one spot light.
+/// fields that they share (position, color, intensity and range) in the same place. It takes 56 bytes, one spot light and
+/// its kind byte, as the old struct did.
 /// Equality needs the same case and the same fields, and counts a NaN as equal to a NaN, as <see cref="Vector3.Equals(Vector3)"/> does.
 /// </remarks>
 [Union]
@@ -132,10 +133,11 @@ public readonly struct RenderLight : IEquatable<RenderLight>
     public static bool operator ==(RenderLight a, RenderLight b) => a.Equals(b);
     public static bool operator !=(RenderLight a, RenderLight b) => !a.Equals(b);
 
+    // A null arm and no discard arm: the compiler checks that every case has an arm, so a new case without one fails the build.
     public override string ToString() => this switch
     {
         PointRenderLight light => $"RenderLight({light})",
         SpotRenderLight light => $"RenderLight({light})",
-        _ => "RenderLight(none)",
+        null => "RenderLight(none)",
     };
 }

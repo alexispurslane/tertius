@@ -326,7 +326,7 @@ The mod API in `Tertius.Core`:
 - Handles: `Entity`, `FrameHandle`, `Topic`, `Topics`, `Broadcast` and `Target`.
 - Events: `Event`, `IEventPayload`, `EventType<T>`, `EventMask` and `PayloadBytes`.
 - Engine payloads: `Tick`, `Spawned`, `Destroy`, `FrameChanged`, `Collision`, `InputEvent` and `InputKind`.
-- Render values: `MeshId`, `ModelId` (from the asset pipeline), `MaterialId`, `TextureId`, `TextureSlot` (from content formats), `RenderFlags` and `LightKind`.
+- Render values: `MeshId`, `ModelId` (from the asset pipeline), `MaterialId`, `TextureId`, `TextureSlot` (from content formats) and `RenderFlags`.
 - Physics values: `BodyDesc`, the shape records, `CompoundChild`, `BodyMotion`, `BodyLayer`, `PhysicsIntent` and `IntentFlags`.
 - Frame values: `FrameBounds`, `MotionDriver`, `GravityField`, its case types `UniformGravity` and `PointGravity`, and `KeplerOrbit`.
 
@@ -334,7 +334,7 @@ The mod API in `Tertius.Simulation`:
 
 - The component surface: `IComponent`, `Self`, `BodyHandle`, `Outbox`, `EventList`, `EventsOf<T>` and `RefPredicate<T>`.
 - Reads of other entities: `Snapshot` and `FrameView`.
-- Spawning: `SpawnDesc`, `FrameSpec`, `RenderData`, `LightData`, `BlueprintId` and `Self.Spawn(BlueprintId, ...)`.
+- Spawning: `SpawnDesc`, `FrameSpec`, `RenderData`, `LightData`, its case types `PointLightData` and `SpotLightData`, `BlueprintId` and `Self.Spawn(BlueprintId, ...)`.
 - Attributes: `ComponentNameAttribute`, `TextureSlotAttribute` and `UnionCaseAttribute` (from content formats), and `ColorAttribute` (from the editor).
 - Other types: `StaleEntityException`.
 - Queries and sensors (from [queries-and-sensors.md](queries-and-sensors.md)): `EntityQuery`, `EventQuery<T>` and their runs, the physics query requests and their answer events, `CollisionEnded`, `Entered`, `Left`, the `Sensor` component and the collision group names.

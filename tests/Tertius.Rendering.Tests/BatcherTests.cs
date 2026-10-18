@@ -230,6 +230,8 @@ public sealed class BatcherTests
         GpuLight point = scene.Lights[0], spot = scene.Lights[1];
         point.PositionRange.Should().Be(new Vector4(0, 1, -6, 10));
         point.RadianceKind.Should().Be(new Vector4(4, 2, 1, 0));
+        // Each case has its own arm in the batcher, so each case's position relative to the camera, and its range, needs its own check.
+        spot.PositionRange.Should().Be(new Vector4(0, 3, -6, 8));
         spot.RadianceKind.W.Should().Be(1f);
         new Vector3(spot.DirectionCosOuter.X, spot.DirectionCosOuter.Y, spot.DirectionCosOuter.Z).Should().Be(new Vector3(0, -1, 0));
         spot.DirectionCosOuter.W.Should().BeApproximately(MathF.Cos(0.5f), 1e-5f);

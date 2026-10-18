@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using AwesomeAssertions;
 
 namespace Tertius.Core.Tests;
@@ -300,5 +301,14 @@ public class RenderLightUnionTests
         union.GetProperties(publicInstance).Select(property => property.PropertyType).Should().OnlyContain(type => type == typeof(bool) || type == typeof(object));
         union.GetConstructors().Select(constructor => constructor.GetParameters().Single().ParameterType)
             .Should().BeEquivalentTo([typeof(PointRenderLight), typeof(SpotRenderLight)], "a light is made from one case and nothing else");
+    }
+
+    [Fact]
+    public void ALightTakesFiftySixBytesTheFieldsOfOneSpotLightAndItsKindByte()
+    {
+        // The cases share the storage of position, color, intensity and range, so the union holds one spot light's 52 bytes
+        // and a kind byte padded to 4, as the struct that it replaced did. Storing each case whole would take 88 bytes.
+        Unsafe.SizeOf<SpotRenderLight>().Should().Be(52);
+        Unsafe.SizeOf<RenderLight>().Should().Be(56);
     }
 }

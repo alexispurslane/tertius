@@ -122,10 +122,11 @@ public readonly struct LightData : IEquatable<LightData>
     public static bool operator ==(LightData a, LightData b) => a.Equals(b);
     public static bool operator !=(LightData a, LightData b) => !a.Equals(b);
 
+    // A null arm and no discard arm: the compiler checks that every case has an arm, so a new case without one fails the build.
     public override string ToString() => this switch
     {
         PointLightData light => $"LightData({light})",
         SpotLightData light => $"LightData({light})",
-        _ => "LightData(none)",
+        null => "LightData(none)",
     };
 }
