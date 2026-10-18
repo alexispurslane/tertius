@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using DestroyEvent = Tertius.Destroy;
 using TickEvent = Tertius.Tick;
@@ -48,7 +49,10 @@ public sealed partial class World
             // It escapes here, on the ticking thread, with the stack of the physics thread where it broke.
             if (physicsError?.SourceException is ContractException)
                 physicsError.Throw();
+            long syncStart = Stopwatch.GetTimestamp();
             Sync(physicsError?.SourceException);
+            SyncTimestampTotal += Stopwatch.GetTimestamp() - syncStart;
+            SyncCount++;
         }
         finally
         {
@@ -58,6 +62,15 @@ public sealed partial class World
         }
         FlushLog();
     }
+
+    /// <summary>
+    /// The time that the sync points of this world took, in <see cref="Stopwatch"/> timestamp units, summed over
+    /// <see cref="SyncCount"/> sync points. The benchmarks read it, because a sync point has no timer of its own.
+    /// </summary>
+    internal long SyncTimestampTotal { get; private set; }
+
+    /// <summary>The number of sync points that <see cref="SyncTimestampTotal"/> sums.</summary>
+    internal long SyncCount { get; private set; }
 
     private double TimeAt(long tick) => options.StartTime + tick * (double)DeltaTime;
 
