@@ -5,7 +5,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// An orbit holds no G·M. Each member that needs one takes the G·M of the parent as <c>parentMu</c>. The frame tree
+/// An orbit holds no G·M. Each member that needs one takes the G·M of the parent as <c>mu</c>. The frame tree
 /// supplies it, from the point gravity of the parent frame, so a Kepler frame and the loose bodies in its parent fall on
 /// the same G·M. The tree checks that every Kepler frame has such a parent when it is asked to.
 /// </summary>
