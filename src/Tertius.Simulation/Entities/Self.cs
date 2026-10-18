@@ -78,7 +78,9 @@ public readonly ref struct Self
     /// tick wins. A frame whose owner writes no sample in a tick has none in the next step. Throws
     /// <see cref="InvalidOperationException"/> if the entity owns no frame, or if the frame has a parent and the entity has a
     /// body that is not kinematic: that body is the frame's hull, and only a kinematic hull follows a sample. A frame without
-    /// a body can write a sample, and so can the owner of a root frame, whose body is the frame's static interior.
+    /// a body can write a sample, and so can the owner of a root frame, whose body is the frame's static interior. Throws
+    /// <see cref="ArgumentException"/> for a sample with a field that is not a finite number or with a zero rotation. Any
+    /// other rotation is made unit length.
     /// </summary>
     public void MoveOnRails(in MotionSample sample) => world.MoveOnRails(Entity, sample);
 

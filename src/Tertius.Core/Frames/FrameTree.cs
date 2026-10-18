@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 
 namespace Tertius;
 
@@ -75,6 +76,19 @@ public sealed partial class FrameTree
     /// sizes it with its own rows, so that every frame has a row in each buffer from its creation on.
     /// </summary>
     internal MotionSampleTable Samples { get; }
+
+    /// <summary>
+    /// The motion sample that <paramref name="frame"/> takes in the physics step that runs beside the running tick: the
+    /// sample that its owner wrote one tick before with <c>Self.MoveOnRails</c>, relative to the frame's parent (see
+    /// <see cref="Parent"/>), in its axes. Between two ticks, it is the sample of the next step. False when the frame has no
+    /// such sample, and for a stale or null frame.
+    /// </summary>
+    /// <remarks>
+    /// A rails component reads it to learn where its frame stands when the step of the component's own sample starts: at
+    /// this sample's place, or, when the frame has none, where it stands now (see <see cref="LocalPose"/>). After a swap of
+    /// components, the last sample of the old component is this one.
+    /// </remarks>
+    public bool TryGetAppliedSample(FrameHandle frame, out MotionSample sample) => Samples.Applied.TryGet(frame, out sample);
 
     /// <summary>How many frames the tree holds, numeric frames included.</summary>
     internal int Count => poses.Count;
