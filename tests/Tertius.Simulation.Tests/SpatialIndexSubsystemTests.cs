@@ -23,9 +23,20 @@ public class SpatialIndexSubsystemTests
         // Frame owners are entity handles that the table never hands out, so that no frame owner is a live entity here.
         private uint nextOwnerSlot = 100_000;
 
-        public Scene()
+        // The workers of every update, or null for updates on this thread only.
+        private readonly ParallelOptions? workers;
+
+        /// <param name="onWorkers">
+        /// If true, every update finds the cells of the moved entities on four workers, however few entities moved.
+        /// </param>
+        public Scene(bool onWorkers = false)
         {
             Spatial = new SpatialIndex(Entities, Frames);
+            if (onWorkers)
+            {
+                Spatial.ParallelThreshold = 1;
+                workers = new ParallelOptions { MaxDegreeOfParallelism = 4 };
+            }
             Root = NewFrame(FrameHandle.Null);
         }
 
@@ -47,7 +58,7 @@ public class SpatialIndexSubsystemTests
         public void Settle()
         {
             Entities.CopyDirtyRows();
-            Spatial.Update();
+            Spatial.Update(workers);
             Spatial.AssertInvariants();
         }
 
@@ -56,6 +67,16 @@ public class SpatialIndexSubsystemTests
             var found = new List<Entity>();
             Spatial.QueryRadius(frame, center, radius, found);
             return found;
+        }
+
+        /// <summary>
+        /// The entities of the cells around a sphere that are within its radius, unsorted: cell by cell, and in each
+        /// cell in the order that the cell lists them, as <see cref="SpatialIndex.CollectNear"/> hands them out.
+        /// </summary>
+        public Entity[] InCellOrder(FrameHandle frame, Double3 center, double radius)
+        {
+            var into = new Entity[4096];
+            return into[..Spatial.CollectNear(frame, center, radius, into)];
         }
 
         private static TransformRow RowAt(FrameHandle frame, Double3 position) =>
@@ -328,15 +349,166 @@ public class SpatialIndexSubsystemTests
         scene.Find(scene.Root, new Double3(1.5, 0, 0), 3).Should().Equal(wanderer, stayer);
     }
 
-    // The model is a plain list of (entity, frame, position). Some moves are small steps, which mostly stay in the cell, and
-    // some are jumps, which leave it; some change the frame; entities also die and new ones take their slots.
-    [Theory]
-    [InlineData(5)]
-    [InlineData(99)]
-    [InlineData(20261010)]
-    public void ARandomSequenceOfMovesSpawnsAndReleasesAgreesWithASearchThroughEveryEntity(int seed)
+    [Fact]
+    public void AnEntityThatLeavesItsOwnCellForAnOccupiedOneLeavesNoTraceInTheCellsFilledAfterIt()
+    {
+        // The cell that its only entity leaves for an occupied cell is gone, and its storage goes back to the grid for a
+        // later cell. That later cell must hold only its own entities.
+        var scene = new Scene();
+        double cell = SpatialGrid.CellSize;
+        Entity leaver = scene.Add(scene.Root, new Double3(1, 0, 0));
+        Entity host = scene.Add(scene.Root, new Double3(10 * cell + 1, 0, 0));
+        scene.Settle();
+
+        scene.Move(leaver, scene.Root, new Double3(10 * cell + 2, 0, 0));
+        scene.Settle();
+        Entity newcomer = scene.Add(scene.Root, new Double3(20 * cell + 1, 0, 0));
+        scene.Settle();
+
+        scene.InCellOrder(scene.Root, new Double3(10 * cell, 0, 0), 10 * cell + 10).Should().BeEquivalentTo([leaver, host, newcomer],
+            "every cell of the frame lists each of its entities once");
+        scene.Find(scene.Root, new Double3(1, 0, 0), 3).Should().BeEmpty();
+        scene.Find(scene.Root, new Double3(10 * cell + 1.5, 0, 0), 3).Should().Equal(leaver, host);
+        scene.Find(scene.Root, new Double3(20 * cell + 1, 0, 0), 3).Should().Equal(newcomer);
+    }
+
+    [Fact]
+    public void TwoEntitiesAloneInTheirCellsThatTradeCellsInOneUpdateAreEachFoundInTheOthersCell()
     {
         var scene = new Scene();
+        Double3 west = new(1, 0, 0), east = new(10 * SpatialGrid.CellSize + 1, 0, 0);
+        Entity first = scene.Add(scene.Root, west);
+        Entity second = scene.Add(scene.Root, east);
+        scene.Settle();
+
+        scene.Move(first, scene.Root, east);
+        scene.Move(second, scene.Root, west);
+        scene.Settle();
+
+        scene.Find(scene.Root, west, 1).Should().Equal(second);
+        scene.Find(scene.Root, east, 1).Should().Equal(first);
+    }
+
+    [Fact]
+    public void AnEntityThatLeavesASharedCellForAnEmptyOneLeavesTheOthersFoundWhereTheyWere()
+    {
+        var scene = new Scene();
+        Entity[] sharing = Enumerable.Range(1, 3).Select(i => scene.Add(scene.Root, new Double3(i, 0, 0))).ToArray();
+        Double3 farAway = new(10 * SpatialGrid.CellSize, 0, 0);
+        scene.Settle();
+
+        scene.Move(sharing[1], scene.Root, farAway);
+        scene.Settle();
+
+        scene.Find(scene.Root, new Double3(2, 0, 0), 5).Should().Equal(sharing[0], sharing[2]);
+        scene.Find(scene.Root, farAway, 1).Should().Equal(sharing[1]);
+    }
+
+    [Fact]
+    public void AnEntityThatLeavesEveryFrameIsInNoGridAnyMore()
+    {
+        // An entity whose front row names no frame is in no grid, like the owner of a root frame.
+        var scene = new Scene();
+        Entity leaver = scene.Add(scene.Root, new Double3(1, 0, 0));
+        Entity stayer = scene.Add(scene.Root, new Double3(2, 0, 0));
+        scene.Settle();
+
+        scene.Move(leaver, FrameHandle.Null, new Double3(1, 0, 0));
+        scene.Settle();
+
+        scene.Find(scene.Root, Double3.Zero, 10).Should().Equal(stayer);
+    }
+
+    // ---- An update on the workers -------------------------------------------------------------------------------------
+
+    // The workers only find the new cell of each moved entity; this thread then changes the cells in the order in which
+    // the entities moved. So the grids must end in the state of the update on this thread alone, down to the order inside
+    // each cell, which CollectNear hands out unsorted. The scene is dense, about four entities to a cell, and a third of
+    // them jump in each round, so that many enter the same cell in the same update, where any other order would show.
+    [Theory]
+    [InlineData(3)]
+    [InlineData(41)]
+    [InlineData(20261018)]
+    public void AnUpdateOnTheWorkersLeavesEveryCellListingTheSameEntitiesInTheSameOrderAsAnUpdateOnOneThread(int seed)
+    {
+        var alone = new Scene();
+        var onWorkers = new Scene(onWorkers: true);
+        Scene[] scenes = [alone, onWorkers];
+        var random = new Random(seed);
+        // Both scenes make the same frames and the same entities in the same order, so the handles are the same in both.
+        FrameHandle[] frames = [alone.Root, alone.NewFrame(alone.Root), alone.NewFrame(alone.Root)];
+        onWorkers.NewFrame(onWorkers.Root).Should().Be(frames[1]);
+        onWorkers.NewFrame(onWorkers.Root).Should().Be(frames[2]);
+        var frameOf = new Dictionary<Entity, FrameHandle>();
+        var live = new List<Entity>();
+        var cube = new Double3(48, 48, 48);
+
+        // A cube of 3 by 3 by 3 cells in each frame.
+        Double3 InCube() => new(random.NextDouble() * 96, random.NextDouble() * 96, random.NextDouble() * 96);
+
+        void Spawn()
+        {
+            FrameHandle frame = frames[random.Next(frames.Length)];
+            Double3 position = InCube();
+            Entity entity = alone.Add(frame, position);
+            onWorkers.Add(frame, position).Should().Be(entity);
+            frameOf[entity] = frame;
+            live.Add(entity);
+        }
+
+        for (int i = 0; i < 300; i++)
+            Spawn();
+        foreach (Scene scene in scenes)
+            scene.Settle();
+
+        for (int round = 0; round < 40; round++)
+        {
+            for (int i = 0; i < 100; i++)
+            {
+                Entity mover = live[random.Next(live.Count)];
+                FrameHandle frame = random.Next(5) == 0 ? frames[random.Next(frames.Length)] : frameOf[mover];
+                Double3 position = random.Next(3) == 0
+                    ? InCube()
+                    : alone.Entities.BackRow(mover).Pose.Position + new Double3(random.NextDouble() - 0.5, random.NextDouble() - 0.5, 0);
+                foreach (Scene scene in scenes)
+                    scene.Move(mover, frame, position);
+                frameOf[mover] = frame;
+            }
+            for (int i = 0; i < 5; i++)
+            {
+                int index = random.Next(live.Count);
+                Entity doomed = live[index];
+                live.RemoveAt(index);
+                frameOf.Remove(doomed);
+                foreach (Scene scene in scenes)
+                    scene.Entities.Release(doomed).Should().BeTrue();
+                Spawn();
+            }
+            foreach (Scene scene in scenes)
+                scene.Settle();
+
+            foreach (FrameHandle frame in frames)
+            {
+                Entity[] expected = alone.InCellOrder(frame, cube, 150);
+                onWorkers.InCellOrder(frame, cube, 150).Should().Equal(expected, $"seed {seed}, round {round}, frame {frame}");
+                expected.Should().HaveCount(live.Count(entity => frameOf[entity] == frame), "the sphere holds every entity of the frame");
+            }
+        }
+    }
+
+    // The model is a plain list of (entity, frame, position). Some moves are small steps, which mostly stay in the cell, and
+    // some are jumps, which leave it; some change the frame; entities also die and new ones take their slots. Each seed
+    // runs once with every update on this thread and once with every update on the workers.
+    [Theory]
+    [InlineData(5, false)]
+    [InlineData(99, false)]
+    [InlineData(20261010, false)]
+    [InlineData(5, true)]
+    [InlineData(99, true)]
+    [InlineData(20261010, true)]
+    public void ARandomSequenceOfMovesSpawnsAndReleasesAgreesWithASearchThroughEveryEntity(int seed, bool onWorkers)
+    {
+        var scene = new Scene(onWorkers);
         var random = new Random(seed);
         FrameHandle[] frames = [scene.Root, scene.NewFrame(scene.Root), scene.NewFrame(scene.Root)];
         var model = new Dictionary<Entity, (FrameHandle Frame, Double3 Position)>();
@@ -389,7 +561,7 @@ public class SpatialIndexSubsystemTests
                     .Order()
                     .ToArray();
 
-                scene.Find(frame, center, radius).Should().Equal(expected, $"seed {seed}, round {round}, query {query}: frame {frame}, center {center}, radius {radius}");
+                scene.Find(frame, center, radius).Should().Equal(expected, $"seed {seed}, on workers {onWorkers}, round {round}, query {query}: frame {frame}, center {center}, radius {radius}");
             }
         }
     }

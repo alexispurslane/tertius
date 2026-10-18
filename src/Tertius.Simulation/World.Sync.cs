@@ -144,7 +144,7 @@ public sealed partial class World
         Profile.Lap(15);
         Frames.Update();
         Profile.Lap(16);
-        spatial.Update();
+        spatial.Update(options.MaxDegreeOfParallelism == 1 ? null : parallelOptions);
         Profile.Lap(17);
 
         // 9. The physics queries of this tick, against Jolt at the end of the step with this sync's destroys and spawns, and
