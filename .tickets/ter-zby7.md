@@ -1,6 +1,6 @@
 ---
 id: ter-zby7
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-10-18T17:25:57Z
