@@ -21,8 +21,10 @@ public enum KeplerAttitude : byte
 /// <para>
 /// The orbit has no G·M of its own. A member that needs the G·M of the parent, in m³/s², takes it as a parameter, called
 /// <c>mu</c>. The World and physics take it from the point gravity of the parent frame (see <see cref="FrameTree.KeplerMu"/>
-/// and <see cref="ParentMu"/>), so a Kepler frame and the loose bodies in its parent fall on the same G·M. The members are
-/// pure functions: the instance members of the orbit, the time and the G·M, and the static members of a state and a G·M.
+/// and <see cref="MuFrom"/>), so a Kepler frame and the loose bodies in its parent fall on the same G·M. The members are
+/// pure functions. The instance members are functions of the orbit, the time and the G·M. The static members need no
+/// orbit elements: <see cref="Chord"/> and <see cref="Acceleration"/> are functions of a state and a G·M,
+/// <see cref="MuFrom"/> reads the G·M from a gravity field, and <see cref="Circular"/> makes an orbit.
 /// </para>
 /// </summary>
 public record struct KeplerOrbit(
@@ -61,7 +63,7 @@ public record struct KeplerOrbit(
     /// the G·M of a point field that can be orbited (see <see cref="GravityField.CanBeOrbited"/>), else 0. Zero leaves
     /// <see cref="StateAt"/> at zero.
     /// </summary>
-    public static double ParentMu(in GravityField parentGravity) =>
+    public static double MuFrom(in GravityField parentGravity) =>
         parentGravity is PointGravity { CanBeOrbited: true } point ? point.Mu : 0;
 
     /// <summary>The mean angular speed around the parent, in radians per second, for a parent with the G·M <paramref name="mu"/>.</summary>
@@ -155,7 +157,7 @@ public record struct KeplerOrbit(
 
     /// <summary>
     /// The pull of a point gravity of <paramref name="mu"/> m³/s² at <paramref name="position"/>, in m/s²: the acceleration
-    /// of a Kepler orbit there, which takes its G·M from that gravity (see <see cref="ParentMu"/>).
+    /// of a Kepler orbit there, which takes its G·M from that gravity (see <see cref="MuFrom"/>).
     /// </summary>
     public static Double3 Acceleration(Double3 position, double mu)
     {

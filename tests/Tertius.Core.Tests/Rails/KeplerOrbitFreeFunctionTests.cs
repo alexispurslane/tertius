@@ -6,7 +6,7 @@ namespace Tertius.Core.Tests;
 
 /// <summary>
 /// The static members of <see cref="KeplerOrbit"/>, which take a state and a G·M instead of an orbit: the chord and the
-/// acceleration of an orbit, and the G·M that an orbit takes from the gravity of its parent (<see cref="KeplerOrbit.ParentMu"/>).
+/// acceleration of an orbit, and the G·M that an orbit takes from the gravity of its parent (<see cref="KeplerOrbit.MuFrom"/>).
 /// </summary>
 public class KeplerOrbitFreeFunctionTests
 {
@@ -54,7 +54,7 @@ public class KeplerOrbitFreeFunctionTests
     [Fact]
     public void AnOrbitTakesItsGMFromAPointFieldThatCanBeOrbited()
     {
-        KeplerOrbit.ParentMu(GravityField.Point(Mu)).Should().Be(Mu);
+        KeplerOrbit.MuFrom(GravityField.Point(Mu)).Should().Be(Mu);
     }
 
     [Theory]
@@ -64,7 +64,7 @@ public class KeplerOrbitFreeFunctionTests
     [InlineData(double.PositiveInfinity)]
     public void AnOrbitTakesNoGMFromAPointFieldThatCannotBeOrbited(double mu)
     {
-        KeplerOrbit.ParentMu(GravityField.Point(mu)).Should().Be(0);
+        KeplerOrbit.MuFrom(GravityField.Point(mu)).Should().Be(0);
     }
 
     [Fact]
@@ -72,13 +72,13 @@ public class KeplerOrbitFreeFunctionTests
     {
         var down = new Vector3(0, -9.81f, 0);
 
-        KeplerOrbit.ParentMu(GravityField.Uniform(down)).Should().Be(0);
-        KeplerOrbit.ParentMu(GravityField.Uniform(down, new BoundingBox(new Vector3(-10), new Vector3(10)))).Should().Be(0);
+        KeplerOrbit.MuFrom(GravityField.Uniform(down)).Should().Be(0);
+        KeplerOrbit.MuFrom(GravityField.Uniform(down, new BoundingBox(new Vector3(-10), new Vector3(10)))).Should().Be(0);
     }
 
     [Fact]
     public void AnOrbitTakesNoGMFromNoGravity()
     {
-        KeplerOrbit.ParentMu(GravityField.None).Should().Be(0);
+        KeplerOrbit.MuFrom(GravityField.None).Should().Be(0);
     }
 }

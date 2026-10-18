@@ -448,14 +448,14 @@ public sealed partial class FrameTree
     /// The G·M that the Kepler motion of <paramref name="frame"/> uses, in m³/s²: the G·M of the point gravity of its parent
     /// frame. The orbit has none of its own (see <see cref="KeplerOrbit"/>), so a Kepler frame and the loose bodies in its
     /// parent fall on the same G·M. Zero for a frame without a parent, or whose parent has no point gravity with a G·M above
-    /// 0 (see <see cref="KeplerOrbit.ParentMu"/>), which leaves <see cref="KeplerOrbit.StateAt"/> at zero. A frame with the
+    /// 0 (see <see cref="KeplerOrbit.MuFrom"/>), which leaves <see cref="KeplerOrbit.StateAt"/> at zero. A frame with the
     /// Kepler driver is never in that state (see <see cref="AssertInvariants"/>). Throws
     /// <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     public double KeplerMu(FrameHandle frame)
     {
         FrameHandle parent = Parent(frame);
-        return parent.IsNull ? 0 : KeplerOrbit.ParentMu(Gravity(parent));
+        return parent.IsNull ? 0 : KeplerOrbit.MuFrom(Gravity(parent));
     }
 
     /// <summary>

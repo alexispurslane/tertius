@@ -44,7 +44,7 @@ The user made the decisions marked (User).
 | A static frame | It needs no component. Gameplay moves its owner. (User) | A static frame moves only when gameplay moves it. |
 | What replaces `MotionDriver` | Nothing. The enum and `BodyDesc.FrameHullMotion` go. The motion of the owner's body says how a frame follows. (User) | A second value beside the body's motion can disagree with it. |
 | A change of motion | A swap of components plus a change of the body's motion. (User) The row "How a body changes its motion after spawn" below says how the body's motion changes. | Today only a frame driver changes a body's motion after spawn. |
-| The rails math | A public library of static methods in the namespace `Tertius.Frames.Rails`, in `src/Tertius.Core/Frames/Rails/`. (User) | Components and engine code call one copy. It is public, because the Demo and the Host cannot see the internals of Core. |
+| The rails math | Public pure functions in the namespace `Tertius.Frames.Rails`, in `src/Tertius.Core/Frames/Rails/`. Every function lives in its struct: an instance method for a function of an orbit or a spin, a static method of `KeplerOrbit` for two-body math that takes no orbit elements (see "The rails library"). (User, 2026-10-18) | Components and engine code call one copy. It is public, because the Demo and the Host cannot see the internals of Core. |
 | The reverse path | `DriveKinematicHulls` and step 6b (`AdvanceDrivenFrames`) go. (User) | The tree no longer moves a frame on rails, so nothing pushes a hull after it. |
 | Which epic comes first | This epic, then spin gravity (`ter-s9m0`). (User) | Spin gravity reads the exact angular velocity and angular acceleration from the sample. |
 | A fast or far body on rails | It lives in a following frame. The frame takes its place and velocity at each sync point, and its acceleration in each step, from the sample. Every kinematic hull gets one by the speeds and distances of free bodies, not only a Kepler hull. `NumericBody.Fixed` and `Orbits` come from the hull's motion. | An anchor needs a home in which it is at rest (rule 3 of "Anchors" in [Numeric frames](numeric-frames.md)). With motion on components, the tree cannot tell a Kepler hull from another kinematic hull. |
@@ -69,7 +69,7 @@ The namespace `Tertius.Frames.Rails` holds the data types `KeplerOrbit`, `Kepler
 | The private `EccentricAnomalyAt`, `FacingParentAt`, `PerifocalToParent` and `Spin` | Private members of `KeplerOrbit` |
 | `NumericFrameRules.OrbitChord` | the static `KeplerOrbit.Chord(Double3 position, Double3 velocity, double mu, double step)` |
 | `NumericFrameRules.OrbitAcceleration` | the static `KeplerOrbit.Acceleration(Double3 position, double mu)` |
-| The body of `FrameTree.KeplerMu` | the static `KeplerOrbit.ParentMu(in GravityField parentGravity)`: the G·M of a point field that `CanBeOrbited`, else 0 |
+| The body of `FrameTree.KeplerMu` | the static `KeplerOrbit.MuFrom(in GravityField parentGravity)`: the G·M of a point field that `CanBeOrbited`, else 0 |
 | `FrameSpin.RotationAt`, `FrameSpin.AngularVelocity` | The same members of `FrameSpin` |
 | `FrameTree.KeplerMotion` | `KeplerOrbit.Sample`. The tree's method calls it in `ter-k8cg` and goes in `ter-6r8c`. |
 
@@ -92,7 +92,7 @@ public sealed class KeplerMotion : IComponent
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
-        double mu = self.Frame.IsNull ? 0 : KeplerOrbit.ParentMu(self.Snapshot.Frames.Gravity(self.Frame));
+        double mu = self.Frame.IsNull ? 0 : KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(self.Frame));
         ...
         double stepEnd = self.TimeAt(self.Tick + 2);
         self.MoveOnRails(Orbit.Sample(mu, stepEnd, self.DeltaTime));
@@ -104,7 +104,7 @@ where
 
 - `Orbit` = the orbit elements and their epoch, relative to the frame's semantic parent, in its axes. They hold no G·M.
 - `self.Frame` = the owner's row frame, which is the frame's semantic parent. It is null only for the owner of a root frame.
-- `KeplerOrbit.ParentMu` = the G·M of the parent's point gravity, or 0.
+- `KeplerOrbit.MuFrom` = the G·M of the parent's point gravity, or 0.
 - `self.TimeAt(tick)` = new: the World's simulation time at the start of a tick, in seconds.
 - `stepEnd` = the end of the step in which this tick's intent acts, in seconds.
 - `self.DeltaTime` = the step length in seconds, a float that widens to the same double that the World uses.
