@@ -10,7 +10,9 @@ namespace Tertius.Simulation;
 /// </summary>
 /// <remarks>
 /// <para>
-/// It checks its own rules, so the World checks none. A parent without a point gravity whose G·M is above 0 has nothing to
+/// It checks its own rules, so the World checks none. A component without a valid orbit, which a blueprint that names no
+/// orbit makes, because the property's setter never runs, has nothing to follow: it writes no sample, so the frame holds
+/// still, and it logs that once. A parent without a point gravity whose G·M is above 0 has nothing to
 /// orbit: the component writes no sample, so the frame holds still, and it logs that once. A hull that is not kinematic
 /// cannot follow a sample: the component writes none and logs that once. Each log line goes to <see cref="World.Log"/>,
 /// never to <see cref="World.Errors"/>, because the game chose the scene. The component reads the parent's G·M in every
@@ -30,6 +32,7 @@ public sealed class KeplerMotion : IComponent
 {
     private readonly KeplerOrbit orbit;
     private bool started;
+    private bool loggedNoOrbit;
     private bool loggedNoGM;
     private bool loggedNotKinematic;
 
@@ -54,6 +57,14 @@ public sealed class KeplerMotion : IComponent
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
+        // A blueprint that names no orbit makes the component without the setter, so it keeps the default orbit.
+        if (!orbit.IsValid)
+        {
+            if (!loggedNoOrbit)
+                self.Log($"KeplerMotion holds {self.OwnedFrame} still: it has no orbit that it can follow (see KeplerOrbit.IsValid).");
+            loggedNoOrbit = true;
+            return;
+        }
         double mu = self.Frame.IsNull ? 0 : KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(self.Frame));
         if (!(mu > 0))
         {

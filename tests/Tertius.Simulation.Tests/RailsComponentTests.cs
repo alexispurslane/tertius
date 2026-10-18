@@ -121,6 +121,42 @@ public class RailsComponentTests
     }
 
     [Fact]
+    public void AKeplerMotionWithoutAnOrbitWritesNoSampleAndLogsOnce()
+    {
+        // A blueprint that names no orbit makes the component without running the property's setter, so it keeps the
+        // default orbit, which is not valid.
+        using var test = new TestWorld();
+        test.GiveRootPointGravity(Mu);
+        var log = new List<string>();
+        test.World.Log += log.Add;
+        FrameHandle moon = SpawnFrame(test, components: new KeplerMotion());
+
+        test.Run(3);
+
+        Applied(test, moon).Should().BeNull();
+        Followed(test, moon).Should().BeNull();
+        log.Where(line => line.Contains(moon.Entity.ToString())).Should().ContainSingle();
+        test.World.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ASpinMotionWithoutASpinHoldsItsFrameAtNoRotation()
+    {
+        // A blueprint that names no spin makes the component without running the property's setter, so it keeps the
+        // default spin: no tilt and a rate of 0, which is a valid spin. So the component has a sample to write, unlike a
+        // KeplerMotion without an orbit.
+        using var test = new TestWorld();
+        var place = new Double3(5, -6, 7);
+        FrameHandle ground = SpawnFrame(test, place, new SpinMotion());
+
+        test.Run(3);
+
+        Applied(test, ground).Should().Be(default(FrameSpin).Sample(place, Vector3.Zero, test.World.TimeAt(4), test.World.DeltaTime));
+        Applied(test, ground)!.Value.Pose.Rotation.Should().Be(DQuaternion.Identity);
+        test.World.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
     public void TheLogsOfARailsComponentNeverReachWorldErrors()
     {
         using var test = new TestWorld();
