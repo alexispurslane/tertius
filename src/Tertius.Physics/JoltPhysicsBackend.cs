@@ -819,7 +819,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// frame from it: ghosts take its chord (see <see cref="MotionOf"/>), hand-offs its instant velocity (see
     /// <see cref="InstantMotionOf"/>). The owner's kind decides it:
     /// <list type="bullet">
-    /// <item>A dynamic hull: Jolt's state after the update (see <see cref="TryHullRecord"/>).</item>
+    /// <item>A dynamic hull: Jolt's state after the update (see <see cref="TryHullRecord"/>). Its instant velocity is relative
+    /// to the instant velocity of a numeric home, as every velocity that a hand-off carries. The record that physics
+    /// releases for the tree differs there (see <see cref="WriteFrames"/>).</item>
     /// <item>A kinematic hull, or no body, with a sample: the sample, in the tree parent. A hull at the origin of its orbit
     /// frame rests there, with the sample's rotation and no velocity (see <see cref="RailsTarget"/>): the orbit frame's own
     /// chord and instant velocity are the sample's, to the jerk of its motion times the square of a step, and physics takes
@@ -894,7 +896,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// the instant velocity at the end of the step, half a step of the hull's acceleration further on; that acceleration in
     /// the update, the change of Jolt's velocity without its float noise and without what the intents set before the
     /// update (see <see cref="ComputeProperAccelerations"/>); Jolt's angular velocity and the change of it in the update;
-    /// and the proper acceleration. False for any other frame.
+    /// and the proper acceleration. A hull that handed off in the step is in its new home: Jolt's velocity is the chord of
+    /// its first step there, so its acceleration is the one that the hand-off made that chord with, in the new home's axes
+    /// (see <see cref="HandedOffVelocities"/>), and the instant velocity is the one that the hand-off carried. False for
+    /// any other frame.
     /// </summary>
     private bool TryHullRecord(FrameHandle frame, out MotionSample record)
     {
