@@ -513,7 +513,7 @@ public sealed partial class World
         {
             ref PhysicsIntent intent = ref entities.WrittenIntent(owner);
             FrameHandle frame = entities.OwnedFrame(owner);
-            // SetMotion refuses a body that is no hull, and only the destroys of step 5 make a frame a root.
+            // SetMotion refuses a body that is no hull, and in the World a frame never becomes a root after its spawn.
             Contract.Assert(!frame.IsNull && Frames.HullMotion(frame) is not null);
             if (Frames.HullMotion(frame) == intent.Motion)
                 continue;

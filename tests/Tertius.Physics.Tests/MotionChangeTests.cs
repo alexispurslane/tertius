@@ -133,8 +133,8 @@ public class MotionChangeTests
     /// <summary>
     /// The engine of the ship pushes it at 1 m/s², which is the proper acceleration of its frame. The ship parks: the hull
     /// holds still where the step of the writing tick left it. The sync point of that tick changes no velocity, so the frame
-    /// stops at the next sync point, where it takes no step record. It keeps its proper acceleration, so the cargo keeps its
-    /// weight.
+    /// keeps its old velocity in the tree until the next sync point, where it takes no step record and its velocity becomes
+    /// zero. It keeps its proper acceleration, so the cargo keeps its weight.
     /// </summary>
     [Fact]
     public void AShipThatParksHoldsStillWhereTheStepLeftItAndItsFrameStopsAtTheNextSyncPoint()
@@ -146,7 +146,7 @@ public class MotionChangeTests
         world.SetMotionNextTick(owner, BodyMotion.Static);
         world.Tick();
         DPose parked = world.Frames.LocalPose(ship);
-        world.Frames.LinearVelocity(ship).X.Should().BeGreaterThan(10, "the frame moves on until the next sync point");
+        world.Frames.LinearVelocity(ship).X.Should().BeGreaterThan(10, "the frame keeps its old velocity in the tree until the next sync point");
         int reported = faults.Outputs.Count;
         Tick(world, 3);
 
@@ -537,9 +537,10 @@ public class MotionChangeTests
     /// A hull that a destroy moves to another home gets a new body there, with the motion that it has now, not the motion of
     /// its spawn description. The hangar that the hull is in destroys itself in the tick in which the hull's owner writes the
     /// change, so that step 5 of the sync point rehomes the hull after step 4 changed the motion in the tree and before
-    /// physics has given the Jolt body the new motion. Or the hangar destroys itself a tick later, when no change is left in
-    /// the intents and only the body that physics creates can carry the motion. Each case reads the new body before the next
-    /// step, which applies the change of motion in the intents.
+    /// physics has given the Jolt body the new motion. Or the hangar destroys itself a tick later, after physics gave the old
+    /// body the new motion. Each case reads the new body before the next step, which would give it the motion in the tree
+    /// (see <c>JoltPhysicsBackend.FollowHullMotions</c>), so at that moment only the body that the rehome creates carries the
+    /// motion.
     /// </summary>
     [Theory]
     [InlineData(true)]
