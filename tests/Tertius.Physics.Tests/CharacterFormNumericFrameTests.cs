@@ -36,7 +36,7 @@ public class CharacterFormNumericFrameTests
         world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(Scenes.EarthMu)));
 
     /// <summary>A hull that its frame's Kepler driver moves: a box of 4 m.</summary>
-    private static readonly BodyDesc Core = new(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f, Restitution: 0);
+    private static readonly BodyDesc Core = new(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0);
 
     /// <summary>
     /// A hull that its frame's Kepler driver moves: <see cref="Core"/>, and a plate of 16 m by 0.5 m by 16 m across the +Y
@@ -46,7 +46,7 @@ public class CharacterFormNumericFrameTests
     private static readonly BodyDesc StationHull = new(new CompoundShapeDesc([
         new CompoundChild(new BoxShapeDesc(new Vector3(2)), new Pose(Vector3.Zero, Quaternion.Identity)),
         new CompoundChild(new BoxShapeDesc(new Vector3(8, 0.25f, 8)), new Pose(new Vector3(0, 20, 0), Quaternion.Identity)),
-    ]), Mass: 1e5f, Restitution: 0);
+    ]), BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
 
     /// <summary>What a test sees of a character at the end of a tick: the kind of its physics home and its form.</summary>
     private static string State(World world, JoltPhysicsBackend backend, Entity person, FrameHandle station, FrameHandle earth)

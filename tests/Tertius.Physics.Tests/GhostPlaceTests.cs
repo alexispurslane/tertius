@@ -543,7 +543,7 @@ public class GhostPlaceTests
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(FarMu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
-            Frame = space, Body = ShipHull, AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Kepler),
+            Frame = space, Body = ShipHull with { Motion = BodyMotion.Kinematic }, AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(Far)));
         FrameHandle station = world.GetOwnedFrame(owner);
         Entity crate = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 40), Body = CrateBody });

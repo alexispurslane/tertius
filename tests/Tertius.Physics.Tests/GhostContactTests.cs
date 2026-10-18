@@ -412,7 +412,8 @@ public class GhostContactTests
         Entity stationOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), parkedByTheGame ? BodyMotion.Dynamic : BodyMotion.Static, Mass: 1000,
+                LinearDamping: 0, AngularDamping: 0),
             AsFrame = new FrameSpec(FrameBounds.Sphere(40), parkedByTheGame ? MotionDriver.Physics : MotionDriver.Static),
             Components = [stationLog],
         });

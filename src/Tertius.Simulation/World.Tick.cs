@@ -313,19 +313,11 @@ public sealed partial class World
     internal ref PhysicsIntent WritableMotionIntent(Entity entity, string call)
     {
         FrameHandle own = entities.OwnedFrame(entity);
-        if (!own.IsNull && entities.Body(entity) != null && HullMotion(own) == BodyMotion.Kinematic)
+        if (!own.IsNull && Frames.HullMotion(own) == BodyMotion.Kinematic)
             throw new InvalidOperationException(
                 $"{entity} owns {own}, whose body is a kinematic hull, so it cannot take {call}: a kinematic hull moves only by Self.MoveOnRails and Teleport.");
         return ref WritableIntent(entity);
     }
-
-    /// <summary>
-    /// The motion of the hull of <paramref name="own"/>, whose owner has a body, or null when the frame has no parent: a root
-    /// frame's owner has only the frame's static interior. In this ticket the frame's driver chooses the hull's motion (see
-    /// <see cref="BodyDesc.FrameHullMotion"/>).
-    /// </summary>
-    private BodyMotion? HullMotion(FrameHandle own) =>
-        Frames.Parent(own).IsNull ? null : BodyDesc.FrameHullMotion(Frames.Driver(own));
 
     /// <summary>
     /// Writes the running entity's motion sample for the next physics step into the written buffer of the sample table,
@@ -337,15 +329,14 @@ public sealed partial class World
     /// <remarks>
     /// When the frame has a parent, the owner's body is the frame's hull, and only a kinematic hull follows a sample. A frame
     /// without a body has no hull, so the sample acts on its transform. A root frame has no parent, so its owner's body is
-    /// only the frame's static interior, not a hull. In this ticket a hull is kinematic when its frame has a driver whose
-    /// hull motion is kinematic (see <see cref="BodyDesc.FrameHullMotion"/>).
+    /// only the frame's static interior, not a hull. The tree keeps the hull's motion (see <see cref="FrameTree.HullMotion"/>).
     /// </remarks>
     internal void MoveOnRails(Entity entity, in MotionSample sample)
     {
         FrameHandle own = entities.OwnedFrame(entity);
         if (own.IsNull)
             throw new InvalidOperationException($"{entity} owns no frame, so it has no frame to move on rails.");
-        if (entities.Body(entity) != null && HullMotion(own) is { } motion && motion != BodyMotion.Kinematic)
+        if (Frames.HullMotion(own) is { } motion && motion != BodyMotion.Kinematic)
             throw new InvalidOperationException(
                 $"{entity} owns {own}, whose hull is {motion}, so the hull cannot follow a motion sample: only a kinematic hull can.");
         Frames.Samples.Write(own, entities.FrontRow(entity).Frame, CheckedSample(sample));

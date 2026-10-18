@@ -77,7 +77,7 @@ public class PhysicsOutputCheckTests
             Moon = World.GetOwnedFrame(World.Spawn(new SpawnDesc
             {
                 Frame = Space,
-                Body = BoxBody(1, 10),
+                Body = BoxBody(1, 10) with { Motion = BodyMotion.Kinematic },
                 AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Kepler),
             }.OnKeplerOrbit(World, KeplerOrbit.Circular(200, phase: 1.0))));
             Entity goneOwner = World.Spawn(new SpawnDesc
@@ -261,13 +261,13 @@ public class PhysicsOutputCheckTests
     [Theory]
     [InlineData(MotionDriver.Static)]
     [InlineData(MotionDriver.Kepler)]
-    public void AHandOffOfTheOwnerOfAFrameThatPhysicsDoesNotDriveThrowsOutOfTheStep(MotionDriver driver)
+    public void AHandOffOfTheOwnerOfAFrameWithoutADynamicHullThrowsOutOfTheStep(MotionDriver driver)
     {
         using var scene = new Scene();
         FrameHandle frame = driver == MotionDriver.Kepler ? scene.Moon : scene.Dock;
 
         scene.ShouldRefuse(output => output.HandOffs.Add(HandOffOf(frame.Entity, scene.Space, scene.Ship)),
-            $"*hand-off of {frame.Entity}*physics does not drive {frame}*");
+            $"*hand-off of {frame.Entity}*hull of {frame}*only a dynamic hull hands off*");
 
         scene.World.Frames.Parent(frame).Should().Be(scene.Space);
     }

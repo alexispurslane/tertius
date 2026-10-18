@@ -30,7 +30,7 @@ public class WorldFacingFrameTests
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), Mass: 1000),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Kinematic, Mass: 1000),
             AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, Facing));
         return (world, backend, planet, owner);
@@ -77,7 +77,7 @@ public class WorldFacingFrameTests
             Entity owner = world.Spawn(new SpawnDesc
             {
                 Frame = planet,
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), Mass: 1000),
+                Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Kinematic, Mass: 1000),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler),
             }.OnKeplerOrbit(world, oval));
 

@@ -206,26 +206,28 @@ public class CollisionGroupTests
             CollisionMask = CollisionMask.Empty.InAny(b).InAny(c),
         };
 
-        desc.Problem(ownsFrame: false).Should().BeNull();
+        desc.Problem(BodyRole.OwnsNoFrame).Should().BeNull();
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ABodyWhoseMaskHasAnAllOfPartIsRefused(bool ownsFrame)
+    [InlineData(BodyRole.OwnsNoFrame)]
+    [InlineData(BodyRole.Hull)]
+    [InlineData(BodyRole.OwnsRootFrame)]
+    public void ABodyWhoseMaskHasAnAllOfPartIsRefused(BodyRole role)
     {
         var desc = new BodyDesc(new BoxShapeDesc(new Vector3(1))) { CollisionMask = CollisionMask.Empty.InAny(CollisionGroup.Solid).InAll(CollisionGroup.Solid) };
 
-        desc.Problem(ownsFrame).Should().Contain("all-of");
+        desc.Problem(role).Should().Contain("all-of");
     }
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ABodyWhoseMaskHasANoneOfPartIsRefused(bool ownsFrame)
+    [InlineData(BodyRole.OwnsNoFrame)]
+    [InlineData(BodyRole.Hull)]
+    [InlineData(BodyRole.OwnsRootFrame)]
+    public void ABodyWhoseMaskHasANoneOfPartIsRefused(BodyRole role)
     {
         var desc = new BodyDesc(new BoxShapeDesc(new Vector3(1))) { CollisionMask = CollisionMask.Empty.InNone(CollisionGroup.Solid) };
 
-        desc.Problem(ownsFrame).Should().Contain("none-of");
+        desc.Problem(role).Should().Contain("none-of");
     }
 }

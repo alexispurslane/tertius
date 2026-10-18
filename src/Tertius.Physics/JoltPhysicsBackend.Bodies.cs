@@ -69,9 +69,10 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Creates the record and the bodies of one BodyCreate. Throws <see cref="ArgumentException"/> for a body that physics
-    /// cannot create (see <see cref="BodyDesc.Problem"/>, <see cref="BodyDesc.FrameHullProblem"/> and
-    /// <see cref="ShapeProblem"/>) before any state changes. If anything fails after that, the record and every body that
-    /// it got are removed before the exception leaves, so a failed creation leaves nothing behind.
+    /// cannot create (see <see cref="BodyDesc.Problem"/> and <see cref="ShapeProblem"/>) before any state changes. A hull
+    /// gets the motion that the frame tree keeps for it (see <see cref="FrameTree.HullMotion"/>), and the interior of the
+    /// owner of a root frame is static. If anything fails after that, the record and every body that it got are removed
+    /// before the exception leaves, so a failed creation leaves nothing behind.
     /// </summary>
     private void CreateRecord(in BodyCreate create)
     {
@@ -83,7 +84,16 @@ public sealed partial class JoltPhysicsBackend
         }
         BodyDesc desc = create.Desc ?? throw new ArgumentException($"The BodyCreate for {entity} has no body description.");
         bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle owned);
-        if (desc.Problem(ownsFrame) is { } problem)
+        // A root frame has no parent, so its owner has no hull, and its body is only the frame's static interior.
+        BodyRole role = !ownsFrame ? BodyRole.OwnsNoFrame : ParentOf(owned).IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
+        BodyMotion motion = role switch
+        {
+            BodyRole.Hull => frames.HullMotion(owned) ?? throw new ArgumentException($"{entity} owns {owned}, whose hull has no motion in the frame tree."),
+            BodyRole.OwnsRootFrame => BodyMotion.Static,
+            _ => desc.Motion,
+        };
+        // The check covers the motion that the hull gets, which can differ from the motion that its description had at spawn.
+        if ((role == BodyRole.Hull ? desc with { Motion = motion } : desc).Problem(role) is { } problem)
             throw new ArgumentException($"{entity} cannot get a body: it {problem}.");
 
         var record = new BodyRecord
@@ -94,24 +104,17 @@ public sealed partial class JoltPhysicsBackend
             CollisionGroups = desc.CollisionGroups,
             CollisionMask = desc.CollisionMask,
         };
+        record.Motion = motion;
         if (ownsFrame)
         {
             record.OwnedFrame = owned;
             record.Driver = frames.Driver(owned);
             record.DriverVersion = frames.DriverVersion(owned);
-            record.Motion = BodyDesc.FrameHullMotion(record.Driver);
-            // A root frame has no parent, so its owner has no hull, and only a hull has to follow the driver.
-            if (!ParentOf(owned).IsNull && desc.FrameHullProblem(record.Driver) is { } hull)
-                throw new ArgumentException($"{entity} owns {owned}, which has the {record.Driver} driver, but its hull {hull}.");
         }
-        else
+        else if (create.Frame.IsNull || !frames.IsAlive(create.Frame))
         {
-            if (create.Frame.IsNull || !frames.IsAlive(create.Frame))
-            {
-                log($"Physics: {entity} was not created because its frame {create.Frame} is not alive.");
-                return;
-            }
-            record.Motion = desc.Motion;
+            log($"Physics: {entity} was not created because its frame {create.Frame} is not alive.");
+            return;
         }
 
         // Build every native shape before any state changes, so that a shape that Jolt cannot build throws cleanly.
@@ -535,14 +538,15 @@ public sealed partial class JoltPhysicsBackend
     }
 
     // ---- Following a frame's driver ----
-    // A hull gets the motion of BodyDesc.FrameHullMotion. The simulation gives a frame only a driver that its hull can
-    // follow (see BodyDesc.FrameHullProblem), and the backend refuses to create a hull that cannot.
+    // A hull gets the motion that the tree keeps for it (see FrameTree.HullMotion). The simulation gives a frame only a
+    // driver that its hull can follow (see BodyDesc.FrameHullProblem), with the hull motion that the driver needs.
 
     /// <summary>
     /// Makes the record of a frame owner follow its frame's driver, after the simulation gave the frame a driver (see
-    /// <see cref="FrameTree.DriverVersion"/>). Sets the record's driver and motion. Changes no body. Returns true when the
-    /// frame got a driver since the record last followed it, also the driver that it had: the hull, if the owner has one,
-    /// then needs <see cref="ApplyHullMotion"/>, which puts it at the frame's pose and velocity in the tree.
+    /// <see cref="FrameTree.DriverVersion"/>). Sets the record's driver, and for a hull, the motion that the tree keeps for
+    /// it. Changes no body. Returns true when the frame got a driver since the record last followed it, also the driver that
+    /// it had: the hull, if the owner has one, then needs <see cref="ApplyHullMotion"/>, which puts it at the frame's pose
+    /// and velocity in the tree.
     /// </summary>
     /// <remarks>
     /// The simulation refuses a driver that the hull cannot follow, so such a driver in the tree comes only from a bug (see
@@ -565,7 +569,8 @@ public sealed partial class JoltPhysicsBackend
         }
         owner.DriverVersion = version;
         owner.Driver = driver;
-        owner.Motion = BodyDesc.FrameHullMotion(driver);
+        // A root frame has no hull, so its owner's record keeps its motion.
+        owner.Motion = frames.HullMotion(owner.OwnedFrame) ?? owner.Motion;
         // A ghost meets what its real body meets, and a static body meets less (see FrameWorld.StandsForStaticBody).
         if (owner.Ghosts is { } ghosts)
             foreach (GhostBody ghost in ghosts)

@@ -95,11 +95,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// that outlives its frame. A frame in FramesDestroyed that the tree still has keeps its system, with a warning,
     /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, a
     /// frame that the simulation reparents on its own, and a frame whose driver the game changes are handled here or at
-    /// the start of the next step, whichever comes first. A hull follows its frame's driver: dynamic for the physics
-    /// driver, kinematic for the Kepler and Spin drivers, static for the static driver. The simulation never gives a frame a driver
-    /// that its hull cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>). Such a driver comes only from a bug: it
-    /// breaks a contract in a Debug build, and a Release build keeps the hull's motion and reports the bug (see
-    /// <see cref="ReportBug"/>).
+    /// the start of the next step, whichever comes first. A hull has the motion that the frame tree keeps for it (see
+    /// <see cref="FrameTree.HullMotion"/>), which the simulation sets with the driver that the hull needs. The simulation
+    /// never gives a frame a driver that its hull cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>). Such a
+    /// driver comes only from a bug: it breaks a contract in a Debug build, and a Release build keeps the hull's motion and
+    /// reports the bug (see <see cref="ReportBug"/>).
     /// </para>
     /// <para>
     /// After the moves and the reconcile, the backend drops each ghost whose place the numeric update of the sync point
@@ -626,8 +626,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// character. Each system counts its members that are characters, and those in the walking form.</item>
     /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
     /// and the owner of a root frame has no hull.</item>
-    /// <item>Every frame owner follows its frame's driver: the record has the frame's driver version and driver, and the
-    /// motion that <see cref="BodyDesc.FrameHullMotion"/> gives for it, and Jolt moves the hull with that motion.</item>
+    /// <item>Every frame owner follows its frame's driver: the record has the frame's driver version and driver. A hull's
+    /// record has the motion that the frame tree keeps for the hull (see <see cref="FrameTree.HullMotion"/>), and Jolt moves
+    /// the hull with that motion.</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame among the semantic
     /// frames, or in the home of a group that keeps a ghost of an anchor, the body's own or the hull of its home's semantic
     /// frame (see <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
@@ -719,7 +720,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             else
                 Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
             Contract.Invariant(owner.DriverVersion == frames.DriverVersion(owner.OwnedFrame) && owner.Driver == frames.Driver(owner.OwnedFrame));
-            Contract.Invariant(owner.Motion == BodyDesc.FrameHullMotion(owner.Driver));
+            // A hull has the motion that the tree keeps for it. A root frame has no hull.
+            if (!parent.IsNull)
+                Contract.Invariant(owner.Motion == frames.HullMotion(owner.OwnedFrame));
             if (owner.HasPrimary)
                 Contract.Invariant(owner.World!.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
         }

@@ -361,7 +361,7 @@ public class NumericFrameAnchorTests
         {
             Frame = station,
             Pose = At(0),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Static),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Kinematic),
             AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Spin),
         }.Spinning(world, new FrameSpin(DQuaternion.Identity, 0.5)));
         Entity ball = world.Spawn(new SpawnDesc
@@ -575,7 +575,7 @@ public class NumericFrameAnchorTests
     {
         using World world = NewWorld(numericFrames: true, threads: 1, out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity hull = Scenes.FastKeplerHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 1, LinearDamping: 0, AngularDamping: 0));
+        Entity hull = Scenes.FastKeplerHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic, Mass: 1, LinearDamping: 0, AngularDamping: 0));
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = Rock });
         Tick(world, 2);
         FrameHandle orbit = world.PhysicsHomeOf(hull);

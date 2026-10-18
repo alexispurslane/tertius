@@ -117,7 +117,7 @@ public class WorldPhysicsTests
         {
             Frame = planet,
             Pose = At(-5000),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), BodyMotion.Static, Mass: 1000),
             AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static),
         });
         FrameHandle station = world.GetOwnedFrame(owner);

@@ -191,7 +191,7 @@ public class PhysicsStepTests
     public void AFailedStepLeavesTheAnchorOfAnOrbitFrameWithTheVelocityThatItHadInIt()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        Entity hull = Scenes.FastKeplerHull(world, Scenes.AsteroidSpace(world), Ball());
+        Entity hull = Scenes.FastKeplerHull(world, Scenes.AsteroidSpace(world), Ball() with { Motion = BodyMotion.Kinematic });
         FrameHandle frame = world.GetOwnedFrame(hull);
         world.Run(5);
         world.Frames.Numeric(world.Frames.TreeParent(frame)).Should().Be(NumericMode.Orbiting);

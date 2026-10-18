@@ -131,7 +131,7 @@ public class HandOffTests
         const double mu = 3.986004418e14;
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(mu)));
         var orbit = KeplerOrbit.Circular(7_000_000, phase: 0.3, spinRate: 0.15);
-        var hull = new BodyDesc(new BoxShapeDesc(new Vector3(4)), InteriorShape: new SphereShapeDesc(1));
+        var hull = new BodyDesc(new BoxShapeDesc(new Vector3(4)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = planet,
@@ -171,7 +171,7 @@ public class HandOffTests
         // Periapsis at t = 0 and apoapsis at half the 31.4 s period. The station turns at 0.389 rad/s at periapsis and
         // at 0.113 rad/s at apoapsis.
         var orbit = new KeplerOrbit(5000, 0.3, 0, 0, 0, 0, 0, DQuaternion.Identity, 0, 0, KeplerAttitude.FacesParent);
-        var hull = new BodyDesc(new BoxShapeDesc(new Vector3(4)), InteriorShape: new SphereShapeDesc(1));
+        var hull = new BodyDesc(new BoxShapeDesc(new Vector3(4)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = planet,
@@ -225,7 +225,7 @@ public class HandOffTests
             FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
             {
                 Frame = planet,
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(4)), InteriorShape: new SphereShapeDesc(1)),
+                Body = new BodyDesc(new BoxShapeDesc(new Vector3(4)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1)),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(25), MotionDriver.Kepler),
             }.OnKeplerOrbit(world, orbit)));
             BodyDesc ballBody = BallBody(0.2f);

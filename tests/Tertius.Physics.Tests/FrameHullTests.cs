@@ -52,7 +52,7 @@ public class FrameHullTests
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10))),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(10)), BodyMotion.Kinematic),
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, orbit));
         FrameHandle station = world.GetOwnedFrame(owner);

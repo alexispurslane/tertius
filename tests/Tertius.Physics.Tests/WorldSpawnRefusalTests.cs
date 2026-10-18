@@ -137,6 +137,95 @@ public class WorldSpawnRefusalTests
     }
 
     /// <summary>
+    /// A frame 100 m along +X in <paramref name="space"/>, whose owner has the hull <paramref name="hull"/>. Until the frame
+    /// driver goes (ter-ru5u), the frame names the driver that gives its hull the motion of its description.
+    /// </summary>
+    private static Action SpawnHull(World world, FrameHandle space, BodyDesc hull) => () => world.Spawn(new SpawnDesc
+    {
+        Frame = space,
+        Pose = At(100),
+        Body = hull,
+        AsFrame = new FrameSpec(FrameBounds.Sphere(10), hull.Motion switch
+        {
+            BodyMotion.Dynamic => MotionDriver.Physics,
+            BodyMotion.Kinematic => MotionDriver.Kepler,
+            _ => MotionDriver.Static,
+        }),
+    });
+
+    /// <summary>A hull with a mesh, which Jolt never moves, by the names that the theory uses.</summary>
+    private static ShapeDesc MeshOf(string shape) => shape == "a mesh" ? Triangle : new CompoundShapeDesc([new CompoundChild(Triangle, Pose.Identity)]);
+
+    /// <summary>A hull whose shape is or holds a mesh can only be static, because Jolt never moves a mesh.</summary>
+    [Theory]
+    [InlineData("a mesh", BodyMotion.Kinematic)]
+    [InlineData("a mesh", BodyMotion.Dynamic)]
+    [InlineData("a mesh in a compound", BodyMotion.Kinematic)]
+    [InlineData("a mesh in a compound", BodyMotion.Dynamic)]
+    public void SpawnRefusesAMeshHullWhoseBodyIsNotStatic(string shape, BodyMotion motion)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        int live = world.Stats.LiveEntities;
+
+        Action spawn = SpawnHull(world, space, new BodyDesc(MeshOf(shape), motion, Mass: 1000));
+
+        spawn.Should().Throw<ArgumentException>().WithMessage($"*{motion.ToString().ToLowerInvariant()}*mesh*");
+        world.Stats.LiveEntities.Should().Be(live, "nothing changed");
+        world.Stats.Frames.Should().Be(1, "only the space exists");
+    }
+
+    /// <summary>
+    /// The reviewer's probe S8. A dynamic hull needs a mass, or physics could not move it, and the frame would never get a
+    /// state from physics. So every frame with a dynamic hull moves with its hull.
+    /// </summary>
+    [Fact]
+    public void SpawnRefusesADynamicHullWithoutMass()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        int live = world.Stats.LiveEntities;
+
+        Action spawn = SpawnHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Dynamic, Mass: 0));
+
+        spawn.Should().Throw<ArgumentException>().WithMessage("*dynamic*mass*");
+        world.Stats.LiveEntities.Should().Be(live, "nothing changed");
+        world.Stats.Frames.Should().Be(1, "only the space exists");
+    }
+
+    /// <summary>Only a dynamic hull moves by its mass, so a static or a kinematic hull needs none.</summary>
+    [Theory]
+    [InlineData(BodyMotion.Static)]
+    [InlineData(BodyMotion.Kinematic)]
+    public void SpawnAcceptsAHullWithoutMassThatIsNotDynamic(BodyMotion motion)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+
+        SpawnHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(2)), motion, Mass: 0))();
+        world.Tick();
+
+        world.Stats.Frames.Should().Be(2);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>A hull whose shape is or holds a mesh can be static.</summary>
+    [Theory]
+    [InlineData("a mesh")]
+    [InlineData("a mesh in a compound")]
+    public void SpawnAcceptsAStaticMeshHull(string shape)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+
+        SpawnHull(world, space, new BodyDesc(MeshOf(shape), BodyMotion.Static))();
+        world.Tick();
+
+        world.Stats.Frames.Should().Be(2);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// A pose or a velocity that is not finite, or a rotation that is not a number or has no length, turns the body into NaN
     /// in the first physics step. Spawn refuses it, for an entity with a body and for one without, and nothing changes.
     /// </summary>

@@ -65,7 +65,7 @@ public class WorldWakeTests
         {
             Frame = ground,
             Pose = At(0, 1),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 1000),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static, Mass: 1000),
             AsFrame = new FrameSpec(FrameBounds.Sphere(3), MotionDriver.Static),
         });
         FrameHandle platform = world.GetOwnedFrame(platformOwner);

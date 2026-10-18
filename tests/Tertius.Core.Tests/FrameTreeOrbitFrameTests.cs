@@ -49,6 +49,7 @@ public class FrameTreeOrbitFrameTests
     {
         FrameHandle space = parent.IsNull ? earth : parent;
         FrameHandle frame = frames.Create(new Entity(id, 1), space, DPose.Identity, FrameBounds.Sphere(40), driver);
+        frames.SetHullMotion(frame, BodyDesc.FrameHullMotion(driver));
         double mu = KeplerOrbit.MuFrom(frames.Gravity(space));
         (Double3 place, Double3 velocity) = orbit.StateAt(Start, mu);
         frames.SetLocalPose(frame, new DPose(place, orbit.RotationAt(Start, mu)));
@@ -292,6 +293,7 @@ public class FrameTreeOrbitFrameTests
     {
         FrameHandle station = Station(10, Low);
         FrameHandle pod = frames.Create(new Entity(11, 1), earth, DPose.Identity, FrameBounds.Sphere(1), MotionDriver.Physics);
+        frames.SetHullMotion(pod, BodyMotion.Dynamic);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
         frames.SetLocalPose(pod, new DPose(place + new Double3(5, 0, 0), DQuaternion.Identity));
         frames.TreeLinearVelocity(pod) = velocity + new Double3(0, 1, 0);
@@ -451,18 +453,45 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void A_frame_that_leaves_its_orbit_frame_for_another_driver_turns_that_frame_into_a_falling_frame()
+    public void A_hull_motion_that_is_not_kinematic_leaves_the_orbit_frame_falling()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
         Double3 velocity = frames.LinearVelocity(orbit);
 
-        frames.SetDriver(station, MotionDriver.Physics);
+        frames.SetHullMotion(station, BodyMotion.Dynamic);
 
-        frames.Numeric(orbit).Should().Be(NumericMode.Falling, "a frame that physics drives may hang in a falling frame");
+        frames.Numeric(orbit).Should().Be(NumericMode.Falling, "a frame with a dynamic hull may hang in a falling frame");
+        frames.InOrbitFrame(station).Should().BeFalse();
         frames.LinearVelocity(orbit).Should().Be(velocity, "it falls on from where it was");
         frames.TreeParent(station).Should().Be(orbit);
         frames.AssertInvariants();
+    }
+
+    [Fact]
+    public void A_kinematic_hull_motion_keeps_the_frame_in_its_orbit_frame()
+    {
+        FrameHandle station = Station(10, Low);
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+
+        frames.SetHullMotion(station, BodyMotion.Kinematic);
+
+        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.InOrbitFrame(station).Should().BeTrue();
+        frames.AssertInvariants();
+    }
+
+    [Fact]
+    public void A_frame_away_from_the_origin_of_its_orbit_frame_breaks_an_invariant()
+    {
+        FrameHandle station = Station(10, Low);
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+        frames.InOrbitFrame(station).Should().BeTrue();
+
+        frames.SetTreeLocalPose(station, new DPose(new Double3(1, 0, 0), frames.TreeLocalPose(station).Rotation));
+
+        frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();
+        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
     }
 
     [Fact]

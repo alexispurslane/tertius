@@ -523,7 +523,7 @@ public partial class NumericFrameStickOutGhostTests
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            Body = ShipHull,
+            Body = ShipHull with { Motion = BodyMotion.Kinematic },
             AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(7_000_000)));
         FrameHandle station = world.GetOwnedFrame(owner);
@@ -703,7 +703,7 @@ public partial class NumericFrameStickOutGhostTests
         {
             Frame = world.GetOwnedFrame(station),
             Pose = At(0, 39),
-            Body = new BodyDesc(new SphereShapeDesc(5f), BodyMotion.Static),
+            Body = new BodyDesc(new SphereShapeDesc(5f), BodyMotion.Kinematic),
             AsFrame = new FrameSpec(FrameBounds.Sphere(6), MotionDriver.Spin),
         }.Spinning(world, new FrameSpin(DQuaternion.Identity, 0.1)));
         var rockLog = new CollisionLog();

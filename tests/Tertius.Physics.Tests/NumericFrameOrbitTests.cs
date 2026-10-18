@@ -41,13 +41,13 @@ public partial class NumericFrameOrbitTests
 
     /// <summary>
     /// The station's hull: a core, a box of 4 m at the frame's origin, and a plate of 16 m by 0.5 m by 16 m outside the
-    /// bubble, across the +Y axis, whose face toward the core is 19.75 m from it. Its frame's Kepler driver moves it, so
-    /// physics keeps it kinematic.
+    /// bubble, across the +Y axis, whose face toward the core is 19.75 m from it. It is kinematic, so the samples of its
+    /// frame's <see cref="KeplerMotion"/> move it.
     /// </summary>
     private static readonly BodyDesc StationHull = new(new CompoundShapeDesc([
         new CompoundChild(new BoxShapeDesc(new Vector3(2)), new Pose(Vector3.Zero, Quaternion.Identity)),
         new CompoundChild(new BoxShapeDesc(new Vector3(8, 0.25f, 8)), new Pose(new Vector3(0, 20, 0), Quaternion.Identity)),
-    ]), Mass: 1e5f, Restitution: 0);
+    ]), BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
 
     /// <summary>A crate, a box of 50 cm and 2 kg that nothing slows down and that does not bounce.</summary>
     private static readonly BodyDesc Crate = new(new BoxShapeDesc(new Vector3(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
@@ -235,7 +235,7 @@ public partial class NumericFrameOrbitTests
         KeplerOrbit far = KeplerOrbit.Circular(3.84e8, phase: 0.4);
         Entity hull = world.Spawn(new SpawnDesc
         {
-            Frame = earth, Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f), AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
+            Frame = earth, Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic, Mass: 1e4f), AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, far));
         (Double3 place, Double3 velocity) = far.StateAt(world.Time, Scenes.EarthMu);
         Entity crate = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Crate });
@@ -374,7 +374,7 @@ public partial class NumericFrameOrbitTests
         Entity hull = world.Spawn(new SpawnDesc
         {
             Frame = space,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f, Restitution: 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0),
             AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(FarOrbitRadius)));
         Entity rock = world.Spawn(new SpawnDesc

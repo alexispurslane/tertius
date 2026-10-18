@@ -319,12 +319,12 @@ public class PhysicsHandOffTests
         tick.Should().Throw<ContractException>();
     }
 
-    // Physics moves a frame only through the hull of a frame with the physics driver. The hull of a static frame is static
-    // and the hull of a Kepler frame is kinematic, and physics hands neither of them off.
+    // Only a dynamic hull hands off. The hull of a static frame is static and the hull of a Kepler frame is kinematic, and
+    // physics hands neither of them off.
     [Theory]
     [InlineData(MotionDriver.Static)]
     [InlineData(MotionDriver.Kepler)]
-    public void AHandOffOfTheOwnerOfAFrameThatPhysicsDoesNotDriveBreaksAContract(MotionDriver driver)
+    public void AHandOffOfTheOwnerOfAFrameWithoutADynamicHullBreaksAContract(MotionDriver driver)
     {
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         Entity owner = SpawnFrameWithHull(test, driver, out FrameHandle frame);
@@ -333,7 +333,7 @@ public class PhysicsHandOffTests
 
         Action tick = () => test.World.Tick();
 
-        tick.Should().Throw<ContractException>().WithMessage($"*hand-off of {owner}*physics does not drive {frame}*");
+        tick.Should().Throw<ContractException>().WithMessage($"*hand-off of {owner}*hull of {frame}*only a dynamic hull hands off*");
     }
 #else
     [Fact]
@@ -466,7 +466,7 @@ public class PhysicsHandOffTests
     [Theory]
     [InlineData(MotionDriver.Static)]
     [InlineData(MotionDriver.Kepler)]
-    public void AHandOffOfTheOwnerOfAFrameThatPhysicsDoesNotDriveIsReportedOnceAndTheFrameStaysUnderItsParent(MotionDriver driver)
+    public void AHandOffOfTheOwnerOfAFrameWithoutADynamicHullIsReportedOnceAndTheFrameStaysUnderItsParent(MotionDriver driver)
     {
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         Entity owner = SpawnFrameWithHull(test, driver, out FrameHandle frame);
@@ -475,7 +475,7 @@ public class PhysicsHandOffTests
 
         test.Run(1);
 
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {owner}").And.Contain($"physics does not drive {frame}");
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain($"hand-off of {owner}").And.Contain($"hull of {frame}").And.Contain("only a dynamic hull hands off");
         test.World.Frames.Parent(frame).Should().Be(test.Root);
         test.World.GetFrame(owner).Should().Be(test.Root);
         test.World.AssertInvariants();

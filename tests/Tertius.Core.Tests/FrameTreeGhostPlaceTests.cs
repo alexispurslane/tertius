@@ -70,9 +70,13 @@ public class FrameTreeGhostPlaceTests
     /// leaves out.
     /// </summary>
     private FrameHandle Station(uint owner, Double3 position, MotionDriver driver = MotionDriver.Static, float bubble = 40,
-        DQuaternion rotation = default) =>
-        frames.Create(new Entity(owner, 1), ground, new DPose(position, rotation == default ? DQuaternion.Identity : rotation),
+        DQuaternion rotation = default)
+    {
+        FrameHandle station = frames.Create(new Entity(owner, 1), ground, new DPose(position, rotation == default ? DQuaternion.Identity : rotation),
             FrameBounds.Sphere(bubble), driver);
+        frames.SetHullMotion(station, BodyDesc.FrameHullMotion(driver));
+        return station;
+    }
 
     /// <summary>A body of radius 1 m of the frame <paramref name="frame"/>, at <paramref name="position"/> in its own system.</summary>
     private static NumericBody BodyOf(FrameHandle frame, uint id, Double3 position, Double3 velocity = default) => new()
@@ -717,6 +721,7 @@ public class FrameTreeGhostPlaceTests
         KeplerOrbit path = KeplerOrbit.Circular(Far);
         (Double3 place, Double3 velocity) = path.StateAt(start, mu);
         FrameHandle station = frames.Create(new Entity(2, 1), space, new DPose(place, path.RotationAt(start, mu)), FrameBounds.Sphere(40), MotionDriver.Kepler);
+        frames.SetHullMotion(station, BodyMotion.Kinematic);
         frames.TreeLinearVelocity(station) = velocity;
         FrameHandle orbit = Update(0.1, KeplerHull(station))[0].Home;
         frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
@@ -864,6 +869,7 @@ public class FrameTreeGhostPlaceTests
         var changes = new PhysicsChanges();
         FrameHandle root = tree.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
         FrameHandle ship = tree.Create(new Entity(20, 1), root, new DPose(X(1_000), DQuaternion.Identity), FrameBounds.Sphere(200), MotionDriver.Physics);
+        tree.SetHullMotion(ship, BodyMotion.Dynamic);
         tree.TreeLinearVelocity(ship) = X(60);
         FrameHandle station = tree.Create(new Entity(2, 1), root, new DPose(X(-1_000), DQuaternion.Identity), FrameBounds.Sphere(40), MotionDriver.Static);
         NumericBody Free(uint id, Double3 position, Double3 velocity, FrameHandle frame) => new()

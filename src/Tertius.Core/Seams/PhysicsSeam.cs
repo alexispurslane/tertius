@@ -276,15 +276,19 @@ public sealed record BodyDesc(
     public bool IsSensor { get; init; }
 
     /// <summary>
-    /// Why no physics backend can create a body from this description, or null when one can. The message completes a
-    /// sentence that names the body. <paramref name="ownsFrame"/> is true for the owner of a frame. Its body is the frame's
-    /// static interior, and when the frame has a parent, also a hull in the parent frame. The hull's motion comes from the
-    /// frame's driver (see <see cref="FrameHullProblem"/>), so the description's motion and mass do not matter here. Any
-    /// other body has the motion of the description. A backend can also refuse a shape that only it can tell is broken
-    /// (see <see cref="IPhysicsBackend.ShapeProblem"/>).
+    /// Why no physics backend can create a body from this description in the role <paramref name="role"/>, or null when
+    /// one can. The message completes a sentence that names the body. The body of a frame owner is the frame's static
+    /// interior, so it cannot be a character or a sensor. A hull, the body of the owner of a frame with a parent, is also a
+    /// body in the parent frame with the motion of the description, so it obeys the rules of any body with that motion: a
+    /// shape that is or holds a mesh only when it is static, and a mass above zero when it is dynamic. The owner of a root
+    /// frame has no hull, so its motion and mass are not checked. A backend can also refuse a shape that only it can tell
+    /// is broken (see <see cref="IPhysicsBackend.ShapeProblem"/>).
     /// </summary>
-    public string? Problem(bool ownsFrame)
+    /// <exception cref="ArgumentOutOfRangeException">A role that <see cref="BodyRole"/> does not define.</exception>
+    public string? Problem(BodyRole role)
     {
+        if (!Enum.IsDefined(role))
+            throw new ArgumentOutOfRangeException(nameof(role), role, "BodyRole does not define this role.");
         if (Shape is null)
             return "has no shape";
         if (!Enum.IsDefined(Motion))
@@ -301,18 +305,24 @@ public sealed record BodyDesc(
         if ((NotFinite("friction", Friction) ?? NotFinite("restitution", Restitution) ?? NotFinite("linear damping", LinearDamping) ??
              NotFinite("angular damping", AngularDamping)) is { } material)
             return material;
-        if (ownsFrame)
+        if (role == BodyRole.OwnsNoFrame)
+        {
+            if (Motion == BodyMotion.Character && IsSensor)
+                return "is a character, so it cannot be a sensor";
+            if (Motion == BodyMotion.Character && Shape is not CapsuleShapeDesc)
+                return $"is a character, so its shape must be a CapsuleShapeDesc, not a {Shape.GetType().Name}";
+        }
+        else
         {
             if (Motion == BodyMotion.Character)
                 return "owns a frame, so it cannot be a character";
             if (IsSensor)
                 return "owns a frame, so it cannot be a sensor";
-            return InteriorShape?.Problem() is { } interior ? $"has an interior shape that {interior}" : null;
+            if (InteriorShape?.Problem() is { } interior)
+                return $"has an interior shape that {interior}";
+            if (role == BodyRole.OwnsRootFrame)
+                return null;
         }
-        if (Motion == BodyMotion.Character && IsSensor)
-            return "is a character, so it cannot be a sensor";
-        if (Motion == BodyMotion.Character && Shape is not CapsuleShapeDesc)
-            return $"is a character, so its shape must be a CapsuleShapeDesc, not a {Shape.GetType().Name}";
         if (Motion != BodyMotion.Static && Shape.ContainsMesh())
             return $"is {Motion.ToString().ToLowerInvariant()}, and its shape is or holds a mesh, which only a static body or a frame interior can have";
         if (Motion == BodyMotion.Dynamic && !(Mass > 0))
@@ -323,9 +333,10 @@ public sealed record BodyDesc(
     private static string? NotFinite(string name, float value) => float.IsFinite(value) ? null : $"has the {name} {value}, which must be finite";
 
     /// <summary>
-    /// The motion that the hull of a frame with <paramref name="driver"/> has: dynamic for the physics driver, kinematic for
-    /// the Kepler and Spin drivers, which move it on rails, and static for the static driver. Only a frame with a parent
-    /// has a hull. The description's own <see cref="Motion"/> does not count for a hull.
+    /// The motion that the hull of a frame with <paramref name="driver"/> needs: dynamic for the physics driver, kinematic
+    /// for the Kepler and Spin drivers, which move it on rails, and static for the static driver. Only a frame with a parent
+    /// has a hull. A hull has the motion of its description, and until the driver goes (ter-ru5u), a spawn refuses a hull
+    /// whose description does not state the motion of its frame's driver.
     /// </summary>
     public static BodyMotion FrameHullMotion(MotionDriver driver) => driver switch
     {
@@ -346,6 +357,22 @@ public sealed record BodyDesc(
         MotionDriver.Physics when !(Mass > 0) => $"has a mass of {Mass}, so it cannot be dynamic for the Physics driver",
         _ => null,
     };
+}
+
+/// <summary>What a body is to its entity, which decides the rules that its description obeys (see <see cref="BodyDesc.Problem"/>).</summary>
+public enum BodyRole
+{
+    /// <summary>The body of an entity that owns no frame. It is a body in its entity's frame, with the motion of its description.</summary>
+    OwnsNoFrame,
+
+    /// <summary>
+    /// The body of the owner of a frame with a parent: the frame's hull, a body in the parent frame with the motion of its
+    /// description, and the frame's static interior.
+    /// </summary>
+    Hull,
+
+    /// <summary>The body of the owner of a root frame, which has no parent and so no hull: only the frame's static interior.</summary>
+    OwnsRootFrame,
 }
 
 [Flags]

@@ -304,6 +304,9 @@ public sealed partial class World : IDisposable
     /// position plus the home's offset is the pose's position, within rounding.</item>
     /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state. Every live
     /// frame's topic resolves.</item>
+    /// <item>A frame without a parent, or whose owner has no body, has no hull motion (see <see cref="FrameTree.HullMotion"/>).
+    /// Every other frame has a hull motion that its owner's body can take: not a character, static for a body whose shape is
+    /// or holds a mesh, and dynamic only with a mass above zero (see <see cref="BodyDesc.Problem"/>).</item>
     /// <item>Only a character can be standing.</item>
     /// <item>Every intent that the next physics step applies names its entity's frame (see
     /// <see cref="PhysicsIntent.Frame"/>).</item>
@@ -346,6 +349,11 @@ public sealed partial class World : IDisposable
                 Contract.Invariant(row.Frame == mirror.Frame && row.PhysicsHome == mirror.PhysicsHome && Poses.BitEquals(row.Pose, mirror.Pose)
                     && Poses.BitEquals(row.HomePose, mirror.HomePose));
                 Contract.Invariant(row.LinearVelocity.Equals(mirror.LinearVelocity) && row.AngularVelocity.Equals(mirror.AngularVelocity));
+                BodyMotion? hullMotion = Frames.HullMotion(own);
+                if (Frames.Parent(own).IsNull || entities.Body(entity) is not { } hull)
+                    Contract.Invariant(hullMotion is null);
+                else
+                    Contract.Invariant(hullMotion is { } motion && (hull with { Motion = motion }).Problem(BodyRole.Hull) is null);
             }
             if (characterStanding[entity])
                 Contract.Invariant(entities.Body(entity) is { Motion: BodyMotion.Character });

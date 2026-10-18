@@ -135,7 +135,7 @@ public class PhysicsContactTests
         {
             Frame = test.Root,
             Pose = shipPose,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), InteriorShape: deck),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), BodyMotion.Static, InteriorShape: deck),
             AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
             Components = [ownerLog],
         });

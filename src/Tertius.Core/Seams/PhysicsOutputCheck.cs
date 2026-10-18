@@ -56,11 +56,11 @@ public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Ind
 /// <item>Physics follows the frame tree. So a hand-off leaves the frame that its entity is in as the step began (for
 /// the owner of a frame, the frame's parent in the tree), and it enters another frame. The owner of a root frame is in
 /// no frame, so it never hands off. Each entity hands off at most once per step.</item>
-/// <item>Physics moves a frame only through the hull of a frame with the physics driver, which is a dynamic body in the
-/// system of the frame's parent. The simulation makes that a fact: it refuses the physics driver for a frame whose
-/// owner's body cannot be dynamic, at spawn and when the driver changes (see <see cref="BodyDesc.FrameHullProblem"/>). So
-/// the driver alone tells whether the hull can move. The hull of a frame with another driver is static or kinematic, and
-/// physics never hands it off. So the owner of a frame hands off only when its frame has the physics driver.</item>
+/// <item>Only a dynamic hull hands off: the body of the owner of a frame with a parent, whose motion the tree keeps (see
+/// <see cref="FrameTree.HullMotion"/>), in the system of the frame's parent. The simulation makes the motion a fact: it
+/// refuses a dynamic hull that cannot move, without mass or with a mesh (see <see cref="BodyDesc.Problem"/>). A static or
+/// a kinematic hull moves only as its frame's step record says, and physics never hands it off. So the owner of a frame
+/// hands off only when its frame has a dynamic hull.</item>
 /// <item>A frame's step record names a live frame with a parent whose owner has a body: the hull, which physics moves. That
 /// is a dynamic hull, a kinematic hull with a sample, or a static hull or a kinematic hull without a sample that
 /// teleported in the step. A root frame has no parent, so its owner has no hull, and physics never releases its
@@ -233,7 +233,8 @@ public sealed class PhysicsOutputCheck
         bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle own);
         FrameHandle current = ownsFrame ? frames.TreeParent(own) : facts.FrameOf(entity);
         return current.IsNull ? $"{entity} is in no frame, so it leaves none" :
-            ownsFrame && frames.Driver(own) != MotionDriver.Physics ? $"physics does not drive {own}, the frame that {entity} owns" :
+            ownsFrame && frames.HullMotion(own) is var motion && motion != BodyMotion.Dynamic ?
+                $"the hull of {own}, the frame that {entity} owns, has the motion {motion?.ToString() ?? "none"}, and only a dynamic hull hands off" :
             handOff.From != current ? $"{entity} is in {current}, not in {handOff.From}" :
             handOff.To == current ? $"it moves {entity} into {current}, which it is in already" :
             null;

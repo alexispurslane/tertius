@@ -137,7 +137,7 @@ public sealed partial class FrameTree
     /// </summary>
     private FrameHandle CreateOrbitFrame(FrameHandle frame)
     {
-        Contract.Requires(BodyDesc.FrameHullMotion(Driver(frame)) == BodyMotion.Kinematic && !IsNumeric(frame) && !InOrbitFrame(frame));
+        Contract.Requires(HullMotion(frame) == BodyMotion.Kinematic && !IsNumeric(frame) && !InOrbitFrame(frame));
         FrameHandle treeParent = TreeParent(frame);
         FrameHandle semantic = SemanticOf(treeParent);
         DPose local = TreeLocalPose(frame);
@@ -156,10 +156,10 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// The orbit frame <paramref name="orbitFrame"/> lost its orbiter, which moved out, died or got another driver. It turns
-    /// into a falling frame that falls on from its place, at its velocity: the bodies in it keep their motion, and the next
-    /// numeric update takes it as any falling frame. The ghosts of the orbiter's hull go, because the hull no longer lives
-    /// in an orbit frame (see <see cref="AnchorGhosts"/>).
+    /// The orbit frame <paramref name="orbitFrame"/> lost its orbiter, which moved out, died or got a hull motion other than
+    /// kinematic (see <see cref="SetHullMotion"/>). It turns into a falling frame that falls on from its place, at its
+    /// velocity: the bodies in it keep their motion, and the next numeric update takes it as any falling frame. The ghosts
+    /// of the orbiter's hull go, because the hull no longer lives in an orbit frame (see <see cref="AnchorGhosts"/>).
     /// </summary>
     private void LeaveOrbit(FrameHandle orbitFrame)
     {

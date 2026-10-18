@@ -348,10 +348,10 @@ public class SpinFrameTests
         {
             Frame = test.Root,
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Spin),
-            Body = new BodyDesc(Ramp, BodyMotion.Static),
+            Body = new BodyDesc(Ramp, BodyMotion.Kinematic),
         }.Spinning(test.World, QuarterTurnPerSecond));
 
-        spawn.Should().Throw<ArgumentException>().WithMessage("*mesh*Spin driver*");
+        spawn.Should().Throw<ArgumentException>().WithMessage("*kinematic*mesh*");
         test.World.Stats.LiveEntities.Should().Be(before);
     }
 

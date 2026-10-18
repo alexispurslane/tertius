@@ -57,7 +57,7 @@ public class WorldFrameFieldTests
             Owner = World.Spawn(new SpawnDesc
             {
                 Frame = Planet,
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
+                Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), BodyMotion.Kinematic, Mass: 1000),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler),
             }.OnKeplerOrbit(World, StationOrbit));
             Station = World.GetOwnedFrame(Owner);
@@ -122,7 +122,7 @@ public class WorldFrameFieldTests
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, GravityField.Point(PlanetMu)));
         world.Blueprints.Register(new Blueprint("station",
             [new ComponentSpec(typeof(KeplerMotion), new Dictionary<string, object?> { ["Orbit"] = BadOrbit(kind) })],
-            Body: new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
+            Body: new BodyDesc(new BoxShapeDesc(new Vector3(5)), BodyMotion.Kinematic, Mass: 1000),
             Frame: new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler)));
         int live = world.Stats.LiveEntities;
 
@@ -174,7 +174,7 @@ public class WorldFrameFieldTests
             Entity owner = world.Spawn(new SpawnDesc
             {
                 Frame = world.GetOwnedFrame(planetOwner),
-                Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), Mass: 1000),
+                Body = new BodyDesc(new BoxShapeDesc(new Vector3(5)), BodyMotion.Kinematic, Mass: 1000),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Kepler),
             }.OnKeplerOrbit(world, StationOrbit));
             FrameHandle station = world.GetOwnedFrame(owner);

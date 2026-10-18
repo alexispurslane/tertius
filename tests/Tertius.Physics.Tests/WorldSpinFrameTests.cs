@@ -18,7 +18,7 @@ public class WorldSpinFrameTests
     private static Entity SpawnTurntable(World world, FrameHandle parent, float bubble, BodyDesc? hull = null) => world.Spawn(new SpawnDesc
     {
         Frame = parent,
-        Body = hull ?? new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
+        Body = hull ?? new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1)),
         AsFrame = new FrameSpec(FrameBounds.Sphere(bubble), MotionDriver.Spin),
     }.Spinning(world, Turning));
 
@@ -84,7 +84,7 @@ public class WorldSpinFrameTests
             // Frame hulls touch only each other and static bodies, so the thing that rests on the platform's hull is the
             // hull of another frame: a small ship with the physics driver. Both bubbles are small, so neither frame enters
             // the other, and the ship's hull rests on the platform's hull in the ground frame.
-            var platform = new BodyDesc(new BoxShapeDesc(new Vector3(10, 0.5f, 10)), BodyMotion.Static, Friction: 1, InteriorShape: new SphereShapeDesc(0.05f));
+            var platform = new BodyDesc(new BoxShapeDesc(new Vector3(10, 0.5f, 10)), BodyMotion.Kinematic, Friction: 1, InteriorShape: new SphereShapeDesc(0.05f));
             SpawnTurntable(world, ground, bubble: 0.1f, platform);
             Entity ship = world.Spawn(new SpawnDesc
             {

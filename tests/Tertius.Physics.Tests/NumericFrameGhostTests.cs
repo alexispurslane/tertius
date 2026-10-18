@@ -572,7 +572,7 @@ public class NumericFrameGhostTests
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity hull = Scenes.FastKeplerHull(world, space, ShipHull);
+        Entity hull = Scenes.FastKeplerHull(world, space, ShipHull with { Motion = BodyMotion.Kinematic });
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
         FrameHandle buoy = EmptyFrame(world, space, At(-5000), 5);
         FrameHandle depot = EmptyFrame(world, space, At(-6000), 50);
@@ -606,7 +606,7 @@ public class NumericFrameGhostTests
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity hull = Scenes.FastKeplerHull(world, space, ShipHull);
+        Entity hull = Scenes.FastKeplerHull(world, space, ShipHull with { Motion = BodyMotion.Kinematic });
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
         // 5.8 km from every point of the hull's orbit, beyond the reach of the merge test at 2 km/s.
         FrameHandle station = EmptyFrame(world, space, At(0, 3_000), 10);

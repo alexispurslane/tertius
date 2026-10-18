@@ -138,7 +138,6 @@ public class NumericFrameEntryTests
 
     [Theory]
     [InlineData(BodyMotion.Static)]
-    [InlineData(BodyMotion.Dynamic)]
     public void AFastBallEntersAParkedStationAndHitsACrateInside(BodyMotion hullMotion)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);

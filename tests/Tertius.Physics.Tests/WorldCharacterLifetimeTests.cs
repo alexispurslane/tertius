@@ -63,7 +63,7 @@ public class WorldCharacterLifetimeTests
         {
             Frame = ground,
             Pose = At(10, 1),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.2f)), Mass: 1000, InteriorShape: slab),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.2f)), BodyMotion.Static, Mass: 1000, InteriorShape: slab),
             AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         });
         FrameHandle shed = world.GetOwnedFrame(shedOwner);
@@ -143,7 +143,7 @@ public class WorldCharacterLifetimeTests
         {
             Frame = ground,
             Pose = At(50, 1),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.2f)), Mass: 1000, InteriorShape: new BoxShapeDesc(new Vector3(4, 0.5f, 4))),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.2f)), BodyMotion.Static, Mass: 1000, InteriorShape: new BoxShapeDesc(new Vector3(4, 0.5f, 4))),
             AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         }));
         Entity outside = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.95), Body = Person });

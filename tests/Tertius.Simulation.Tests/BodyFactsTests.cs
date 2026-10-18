@@ -35,16 +35,25 @@ public class BodyFactsTests
     });
 
     /// <summary>
-    /// A ship 5 km from the origin of <paramref name="space"/>: a box hull of 4 m and 1000 kg, with a bubble of 10 m. It
-    /// has an orbit and a spin, so that every driver can move it.
+    /// A ship 5 km from the origin of <paramref name="space"/>: a box hull of 4 m and 1000 kg with <paramref name="motion"/>,
+    /// and a bubble of 10 m. Until the frame driver goes (ter-ru5u), the frame names the driver that gives its hull that
+    /// motion.
     /// </summary>
-    private static Entity Ship(World world, FrameHandle space, MotionDriver driver, ShapeDesc? interior = null) => world.Spawn(new SpawnDesc
+    private static Entity Ship(World world, FrameHandle space, BodyMotion motion, ShapeDesc? interior = null) => world.Spawn(new SpawnDesc
     {
         Frame = space,
         Pose = WorldTesting.At(5000),
-        Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, InteriorShape: interior),
-        AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
+        Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), motion, Mass: 1000, InteriorShape: interior),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(10), motion switch
+        {
+            BodyMotion.Dynamic => MotionDriver.Physics,
+            BodyMotion.Kinematic => MotionDriver.Kepler,
+            _ => MotionDriver.Static,
+        }),
     });
+
+    /// <summary>A triangle mesh, which only a static body or the interior of a frame can have.</summary>
+    private static readonly MeshShapeDesc Ramp = new([new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)], [0, 2, 1, 0, 3, 2]);
 
     private static BodyFacts FactsOf(World world, Entity entity)
     {
@@ -76,17 +85,17 @@ public class BodyFactsTests
     }
 
     [Theory]
-    [InlineData(MotionDriver.Physics, BodyMotion.Dynamic)]
-    [InlineData(MotionDriver.Kepler, BodyMotion.Kinematic)]
-    [InlineData(MotionDriver.Spin, BodyMotion.Kinematic)]
-    [InlineData(MotionDriver.Static, BodyMotion.Static)]
-    public void TheHullOfAFrameHasTheMotionOfItsDriverAndNotOfItsDescription(MotionDriver driver, BodyMotion motion)
+    [InlineData(BodyMotion.Static)]
+    [InlineData(BodyMotion.Kinematic)]
+    [InlineData(BodyMotion.Dynamic)]
+    public void AHullTakesTheMotionOfItsBodyDescription(BodyMotion motion)
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity ship = Ship(world, space, driver);
+        Entity ship = Ship(world, space, motion);
         world.Tick();
 
-        FactsOf(world, ship).Motion.Should().Be(motion, "the description says Dynamic, but the driver moves the hull");
+        world.Frames.HullMotion(world.GetOwnedFrame(ship)).Should().Be(motion);
+        FactsOf(world, ship).Motion.Should().Be(motion);
         world.Errors.Should().BeEmpty();
     }
 
@@ -94,7 +103,7 @@ public class BodyFactsTests
     public void ANewDriverGivesTheHullItsMotionAtOnce()
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity ship = Ship(world, space, MotionDriver.Physics);
+        Entity ship = Ship(world, space, BodyMotion.Dynamic);
         FrameHandle frame = world.GetOwnedFrame(ship);
         world.Tick();
 
@@ -110,18 +119,42 @@ public class BodyFactsTests
         world.Errors.Should().BeEmpty();
     }
 
-    [Fact]
-    public void TheOwnerOfARootFrameHasAStaticBodyWhateverItsDriver()
+    /// <summary>
+    /// A root frame has no parent, so its owner has no hull: its body is only the frame's static interior. So a body that
+    /// could not be a dynamic hull, without mass or with a mesh, is fine with the default dynamic motion.
+    /// </summary>
+    [Theory]
+    [InlineData("a box without mass")]
+    [InlineData("a mesh")]
+    public void TheOwnerOfARootFrameHasNoHullMotionWhateverItsBodySays(string body)
     {
         using World world = NewWorld(out _);
         Entity owner = world.Spawn(new SpawnDesc
         {
             AsFrame = new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Physics),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), Mass: 0),
+            Body = body == "a mesh" ? new BodyDesc(Ramp) : new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), Mass: 0),
         });
         world.Tick();
 
+        world.Frames.HullMotion(world.GetOwnedFrame(owner)).Should().BeNull();
         FactsOf(world, owner).Motion.Should().Be(BodyMotion.Static, "a root frame has no hull, so the body is only its static interior");
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AFrameWithoutABodyHasNoHullMotion()
+    {
+        using World world = NewWorld(out FrameHandle space);
+        Entity room = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = WorldTesting.At(5000),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+        });
+        world.Tick();
+
+        world.Frames.HullMotion(world.GetOwnedFrame(room)).Should().BeNull();
+        world.Errors.Should().BeEmpty();
     }
 
     // ---- Mass and shape ----
@@ -172,7 +205,7 @@ public class BodyFactsTests
     public void TheShapeFactsOfAFrameOwnerAreThoseOfItsHullAndNotOfItsInterior()
     {
         using World world = NewWorld(out FrameHandle space);
-        Entity ship = Ship(world, space, MotionDriver.Static, interior: new SphereShapeDesc(8));
+        Entity ship = Ship(world, space, BodyMotion.Static, interior: new SphereShapeDesc(8));
 
         BodyFacts facts = FactsOf(world, ship);
 
@@ -284,7 +317,7 @@ public class BodyFactsTests
         [
             Spawn(world, space, new BodyDesc(new SphereShapeDesc(0.5f))),
             Spawn(world, space, new BodyDesc(new CapsuleShapeDesc(0.5f, 0.3f), BodyMotion.Character, Mass: 70), x: 10),
-            Ship(world, space, MotionDriver.Physics),
+            Ship(world, space, BodyMotion.Dynamic),
             world.SpawnWith(space, new Metal()),
         ];
         world.Tick();

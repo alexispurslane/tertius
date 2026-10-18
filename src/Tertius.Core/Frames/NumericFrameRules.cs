@@ -33,30 +33,30 @@ internal readonly record struct NumericBody
 
     /// <summary>
     /// Physics keeps the body static, so it cannot take a velocity, and its group cannot fall. That is the motion of the
-    /// description, or for the hull of a frame, the motion of the frame's driver (see <see cref="BodyDesc.FrameHullMotion"/>),
-    /// whatever the description says: the hull of a Physics, Kepler or Spin frame moves.
+    /// description, or for the hull of a frame, the motion that the frame tree keeps for the hull (see
+    /// <see cref="FrameTree.HullMotion"/>).
     /// </summary>
     public bool Static { get; init; }
 
     /// <summary>
     /// Physics keeps the body kinematic, so no contact changes its velocity: only the game moves it. In a contact, Jolt
-    /// treats it as infinitely heavy, so a still door stops a crate as a static wall does. The hull of a Kepler or Spin
-    /// frame is kinematic too, and also <see cref="Fixed"/>.
+    /// treats it as infinitely heavy, so a still door stops a crate as a static wall does. A kinematic hull, which the
+    /// samples of a rails component move, is also <see cref="Fixed"/>.
     /// </summary>
     public bool Kinematic { get; init; }
 
     /// <summary>
-    /// It stays in its semantic frame's own system, and so does its group. It is the hull of a frame that physics does not
-    /// drive, which the Static, Spin or Kepler driver moves on rails, or the interior of a frame owner, which physics keeps
-    /// as a static body in the frame's own system, at its origin. A Kepler hull that lives in an orbit frame of its own
-    /// (see <see cref="NumericFrameRules.OrbitsInFrame"/>) is the one exception.
+    /// It stays in its semantic frame's own system, and so does its group. It is a hull whose motion is not dynamic, which
+    /// holds still or follows the samples of a rails component, or the interior of a frame owner, which physics keeps as a
+    /// static body in the frame's own system, at its origin. A kinematic hull that lives in an orbit frame of its own (see
+    /// <see cref="NumericFrameRules.OrbitsInFrame"/>) is the one exception.
     /// </summary>
     public bool Fixed { get; init; }
 
     /// <summary>
-    /// It owns a frame whose Kepler driver moves it along an orbit. When the orbit moves it fast or far in its semantic
-    /// frame, it lives in a numeric frame of its own that follows the orbit (<see cref="NumericMode.Orbiting"/>), where it
-    /// rests (docs/plans/numeric-frames.md, "Anchors", rule 3).
+    /// It is a kinematic hull, which the samples of a rails component move. When they move it fast or far in its semantic
+    /// frame, it lives in a numeric frame of its own that follows them (<see cref="NumericMode.Orbiting"/>), where it rests
+    /// (docs/plans/numeric-frames.md, "Anchors", rule 3).
     /// </summary>
     public bool Orbits { get; init; }
 

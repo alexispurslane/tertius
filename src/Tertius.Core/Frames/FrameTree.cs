@@ -18,7 +18,7 @@ namespace Tertius;
 /// caller gives it, and physics normalizes the rotation that leaves Jolt. The poses that the tree composes itself, when it
 /// moves or destroys a frame, are unit length.</item>
 /// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner, a parent, no bubble, the identity rotation, no
-/// spin, the Static driver and no gravity. A resting or nesting one has no velocity and no step acceleration. The chain of
+/// spin, the Static driver, no gravity and no hull motion. A resting or nesting one has no velocity and no step acceleration. The chain of
 /// tree parents of a numeric frame ends at a semantic frame: a falling or resting frame lies in a semantic frame or a
 /// nesting frame, an orbit frame lies in a semantic frame, and a nesting frame lies in a semantic frame, on a whole
 /// multiple of <see cref="NumericFrameOptions.NestGrid"/>, and holds only numeric frames. An orbit frame, and only an
@@ -26,8 +26,9 @@ namespace Tertius;
 /// <see cref="UpdateNumericFrames"/>, every falling or resting frame is the home of a body or holds a frame, and every
 /// nesting frame holds a frame and is the home of no body; between updates, the count of bodies is the one of the last
 /// update. <see cref="NumericCount"/> is the number of numeric frames. A semantic frame has an owner and no step
-/// acceleration, and a semantic frame whose tree parent is a numeric frame has the Physics driver, or it is the orbiter of
-/// that frame: a frame with a static hull or without a hull moves relative to its semantic parent, and a frame with a
+/// acceleration, and a semantic frame whose tree parent is a numeric frame has a dynamic hull (see <see cref="HullMotion"/>),
+/// or it is the orbiter of that frame, whose hull is kinematic: a frame with a static hull or without a hull moves relative
+/// to its semantic parent, and a frame with a
 /// kinematic hull hangs in its semantic parent or in its orbit frame, which follows the frame's motion samples. Such a frame also owns a
 /// hull that was a body of the last update: only the update moves a frame into a numeric frame, with its hull, and a frame
 /// without a hull goes to the semantic frame when the frame that holds it dies (see <see cref="Heir"/>). Every ghost of
@@ -50,6 +51,8 @@ public sealed partial class FrameTree
     private Entity[] owner = new Entity[64];
     private FrameBounds[] bounds = new FrameBounds[64];
     private MotionDriver[] driver = new MotionDriver[64];
+    // The motion of each frame's hull now, or null for a frame without a hull (see HullMotion).
+    private BodyMotion?[] hullMotion = new BodyMotion?[64];
     private GravityField[] gravity = new GravityField[64];
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
@@ -129,6 +132,7 @@ public sealed partial class FrameTree
         owner[node.Id] = frameOwner;
         bounds[node.Id] = frameBounds;
         driver[node.Id] = motion;
+        hullMotion[node.Id] = null;
         gravity[node.Id] = field;
         linearVelocity[node.Id] = Double3.Zero;
         angularVelocity[node.Id] = Vector3.Zero;
@@ -383,21 +387,18 @@ public sealed partial class FrameTree
     /// the ground keeps its weight. A frame that gets another driver keeps its pose and velocities until that driver moves
     /// it. Every call changes <see cref="Version"/> and <see cref="DriverVersion"/>, also a call that gives the frame the
     /// driver that it has. So physics follows the call at the start of its next step, the same way that it follows a
-    /// reparent: it puts the frame's hull at the frame's pose and velocity in the tree. A frame that hangs in its orbit
-    /// frame and gets a driver whose hull is not kinematic leaves that frame falling, because no sample moves it any more: a frame
-    /// with the Physics driver may hang in a falling frame, and the numeric update moves any other one, with its hull, into
-    /// its semantic parent. Throws <see cref="InvalidOperationException"/> for a stale frame.
+    /// reparent: it puts the frame's hull at the frame's pose and velocity in the tree, with the motion of
+    /// <see cref="HullMotion"/>. Throws <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     /// <remarks>
     /// Only the simulation calls it, through <c>World.SetFrameDriver</c>, which refuses a driver that the frame cannot
-    /// follow and keeps the owner of the frame in step.
+    /// follow, gives the hull the motion of the driver first (see <see cref="SetHullMotion"/>) and keeps the owner of the
+    /// frame in step.
     /// </remarks>
     internal void SetDriver(FrameHandle frame, MotionDriver motion)
     {
         Contract.Requires(Enum.IsDefined(motion));
         int id = Node(frame).Id;
-        if (BodyDesc.FrameHullMotion(motion) != BodyMotion.Kinematic && InOrbitFrame(frame))
-            LeaveOrbit(TreeParent(frame));
         driver[id] = motion;
         driverVersion[id]++;
         driverChanges++;
@@ -406,6 +407,39 @@ public sealed partial class FrameTree
             linearVelocity[id] = Double3.Zero;
             angularVelocity[id] = Vector3.Zero;
         }
+    }
+
+    /// <summary>
+    /// The motion that the frame's hull has now: the body of the frame's owner, in the system of the frame's parent. Null
+    /// for a frame without a hull: a root frame, whose owner's body is only the frame's static interior, a frame whose owner
+    /// has no body, and a numeric frame. A frame becomes a root when its root parent dies, and it then has no hull. The World
+    /// sets the motion at spawn from the body's description (see <see cref="BodyDesc.Motion"/>). The tree changes only at
+    /// sync points, so the motion is stable during a tick, and any worker may read it. Throws
+    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    public BodyMotion? HullMotion(FrameHandle frame)
+    {
+        PoseNode node = Node(frame);
+        return poses.Parent(node).IsNull ? null : hullMotion[node.Id];
+    }
+
+    /// <summary>
+    /// Gives the hull of <paramref name="frame"/> the motion <paramref name="motion"/>, or none. A frame that hangs in its
+    /// orbit frame and gets a motion other than kinematic leaves that frame falling, because no sample moves it any more: a
+    /// frame with a dynamic hull may hang in a falling frame, and the numeric update moves any other one, with its hull, into
+    /// its semantic parent. It changes no velocity of the frame, and not <see cref="Version"/>. Throws
+    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    /// <remarks>
+    /// Only the simulation calls it, which checks that the owner's body can take the motion (see
+    /// <see cref="BodyDesc.Problem"/>).
+    /// </remarks>
+    internal void SetHullMotion(FrameHandle frame, BodyMotion? motion)
+    {
+        int id = Node(frame).Id;
+        if (motion != BodyMotion.Kinematic && InOrbitFrame(frame))
+            LeaveOrbit(TreeParent(frame));
+        hullMotion[id] = motion;
     }
 
     /// <summary>The gravity field of the frame. <see cref="SetGravity"/> changes it.</summary>
@@ -449,11 +483,12 @@ public sealed partial class FrameTree
                 // A nesting frame holds only numeric frames.
                 Contract.Invariant(parentMode != NumericMode.Nesting);
                 // A frame with a static hull or without a hull moves relative to its semantic parent, and a frame with a kinematic
-                // hull hangs in its semantic parent or at the origin of its orbit frame.
+                // hull hangs in its semantic parent or at the origin of its orbit frame. So a frame in any other numeric frame
+                // has a dynamic hull.
                 if (parentMode == NumericMode.Orbiting && orbiter[parent.Index] == frame)
-                    Contract.Invariant(BodyDesc.FrameHullMotion(Driver(frame)) == BodyMotion.Kinematic && locals[i].Position == Double3.Zero);
+                    Contract.Invariant(hullMotion[id] == BodyMotion.Kinematic && locals[i].Position == Double3.Zero);
                 else if (parentMode != NumericMode.None)
-                    Contract.Invariant(Driver(frame) == MotionDriver.Physics);
+                    Contract.Invariant(hullMotion[id] == BodyMotion.Dynamic);
                 // Only a frame with a hull hangs in a numeric frame.
                 if (parentMode != NumericMode.None)
                 {
@@ -471,7 +506,7 @@ public sealed partial class FrameTree
             numericFrames++;
             Contract.Invariant(owner[id].IsNull && !parent.IsNull && bounds[id] == default);
             Contract.Invariant(locals[i].Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
-            Contract.Invariant(driver[id] == MotionDriver.Static && !gravity[id].HasValue);
+            Contract.Invariant(driver[id] == MotionDriver.Static && !gravity[id].HasValue && !hullMotion[id].HasValue);
             if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
                 Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero);
             // Only an orbit frame has an orbiter, a live frame that hangs in it.
@@ -847,6 +882,7 @@ public sealed partial class FrameTree
         Array.Resize(ref owner, size);
         Array.Resize(ref bounds, size);
         Array.Resize(ref driver, size);
+        Array.Resize(ref hullMotion, size);
         Array.Resize(ref gravity, size);
         Array.Resize(ref linearVelocity, size);
         Array.Resize(ref angularVelocity, size);

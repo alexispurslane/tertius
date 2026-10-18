@@ -85,6 +85,56 @@ public class InvariantTests(ITestOutputHelper output)
         run.Should().Throw<Exception>().Where(ex => ex.Message.Contains("seed 99"));
     }
 
+    // ---- The hull motion ------------------------------------------------------------------------------------------
+
+    /// <summary>A triangle mesh, which only a static body or the interior of a frame can have.</summary>
+    private static readonly MeshShapeDesc Ramp = new([new(-5, 0, -5), new(5, 0, -5), new(5, 2, 5), new(-5, 2, 5)], [0, 2, 1, 0, 3, 2]);
+
+    /// <summary>A frame 100 m along +X in the root of <paramref name="test"/>, with a static hull of <paramref name="hull"/>, or without a body.</summary>
+    private static FrameHandle StaticFrame(TestWorld test, BodyDesc? hull) =>
+        test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Pose = TestWorld.At(100),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+            Body = hull,
+        }));
+
+    [Theory]
+    [InlineData("a dynamic motion for a hull without mass")]
+    [InlineData("a kinematic motion for a mesh hull")]
+    [InlineData("the character motion")]
+    [InlineData("no motion")]
+    public void AHullMotionThatTheHullCannotTakeBreaksTheWorldsInvariants(string why)
+    {
+        using var test = new TestWorld();
+        bool mesh = why == "a kinematic motion for a mesh hull";
+        FrameHandle dock = StaticFrame(test, new BodyDesc(mesh ? Ramp : new BoxShapeDesc(new System.Numerics.Vector3(2)), BodyMotion.Static, Mass: 0));
+        test.World.AssertInvariants();
+
+        test.World.Frames.SetHullMotion(dock, why switch
+        {
+            "a dynamic motion for a hull without mass" => BodyMotion.Dynamic,
+            "a kinematic motion for a mesh hull" => BodyMotion.Kinematic,
+            "the character motion" => BodyMotion.Character,
+            _ => null,
+        });
+
+        test.World.Invoking(w => w.AssertInvariants()).Should().Throw<ContractException>(why);
+    }
+
+    [Fact]
+    public void AHullMotionOfAFrameWhoseOwnerHasNoBodyBreaksTheWorldsInvariants()
+    {
+        using var test = new TestWorld();
+        FrameHandle room = StaticFrame(test, hull: null);
+        test.World.AssertInvariants();
+
+        test.World.Frames.SetHullMotion(room, BodyMotion.Static);
+
+        test.World.Invoking(w => w.AssertInvariants()).Should().Throw<ContractException>();
+    }
+
     // ---- DebugChecks -----------------------------------------------------------------------------------------------
 
     [Fact]

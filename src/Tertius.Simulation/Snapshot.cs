@@ -79,12 +79,11 @@ public readonly struct Snapshot
 
     /// <summary>
     /// The motion of a body with the description <paramref name="body"/> whose entity owns <paramref name="ownedFrame"/>,
-    /// or no frame when it is null. The frame tree does not change during a tick, so any worker may read the driver.
+    /// or no frame when it is null: the motion of the frame's hull, or static for the owner of a root frame, whose body is
+    /// only the frame's static interior. The frame tree does not change during a tick, so any worker may read it.
     /// </summary>
     private BodyMotion MotionOf(BodyDesc body, FrameHandle ownedFrame) =>
-        ownedFrame.IsNull ? body.Motion :
-        world.Frames.Parent(ownedFrame).IsNull ? BodyMotion.Static :
-        BodyDesc.FrameHullMotion(world.Frames.Driver(ownedFrame));
+        ownedFrame.IsNull ? body.Motion : world.Frames.HullMotion(ownedFrame) ?? BodyMotion.Static;
 
     /// <summary>
     /// Binds a stored query to this snapshot. An ending such as <c>foreach</c> or <see cref="FoundEntities.Count"/> runs

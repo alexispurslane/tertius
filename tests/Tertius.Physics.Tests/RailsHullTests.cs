@@ -293,7 +293,7 @@ public class RailsHullTests
     {
         Frame = space,
         Pose = new DPose(SpinPlace, DQuaternion.FromAxisAngle(Double3.UnitX, 1)),
-        Body = Ball(),
+        Body = Ball() with { Motion = BodyDesc.FrameHullMotion(driver) },
         AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), driver),
         Components = components,
     });

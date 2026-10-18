@@ -40,7 +40,7 @@ public class RailsFollowTests
     private static Entity Hull(World world, FrameHandle space, KeplerOrbit orbit) => world.Spawn(new SpawnDesc
     {
         Frame = space,
-        Body = Ball(),
+        Body = Ball() with { Motion = BodyMotion.Kinematic },
         AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
     }.OnKeplerOrbit(world, orbit));
 
@@ -240,7 +240,7 @@ public class RailsFollowTests
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
-            Body = withBody ? Ball() : null,
+            Body = withBody ? Ball() with { Motion = BodyMotion.Kinematic } : null,
             AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, Slow));
 
@@ -332,7 +332,7 @@ public class RailsFollowTests
         {
             Frame = space,
             Pose = At(1e7),
-            Body = Ball(),
+            Body = Ball() with { Motion = BodyMotion.Kinematic },
             AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Spin),
         }.Spinning(world, turning));
 
@@ -416,7 +416,7 @@ public class RailsFollowTests
             Frame = space,
             Pose = At(1000),
             LinearVelocity = new Double3(0, 0, 100),
-            Body = Ball(),
+            Body = Ball() with { Motion = BodyMotion.Kinematic },
             AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
         });
 
@@ -493,7 +493,7 @@ public class RailsFollowTests
             "a static hull that teleported" => world.Spawn(new SpawnDesc
             {
                 Frame = space,
-                Body = Ball(),
+                Body = Ball() with { Motion = BodyMotion.Static },
                 AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Static),
                 Components = [new Hopper()],
             }),

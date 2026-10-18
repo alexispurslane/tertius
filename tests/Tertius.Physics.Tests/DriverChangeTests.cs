@@ -71,7 +71,7 @@ public class DriverChangeTests
             Frame = planet,
             Pose = new DPose(position, DQuaternion.Identity),
             LinearVelocity = driver == MotionDriver.Static ? Double3.Zero : velocity,
-            Body = BoxBody(2, 1000),
+            Body = BoxBody(2, 1000) with { Motion = BodyDesc.FrameHullMotion(driver) },
             AsFrame = new FrameSpec(FrameBounds.Sphere(10), driver),
         });
         return (planet, owner, world.GetOwnedFrame(owner));
@@ -130,7 +130,7 @@ public class DriverChangeTests
         {
             Frame = ground,
             Pose = At(0, 100),
-            Body = BoxBody(2, 1000),
+            Body = BoxBody(2, 1000) with { Motion = BodyMotion.Static },
             AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
         });
         FrameHandle lander = world.GetOwnedFrame(owner);
@@ -177,7 +177,7 @@ public class DriverChangeTests
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            Body = BoxBody(10, 1000),
+            Body = BoxBody(10, 1000) with { Motion = BodyMotion.Kinematic },
             AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Kepler),
         }.OnKeplerOrbit(world, orbit));
         FrameHandle station = world.GetOwnedFrame(owner);
@@ -311,6 +311,57 @@ public class DriverChangeTests
         JoltPhysicsBackend.BodyFacts after = Hull(world, faults.Jolt, owner);
         (after.Position - before.Position).Length.Should().BeLessThan(1e-12);
         after.Should().Be(before with { Position = after.Position });
+    }
+
+    /// <summary>
+    /// The frame tree keeps a hull's motion. Only a bug changes it without the driver, which physics follows, so physics
+    /// never sees the change, and the invariants of the backend find the hull apart from the tree.
+    /// </summary>
+    [Fact]
+    public void TheInvariantsFindAHullWhoseMotionDoesNotMatchTheMotionThatTheTreeKeeps()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        var (_, _, ship) = FlyingShip(world);
+        backend.AssertInvariants();
+
+        world.Frames.SetHullMotion(ship, BodyMotion.Static);
+
+        backend.Invoking(b => b.AssertInvariants()).Should().Throw<ContractException>("the hull is still dynamic");
+    }
+
+    /// <summary>
+    /// A hull that a destroy moves to another home gets a new body there, with the motion that the frame tree keeps for it
+    /// now, not the motion of its spawn description.
+    /// </summary>
+    [Fact]
+    public void AHullThatADestroyReHomesAfterADriverChangeKeepsItsNewMotion()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        Entity hangarOwner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Static),
+        });
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = world.GetOwnedFrame(hangarOwner),
+            Pose = At(20),
+            Body = BoxBody(2, 1000) with { Motion = BodyMotion.Static },
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+        });
+        FrameHandle ship = world.GetOwnedFrame(owner);
+        world.Tick();
+        world.SetFrameDriver(ship, MotionDriver.Physics);
+        world.Tick();
+
+        world.Destroy(hangarOwner);
+        world.Tick();
+
+        world.Frames.Parent(ship).Should().Be(space);
+        Hull(world, backend, owner).Motion.Should().Be(MotionType.Dynamic, "the description says Static, but the tree keeps Dynamic");
+        world.Errors.Should().BeEmpty();
     }
 
     [Fact]

@@ -391,14 +391,15 @@ public class FrameTreeNumericUpdateTests
     public void A_fixed_hull_in_a_numeric_frame_goes_back_to_its_semantic_frame_with_its_frame()
     {
         FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+        frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.TreeLinearVelocity(hull) = X(60);
         NumericBody owner = Body(20, x: 50, vx: 60, character: true) with { OwnedFrame = hull };
         FrameHandle pod = Update(0.1, owner)[0].Home;
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
         frames.TreeParent(hull).Should().Be(pod);
 
-        // The game parks the ship: physics no longer drives its frame.
-        frames.SetDriver(hull, MotionDriver.Static);
+        // The game parks the ship: its hull becomes static.
+        frames.SetHullMotion(hull, BodyMotion.Static);
         Update(0.1, Body(20, x: 50, vx: 60, home: pod, character: true) with { OwnedFrame = hull, Fixed = true });
 
         moves.Should().Equal(new NumericMove(new Entity(20, 1), pod, ground));
@@ -407,13 +408,32 @@ public class FrameTreeNumericUpdateTests
         frames.IsAlive(pod).Should().BeFalse();
     }
 
-    [Fact]
-    public void A_frame_that_physics_does_not_drive_under_a_numeric_frame_breaks_an_invariant()
+    [Theory]
+    [InlineData(BodyMotion.Static)]
+    [InlineData(BodyMotion.Kinematic)]
+    [InlineData(null)]
+    public void A_frame_without_a_dynamic_hull_under_a_numeric_frame_breaks_an_invariant(BodyMotion? motion)
     {
         FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+        frames.SetHullMotion(hull, BodyMotion.Dynamic);
         Update(0.1, Body(20, x: 50, vx: 60, character: true) with { OwnedFrame = hull });
         frames.Numeric(frames.TreeParent(hull)).Should().Be(NumericMode.Falling);
-        frames.SetDriver(hull, MotionDriver.Static);
+        frames.AssertInvariants();
+
+        frames.SetHullMotion(hull, motion);
+
+        frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();
+    }
+
+    [Fact]
+    public void A_numeric_frame_with_a_hull_motion_breaks_an_invariant()
+    {
+        FrameHandle pod = Update(0.1, Body(10, x: 100, vx: 2_000))[0].Home;
+        frames.Numeric(pod).Should().Be(NumericMode.Falling);
+        frames.AssertInvariants();
+
+        frames.SetHullMotion(pod, BodyMotion.Dynamic);
+
         frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();
     }
 
@@ -515,6 +535,7 @@ public class FrameTreeNumericUpdateTests
     public void A_drain_and_a_recenter_keep_the_pose_and_velocity_of_a_ship_frame_in_its_semantic_frame()
     {
         FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+        frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.TreeLinearVelocity(hull) = X(60);
         FrameHandle pod = Update(0.1, Body(20, x: 50, vx: 60, character: true) with { OwnedFrame = hull })[0].Home;
         DPose pose = frames.LocalPose(hull);
@@ -553,6 +574,7 @@ public class FrameTreeNumericUpdateTests
     public void A_moving_owner_takes_its_frame_into_its_new_home()
     {
         FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+        frames.SetHullMotion(hull, BodyMotion.Dynamic);
         FrameHandle home = Update(0.1, Body(20, x: 50, vx: 60, character: true) with { OwnedFrame = hull })[0].Home;
         frames.Numeric(home).Should().Be(NumericMode.Falling);
         frames.TreeParent(hull).Should().Be(home);
@@ -660,6 +682,7 @@ public class FrameTreeNumericUpdateTests
         FrameHandle station = frames.Create(new Entity(2, 1), ground, new DPose(X(1_000), turned), FrameBounds.Sphere(1e6f), MotionDriver.Static);
         frames.AngularVelocity(station) = new System.Numerics.Vector3(0, 0.1f, 0);
         FrameHandle hull = frames.Create(new Entity(20, 1), station, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+        frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.TreeLinearVelocity(hull) = X(60);
         NumericBody owner = Body(20, x: 50, vx: 60, character: true) with { Semantic = station, Home = station, HomePosition = X(50), OwnedFrame = hull };
         FrameHandle pod = Update(0.1, owner)[0].Home;

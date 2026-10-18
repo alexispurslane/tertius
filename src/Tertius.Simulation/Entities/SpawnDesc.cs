@@ -56,9 +56,10 @@ public sealed class SpawnDesc
 /// <summary>Makes a spawned entity a reference frame.</summary>
 /// <param name="Bounds">The bubble that decides which objects belong to the frame.</param>
 /// <param name="Driver">
-/// The motion of the frame's hull: dynamic for <see cref="MotionDriver.Physics"/>, kinematic for
+/// The motion that the frame's hull needs: dynamic for <see cref="MotionDriver.Physics"/>, kinematic for
 /// <see cref="MotionDriver.Kepler"/> and <see cref="MotionDriver.Spin"/>, and static for <see cref="MotionDriver.Static"/>
-/// (see <see cref="BodyDesc.FrameHullMotion"/>).
+/// (see <see cref="BodyDesc.FrameHullMotion"/>). The hull has the motion of its description, which must state this
+/// motion until the driver goes (ter-ru5u).
 /// </param>
 /// <param name="Gravity">The gravity field that objects inside feel.</param>
 /// <remarks>

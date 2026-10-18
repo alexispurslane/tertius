@@ -130,7 +130,7 @@ public class GravityTests
         // The ship lies on its side in space. Its gravity points along its own -Y, which is space +X.
         var shipPose = new DPose(new Double3(1000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2));
         var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(10, 0.25f, 10)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
-        var hull = new BodyDesc(new BoxShapeDesc(new Vector3(10, 3, 10)), InteriorShape: deck);
+        var hull = new BodyDesc(new BoxShapeDesc(new Vector3(10, 3, 10)), BodyMotion.Static, InteriorShape: deck);
         FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = space,
