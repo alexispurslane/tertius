@@ -138,7 +138,7 @@ public sealed partial class World
         Profile.Lap(14);
 
         // 8. The back tables become the front tables.
-        entities.CopyDirtyRows();
+        entities.CopyDirtyRows(options.MaxDegreeOfParallelism == 1 ? null : parallelOptions);
         Profile.Lap(15);
         Frames.Update();
         Profile.Lap(16);

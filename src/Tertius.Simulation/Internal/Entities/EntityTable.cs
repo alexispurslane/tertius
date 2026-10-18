@@ -112,6 +112,12 @@ internal sealed class EntityTable
         public readonly List<Entity> IntentWriters = new();
         /// <summary>Free slots reserved for this chunk's spawns, in a deterministic order.</summary>
         public readonly Queue<uint> SpawnPool = new();
+        /// <summary>
+        /// For a parallel <see cref="CopyDirtyRows"/>: the entities of this chunk whose front transform the copy changed,
+        /// and the slots whose component flags it must still copy, each in the chunk's dirty order.
+        /// </summary>
+        public readonly List<Entity> Moved = new();
+        public readonly List<uint> ComponentCopies = new();
         public int LiveCount;
         public int SpawnsThisTick;
         public int LastSpawnCount;
@@ -875,16 +881,98 @@ internal sealed class EntityTable
     /// Copies every dirty back row forward: the rows that gameplay wrote, in chunk order, then the rows that the sync
     /// point wrote. Rows that did not change cost nothing.
     /// </summary>
-    public void CopyDirtyRows()
+    public void CopyDirtyRows(ParallelOptions? parallel = null)
     {
         Contract.Requires(!gameplayRunning);
         int count = ChunkCountFor(slotCount);
-        for (int c = 0; c < count; c++)
-            foreach (uint slot in books[c].DirtySlots)
-                CopyRow(slot);
+        if (parallel != null && GameplayDirtyCount(count) >= ParallelCopyThreshold)
+        {
+            // Each chunk lists only its own slots, so the workers write disjoint rows. What the serial copy appends to
+            // shared lists waits in the chunk's book and joins them here in chunk order, so the order is the serial one:
+            // the moved entities, then the component flags, which the component index takes on this thread.
+            // A work item of a few chunks, so that the loop's cost per item stays small beside the copies.
+            copyChunkCount = count;
+            int items = Math.Min(count, ParallelCopyItems);
+            Parallel.For(0, items, parallel, copyChunks ??= CopyChunks);
+            for (int c = 0; c < count; c++)
+            {
+                ChunkBook book = books[c];
+                moved.AddRange(book.Moved);
+                book.Moved.Clear();
+                foreach (uint slot in book.ComponentCopies)
+                    CopyComponents(slot);
+                book.ComponentCopies.Clear();
+            }
+        }
+        else
+        {
+            for (int c = 0; c < count; c++)
+                foreach (uint slot in books[c].DirtySlots)
+                    CopyRow(slot);
+        }
         foreach (uint slot in syncDirty)
             CopyRow(slot);
         syncDirty.Clear();
+    }
+
+    /// <summary>The fewest rows that gameplay wrote for which <see cref="CopyDirtyRows"/> copies them on the workers.</summary>
+    private const int ParallelCopyThreshold = 4096;
+
+    // The number of work items of a parallel copy, and the number of chunks that they share.
+    private const int ParallelCopyItems = 32;
+    private int copyChunkCount;
+    private Action<int>? copyChunks;
+
+    /// <summary>The chunks of work item <paramref name="item"/> of a parallel <see cref="CopyDirtyRows"/>, on a worker.</summary>
+    private void CopyChunks(int item)
+    {
+        int items = Math.Min(copyChunkCount, ParallelCopyItems);
+        int start = (int)((long)copyChunkCount * item / items), end = (int)((long)copyChunkCount * (item + 1) / items);
+        for (int c = start; c < end; c++)
+            CopyChunk(c);
+    }
+
+    private int GameplayDirtyCount(int chunkCount)
+    {
+        int dirty = 0;
+        for (int c = 0; c < chunkCount; c++)
+            dirty += books[c].DirtySlots.Count;
+        return dirty;
+    }
+
+    /// <summary>The rows of one chunk for a parallel <see cref="CopyDirtyRows"/>, on a worker.</summary>
+    private void CopyChunk(int chunk)
+    {
+        ChunkBook book = books[chunk];
+        foreach (uint slot in book.DirtySlots)
+        {
+            ref SlotFlags f = ref flags[slot];
+            SlotFlags dirty = f;
+            if ((dirty & RowsDirty) == 0)
+                continue;
+            f = dirty & ~(RowsDirty | SlotFlags.GameplayWroteTransform);
+            if ((dirty & SlotFlags.TransformDirty) != 0)
+            {
+                frontTransform[slot] = backTransform[slot];
+                if ((f & SlotFlags.FrontMoved) == 0)
+                {
+                    f |= SlotFlags.FrontMoved;
+                    book.Moved.Add(new Entity(slot, generation[slot]));
+                }
+            }
+            if ((dirty & SlotFlags.RenderDirty) != 0)
+                frontRender[slot] = backRender[slot];
+            if ((dirty & SlotFlags.ComponentsDirty) != 0)
+                book.ComponentCopies.Add(slot);
+            if ((dirty & SlotFlags.CollisionDirty) != 0)
+                frontCollision[slot] = backCollision[slot];
+        }
+    }
+
+    private void CopyComponents(uint slot)
+    {
+        componentIndex.Change(new Entity(slot, generation[slot]), frontComponents[slot], backComponents[slot]);
+        frontComponents[slot] = backComponents[slot];
     }
 
     /// <summary>
