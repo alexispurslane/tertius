@@ -21,6 +21,11 @@ public static class Program
             SyncSampler.Quick(args[1], double.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture));
             return;
         }
+        if (args.Length == 3 && args[0] == "--hash")
+        {
+            SyncSampler.Hash(args[1], int.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture));
+            return;
+        }
         if (args.Length == 4 && args[0] == "--sample")
         {
             SyncSampler.Run(args[1], double.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture), args[3]);

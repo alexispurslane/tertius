@@ -73,6 +73,19 @@ internal static class SyncSampler
         cleanup();
     }
 
+    /// <summary>Ticks a scene <paramref name="ticks"/> times after its setup and prints the hash of the state (see World.ProfileStateHash).</summary>
+    public static void Hash(string scene, int ticks)
+    {
+        (Action tick, Action cleanup) = Scene(scene);
+        for (int i = 0; i < ticks; i++)
+            tick();
+        Console.WriteLine($"HASH|{scene}|{ticks}|{StateHash?.Invoke():X16}");
+        cleanup();
+    }
+
+    /// <summary>Set by the benchmark class that the scene built: the hash of its world's state.</summary>
+    internal static Func<ulong>? StateHash;
+
     /// <summary>Set by the benchmark class that the scene built, so that the quick run reports only its own ticks.</summary>
     internal static Action? RemarkProfile;
 

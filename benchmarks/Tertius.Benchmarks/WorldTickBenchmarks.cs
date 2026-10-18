@@ -68,6 +68,7 @@ public class WorldTickBenchmarks
             world.Tick();
         profile.Mark(world);
         SyncSampler.RemarkProfile = () => profile.Mark(world);
+        SyncSampler.StateHash = () => world.ProfileStateHash();
     }
 
     [Benchmark]
@@ -129,6 +130,7 @@ public class KeplerFrameTickBenchmarks
         syncCountAtStart = world.SyncCount;
         profile.Mark(world);
         SyncSampler.RemarkProfile = () => profile.Mark(world);
+        SyncSampler.StateHash = () => world.ProfileStateHash();
     }
 
     [Benchmark]
@@ -222,6 +224,7 @@ public class MixedBodiesTickBenchmarks
             world.Tick();
         profile.Mark(world);
         SyncSampler.RemarkProfile = () => profile.Mark(world);
+        SyncSampler.StateHash = () => world.ProfileStateHash();
     }
 
     [Benchmark]
