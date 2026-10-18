@@ -533,7 +533,7 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Gives each hull the motion that it has in the running step, when the hull's record has another motion: the change of
     /// motion in the intent of its owner that the step applies, or else the stored motion of the last finished step (see
-    /// <see cref="FrameTree.RunningStepHullMotion"/>, with the intents of <paramref name="intents"/>). Physics follows that
+    /// <see cref="FrameTree.HullMotionInStep"/>, with the intents of <paramref name="intents"/>). Physics follows that
     /// motion at every step, as the reconcile follows the tree's structure (see <see cref="ReconcileFrames"/>). The tree stores
     /// a change at the sync point after the step that applied it, also when that step failed, so a step that failed loses no
     /// change: the next step that runs takes it from the stored motion. It runs at the start of the step, before anything
@@ -551,7 +551,7 @@ public sealed partial class JoltPhysicsBackend
         foreach (BodyRecord owner in frameOwners)
         {
             // The owner of a root frame has no hull, and the tree keeps no motion for it.
-            if (!owner.HasPrimary || frames.RunningStepHullMotion(owner.OwnedFrame, intents) is not { } motion || motion == owner.Motion)
+            if (!owner.HasPrimary || frames.HullMotionInStep(owner.OwnedFrame, intents) is not { } motion || motion == owner.Motion)
                 continue;
             if ((owner.Desc with { Motion = motion }).Problem(BodyRole.Hull) is { } problem)
             {

@@ -61,7 +61,7 @@ public sealed record FramePose(string? Frame, Double3 Position, DQuaternion Rota
 /// <c>"physics"</c> for a frame whose hull was dynamic in that step, and <c>"static"</c> for every other frame. A change of
 /// a hull's motion in the tick acts from the next step, so it shows in the dump of the tick after. The motion of the hull
 /// in a step comes from the intents that the step applied, or else from the stored motion (see
-/// <c>FrameTree.RunningStepHullMotion</c>), because the tree stores a change only after the frames took their records.
+/// <c>FrameTree.HullMotionInStep</c>), because the tree stores a change only after the frames took their records.
 /// </param>
 public sealed record FrameRecord(string Id, string? Parent, string Follows);
 

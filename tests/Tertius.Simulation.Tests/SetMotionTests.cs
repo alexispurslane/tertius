@@ -59,6 +59,18 @@ public class SetMotionTests
         return caught;
     }
 
+    /// <summary>
+    /// Asserts, after the tick of a refused <c>SetMotion</c>, that the step that applies that tick's writes runs the hull of
+    /// <paramref name="frame"/> with <paramref name="motion"/>, the motion that it had, and that the owner's intent for that
+    /// step holds no change of motion. A change that the tick wrote shows here at once. The stored motion would show it only
+    /// at the sync point after that step, so it cannot tell a refused call from a call that wrote its change.
+    /// </summary>
+    private static void NoChangeOfMotionIsPending(TestWorld test, FrameHandle frame, BodyMotion motion)
+    {
+        test.World.NextStepHullMotion(frame).Should().Be(motion, "a refused change of motion writes nothing");
+        (test.World.Entities.NextStepIntent(frame.Entity).Flags & IntentFlags.SetMotion).Should().Be(IntentFlags.None);
+    }
+
     private static BodyMotion FactsMotion(TestWorld test, Entity entity)
     {
         test.World.Snapshot.TryGetBody(entity, out BodyFacts facts).Should().BeTrue();
@@ -433,7 +445,7 @@ public class SetMotionTests
 
         refused.Should().BeOfType<ArgumentException>().Which.Message.Should().Contain(dock.Entity.ToString()).And.Contain(dock.ToString()).And.Contain("mass");
         ((ArgumentException)refused!).ParamName.Should().Be("motion");
-        test.World.Frames.HullMotion(dock).Should().Be(BodyMotion.Static);
+        NoChangeOfMotionIsPending(test, dock, BodyMotion.Static);
     }
 
     [Theory]
@@ -451,7 +463,7 @@ public class SetMotionTests
         Exception? refused = SetMotionInATick(test, dock.Entity, motion);
 
         refused.Should().BeOfType<ArgumentException>().Which.Message.Should().Contain(dock.Entity.ToString()).And.Contain(dock.ToString()).And.Contain("mesh");
-        test.World.Frames.HullMotion(dock).Should().Be(BodyMotion.Static);
+        NoChangeOfMotionIsPending(test, dock, BodyMotion.Static);
     }
 
     [Theory]
@@ -467,6 +479,6 @@ public class SetMotionTests
 
         refused.Should().BeOfType<ArgumentException>().Which.Message.Should().Contain(ship.Entity.ToString()).And.Contain(ship.ToString());
         ((ArgumentException)refused!).ParamName.Should().Be("motion");
-        test.World.Frames.HullMotion(ship).Should().Be(BodyMotion.Dynamic);
+        NoChangeOfMotionIsPending(test, ship, BodyMotion.Dynamic);
     }
 }

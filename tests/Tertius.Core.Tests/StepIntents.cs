@@ -3,7 +3,7 @@ namespace Tertius.Core.Tests;
 /// <summary>
 /// The intents of one physics step, by entity slot (<see cref="Entity.Index"/>), as <see cref="PhysicsStepContext.Intents"/>
 /// holds them, for the reads of the frame tree that derive the motion of a hull in a step (see
-/// <see cref="FrameTree.RunningStepHullMotion"/>).
+/// <see cref="FrameTree.HullMotionInStep"/>).
 /// </summary>
 internal static class StepIntents
 {

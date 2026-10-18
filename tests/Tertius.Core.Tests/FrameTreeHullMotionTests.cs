@@ -6,8 +6,8 @@ namespace Tertius.Core.Tests;
 /// The frame tree stores the motion of each frame's hull, the body of the frame's owner in the frame's parent
 /// (<see cref="FrameTree.HullMotion"/>): the motion of the last finished step. The World sets it at spawn from the body's
 /// description. A frame without a hull has none: a root frame, whose owner's body is only the frame's static interior, a
-/// frame whose owner has no body, and a numeric frame. The motion of the running step is derived from the intents that the
-/// step applies (<see cref="FrameTree.RunningStepHullMotion"/>).
+/// frame whose owner has no body, and a numeric frame. The motion of the step after the last finished step is derived
+/// from the intents that this step applies (<see cref="FrameTree.HullMotionInStep"/>).
 /// </summary>
 public class FrameTreeHullMotionTests
 {
@@ -84,7 +84,7 @@ public class FrameTreeHullMotionTests
         FrameHandle ship = Child(2, root);
         frames.SetHullMotion(ship, BodyMotion.Dynamic);
 
-        frames.RunningStepHullMotion(ship, StepIntents.Changing(ship, BodyMotion.Static)).Should().Be(BodyMotion.Static);
+        frames.HullMotionInStep(ship, StepIntents.Changing(ship, BodyMotion.Static)).Should().Be(BodyMotion.Static);
         frames.HullMotion(ship).Should().Be(BodyMotion.Dynamic, "the stored motion describes the last finished step");
     }
 
@@ -98,8 +98,8 @@ public class FrameTreeHullMotionTests
         PhysicsIntent[] intents = StepIntents.Changing(other, BodyMotion.Static);
         intents[ship.Entity.Index] = new PhysicsIntent { Motion = BodyMotion.Static, Force = System.Numerics.Vector3.UnitX };
 
-        frames.RunningStepHullMotion(ship, intents).Should().Be(BodyMotion.Dynamic, "the owner's intent has no SetMotion flag");
-        frames.RunningStepHullMotion(ship, []).Should().Be(BodyMotion.Dynamic, "a slot past the end of the intents holds none");
+        frames.HullMotionInStep(ship, intents).Should().Be(BodyMotion.Dynamic, "the owner's intent has no SetMotion flag");
+        frames.HullMotionInStep(ship, []).Should().Be(BodyMotion.Dynamic, "a slot past the end of the intents holds none");
     }
 
     [Fact]
@@ -107,8 +107,8 @@ public class FrameTreeHullMotionTests
     {
         FrameHandle room = Child(2, root);
 
-        frames.RunningStepHullMotion(room, StepIntents.Changing(room, BodyMotion.Static)).Should().BeNull();
-        frames.RunningStepHullMotion(root, StepIntents.Changing(root, BodyMotion.Static)).Should().BeNull();
+        frames.HullMotionInStep(room, StepIntents.Changing(room, BodyMotion.Static)).Should().BeNull();
+        frames.HullMotionInStep(root, StepIntents.Changing(root, BodyMotion.Static)).Should().BeNull();
     }
 
     [Fact]

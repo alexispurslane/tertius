@@ -99,7 +99,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// first. A hull has the motion of its description at spawn. A change of motion that its owner wrote in a tick is in the
     /// intents of the next step, and the hull takes it at the start of that step; any step takes the motion that the hull
     /// has in it, from the change in the step's intents or else from the stored motion of the last finished step (see
-    /// <see cref="FollowHullMotions"/> and <see cref="FrameTree.RunningStepHullMotion"/>). The simulation never gives a hull
+    /// <see cref="FollowHullMotions"/> and <see cref="FrameTree.HullMotionInStep"/>). The simulation never gives a hull
     /// a motion that it cannot take. Such a motion comes only from a bug: it breaks a contract in a Debug build, and a
     /// Release build keeps the hull's motion and reports the bug (see <see cref="ReportBug"/>).
     /// </para>
@@ -629,7 +629,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
     /// and the owner of a root frame has no hull.</item>
     /// <item>Jolt moves every hull with the motion of its record. The record takes the motion of each step at the start of
-    /// that step (see <see cref="FollowHullMotions"/>), so between steps it holds the motion of the last step that ran.</item>
+    /// that step (see <see cref="FollowHullMotions"/>). A record that the simulation creates between two steps, at a spawn
+    /// or a rehome, starts with the motion of the next step, which it runs first.</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame among the semantic
     /// frames, or in the home of a group that keeps a ghost of an anchor, the body's own or the hull of its home's semantic
     /// frame (see <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>

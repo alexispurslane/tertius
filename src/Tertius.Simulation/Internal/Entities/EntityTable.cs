@@ -894,7 +894,7 @@ internal sealed class EntityTable
     /// The intents that the next physics step reads, indexed by slot (<see cref="Entity.Index"/>), the layout that the
     /// physics seam in Core defines. The entries of the entities in <see cref="IntentEntities"/> hold what they wrote, and
     /// the entry of every other live entity is empty (see the invariants), so the change of motion of any owner can be read
-    /// from its entry (see <see cref="FrameTree.RunningStepHullMotion"/>).
+    /// from its entry (see <see cref="FrameTree.HullMotionInStep"/>).
     /// </summary>
     public ReadOnlyMemory<PhysicsIntent> FrontIntents => frontIntent.AsReadOnlyMemory();
 

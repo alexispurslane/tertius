@@ -81,7 +81,7 @@ internal sealed class MotionSampleTable
     /// The record of a frame whose hull was dynamic in the step is the move that physics made (<see cref="FollowKind.Physics"/>).
     /// Any other record is a teleport of the frame's hull or a write of its owner's transform, which a static frame follows
     /// (<see cref="FollowKind.Static"/>). The motion of the hull in the step that ended comes from the intents that the step
-    /// applied, <paramref name="stepIntents"/> (see <see cref="FrameTree.RunningStepHullMotion"/>): the stored motion takes
+    /// applied, <paramref name="stepIntents"/> (see <see cref="FrameTree.HullMotionInStep"/>): the stored motion takes
     /// their changes only at step 4, after this step.
     /// </para>
     /// </summary>
@@ -91,7 +91,7 @@ internal sealed class MotionSampleTable
         ref Row row = ref appliedRows[frame.Index];
         if (row.Round == round - 1 && row.Frame == frame)
             return false;
-        FollowKind kind = frames.RunningStepHullMotion(frame, stepIntents) == BodyMotion.Dynamic ? FollowKind.Physics : FollowKind.Static;
+        FollowKind kind = frames.HullMotionInStep(frame, stepIntents) == BodyMotion.Dynamic ? FollowKind.Physics : FollowKind.Static;
         row = new Row(frame, relativeTo, record, round - 1, kind);
         return true;
     }

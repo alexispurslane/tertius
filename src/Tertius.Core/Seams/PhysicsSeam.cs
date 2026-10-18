@@ -398,7 +398,7 @@ public struct PhysicsIntent
     /// <summary>
     /// The new motion of a frame's hull. Used with <see cref="IntentFlags.SetMotion"/>. It is the motion of the hull in the
     /// step that applies the intent: physics gives the Jolt body this motion at the start of that step, and every reader that
-    /// asks about that step derives it from this field (see <see cref="FrameTree.RunningStepHullMotion"/>). At the sync point
+    /// asks about that step derives it from this field (see <see cref="FrameTree.HullMotionInStep"/>). At the sync point
     /// after that step, the frame tree stores it as the motion of the last finished step (see
     /// <see cref="FrameTree.HullMotion"/>).
     /// </summary>
@@ -515,7 +515,7 @@ public readonly struct PhysicsStepContext
     /// <summary>
     /// Intents by entity slot index. The slots of the entities in <see cref="IntentEntities"/> hold what they wrote, and the
     /// slot of every other live entity holds an empty intent. So the motion of a hull in the step can be read from the slot
-    /// of its owner (see <see cref="FrameTree.RunningStepHullMotion"/>).
+    /// of its owner (see <see cref="FrameTree.HullMotionInStep"/>).
     /// </summary>
     public ReadOnlyMemory<PhysicsIntent> Intents { get; }
     /// <summary>The entities that wrote an intent during the previous tick.</summary>

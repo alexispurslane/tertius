@@ -342,9 +342,10 @@ public sealed partial class World
     /// <summary>
     /// The motion that the hull of <paramref name="frame"/> has in the next step: the step that applies the intents written
     /// in this tick. That is the change of motion that the frame's owner wrote in this tick so far (see
-    /// <see cref="BodyHandle.SetMotion"/>), or else the motion of the running step, which counts the change of the tick
-    /// before (see <see cref="FrameTree.RunningStepHullMotion"/>). Null for a frame without a hull. At the sync point it
-    /// stays the answer for that step after step 4 swaps the intents, because the change then sits in the front intents.
+    /// <see cref="BodyHandle.SetMotion"/>), or else the motion in the step that applies the front intents (see
+    /// <see cref="FrameTree.HullMotionInStep"/>). During the tick, and at the sync point until step 4, that is the running
+    /// step, which counts the change of the tick before. After step 4 swaps the intents, this tick's writes are the front
+    /// intents, so that step is the next step itself, and the answer stays the same. Null for a frame without a hull.
     /// Throws <see cref="StaleEntityException"/> for a stale owner and <see cref="InvalidOperationException"/> for a stale
     /// frame.
     /// </summary>
@@ -357,8 +358,8 @@ public sealed partial class World
     /// </remarks>
     internal BodyMotion? NextStepHullMotion(FrameHandle frame)
     {
-        BodyMotion? running = Frames.RunningStepHullMotion(frame, entities.FrontIntents.Span);
-        return running is null ? null : entities.WrittenMotionChange(frame.Entity) ?? running;
+        BodyMotion? inFrontStep = Frames.HullMotionInStep(frame, entities.FrontIntents.Span);
+        return inFrontStep is null ? null : entities.WrittenMotionChange(frame.Entity) ?? inFrontStep;
     }
 
     /// <summary>
