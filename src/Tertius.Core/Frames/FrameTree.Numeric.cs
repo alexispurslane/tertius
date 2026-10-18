@@ -214,9 +214,36 @@ public sealed partial class FrameTree
     private FrameHandle[] orbiter = new FrameHandle[64];
     private readonly List<NumericGhost> anchorGhosts = new();
     // Each semantic frame of the input, with the range of its bodies in sortedBodies, in the order of the frames' indices.
-    private readonly List<(FrameHandle Frame, int Start, int End)> semanticRanges = new();
+    private readonly List<SemanticRange> semanticRanges = new();
     // The places of the ghosts in the frames of the semantic frame that the update works on (see CollectGhostPlaces).
     private readonly List<GhostPlace> ghostPlaces = new();
+
+    /// <summary>
+    /// The bodies of one semantic frame of the input: their range in <see cref="sortedBodies"/>, and bounds of where those
+    /// that can move are, in the frame's coordinates. <see cref="AddSiblingPlaces"/> fills in the bounds the first time that
+    /// it needs them in an update, from the positions and velocities of the bodies in their semantic frame, which no update
+    /// changes.
+    /// </summary>
+    private struct SemanticRange
+    {
+        public FrameHandle Frame;
+        public int Start;
+        public int End;
+
+        /// <summary>True when the bounds below hold.</summary>
+        public bool Bounded;
+
+        /// <summary>The longest distance from the frame's origin of a body that can move, in meters, or -1 when none can move.</summary>
+        public double Farthest;
+
+        /// <summary>The longest distance from the frame's origin that the bounding sphere of a body that can move reaches, in meters.</summary>
+        public double Extent;
+
+        /// <summary>The highest speed relative to the frame of a body that can move, in m/s.</summary>
+        public double Fastest;
+
+        public readonly void Deconstruct(out FrameHandle frame, out int start, out int end) => (frame, start, end) = (Frame, Start, End);
+    }
     // The leave clock of each body that the last update kept in its semantic frame's own system although it needs a frame by
     // itself (see NumericFrameRules.LeaveClock), and the clocks that the current update builds. An update keeps only the
     // clocks of its own bodies, so the clock of a body that is gone from its input goes with it.
@@ -247,11 +274,11 @@ public sealed partial class FrameTree
     /// <see cref="NumericFrameRules.SplitClock"/> lets them split. An anchor counts as infinitely heavy (see
     /// <see cref="NumericFrameRules.Summarize"/>), so a group with one takes its home (docs/plans/numeric-frames.md,
     /// "Anchors"). So does the ghost of a body of another semantic frame, which no body of the group can move either: the
-    /// update links each body that a ghost can stop (see <see cref="NumericFrameRules.MeetsGhost"/>) to the place of each
-    /// ghost that physics may keep in a frame of its semantic frame before the next update and that it may touch (see
-    /// <see cref="GhostPlace"/>, ticket ter-4psc). The ghost of a body that sticks out of a semantic child lives in the
-    /// home of the child's hull, so the body joins the hull's group; any other ghost is fixed in the semantic frame's own
-    /// system, so the body's group stays there. The hull of a Kepler frame that its orbit moves fast or far lives in an orbit
+    /// update links each body to the place of each ghost that physics can keep in a frame of its semantic frame before the
+    /// next update, that the body meets as physics has it (see <see cref="NumericFrameRules.MeetsGhost"/>) and that it can
+    /// touch (see <see cref="GhostPlace"/>, ticket ter-4psc). The ghost of a body that sticks out of a semantic child lives
+    /// in the home of the child's hull, so the body joins the hull's group. Any other ghost is fixed in the semantic frame's
+    /// own system, so the body's group stays there. The hull of a Kepler frame that its orbit moves fast or far lives in an orbit
     /// frame of its own (see <see cref="NumericMode.Orbiting"/>), which the update makes for it, and the frame hangs at its
     /// origin. A group that links such a hull and no anchor at rest takes that orbit frame; a group that cannot take it,
     /// because it links an anchor at rest or an earlier such hull, lives in that other home, and the hull's frame stays its
@@ -290,7 +317,7 @@ public sealed partial class FrameTree
             int end = start + 1;
             while (end < sortedBodies.Count && sortedBodies[end].Semantic == sortedBodies[start].Semantic)
                 end++;
-            semanticRanges.Add((sortedBodies[start].Semantic, start, end));
+            semanticRanges.Add(new SemanticRange { Frame = sortedBodies[start].Semantic, Start = start, End = end });
             start = end;
         }
         // The update of a semantic frame reads the bodies of its semantic parent, children and siblings, which keep their
@@ -403,8 +430,8 @@ public sealed partial class FrameTree
             for (int j = i + 1; j < end; j++)
                 if (MayTouch(bodies[i], bodies[j]))
                     Union(i, j);
-        // Every body that a ghost can stop links to the place of each ghost that it may touch, which no body of the group can
-        // move, so it counts as infinitely heavy.
+        // Every body links to the place of each ghost that it meets and can touch, which no body of the group can move, so it
+        // counts as infinitely heavy.
         LinkGhostPlaces(start, end);
         HoldFramesTogether(start, end, dt);
         GroupBodies(start, end);
@@ -509,18 +536,18 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Fills <see cref="ghostPlaces"/> with the places of the ghosts that physics may keep, before the next update, in the
+    /// Fills <see cref="ghostPlaces"/> with the places of the ghosts that physics can keep, before the next update, in the
     /// frames of the semantic frame whose bodies are <c>sortedBodies[start..end]</c>: the ghosts that no body of that frame
     /// can move, so the merge test counts them as infinitely heavy (docs/plans/numeric-frames.md, "Bubbles and ghosts").
     /// <list type="bullet">
-    /// <item>A body of a semantic child that may stick out of the child's bubble (see
+    /// <item>A body of a semantic child that can stick out of the child's bubble (see
     /// <see cref="AddStickOutPlaces"/>), whose ghost lives in the child's tree parent, the home of the child's hull.</item>
-    /// <item>A body of the semantic parent that may touch the bubble (see <see cref="AddParentPlaces"/>), and a body of a
-    /// semantic sibling that may stick out of its own bubble and touch this one (see <see cref="AddSiblingPlaces"/>), whose
+    /// <item>A body of the semantic parent that can touch the bubble (see <see cref="AddParentPlaces"/>), and a body of a
+    /// semantic sibling that can stick out of its own bubble and touch this one (see <see cref="AddSiblingPlaces"/>), whose
     /// ghosts live in the semantic frame's own system.</item>
     /// </list>
     /// Each place comes from the tree and from the positions and velocities of the bodies in their semantic frames, never
-    /// from another semantic frame's homes or places in them, which the update of that frame may have changed already. It
+    /// from another semantic frame's homes or places in them, which an earlier update of that frame can change. It
     /// runs before any frame of this semantic frame shifts and any of its bodies moves, while the tree holds where each
     /// ghost lives.
     /// </summary>
@@ -530,33 +557,35 @@ public sealed partial class FrameTree
         FrameHandle semantic = sortedBodies[start].Semantic;
         FrameHandle parent = Parent(semantic);
         ReadOnlySpan<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
-        foreach ((FrameHandle frame, int from, int to) in semanticRanges)
+        Span<SemanticRange> ranges = CollectionsMarshal.AsSpan(semanticRanges);
+        for (int r = 0; r < ranges.Length; r++)
         {
+            (FrameHandle frame, int from, int to) = ranges[r];
             FrameHandle frameParent = Parent(frame);
             if (frameParent == semantic)
                 AddStickOutPlaces(frame, bodies[from..to], start, end);
             else if (frame == parent)
                 AddParentPlaces(semantic, bodies[from..to]);
             else if (!parent.IsNull && frameParent == parent && frame != semantic)
-                AddSiblingPlaces(semantic, frame, bodies[from..to]);
+                AddSiblingPlaces(semantic, ref ranges[r]);
         }
     }
 
     /// <summary>
     /// Adds the place of each body of <paramref name="members"/>, the bodies of the semantic child <paramref name="child"/>,
-    /// that may stick out of the child's bubble before the next update (see <see cref="NumericFrameRules.MayStickOut"/>).
+    /// that can stick out of the child's bubble before the next update (see <see cref="NumericFrameRules.MayStickOut"/>).
     /// Physics gives such a body a ghost in the child's tree parent, the home of the child's hull, wherever the update moves
     /// the hull. So the place's target is the hull, the body among <c>sortedBodies[start..end]</c> that owns the child, and
-    /// a body that may touch the ghost joins the hull's group. A child without a hull hangs in the semantic frame, which
-    /// holds the ghost fixed. The place has the body's radius, and its place and velocity relative to the semantic frame
-    /// go through the child's pose, rotation and spin.
+    /// a body that can touch the ghost joins the hull's group. A child without a hull hangs in the semantic frame (see the
+    /// invariants of <see cref="FrameTree"/>), which holds the ghost fixed. The place has the body's radius, and its place
+    /// and velocity relative to the semantic frame go through the child's pose, rotation and spin.
     /// </summary>
     private void AddStickOutPlaces(FrameHandle child, ReadOnlySpan<NumericBody> members, int start, int end)
     {
         FrameBounds bubble = Bounds(child);
         FrameHandle home = TreeParent(child);
         DPose pose = TreeLocalPose(child);
-        // The hull and the child's motion, which the first body that may stick out looks up for all of them.
+        // The hull and the child's motion, which the first body that can stick out looks up for all of them.
         bool prepared = false;
         int hull = -1;
         Double3 velocity = default, spin = default;
@@ -574,48 +603,74 @@ public sealed partial class FrameTree
                 prepared = true;
             }
             ghostPlaces.Add(new GhostPlace(home, pose.TransformPoint(body.Position),
-                VelocityToParent(pose, velocity, spin, body.Position, body.Velocity), body.Radius, hull));
+                VelocityToParent(pose, velocity, spin, body.Position, body.Velocity), body.Radius, hull, body.Static, body.Sensor));
         }
     }
 
     /// <summary>
     /// Adds the place of each body of <paramref name="members"/>, the bodies of the semantic parent of
-    /// <paramref name="semantic"/>, that may touch the bubble of <paramref name="semantic"/> before the next update (see
+    /// <paramref name="semantic"/>, that can touch the bubble of <paramref name="semantic"/> before the next update (see
     /// <see cref="NumericFrameRules.MayTouchBubble"/>): physics gives such a body a ghost in the frame's own system while it
     /// touches the bubble without being in it (ticket ter-tenw). A body that can move counts, and the hull of a frame, which
     /// reaches as far as its own bubble, as physics has it. A static body that is not a hull has no ghost in a bubble, and
-    /// the frame's own hull lives inside it. The ghost is fixed in the frame's own system.
+    /// the frame's own hull lives inside it. The ghost is fixed in the frame's own system. A first test on the distance from
+    /// the bubble's center skips each body that cannot reach the bubble (see <see cref="NumericFrameRules.MayReachBubble"/>),
+    /// before the full test turns the body's place and velocity into the frame's axes.
     /// </summary>
     private void AddParentPlaces(FrameHandle semantic, ReadOnlySpan<NumericBody> members)
     {
         FrameBounds bubble = Bounds(semantic);
         DPose pose = LocalPose(semantic);
         Double3 velocity = LinearVelocity(semantic), spin = (Double3)AngularVelocity(semantic);
+        double radius = bubble.MaxRadius, spinRate = spin.Length, center = pose.Position.Length;
         foreach (ref readonly NumericBody body in members)
         {
             if (body.OwnedFrame == semantic || (body.Static && body.OwnedFrame.IsNull))
                 continue;
+            double reach = body.OwnedFrame.IsNull ? body.Radius : Math.Max(body.Radius, Bounds(body.OwnedFrame).MaxRadius);
+            // The rounding scales with the distances of the body and the center from the semantic parent's origin. The body's is
+            // at most the center's plus the distance between them.
+            double distance = (body.Position - pose.Position).Length;
+            if (!NumericFrameRules.MayReachBubble(distance, radius + reach, (body.Velocity - velocity).Length + spinRate * distance,
+                2 * center + distance, NumericOptions))
+                continue;
             Double3 position = pose.InverseTransformPoint(body.Position);
             Double3 relative = VelocityFromParent(pose, velocity, spin, body.Position, body.Velocity);
-            double reach = body.OwnedFrame.IsNull ? body.Radius : Math.Max(body.Radius, Bounds(body.OwnedFrame).MaxRadius);
             if (NumericFrameRules.MayTouchBubble(bubble, position, relative, reach, NumericOptions))
-                ghostPlaces.Add(new GhostPlace(semantic, position, relative, body.Radius, -1));
+                ghostPlaces.Add(new GhostPlace(semantic, position, relative, body.Radius, -1, body.Static, body.Sensor));
         }
     }
 
     /// <summary>
-    /// Adds the place of each body of <paramref name="members"/>, the bodies of <paramref name="sibling"/>, a semantic
-    /// sibling of <paramref name="semantic"/>, that may stick out of the sibling's bubble and touch the bubble of
+    /// Adds the place of each body of <paramref name="sibling"/>, the bodies of a semantic sibling of
+    /// <paramref name="semantic"/>, that can stick out of the sibling's bubble and touch the bubble of
     /// <paramref name="semantic"/> before the next update: physics gives such a body a ghost in the frame's own system, as
-    /// the body is partly in their semantic parent (ticket ter-tenw). The ghost is fixed in the frame's own system.
+    /// the body is partly in their semantic parent (ticket ter-tenw). The ghost is fixed in the frame's own system. A first
+    /// test on the distance between the two centers skips the whole sibling when none of its bodies can reach the bubble
+    /// (see <see cref="NumericFrameRules.MayReachBubble"/>), from bounds of where its bodies are (see
+    /// <see cref="SemanticRange"/>).
     /// </summary>
-    private void AddSiblingPlaces(FrameHandle semantic, FrameHandle sibling, ReadOnlySpan<NumericBody> members)
+    private void AddSiblingPlaces(FrameHandle semantic, ref SemanticRange sibling)
     {
-        FrameBounds own = Bounds(sibling), bubble = Bounds(semantic);
-        DPose siblingPose = LocalPose(sibling), pose = LocalPose(semantic);
-        Double3 siblingVelocity = LinearVelocity(sibling), siblingSpin = (Double3)AngularVelocity(sibling);
+        if (!sibling.Bounded)
+            Bound(ref sibling);
+        if (sibling.Farthest < 0)
+            return;
+        FrameBounds own = Bounds(sibling.Frame), bubble = Bounds(semantic);
+        DPose siblingPose = LocalPose(sibling.Frame), pose = LocalPose(semantic);
+        Double3 siblingVelocity = LinearVelocity(sibling.Frame), siblingSpin = (Double3)AngularVelocity(sibling.Frame);
         Double3 velocity = LinearVelocity(semantic), spin = (Double3)AngularVelocity(semantic);
-        foreach (ref readonly NumericBody body in members)
+        // A body of the sibling moves relative to the bubble's frame at most at its own speed, plus the speed that the
+        // sibling's spin gives it, plus the sibling's speed relative to the frame, plus the speed that the frame's spin gives
+        // it. The frame's spin gives a body more speed the farther it is from the frame's center. A body beyond the sibling's
+        // center gets more of that speed, but it is also that much farther from the bubble, so the spin at the distance of
+        // the two centers is enough for the test.
+        double distance = (siblingPose.Position - pose.Position).Length;
+        double speedBound = sibling.Fastest + siblingSpin.Length * sibling.Farthest + (siblingVelocity - velocity).Length + spin.Length * distance;
+        if (!NumericFrameRules.MayReachBubble(distance, bubble.MaxRadius + sibling.Extent, speedBound,
+            siblingPose.Position.Length + pose.Position.Length + sibling.Farthest, NumericOptions))
+            return;
+        foreach (ref readonly NumericBody body in CollectionsMarshal.AsSpan(sortedBodies)[sibling.Start..sibling.End])
         {
             if (!NumericFrameRules.MayStickOut(own, body, NumericOptions))
                 continue;
@@ -624,14 +679,33 @@ public sealed partial class FrameTree
             Double3 position = pose.InverseTransformPoint(inParent);
             Double3 relative = VelocityFromParent(pose, velocity, spin, inParent, velocityInParent);
             if (NumericFrameRules.MayTouchBubble(bubble, position, relative, body.Radius, NumericOptions))
-                ghostPlaces.Add(new GhostPlace(semantic, position, relative, body.Radius, -1));
+                ghostPlaces.Add(new GhostPlace(semantic, position, relative, body.Radius, -1, body.Static, body.Sensor));
         }
     }
 
     /// <summary>
-    /// Links each body of <c>sortedBodies[start..end]</c> that meets a ghost (see <see cref="NumericFrameRules.MeetsGhost"/>)
-    /// to each place of <see cref="ghostPlaces"/> that it may touch, by the merge test of two bodies: it joins the group of
-    /// the place's hull, whose home holds the ghost, or it stays in its semantic frame's own system with the ghost there
+    /// Fills in the bounds of <paramref name="range"/> from its bodies that are not static, the only ones that can stick out
+    /// of its bubble (see <see cref="NumericFrameRules.MayStickOut"/>).
+    /// </summary>
+    private void Bound(ref SemanticRange range)
+    {
+        double farthest = -1, extent = -1, fastest = 0;
+        foreach (ref readonly NumericBody body in CollectionsMarshal.AsSpan(sortedBodies)[range.Start..range.End])
+        {
+            if (body.Static)
+                continue;
+            double distance = body.Position.Length;
+            farthest = Math.Max(farthest, distance);
+            extent = Math.Max(extent, distance + body.Radius);
+            fastest = Math.Max(fastest, body.Velocity.Length);
+        }
+        (range.Farthest, range.Extent, range.Fastest, range.Bounded) = (farthest, extent, fastest, true);
+    }
+
+    /// <summary>
+    /// Links each body of <c>sortedBodies[start..end]</c> to each place of <see cref="ghostPlaces"/> whose ghost it meets (see
+    /// <see cref="NumericFrameRules.MeetsGhost"/>) and that it can touch, by the merge test of two bodies: it joins the group
+    /// of the place's hull, whose home holds the ghost, or it stays in its semantic frame's own system with the ghost there
     /// (see <see cref="NumericBody.MayTouchFixedGhost"/>).
     /// </summary>
     private void LinkGhostPlaces(int start, int end)
@@ -642,11 +716,9 @@ public sealed partial class FrameTree
         for (int i = start; i < end; i++)
         {
             ref NumericBody body = ref bodies[i];
-            if (!NumericFrameRules.MeetsGhost(body))
-                continue;
             foreach (GhostPlace place in ghostPlaces)
             {
-                if (!MayTouch(body, place))
+                if (!NumericFrameRules.MeetsGhost(body, place) || !MayTouch(body, place))
                     continue;
                 if (place.Target >= 0)
                     Union(i, place.Target);

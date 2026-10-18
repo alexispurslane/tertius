@@ -347,9 +347,7 @@ public class NumericFrameGhostTests
     /// ship, which hangs in the ship's falling frame, exactly while their bubbles overlap. The ship's falling frame keeps
     /// no ghost of the hull: an anchor at rest joins the group of a fast body that the merge test links to it, so within
     /// that reach the ship's hull joins the system of space instead (ter-dhkf). Before, the falling frame kept a ghost of
-    /// the station's hull while the ship's hull passed it. The station holds no crate here: the hull's ghost in the station
-    /// would push a crate in its lane out of the station ahead of the hull, and the hull would join space for the crate too,
-    /// through the place of the crate's ghost (ter-4psc).
+    /// the station's hull while the ship's hull passed it.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -357,7 +355,7 @@ public class NumericFrameGhostTests
     public void AParkedStationsHullHasAGhostInAFastShipExactlyWhileTheirBubblesOverlapAndNoneInTheShipsFallingFrame(bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults);
-        StationScene scene = CratesPassingAStation(world, lane: 10, stationCrate: null, shipCrate: null);
+        StationScene scene = ShipPassingAStation(world, lane: 10);
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
 
@@ -631,13 +629,11 @@ public class NumericFrameGhostTests
     /// station's crate at (0, 40, 0) and the ship's crate at (0, -30, 0) stick out of their frames' bubbles, toward the other
     /// frame, but each stays at least 5 m away from the other bubble. Each crate has its one ghost outside its frame in the
     /// frame's tree parent, the home of the frame's hull: the station's crate in space, the ship's crate in the home of the
-    /// ship's hull. The ship's hull, a dynamic body of space, may touch the ghost of the station's crate while it passes
-    /// it, so the merge test links the hull to the crate's place, and the hull joins the system of space, the home of the
-    /// station's hull, where that ghost lives (ticket ter-4psc). Meanwhile the ship hangs in space. No numeric frame keeps
-    /// a ghost of the station's crate. The lookahead is 0.8 s: the merge test then reaches 55 m between the two hulls,
-    /// short of the lane, and 53 m from the ship's hull to the place of the station's crate, 35 m from the lane, so the hull
-    /// joins space about 40 m before it passes the crate. It leaves space beyond the split margin of 10 m more, about 53 m
-    /// after it.
+    /// ship's hull. The ship's hull passes 35 m from the station's crate, within the merge test's reach, but a ghost has the
+    /// ghost role, and the mask of a hull names only the static and hull roles. So the hull never meets the crate's ghost,
+    /// the merge test does not link the hull to the crate's place, and the hull falls in its numeric frame all along (review
+    /// of ter-4psc). No numeric frame keeps a ghost of the station's crate. The lookahead is 0.8 s: the merge test then
+    /// reaches 55 m between the two hulls, short of the lane.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -648,31 +644,25 @@ public class NumericFrameGhostTests
         StationScene scene = CratesPassingAStation(world, lane: 75, stationCrate: At(0, 40), shipCrate: At(0, -30));
         world.Tick();
         ShipHomeShouldBe(world, scene, numericFrames);
+        FrameHandle shipParent = world.Frames.TreeParent(scene.Ship);
 
         double closest = double.PositiveInfinity;
-        int hullInSpace = 0;
         for (int tick = 0; tick < 200; tick++)
         {
-            FrameHandle shipParent = world.Frames.TreeParent(scene.Ship);
             world.Tick();
             closest = Math.Min(closest, ShipDistance(world, scene));
+            world.Frames.TreeParent(scene.Ship).Should().Be(shipParent, $"after tick {tick} the ship's hull is where it was, as nothing links it to space");
             faults.Jolt.HasGhostIn(scene.StationOwner, scene.Ship).Should().BeFalse($"after tick {tick} the ship's bubble is beyond the reach of the station's hull");
             faults.Jolt.HasGhostIn(scene.ShipCrate, scene.Station).Should().BeFalse($"after tick {tick} the ship's crate is away from the station's bubble");
             faults.Jolt.HasGhostIn(scene.Crate, scene.Ship).Should().BeFalse($"after tick {tick} the station's crate is away from the ship's bubble");
-            faults.Jolt.GhostCount(scene.ShipCrate).Should().BeLessThanOrEqualTo(1, $"after tick {tick} the ship's crate has no ghost but the one in the ship's tree parent");
-            // The sync point that moves the ship's hull drops the crate's ghost in the old tree parent, and the ghost pass of
-            // the next step makes the one in the new tree parent.
-            if (world.Frames.TreeParent(scene.Ship) == shipParent)
-                faults.Jolt.HasGhostIn(scene.ShipCrate, shipParent).Should().BeTrue($"after tick {tick} the ship's crate sticks out of the ship into its tree parent");
+            faults.Jolt.HasGhostIn(scene.ShipCrate, shipParent).Should().BeTrue($"after tick {tick} the ship's crate sticks out of the ship into its tree parent");
+            faults.Jolt.GhostCount(scene.ShipCrate).Should().Be(1, $"after tick {tick} the ship's crate has no ghost but the one in the ship's tree parent");
             faults.Jolt.HasGhostIn(scene.Crate, scene.Space).Should().BeTrue("the station's crate sticks out of the station into space");
             faults.Jolt.GhostCount(scene.Crate).Should().Be(1, $"after tick {tick} the station's crate has no ghost but the one in space");
-            if (world.PhysicsHomeOf(scene.ShipOwner) == scene.Space)
-                hullInSpace++;
         }
 
-        hullInSpace.Should().BeInRange(numericFrames ? 88 : 200, numericFrames ? 98 : 200, numericFrames
-            ? "the ship's hull lives in space while the merge test links it to the place of the station crate's ghost, along about 93 m of its path, and falls before and after"
-            : "without numeric frames every hull lives in space");
+        if (numericFrames)
+            world.Frames.Numeric(shipParent).Should().Be(NumericMode.Falling, "the ship's hull falls in its numeric frame all along");
         closest.Should().BeInRange(75, 75.01, "the ship passed the station");
         world.VelocityIn(scene.Crate, scene.Station).Length.Should().BeLessThan(1e-3, "nothing touched the station's crate");
         world.VelocityIn(scene.ShipCrate, scene.Ship).Length.Should().BeLessThan(1e-3, "nothing touched the ship's crate");
@@ -684,12 +674,12 @@ public class NumericFrameGhostTests
     /// <see cref="TheGhostOfAFallingShipMovesInAParkedStationWithTheShipsVelocityOverTheLastStep"/> shows for a hull. In
     /// uniform gravity of 9.81 m/s² along -Y, the ship falls past the station from (1040, 30, 0), where it is after the
     /// warm-up, less what it fell. A crate at (-30, 0, 0) in the ship sticks out of the ship's bubble and into the
-    /// station's, and a crate at (40, 0, 0) in the station sticks out of the station's bubble and into the ship's. The test
+    /// station's, and a crate at (24, 32, 0) in the station sticks out of the station's bubble and into the ship's. The test
     /// reads the ghosts 3 ticks after the warm-up, when the station's crate has fallen about 1.4 m and its corners still
-    /// stick out of the station's bubble. The station's crate stays at least 30 m from the ship's hull, beyond the 27 m at
-    /// which the merge test links the hull to the place of the crate's ghost in space, so the hull falls in its numeric
-    /// frame (ticket ter-4psc). The ship's falling frame and its hull accelerate, so their instant velocities at the end of a
-    /// step are half a step of gravity, about 0.08 m/s, faster than their chords.
+    /// stick out of the station's bubble. The ship's hull passes near the station's crate, but a hull never meets a ghost,
+    /// so the merge test does not link the hull to the crate's place, and the hull falls in its numeric frame. The ship's
+    /// falling frame and its hull accelerate, so their instant velocities at the end of a step are half a step of gravity,
+    /// about 0.08 m/s, faster than their chords.
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -697,7 +687,7 @@ public class NumericFrameGhostTests
     public void TheGhostsOfCratesThatStickOutBesideAFallingShipMoveWithTheirVelocitiesOverTheLastStep(bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults);
-        StationScene scene = CratesPassingAStation(world, lane: 30, stationCrate: At(40), shipCrate: At(-30), shipX: 1040,
+        StationScene scene = CratesPassingAStation(world, lane: 30, stationCrate: At(24, 32), shipCrate: At(-30), shipX: 1040,
             gravity: GravityField.Uniform(new Vector3(0, -9.81f, 0)));
         Tick(world, 3);
         ShipHomeShouldBe(world, scene, numericFrames);

@@ -9,7 +9,9 @@ namespace Tertius.Core.Tests;
 /// before the next update has a ghost in C's tree parent, the home of C's hull, and a body of P's semantic parent, or of a
 /// sibling of P, that may touch P's bubble has a ghost in P's own system. A body of P that the merge test links to such a
 /// place takes the home where the ghost lives: it joins the group of C's hull, or it stays in P's own system. Only a body
-/// that Jolt makes a contact with against a kinematic ghost counts: a dynamic body, a character or a sensor.
+/// that meets the ghost as physics has it counts: a dynamic body or a character, or a static or kinematic body when one of
+/// the two is a sensor, and never a frame hull. A frame without a hull never hangs in a numeric frame, so the places of
+/// its bodies are fixed in its tree parent's own system.
 /// <para>
 /// The tests run plain body records on a tree built in the test, at the defaults of <see cref="NumericFrameOptions"/>: a
 /// group of free bodies falls from 1,000 m/s, a group with a body that thrusts from 50 m/s, and a slow group rests from
@@ -374,6 +376,49 @@ public class FrameTreeGhostPlaceTests
     }
 
     [Fact]
+    public void A_falling_ships_hull_near_a_crate_that_sticks_out_of_a_station_is_not_linked_to_the_crates_place()
+    {
+        // The review's scene: the ship's hull flies at 60 m/s 35 m beside the crate, within the merge test's reach of 2 s of
+        // its speed. A ghost has the ghost role, and the mask of a hull names only the static and hull roles, so the hull
+        // never meets the crate's ghost and keeps falling in its numeric frame.
+        FrameHandle station = Station(2, X(1_000));
+        FrameHandle ship = Station(20, new Double3(1_000, 75, 0), MotionDriver.Physics, bubble: 30);
+        frames.TreeLinearVelocity(ship) = X(-60);
+        NumericBody hull = Body(20, new Double3(1_000, 75, 0), X(-60), character: true, radius: 2) with { OwnedFrame = ship };
+
+        NumericBody[] after = Update(0.1, hull, BodyOf(station, 11, Y(40)));
+
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Falling);
+    }
+
+    [Fact]
+    public void A_sensor_near_the_place_of_a_parked_hull_is_not_linked_to_it()
+    {
+        // The depot's static hull reaches the station's bubble as far as its own bubble, so it has a ghost in the station's
+        // own system. That ghost meets only what the static hull meets, a dynamic body, so a kinematic sensor at 1,000 m/s
+        // in the station does not detect it, and alone it falls in a frame of the station.
+        FrameHandle station = Station(2, X(1_000));
+        FrameHandle depot = Station(3, new Double3(1_000, 100, 0), bubble: 70);
+        NumericBody sensor = BodyOf(station, 12, Double3.Zero, X(1_000)) with { Kinematic = true, Sensor = true };
+
+        NumericBody[] after = Update(0.1, ParkedHull(depot), sensor);
+
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
+    }
+
+    [Fact]
+    public void A_kinematic_body_near_a_sensor_that_sticks_out_of_a_child_bubble_is_linked_to_its_place()
+    {
+        // Jolt makes a contact between a kinematic body and a sensor. So the kinematic body far out, 5 m from the sensor's
+        // place, stays in the system of ground with the sensor's ghost, although alone it rests in a frame.
+        FrameHandle station = Station(2, X(Far));
+
+        NumericBody[] after = Update(0.1, Body(10, new Double3(Far, 45, 0)) with { Kinematic = true }, BodyOf(station, 11, Y(40)) with { Sensor = true });
+
+        after[0].Home.Should().Be(ground);
+    }
+
+    [Fact]
     public void The_update_finds_the_fixed_ghosts_that_a_body_may_touch_itself()
     {
         // The tree fills in the field, as it fills in the mode of the home, so a value in the input does not count.
@@ -418,13 +463,27 @@ public class FrameTreeGhostPlaceTests
     [Fact]
     public void A_body_of_the_parent_that_a_moving_child_comes_at_leaves_a_place_in_the_childs_own_system()
     {
-        // The rock lies still 10 m outside the station's bubble, and the station comes at it at 10 m/s, so the rock may touch
-        // the bubble within 2 s. The body in the station flies at 60 m/s 12 m from the rock.
+        // The rock lies still 15 m outside the station's bubble, beyond the split margin, and the station comes at it at
+        // 10 m/s, so the rock can touch the bubble within 2 s. The body in the station flies at 60 m/s 17 m from the rock.
         FrameHandle station = Station(2, X(1_000), MotionDriver.Physics);
         frames.TreeLinearVelocity(station) = Y(10);
         NumericBody inside = BodyOf(station, 12, Y(38), X(60)) with { Character = true };
 
-        NumericBody[] after = Update(0.1, Body(10, new Double3(1_000, 50, 0)), inside);
+        NumericBody[] after = Update(0.1, Body(10, new Double3(1_000, 55, 0)), inside);
+
+        after[1].Home.Should().Be(station);
+    }
+
+    [Fact]
+    public void A_body_of_the_parent_beside_a_spinning_child_leaves_a_place_in_the_childs_own_system()
+    {
+        // The station turns at 0.2 rad/s, so in its axes the rock, still in ground 21 m outside the bubble, moves at
+        // 12.2 m/s, and 2 s of that reach the bubble. The body in the station flies at 60 m/s 23 m from the rock.
+        FrameHandle station = Station(2, X(1_000));
+        frames.AngularVelocity(station) = new System.Numerics.Vector3(0, 0, 0.2f);
+        NumericBody inside = BodyOf(station, 12, Y(38), X(60)) with { Character = true };
+
+        NumericBody[] after = Update(0.1, Body(10, new Double3(1_000, 61, 0)), inside);
 
         after[1].Home.Should().Be(station);
     }
@@ -501,15 +560,76 @@ public class FrameTreeGhostPlaceTests
     }
 
     [Fact]
+    public void A_body_that_comes_at_the_frame_as_it_sticks_out_of_a_sibling_leaves_a_place_in_the_frames_own_system()
+    {
+        // The depot's crate sticks out of the depot 20 m outside the station's bubble and comes at it at 10 m/s, so it can
+        // touch the bubble within 2 s. The body in the station flies at 60 m/s 22 m from it.
+        FrameHandle station = Station(2, X(1_000));
+        FrameHandle depot = Station(3, X(1_100));
+        NumericBody inside = BodyOf(station, 12, X(38), Y(60)) with { Character = true };
+
+        NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(-40), X(-10)), inside);
+
+        after[1].Home.Should().Be(station);
+    }
+
+    [Fact]
+    public void A_body_that_sticks_out_of_a_spinning_sibling_leaves_a_place_in_the_frames_own_system()
+    {
+        // The depot turns at 0.25 rad/s, so its crate, which sticks out of it 20 m outside the station's bubble, moves at
+        // 10 m/s, and 2 s of that reach the bubble. The body in the station flies at 60 m/s 22 m from it.
+        FrameHandle station = Station(2, X(1_000));
+        FrameHandle depot = Station(3, X(1_100));
+        frames.AngularVelocity(depot) = new System.Numerics.Vector3(0, 0, 0.25f);
+        NumericBody inside = BodyOf(station, 12, X(38), Y(60)) with { Character = true };
+
+        NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(-40)), inside);
+
+        after[1].Home.Should().Be(station);
+    }
+
+    [Fact]
+    public void A_body_that_sticks_out_of_a_sibling_beside_a_spinning_frame_leaves_a_place_in_the_frames_own_system()
+    {
+        // The station turns at 0.25 rad/s, so in its axes the depot's crate, which sticks out of the depot 20 m outside the
+        // station's bubble, moves at 15 m/s, and 2 s of that reach the bubble. The body in the station flies at 60 m/s 22 m
+        // from it.
+        FrameHandle station = Station(2, X(1_000));
+        frames.AngularVelocity(station) = new System.Numerics.Vector3(0, 0, 0.25f);
+        FrameHandle depot = Station(3, X(1_100));
+        NumericBody inside = BodyOf(station, 12, X(38), Y(60)) with { Character = true };
+
+        NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(-40)), inside);
+
+        after[1].Home.Should().Be(station);
+    }
+
+    [Fact]
+    public void A_large_body_that_sticks_out_of_a_sibling_reaches_the_frame_with_its_radius()
+    {
+        // The depot's crate has a radius of 5 m, and its center lies 47 m from the depot's and 13 m outside the station's
+        // bubble: its sphere and the split margin reach the bubble, its center and the margin do not. The body in the station
+        // flies at 60 m/s 15 m from it.
+        FrameHandle station = Station(2, X(1_000));
+        FrameHandle depot = Station(3, X(1_100));
+        NumericBody inside = BodyOf(station, 12, X(38), Y(60)) with { Character = true };
+
+        NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(-47)) with { Radius = 5 }, inside);
+
+        after[1].Home.Should().Be(station);
+    }
+
+    [Fact]
     public void A_body_deep_inside_a_sibling_whose_bubble_overlaps_the_frames_leaves_no_place_in_it()
     {
-        // The depot's bubble overlaps the station's from 1,020 m to 1,040 m. Its crate lies there, 5 m inside the depot's
-        // bubble, so it has no ghost outside the depot. The body in the station flies at 60 m/s 5 m from it.
+        // The depot's bubble overlaps the station's from 1,020 m to 1,040 m. Its crate lies there, at 1,031 m, and its sphere
+        // ends 10 m inside the depot's bubble, the split margin, so it cannot stick out of the depot. The body in the station
+        // flies at 60 m/s 5 m from it.
         FrameHandle station = Station(2, X(1_000));
         FrameHandle depot = Station(3, X(1_060));
-        NumericBody inside = BodyOf(station, 12, X(20), Y(60)) with { Character = true };
+        NumericBody inside = BodyOf(station, 12, X(26), Y(60)) with { Character = true };
 
-        NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(-35)), inside);
+        NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(-29)), inside);
 
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
     }
@@ -562,6 +682,22 @@ public class FrameTreeGhostPlaceTests
 
         // Back to 7 m apart: the body and the ghost are in two systems, so there is no margin, and it stays in its frame.
         Update(1, Body(10, new Double3(Far, 47, 0), home: own), crate);
+        moves.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void A_fast_body_near_a_crate_that_rests_just_inside_a_stations_bubble_stays_in_the_semantic_frames_own_system_whether_the_crate_sleeps_or_not()
+    {
+        // The review's scene: the crate's sphere ends 1 mm inside the bubble. Awake it moves at 1 mm/s, asleep not at all.
+        // The rock comes at it at 60 m/s from 100 m, within 2 m plus 2 s of 60 m/s, and alone it falls in a frame.
+        FrameHandle station = Station(2, X(1_000));
+        NumericBody rock = Body(10, new Double3(1_000, 140, 0), Y(-60), character: true);
+
+        NumericBody[] awake = Update(0.1, rock, BodyOf(station, 11, Y(38.999), X(1e-3)));
+        awake[0].Home.Should().Be(ground, "the awake crate can stick out");
+        NumericBody[] asleep = Update(0.1, rock, BodyOf(station, 11, Y(38.999)));
+
+        asleep[0].Home.Should().Be(ground, "the crate is as near the edge of the bubble asleep as awake");
         moves.Should().BeEmpty();
     }
 
@@ -628,6 +764,58 @@ public class FrameTreeGhostPlaceTests
         Radius = 1,
         Mass = 10,
     };
+
+    // ---- Frames without a hull (review of ter-4psc) -------------------------------------------------------------------
+
+    /// <summary>
+    /// A ship of a hull of radius 2 m and a bubble of radius 200 m, which flies at 60 m/s at 1,000 m along X in ground and
+    /// falls in a numeric frame, and a room with the Physics driver and no hull at the ship's origin, with a bubble of
+    /// radius 20 m. Returns the ship, the ship's numeric frame and the room.
+    /// </summary>
+    private (FrameHandle Ship, FrameHandle Pod, FrameHandle Room) RoomInAFallingShip()
+    {
+        FrameHandle ship = Station(20, X(1_000), MotionDriver.Physics, bubble: 200);
+        frames.TreeLinearVelocity(ship) = X(60);
+        FrameHandle pod = Update(0.1, Body(20, X(1_000), X(60), character: true, radius: 2) with { OwnedFrame = ship })[0].Home;
+        frames.Numeric(pod).Should().Be(NumericMode.Falling);
+        FrameHandle room = frames.Create(new Entity(30, 1), ship, DPose.Identity, FrameBounds.Sphere(20), MotionDriver.Physics);
+        return (ship, pod, room);
+    }
+
+    [Fact]
+    public void A_frame_without_a_hull_in_a_ship_that_dies_in_a_numeric_frame_goes_to_the_ships_semantic_parent()
+    {
+        (FrameHandle ship, _, FrameHandle room) = RoomInAFallingShip();
+
+        frames.Destroy(ship);
+
+        frames.TreeParent(room).Should().Be(ground, "no hull of the room lives in a numeric frame");
+        frames.AssertInvariants();
+    }
+
+    [Fact]
+    public void A_fast_body_near_a_crate_that_sticks_out_of_a_frame_without_a_hull_lives_where_physics_keeps_the_crates_ghost()
+    {
+        // Physics keeps the ghost of the crate in the room's tree parent. The rock comes at the crate at 60 m/s from 40 m.
+        (FrameHandle ship, _, FrameHandle room) = RoomInAFallingShip();
+        frames.Destroy(ship);
+
+        NumericBody[] after = Update(0.1, Body(10, new Double3(1_000, 60, 0), Y(-60), character: true), BodyOf(room, 31, Y(19.5)));
+
+        after[0].Home.Should().Be(frames.TreeParent(room));
+    }
+
+    [Fact]
+    public void A_frame_without_a_hull_in_a_numeric_frame_breaks_the_trees_invariants()
+    {
+        (_, FrameHandle pod, _) = RoomInAFallingShip();
+        FrameHandle hall = frames.Create(new Entity(40, 1), ground, new DPose(X(1_000), DQuaternion.Identity), FrameBounds.Sphere(20),
+            MotionDriver.Physics);
+
+        frames.Reparent(hall, pod);
+
+        frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();
+    }
 
     // ---- Cost ---------------------------------------------------------------------------------------------------------
 

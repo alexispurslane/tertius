@@ -111,7 +111,7 @@ internal readonly record struct NumericBody
 }
 
 /// <summary>
-/// The place of a ghost that physics may keep in a frame of the semantic frame P that <see cref="FrameTree.UpdateNumericFrames"/>
+/// The place of a ghost that physics can keep in a frame of the semantic frame P that <see cref="FrameTree.UpdateNumericFrames"/>
 /// works on: the ghost of a body of another semantic frame, which the merge test takes as an input, because no body of P can
 /// move it (ticket ter-4psc). A place is not a body: it never moves, keeps no frame and gets no move or clock.
 /// </summary>
@@ -121,8 +121,12 @@ internal readonly record struct NumericBody
 /// <param name="Velocity">The velocity of the ghost relative to P, in P's axes.</param>
 /// <param name="Radius">The radius of the bounding sphere of the ghost's body, in meters.</param>
 /// <param name="Target">The index among the bodies of the update of the hull whose home holds the ghost, which a body that
-/// may touch the ghost joins, or -1 when the ghost is fixed in P's own system.</param>
-internal readonly record struct GhostPlace(FrameHandle Home, Double3 HomePosition, Double3 Velocity, double Radius, int Target);
+/// can touch the ghost joins, or -1 when the ghost is fixed in P's own system.</param>
+/// <param name="OfStaticBody">The body behind the ghost is static, so its ghost meets only what a static body meets (see
+/// <see cref="NumericFrameRules.MeetsGhost"/>).</param>
+/// <param name="Sensor">The body behind the ghost is a sensor, and so is its ghost.</param>
+internal readonly record struct GhostPlace(FrameHandle Home, Double3 HomePosition, Double3 Velocity, double Radius, int Target,
+    bool OfStaticBody, bool Sensor);
 
 /// <summary>
 /// The motion of a group of bodies of one semantic frame that the merge test links.
@@ -273,30 +277,70 @@ internal static class NumericFrameRules
     }
 
     /// <summary>
-    /// True when <paramref name="body"/>, a body of the frame whose bubble is <paramref name="bubble"/>, may stick out of that
-    /// bubble before the next update, so that physics may give it a ghost in the frame's tree parent: it can move, and its
-    /// bounding sphere, grown by its speed relative to the frame times the lookahead time, reaches outside the bubble. A
-    /// static body never moves, and a static body that is not a hull has no such ghost. The hull of a frame that its driver
-    /// moves is not static, and it never leaves the bubble, so it sticks out by as far as it lies.
+    /// How far a body that moves at <paramref name="speed"/> m/s can move before the next update, as the tests of the places
+    /// of ghosts take it: its speed times the lookahead time, and at least the split margin. The floor keeps the answer for a
+    /// slow body the same whether it moves or not. So a crate that rests 1 mm inside its bubble gives a place while it is
+    /// awake at 1 mm/s and while it sleeps, and a fast rock near it does not move between systems at each change. A margin
+    /// added to the motion only moves that edge 10 m inward.
+    /// </summary>
+    private static double Allowance(double speed, NumericFrameOptions options) => Math.Max(speed * options.LookaheadTime, options.SplitMargin);
+
+    /// <summary>
+    /// True when <paramref name="body"/>, a body of the frame whose bubble is <paramref name="bubble"/>, can stick out of that
+    /// bubble before the next update, so that physics can give it a ghost in the frame's tree parent: it can move, and its
+    /// bounding sphere, grown by how far it can move (see <see cref="Allowance"/>), reaches outside the bubble. A static body
+    /// never moves, and a static body that is not a hull has no such ghost. The hull of a frame that its driver moves is not
+    /// static, and it never leaves the bubble, so it sticks out by as far as it lies.
     /// </summary>
     internal static bool MayStickOut(FrameBounds bubble, in NumericBody body, NumericFrameOptions options) =>
-        !body.Static && bubble.SignedDistance(body.Position) > -(body.Radius + body.Velocity.Length * options.LookaheadTime);
+        !body.Static && bubble.SignedDistance(body.Position) > -(body.Radius + Allowance(body.Velocity.Length, options));
 
     /// <summary>
     /// True when a body outside a frame's bubble <paramref name="bubble"/>, at <paramref name="position"/> in the frame and
-    /// moving at <paramref name="velocity"/> relative to it, may touch the bubble before the next update, so that physics
-    /// may give it a ghost in the frame's own system: the body reaches <paramref name="reach"/>, grown by its speed times the
-    /// lookahead time, and the bubble is within that reach.
+    /// moving at <paramref name="velocity"/> relative to it, can touch the bubble before the next update, so that physics can
+    /// give it a ghost in the frame's own system: the bubble is within <paramref name="reach"/> of the body, grown by how far
+    /// the body can move (see <see cref="Allowance"/>).
     /// </summary>
     internal static bool MayTouchBubble(FrameBounds bubble, Double3 position, Double3 velocity, double reach, NumericFrameOptions options) =>
-        bubble.SignedDistance(position) <= reach + velocity.Length * options.LookaheadTime;
+        bubble.SignedDistance(position) <= reach + Allowance(velocity.Length, options);
 
     /// <summary>
-    /// True when Jolt makes a contact between <paramref name="body"/> and a kinematic ghost: the body is dynamic or a
-    /// character, or it is a sensor. Jolt makes no contact between a kinematic body and a static or kinematic one unless one
-    /// of them is a sensor, and the engine never asks it to. So only such a body links to the place of a ghost.
+    /// The first test of <see cref="MayTouchBubble"/>, on distances and speeds alone. It is false when a body, or every body
+    /// of a semantic sibling, cannot touch a bubble before the next update. <paramref name="distance"/> is the distance from
+    /// the bubble's center to the body, or to the sibling's center. <paramref name="reach"/> is the longest radius of the
+    /// bubble plus how far the body, or any body of the sibling, reaches beyond that point. A bubble lies within its longest
+    /// radius of its center, so its signed distance is never below the distance less that radius.
+    /// <paramref name="speedBound"/> is at least the speed relative to the bubble's frame that the full test uses. Both tests
+    /// take their numbers in the coordinates of a semantic frame, which round far from its origin. So the reach grows by
+    /// 1e-12 of <paramref name="scale"/>, the distances of the points from that origin, and of the reach itself. That is
+    /// thousands of steps of a double, so the first test drops nothing that the full test keeps.
     /// </summary>
-    internal static bool MeetsGhost(in NumericBody body) => !(body.Static || body.Kinematic) || body.Sensor;
+    internal static bool MayReachBubble(double distance, double reach, double speedBound, double scale, NumericFrameOptions options)
+    {
+        double far = reach + Allowance(speedBound, options);
+        return distance <= far + 1e-12 * (scale + far);
+    }
+
+    /// <summary>
+    /// True when Jolt makes a contact between <paramref name="body"/> and the ghost behind <paramref name="place"/>, so that
+    /// the place links the body. It mirrors the two tests that physics runs on each pair of bodies:
+    /// <list type="bullet">
+    /// <item>The table of layers. Physics gives every ghost behind a place the ghost layer of its body, and the mask of a frame
+    /// hull names only the static and hull roles. So a hull never meets the ghost. The collision groups and masks of the two
+    /// bodies do not count, as in the merge test of two bodies.</item>
+    /// <item>The motions. The ghost of a body that can move is kinematic, and Jolt makes a contact between a kinematic body
+    /// and another body only when the other one is dynamic or either one is a sensor. The engine never asks Jolt for other
+    /// contacts. The ghost of a static body meets only what the static body meets: a dynamic body, and a kinematic one when
+    /// the static body is a sensor. A character counts as dynamic.</item>
+    /// </list>
+    /// </summary>
+    internal static bool MeetsGhost(in NumericBody body, in GhostPlace place)
+    {
+        if (!body.OwnedFrame.IsNull)
+            return false;
+        bool dynamic = !(body.Static || body.Kinematic);
+        return dynamic || (body.Kinematic && place.Sensor) || (body.Sensor && !place.OfStaticBody);
+    }
 
     /// <summary>
     /// The split clock of one numeric frame over a sync point of <paramref name="dt"/> seconds. <paramref name="together"/>

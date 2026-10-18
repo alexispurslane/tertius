@@ -261,6 +261,70 @@ public class GhostPlaceTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>What a run of <see cref="DestroyAFallingShipWithARoom"/> saw.</summary>
+    /// <param name="RoomParent">The tree parent of the room at the end.</param>
+    /// <param name="Moved">How far the room moved in space over the 60 ticks after the destroy, in meters.</param>
+    /// <param name="CratesGhostInRoomsParent">True when the crate has a ghost in the room's tree parent at the end.</param>
+    /// <param name="NumericFrames">The number of numeric frames at the end.</param>
+    private sealed record RoomRun(FrameHandle RoomParent, double Moved, bool CratesGhostInRoomsParent, int NumericFrames);
+
+    /// <summary>
+    /// Space, and at (180, 0, 0) in it a ship that flies at 60 m/s along -X with a gentle thrust: a hull that physics
+    /// drives, with a bubble of radius 200 m. The ship holds a room at its origin: a frame with the Physics driver and no
+    /// body, with a bubble of radius 20 m. A crate floats at (0, -20, 0) in the room, on the edge of its bubble, and so
+    /// sticks out of it. After the 30 ticks of onset, the ship's hull falls in a numeric frame of its own. Then the game
+    /// destroys the ship, and the run goes on for 60 ticks.
+    /// </summary>
+    private static RoomRun DestroyAFallingShipWithARoom(bool numericFrames)
+    {
+        using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
+        FrameHandle space = Space(world);
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(180), LinearVelocity = new Double3(-60, 0, 0), Body = ShipHull,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics), Components = [new Thruster(ShipHull.Mass)],
+        });
+        Entity room = world.Spawn(new SpawnDesc
+        {
+            Frame = world.GetOwnedFrame(ship), Pose = DPose.Identity, AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics),
+        });
+        FrameHandle roomFrame = world.GetOwnedFrame(room);
+        Entity crate = world.Spawn(new SpawnDesc { Frame = roomFrame, Pose = At(0, -20), Body = CrateBody });
+        Tick(world, OnsetTicks);
+        if (numericFrames)
+            world.Frames.Numeric(world.PhysicsHomeOf(ship)).Should().Be(NumericMode.Falling, "the ship's hull thrusts at 60 m/s");
+
+        world.Destroy(ship).Should().BeTrue();
+        Double3 place = world.PoseIn(room, space).Position;
+        Tick(world, 60);
+
+        world.Errors.Should().BeEmpty();
+        FrameHandle parent = world.Frames.TreeParent(roomFrame);
+        return new RoomRun(parent, (world.PoseIn(room, space).Position - place).Length, faults.Jolt.HasGhostIn(crate, parent),
+            world.Frames.NumericCount);
+    }
+
+    /// <summary>
+    /// A frame without a hull never hangs in a numeric frame: when the frame that holds it dies, it goes to the semantic
+    /// frame, as every frame does (review of ter-4psc). Before, a frame with the Physics driver went to the dying frame's
+    /// tree parent, here the ship's falling frame. That frame fell on with the room in it, and no numeric update moved the
+    /// room out, because it has no hull. The update also took the places of the crate's ghost to be fixed in the system of
+    /// space, while physics kept the ghost in the falling frame.
+    /// </summary>
+    [Fact]
+    public void ARoomWithoutAHullInAShipThatDiesInAFallingFrameMovesToSpaceAndHoldsItsPlaceAsWithoutNumericFrames()
+    {
+        RoomRun with = DestroyAFallingShipWithARoom(numericFrames: true);
+        RoomRun without = DestroyAFallingShipWithARoom(numericFrames: false);
+
+        with.RoomParent.Should().Be(without.RoomParent, "the room goes to space, the ship's semantic parent");
+        without.Moved.Should().BeLessThan(1e-6, "nothing moves a frame without a hull in space");
+        with.Moved.Should().BeLessThan(1e-6, "the room holds still where it was, as without numeric frames");
+        with.CratesGhostInRoomsParent.Should().BeTrue("the crate sticks out of the room into its tree parent");
+        without.CratesGhostInRoomsParent.Should().BeTrue();
+        with.NumericFrames.Should().Be(0, "the falling frame holds nothing once the ship is gone");
+    }
+
     // ---- A ghost that is fixed in a frame's own system (ter-tenw) -------------------------------------------------------
 
     /// <summary>

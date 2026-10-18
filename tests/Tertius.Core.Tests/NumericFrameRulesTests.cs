@@ -349,20 +349,32 @@ public class NumericFrameRulesTests
     // ---- Places of ghosts ----------------------------------------------------------------------------------------
 
     [Fact]
-    public void A_body_whose_sphere_reaches_out_of_its_bubble_may_stick_out()
+    public void A_body_whose_sphere_comes_nearer_than_the_split_margin_to_its_bubbles_edge_can_stick_out()
     {
-        // 39.5 m from the origin of a bubble of 40 m, the body's radius of 1 m reaches 0.5 m out of it.
-        MayStickOut(FrameBounds.Sphere(40), Body(39.5), Options).Should().BeTrue();
-        MayStickOut(FrameBounds.Sphere(40), Body(38.9), Options).Should().BeFalse();
+        // 29 m from the origin of a bubble of 40 m, the body's radius of 1 m ends 10 m inside it, the split margin.
+        MayStickOut(FrameBounds.Sphere(40), Body(29.001), Options).Should().BeTrue();
+        MayStickOut(FrameBounds.Sphere(40), Body(29), Options).Should().BeFalse();
     }
 
     [Fact]
-    public void The_speed_relative_to_its_frame_times_the_lookahead_grows_how_far_a_body_may_stick_out()
+    public void A_resting_body_near_the_edge_of_its_bubble_can_stick_out_whether_it_sleeps_or_not()
     {
-        // 10 m inside the bubble: the body reaches its radius plus its speed times 2 s, and it must pass the bubble.
-        MayStickOut(FrameBounds.Sphere(40), Body(30, vx: 5), Options).Should().BeTrue();
-        MayStickOut(FrameBounds.Sphere(40), Body(30, vx: 4.5), Options).Should().BeFalse();
-        MayStickOut(FrameBounds.Sphere(40), Body(30) with { Velocity = new Double3(0, -5, 0) }, Options).Should().BeTrue(
+        // The review's scene: the crate's sphere ends 1 mm inside the bubble. Awake, it moves at about 1 mm/s.
+        MayStickOut(FrameBounds.Sphere(40), Body(38.999), Options).Should().BeTrue();
+        MayStickOut(FrameBounds.Sphere(40), Body(38.999, vx: 1e-3), Options).Should().BeTrue();
+        // Just beyond the split margin, the body gives no place whether it sleeps or not. A margin added to the motion would
+        // give it one while it is awake.
+        MayStickOut(FrameBounds.Sphere(40), Body(28.999), Options).Should().BeFalse();
+        MayStickOut(FrameBounds.Sphere(40), Body(28.999, vx: 1e-3), Options).Should().BeFalse();
+    }
+
+    [Fact]
+    public void A_body_faster_than_the_split_margin_over_the_lookahead_can_stick_out_by_its_speed_times_the_lookahead()
+    {
+        // 20 m inside the bubble: the body reaches its radius plus its speed times 2 s, and it must pass the bubble.
+        MayStickOut(FrameBounds.Sphere(40), Body(20, vx: 9.6), Options).Should().BeTrue();
+        MayStickOut(FrameBounds.Sphere(40), Body(20, vx: 9.4), Options).Should().BeFalse();
+        MayStickOut(FrameBounds.Sphere(40), Body(20) with { Velocity = new Double3(0, -9.6, 0) }, Options).Should().BeTrue(
             "the body may move anywhere before the next update");
     }
 
@@ -371,25 +383,33 @@ public class NumericFrameRulesTests
         MayStickOut(FrameBounds.Sphere(40), Body(45) with { Static = true }, Options).Should().BeFalse();
 
     [Fact]
-    public void A_body_touches_a_bubble_from_outside_within_its_reach()
+    public void A_body_touches_a_bubble_from_outside_within_its_reach_and_the_split_margin()
     {
-        MayTouchBubble(FrameBounds.Sphere(40), X(41), Double3.Zero, reach: 1, Options).Should().BeTrue();
-        MayTouchBubble(FrameBounds.Sphere(40), X(41.001), Double3.Zero, reach: 1, Options).Should().BeFalse();
+        MayTouchBubble(FrameBounds.Sphere(40), X(51), Double3.Zero, reach: 1, Options).Should().BeTrue();
+        MayTouchBubble(FrameBounds.Sphere(40), X(51.001), Double3.Zero, reach: 1, Options).Should().BeFalse();
+        MayTouchBubble(FrameBounds.Sphere(40), X(51.001), X(1e-3), reach: 1, Options).Should().BeFalse("a slow body moves less than the split margin");
     }
 
     [Fact]
-    public void The_speed_relative_to_the_bubbles_frame_times_the_lookahead_grows_the_reach_to_the_bubble()
+    public void The_speed_relative_to_the_bubbles_frame_times_the_lookahead_grows_the_reach_to_the_bubble_past_the_split_margin()
     {
-        // 11 m outside the bubble: the reach of 1 m plus the speed times 2 s.
-        MayTouchBubble(FrameBounds.Sphere(40), X(51), X(5), reach: 1, Options).Should().BeTrue();
-        MayTouchBubble(FrameBounds.Sphere(40), X(51), X(4.9), reach: 1, Options).Should().BeFalse();
+        // 21 m outside the bubble: the reach of 1 m plus the speed times 2 s.
+        MayTouchBubble(FrameBounds.Sphere(40), X(61), X(10), reach: 1, Options).Should().BeTrue();
+        MayTouchBubble(FrameBounds.Sphere(40), X(61), X(9.9), reach: 1, Options).Should().BeFalse();
     }
+
+    /// <summary>
+    /// The place of a ghost of radius 1 m in <paramref name="home"/>, moving at <paramref name="vx"/> along X, of a body that
+    /// is static or a sensor as asked.
+    /// </summary>
+    private static GhostPlace Place(double vx = 0, FrameHandle home = default, double radius = 1, bool ofStaticBody = false, bool sensor = false) =>
+        new(home.IsNull ? Ground : home, Double3.Zero, X(vx), radius, Target: -1, ofStaticBody, sensor);
 
     [Fact]
     public void A_dynamic_body_and_a_character_meet_a_ghost()
     {
-        MeetsGhost(Body(0)).Should().BeTrue();
-        MeetsGhost(Body(0) with { Character = true }).Should().BeTrue();
+        MeetsGhost(Body(0), Place()).Should().BeTrue();
+        MeetsGhost(Body(0) with { Character = true }, Place()).Should().BeTrue();
     }
 
     [Fact]
@@ -397,15 +417,39 @@ public class NumericFrameRulesTests
     {
         // A ghost is kinematic, and Jolt makes no contact between a kinematic body and a static or kinematic one unless one
         // of them is a sensor.
-        MeetsGhost(Body(0) with { Static = true }).Should().BeFalse();
-        MeetsGhost(Body(0) with { Kinematic = true }).Should().BeFalse();
-        MeetsGhost(Body(0) with { Static = true, Sensor = true }).Should().BeTrue();
-        MeetsGhost(Body(0) with { Kinematic = true, Sensor = true }).Should().BeTrue();
+        MeetsGhost(Body(0) with { Static = true }, Place()).Should().BeFalse();
+        MeetsGhost(Body(0) with { Kinematic = true }, Place()).Should().BeFalse();
+        MeetsGhost(Body(0) with { Static = true, Sensor = true }, Place()).Should().BeTrue();
+        MeetsGhost(Body(0) with { Kinematic = true, Sensor = true }, Place()).Should().BeTrue();
     }
 
-    /// <summary>The place of a ghost of radius 1 m in <paramref name="home"/>, moving at <paramref name="vx"/> along X.</summary>
-    private static GhostPlace Place(double vx = 0, FrameHandle home = default, double radius = 1) =>
-        new(home.IsNull ? Ground : home, Double3.Zero, X(vx), radius, Target: -1);
+    [Fact]
+    public void A_frame_hull_never_meets_a_ghost()
+    {
+        // A ghost has the ghost role, and the mask of a hull names only the static and hull roles.
+        FrameHandle ship = new(new Entity(20, 1), 3, 1);
+        MeetsGhost(Body(0) with { OwnedFrame = ship }, Place()).Should().BeFalse();
+        MeetsGhost(Body(0) with { OwnedFrame = ship, Character = true }, Place()).Should().BeFalse();
+        MeetsGhost(Body(0) with { OwnedFrame = ship, Kinematic = true, Sensor = true }, Place(sensor: true)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void The_ghost_of_a_static_body_meets_only_what_the_static_body_meets()
+    {
+        // Physics lets such a ghost meet a dynamic body, and a kinematic one when the static body is a sensor.
+        MeetsGhost(Body(0), Place(ofStaticBody: true)).Should().BeTrue();
+        MeetsGhost(Body(0) with { Static = true, Sensor = true }, Place(ofStaticBody: true)).Should().BeFalse();
+        MeetsGhost(Body(0) with { Kinematic = true, Sensor = true }, Place(ofStaticBody: true)).Should().BeFalse();
+        MeetsGhost(Body(0) with { Kinematic = true }, Place(ofStaticBody: true, sensor: true)).Should().BeTrue();
+    }
+
+    [Fact]
+    public void The_ghost_of_a_sensor_meets_a_kinematic_body_but_no_static_one()
+    {
+        // Jolt makes a contact between a kinematic body and a sensor.
+        MeetsGhost(Body(0) with { Kinematic = true }, Place(sensor: true)).Should().BeTrue();
+        MeetsGhost(Body(0) with { Static = true }, Place(sensor: true)).Should().BeFalse();
+    }
 
     [Fact]
     public void A_body_may_touch_the_place_of_a_ghost_by_the_merge_test_of_two_bodies()
