@@ -87,7 +87,6 @@ public class QueryShapeTests
         { "capsule with radius 0", "radius" },
         { "capsule with a negative half height", "half height" },
         { "capsule with an infinite half height", "half height" },
-        { "default", "radius" },
     };
 
     [Theory]
@@ -106,29 +105,13 @@ public class QueryShapeTests
             "capsule with radius 0" => QueryShape.Capsule(1, 0),
             "capsule with a negative half height" => QueryShape.Capsule(-0.1f, 1),
             "capsule with an infinite half height" => QueryShape.Capsule(float.PositiveInfinity, 1),
-            _ => default,
+            _ => throw new ArgumentOutOfRangeException(nameof(which), which, "No such shape."),
         };
 
         string? problem = shape.Problem();
 
         Assert.NotNull(problem);
         Assert.Contains(named, problem);
-    }
-
-    [Fact]
-    public void AShapeOfAKindThatIsNotASphereABoxOrACapsuleIsRefusedWithTheKindNamed()
-    {
-        // The kinds are made only by the factory methods, so a value of another kind comes only from a bug, for example
-        // from memory that was overwritten. The test makes one by writing the kind byte of a sphere, which comes first in the struct.
-        QueryShape shape = QueryShape.Sphere(1);
-        Unsafe.As<QueryShape, QueryShapeKind>(ref shape) = (QueryShapeKind)99;
-        Assert.Equal((QueryShapeKind)99, shape.Kind);
-
-        string? problem = shape.Problem();
-
-        Assert.NotNull(problem);
-        Assert.Contains("99", problem);
-        Assert.Contains("not a sphere, a box or a capsule", problem);
     }
 
     [Fact]

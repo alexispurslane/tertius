@@ -99,6 +99,40 @@ public class WorldRayCastTests
         world.Errors.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ARayWithADirectionThatIsNotUnitLengthHitsAtADistanceInMeters(bool all)
+    {
+        // The direction (4, 0, 0) is four meters long. Its hit still lies 9.5 m along the ray, not 9.5 times 4 m.
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        var aim = new Aim(new Ray(Double3.Zero, new Double3(4, 0, 0), 50, default, Tag: 4, All: all));
+        Spawn(world, ground, Double3.Zero, null, aim);
+        Entity near = Spawn(world, ground, new Double3(10, 0, 0), StaticBox());
+
+        Tick(world, 2);
+
+        ShouldBeAt(aim.AnswersTo(4).Should().ContainSingle().Subject, near, new Double3(9.5, 0, 0), -Vector3.UnitX, 9.5);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ARayWithADirectionThatIsNotUnitLengthMissesAtTheEndOfItsLengthInMeters()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 0);
+        var aim = new Aim(new Ray(new Double3(1, 2, 3), new Double3(0, 3, 0), 50, default, Tag: 9));
+        Spawn(world, ground, new Double3(1, 2, 3), null, aim);
+
+        Tick(world, 2);
+
+        RayHit miss = aim.AnswersTo(9).Should().ContainSingle().Subject;
+        miss.IsHit.Should().BeFalse();
+        (miss.Point - new Double3(1, 52, 3)).Length.Should().BeLessThan(1e-9);
+        miss.Distance.Should().Be(50);
+    }
+
     [Fact]
     public void ARayThatMeetsNothingAnswersWithAMissAtTheEndOfTheRay()
     {
