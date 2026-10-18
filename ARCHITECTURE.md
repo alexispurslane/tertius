@@ -229,7 +229,7 @@ The engine defines these payload types in `Tertius.Core`:
 
 The transform, render, component flag and collision rows are double-buffered. During a tick, everyone reads the front rows. Each entity writes only its own back rows. In step 8 of the sync point, the back rows become the front rows. That step copies forward only the slots that changed. An entity that did not run costs nothing. The physics intents are double-buffered too, but step 4 swaps them instead of copying them forward.
 
-The world also keeps one spatial grid per frame for radius queries. `SpatialIndex` owns the grids, and `Snapshot.QueryRadius` and entity queries read them. Each grid is a sparse hash grid of 32 m cubes with 64-bit cell coordinates. The owner of a root frame is in no grid. In step 8, the index moves only the entities whose front transform changed, from their old cell to their new one.
+The world also keeps one spatial grid per frame for radius queries. `SpatialIndex` owns the grids, and `Snapshot.QueryRadius` and entity queries read them. Each grid is a sparse hash grid of 32 m cubes with 64-bit cell coordinates. The owner of a root frame is in no grid. In step 8, the index moves only the entities whose front transform changed, from their old cell to their new one. It first finds the new cell of each moved entity, and then changes the cells in the order of the moved list. Finding a cell reads only that entity's rows, so with more than one worker and at least 65,536 moved entities, the workers find the cells, each in its own range of the list. The sync thread then applies the ranges in order, and the grids end as they do on one thread.
 
 ## Reference frames
 
