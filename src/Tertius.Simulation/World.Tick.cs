@@ -320,6 +320,29 @@ public sealed partial class World
     }
 
     /// <summary>
+    /// The running entity's intent, for writing a change of its hull's motion to <paramref name="motion"/>. Throws
+    /// <see cref="InvalidOperationException"/> if the entity's body is no hull: it has no body, owns no frame, or owns a root
+    /// frame, whose owner's body is only the frame's static interior. Throws <see cref="ArgumentException"/> for a motion that
+    /// the hull cannot take (see <see cref="BodyDesc.Problem"/> with <see cref="BodyRole.Hull"/>), and
+    /// <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    internal ref PhysicsIntent WritableHullMotionIntent(Entity entity, BodyMotion motion)
+    {
+        FrameHandle own = entities.OwnedFrame(entity);
+        string owner = own.IsNull ? $"{entity}" : $"{entity}, which owns {own},";
+        if (entities.Body(entity) is not { } body)
+            throw new InvalidOperationException($"{owner} has no physics body, so it has no hull whose motion can change.");
+        if (own.IsNull)
+            throw new InvalidOperationException($"{owner} owns no frame, so its body is no hull: only a hull can change its motion.");
+        if (Frames.HullMotion(own) is null)
+            throw new InvalidOperationException(
+                $"{owner} has a root frame, so its body is only the frame's static interior, not a hull: only a hull can change its motion.");
+        if ((body with { Motion = motion }).Problem(BodyRole.Hull) is { } problem)
+            throw new ArgumentException($"The hull of {owner} cannot take the motion {motion}: as a hull it {problem}.", nameof(motion));
+        return ref entities.WritableIntent(entity);
+    }
+
+    /// <summary>
     /// Writes the running entity's motion sample for the next physics step into the written buffer of the sample table,
     /// relative to the frame that the entity is in during the tick, with its rotation made unit length. The last write in a
     /// tick wins. Throws <see cref="InvalidOperationException"/> if the entity owns no frame, or if its frame has a parent

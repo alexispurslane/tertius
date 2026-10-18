@@ -76,6 +76,13 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
     /// <summary>Edits the next change batch before Jolt applies it, once. Null edits nothing.</summary>
     public Action<PhysicsChanges>? EditNextChanges { get; set; }
 
+    /// <summary>
+    /// Edits the intents of the next step before Jolt applies them, once. The edit gets each entity whose intent the step
+    /// applies, in the order of the step, with a copy of its intent, and can change, add or remove entries: an intent that the
+    /// World never sends stands in for a bug. <see cref="Intents"/> records the intents after the edit. Null edits nothing.
+    /// </summary>
+    public Action<List<(Entity Entity, PhysicsIntent Intent)>>? EditNextIntents { get; set; }
+
     /// <summary>Edits the output of the next step after Jolt wrote it, once. Null edits nothing. It runs before <see cref="EditOutput"/>.</summary>
     public Action<PhysicsStepOutput>? EditNextOutput { get; set; }
 
@@ -115,9 +122,10 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
     public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
     {
         Steps.Add(new StepRecord(context.Tick, context.Time, Environment.CurrentManagedThreadId, Thread.CurrentThread.IsThreadPoolThread));
-        ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
-        foreach (Entity entity in context.IntentEntities.Span)
-            Intents.Add(new IntentRecord(context.Tick, entity, intents[(int)entity.Index]));
+        PhysicsStepContext step = EditNextIntents is { } editIntents ? EditIntents(context, editIntents) : context;
+        ReadOnlySpan<PhysicsIntent> intents = step.Intents.Span;
+        foreach (Entity entity in step.IntentEntities.Span)
+            Intents.Add(new IntentRecord(step.Tick, entity, intents[(int)entity.Index]));
         for (int i = 0; i < context.Frames.Count; i++)
         {
             FrameHandle frame = context.Frames.AtDense(i);
@@ -129,7 +137,7 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
             ThrowFromStep = null;
             throw fault;
         }
-        Jolt.Step(context, output);
+        Jolt.Step(step, output);
         if (EditNextOutput is { } editNext)
         {
             EditNextOutput = null;
@@ -137,6 +145,25 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
         }
         EditOutput?.Invoke(output);
         Outputs.Add(Copy(output));
+    }
+
+    /// <summary>The step context of <paramref name="context"/> with its intents after <paramref name="edit"/>, in tables of its own.</summary>
+    private PhysicsStepContext EditIntents(in PhysicsStepContext context, Action<List<(Entity Entity, PhysicsIntent Intent)>> edit)
+    {
+        EditNextIntents = null;
+        ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
+        var edited = new List<(Entity Entity, PhysicsIntent Intent)>();
+        foreach (Entity entity in context.IntentEntities.Span)
+            edited.Add((entity, intents[(int)entity.Index]));
+        edit(edited);
+        var table = new PhysicsIntent[edited.Count == 0 ? 0 : (int)edited.Max(entry => entry.Entity.Index) + 1];
+        var entities = new Entity[edited.Count];
+        for (int i = 0; i < edited.Count; i++)
+        {
+            table[edited[i].Entity.Index] = edited[i].Intent;
+            entities[i] = edited[i].Entity;
+        }
+        return new PhysicsStepContext(context.Tick, context.DeltaTime, context.Time, context.Frames, table, entities, context.Samples);
     }
 
     public void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end, IPhysicsQueryFilter filter,

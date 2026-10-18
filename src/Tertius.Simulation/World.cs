@@ -202,7 +202,11 @@ public sealed partial class World : IDisposable
     /// <summary>The frame that this entity is, or null. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
     public FrameHandle GetOwnedFrame(Entity entity) => entities.OwnedFrame(entity);
 
-    /// <summary>The entity's physics body, or null if it has none. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>
+    /// <summary>
+    /// The description of the entity's physics body at its spawn, or null if it has none. A hull's motion can change after the
+    /// spawn: <see cref="FrameTree.HullMotion"/> gives the motion that it has now. Throws <see cref="StaleEntityException"/>
+    /// for a stale handle.
+    /// </summary>
     public BodyDesc? GetBody(Entity entity) => entities.Body(entity);
 
     /// <summary>A copy of the entity's components, in pipeline order. Throws <see cref="StaleEntityException"/> for a stale handle.</summary>

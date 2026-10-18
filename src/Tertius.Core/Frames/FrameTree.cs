@@ -413,8 +413,10 @@ public sealed partial class FrameTree
     /// The motion that the frame's hull has now: the body of the frame's owner, in the system of the frame's parent. Null
     /// for a frame without a hull: a root frame, whose owner's body is only the frame's static interior, a frame whose owner
     /// has no body, and a numeric frame. A frame becomes a root when its root parent dies, and it then has no hull. The World
-    /// sets the motion at spawn from the body's description (see <see cref="BodyDesc.Motion"/>). The tree changes only at
-    /// sync points, so the motion is stable during a tick, and any worker may read it. Throws
+    /// sets the motion at spawn from the body's description (see <see cref="BodyDesc.Motion"/>), and at step 4 of the sync
+    /// point of a tick in which the owner wrote a change of motion (<c>Self.Body.SetMotion</c>). Physics gives the Jolt body
+    /// that motion at the start of the next step. The tree changes only at sync points, so the motion is stable during a
+    /// tick, and any worker may read it. Throws
     /// <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     public BodyMotion? HullMotion(FrameHandle frame)
@@ -424,21 +426,26 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Gives the hull of <paramref name="frame"/> the motion <paramref name="motion"/>, or none. A frame that hangs in its
-    /// orbit frame and gets a motion other than kinematic leaves that frame falling, because no sample moves it any more: a
-    /// frame with a dynamic hull may hang in a falling frame, and the numeric update moves any other one, with its hull, into
-    /// its semantic parent. It changes no velocity of the frame, and not <see cref="Version"/>. Throws
-    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// Gives the hull of <paramref name="frame"/> the motion <paramref name="motion"/>, or none, and keeps the frame's orbit
+    /// frame and its samples coherent with it. Only a kinematic hull follows a sample. So a frame that hangs in its orbit frame
+    /// and gets a motion other than kinematic leaves that frame falling: a frame with a dynamic hull may hang in a falling
+    /// frame, and the numeric update moves any other one, with its hull, into its semantic parent. And a hull that gets a
+    /// motion other than kinematic drops the sample that its owner wrote in the running tick, so that no step applies it. The
+    /// sample that the running step applies stays: at the next sync point it becomes the sample that the frame follows. It
+    /// changes no velocity of the frame, and not <see cref="Version"/>. Throws <see cref="InvalidOperationException"/> for a
+    /// stale frame.
     /// </summary>
     /// <remarks>
-    /// Only the simulation calls it, which checks that the owner's body can take the motion (see
-    /// <see cref="BodyDesc.Problem"/>).
+    /// Only the simulation calls it: at a spawn, and at step 4 of a sync point for a change of motion that the owner wrote in
+    /// the tick. It checks that the owner's body can take the motion (see <see cref="BodyDesc.Problem"/>).
     /// </remarks>
     internal void SetHullMotion(FrameHandle frame, BodyMotion? motion)
     {
         int id = Node(frame).Id;
         if (motion != BodyMotion.Kinematic && InOrbitFrame(frame))
             LeaveOrbit(TreeParent(frame));
+        if (motion is { } hull && hull != BodyMotion.Kinematic)
+            Samples.DropWritten(frame);
         hullMotion[id] = motion;
     }
 

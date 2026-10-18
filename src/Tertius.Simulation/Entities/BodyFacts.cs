@@ -7,10 +7,11 @@ namespace Tertius.Simulation;
 /// <param name="Motion">
 /// How the body moves. A body that owns no frame has the motion of its description, and a character has
 /// <see cref="BodyMotion.Character"/>. The body of a frame owner is its frame's hull in the parent frame, with the motion
-/// that the frame tree keeps for it (see <see cref="FrameTree.HullMotion"/>): at spawn, the motion of its description. A
-/// root frame has no parent and so no hull, so the body of its owner is only the frame's static interior, with
-/// <see cref="BodyMotion.Static"/>. A hull's motion changes only between ticks, and physics follows it at the start of its
-/// next step, so the motion is the one of the step that runs during this tick.
+/// that the frame tree keeps for it (see <see cref="FrameTree.HullMotion"/>): at spawn, the motion of its description, and
+/// after a change of motion (see <see cref="BodyHandle.SetMotion"/>), the new motion. A root frame has no parent and so no
+/// hull, so the body of its owner is only the frame's static interior, with <see cref="BodyMotion.Static"/>. A hull's motion
+/// changes only at a sync point, and physics follows it at the start of its next step, so the motion is the one of the step
+/// that runs during this tick.
 /// </param>
 /// <param name="Mass">The mass of the description, in kg. Only a dynamic body moves by its mass.</param>
 /// <param name="ShapeKind">The kind of the body's shape. For a frame owner, that is the shape of its hull.</param>

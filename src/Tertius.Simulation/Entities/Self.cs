@@ -274,5 +274,27 @@ public readonly ref struct BodyHandle
         intent.Flags |= IntentFlags.SetCollision;
     }
 
+    /// <summary>
+    /// Gives the hull of the frame that the entity owns the motion <paramref name="motion"/>, for example
+    /// <see cref="BodyMotion.Static"/> to park a ship (docs/plans/rails-components.md, "Changes of motion"). The hull motion
+    /// changes at step 4 of the sync point of this tick: from then on <see cref="FrameTree.HullMotion"/> and the body facts
+    /// show it, and the next tick runs beside the step that has it. Physics gives the Jolt body the new motion at the start
+    /// of that step. The hull keeps its body, its system and its contacts. The last change in a tick wins, and a change to
+    /// the motion that the hull has changes nothing. A hull that stops being kinematic drops the sample written in this
+    /// tick, and one that becomes kinematic drops the velocities and the kinematic target set in this tick, because a
+    /// kinematic hull moves only by its samples and teleports. A parked frame stops at the sync point after the next step.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The body is no hull: the entity has no body, owns no frame, or owns a root frame.</exception>
+    /// <exception cref="ArgumentException">
+    /// A motion that the hull cannot take: a value that <see cref="BodyMotion"/> does not define, a character, a dynamic
+    /// motion for a hull without mass, or any motion but static for a hull whose shape is or holds a mesh.
+    /// </exception>
+    public void SetMotion(BodyMotion motion)
+    {
+        ref PhysicsIntent intent = ref world.WritableHullMotionIntent(entity, motion);
+        intent.Motion = motion;
+        intent.Flags |= IntentFlags.SetMotion;
+    }
+
     private ref PhysicsIntent Intent => ref world.WritableIntent(entity);
 }

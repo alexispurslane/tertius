@@ -55,8 +55,12 @@ public sealed record FramePose(string? Frame, Double3 Position, DQuaternion Rota
 /// <summary>One frame of the frame tree.</summary>
 /// <param name="Id">The scene id of the entity that owns the frame.</param>
 /// <param name="Parent">The scene id of the parent frame's owner, or null for a root frame.</param>
-/// <param name="Driver">What moves the frame.</param>
-public sealed record FrameRecord(string Id, string? Parent, MotionDriver Driver);
+/// <param name="Follows">
+/// What moved the frame in the tick that the dump closes: <c>"physics"</c> for a frame with a dynamic hull, <c>"rails"</c> for a
+/// frame whose owner wrote a motion sample in that tick, which the next step applies (see <c>Self.MoveOnRails</c>), and
+/// <c>"static"</c> for every other frame.
+/// </param>
+public sealed record FrameRecord(string Id, string? Parent, string Follows);
 
 /// <summary>One routed event.</summary>
 /// <param name="Tick">The number of completed ticks after the sync point that routed it.</param>

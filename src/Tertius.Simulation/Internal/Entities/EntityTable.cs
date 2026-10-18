@@ -750,6 +750,32 @@ internal sealed class EntityTable
     }
 
     /// <summary>
+    /// Adds to <paramref name="writers"/> each entity whose intent of this tick has <see cref="IntentFlags.SetMotion"/>, chunk
+    /// by chunk, in the order in which they first wrote an intent. For step 4 of the sync point, before
+    /// <see cref="SwapIntents"/>.
+    /// </summary>
+    public void CollectMotionChanges(List<Entity> writers)
+    {
+        Contract.Requires(!gameplayRunning);
+        int count = ChunkCountFor(slotCount);
+        for (int c = 0; c < count; c++)
+            foreach (Entity writer in books[c].IntentWriters)
+                if (IsAlive(writer) && (backIntent[writer.Index].Flags & IntentFlags.SetMotion) != 0)
+                    writers.Add(writer);
+    }
+
+    /// <summary>
+    /// The intent that <paramref name="entity"/> wrote during this tick, for the sync point before <see cref="SwapIntents"/>.
+    /// The entity must have written one. Throws <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    public ref PhysicsIntent WrittenIntent(Entity entity)
+    {
+        uint slot = LiveSlot(entity);
+        Contract.Requires(!gameplayRunning && (flags[slot] & SlotFlags.IntentRegistered) != 0);
+        return ref backIntent[slot];
+    }
+
+    /// <summary>
     /// The intent of <paramref name="entity"/> that the next physics step applies, for the sync point after
     /// <see cref="SwapIntents"/> and for a change outside a tick: its front intent, which is empty when the entity wrote
     /// none. Throws <see cref="StaleEntityException"/> for a stale handle.

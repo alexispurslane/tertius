@@ -33,6 +33,27 @@ public class RailsComponentTests
         FluentActions.Invoking(() => new KeplerMotion { Orbit = orbit }).Should().Throw<ArgumentException>();
     }
 
+    /// <summary>An orbit that a <see cref="KeplerMotion"/> cannot follow. The default orbit would leave the frame at its parent's origin.</summary>
+    public static TheoryData<string, KeplerOrbit> OrbitsThatAreNotValid => new()
+    {
+        { "the default orbit", default },
+        { "no semi-major axis", KeplerOrbit.Circular(0) },
+        { "an open orbit", KeplerOrbit.Circular(1000) with { Eccentricity = 1 } },
+        { "a negative eccentricity", KeplerOrbit.Circular(1000) with { Eccentricity = -0.1 } },
+        { "a semi-major axis that is not a number", KeplerOrbit.Circular(double.NaN) },
+        { "an infinite spin", KeplerOrbit.Circular(1000, spinRate: double.PositiveInfinity) },
+    };
+
+    [Theory]
+    [MemberData(nameof(OrbitsThatAreNotValid))]
+    public void AKeplerMotionRefusesAnOrbitThatItCannotFollow(string why, KeplerOrbit orbit)
+    {
+        // The component checks its orbit, not the World: the setter refuses it before any frame gets it.
+        Action make = () => new KeplerMotion { Orbit = orbit };
+
+        make.Should().Throw<ArgumentException>(why).WithMessage("*orbit*not valid*");
+    }
+
     [Fact]
     public void TheSpinMotionSetterRefusesASpinThatIsNotValid()
     {

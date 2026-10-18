@@ -100,19 +100,23 @@ public class StateDumpTests
         dump.Entities.Select(e => e.Id).Should().Equal([.. named, $"#{unnamed.Index}.{unnamed.Generation}"]);
     }
 
+    /// <summary>
+    /// The moon's <see cref="KeplerMotion"/> writes a sample in every tick, so a dump after a tick shows that the moon moves
+    /// on rails. No sample and no dynamic hull moves the other frames.
+    /// </summary>
     [Fact]
-    public void ADumpListsTheFramesWithTheirParentsAndDriversParentsFirst()
+    public void ADumpListsTheFramesWithTheirParentsAndWhatTheyFollowParentsFirst()
     {
         using World world = NewWorld();
         SceneInstance scene = ShipWithCrate(world);
 
-        StateDump dump = Run(world, scene, DumpNow).Dump("now");
+        StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 1 }""", DumpNow).Dump("now");
 
         dump.Frames.Should().Equal(
-            new FrameRecord("space", null, MotionDriver.Static),
-            new FrameRecord("ship", "space", MotionDriver.Static),
-            new FrameRecord("shuttle", "ship", MotionDriver.Static),
-            new FrameRecord("moon", "space", MotionDriver.Kepler));
+            new FrameRecord("space", null, "static"),
+            new FrameRecord("ship", "space", "static"),
+            new FrameRecord("shuttle", "ship", "static"),
+            new FrameRecord("moon", "space", "rails"));
     }
 
     [Fact]

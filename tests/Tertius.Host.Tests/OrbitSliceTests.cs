@@ -60,12 +60,12 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
     [Fact]
     public void TheSunIsTheRootAndEarthGoesRoundItWithItsSurfaceAndTheShip()
     {
-        run.Result.Dump("after").Frames.Select(f => (f.Id, f.Parent, f.Driver)).Should().BeEquivalentTo(new (string, string?, MotionDriver)[]
+        run.Result.Dump("after").Frames.Select(f => (f.Id, f.Parent, f.Follows)).Should().BeEquivalentTo(new (string, string?, string)[]
         {
-            ("sun", null, MotionDriver.Static),
-            ("earth", "sun", MotionDriver.Kepler),
-            ("earth-surface", "earth", MotionDriver.Spin),
-            ("ship", "earth", MotionDriver.Physics),
+            ("sun", null, "static"),
+            ("earth", "sun", "rails"),
+            ("earth-surface", "earth", "rails"),
+            ("ship", "earth", "physics"),
         });
     }
 

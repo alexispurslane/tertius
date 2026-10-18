@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Numerics;
 using JoltPhysicsSharp;
 
@@ -69,10 +70,10 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Creates the record and the bodies of one BodyCreate. Throws <see cref="ArgumentException"/> for a body that physics
-    /// cannot create (see <see cref="BodyDesc.Problem"/> and <see cref="ShapeProblem"/>) before any state changes. A hull
-    /// gets the motion that the frame tree keeps for it (see <see cref="FrameTree.HullMotion"/>), and the interior of the
-    /// owner of a root frame is static. If anything fails after that, the record and every body that it got are removed
-    /// before the exception leaves, so a failed creation leaves nothing behind.
+    /// cannot create (see <see cref="BodyDesc.Problem"/> and <see cref="ShapeProblem"/>) before any state changes. Every body
+    /// gets the motion of its description, which for a hull is the motion that the hull has now (see <see cref="BodyCreate"/>),
+    /// and the interior of the owner of a root frame is static. If anything fails after that, the record and every body that
+    /// it got are removed before the exception leaves, so a failed creation leaves nothing behind.
     /// </summary>
     private void CreateRecord(in BodyCreate create)
     {
@@ -86,14 +87,8 @@ public sealed partial class JoltPhysicsBackend
         bool ownsFrame = frames.TryGetFrame(entity, out FrameHandle owned);
         // A root frame has no parent, so its owner has no hull, and its body is only the frame's static interior.
         BodyRole role = !ownsFrame ? BodyRole.OwnsNoFrame : ParentOf(owned).IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
-        BodyMotion motion = role switch
-        {
-            BodyRole.Hull => frames.HullMotion(owned) ?? throw new ArgumentException($"{entity} owns {owned}, whose hull has no motion in the frame tree."),
-            BodyRole.OwnsRootFrame => BodyMotion.Static,
-            _ => desc.Motion,
-        };
-        // The check covers the motion that the hull gets, which can differ from the motion that its description had at spawn.
-        if ((role == BodyRole.Hull ? desc with { Motion = motion } : desc).Problem(role) is { } problem)
+        BodyMotion motion = role == BodyRole.OwnsRootFrame ? BodyMotion.Static : desc.Motion;
+        if (desc.Problem(role) is { } problem)
             throw new ArgumentException($"{entity} cannot get a body: it {problem}.");
 
         var record = new BodyRecord
@@ -576,6 +571,69 @@ public sealed partial class JoltPhysicsBackend
             foreach (GhostBody ghost in ghosts)
                 ghost.World.SetGhostOfStaticBody(ghost.Body, !owner.IsMovable);
         return true;
+    }
+
+    // ---- Changes of a hull's motion ----
+
+    /// <summary>
+    /// Gives each hull whose owner wrote a change of motion in the tick before (see <see cref="IntentFlags.SetMotion"/>) the
+    /// Jolt motion type of the change. It runs at the start of the step, before anything reads a record's motion: the spawn
+    /// velocities, the static hulls, the hull velocities and the intents. The sync point gave the hull the motion in the frame
+    /// tree already (see <see cref="FrameTree.HullMotion"/>), so afterwards every hull has the motion that the tree keeps. The
+    /// hull keeps its body, its system and its contacts, and takes the frame's pose and velocity from the tree (see
+    /// <see cref="ApplyHullMotion"/>). Its ghosts meet what a body of its new motion meets. A change to the motion that the
+    /// hull has changes nothing.
+    /// </summary>
+    /// <remarks>
+    /// <c>SetMotion</c> refuses a change that the hull cannot take, so such a change in the intents comes only from a bug (see
+    /// <see cref="ReportBug"/>). A Release build skips it: the hull keeps its motion.
+    /// </remarks>
+    private void ApplyMotionChanges(in PhysicsStepContext context)
+    {
+        ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
+        foreach (Entity entity in context.IntentEntities.Span)
+        {
+            if (entity.Index >= (uint)intents.Length || Find(entity) is not { } record)
+                continue;
+            ref readonly PhysicsIntent intent = ref intents[(int)entity.Index];
+            if ((intent.Flags & IntentFlags.SetMotion) == 0)
+                continue;
+            if (MotionChangeProblem(record, intent.Motion) is { } problem)
+            {
+                ReportBug($"Physics: the body of {entity} cannot take the motion {intent.Motion}: it {problem}. " +
+                          $"Only a bug sends such a change of motion, so the body keeps the motion {record.Motion}.");
+                continue;
+            }
+            if (record.Motion == intent.Motion)
+                continue;
+            record.Motion = intent.Motion;
+            ApplyHullMotion(record);
+            // A ghost meets what its real body meets, and a static body meets less (see FrameWorld.StandsForStaticBody).
+            if (record.Ghosts is { } ghosts)
+                foreach (GhostBody ghost in ghosts)
+                    ghost.World.SetGhostOfStaticBody(ghost.Body, !record.IsMovable);
+        }
+        EnsureHullsHaveTheTreesMotion();
+    }
+
+    /// <summary>
+    /// Why the body of <paramref name="record"/> cannot take <paramref name="motion"/> in a change of motion, or null: only a
+    /// hull can change its motion, and only to a motion that a hull with its description can have (see
+    /// <see cref="BodyDesc.Problem"/>).
+    /// </summary>
+    private static string? MotionChangeProblem(BodyRecord record, BodyMotion motion) =>
+        !record.IsHull || !record.HasPrimary
+            ? "is no hull, because its entity owns no frame or a root frame"
+            : (record.Desc with { Motion = motion }).Problem(BodyRole.Hull);
+
+    /// <summary>The postcondition of <see cref="ApplyMotionChanges"/>: every hull has the motion that the frame tree keeps for it. Debug builds only.</summary>
+    [Conditional("TERTIUS_CONTRACTS")]
+    private void EnsureHullsHaveTheTreesMotion()
+    {
+        foreach (BodyRecord owner in frameOwners)
+            if (owner.HasPrimary)
+                Contract.Ensures(owner.Motion == frames.HullMotion(owner.OwnedFrame),
+                    $"The hull of {owner.Entity} is {owner.Motion}, but the frame tree keeps {frames.HullMotion(owner.OwnedFrame)} for {owner.OwnedFrame}.");
     }
 
     /// <summary>

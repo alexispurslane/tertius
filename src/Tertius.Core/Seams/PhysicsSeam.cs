@@ -386,6 +386,7 @@ public enum IntentFlags : ushort
     CharacterMove = 1 << 4,
     Jump = 1 << 5,
     SetCollision = 1 << 6,
+    SetMotion = 1 << 7,
 }
 
 /// <summary>
@@ -420,6 +421,12 @@ public struct PhysicsIntent
     public CollisionGroups CollisionGroups;
     /// <summary>The body's new collision mask, which holds only an any-of set. Used with <see cref="IntentFlags.SetCollision"/>.</summary>
     public CollisionMask CollisionMask;
+    /// <summary>
+    /// The new motion of a frame's hull. Used with <see cref="IntentFlags.SetMotion"/>. The sync point gives the hull this
+    /// motion in the frame tree before the step that applies the intent (see <see cref="FrameTree.HullMotion"/>), and physics
+    /// gives the Jolt body the motion at the start of that step.
+    /// </summary>
+    public BodyMotion Motion;
     public IntentFlags Flags;
 
     public readonly bool IsEmpty =>
@@ -430,8 +437,10 @@ public struct PhysicsIntent
 }
 
 /// <summary>
-/// A body that physics must create at the sync point. <see cref="Desc"/> holds the collision groups and mask that the body
-/// has now: a body created again after a move holds those of its last SetCollision intent, not those of its spawn.
+/// A body that physics must create at the sync point. <see cref="Desc"/> holds the body as it is now: the collision groups
+/// and mask that it has now, and for the hull of a frame, the motion that the hull has now (see
+/// <see cref="FrameTree.HullMotion"/>). So a body created again after a move holds the groups of its last SetCollision intent
+/// and the motion of its last change of motion, not those of its spawn.
 /// </summary>
 public readonly record struct BodyCreate(
     Entity Entity,

@@ -85,8 +85,18 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
     private FrameRecord FrameRecordOf(FrameHandle frame)
     {
         FrameHandle parent = world.Frames.Parent(frame);
-        return new FrameRecord(scene.IdOf(frame.Entity), parent.IsNull ? null : scene.IdOf(parent.Entity), world.Frames.Driver(frame));
+        return new FrameRecord(scene.IdOf(frame.Entity), parent.IsNull ? null : scene.IdOf(parent.Entity), FollowsOf(frame));
     }
+
+    /// <summary>
+    /// What moved <paramref name="frame"/> in the tick that the dump closes (see <see cref="FrameRecord.Follows"/>). The
+    /// samples that the frames follow also hold the records of physics, teleports and writes of a transform, so only the
+    /// buffer of the samples that the owners wrote in the tick tells rails apart.
+    /// </summary>
+    private string FollowsOf(FrameHandle frame) =>
+        world.Frames.HullMotion(frame) == BodyMotion.Dynamic ? "physics"
+        : world.Frames.TryGetAppliedSample(frame, out _) ? "rails"
+        : "static";
 
     private FrameHandle RootOf(FrameHandle frame)
     {

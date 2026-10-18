@@ -15,6 +15,9 @@ public sealed partial class World
     // frame" in docs/plans/rails-components.md). It is empty without a physics backend and after a step that failed.
     private readonly Dictionary<FrameHandle, MotionSample> stepRecords = new();
 
+    // The owners that wrote a change of their hull's motion in the tick, which step 4 applies (see ApplyMotionChanges).
+    private readonly List<Entity> motionChanges = new();
+
     // Per entity: true when physics stood the character on walkable ground under gravity in its last step. The sync
     // point writes it from each step's character states, and gameplay reads it in the next tick. Nothing writes it
     // while gameplay runs, so it needs no second copy. The entity table clears it when it releases an entity.
@@ -82,12 +85,15 @@ public sealed partial class World
             entities.AssertInvariants();
 
         // 4. The step applied the intents of the previous tick, so their collision groups and masks become the bodies' rows,
-        //    which step 8 publishes. Then this tick's intents become the input of the next physics step. The motion samples
-        //    move on with them, also without a physics backend, because a frame without a body follows its samples too:
-        //    the samples of the step that ended become the ones the frames follow, and this tick's samples the ones that the
-        //    next step applies.
+        //    which step 8 publishes. The changes of motion of this tick change the hulls' motions in the tree, also without
+        //    a physics backend: the next tick runs beside the step that applies them at its start, so it sees the motion of
+        //    that step. Then this tick's intents become the input of the next physics step. The motion samples move on with
+        //    them, also without a physics backend, because a frame without a body follows its samples too: the samples of
+        //    the step that ended become the ones the frames follow, and this tick's samples the ones that the next step
+        //    applies.
         if (physics != null)
             entities.ApplyCollisionIntents();
+        ApplyMotionChanges();
         entities.SwapIntents(keep: physics != null);
         Frames.Samples.MoveOn();
 
@@ -490,13 +496,42 @@ public sealed partial class World
     }
 
     /// <summary>
+    /// Step 4, before the intents swap: each hull whose owner wrote a change of motion in this tick takes the motion in the
+    /// frame tree (see <see cref="FrameTree.HullMotion"/>), and physics gives the Jolt body the motion at the start of the next
+    /// step (docs/plans/rails-components.md, "Changes of motion"). So the next tick, which runs beside that step, sees the
+    /// motion of the step. The last write in the tick wins, and a change to the motion that the hull has changes nothing. A
+    /// hull that is not kinematic any more drops the sample that its owner wrote in the tick (see
+    /// <see cref="FrameTree.SetHullMotion"/>). A hull that becomes kinematic drops the requests of the tick that a kinematic
+    /// hull refuses in a tick (see <see cref="WritableMotionIntent"/>), because only its samples and teleports tell its frame
+    /// how to follow. Its forces and impulses stay, because physics applies them only to a dynamic body.
+    /// </summary>
+    private void ApplyMotionChanges()
+    {
+        motionChanges.Clear();
+        entities.CollectMotionChanges(motionChanges);
+        foreach (Entity owner in motionChanges)
+        {
+            ref PhysicsIntent intent = ref entities.WrittenIntent(owner);
+            FrameHandle frame = entities.OwnedFrame(owner);
+            // SetMotion refuses a body that is no hull, and only the destroys of step 5 make a frame a root.
+            Contract.Assert(!frame.IsNull && Frames.HullMotion(frame) is not null);
+            if (Frames.HullMotion(frame) == intent.Motion)
+                continue;
+            Frames.SetHullMotion(frame, intent.Motion);
+            if (intent.Motion == BodyMotion.Kinematic)
+                intent.Flags &= ~(IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity | IntentFlags.KinematicTarget);
+        }
+    }
+
+    /// <summary>
     /// Step 7b for the rows of the sample table, which need no conversion: each applied and followed row is relative to the
     /// frame that its frame's owner is in, the frame's semantic parent. A sample is relative to the frame that its owner was
     /// in when it wrote it, and a record to the frame's semantic parent when the frame took it in step 2, after the hand-offs
     /// (see <see cref="KeepRecord"/>). Step 5 converted the rows that are relative to a dying frame (see
     /// <see cref="ConvertSamplesOfMovedFrames"/>). Every other move of an entity at a sync point is a hand-off of a dynamic
     /// body in step 2, before the records, and an owner with a dynamic hull writes no sample, because
-    /// <see cref="MoveOnRails"/> refuses it. A hull that stops being kinematic between two ticks drops its samples (see
+    /// <see cref="MoveOnRails"/> refuses it. A hull that stops being kinematic in a tick drops the sample written in the tick
+    /// (see <see cref="ApplyMotionChanges"/>), and one that stops between two ticks drops its samples (see
     /// <see cref="SetFrameDriver"/>), so no step after that applies one, and no sample of it is left when its hull hands off.
     /// The numeric update of step 6c moves hulls only between the systems of one semantic frame. So a row that needs a
     /// conversion here is a bug.
