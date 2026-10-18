@@ -58,6 +58,26 @@ A velocity that gameplay sets, at spawn, through `SetVelocity` or at a hand-off,
 
 This changes all physics, not only spin. Seven existing tests encode Jolt's convention and change on purpose, each with its reason. Two of them also reported each box's landing twice. That was not the conversion. At the old default restitution of 0.1, Jolt bounced each box from within its speculative contact distance, so whether a box landed twice depended on where its landing step began. Since `ter-4kaa` a contact whose rebound is below 1 m/s does not bounce, and the default restitution is 0.
 
+## Conversions between frames
+
+The motion of a body converts between two frames at a hand-off, and the step record of a frame converts when its relative frame changes (`MotionSampleTable.ConvertInto`, in steps 2 and 5 of the sync point). Both use the relative motion of the two frames, `FrameMotion`, for the pose, the velocities, the angular velocity and the angular acceleration. The rails components (`ter-6r8c`) and their review left out the terms that a turning frame adds to the accelerations. This epic adds them. Each place below changes in the same way, so that the hand-off and the sample table keep one rule.
+
+| Place | What it converts | Terms that it leaves out |
+|---|---|---|
+| `FrameMotion.AngularAccelerationToParent` and `AngularAccelerationFromParent` | The angular acceleration of a hull at a hand-off, and of a sample | The cross term `ω × (R ω_body)`, whose inputs both callers have today, and the frame's angular acceleration `α`, which the bubble's step record holds at a hand-off |
+| `FrameTree.AccelerationRelative` | The acceleration of the origin of one frame relative to another, level by level | At each turning level: the centrifugal term `ω × (ω × r)` and the Coriolis term `2 ω × v` of the child's origin, whose place and velocity the tree keeps, and the Euler term `α × r` |
+| `MotionSampleTable.ConvertInto` | The acceleration of a sample: turned, plus `AccelerationRelative` | The same three terms at the sample's place and velocity, which it has |
+
+where
+
+- `ω` = the angular velocity of the turning frame relative to the other frame, in the other frame's axes.
+- `α` = the angular acceleration of the turning frame relative to the other frame.
+- `R` = the rotation from the turning frame's axes into the other frame's axes.
+- `ω_body` = the body's angular velocity in the turning frame.
+- `r`, `v` = the place and the velocity of the point in the turning frame, in the other frame's axes.
+
+The Euler terms need the angular acceleration of a semantic frame, which only its step record holds. `AccelerationRelative` also leaves out the linear acceleration of a semantic frame on its path, which only the record holds too. That term is not a rotation term, so it needs a ticket of its own.
+
 ## Characters
 
 - A character's velocity gets the field and the rotation terms each step.
@@ -90,7 +110,7 @@ The spike's experiments become the acceptance tests, each against the inertial l
 ## Order of the work
 
 1. The velocity convention, everywhere, with the changed tests and their reasons.
-2. The rotation terms for bodies in every turning frame. This includes the wake on a change of angular velocity, the contact turn and the double velocity shadow.
+2. The rotation terms for bodies in every turning frame. This includes the wake on a change of angular velocity, the contact turn, the double velocity shadow and the terms of "Conversions between frames".
 3. Characters in turning frames.
 4. Numeric frames inside turning frames, with the landing case.
 5. The station scene, its checked-in test and screenshots, and the decisions in ARCHITECTURE.md and CLAUDE.md.
