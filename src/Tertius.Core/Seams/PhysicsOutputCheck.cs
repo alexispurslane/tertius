@@ -61,9 +61,10 @@ public readonly record struct PhysicsOutputFault(PhysicsOutputKind Kind, int Ind
 /// owner's body cannot be dynamic, at spawn and when the driver changes (see <see cref="BodyDesc.FrameHullProblem"/>). So
 /// the driver alone tells whether the hull can move. The hull of a frame with another driver is static or kinematic, and
 /// physics never hands it off. So the owner of a frame hands off only when its frame has the physics driver.</item>
-/// <item>A frame's step record names a live frame with a parent whose owner has a body that is not static: the hull, which
-/// physics moves, dynamic or kinematic. A root frame has no parent, so its owner has no hull, and physics never releases
-/// its record.</item>
+/// <item>A frame's step record names a live frame with a parent whose owner has a body: the hull, which physics moves. That
+/// is a dynamic hull, a kinematic hull with a sample, or a static hull or a kinematic hull without a sample that
+/// teleported in the step. A root frame has no parent, so its owner has no hull, and physics never releases its
+/// record.</item>
 /// <item>The hand-offs of a step, applied in their order, never put a frame under itself or under a frame inside it.
 /// Each hull starts the step in the system of its frame's parent, so its frame can only enter a sibling or leave for its
 /// parent's parent. It enters a sibling only when its bubble fits in the sibling's, and fitting is a strict order of

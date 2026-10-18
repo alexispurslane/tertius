@@ -167,14 +167,21 @@ public sealed partial class JoltPhysicsBackend
 
         // Teleport first, so that a kinematic target in the same intent moves the body on from the new pose. Jolt does not
         // simulate the jump, so the bodies around the old place wake. Jolt wakes those that the body touches at the new place.
-        // Each velocity here is an instant velocity, and Jolt gets its chord.
+        // Each velocity here is an instant velocity, and Jolt gets its chord. The pose in the home is the step record of a
+        // hull's frame when the hull has no sample (see PredictRecord).
         if ((flags & IntentFlags.Teleport) != 0)
         {
+            Double3 position = InHome(record, intent.TeleportPose.Position);
             record.World!.WakeAround(id);
-            bodies.SetRPositionAndRotation(id, InHome(record, intent.TeleportPose.Position).ToJolt(), intent.TeleportPose.Rotation.ToJolt(), Activation.Activate);
+            bodies.SetRPositionAndRotation(id, position.ToJolt(), intent.TeleportPose.Rotation.ToJolt(), Activation.Activate);
             record.TeleportStep = stepIndex;
-            // At rest in the semantic frame, which is not at rest in a falling numeric home.
-            bodies.SetLinearAndAngularVelocity(id, LinearChord(record, CenterOfMass(bodies, id), LocalVelocity(record, Double3.Zero)), Vector3.Zero);
+            record.TeleportPose = new DPose(position, intent.TeleportPose.Rotation.Normalized());
+            // At rest in the semantic frame, which is not at rest in a falling numeric home. A kinematic hull holds still in
+            // its home, the frame's tree parent, until a sample aims it (see AimHullsOnRails).
+            Vector3 linear = record is { IsHull: true, Motion: BodyMotion.Kinematic }
+                ? Vector3.Zero
+                : LinearChord(record, CenterOfMass(bodies, id), LocalVelocity(record, Double3.Zero));
+            bodies.SetLinearAndAngularVelocity(id, linear, Vector3.Zero);
         }
         if ((flags & IntentFlags.SetVelocity) != 0)
         {

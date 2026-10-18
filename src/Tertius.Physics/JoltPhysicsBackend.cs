@@ -826,6 +826,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// a numeric home's instant velocity half a step of its acceleration past its chord (see "Instant velocities and chords"
     /// in JoltPhysicsBackend.Chords.cs). The record that physics releases for the tree differs there (see
     /// <see cref="WriteFrames"/>).</item>
+    /// <item>A static hull, or a kinematic hull without a sample, that teleported in the step: the teleport's pose in the
+    /// hull's home, the tree parent, with no velocity.</item>
     /// <item>Anything else: the tree pose, with no velocity. The frame holds still.</item>
     /// </list>
     /// The records of the frames without a dynamic hull do not change during the step, so each is made once a step. Call it
@@ -854,9 +856,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private MotionSample PredictRecord(FrameHandle frame)
     {
         BodyRecord? hull = OwnerRecord(frame);
-        // A static hull that teleported in the step stands at the teleport's pose, at rest.
-        if (hull is { Motion: BodyMotion.Static, HasPrimary: true } && hull.TeleportStep == stepIndex)
-            return new MotionSample(hull.TeleportPose, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, frames.ProperAcceleration(frame));
         if ((hull is null || hull.Motion == BodyMotion.Kinematic) && stepSamples.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
         {
             if (hull is { HasPrimary: true } && frames.InOrbitFrame(frame))
@@ -874,6 +873,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             Contract.Assert(relativeTo == frames.TreeParent(frame), $"The sample of {frame} is relative to {relativeTo}, not to its tree parent {frames.TreeParent(frame)}.");
             return sample;
         }
+        // A static hull, or a kinematic hull without a sample, that teleported in the step stands at the teleport's pose in its
+        // home, the frame's tree parent, at rest.
+        if (hull is { HasPrimary: true } && hull.TeleportStep == stepIndex)
+            return new MotionSample(hull.TeleportPose, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, frames.ProperAcceleration(frame));
         return new MotionSample(frames.TreeLocalPose(frame), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
             frames.ProperAcceleration(frame));
     }
