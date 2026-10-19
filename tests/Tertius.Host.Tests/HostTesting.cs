@@ -152,6 +152,35 @@ public sealed class DestroysItselfOnFirstTick : IComponent
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.Destroy();
 }
 
+/// <summary>Destroys its entity during the tick whose number is <paramref name="tick"/>, so that it is gone after that tick.</summary>
+public sealed class DestroysItselfOnTick(long tick) : IComponent
+{
+    public int Priority => 0;
+    public EventMask Wants => EventMask.Of<Tick>();
+
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+    {
+        if (self.Tick == tick)
+            self.Destroy();
+    }
+}
+
+/// <summary>
+/// Sends <paramref name="count"/> nudges to its own entity on every tick, so that every sync point routes that many events.
+/// It wants no nudge, so no component keeps them.
+/// </summary>
+public sealed class NudgesItselfEveryTick(int count) : IComponent
+{
+    public int Priority => 0;
+    public EventMask Wants => EventMask.Of<Tick>();
+
+    public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+    {
+        for (int i = 0; i < count; i++)
+            outbox.Send(self.Entity, new Nudge { Amount = i });
+    }
+}
+
 /// <summary>Writes one line to the world's log on its first tick.</summary>
 public sealed class LogsOnce(string message) : IComponent
 {

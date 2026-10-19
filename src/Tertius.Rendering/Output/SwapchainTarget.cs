@@ -138,7 +138,7 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
         // Captures copy out of the swapchain image.
         if ((capabilities.SupportedUsageFlags & ImageUsageFlags.TransferSrcBit) != 0)
             usage |= ImageUsageFlags.TransferSrcBit;
-        CanCapture = (usage & ImageUsageFlags.TransferSrcBit) != 0;
+        CanCapture = CanCaptureImages(usage, surfaceFormat.Format);
         CompositeAlphaFlagsKHR alpha = (capabilities.SupportedCompositeAlpha & CompositeAlphaFlagsKHR.OpaqueBitKhr) != 0
             ? CompositeAlphaFlagsKHR.OpaqueBitKhr
             : (CompositeAlphaFlagsKHR)((uint)capabilities.SupportedCompositeAlpha & (uint)-(int)capabilities.SupportedCompositeAlpha);
@@ -184,8 +184,18 @@ internal sealed unsafe class SwapchainTarget : IOutputTarget
         }
     }
 
-    /// <summary>The swapchain images allow transfer reads, so <see cref="VulkanRenderer.CaptureNextFrame"/> works.</summary>
+    /// <summary>The swapchain images can be captured, so <see cref="VulkanRenderer.CaptureNextFrame"/> works.</summary>
     public bool CanCapture { get; private set; }
+
+    /// <summary>
+    /// Whether swapchain images of <paramref name="usage"/> and <paramref name="format"/> can be captured. The capture
+    /// pass copies them, so they must allow transfer reads. A capture hands its sink 4 bytes per pixel, red, green and
+    /// blue with sRGB encoding, so the format must be one of the four 8-bit formats whose bytes are that, in RGBA or
+    /// BGRA order. A surface that offers none of them (a 10-bit or a float format) cannot be captured.
+    /// </summary>
+    internal static bool CanCaptureImages(ImageUsageFlags usage, Format format) =>
+        (usage & ImageUsageFlags.TransferSrcBit) != 0
+        && format is Format.B8G8R8A8Srgb or Format.R8G8B8A8Srgb or Format.B8G8R8A8Unorm or Format.R8G8B8A8Unorm;
 
     private SurfaceFormatKHR ChooseFormat()
     {

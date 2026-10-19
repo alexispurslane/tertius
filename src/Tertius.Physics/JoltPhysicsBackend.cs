@@ -448,7 +448,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         Vector3 InverseInertia,
         Quaternion InertiaRotation,
         float LinearDamping,
-        float AngularDamping);
+        float AngularDamping,
+        bool EnhancedInternalEdgeRemoval);
 
     /// <summary>Every body in the system of <paramref name="frame"/>, in the order of its ID, as Jolt holds it.</summary>
     internal unsafe List<BodyFacts> BodiesIn(FrameHandle frame)
@@ -471,20 +472,25 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 float inverseMass = 0, linearDamping = 0, angularDamping = 0;
                 Vector3 inverseInertia = Vector3.Zero;
                 Quaternion inertiaRotation = Quaternion.Identity;
+                bool edgeRemoval = false;
                 locks.LockRead(id, out BodyLockRead read);
-                if (read.Succeeded && read.Body is { MotionProperties: { IsNotNull: true } motion })
+                if (read.Succeeded && read.Body is { } body)
                 {
-                    inverseMass = motion.InverseMassUnchecked;
-                    inverseInertia = motion.InverseInertiaDiagonal;
-                    inertiaRotation = motion.InertiaRotation;
-                    linearDamping = motion.LinearDamping;
-                    angularDamping = motion.AngularDamping;
+                    edgeRemoval = body.EnhancedInternalEdgeRemoval;
+                    if (body.MotionProperties is { IsNotNull: true } motion)
+                    {
+                        inverseMass = motion.InverseMassUnchecked;
+                        inverseInertia = motion.InverseInertiaDiagonal;
+                        inertiaRotation = motion.InertiaRotation;
+                        linearDamping = motion.LinearDamping;
+                        angularDamping = motion.AngularDamping;
+                    }
                 }
                 locks.UnlockRead(read);
                 facts.Add(new BodyFacts(id, bodies.GetUserData(id), bodies.GetMotionType(id), bodies.GetObjectLayer(id),
                     bodies.GetShape(id)?.Handle ?? 0, bodies.GetMotionQuality(id), position.ToDouble3(), bodies.GetRotation(id),
                     linear, angular, bodies.IsActive(id), bodies.GetFriction(id), bodies.GetRestitution(id), inverseMass,
-                    inverseInertia, inertiaRotation, linearDamping, angularDamping));
+                    inverseInertia, inertiaRotation, linearDamping, angularDamping, edgeRemoval));
             }
         }
         facts.Sort(static (a, b) => a.Id.Index.CompareTo(b.Id.Index));

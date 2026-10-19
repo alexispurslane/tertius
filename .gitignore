@@ -24,3 +24,7 @@ __pycache__/
 
 # Rider's own project files.
 /.idea/
+
+# The files that a failing snapshot test writes beside its reference image.
+/tests/Tertius.Rendering.Tests/ReferenceImages/*.actual.png
+/tests/Tertius.Rendering.Tests/ReferenceImages/*.flip.png

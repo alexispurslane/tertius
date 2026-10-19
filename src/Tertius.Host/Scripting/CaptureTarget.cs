@@ -1,0 +1,98 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+
+namespace Tertius.Host.Scripting;
+
+/// <summary>
+/// Where the captures of a run go, for the whole run: a <see cref="PngFolder"/>, which writes one PNG file for each capture,
+/// or a <see cref="VideoFile"/>, which makes each capture the next frame of one video. A run names its outputs by the names
+/// of its steps, so the playback gets the name of each capture and its target makes the output. See
+/// docs/plans/blue-danube-demo.md, change 1.
+/// This is a custom C# 15 union, like <see cref="ScriptStep"/>, and like it its cases are classes, so <see cref="Value"/>
+/// does not box. The default value holds no case, and <see cref="HeadlessPlayback"/> refuses it.
+/// </summary>
+[Union]
+public readonly struct CaptureTarget : IEquatable<CaptureTarget>
+{
+    // The held case, or null for the default value.
+    private readonly object? target;
+
+    public CaptureTarget(PngFolder folder) { ArgumentNullException.ThrowIfNull(folder); target = folder; }
+    public CaptureTarget(VideoFile video) { ArgumentNullException.ThrowIfNull(video); target = video; }
+
+    /// <summary>False for the default value, which holds no case.</summary>
+    public bool HasValue => target != null;
+
+    public bool TryGetValue([NotNullWhen(true)] out PngFolder? value) => (value = target as PngFolder) != null;
+    public bool TryGetValue([NotNullWhen(true)] out VideoFile? value) => (value = target as VideoFile) != null;
+
+    /// <summary>The held case, or null for the default value.</summary>
+    public object? Value => target;
+
+    // The held case decides equality, by the value equality of its record. Two cases of different types are never equal.
+    public bool Equals(CaptureTarget other) => Equals(target, other.target);
+    public override bool Equals(object? obj) => obj is CaptureTarget other && Equals(other);
+    public override int GetHashCode() => target?.GetHashCode() ?? 0;
+    public static bool operator ==(CaptureTarget a, CaptureTarget b) => a.Equals(b);
+    public static bool operator !=(CaptureTarget a, CaptureTarget b) => !a.Equals(b);
+
+    public override string ToString() => target?.ToString() ?? "CaptureTarget(none)";
+}
+
+/// <summary>
+/// Captures as PNG files in one folder: the capture named <c>name</c> is <c>&lt;Folder&gt;/&lt;name&gt;.png</c>. A target
+/// cannot exist without its folder, so a run with this target always has somewhere to write its images.
+/// </summary>
+public sealed record PngFolder
+{
+    /// <exception cref="ArgumentException"><paramref name="folder"/> is null, empty or only white space.</exception>
+    public PngFolder(string folder)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folder);
+        Folder = folder;
+    }
+
+    /// <summary>The folder of the images. The PNG sink makes it if it is missing.</summary>
+    public string Folder { get; }
+
+    /// <summary>The path of the image of the capture named <paramref name="name"/>.</summary>
+    public string PathOf(string name) => Path.Combine(Folder, name + ".png");
+}
+
+/// <summary>
+/// Captures as the frames of one video, in the order taken, which one ffmpeg process encodes (<see cref="FfmpegVideoSink"/>).
+/// The video drops the names of the captures. Only a headless run has this target.
+/// </summary>
+public sealed record VideoFile
+{
+    /// <summary>The ending of a video's file name. The video is Matroska, which stays readable when ffmpeg stops early.</summary>
+    public const string Extension = ".mkv";
+
+    /// <summary>The lowest and the highest frame rate of a video, in frames per second.</summary>
+    public const int MinFramesPerSecond = 1, MaxFramesPerSecond = 240;
+
+    /// <summary>The frame rate of a video whose command line gives none, in frames per second.</summary>
+    public const int DefaultFramesPerSecond = 30;
+
+    /// <exception cref="ArgumentException"><paramref name="path"/> is null, empty, only white space, or does not end in <see cref="Extension"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="framesPerSecond"/> is outside <see cref="MinFramesPerSecond"/> to <see cref="MaxFramesPerSecond"/>.</exception>
+    public VideoFile(string path, int framesPerSecond)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (!HasVideoExtension(path))
+            throw new ArgumentException($"A video file's name ends in {Extension}, and '{path}' does not.", nameof(path));
+        ArgumentOutOfRangeException.ThrowIfLessThan(framesPerSecond, MinFramesPerSecond);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(framesPerSecond, MaxFramesPerSecond);
+        Path = path;
+        FramesPerSecond = framesPerSecond;
+    }
+
+    /// <summary>The file of the video. A video replaces an older file at the same path.</summary>
+    public string Path { get; }
+
+    /// <summary>How many frames the video plays each second.</summary>
+    public int FramesPerSecond { get; }
+
+    /// <summary>True if <paramref name="path"/> ends in <see cref="Extension"/>, in any case.</summary>
+    public static bool HasVideoExtension(string path) => path.EndsWith(Extension, StringComparison.OrdinalIgnoreCase);
+}

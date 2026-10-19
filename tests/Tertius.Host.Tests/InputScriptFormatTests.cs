@@ -22,7 +22,7 @@ public class InputScriptFormatTests
             .SelectMany(path => Script.Load(path).Steps
                 .Select((step, index) => (Path.GetFileName(path), index, step))
                 .Where(x => x.step is PostStep { Event: "InputEvent" })
-                .Select(x => (x.Item1, x.index, ((PostStep)x.step).Payload!.Value)))
+                .Select(x => (x.Item1, x.index, ((PostStep)x.step.Value!).Payload!.Value)))
             .ToList();
 
     // The kinds of input event as a script writes them, and the members that a payload of each kind has.
@@ -110,7 +110,7 @@ public class InputScriptFormatTests
 
         Script written = Script.Parse(recorder.ToScript(endTick: 1).ToJson());
 
-        written.Steps.OfType<PostStep>().Select(post => post.Payload!.Value.GetRawText()).Should().Equal(
+        written.Steps.Select(step => step.Value).OfType<PostStep>().Select(post => post.Payload!.Value.GetRawText()).Should().Equal(
             """{"kind":"keyDown","code":87}""",
             """{"kind":"keyUp","code":87}""",
             """{"kind":"mouseDown","code":0}""",

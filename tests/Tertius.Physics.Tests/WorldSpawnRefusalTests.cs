@@ -22,12 +22,14 @@ public class WorldSpawnRefusalTests
         "a motion that BodyMotion does not define" => (new BodyDesc(new SphereShapeDesc(1), (BodyMotion)9), "BodyMotion"),
         "a layer that BodyLayer does not define" => (new BodyDesc(new SphereShapeDesc(1), Layer: (BodyLayer)9), "BodyLayer"),
         "a box with a negative half extent" => (new BodyDesc(new BoxShapeDesc(new Vector3(1, -1, 1))), "half extents"),
+        "a box with a negative convex radius" => (new BodyDesc(new BoxShapeDesc(new Vector3(1), -1)), "convex radius"),
         "a box with a half extent that is not a number" => (new BodyDesc(new BoxShapeDesc(new Vector3(1, float.NaN, 1))), "half extents"),
         "a sphere without a radius" => (new BodyDesc(new SphereShapeDesc(0)), "radius"),
         "a capsule with a negative half height" => (new BodyDesc(new CapsuleShapeDesc(-1, 0.5f)), "half height"),
         "a capsule without a radius" => (new BodyDesc(new CapsuleShapeDesc(1, 0)), "radius"),
         "a convex hull with three points" => (new BodyDesc(new ConvexHullShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)])), "4 points"),
         "a convex hull with a point that is not a number" => (new BodyDesc(new ConvexHullShapeDesc([.. Tetrahedron[..3], new(0, 0, float.NaN)])), "not finite"),
+        "a convex hull with a convex radius that is not a number" => (new BodyDesc(new ConvexHullShapeDesc(Tetrahedron, float.NaN)), "convex radius"),
         "a convex hull whose points all coincide" => (new BodyDesc(new ConvexHullShapeDesc([new(1, 1, 1), new(1, 1, 1), new(1, 1, 1), new(1, 1, 1)])), "convex hull"),
         "a mesh without triangles" => (new BodyDesc(new MeshShapeDesc([new(0, 0, 0)], []), BodyMotion.Static), "multiple of 3"),
         "a mesh whose index count is not a multiple of 3" => (new BodyDesc(new MeshShapeDesc(Triangle.Vertices, [0, 2]), BodyMotion.Static), "multiple of 3"),
@@ -63,11 +65,13 @@ public class WorldSpawnRefusalTests
     [InlineData("a layer that BodyLayer does not define")]
     [InlineData("a box with a negative half extent")]
     [InlineData("a box with a half extent that is not a number")]
+    [InlineData("a box with a negative convex radius")]
     [InlineData("a sphere without a radius")]
     [InlineData("a capsule with a negative half height")]
     [InlineData("a capsule without a radius")]
     [InlineData("a convex hull with three points")]
     [InlineData("a convex hull with a point that is not a number")]
+    [InlineData("a convex hull with a convex radius that is not a number")]
     [InlineData("a convex hull whose points all coincide")]
     [InlineData("a mesh without triangles")]
     [InlineData("a mesh whose index count is not a multiple of 3")]

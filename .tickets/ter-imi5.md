@@ -19,3 +19,9 @@ Decided with the user on 2026-10-17 as one of three general design changes that 
 
 Decide each case with the contact ledger in src/Tertius.Physics/JoltPhysicsBackend.Contacts.cs, and test each beside the same scene with the bodies in one frame. The child tickets stay open until this one closes them.
 
+
+## Notes
+
+**2026-10-19T13:11:55Z**
+
+To check before the merge (2026-10-19, from ter-fb3w): a station's InteriorShape can be a mesh (the floor people walk on). Under fork F4 the interior turns kinematic and at rest while the hull moves, so a mesh interior must work as a kinematic body too: Jolt allows a kinematic MeshShape only with a mass, as the mesh ghosts already get 1 kg. Test: a spinning kinematic station whose interior is a ring mesh holds a ball at rest on its floor.

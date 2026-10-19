@@ -11,6 +11,16 @@ public sealed class GpuCollection
     public const string Name = "GPU";
 }
 
+/// <summary>
+/// Tests that change an environment variable of the test process run alone, after the parallel tests: the variable is
+/// shared by every test that runs beside them.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class ProcessEnvironmentCollection
+{
+    public const string Name = "Process environment";
+}
+
 /// <summary>Helpers for GPU tests: renderer creation, captures, projection of world points to pixels.</summary>
 internal static class Gpu
 {
@@ -39,18 +49,19 @@ internal static class Gpu
             ImpostorTiles = impostorTiles,
         });
 
+    /// <summary>The folder that holds Tertius.slnx.</summary>
+    public static string RepositoryRoot => RepoRoot.Value;
+
     public static string CapturePath(string name) => Path.Combine(RepoRoot.Value, "captures", name + ".png");
 
-    /// <summary>Renders one frame, captures it to captures/<paramref name="name"/>.png, and loads the PNG back.</summary>
+    /// <summary>Renders one frame and captures it into memory. <paramref name="name"/> names the capture in a failure.</summary>
     public static Capture RenderAndCapture(VulkanRenderer renderer, RenderSnapshot snapshot, string name, float alpha = 1f)
     {
-        string path = CapturePath(name);
-        if (File.Exists(path))
-            File.Delete(path);
-        renderer.CaptureNextFrame(path);
+        var sink = new MemorySink();
+        renderer.CaptureNextFrame(sink);
         renderer.Render(snapshot, alpha);
-        File.Exists(path).Should().BeTrue("the capture of {0} must be written before Render returns", name);
-        return Capture.Load(path);
+        sink.Takes.Should().Be(1, "the capture of {0} must reach its sink before Render returns", name);
+        return sink.Image!;
     }
 
     /// <summary>Disposes the renderer and fails with the messages if validation reported anything.</summary>
@@ -107,10 +118,13 @@ internal static class Gpu
     }
 }
 
-/// <summary>A PNG loaded back from disk, RGBA8, top row first.</summary>
+/// <summary>
+/// The pixels of one capture from an in-memory sink, RGBA8, top row first. The fourth byte of each pixel holds no
+/// defined value.
+/// </summary>
 internal sealed class Capture
 {
-    private Capture(int width, int height, byte[] rgba)
+    public Capture(int width, int height, byte[] rgba)
     {
         Width = width;
         Height = height;
@@ -126,6 +140,23 @@ internal sealed class Capture
         using FileStream stream = File.OpenRead(path);
         ImageResult image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
         return new Capture(image.Width, image.Height, image.Data);
+    }
+
+    /// <summary>An image made in memory: <paramref name="rgba"/> holds 4 bytes per pixel, top row first.</summary>
+    public static Capture FromRgba(int width, int height, byte[] rgba)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        if (rgba.Length != width * height * 4)
+            throw new ArgumentException($"A {width}×{height} image needs {width * height * 4} bytes, not {rgba.Length}.", nameof(rgba));
+        return new Capture(width, height, rgba);
+    }
+
+    /// <summary>Writes the image as a PNG file, replacing any file at <paramref name="path"/>.</summary>
+    public void Save(string path)
+    {
+        using FileStream stream = File.Create(path);
+        new StbImageWriteSharp.ImageWriter().WritePng(Rgba, Width, Height, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, stream);
     }
 
     /// <summary>Color in [0, 1] (display-encoded, as stored).</summary>
@@ -173,6 +204,34 @@ internal sealed class Capture
                 max = MathF.Max(max, Luma(x, y));
         }
         return max;
+    }
+}
+
+/// <summary>
+/// A capture sink that keeps a copy of the pixels it takes, how many times it took pixels, and on which thread it last
+/// took them.
+/// </summary>
+internal sealed class MemorySink : ICaptureSink
+{
+    public int Takes { get; private set; }
+    public int ThreadId { get; private set; }
+    public Capture? Image { get; private set; }
+
+    public void Take(in CapturedImage image)
+    {
+        Takes++;
+        ThreadId = Environment.CurrentManagedThreadId;
+        Image = new Capture(image.Width, image.Height, image.Rgba.ToArray());
+    }
+}
+
+/// <summary>A capture sink that hands each capture to every sink it holds, in order.</summary>
+internal sealed class FanOutSink(params ICaptureSink[] sinks) : ICaptureSink
+{
+    public void Take(in CapturedImage image)
+    {
+        foreach (ICaptureSink sink in sinks)
+            sink.Take(image);
     }
 }
 

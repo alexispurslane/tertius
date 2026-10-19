@@ -285,6 +285,92 @@ public class StateDumpTests
         result.Dump("second").Events.Select(e => ((Nudge)e.Payload).Amount).Should().Equal(2);
     }
 
+    /// <summary>A playback that lets every tick run and draws no capture.</summary>
+    private sealed class DrawsNothing : IPlayback
+    {
+        public bool WaitForTick() => true;
+
+        public bool Capture(World world, string name) => true;
+    }
+
+    [Fact]
+    public void ADumpAfterAFilmListsEveryEventRoutedSinceTheDumpBeforeIt()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        string folder = NewFolder();
+        try
+        {
+            RunResult result = ScriptRunner.Run(Script.Parse("""
+                { "scene": "test", "steps": [
+                  { "do": "camera", "entity": "probe" },
+                  { "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1 } },
+                  { "do": "run", "ticks": 2 },
+                  { "do": "dump", "name": "first" },
+                  { "do": "post", "to": { "kind": "entity", "id": "crew" }, "event": "Nudge", "payload": { "amount": 2 } },
+                  { "do": "film", "name": "climb", "frames": 2, "every": 2 },
+                  { "do": "dump", "name": "second" } ] }
+                """), world, scene, folder, new DrawsNothing());
+
+            result.Dump("first").Events.Select(e => ((Nudge)e.Payload).Amount).Should().Equal(1);
+            // Posted after 2 ticks, so the sync point of the film's first tick routes it.
+            result.Dump("second").Events.Should().ContainSingle().Which.Tick.Should().Be(3);
+            result.Dump("second").Events.Select(e => ((Nudge)e.Payload).Amount).Should().Equal(2);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The bytes that the calling thread allocates to run <paramref name="steps"/> on the scene "probes" with one more
+    /// entity, which sends itself <paramref name="nudgesPerTick"/> nudges on every tick. A first run of the same steps
+    /// comes before the measured one, so that the measured run allocates nothing for code that runs for the first time.
+    /// </summary>
+    private static long BytesToRun(int nudgesPerTick, string steps)
+    {
+        long bytes = 0;
+        for (int run = 0; run < 2; run++)
+        {
+            using World world = NewWorld();
+            SceneInstance scene = Probes(world);
+            world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(scene["space"]), Components = [new NudgesItselfEveryTick(nudgesPerTick)] });
+            Script script = Script.Parse($$"""{ "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, {{steps}} ] }""");
+            string folder = NewFolder();
+            try
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                ScriptRunner.Run(script, world, scene, folder, new DrawsNothing());
+                bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+                world.Stats.RoutedEvents.Should().Be(nudgesPerTick, "the last sync point routed the nudges of the last tick");
+            }
+            finally
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+        return bytes;
+    }
+
+    /// <summary>
+    /// Each case runs 100 ticks with 100 nudges a tick, so 10,000 routed events, and no dump step comes after them. Recording
+    /// them would allocate more than 100 bytes for each: the record, its boxed payload, its target and its place in the
+    /// list. So the run with the nudges may allocate at most 8 bytes more for each event than the same run without them.
+    /// </summary>
+    [Theory]
+    [InlineData("""{ "do": "run", "ticks": 100 }""")]
+    [InlineData("""{ "do": "dump", "name": "start" }, { "do": "run", "ticks": 100 }""")]
+    [InlineData("""{ "do": "film", "name": "climb", "frames": 50, "every": 2 }""")]
+    [InlineData("""{ "do": "dump", "name": "start" }, { "do": "film", "name": "climb", "frames": 50, "every": 2 }""")]
+    public void TheRunKeepsNoRoutedEventOfATickAfterWhichNoDumpStepComes(string steps)
+    {
+        long quiet = BytesToRun(0, steps);
+        long busy = BytesToRun(100, steps);
+
+        (busy - quiet).Should().BeLessThan(10_000 * 8, $"no dump reads them (quiet run: {quiet} bytes, busy run: {busy} bytes)");
+    }
+
     [Fact]
     public void ARecordedEventCarriesTheTickCountAfterTheSyncPointThatRoutedIt()
     {
@@ -314,7 +400,7 @@ public class StateDumpTests
 
         EventRecord record = dump.Events.Should().ContainSingle().Which;
         record.Event.Should().Be("Nudge");
-        record.To.Should().Be(new ToTopic("test"));
+        record.To.Should().Be(new MessageTarget(new ToTopic("test")));
         record.From.Should().BeNull("a posted event comes from outside the simulation");
     }
 
@@ -366,7 +452,7 @@ public class StateDumpTests
 
         EventRecord record = dump.Events.Should().ContainSingle().Which;
         record.From.Should().Be("sender");
-        record.To.Should().Be(new ToEntity("probe"));
+        record.To.Should().Be(new MessageTarget(new ToEntity("probe")));
     }
 
     [Fact]

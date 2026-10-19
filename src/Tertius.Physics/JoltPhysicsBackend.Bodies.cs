@@ -363,6 +363,24 @@ public sealed partial class JoltPhysicsBackend
             // A ghost of a sensor is a sensor too, so that it pushes nothing in the other frame either.
             IsSensor = material.IsSensor,
             AllowedDOFs = spec.Freedom,
+            // A body near the joint of two triangles of a mesh, or of two children of a compound, also meets the edge
+            // of the neighbor piece there, and Jolt's contact with that edge tilts away from the joint. Jolt's active
+            // edges never drop it for a body that lands, and manifold reduction averages it into the face contact, so a
+            // ball that lands near a joint is pushed sideways, and a box that slides across the joints of a compound
+            // trips at each one. Enhanced internal edge removal drops such a contact beyond about 5 mm from a flat
+            // joint and 10 mm from a concave crease (ter-fb3w). Jolt uses it for a pair when either body has it, but it
+            // removes only the internal edges of the pair's second body: the static or kinematic body of a pair with a
+            // dynamic one, or of two dynamic bodies the one with the higher Jolt body ID
+            // (PhysicsSystem::ProcessBodyPair). So a static or kinematic surface removes its edges for every dynamic
+            // body that touches it, and a dynamic one only for a dynamic body of a lower ID (InternalEdgeRemovalTests).
+            // Where the bodies move alike with and without it, it costs nothing that EdgeRemovalBenchmarks can see:
+            // balls on the hulls of a ring, and balls and boxes on its mesh. Only a shape made of sharp pieces sets it,
+            // because only there is the edge at a joint no feature of the surface. Between two rounded children of a
+            // compound the groove is real: the flag would keep only one of its two contacts, and a ball would sink
+            // 0.8 mm deeper and roll to and fro for seconds, where without it the ball rests in the groove
+            // (ConvexRadiusTests). A convex body has no joints. Each body of an entity follows its own shape: a ghost
+            // has the body's shape, and an interior its own.
+            EnhancedInternalEdgeRemoval = spec.Shape.IsMadeOfSharpPieces(),
         });
         // Jolt gives a body that is or can become kinematic motion properties from its mass, but it cannot compute the mass
         // of a mesh, and would divide by zero. A mesh is never dynamic, and Jolt reads the mass only of a dynamic body, so
@@ -443,6 +461,22 @@ public sealed partial class JoltPhysicsBackend
             PredictiveContactDistance = CharacterContactReach,
             // Contacts below the center of the lower hemisphere support the character.
             SupportingVolume = new Plane(Vector3.UnitY, -capsule.Radius),
+            // A Jolt character finds its contacts by a shape query of its own, which ignores the flag of the body that
+            // it touches, so the flag of a floor made of sharp pieces never reaches it. The query drops a contact with
+            // an edge that a mesh marks inactive, but a compound of hulls marks none, so at each joint of the hulls of
+            // a ring's floor, a character that walks across it meets the edge of the next hull and is lifted by up to
+            // 3.7 mm. Enhanced internal edge removal drops those contacts (ter-fb3w, RevolvedSolidJointTests). The flag
+            // acts on every floor that the query touches, a rounded groove and a mesh included. A character that stands
+            // in the middle of the groove between two boxes of the default convex radius keeps only one of the groove's
+            // two contacts, and it moves 1.1 mm aside and rests 0.15 mm higher; one that walks across the groove walks
+            // as without the flag (InternalEdgeRemovalTests). On a ring's mesh, which needs no flag (it lifts a walking
+            // character by 0.06 mm at most without it), a character that walks at 3 m/s dips up to 1.0 mm into a
+            // joint's crease, against 0.6 mm without the flag. The engine accepts both: each is about 1 mm, and a
+            // character's walk sets its own speed, so neither carries it on. The rigid form is a body, which follows
+            // the floor's flag, so it keeps both contacts of a groove. The flag adds about 2 % to the tick of 100
+            // characters that walk across the joints of a ring's hulls, and nothing on its mesh
+            // (EdgeRemovalBenchmarks).
+            EnhancedInternalEdgeRemoval = true,
         };
         CharacterVirtual character = NativeOwnership.Owned(new CharacterVirtual(settings, position, rotation, BodyUserData.Encode(BodyKind.CharacterInner, record.Entity), system));
         character.LinearVelocity = linearVelocity;
