@@ -360,13 +360,20 @@ public class FrameTreeGhostPlaceTests
     [Fact]
     public void A_kinematic_body_that_is_not_a_sensor_is_not_linked_by_a_place()
     {
+        // The kinematic body far out lies 5 m from the crate, and alone it lives in a following frame of its own.
         FrameHandle station = Station(2, X(Far));
 
         NumericBody[] after = Update(0.1, Body(10, new Double3(Far, 45, 0)) with { Kinematic = true }, BodyOf(station, 11, Y(40)));
 
-        frames.Numeric(after[0].Home).Should().Be(NumericMode.Resting);
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Following);
+        frames.AnchorGhosts.ToArray().Should().BeEmpty("nothing links the body to ground's own system");
     }
 
+    /// <summary>
+    /// The place links the sensor, so its group stays in ground's own system, where the ghost lives. A far kinematic body
+    /// lives in a following frame of its own, which follows its motion intents, so the place counts as an anchor at rest in
+    /// that system, and the system keeps a ghost of the body, as for a static body there.
+    /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -377,7 +384,20 @@ public class FrameTreeGhostPlaceTests
 
         NumericBody[] after = Update(0.1, sensor, BodyOf(station, 11, Y(40)));
 
-        after[0].Home.Should().Be(ground);
+        if (isStatic)
+            after[0].Home.Should().Be(ground);
+        else
+            KeepsItsFollowingFrameAndAGhostInGround(after[0]);
+    }
+
+    /// <summary>
+    /// Checks that <paramref name="body"/>, a far kinematic body that a fixed place links, anchors a following frame of its
+    /// own, and that ground's own system keeps a ghost of it.
+    /// </summary>
+    private void KeepsItsFollowingFrameAndAGhostInGround(in NumericBody body)
+    {
+        frames.Anchors(body.Home, body.Entity).Should().BeTrue("a far kinematic body lives in a following frame of its own");
+        frames.AnchorGhosts.ToArray().Should().Equal([new NumericGhost(body.Entity, ground)], "the place is fixed in ground's own system");
     }
 
     [Fact]
@@ -401,26 +421,27 @@ public class FrameTreeGhostPlaceTests
     {
         // The depot's static hull reaches the station's bubble as far as its own bubble, so it has a ghost in the station's
         // own system. That ghost meets only what the static hull meets, a dynamic body, so a kinematic sensor at 1,000 m/s
-        // in the station does not detect it, and alone it falls in a frame of the station.
+        // in the station does not detect it, and alone it lives in a following frame of its own in the station.
         FrameHandle station = Station(2, X(1_000));
         FrameHandle depot = Station(3, new Double3(1_000, 100, 0), bubble: 70);
         NumericBody sensor = BodyOf(station, 12, Double3.Zero, X(1_000)) with { Kinematic = true, Sensor = true };
 
         NumericBody[] after = Update(0.1, ParkedHull(depot), sensor);
 
-        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Following);
+        frames.AnchorGhosts.ToArray().Should().BeEmpty("nothing links the sensor to the station's own system");
     }
 
     [Fact]
     public void A_kinematic_body_near_a_sensor_that_sticks_out_of_a_child_bubble_is_linked_to_its_place()
     {
         // Jolt makes a contact between a kinematic body and a sensor. So the kinematic body far out, 5 m from the sensor's
-        // place, stays in the system of ground with the sensor's ghost, although alone it rests in a frame.
+        // place, keeps its following frame, and the system of ground, where the sensor's ghost lives, keeps a ghost of it.
         FrameHandle station = Station(2, X(Far));
 
         NumericBody[] after = Update(0.1, Body(10, new Double3(Far, 45, 0)) with { Kinematic = true }, BodyOf(station, 11, Y(40)) with { Sensor = true });
 
-        after[0].Home.Should().Be(ground);
+        KeepsItsFollowingFrameAndAGhostInGround(after[0]);
     }
 
     [Fact]
@@ -866,9 +887,9 @@ public class FrameTreeGhostPlaceTests
     // ---- Anchors that move differently --------------------------------------------------------------------------------
 
     [Fact]
-    public void A_group_that_a_place_links_to_a_Kepler_hull_in_an_orbit_frame_of_its_own_lives_in_the_home_of_its_static_rock_and_keeps_the_hulls_ghost()
+    public void A_group_that_a_place_links_to_a_Kepler_hull_in_a_following_frame_of_its_own_lives_in_the_home_of_its_static_rock_and_keeps_the_hulls_ghost()
     {
-        // A station on a circular orbit 2^24 m out in a weak field, at 7.7 m/s: far enough for an orbit frame of its own.
+        // A station on a circular orbit 2^24 m out in a weak field, at 7.7 m/s: far enough for a following frame of its own.
         // Its crate sticks out 40 m along Y. The pod flies with the station 1.5 m beyond the crate and 41.5 m from the hull,
         // so the merge test links it to the crate's place but not to the hull. The static rock 15 m beyond the pod is within
         // 2 m plus 2 s of the pod's 7.7 m/s, but 56.5 m from the hull, beyond its reach of 21.4 m.
@@ -881,7 +902,7 @@ public class FrameTreeGhostPlaceTests
         frames.SetHullMotion(station, BodyMotion.Kinematic);
         frames.SetTreeLinearVelocity(station, velocity);
         FrameHandle orbit = Update(0.1, KeplerHull(station))[0].Home;
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
         NumericBody pod = SpaceBody(space, 10, place + Y(41.5), velocity);
         NumericBody rock = SpaceBody(space, 12, place + Y(56.5), Double3.Zero) with { Static = true };
 
@@ -889,7 +910,7 @@ public class FrameTreeGhostPlaceTests
 
         after[0].Home.Should().Be(orbit, "the hull's orbit moves it, so it keeps its own home");
         FrameHandle raft = after[2].Home;
-        frames.Numeric(raft).Should().Be(NumericMode.Resting, "the anchor at rest wins over the orbit frame");
+        frames.Numeric(raft).Should().Be(NumericMode.Resting, "the anchor at rest wins over the following frame");
         after[1].Home.Should().Be(raft);
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(station.Entity, raft));
     }
@@ -910,7 +931,6 @@ public class FrameTreeGhostPlaceTests
             Mass = 1e5,
             Kinematic = true,
             Fixed = true,
-            Orbits = true,
             OwnedFrame = station,
         };
     }

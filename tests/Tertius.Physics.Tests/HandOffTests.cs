@@ -126,7 +126,7 @@ public class HandOffTests
     [Fact]
     public void BallLeavingOrbitingSpinningKeplerFrameKeepsItsParentVelocity()
     {
-        // At 7.5 km/s the station's hull would rest in an orbit frame of its own, which would be the frame that Jolt names.
+        // At 7.5 km/s the station's hull would rest in a following frame of its own, which would be the frame that Jolt names.
         using World world = NewWorldWithoutNumericFrames(out FaultInjectingBackend faults);
         const double mu = 3.986004418e14;
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(mu)));
@@ -161,7 +161,7 @@ public class HandOffTests
     [Fact]
     public void ABallThatLeavesAStationFacingItsPlanetNearApoapsisTakesTheStationsTurnRateThere()
     {
-        // The station's hull would rest in an orbit frame of its own, which would be the frame that Jolt names: it gets one
+        // The station's hull would rest in a following frame of its own, which would be the frame that Jolt names: it gets one
         // at 1,363 m/s at periapsis, faster than the 1,000 m/s from which a free hull gets one, and keeps it at 734 m/s near
         // apoapsis, faster than the 400 m/s down to which it keeps one. The test after this one runs the scene with numeric
         // frames.
@@ -202,8 +202,8 @@ public class HandOffTests
 
     /// <summary>
     /// The ball of the test above, which leaves a station that faces its planet near apoapsis, runs on for a second after
-    /// it leaves. With numeric frames the station's hull rests in an orbit frame of its own (ter-dhkf rule 3), the station's
-    /// frame turns at the frame's origin, and the ball leaves into that orbit frame, the station's tree parent. The ball is
+    /// it leaves. With numeric frames the station's hull rests in a following frame of its own (ter-dhkf rule 3), the station's
+    /// frame turns at the frame's origin, and the ball leaves into that following frame, the station's tree parent. The ball is
     /// 25 m from the hull then, farther than the merge test reaches, so the update of the same sync point moves it into a
     /// falling frame of its own. Every read of the ball in the planet is the same as without numeric frames, to the
     /// rounding of the hand-off's floats.
@@ -240,8 +240,8 @@ public class HandOffTests
             TickUntil(world, () => world.GetFrame(ball) == planet, 1200);
             if (numericFrames)
             {
-                world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Orbiting,
-                    "the station's hull rests in an orbit frame of its own when the ball leaves");
+                world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Following,
+                    "the station's hull rests in a following frame of its own when the ball leaves");
                 world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Falling,
                     "the sync point of the hand-off moves the ball into a falling frame of its own");
                 world.PhysicsHomeOf(ball).Should().NotBe(world.Frames.TreeParent(station));

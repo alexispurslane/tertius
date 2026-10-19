@@ -96,8 +96,8 @@ public sealed partial class World
         }
         FlushPhysicsChanges();
         Frames.Update();
-        // The falling numeric frames and the orbit frames fix their accelerations for the step, which physics reads and the
-        // sync point follows, and each orbit frame its step plan, from its anchor's motion intent in the intents of the step,
+        // The falling numeric frames and the following frames fix their accelerations for the step, which physics reads and the
+        // sync point follows, and each following frame its step plan, from its anchor's motion intent in the intents of the step,
         // while the tree stands where the step starts.
         Frames.BeginNumericStep(entities.FrontIntents.Span, DeltaTime);
         // The indexes that entity queries start from apply their queued changes, so that the workers only read them.

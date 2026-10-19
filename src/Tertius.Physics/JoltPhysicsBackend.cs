@@ -267,7 +267,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// numeric frames, and when one of them leaves while the other touches its ghost. A contact that no system takes over
     /// after a hand-off of one of its bodies, while a body of it or a ghost of one is in a numeric frame, waits one more
     /// step, for the numeric update of the sync point to link the bodies, or to name the home of their group for the ghost
-    /// of a Kepler hull that lives apart from the group (see <see cref="ResolveLooseContacts"/>).
+    /// of the anchor of a following frame that lives apart from the group (see <see cref="ResolveLooseContacts"/>).
     /// </para>
     /// </remarks>
     public void Step(in PhysicsStepContext context, PhysicsStepOutput output)
@@ -837,7 +837,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>A kinematic hull, or no body, whose owner has an end pose or a full sample: the record of that motion intent, in
     /// the tree parent, from the frame's tree pose where the step starts, as the sync point derives it for a frame without a
     /// hull (see <see cref="FrameTree.StepRecordInStep"/>), so that the two agree to the last bit. A hull at the origin of its
-    /// orbit frame rests there, with the record's rotation and no velocity (see <see cref="KinematicTarget"/>): the orbit
+    /// following frame rests there, with the record's rotation and no velocity (see <see cref="KinematicTarget"/>): the following
     /// frame's own chord and instant velocity are the step plan's (see <see cref="FrameTree.HomeInstantVelocityOverChord"/>).
     /// The record that physics releases for the tree differs there (see <see cref="WriteFrames"/>).</item>
     /// <item>A static hull, or a kinematic hull without a motion intent, that teleported in the step: the teleport's pose in
@@ -873,7 +873,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         BodyRecord? hull = OwnerRecord(frame);
         if ((hull is null || hull.Motion == BodyMotion.Kinematic) && frames.StepRecordInStep(frame, stepIntents.Span, stepDt, out MotionSample move))
         {
-            if (hull is { HasPrimary: true } && frames.InOrbitFrame(frame))
+            if (hull is { HasPrimary: true } && frames.InFollowingFrame(frame))
             {
                 DPose target = KinematicTarget(hull, move.Pose.Position, move.Pose.Rotation);
                 return move with
@@ -885,7 +885,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 };
             }
             // A frame with a kinematic hull or without a body hangs in its semantic parent, which its motion intent is
-            // relative to, unless it hangs at the origin of its orbit frame (see FrameTree). The assertion takes no message
+            // relative to, unless it hangs at the origin of its following frame (see FrameTree). The assertion takes no message
             // of its own, which a Debug build would build in every step.
             Contract.Assert(frames.TreeParent(frame) == frames.Parent(frame));
             return move;

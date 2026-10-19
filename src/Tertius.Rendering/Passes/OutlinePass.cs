@@ -19,8 +19,8 @@ internal static class OutlineColors
     public static readonly uint Resting = Pack(0x4FC1B6);
     /// <summary>A nesting numeric frame: #B58CF0, purple.</summary>
     public static readonly uint Nesting = Pack(0xB58CF0);
-    /// <summary>An orbit frame: #C9B458, gold.</summary>
-    public static readonly uint Orbiting = Pack(0xC9B458);
+    /// <summary>A following frame: #C9B458, gold.</summary>
+    public static readonly uint Following = Pack(0xC9B458);
 
     /// <summary>A display color written as 0xRRGGBB, packed as the bytes R, G, B and 255 from the lowest byte up.</summary>
     private static uint Pack(uint rgb) => 0xFF000000u | ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb >> 16) & 0xFF);
@@ -112,8 +112,8 @@ internal sealed class OutlinePass : RenderPass
                 case NestingOutline(var center, var radius):
                     AddSphere(scene, center, radius, OutlineColors.Nesting);
                     break;
-                case OrbitingOutline(var center, var radius):
-                    AddSphere(scene, center, radius, OutlineColors.Orbiting);
+                case FollowingOutline(var center, var radius):
+                    AddSphere(scene, center, radius, OutlineColors.Following);
                     break;
             }
         }

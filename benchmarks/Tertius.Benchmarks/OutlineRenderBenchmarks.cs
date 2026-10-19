@@ -13,7 +13,7 @@ namespace Tertius.Benchmarks;
 /// <remarks>
 /// The scene is a gray ground and 100 boxes from 10 m to 200 m ahead, lit by the sun. <see cref="Outlines"/> outlines
 /// spread over the view from 20 m to 400 m ahead, with radii from 1 m to 20 m, and they cycle through the five cases:
-/// a turned semantic ellipsoid, then the falling, resting, nesting and orbit frames' spheres. 0 is the cost with the
+/// a turned semantic ellipsoid, then the falling, resting, nesting and following frames' spheres. 0 is the cost with the
 /// outlines off: the snapshot holds none, as it does while <c>World.ShowFrameOutlines</c> is off.
 /// </remarks>
 [MemoryDiagnoser]
@@ -67,7 +67,7 @@ public class OutlineRenderBenchmarks
                 1 => new FallingOutline(center, radius),
                 2 => new RestingOutline(center, radius),
                 3 => new NestingOutline(center, radius),
-                _ => (FrameOutline)new OrbitingOutline(center, radius),
+                _ => (FrameOutline)new FollowingOutline(center, radius),
             });
         }
         // The first frames upload the meshes and the materials and grow the buffers.

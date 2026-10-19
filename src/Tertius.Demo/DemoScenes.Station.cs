@@ -10,7 +10,7 @@ public static partial class DemoScenes
     /// <summary>
     /// The scene <c>station</c>: a station whose KeplerMotion carries it round Earth on the orbit scene's circle, 400 km
     /// up, at 7.67 km/s, with the orbit scene's sun and Earth (see <see cref="Orbit"/>). It shows the two cases of
-    /// ter-dhkf (docs/plans/numeric-frames.md, "Anchors"). A fast hull on rails lives in an orbit frame of its own, a
+    /// ter-dhkf (docs/plans/numeric-frames.md, "Anchors"). A fast hull on rails lives in a following frame of its own, a
     /// numeric frame that follows its orbit, so cargo that drifts out of the station's bubble joins that frame, where
     /// both the cargo and the hull are slow and float velocities stay small. And a crate thrown at 1,200 m/s inside the
     /// station, faster than the 1,000 m/s from which a group of free bodies falls in a numeric frame, stops at a thin static

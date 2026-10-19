@@ -339,16 +339,16 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// The pose in its home at which the kinematic body <paramref name="body"/> ends the step with a motion intent that ends
     /// at <paramref name="position"/>, in the body's semantic frame, with <paramref name="rotation"/>, which is unit length.
-    /// A hull at the origin of its orbit frame stays at that origin, because the orbit frame lands on the hull's step plan,
-    /// which ends at the same pose, and takes the plan's place at the sync point (see <see cref="FrameTree.PlaceFollowingFrame"/>).
-    /// In the step of a teleport the hull is not at that origin, so it goes to the plan's place, where the orbit frame will be
-    /// at the end of the step: it does not sweep back to the origin, and the orbit frame jumps to it at the sync point (see
-    /// <see cref="FrameTree.JumpFollowingFrame"/>). Any other body goes to that place too, where its home will be at the end
-    /// of the step.
+    /// The anchor of a following frame, a hull or a plain body (see <see cref="FrameTree.Anchors"/>), stays at the frame's
+    /// origin, because the frame lands on the anchor's step plan, which ends at the same pose, and takes the plan's place at
+    /// the sync point (see <see cref="FrameTree.PlaceFollowingFrame"/>). In the step of a teleport the anchor is not at that
+    /// origin, so it goes to the plan's place, where the frame will be at the end of the step: it does not sweep back to the
+    /// origin, and the frame jumps to it at the sync point (see <see cref="FrameTree.JumpFollowingFrame"/>). Any other body
+    /// goes to that place too, where its home will be at the end of the step.
     /// </summary>
     private DPose KinematicTarget(BodyRecord body, Double3 position, DQuaternion rotation)
     {
-        if (body.IsHull && frames.InOrbitFrame(body.OwnedFrame) && body.TeleportStep != stepIndex)
+        if (frames.Anchors(body.Frame, body.Entity) && body.TeleportStep != stepIndex)
             return new DPose(Double3.Zero, rotation);
         return new DPose(position - HomeOffsetAfterStep(body.Frame), rotation);
     }
@@ -392,9 +392,11 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Applies m · g_eff to every awake dynamic body, and gives each system the sleep threshold of the weakest effective
     /// gravity on its awake dynamic bodies (see <see cref="SleepThresholdFor"/>). Wakes a frame's bodies when its gravity
-    /// field changes, or when its proper acceleration has moved more than <see cref="JoltBackendOptions.WakeAccelerationThreshold"/>
-    /// from its value when they last woke. A sleeping body gets no force, and the force does not reset the sleep timer of
-    /// an awake body, so a body at rest falls asleep.
+    /// field changes, or when its push (see <see cref="FrameTree.PushInStep"/>) has moved more than
+    /// <see cref="JoltBackendOptions.WakeAccelerationThreshold"/> from its value when they last woke: the proper acceleration
+    /// of a semantic frame, and for a numeric frame its acceleration less the field at its origin, so that a sleeping body,
+    /// which moves with its frame, does not ride along when an anchor speeds up its following frame. A sleeping body gets no
+    /// force, and the force does not reset the sleep timer of an awake body, so a body at rest falls asleep.
     /// </summary>
     private void ApplyGravity()
     {
@@ -402,14 +404,14 @@ public sealed partial class JoltPhysicsBackend
         foreach (FrameWorld world in worldList)
         {
             FrameHandle frame = world.Frame;
-            Vector3 properAcceleration = frames.ProperAcceleration(frame);
+            Vector3 push = frames.PushInStep(frame);
             GravityField field = frames.Gravity(frame);
             bool wake = world.HasGravityState &&
-                (field != world.LastGravity || Vector3.DistanceSquared(properAcceleration, world.WakeProperAcceleration) > wakeThreshold * wakeThreshold);
+                (field != world.LastGravity || Vector3.DistanceSquared(push, world.WakePush) > wakeThreshold * wakeThreshold);
             if (wake)
                 WakeDynamicMembers(world);
             if (wake || !world.HasGravityState)
-                world.WakeProperAcceleration = properAcceleration;
+                world.WakePush = push;
             world.HasGravityState = true;
             world.LastGravity = field;
             world.HomeAcceleration = frames.IsNumeric(frame) ? frames.HomeAcceleration(frame, frames.SemanticOf(frame)).ToVector3() : Vector3.Zero;

@@ -27,18 +27,17 @@ internal enum NumericMode : byte
     Nesting = 3,
 
     /// <summary>
-    /// Follows the Kepler orbit of the one frame that it holds, its orbiter: the frame of a kinematic hull whose rails move
-    /// it fast or far in its semantic frame, so that the hull rests in this frame (see "Anchors", rule 3, in the doc). At
-    /// each sync point, its place in its semantic frame is the orbiter's place on the orbit, and the orbiter hangs at its
-    /// origin. Its velocity is the chord of the orbit over the step that ends then: the change of place over that step,
-    /// divided by its length, which is the velocity that Jolt gives a body that moves along the orbit. A new one starts with
-    /// the chord of its orbiter's motion over the step that ended, from the orbiter's row (see
-    /// <see cref="FrameTree.UpdateNumericFrames"/>). During a step it
-    /// moves as a falling frame does, with the acceleration that lands it on the orbiter's step plan, the record of the
-    /// orbiter's motion intent for the step (see <see cref="FrameTree.BeginNumericStep"/>): on an orbit, the orbit's
-    /// acceleration at its origin to about 3e-10 m/s² in low orbit. So the bodies in it move as they would in the semantic
-    /// frame's own system, and they feel the field minus that acceleration. It never rotates: the
-    /// orbiter's rotation stays with the orbiter.
+    /// A following frame: it holds one fast or far kinematic body at rest at its origin, its anchor, and follows the
+    /// anchor's motion intents (docs/plans/numeric-frames.md, "Following frames", and "Anchors", rule 3). The anchor is a
+    /// hull, whose frame hangs at the origin, or a plain body, which is a member of the frame's system there. At each sync
+    /// point the frame takes the place of its step plan, the record of the anchor's motion intent of the step that ends
+    /// then, and the plan's chord as its velocity: the change of place over that step, divided by its length, which is the
+    /// velocity that Jolt gives a body that moves as the plan says. A new one starts with the chord of its anchor's motion
+    /// over the step that ended (see <see cref="FrameTree.UpdateNumericFrames"/>). During a step it moves as a falling frame
+    /// does, with the acceleration that lands it on the plan (see <see cref="FrameTree.BeginNumericStep"/>): on a Kepler
+    /// orbit, the orbit's acceleration at its origin to about 3e-10 m/s² in low orbit. So the bodies in it move as they
+    /// would in the semantic frame's own system, and they feel the field minus that acceleration. An anchor without a motion
+    /// intent gives no plan, and the frame falls. It never rotates: the anchor's rotation stays with the anchor.
     /// </summary>
-    Orbiting = 4,
+    Following = 4,
 }

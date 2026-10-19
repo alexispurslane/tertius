@@ -604,7 +604,7 @@ internal sealed class RenderSnapshotBuilder
                 NumericMode.Falling => new FallingOutline(center, radius),
                 NumericMode.Resting => new RestingOutline(center, radius),
                 NumericMode.Nesting => new NestingOutline(center, radius),
-                NumericMode.Orbiting => new OrbitingOutline(center, radius),
+                NumericMode.Following => new FollowingOutline(center, radius),
                 var mode => throw new UnreachableException($"A frame has the numeric mode {mode}, which has no outline."),
             });
         }

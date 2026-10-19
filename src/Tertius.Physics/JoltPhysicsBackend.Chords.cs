@@ -19,7 +19,7 @@ namespace Tertius.Physics;
 // A velocity relative to a numeric home has two forms. A velocity that gameplay gives is relative to the home's frame
 // velocity in the step, as LocalVelocity gives it. The home's frame velocity is a chord too, because the numeric update
 // steps it the way that Jolt steps a body (see FrameTree.AdvanceNumericFrames), so the home's instant velocity lies further
-// on: half a step of its acceleration for a falling frame, and for an orbit frame whose hull has a sample, the sample's
+// on: half a step of its acceleration for a falling frame, and for a following frame whose hull has a sample, the sample's
 // instant velocity past its chord (see FrameTree.HomeInstantVelocityOverChord). Only the velocity relative to that instant
 // velocity is the body's local instant velocity, whose chord Jolt needs.
 //
@@ -41,7 +41,7 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// How much the instant velocity of the origin of <paramref name="home"/> at the end of the step exceeds its frame
     /// velocity, relative to its semantic frame: half a step of a falling frame's acceleration, the sample's instant velocity
-    /// past its chord for an orbit frame whose hull has a sample, zero for a semantic frame (see
+    /// past its chord for a following frame whose hull has a sample, zero for a semantic frame (see
     /// <see cref="FrameTree.HomeInstantVelocityOverChord"/>). A velocity relative to the home's frame velocity is this much
     /// more than the same velocity relative to the home's instant velocity.
     /// </summary>

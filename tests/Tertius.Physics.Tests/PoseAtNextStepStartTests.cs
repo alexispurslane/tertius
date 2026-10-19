@@ -46,31 +46,31 @@ public class PoseAtNextStepStartTests
     }
 
     /// <summary>
-    /// A fast kinematic hull on its Kepler orbit rests in an orbit frame of its own (see <see cref="Scenes.FastKeplerHull"/>).
-    /// Its component goes, so a step runs without a motion intent: the hull holds still in its orbit frame, which falls on
+    /// A fast kinematic hull on its Kepler orbit rests in a following frame of its own (see <see cref="Scenes.FastKeplerHull"/>).
+    /// Its component goes, so a step runs without a motion intent: the hull holds still in its following frame, which falls on
     /// along the orbit, 33 m in a step. A read of the next step's start in that step's tick gives the place where the hull
     /// stands when the step ends.
     /// </summary>
     [Fact]
-    public void AKinematicHullWithoutAMotionIntentStartsTheNextStepWhereItsOrbitFrameCarriesIt()
+    public void AKinematicHullWithoutAMotionIntentStartsTheNextStepWhereItsFollowingFrameCarriesIt()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity hull = Scenes.FastKeplerHull(world, space, Ball() with { Motion = BodyMotion.Kinematic });
         Tick(world, 10);
-        world.Frames.Numeric(world.Frames.TreeParent(world.GetOwnedFrame(hull))).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(world.Frames.TreeParent(world.GetOwnedFrame(hull))).Should().Be(NumericMode.Following);
 
         (Seen gap, Seen after) = ReadAcrossAStepWithoutAMotionIntent(world, hull, world.GetComponent<KeplerMotion>(hull)!);
 
-        (after.Now.Position - gap.Now.Position).Length.Should().BeGreaterThan(30, "the orbit frame carries the hull on over the step");
+        (after.Now.Position - gap.Now.Position).Length.Should().BeGreaterThan(30, "the following frame carries the hull on over the step");
         (gap.NextStepStart.Position - after.Now.Position).Length.Should().BeLessThan(1e-6);
         gap.NextStepStart.Rotation.Should().Be(after.Now.Rotation, "a numeric frame never turns, so the hull keeps its rotation");
     }
 
     /// <summary>
-    /// A plain kinematic ball that end poses move at 1,200 m/s through space without gravity runs in a falling numeric frame
-    /// that moves with it. Its end poses stop, so a step runs without a motion intent: the ball holds still in its home, which
-    /// moves on 20 m in the step. A read of the next step's start in that step's tick gives the place where the ball stands
+    /// A plain kinematic ball that end poses move at 1,200 m/s through space without gravity rests in a following frame that
+    /// moves with it (docs/plans/numeric-frames.md, "Following frames"). Its end poses stop, so a step runs without a motion
+    /// intent: the ball holds still in its home, which falls on without a plan and moves on 20 m in the step. A read of the next step's start in that step's tick gives the place where the ball stands
     /// when the step ends.
     /// </summary>
     [Fact]
@@ -81,7 +81,7 @@ public class PoseAtNextStepStartTests
         Entity ball = world.Spawn(KinematicDrift.Drifting(new SpawnDesc { Frame = space, Body = Ball() with { Motion = BodyMotion.Kinematic } },
             world, new Double3(1_200, 0, 0)));
         Tick(world, 10);
-        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Falling);
+        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Following);
 
         (Seen gap, Seen after) = ReadAcrossAStepWithoutAMotionIntent(world, ball, world.GetComponent<KinematicDrift>(ball)!);
 
