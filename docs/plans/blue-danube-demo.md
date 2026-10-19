@@ -25,8 +25,8 @@ From a survey of the code on 2026-10-18.
 | Need | State | Demo work |
 |---|---|---|
 | Scripts of 100,000 ticks and more | Exists (`scripts/orbit.json` runs about 332,700 ticks) | A generator that writes the long script |
-| One image per frame | Partial: a `capture` step writes one PNG, and a `film` step writes one PNG per frame, synchronously, about 0.1 to 0.15 s per 720p frame (estimate) | The generator writes film steps. Measure 600 frames first. |
-| Video | Missing: no ffmpeg in the dev shell | Add `pkgs.ffmpeg` to the flake. Encode, cut, add title cards and music with ffmpeg. |
+| One image per frame | Exists: a `film` step captures every Nth tick (ter-bgk5), and `--video` sends the captures into one lossless video (ter-mln3). A 720p frame of the orbit scene takes 3.5 ms into the video and 80 ms into a PNG file (see change 1, "Measured"). | The generator writes film steps. |
+| Video | Exists: `ffmpeg-headless` in the dev shell (ter-mln3) encodes the frames of a headless run | Cut, add title cards and music with ffmpeg. |
 | A camera that follows the character | Partial: the camera is an entity, a camera step is a hard cut, `AttachTo` follows a parent | A chase camera component on an entity attached to the character |
 | Character walking, floating, grabbing | Exists (`MoveCharacter`, `Jump`, grab within 3 m) | A path-following walker component. A capsule hides that the rigid form never turns. A pen as a small grab item. |
 | Seat | Missing | A static box in the hull's interior |
@@ -218,6 +218,24 @@ The video ticket runs 600 frames of the orbit scene, 2 ticks apart, at 1280x720 
 - The time that 18,000 frames take with each target, from the measured rates. That is 10 minutes of video at 30 frames per second.
 
 The demo ticket ter-2n31 measures the frame time of the demo scene itself.
+
+#### Measured
+
+Ticket ter-mln3 measured this on 2026-10-19, on an Apple M1 Max, in a Release build with validation off. The test `VideoCostMeasurement` in the Host tests repeats it when the variable `TERTIUS_VIDEO_COST` names the file of its report. It drives the objects of a headless run as the command makes them, through a renderer and a playback that forward every call and time it. The times are wall-clock means per frame over 600 frames of the orbit scene, 2 ticks apart, from the chase camera. The orbit scene is simple: the ship, Earth's sphere and the stars.
+
+| Per frame, ms | 720p video | 720p PNG | 1080p video | 1080p PNG |
+|---|---|---|---|---|
+| Wall time, with the end of the run | 3.54 | 79.70 | 5.19 | 177.26 |
+| The 2 ticks | 0.86 | 0.53 | 0.53 | 0.46 |
+| The capture's draw, fence wait and readback | 1.64 | 2.07 | 2.32 | 3.45 |
+| The sink: blocked in the pipe write, or the PNG encode and write | 1.01 | 77.10 | 2.28 | 173.35 |
+| The end of the run (`Finish`), shared by all frames | 0.03 | 0.00 | 0.06 | 0.00 |
+
+- Bytes per frame: 25,117 in the 720p video and 120,657 as a PNG file; 43,852 in the 1080p video and 220,761 as a PNG file. A raw frame is 3,686,400 and 8,294,400 bytes.
+- ffmpeg encodes the 720p video again at 664 frames per second, and the 1080p video at 326, with the decode of the lossless video in the same process. The decode alone runs at 1,824 and 1,185 frames per second, so these rates are nearly all the encode.
+- 18,000 frames, 10 minutes of video at 30 frames per second, take 1.1 minutes into a 720p video and 24 minutes into PNG files. At 1080p they take 1.6 and 53 minutes.
+
+The pipe write takes 1 ms of a 720p frame and 2.3 ms of a 1080p frame, about the time of a copy of the frame through the pipe. ffmpeg encodes faster than the run makes frames, so its queue stays short: at the end of the run, ffmpeg needs 18 ms and 36 ms for the frames still in it. A writer thread would save at most the time of the write, so the write stays on the calling thread, and no follow-up ticket is needed.
 
 #### Compared with today
 
@@ -539,7 +557,7 @@ Two questions belong to the spin gravity epic, and its tickets carry notes about
 
 ## Order of the work
 
-1. The video pipeline: ffmpeg, the script generator, the chase camera, a measured frame time.
+1. The video pipeline: the script generator, the chase camera, a measured frame time. ffmpeg in the dev shell and the video target came with E4 (ter-mln3).
 2. The surface: the pad, the terminal, the walker, the boarding.
 3. The launch and the climb to orbit: the ramp, the shuttle's autopilot, the weightless cabin, the seat and the pen.
 4. The station and the rendezvous: the mesh generators, the wheel, the spokes, the barrel with its slot, the station on its orbit, the rendezvous autopilot.

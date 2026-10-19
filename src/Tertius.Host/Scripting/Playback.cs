@@ -13,8 +13,9 @@ public interface IPlayback
     bool WaitForTick();
 
     /// <summary>
-    /// Draws the world's current state from its camera with interpolation alpha 1, and writes it to <paramref name="path"/>.
-    /// Returns false to stop the run instead, for example when the user closed the window while the capture waited.
+    /// Draws the world's current state from its camera with interpolation alpha 1, and gives it to the playback's capture
+    /// target as the capture named <paramref name="name"/>: a PNG file of that name, or the next frame of a video. Returns
+    /// false to stop the run instead, for example when the user closed the window while the capture waited.
     /// </summary>
     bool Capture(World world, string name);
 }
