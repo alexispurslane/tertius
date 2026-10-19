@@ -11,6 +11,16 @@ public sealed class GpuCollection
     public const string Name = "GPU";
 }
 
+/// <summary>
+/// Tests that change an environment variable of the test process run alone, after the parallel tests: the variable is
+/// shared by every test that runs beside them.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class ProcessEnvironmentCollection
+{
+    public const string Name = "Process environment";
+}
+
 /// <summary>Helpers for GPU tests: renderer creation, captures, projection of world points to pixels.</summary>
 internal static class Gpu
 {

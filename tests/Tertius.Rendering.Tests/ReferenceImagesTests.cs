@@ -11,9 +11,15 @@ public sealed class ReferenceImagesTests : IDisposable
 {
     private readonly DirectoryInfo folder = Directory.CreateTempSubdirectory("tertius-reference-images-");
 
-    private string Reference => Path.Combine(folder.FullName, "scene.png");
-    private string Actual => Path.Combine(folder.FullName, "scene.actual.png");
-    private string HeatMap => Path.Combine(folder.FullName, "scene.flip.png");
+    /// <summary>
+    /// The folder of the reference does not exist until the check writes into it, as in a fresh checkout that has no
+    /// reference image yet.
+    /// </summary>
+    private string ReferenceFolder => Path.Combine(folder.FullName, "ReferenceImages");
+
+    private string Reference => Path.Combine(ReferenceFolder, "scene.png");
+    private string Actual => Path.Combine(ReferenceFolder, "scene.actual.png");
+    private string HeatMap => Path.Combine(ReferenceFolder, "scene.flip.png");
 
     public void Dispose() => folder.Delete(recursive: true);
 
@@ -23,8 +29,9 @@ public sealed class ReferenceImagesTests : IDisposable
     private static Capture GrayWithSquare() => TestImages.GrayWith(64, 64, 128, (x, y) => x is >= 40 and < 48 && y is >= 40 and < 48, 255);
 
     [Fact]
-    public void AnImageWithoutAReferenceFailsAndIsWrittenBesideTheMissingReference()
+    public void AnImageWithoutAReferenceFailsAndIsWrittenBesideTheMissingReferenceEvenWithoutItsFolder()
     {
+        Directory.Exists(ReferenceFolder).Should().BeFalse("no image was approved or checked yet");
         Capture image = TestImages.Gray(16, 16, 128);
 
         Checking(image).Should().Throw<FailException>().WithMessage($"*{ReferenceImages.ApproveVariable}*");
@@ -98,6 +105,26 @@ public sealed class ReferenceImagesTests : IDisposable
     }
 
     [Fact]
+    public void AUniformChangeJustBelowOneNoticeableDifferencePasses()
+    {
+        // Gray 125 against gray 128 scores 0.065 in every pixel (L* 52.41 against 53.59, a step of 1.2): below the
+        // tolerance of 0.1.
+        Checking(TestImages.Gray(64, 64, 128), approve: true).Should().NotThrow();
+
+        Checking(TestImages.Gray(64, 64, 125)).Should().NotThrow();
+    }
+
+    [Fact]
+    public void AUniformChangeJustAboveOneNoticeableDifferenceFailsInEveryPixel()
+    {
+        // Gray 118 against gray 128 scores 0.150 in every pixel (L* 49.64 against 53.59, a step of 3.9): above the
+        // tolerance of 0.1.
+        Checking(TestImages.Gray(64, 64, 128), approve: true).Should().NotThrow();
+
+        Checking(TestImages.Gray(64, 64, 118)).Should().Throw<FailException>().WithMessage("4096 pixels differ visibly*");
+    }
+
+    [Fact]
     public void AVisibleChangeOfOnePixelFails()
     {
         // One white pixel on black scores far above 0.1 at that pixel, though the mean over the 4,096 pixels stays far below 0.1.
@@ -107,14 +134,16 @@ public sealed class ReferenceImagesTests : IDisposable
     }
 
     [Fact]
-    public void AReferenceOfAnotherSizeFailsAndNamesBothSizes()
+    public void AReferenceOfAnotherSizeFailsNamesBothSizesAndRemovesTheHeatMapOfAnEarlierFailure()
     {
-        Checking(TestImages.Gray(16, 16, 128), approve: true).Should().NotThrow();
-        Capture wider = TestImages.Gray(32, 16, 128);
+        Checking(TestImages.Gray(64, 64, 128), approve: true).Should().NotThrow();
+        Checking(GrayWithSquare()).Should().Throw<FailException>();
+        File.Exists(HeatMap).Should().BeTrue("the earlier failure compared two images of one size");
+        Capture wider = TestImages.Gray(96, 64, 128);
 
-        Checking(wider).Should().Throw<FailException>().WithMessage("*16×16*32×16*");
+        Checking(wider).Should().Throw<FailException>().WithMessage("*64×64*96×64*");
 
         Capture.Load(Actual).Rgba.Should().Equal(wider.Rgba);
-        File.Exists(HeatMap).Should().BeFalse("FLIP compares only images of one size");
+        File.Exists(HeatMap).Should().BeFalse("FLIP compares only images of one size, so the old heat map would show a stale comparison");
     }
 }

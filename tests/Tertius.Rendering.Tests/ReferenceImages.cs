@@ -6,9 +6,11 @@ namespace Tertius.Rendering.Tests;
 /// Snapshot tests: a test renders a scene headlessly and compares the image with its approved reference image through
 /// FLIP. A reference image of a test lives at ReferenceImages/&lt;name&gt;.png in this project.
 /// <list type="bullet">
-/// <item>The check fails when a pixel's FLIP value is above the tolerance. The default tolerance, 0.1, is the FLIP
-/// value of a CIELAB lightness step of about 2.2 in a flat area, about one just noticeable difference. So a change of
-/// one level in every pixel passes, and one changed pixel that anyone can see fails, though it hardly moves the mean.</item>
+/// <item>The check fails when any pixel's FLIP value is above the tolerance. Each test can name its own tolerance. The
+/// default, 0.1, is the FLIP value of a CIELAB lightness step of about 2.2 in a flat area, about one just noticeable
+/// difference. So a change of one level in every pixel passes, and one changed pixel that anyone can see fails. The
+/// rule looks at each pixel, not at the mean FLIP value over the image, because a small object that disappears hardly
+/// moves the mean.</item>
 /// <item>When the check fails, it writes the actual image as &lt;name&gt;.actual.png and the FLIP heat map as
 /// &lt;name&gt;.flip.png beside the reference. A passing check removes them.</item>
 /// <item>With the environment variable <see cref="ApproveVariable"/> set to 1, the check makes the image the reference
@@ -26,14 +28,22 @@ internal static class ReferenceImages
     public static string Folder => Path.Combine(Gpu.RepositoryRoot, "tests", "Tertius.Rendering.Tests", "ReferenceImages");
 
     /// <summary>Whether this run approves the images that its snapshot tests render.</summary>
-    public static bool Approving => Environment.GetEnvironmentVariable(ApproveVariable) == "1";
+    private static bool Approving => Environment.GetEnvironmentVariable(ApproveVariable) == "1";
 
     /// <summary>
     /// Renders <paramref name="snapshot"/> headlessly (see <see cref="Gpu.RenderAndCapture"/>) and checks the image
-    /// against the reference image <paramref name="name"/>, approving it when <see cref="Approving"/>.
+    /// against the reference image <paramref name="name"/> in <see cref="Folder"/>, approving it when
+    /// <see cref="ApproveVariable"/> is 1.
     /// </summary>
     public static void Verify(VulkanRenderer renderer, RenderSnapshot snapshot, string name, float tolerance = DefaultTolerance) =>
-        Verify(Gpu.RenderAndCapture(renderer, snapshot, name), Path.Combine(Folder, name + ".png"), Approving, tolerance);
+        Verify(Gpu.RenderAndCapture(renderer, snapshot, name), Path.Combine(Folder, name + ".png"), tolerance);
+
+    /// <summary>
+    /// Checks <paramref name="actual"/> against the reference image at <paramref name="referencePath"/>, or makes it the
+    /// reference when <see cref="ApproveVariable"/> is 1.
+    /// </summary>
+    public static void Verify(Capture actual, string referencePath, float tolerance = DefaultTolerance) =>
+        Verify(actual, referencePath, Approving, tolerance);
 
     /// <summary>
     /// Checks <paramref name="actual"/> against the reference image at <paramref name="referencePath"/>, or makes it the
@@ -44,9 +54,12 @@ internal static class ReferenceImages
         string actualPath = Path.ChangeExtension(referencePath, ".actual.png");
         string heatMapPath = Path.ChangeExtension(referencePath, ".flip.png");
 
+        // Approval and failure both write beside the reference, and its folder does not exist in a checkout that has
+        // no reference image yet.
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(referencePath))!);
+
         if (approve)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(referencePath))!);
             actual.Save(referencePath);
             File.Delete(actualPath);
             File.Delete(heatMapPath);

@@ -22,7 +22,7 @@ These features are out of scope. Do not design for them.
 | Windowing and input | Silk.NET.Windowing and Silk.NET.Input (GLFW) |
 | Shaders | GLSL 4.60, compiled to SPIR-V with `glslc` at build time |
 | Tests | xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions. Coverage uses Microsoft.Testing.Extensions.CodeCoverage. |
-| Images | StbImageWriteSharp writes the PNG captures. The tests read PNG files with StbImageSharp and write the failure files of snapshot tests with StbImageWriteSharp. |
+| Images | StbImageWriteSharp writes the PNG captures. The tests read PNG files with StbImageSharp, and write the approved reference images and the failure files of snapshot tests with StbImageWriteSharp. |
 | Benchmarks | BenchmarkDotNet 0.15.8 |
 | Platforms | The flake supports `aarch64-darwin`, `x86_64-linux` and `aarch64-linux`. |
 
@@ -707,7 +707,7 @@ A snapshot test renders a scene headlessly and compares the image with its appro
 
 `ReferenceImages.Verify` renders a scene with the headless capture and checks the image. The reference image of a test is `tests/Tertius.Rendering.Tests/ReferenceImages/<name>.png`.
 
-- The check fails when a pixel's FLIP value is above 0.1. In a flat area, 0.1 is the value of a CIELAB lightness step of about 2.2, about one just noticeable difference. So a change of one level in every pixel passes, and one changed pixel that anyone can see fails. A rule on the mean FLIP value would let a small object disappear without a failure, because the object hardly moves the mean.
+- The check fails when any pixel's FLIP value is above the tolerance of the test. The default tolerance is 0.1, and a test can name its own. In a flat area, 0.1 is the value of a CIELAB lightness step of about 2.2, about one just noticeable difference. So a change of one level in every pixel passes, and one changed pixel that anyone can see fails. A rule on the mean FLIP value would let a small object disappear without a failure, because the object hardly moves the mean.
 - When the check fails, it writes the actual image as `<name>.actual.png` and the FLIP heat map as `<name>.flip.png`, beside the reference. Git ignores both files, and a passing check removes them. The heat map is black where nothing changed, and it grows brighter, through purple, red and orange to pale yellow, as the change grows.
 - With the environment variable `TERTIUS_APPROVE_SNAPSHOTS` set to 1, the check makes the image the reference and passes. A snapshot proves only that nothing changed. So the first approval of each reference image is a real review against the description of its scene.
 - The references come from one machine with MoltenVK. On that machine, two headless renders of one scene give the same bytes. Tolerance across GPUs is out of scope.

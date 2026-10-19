@@ -12,9 +12,12 @@ namespace Tertius.Rendering.Tests;
 /// The FLIP value is (color error)^(1 − f).
 /// </para>
 /// <para>
-/// At 10 pixels per degree the color filters keep each pixel to within 1e-8 of itself, and the edge and point filters
-/// reach one pixel to each side (0.9997 of their weight). So a step or a line there has edge or point strength equal to
-/// its contrast in linear luminance.
+/// At 10 pixels per degree the achromatic and red-green filters keep all but 4e-8 of their weight on the pixel itself.
+/// The blue-yellow filter does not: its wider term gives each neighbor 0.085 of the center's weight in one dimension,
+/// and the pixel keeps only about 0.79 of the weight of the whole filter. That does not change the values below,
+/// because every image that these tests compare at 10 pixels per degree is gray, and a gray has 0 in both color
+/// channels. The edge and point filters reach one pixel to each side (0.9997 of their weight). So a step or a line
+/// there has edge or point strength equal to its contrast in linear luminance.
 /// </para>
 /// </summary>
 public sealed class FlipTests
