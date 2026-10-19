@@ -1,6 +1,6 @@
 ---
 id: ter-imi5
-status: open
+status: in_progress
 deps: []
 links: [ter-xxmj, ter-3mwi, ter-7ul9]
 created: 2026-10-17T13:11:15Z

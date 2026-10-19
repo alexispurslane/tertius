@@ -20,3 +20,7 @@ User decision (2026-10-18): frames follow their owner entity, and the rails comp
 **2026-10-19T00:38:55Z**
 
 Design settled with the user (2026-10-18), draft in the session scratchpad xdt8/design.md: the motion intent is PhysicsIntent.Move, a custom union with three cases: an end pose (MoveKinematic), a full sample (MoveOnRails) and a steer target (SteerTo, for a dynamic body: physics gives it the velocities that carry it to the pose over the step, today's dynamic branch of MoveKinematic). Fork 1: a field of PhysicsIntent (it replaces Target). Fork 2: the frame tree row keeps what FrameTree.Follow writes today plus a follow-kind byte; the third sample buffer goes. Fork 3: every kinematic body moves only by motion intents and teleports; SetVelocity and SetAngularVelocity throw for any kinematic body. The guard allows end pose and full sample for kinematic bodies and entities without a body, and steer only for dynamic bodies.
+
+**2026-10-19T00:59:57Z**
+
+Amended with the user (2026-10-18): a frame's proper acceleration is derived by one rule for every step record (acceleration minus the gravity at its place, in the frame's axes), never written. MotionSample loses its ProperAcceleration field, FrameSpin.Sample and SpinMotion lose their proper-acceleration input, and FrameTree.ProperAcceleration becomes a value read. The demo surface branch (ter-na4f) must then drop Shuttle.Park's write of it.
