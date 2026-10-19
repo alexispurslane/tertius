@@ -56,6 +56,19 @@ public static partial class DemoScenes
         /// </summary>
         public static Double3 SeatStand { get; } = new(1, -Cabin.Y + 0.9, Seat.Max.Z + 0.45);
 
+        /// <summary>
+        /// Where a person 1.8 m tall stands 3 m outside the hatch, in the shuttle's axes: the center of its capsule, 0.9 m
+        /// above the ground under the hull, in line with the hatch. A person who walks from there to
+        /// <see cref="InsideHatch"/> walks straight through the middle of the hatch.
+        /// </summary>
+        public static Double3 OutsideHatch { get; } = new(Hull.X + 3, -Hull.Y + 0.9, Hatch.Center.Z);
+
+        /// <summary>
+        /// Where a person 1.8 m tall stands 1.2 m inside the hatch, in the shuttle's axes: the center of its capsule, 0.9 m
+        /// above the cabin floor, in line with the hatch, with the whole capsule inside the cabin.
+        /// </summary>
+        public static Double3 InsideHatch { get; } = new(Cabin.X - 1.2, -Cabin.Y + 0.9, Hatch.Center.Z);
+
         /// <summary>The radii of the bubble, in meters, in the shuttle's axes.</summary>
         public static Vector3 Bubble { get; } = (Hull + new Vector3(2)) * MathF.Sqrt(3);
 

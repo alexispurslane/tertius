@@ -7,10 +7,11 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The demo surface: one headless run of the checked-in script scripts/demo-surface.json. The person's walker walks it
-/// from 9 m outside the terminal's entrance through the hall, out of the gate and across the pad to the boarding point
-/// outside the parked shuttle's bubble: 30 m at 3 m/s, which takes about 11 s with the slowdown at the end. The script
-/// dumps the state in the hall at tick 314, on the pad at tick 544, and at the end at tick 780, after the person stopped.
-/// Every test of the class reads that one run.
+/// from 9 m outside the terminal's entrance through the hall, out of the gate, across the pad, through the parked
+/// shuttle's hatch and along the cabin to the place at the seat: about 44 m at 3 m/s, which takes about 16 s with the
+/// slowdown at the end. The script dumps the state in the hall ("terminal"), on the pad ("apron"), in the hatch
+/// ("boarding"), at the seat after the person stopped ("seated"), and two seconds later ("end"). Every test of the class
+/// reads that one run.
 /// </summary>
 public sealed class DemoSurfaceRun() : CheckedInRun("demo-surface");
 
@@ -33,6 +34,7 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
         Math.Abs(inHall.Z).Should().BeLessThan(DemoSurface.TerminalHalf.Z - 0.6, "the person is in the hall, away from its walls");
     }
 
+    /// <summary>The shuttle stands unturned at the origin, so the x of earth-surface is the x of the shuttle's axes.</summary>
     [Fact]
     public void ThePersonCrossesThePadTowardTheShuttle()
     {
@@ -40,18 +42,21 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
 
         person.Pose.Frame.Should().Be("earth-surface");
         person.Standing.Should().BeTrue();
-        person.Pose.Position.X.Should().BeInRange(DemoSurface.BoardingPoint.X, DemoSurface.TerminalCenter.X - DemoSurface.TerminalHalf.X, "the person is between the gate and the boarding point");
+        person.Pose.Position.X.Should().BeInRange(Shuttle.OutsideHatch.X, DemoSurface.TerminalCenter.X - DemoSurface.TerminalHalf.X, "the person is between the gate and the hatch");
     }
 
+    /// <summary>
+    /// The person steps through the hatch in the shuttle's frame: between 1 m outside the hull's starboard side and the
+    /// waypoint inside the hatch, with its whole capsule, 0.3 m in radius, within the hatch's width of 1.2 m.
+    /// </summary>
     [Fact]
-    public void ThePersonStopsAtTheBoardingPointOutsideTheShuttlesBubble()
+    public void ThePersonWalksThroughTheHatchInTheShuttlesFrame()
     {
-        EntityRecord person = Dump("end").Entity("person");
+        EntityRecord person = Dump("boarding").Entity("person");
 
-        person.Pose.Frame.Should().Be("earth-surface");
-        person.Standing.Should().BeTrue();
-        Across(person.Pose.Position, DemoSurface.BoardingPoint).Should().BeLessThanOrEqualTo(Walker.StopRadius + 0.01);
-        person.Velocity.Length.Should().BeLessThan(0.01);
+        person.Pose.Frame.Should().Be("shuttle");
+        person.Pose.Position.X.Should().BeInRange(Shuttle.InsideHatch.X, Shuttle.Hull.X + 1);
+        Math.Abs(person.Pose.Position.Z - Shuttle.Hatch.Center.Z).Should().BeLessThan(Shuttle.Hatch.Extents.Z - 0.3);
     }
 
     [Fact]
@@ -70,7 +75,8 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
         run.ValidationMessages.Should().BeEmpty();
     }
 
-    [Fact(Skip = "Waits for ticket ter-imi5, point 1: a static body that is not a hull gets no ghost in a child frame's bubble, so the person falls through the slab when it enters the shuttle's bubble. Then the walker's path goes on into the cabin, and the script runs on to the dump 'seated'.")]
+    /// <summary>The person stands still on the cabin floor at the seat: its capsule's center 0.9 m above the floor.</summary>
+    [Fact]
     public void ThePersonEndsInTheShuttlesFrameAtTheSeat()
     {
         EntityRecord person = Dump("seated").Entity("person");
@@ -78,6 +84,19 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
         person.Pose.Frame.Should().Be("shuttle");
         person.Standing.Should().BeTrue();
         Across(person.Pose.Position, Shuttle.SeatStand).Should().BeLessThanOrEqualTo(Walker.StopRadius + 0.01);
+        person.Pose.Position.Y.Should().BeApproximately(Shuttle.SeatStand.Y, 0.05, "the person stands on the cabin floor");
+        person.Velocity.Length.Should().BeLessThan(0.01);
         Dump("seated").Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ThePersonStaysAtTheSeat()
+    {
+        EntityRecord seated = Dump("seated").Entity("person");
+        EntityRecord end = Dump("end").Entity("person");
+
+        end.Pose.Frame.Should().Be("shuttle");
+        end.Standing.Should().BeTrue();
+        Double3.Distance(end.Pose.Position, seated.Pose.Position).Should().BeLessThan(0.005);
     }
 }

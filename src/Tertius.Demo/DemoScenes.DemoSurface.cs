@@ -8,8 +8,8 @@ public static partial class DemoScenes
 {
     /// <summary>
     /// The first part of the Blue Danube demo (docs/plans/blue-danube-demo.md, "The sequence", step 1): a launch pad and a
-    /// boarding terminal on Earth's surface, a parked shuttle on the pad, and a passenger who walks through the terminal to
-    /// the shuttle.
+    /// boarding terminal on Earth's surface, a parked shuttle on the pad, and a passenger who walks through the terminal and
+    /// boards the shuttle.
     /// <list type="bullet">
     /// <item>The ground is the surface yard's (see <see cref="EarthSurface"/>): the root frame <c>earth-surface</c> at
     /// Earth's center, which does not turn, with Earth's point gravity, and at the north pole a static gray slab, the
@@ -25,13 +25,16 @@ public static partial class DemoScenes
     /// the cabin.</item>
     /// <item>The <c>person</c>, the capsule character of the other scenes, 1.8 m tall and of 70 kg, starts 9 m outside the
     /// entrance, at x = 36 m. Its <see cref="Walker"/> walks it through the entrance, round to the gate, out across the pad
-    /// and to <see cref="BoardingPoint"/>, outside the shuttle's bubble in line with the hatch, where it stops. The walk
-    /// into the shuttle waits for ticket ter-imi5: a static body that is not a hull has no ghost in a child frame's
-    /// bubble, so the person would fall through the slab once it enters the shuttle's bubble.</item>
+    /// to <see cref="Shuttle.OutsideHatch"/>, through the hatch, and along the cabin to <see cref="Shuttle.SeatStand"/>,
+    /// where it stops and stays (see <see cref="Path"/>). The person enters the shuttle's frame on the pad, about 9.4 m
+    /// from the shuttle's axis, when its bounding sphere touches the bubble. The slab has a ghost in the shuttle's bubble
+    /// (ARCHITECTURE.md, "Ghosts"), so the person walks on in the shuttle's frame on the same ground, and climbs the
+    /// hatch's sill as a stair.</item>
     /// <item>The views: <c>overview</c>, the camera at the start, high over the terminal's entrance side, sees the terminal
     /// and the shuttle; <c>terminal-camera</c>, high in the hall's corner by the gate, sees the walk through the hall;
-    /// <c>apron-camera</c> sees the shuttle's hatch side and the walk across the pad; <c>cabin-camera</c>, in the shuttle's
-    /// frame in the cabin's aft port corner, sees the seat and the hatch.</item>
+    /// <c>apron-camera</c>, 3 m up off the shuttle's aft starboard quarter, between the shuttle and the terminal's gate side,
+    /// sees the hatch, the walk across the pad and the person's step into the hatch, with the terminal off to its right;
+    /// <c>cabin-camera</c>, in the shuttle's frame in the cabin's aft port corner, sees the seat and the hatch.</item>
     /// <item>The frame <c>sun</c>, high up toward +X and +Z, is where the light comes from.</item>
     /// </list>
     /// </summary>
@@ -45,13 +48,6 @@ public static partial class DemoScenes
 
         /// <summary>Where the person starts: the center of its capsule, 9 m outside the entrance, 0.05 m above the slab's top.</summary>
         public static Double3 PersonStart { get; } = new(36, EarthRadius + 0.95, 0);
-
-        /// <summary>
-        /// Where the person stops, in earth-surface: the center of its capsule, 8 m from the shuttle's starboard side, in
-        /// line with the hatch. A character enters the shuttle's bubble 9.4 m from the shuttle's axis there, when its
-        /// bounding sphere of 0.9 m touches the bubble.
-        /// </summary>
-        public static Double3 BoardingPoint { get; } = new(11, EarthRadius + 0.9, Shuttle.Hatch.Center.Z);
 
         // The thickness of the terminal's walls and roof, in meters.
         private const float TerminalWall = 0.3f;
@@ -110,13 +106,19 @@ public static partial class DemoScenes
             return mesh.Build();
         }
 
-        /// <summary>The walker's path, in earth-surface: just inside the entrance, before the gate, just outside it, and the boarding point.</summary>
-        public static IReadOnlyList<Double3> Path { get; } =
+        /// <summary>
+        /// The walker's path: in <paramref name="surface"/>, just inside the entrance, before the gate and just outside it;
+        /// then in <paramref name="cabin"/>, the shuttle's frame, 3 m outside the hatch, just inside it, and the place at the
+        /// seat. The waypoints on the ship are in its frame, so the path stays right however the shuttle stands.
+        /// </summary>
+        public static Waypoint[] Path(FrameHandle surface, FrameHandle cabin) =>
         [
-            new(TerminalCenter.X + 2, EarthRadius + 0.9, 0),
-            new(TerminalCenter.X - 2.5, EarthRadius + 0.9, -4),
-            new(TerminalCenter.X - 8, EarthRadius + 0.9, -4),
-            BoardingPoint,
+            new(surface, new Double3(TerminalCenter.X + 2, EarthRadius + 0.9, 0)),
+            new(surface, new Double3(TerminalCenter.X - 2.5, EarthRadius + 0.9, -4)),
+            new(surface, new Double3(TerminalCenter.X - 8, EarthRadius + 0.9, -4)),
+            new(cabin, Shuttle.OutsideHatch),
+            new(cabin, Shuttle.InsideHatch),
+            new(cabin, Shuttle.SeatStand),
         ];
 
         public static SceneInstance Build(World world, IRenderResources resources)
@@ -190,7 +192,7 @@ public static partial class DemoScenes
                 Pose = new DPose(PersonStart, DQuaternion.Identity),
                 Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: YardPersonMass),
                 Render = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1),
-                Components = [new Walker([.. Path.Select(position => new Waypoint(surface, position))])],
+                Components = [new Walker(Path(surface, cabin))],
             }));
 
             Entity overview = world.Spawn(new SpawnDesc
@@ -209,7 +211,7 @@ public static partial class DemoScenes
             scene.Add("apron-camera", world.Spawn(new SpawnDesc
             {
                 Frame = surface,
-                Pose = LookingAt(new Double3(20, EarthRadius + 4, 12), new Double3(6, EarthRadius + 1, 0)),
+                Pose = LookingAt(new Double3(13, EarthRadius + 3, 10), new Double3(5, EarthRadius + 1.2, 0.5)),
                 Render = new RenderData(),
             }));
             scene.Add("cabin-camera", world.Spawn(new SpawnDesc

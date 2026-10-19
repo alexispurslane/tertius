@@ -157,16 +157,15 @@ public sealed class WalkerTests : IDisposable
     /// ground's -Z, and walks into it: to a waypoint 3 m outside the hatch, one just inside it, and the place at the seat,
     /// all in the shuttle's frame. The hatch's sill is 0.3 m above the ground, which the person climbs as a stair.
     /// </summary>
-    [Fact(Skip = "Waits for ticket ter-imi5, point 1: a static body that is not a hull gets no ghost in a child frame's bubble, so the person falls through the floor when it enters the shuttle's bubble. With a kinematic floor, which gets a ghost, the test passes.")]
+    [Fact]
     public void TheWalkerHandsOffIntoTheShuttlesFrameWhenItWalksIn()
     {
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         FrameHandle cabin = world.GetOwnedFrame(Shuttle.Park(world, ground, new DPose(new Double3(0, Shuttle.Hull.Y, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2))));
-        Double3 hatch = (Double3)Shuttle.Hatch.Center;
         // The shuttle's +X, the hatch's side, is the ground's -Z, and its +Z is the ground's +X.
-        Entity person = Person(ground, new Double3(hatch.Z, 0.95, -15),
-            new Waypoint(cabin, hatch with { X = 6 }), new Waypoint(cabin, hatch with { X = 1.6 }), new Waypoint(cabin, Shuttle.SeatStand));
+        Entity person = Person(ground, new Double3(Shuttle.Hatch.Center.Z, 0.95, -15),
+            new Waypoint(cabin, Shuttle.OutsideHatch), new Waypoint(cabin, Shuttle.InsideHatch), new Waypoint(cabin, Shuttle.SeatStand));
 
         Tick(world, 900);
 
