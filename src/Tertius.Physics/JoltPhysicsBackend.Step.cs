@@ -256,10 +256,19 @@ public sealed partial class JoltPhysicsBackend
 
         if (record.Motion == BodyMotion.Dynamic)
         {
-            if (intent.Impulse != Vector3.Zero)
-                bodies.AddImpulse(id, intent.Impulse);
-            if (intent.AngularImpulse != Vector3.Zero)
-                bodies.AddAngularImpulse(id, intent.AngularImpulse);
+            if (intent.Impulse != Vector3.Zero || intent.AngularImpulse != Vector3.Zero)
+            {
+                // The update of a turning frame needs the change that the impulses made (see ApplyTurningUpdate).
+                bodies.GetLinearAndAngularVelocity(id, out Vector3 linearBefore, out Vector3 angularBefore);
+                if (intent.Impulse != Vector3.Zero)
+                    bodies.AddImpulse(id, intent.Impulse);
+                if (intent.AngularImpulse != Vector3.Zero)
+                    bodies.AddAngularImpulse(id, intent.AngularImpulse);
+                bodies.GetLinearAndAngularVelocity(id, out Vector3 linearAfter, out Vector3 angularAfter);
+                record.ImpulseStep = stepIndex;
+                record.ImpulseVelocityChange = (Double3)linearAfter - linearBefore;
+                record.ImpulseAngularVelocityChange = (Double3)angularAfter - angularBefore;
+            }
             if (intent.Force != Vector3.Zero || intent.Torque != Vector3.Zero)
                 bodies.AddForceAndTorque(id, intent.Force, intent.Torque);
         }
@@ -391,8 +400,9 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Applies m · g to every awake dynamic body, with g the linear gravity at the body (see
-    /// <see cref="FrameTree.LinearGravity"/>), and gives each system the sleep threshold of the weakest effective gravity on
-    /// its awake dynamic bodies, with the centrifugal and the Euler term of a turning frame (see
+    /// <see cref="FrameTree.LinearGravity"/>), and in a turning frame also the two-turn update, which keeps the body on its
+    /// inertial line (see <see cref="ApplyTurningUpdate"/>). Gives each system the sleep threshold of the weakest effective
+    /// gravity on its awake dynamic bodies, with the centrifugal and the Euler term of a turning frame (see
     /// <see cref="FrameTree.EffectiveGravity"/> and <see cref="SleepThresholdFor"/>). Wakes a frame's bodies when its gravity
     /// field changes, or when its proper acceleration has moved more than <see cref="JoltBackendOptions.WakeAccelerationThreshold"/>
     /// from its value when they last woke. A sleeping body gets no force, and the force does not reset the sleep timer of
@@ -421,13 +431,16 @@ public sealed partial class JoltPhysicsBackend
             BodyLockInterface locks = world.System.BodyLockInterface;
             int count = CopyActiveBodies(world);
             float weakest = float.PositiveInfinity;
-            bool turning = frames.Turns(frame).Turns;
+            // A numeric frame reads its semantic frame's turns, and the update acts on the semantic chord of each body: Jolt's
+            // velocity plus the frame velocity of its home, the same for every body of the system.
+            FrameTurns turns = frames.Turns(frame);
+            Double3 homeVelocity = turns.Turns ? frames.HomeVelocity(frame, frames.SemanticOf(frame)) : Double3.Zero;
             for (int i = 0; i < count; i++)
             {
                 BodyID id = activeScratch[i];
                 locks.LockWrite(id, out BodyLockWrite write);
                 if (write.Succeeded && write.Body is { } body)
-                    weakest = MathF.Min(weakest, ApplyGravity(frame, turning, id, body));
+                    weakest = MathF.Min(weakest, ApplyGravity(frame, turns, homeVelocity, id, body));
                 locks.UnlockWrite(write);
             }
             if (weakest < float.PositiveInfinity)
@@ -450,23 +463,67 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Adds m · g to the locked body <paramref name="id"/> in the system of <paramref name="frame"/>, with g the linear
-    /// gravity at its center of mass, if it is the primary body of a dynamic record. Returns the strength of the effective
-    /// gravity there, in m/s², or positive infinity for any other body. The effective gravity adds the centrifugal and the
-    /// Euler term when the frame is a turning frame (<paramref name="turning"/>), and is the linear gravity otherwise.
+    /// gravity at its center of mass, if it is the primary body of a dynamic record. In a turning frame, whose turns are
+    /// <paramref name="turns"/>, the force holds the two-turn update too (see <see cref="ApplyTurningUpdate"/>), unless a
+    /// steer target moves the body in the step: the steering velocities carry the body to its target in the frame's
+    /// coordinates over the step, so they are the chord of the step in flight already, and the update would turn them a
+    /// second time (docs/plans/spin-gravity.md, "The flow per kind of entity"). Returns the strength of the effective gravity
+    /// at the body, in m/s², or positive infinity for any other body. The effective gravity adds the centrifugal and the
+    /// Euler term in a turning frame, and is the linear gravity otherwise.
     /// </summary>
-    private float ApplyGravity(FrameHandle frame, bool turning, BodyID id, Body body)
+    /// <param name="homeVelocity">The frame velocity of the system's home relative to its semantic frame, in the step.</param>
+    private float ApplyGravity(FrameHandle frame, in FrameTurns turns, Double3 homeVelocity, BodyID id, Body body)
     {
         ulong data = body.GetUserData();
         if (BodyUserData.Kind(data) != BodyKind.Primary || RecordFor(data) is not { Motion: BodyMotion.Dynamic } record || record.Body != id)
             return float.PositiveInfinity;
         body.GetRCenterOfMassPosition(out RVector3 center);
         Double3 place = center.ToDouble3();
-        Vector3 gravity = frames.LinearGravity(frame, place).ToVector3();
+        Double3 linear = frames.LinearGravity(frame, place);
+        Vector3 gravity = linear.ToVector3();
         record.GravityApplied = gravity;
-        if (gravity != Vector3.Zero)
+        if (turns.Turns && record.KinematicTargetStep != stepIndex)
+            ApplyTurningUpdate(record, body, turns, frames.InSemantic(frame, frames.SemanticOf(frame), place), homeVelocity, linear);
+        else if (gravity != Vector3.Zero)
             body.AddForce(gravity * record.Material.Mass);
         // The read of the effective gravity evaluates the field again, so a frame that does not turn takes the linear one.
-        return (turning ? frames.EffectiveGravity(frame, place).ToVector3() : gravity).Length();
+        return (turns.Turns ? frames.EffectiveGravity(frame, place).ToVector3() : gravity).Length();
+    }
+
+    /// <summary>
+    /// Gives the locked dynamic body <paramref name="body"/> of <paramref name="record"/> in a turning frame, whose turns are
+    /// <paramref name="turns"/>, the two-turn update over the step in flight (docs/plans/spin-gravity.md, "The two-turn
+    /// update"), plus the linear gravity <paramref name="linear"/> at its place, as one force: the change of its semantic
+    /// chord that keeps it on its inertial line, in doubles, narrowed once. Its angular velocity follows the angular form, so
+    /// that it keeps its inertial angular velocity ("The angular form"). The rigid form of a character cannot turn, so it gets
+    /// no angular part.
+    /// <para>
+    /// An impulse in the step changed Jolt's velocities at the start of the step, in the frame's axes then, but the update
+    /// reads Jolt's velocity as the chord of the step that ended, which it carries by both turns. So the change leaves Jolt's
+    /// velocity and comes back as the change of that chord that has the same effect, <see cref="FrameTurn.ChangeBehind"/> on
+    /// the turn of the step that ended, which the update carries by the turn of the step in flight alone. The change of the
+    /// angular velocity goes to the angular form as the change of the inertial angular velocity at the start of the step
+    /// ("Impulses"). A force and a torque of the intent act over the step as Jolt applies them, like the field.
+    /// </para>
+    /// </summary>
+    /// <param name="place">The body's center of mass relative to the semantic frame, in m.</param>
+    /// <param name="homeVelocity">The frame velocity of the body's home relative to its semantic frame, in the step.</param>
+    private void ApplyTurningUpdate(BodyRecord record, Body body, in FrameTurns turns, Double3 place, Double3 homeVelocity, Double3 linear)
+    {
+        double dt = stepDt;
+        bool impulse = record.ImpulseStep == stepIndex;
+        Double3 velocityChange = impulse ? record.ImpulseVelocityChange : Double3.Zero;
+        Double3 chord = (Double3)body.GetLinearVelocity() + homeVelocity;
+        Double3 behind = chord - velocityChange + turns.Last.ChangeBehind(velocityChange);
+        // The change of Jolt's velocity beyond the field, over the step: the update from the chord behind, and the move of
+        // the impulse's change behind.
+        Double3 turning = (turns.FreeChange(place, behind, dt) + behind - chord) / dt;
+        body.AddForce(((linear + turning) * record.Material.Mass).ToVector3());
+        if (record.IsCharacter)
+            return;
+        Double3 angularChange = impulse ? record.ImpulseAngularVelocityChange : Double3.Zero;
+        Vector3 angular = turns.AngularChordAhead((Double3)body.GetAngularVelocity() - angularChange, angularChange, dt).ToVector3();
+        body.SetAngularVelocityClamped(angular);
     }
 
     /// <summary>Standard gravity, in m/s².</summary>

@@ -156,14 +156,25 @@ internal sealed class BodyRecord
     /// </summary>
     public Double3 StepAcceleration;
     public Vector3 AngularAcceleration;
+    /// <summary>The step whose intent gave the dynamic body an impulse or an angular impulse, or -1.</summary>
+    public long ImpulseStep = -1;
+    /// <summary>
+    /// The change of Jolt's linear and angular velocity that the impulses of <see cref="ImpulseStep"/> made at the start of
+    /// that step, in the axes of the body's home then: the difference of Jolt's velocities before and after them, exact in
+    /// doubles. The update of a turning frame takes each change out of Jolt's velocity, which it reads as the chord of the
+    /// step that ended, and puts it back as a change of the step in flight (docs/plans/spin-gravity.md, "Impulses").
+    /// </summary>
+    public Double3 ImpulseVelocityChange, ImpulseAngularVelocityChange;
     /// <summary>The step whose intent teleported the body, or -1.</summary>
     public long TeleportStep = -1;
     /// <summary>The pose in its home, with a unit rotation, at which the teleport of <see cref="TeleportStep"/> put the body.</summary>
     public DPose TeleportPose;
     /// <summary>
     /// The gravity that the last step applied to the body, in the axes of its home: the linear gravity to a dynamic rigid
-    /// body while it was awake, and to a character that the ground did not hold (zero when it did). A sleeping dynamic hull
-    /// gets the effective gravity, with the centrifugal and the Euler term of a turning frame, against which it rests.
+    /// body while it was awake, and to a character that the ground did not hold (zero when it did). It holds no part of the
+    /// two-turn update of a turning frame, which the same force carries (see JoltPhysicsBackend.ApplyTurningUpdate). A
+    /// sleeping dynamic hull gets the effective gravity, with the centrifugal and the Euler term of a turning frame, against
+    /// which it rests.
     /// </summary>
     public Vector3 GravityApplied;
     /// <summary>For a dynamic frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>
