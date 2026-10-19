@@ -41,9 +41,8 @@ public sealed class Walker(IReadOnlyList<Waypoint> path) : IComponent
     private const double StopRate = 3;
 
     private readonly Waypoint[] path = [.. path];
-    // The index of the waypoint that the walker walks toward, and whether it has stopped for good.
+    // The index of the waypoint that the walker walks toward, or path.Length once it has stopped for good.
     private int next;
-    private bool stopped;
 
     public int Priority => 0;
 
@@ -51,7 +50,7 @@ public sealed class Walker(IReadOnlyList<Waypoint> path) : IComponent
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
-        if (stopped)
+        if (next == path.Length)
             return;
         for (; next < path.Length; next++)
         {
@@ -60,6 +59,7 @@ public sealed class Walker(IReadOnlyList<Waypoint> path) : IComponent
             if (!frames.IsAlive(target.Frame))
             {
                 self.Log($"Walker stops: the frame {target.Frame} of waypoint {next} is gone.");
+                next = path.Length;
                 break;
             }
             // The way to the waypoint, in its frame's axes, then in the axes of the character's frame, without its part
@@ -78,6 +78,5 @@ public sealed class Walker(IReadOnlyList<Waypoint> path) : IComponent
         }
         // The path is done, or the way to its next waypoint is gone.
         self.Body.MoveCharacter(default);
-        stopped = true;
     }
 }

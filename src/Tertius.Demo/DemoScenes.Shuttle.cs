@@ -52,7 +52,8 @@ public static partial class DemoScenes
 
         /// <summary>
         /// Where a person 1.8 m tall stands at the seat, in the shuttle's axes: the center of its capsule, 0.9 m above the
-        /// cabin floor, on the seat's line aft of it, with 0.15 m between the capsule, 0.3 m in radius, and the seat.
+        /// cabin floor, on the seat's line aft of it, with 0.15 m between the capsule, 0.3 m in radius, and the seat. A
+        /// character has no sitting pose for now, so a person who leaves its seat walks away from this place.
         /// </summary>
         public static Double3 SeatStand { get; } = new(1, -Cabin.Y + 0.9, Seat.Max.Z + 0.45);
 

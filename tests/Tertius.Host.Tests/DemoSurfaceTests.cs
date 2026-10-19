@@ -10,8 +10,8 @@ namespace Tertius.Host.Tests;
 /// from 9 m outside the terminal's entrance through the hall, out of the gate, across the pad, through the parked
 /// shuttle's hatch and along the cabin to the place at the seat: about 44 m at 3 m/s, which takes about 16 s with the
 /// slowdown at the end. The script dumps the state in the hall ("terminal"), on the pad ("apron"), in the hatch
-/// ("boarding"), at the seat after the person stopped ("seated"), and two seconds later ("end"). Every test of the class
-/// reads that one run.
+/// ("boarding"), at the seat after the person stopped ("at-the-seat"), and two seconds later ("end"). Every test of the
+/// class reads that one run.
 /// </summary>
 public sealed class DemoSurfaceRun() : CheckedInRun("demo-surface");
 
@@ -79,24 +79,24 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
     [Fact]
     public void ThePersonEndsInTheShuttlesFrameAtTheSeat()
     {
-        EntityRecord person = Dump("seated").Entity("person");
+        EntityRecord person = Dump("at-the-seat").Entity("person");
 
         person.Pose.Frame.Should().Be("shuttle");
         person.Standing.Should().BeTrue();
         Across(person.Pose.Position, Shuttle.SeatStand).Should().BeLessThanOrEqualTo(Walker.StopRadius + 0.01);
         person.Pose.Position.Y.Should().BeApproximately(Shuttle.SeatStand.Y, 0.05, "the person stands on the cabin floor");
         person.Velocity.Length.Should().BeLessThan(0.01);
-        Dump("seated").Errors.Should().BeEmpty();
+        Dump("at-the-seat").Errors.Should().BeEmpty();
     }
 
     [Fact]
     public void ThePersonStaysAtTheSeat()
     {
-        EntityRecord seated = Dump("seated").Entity("person");
+        EntityRecord atTheSeat = Dump("at-the-seat").Entity("person");
         EntityRecord end = Dump("end").Entity("person");
 
         end.Pose.Frame.Should().Be("shuttle");
         end.Standing.Should().BeTrue();
-        Double3.Distance(end.Pose.Position, seated.Pose.Position).Should().BeLessThan(0.005);
+        Double3.Distance(end.Pose.Position, atTheSeat.Pose.Position).Should().BeLessThan(0.005);
     }
 }

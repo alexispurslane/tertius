@@ -38,6 +38,11 @@ public static partial class DemoScenes
     /// <item>The frame <c>sun</c>, high up toward +X and +Z, is where the light comes from.</item>
     /// </list>
     /// </summary>
+    /// <remarks>
+    /// A character has no sitting pose for now, so the person stands at <see cref="Shuttle.SeatStand"/>, upright on the
+    /// cabin floor just aft of the seat. The launch step of the demo (docs/plans/blue-danube-demo.md, "The sequence", step 2)
+    /// says that the character leaves its seat: that means that the person walks away from <see cref="Shuttle.SeatStand"/>.
+    /// </remarks>
     public static class DemoSurface
     {
         /// <summary>Where the slab's top lies under the terminal's center: 22 m along +X, on the ground.</summary>

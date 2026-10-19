@@ -10,15 +10,18 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// Walker: a character walks its path of waypoints with the character controls, each waypoint a position in a frame of
-/// its own, on the World and the real Jolt backend. The person is the capsule of the demo scenes, 1.8 m tall and 0.3 m in
-/// radius, whose center rests 0.9 m above the floor. In every scene the frames' +Y is up, so the distances across the
-/// person's up are the distances in X and Z.
+/// its own, on the World and the real Jolt backend, through the wrapper that records the intents. The person is the
+/// capsule of the demo scenes, 1.8 m tall and 0.3 m in radius, whose center rests 0.9 m above the floor. In every scene
+/// the frames' +Y is up, so the distances across the person's up are the distances in X and Z.
 /// </summary>
 public sealed class WalkerTests : IDisposable
 {
     private static readonly CapsuleShapeDesc Capsule = new(0.6f, 0.3f);
 
-    private readonly World world = HostTesting.NewJoltWorld();
+    private readonly FaultInjectingBackend faults;
+    private readonly World world;
+
+    public WalkerTests() => world = NewWorldWithFaults(out faults);
 
     public void Dispose() => world.Dispose();
 
@@ -54,6 +57,14 @@ public sealed class WalkerTests : IDisposable
         return (closest, tick);
     }
 
+    /// <summary>The walks that <paramref name="person"/> asked for, in m/s, in the order of the steps that received them.</summary>
+    private List<Vector3> Walks(Entity person) =>
+    [
+        .. faults.Intents
+            .Where(record => record.Entity == person && (record.Intent.Flags & IntentFlags.CharacterMove) != 0)
+            .Select(record => record.Intent.CharacterVelocity),
+    ];
+
     /// <summary>An L of three waypoints 4 m apart on a floor in a root frame with 9.81 m/s² of gravity.</summary>
     private (Entity Person, Waypoint[] Path, FrameHandle Ground) OnTheGround()
     {
@@ -85,6 +96,23 @@ public sealed class WalkerTests : IDisposable
 
         Across(end, path[^1].Position).Should().BeLessThanOrEqualTo(Walker.StopRadius + 0.01);
         Across(world.PoseIn(person, ground).Position, end).Should().BeLessThan(0.005, "the walker stays where it stopped");
+    }
+
+    /// <summary>
+    /// Physics keeps the last walk that a character asked for, so the walker asks for no walk once when it stops, and for
+    /// nothing after that: of all the walks it asked for, only the last is no walk.
+    /// </summary>
+    [Fact]
+    public void TheWalkerAsksForNoWalkOnceWhenItStopsAtTheLastWaypoint()
+    {
+        (Entity person, _, _) = OnTheGround();
+
+        Tick(world, 660);
+
+        List<Vector3> walks = Walks(person);
+        walks.Should().NotBeEmpty();
+        walks[^1].Should().Be(Vector3.Zero, "the walker asked for no walk when it stopped");
+        walks.Count(walk => walk == Vector3.Zero).Should().Be(1, "the walker asked for nothing after it stopped");
     }
 
     /// <summary>
@@ -197,5 +225,26 @@ public sealed class WalkerTests : IDisposable
         stopped.X.Should().BeLessThan(walked + 0.25, "the person stopped within a few steps");
         Across(world.PoseIn(person, ground).Position, stopped).Should().BeLessThan(0.005, "the walker stays where it stopped");
         world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The scene of <see cref="TheWalkerStopsWhereItIsWhenTheFrameOfItsNextWaypointDies"/>. When the frame of its next
+    /// waypoint dies, the walker asks for no walk once, and for nothing after that, as when it reaches the last waypoint.
+    /// </summary>
+    [Fact]
+    public void TheWalkerAsksForNoWalkOnceWhenTheFrameOfItsNextWaypointDies()
+    {
+        FrameHandle ground = Ground(world, 9.81f);
+        Floor(world, ground);
+        Entity marker = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(10, 5), AsFrame = new FrameSpec(FrameBounds.Sphere(0.5f)) });
+        Entity person = Person(ground, new Double3(0, 0.95, 0), new Waypoint(world.GetOwnedFrame(marker), new Double3(-2, -4.1, 0)));
+        Tick(world, 60);
+
+        world.Destroy(marker);
+        Tick(world, 60);
+
+        List<Vector3> walks = Walks(person);
+        walks[^1].Should().Be(Vector3.Zero, "the walker asked for no walk when it stopped");
+        walks.Count(walk => walk == Vector3.Zero).Should().Be(1, "the walker asked for nothing after it stopped");
     }
 }
