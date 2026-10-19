@@ -254,6 +254,37 @@ public class RenderSnapshotOutlineTests
     }
 
     /// <summary>
+    /// The floor and the crate of the test above. Once the crate is gone, the resting frame holds the floor alone, so the
+    /// next snapshot's sphere shrinks to the floor's bounding sphere of √404.25 = 20.10597 m: each build measures what the
+    /// frame holds at that build, not the largest sphere of any build before it.
+    /// </summary>
+    [Fact]
+    public void AContentsSphereShrinksInTheNextSnapshotWhenItsFarthestBodyGoes()
+    {
+        using TestWorld test = OnJolt();
+        Entity floor = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Pose = TestWorld.At(1e7),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(20, 0.5f, 2)), BodyMotion.Static),
+        });
+        Entity crate = test.World.Spawn(new SpawnDesc { Frame = test.Root, Pose = TestWorld.At(1e7 + 19.5, 1.6, 1.5), Body = CrateBody });
+        test.World.Camera = test.SpawnCamera(test.Root, TestWorld.At(1e7 - 100));
+        test.World.ShowFrameOutlines = true;
+        test.Run(2);
+        test.World.Latest().Outlines.Should().ContainSingle().Which.TryGetValue(out RestingOutline before).Should().BeTrue();
+        before.Radius.Should().BeApproximately(20.48897f, 1e-4f, "the crate's far corner reaches farthest");
+
+        test.World.Destroy(crate);
+        test.Run(1);
+
+        test.World.Frames.Numeric(test.World.PhysicsHomeOf(floor)).Should().Be(NumericMode.Resting, "the floor still rests far out");
+        test.World.Latest().Outlines.Should().ContainSingle().Which.TryGetValue(out RestingOutline after).Should().BeTrue();
+        after.Radius.Should().BeApproximately(20.10597f, 1e-4f, "the floor alone is left");
+        test.World.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// The pod and the crate of <see cref="PodAndCrateALightYearOut"/> each fall in a numeric frame of their own, and both of
     /// those frames hang in one nesting frame on the grid. The nesting frame's sphere reaches the far side of the farther
     /// one's sphere.
