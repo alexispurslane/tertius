@@ -284,7 +284,7 @@ public sealed class OutlineRenderTests
     /// <item>Above the center, 14 m ahead: a small teal resting frame's sphere, against the sky.</item>
     /// <item>Below the center, 16 m ahead: a purple nesting frame's sphere, half under the ground, so its lower half is
     /// dimmed.</item>
-    /// <item>At the upper right, 18 m ahead: a gold orbit frame's sphere, against the sky.</item>
+    /// <item>At the upper right, 18 m ahead: a gold following frame's sphere, against the sky.</item>
     /// </list>
     /// Each sphere shows three rings in the axes of the camera's frame, and its rim as seen from the eye.
     /// </summary>

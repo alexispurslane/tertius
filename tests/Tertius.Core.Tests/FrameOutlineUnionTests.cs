@@ -57,8 +57,8 @@ public class FrameOutlineUnionTests
         outline.TryGetValue(out FallingOutline falling);
         outline.TryGetValue(out RestingOutline resting);
         outline.TryGetValue(out NestingOutline nesting);
-        outline.TryGetValue(out FollowingOutline orbiting);
-        return [semantic, falling, resting, nesting, orbiting];
+        outline.TryGetValue(out FollowingOutline following);
+        return [semantic, falling, resting, nesting, following];
     }
 
     private static readonly object[] DefaultViews =
@@ -70,7 +70,7 @@ public class FrameOutlineUnionTests
         FallingOutline(_, var radius) => $"falling {radius}",
         RestingOutline(_, var radius) => $"resting {radius}",
         NestingOutline(_, var radius) => $"nesting {radius}",
-        FollowingOutline(_, var radius) => $"orbiting {radius}",
+        FollowingOutline(_, var radius) => $"following {radius}",
         _ => "none",
     };
 
@@ -133,8 +133,8 @@ public class FrameOutlineUnionTests
         resting.Should().Be(new RestingOutline(new Vector3(5, 6, 7), 8));
         new FrameOutline(new NestingOutline(new Vector3(9, 10, 11), 12)).TryGetValue(out NestingOutline nesting).Should().BeTrue();
         nesting.Should().Be(new NestingOutline(new Vector3(9, 10, 11), 12));
-        new FrameOutline(new FollowingOutline(new Vector3(13, 14, 15), 16)).TryGetValue(out FollowingOutline orbiting).Should().BeTrue();
-        orbiting.Should().Be(new FollowingOutline(new Vector3(13, 14, 15), 16));
+        new FrameOutline(new FollowingOutline(new Vector3(13, 14, 15), 16)).TryGetValue(out FollowingOutline following).Should().BeTrue();
+        following.Should().Be(new FollowingOutline(new Vector3(13, 14, 15), 16));
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class FrameOutlineUnionTests
     [Fact]
     public void ASwitchOverAnOutlineTakesTheArmOfTheCaseItHoldsAndTheLastArmForTheDefault()
     {
-        EveryCase.Select(ArmOf).Should().Equal("semantic 50", "falling 7", "resting 7", "nesting 7", "orbiting 7");
+        EveryCase.Select(ArmOf).Should().Equal("semantic 50", "falling 7", "resting 7", "nesting 7", "following 7");
         ArmOf(default).Should().Be("none");
     }
 
@@ -285,7 +285,7 @@ public class FrameOutlineUnionTests
             {
                 SemanticOutline semantic => semantic,
                 FallingOutline falling => falling,
-                FollowingOutline orbiting => orbiting,
+                FollowingOutline following => following,
                 _ => default,
             };
 

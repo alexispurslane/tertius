@@ -554,14 +554,18 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// The home of a group after <see cref="MoveHome"/>: the home of its members that do not live apart, or the following frame
-    /// of its anchor, which a group whose every member follows in a following frame of its own takes.
+    /// The home of a group after <see cref="MoveHome"/>: the following frame of its anchor when it takes it, the semantic
+    /// frame's own system when its mode is None, and else the home of its members that do not live apart. A group that the
+    /// place of a fixed ghost fixes can have every member apart, in following frames of their own, and its home is still
+    /// that system, where the ghost lives (see <see cref="NumericBody.MayTouchFixedGhost"/>).
     /// </summary>
     private FrameHandle GroupHome(in BodyGroup group)
     {
         Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
         if (group.Motion.Follows)
             return bodies[group.Start + group.Motion.Anchor].Home;
+        if (group.Mode == NumericMode.None)
+            return bodies[group.Start].Semantic;
         for (int i = group.Start; i < group.End; i++)
             if (!apart[i])
                 return bodies[i].Home;

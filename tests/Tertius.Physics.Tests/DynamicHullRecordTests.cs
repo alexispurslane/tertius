@@ -131,9 +131,9 @@ public class DynamicHullRecordTests
 
     /// <summary>
     /// Two ships on the same circular orbit of Earth: one with a dynamic hull from its spawn on, and one with a kinematic
-    /// hull on a <see cref="KeplerMotion"/>, which rests in an orbit frame of its own. The engines of the second come on: in
+    /// hull on a <see cref="KeplerMotion"/>, which rests in a following frame of its own. The engines of the second come on: in
     /// one tick its owner removes the component and makes the hull dynamic. Physics then places the hull from the tree, with
-    /// the tree's velocity relative to the orbit frame, which falls on, and that velocity becomes Jolt's chord at the start
+    /// the tree's velocity relative to the following frame, which falls on, and that velocity becomes Jolt's chord at the start
     /// of the next step. So the second ship coasts on the orbit of the first.
     /// </summary>
     [Fact]

@@ -153,15 +153,15 @@ public class RailsHullTests
     }
 
     /// <summary>
-    /// A fast hull lives at the origin of its orbit frame, which goes on falling when the hull has no sample. The hull holds
-    /// still in the orbit frame then, also after a teleport: it does not keep the velocity of a body at rest in the semantic
-    /// frame, which in the orbit frame is about minus the orbit frame's 2 km/s. The orbit frame jumps with the hull, as for a
-    /// teleport with a sample, so the hull and its frame stand at the orbit frame's origin at every sync point after the
+    /// A fast hull lives at the origin of its following frame, which goes on falling when the hull has no sample. The hull holds
+    /// still in the following frame then, also after a teleport: it does not keep the velocity of a body at rest in the semantic
+    /// frame, which in the following frame is about minus the following frame's 2 km/s. The following frame jumps with the hull, as for a
+    /// teleport with a sample, so the hull and its frame stand at the following frame's origin at every sync point after the
     /// teleport. The step before the teleport has no sample either, so no rule that stops a hull after its last sample
     /// applies to the step of the teleport.
     /// </summary>
     [Fact]
-    public void AKinematicHullThatTeleportsWithoutASampleInItsOrbitFrameStaysWithItsFrame()
+    public void AKinematicHullThatTeleportsWithoutASampleInItsFollowingFrameStaysWithItsFrame()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         FrameHandle space = Scenes.AsteroidSpace(world);
@@ -175,16 +175,16 @@ public class RailsHullTests
         // Tick 3 wrote the last sample, for step 4. Step 5 has none, and the teleport of tick 5 acts in step 6.
         world.RemoveComponent(owner, rails);
         Tick(world, 1);
-        FrameHandle orbitFrame = world.Frames.TreeParent(frame);
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following, "the orbit frame falls on without a sample");
+        FrameHandle followingFrame = world.Frames.TreeParent(frame);
+        world.Frames.Numeric(followingFrame).Should().Be(NumericMode.Following, "the following frame falls on without a sample");
         DPose there = world.PoseIn(owner, space);
         pilot.Once = body => body.Teleport(new DPose(there.Position + new Double3(0, 100, 0), DQuaternion.Identity));
         Tick(world, 2);
 
-        world.Frames.TreeParent(frame).Should().Be(orbitFrame, "the orbit frame jumped with its anchor");
+        world.Frames.TreeParent(frame).Should().Be(followingFrame, "the following frame jumped with its anchor");
         for (int i = 0; i < 10; i++)
         {
-            Double3 apart = HullPosition(backend, orbitFrame, owner) - world.Frames.TreeLocalPose(frame).Position;
+            Double3 apart = HullPosition(backend, followingFrame, owner) - world.Frames.TreeLocalPose(frame).Position;
             apart.Length.Should().BeLessThan(1e-6, "the hull stands where its frame is at sync point {0}", world.TickNumber);
             Tick(world, 1);
         }

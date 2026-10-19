@@ -5,7 +5,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// Orbit frames (<see cref="NumericMode.Following"/>, docs/plans/numeric-frames.md, "Anchors", rule 3) on a tree built in
+/// Following frames (<see cref="NumericMode.Following"/>, docs/plans/numeric-frames.md, "Anchors", rule 3) on a tree built in
 /// the test: the kinematic hull of a frame whose samples move it fast or far in its semantic frame lives in a numeric frame
 /// of its own, K, that follows the frame's motion samples (docs/plans/rails-components.md, "Numeric frames"), and the hull's
 /// frame hangs at K's origin. The tests hand the tree the intents of each step, with the samples as the owners' motion
@@ -14,10 +14,10 @@ namespace Tertius.Core.Tests;
 /// A group of free bodies gets a falling frame from 1,000 m/s and keeps it down to 400 m/s. A group with a body that
 /// thrusts, such as a character, gets one from 50 m/s and keeps it down to 20 m/s. A slow group gets a resting frame from
 /// 2^23 m (about 8,389 km) from its semantic frame's origin and keeps it down to 2^22 m (about 4,194 km). A Kepler hull
-/// never thrusts, so it gets an orbit frame from 1,000 m/s or 8,389 km. The lookahead is 2 s and the split margin 10 m.
+/// never thrusts, so it gets a following frame from 1,000 m/s or 8,389 km. The lookahead is 2 s and the split margin 10 m.
 /// After every update the tree keeps its invariants.
 /// </summary>
-public class FrameTreeOrbitFrameTests
+public class FrameTreeFollowingFrameTests
 {
     private const double EarthMu = 3.986004418e14;
     private const double Step = 1.0 / 60;
@@ -37,7 +37,7 @@ public class FrameTreeOrbitFrameTests
     private readonly PhysicsChanges changes = new();
     private List<NumericMove> moves = [];
 
-    public FrameTreeOrbitFrameTests() =>
+    public FrameTreeFollowingFrameTests() =>
         earth = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f),
             GravityField.Point(EarthMu));
 
@@ -77,10 +77,10 @@ public class FrameTreeOrbitFrameTests
     /// <summary>
     /// The step that ends at <paramref name="time"/> and its sync point, for <paramref name="station"/> on
     /// <paramref name="orbit"/>: its owner wrote the orbit's sample of that step in the tick before, which the step applies,
-    /// so before the step the tree derives the plan of a station that hangs in its orbit frame (see
-    /// <see cref="FrameTree.BeginNumericStep"/>). At the sync point, the orbit frame lands on the plan, takes its place and
+    /// so before the step the tree derives the plan of a station that hangs in its following frame (see
+    /// <see cref="FrameTree.BeginNumericStep"/>). At the sync point, the following frame lands on the plan, takes its place and
     /// chord exactly (<see cref="FrameTree.PlaceFollowingFrame"/>), and the station takes the record that physics releases
-    /// for its hull, at the origin of the orbit frame with the rest of the sample's velocity. Any other station takes the
+    /// for its hull, at the origin of the following frame with the rest of the sample's velocity. Any other station takes the
     /// sample.
     /// </summary>
     private MotionSample Sync(FrameHandle station, KeplerOrbit orbit, double time)
@@ -101,7 +101,7 @@ public class FrameTreeOrbitFrameTests
         return sample;
     }
 
-    /// <summary>The record that physics releases for a hull at the origin of its orbit frame that applied <paramref name="sample"/>.</summary>
+    /// <summary>The record that physics releases for a hull at the origin of its following frame that applied <paramref name="sample"/>.</summary>
     private static MotionSample AtOrigin(in MotionSample sample) => sample with
     {
         Pose = new DPose(Double3.Zero, sample.Pose.Rotation),
@@ -125,8 +125,8 @@ public class FrameTreeOrbitFrameTests
             Velocity = frames.LinearVelocity(station),
             Radius = 5,
             Mass = 1e5,
+            Kinematic = true,
             Fixed = true,
-            Follows = true,
             OwnedFrame = station,
         };
     }
@@ -173,7 +173,7 @@ public class FrameTreeOrbitFrameTests
     private static (Double3 Position, Double3 Velocity) StateAt(KeplerOrbit orbit, double time) => orbit.StateAt(time, EarthMu);
 
     [Fact]
-    public void A_fast_kinematic_hull_alone_gets_an_orbit_frame_and_its_frame_hangs_at_the_orbit_frames_origin()
+    public void A_fast_kinematic_hull_alone_gets_a_following_frame_and_its_frame_hangs_at_the_following_frames_origin()
     {
         FrameHandle station = Station(10, Low);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
@@ -184,12 +184,12 @@ public class FrameTreeOrbitFrameTests
         frames.TreeParent(orbit).Should().Be(earth);
         frames.TreeParent(station).Should().Be(orbit, "the hull's frame hangs under the hull's home, as a ship's frame does");
         frames.Parent(station).Should().Be(earth, "gameplay sees the semantic tree");
-        frames.TreeLocalPose(station).Position.Should().Be(Double3.Zero, "the hull rests at the orbit frame's origin");
-        frames.TreeLocalPose(orbit).Position.Should().Be(place, "the orbit frame is where the orbit is");
+        frames.TreeLocalPose(station).Position.Should().Be(Double3.Zero, "the hull rests at the following frame's origin");
+        frames.TreeLocalPose(orbit).Position.Should().Be(place, "the following frame is where the orbit is");
         frames.LocalPose(station).Position.Should().Be(place, "a read in earth is the orbit's place, to the last bit");
         frames.LocalPose(station).Rotation.Should().Be(Low.RotationAt(Start, EarthMu), "the frame keeps its own rotation");
         Double3 chord = velocity - GravityField.Point(EarthMu).AtPrecise(place) * (Step / 2);
-        frames.LinearVelocity(orbit).Should().Be(chord, "the orbit frame starts with the chord of the frame's instant velocity");
+        frames.LinearVelocity(orbit).Should().Be(chord, "the following frame starts with the chord of the frame's instant velocity");
         frames.TreeLinearVelocity(station).Should().Be(velocity - chord);
         (frames.LinearVelocity(station) - velocity).Length.Should().BeLessThan(1e-9, "a read in earth is the frame's velocity");
         changes.FramesCreated.Should().Equal(orbit);
@@ -197,7 +197,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void At_each_sync_point_an_orbit_frame_takes_its_anchors_sample_place_and_chord()
+    public void At_each_sync_point_a_following_frame_takes_its_anchors_sample_place_and_chord()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -217,7 +217,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void An_orbit_frame_whose_anchor_has_no_applied_sample_stays_where_it_is_at_the_sync_point()
+    public void An_following_frame_whose_anchor_has_no_applied_sample_stays_where_it_is_at_the_sync_point()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -229,7 +229,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void During_a_step_an_orbit_frame_falls_with_the_acceleration_that_lands_it_on_its_anchors_plan_and_ends_on_the_plan()
+    public void During_a_step_a_following_frame_falls_with_the_acceleration_that_lands_it_on_its_anchors_plan_and_ends_on_the_plan()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -248,7 +248,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void An_orbit_frame_takes_the_acceleration_that_lands_it_on_its_anchors_plan_whatever_the_field_or_the_plans_acceleration_says()
+    public void An_following_frame_takes_the_acceleration_that_lands_it_on_its_anchors_plan_whatever_the_field_or_the_plans_acceleration_says()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -263,7 +263,7 @@ public class FrameTreeOrbitFrameTests
 
     /// <summary>
     /// The landing rule of "The step plan of a following frame" (docs/plans/rails-components.md): an end pose has no
-    /// acceleration that lands the frame on it, because its velocity changes at the start of the step, so the orbit frame
+    /// acceleration that lands the frame on it, because its velocity changes at the start of the step, so the following frame
     /// takes the acceleration that turns its velocity into the plan's chord.
     /// </summary>
     [Fact]
@@ -291,7 +291,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void An_orbit_frame_whose_anchor_has_no_sample_falls_as_a_falling_frame()
+    public void An_following_frame_whose_anchor_has_no_sample_falls_as_a_falling_frame()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -451,7 +451,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void A_far_kinematic_hull_that_turns_in_place_gets_an_orbit_frame_as_any_kinematic_hull_does()
+    public void A_far_kinematic_hull_that_turns_in_place_gets_a_following_frame_as_any_kinematic_hull_does()
     {
         // 10,000 km out, past the create distance of 2^23 m (about 8,389 km), a hull that turns in place is slow but far.
         FrameHandle station = Station(10, Far);
@@ -464,7 +464,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void An_orbit_frame_jumps_with_its_anchors_teleport_and_its_other_contents_keep_their_places_and_velocities_in_earth()
+    public void An_following_frame_jumps_with_its_anchors_teleport_and_its_other_contents_keep_their_places_and_velocities_in_earth()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle pod = frames.Create(new Entity(11, 1), earth, DPose.Identity, FrameBounds.Sphere(1));
@@ -475,7 +475,7 @@ public class FrameTreeOrbitFrameTests
         NumericBody podHull = Crate(11, place + new Double3(5, 0, 0), velocity + new Double3(0, 1, 0)) with { OwnedFrame = pod };
         NumericBody[] after = Update(Hull(station), podHull);
         FrameHandle orbit = after[0].Home;
-        after[1].Home.Should().Be(orbit, "the pod's hull joins the orbit frame");
+        after[1].Home.Should().Be(orbit, "the pod's hull joins the following frame");
         DPose podInEarth = frames.LocalPose(pod);
         Double3 podVelocity = frames.LinearVelocity(pod);
         // The hull teleported 1 km on along its orbit in the step, so physics released its record 1 km from the origin.
@@ -486,7 +486,7 @@ public class FrameTreeOrbitFrameTests
         Double3 offset = sample.Pose.Position - frames.TreeLocalPose(orbit).Position;
         Double3 change = sample.ChordVelocity - frames.LinearVelocity(orbit);
         MotionSample record = AtOrigin(sample) with { Pose = new DPose(offset, sample.Pose.Rotation) };
-        // Physics released the pod's record where the pod stands, with its velocity in the orbit frame.
+        // Physics released the pod's record where the pod stands, with its velocity in the following frame.
         Double3 podTreeVelocity = frames.TreeLinearVelocity(pod);
         var podRecord = new MotionSample(frames.TreeLocalPose(pod), podTreeVelocity, podTreeVelocity, Double3.Zero,
             (Double3)frames.AngularVelocity(pod), Double3.Zero);
@@ -505,7 +505,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void A_crate_near_an_orbiting_hull_joins_its_orbit_frame()
+    public void A_crate_near_an_orbiting_hull_joins_its_following_frame()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -517,11 +517,11 @@ public class FrameTreeOrbitFrameTests
 
         after[1].Home.Should().Be(orbit);
         frames.NumericCount.Should().Be(1);
-        frames.LinearVelocity(orbit).Should().Be(start, "an orbit frame never drains");
+        frames.LinearVelocity(orbit).Should().Be(start, "a following frame never drains");
     }
 
     [Fact]
-    public void A_crate_that_leaves_the_hulls_reach_falls_in_a_frame_of_its_own_and_the_hull_keeps_its_orbit_frame()
+    public void A_crate_that_leaves_the_hulls_reach_falls_in_a_frame_of_its_own_and_the_hull_keeps_its_following_frame()
     {
         FrameHandle station = Station(10, Low);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
@@ -533,7 +533,7 @@ public class FrameTreeOrbitFrameTests
         NumericBody[] after = Update(Hull(station), Crate(11, place + new Double3(5_000, 0, 0), velocity, home: orbit));
 
         after[0].Home.Should().Be(orbit);
-        after[1].Home.Should().NotBe(orbit, "only the hull's group keeps an orbit frame");
+        after[1].Home.Should().NotBe(orbit, "only the hull's group keeps a following frame");
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
     }
 
@@ -570,7 +570,7 @@ public class FrameTreeOrbitFrameTests
 
         after[0].Home.Should().Be(orbit, "no home holds both anchors at rest, and the hull keeps its own");
         FrameHandle raft = after[1].Home;
-        frames.Numeric(raft).Should().Be(NumericMode.Resting, "the anchor at rest wins over the orbit frame");
+        frames.Numeric(raft).Should().Be(NumericMode.Resting, "the anchor at rest wins over the following frame");
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(station.Entity, raft));
 
         Update(Hull(station), after[1]);
@@ -608,16 +608,16 @@ public class FrameTreeOrbitFrameTests
 
         frames.Numeric(after[0].Home).Should().Be(NumericMode.Following);
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Following);
-        after[1].Home.Should().NotBe(after[0].Home, "each hull rests in an orbit frame of its own");
-        after[2].Home.Should().Be(after[0].Home, "the group takes the orbit frame of its first hull");
+        after[1].Home.Should().NotBe(after[0].Home, "each hull rests in a following frame of its own");
+        after[2].Home.Should().Be(after[0].Home, "the group takes the following frame of its first hull");
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(second.Entity, after[0].Home));
     }
 
     [Fact]
-    public void A_hull_whose_orbit_no_longer_needs_a_frame_goes_back_with_its_frame_and_its_orbit_frame_goes_away()
+    public void A_hull_whose_orbit_no_longer_needs_a_frame_goes_back_with_its_frame_and_its_following_frame_goes_away()
     {
         // 10,000 km out in a field of 1e-9 m³/s², the hull is slow but far: past the create distance of 2^23 m (about
-        // 8,389 km), so it lives in an orbit frame. Then it moves to an orbit of 1 km, within the leave distance of 2^22 m.
+        // 8,389 km), so it lives in a following frame. Then it moves to an orbit of 1 km, within the leave distance of 2^22 m.
         FrameHandle space = frames.Create(new Entity(2, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e8f),
             GravityField.Point(1e-9));
         FrameHandle station = Station(10, KeplerOrbit.Circular(1e7), space);
@@ -630,12 +630,12 @@ public class FrameTreeOrbitFrameTests
 
         after[0].Home.Should().Be(space);
         frames.TreeParent(station).Should().Be(space);
-        frames.IsAlive(orbit).Should().BeFalse("an orbit frame that its frame leaves falls, and one without bodies goes");
+        frames.IsAlive(orbit).Should().BeFalse("a following frame that its frame leaves falls, and one without bodies goes");
         (frames.LocalPose(station).Position - near.StateAt(Start, 1e-9).Position).Length.Should().BeLessThan(1e-9);
     }
 
     [Fact]
-    public void A_next_step_motion_that_is_not_kinematic_leaves_the_orbit_frame_falling()
+    public void A_next_step_motion_that_is_not_kinematic_leaves_the_following_frame_falling()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -653,10 +653,10 @@ public class FrameTreeOrbitFrameTests
 
     // The World skips its second pass over the owner views of a sync point while the owner view stamp has not changed
     // since the first (see FrameTree.OwnerViewStamp). The change of motion comes between the two passes, at step 4. An
-    // owner view reads the pose, the velocities and the numeric frames above the frame, and an orbit frame that falls is
+    // owner view reads the pose, the velocities and the numeric frames above the frame, and a following frame that falls is
     // still a numeric frame, so the skip is right only while the station's owner view stays as it was.
     [Fact]
-    public void A_hull_that_leaves_its_orbit_frame_changes_no_owner_view_and_leaves_the_owner_view_stamp_as_it_is()
+    public void A_hull_that_leaves_its_following_frame_changes_no_owner_view_and_leaves_the_owner_view_stamp_as_it_is()
     {
         FrameHandle station = Station(10, Low);
         Update(Hull(station));
@@ -672,7 +672,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void A_kinematic_next_step_motion_keeps_the_frame_in_its_orbit_frame()
+    public void A_kinematic_next_step_motion_keeps_the_frame_in_its_following_frame()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -685,11 +685,11 @@ public class FrameTreeOrbitFrameTests
     }
 
     /// <summary>
-    /// The stored motion describes the last finished step, and the orbit frame was planned for the step that applies the
-    /// intents. So storing a motion changes nothing else: the frame left its orbit frame when the change was planned.
+    /// The stored motion describes the last finished step, and the following frame was planned for the step that applies the
+    /// intents. So storing a motion changes nothing else: the frame left its following frame when the change was planned.
     /// </summary>
     [Fact]
-    public void Storing_a_hull_motion_leaves_the_orbit_frame_as_it_is()
+    public void Storing_a_hull_motion_leaves_the_following_frame_as_it_is()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -716,7 +716,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void A_frame_away_from_the_origin_of_its_orbit_frame_breaks_an_invariant()
+    public void A_frame_away_from_the_origin_of_its_following_frame_breaks_an_invariant()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -729,7 +729,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void Moving_a_frame_out_of_its_orbit_frame_turns_that_frame_into_a_falling_frame_that_keeps_its_other_bodies()
+    public void Moving_a_frame_out_of_its_following_frame_turns_that_frame_into_a_falling_frame_that_keeps_its_other_bodies()
     {
         FrameHandle station = Station(10, Low);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
@@ -745,7 +745,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void Destroying_a_frame_in_its_orbit_frame_turns_that_frame_into_a_falling_frame_and_drops_the_ghosts_of_its_hull()
+    public void Destroying_a_frame_in_its_following_frame_turns_that_frame_into_a_falling_frame_and_drops_the_ghosts_of_its_hull()
     {
         FrameHandle station = Station(10, Far);
         FrameHandle orbit = Update(Hull(station))[0].Home;
@@ -778,7 +778,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void Destroying_the_semantic_frame_of_an_orbit_frame_dissolves_it_and_drops_the_ghosts_of_its_hull()
+    public void Destroying_the_semantic_frame_of_a_following_frame_dissolves_it_and_drops_the_ghosts_of_its_hull()
     {
         // Earth is a semantic child of the sun, which has no gravity of its own here.
         FrameHandle sun = frames.Create(new Entity(3, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
@@ -800,7 +800,7 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void A_fast_body_near_a_hull_on_a_fast_Kepler_orbit_joins_the_hulls_orbit_frame_and_keeps_no_ghost_of_it()
+    public void A_fast_body_near_a_hull_on_a_fast_Kepler_orbit_joins_the_hulls_following_frame_and_keeps_no_ghost_of_it()
     {
         // Before ter-dhkf, the body fell in a frame of its own beside the hull, and that frame kept a ghost of the hull.
         FrameHandle station = Station(10, Low);
@@ -814,9 +814,9 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void An_orbit_frame_far_from_its_semantic_frames_origin_does_not_nest()
+    public void An_following_frame_far_from_its_semantic_frames_origin_does_not_nest()
     {
-        // A falling frame this far out would move under a nesting frame. The orbit gives the orbit frame its place, exactly.
+        // A falling frame this far out would move under a nesting frame. The orbit gives the following frame its place, exactly.
         frames.NumericOptions = new NumericFrameOptions { NestDistance = 1e6 };
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;

@@ -30,7 +30,7 @@ public class RailsFollowTests
     /// </summary>
     private static readonly KeplerOrbit Slow = KeplerOrbit.Circular(4e5, phase: 0.3, spinRate: 0.2);
 
-    /// <summary>A fast orbit of 5 km at 2 km/s, on which a hull lives in an orbit frame of its own. The frame turns at 0.2 rad/s.</summary>
+    /// <summary>A fast orbit of 5 km at 2 km/s, on which a hull lives in a following frame of its own. The frame turns at 0.2 rad/s.</summary>
     private static readonly KeplerOrbit Fast = KeplerOrbit.Circular(5_000, phase: 0.3, spinRate: 0.2);
 
     /// <summary>A fast orbit of 5 km at 2 km/s, whose frame does not turn, so that a body at rest in it moves with its origin.</summary>
@@ -103,7 +103,7 @@ public class RailsFollowTests
     }
 
     [Fact]
-    public void AFastKinematicHullStandsExactlyOnItsOrbitInsideItsOrbitFrameAtEverySyncPointFromTheSecondAfterItsSpawn()
+    public void AFastKinematicHullStandsExactlyOnItsOrbitInsideItsFollowingFrameAtEverySyncPointFromTheSecondAfterItsSpawn()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
@@ -113,12 +113,12 @@ public class RailsFollowTests
         {
             FrameHandle home = world.PhysicsHomeOf(owner);
             if (world.Frames.Numeric(home) != NumericMode.Following)
-                world.Frames.Numeric(home).Should().Be(NumericMode.Following, "a fast hull lives in an orbit frame of its own");
+                world.Frames.Numeric(home).Should().Be(NumericMode.Following, "a fast hull lives in a following frame of its own");
         });
     }
 
     [Fact]
-    public void TheAnchorOfAnOrbitFrameSitsAtItsOriginWithTheSamplesVelocityLessTheChordSoAReadInItsParentGivesTheSamplesVelocity()
+    public void TheAnchorOfAFollowingFrameSitsAtItsOriginWithTheSamplesVelocityLessTheChordSoAReadInItsParentGivesTheSamplesVelocity()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
@@ -128,10 +128,10 @@ public class RailsFollowTests
         Tick(world, 5);
 
         MotionSample sample = faults.Moves.Single(record => record.Entity == frame.Entity && record.Tick == world.TickNumber - 1).Sample;
-        FrameHandle orbitFrame = world.Frames.TreeParent(frame);
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following);
-        world.Frames.TreeLocalPose(orbitFrame).Position.Should().Be(sample.Pose.Position);
-        world.Frames.LinearVelocity(orbitFrame).Should().Be(sample.ChordVelocity);
+        FrameHandle followingFrame = world.Frames.TreeParent(frame);
+        world.Frames.Numeric(followingFrame).Should().Be(NumericMode.Following);
+        world.Frames.TreeLocalPose(followingFrame).Position.Should().Be(sample.Pose.Position);
+        world.Frames.LinearVelocity(followingFrame).Should().Be(sample.ChordVelocity);
         world.Frames.TreeLocalPose(frame).Should().Be(new DPose(Double3.Zero, sample.Pose.Rotation));
         world.Frames.TreeLinearVelocity(frame).Should().Be(sample.Velocity - sample.ChordVelocity);
         (world.Frames.LinearVelocity(frame) - sample.Velocity).Length.Should().BeLessThan(1e-9, "a read in space is the sample's instant velocity");
@@ -150,7 +150,7 @@ public class RailsFollowTests
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity owner = Hull(world, space, fast ? Fast : Slow);
         FrameHandle frame = world.GetOwnedFrame(owner);
-        // Step 1 teleports the hull onto its rails. From step 2 on, a fast hull rests at the origin of its orbit frame.
+        // Step 1 teleports the hull onto its rails. From step 2 on, a fast hull rests at the origin of its following frame.
         Tick(world, 3);
 
         for (int i = 0; i < 120; i++)
@@ -159,7 +159,7 @@ public class RailsFollowTests
             long step = world.TickNumber - 1;
             MotionSample sample = faults.Moves.Single(record => record.Entity == frame.Entity && record.Tick == step).Sample;
             BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
-            // The target of a hull at the origin of its orbit frame is that origin; any other target is the sample's place.
+            // The target of a hull at the origin of its following frame is that origin; any other target is the sample's place.
             Double3 target = fast ? Double3.Zero : sample.Pose.Position;
             if (hull.Pose.Position != target)
                 hull.Pose.Position.Should().Be(target, "after step {0} the hull sits on its target", step);
@@ -297,16 +297,16 @@ public class RailsFollowTests
     }
 
     [Fact]
-    public void AFastHullWhoseRailsChangeJumpsWithItsOrbitFrameAndACrateInTheOrbitFrameKeepsItsPlaceInSpace()
+    public void AFastHullWhoseRailsChangeJumpsWithItsFollowingFrameAndACrateInTheFollowingFrameKeepsItsPlaceInSpace()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity owner = Hull(world, space, Fast);
-        // A crate 3 m from the hull, on the hull's orbit, joins the hull's orbit frame.
+        // A crate 3 m from the hull, on the hull's orbit, joins the hull's following frame.
         (Double3 place, Double3 velocity) = Fast.StateAt(world.Time, Mu);
         Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = new DPose(place + new Double3(0, 3, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Cube() });
         Tick(world, 5);
-        world.PhysicsHomeOf(crate).Should().Be(world.PhysicsHomeOf(owner), "the crate joined the hull's orbit frame");
+        world.PhysicsHomeOf(crate).Should().Be(world.PhysicsHomeOf(owner), "the crate joined the hull's following frame");
         KeplerOrbit next = Fast with { MeanAnomalyAtEpoch = Fast.MeanAnomalyAtEpoch + 1 };
         Double3 crateBefore = world.PoseIn(crate, space).Position;
 
@@ -323,7 +323,7 @@ public class RailsFollowTests
     }
 
     [Fact]
-    public void AFarSpinHullLivesInAnOrbitFrameOfItsOwnAsAnyFarKinematicHullDoes()
+    public void AFarSpinHullLivesInAFollowingFrameOfItsOwnAsAnyFarKinematicHullDoes()
     {
         using World world = NewWorld(out _);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f)));
@@ -372,20 +372,20 @@ public class RailsFollowTests
     }
 
     [Fact]
-    public void TheOrbitFrameOfAHullWhoseSamplesStopFallsOn()
+    public void TheFollowingFrameOfAHullWhoseSamplesStopFallsOn()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity owner = Hull(world, space, Fast);
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 5);
-        FrameHandle orbitFrame = world.PhysicsHomeOf(owner);
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following);
+        FrameHandle followingFrame = world.PhysicsHomeOf(owner);
+        world.Frames.Numeric(followingFrame).Should().Be(NumericMode.Following);
         world.RemoveComponent(owner, world.GetComponent<KeplerMotion>(owner)!);
         world.Tick();
-        Double3 place = world.Frames.TreeLocalPose(orbitFrame).Position;
-        Double3 velocity = world.Frames.LinearVelocity(orbitFrame);
-        place.Should().Be(RailsPose(Fast, world.Time).Position, "the last sample put the orbit frame on the orbit");
+        Double3 place = world.Frames.TreeLocalPose(followingFrame).Position;
+        Double3 velocity = world.Frames.LinearVelocity(followingFrame);
+        place.Should().Be(RailsPose(Fast, world.Time).Position, "the last sample put the following frame on the orbit");
 
         double dt = world.DeltaTime;
         Double3 gravity = default;
@@ -398,11 +398,11 @@ public class RailsFollowTests
             place += velocity * dt;
         }
 
-        world.PhysicsHomeOf(owner).Should().Be(orbitFrame, "the hull stays in its orbit frame");
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following, "the hull is still kinematic");
-        (world.Frames.TreeLocalPose(orbitFrame).Position - place).Length.Should().BeLessThan(1e-6);
-        world.Frames.TreeLocalPose(frame).Position.Should().Be(Double3.Zero, "the hull holds still at the orbit frame's origin");
-        // It moves with the orbit frame, whose instant velocity is half a step of the step's pull past its chord.
+        world.PhysicsHomeOf(owner).Should().Be(followingFrame, "the hull stays in its following frame");
+        world.Frames.Numeric(followingFrame).Should().Be(NumericMode.Following, "the hull is still kinematic");
+        (world.Frames.TreeLocalPose(followingFrame).Position - place).Length.Should().BeLessThan(1e-6);
+        world.Frames.TreeLocalPose(frame).Position.Should().Be(Double3.Zero, "the hull holds still at the following frame's origin");
+        // It moves with the following frame, whose instant velocity is half a step of the step's pull past its chord.
         (world.Frames.TreeLinearVelocity(frame) - gravity * (dt / 2)).Length.Should().BeLessThan(1e-6);
         world.Errors.Should().BeEmpty();
     }
@@ -598,84 +598,84 @@ public class RailsFollowTests
     // relative to the home's frame velocity, the chord of the step, so a frame at rest in the home keeps the home's instant
     // velocity past its chord. Two kinds of frame live under a numeric home: a dynamic hull in a falling frame (see
     // DynamicHullRecordTests.AShipThatFallsInANumericFrameReadsTheInstantVelocityOfItsOrbitInEarth) and a kinematic hull at
-    // the origin of its orbit frame, with a sample (see
-    // TheAnchorOfAnOrbitFrameSitsAtItsOriginWithTheSamplesVelocityLessTheChordSoAReadInItsParentGivesTheSamplesVelocity) or
+    // the origin of its following frame, with a sample (see
+    // TheAnchorOfAFollowingFrameSitsAtItsOriginWithTheSamplesVelocityLessTheChordSoAReadInItsParentGivesTheSamplesVelocity) or
     // without one, below. A frame without a body, and a static hull, live in their semantic parent always.
 
     /// <summary>
-    /// A fast hull that lives in its orbit frame, whose rails component <paramref name="world"/> removes after five ticks and
+    /// A fast hull that lives in its following frame, whose rails component <paramref name="world"/> removes after five ticks and
     /// replaces with <paramref name="next"/>, if any. From the second tick after that, the hull has no sample.
     /// </summary>
-    private static (Entity Owner, FrameHandle OrbitFrame) FastHullWhoseSamplesStop(World world, FrameHandle space, IComponent? next = null)
+    private static (Entity Owner, FrameHandle FollowingFrame) FastHullWhoseSamplesStop(World world, FrameHandle space, IComponent? next = null)
     {
         Entity owner = Hull(world, space, FastStill);
         Tick(world, 5);
-        FrameHandle orbitFrame = world.PhysicsHomeOf(owner);
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following);
+        FrameHandle followingFrame = world.PhysicsHomeOf(owner);
+        world.Frames.Numeric(followingFrame).Should().Be(NumericMode.Following);
         world.RemoveComponent(owner, world.GetComponent<KeplerMotion>(owner)!);
         if (next is not null)
             world.AddComponent(owner, next);
         // The last sample moves the frame in the step of the next tick.
         world.Tick();
-        return (owner, orbitFrame);
+        return (owner, followingFrame);
     }
 
     /// <summary>
-    /// Ticks once, and gives the instant velocity in space of the origin of <paramref name="orbitFrame"/> at the end of the
-    /// step. The orbit frame falls as Jolt steps a body: its frame velocity is the chord of the step, and its instant velocity
-    /// at the end of the step is half the step's change of velocity further on. A jump of the orbit frame keeps its chord.
+    /// Ticks once, and gives the instant velocity in space of the origin of <paramref name="followingFrame"/> at the end of the
+    /// step. The following frame falls as Jolt steps a body: its frame velocity is the chord of the step, and its instant velocity
+    /// at the end of the step is half the step's change of velocity further on. A jump of the following frame keeps its chord.
     /// </summary>
-    private static Double3 TickAndReadInstantVelocity(World world, FrameHandle orbitFrame)
+    private static Double3 TickAndReadInstantVelocity(World world, FrameHandle followingFrame)
     {
-        Double3 chordBefore = world.Frames.LinearVelocity(orbitFrame);
+        Double3 chordBefore = world.Frames.LinearVelocity(followingFrame);
         world.Tick();
-        Double3 chord = world.Frames.LinearVelocity(orbitFrame);
+        Double3 chord = world.Frames.LinearVelocity(followingFrame);
         return chord + (chord - chordBefore) / 2;
     }
 
     [Fact]
-    public void AKinematicHullThatHoldsStillAtTheOriginOfItsFallingOrbitFrameReadsTheOrbitFramesInstantVelocityInSpace()
+    public void AKinematicHullThatHoldsStillAtTheOriginOfItsFallingFollowingFrameReadsTheFollowingFramesInstantVelocityInSpace()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        (Entity owner, FrameHandle orbitFrame) = FastHullWhoseSamplesStop(world, space);
+        (Entity owner, FrameHandle followingFrame) = FastHullWhoseSamplesStop(world, space);
         Tick(world, 2);
 
-        Double3 instant = TickAndReadInstantVelocity(world, orbitFrame);
+        Double3 instant = TickAndReadInstantVelocity(world, followingFrame);
 
-        // The orbit frame falls at about 800 m/s², so a hull that missed half a step of it would be 6.7 m/s off.
-        world.PhysicsHomeOf(owner).Should().Be(orbitFrame);
-        world.Frames.TreeLocalPose(world.GetOwnedFrame(owner)).Position.Should().Be(Double3.Zero, "the hull holds still at the orbit frame's origin");
+        // The following frame falls at about 800 m/s², so a hull that missed half a step of it would be 6.7 m/s off.
+        world.PhysicsHomeOf(owner).Should().Be(followingFrame);
+        world.Frames.TreeLocalPose(world.GetOwnedFrame(owner)).Position.Should().Be(Double3.Zero, "the hull holds still at the following frame's origin");
         (world.VelocityIn(owner, space) - instant).Length.Should().BeLessThan(1e-4);
         world.Errors.Should().BeEmpty();
     }
 
     [Fact]
-    public void AKinematicHullWithoutASampleThatTeleportsInItsOrbitFrameReadsTheOrbitFramesInstantVelocityInSpace()
+    public void AKinematicHullWithoutASampleThatTeleportsInItsFollowingFrameReadsTheFollowingFramesInstantVelocityInSpace()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        (Entity owner, FrameHandle orbitFrame) = FastHullWhoseSamplesStop(world, space, new Hopper());
+        (Entity owner, FrameHandle followingFrame) = FastHullWhoseSamplesStop(world, space, new Hopper());
         Tick(world, 2);
 
-        Double3 instant = TickAndReadInstantVelocity(world, orbitFrame);
+        Double3 instant = TickAndReadInstantVelocity(world, followingFrame);
 
-        // The teleport leaves the hull at rest in its orbit frame, which jumps with it.
-        world.PhysicsHomeOf(owner).Should().Be(orbitFrame);
-        world.Frames.TreeLocalPose(world.GetOwnedFrame(owner)).Position.Should().Be(Double3.Zero, "the orbit frame jumped with the hull");
+        // The teleport leaves the hull at rest in its following frame, which jumps with it.
+        world.PhysicsHomeOf(owner).Should().Be(followingFrame);
+        world.Frames.TreeLocalPose(world.GetOwnedFrame(owner)).Position.Should().Be(Double3.Zero, "the following frame jumped with the hull");
         (world.VelocityIn(owner, space) - instant).Length.Should().BeLessThan(1e-4);
         world.Errors.Should().BeEmpty();
     }
 
     [Fact]
-    public void AShipThatFloatsAtAStationsPlaceInItsOrbitFrameReadsInSpaceTheStationsVelocityPlusItsOwnInTheOrbitFrame()
+    public void AShipThatFloatsAtAStationsPlaceInItsFollowingFrameReadsInSpaceTheStationsVelocityPlusItsOwnInTheFollowingFrame()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity station = Hull(world, space, FastStill);
         FrameHandle stationFrame = world.GetOwnedFrame(station);
         // The ship starts at the station's place, with the station's velocity, and passes through the station's hull, so the
-        // two fall together in the station's orbit frame.
+        // two fall together in the station's following frame.
         (Double3 place, Double3 velocity) = FastStill.StateAt(world.Time, Mu);
         Entity ship = world.Spawn(new SpawnDesc
         {
@@ -688,13 +688,13 @@ public class RailsFollowTests
 
         Tick(world, 6);
 
-        FrameHandle orbitFrame = world.PhysicsHomeOf(station);
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following);
-        world.PhysicsHomeOf(ship).Should().Be(orbitFrame, "the ship joined the station's orbit frame");
+        FrameHandle followingFrame = world.PhysicsHomeOf(station);
+        world.Frames.Numeric(followingFrame).Should().Be(NumericMode.Following);
+        world.PhysicsHomeOf(ship).Should().Be(followingFrame, "the ship joined the station's following frame");
         MotionSample sample = faults.Moves.Single(record => record.Entity == stationFrame.Entity && record.Tick == world.TickNumber - 1).Sample;
-        // Physics releases the ship's record in the orbit frame, with Jolt's chord there and the acceleration that the step
-        // gave the ship there, so the ship's own instant velocity in the orbit frame is half a step of that acceleration past
-        // the chord. The orbit frame's instant velocity at the end of the step is the station's, the sample's.
+        // Physics releases the ship's record in the following frame, with Jolt's chord there and the acceleration that the step
+        // gave the ship there, so the ship's own instant velocity in the following frame is half a step of that acceleration past
+        // the chord. The following frame's instant velocity at the end of the step is the station's, the sample's.
         double dt = world.DeltaTime;
         MotionSample released = faults.Outputs[^1].Frames.Single(record => record.Frame == world.GetOwnedFrame(ship)).Motion;
         Double3 own = released.ChordVelocity + released.Acceleration * (dt / 2);
@@ -706,7 +706,7 @@ public class RailsFollowTests
 
     /// <summary>
     /// A body 3 m from a station that moves as the station does, in an <see cref="Scenes.AsteroidSpace"/>, with a
-    /// <see cref="Kicker"/>, so that it joins the station's orbit frame.
+    /// <see cref="Kicker"/>, so that it joins the station's following frame.
     /// </summary>
     private static (FrameHandle Space, Entity Station, Entity Body, Kicker Kicker) BodyBesideAStation(World world, BodyDesc body)
     {
@@ -726,7 +726,7 @@ public class RailsFollowTests
     }
 
     [Fact]
-    public void ACharacterInTheAirAndABallThatGameplayGivesOneVelocityInAStationsOrbitFrameMoveAlike()
+    public void ACharacterInTheAirAndABallThatGameplayGivesOneVelocityInAStationsFollowingFrameMoveAlike()
     {
         using World characterWorld = NewWorldWithFaults(out FaultInjectingBackend faults);
         using World ballWorld = NewWorld(out _);
@@ -735,9 +735,9 @@ public class RailsFollowTests
         (FrameHandle ballSpace, Entity ballStation, Entity ball, Kicker ballKicker) = BodyBesideAStation(ballWorld, Ball());
         Tick(characterWorld, 5);
         Tick(ballWorld, 5);
-        characterWorld.PhysicsHomeOf(character).Should().Be(characterWorld.PhysicsHomeOf(station), "the character joined the station's orbit frame");
-        ballWorld.PhysicsHomeOf(ball).Should().Be(ballWorld.PhysicsHomeOf(ballStation), "the ball joined the station's orbit frame");
-        // Space pulls the character 3 m from the orbit frame's origin by more than twice the threshold of weightlessness.
+        characterWorld.PhysicsHomeOf(character).Should().Be(characterWorld.PhysicsHomeOf(station), "the character joined the station's following frame");
+        ballWorld.PhysicsHomeOf(ball).Should().Be(ballWorld.PhysicsHomeOf(ballStation), "the ball joined the station's following frame");
+        // Space pulls the character 3 m from the following frame's origin by more than twice the threshold of weightlessness.
         faults.Jolt.HasRigidForm(character).Should().BeFalse("the character walks, in the air");
 
         // The kick is 1 m/s along Z past the station's velocity in space. Gameplay writes it in the next tick, and the step

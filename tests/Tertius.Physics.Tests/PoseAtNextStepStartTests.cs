@@ -46,13 +46,13 @@ public class PoseAtNextStepStartTests
     }
 
     /// <summary>
-    /// A fast kinematic hull on its Kepler orbit rests in an orbit frame of its own (see <see cref="Scenes.FastKeplerHull"/>).
-    /// Its component goes, so a step runs without a motion intent: the hull holds still in its orbit frame, which falls on
+    /// A fast kinematic hull on its Kepler orbit rests in a following frame of its own (see <see cref="Scenes.FastKeplerHull"/>).
+    /// Its component goes, so a step runs without a motion intent: the hull holds still in its following frame, which falls on
     /// along the orbit, 33 m in a step. A read of the next step's start in that step's tick gives the place where the hull
     /// stands when the step ends.
     /// </summary>
     [Fact]
-    public void AKinematicHullWithoutAMotionIntentStartsTheNextStepWhereItsOrbitFrameCarriesIt()
+    public void AKinematicHullWithoutAMotionIntentStartsTheNextStepWhereItsFollowingFrameCarriesIt()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Scenes.AsteroidSpace(world);
@@ -62,7 +62,7 @@ public class PoseAtNextStepStartTests
 
         (Seen gap, Seen after) = ReadAcrossAStepWithoutAMotionIntent(world, hull, world.GetComponent<KeplerMotion>(hull)!);
 
-        (after.Now.Position - gap.Now.Position).Length.Should().BeGreaterThan(30, "the orbit frame carries the hull on over the step");
+        (after.Now.Position - gap.Now.Position).Length.Should().BeGreaterThan(30, "the following frame carries the hull on over the step");
         (gap.NextStepStart.Position - after.Now.Position).Length.Should().BeLessThan(1e-6);
         gap.NextStepStart.Rotation.Should().Be(after.Now.Rotation, "a numeric frame never turns, so the hull keeps its rotation");
     }

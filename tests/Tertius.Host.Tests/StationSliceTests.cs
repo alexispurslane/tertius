@@ -31,7 +31,7 @@ public sealed class StationRun : CheckedInRun
 /// <param name="Time">The world's time, in seconds.</param>
 /// <param name="Bodies">The pods and the crate, by scene id.</param>
 /// <param name="HullHome">The physics home of the station's hull.</param>
-/// <param name="HullHomeMode">How the hull's home moves: <see cref="NumericMode.Following"/> for its orbit frame.</param>
+/// <param name="HullHomeMode">How the hull's home moves: <see cref="NumericMode.Following"/> for its following frame.</param>
 /// <param name="HullOffEarthOrbit">How far the read of the hull's place in earth lies from its orbit's place, in meters.</param>
 internal sealed record StationSample(long Tick, double Time, IReadOnlyDictionary<string, StationBody> Bodies, FrameHandle HullHome,
     NumericMode HullHomeMode, double HullOffEarthOrbit)
@@ -54,14 +54,14 @@ internal sealed record StationSample(long Tick, double Time, IReadOnlyDictionary
 /// <param name="InStation">The position in the station's frame, in its axes, in meters, read through the frame tree.</param>
 /// <param name="VelocityInStation">The velocity relative to the station's frame, in its axes, in m/s.</param>
 /// <param name="InStationFrame">True while the body's semantic frame is the station's frame, false when it is earth.</param>
-/// <param name="Home">The kind of the body's physics home: "station" for the station frame's own system, "orbit frame" for
+/// <param name="Home">The kind of the body's physics home: "station" for the station frame's own system, "following frame" for
 /// the home of the station's hull, or else the mode of a numeric frame.</param>
 internal sealed record StationBody(Double3 InStation, Double3 VelocityInStation, bool InStationFrame, string Home)
 {
     public static StationBody Take(World world, Entity entity, FrameHandle station, FrameHandle hullHome)
     {
         FrameHandle home = world.PhysicsHomeOf(entity);
-        string kind = home == station ? "station" : home == hullHome ? "orbit frame" : world.Frames.Numeric(home).ToString();
+        string kind = home == station ? "station" : home == hullHome ? "following frame" : world.Frames.Numeric(home).ToString();
         return new StationBody(world.PoseIn(entity, station).Position, world.VelocityIn(entity, station), world.GetFrame(entity) == station, kind);
     }
 }
@@ -113,17 +113,17 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
                     (worst, worstTick) = (off, sample.Tick);
             }
             // At 7.67 km/s a float velocity steps by 0.5 mm/s, so in earth's own system each tick's pull of 0.14 m/s
-            // would round, and the drift would wander. In the hull's orbit frame both are slow. Earth's tidal pull
+            // would round, and the drift would wander. In the hull's following frame both are slow. Earth's tidal pull
             // over the 10 s outside the bubble moves a pod by about 2 mm.
             worst.Should().BeLessThan(0.01, $"{id} keeps its drift relative to the station; it was {worst:F4} m off at tick {worstTick}");
         }
     }
 
     [Fact]
-    public void ThePodsLeaveTheBubbleIntoTheStationHullsOrbitFrameAndDriftThereForSecondsBeforeTheyBump()
+    public void ThePodsLeaveTheBubbleIntoTheStationHullsFollowingFrameAndDriftThereForSecondsBeforeTheyBump()
     {
-        Samples.Skip(1).Should().OnlyContain(s => s.HullHomeMode == NumericMode.Following, "the station's hull rests in its orbit frame");
-        Samples.Skip(1).Select(s => s.HullHome).Distinct().Should().ContainSingle("the hull keeps one orbit frame");
+        Samples.Skip(1).Should().OnlyContain(s => s.HullHomeMode == NumericMode.Following, "the station's hull rests in its following frame");
+        Samples.Skip(1).Select(s => s.HullHome).Distinct().Should().ContainSingle("the hull keeps one following frame");
         for (int i = 0; i < Station.Pods.Count; i++)
         {
             string id = Station.Pods[i].Id;
@@ -131,10 +131,10 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
             foreach (StationSample sample in Samples.Skip(1))
                 if (homes.Count == 0 || homes[^1] != (sample.Bodies[id].InStationFrame, sample.Bodies[id].Home))
                     homes.Add((sample.Bodies[id].InStationFrame, sample.Bodies[id].Home));
-            homes.Should().Equal([(true, "station"), (false, "orbit frame")],
-                $"{id} leaves the station's bubble into earth, and its body joins the hull's orbit frame, where both are slow");
+            homes.Should().Equal([(true, "station"), (false, "following frame")],
+                $"{id} leaves the station's bubble into earth, and its body joins the hull's following frame, where both are slow");
             long left = Samples.First(s => !s.Bodies[id].InStationFrame).Tick;
-            (PredictedBump(i) - left).Should().BeGreaterThan(5 * TicksPerSecond, $"{id} drifts in the orbit frame for more than 5 s before it bumps");
+            (PredictedBump(i) - left).Should().BeGreaterThan(5 * TicksPerSecond, $"{id} drifts in the following frame for more than 5 s before it bumps");
         }
     }
 
@@ -154,7 +154,7 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
             ((double)collisions[0].Tick).Should().BeApproximately(PredictedBump(i), 3, $"{id} bumps the radiator where its drift takes it");
             StationBody atBump = Samples[(int)collisions[0].Tick].Bodies[id];
             atBump.InStationFrame.Should().BeFalse($"{id} bumps the radiator outside the station's bubble");
-            atBump.Home.Should().Be("orbit frame", $"{id} meets the hull as a real body of the hull's orbit frame");
+            atBump.Home.Should().Be("following frame", $"{id} meets the hull as a real body of the hull's following frame");
         }
     }
 
@@ -166,8 +166,8 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
         {
             end.Bodies[id].InStation.Z.Should().BeGreaterThan(Station.Radiator.Max.Z + Station.PodHalfSize - 0.02, $"{id} does not pass into the radiator");
             end.Bodies[id].InStation.Z.Should().BeLessThan(Station.Radiator.Max.Z + Station.PodHalfSize + 0.05, $"{id} does not bounce off the radiator");
-            // A read in the station's frame of a body in the orbit frame carries half a step of earth's pull, about 7 cm/s
-            // along the radius and 2.3 cm/s of it along the station's Z: the orbit frame moves with the orbit's chord over
+            // A read in the station's frame of a body in the following frame carries half a step of earth's pull, about 7 cm/s
+            // along the radius and 2.3 cm/s of it along the station's Z: the following frame moves with the orbit's chord over
             // each step, and the station's frame with the orbit's instant velocity. The places agree.
             Math.Abs(end.Bodies[id].VelocityInStation.Z).Should().BeLessThan(0.05, $"the bump stopped {id}'s drift toward the nose");
             end.Bodies[id].InStation.X.Should().BeGreaterThan(Station.Radiator.Min.X, $"{id} is still beside the radiator");
@@ -252,7 +252,7 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
     {
         // A new frame on rails stands on its rails from the second sync point after its spawn (docs/plans/rails-components.md,
         // "Other rules" in "The rails components"). At the first, it is one step of its motion behind, about 1.2 mm.
-        Samples.Where(s => s.Tick >= 2).Max(s => s.HullOffEarthOrbit).Should().BeLessThan(1e-6, "the orbit frame puts the hull on its orbit at every sync point");
+        Samples.Where(s => s.Tick >= 2).Max(s => s.HullOffEarthOrbit).Should().BeLessThan(1e-6, "the following frame puts the hull on its orbit at every sync point");
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
 
 /// <summary>
 /// The station scene runs alike in every run, with one gameplay thread and one Jolt thread or with four of each: its
-/// numeric frames, the pods' moves into the orbit frame and the crate's link to the wall, are the same at every sync
+/// numeric frames, the pods' moves into the following frame and the crate's link to the wall, are the same at every sync
 /// point. Each run plays scripts/station.json without its captures, which need a renderer.
 /// </summary>
 public sealed class StationDeterminismTests

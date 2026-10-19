@@ -184,11 +184,11 @@ public class PhysicsStepTests
     }
 
     /// <summary>
-    /// The anchor of an orbit frame keeps the instant velocity of its sample less the sample's chord, which the orbit frame
+    /// The anchor of a following frame keeps the instant velocity of its sample less the sample's chord, which the following frame
     /// carries, so that a read in the semantic frame gives the instant velocity. A failed step keeps it too.
     /// </summary>
     [Fact]
-    public void AFailedStepLeavesTheAnchorOfAnOrbitFrameWithTheVelocityThatItHadInIt()
+    public void AFailedStepLeavesTheAnchorOfAFollowingFrameWithTheVelocityThatItHadInIt()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         Entity hull = Scenes.FastKeplerHull(world, Scenes.AsteroidSpace(world), Ball() with { Motion = BodyMotion.Kinematic });

@@ -437,7 +437,7 @@ public class MotionChangeTests
 
     /// <summary>
     /// The engines come on when the owner removes its <see cref="KeplerMotion"/> and makes its hull dynamic: the hull coasts
-    /// on with the velocity of its last sample, and the orbit frame that follows it falls on. The ship goes back into orbit
+    /// on with the velocity of its last sample, and the following frame that follows it falls on. The ship goes back into orbit
     /// when the owner adds a <see cref="KeplerMotion"/> and makes its hull kinematic: the hull holds still for one step,
     /// because the new component has written no sample yet, and then every step has a sample, which physics releases as the
     /// step record of the frame.
@@ -458,12 +458,12 @@ public class MotionChangeTests
         FrameHandle station = world.GetOwnedFrame(owner);
         Tick(world, 10);
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Kinematic);
-        world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Following, "at 7.5 km/s the hull has an orbit frame of its own");
+        world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Following, "at 7.5 km/s the hull has a following frame of its own");
 
         // Engines on.
         world.SetMotionNextTick(owner, BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner)!);
         world.Tick();
-        world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Falling, "the orbit frame falls on without its anchor's samples");
+        world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Falling, "the following frame falls on without its anchor's samples");
         int reported = faults.Outputs.Count;
         Tick(world, 60);
 
@@ -499,12 +499,12 @@ public class MotionChangeTests
 
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Kinematic);
         (world.Frames.LocalPose(station).Position - orbit.StateAt(world.Time, EarthMu).Position).Length.Should().BeLessThan(1e-6);
-        // At 7.5 km/s the hull rests at the origin of an orbit frame of its own (ter-dhkf rule 3), which follows the orbit.
+        // At 7.5 km/s the hull rests at the origin of a following frame of its own (ter-dhkf rule 3), which follows the orbit.
         BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
         world.Frames.Numeric(hull.Frame).Should().Be(NumericMode.Following);
         world.Frames.TreeParent(station).Should().Be(hull.Frame);
         (hull.Pose.Position - world.Frames.TreeLocalPose(station).Position).Length.Should().BeLessThan(1e-3,
-            "the kinematic hull is where the orbit puts the frame, at the orbit frame's origin");
+            "the kinematic hull is where the orbit puts the frame, at the following frame's origin");
         world.Errors.Should().BeEmpty();
     }
 

@@ -57,12 +57,12 @@ internal readonly record struct NumericBody
     public bool Fixed { get; init; }
 
     /// <summary>
-    /// It is a kinematic body in the step that the update plans, a hull or a plain body, which only its motion intents and
-    /// teleports move. When it is fast or far in its semantic frame, it lives in a following frame of its own, which follows
-    /// its motion intents (<see cref="NumericMode.Following"/>), where it rests at the origin as the frame's anchor
-    /// (docs/plans/numeric-frames.md, "Anchors", rule 3, and "Following frames").
+    /// It is <see cref="Kinematic"/>: a hull or a plain body that only its motion intents and teleports move. When it is
+    /// fast or far in its semantic frame, it lives in a following frame of its own, which follows its motion intents
+    /// (<see cref="NumericMode.Following"/>), where it rests at the origin as the frame's anchor (docs/plans/numeric-frames.md,
+    /// "Anchors", rule 3, and "Following frames"). It is a read of the motion, so no body can follow without being kinematic.
     /// </summary>
-    public bool Follows { get; init; }
+    public bool Follows => Kinematic;
 
     /// <summary>
     /// The mode of <see cref="Home"/>: <see cref="NumericMode.None"/> for the semantic frame's own system. The update fills
@@ -106,8 +106,9 @@ internal readonly record struct NumericBody
     /// <summary>
     /// The merge test links the body to the place of a ghost that is fixed in its semantic frame's own system (see
     /// <see cref="GhostPlace"/>), so its group stays in that system, as a group with a fixed hull does (see
-    /// <see cref="NumericFrameRules.Summarize"/>). The update fills it in, as it fills <see cref="HomeMode"/>, so the World
-    /// leaves it unset.
+    /// <see cref="NumericFrameRules.Summarize"/>). A body that lives in a following frame of its own stays there, apart from
+    /// its group, and that system keeps a ghost of it, as for any anchor at rest there. The update fills it in, as it fills
+    /// <see cref="HomeMode"/>, so the World leaves it unset.
     /// </summary>
     public bool MayTouchFixedGhost { get; init; }
 
@@ -188,6 +189,19 @@ internal readonly record struct NumericGroup(Double3 Velocity, Double3 Center, b
 internal static class NumericFrameRules
 {
     /// <summary>
+    /// True when <paramref name="body"/> is an anchor in the rules of the update (docs/plans/numeric-frames.md, "Anchors" and
+    /// "Following frames"): no force moves it, and no group can take it into another home, so it counts as infinitely heavy,
+    /// and a group that the merge test links to it takes its home. The split clock of a numeric frame holds none of its
+    /// anchors, and an anchor gets no leave clock. A static body, a hull that is not dynamic and the interior of a frame
+    /// owner are anchors always. A kinematic body is one only while it lives in a following frame of its own (see
+    /// <see cref="FollowsInFrame"/>), which follows its motion intents. A plain kinematic anchor can leave that frame, by a
+    /// hand-off into a bubble or when it slows down below the thresholds to leave a numeric frame, and then it is no anchor:
+    /// a plain kinematic body that is slow and near is infinitely heavy in its group, but the group's home is its home.
+    /// </summary>
+    internal static bool IsAnchor(in NumericBody body, NumericFrameOptions options) =>
+        body.Static || body.Fixed || FollowsInFrame(body, options);
+
+    /// <summary>
     /// The mode that a group's frame gets, or <see cref="NumericMode.None"/> for the semantic frame's own system.
     /// <paramref name="current"/> is the mode of the group's frame now, or None when it has none: a following frame counts as
     /// a falling one. A group leaves a numeric frame only below the lower thresholds, and a resting frame starts to fall
@@ -196,18 +210,6 @@ internal static class NumericFrameRules
     /// other group those of <see cref="NumericFrameOptions.CreateSpeed"/> and <see cref="NumericFrameOptions.LeaveSpeed"/>.
     /// A fixed group never gets a frame, and an anchored group never falls.
     /// </summary>
-    /// <summary>
-    /// True when <paramref name="body"/> is an anchor in the rules of the update (docs/plans/numeric-frames.md, "Anchors" and
-    /// "Following frames"): no force moves it, and it cannot move between frames, so it counts as infinitely heavy, and a
-    /// group that the merge test links to it takes its home. The split clock of a numeric frame holds none of its anchors,
-    /// and an anchor gets no leave clock. A static body, a hull that is not dynamic and the interior of a frame owner are
-    /// anchors always. A kinematic body is one while it lives in a following frame of its own (see
-    /// <see cref="FollowsInFrame"/>), which follows its motion intents: a plain kinematic body that is slow and near is
-    /// infinitely heavy in its group, but it moves between frames, so it is no anchor.
-    /// </summary>
-    internal static bool IsAnchor(in NumericBody body, NumericFrameOptions options) =>
-        body.Static || body.Fixed || FollowsInFrame(body, options);
-
     internal static NumericMode Mode(NumericMode current, Double3 velocity, Double3 center, bool anchored, bool isFixed,
         bool thrusts, NumericFrameOptions options)
     {
@@ -444,8 +446,9 @@ internal static class NumericFrameRules
     /// intents say, so it adds nothing to the group's motion, and the first such body among the members is the group's
     /// <see cref="NumericGroup.Anchor"/>. Any other kinematic hull is fixed in the semantic frame's own system, as a static
     /// hull is, and any other kinematic plain body counts as one below.</item>
-    /// <item>A fixed hull, or a body that may touch a ghost fixed in the semantic frame's own system, fixes the group, and a
-    /// static body anchors it, with the motion of its static bodies alone: the velocity zero, their center of mass, and as
+    /// <item>A fixed hull, or a body that may touch a ghost fixed in the semantic frame's own system, fixes the group, also a
+    /// body that lives in a following frame of its own: the place of that ghost is an anchor at rest in that system. A
+    /// static body anchors the group, with the motion of its static bodies alone: the velocity zero, their center of mass, and as
     /// its frame the numeric frame that holds one of them, the first on a tie, or none when they all lie in the semantic
     /// frame's own system. Then <see cref="Mode"/> gives the group the mode that
     /// its static bodies get alone, so the group takes their home. These anchors rest in the semantic frame, so they win
@@ -480,6 +483,8 @@ internal static class NumericFrameRules
             {
                 if (anchor < 0)
                     anchor = i;
+                // The place of a fixed ghost that the body may touch is an anchor at rest in the semantic frame's own system.
+                isFixed |= body.MayTouchFixedGhost;
                 continue;
             }
             anchored |= body.Static;

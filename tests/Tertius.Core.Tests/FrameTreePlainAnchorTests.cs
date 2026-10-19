@@ -50,13 +50,12 @@ public class FrameTreePlainAnchorTests
             Radius = 0.5,
             Mass = 1,
             Kinematic = true,
-            Follows = true,
         };
     }
 
     /// <summary>A dynamic crate of 1 m and 10 kg, as <see cref="Ball"/> places it.</summary>
     private NumericBody Crate(uint id, Double3 position, Double3 velocity, FrameHandle home = default) =>
-        Ball(id, position, velocity, home) with { Radius = 1, Mass = 10, Kinematic = false, Follows = false };
+        Ball(id, position, velocity, home) with { Radius = 1, Mass = 10, Kinematic = false };
 
     /// <summary>The intents of a step in which only <paramref name="ball"/> wrote one: <paramref name="move"/>, relative to its semantic frame.</summary>
     private static PhysicsIntent[] Moving(in NumericBody ball, in MotionIntent move, DPose? teleport = null)

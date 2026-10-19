@@ -278,12 +278,12 @@ public class RenderSnapshotOutlineTests
     }
 
     /// <summary>
-    /// A station's kinematic hull goes round the asteroid at 2 km/s on a Kepler orbit, so it lives in an orbit frame of its
+    /// A station's kinematic hull goes round the asteroid at 2 km/s on a Kepler orbit, so it lives in a following frame of its
     /// own, and the station's frame hangs at that frame's origin. Its bubble of 30 m reaches farther than the hull's bounding
     /// sphere of 3.5 m.
     /// </summary>
     [Fact]
-    public void AStationOnItsOrbitGetsAnOrbitOutlineCentredOnItsOrbitFrameThatHoldsItsBubble()
+    public void AStationOnItsOrbitGetsAnOrbitOutlineCentredOnItsFollowingFrameThatHoldsItsBubble()
     {
         using TestWorld test = OnJolt();
         FrameHandle space = Scenes.AsteroidSpace(test.World);
@@ -304,8 +304,8 @@ public class RenderSnapshotOutlineTests
         test.World.Frames.Numeric(orbit).Should().Be(NumericMode.Following, "the station's hull moves fast on its rails");
         FollowingOutline following = Following(test.World.Latest().Outlines).Should().ContainSingle().Subject;
         Vector3 origin = (test.World.Frames.Relative(orbit, space).Position - new Double3(4_000, 0, 0)).ToVector3();
-        (following.Center - origin).Length().Should().BeLessThan(1e-3f, "the center is the orbit frame's origin relative to the camera");
-        following.Radius.Should().BeApproximately(30, 1e-3f, "the station hangs at the orbit frame's origin, and its bubble reaches 30 m");
+        (following.Center - origin).Length().Should().BeLessThan(1e-3f, "the center is the following frame's origin relative to the camera");
+        following.Radius.Should().BeApproximately(30, 1e-3f, "the station hangs at the following frame's origin, and its bubble reaches 30 m");
         test.World.Errors.Should().BeEmpty();
     }
 

@@ -11,8 +11,10 @@ namespace Tertius.Physics.Tests;
 /// accelerometer at its origin reads. Physics wakes the members of a frame when its push moves more than
 /// <see cref="JoltBackendOptions.WakeAccelerationThreshold"/> from its value at their last wake. The push of a following frame
 /// is its acceleration in its semantic frame less the field there, so the members wake when the anchor speeds up, and an
-/// awake member keeps its motion in the semantic frame. The world runs on the real backend, in a frame without gravity, or
-/// round the point gravity of earth.
+/// awake member keeps its motion in the semantic frame. The same rule gives a resting frame the push of its semantic frame,
+/// whose proper acceleration the field takes in, so its members wake when that proper acceleration moves, as they do in the
+/// semantic frame's own system. The world runs on the real backend, in a frame without gravity, or round the point gravity
+/// of earth.
 /// </summary>
 public class FollowingFrameWakeTests
 {
@@ -147,6 +149,103 @@ public class FollowingFrameWakeTests
             world.Errors.Should().BeEmpty();
         }
     }
+    // ---- A resting frame ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Writes in every tick a sample at the origin with no velocity and the acceleration <see cref="Acceleration"/>, so its
+    /// frame holds still and has that proper acceleration in free space.
+    /// </summary>
+    private sealed class Engine : IComponent
+    {
+        /// <summary>The proper acceleration that the frame gets, in m/s², in its parent's axes. The test sets it between two ticks.</summary>
+        public Double3 Acceleration { get; set; }
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            self.MoveOnRails(new MotionSample(At(0), Double3.Zero, Double3.Zero, Acceleration, Double3.Zero, Double3.Zero));
+    }
+
+    /// <summary>
+    /// A world on the real backend, with the default numeric frames or none, a space without gravity, and at its origin a
+    /// ship, a frame without a body or gravity, with a bubble of radius 10,000 km, which an <see cref="Engine"/> holds still.
+    /// A crate floats at rest 9,000 km from the ship's origin, past the 2^23 m (8,389 km) from which a slow body gets a
+    /// resting frame. The scene ticks until the crate sleeps.
+    /// </summary>
+    private static (World World, JoltPhysicsBackend Backend, FrameHandle Ship, Entity Crate, Engine Engine) CrateAsleepFarOutInAShip(bool numericFrames)
+    {
+        World world = NewWorld(out JoltPhysicsBackend backend,
+            configure: numericFrames ? null : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
+        var engine = new Engine();
+        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(1e7f)), Components = [engine] }));
+        Entity crate = world.Spawn(new SpawnDesc { Frame = ship, Pose = At(9_000_000), Body = Crate });
+        world.Tick();
+        FrameHandle home = world.PhysicsHomeOf(crate);
+        world.Frames.Numeric(home).Should().Be(numericFrames ? NumericMode.Resting : NumericMode.None, "the crate rests 9,000 km out in the ship");
+        TickUntil(world, () => !IsAwake(backend, home, crate), 600);
+        IsAwake(backend, home, crate).Should().BeFalse("the crate is at rest, so it falls asleep");
+        return (world, backend, ship, crate, engine);
+    }
+
+    /// <summary>
+    /// The ship's engine steps the ship's proper acceleration from zero to 0.05 m/s², past the 0.02 m/s² that wakes a frame's
+    /// members. The crate wakes at the same tick with numeric frames as without them, and after one second it has fallen
+    /// against the push, 2.5 cm along -Y, as without them. Before ter-zg77, the push of a numeric frame was zero, so the
+    /// crate slept on in its resting frame and rode along with the ship.
+    /// </summary>
+    [Fact]
+    public void ACrateAsleepInARestingFrameWakesWhenItsSemanticFramesProperAccelerationStepsAsWithoutNumericFrames()
+    {
+        var woke = new List<long>();
+        var fell = new List<double>();
+        foreach (bool numericFrames in new[] { true, false })
+        {
+            (World world, JoltPhysicsBackend backend, FrameHandle ship, Entity crate, Engine engine) = CrateAsleepFarOutInAShip(numericFrames);
+            using (world)
+            {
+                double startY = world.PoseIn(crate, ship).Position.Y;
+                engine.Acceleration = new Double3(0, 0.05, 0);
+                long wokeAt = -1;
+                for (int tick = 0; tick < 60; tick++)
+                {
+                    world.Tick();
+                    if (wokeAt < 0 && IsAwake(backend, world.PhysicsHomeOf(crate), crate))
+                        wokeAt = world.TickNumber;
+                }
+                world.Frames.Numeric(world.PhysicsHomeOf(crate)).Should().Be(numericFrames ? NumericMode.Resting : NumericMode.None);
+                world.Errors.Should().BeEmpty();
+                woke.Add(wokeAt);
+                fell.Add(startY - world.PoseIn(crate, ship).Position.Y);
+            }
+        }
+
+        woke[1].Should().BeGreaterThan(0, "the push of the ship's own system moved, so its members wake");
+        woke[0].Should().Be(woke[1], "the members of the resting frame wake when the members of the ship's own system do");
+        fell[1].Should().BeInRange(0.015, 0.03, "the crate fell against the push of 0.05 m/s² for nearly one second");
+        fell[0].Should().BeApproximately(fell[1], 1e-6, "the crate falls in the resting frame as in the ship's own system");
+    }
+
+    /// <summary>The ship's proper acceleration holds at zero for ten seconds, so the resting frame's push holds, and the crate sleeps on.</summary>
+    [Fact]
+    public void ACrateAsleepInARestingFrameWhoseSemanticFramesProperAccelerationHoldsSteadyStaysAsleep()
+    {
+        (World world, JoltPhysicsBackend backend, FrameHandle _, Entity crate, Engine _) = CrateAsleepFarOutInAShip(numericFrames: true);
+        using (world)
+        {
+            FrameHandle home = world.PhysicsHomeOf(crate);
+            for (int tick = 0; tick < 600; tick++)
+            {
+                world.Tick();
+                IsAwake(backend, home, crate).Should().BeFalse("nothing wakes the crate at tick {0}", world.TickNumber);
+            }
+            world.PhysicsHomeOf(crate).Should().Be(home);
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
     /// <summary>
     /// A plain kinematic ball on a low orbit of earth at 7.66 km/s, which its <see cref="KeplerMotion"/> moves, rests in a
     /// following frame, and a crate floats 15 cm beside it, out of the orbit's plane, at the ball's velocity. The frame's

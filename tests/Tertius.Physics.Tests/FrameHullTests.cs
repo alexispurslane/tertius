@@ -30,21 +30,21 @@ public class FrameHullTests
         faults.Outputs.SelectMany(output => output.Bodies).Where(state => state.Entity == entity).Cast<BodyState?>().LastOrDefault();
 
     /// <summary>
-    /// The kinematic hull of a frame whose Kepler orbit moves it at 7.5 km/s rests in an orbit frame of its own (ter-dhkf,
-    /// docs/plans/numeric-frames.md, "Anchors", rule 3), so its body state is at the frame's pose in that orbit frame, the
-    /// orbit frame's origin with the frame's rotation, and its kinematic velocity there, added to the orbit frame's chord,
+    /// The kinematic hull of a frame whose Kepler orbit moves it at 7.5 km/s rests in a following frame of its own (ter-dhkf,
+    /// docs/plans/numeric-frames.md, "Anchors", rule 3), so its body state is at the frame's pose in that following frame, the
+    /// following frame's origin with the frame's rotation, and its kinematic velocity there, added to the following frame's chord,
     /// is the orbital velocity. Before rule 3, the hull lived in the planet's own system at the orbit's place.
     /// <para>
     /// A new frame on rails holds still at the pose of its spawn description for its first step, because its component has
     /// written no sample yet. The component's first run teleports the hull onto its rails, and the hull's first sample acts
     /// one step later (docs/plans/rails-components.md, "Other rules" in "The rails components"). So the test checks the hull
     /// from the sync point of the third tick on. In the step of the second tick, physics aims the hull at the place of its
-    /// first sample, and the orbit frame jumps to the hull at the sync point, so the body state of that step is a few
+    /// first sample, and the following frame jumps to the hull at the sync point, so the body state of that step is a few
     /// millimetres from the tree's origin.
     /// </para>
     /// </summary>
     [Fact]
-    public void TheKinematicHullOfAKeplerFrameFollowsTheTreePoseInTheOrbitFrameWhereItRests()
+    public void TheKinematicHullOfAKeplerFrameFollowsTheTreePoseInTheFollowingFrameWhereItRests()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
@@ -65,15 +65,15 @@ public class FrameHullTests
             // The sync point has advanced the tree to the end of the step, where the hull must be.
             BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
             DPose tree = world.Frames.TreeLocalPose(station);
-            FrameHandle orbitFrame = world.Frames.TreeParent(station);
-            world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following);
-            hull.Frame.Should().Be(orbitFrame, "the hull rests in the orbit frame");
+            FrameHandle followingFrame = world.Frames.TreeParent(station);
+            world.Frames.Numeric(followingFrame).Should().Be(NumericMode.Following);
+            hull.Frame.Should().Be(followingFrame, "the hull rests in the following frame");
             tree.Position.Should().Be(Double3.Zero);
             (hull.Pose.Position - tree.Position).Length.Should().BeLessThan(1e-3, "the hull is at the tree pose after tick {0}", i + ticksBeforeTheHullIsOnItsRails);
             Math.Abs(Dot(hull.Pose.Rotation, tree.Rotation)).Should().BeGreaterThan(1 - 1e-6);
-            // The kinematic velocity in the orbit frame and the orbit frame's own are chords over one step, close to the
+            // The kinematic velocity in the following frame and the following frame's own are chords over one step, close to the
             // orbital velocity together.
-            ((Double3)hull.LinearVelocity + world.Frames.LinearVelocity(orbitFrame) - world.Frames.LinearVelocity(station)).Length.Should().BeLessThan(0.1);
+            ((Double3)hull.LinearVelocity + world.Frames.LinearVelocity(followingFrame) - world.Frames.LinearVelocity(station)).Length.Should().BeLessThan(0.1);
             world.PoseIn(owner, planet).Should().Be(world.Frames.LocalPose(station), "the World rewrites the owner's state from the frame, not from the hull");
         }
         faults.Outputs.SelectMany(output => output.HandOffs).Should().BeEmpty();

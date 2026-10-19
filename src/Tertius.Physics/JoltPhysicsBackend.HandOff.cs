@@ -352,7 +352,7 @@ public sealed partial class JoltPhysicsBackend
     /// a numeric frame below it. The numeric update links each body of the semantic parent that may touch such a ghost to
     /// the frame's hull, so that body lives in the same home (ticket ter-4psc), and no other system of the semantic parent
     /// needs a ghost of it. The one exception is a hull that lives apart from its group, in a following frame of its own, and
-    /// that the home of its group keeps a ghost of (see <see cref="FrameTree.AnchorGhosts"/>): the frame hangs in the orbit
+    /// that the home of its group keeps a ghost of (see <see cref="FrameTree.AnchorGhosts"/>): the frame hangs in the following
     /// frame, so the body has a ghost in each such home too. The body also meets the bubbles that the members of the
     /// parent's system meet, the semantic siblings of the frame, wherever they hang among numeric frames. A static body
     /// has no stick-out ghost, and an interior has no ghost, until the follow-up of fork F3.

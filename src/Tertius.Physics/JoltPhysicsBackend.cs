@@ -837,7 +837,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>A kinematic hull, or no body, whose owner has an end pose or a full sample: the record of that motion intent, in
     /// the tree parent, from the frame's tree pose where the step starts, as the sync point derives it for a frame without a
     /// hull (see <see cref="FrameTree.StepRecordInStep"/>), so that the two agree to the last bit. A hull at the origin of its
-    /// following frame rests there, with the record's rotation and no velocity (see <see cref="KinematicTarget"/>): the orbit
+    /// following frame rests there, with the record's rotation and no velocity (see <see cref="KinematicTarget"/>): the following
     /// frame's own chord and instant velocity are the step plan's (see <see cref="FrameTree.HomeInstantVelocityOverChord"/>).
     /// The record that physics releases for the tree differs there (see <see cref="WriteFrames"/>).</item>
     /// <item>A static hull, or a kinematic hull without a motion intent, that teleported in the step: the teleport's pose in
