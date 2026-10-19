@@ -14,8 +14,8 @@ public static partial class DemoScenes
     /// <see cref="Seat"/>, a static box, stands on the cabin floor. Both are part of the interior shape, the static body
     /// of the frame's own physics system.</item>
     /// <item>The frame has no gravity field of its own. So its contents feel only the opposite of its proper acceleration
-    /// (ARCHITECTURE.md, "Gravity"): the weight of the ground while the shuttle stands parked on it, and nothing once the
-    /// shuttle falls freely in orbit.</item>
+    /// (ARCHITECTURE.md, "Gravity"), which the engine derives from the frame's motion: the weight of the ground while the
+    /// shuttle stands parked on it, and nothing once the shuttle falls freely in orbit.</item>
     /// <item>Its bubble is the smallest ellipsoid that holds the hull grown by 2 m on every side, as the orbit scene's ship
     /// has, so a person who walks up to the hatch is in the shuttle's frame before it reaches the hull.</item>
     /// </list>
@@ -94,25 +94,19 @@ public static partial class DemoScenes
         /// <summary>
         /// Spawns the shuttle parked at <paramref name="pose"/> in <paramref name="frame"/>, drawn with
         /// <paramref name="render"/>: its hull is static, so that a later <see cref="BodyHandle.SetMotion"/> unparks it.
-        /// A parked ship stands on the ground, which holds it up against the gravity of its parent at its place. An
-        /// accelerometer in it reads that push, so its frame's proper acceleration is the opposite of that gravity, in the
-        /// shuttle's axes, and the person in the cabin feels the weight of the ground. A frame whose hull is static keeps the
-        /// proper acceleration that it has, and a spawn gives it none (ARCHITECTURE.md, "How a frame moves"), so this method
-        /// writes it.
+        /// The cabin needs no value of its own for its weight. The engine derives every frame's proper acceleration from
+        /// how the frame moved in the step (ARCHITECTURE.md, "How a frame moves"): a frame that holds still in a gravity
+        /// field feels that gravity reversed, so the person in the parked cabin feels the weight of the ground. A new frame
+        /// reads no proper acceleration during its first step, and the derived value from its second step on.
         /// </summary>
-        public static Entity Park(World world, FrameHandle frame, DPose pose, RenderData? render = null)
+        public static Entity Park(World world, FrameHandle frame, DPose pose, RenderData? render = null) => world.Spawn(new SpawnDesc
         {
-            Entity shuttle = world.Spawn(new SpawnDesc
-            {
-                Frame = frame,
-                Pose = pose,
-                Body = new BodyDesc(new BoxShapeDesc(Hull), BodyMotion.Static, Mass: Mass, LinearDamping: 0, AngularDamping: 0,
-                    InteriorShape: new CompoundShapeDesc([.. Interior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
-                AsFrame = new FrameSpec(new FrameBounds(Bubble)),
-                Render = render,
-            });
-            world.Frames.ProperAcceleration(world.GetOwnedFrame(shuttle)) = pose.Rotation.Conjugate().Rotate(-world.Frames.EffectiveGravity(frame, pose.Position));
-            return shuttle;
-        }
+            Frame = frame,
+            Pose = pose,
+            Body = new BodyDesc(new BoxShapeDesc(Hull), BodyMotion.Static, Mass: Mass, LinearDamping: 0, AngularDamping: 0,
+                InteriorShape: new CompoundShapeDesc([.. Interior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
+            AsFrame = new FrameSpec(new FrameBounds(Bubble)),
+            Render = render,
+        });
     }
 }

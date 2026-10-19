@@ -103,16 +103,17 @@ public sealed class WalkerTests : IDisposable
     }
 
     /// <summary>
-    /// The person walks on a floor 30 m from the axis of a turntable, a frame that turns at 0.1 rad/s in a root frame
-    /// without gravity, and whose proper acceleration of 9.81 m/s² up gives its contents their weight. The floor moves at
-    /// 3 m/s in the root frame, as fast as the person walks, and it turns 1 rad in the 10 s of the walk.
+    /// The person walks on a floor 30 m from the axis of a turntable, a frame that turns at 0.1 rad/s in place in a root
+    /// frame with 9.81 m/s² of gravity. The turntable holds its place, so the engine gives it that gravity, reversed, as
+    /// its proper acceleration, and its contents feel their weight (ARCHITECTURE.md, "How a frame moves"). The floor moves
+    /// at 3 m/s in the root frame, as fast as the person walks, and it turns 1 rad in the 10 s of the walk.
     /// </summary>
     [Fact]
     public void TheWalkerFollowsItsWaypointsInAFrameThatMoves()
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle space = Ground(world, 9.81f);
         Entity turntable = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(100)) }
-            .Spinning(world, new FrameSpin(DQuaternion.Identity, 0.1), new Vector3(0, 9.81f, 0)));
+            .Spinning(world, new FrameSpin(DQuaternion.Identity, 0.1)));
         FrameHandle table = world.GetOwnedFrame(turntable);
         world.Spawn(new SpawnDesc { Frame = table, Pose = At(30, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(8, 0.5f, 8)), BodyMotion.Static) });
         Waypoint[] path = [new(table, new Double3(34, 0.9, 0)), new(table, new Double3(34, 0.9, -4)), new(table, new Double3(30, 0.9, -4))];
