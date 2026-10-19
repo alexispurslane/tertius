@@ -153,6 +153,14 @@ public class ScriptParsingTests
         script.Steps.Should().Equal(new CameraStep("away"), new CaptureStep("away"));
     }
 
+    [Fact]
+    public void AnOutlinesStepReadsWhetherItShowsOrHidesTheFrameOutlines()
+    {
+        Script script = Script.Parse("""{ "scene": "lit-box", "steps": [ { "do": "outlines", "show": true }, { "do": "outlines", "show": false } ] }""");
+
+        script.Steps.Should().Equal(new OutlinesStep(true), new OutlinesStep(false));
+    }
+
     [Theory]
     [InlineData(0, 360)]
     [InlineData(640, -1)]

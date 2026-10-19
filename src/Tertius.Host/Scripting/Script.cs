@@ -101,8 +101,8 @@ public sealed record Script(string Scene, [property: JsonPropertyOrder(1)] IRead
 
 /// <summary>
 /// One step of a script: a <see cref="RunStep"/>, a <see cref="PostStep"/>, a <see cref="DumpStep"/>, a
-/// <see cref="CaptureStep"/> or a <see cref="CameraStep"/>. Its <c>do</c> key names the case in JSON
-/// (<see cref="ScriptStepJsonConverter"/>).
+/// <see cref="CaptureStep"/>, a <see cref="CameraStep"/> or an <see cref="OutlinesStep"/>. Its <c>do</c> key names the case
+/// in JSON (<see cref="ScriptStepJsonConverter"/>).
 /// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let the compiler pattern-match
 /// it, and a <c>switch</c> over it names every case. The cases are classes, so <see cref="Value"/> does not box.
 /// The default value holds no case: it is the JSON <c>null</c>, and <see cref="Script.Parse"/> and the runner refuse it.
@@ -119,6 +119,7 @@ public readonly struct ScriptStep : IEquatable<ScriptStep>
     public ScriptStep(DumpStep dump) { ArgumentNullException.ThrowIfNull(dump); step = dump; }
     public ScriptStep(CaptureStep capture) { ArgumentNullException.ThrowIfNull(capture); step = capture; }
     public ScriptStep(CameraStep camera) { ArgumentNullException.ThrowIfNull(camera); step = camera; }
+    public ScriptStep(OutlinesStep outlines) { ArgumentNullException.ThrowIfNull(outlines); step = outlines; }
 
     /// <summary>False for the default value, which holds no case.</summary>
     public bool HasValue => step != null;
@@ -128,6 +129,7 @@ public readonly struct ScriptStep : IEquatable<ScriptStep>
     public bool TryGetValue([NotNullWhen(true)] out DumpStep? value) => (value = step as DumpStep) != null;
     public bool TryGetValue([NotNullWhen(true)] out CaptureStep? value) => (value = step as CaptureStep) != null;
     public bool TryGetValue([NotNullWhen(true)] out CameraStep? value) => (value = step as CameraStep) != null;
+    public bool TryGetValue([NotNullWhen(true)] out OutlinesStep? value) => (value = step as OutlinesStep) != null;
 
     /// <summary>The held case, or null for the default value.</summary>
     public object? Value => step;
@@ -167,6 +169,13 @@ public sealed record CaptureStep(string Name);
 
 /// <summary>Makes the live entity with the scene id <paramref name="Entity"/> the camera of the world.</summary>
 public sealed record CameraStep(string Entity);
+
+/// <summary>
+/// Sets the view setting <c>World.ShowFrameOutlines</c> to <paramref name="Show"/>: true shows the outline of each frame
+/// that has a parent, and false hides the outlines. As after a camera step, the first render snapshot that is built after the
+/// step shows the change, so the next capture does.
+/// </summary>
+public sealed record OutlinesStep(bool Show);
 
 /// <summary>The size of a script's captured images, and later of its window, in pixels.</summary>
 public sealed record ScriptWindow(int Width, int Height)

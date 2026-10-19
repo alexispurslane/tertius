@@ -49,6 +49,9 @@ public static class ScriptRunner
                 case ReadyCamera(Entity entity, string where):
                     world.Camera = world.IsAlive(entity) ? entity : throw new ScriptException($"{where}: at tick {world.TickNumber}, the entity '{scene.IdOf(entity)}' is not alive.");
                     break;
+                case ReadyOutlines(bool show):
+                    world.ShowFrameOutlines = show;
+                    break;
                 case ReadyDump(string name):
                     StateDump dump = recorder.Take(name);
                     dumps.Add(dump);
@@ -84,6 +87,7 @@ public static class ScriptRunner
         public ReadyStep(ReadyCamera camera) { step = camera; }
         public ReadyStep(ReadyDump dump) { step = dump; }
         public ReadyStep(ReadyCapture capture) { step = capture; }
+        public ReadyStep(ReadyOutlines outlines) { step = outlines; }
 
         public bool HasValue => step != null;
 
@@ -92,6 +96,7 @@ public static class ScriptRunner
         public bool TryGetValue([NotNullWhen(true)] out ReadyCamera? value) => (value = step as ReadyCamera) != null;
         public bool TryGetValue([NotNullWhen(true)] out ReadyDump? value) => (value = step as ReadyDump) != null;
         public bool TryGetValue([NotNullWhen(true)] out ReadyCapture? value) => (value = step as ReadyCapture) != null;
+        public bool TryGetValue([NotNullWhen(true)] out ReadyOutlines? value) => (value = step as ReadyOutlines) != null;
 
         public object? Value => step;
 
@@ -107,6 +112,8 @@ public static class ScriptRunner
     private sealed record ReadyDump(string Name);
 
     private sealed record ReadyCapture(string Path, string Where);
+
+    private sealed record ReadyOutlines(bool Show);
 
     /// <summary>
     /// Checks every step and resolves its names before the first tick, so that a bad step changes nothing. Throws
@@ -146,6 +153,9 @@ public static class ScriptRunner
                     throw new ScriptException($"{where} (capture): a capture of '{name}' needs an output folder, and the run has none.");
                 case CaptureStep capture:
                     ready[i] = new ReadyCapture(Path.Combine(outputFolder, capture.Name + ".png"), $"{where} (capture)");
+                    break;
+                case OutlinesStep outlines:
+                    ready[i] = new ReadyOutlines(outlines.Show);
                     break;
                 default:
                     throw new InvalidOperationException($"The runner has no arm for the step {step}.");
