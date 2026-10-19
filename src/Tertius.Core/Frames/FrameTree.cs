@@ -931,6 +931,29 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
+    /// Like <see cref="HomeInstantVelocityOverChord"/>, but where the current step starts: how much the instant velocity of
+    /// the origin of <paramref name="home"/> there exceeds its frame velocity, the chord of the step before, relative to
+    /// <paramref name="semantic"/>, the home itself or an ancestor of it. Each numeric frame between them steps as Jolt steps
+    /// a body, with one step acceleration (see <see cref="AdvanceNumericFrames"/>), so the excess is half a step of that
+    /// acceleration, for a falling frame and a following frame alike. It equals the excess at the end of the step for a
+    /// falling frame, and for a following frame on a smooth plan to the plan's jerk. A following frame whose plan changes its
+    /// velocity at the start of the step, such as an end pose that speeds up, or the plan of an anchor that stops (ticket
+    /// ter-zsku), lands with the acceleration that turns its velocity into the plan's chord, and only this excess converts a
+    /// velocity that a body gets at the start of that step into the motion that Jolt gives it in the semantic frame's own
+    /// system: the step acceleration then cancels out of the body's motion in the semantic frame (docs/plans/numeric-frames.md,
+    /// "Velocity"). Physics converts every velocity that a spawn, gameplay or a hand-off gives a body for a step with it.
+    /// Zero for a semantic frame. Valid from <see cref="BeginNumericStep"/> to the end of the step.
+    /// </summary>
+    internal Double3 HomeInstantVelocityOverChordAtStepStart(FrameHandle home, FrameHandle semantic, double dt)
+    {
+        Contract.Requires(home == semantic || IsAncestorOf(semantic, home));
+        Double3 excess = Double3.Zero;
+        for (FrameHandle f = home; f != semantic; f = TreeParent(f))
+            excess += stepAcceleration[Node(f).Id] * (0.5 * dt);
+        return excess;
+    }
+
+    /// <summary>
     /// The position of the origin of <paramref name="of"/> in <paramref name="to"/>, two frames of one semantic frame (the
     /// semantic frame itself or numeric frames below it), at the end of a step of <paramref name="dt"/> seconds that starts
     /// now. It sums through their lowest common ancestor, so no large number enters between two frames near each other.

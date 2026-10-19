@@ -544,7 +544,7 @@ public class GhostPlaceTests
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space, Body = ShipHull with { Motion = BodyMotion.Kinematic }, AsFrame = new FrameSpec(FrameBounds.Sphere(40)),
-        }.OnKeplerOrbit(world, KeplerOrbit.Circular(Far)));
+        }.OnKeplerOrbit(world, KeplerOrbit.Circular(Far), firstMove: true));
         FrameHandle station = world.GetOwnedFrame(owner);
         Entity crate = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 40), Body = CrateBody });
         Double3 cratePlace = world.Frames.PointToParent(station, new Double3(0, 40, 0));

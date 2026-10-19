@@ -16,10 +16,10 @@ public sealed partial class World
     // is empty without a physics backend and after a step that failed.
     private readonly Dictionary<FrameHandle, FrameStepRecord> stepRecords = new();
 
-    // The body states of the step of each plain anchor of a following frame that ended the step away from the frame's
-    // origin, because it teleported, in the order of the output: its frame jumps to it after the rows have landed (see
+    // The following frame of each plain anchor that ended the step away from the frame's origin, because it teleported, in
+    // the order of the output: the frame jumps to its step plan's place after the rows have landed (see
     // PlaceFollowingFrames and FollowOwners).
-    private readonly List<BodyState> plainAnchorJumps = new();
+    private readonly List<FrameHandle> plainAnchorJumps = new();
 
     // The entities without body or frame that took a step record at step 2 of this sync point, and those that took one at
     // the step 2 before, which FollowFramelessEntities swaps. An entity in the old list that takes no record now holds still
@@ -282,7 +282,7 @@ public sealed partial class World
             if (!Frames.Anchors(state.Frame, entity) || physicsOutputCheck.IsSkipped(entity) || !entities.OwnedFrame(entity).IsNull)
                 continue;
             if ((applied[(int)entity.Index].Flags & IntentFlags.Teleport) != 0)
-                plainAnchorJumps.Add(state);
+                plainAnchorJumps.Add(state.Frame);
             else
                 Frames.PlaceFollowingFrame(state.Frame);
         }
@@ -309,22 +309,19 @@ public sealed partial class World
         Frames.TakeStepRecords(ref owners, entities.FrontIntents.Span, stepFailed, DeltaTime);
 
         Profile.Lap(3);
-        // An anchor that teleported in the step left the origin of its following frame, toward its step plan's place: a
-        // hull, whose frame's record says so, and a plain body, whose body state is its record, at rest in its home without
-        // a motion intent.
+        // An anchor that teleported in the step left the origin of its following frame, for its step plan's place: a hull,
+        // whose frame's record says so, and a plain body, whose front intent says so.
         bool jumped = false;
         foreach ((FrameHandle frame, FrameStepRecord record) in stepRecords)
         {
             if (record.Motion.Pose.Position == Double3.Zero || !Frames.InFollowingFrame(frame))
                 continue;
-            Frames.JumpFollowingFrame(Frames.TreeParent(frame), record.Motion, physicsChanges);
+            Frames.JumpFollowingFrame(Frames.TreeParent(frame), physicsChanges);
             jumped = true;
         }
-        foreach (BodyState state in plainAnchorJumps)
+        foreach (FrameHandle following in plainAnchorJumps)
         {
-            Double3 linear = (Double3)state.LinearVelocity;
-            var record = new MotionSample(state.Pose, linear, linear, Double3.Zero, (Double3)state.AngularVelocity, Double3.Zero);
-            Frames.JumpFollowingFrame(state.Frame, record, physicsChanges);
+            Frames.JumpFollowingFrame(following, physicsChanges);
             jumped = true;
         }
         if (jumped)

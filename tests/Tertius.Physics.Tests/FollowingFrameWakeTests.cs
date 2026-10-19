@@ -29,7 +29,8 @@ public class FollowingFrameWakeTests
 
     /// <summary>
     /// Drives its kinematic body along a straight line with end poses, as <see cref="KinematicDrift"/> does, at a velocity
-    /// that gains <see cref="Acceleration"/> times the step in every tick. The test sets the acceleration between two ticks.
+    /// that gains <see cref="Acceleration"/> times the step in every tick. The test sets the acceleration between two ticks,
+    /// and can stop the drive.
     /// </summary>
     private sealed class SpeedingDrift(Double3 velocity) : IComponent
     {
@@ -38,12 +39,17 @@ public class FollowingFrameWakeTests
         /// <summary>How fast the drift speeds up, in m/s², in the axes of the body's frame. Zero keeps the velocity steady.</summary>
         public Double3 Acceleration { get; set; }
 
+        /// <summary>True when the drive writes no motion intent, so its body holds still in the steps that follow.</summary>
+        public bool Stopped { get; set; }
+
         public int Priority => 0;
 
         public EventMask Wants => EventMask.Of<Tick>();
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
+            if (Stopped)
+                return;
             velocity += Acceleration * self.DeltaTime;
             DPose start = self.PoseAtNextStepStartIn(self.Frame);
             self.MoveKinematic(new DPose(start.Position + velocity * self.DeltaTime, start.Rotation));
@@ -69,7 +75,25 @@ public class FollowingFrameWakeTests
     /// </summary>
     private static (World World, JoltPhysicsBackend Backend, FrameHandle Space, Entity Anchor, Entity Crate, SpeedingDrift Drive) CrateAsleepBeside(string anchorKind)
     {
-        World world = NewWorld(out JoltPhysicsBackend backend);
+        (World world, JoltPhysicsBackend backend, FrameHandle space, Entity anchor, Entity crate, SpeedingDrift drive) = CrateBeside(anchorKind, numericFrames: true);
+        Tick(world, 2);
+        FrameHandle home = world.PhysicsHomeOf(crate);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Following, "the crate joins the anchor's following frame");
+        world.Frames.Anchors(home, anchor).Should().BeTrue();
+        TickUntil(world, () => !IsAwake(backend, home, crate), 600);
+        IsAwake(backend, home, crate).Should().BeFalse("the crate rests in the following frame, so it falls asleep");
+        return (world, backend, space, anchor, crate, drive);
+    }
+
+    /// <summary>
+    /// The scene of <see cref="CrateAsleepBeside"/> as it is spawned, before any tick, with the default numeric frames or
+    /// none.
+    /// </summary>
+    private static (World World, JoltPhysicsBackend Backend, FrameHandle Space, Entity Anchor, Entity Crate, SpeedingDrift Drive) CrateBeside(string anchorKind,
+        bool numericFrames)
+    {
+        World world = NewWorld(out JoltPhysicsBackend backend,
+            configure: numericFrames ? null : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
         FrameHandle space = Ground(world, 0);
         var drive = new SpeedingDrift(Drift);
         var firstMove = new MotionIntent(new EndPose(new DPose(Drift * world.DeltaTime, DQuaternion.Identity)));
@@ -85,12 +109,6 @@ public class FollowingFrameWakeTests
             })
             : world.Spawn(new SpawnDesc { Frame = space, Body = Ball() with { Motion = BodyMotion.Kinematic }, FirstMove = firstMove, Components = [drive] });
         Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, 0, anchorKind == "hull" ? 30 : 3), LinearVelocity = Drift, Body = Crate });
-        Tick(world, 2);
-        FrameHandle home = world.PhysicsHomeOf(crate);
-        world.Frames.Numeric(home).Should().Be(NumericMode.Following, "the crate joins the anchor's following frame");
-        world.Frames.Anchors(home, anchor).Should().BeTrue();
-        TickUntil(world, () => !IsAwake(backend, home, crate), 600);
-        IsAwake(backend, home, crate).Should().BeFalse("the crate rests in the following frame, so it falls asleep");
         return (world, backend, space, anchor, crate, drive);
     }
 
@@ -123,6 +141,58 @@ public class FollowingFrameWakeTests
             (world.VelocityIn(crate, space) - Drift).Length.Should().BeLessThan(1e-3, "the crate keeps the drift's velocity in space");
             (world.VelocityIn(anchor, space) - Drift).Length.Should().BeGreaterThan(1.9, "the anchor sped up");
             world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// The anchor stops: its drive writes no more motion intents, so in each step that follows the anchor's plan holds it
+    /// still, and its following frame holds still in space (ticket ter-zsku). The frame's push changes by the 2 km/s that the
+    /// frame loses in one step, so the crate wakes in that step and keeps its motion in space: it goes on along its line at
+    /// the drift's velocity, to the places of the same crate in the same scene without numeric frames, and the anchor holds
+    /// still as it does there. Before ter-zsku, the frame fell on at the drift's velocity with its anchor in it, and the crate
+    /// slept on.
+    /// </summary>
+    [Theory]
+    [InlineData("plain body")]
+    [InlineData("hull")]
+    public void ACrateAsleepInTheFollowingFrameOfAnAnchorThatStopsWakesAndMovesOnInSpaceAsWithoutNumericFrames(string anchorKind)
+    {
+        (World world, JoltPhysicsBackend backend, FrameHandle space, Entity anchor, Entity crate, SpeedingDrift drive) = CrateAsleepBeside(anchorKind);
+        (World plain, JoltPhysicsBackend _, FrameHandle plainSpace, Entity plainAnchor, Entity plainCrate, SpeedingDrift plainDrive) =
+            CrateBeside(anchorKind, numericFrames: false);
+        using (world)
+        using (plain)
+        {
+            Tick(plain, (int)world.TickNumber);
+            DPose anchorAtStop = world.PoseIn(anchor, space);
+            drive.Stopped = true;
+            plainDrive.Stopped = true;
+            // The tick writes no motion intent, and the step of the next tick applies none.
+            world.Tick();
+            plain.Tick();
+            world.Tick();
+            plain.Tick();
+            // The sync point after the step may move the crate out of the frame, which keeps its sleep when the two homes'
+            // velocities agree, as the still frame's and space's do.
+            IsAwake(backend, world.PhysicsHomeOf(crate), crate).Should().BeTrue("the frame's push changed by 2 km/s in one step, so its members wake");
+
+            for (int tick = 0; tick < 58; tick++)
+            {
+                world.Tick();
+                plain.Tick();
+                (world.PoseIn(crate, space).Position - plain.PoseIn(plainCrate, plainSpace).Position).Length
+                    .Should().BeLessThan(1e-3, "the crate is where it is without numeric frames at sync point {0}", world.TickNumber);
+            }
+            (world.VelocityIn(crate, space) - Drift).Length.Should().BeLessThan(1e-3, "the crate keeps the drift's velocity in space");
+            (world.VelocityIn(crate, space) - plain.VelocityIn(plainCrate, plainSpace)).Length.Should().BeLessThan(1e-3);
+            world.VelocityIn(anchor, space).Should().Be(Double3.Zero, "the anchor holds still");
+            plain.VelocityIn(plainAnchor, plainSpace).Should().Be(Double3.Zero);
+            (world.PoseIn(anchor, space).Position - plain.PoseIn(plainAnchor, plainSpace).Position).Length
+                .Should().BeLessThan(1e-6, "the anchor holds still where it does without numeric frames");
+            (world.PoseIn(anchor, space).Position - anchorAtStop.Position).Length.Should().BeLessThan(Drift.Length * world.DeltaTime * 1.5,
+                "the anchor stopped within one step of its drift");
+            world.Errors.Should().BeEmpty();
+            plain.Errors.Should().BeEmpty();
         }
     }
 

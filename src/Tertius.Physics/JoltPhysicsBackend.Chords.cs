@@ -48,15 +48,26 @@ public sealed partial class JoltPhysicsBackend
     private Double3 HomeInstantVelocityOverChord(FrameHandle home) => frames.HomeInstantVelocityOverChord(home, frames.SemanticOf(home), stepDt);
 
     /// <summary>
+    /// How much the instant velocity of the origin of <paramref name="home"/> where the current step starts exceeds its frame
+    /// velocity, relative to its semantic frame: half a step of its step acceleration, zero for a semantic frame (see
+    /// <see cref="FrameTree.HomeInstantVelocityOverChordAtStepStart"/>). A velocity that a body gets for the step, relative to
+    /// the home's frame velocity, is this much more than the same velocity relative to the home's instant velocity.
+    /// </summary>
+    private Double3 HomeInstantVelocityOverChordAtStart(FrameHandle home) =>
+        frames.HomeInstantVelocityOverChordAtStepStart(home, frames.SemanticOf(home), stepDt);
+
+    /// <summary>
     /// Jolt's linear velocity for the rigid body of <paramref name="record"/> in the system of <paramref name="home"/>,
     /// with its center of mass at <paramref name="center"/>, when its instant velocity relative to the home's frame
-    /// velocity in the step is <paramref name="velocity"/>: the chord of the step. Call it only during a step.
+    /// velocity in the step is <paramref name="velocity"/>, at the start of the step: the chord of the step. Call it only
+    /// during a step. The body then moves in the semantic frame as Jolt moves it in the semantic frame's own system: the
+    /// step acceleration of the home cancels out (see <see cref="HomeInstantVelocityOverChordAtStart"/>).
     /// </summary>
     private Vector3 LinearChord(BodyRecord record, FrameHandle home, Double3 center, Double3 velocity)
     {
         Contract.Requires(stepDt > 0);
-        // The local instant velocity: relative to the home's instant velocity, past its frame velocity.
-        Double3 local = velocity - HomeInstantVelocityOverChord(home);
+        // The local instant velocity: relative to the home's instant velocity where the step starts, past its frame velocity.
+        Double3 local = velocity - HomeInstantVelocityOverChordAtStart(home);
         return (local - ChordAcceleration(record, home, center, local) * (0.5 * stepDt)).ToVector3();
     }
 
@@ -151,17 +162,27 @@ public sealed partial class JoltPhysicsBackend
     {
         Contract.Requires(stepDt > 0);
         double half = 0.5 * stepDt;
+        // The frame velocity of a numeric home in the next step is its velocity at the end of this step, which lies behind
+        // its instant velocity by the home's instant velocity past its chord. The conversion of LinearChord takes off the
+        // home's instant velocity past its frame velocity where this step started, so the local velocity keeps the
+        // difference of the two, which is zero for a falling frame, and the body moves on in the semantic frame as Jolt
+        // moves it in the semantic frame's own system.
+        Double3 local = linear + HomeInstantVelocityOverChord(to) - HomeInstantVelocityOverChordAtStart(to);
+        center += frames.HomeMoveOver(to, frames.SemanticOf(to), stepDt);
         if (record.Character is not null)
         {
             // A character that stood in the step stands in its new frame too, as a rule, where the ground holds it, so its
             // chord is its instant velocity. One that did not stand falls freely there.
-            Double3 acceleration = record.Standing ? Double3.Zero : (Double3)frames.EffectiveGravity(to, center);
-            return ((linear - acceleration * half).ToVector3(), Vector3.Zero, acceleration);
+            if (record.Standing)
+                return (linear.ToVector3(), Vector3.Zero, Double3.Zero);
+            Double3 gravity = (Double3)frames.EffectiveGravity(to, center);
+            return ((local - gravity * half).ToVector3(), Vector3.Zero, gravity + (linear - local) / half);
         }
-        // The frame velocity of a numeric home in the next step is its velocity at the end of this step, which lies behind
-        // its instant velocity by the home's instant velocity past its chord.
-        Double3 velocity = linear + HomeInstantVelocityOverChord(to);
-        return (LinearChord(record, to, center, velocity), AngularChord(record, angular.ToVector3()), ChordAcceleration(record, to, center, linear));
+        Double3 chordAcceleration = ChordAcceleration(record, to, center, local);
+        Double3 chord = local - chordAcceleration * half;
+        // The acceleration that turned the linear velocity into its chord, so that the chord plus half a step of it is the
+        // linear velocity again (see TryHullRecord).
+        return (chord.ToVector3(), AngularChord(record, angular.ToVector3()), chordAcceleration + (linear - local) / half);
     }
 
     /// <summary>
