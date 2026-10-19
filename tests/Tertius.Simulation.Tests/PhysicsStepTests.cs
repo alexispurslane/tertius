@@ -194,7 +194,7 @@ public class PhysicsStepTests
         Entity hull = Scenes.FastKeplerHull(world, Scenes.AsteroidSpace(world), Ball() with { Motion = BodyMotion.Kinematic });
         FrameHandle frame = world.GetOwnedFrame(hull);
         world.Run(5);
-        world.Frames.Numeric(world.Frames.TreeParent(frame)).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(world.Frames.TreeParent(frame)).Should().Be(NumericMode.Following);
         Double3 velocity = world.Frames.TreeLinearVelocity(frame);
         velocity.Should().NotBe(Double3.Zero, "the sample's instant velocity is half a step of its acceleration past its chord");
         faults.ThrowFromStep = new InvalidOperationException("solver exploded");

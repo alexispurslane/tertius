@@ -99,7 +99,7 @@ public partial class NumericFrameOrbitTests
         Station station = KeplerStation(world);
         world.Tick();
         FrameHandle home = world.PhysicsHomeOf(station.Owner);
-        world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Following);
         world.Frames.TreeParent(home).Should().Be(station.Earth);
         world.Frames.TreeParent(station.Frame).Should().Be(home, "the frame hangs under its hull's home");
         world.Frames.Parent(station.Frame).Should().Be(station.Earth, "gameplay sees the semantic tree");
@@ -166,7 +166,7 @@ public partial class NumericFrameOrbitTests
                 if (homes[i].Count == 0 || homes[i][^1] != kind)
                     homes[i].Add(kind);
                 FrameHandle home = world.PhysicsHomeOf(drifters[i]);
-                if (world.Frames.Numeric(home) == NumericMode.Orbiting)
+                if (world.Frames.Numeric(home) == NumericMode.Following)
                     fastest[i] = Math.Max(fastest[i], (world.VelocityIn(drifters[i], station.Earth) - world.Frames.LinearVelocity(home)).Length);
             }
         }
@@ -195,7 +195,7 @@ public partial class NumericFrameOrbitTests
 
         for (int i = 0; i < with.Length; i++)
         {
-            with[i].Homes.Should().Equal(["station", "Orbiting"], "the body leaves into the station's tree parent and stays linked to the hull");
+            with[i].Homes.Should().Equal(["station", "Following"], "the body leaves into the station's tree parent and stays linked to the hull");
             without[i].Homes.Should().Equal(["station", "earth"]);
             with[i].FastestInOrbit.Should().BeInRange(0.9, 1.1, "the body is slow in the orbit frame");
             with[i].Bumps.Should().Equal(without[i].Bumps, "the body hears the same Collisions with numeric frames as without");
@@ -255,7 +255,7 @@ public partial class NumericFrameOrbitTests
         Entity body = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place, DQuaternion.Identity), LinearVelocity = velocity, Body = character ? Person : Rock });
         world.Tick();
         FrameHandle home = world.PhysicsHomeOf(body);
-        world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Following);
         home.Should().Be(world.PhysicsHomeOf(hull), "the body shares the hull's orbit frame");
         Tick(world, 59);
 
@@ -285,7 +285,7 @@ public partial class NumericFrameOrbitTests
         Entity crate = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Crate });
         world.Tick();
         FrameHandle home = world.PhysicsHomeOf(crate);
-        world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Following);
         home.Should().Be(world.PhysicsHomeOf(hull), "the crate shares the hull's orbit frame");
         TickUntil(world, () => !IsAwake(faults.Jolt, home, crate), 300);
 
@@ -341,7 +341,7 @@ public partial class NumericFrameOrbitTests
         Pass with = PassTheStation(numericFrames: true, threads: 1);
         Pass without = PassTheStation(numericFrames: false, threads: 1);
 
-        with.Homes.Select(change => change.Home).Should().Equal(["Falling", "Orbiting", "Falling"]);
+        with.Homes.Select(change => change.Home).Should().Equal(["Falling", "Following", "Falling"]);
         with.Homes[1].Distance.Should().BeLessThan(150, "the merge test reaches the hull 2 s ahead at 60 m/s");
         with.Homes[2].Distance.Should().BeGreaterThan(130, "the rock lets go beyond the reach and the split margin");
         without.Homes.Select(change => change.Home).Should().Equal(["earth"]);
@@ -372,7 +372,7 @@ public partial class NumericFrameOrbitTests
         Tick(world, 2);
 
         FrameHandle parent = world.Frames.TreeParent(station.Frame);
-        world.Frames.Numeric(parent).Should().Be(numericFrames ? NumericMode.Orbiting : NumericMode.None);
+        world.Frames.Numeric(parent).Should().Be(numericFrames ? NumericMode.Following : NumericMode.None);
         faults.Jolt.HasGhostIn(stickOut, parent).Should().BeTrue("a body that sticks out of a bubble is partly in the frame's tree parent");
         faults.Jolt.GhostCount(stickOut).Should().Be(1, "earth's own system keeps no ghost of the crate when it is not the station's tree parent");
 
@@ -451,7 +451,7 @@ public partial class NumericFrameOrbitTests
         world.Tick();
         plain.Tick();
         FrameHandle orbit = world.PhysicsHomeOf(scene.Hull);
-        world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting, "the hull's orbit lies beyond the resting distance");
+        world.Frames.Numeric(orbit).Should().Be(NumericMode.Following, "the hull's orbit lies beyond the resting distance");
         FrameHandle rockHome = world.PhysicsHomeOf(scene.Rock);
         world.Frames.Numeric(rockHome).Should().Be(NumericMode.Resting, "the rock rests 10,000 km from the origin");
         world.PhysicsHomeOf(scene.Pod).Should().Be(rockHome, "the group of the hull, the rock and the pod lives in the rock's home");
@@ -522,7 +522,7 @@ public partial class NumericFrameOrbitTests
         Entity crate = world.Spawn(new SpawnDesc { Frame = station.Earth, Pose = new DPose(place + new Double3(0, -20, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Crate });
         Tick(world, 2);
         FrameHandle orbit = world.PhysicsHomeOf(station.Owner);
-        world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(orbit).Should().Be(NumericMode.Following);
         world.PhysicsHomeOf(crate).Should().Be(orbit);
 
         world.SetMotionNextTick(station.Owner, BodyMotion.Static, remove: world.GetComponent<KeplerMotion>(station.Owner));
@@ -553,7 +553,7 @@ public partial class NumericFrameOrbitTests
         world.Tick();
         FrameHandle again = world.PhysicsHomeOf(station.Owner);
         again.Should().NotBe(orbit);
-        world.Frames.Numeric(again).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(again).Should().Be(NumericMode.Following);
         world.Frames.TreeParent(station.Frame).Should().Be(again);
         world.PoseIn(station.Owner, station.Earth).Position.Should().Be(station.StateAt(world.Time).Position, "from the second sync point after the change the hull stands on its orbit");
         (world.PoseIn(second, station.Earth).Position - FreeFall()).Length.Should().BeLessThan(0.01, "the crate beside the stopped hull does not jump with the hull");
@@ -673,7 +673,7 @@ public partial class NumericFrameOrbitTests
         });
         Tick(world, 2);
         if (numericFrames)
-            world.Frames.Numeric(world.Frames.TreeParent(station.Frame)).Should().Be(NumericMode.Orbiting, "the station hangs in its orbit frame");
+            world.Frames.Numeric(world.Frames.TreeParent(station.Frame)).Should().Be(NumericMode.Following, "the station hangs in its orbit frame");
         FrameHandle roomFrame = world.GetOwnedFrame(room);
 
         world.Destroy(station.Owner).Should().BeTrue();
@@ -715,7 +715,7 @@ public partial class NumericFrameOrbitTests
         List<string> second = TraceOfTheOrbitScenes(1);
         List<string> parallel = TraceOfTheOrbitScenes(4);
 
-        first.Count(line => line.Contains("Orbiting")).Should().Be(4, "each crate, the pod and the rock join the orbit frame");
+        first.Count(line => line.Contains("Following")).Should().Be(4, "each crate, the pod and the rock join the orbit frame");
         second.Should().Equal(first);
         parallel.Should().Equal(first);
     }

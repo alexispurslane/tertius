@@ -102,7 +102,7 @@ public class WorldFacingFrameTests
             Tick(world, 600);
 
             FrameHandle home = world.PhysicsHomeOf(owner);
-            world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting);
+            world.Frames.Numeric(home).Should().Be(NumericMode.Following);
             Quaternion hull = backend.BodiesIn(home)
                 .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, owner)).Rotation;
             Quaternion frame = world.PoseInOwnFrame(owner).Rotation.ToQuaternion();

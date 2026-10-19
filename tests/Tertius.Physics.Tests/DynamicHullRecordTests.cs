@@ -153,7 +153,7 @@ public class DynamicHullRecordTests
         Entity aloneShip = Ship(alone, aloneEarth, start, startVelocity, Hull, 20);
         Tick(placed, 3);
         Tick(alone, 3);
-        placed.Frames.Numeric(placed.PhysicsHomeOf(placedShip)).Should().Be(NumericMode.Orbiting);
+        placed.Frames.Numeric(placed.PhysicsHomeOf(placedShip)).Should().Be(NumericMode.Following);
 
         placed.SetMotionNextTick(placedShip, BodyMotion.Dynamic, remove: placed.GetComponent<KeplerMotion>(placedShip));
         Tick(placed, 60);

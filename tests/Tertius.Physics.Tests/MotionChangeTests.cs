@@ -458,7 +458,7 @@ public class MotionChangeTests
         FrameHandle station = world.GetOwnedFrame(owner);
         Tick(world, 10);
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Kinematic);
-        world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Orbiting, "at 7.5 km/s the hull has an orbit frame of its own");
+        world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Following, "at 7.5 km/s the hull has an orbit frame of its own");
 
         // Engines on.
         world.SetMotionNextTick(owner, BodyMotion.Dynamic, remove: world.GetComponent<KeplerMotion>(owner)!);
@@ -501,7 +501,7 @@ public class MotionChangeTests
         (world.Frames.LocalPose(station).Position - orbit.StateAt(world.Time, EarthMu).Position).Length.Should().BeLessThan(1e-6);
         // At 7.5 km/s the hull rests at the origin of an orbit frame of its own (ter-dhkf rule 3), which follows the orbit.
         BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
-        world.Frames.Numeric(hull.Frame).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(hull.Frame).Should().Be(NumericMode.Following);
         world.Frames.TreeParent(station).Should().Be(hull.Frame);
         (hull.Pose.Position - world.Frames.TreeLocalPose(station).Position).Length.Should().BeLessThan(1e-3,
             "the kinematic hull is where the orbit puts the frame, at the orbit frame's origin");

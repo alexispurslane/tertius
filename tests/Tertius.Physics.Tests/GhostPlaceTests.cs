@@ -594,7 +594,7 @@ public class GhostPlaceTests
         if (numericFrames)
         {
             FrameHandle orbit = world.PhysicsHomeOf(scene.Owner);
-            world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting, "the hull lives in an orbit frame of its own");
+            world.Frames.Numeric(orbit).Should().Be(NumericMode.Following, "the hull lives in an orbit frame of its own");
             orbit.Should().NotBe(home);
             NamesAnchorGhost(world, scene.Owner, home).Should().BeTrue("the pod's place links the hull to the group, whose home cannot hold it");
         }
@@ -648,7 +648,7 @@ public class GhostPlaceTests
         Tick(world, 2);
         FrameHandle home = world.PhysicsHomeOf(rock);
         FrameHandle orbit = world.PhysicsHomeOf(scene.Owner);
-        world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(orbit).Should().Be(NumericMode.Following);
         NamesAnchorGhost(world, scene.Owner, home).Should().BeTrue("the hull starts 8.9 m from the rock");
         faults.Jolt.HasGhostIn(scene.Owner, home).Should().BeTrue();
         faults.Jolt.HasGhostIn(scene.Crate, home).Should().BeTrue("the crate sticks out of the station, which hangs in the hull's orbit frame, apart from the rock's home");

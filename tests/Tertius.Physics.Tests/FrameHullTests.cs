@@ -66,7 +66,7 @@ public class FrameHullTests
             BodyState hull = faults.Outputs[^1].Bodies.Single(state => state.Entity == owner);
             DPose tree = world.Frames.TreeLocalPose(station);
             FrameHandle orbitFrame = world.Frames.TreeParent(station);
-            world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting);
+            world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following);
             hull.Frame.Should().Be(orbitFrame, "the hull rests in the orbit frame");
             tree.Position.Should().Be(Double3.Zero);
             (hull.Pose.Position - tree.Position).Length.Should().BeLessThan(1e-3, "the hull is at the tree pose after tick {0}", i + ticksBeforeTheHullIsOnItsRails);

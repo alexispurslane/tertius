@@ -50,13 +50,13 @@ public class FrameTreePlainAnchorTests
             Radius = 0.5,
             Mass = 1,
             Kinematic = true,
-            Orbits = true,
+            Follows = true,
         };
     }
 
     /// <summary>A dynamic crate of 1 m and 10 kg, as <see cref="Ball"/> places it.</summary>
     private NumericBody Crate(uint id, Double3 position, Double3 velocity, FrameHandle home = default) =>
-        Ball(id, position, velocity, home) with { Radius = 1, Mass = 10, Kinematic = false, Orbits = false };
+        Ball(id, position, velocity, home) with { Radius = 1, Mass = 10, Kinematic = false, Follows = false };
 
     /// <summary>The intents of a step in which only <paramref name="ball"/> wrote one: <paramref name="move"/>, relative to its semantic frame.</summary>
     private static PhysicsIntent[] Moving(in NumericBody ball, in MotionIntent move, DPose? teleport = null)
@@ -106,7 +106,7 @@ public class FrameTreePlainAnchorTests
         NumericBody ball = Update(Ball(10, place, velocity, semantic: earth))[0];
 
         FrameHandle home = ball.Home;
-        frames.Numeric(home).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(home).Should().Be(NumericMode.Following);
         frames.TreeParent(home).Should().Be(earth, "a following frame lies in its anchor's semantic frame");
         frames.Anchors(home, ball.Entity).Should().BeTrue("the body is the anchor of its following frame");
         frames.TreeLocalPose(home).Position.Should().Be(place, "the frame starts at the anchor's place");
@@ -199,7 +199,7 @@ public class FrameTreePlainAnchorTests
 
         after[0].Home.Should().Be(home, "the first anchor keeps its frame");
         after[1].Home.Should().NotBe(home);
-        frames.Numeric(after[1].Home).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Following);
         frames.Anchors(after[1].Home, after[1].Entity).Should().BeTrue("the second body anchors a following frame of its own");
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(after[1].Entity, home));
     }
@@ -261,15 +261,15 @@ public class FrameTreePlainAnchorTests
     {
         var options = new NumericFrameOptions();
         FrameHandle home = Update(Ball(10, Double3.Zero, new Double3(2_000, 0, 0)))[0].Home;
-        NumericBody follower = Ball(11, Double3.Zero, new Double3(2_000, 0, 0), home) with { HomeMode = NumericMode.Orbiting };
+        NumericBody follower = Ball(11, Double3.Zero, new Double3(2_000, 0, 0), home) with { HomeMode = NumericMode.Following };
         NumericBody crate = Crate(12, new Double3(0, 2, 0), new Double3(2_000, 0, 0));
 
         NumericGroup own = NumericFrameRules.Summarize([crate, follower with { AnchorsHome = true }], [], options);
         NumericGroup other = NumericFrameRules.Summarize([crate, follower], [], options);
 
-        own.Orbits.Should().BeTrue();
+        own.Follows.Should().BeTrue();
         own.Frame.Should().Be(home, "the group takes the frame that its follower anchors");
-        other.Orbits.Should().BeTrue();
+        other.Follows.Should().BeTrue();
         other.Frame.IsNull.Should().BeTrue("the follower anchors no frame, so the group takes a new one");
     }
 
@@ -283,7 +283,7 @@ public class FrameTreePlainAnchorTests
     public void A_kinematic_body_alone_needs_a_following_frame_by_the_speeds_of_a_free_body_and_else_takes_the_speeds_of_its_frame()
     {
         var options = new NumericFrameOptions();
-        NumericFrameRules.BodyMode(Ball(10, Double3.Zero, new Double3(2_000, 0, 0)), thrusts: true, options).Should().Be(NumericMode.Orbiting);
+        NumericFrameRules.BodyMode(Ball(10, Double3.Zero, new Double3(2_000, 0, 0)), thrusts: true, options).Should().Be(NumericMode.Following);
         NumericFrameRules.BodyMode(Ball(10, Double3.Zero, new Double3(60, 0, 0)), thrusts: true, options).Should().Be(NumericMode.Falling,
             "below 1,000 m/s the kinematic body takes the speeds of a body that thrusts");
         NumericFrameRules.BodyMode(Ball(10, Double3.Zero, new Double3(60, 0, 0)), thrusts: false, options).Should().Be(NumericMode.None);

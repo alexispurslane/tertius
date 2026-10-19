@@ -170,13 +170,13 @@ public class RailsHullTests
         Entity owner = Hull(world, space, BodyMotion.Kinematic, rails, pilot);
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 4);
-        world.Frames.Numeric(world.Frames.TreeParent(frame)).Should().Be(NumericMode.Orbiting, "the hull moves at 2 km/s");
+        world.Frames.Numeric(world.Frames.TreeParent(frame)).Should().Be(NumericMode.Following, "the hull moves at 2 km/s");
 
         // Tick 3 wrote the last sample, for step 4. Step 5 has none, and the teleport of tick 5 acts in step 6.
         world.RemoveComponent(owner, rails);
         Tick(world, 1);
         FrameHandle orbitFrame = world.Frames.TreeParent(frame);
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting, "the orbit frame falls on without a sample");
+        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following, "the orbit frame falls on without a sample");
         DPose there = world.PoseIn(owner, space);
         pilot.Once = body => body.Teleport(new DPose(there.Position + new Double3(0, 100, 0), DQuaternion.Identity));
         Tick(world, 2);

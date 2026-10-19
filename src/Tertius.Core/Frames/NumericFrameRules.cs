@@ -51,18 +51,18 @@ internal readonly record struct NumericBody
     /// <summary>
     /// It stays in its semantic frame's own system, and so does its group. It is a hull whose motion is not dynamic, which
     /// holds still or follows the samples of a rails component, or the interior of a frame owner, which physics keeps at
-    /// rest at the origin of the frame's own system, in either motion of the hull. A kinematic hull that lives in an orbit frame of its own (see
-    /// <see cref="NumericFrameRules.OrbitsInFrame"/>) is the one exception.
+    /// rest at the origin of the frame's own system, in either motion of the hull. A kinematic hull that lives in a following frame of its own (see
+    /// <see cref="NumericFrameRules.FollowsInFrame"/>) is the one exception.
     /// </summary>
     public bool Fixed { get; init; }
 
     /// <summary>
     /// It is a kinematic body in the step that the update plans, a hull or a plain body, which only its motion intents and
     /// teleports move. When it is fast or far in its semantic frame, it lives in a following frame of its own, which follows
-    /// its motion intents (<see cref="NumericMode.Orbiting"/>), where it rests at the origin as the frame's anchor
+    /// its motion intents (<see cref="NumericMode.Following"/>), where it rests at the origin as the frame's anchor
     /// (docs/plans/numeric-frames.md, "Anchors", rule 3, and "Following frames").
     /// </summary>
-    public bool Orbits { get; init; }
+    public bool Follows { get; init; }
 
     /// <summary>
     /// The mode of <see cref="Home"/>: <see cref="NumericMode.None"/> for the semantic frame's own system. The update fills
@@ -170,14 +170,15 @@ internal readonly record struct GhostPlace(FrameHandle Home, Double3 HomePositio
 /// anchored group, the numeric frame that holds one of its static bodies, the first one on a tie, or null.</param>
 /// <param name="FrameMass">The mass of the group's bodies in <paramref name="Frame"/>, in kg: +∞ when a static body of the
 /// group is there, and 0 when the frame is null.</param>
-/// <param name="Orbiter">The index among the members of the first Kepler hull that lives in an orbit frame of its own (see
-/// <see cref="NumericFrameRules.OrbitsInFrame"/>), or -1.</param>
-/// <param name="Orbits">True when the group takes the orbit frame of <paramref name="Orbiter"/>: no anchor of the group rests
+/// <param name="Anchor">The index among the members of the first body that lives in a following frame of its own (see
+/// <see cref="NumericFrameRules.FollowsInFrame"/>), or -1: the anchor whose following frame the group takes when it
+/// <paramref name="Follows"/>.</param>
+/// <param name="Follows">True when the group takes the following frame of <paramref name="Anchor"/>: no anchor of the group rests
 /// in the semantic frame.</param>
 /// <param name="Thrusts">True when a body of the group that is not an anchor thrusts (see <see cref="NumericBody.Thrusts"/>), so
-/// the group uses the speeds of a group that thrusts. A Kepler hull is an anchor, so it never counts.</param>
+/// the group uses the speeds of a group that thrusts. A kinematic body never thrusts.</param>
 internal readonly record struct NumericGroup(Double3 Velocity, Double3 Center, bool Anchored, bool Fixed, FrameHandle Frame, double FrameMass,
-    int Orbiter = -1, bool Orbits = false, bool Thrusts = false);
+    int Anchor = -1, bool Follows = false, bool Thrusts = false);
 
 /// <summary>
 /// The decisions of the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and
@@ -188,7 +189,7 @@ internal static class NumericFrameRules
 {
     /// <summary>
     /// The mode that a group's frame gets, or <see cref="NumericMode.None"/> for the semantic frame's own system.
-    /// <paramref name="current"/> is the mode of the group's frame now, or None when it has none: an orbit frame counts as
+    /// <paramref name="current"/> is the mode of the group's frame now, or None when it has none: a following frame counts as
     /// a falling one. A group leaves a numeric frame only below the lower thresholds, and a resting frame starts to fall
     /// only at the speed to get a falling frame. A group that <paramref name="thrusts"/> uses the speeds of
     /// <see cref="NumericFrameOptions.ThrustCreateSpeed"/> and <see cref="NumericFrameOptions.ThrustLeaveSpeed"/>, and any
@@ -201,11 +202,11 @@ internal static class NumericFrameRules
     /// group that the merge test links to it takes its home. The split clock of a numeric frame holds none of its anchors,
     /// and an anchor gets no leave clock. A static body, a hull that is not dynamic and the interior of a frame owner are
     /// anchors always. A kinematic body is one while it lives in a following frame of its own (see
-    /// <see cref="OrbitsInFrame"/>), which follows its motion intents: a plain kinematic body that is slow and near is
+    /// <see cref="FollowsInFrame"/>), which follows its motion intents: a plain kinematic body that is slow and near is
     /// infinitely heavy in its group, but it moves between frames, so it is no anchor.
     /// </summary>
     internal static bool IsAnchor(in NumericBody body, NumericFrameOptions options) =>
-        body.Static || body.Fixed || OrbitsInFrame(body, options);
+        body.Static || body.Fixed || FollowsInFrame(body, options);
 
     internal static NumericMode Mode(NumericMode current, Double3 velocity, Double3 center, bool anchored, bool isFixed,
         bool thrusts, NumericFrameOptions options)
@@ -218,19 +219,19 @@ internal static class NumericFrameRules
         bool fast = !anchored && speed >= createSpeed;
         return current switch
         {
-            NumericMode.Falling or NumericMode.Orbiting when !anchored && speed >= leaveSpeed => NumericMode.Falling,
-            NumericMode.Falling or NumericMode.Resting or NumericMode.Orbiting =>
+            NumericMode.Falling or NumericMode.Following when !anchored && speed >= leaveSpeed => NumericMode.Falling,
+            NumericMode.Falling or NumericMode.Resting or NumericMode.Following =>
                 fast ? NumericMode.Falling : distance >= options.LeaveDistance ? NumericMode.Resting : NumericMode.None,
             _ => fast ? NumericMode.Falling : distance >= options.CreateDistance ? NumericMode.Resting : NumericMode.None,
         };
     }
 
     /// <summary>
-    /// The mode that a group gets: <see cref="NumericMode.Orbiting"/> when it takes the orbit frame of its Kepler hull (see
-    /// <see cref="NumericGroup.Orbits"/>), and else the mode of <see cref="Mode"/>.
+    /// The mode that a group gets: <see cref="NumericMode.Following"/> when it takes the following frame of its anchor (see
+    /// <see cref="NumericGroup.Follows"/>), and else the mode of <see cref="Mode"/>.
     /// </summary>
     internal static NumericMode GroupMode(NumericMode current, in NumericGroup group, NumericFrameOptions options) =>
-        group.Orbits ? NumericMode.Orbiting : Mode(current, group.Velocity, group.Center, group.Anchored, group.Fixed, group.Thrusts, options);
+        group.Follows ? NumericMode.Following : Mode(current, group.Velocity, group.Center, group.Anchored, group.Fixed, group.Thrusts, options);
 
     /// <summary>
     /// The mode that a body alone, outside a numeric frame, needs: None when it needs no frame. It uses the speeds of a body
@@ -241,25 +242,25 @@ internal static class NumericFrameRules
     /// <summary>
     /// The mode that a body alone, outside a numeric frame, needs, with the speeds of a body that thrusts when
     /// <paramref name="thrusts"/> is true: None when it needs no frame. A kinematic body never thrusts, and when the speed
-    /// and distance rules of a free body give it a frame, it needs a following frame (see <see cref="OrbitsInFrame"/>).
+    /// and distance rules of a free body give it a frame, it needs a following frame (see <see cref="FollowsInFrame"/>).
     /// Else it is a body as any other: a hull is fixed in its semantic frame's own system, and a plain kinematic body takes
     /// the speeds of a body that thrusts with the semantic frame's other bodies, because it can join the group of one.
     /// </summary>
     internal static NumericMode BodyMode(in NumericBody body, bool thrusts, NumericFrameOptions options) =>
-        body.Orbits && Mode(NumericMode.None, body.Velocity, body.Position, false, false, false, options) != NumericMode.None
-            ? NumericMode.Orbiting
+        body.Follows && Mode(NumericMode.None, body.Velocity, body.Position, false, false, false, options) != NumericMode.None
+            ? NumericMode.Following
             : Mode(NumericMode.None, body.Velocity, body.Position, body.Static, body.Fixed, thrusts, options);
 
     /// <summary>
-    /// True when <paramref name="body"/> is the hull of a Kepler frame that lives in an orbit frame of its own
-    /// (docs/plans/numeric-frames.md, "Anchors", rule 3): when the speed and distance rules that give any body a numeric
-    /// frame give one to the hull alone, by its velocity and its place in its semantic frame. A hull in a numeric frame
-    /// keeps it down to the thresholds to leave one, as any group does. The orbit moves the hull, so its own motion decides,
-    /// never the group that the merge test links it to. Its orbit moves it, so it never thrusts: it uses the speeds of free
-    /// bodies.
+    /// True when <paramref name="body"/>, a body that follows (see <see cref="NumericBody.Follows"/>), lives in a following
+    /// frame of its own as its anchor (docs/plans/numeric-frames.md, "Anchors", rule 3, and "Following frames"): when the
+    /// speed and distance rules that give any body a numeric frame give one to the body alone, by its velocity and its place
+    /// in its semantic frame. A body in a numeric frame keeps it down to the thresholds to leave one, as any group does. Its
+    /// motion intents move the body, so its own motion decides, never the group that the merge test links it to. A kinematic
+    /// body never thrusts, so it uses the speeds of free bodies.
     /// </summary>
-    internal static bool OrbitsInFrame(in NumericBody body, NumericFrameOptions options) =>
-        body.Orbits && Mode(body.HomeMode == NumericMode.None ? NumericMode.None : NumericMode.Falling, body.Velocity, body.Position,
+    internal static bool FollowsInFrame(in NumericBody body, NumericFrameOptions options) =>
+        body.Follows && Mode(body.HomeMode == NumericMode.None ? NumericMode.None : NumericMode.Falling, body.Velocity, body.Position,
             anchored: false, isFixed: false, thrusts: false, options) != NumericMode.None;
 
     /// <summary>
@@ -439,28 +440,30 @@ internal static class NumericFrameRules
     /// The motion of the group <paramref name="members"/>, which is not empty. An anchor counts as infinitely heavy
     /// (docs/plans/numeric-frames.md, "Anchors", rule 2):
     /// <list type="bullet">
-    /// <item>A Kepler hull that lives in an orbit frame of its own (see <see cref="OrbitsInFrame"/>) moves as its orbit
-    /// says, so it adds nothing to the group's motion, and the first such hull among the members is the group's
-    /// <see cref="NumericGroup.Orbiter"/>. Any other Kepler hull is fixed in the semantic frame's own system, as the hull of
-    /// a Static or Spin frame is.</item>
+    /// <item>A body that lives in a following frame of its own (see <see cref="FollowsInFrame"/>) moves as its motion
+    /// intents say, so it adds nothing to the group's motion, and the first such body among the members is the group's
+    /// <see cref="NumericGroup.Anchor"/>. Any other kinematic hull is fixed in the semantic frame's own system, as a static
+    /// hull is, and any other kinematic plain body counts as one below.</item>
     /// <item>A fixed hull, or a body that may touch a ghost fixed in the semantic frame's own system, fixes the group, and a
     /// static body anchors it, with the motion of its static bodies alone: the velocity zero, their center of mass, and as
     /// its frame the numeric frame that holds one of them, the first on a tie, or none when they all lie in the semantic
     /// frame's own system. Then <see cref="Mode"/> gives the group the mode that
     /// its static bodies get alone, so the group takes their home. These anchors rest in the semantic frame, so they win
-    /// over an orbit frame, and each orbiting hull of the group keeps its own frame and a ghost in the group's home.</item>
-    /// <item>A group with an orbiter and no anchor at rest <see cref="NumericGroup.Orbits"/>: it takes the orbiter's orbit
-    /// frame, the orbiter's home when it is in one, or else a new one.</item>
+    /// over a following frame, and each body of the group that follows keeps its own frame and a ghost in the group's home.</item>
+    /// <item>A group with such an anchor and no anchor at rest <see cref="NumericGroup.Follows"/>: it takes the anchor's
+    /// following frame, the anchor's home when it anchors it (see <see cref="NumericBody.AnchorsHome"/>), or else a new
+    /// one.</item>
     /// <item>A group with a kinematic body and no anchor has the velocity and the center of its kinematic bodies alone: no
     /// contact changes their velocity, so the group moves with them, and in a falling frame they are slow, as a door in a
     /// fast crate's group must be, because Jolt gives a kinematic body no linear cast. A kinematic body can move between
-    /// frames, so it is no anchor, and the frame that the group keeps is chosen by the masses as before.</item>
+    /// frames, so it is no anchor while it does not follow, and the frame that the group keeps is chosen by the masses as
+    /// before.</item>
     /// </list>
-    /// A frame that holds a static body of the group, or the orbit frame of its orbiter, has the mass +∞, which only
+    /// A frame that holds a static body of the group, or the following frame of its anchor, has the mass +∞, which only
     /// comparisons read. Those motions are the limits of the mass-weighted means as the anchors' mass grows without bound,
-    /// and no sum multiplies or divides by the infinite mass, which would give NaN. Only the group of its hull keeps an
-    /// orbit frame, so a body in one adds no mass to it. <paramref name="homeMasses"/> is scratch: it ends with each numeric
-    /// home of the group but an orbit frame, and the mass in it, in the order of the members.
+    /// and no sum multiplies or divides by the infinite mass, which would give NaN. Only the group of its anchor keeps a
+    /// following frame, so a body in one adds no mass to it. <paramref name="homeMasses"/> is scratch: it ends with each numeric
+    /// home of the group but a following frame, and the mass in it, in the order of the members.
     /// </summary>
     internal static NumericGroup Summarize(ReadOnlySpan<NumericBody> members, List<(FrameHandle Frame, double Mass)> homeMasses,
         NumericFrameOptions options)
@@ -468,20 +471,20 @@ internal static class NumericFrameRules
         Double3 momentum = Double3.Zero, moment = Double3.Zero, staticMoment = Double3.Zero, kinematicMomentum = Double3.Zero, kinematicMoment = Double3.Zero;
         double movingMass = 0, mass = 0, staticMass = 0, kinematicMass = 0;
         bool anchored = false, isFixed = false, thrusts = false;
-        int orbiter = -1;
+        int anchor = -1;
         homeMasses.Clear();
         for (int i = 0; i < members.Length; i++)
         {
             ref readonly NumericBody body = ref members[i];
-            if (OrbitsInFrame(body, options))
+            if (FollowsInFrame(body, options))
             {
-                if (orbiter < 0)
-                    orbiter = i;
+                if (anchor < 0)
+                    anchor = i;
                 continue;
             }
             anchored |= body.Static;
             isFixed |= body.Fixed || body.MayTouchFixedGhost;
-            // A body that follows is the orbiter above, so only a static or fixed body is an anchor here.
+            // A body that follows is the anchor above, so only a static or fixed body is an anchor here.
             thrusts |= body.Thrusts && !body.Static && !body.Fixed;
             mass += body.Mass;
             moment += body.Position * body.Mass;
@@ -501,7 +504,7 @@ internal static class NumericFrameRules
                 kinematicMomentum += body.Velocity * body.Mass;
                 kinematicMoment += body.Position * body.Mass;
             }
-            if (body.Home == body.Semantic || body.HomeMode == NumericMode.Orbiting)
+            if (body.Home == body.Semantic || body.HomeMode == NumericMode.Following)
                 continue;
             // ∞ + m and ∞ + ∞ are exact, so the sum stays +∞ once a static body is in it.
             double weight = body.Static ? double.PositiveInfinity : body.Mass;
@@ -513,11 +516,11 @@ internal static class NumericFrameRules
             else
                 homeMasses[h] = (body.Home, homeMasses[h].Mass + weight);
         }
-        if (orbiter >= 0 && !anchored && !isFixed)
+        if (anchor >= 0 && !anchored && !isFixed)
         {
-            ref readonly NumericBody hull = ref members[orbiter];
-            FrameHandle orbit = hull.AnchorsHome ? hull.Home : FrameHandle.Null;
-            return new NumericGroup(Double3.Zero, hull.Position, false, false, orbit, orbit.IsNull ? 0 : double.PositiveInfinity, orbiter, true, thrusts);
+            ref readonly NumericBody follower = ref members[anchor];
+            FrameHandle following = follower.AnchorsHome ? follower.Home : FrameHandle.Null;
+            return new NumericGroup(Double3.Zero, follower.Position, false, false, following, following.IsNull ? 0 : double.PositiveInfinity, anchor, true, thrusts);
         }
         FrameHandle frame = FrameHandle.Null;
         double frameMass = 0;
@@ -529,7 +532,7 @@ internal static class NumericFrameRules
             (frame, frameMass) = (FrameHandle.Null, 0);
         Double3 velocity = anchored || movingMass == 0 ? Double3.Zero : kinematicMass > 0 ? kinematicMomentum / kinematicMass : momentum / movingMass;
         Double3 center = anchored ? staticMoment / staticMass : kinematicMass > 0 ? kinematicMoment / kinematicMass : moment / mass;
-        return new NumericGroup(velocity, center, anchored, isFixed, frame, frameMass, orbiter, Thrusts: thrusts);
+        return new NumericGroup(velocity, center, anchored, isFixed, frame, frameMass, anchor, Thrusts: thrusts);
     }
 
     /// <summary>

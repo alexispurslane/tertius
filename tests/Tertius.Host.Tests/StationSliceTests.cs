@@ -31,7 +31,7 @@ public sealed class StationRun : CheckedInRun
 /// <param name="Time">The world's time, in seconds.</param>
 /// <param name="Bodies">The pods and the crate, by scene id.</param>
 /// <param name="HullHome">The physics home of the station's hull.</param>
-/// <param name="HullHomeMode">How the hull's home moves: <see cref="NumericMode.Orbiting"/> for its orbit frame.</param>
+/// <param name="HullHomeMode">How the hull's home moves: <see cref="NumericMode.Following"/> for its orbit frame.</param>
 /// <param name="HullOffEarthOrbit">How far the read of the hull's place in earth lies from its orbit's place, in meters.</param>
 internal sealed record StationSample(long Tick, double Time, IReadOnlyDictionary<string, StationBody> Bodies, FrameHandle HullHome,
     NumericMode HullHomeMode, double HullOffEarthOrbit)
@@ -122,7 +122,7 @@ public sealed class StationSliceTests(StationRun run) : IClassFixture<StationRun
     [Fact]
     public void ThePodsLeaveTheBubbleIntoTheStationHullsOrbitFrameAndDriftThereForSecondsBeforeTheyBump()
     {
-        Samples.Skip(1).Should().OnlyContain(s => s.HullHomeMode == NumericMode.Orbiting, "the station's hull rests in its orbit frame");
+        Samples.Skip(1).Should().OnlyContain(s => s.HullHomeMode == NumericMode.Following, "the station's hull rests in its orbit frame");
         Samples.Skip(1).Select(s => s.HullHome).Distinct().Should().ContainSingle("the hull keeps one orbit frame");
         for (int i = 0; i < Station.Pods.Count; i++)
         {

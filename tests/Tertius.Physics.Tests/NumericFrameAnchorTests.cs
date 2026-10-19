@@ -580,7 +580,7 @@ public class NumericFrameAnchorTests
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = Rock });
         Tick(world, 2);
         FrameHandle orbit = world.PhysicsHomeOf(hull);
-        world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(orbit).Should().Be(NumericMode.Following);
         faults.Jolt.HasGhostIn(hull, space).Should().BeTrue("the rock's home keeps a ghost of the Kepler hull");
 
         world.SetMotionNextTick(hull, BodyMotion.Static, remove: world.GetComponent<KeplerMotion>(hull));

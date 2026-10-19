@@ -89,7 +89,7 @@ public sealed partial class World
                 // moves only by its motion intents and teleports, so it lives in a following frame of its own when they move
                 // it fast or far (docs/plans/numeric-frames.md, "Following frames").
                 Fixed = !own.IsNull && motion != BodyMotion.Dynamic,
-                Orbits = motion == BodyMotion.Kinematic,
+                Follows = motion == BodyMotion.Kinematic,
                 Sensor = desc.IsSensor,
                 OwnedFrame = own,
             });

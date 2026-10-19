@@ -581,7 +581,7 @@ public partial class NumericFrameStickOutGhostTests
         withoutNumericFrames.HitTick.Should().BeInRange(87, 94, "the ghost of the crate in the planet's system stops the rock");
         withoutNumericFrames.RockInStation.X.Should().BeGreaterThan(1.4, "the rock did not pass through the crate");
         withNumericFrames.HitInHullHome.Should().BeTrue("the rock may touch the ghost of the crate, so it joined the orbit frame of the station's hull, where the ghost lives");
-        withNumericFrames.HitMode.Should().Be(NumericMode.Orbiting);
+        withNumericFrames.HitMode.Should().Be(NumericMode.Following);
         withNumericFrames.HitTick.Should().BeInRange(withoutNumericFrames.HitTick - 1, withoutNumericFrames.HitTick + 1,
             "the rock meets the ghost of the crate in the hull's orbit frame as it does in the planet's system");
         withNumericFrames.RockInStation.X.Should().BeApproximately(withoutNumericFrames.RockInStation.X, 0.05);

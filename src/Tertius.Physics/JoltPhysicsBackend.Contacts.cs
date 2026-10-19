@@ -244,14 +244,14 @@ public sealed partial class JoltPhysicsBackend
     /// update linked the other body to the body that entered, not to the hull, so the other body can live in another frame
     /// of the semantic parent: a numeric frame, or the semantic parent's own system while the ghost is in a numeric frame.
     /// Without numeric frames, the ghost in the semantic parent's own system takes the contact over.</item>
-    /// <item>A body that leaves a frame whose hull lives apart from its group, in an orbit frame of its own, leaves into
-    /// that orbit frame, and drops its ghost in the home of the group (see <see cref="WantGhostsBesideHull"/>), where the
+    /// <item>A body that leaves a frame whose hull lives apart from its group, in a following frame of its own, leaves into
+    /// that following frame, and drops its ghost in the home of the group (see <see cref="WantGhostsBesideHull"/>), where the
     /// bodies that the merge test linked to the hull live. Without numeric frames, those bodies lie in the semantic
     /// parent's own system, where the body goes, and it takes the contact over there.</item>
     /// </list>
     /// <para>
     /// The next sync point's numeric update links the touching bodies, which puts them in one system, also a static body
-    /// and a body that falls, or names the home of their group for the ghost of a Kepler hull, whose ghost the next ghost
+    /// and a body that falls, or names the home of their group for the ghost of the anchor of a following frame, whose ghost the next ghost
     /// pass makes. So the rule is: a contact that no system takes over waits for the next call with its count, as the
     /// contacts of a move between numeric frames do, when a hand-off of the step moved a body of it, and a body of it or a
     /// ghost of one is in a numeric frame (see <see cref="InNumericFrame"/>). That call settles it for good. A contact that

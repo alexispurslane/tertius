@@ -143,7 +143,7 @@ public class CharacterFormNumericFrameTests
         FrameHandle home = world.PhysicsHomeOf(person);
         if (numericFrames)
         {
-            world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting);
+            world.Frames.Numeric(home).Should().Be(NumericMode.Following);
             home.Should().Be(world.PhysicsHomeOf(hull), "the character shares the hull's orbit frame");
             faults.Jolt.HasRigidForm(person).Should().BeTrue("the orbit frame falls with the hull, so only the tidal pull acts in it");
         }
@@ -252,7 +252,7 @@ public class CharacterFormNumericFrameTests
         }
 
         states.Should().Equal(!numericFrames ? ["station rigid", "earth rigid", "earth walking"]
-            : plate ? ["station rigid", "Orbiting rigid"]
+            : plate ? ["station rigid", "Following rigid"]
             : ["station rigid", "Falling rigid"], "a hand-off keeps the form, and the next step takes the form of the new home's gravity");
         ghostWhileRigid.Should().BeTrue("a rigid character that sticks out of the bubble is partly in the station's tree parent");
         world.GetFrame(person).Should().Be(earth);

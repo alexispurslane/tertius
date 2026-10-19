@@ -112,8 +112,8 @@ public class RailsFollowTests
         AssertOnItsOrbitForTenMinutes(world, owner, space, Fast, () =>
         {
             FrameHandle home = world.PhysicsHomeOf(owner);
-            if (world.Frames.Numeric(home) != NumericMode.Orbiting)
-                world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting, "a fast hull lives in an orbit frame of its own");
+            if (world.Frames.Numeric(home) != NumericMode.Following)
+                world.Frames.Numeric(home).Should().Be(NumericMode.Following, "a fast hull lives in an orbit frame of its own");
         });
     }
 
@@ -129,7 +129,7 @@ public class RailsFollowTests
 
         MotionSample sample = faults.Moves.Single(record => record.Entity == frame.Entity && record.Tick == world.TickNumber - 1).Sample;
         FrameHandle orbitFrame = world.Frames.TreeParent(frame);
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following);
         world.Frames.TreeLocalPose(orbitFrame).Position.Should().Be(sample.Pose.Position);
         world.Frames.LinearVelocity(orbitFrame).Should().Be(sample.ChordVelocity);
         world.Frames.TreeLocalPose(frame).Should().Be(new DPose(Double3.Zero, sample.Pose.Rotation));
@@ -316,7 +316,7 @@ public class RailsFollowTests
         Tick(world, 2);
 
         world.PoseIn(owner, space).Should().Be(RailsPose(next, world.Time));
-        world.Frames.Numeric(world.PhysicsHomeOf(owner)).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(world.PhysicsHomeOf(owner)).Should().Be(NumericMode.Following);
         // The crate flew on at 2 km/s for two steps; it stayed out of the hull's jump of 4.8 km.
         (world.PoseIn(crate, space).Position - crateBefore).Length.Should().BeLessThan(100);
         world.Errors.Should().BeEmpty();
@@ -339,7 +339,7 @@ public class RailsFollowTests
 
         Tick(world, 3);
 
-        world.Frames.Numeric(world.PhysicsHomeOf(owner)).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(world.PhysicsHomeOf(owner)).Should().Be(NumericMode.Following);
         world.PoseIn(owner, space).Should().Be(new DPose(new Double3(1e7, 0, 0), turning.RotationAt(world.Time)));
         world.Errors.Should().BeEmpty();
     }
@@ -380,7 +380,7 @@ public class RailsFollowTests
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 5);
         FrameHandle orbitFrame = world.PhysicsHomeOf(owner);
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following);
         world.RemoveComponent(owner, world.GetComponent<KeplerMotion>(owner)!);
         world.Tick();
         Double3 place = world.Frames.TreeLocalPose(orbitFrame).Position;
@@ -399,7 +399,7 @@ public class RailsFollowTests
         }
 
         world.PhysicsHomeOf(owner).Should().Be(orbitFrame, "the hull stays in its orbit frame");
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting, "the hull is still kinematic");
+        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following, "the hull is still kinematic");
         (world.Frames.TreeLocalPose(orbitFrame).Position - place).Length.Should().BeLessThan(1e-6);
         world.Frames.TreeLocalPose(frame).Position.Should().Be(Double3.Zero, "the hull holds still at the orbit frame's origin");
         // It moves with the orbit frame, whose instant velocity is half a step of the step's pull past its chord.
@@ -611,7 +611,7 @@ public class RailsFollowTests
         Entity owner = Hull(world, space, FastStill);
         Tick(world, 5);
         FrameHandle orbitFrame = world.PhysicsHomeOf(owner);
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following);
         world.RemoveComponent(owner, world.GetComponent<KeplerMotion>(owner)!);
         if (next is not null)
             world.AddComponent(owner, next);
@@ -689,7 +689,7 @@ public class RailsFollowTests
         Tick(world, 6);
 
         FrameHandle orbitFrame = world.PhysicsHomeOf(station);
-        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(orbitFrame).Should().Be(NumericMode.Following);
         world.PhysicsHomeOf(ship).Should().Be(orbitFrame, "the ship joined the station's orbit frame");
         MotionSample sample = faults.Moves.Single(record => record.Entity == stationFrame.Entity && record.Tick == world.TickNumber - 1).Sample;
         // Physics releases the ship's record in the orbit frame, with Jolt's chord there and the acceleration that the step

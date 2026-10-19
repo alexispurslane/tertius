@@ -5,7 +5,7 @@ using Tertius.Frames.Rails;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// Orbit frames (<see cref="NumericMode.Orbiting"/>, docs/plans/numeric-frames.md, "Anchors", rule 3) on a tree built in
+/// Orbit frames (<see cref="NumericMode.Following"/>, docs/plans/numeric-frames.md, "Anchors", rule 3) on a tree built in
 /// the test: the kinematic hull of a frame whose samples move it fast or far in its semantic frame lives in a numeric frame
 /// of its own, K, that follows the frame's motion samples (docs/plans/rails-components.md, "Numeric frames"), and the hull's
 /// frame hangs at K's origin. The tests hand the tree the intents of each step, with the samples as the owners' motion
@@ -91,7 +91,7 @@ public class FrameTreeOrbitFrameTests
         frames.Update();
         frames.BeginNumericStep(intents, Step);
         MotionSample record = sample;
-        if (frames.InOrbitFrame(station))
+        if (frames.InFollowingFrame(station))
         {
             frames.AdvanceNumericFrames(Step);
             frames.PlaceFollowingFrame(frames.TreeParent(station));
@@ -126,7 +126,7 @@ public class FrameTreeOrbitFrameTests
             Radius = 5,
             Mass = 1e5,
             Fixed = true,
-            Orbits = true,
+            Follows = true,
             OwnedFrame = station,
         };
     }
@@ -180,7 +180,7 @@ public class FrameTreeOrbitFrameTests
 
         FrameHandle orbit = Update(Hull(station))[0].Home;
 
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
         frames.TreeParent(orbit).Should().Be(earth);
         frames.TreeParent(station).Should().Be(orbit, "the hull's frame hangs under the hull's home, as a ship's frame does");
         frames.Parent(station).Should().Be(earth, "gameplay sees the semantic tree");
@@ -300,7 +300,7 @@ public class FrameTreeOrbitFrameTests
         frames.Update();
         frames.BeginNumericStep([], Step);
 
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting, "the hull is still kinematic");
+        frames.Numeric(orbit).Should().Be(NumericMode.Following, "the hull is still kinematic");
         frames.HomeAcceleration(orbit, earth).Should().Be(GravityField.Point(EarthMu).AtPrecise(place), "the field of earth at its origin pulls it");
     }
 
@@ -328,7 +328,7 @@ public class FrameTreeOrbitFrameTests
             + sample.Pose.Rotation.Rotate((Double3)frames.ProperAcceleration(station));
         Double3 chord = sample.Velocity - acceleration * (Step / 2);
         frames.ProperAcceleration(station).Should().NotBe(Vector3.Zero);
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
         frames.TreeLocalPose(orbit).Position.Should().Be(sample.Pose.Position);
         frames.LinearVelocity(orbit).Should().Be(chord, "the anchor's instant velocity less half a step of the acceleration that its row keeps");
         frames.TreeLocalPose(station).Should().Be(new DPose(Double3.Zero, sample.Pose.Rotation));
@@ -415,7 +415,7 @@ public class FrameTreeOrbitFrameTests
         frames.Update();
         frames.BeginNumericStep(Moving(station, new MotionIntent(new EndPose(new DPose(place + velocity * Step, DQuaternion.Identity)))), Step);
 
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
         frames.LinearVelocity(orbit).Should().Be(velocity, "the anchor's velocity is the chord of its end poses");
         frames.HomeAcceleration(orbit, ship).Length.Should().BeLessThan(1e-9, "an end pose at a steady velocity has no acceleration");
     }
@@ -446,7 +446,7 @@ public class FrameTreeOrbitFrameTests
 
         FrameHandle orbit = Update(Hull(station))[0].Home;
 
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
         frames.LinearVelocity(orbit).Should().Be(velocity, "nothing pulls or pushes in the new ship");
     }
 
@@ -459,8 +459,8 @@ public class FrameTreeOrbitFrameTests
 
         FrameHandle orbit = Update(Hull(station) with { Velocity = Double3.Zero })[0].Home;
 
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
-        frames.InOrbitFrame(station).Should().BeTrue();
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
+        frames.InFollowingFrame(station).Should().BeTrue();
     }
 
     [Fact]
@@ -606,8 +606,8 @@ public class FrameTreeOrbitFrameTests
 
         NumericBody[] after = Update(Hull(first), Hull(second), Crate(12, place + new Double3(0, 3, 0), velocity));
 
-        frames.Numeric(after[0].Home).Should().Be(NumericMode.Orbiting);
-        frames.Numeric(after[1].Home).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Following);
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Following);
         after[1].Home.Should().NotBe(after[0].Home, "each hull rests in an orbit frame of its own");
         after[2].Home.Should().Be(after[0].Home, "the group takes the orbit frame of its first hull");
         frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(second.Entity, after[0].Home));
@@ -622,7 +622,7 @@ public class FrameTreeOrbitFrameTests
             GravityField.Point(1e-9));
         FrameHandle station = Station(10, KeplerOrbit.Circular(1e7), space);
         FrameHandle orbit = Update(Hull(station))[0].Home;
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
 
         KeplerOrbit near = KeplerOrbit.Circular(1_000);
         Sync(station, near, Start);
@@ -644,7 +644,7 @@ public class FrameTreeOrbitFrameTests
         frames.PlanHullMotion(station, BodyMotion.Dynamic);
 
         frames.Numeric(orbit).Should().Be(NumericMode.Falling, "a frame with a dynamic hull may hang in a falling frame");
-        frames.InOrbitFrame(station).Should().BeFalse();
+        frames.InFollowingFrame(station).Should().BeFalse();
         frames.LinearVelocity(orbit).Should().Be(velocity, "it falls on from where it was");
         frames.TreeParent(station).Should().Be(orbit);
         frames.HullMotion(station).Should().Be(BodyMotion.Kinematic, "the stored motion changes only after the next step");
@@ -666,7 +666,7 @@ public class FrameTreeOrbitFrameTests
 
         frames.PlanHullMotion(station, BodyMotion.Dynamic);
 
-        frames.InOrbitFrame(station).Should().BeFalse();
+        frames.InFollowingFrame(station).Should().BeFalse();
         frames.OwnerView(station).Should().Be(before);
         frames.OwnerViewStamp.Should().Be(stamp);
     }
@@ -679,8 +679,8 @@ public class FrameTreeOrbitFrameTests
 
         frames.PlanHullMotion(station, BodyMotion.Kinematic);
 
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
-        frames.InOrbitFrame(station).Should().BeTrue();
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
+        frames.InFollowingFrame(station).Should().BeTrue();
         frames.AssertInvariants();
     }
 
@@ -696,8 +696,8 @@ public class FrameTreeOrbitFrameTests
 
         frames.SetHullMotion(station, BodyMotion.Dynamic);
 
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
-        frames.InOrbitFrame(station).Should().BeTrue();
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
+        frames.InFollowingFrame(station).Should().BeTrue();
     }
 
     /// <summary>
@@ -720,12 +720,12 @@ public class FrameTreeOrbitFrameTests
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
-        frames.InOrbitFrame(station).Should().BeTrue();
+        frames.InFollowingFrame(station).Should().BeTrue();
 
         frames.SetTreeLocalPose(station, new DPose(new Double3(1, 0, 0), frames.TreeLocalPose(station).Rotation));
 
         frames.Invoking(tree => tree.AssertInvariants()).Should().Throw<ContractException>();
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
     }
 
     [Fact]
@@ -740,7 +740,7 @@ public class FrameTreeOrbitFrameTests
         frames.Reparent(station, earth);
 
         frames.Numeric(orbit).Should().Be(NumericMode.Falling, "the crate falls on in it");
-        frames.InOrbitFrame(station).Should().BeFalse();
+        frames.InFollowingFrame(station).Should().BeFalse();
         frames.AssertInvariants();
     }
 
@@ -774,7 +774,7 @@ public class FrameTreeOrbitFrameTests
         frames.Destroy(raft);
 
         frames.AnchorGhosts.IsEmpty.Should().BeTrue();
-        frames.InOrbitFrame(station).Should().BeTrue("the hull's own frame did not change");
+        frames.InFollowingFrame(station).Should().BeTrue("the hull's own frame did not change");
     }
 
     [Fact]
@@ -808,7 +808,7 @@ public class FrameTreeOrbitFrameTests
 
         NumericBody[] after = Update(Hull(station), Crate(11, place + new Double3(2, 0, 0), velocity + new Double3(60, 0, 0)));
 
-        frames.Numeric(after[0].Home).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(after[0].Home).Should().Be(NumericMode.Following);
         after[1].Home.Should().Be(after[0].Home, "the hull counts as infinitely heavy, so the group takes its home");
         frames.AnchorGhosts.IsEmpty.Should().BeTrue("the hull is a real body of the group's system");
     }

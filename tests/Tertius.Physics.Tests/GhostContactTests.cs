@@ -430,7 +430,7 @@ public class GhostContactTests
                 world.PhysicsHomeOf(ball).Should().Be(ground, "without numeric frames the ball runs in the system of ground");
         }
         world.PoseIn(ball, ground).Position.X.Should().BeGreaterThan(2_500, "the ball flew through the box");
-        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(numericFrames ? NumericMode.Orbiting : NumericMode.None,
+        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(numericFrames ? NumericMode.Following : NumericMode.None,
             "out of the merge test's reach, the ball at 1,200 m/s keeps its following frame, when there are numeric frames");
         world.Errors.Should().BeEmpty();
         return (boxLog.NewsOf(ball), ballLog.NewsOf(box), ghostOfTheBox);
@@ -544,7 +544,7 @@ public class GhostContactTests
         Entity box = Scenes.FastKeplerHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic));
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
         Tick(world, 2);
-        world.Frames.Numeric(world.PhysicsHomeOf(box)).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(world.PhysicsHomeOf(box)).Should().Be(NumericMode.Following);
         NamesAnchor(world, box, space).Should().BeTrue();
         faults.Jolt.HasGhostIn(box, space).Should().BeTrue();
 

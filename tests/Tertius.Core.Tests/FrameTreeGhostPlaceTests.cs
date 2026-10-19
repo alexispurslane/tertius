@@ -881,7 +881,7 @@ public class FrameTreeGhostPlaceTests
         frames.SetHullMotion(station, BodyMotion.Kinematic);
         frames.SetTreeLinearVelocity(station, velocity);
         FrameHandle orbit = Update(0.1, KeplerHull(station))[0].Home;
-        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
         NumericBody pod = SpaceBody(space, 10, place + Y(41.5), velocity);
         NumericBody rock = SpaceBody(space, 12, place + Y(56.5), Double3.Zero) with { Static = true };
 
@@ -910,7 +910,7 @@ public class FrameTreeGhostPlaceTests
             Mass = 1e5,
             Kinematic = true,
             Fixed = true,
-            Orbits = true,
+            Follows = true,
             OwnedFrame = station,
         };
     }

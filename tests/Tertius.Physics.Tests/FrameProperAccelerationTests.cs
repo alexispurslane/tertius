@@ -59,7 +59,7 @@ public class FrameProperAccelerationTests
             AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(radius))));
         Tick(world, 3);
-        world.Frames.InOrbitFrame(moon).Should().Be(kind == "kinematic hull in a following frame");
+        world.Frames.InFollowingFrame(moon).Should().Be(kind == "kinematic hull in a following frame");
 
         for (int tick = 0; tick < 30; tick++)
         {

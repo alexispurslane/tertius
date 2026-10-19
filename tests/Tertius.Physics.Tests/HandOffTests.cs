@@ -240,7 +240,7 @@ public class HandOffTests
             TickUntil(world, () => world.GetFrame(ball) == planet, 1200);
             if (numericFrames)
             {
-                world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Orbiting,
+                world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Following,
                     "the station's hull rests in an orbit frame of its own when the ball leaves");
                 world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Falling,
                     "the sync point of the hand-off moves the ball into a falling frame of its own");

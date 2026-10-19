@@ -298,7 +298,7 @@ public class WorldNumericFrameTests
         Tick(world, 30);
 
         world.Errors.Should().BeEmpty();
-        world.Frames.Numeric(world.PhysicsHomeOf(person)).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(world.PhysicsHomeOf(person)).Should().Be(NumericMode.Following);
         world.Frames.Anchors(world.PhysicsHomeOf(person), floor).Should().BeTrue("the floor anchors the person's home");
         world.Frames.HomeAcceleration(world.PhysicsHomeOf(person), ground).Should().Be(new Double3(0, -9.81f, 0), "the home falls with the field");
         world.PhysicsHomeOf(floor).Should().Be(world.PhysicsHomeOf(person));

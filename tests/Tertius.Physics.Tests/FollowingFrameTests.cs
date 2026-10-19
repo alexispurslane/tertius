@@ -68,7 +68,7 @@ public class FollowingFrameTests
         {
             world.Tick();
             FrameHandle home = world.PhysicsHomeOf(owner);
-            world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting, "the hull moves at 2 km/s, so it lives in a following frame");
+            world.Frames.Numeric(home).Should().Be(NumericMode.Following, "the hull moves at 2 km/s, so it lives in a following frame");
             world.Frames.TreeParent(frame).Should().Be(home, "the hull's frame hangs at the origin of the following frame");
 
             for (int tick = 0; tick < 600; tick++)
@@ -111,7 +111,7 @@ public class FollowingFrameTests
                 if (home == hullHome)
                     fastest = Math.Max(fastest, (world.VelocityIn(crate, space) - world.Frames.LinearVelocity(home)).Length);
             }
-            world.Frames.Numeric(world.PhysicsHomeOf(owner)).Should().Be(NumericMode.Orbiting);
+            world.Frames.Numeric(world.PhysicsHomeOf(owner)).Should().Be(NumericMode.Following);
             homes.Should().Equal(["hull's frame", "following frame"], "the crate leaves into the frame's tree parent and stays linked to the hull");
             world.GetFrame(crate).Should().Be(space, "gameplay sees the crate in space");
             fastest.Should().BeInRange(0.9, 1.1, "the crate is slow in the following frame");
@@ -152,7 +152,7 @@ public class FollowingFrameTests
         {
             Tick(world, 2);
             FrameHandle home = world.PhysicsHomeOf(ball);
-            world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting, "the ball moves at 2 km/s, so it lives in a following frame");
+            world.Frames.Numeric(home).Should().Be(NumericMode.Following, "the ball moves at 2 km/s, so it lives in a following frame");
             world.Frames.Anchors(home, ball).Should().BeTrue("the ball is the anchor of its following frame");
             world.Frames.TreeParent(home).Should().Be(space);
 

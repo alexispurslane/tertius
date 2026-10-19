@@ -351,7 +351,7 @@ public sealed partial class JoltPhysicsBackend
     /// <see cref="BubbleOf"/>) has a ghost in that frame's tree parent, the home of the frame's hull, also when the home is
     /// a numeric frame below it. The numeric update links each body of the semantic parent that may touch such a ghost to
     /// the frame's hull, so that body lives in the same home (ticket ter-4psc), and no other system of the semantic parent
-    /// needs a ghost of it. The one exception is a hull that lives apart from its group, in an orbit frame of its own, and
+    /// needs a ghost of it. The one exception is a hull that lives apart from its group, in a following frame of its own, and
     /// that the home of its group keeps a ghost of (see <see cref="FrameTree.AnchorGhosts"/>): the frame hangs in the orbit
     /// frame, so the body has a ghost in each such home too. The body also meets the bubbles that the members of the
     /// parent's system meet, the semantic siblings of the frame, wherever they hang among numeric frames. A static body
@@ -573,7 +573,7 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Keeps a ghost of the record's body, which sticks out of the frame of <paramref name="hull"/>, in each home of a group
     /// that the numeric update names to keep a ghost of that hull (see <see cref="FrameTree.AnchorGhosts"/>). The hull lives
-    /// apart from its group, in an orbit frame of its own, which is <paramref name="parent"/>, the frame's tree parent, and
+    /// apart from its group, in a following frame of its own, which is <paramref name="parent"/>, the frame's tree parent, and
     /// the group links the bodies of the semantic parent that may touch the body's ghost (ticket ter-4psc). The body's ghost
     /// in <paramref name="parent"/> is at <paramref name="pose"/> with <paramref name="linearVelocity"/> and
     /// <paramref name="angularVelocity"/> there. The ghost in each home goes where that ghost will be relative to the home at
@@ -696,7 +696,7 @@ public sealed partial class JoltPhysicsBackend
     /// of the home's semantic frame, whose bubble a body that sticks out of that frame's bubble touches.</item>
     /// <item>The home of a group that keeps a ghost of the anchor (see <see cref="FrameTree.AnchorGhosts"/>).</item>
     /// <item>The home of a group that keeps a ghost of the hull of the home's semantic frame: that hull lives apart from
-    /// the group, in an orbit frame of its own, so a body that sticks out of the frame's bubble is partly there too (see
+    /// the group, in a following frame of its own, so a body that sticks out of the frame's bubble is partly there too (see
     /// <see cref="WantGhostsBesideHull"/>).</item>
     /// </list>
     /// Apart from the tree parent, these frames are never numeric unless a group keeps a ghost of an anchor there. A record
@@ -839,9 +839,9 @@ public sealed partial class JoltPhysicsBackend
             foreach (BodyRecord record in world.ReportedLast)
                 if (record.ReportedStep != stepIndex && record.World == world && Find(record.Entity) == record)
                     Report(world, record, output, track: false);
-            // A falling numeric frame or an orbit frame moves, so its sleeping and static members move in its semantic frame
+            // A falling numeric frame or a following frame moves, so its sleeping and static members move in its semantic frame
             // too.
-            if (frames.Numeric(world.Frame) is NumericMode.Falling or NumericMode.Orbiting)
+            if (frames.Numeric(world.Frame) is NumericMode.Falling or NumericMode.Following)
                 foreach (BodyRecord member in world.Members)
                     if (member.ReportedStep != stepIndex && !member.IsHull)
                         Report(world, member, output, track: false);
@@ -882,16 +882,16 @@ public sealed partial class JoltPhysicsBackend
     /// (see <see cref="ApplyBodyIntent"/>). Any other static hull, and a kinematic hull without a motion intent, held still, and the
     /// sync point holds its frame still in its home (see <see cref="FrameTree.TakeStepRecords"/>). A record is relative to the
     /// frame's tree parent, the hull's home, so a frame that a hand-off moved this step reports relative to its new parent,
-    /// and a hull at the origin of its orbit frame reports at that origin.
+    /// and a hull at the origin of its following frame reports at that origin.
     /// <para>
     /// The tree keeps the velocity of a frame in a numeric home relative to the home's frame velocity, the chord of the
     /// step, so that a read in the semantic parent gives the frame's instant velocity, and a hull that physics places from
     /// the tree again takes the velocity that it had (see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>).
     /// Physics keeps a velocity relative to the home's instant velocity. So each record that physics releases adds the
     /// home's instant velocity past its chord (see <see cref="FrameTree.HomeInstantVelocityOverChord"/>), zero in a semantic
-    /// home. A hull at the origin of its orbit frame rests there, so its record keeps just that term: for an orbit frame
-    /// whose hull has a step plan, the plan's instant velocity less the plan's chord, which is the orbit frame's frame
-    /// velocity after the step (see <see cref="FrameTree.PlaceFollowingFrame"/>). Every other frame in that orbit frame adds
+    /// home. A hull at the origin of its following frame rests there, so its record keeps just that term: for a following frame
+    /// whose hull has a step plan, the plan's instant velocity less the plan's chord, which is the following frame's frame
+    /// velocity after the step (see <see cref="FrameTree.PlaceFollowingFrame"/>). Every other frame in that following frame adds
     /// the same term, so it reads its velocity in the semantic parent relative to the hull's.
     /// </para>
     /// </summary>

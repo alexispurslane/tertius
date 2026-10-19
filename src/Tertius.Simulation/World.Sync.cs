@@ -83,7 +83,7 @@ public sealed partial class World
 
         // 2. The falling numeric frames move over the step that physics made, with the acceleration that physics used.
         //    Then a check of the whole report and the hand-offs' reparents, which decides the skipped updates, then each
-        //    orbit frame takes its anchor's step plan, then body states and hand-offs, whose rows take the new places of their
+        //    following frame takes its anchor's step plan, then body states and hand-offs, whose rows take the new places of their
         //    numeric homes, exactly. Then every frame takes its step record and every frame owner mirrors its frame (see
         //    FollowOwners): a record from physics is relative to the parent after the hand-offs, and every record must land
         //    before step 5 can destroy that parent or move the frame, so that a write in the tick in which a frame's parent
@@ -204,7 +204,7 @@ public sealed partial class World
 
     /// <summary>
     /// Step 2: the check of the report and the frame owners' reparents of the hand-offs, then the frames' step records and
-    /// the orbit frames that their anchors' step plans place, then body states and hand-offs into the back table, then whether
+    /// the following frames that their anchors' step plans place, then body states and hand-offs into the back table, then whether
     /// physics stood each character. The frames take their records after this (see <see cref="FollowOwners"/>), and the
     /// contacts come last (see <see cref="RouteStepContacts"/>).
     /// </summary>
@@ -269,7 +269,7 @@ public sealed partial class World
     private void PlaceFollowingFrames()
     {
         foreach ((FrameHandle frame, FrameStepRecord record) in stepRecords)
-            if (record.Motion.Pose.Position == Double3.Zero && Frames.InOrbitFrame(frame))
+            if (record.Motion.Pose.Position == Double3.Zero && Frames.InFollowingFrame(frame))
                 Frames.PlaceFollowingFrame(Frames.TreeParent(frame));
         plainAnchorJumps.Clear();
         if (Frames.NumericCount == 0)
@@ -299,7 +299,7 @@ public sealed partial class World
     /// Release build (see <see cref="SkipBrokenPhysicsUpdates"/>), or the owner has a hull and the step failed
     /// (<paramref name="stepFailed"/>), so that physics released no record and may have moved the hull or not. Then the
     /// frame keeps its state. After a step that failed, a frame without a hull takes its owner's motion intent, or holds
-    /// still without one, as after any other step. Then an orbit frame whose anchor's hull teleported jumps with it (see
+    /// still without one, as after any other step. Then a following frame whose anchor's hull teleported jumps with it (see
     /// <see cref="FrameTree.JumpFollowingFrame"/>), and the rows of the bodies in it and the bodies in physics shift at once.
     /// Last, every frame owner mirrors its frame, whose state changed; a body state of a hull wrote no row.
     /// </summary>
@@ -315,7 +315,7 @@ public sealed partial class World
         bool jumped = false;
         foreach ((FrameHandle frame, FrameStepRecord record) in stepRecords)
         {
-            if (record.Motion.Pose.Position == Double3.Zero || !Frames.InOrbitFrame(frame))
+            if (record.Motion.Pose.Position == Double3.Zero || !Frames.InFollowingFrame(frame))
                 continue;
             Frames.JumpFollowingFrame(Frames.TreeParent(frame), record.Motion, physicsChanges);
             jumped = true;
@@ -329,7 +329,7 @@ public sealed partial class World
         }
         if (jumped)
         {
-            // The rows of the bodies that stay lose the orbit frame's move, as for a drain, and physics shifts their bodies
+            // The rows of the bodies that stay lose the following frame's move, as for a drain, and physics shifts their bodies
             // and the hull in one batch.
             foreach (FrameShift shift in physicsChanges.FramesShifted)
                 foreach (Entity entity in entities.LiveEntities)

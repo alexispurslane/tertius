@@ -58,7 +58,7 @@ public class PoseAtNextStepStartTests
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity hull = Scenes.FastKeplerHull(world, space, Ball() with { Motion = BodyMotion.Kinematic });
         Tick(world, 10);
-        world.Frames.Numeric(world.Frames.TreeParent(world.GetOwnedFrame(hull))).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(world.Frames.TreeParent(world.GetOwnedFrame(hull))).Should().Be(NumericMode.Following);
 
         (Seen gap, Seen after) = ReadAcrossAStepWithoutAMotionIntent(world, hull, world.GetComponent<KeplerMotion>(hull)!);
 
@@ -81,7 +81,7 @@ public class PoseAtNextStepStartTests
         Entity ball = world.Spawn(KinematicDrift.Drifting(new SpawnDesc { Frame = space, Body = Ball() with { Motion = BodyMotion.Kinematic } },
             world, new Double3(1_200, 0, 0)));
         Tick(world, 10);
-        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Following);
 
         (Seen gap, Seen after) = ReadAcrossAStepWithoutAMotionIntent(world, ball, world.GetComponent<KinematicDrift>(ball)!);
 

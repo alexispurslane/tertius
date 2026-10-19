@@ -256,7 +256,7 @@ public sealed class OutlineRenderTests
         {
             RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.4f, 0.8f, 0.5f));
             snapshot.Outlines.Add(new FallingOutline(new Vector3(0, 0, -10), 2));
-            snapshot.Outlines.Add(new OrbitingOutline(new Vector3(0, 0, -10), 3));
+            snapshot.Outlines.Add(new FollowingOutline(new Vector3(0, 0, -10), 3));
             snapshot.Outlines.Add(new FallingOutline(new Vector3(0, 0, 30), 2));   // behind the eye
             snapshot.Outlines.Add(new RestingOutline(new Vector3(0, 0, -10), 0));  // holds nothing
 
@@ -306,7 +306,7 @@ public sealed class OutlineRenderTests
         snapshot.Outlines.Add(new FallingOutline(new Vector3(2.5f, 0, -14), 2.2f));
         snapshot.Outlines.Add(new RestingOutline(new Vector3(-0.5f, 2.6f, -14), 1f));
         snapshot.Outlines.Add(new NestingOutline(new Vector3(-1, -2.6f, -16), 1.4f));
-        snapshot.Outlines.Add(new OrbitingOutline(new Vector3(7, 3.2f, -18), 1.6f));
+        snapshot.Outlines.Add(new FollowingOutline(new Vector3(7, 3.2f, -18), 1.6f));
         return snapshot;
     }
 

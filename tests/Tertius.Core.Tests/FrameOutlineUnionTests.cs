@@ -8,7 +8,7 @@ namespace Tertius.Core.Tests;
 /// <summary>
 /// <see cref="FrameOutline"/> as a custom C# 15 union of five cases, one for each kind of frame that has an outline:
 /// <see cref="SemanticOutline"/>, <see cref="FallingOutline"/>, <see cref="RestingOutline"/>, <see cref="NestingOutline"/>
-/// and <see cref="OrbitingOutline"/>. The default value holds no case: it is no outline. These tests pin what a union
+/// and <see cref="FollowingOutline"/>. The default value holds no case: it is no outline. These tests pin what a union
 /// promises. Each case goes in through its constructor and comes out through its <c>TryGetValue</c>. No other
 /// <c>TryGetValue</c> answers true, so the four sphere cases, which have the same fields, never pass for each other, and the
 /// rotation and the radii of a semantic outline never show up as fields of a sphere. Equality needs the same case and the
@@ -25,13 +25,13 @@ public class FrameOutlineUnionTests
     private static readonly FallingOutline Falling = new(Here, 7);
     private static readonly RestingOutline Resting = new(Here, 7);
     private static readonly NestingOutline Nesting = new(Here, 7);
-    private static readonly OrbitingOutline Orbiting = new(Here, 7);
+    private static readonly FollowingOutline Following = new(Here, 7);
 
     /// <summary>One outline of each case. The four sphere cases share their center and radius, so only the case tells them apart.</summary>
-    private static readonly FrameOutline[] EveryCase = [Ship, Falling, Resting, Nesting, Orbiting];
+    private static readonly FrameOutline[] EveryCase = [Ship, Falling, Resting, Nesting, Following];
 
     private static readonly string[] CaseNames =
-        [nameof(SemanticOutline), nameof(FallingOutline), nameof(RestingOutline), nameof(NestingOutline), nameof(OrbitingOutline)];
+        [nameof(SemanticOutline), nameof(FallingOutline), nameof(RestingOutline), nameof(NestingOutline), nameof(FollowingOutline)];
 
     /// <summary>The names of the cases whose <c>TryGetValue</c> answers true for the outline.</summary>
     private static string[] CasesHeld(FrameOutline outline)
@@ -45,8 +45,8 @@ public class FrameOutlineUnionTests
             held.Add(nameof(RestingOutline));
         if (outline.TryGetValue(out NestingOutline _))
             held.Add(nameof(NestingOutline));
-        if (outline.TryGetValue(out OrbitingOutline _))
-            held.Add(nameof(OrbitingOutline));
+        if (outline.TryGetValue(out FollowingOutline _))
+            held.Add(nameof(FollowingOutline));
         return [.. held];
     }
 
@@ -57,12 +57,12 @@ public class FrameOutlineUnionTests
         outline.TryGetValue(out FallingOutline falling);
         outline.TryGetValue(out RestingOutline resting);
         outline.TryGetValue(out NestingOutline nesting);
-        outline.TryGetValue(out OrbitingOutline orbiting);
+        outline.TryGetValue(out FollowingOutline orbiting);
         return [semantic, falling, resting, nesting, orbiting];
     }
 
     private static readonly object[] DefaultViews =
-        [default(SemanticOutline), default(FallingOutline), default(RestingOutline), default(NestingOutline), default(OrbitingOutline)];
+        [default(SemanticOutline), default(FallingOutline), default(RestingOutline), default(NestingOutline), default(FollowingOutline)];
 
     private static string ArmOf(FrameOutline outline) => outline switch
     {
@@ -70,7 +70,7 @@ public class FrameOutlineUnionTests
         FallingOutline(_, var radius) => $"falling {radius}",
         RestingOutline(_, var radius) => $"resting {radius}",
         NestingOutline(_, var radius) => $"nesting {radius}",
-        OrbitingOutline(_, var radius) => $"orbiting {radius}",
+        FollowingOutline(_, var radius) => $"orbiting {radius}",
         _ => "none",
     };
 
@@ -133,18 +133,18 @@ public class FrameOutlineUnionTests
         resting.Should().Be(new RestingOutline(new Vector3(5, 6, 7), 8));
         new FrameOutline(new NestingOutline(new Vector3(9, 10, 11), 12)).TryGetValue(out NestingOutline nesting).Should().BeTrue();
         nesting.Should().Be(new NestingOutline(new Vector3(9, 10, 11), 12));
-        new FrameOutline(new OrbitingOutline(new Vector3(13, 14, 15), 16)).TryGetValue(out OrbitingOutline orbiting).Should().BeTrue();
-        orbiting.Should().Be(new OrbitingOutline(new Vector3(13, 14, 15), 16));
+        new FrameOutline(new FollowingOutline(new Vector3(13, 14, 15), 16)).TryGetValue(out FollowingOutline orbiting).Should().BeTrue();
+        orbiting.Should().Be(new FollowingOutline(new Vector3(13, 14, 15), 16));
     }
 
     [Fact]
     public void EveryCaseConvertsImplicitlyToTheOutlineThatItsConstructorBuilds()
     {
-        FrameOutline[] converted = [Ship, Falling, Resting, Nesting, Orbiting];
-        FrameOutline[] constructed = [new(Ship), new(Falling), new(Resting), new(Nesting), new(Orbiting)];
+        FrameOutline[] converted = [Ship, Falling, Resting, Nesting, Following];
+        FrameOutline[] constructed = [new(Ship), new(Falling), new(Resting), new(Nesting), new(Following)];
 
         converted.Should().Equal(constructed);
-        converted.Select(outline => outline.Value).Should().Equal([Ship, Falling, Resting, Nesting, Orbiting], "Value boxes the case that the outline holds");
+        converted.Select(outline => outline.Value).Should().Equal([Ship, Falling, Resting, Nesting, Following], "Value boxes the case that the outline holds");
     }
 
     // ---- Pattern matching ----------------------------------------------------------------------------------------
@@ -186,7 +186,7 @@ public class FrameOutlineUnionTests
                 return radius;
             case NestingOutline(_, var radius):
                 return radius;
-            case OrbitingOutline(_, var radius):
+            case FollowingOutline(_, var radius):
                 return radius;
             default:
                 return 0;
@@ -202,7 +202,7 @@ public class FrameOutlineUnionTests
         FrameOutline[] second =
         [
             new SemanticOutline(Here, Turned, Bubble), new FallingOutline(Here, 7), new RestingOutline(Here, 7), new NestingOutline(Here, 7),
-            new OrbitingOutline(Here, 7), default,
+            new FollowingOutline(Here, 7), default,
         ];
 
         for (int i = 0; i < first.Length; i++)
@@ -257,7 +257,7 @@ public class FrameOutlineUnionTests
 
         new FrameOutline(new SemanticOutline(default, default, default)).Should().NotBe(empty);
         new FrameOutline(new FallingOutline(default, 0)).Should().NotBe(empty);
-        new FrameOutline(new OrbitingOutline(default, 0)).Should().NotBe(empty);
+        new FrameOutline(new FollowingOutline(default, 0)).Should().NotBe(empty);
         (empty != new FrameOutline(new NestingOutline(default, 0))).Should().BeTrue();
     }
 
@@ -276,7 +276,7 @@ public class FrameOutlineUnionTests
         FrameOutline[] outlines =
         [
             Ship with { Radii = new Vector3(float.NaN, 1, 1) }, Ship with { Rotation = new Quaternion(float.NaN, 0, 0, 1) },
-            Falling with { Radius = float.NaN }, Orbiting with { Center = new Vector3(0, float.NaN, 0) },
+            Falling with { Radius = float.NaN }, Following with { Center = new Vector3(0, float.NaN, 0) },
         ];
 
         foreach (FrameOutline outline in outlines)
@@ -285,7 +285,7 @@ public class FrameOutlineUnionTests
             {
                 SemanticOutline semantic => semantic,
                 FallingOutline falling => falling,
-                OrbitingOutline orbiting => orbiting,
+                FollowingOutline orbiting => orbiting,
                 _ => default,
             };
 
@@ -320,7 +320,7 @@ public class FrameOutlineUnionTests
         union.GetFields(publicInstance).Should().BeEmpty();
         union.GetProperties(publicInstance).Select(property => property.PropertyType).Should().OnlyContain(type => type == typeof(bool) || type == typeof(object));
         union.GetConstructors().Select(constructor => constructor.GetParameters().Single().ParameterType).Should().BeEquivalentTo(
-            [typeof(SemanticOutline), typeof(FallingOutline), typeof(RestingOutline), typeof(NestingOutline), typeof(OrbitingOutline)],
+            [typeof(SemanticOutline), typeof(FallingOutline), typeof(RestingOutline), typeof(NestingOutline), typeof(FollowingOutline)],
             "an outline is made from one case and nothing else");
     }
 

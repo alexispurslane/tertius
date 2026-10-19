@@ -118,7 +118,7 @@ public sealed partial class FrameTree
     /// <see cref="SetNumericMode"/> and <see cref="LeaveFollowingFrame"/> require it), so the mode needs no increase of its own.
     /// Reads leave it as it is, and so do the writes of what no owner view reads: the proper acceleration, the gravity
     /// field, the stored motion of a hull (see <see cref="SetHullMotion"/>), and the mode of a frame that stays numeric,
-    /// such as an orbit frame that a hull leaves falling (see <see cref="PlanHullMotion"/>). The World compares it with its
+    /// such as a following frame that a hull leaves falling (see <see cref="PlanHullMotion"/>). The World compares it with its
     /// value at the World's last pass over every owner view, to skip a pass that would change no row.
     /// </summary>
     internal long OwnerViewStamp => ownerViewStamp;
@@ -195,8 +195,8 @@ public sealed partial class FrameTree
     /// <summary>
     /// The frame that takes each semantic frame that a dying frame holds, when <paramref name="parent"/> is the tree parent of
     /// the dying frame: the semantic frame of that parent, whatever the hull of the frame that moves (see
-    /// <see cref="HullMotion"/>). That parent is numeric for the frame of a kinematic hull in its orbit frame, which falls
-    /// on when its orbiter dies, and for the frame of a ship in a numeric frame. The World moves the bodies of the dying
+    /// <see cref="HullMotion"/>). That parent is numeric for the frame of a kinematic hull in its following frame, which falls
+    /// on when its anchor dies, and for the frame of a ship in a numeric frame. The World moves the bodies of the dying
     /// frame into the own system of the nearest semantic frame that survives, the hull of each frame that moves among them,
     /// so each such frame hangs where its hull lives. The next numeric update moves the hull, with its frame, into a numeric
     /// frame when its group needs one. So only the update puts a frame in a numeric frame, and only for a hull in its input.
@@ -233,9 +233,9 @@ public sealed partial class FrameTree
     /// </summary>
     private void RemoveNode(FrameHandle frame, PoseNode node)
     {
-        if (InOrbitFrame(frame))
+        if (InFollowingFrame(frame))
             LeaveFollowingFrame(TreeParent(frame));
-        if (numeric[node.Id] == NumericMode.Orbiting && !anchor[node.Id].IsNull)
+        if (numeric[node.Id] == NumericMode.Following && !anchor[node.Id].IsNull)
             LeaveFollowingFrame(frame);
         for (int i = anchorGhosts.Count - 1; i >= 0; i--)
             if (anchorGhosts[i].Frame == frame)
@@ -252,7 +252,7 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Moves a frame under a new parent. Its pose and velocity relative to everything else stay the same. A frame that
-    /// leaves its orbit frame leaves it falling (see <see cref="NumericMode.Orbiting"/>). Throws
+    /// leaves its following frame leaves it falling (see <see cref="NumericMode.Following"/>). Throws
     /// <see cref="InvalidOperationException"/>, and changes nothing, if the new parent is the frame itself or one of
     /// its descendants.
     /// </summary>
@@ -266,7 +266,7 @@ public sealed partial class FrameTree
         if (!newParent.IsNull && (newParent == frame || IsAncestorOf(frame, newParent)))
             throw new InvalidOperationException($"Cannot move frame {frame} under itself or its own descendant {newParent}.");
 
-        if (InOrbitFrame(frame))
+        if (InFollowingFrame(frame))
             LeaveFollowingFrame(oldParent);
 
         // Carry the frame origin's velocity and the frame's spin from the old parent into the new parent.
@@ -528,15 +528,15 @@ public sealed partial class FrameTree
     /// <summary>
     /// Keeps <paramref name="frame"/> coherent with <paramref name="nextStepMotion"/>, the motion that its hull has in the
     /// next step, which its owner wrote in the running tick. The tree stores that motion only when the step has finished
-    /// (see <see cref="SetHullMotion"/>). Only a kinematic hull hangs at the origin of an orbit frame. So a hull that is not
-    /// kinematic in the next step leaves its orbit frame falling: a frame with a dynamic hull may hang in a falling frame,
+    /// (see <see cref="SetHullMotion"/>). Only a kinematic hull hangs at the origin of a following frame. So a hull that is not
+    /// kinematic in the next step leaves its following frame falling: a frame with a dynamic hull may hang in a falling frame,
     /// and the numeric update moves any other one, with its hull, into its semantic parent. The World drops the motion intent
     /// that the hull's motion in that step refuses (see <c>World.ApplyMotionChanges</c>). It changes no velocity of the frame, and not <see cref="Version"/>. Throws
     /// <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     /// <remarks>
     /// Only the simulation calls it, at step 4 of a sync point before the intents swap, for each owner that wrote a change
-    /// of motion in the tick, whatever the motion of the running step: an orbit frame of a hull that is not kinematic in the
+    /// of motion in the tick, whatever the motion of the running step: a following frame of a hull that is not kinematic in the
     /// next step is wrong in any case.
     /// </remarks>
     internal void PlanHullMotion(FrameHandle frame, BodyMotion nextStepMotion)
@@ -544,7 +544,7 @@ public sealed partial class FrameTree
         Contract.Requires(HullMotion(frame) is not null);
         if (nextStepMotion == BodyMotion.Kinematic)
             return;
-        if (InOrbitFrame(frame))
+        if (InFollowingFrame(frame))
             LeaveFollowingFrame(TreeParent(frame));
     }
 
@@ -597,9 +597,9 @@ public sealed partial class FrameTree
                 // A nesting frame holds only numeric frames.
                 Contract.Invariant(parentMode != NumericMode.Nesting);
                 // A frame with a static hull or without a hull moves relative to its semantic parent, and a frame with a kinematic
-                // hull hangs in its semantic parent or at the origin of its orbit frame, in the step that the numeric frames
+                // hull hangs in its semantic parent or at the origin of its following frame, in the step that the numeric frames
                 // are for. So a frame in any other numeric frame has a dynamic hull in that step.
-                if (parentMode == NumericMode.Orbiting && anchor[parent.Index] == frame.Entity)
+                if (parentMode == NumericMode.Following && anchor[parent.Index] == frame.Entity)
                     Contract.Invariant(HullMotionInStep(frame, stepIntents) == BodyMotion.Kinematic && locals[i].Position == Double3.Zero);
                 else if (parentMode != NumericMode.None)
                     Contract.Invariant(HullMotionInStep(frame, stepIntents) == BodyMotion.Dynamic);
@@ -625,7 +625,7 @@ public sealed partial class FrameTree
                 Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero && stepPlan[id] is null);
             // Only a following frame has an anchor: a hull whose frame hangs in it, or a plain body of the last update whose
             // home it is.
-            if (numeric[id] == NumericMode.Orbiting)
+            if (numeric[id] == NumericMode.Following)
             {
                 Contract.Invariant(!anchor[id].IsNull);
                 if (byOwner.TryGetValue(anchor[id], out FrameHandle anchorFrame))
@@ -636,10 +636,10 @@ public sealed partial class FrameTree
             else
                 Contract.Invariant(anchor[id].IsNull);
             // The chain of tree parents ends at a semantic frame: a falling or resting frame lies in one or in a nesting
-            // frame, an orbit frame lies in one, and a nesting frame lies in one, on an exact grid point.
+            // frame, a following frame lies in one, and a nesting frame lies in one, on an exact grid point.
             if (numeric[id] == NumericMode.Nesting)
                 Contract.Invariant(parentMode == NumericMode.None && NumericFrameRules.OnGrid(locals[i].Position, NumericOptions.NestGrid));
-            else if (numeric[id] == NumericMode.Orbiting)
+            else if (numeric[id] == NumericMode.Following)
                 Contract.Invariant(parentMode == NumericMode.None);
             else
                 Contract.Invariant(parentMode is NumericMode.None or NumericMode.Nesting);
@@ -705,7 +705,7 @@ public sealed partial class FrameTree
         for (int i = 0; i < poses.Count; i++)
         {
             int id = poses.NodeAt(i).Id;
-            if (numeric[id] == NumericMode.Orbiting && anchor[id] == entity)
+            if (numeric[id] == NumericMode.Following && anchor[id] == entity)
                 return AtDense(i);
         }
         return FrameHandle.Null;
@@ -888,7 +888,7 @@ public sealed partial class FrameTree
     /// an ancestor of it: the sum of that excess for each numeric frame between them. A numeric frame steps as Jolt steps a
     /// body (see <see cref="AdvanceNumericFrames"/>), so its frame velocity is the chord of the step. A falling frame keeps
     /// one acceleration over the step, so its instant velocity at the end of the step is half a step of that acceleration
-    /// past the chord. An orbit frame whose orbiter has a step plan moves as the plan does, so the excess is the plan's
+    /// past the chord. A following frame whose anchor has a step plan moves as the plan does, so the excess is the plan's
     /// instant velocity less its chord, which takes in the change of the orbit's pull over the step (see
     /// <see cref="BeginNumericStep"/>). Zero for a semantic frame.
     /// <para>
