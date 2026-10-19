@@ -63,6 +63,11 @@ public sealed partial class FrameTree
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
     private Vector3[] properAcceleration = new Vector3[64];
+    // Each frame's proper acceleration as the last finished step found it, the value that physics used for the frame's
+    // bodies during that step: StoreNewProperAccelerations copies the rows here before it writes the new values, and a new
+    // frame has zero. It is valid from step 2 to the next step 2, after the rows took the new values (see
+    // FieldTheStepFound).
+    private Vector3[] properAccelerationTheStepFound = new Vector3[64];
     // What made the record that each frame took at the last sync point (see Followed).
     private FollowKind[] followKind = new FollowKind[64];
     // The proper accelerations that step 2 derived in its pass over the frames, by frame index, in the order of the pass,
@@ -154,6 +159,7 @@ public sealed partial class FrameTree
         linearVelocity[node.Id] = Double3.Zero;
         angularVelocity[node.Id] = Vector3.Zero;
         properAcceleration[node.Id] = Vector3.Zero;
+        properAccelerationTheStepFound[node.Id] = Vector3.Zero;
         followKind[node.Id] = FollowKind.Static;
         numeric[node.Id] = mode;
         stepAcceleration[node.Id] = Double3.Zero;
@@ -749,10 +755,12 @@ public sealed partial class FrameTree
     /// the pass, so that a frame that took two records takes the value of the last. Until then each frame keeps its value of
     /// the step that ended, so the rule of every frame in the pass read its parent's value as the step found it, the value
     /// that physics used for the parent's bodies during the step (docs/plans/rails-components.md, "Which proper acceleration
-    /// of the parent"). A frame that the pass skipped keeps its value.
+    /// of the parent"). A frame that the pass skipped keeps its value. Before it writes, it keeps every row's value as the
+    /// step that ended found it, which a read after step 2 of the rule backward needs (see <see cref="FieldTheStepFound"/>).
     /// </summary>
     internal void StoreNewProperAccelerations()
     {
+        properAcceleration.AsSpan().CopyTo(properAccelerationTheStepFound);
         foreach ((int id, Vector3 value) in newProperAccelerations)
             properAcceleration[id] = value;
         newProperAccelerations.Clear();
@@ -820,6 +828,16 @@ public sealed partial class FrameTree
 
     /// <summary>The field of the semantic frame with index <paramref name="id"/> minus its proper acceleration, in doubles.</summary>
     private Double3 FieldOf(int id, Double3 position) => gravity[id].AtPrecise(position) - (Double3)properAcceleration[id];
+
+    /// <summary>
+    /// Like <see cref="FieldOf"/>, but with the frame's proper acceleration as the last finished step found it: the gravity at
+    /// <paramref name="position"/> that the rule of <see cref="ProperAccelerationFrom"/> subtracted for a child at step 2.
+    /// After step 2 a frame's row holds the value of the step that ended, so a read of a child's acceleration from its
+    /// stored proper acceleration, the rule backward, takes this one (see <see cref="CreateOrbitFrame"/>). It is valid
+    /// from step 2 to the next step 2 (see <see cref="StoreNewProperAccelerations"/>).
+    /// </summary>
+    private Double3 FieldTheStepFound(int id, Double3 position) =>
+        gravity[id].AtPrecise(position) - (Double3)properAccelerationTheStepFound[id];
 
     /// <summary>
     /// The acceleration of the origin of <paramref name="home"/> relative to <paramref name="semantic"/>, which is the home
@@ -1191,6 +1209,7 @@ public sealed partial class FrameTree
         Array.Resize(ref linearVelocity, size);
         Array.Resize(ref angularVelocity, size);
         Array.Resize(ref properAcceleration, size);
+        Array.Resize(ref properAccelerationTheStepFound, size);
         Array.Resize(ref followKind, size);
         Array.Resize(ref numeric, size);
         Array.Resize(ref stepAcceleration, size);

@@ -768,7 +768,7 @@ The rule: a new following frame lies at its anchor's place, and its velocity is 
 ```csharp
 Double3 velocity = HomeVelocity(treeParent, semantic) + linearVelocity[frame.Index];
 // A numeric frame never turns, so the frame's rotation in its tree parent is its rotation in the semantic parent.
-Double3 acceleration = FieldOf(semantic.Index, position) + local.Rotation.Rotate((Double3)properAcceleration[frame.Index]);
+Double3 acceleration = FieldTheStepFound(semantic.Index, position) + local.Rotation.Rotate((Double3)properAcceleration[frame.Index]);
 Double3 chord = velocity - acceleration * (step / 2);
 FrameHandle orbitFrame = CreateNumeric(semantic, position, chord, NumericMode.Orbiting);
 ...
@@ -781,7 +781,7 @@ where
 - `HomeVelocity(treeParent, semantic)` = the frame velocity of the anchor's tree parent in the semantic parent: zero when the tree parent is the semantic parent.
 - `linearVelocity[frame.Index]` = the anchor's stored velocity, relative to the frame velocity of its tree parent.
 - `position` = the anchor's place in the semantic parent, in m.
-- `FieldOf(semantic.Index, position)` = the gravity at that place, in m/s²: the semantic parent's field less the parent's own proper acceleration. It is the gravity that the rule of "The proper acceleration of a frame" subtracts, and the acceleration that a falling frame at that place takes.
+- `FieldTheStepFound(semantic.Index, position)` = the gravity at that place, in m/s²: the semantic parent's field less the parent's own proper acceleration as the step that ended found it. It is the gravity that the rule of "The proper acceleration of a frame" subtracted for the anchor at step 2 (see "Which proper acceleration of the parent"). Step 2 may give the parent a new value, so the read takes the parent's value from before that step 2, which `FrameTree.StoreNewProperAccelerations` keeps for every frame until the next step 2, and a new frame has zero. The review of `ter-xdt8` found that the read with `FieldOf`, the parent's new value, missed by the parent's change: an anchor at a steady 2 km/s in a ship whose engine started at 10 m/s² in the step that ended started its frame 0.083 m/s off, and its first step took 5 m/s².
 - `local.Rotation` = the anchor's rotation in its tree parent.
 - `properAcceleration[frame.Index]` = the anchor's proper acceleration of the step that ended, in m/s², in its own axes.
 - `acceleration` = the anchor's acceleration over the step that ended, in the semantic parent, in m/s²: the rule of "The proper acceleration of a frame", read backward.
@@ -797,7 +797,7 @@ What follows from the rule:
 - A body that spawns in the same batch as a new fast hull moves on as beside an older following frame. On the low orbit, after one second, the body is 1.13e-6 m off its own orbit beside a new hull with a first motion intent, and 4.5e-7 m beside one without. Beside a hull whose frame has made steps it is 1.35e-6 m off. These are the orbit's jerk times the square of a step. They come from the scheme that Jolt uses and from the conversion of a spawn velocity, which subtracts the plan's instant velocity past its chord at the end of the step.
 - A limit: an anchor spawned at this sync point has no proper acceleration yet (the decision "The proper acceleration of a new frame"), so its start is the chord of a free fall. That is right for an anchor that falls. A spawned anchor that does not fall, such as a hull whose first motion intent is an end pose in a gravity field, takes half the field in its first planned step, and its system shows the other half for that one step. Its proper acceleration has the same lag: it reads a free fall in the frame's first step.
 
-Tests 32 and 66 to 69 pin the rule.
+Tests 32 and 66 to 69 pin the rule. Two tests of the review of `ter-xdt8`, in `FrameTreeOrbitFrameTests`, pin the parent's value of the backward read: `ANewFollowingFrameReadsItsAnchorsAccelerationWithTheParentsProperAccelerationAsTheStepThatEndedFoundIt` and `AFrameInTheSlotOfADestroyedFrameKeepsNoProperAccelerationOfTheDeadFrameAsTheStepFoundIt`.
 
 #### The proper acceleration of a frame
 
@@ -856,14 +856,14 @@ A frame on a Kepler orbit gets exactly zero, not zero to rounding. `KeplerOrbit.
 The value:
 
 - Analogue: `FrameTree.AngularVelocity`, a value of the last finished step that the tree writes at step 2, and that gameplay reads but cannot write.
-- Store: the frame tree's float `Vector3` per frame, in the frame's own axes, as today. `MotionSample` and `SpinMotion` hold none.
+- Store: the frame tree's float `Vector3` per frame, in the frame's own axes, as today. `MotionSample` and `SpinMotion` hold none. From one step 2 to the next, the tree also keeps each frame's value as the step that ended found it, for the backward read of a new following frame (see "The first step of a new following frame").
 - Change: at step 2. `Follow` and `HoldStill` derive the new value in the loop of `FollowOwners`, and `FrameTree.StoreNewProperAccelerations` writes it after the loop (see "Which proper acceleration of the parent"). A frame that a failed step or the output check skips keeps it, as it keeps its velocities. A frame that moves to another parent at step 5 or 6c keeps it until the next step 2, because the value describes the step that ended. A new frame has zero until the first step 2 after its spawn (see "The proper acceleration of a new frame").
 
 | Writer | When | What |
 |---|---|---|
 | `FrameTree.Follow` | Step 2, in the loop of `FollowOwners` | Derives the value from the record by the rule, or takes the value that physics measured for a dynamic hull, and adds it to the tree's list of new values, `newProperAccelerations` |
 | `FrameTree.HoldStill` | Step 2, in the loop of `FollowOwners` | Derives the value from the frame's rest in its tree parent by the rule, and adds it to `newProperAccelerations` |
-| `FrameTree.StoreNewProperAccelerations` | Step 2, once, after the loop of `FollowOwners` | Writes each value of `newProperAccelerations` into its frame's row, and clears the list |
+| `FrameTree.StoreNewProperAccelerations` | Step 2, once, after the loop of `FollowOwners` | Keeps a copy of every row's value as the step found it (`properAccelerationTheStepFound`), then writes each value of `newProperAccelerations` into its frame's row, and clears the list |
 | `FrameTree.Create` | At a spawn, and outside a tick | Zero, as today: the value during the frame's first step (see "The proper acceleration of a new frame") |
 | `JoltPhysicsBackend.ComputeProperAccelerations` | Each step | Measures a dynamic hull's value into `FrameStepRecord.ProperAcceleration`. It writes physics' own record of the hull, not the tree. |
 
@@ -871,6 +871,7 @@ The value:
 |---|---|---|
 | `FrameTree.EffectiveGravity`, for the bodies in the frame, and the wake test of `ApplyGravity` | Each step | The stored value, as today |
 | `ProperAccelerationFrom`, for each child frame | Step 2, in the loop of `FollowOwners` | The parent's value stored before step 2, through `FieldOf` (see "Which proper acceleration of the parent") |
+| `CreateOrbitFrame`, for the anchor's acceleration read backward | Step 6c, and outside a tick | The semantic parent's value as the step that ended found it, through `FieldTheStepFound`: the copy of the rows that `StoreNewProperAccelerations` keeps from before it writes (see "The first step of a new following frame") |
 | Gameplay, through the snapshot's frame tree, and tests | Any time | `FrameTree.ProperAcceleration(frame)`, a value read that returns a `Vector3`, as `AngularVelocity` does. It no longer returns a `ref`, so gameplay cannot write it. |
 
 Limits of the rule:

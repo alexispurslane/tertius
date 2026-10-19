@@ -207,7 +207,9 @@ public sealed partial class FrameTree
     /// seconds. That is the frame's instant velocity less half a step of its acceleration, as physics gives a body its chord
     /// and as a falling frame's instant velocity lies past its chord (see <see cref="HomeInstantVelocityOverChord"/>). The
     /// acceleration follows from the rule of <see cref="ProperAccelerationFrom"/> read backward: the gravity at the frame's
-    /// place plus its proper acceleration, turned out of its axes. So the first step plan lands the new frame on the anchor's
+    /// place plus its proper acceleration, turned out of its axes. The gravity takes the semantic parent's proper
+    /// acceleration as the step that ended found it, the value that the rule of the frame's own value read, because step 2
+    /// may have given the parent a new one (see <see cref="FieldTheStepFound"/>). So the first step plan lands the new frame on the anchor's
     /// motion with the acceleration of the step before, to the jerk of the motion, as every later plan does, and a first step
     /// that falls continues the anchor's free fall. A frame spawned at this sync point has no proper acceleration yet, so it
     /// starts as one that fell freely. The frame rests at its origin and keeps the rest of its instant velocity, so its place
@@ -223,7 +225,7 @@ public sealed partial class FrameTree
         Double3 position = InSemantic(treeParent, semantic, local.Position);
         Double3 velocity = HomeVelocity(treeParent, semantic) + linearVelocity[frame.Index];
         // A numeric frame never turns, so the frame's rotation in its tree parent is its rotation in the semantic parent.
-        Double3 acceleration = FieldOf(semantic.Index, position) + local.Rotation.Rotate((Double3)properAcceleration[frame.Index]);
+        Double3 acceleration = FieldTheStepFound(semantic.Index, position) + local.Rotation.Rotate((Double3)properAcceleration[frame.Index]);
         Double3 chord = velocity - acceleration * (step / 2);
         FrameHandle orbitFrame = CreateNumeric(semantic, position, chord, NumericMode.Orbiting);
         orbiter[orbitFrame.Index] = frame;

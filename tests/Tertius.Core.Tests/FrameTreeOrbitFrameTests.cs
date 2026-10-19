@@ -384,6 +384,74 @@ public class FrameTreeOrbitFrameTests
         frames.HomeAcceleration(orbit, earth).Length.Should().BeLessThan(1e-4, "an end pose at a steady velocity has no acceleration");
     }
 
+    /// <summary>
+    /// The acceleration of the anchor, read backward from its row, takes the gravity at its place with its parent's proper
+    /// acceleration as the step that ended found it: the value that the rule of the anchor's own proper acceleration read
+    /// (docs/plans/rails-components.md, "Which proper acceleration of the parent"). Here the anchor's parent, a ship without
+    /// a hull in empty space, starts to accelerate at 10 m/s² in the step that ended, so its value goes from zero to that at
+    /// the same step 2, and the anchor moves on end poses at a steady 2 km/s relative to the ship. The new following frame
+    /// starts with the anchor's velocity, which is the chord of the step that ended, and its first plan, the next end pose,
+    /// lands it without an acceleration. A read with the ship's new value would start it 0.083 m/s off, and give its first
+    /// step 5 m/s².
+    /// </summary>
+    [Fact]
+    public void ANewFollowingFrameReadsItsAnchorsAccelerationWithTheParentsProperAccelerationAsTheStepThatEndedFoundIt()
+    {
+        FrameHandle space = frames.Create(new Entity(20, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), GravityField.None);
+        FrameHandle ship = frames.Create(new Entity(21, 1), space, DPose.Identity, FrameBounds.Sphere(1e6f));
+        Double3 place = new(1_000, 0, 0), velocity = new(0, 0, 2_000);
+        FrameHandle station = frames.Create(new Entity(22, 1), ship, new DPose(place - velocity * Step, DQuaternion.Identity), FrameBounds.Sphere(40));
+        frames.SetHullMotion(station, BodyMotion.Kinematic);
+        frames.SetTreeLinearVelocity(station, velocity);
+        var thrust = new Double3(10, 0, 0);
+        var shipRecord = new MotionSample(new DPose(thrust * (Step * Step), DQuaternion.Identity), thrust * Step, thrust * Step, thrust, Double3.Zero, Double3.Zero);
+        var record = new MotionSample(new DPose(place, DQuaternion.Identity), velocity, velocity, Double3.Zero, Double3.Zero, Double3.Zero);
+        frames.Follow(ship, space, shipRecord, FollowKind.Rails, measured: null, Step);
+        frames.Follow(station, ship, record, FollowKind.Kinematic, measured: null, Step);
+        frames.StoreNewProperAccelerations();
+        frames.ProperAcceleration(ship).Should().Be(thrust.ToVector3(), "the ship's value changes at this step 2");
+        frames.ProperAcceleration(station).Should().Be(Vector3.Zero, "the anchor kept a steady velocity in a ship whose value was zero in the step");
+
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+        frames.Update();
+        frames.BeginNumericStep(Moving(station, new MotionIntent(new EndPose(new DPose(place + velocity * Step, DQuaternion.Identity)))), Step);
+
+        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.LinearVelocity(orbit).Should().Be(velocity, "the anchor's velocity is the chord of its end poses");
+        frames.HomeAcceleration(orbit, ship).Length.Should().BeLessThan(1e-9, "an end pose at a steady velocity has no acceleration");
+    }
+
+    /// <summary>
+    /// A frame created after step 2 in the slot of a destroyed frame has no proper acceleration as the step found it, as it
+    /// has none in its row. So a new fast hull in it, which starts as one that fell freely, starts its following frame with
+    /// its own velocity in the empty space of the new frame, and not with the thrust of the frame that died.
+    /// </summary>
+    [Fact]
+    public void AFrameInTheSlotOfADestroyedFrameKeepsNoProperAccelerationOfTheDeadFrameAsTheStepFoundIt()
+    {
+        FrameHandle space = frames.Create(new Entity(20, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), GravityField.None);
+        FrameHandle dead = frames.Create(new Entity(21, 1), space, DPose.Identity, FrameBounds.Sphere(1e6f));
+        var thrust = new Double3(10, 0, 0);
+        var record = new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, thrust, Double3.Zero, Double3.Zero);
+        for (int step = 0; step < 2; step++)
+        {
+            frames.Follow(dead, space, record, FollowKind.Rails, measured: null, Step);
+            frames.StoreNewProperAccelerations();
+        }
+        frames.Destroy(dead);
+        FrameHandle ship = frames.Create(new Entity(22, 1), space, DPose.Identity, FrameBounds.Sphere(1e6f));
+        ship.Index.Should().Be(dead.Index, "the new frame takes the slot of the dead one");
+        var velocity = new Double3(0, 0, 2_000);
+        FrameHandle station = frames.Create(new Entity(23, 1), ship, new DPose(new Double3(1_000, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(40));
+        frames.SetHullMotion(station, BodyMotion.Kinematic);
+        frames.SetTreeLinearVelocity(station, velocity);
+
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+
+        frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        frames.LinearVelocity(orbit).Should().Be(velocity, "nothing pulls or pushes in the new ship");
+    }
+
     [Fact]
     public void A_far_kinematic_hull_that_turns_in_place_gets_an_orbit_frame_as_any_kinematic_hull_does()
     {
