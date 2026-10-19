@@ -1,21 +1,24 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Tertius.Host.Windowing;
 
 /// <summary>
 /// One capture at a time from the simulation thread, which asks and waits, to the render thread, which draws it and
-/// saves it.
+/// hands its pixels to the capture's sink.
 /// </summary>
 public sealed class CaptureMailbox
 {
     private readonly SemaphoreSlim saved = new(0);
-    private string? pending;
+    private ICaptureSink? pending;
 
     /// <summary>
-    /// Asks for a capture to <paramref name="path"/> and waits until the render thread has saved it. Throws
-    /// <see cref="OperationCanceledException"/> if <paramref name="stop"/> fires first.
+    /// Asks for a capture into <paramref name="sink"/> and waits until the render thread has handed the sink its
+    /// pixels. Throws <see cref="OperationCanceledException"/> if <paramref name="stop"/> fires first.
     /// </summary>
-    public void RequestAndWait(string path, CancellationToken stop)
+    public void RequestAndWait(ICaptureSink sink, CancellationToken stop)
     {
-        Volatile.Write(ref pending, path);
+        ArgumentNullException.ThrowIfNull(sink);
+        Volatile.Write(ref pending, sink);
         try
         {
             saved.Wait(stop);
@@ -23,19 +26,18 @@ public sealed class CaptureMailbox
         catch (OperationCanceledException)
         {
             // The window closed: take back the request, unless the render thread took it already.
-            Interlocked.CompareExchange(ref pending, null, path);
+            Interlocked.CompareExchange(ref pending, null, sink);
             throw;
         }
     }
 
-    /// <summary>Takes the path of the capture that waits, if there is one. On the render thread.</summary>
-    public bool TryTake(out string path)
+    /// <summary>Takes the sink of the capture that waits, if there is one. On the render thread.</summary>
+    public bool TryTake([NotNullWhen(true)] out ICaptureSink? sink)
     {
-        string? taken = Interlocked.Exchange(ref pending, null);
-        path = taken ?? "";
-        return taken != null;
+        sink = Interlocked.Exchange(ref pending, null);
+        return sink != null;
     }
 
-    /// <summary>Tells the waiting simulation thread that the capture it asked for is saved. On the render thread.</summary>
+    /// <summary>Tells the waiting simulation thread that its sink has the pixels of the capture. On the render thread.</summary>
     public void Done() => saved.Release();
 }

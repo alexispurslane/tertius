@@ -1,4 +1,5 @@
 using Tertius.Host.Scripting;
+using Tertius.Rendering;
 using Tertius.Simulation;
 
 namespace Tertius.Host.Windowing;
@@ -46,14 +47,18 @@ public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, Can
     private long ticks;
     private double slip;
 
-    /// <summary>Publishes the current state and waits until the render thread has saved it. Returns false if the window closes first.</summary>
+    /// <summary>
+    /// Publishes the current state, hands the render thread a <see cref="PngCaptureSink"/> for <paramref name="path"/>,
+    /// and waits until the render thread has drawn the state and the sink has written the file. Returns false if the
+    /// window closes first.
+    /// </summary>
     public bool Capture(World world, string path)
     {
         // The simulation thread publishes, and the render thread, the triple buffer's one reader, draws it.
         world.PublishRenderSnapshot();
         try
         {
-            captures.RequestAndWait(path, stop);
+            captures.RequestAndWait(new PngCaptureSink(path), stop);
             return true;
         }
         catch (OperationCanceledException)

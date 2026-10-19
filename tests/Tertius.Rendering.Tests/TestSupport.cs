@@ -1,5 +1,4 @@
 using System.Numerics;
-using StbImageSharp;
 using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
@@ -41,16 +40,14 @@ internal static class Gpu
 
     public static string CapturePath(string name) => Path.Combine(RepoRoot.Value, "captures", name + ".png");
 
-    /// <summary>Renders one frame, captures it to captures/<paramref name="name"/>.png, and loads the PNG back.</summary>
+    /// <summary>Renders one frame and captures it into memory. <paramref name="name"/> names the capture in a failure.</summary>
     public static Capture RenderAndCapture(VulkanRenderer renderer, RenderSnapshot snapshot, string name, float alpha = 1f)
     {
-        string path = CapturePath(name);
-        if (File.Exists(path))
-            File.Delete(path);
-        renderer.CaptureNextFrame(path);
+        var sink = new MemorySink();
+        renderer.CaptureNextFrame(sink);
         renderer.Render(snapshot, alpha);
-        File.Exists(path).Should().BeTrue("the capture of {0} must be written before Render returns", name);
-        return Capture.Load(path);
+        sink.Takes.Should().Be(1, "the capture of {0} must reach its sink before Render returns", name);
+        return sink.Image!;
     }
 
     /// <summary>Disposes the renderer and fails with the messages if validation reported anything.</summary>
@@ -107,10 +104,13 @@ internal static class Gpu
     }
 }
 
-/// <summary>A PNG loaded back from disk, RGBA8, top row first.</summary>
+/// <summary>
+/// The pixels of one capture from an in-memory sink, RGBA8, top row first. The fourth byte of each pixel holds no
+/// defined value.
+/// </summary>
 internal sealed class Capture
 {
-    private Capture(int width, int height, byte[] rgba)
+    public Capture(int width, int height, byte[] rgba)
     {
         Width = width;
         Height = height;
@@ -120,13 +120,6 @@ internal sealed class Capture
     public int Width { get; }
     public int Height { get; }
     public byte[] Rgba { get; }
-
-    public static Capture Load(string path)
-    {
-        using FileStream stream = File.OpenRead(path);
-        ImageResult image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
-        return new Capture(image.Width, image.Height, image.Data);
-    }
 
     /// <summary>Color in [0, 1] (display-encoded, as stored).</summary>
     public Vector3 Color(int x, int y)
@@ -173,6 +166,34 @@ internal sealed class Capture
                 max = MathF.Max(max, Luma(x, y));
         }
         return max;
+    }
+}
+
+/// <summary>
+/// A capture sink that keeps a copy of the pixels it takes, how many times it took pixels, and on which thread it last
+/// took them.
+/// </summary>
+internal sealed class MemorySink : ICaptureSink
+{
+    public int Takes { get; private set; }
+    public int ThreadId { get; private set; }
+    public Capture? Image { get; private set; }
+
+    public void Take(in CapturedImage image)
+    {
+        Takes++;
+        ThreadId = Environment.CurrentManagedThreadId;
+        Image = new Capture(image.Width, image.Height, image.Rgba.ToArray());
+    }
+}
+
+/// <summary>A capture sink that hands each capture to every sink it holds, in order.</summary>
+internal sealed class FanOutSink(params ICaptureSink[] sinks) : ICaptureSink
+{
+    public void Take(in CapturedImage image)
+    {
+        foreach (ICaptureSink sink in sinks)
+            sink.Take(image);
     }
 }
 
