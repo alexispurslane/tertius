@@ -24,10 +24,10 @@ From a survey of the code on 2026-10-18.
 
 | Need | State | Demo work |
 |---|---|---|
-| Scripts of 100,000 ticks and more | Exists (`scripts/orbit.json` runs about 332,700 ticks) | A generator that writes the long script |
+| Scripts of 100,000 ticks and more | Exists (`scripts/orbit.json` runs about 332,700 ticks). The generator of the long script exists too (ter-2n31, see "The long script"). | Each later part adds its sections to the generator |
 | One image per frame | Exists: a `film` step captures every Nth tick (ter-bgk5), and `--video` sends the captures into one lossless video (ter-mln3). A 720p frame of the orbit scene takes 3.5 ms into the video and 80 ms into a PNG file (see change 1, "Measured"). | The generator writes film steps. |
 | Video | Exists: `ffmpeg-headless` in the dev shell (ter-mln3) encodes the frames of a headless run | Cut, add title cards and music with ffmpeg. |
-| A camera that follows the character | Partial: the camera is an entity, a camera step is a hard cut, `AttachTo` follows a parent | A chase camera component on an entity attached to the character |
+| A camera that follows the character | Exists: the camera is an entity, a camera step is a hard cut, and the Demo's `ChaseCamera`, on an entity attached to the character, follows it from behind (ter-2n31, see "The long script") | None |
 | Character walking, floating, grabbing | Exists (`MoveCharacter`, `Jump`, grab within 3 m). The pen, its `Clip` and the `Passenger` who takes it exist in the Demo (ter-m13s, see "The launch"). | A path-following walker component. A capsule hides that the rigid form never turns. |
 | Seat | Exists: `Shuttle.Seat`, a static box in the shuttle's interior shape, which the demo surface draws (ter-na4f). A character has no sitting pose, so the person stands at `Shuttle.SeatStand`. The `Passenger` component's belt holds the person there while the cabin's gravity would not keep it on its feet (ter-m13s). | None |
 | Ground at the pad | Earth's sphere sags about 480 m between vertices | A large static slab under the pad, as in the surface yard |
@@ -46,6 +46,103 @@ Step 3 of the sequence, as ticket ter-m13s built it in the Demo, in the scene `d
 - A `Clip` on the pen holds it on the cabin's port wall, at head height, aft of the seat (user, 2026-10-19). While the cabin has weight, the clip steers the pen to its place in every tick (`Self.Body.SteerTo`), so that physics carries it back each step: the weight of a step moves it about 8 mm at three gravities, and the jolt at the ramp's foot drops it about 0.1 m for one step. Once the cabin has been weightless for 1 s, the clip lets go with a push of 0.2 m/s away from the wall and a slow spin, end over end, at 0.5 rad/s. The pen drifts into the cabin, and nothing touches it until the person takes it 10.6 s later, about 2.1 m from the wall and 1.8 m above the floor (`PenClipTests`, `DemoLaunchTests`). The clip's state is the custom union `ClipState`: `Clipped` with its weightless ticks, or `Released`.
 - The script films the launch from cameras that the scene places for each part: `pad-camera` for the parked shuttle and the start up the ramp, `ramp-camera` for the ramp, `ramp-top-camera` for the flight past the ramp's top, `climb-camera` high behind the shuttle for the climb with the ground below, `chase-camera` for the high climb and the orbit, `pen-camera` within 2 m of the pen's way for the pen on the wall, its drift and the person's start from the seat, and `hand-camera` for the hand that closes on the pen and the pen in it. A 14 cm pen seen from the cabin's corners, 6 to 8 m away, shows only a few pixels.
 - Under the climb's thrust, the engine turns a character's up against the cabin's gravity, so the belted person tips toward the nose, face toward the floor, and it floats that way in orbit, because a weightless character keeps its last up. Engine ticket ter-yrfa will let a weightless character turn its own up, which will right the person. Until then, the demo leaves the person as the engine's rule puts it (user, 2026-10-19).
+
+## The long script
+
+Step 1 of "Order of the work", as ticket ter-2n31 built it in the Demo: the generator of the long script, the chase camera, and the frame time of the demo scene (see change 1, "Measured for the demo scene"). Nothing in the engine changed.
+
+Terms used below:
+
+- A section is one part of the run: one film step, from one camera, with one film interval, the number of ticks before each frame.
+- A cue is a moment of the run that a section waits for: a test of the world between ticks, such as "the person has shut its belt".
+- The rehearsal is the run that the generator makes before it writes the script, to find the tick at which each cue holds.
+
+### The generator
+
+A script is a fixed list of steps, but the length of each part of the run comes from the run: the walk, the climb, the pen. So the generator rehearses the run and writes what it found. `BlueDanube.Sections` lists the sections in their order, and `FilmScript.Generate` turns them into a script:
+
+- Each section starts where the section before it ends. It posts its events, films until its cue holds and then for its hold, and ends at the first frame at or after that moment. It films at least one frame. The generator asks the cue at the start of the section and after each of its frames.
+- The rehearsal builds the scene in a new world, as the command builds the world of a headless run, and runs the ticks of each section until its cue holds. It hands the camera step and the posts of each section to `ScriptRunner`, so it posts as a run of the script does. The engine is deterministic, so a run of the script reaches each cue at the same tick (`FilmScriptTests`).
+- Each section becomes a camera step, its posts and one film step. A cue that does not hold within the section's limit, 10 minutes of the simulation unless the section names another, stops the generator with the section's name.
+- No section copies a tick number from an earlier run. Each cue reads the run, such as the passenger's state, the autopilot's phase or the shuttle's height, or a place from the scene's constants, such as the terminal's walls or the ramp's height. So the sections follow the scene when it changes.
+
+A section of the walk:
+
+```csharp
+new("cabin", "follow-camera", Every: 1, (world, scene) => PassengerOf(world, scene).Value is not Boarding, Hold: Second),
+```
+
+where
+
+- `"cabin"` = the name of the film, so its frames are `cabin-000000` and on.
+- `"follow-camera"` = the scene id of the camera that films the section.
+- `Every` = the number of ticks before each frame.
+- `PassengerOf(world, scene)` = the state of the person's `Passenger` component. The cue holds once the person has shut its belt at the seat.
+- `Hold` = how many ticks the section goes on after its cue holds. `Second` is the engine's 60 ticks.
+
+The script is meant for a video at 60 frames per second. A section that films every tick plays at the speed of the simulation, and one that films every Nth tick plays N times faster. The commands:
+
+```
+dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
+dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
+```
+
+The first command rehearses the run, about 10 s, and writes the script. It prints each film with its frames, its film interval and the second of the run at which it starts. The second makes the video: on 2026-10-19 it took 30 s for the 4,210 frames and 23,101 ticks, 385 s of the simulation and 70 s of video. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, so the two cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+
+The sections today, as the checked-in script has them:
+
+| Film | Camera | Ticks per frame | Frames | Starts at, s | Ends |
+|---|---|---|---|---|---|
+| `overview` | `overview` | 1 | 90 | 0.0 | After 1.5 s |
+| `approach` | `follow-camera` | 1 | 118 | 1.5 | The person is 1 m inside the terminal's entrance |
+| `terminal` | `terminal-camera` | 1 | 229 | 3.5 | The person is 1 m outside the gate |
+| `pad` | `follow-camera` | 1 | 210 | 7.3 | The person is within 1.5 m of `Shuttle.OutsideHatch` |
+| `boarding` | `apron-camera` | 1 | 100 | 10.8 | The person's capsule is inside the cabin |
+| `cabin` | `follow-camera` | 1 | 215 | 12.4 | 1 s after the person shuts its belt |
+| `seated` | `cabin-camera` | 1 | 90 | 16.0 | After 1.5 s |
+| `pen-on-the-pad` | `pen-camera` | 1 | 60 | 17.5 | After 1 s |
+| `on-the-pad` | `pad-camera` | 1 | 60 | 18.5 | After 1 s |
+| `ignition` | `pad-camera` | 1 | 108 | 19.5 | It posts `Ignition`. The shuttle has risen an eighth of the ramp's height |
+| `ramp` | `ramp-camera` | 1 | 134 | 21.3 | The shuttle has risen three quarters of the ramp's height |
+| `ramp-top` | `ramp-top-camera` | 1 | 128 | 23.6 | 1 s after the autopilot starts to steer |
+| `climb-low` | `climb-camera` | 4 | 626 | 25.7 | The shuttle is 15 km up |
+| `climb-cabin` | `follow-camera` | 4 | 150 | 67.4 | After 10 s |
+| `climb-pen` | `pen-camera` | 4 | 60 | 77.4 | After 4 s |
+| `climb-high` | `chase-camera` | 20 | 777 | 81.4 | The autopilot is in orbit |
+| `orbit` | `chase-camera` | 1 | 60 | 340.4 | After 1 s |
+| `pen-release` | `pen-camera` | 1 | 121 | 341.4 | 2 s after the clip lets the pen go |
+| `fetch` | `pen-camera` | 1 | 345 | 343.4 | The person's hand is within 0.3 m of the pen |
+| `take` | `hand-camera` | 1 | 259 | 349.2 | 1.5 s after the person takes the pen |
+| `holding` | `cabin-camera` | 1 | 90 | 353.5 | After 1.5 s |
+| `coast` | `chase-camera` | 10 | 180 | 355.0 | After 30 s |
+
+### How a later ticket adds a section
+
+The demo is one unbroken run in one scene, so a later part, such as the station and the rendezvous, adds its entities and its cameras to the scene `demo-surface`, and its sections to the end of the list:
+
+1. Add the part's entities and its cameras to the scene. A camera is an entity with a scene id. A camera that follows the person is a `ChaseCamera` on an entity attached to the person, as `follow-camera` is.
+2. Add the part's sections to the end of `BlueDanube.Sections`, in the order of the sequence. Give each one a camera, a film interval, and a cue that reads the run or the scene's constants, never a tick number. A section that starts the part, such as a burn, posts its event. Replace the hold of `coast` with the cue at which the part starts, or keep the coast and add the part after it. A section that waits longer than 10 minutes of the simulation, such as a long coast, names a larger `Limit`.
+3. Write the script again with `--generate scripts/blue-danube.json`, and commit it with the change, so that `BlueDanubeScriptTests` passes.
+4. Make the video headless with `--video`, and have its frames judged.
+
+### The chase camera
+
+`ChaseCamera` is a component on a camera entity attached to the person, the subject. The attachment takes the camera into every frame that the subject enters, and the component writes only its own entity's offset from the subject. It keeps this framing in every tick:
+
+- The anchor: a smoothed copy of the subject's position. It moves at the subject's velocity, from the subject's positions, so a subject that walks at an even pace stays at the anchor. A sudden change of the subject's velocity, such as a jolt, a stair or a turn, goes into a lag between the anchor and the subject, which a spring, damped critically at 1/0.3 radians per second, takes out.
+- The camera's up turns toward the subject's up, with a time constant of 0.5 s.
+- The heading is the way the subject goes, across the camera's up. It turns toward the anchor's way with a time constant of 0.5 s while the anchor moves faster than 0.5 m/s, and it holds while the subject stands. It starts opposite to the camera's offset at its spawn, so the scene places the camera behind the subject.
+- The arm runs from the anchored eye, the place of the subject's view offset, back along the heading and up along the camera's up. A ray along the arm finds the nearest body that is not the subject's, and the arm stops 0.2 m short of it: at once when it must shorten, and with a time constant of 0.5 s when it can grow back. So the camera stays in the cabin and passes the terminal's doorways.
+- The camera looks at a point ahead of the anchored eye along the heading. The point comes nearer with a shorter arm, so the eye keeps its place in the view.
+
+The demo surface's `follow-camera` keeps 3.5 m behind the eye, 0.8 m above it, and looks 2 m ahead of it (`ChaseCameraTests`, `DemoFollowCameraTests`).
+
+Two limits come from the attachment, not from the component. The camera reads the subject at the end of the last finished step, and the attachment applies the camera's offset to the subject's pose at the end of the step that runs beside the camera's tick, in the subject's axes. So a sudden move or turn of the subject, which no camera can foresee, reaches the camera once, in the tick of the move, as a hard attach would, and from the next tick on the camera takes it out:
+
+- A walk that turns at 3 m/s moves the camera about 5 cm in that tick, and a stair 0.3 m high moves it 0.3 m.
+- The engine turns a character's up at once when the gravity round it turns, by up to 90 degrees, as at the ignition. In that tick the camera swings with the person by the arm's length times the angle.
+
+So the sections film the step into the hatch and the ignition with fixed cameras. An attachment that follows only the parent's position, in the axes of the parent's frame, would remove both limits. That is an engine change, and the demo does not need it.
 
 ## Physics notes
 
@@ -231,7 +328,7 @@ The video ticket runs 600 frames of the orbit scene, 2 ticks apart, at 1280x720 
 - The same run with the PNG target: the time per frame and the bytes per frame.
 - The time that 18,000 frames take with each target, from the measured rates. That is 10 minutes of video at 30 frames per second.
 
-The demo ticket ter-2n31 measures the frame time of the demo scene itself.
+The demo ticket ter-2n31 measures the frame time of the demo scene itself (see "Measured for the demo scene").
 
 #### Measured
 
@@ -250,6 +347,24 @@ Ticket ter-mln3 measured this on 2026-10-19, on an Apple M1 Max, in a Release bu
 - 18,000 frames, 10 minutes of video at 30 frames per second, take 1.1 minutes into a 720p video and 24 minutes into PNG files. At 1080p they take 1.6 and 53 minutes.
 
 The pipe write takes 1 ms of a 720p frame and 2.3 ms of a 1080p frame, about the time of a copy of the frame through the pipe. ffmpeg encodes faster than the run makes frames, so its queue stays short: at the end of the run, ffmpeg needs 18 ms and 36 ms for the frames still in it. A writer thread would save at most the time of the write. That is 29 percent of a 720p frame and 44 percent of a 1080p frame, but over the 18,000 frames of the demo it is at most about 18 s at 720p and 41 s at 1080p, against a run of 1.1 and 1.6 minutes. So the time does not matter, the write stays on the calling thread, and no follow-up ticket is needed.
+
+#### Measured for the demo scene
+
+Ticket ter-2n31 measured this on 2026-10-19, on an Apple M1 Max with 10 logical processors under macOS 27.0, in a Release build with validation off. The explicit test `DemoFrameCostMeasurement` in the Host tests repeats it, with the variable `TERTIUS_DEMO_COST` set to the file of its report: `TERTIUS_DEMO_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*DemoFrameCostMeasurement" --explicit only`. It runs the checked-in `scripts/blue-danube.json` from its start through the film `seated`: the walk on the surface and the person at its seat in the cabin, 1,052 frames, one tick apart, at 1280x720 into a video at 60 frames per second. It drives the objects of a headless run as the command makes them, through the renderer and the playback that time every call, as `VideoCostMeasurement` does. The times are wall-clock means per frame, in ms, from the fastest of three runs. Other work loaded the machine, with a load average from 6 to 18, so the other two runs took 5.5 and 6.8 ms per frame, with the ticks up to three times as long.
+
+| Film | Camera | Frames | Ticks | Draw, fence wait and readback | Video's pipe write | All |
+|---|---|---|---|---|---|---|
+| `overview` | `overview` | 90 | 1.61 | 2.35 | 0.87 | 4.83 |
+| `approach` | `follow-camera` | 118 | 0.76 | 2.21 | 2.25 | 5.23 |
+| `terminal` | `terminal-camera` | 229 | 0.72 | 2.16 | 2.40 | 5.28 |
+| `pad` | `follow-camera` | 210 | 0.33 | 1.77 | 1.03 | 3.13 |
+| `boarding` | `apron-camera` | 100 | 0.21 | 1.73 | 0.94 | 2.88 |
+| `cabin` | `follow-camera` | 215 | 0.24 | 1.72 | 0.99 | 2.95 |
+| `seated` | `cabin-camera` | 90 | 0.42 | 2.08 | 1.66 | 4.16 |
+
+- The whole stretch took 4.00 ms per frame, and the end of the video (`Finish`) 17 ms once.
+- On the surface a frame takes 3 to 5 ms, and in the cabin 3 to 4 ms. The draw takes about 2 ms everywhere, a little more than the 1.6 ms of the orbit scene. The tick takes 0.2 to 0.8 ms, more on the surface, where the terminal and the slab are near the person, than in the cabin. The first film also pays for the first ticks of the run.
+- The whole script, 4,210 frames and 23,101 ticks, took 30 s from the command line, about 7 ms per frame, with 5.5 ticks per frame on average. So the 70 s of video of today take half a minute, and the demo's 18,000 frames would take a few minutes.
 
 #### Compared with today
 
@@ -571,7 +686,7 @@ Two questions belong to the spin gravity epic, and its tickets carry notes about
 
 ## Order of the work
 
-1. The video pipeline: the script generator, the chase camera, a measured frame time. ffmpeg in the dev shell and the video target came with E4 (ter-mln3).
+1. The video pipeline: the script generator, the chase camera, a measured frame time (ter-2n31, see "The long script"). ffmpeg in the dev shell and the video target came with E4 (ter-mln3).
 2. The surface: the pad, the terminal, the walker, the boarding. The seat came with it: `Shuttle.Seat`, a static box in the shuttle's interior shape.
 3. The launch and the climb to orbit: the ramp, the shuttle's autopilot, the weightless cabin and the pen. The launch uses the seat of step 2, `Shuttle.Seat`.
 4. The station and the rendezvous: the mesh generators, the wheel, the spokes, the barrel with its slot, the station on its orbit, the rendezvous autopilot.

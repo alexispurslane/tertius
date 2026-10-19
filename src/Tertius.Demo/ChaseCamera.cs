@@ -16,7 +16,7 @@ namespace Tertius.Demo;
 /// whose up the engine turns at once, as under a ship's thrust, does not swing the camera round in one tick.</item>
 /// <item>The heading: the way the subject goes, across the camera's up. It turns toward the direction of the anchor's
 /// velocity across that up, with the time constant <see cref="TurnTime"/>, while that speed is above
-/// <see cref="TurnSpeed"/>, and it holds while the subject stands or its belt jolts it. It turns with the camera's up. It
+/// <see cref="TurnSpeed"/>, and it holds while the subject stands. It turns with the camera's up. It
 /// starts opposite to the camera's offset at its spawn, so the scene places the camera behind the subject.</item>
 /// <item>The arm: from the anchored eye, <paramref name="behind"/> meters back along the heading and
 /// <paramref name="above"/> meters up along the camera's up. The eye is the place of the subject's view offset. A ray
@@ -53,7 +53,7 @@ public sealed class ChaseCamera(double behind, double above, double ahead) : ICo
 
     /// <summary>
     /// The speed of the anchor across the camera's up, in m/s, below which the heading holds: a sixth of a walk at
-    /// <see cref="PersonControl.WalkSpeed"/>, and above the few tenths of a meter per second of a belted person's jolt.
+    /// <see cref="PersonControl.WalkSpeed"/>, so the heading holds in the last 0.17 m of a <see cref="Walker"/>'s stop.
     /// </summary>
     public const double TurnSpeed = 0.5;
 
