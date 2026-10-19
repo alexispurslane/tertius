@@ -1,7 +1,7 @@
 ---
 id: ter-1bnq
 status: in_progress
-deps: [ter-ediu, ter-xdt8]
+deps: [ter-ediu, ter-xdt8, ter-6azq]
 links: []
 created: 2026-10-16T23:00:45Z
 type: feature
@@ -20,3 +20,7 @@ Design: docs/plans/spin-gravity.md. Section 'The rotation terms'. The exact upda
 **2026-10-18T14:08:43Z**
 
 From the Blue Danube demo survey (2026-10-18): the design is silent on the proper acceleration of a ship (a frame with a dynamic hull) inside a turning parent frame. ComputeProperAccelerations subtracts only GravityApplied (JoltPhysicsBackend.Step.cs ~599-615). The weight of a landed or co-rotating ship's cargo (omega^2 r) depends on it. Settle it in this ticket, with a test.
+
+**2026-10-19T19:27:45Z**
+
+2026-10-19: stage 1 is done on branch ter-1bnq-rotation-terms (FrameTurn, FrameTurns, FrameMotion's acceleration terms, reviewed twice). Stage 2 waits for ter-6azq, because both change the proper acceleration code. The ticket's pointer 'Section The rotation terms' now goes to 'The two-turn update', 'Values' and 'The flow per kind of entity' of docs/plans/spin-gravity.md. Read 'the inertial angular velocity summed along the chain' and 'the angular acceleration from the change between steps' as V1 and V2 from BeginStep, and the list of turning kinds as every turning frame (FrameTurns.Turns).
