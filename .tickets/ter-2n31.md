@@ -1,7 +1,7 @@
 ---
 id: ter-2n31
 status: open
-deps: [ter-ozm8]
+deps: [ter-ozm8, ter-bgk5, ter-mln3]
 links: []
 created: 2026-10-18T14:08:42Z
 type: task
