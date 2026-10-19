@@ -2,8 +2,8 @@ namespace Tertius;
 
 /// <summary>
 /// The turn of a frame's axes over one physics step, and the frame's inertial angular velocity at that step's end
-/// (docs/plans/spin-gravity.md, "The two-turn update"). The frame tree keeps two of them per frame for the step in flight,
-/// as a <see cref="FrameTurns"/>.
+/// (docs/plans/spin-gravity.md, "The two-turn update"). The frame tree keeps two of them per frame in one
+/// <see cref="FrameTurns"/>: the turn of the step in flight and the turn of the step that ended (V1 and V2 of the design).
 /// </summary>
 /// <remarks>
 /// It has no case tag: the identity turn means no turn. Its default is not <see cref="None"/>: the default

@@ -7,7 +7,8 @@ namespace Tertius;
 /// converts a full sample with it (see <see cref="Frames.Rails.MotionSample.Converted"/>) when its entity changes frame
 /// (see <c>World.ConvertIntent</c>). The conversions follow ARCHITECTURE.md, hand-off rule 5: v' = R⁻¹(v − v_frame − ω × r).
 /// The rules of the accelerations, with the frame's rotation terms, are those of docs/plans/spin-gravity.md, "V7, the
-/// relative motion of two frames".
+/// relative motion of two frames". The two accelerations have default values only until spin gravity moves the callers of
+/// today; then the defaults go, and every producer states both.
 /// </summary>
 /// <param name="Pose">The frame's pose in the parent: R, its rotation into the parent's axes, and the place of its origin.</param>
 /// <param name="Velocity">The velocity of the frame's origin in the parent, in m/s.</param>

@@ -5,7 +5,8 @@ namespace Tertius;
 /// the turn of the step in flight and the turn of the step that ended. A free body moves on a straight line in inertial
 /// space, and in the frame's axes the same line is x_(n+1) = 2 R_n x_n − R_n R_(n−1) x_(n−1), with R_n the turn of
 /// <see cref="Step"/> and R_(n−1) the turn of <see cref="Last"/>. That map from one chord to the next holds the Coriolis, the
-/// centrifugal and the Euler term exactly, at any step length, and needs no rate.
+/// centrifugal and the Euler term exactly, at any step length, and needs no rate. The frame tree stores one per frame, and
+/// every reader reads that one (V1 of the design).
 /// </summary>
 /// <param name="Step">The turn of the step in flight, V1 of the design.</param>
 /// <param name="Last">The turn of the step that ended, V2 of the design: the turn that the chords of the frame's bodies came from.</param>
@@ -18,7 +19,8 @@ internal readonly record struct FrameTurns(FrameTurn Step, FrameTurn Last)
 
     /// <summary>
     /// The turn over both steps, R_n R_(n−1): from the frame's axes at the start of the step that ended to its axes at the
-    /// end of the step in flight. The update of every body in the frame reads it, so the frame computes it once per step.
+    /// end of the step in flight. The update of every body in the frame reads it. The frame tree's BeginStep builds the
+    /// frame's stored turns once per step, so the product is computed once per frame and step.
     /// </summary>
     public DQuaternion TwoSteps { get; } = Step.Turn * Last.Turn;
 

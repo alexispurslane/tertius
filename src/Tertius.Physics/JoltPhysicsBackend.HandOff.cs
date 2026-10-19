@@ -37,7 +37,14 @@ public sealed partial class JoltPhysicsBackend
     /// rotate, so a shift of position and velocity takes a member's state from the system into the parent. The velocities
     /// are instant ones or chords, as <see cref="BubblesFor"/> says.
     /// </summary>
-    private readonly record struct BubbleEntry(FrameHandle Parent, FrameHandle Frame, FrameMotion Motion, Double3 Offset, Double3 Velocity);
+    private readonly record struct BubbleEntry(FrameHandle Parent, FrameHandle Frame, FrameMotion Motion, Double3 Offset, Double3 Velocity)
+    {
+        /// <summary>
+        /// The bubble's motion relative to <see cref="Parent"/>. It is a field, not a property, so that the scans of
+        /// <see cref="HandOffBodies"/> and <see cref="UpdateGhosts"/> read it in place, with no copy per body.
+        /// </summary>
+        public readonly FrameMotion Motion = Motion;
+    }
 
     /// <summary>What a list of bubbles serves, which sets when it is collected and which velocities it holds.</summary>
     private enum BubblesFor
@@ -160,9 +167,11 @@ public sealed partial class JoltPhysicsBackend
 
                 int best = -1;
                 double deepest = double.NegativeInfinity;
-                for (int i = 0; i < bubbleEntries.Count; i++)
+                // The scan reads each entry in place: a copy would move the whole entry, frame motion and all, for every body.
+                ReadOnlySpan<BubbleEntry> entries = CollectionsMarshal.AsSpan(bubbleEntries);
+                for (int i = 0; i < entries.Length; i++)
                 {
-                    BubbleEntry entry = bubbleEntries[i];
+                    ref readonly BubbleEntry entry = ref entries[i];
                     // A hull never enters its own frame. The other bubbles are those of its frame's semantic siblings,
                     // never of frames inside it: every hull starts the step in the system of its frame's parent in the
                     // tree, and the walk to the siblings passes only through numeric frames.
@@ -180,8 +189,8 @@ public sealed partial class JoltPhysicsBackend
                 }
                 if (best >= 0)
                 {
-                    BubbleEntry entry = bubbleEntries[best];
-                    FrameMotion motion = entry.Motion;
+                    ref readonly BubbleEntry entry = ref entries[best];
+                    ref readonly FrameMotion motion = ref entry.Motion;
                     var poseInParent = new DPose(s.Pose.Position + entry.Offset, s.Pose.Rotation);
                     Double3 centerInParent = s.CenterOfMass + entry.Offset;
                     var (linear, angular, acceleration) = HandedOffVelocities(member, entry.Frame, motion.Pose.InverseTransformPoint(centerInParent),
@@ -457,11 +466,11 @@ public sealed partial class JoltPhysicsBackend
                         PrepareBubbles(siblingBubbles, parent, BubblesFor.Ghosts);
                         haveSiblingBubbles = true;
                     }
-                    foreach (BubbleEntry sibling in siblingBubbles)
+                    foreach (ref readonly BubbleEntry sibling in CollectionsMarshal.AsSpan(siblingBubbles))
                     {
                         if (sibling.Frame == bubble || sibling.Frame == member.OwnedFrame)
                             continue;
-                        FrameMotion motion = sibling.Motion;
+                        ref readonly FrameMotion motion = ref sibling.Motion;
                         var poseInSiblingParent = new DPose(parentPose.Position + sibling.Offset, parentPose.Rotation);
                         if (frames.Bounds(sibling.Frame).SignedDistance(motion.Pose.InverseTransformPoint(poseInSiblingParent.Position)) >
                             radius + ContentExcessFor(member, sibling.Frame))
@@ -482,12 +491,11 @@ public sealed partial class JoltPhysicsBackend
                 // update names. The child's system holds no hull of a frame that holds the body, so a child ghost of a
                 // static body or a hull meets hulls, as its body does (see GhostBody.Role).
                 double reach = member.IsHull ? Math.Max(radius, frames.Bounds(member.OwnedFrame).MaxRadius) : radius;
-                for (int i = 0; i < ghostBubbles.Count; i++)
+                foreach (ref readonly BubbleEntry child in CollectionsMarshal.AsSpan(ghostBubbles))
                 {
-                    BubbleEntry child = ghostBubbles[i];
                     if (child.Frame == member.OwnedFrame)
                         continue;
-                    FrameMotion motion = child.Motion;
+                    ref readonly FrameMotion motion = ref child.Motion;
                     if (frames.Bounds(child.Frame).SignedDistance(motion.Pose.InverseTransformPoint(center + child.Offset)) > reach + ContentExcessFor(member, child.Frame))
                         continue;
                     if (!haveSnapshot)
