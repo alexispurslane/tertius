@@ -60,13 +60,13 @@ This changes all physics, not only spin. Seven existing tests encode Jolt's conv
 
 ## Conversions between frames
 
-The motion of a body converts between two frames at a hand-off, and the step record of a frame converts when its relative frame changes (`MotionSampleTable.ConvertInto`, in steps 2 and 5 of the sync point). Both use the relative motion of the two frames, `FrameMotion`, for the pose, the velocities, the angular velocity and the angular acceleration. The rails components (`ter-6r8c`) and their review left out the terms that a turning frame adds to the accelerations. This epic adds them. Each place below changes in the same way, so that the hand-off and the sample table keep one rule.
+The motion of a body converts between two frames at a hand-off. When the frame that a full sample or a step record is relative to changes, the sample converts (`MotionSample.Converted`). That happens at steps 5 and 7b of the sync point, where a motion intent converts with the rest of its intent (`ConvertIntent`). It also happens at step 2, where a following frame that jumps takes the record that physics released (`JumpFollowingFrame`). Both conversions use the relative motion of the two frames, `FrameMotion`, for the pose, the velocities, the angular velocity and the angular acceleration. The rails components (`ter-6r8c`) and their review left out the terms that a turning frame adds to the accelerations. This epic adds them. Each place below changes in the same way, so that the hand-off and the motion intents keep one rule.
 
 | Place | What it converts | Terms that it leaves out |
 |---|---|---|
 | `FrameMotion.AngularAccelerationToParent` and `AngularAccelerationFromParent` | The angular acceleration of a hull at a hand-off, and of a sample | The cross term `ω × (R ω_body)`, whose inputs both callers have today, and the frame's angular acceleration `α`, which the bubble's step record holds at a hand-off |
 | `FrameTree.AccelerationRelative` | The acceleration of the origin of one frame relative to another, level by level | At each turning level: the centrifugal term `ω × (ω × r)` and the Coriolis term `2 ω × v` of the child's origin, whose place and velocity the tree keeps, and the Euler term `α × r` |
-| `MotionSampleTable.ConvertInto` | The acceleration of a sample: turned, plus `AccelerationRelative` | The same three terms at the sample's place and velocity, which it has |
+| `MotionSample.Converted`, through `ConvertIntent` and `JumpFollowingFrame` | The acceleration of a full sample or a step record: turned, plus `AccelerationRelative` | The same three terms at the sample's place and velocity, which it has |
 
 where
 
@@ -76,7 +76,7 @@ where
 - `ω_body` = the body's angular velocity in the turning frame.
 - `r`, `v` = the place and the velocity of the point in the turning frame, in the other frame's axes.
 
-The Euler terms need the angular acceleration of a semantic frame, which only its step record holds. `AccelerationRelative` also leaves out the linear acceleration of a semantic frame on its path, which only the record holds too. That term is not a rotation term, so it needs a ticket of its own.
+The Euler terms need the angular acceleration of a semantic frame. `AccelerationRelative` also leaves out the linear acceleration of a semantic frame on its path. Only the step record of a step in flight holds them: a full sample in the owner's motion intent, or the record that physics measures for a dynamic hull. Since `ter-xdt8`, no store keeps them after the sync point. The frame tree row keeps only the record's pose, instant velocity, angular velocity and proper acceleration. The decision "What the frame tree row keeps of a step record" in [Rails components](rails-components.md) gives the reason. When its design needs one, spin gravity adds its own store for them. The linear term is not a rotation term, so it needs a ticket of its own.
 
 ## Characters
 

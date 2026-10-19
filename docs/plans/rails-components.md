@@ -1,10 +1,10 @@
 # Rails components
 
-Epic: `ter-ozm8`. The design ticket `ter-skca` wrote this plan. The work tickets are `ter-k8cg`, `ter-6r8c`, `ter-ru5u` for changes of motion, and `ter-zg77` (see "Order of the work").
+Epic: `ter-ozm8`. The design ticket `ter-skca` wrote this plan. The work tickets are `ter-k8cg`, `ter-6r8c`, `ter-ru5u` for changes of motion, `ter-xdt8` and `ter-zg77` (see "Order of the work"). `ter-xdt8` brings rails motion to every entity.
 
 ## Goal
 
-Every frame with an owner follows its owner. A frame whose owner has a dynamic hull follows the hull, as a frame with the `Physics` driver does today. A frame on rails, on a Kepler orbit or in a steady spin, follows a motion sample that a component of its owner hands over in each tick. A static frame follows its owner when gameplay moves the owner. The frame tree keeps no driver, orbit or spin, and physics never pushes a hull after its frame.
+Every frame with an owner follows its owner. A frame whose owner has a dynamic hull follows the hull, as a frame with the `Physics` driver does today. A frame on rails, on a Kepler orbit or in a steady spin, follows its owner's motion intent. In each tick, a component of the owner writes a full sample as that intent. Since `ter-xdt8`, rails motion moves any entity, not only a frame owner (see "Rails motion for every entity"). A static frame follows its owner when gameplay moves the owner. The frame tree keeps no driver, orbit or spin, and physics never pushes a hull after its frame.
 
 ## Why
 
@@ -19,13 +19,18 @@ Every frame with an owner follows its owner. A frame whose owner has a dynamic h
 |---|---|
 | Rails motion | Motion that is an exact function of time: a Kepler orbit or a steady spin |
 | Rails component | A component that moves its entity on rails: `KeplerMotion` or `SpinMotion` |
-| Motion sample | One step of rails motion, the struct `MotionSample`: the pose at the end of a step, and the velocities and accelerations that go with it |
-| Sample table | The table of motion samples, indexed by the frame's index, with three buffers (see "The motion sample") |
+| Motion sample | The struct `MotionSample`: the pose at the end of a step, and the velocities and accelerations that go with it (see "The motion sample"). A full sample and a step record are motion samples. |
+| Motion intent | The union `MotionIntent` in an entity's intent, the field `PhysicsIntent.Move`: how the entity moves in the step that applies the intent. It holds no case, an end pose, a full sample or a steer target (see "Rails motion for every entity"). |
+| End pose | The case `EndPose(DPose Pose)` of a motion intent: the pose at the end of the step, relative to the intent's frame. `self.MoveKinematic` writes it. |
+| Full sample | The case `MotionSample` of a motion intent: one step of motion, with the pose at the end of the step and every velocity and acceleration that goes with it. `self.MoveOnRails` writes it. A rails component writes one in each tick. |
+| Steer target | The case `SteerTarget(DPose Pose)` of a motion intent: a pose that physics steers a dynamic body toward over the step, relative to the intent's frame. `self.Body.SteerTo` writes it. |
+| Step record | A `MotionSample` that describes an entity's motion over one step. An end pose or a full sample gives the record of the step that applies it. Physics measures the record of a dynamic hull. A steer target gives none. |
+| Follow kind | How a frame took its record at the last sync point: `Rails`, `Kinematic`, `Physics` or `Static`. The frame tree keeps it, one byte per frame. |
 | Step N | The physics step that runs during tick N, from `t_N` to `t_{N+1}`. Gameplay of tick N reads `self.Time = t_N`. |
 | Follow | At the sync point, a frame takes its pose and velocities from its owner |
 | Hull | The body of a frame's owner, in the Jolt system of the frame's tree parent. A root frame has no hull. Its owner's body is only the frame's static interior. |
-| Body on rails | A kinematic hull that follows motion samples |
-| Following frame | A numeric frame that holds a fast or far body on rails at its origin and follows its samples. Today's orbit frame (`NumericMode.Orbiting`) is the only kind so far. |
+| Body on rails | A kinematic body whose motion intents are the full samples of a rails component |
+| Following frame | A numeric frame that holds a fast or far kinematic hull at its origin. At every sync point, it lands on the step record of the hull's motion intent. Today's orbit frame (`NumericMode.Orbiting`) is the only kind so far. |
 | Chord velocity | The displacement over a step, divided by the step. Jolt reads a stored velocity this way. |
 | Instant velocity | The velocity at one moment |
 
@@ -37,28 +42,33 @@ The user made the decisions marked (User).
 |---|---|---|
 | Where the state of rails motion lives | On components of the frame's entity, `KeplerMotion` and `SpinMotion`. The tree keeps no driver, orbit or spin. Every frame with an owner follows its owner. (User) | One rule for every frame: the rule that a `Physics` frame follows today. |
 | What a rails component holds | An exact description as a function of time: orbit elements and an epoch, or a tilt, a rate, a phase and an epoch. No integration state. (User) | A sample at any time is exact, so no error builds up, and a save needs only the description. |
-| How the engine gets the motion | In each tick, the component hands over one motion sample for the end of the next step, in one intent, `MoveOnRails`. The engine never calls into a component at the sync point. It reads the intent. (User) | The solve runs in the parallel part of the tick. The serial sync point only copies samples. |
+| How the engine gets the motion | In each tick, the component writes one full sample for the end of the next step, as its entity's motion intent, with `MoveOnRails`. The engine never calls into a component at the sync point. It reads the intent. (User) | The solve runs in the parallel part of the tick. The serial sync point only copies samples. |
 | What a sample holds | The pose at the end of the step, the chord velocity over the step, the instant velocity at its end, the acceleration over the step, and the exact angular velocity and angular acceleration, all in doubles. (User) | Each reader needs another field (see "The motion sample"). |
-| How exact a body on rails is | A body on rails ends each step exactly on its target, and its frame stands exactly on the sample at the sync point. (User) Physics does the snap right after the Jolt update, because the sync point cannot reach Jolt. | Jolt reaches a kinematic target only to the float rounding of the velocity, about 4 µm per step at 7.6 km/s. With the snap, a place on an orbit stays exact to the last bit. |
-| A frame without a body | It takes the same intent, on its entity's transform. (User) | Planets and rooms follow the same rule as hulls. |
+| How exact a body on rails is | A body on rails ends each step exactly on its target, and its frame stands exactly on the sample at the sync point. (User) Physics does the snap right after the Jolt update, because the sync point cannot reach Jolt. Since `ter-xdt8`, physics snaps every kinematic body that an end pose or a full sample moves. | Jolt reaches a kinematic target only to the float rounding of the velocity, about 4 µm per step at 7.6 km/s. With the snap, a place on an orbit stays exact to the last bit. |
+| A frame without a body | It takes the same motion intent as a hull. The sync point applies it at step 2, to the frame tree row. (User) | Planets and rooms follow the same rule as hulls. |
 | A static frame | It needs no component. Gameplay moves its owner. (User) | A static frame moves only when gameplay moves it. |
 | What replaces `MotionDriver` | Nothing. The enum and `BodyDesc.FrameHullMotion` go. The motion of the owner's body says how a frame follows. (User) | A second value beside the body's motion can disagree with it. |
 | A change of motion | A swap of components plus a change of the body's motion. (User) The row "How a body changes its motion after spawn" below says how the body's motion changes. | Today only a frame driver changes a body's motion after spawn. |
 | The rails math | Public pure functions in the namespace `Tertius.Frames.Rails`, in `src/Tertius.Core/Frames/Rails/`. Every function lives in its struct: an instance method for a function of an orbit or a spin, a static method of `KeplerOrbit` for two-body math that takes no orbit elements (see "The rails library"). (User, 2026-10-18) | Components and engine code call one copy. It is public, because the Demo and the Host cannot see the internals of Core. |
-| How a frame takes its motion | One step record per frame, a `MotionSample`, for every kind of owner. Physics releases it for every hull (a dynamic hull, a kinematic hull from the sample it applied, a static teleport); an owner without a body writes it (a rails sample, or a transform write at the sync point). One loop, `FollowOwners`, applies it, and physics predicts every frame from it. `FrameState` goes. (User, 2026-10-18) | One rule for every frame, with no special path for physics. See "One motion record per frame". |
+| How a frame takes its motion | One step record per frame, a `MotionSample`, for every kind of owner. Physics releases it for every hull (a dynamic hull, a kinematic hull from the motion intent it applied, a static teleport). For an owner without a hull, the sync point derives it from the owner's motion intent, or takes the owner's transform write. One loop, `FollowOwners`, applies it, and physics predicts every frame from it. `FrameState` goes. (User, 2026-10-18) | One rule for every frame, with no special path for physics. See "One motion record per frame". |
 | The reverse path | `DriveKinematicHulls` and step 6b (`AdvanceDrivenFrames`) go. (User) | The tree no longer moves a frame on rails, so nothing pushes a hull after it. |
 | Which epic comes first | This epic, then spin gravity (`ter-s9m0`). (User) | Spin gravity reads the exact angular velocity and angular acceleration from the sample. |
-| A fast or far body on rails | It lives in a following frame. The frame takes its place and velocity at each sync point, and its acceleration in each step, from the sample. Every kinematic hull gets one by the speeds and distances of free bodies, not only a Kepler hull. `NumericBody.Fixed` and `Orbits` come from the hull's motion. | An anchor needs a home in which it is at rest (rule 3 of "Anchors" in [Numeric frames](numeric-frames.md)). With motion on components, the tree cannot tell a Kepler hull from another kinematic hull. |
+| A fast or far body on rails | It lives in a following frame. At each sync point, the frame takes its place and velocity from its anchor's step plan. In each step, it takes the acceleration that lands it on that plan (see "The step plan of a following frame"). Every kinematic hull gets one by the speeds and distances of free bodies, not only a Kepler hull. `NumericBody.Fixed` and `Orbits` come from the hull's motion. | An anchor needs a home in which it is at rest (rule 3 of "Anchors" in [Numeric frames](numeric-frames.md)). With motion on components, the tree cannot tell a Kepler hull from another kinematic hull. |
 | The velocity of a ghost of a frame on rails | The sample's chord. A hand-off uses the sample's instant velocity. | Ghosts use chords and hand-offs use instant velocities for every other body ("Bubbles and ghosts" in [Numeric frames](numeric-frames.md)). Today the ghost takes the orbit's instant velocity, 7 cm/s off in low orbit. The sample has both, so this limit goes. |
 | The velocity that the tree keeps for a frame on rails | The instant velocity, as today. A frame with a dynamic hull keeps the hull's chord, as today. | Reads in a frame do not change. Physics reads the sample, so it needs no conversion. |
 | A transform write to a bodyless owner on rails | Allowed. It moves the frame at the sync point of the tick, and the next sample puts the frame back on its rails. | No driver owns the pose, and the entity's own components decide. Today the World refuses the write and records an error. |
 | How a component reads the time of its sample | A new `Self.TimeAt(long tick)` returns the World's time of a tick, the same double that `World.Time` holds then. | A sum such as `self.Time + 2 * self.DeltaTime` can differ from the World's time in the last bit, and a place on an orbit must match it exactly. |
-| How rails motion starts | The new frame holds still at the pose of its spawn description for its first step, as a frame without a sample does. The first run of the component puts it on its rails with its first sample. Nothing writes a first sample. (User) | No new API, and it works for blueprints, content and a mod's own component. The engine still never calls into components, and a swap of components has no gap. |
+| How rails motion starts | The new frame holds still at the pose of its spawn description for its first step, as a frame without a motion intent does. The first run of the component puts it on its rails with its first sample. Nothing writes a first sample. (User) | No new API, and it works for blueprints, content and a mod's own component. The engine still never calls into components, and a swap of components has no gap. |
 | How a body changes its motion after spawn | An intent, `self.Body.SetMotion(BodyMotion)`, that the entity's own components write in a tick. (User) Physics changes the Jolt motion type at the start of the next step, which applies the intent (`ApplyHullMotion`). The hull's motion has one store, the frame tree (`FrameTree.HullMotion`), and it lags like the collision rows: at step 4 of the sync point after that step, it takes the change from the intents that the step applied. The motion of a step that has not finished is derived from the pending intent, never stored: `FrameTree.HullMotionInStep` for the running step and `World.NextStepHullMotion` for the next one. (User, 2026-10-18) | Gameplay can start a station's engines, and the hull keeps its body id, its system and its contacts. An entity changes only itself. Data flows the same way for every row: the state that a tick reads describes the last finished step, and each reader that asks about a step in flight derives its motion from the intent. My proposal had the stored motion lead physics, as the motion of the step in flight that every reader reads directly. |
-| Where the checks of rails motion live | In the components. A property setter refuses an orbit or a spin that is not valid, with an `ArgumentException`. A `KeplerMotion` whose parent has no G·M holds its frame still and logs once. A rails component on a body that is not kinematic logs once and writes no sample. The World checks nothing. (User) | One place for each rule, and the same rules for a mod's own component. Without a driver, the World does not know which frames orbit. |
+| Where the checks of rails motion live | In the components. A property setter refuses an orbit or a spin that is not valid, with an `ArgumentException`. A `KeplerMotion` whose parent has no G·M holds its frame still and logs once. A rails component whose entity refuses a full sample logs the guard's reason once (`self.MotionIntentProblem`) and writes no sample. The World checks nothing of an orbit or a spin. (User) | One place for each rule, and the same rules for a mod's own component. Without a driver, the World does not know which frames orbit. |
 | The proper acceleration of a frame on rails | A field of the sample, `ProperAcceleration`, a `Vector3` in the frame's axes. `KeplerMotion` gives zero. `SpinMotion` gives its property `ProperAcceleration`, zero by default, and a component that starts a turntable copies the frame's value into it. (User) | Today's results: a Kepler frame has zero proper acceleration, and a landed ship that starts to turn keeps its cargo's weight (`SpinFrameTests`). Every rails component fills one more field. |
-| Where the motion sample lives | In the sample table: a table of its own, indexed by the frame's index, with three buffers. Physics gets the buffer that its step applies in `PhysicsStepContext`. | Only frames pay, a frame without a body needs nothing special, and step 6c reads the third buffer. The table moves its buffers on at step 4 and converts at steps 5 and 7b. |
-| What a state dump records about a frame | `FrameRecord(Id, Parent, Follows)`. `Follows` is `"rails"`, `"physics"` or `"static"`: how the frame followed its owner at the dump's sync point. | A dump still shows which frames move on rails. The tree reports one new value. |
+| Which entities move on rails | Every entity that the guard lets through, not only a frame owner: a kinematic body, hull or plain, an entity without a body, and the owner of a root frame. (User, 2026-10-18) | Frames follow their owner entity, and the rails components move their entity. Before `ter-xdt8`, `MoveOnRails` refused an entity that owns no frame, and physics read samples only for hulls. |
+| Where the motion intent lives | In the entity's intent: the field `PhysicsIntent.Move`, which replaces `PhysicsIntent.Target` and the flag `IntentFlags.KinematicTarget`. It has the life of the rest of the intent. The swap at step 4 exchanges the two intent buffers. Without a physics backend, the swap keeps `Move`. (User, 2026-10-18) Until `ter-xdt8`, the sample table held the samples: a table of its own, indexed by the frame's index, with three buffers. | One store, and data that is used together stays in one struct. A sparse store beside the intents needs an index. The swap, the release of a slot, the rule without a backend and both conversions must keep it coherent. The intent grows from about 240 to about 380 bytes: about 27 MB more at 100,000 slots, on 48 MB. The buffer exchange moves about 380 bytes per writer, where today's copy and two clears move about 720. The benchmark of the swap at 100,000 entities tells whether a sparse store is needed. |
+| What a motion intent can be | A custom union, `MotionIntent`, with three cases: an end pose (`self.MoveKinematic`), a full sample (`self.MoveOnRails`) and a steer target (`self.Body.SteerTo`). (User, 2026-10-18) | An end pose is not a full sample with zero velocities. Such a sample tells a frame that it stands still. The steer target keeps what `MoveKinematic` does for a dynamic body today: physics gives the body the velocities that carry it to the pose over the step. |
+| Which entity takes which case | One guard, `World.MotionIntentProblem`. It allows an end pose and a full sample for a kinematic body, an entity without a body and the owner of a root frame. It allows a steer target only for a dynamic body. A static body, a character and an attached entity refuse every case. (User, 2026-10-18) | An end pose and a full sample are the result itself, so physics or the sync point puts the entity exactly there. A force, an impulse and a steer target are inputs that physics integrates for a dynamic body. The writers, the step-4 drops and the rails components use one rule, so they never disagree. |
+| How a kinematic body moves | Only by its motion intents and teleports, hull or not. It holds still in a step without a motion intent. `SetVelocity` and `SetAngularVelocity` throw for every kinematic body. A spawn refuses a velocity on a kinematic body that owns no frame. A kinematic hull keeps its spawn velocity as its frame's velocity. (User, 2026-10-18) | The pure model: one rule for every kinematic body, and one path per kind. A second way to move a plain kinematic body is an exception that no misbehavior calls for. Its cost is test code: about 10 tests that drift a kinematic body with a velocity use a test component that writes an end pose in every tick. |
+| What the frame tree row keeps of a step record | What `FrameTree.Follow` writes today: the record's pose, instant velocity, angular velocity and proper acceleration, plus the follow kind. The record's chord, acceleration and angular acceleration are gone after step 2, with the third buffer of the sample table. (User, 2026-10-18) | Once a following frame lands on its step plan, no reader in this epic needs the three fields. Kept, they are three values that six writers must keep coherent, for a reader that does not exist yet. When its design needs one, spin gravity adds its own store (see docs/plans/spin-gravity.md). |
+| What a state dump records about a frame | `FrameRecord(Id, Parent, Follows)`. `Follows` is `"rails"`, `"kinematic"`, `"physics"` or `"static"`: how the frame followed its owner at the dump's sync point. `"kinematic"` comes with `ter-xdt8`, for an end pose. | A dump still shows which frames move on rails. The tree stores the follow kind of each frame. |
 
 ## The rails library
 
@@ -103,19 +113,19 @@ public sealed class KeplerMotion : IComponent
 
 where
 
-- `Orbit` = the orbit elements and their epoch, relative to the frame's semantic parent, in its axes. They hold no G·M.
-- `self.Frame` = the owner's row frame, which is the frame's semantic parent. It is null only for the owner of a root frame.
+- `Orbit` = the orbit elements and their epoch, relative to the entity's row frame, in its axes. They hold no G·M.
+- `self.Frame` = the entity's row frame. For a frame owner, it is the frame's semantic parent. It is null only for the owner of a root frame.
 - `KeplerOrbit.MuFrom` = the G·M of the parent's point gravity, or 0.
 - `self.TimeAt(tick)` = new: the World's simulation time at the start of a tick, in seconds.
 - `stepEnd` = the end of the step in which this tick's intent acts, in seconds.
 - `self.DeltaTime` = the step length in seconds, a float that widens to the same double that the World uses.
-- `self.MoveOnRails` = new: writes the sample as the entity's rails intent.
-- `...` = three rules that come before the last two lines:
-  - When `mu` is 0, the parent has no point gravity with a G·M above 0. The component logs once, writes no sample and returns, so the frame holds still.
-  - When the owner has a body that is not kinematic, the component logs once, writes no sample and returns.
-  - On its first run, the component teleports the owner's hull onto its rails, so that the hull jumps to its orbit and does not sweep through the bodies in between. A frame without a body needs no teleport, because its first sample alone puts it on its rails.
+- `self.MoveOnRails` = new: writes the sample as the full-sample case of the entity's motion intent (see "Rails motion for every entity").
+- `...` = three rules that the component applies before it writes the sample:
+  - When `mu` is 0, the parent has no point gravity with a G·M above 0. The component logs once, writes no sample and returns, so the entity holds still.
+  - When the entity refuses a full sample, the component logs the guard's reason once, writes no sample and returns. It reads the reason with `self.MotionIntentProblem`, the same read that `MoveOnRails` checks.
+  - If the entity's body is kinematic in the next step (`self.Body.NextStepMotion`), the component teleports the body onto its rails on its first run. So the body jumps to its orbit and does not sweep through the bodies in between. An entity without a body needs no teleport, because its first sample alone puts it on its rails.
 
-`SpinMotion` holds a `FrameSpin` and a property `ProperAcceleration`, a `Vector3` that is zero by default. A component that starts a turntable copies the frame's proper acceleration into it. `SpinMotion` does the same with `Spin.Sample(place, ProperAcceleration, stepEnd, self.DeltaTime)`. It needs no G·M, so it has only the second and the third rule of the `...`. It reads its place from its own frame: the place where the frame stands when the step of its sample starts. That is the place of the sample that the frame takes in the step beside the tick, from the new public read `self.Snapshot.Frames.TryGetAppliedSample(self.OwnedFrame, out MotionSample current)`, or, when the frame has none, `self.Snapshot.Frames.LocalPose(self.OwnedFrame).Position`. The new `Self.OwnedFrame` is the frame that the entity owns. `LocalPose` alone is one step behind: after a swap from a moving motion, the spin would start one step of the old motion back. Both reads are public, so a mod's rails component can do the same. A spin frame does not move, so the place stays the same from tick to tick. A destroy of the parent moves the frame up, and the component reads the new place.
+`SpinMotion` holds a `FrameSpin` and a property `ProperAcceleration`, a `Vector3` that is zero by default. A component that starts a turntable copies the frame's proper acceleration into it. `SpinMotion` does the same with `Spin.Sample(place, ProperAcceleration, stepEnd, self.DeltaTime)`. It needs no G·M, so it has only the second and the third rule of the `...`. It reads its place with the public read `self.PoseAtNextStepStartIn(self.Frame).Position`: the place of its entity at the start of the step of its sample. That is the end pose of the motion intent that the step beside the tick applies. Without one, it is that step's teleport pose, or else the entity's place now. A read of the place now alone is one step behind: after a swap from a moving motion, a spin from it starts one step of the old motion back. The read is public, so a mod's rails component can do the same. It works for an entity without a frame too, so a spin turns such an entity in place. A spin does not move its entity, so the place stays the same from tick to tick. A destroy of the parent moves the entity up, and the component reads the new place.
 
 The timing:
 
@@ -131,10 +141,10 @@ So the sample that tick N writes describes step N+1 and ends at `t_{N+2} = self.
 Other rules:
 
 - G·M stays in one place: the component reads the parent's gravity from the front snapshot in each tick.
-- A rails component runs first in its entity (`Priority` -1000). So another component of the entity can stop it in the same tick: a later `MoveOnRails` wins, and a change of motion clears the sample.
+- A rails component runs first in its entity (`Priority` -1000). So another component of the entity can stop it in the same tick: a later motion intent wins, and a change of motion drops a sample that the new motion refuses.
 - When the parent dies, the frame moves up as today, and the component reads the new parent's G·M in the next tick. It keeps its elements, so a Kepler frame jumps to the same orbit around the new parent, as today. When the new parent has no G·M, the component holds the frame still and logs once. `ter-e30t` and `ter-f620` become questions of what the components do then.
-- A new frame on rails starts one tick late. A component that is new on an entity runs first in the tick after it arrives, and its first sample acts one step later. A new frame goes live at a sync point, and its first step runs before any of its components runs, so that step has no sample. The new frame holds still at the pose of its spawn description for that step, as a frame without a sample does. At the next sync point it still stands at that pose. At the one after that, it stands on its rails. Until then, the frame is one step of its motion behind its rails: 500 m for Earth around the sun. A fast hull is closer, about 1.2 mm in low orbit, because it holds still in the following frame that the numeric update gives it at spawn, and that frame falls along the orbit. A swap of components has no gap.
-- The checks of rails motion live in the components, not in the World. The World keeps none of today's checks of Kepler frames: its refusals of a Kepler frame whose parent has no point gravity with a G·M above 0, at spawn and in `SetFrameDriver`, and the refusal in `SetFrameGravity` of a new G·M for the parent of a Kepler frame. So a spawn of a Kepler frame without G·M does not throw. A new G·M of a parent changes the orbits in it at once, so the frames on them jump. `World.AssertInvariants` loses its rule for Kepler frames. The setters of the properties of the two components refuse an orbit or a spin that is not valid, with an `ArgumentException`.
+- A new frame on rails starts one tick late. A component that is new on an entity runs first in the tick after it arrives, and its first sample acts one step later. A new frame goes live at a sync point, and its first step runs before any of its components runs, so that step has no motion intent. The new frame holds still at the pose of its spawn description for that step, as a frame without a motion intent does. At the next sync point it still stands at that pose. At the one after that, it stands on its rails. Until then, the frame is one step of its motion behind its rails: 500 m for Earth around the sun. A fast hull is closer, about 1.2 mm in low orbit, because it holds still in the following frame that the numeric update gives it at spawn, and that frame falls along the orbit. A swap of components has no gap.
+- The checks of an orbit or a spin live in the components, not in the World. The World keeps none of today's checks of Kepler frames: its refusals of a Kepler frame whose parent has no point gravity with a G·M above 0, at spawn and in `SetFrameDriver`, and the refusal in `SetFrameGravity` of a new G·M for the parent of a Kepler frame. So a spawn of a Kepler frame without G·M does not throw. A new G·M of a parent changes the orbits in it at once, so the frames on them jump. `World.AssertInvariants` loses its rule for Kepler frames. The setters of the properties of the two components refuse an orbit or a spin that is not valid, with an `ArgumentException`.
 
 ## The motion sample
 
@@ -144,55 +154,54 @@ public readonly record struct MotionSample(
     Double3 AngularVelocity, Double3 AngularAcceleration, Vector3 ProperAcceleration);
 ```
 
-Every field except `ProperAcceleration` is relative to the frame's semantic parent, `self.Frame`, in its axes. `ProperAcceleration` is in the frame's own axes, as the tree keeps it. A root frame has no parent, so its sample is in the root's own space, as its local pose is today.
+Every field except `ProperAcceleration` is relative to the intent's frame, `self.Frame`, in its axes. For a frame owner, that is the frame's semantic parent. `ProperAcceleration` is in the frame's own axes, as the tree keeps it. A root frame has no parent, so its sample is in the root's own space, as its local pose is today.
 
 | Field | Meaning | Physics | Frame tree at the sync point | Numeric update | Reads and render |
 |---|---|---|---|---|---|
-| `Pose` | The pose at the end of the step, in m | The hull's kinematic target, and the frame's predicted pose for ghosts and hand-offs | The frame's local pose, exactly | The place of the following frame | Through the tree pose, as today |
+| `Pose` | The pose at the end of the step, in m | The body's kinematic target, and the frame's predicted pose for ghosts and hand-offs | The frame's local pose, exactly | The place of the following frame | Through the tree pose, as today |
 | `ChordVelocity` | The change of place over the step, divided by the step, in m/s | The velocity of the frame for its ghosts | None | The velocity of the following frame | None |
 | `Velocity` | The instant velocity at the end of the step, in m/s | The velocity of the frame for hand-offs | The frame's linear velocity. In a following frame, the frame keeps the velocity minus the chord. | The hull's speed for the thresholds, through the tree | `VelocityIn` gives it, as today |
-| `Acceleration` | The frame's acceleration during the step, in m/s² | The effective gravity in the following frame, through its step acceleration | None | The step acceleration of the following frame | None |
+| `Acceleration` | The frame's acceleration during the step, in m/s² | None since `ter-xdt8` | None | None since `ter-xdt8`: the step acceleration of a following frame lands it on its step plan, from the plan's chord (see "The step plan of a following frame") | None |
 | `AngularVelocity` | The angular velocity at the end of the step, in rad/s | The angular velocity of the frame for ghosts and hand-offs | The frame's angular velocity, narrowed to the tree's float field | None | `AngularVelocityIn` gives it, as today |
 | `AngularAcceleration` | The angular acceleration during the step, in rad/s² | Nothing yet. Spin gravity reads it. | None | None | None |
 | `ProperAcceleration` | The frame's proper acceleration in its own axes, in m/s². The effective gravity of the frame's contents is the frame's field minus this value. `KeplerMotion` gives zero. `SpinMotion` gives its property `ProperAcceleration`, zero by default. | Through the tree, for the effective gravity of the contents and the wake test, as today | The frame's proper acceleration, in place of the value that physics measures for a frame with a dynamic hull | None | None |
 
-`self.MoveOnRails(in MotionSample sample)` is a new member of `Self`. Its rules:
+`self.MoveOnRails(in MotionSample sample)` is a member of `Self`. It writes the sample as the full-sample case of the entity's motion intent (see "Rails motion for every entity"). Its rules:
 
-- The last write in a tick wins, as for `MoveKinematic`.
-- It needs an entity that owns a frame. When the frame has a parent and the owner has a body, that body is a hull, and the hull must be kinematic. Else the call throws an `InvalidOperationException`. A plain kinematic body that owns no frame cannot write a sample. It does not need one yet.
-- A frame without a body can write a sample. The sample acts on its transform.
-- The samples live in the sample table: a table of its own, indexed by the frame's index, with three buffers. The written buffer holds the samples that gameplay writes in the tick. The applied buffer holds the samples that the physics step of the tick applies, which gameplay wrote one tick before. The followed buffer holds the samples of the step that ended, which the frame follows now. Physics gets the applied buffer in `PhysicsStepContext`. Only frames pay: a frame without a body needs no intent row.
-- In step 4, the table moves its buffers on, as the intents swap: the applied buffer becomes the followed buffer, the written buffer becomes the applied buffer, and the written buffer starts empty. So a frame whose component writes no sample in a tick has no sample in the step that follows.
-- Before a frame dies in step 5, each sample that names it converts into the frame's new parent (`World.ConvertSamplesOfMovedFrames`). Step 2 converts a record from physics into the frame's semantic parent by the same rule as the record goes into the table (`World.KeepRecord`). Step 7b converts no sample. Both call `MotionSampleTable.ConvertInto`: the pose, the velocities, the angular velocity and the angular acceleration convert with the motion of one frame relative to the other, by the rule of a hand-off (`FrameMotion`), and the acceleration with the acceleration of one frame relative to the other (`FrameTree.AccelerationRelative`). The tree keeps the acceleration of a frame in its parent only for a numeric frame, its step acceleration. A semantic frame between the two frames adds no acceleration of its own yet, though its step record holds one. That is a known gap: the numeric update can read a converted applied sample as the step acceleration of an orbit frame. A turning frame adds no rotation terms, and the angular acceleration only turns, until spin gravity (`ter-s9m0`, see docs/plans/spin-gravity.md, "Conversions between frames"). A sample that converts misses for one step by the relative motion of the two frames, as a kinematic target does.
+- The last motion intent written in a tick wins, whatever its case.
+- One guard decides for every entity, `World.MotionIntentProblem`. A full sample passes for a kinematic body, hull or plain, for an entity without a body, and for the owner of a root frame. Else the call throws an `InvalidOperationException` with the guard's reason.
+- An entity without a body can write a sample. The sync point applies it at step 2: to the frame tree row for a frame owner, and to the transform row for an entity without a frame.
+- The sample lives in the entity's intent, the field `PhysicsIntent.Move`, with the life of the rest of the intent. Tick k writes it, and step 4 of the sync point of tick k swaps it into the front intents. Step k + 1 applies it, and step 4 of the next sync point clears it. So an entity whose component writes no sample in a tick has no motion intent in the step that follows. After step 2, the frame tree row holds the record of the step that ended.
+- A motion intent converts with the rest of the intent. At step 5, an intent that names a dying frame converts into its entity's new frame (`World.ConvertIntentsOfDyingFrames`). At step 7b, an intent whose entity changed frame in the sync point converts (`World.ConvertMovedIntents`). A full sample converts through `MotionSample.Converted`. The pose, the velocities, the angular velocity and the angular acceleration convert by the rule of a hand-off. They use the motion of one frame relative to the other (`FrameMotion`). The acceleration converts with the acceleration of one frame relative to the other (`FrameTree.AccelerationRelative`). The tree keeps the acceleration of a frame in its parent only for a numeric frame, its step acceleration. A semantic frame between the two frames adds no acceleration of its own yet. That is a known gap. Since `ter-xdt8` no reader meets it, because the step acceleration of a following frame comes from the chord of its step plan. A turning frame adds no rotation terms, and the angular acceleration only turns, until spin gravity (`ter-s9m0`, see docs/plans/spin-gravity.md, "Conversions between frames"). A sample that converts misses for one step by the relative motion of the two frames, as a kinematic target does.
 
-A kinematic hull takes `MoveOnRails` and `Teleport`, and the teleport applies first. `MoveKinematic` and `SetVelocity` throw for a kinematic hull, because only a sample tells its frame how to follow. In a step without a sample, a kinematic hull holds still in its tree parent: physics sets its velocity to zero, as it stops a kinematic body after its last target today.
+Every kinematic body, hull or plain, moves only by its motion intents and teleports. It takes `MoveOnRails`, `MoveKinematic` and `Teleport`, and the teleport applies first. `SetVelocity` and `SetAngularVelocity` throw for every kinematic body. A spawn refuses a velocity on a kinematic body that owns no frame, and a kinematic hull keeps its spawn velocity as its frame's velocity. Since `ter-xdt8`, a kinematic hull takes `MoveKinematic`: the constant-velocity record of its end pose tells its frame how to follow. In a step without a motion intent, a kinematic body holds still: physics sets its velocity to zero, as it stops a kinematic body after its last target today. A kinematic hull holds still in its tree parent.
 
 ## One motion record per frame
 
-Every frame takes its motion the same way, whatever its owner is. The user chose this on 2026-10-18: one record type, one loop that applies it, and one prediction rule in physics. An entity with a body writes intents (forces, `MoveOnRails`, `Teleport`), physics moves the body, and for a hull physics releases the frame's record. An entity without a body writes the record itself: a rails sample, or a transform write.
+Every frame takes its motion the same way, whatever its owner is. The user chose this on 2026-10-18: one record type, one loop that applies it, and one prediction rule in physics. An entity writes intents: forces, a motion intent (`MoveOnRails`, `MoveKinematic`, `SteerTo`) and `Teleport`. Physics moves a body, and for a hull it releases the frame's record. For an owner without a hull, the sync point makes the record at step 2: from the owner's motion intent, or from its transform write.
 
 The step record of a frame is a `MotionSample` that describes the frame's motion over the step that just ended. Its owner's kind decides who fills it:
 
 | Owner | Who fills the step record |
 |---|---|
 | A dynamic hull | Physics, right after the Jolt update: the hull's pose, its chord (Jolt's velocity), its instant velocity (the chord plus half a step of its acceleration, `InstantMotionOf`), its acceleration and its angular acceleration measured from the change of Jolt's velocities over the step, Jolt's angular velocity, and the measured proper acceleration. A hull that hands off in the step has the record relative to its new parent, in the new parent's axes: the acceleration is the one that made Jolt's chord there, and the angular acceleration turns into the new axes as a direction, as step 5 converts the angular acceleration of a sample (`FrameMotion.AngularAccelerationToParent`, `ter-nw4p`) |
-| A kinematic hull with a sample | Physics, after it snaps the hull onto the sample's pose: the sample that it applied, with every field exact, so the sample's doubles and not Jolt's float velocities |
-| No body, with a sample | The component's sample in the applied buffer, which already is one |
-| A static hull, or a kinematic hull without a sample, that teleported in the step | Physics: the teleport's pose, at rest in the hull's home, with zero velocities and accelerations relative to it |
+| A kinematic hull with an end pose or a full sample | Physics, after it snaps the hull onto the end pose: the record of the motion intent that it applied (`PhysicsIntent.StepRecord`). A full sample gives itself, with every field exact, so the sample's doubles and not Jolt's float velocities. An end pose gives the constant-velocity motion from the hull's tree pose at the start of the step, or from its teleport pose. |
+| No hull (no body, or the owner of a root frame), with an end pose or a full sample | The sync point, at step 2: the record of the owner's front intent, from the frame's tree pose (`FrameTree.StepRecordInStep`) |
+| A static hull, or a kinematic hull without a motion intent, that teleported in the step | Physics: the teleport's pose, at rest in the hull's home, with zero velocities and accelerations relative to it |
 | No body, and the owner wrote its transform in the tick | The sync point: the written pose, with zero velocities and accelerations. This one acts in the same tick, because no physics step stands between the write and the frame. |
 | Anything else | No record. The frame holds still in its tree parent. |
 
 Rules:
 
-- Physics hands back a record for every hull whose frame moved in the step, in the step output, in place of `FrameState`, which goes. A record from physics is relative to the frame's tree parent, as `FrameState` is today, so a frame with a dynamic hull keeps its exact place in a numeric home. For a kinematic hull at the origin of its following frame, that is the origin with the sample's rotation, and the sample's instant velocity minus its chord. Under a numeric parent, a record from physics keeps its velocity relative to the parent's frame velocity, the chord of the step, as the tree does, so that a read in the semantic parent gives the instant velocity. Physics keeps a velocity relative to the parent's instant velocity, so each record that physics releases adds the parent's instant velocity past its chord (`FrameTree.HomeInstantVelocityOverChord`, `ter-mjt5`). For a falling frame that is half a step of its acceleration. For a following frame whose hull has a sample, it is the sample's instant velocity minus its chord, exactly, which the frame keeps from the sample with its step acceleration: half a step of the orbit's pull would miss the change of the pull over the step, 3 cm/s on a fast test orbit. So every frame in a following frame reads its velocity relative to the hull's, and the record of the hull, at rest at the origin, is that term alone. A sample from a component is relative to the frame's semantic parent. These agree for a frame on rails in its semantic parent.
+- Physics hands back a record for every hull whose frame moved in the step, in the step output, in place of `FrameState`, which goes. A record from physics is relative to the frame's tree parent, as `FrameState` is today, so a frame with a dynamic hull keeps its exact place in a numeric home. For a kinematic hull at the origin of its following frame, that is the origin with the record's rotation, and the record's instant velocity minus its chord. Under a numeric parent, a record from physics keeps its velocity relative to the parent's frame velocity, the chord of the step, as the tree does, so that a read in the semantic parent gives the instant velocity. Physics keeps a velocity relative to the parent's instant velocity, so each record that physics releases adds the parent's instant velocity past its chord (`FrameTree.HomeInstantVelocityOverChord`, `ter-mjt5`). For a falling frame that is half a step of its acceleration. For a following frame whose hull has a motion intent, it is the step plan's instant velocity minus its chord, exactly, which the frame keeps from its step plan: half a step of the orbit's pull would miss the change of the pull over the step, 3 cm/s on a fast test orbit. So every frame in a following frame reads its velocity relative to the hull's, and the record of the hull, at rest at the origin, is that term alone. A motion intent is relative to the frame's semantic parent. These agree for a frame on rails in its semantic parent.
 - In step 2, `FollowOwners` is the one loop: each frame with a step record takes it, in the tree's dense order. The frame takes the pose, the instant velocity (minus the home's frame velocity, its chord, under a numeric parent), the angular velocity narrowed to the tree's float field, and the proper acceleration. A frame without a record holds still in its tree parent and moves with it, so under a numeric parent it keeps the parent's instant velocity past its chord (`FrameTree.HoldStill`, `ter-mjt5`). The tree keeps the instant velocity for every frame. Today it keeps the chord for a frame with a dynamic hull, so that frame's tree velocity changes by half a step of its acceleration. If a behavior, not only a pinned number, depends on the chord, that is the misbehavior that would justify an exception.
-- Each record that a frame takes goes into the frame's slot of the applied buffer in step 2, if a sample is not already there. A record from physics converts there into the frame's semantic parent. In a numeric home, its acceleration gains the home's acceleration in the semantic parent (`ter-bfq0`). So after step 4 moves the buffers on, the followed buffer holds the record of every frame that moved in the step, and the numeric update and the following frames read one place.
+- After step 2, the frame tree row holds the record of the step that ended. `FrameTree.Follow` writes the record's pose, instant velocity, angular velocity and proper acceleration, and the follow kind, which says what made the record. The row does not keep the record's chord, acceleration and angular acceleration (see the decision "What the frame tree row keeps of a step record"). Until `ter-xdt8`, `World.KeepRecord` put each record into the applied buffer of the sample table, and the numeric update read it from the followed buffer. Now a following frame reads its step plan, and a new following frame starts from its anchor's place and instant velocity in the tree row.
 - Physics predicts every frame at the end of the step from its step record: the pose from the record's pose, ghosts take the record's chord velocity, hand-offs take its instant velocity, and the angular velocity is the record's. A frame without a record predicts its tree pose with zero velocities. This replaces the three rows of the table "Predictions of a frame at the end of a step".
 - The entity and its frame are one entity with two tables: the frame tree row is the exact table, and the transform row is the float view of the same entity. After `FollowOwners`, the float view of each frame entity is filled from its exact table. A body state of a hull never writes the float view.
 
 ## Frames without a body, and static frames
 
-A frame without a body follows its sample, or its owner's transform write, or holds still. A frame with no sample and no body is a static frame. This replaces the `Physics` frame without a body, which nothing moves today.
+A frame without a body follows its owner's motion intent, or its owner's transform write, or holds still. A frame with no motion intent and no body is a static frame. This replaces the `Physics` frame without a body, which nothing moves today.
 
 A static frame follows its owner:
 
@@ -206,40 +215,41 @@ The cost of a frame without a body is one component call per tick, in a parallel
 
 | Step | Today | After |
 |---|---|---|
-| 2 | `AdvanceNumericFrames` integrates the falling frames and the orbit frames. `ApplyPhysicsOutput` applies the hand-offs, the body states and the states of `Physics` frames. | `AdvanceNumericFrames` integrates the falling frames and puts each following frame on its anchor's sample. `ApplyPhysicsOutput` applies the hand-offs and the body states. Then `FollowOwners`, the one loop of "One motion record per frame": each frame with a step record takes it. Then the float view of each frame entity is filled from its exact table. A body state of a hull never writes the float view. |
-| 4 | The collision intents, then the swap of the intents | The intents of the tick before, which the step that ended applied, change the collision rows, and their `SetMotion` changes the stored hull motion in the tree. The `SetMotion` intents of the tick that ends plan the next step: the frame and the intent drop what the new motion refuses. Then the intents swap and the sample table moves its buffers on. |
-| 5 | The destroys. A frame that is not a `Physics` frame moves to the semantic parent. `StopKeplerFrameWithoutGM` stops a Kepler frame whose new parent has no G·M. | The destroys. A frame without a dynamic hull moves to the semantic parent. A sample that names a dying frame converts first. Nothing stops a Kepler frame. A `KeplerMotion` whose new parent has no G·M writes no sample from the next tick on, and logs once. |
-| 6 | The spawns. `MakeLive` places each Kepler and Spin frame by its driver. | The spawns. A new frame stands at the pose of its spawn description. It holds still there for its first step, because it has no sample yet. |
+| 2 | `AdvanceNumericFrames` integrates the falling frames and the orbit frames. `ApplyPhysicsOutput` applies the hand-offs, the body states and the states of `Physics` frames. | `AdvanceNumericFrames` integrates the falling frames and puts each following frame on its step plan. `ApplyPhysicsOutput` applies the hand-offs and the body states. Then `FollowOwners`, the one loop of "One motion record per frame": each frame with a step record takes it, with its follow kind. It derives the record of a frame without a hull from its owner's front intent. Then the float view of each frame entity is filled from its exact table. A body state of a hull never writes the float view. Then `FollowFramelessEntities` puts the record of each entity without body or frame on its transform row. |
+| 4 | The collision intents, then the swap of the intents | The intents of the tick before, which the step that ended applied, change the collision rows, and their `SetMotion` changes the stored hull motion in the tree. The `SetMotion` intents of the tick that ends plan the next step: the frame and the intent drop what the new motion refuses, and `Move` drops by the guard's rule. Then the intents swap: the two intent buffers exchange, and without a backend each front intent keeps `Move` and the change of motion. |
+| 5 | The destroys. A frame that is not a `Physics` frame moves to the semantic parent. `StopKeplerFrameWithoutGM` stops a Kepler frame whose new parent has no G·M. | The destroys. A frame without a dynamic hull moves to the semantic parent. A motion intent that names a dying frame converts first, with the rest of its intent. Nothing stops a Kepler frame. A `KeplerMotion` whose new parent has no G·M writes no sample from the next tick on, and logs once. |
+| 6 | The spawns. `MakeLive` places each Kepler and Spin frame by its driver. | The spawns. A new frame stands at the pose of its spawn description. It holds still there for its first step, because it has no motion intent yet. |
 | 6b | `AdvanceDrivenFrames` places the Kepler and Spin frames and the moved static frames at the end of the tick. | Gone. Step 2 does this work. |
-| 6c | The numeric update. `NumericBody.Fixed` and `Orbits` come from the driver. A new orbit frame starts from the orbit. | The numeric update. `Fixed` and `Follows` come from the hull's motion. A new following frame starts from the frame's sample of the step that ended. |
+| 6c | The numeric update. `NumericBody.Fixed` and `Orbits` come from the driver. A new orbit frame starts from the orbit. | The numeric update. `Fixed` and `Follows` come from the hull's motion. A new following frame starts at its anchor's place, with its anchor's instant velocity, from the frame tree row. Its first step plan lands it. |
 | 7 | The float view of each `Physics` frame entity is filled from its exact table. | The float view of each frame entity is filled from its exact table. |
-| 7b | The intents convert. | The intents and the samples convert. |
-| Next `PrepareTick` | `BeginNumericStep` gives an orbit frame the orbit's acceleration at its origin, from the orbiter's G·M. | `BeginNumericStep` gives a following frame its anchor's `Acceleration` from the sample that the next step applies. |
+| 7b | The intents convert. | The intents convert, `Move` among them. |
+| Next `PrepareTick` | `BeginNumericStep` gives an orbit frame the orbit's acceleration at its origin, from the orbiter's G·M. | `BeginNumericStep` derives each following frame's step plan from its anchor's front intent. It gives the frame the acceleration that lands it on the plan. |
 
 The order holds for these reasons:
 
-- Step 2 reads the samples that step N applied before step 4 swaps them away.
+- Step 2 reads the motion intents that step N applied before step 4 swaps them away.
 - The numeric update in step 6c still sees every bubble at the end of the tick. Each sample's pose is at `t_{N+1}`, and the destroys and the spawns still come before step 6c. So the reason for step 6b stays met: a station that orbits at 7.5 km/s is not 126 m behind the bodies beside it (see "Bubbles and ghosts" in [Numeric frames](numeric-frames.md)).
 - A following frame takes its place before `ApplyPhysicsOutput` writes the rows of its members, so their rows are relative to its exact place.
 - A frame without a body takes its owner's write before the destroys. So a write in the tick in which its parent dies converts with the frame. Today step 5 fills the float view of the frame entity from its exact table, and so loses the write.
-- Step 11 builds the render snapshot from the tree, which holds the end of the tick. The sample for the next step never enters the tree before that step runs.
+- Step 11 builds the render snapshot from the tree, which holds the end of the tick. The motion intent for the next step never enters the tree before that step runs.
 
-Determinism: the components run in parallel chunks, but each one writes only its own frame's sample. A sample is a pure function of the component's description, `self.TimeAt`, the step, the frame's place and the parent's gravity in the front snapshot. No sample depends on another sample or on the order of the chunks. The sync point applies the samples in the tree's dense order, and each frame reads only its own sample. `DeterminismTests` with one and eight workers checks this.
+Determinism: the components run in parallel chunks, but each one writes only its own entity's motion intent. A sample is a pure function of the component's description, `self.TimeAt`, the step, the frame's place and the parent's gravity in the front snapshot. No sample depends on another sample or on the order of the chunks. The sync point applies the samples in the tree's dense order, and each frame reads only its owner's motion intent. `DeterminismTests` with one and eight workers checks this.
 
 ## Physics
 
-Kinematic targets and the snap:
+Kinematic targets and the snap (since `ter-xdt8`, see "Rails motion for every entity"):
 
-- `ApplyIntents` gives a body on rails `MoveKinematic` to the sample's pose in its physics home, minus `HomeOffsetAfterStep`, as it does for a gameplay target. A frame at the origin of its following frame gets that origin as its target.
-- Right after the Jolt update, before the contacts, the hand-offs and the ghosts read the end of the step, physics puts each body on rails exactly on its target (`SetRPositionAndRotation`, without a change of activation).
+- One branch, the `Move` branch of `ApplyBodyIntent`, aims every kinematic body at the aim pose of its motion intent. The target is that pose in the body's physics home, minus `HomeOffsetAfterStep`. The branch runs after the body's teleport. A frame at the origin of its following frame gets that origin as its target. Until `ter-xdt8`, `AimHullsOnRails` aimed the hulls after `ApplyIntents`, and `ApplyIntents` aimed the plain bodies at their gameplay targets.
+- The same branch steers a dynamic body to a steer target, as `MoveKinematic` did for a dynamic body before `ter-xdt8`: it gives the body the velocities that carry its centre of mass to the target over the step.
+- Right after the Jolt update, physics puts each kinematic body that a motion intent moved exactly on its end pose (`SnapKinematicBodies`). It uses `SetRPositionAndRotation`, without a change of activation. This comes before the contacts, the hand-offs and the ghosts read the end of the step.
 
 Predictions of a frame at the end of a step replace `PredictMotion` and `OrbitMatchesTree`. Since 2026-10-18 they all read the frame's step record (see "One motion record per frame"). The table below says where each record comes from:
 
 | The frame's owner | Pose | Velocity for ghosts | Velocity for hand-offs | Angular velocity |
 |---|---|---|---|---|
 | A dynamic hull | Jolt's state after the update (`TryHullMotion`), as today | Its chord, as today | Its chord plus half a step of its acceleration (`InstantMotionOf`), as today | Jolt's |
-| A kinematic hull, or no body, with a sample | The sample's pose in the tree parent. At the origin of a following frame, that origin, at rest relative to it, as today. | The sample's chord | The sample's instant velocity | The sample's |
-| A static hull, a kinematic hull without a sample, or no body and no sample | The tree pose, or the pose of a teleport in the step | Zero | Zero | Zero |
+| A kinematic hull, or no hull, with an end pose or a full sample | The record's pose in the tree parent. At the origin of a following frame, that origin, at rest relative to it, as today. | The record's chord | The record's instant velocity | The record's |
+| A static hull, a kinematic hull without a motion intent, or no hull and no motion intent | The tree pose, or the pose of a teleport in the step | Zero | Zero | Zero |
 
 Hulls and layers:
 
@@ -252,10 +262,10 @@ Hulls and layers:
 
 The orbit frame becomes a following frame. It follows any kinematic hull that moves fast or far, by the speeds and distances of free bodies: from 1,000 m/s or 2^23 m, kept down to 400 m/s or 2^22 m.
 
-- At each sync point, in step 2, it takes the sample's place and its chord as its velocity. Its anchor's frame lies at its origin with the sample's rotation, and keeps the sample's instant velocity minus the chord, so that a read in the semantic parent gives the instant velocity. This is `FrameTree.PlaceOnOrbit` today, with the sample in place of the orbit.
-- In each step, it falls with the sample's acceleration, so it ends the step on the sample to rounding.
-- The numeric update makes a following frame from the frame's sample of the step that ended: its place and its chord. Before the hull's first sample, it uses the frame's place and velocity.
-- When its hull has no sample, because the component went or the motion changed, it falls on as a falling frame, as an orbit frame does today when its orbiter leaves (`LeaveOrbit`).
+- At each sync point, in step 2, it takes its step plan's place, and the plan's chord as its velocity. The step plan is the step record of its anchor's motion intent, which `BeginNumericStep` derives before the step. Its anchor's frame lies at its origin with the plan's rotation. The anchor's frame keeps the plan's instant velocity minus the chord, so that a read in the semantic parent gives the instant velocity. This is `FrameTree.PlaceOnOrbit` today, with the plan in place of the orbit.
+- In each step, it falls with the acceleration that lands it on its step plan: the plan's chord minus the frame's velocity, divided by the step. So it ends the step on the plan to rounding. For a full sample this acceleration equals the sample's acceleration to about 3e-10 m/s² in low orbit. An end pose has no acceleration of its own, so the landing rule serves both cases (see "The step plan of a following frame").
+- The numeric update makes a following frame at its anchor's place, with its anchor's instant velocity, from the frame tree row. Its first step plan lands it.
+- When its hull has no motion intent, because the component went or the motion changed, it falls on as a falling frame, as an orbit frame does today when its orbiter leaves (`LeaveOrbit`).
 - When its hull teleports, it jumps with the hull, and the other bodies and frames in it keep their places and velocities in the semantic frame, with a `FrameShift`, as `FrameTree.MoveOnOrbit` does today for a new orbit.
 - `NumericBody.Fixed` is true for an interior and for a hull whose body is not dynamic. `NumericBody.Orbits` becomes `Follows`, true for a kinematic hull. `NumericFrameRules.OrbitsInFrame`, `BodyMode` and `GroupMode` read `Follows`. A spin hull near its parent's origin does not move, so it stays in the semantic frame's own system, as today.
 - `NumericMode.Orbiting` becomes `NumericMode.Following`, because the anchor need not orbit.
@@ -283,8 +293,8 @@ So the motion that Jolt uses in each step, and every rule about that step, takes
 
 The last `SetMotion` in a tick wins, and a change to the motion that the hull has changes nothing, in the tree or in Jolt. At step 4 of the writing tick's sync point, a change keeps the frame coherent with the motion of the next step (`FrameTree.PlanHullMotion`). These drops follow the motion of the next step, whatever the motion of the step that ended, because the guards judge each write by the motion at its moment, and a later change in the same tick can turn it:
 
-- A hull that is not kinematic in the next step drops the sample written in the tick. The sample that the running step applies stays, because the frame follows it at the next sync point. A frame at the origin of its following frame leaves that frame falling.
-- A hull that is kinematic in the next step drops the `SetVelocity`, `SetAngularVelocity` and `MoveKinematic` written in the tick, because a kinematic hull moves only by its samples and teleports. Its forces and impulses stay, because physics applies them only to a dynamic body.
+- The guard's rule judges the motion intent written in the tick by the hull's motion in the next step (see "Rails motion for every entity"). A hull drops a motion intent that the rule refuses. So a hull that is not kinematic in the next step drops an end pose or a full sample. A hull that is not dynamic in the next step drops a steer target. The motion intent that the running step applies stays, because the frame follows it at the next sync point. A frame at the origin of its following frame leaves that frame falling.
+- A hull that is kinematic in the next step drops the `SetVelocity` and `SetAngularVelocity` written in the tick. A kinematic body moves only by its motion intents and teleports. It keeps an end pose. Its forces and impulses stay, because physics applies them only to a dynamic body.
 - The change sets no velocity of the frame. A parked frame stops at the sync point after the next step, because a static hull without a step record holds still there.
 
 The table shows the changes:
@@ -294,7 +304,7 @@ The table shows the changes:
 | Park | `SetMotion(Static)` | The hull holds still where the step leaves it, and its frame stops in its semantic parent. It keeps its proper acceleration, so the cargo keeps its weight. |
 | Unpark | `SetMotion(Dynamic)` | The hull falls or coasts from rest. |
 | Engines on, Kepler to dynamic | Remove `KeplerMotion`, then `SetMotion(Dynamic)` | The hull coasts on with the velocity of its last sample. Its following frame falls on. |
-| Into orbit, dynamic to Kepler | Add `KeplerMotion`, then `SetMotion(Kinematic)` | The hull holds still in its physics home for one step, as a kinematic hull without a sample does. Then the component's first run teleports it onto its orbit. |
+| Into orbit, dynamic to Kepler | Add `KeplerMotion`, then `SetMotion(Kinematic)` | The hull holds still in its physics home for one step, as a kinematic hull without a motion intent does. Then the component's first run teleports it onto its orbit. |
 | Kepler to static | Remove `KeplerMotion`, then `SetMotion(Static)` | The frame stops. The numeric update moves the hull out of its following frame into the semantic frame's own system. |
 | A new orbit or spin | Replace the component | The new component's first run teleports the hull. A following frame jumps with it, and its other contents keep their places in the semantic frame. |
 
@@ -311,13 +321,20 @@ A swap has no gap: the old component's last sample covers the step before the ne
 
 ## State dumps and saved state
 
-`StateDump.FrameRecord(string Id, string? Parent, MotionDriver Driver)` becomes `FrameRecord(string Id, string? Parent, string Follows)`. `Follows` is `"rails"` when the frame took a sample in the step, `"physics"` when its hull was dynamic in the step, and `"static"` for every other frame. The motion of the hull in the step comes from the intents that the step applied, or else from the stored motion (`FrameTree.HullMotionInStep`), because the tree stores a change of motion only at step 4, after the frames took their records. So a dump still shows which frames move on rails. The entities in a dump do not change: the float view of a frame entity is still filled from its exact table, so its pose and velocities are those of its sample.
+`StateDump.FrameRecord(string Id, string? Parent, MotionDriver Driver)` becomes `FrameRecord(string Id, string? Parent, string Follows)`. `Follows` is the frame's follow kind, which the tree stores at step 2 (see "The follow kind"):
 
-No save of a running world exists (`ter-72wp`). A rails component holds only its description, and the tree holds only the sample of the last step, which the next sample replaces. So a future save stores the components' properties, and the motion goes on exactly after a load.
+- `"rails"`: the frame took its owner's full sample in the step.
+- `"kinematic"`: the frame took its owner's end pose. This value comes with `ter-xdt8`.
+- `"physics"`: the frame's hull was dynamic in the step, with or without a steer target.
+- `"static"` for every other frame: a teleport, a transform write, or no record. A transform write that wins over a motion intent gives `"static"`.
+
+The motion of the hull in the step comes from the intents that the step applied, or else from the stored motion (`FrameTree.HullMotionInStep`), because the tree stores a change of motion only at step 4, after the frames took their records. So a dump still shows which frames move on rails. The entities in a dump do not change: the float view of a frame entity is still filled from its exact table, so its pose and velocities are those of its step record.
+
+No save of a running world exists (`ter-72wp`). A rails component holds only its description, and the frame tree row holds only the record of the last step, which the next record replaces. So a future save stores the components' properties, and the motion goes on exactly after a load.
 
 ## Render interpolation
 
-Nothing changes. Step 11 reads the tree's local poses, which hold the end of the tick, because step 2 puts each frame on the sample of the step that just ended. `RenderSnapshotInterpolationTests` and `RenderSnapshotRootTests` stay green without a change.
+Nothing changes. Step 11 reads the tree's local poses, which hold the end of the tick, because step 2 puts each frame on the step record of the step that just ended. `RenderSnapshotInterpolationTests` and `RenderSnapshotRootTests` stay green without a change.
 
 ## Tests
 
@@ -348,11 +365,430 @@ Every implementation brief asks for hand mutations, as `CLAUDE.md` says.
 
 ## Order of the work
 
-The epic listed three work tickets. This plan keeps their order and adds `ter-ru5u`, so that each ticket ends green and stays small enough for a few agents in a row.
+The epic listed three work tickets. This plan keeps their order and adds `ter-ru5u` and `ter-xdt8`. So each ticket ends green and stays small enough for a few agents in a row.
 
 1. `ter-k8cg`, the library. No change of behavior. The functions in "The rails library" move, with their tests (`KeplerOrbitTests`, `KeplerAttitudeTests`, `FrameSpinTests`, and the chord and acceleration cases of `NumericFrameRulesTests`). The new functions and `MotionSample` come with tests against today's `PlaceOnOrbit`, `FrameTree.KeplerMotion` and `ApplySpin`. The tree and the Demo call the library.
-2. `ter-6r8c`, the samples and the components. The sample table, `Self.MoveOnRails`, `Self.TimeAt` and `Self.OwnedFrame`. `KeplerMotion` and `SpinMotion`, with their checks, their first run and the proper acceleration of the sample. `FollowOwners` in step 2, and the end of step 6b. Physics reads the samples for targets and predictions, and snaps bodies on rails. `DriveKinematicHulls`, `PredictMotion` and `OrbitMatchesTree` go. The orbit frame follows its anchor's samples, and `Orbits` reads "the hull is kinematic". The tree's orbit and spin, `PlaceOnOrbit`, `MoveOnOrbit`, `KeplerMotion`, `SetFrameOrbit` and `SetFrameSpin` go. Static hulls take teleports, and owners without a body write their transforms. The scenes, the benchmark, and the sections of `ARCHITECTURE.md` that this changes. In this ticket the enum stays only to choose a hull's motion, so `Kepler` and `Spin` both mean a kinematic hull. Until the next ticket, a change of motion is `SetFrameDriver` plus a swap of components with `World.AddComponent` and `World.RemoveComponent`.
+2. `ter-6r8c`, the samples and the components. The sample table, `Self.MoveOnRails`, `Self.TimeAt` and `Self.OwnedFrame`. `KeplerMotion` and `SpinMotion`, with their checks, their first run and the proper acceleration of the sample. `FollowOwners` in step 2, and the end of step 6b. Physics reads the samples for targets and predictions, and snaps bodies on rails. `DriveKinematicHulls`, `PredictMotion` and `OrbitMatchesTree` go. The orbit frame follows its anchor's samples, and `Orbits` reads "the hull is kinematic". The tree's orbit and spin, `PlaceOnOrbit`, `MoveOnOrbit`, `KeplerMotion`, `SetFrameOrbit` and `SetFrameSpin` go. Static hulls take teleports, and owners without a body write their transforms. The scenes, the benchmark, and the sections of `ARCHITECTURE.md` that this changes. In this ticket the enum stays only to choose a hull's motion, so `Kepler` and `Spin` both mean a kinematic hull. Until the next ticket, a change of motion is `SetFrameDriver` plus a swap of components with `World.AddComponent` and `World.RemoveComponent`. `ter-xdt8` later replaces the sample table with motion intents.
 3. `ter-ru5u`, "A body's motion changes after spawn, and the MotionDriver enum goes". It depends on `ter-6r8c`. The change of motion with the intent `SetMotion`, the hull's motion from its body, `FrameTree.HullMotion` and the tree's invariants, `NumericBody.Fixed` from the body's motion. `MotionDriver`, `FrameHullMotion`, `FrameHullProblem`, `SetFrameDriver`, `FollowDriver` and the driver in `FrameSpec` and `FrameTree.Create` go, with the rote test edits. The rewrite of `DriverChangeTests` and `FrameDriverTests`, the state dumps with `FrameRecord(Id, Parent, Follows)`, and a row in the table "Where the user changed my proposals" in `CLAUDE.md`.
-4. `ter-zg77`, now "A following frame follows every fast kinematic hull". It depends on `ter-ru5u`. `ter-6r8c` already gives every kinematic hull a following frame. This ticket proves it for motion that is no orbit (test 8), renames `NumericMode.Orbiting` to `Following` and `Orbits` to `Follows`, and rewrites the sections "Orbit frames", "Anchors" (rule 3), "Frame owners in a numeric frame", "Bubbles and ghosts" and "Limits" of [Numeric frames](numeric-frames.md), and the numeric rows of `ARCHITECTURE.md`.
+4. `ter-xdt8`, "Rails motion for every entity". It depends on `ter-ru5u`, and it comes after `ter-sn28`, because both change the frame tree and the sync point. The motion intent `PhysicsIntent.Move`, with its three cases, replaces the sample table and `PhysicsIntent.Target`. One guard decides which entity takes which case. Every kinematic body moves only by its motion intents and teleports, and an entity without body or frame follows its motion intents. The section "Rails motion for every entity" gives the design, its tests and the stages of its work.
+5. `ter-zg77`, now "A following frame follows every fast kinematic hull". It depends on `ter-ru5u` and `ter-xdt8`. `ter-6r8c` already gives every kinematic hull a following frame. This ticket proves it for motion that is no orbit (test 8), renames `NumericMode.Orbiting` to `Following` and `Orbits` to `Follows`, and rewrites the sections "Orbit frames", "Anchors" (rule 3), "Frame owners in a numeric frame", "Bubbles and ghosts" and "Limits" of [Numeric frames](numeric-frames.md), and the numeric rows of `ARCHITECTURE.md`.
 
 `ter-e30t` and `ter-f620` stay open outside this epic, as questions of what `KeplerMotion` and `SpinMotion` do when the parent dies.
+
+## Rails motion for every entity
+
+Ticket: `ter-xdt8`. It comes after `ter-ru5u` and `ter-sn28`, which both changed the frame tree and the sync point. `ter-zg77` depends on it. This section replaces the frame-keyed sample table of "The motion sample" and the parts of "One motion record per frame" that named it. The user gave the model on 2026-10-18, and settled its forks and the steer target the same day. The table "Decisions" at the top of this doc records each answer with its reason, in these rows:
+
+- "Which entities move on rails"
+- "Where the motion intent lives"
+- "What a motion intent can be"
+- "Which entity takes which case"
+- "How a kinematic body moves"
+- "What the frame tree row keeps of a step record"
+
+### The model
+
+Cause, storage and effect are three separate things:
+
+- Cause. In tick k, a component of an entity says how its own entity moves in the next step, step k + 1. It writes one motion intent into the entity's intent, beside the force, the impulse and the velocity. A motion intent is a union with three cases. An end pose gives only the pose at the end of the step (`self.MoveKinematic`). A full sample gives the pose and every velocity and acceleration that goes with it (`self.MoveOnRails`). A steer target gives a pose that physics steers a dynamic body toward over the step (`self.Body.SteerTo`).
+- Storage. The motion intent has the life of the rest of the intent. Tick k writes it into the written intents. Step 4 of the sync point of tick k swaps it into the front intents, which step k + 1 applies. When its entity changes frame, steps 5 and 7b of that sync point convert it. The swap at step 4 of the next sync point clears it. No other table holds it.
+- Effect. The step that applies an end pose or a full sample moves the entity onto it. That move is the entity's step record: its motion over the step that just ended, a `MotionSample`. Physics moves a kinematic body: it aims the body at the end pose, and puts it exactly there after the Jolt update. The sync point moves an entity without a body: at step 2 it puts the record into the entity's exact table. A frame takes its owner's record. After step 2, the frame tree row holds the record of the step that ended. A steer target gives no record. Physics gives the dynamic body the velocities that carry it to the target over the step. Contacts and gravity still act on it, and physics measures its motion as for every dynamic body.
+
+An end pose and a full sample are the result itself, for a kinematic body or an entity without a body. A force, an impulse and a steer target are inputs that physics integrates for a dynamic body. The guard keeps the two apart. A dynamic body refuses an end pose and a full sample. A kinematic body and an entity without a body refuse a steer target. A static body, a character and an attached entity refuse every case.
+
+One function turns a motion intent into a step record, for every reader: `PhysicsIntent.StepRecord`. A full sample is its own record. An end pose gives the motion at a constant velocity from the pose where the step starts to the end pose. If the same intent teleports, the step starts at the teleport's pose. Else it starts where the entity stands. A steer target gives no record, and neither does an intent without a motion intent.
+
+### Why the sample table existed, and what replaces each reason
+
+| Reason for a table of its own | What replaces it |
+|---|---|
+| `EntityTable.WritableIntent` requires a body, and a frame without a body writes samples | The motion intent has its own writer, `EntityTable.WriteMotionIntent`, which needs no body, as `WriteMotionChange` writes only a change of motion |
+| Intents have two buffers, and step 6c and the state dumps read the record of the step that ended from the third buffer | After step 2 the frame tree row holds that record's pose, instant velocity, angular velocity and proper acceleration. A follow kind per frame says what made the record. Step 6c and the dumps read those. |
+| Without a physics backend the swap drops the intents, and a frame without a body follows its samples | The swap keeps the motion intents without a backend, as it keeps the changes of motion. The sync point, not physics, applies them to an entity without a body. |
+| Samples needed no conversion at step 7b, and intents do | A plain kinematic body hands off between frames, so its sample needs the conversion of step 7b too. The intent's conversion does it. |
+| An intent had no chord, instant velocity, acceleration or angular acceleration | The full-sample case of the union carries them |
+| "Only frames pay" | Every slot pays for the field. The swap exchanges the two intent buffers instead of copying each writer's intent, so it moves less memory per writer than today. The benchmark of the swap at 100,000 entities tells whether a sparse store is needed. |
+
+### Terms
+
+The table "Terms" at the top of this doc defines "Motion intent", its three cases, "Step record" and "Follow kind". This section also uses these terms:
+
+| Term | Meaning |
+|---|---|
+| Plain body | The body of an entity that owns no frame |
+| Frame owner without a hull | The owner of a frame that has no body, or the owner of a root frame, whose body is only the frame's static interior |
+| Step plan | The step record of a following frame's anchor. The frame tree derives it before the step and keeps it for that step (see "The step plan of a following frame"). |
+
+### The flow per kind of entity
+
+Tick k writes the motion intent. Step k + 1 applies it. The sync point after step k + 1 lands its record. Every kind that takes an end pose or a full sample holds still in a step without a motion intent. A dynamic body moves under physics. In the step after its last steer target, physics stops it, unless that step sets its velocity, as it does today.
+
+| Kind of entity | The cases that it takes | Who makes the step record, and when | Where the record lands | What follows the entity |
+|---|---|---|---|---|
+| Kinematic hull | An end pose and a full sample. Today it refuses `MoveKinematic`. | Physics, at the start of step k + 1, after the teleport: from the hull's tree pose. Physics aims the hull at the end pose, and snaps it there after the Jolt update. At the origin of its following frame, the hull aims at that origin. | Physics releases it (`FrameStepRecord`). Step 2: `FollowOwners` puts it in the frame tree row, and `MirrorFrameOwner` fills the transform row from it. | The frame and its contents |
+| Plain kinematic body | An end pose and a full sample. Today it takes only `MoveKinematic`. | Physics, the same branch as for a hull: from the body's Jolt pose at the start of the step. Physics snaps it too. | The body state of the step carries the record's pose and instant velocity. Step 2 writes them into the transform row. A hand-off carries the record's instant velocity. | Its attached children, at step 7 |
+| Frame owner without a hull | An end pose and a full sample | The sync point, at step 2: `FollowOwners` derives it from the frame's tree pose, which still stands where the step started | The frame tree row, then the transform row. A transform write of the tick comes after it and wins for one tick. | The frame and its contents |
+| Entity without body or frame | An end pose and a full sample. Today it can take neither. | The sync point, at step 2: a new loop, `FollowFramelessEntities`, derives it from the transform row's pose | The transform row: the pose, and the velocities narrowed to floats. A transform write of the tick wins. | Its attached children, at step 7 |
+| Dynamic body, hull or plain | A steer target only. Today `MoveKinematic` gives it the velocities that carry it to the pose, and `self.Body.SteerTo` keeps that. | No record from the intent. Physics steers the body at the start of step k + 1, after the teleport, as today. It gives the body the velocities that carry its centre of mass to the target over the step. Physics measures a dynamic hull's record, as today. | As today | As today |
+| Static body, hull or plain | None. Today physics ignores `MoveKinematic` on it. | A teleport of a static hull, as today. Physics still drops the teleport of a plain static body, a gap that this ticket leaves open. | As today | As today |
+| Attached entity | None, as it refuses `SetTransform` | None. Step 7 derives its row from its chain's root. | | |
+| Character | None. Today physics ignores `MoveKinematic` on it. | None. A walk, a jump, forces and impulses move it. | | |
+
+The guard is one read, `World.MotionIntentProblem(Entity entity, in MotionIntent intent)`. It returns the reason that the entity refuses the case of `intent` in the next step, or null. It checks these rules in this order:
+
+1. An attached entity refuses every case.
+2. A character refuses every case.
+3. An end pose or a full sample needs a body that is kinematic in the next step (`World.NextStepMotion`), or no body. The owner of a root frame passes too, because its body is only the frame's interior, so physics does not move it. Its frame takes its records as a frame without a hull does.
+4. A steer target needs a body that is dynamic in the next step. An entity without a body has nothing to steer. A kinematic body moves only by end poses and full samples. The owner of a root frame has only a static interior.
+
+`self.MoveOnRails`, `self.MoveKinematic` and `self.Body.SteerTo` all throw an `InvalidOperationException` with that reason. The rails components read the same reason through `self.MotionIntentProblem`, log it once, and write nothing. Step 4 drops a written motion intent by the same rule, with the hull's motion in the next step (see "Changes of motion"). So the components, the writers and the drops can never disagree. Today `RailsHull.IsNotKinematic` copies part of the guard, with its own test for a root frame. A guard built on `NextStepMotion` alone refuses the owner of a root frame, because `NextStepMotion` gives `Static` for it.
+
+`World.WritableMotionIntent` stays the guard of `SetVelocity` and `SetAngularVelocity`. It refuses every body that is kinematic in the next step, hull or plain. A spawn refuses a linear or angular velocity on a kinematic body that owns no frame. It throws an `ArgumentException`, as the other refusals of a spawn do. A kinematic hull keeps its spawn velocity as its frame's velocity. From it, the numeric update gives a fast hull its following frame at spawn. A plain kinematic body gets no following frame until `ter-zg77`.
+
+### Why a frame owner's row is filled from its frame
+
+A frame entity has two tables. The frame tree row is exact: a double pose and velocity relative to the frame's tree parent, which can be a numeric frame. The transform row is the float view of the same entity, relative to its semantic frame: its `Pose` is in `Frame`, `PhysicsHome` is the tree parent, `HomePosition` is the position there, and `LinearVelocity` is a float relative to the home. `FrameOwnerRow` builds the row from the tree row. Its pose is the sum of the places of the numeric frames between the tree parent and the semantic frame.
+
+So the row must be built again after each change of the tree row or of that sum. Step 2 changes the tree row of each frame that takes a record. Step 5 changes it for a frame that moves up. Step 6c changes it for a frame that the numeric update moves between numeric frames. A drain, a recenter or a jump of a nesting frame changes the sum and writes no row, so step 7 builds every row again. If the tree did not change, step 7 repeats step 2. `ter-sn28` found that pass costs about 44 µs for 1,000 frames and lists a skip for it.
+
+This design adds no such pass. A motion intent lands in the entity's exact table: the frame tree row for a frame owner, and the transform row for an entity without a frame, which has no second table.
+
+### The motion intent
+
+```csharp
+public readonly record struct EndPose(DPose Pose);
+public readonly record struct SteerTarget(DPose Pose);
+
+[Union]
+public readonly struct MotionIntent
+{
+    private const byte KindNone = 0, KindEndPose = 1, KindSample = 2, KindSteer = 3;
+    private readonly MotionSample sample;   // an end pose and a steer target fill only sample.Pose
+    private readonly byte kind;
+
+    public MotionIntent(EndPose end) { ... }
+    public MotionIntent(MotionSample sample) { ... }
+    public MotionIntent(SteerTarget steer) { ... }
+    public bool HasValue => kind != KindNone;
+    public bool TryGetValue(out EndPose end) { ... }
+    public bool TryGetValue(out MotionSample sample) { ... }
+    public bool TryGetValue(out SteerTarget steer) { ... }
+    public DPose AimPose => sample.Pose;
+    public bool TryRecordFrom(in DPose stepStart, double step, Vector3 properAcceleration, out MotionSample record) { ... }
+    public MotionIntent Converted(in DPose relative, in FrameMotion motion, Double3 relativeAcceleration) { ... }
+}
+```
+
+where
+
+- `MotionIntent` = a custom C# 15 union, as `Target` is. The default holds no case: the entity has no motion intent in the step.
+- `sample` = the private field that the three cases share. An end pose and a steer target read only its pose.
+- `AimPose` = the pose that physics aims the body at, which every case gives. For an end pose and a full sample, it is the pose at the end of the step. Physics or the sync point puts the entity exactly there. For a steer target, it is the pose that physics steers a dynamic body toward, which contacts and gravity can keep the body from.
+- `TryRecordFrom` = the step record of the intent, for a step that starts at `stepStart`, in the intent's frame, and lasts `step` seconds. A full sample gives itself. An end pose gives the constant-velocity motion described under "MoveKinematic as an end pose". A steer target and an intent with no case give false.
+- `Converted` = the intent in another frame. An end pose and a steer target convert as a pose, `DPose.Compose(relative, pose)`, as `PhysicsIntent.Target` converts today, and keep their case. A full sample converts by the rule of a hand-off, as `MotionSampleTable.Convert` does today. That body moves to `MotionSample.Converted`. Today `ConvertInto` adds the relative velocity of the two frames to the zero velocities of an end pose. The result is no end pose any more.
+
+The new field `PhysicsIntent.Move` holds it. The flag `IntentFlags.KinematicTarget` and the field `PhysicsIntent.Target` go, because `HasValue` tells whether the intent holds a motion intent. `PhysicsIntent.IsEmpty` also asks `!Move.HasValue`. The name `Move` matches the writers, and `PhysicsIntent.Motion` already names the change of motion.
+
+`PhysicsIntent.StepRecord(in DPose standing, double step, Vector3 properAcceleration, out MotionSample record)` is the one read that turns the intent into a record. It is false without a motion intent and for a steer target. If the intent teleports, the step starts at `TeleportPose`. Else it starts at `standing`: the pose of the entity at the start of the step, in the intent's frame. `FrameTree.StepRecordInStep(FrameHandle frame, ReadOnlySpan<PhysicsIntent> stepIntents, double step, out MotionSample record)` wraps it for a frame: `standing` is the frame's pose in its semantic parent, and `properAcceleration` is the frame's own. It is valid only while the tree stands where the step starts. `FollowOwners` calls it at step 2 only for a frame without a hull. Nothing moves the tree pose of such a frame between the start of the step and step 2.
+
+Writers:
+
+- `self.MoveOnRails(in MotionSample sample)` and `self.MoveKinematic(in DPose endPose)` are members of `Self`, beside `SetTransform`. An end pose or a full sample is not a request to a body, because an entity without a body takes one too. `self.Body.MoveKinematic` goes.
+- `self.Body.SteerTo(in DPose target)` is a member of `BodyHandle`, beside `SetVelocity`, because a steer target is a request to a dynamic body.
+- All three write `PhysicsIntent.Move` through `World.WriteMotionIntent`, after the guard.
+- All three check the same way, as `CheckedSample` does today: every number is finite, the rotation is not zero, and the World makes the rotation unit length.
+- The last write in a tick wins, whatever its case.
+- The intent's frame is `self.Frame` at the first write of the tick, as for every intent.
+
+### MoveKinematic as an end pose
+
+An end pose is the case `EndPose` of the union, not a full sample with zero velocities. A sample with zero velocities tells the frame that it stands still. `FrameTree.Follow` copies `Velocity` and `ProperAcceleration` into the frame. So the frame loses its velocity and its cargo's weight, and a ghost gets a zero chord.
+
+Physics works out the motion of an end pose at the start of the step, as Jolt's `MoveKinematic` does today: the body moves at a constant velocity from where it stands to the end pose. `MotionIntent.TryRecordFrom` computes the same motion in doubles:
+
+```csharp
+Double3 chord = (end.Position - stepStart.Position) / step;
+Double3 spin = stepStart.Rotation.AngularVelocityTo(end.Rotation, step);
+return new MotionSample(end, chord, chord, Double3.Zero, spin, Double3.Zero, properAcceleration);
+```
+
+where
+
+- `end` = the end pose.
+- `stepStart` = the pose of the entity at the start of the step, or the teleport's pose.
+- `step` = the length of the step in seconds.
+- `chord` = the chord velocity, and also the instant velocity at the end, because the velocity does not change during the step.
+- `AngularVelocityTo` = today's `Rotations.AngularVelocity` in the physics project, which moves to `DQuaternion` in Core, so that Core and physics use one copy. The steer branch of physics uses it too.
+- The acceleration and the angular acceleration are zero.
+- `properAcceleration` = the frame's own proper acceleration, which the record keeps, as a teleport's record and a transform write's record keep it today. An entity without a frame passes zero, and nothing reads it.
+
+The pose at the start of the step comes from the entity's exact table:
+
+- For a frame owner, the frame tree row.
+- For a plain body, Jolt's pose, which is the authority for a plain body.
+- For an entity without body or frame, the transform row.
+
+Physics and the sync point both derive the record of a frame without a hull from the same tree pose. So physics' prediction for ghosts and the frame's place at step 2 agree to the last bit.
+
+A steer target keeps today's physics. At the start of the step, physics gives the dynamic body two velocities over the step. The linear velocity carries its centre of mass from where it stands to where the target puts it. The angular velocity, from `AngularVelocityTo`, turns it from its rotation to the target's. Contacts and gravity still act on it, so it can end the step away from the target.
+
+What becomes of the exactness guarantees of each case:
+
+| Kind of entity, and case | Pose at the sync point | Velocities | After a move to another frame |
+|---|---|---|---|
+| Kinematic hull, full sample | Exact. Physics snaps the hull, and the frame takes the sample's pose. | The sample's doubles in the tree. The angular velocity narrows to the tree's float field, as today. | A kinematic hull never hands off. A rehome at step 5 converts the intent. It misses for one step by the relative motion of the two frames, as a sample does today. |
+| Kinematic hull, end pose | Exact | The chord, in doubles from the tree pose and the end pose. The accelerations are zero. | The same |
+| Plain kinematic body, full sample | Exact in the transform row's double pose, rotation included | The row narrows them to floats relative to the home, as for every body | A hand-off at step 2 converts the next intent at step 7b. It misses for one step by the relative motion of the two frames, as a kinematic target does today. |
+| Plain kinematic body, end pose | Exact | The chord. Jolt has the same velocity, to float rounding. | The same |
+| Frame owner without a hull, either case | Exact in the tree | Doubles in the tree | A rehome at step 5: a one-step miss |
+| Entity without body or frame, either case | Exact in the row's double pose | Floats in the row | A rehome at step 5: a one-step miss |
+| Dynamic body, steer target | Not exact: contacts and gravity act on it, as today | Jolt's, as for every dynamic body | A hand-off at step 2 converts the next steer target at step 7b: a one-step miss, as a kinematic target has today |
+
+### Values: analogue, store, change, readers and writers
+
+#### The motion intent, `PhysicsIntent.Move`
+
+New. It takes the place of the written and applied buffers of the sample table, and of `PhysicsIntent.Target`.
+
+- Analogue: an intent that gameplay writes and the next step applies, such as `TeleportPose` and `Velocity`. It matches that model in every point, with one named difference: the swap keeps it without a physics backend, because the sync point applies it to an entity without a body.
+- Store: the entity's intent, the field `PhysicsIntent.Move`, in both intent buffers, for every slot.
+- Change: tick k writes it. Step 4 of the sync point of tick k swaps it to the front, and steps 5 and 7b convert it. Step k + 1 applies it. Step 4 of the next sync point clears it.
+
+| Writer | When | What it does |
+|---|---|---|
+| `Self.MoveOnRails`, `Self.MoveKinematic` and `BodyHandle.SteerTo`, through `World.WriteMotionIntent` and `EntityTable.WriteMotionIntent` | Tick k, on the entity's worker | Writes the case, relative to `self.Frame`, after the guard. Lists the entity among the intent writers of its chunk. |
+| `World.ApplyMotionChanges` | Step 4 of the sync point of tick k, on the written intents, before the swap | Acts on each hull that wrote a change of motion. If the guard's rule refuses the case of `Move` under the hull's motion in the next step, it drops `Move`. So a hull that is not kinematic drops an end pose or a full sample. A hull that is not dynamic drops a steer target. If the hull is kinematic in the next step, it also drops `SetVelocity` and `SetAngularVelocity`, as today. `FrameTree.PlanHullMotion` keeps only its `LeaveOrbit`. |
+| `EntityTable.SwapIntents` | Step 4 | Exchanges the two intent buffers, so that the written intents become the front intents, and clears the old front entries, now in the back buffer. Without a backend, each front intent keeps only `Move` and the change of motion. |
+| `World.ConvertIntentsOfDyingFrames`, through `ConvertIntent` | Step 5, on the front intents | Converts an intent that names a dying frame into its entity's new frame. This replaces `ConvertSamplesOfMovedFrames`. |
+| `World.ConvertMovedIntents`, through `ConvertIntent` | Step 7b, on the front intents | Converts an intent whose frame is not its entity's frame now: after a hand-off of a plain body or a rehome. This replaces `AssertSamplesNeedNoConversion`. |
+
+Every reader reads the front intents, the intents of the step that applies them.
+
+| Reader | When | What it reads | The read it uses |
+|---|---|---|---|
+| `JoltPhysicsBackend.ApplyBodyIntent`, one `Move` branch for every body that takes a motion intent | Step k + 1, at the start, after the teleport | For a kinematic body, the aim pose as the kinematic target, and the record, for the snap and the step's output. For a dynamic body, the steer target. A case that the body's motion in the step refuses comes only from a bug (see "Output that only a bug produces" in `ARCHITECTURE.md`). | `AimPose`, and `PhysicsIntent.StepRecord` with the body's pose at the start of the step |
+| `JoltPhysicsBackend.PredictRecord`, for the ghosts and hand-offs of the bodies around a frame | Step k + 1 | The record of a frame whose owner has an end pose or a full sample. A frame with a dynamic hull takes Jolt's state, as today, with or without a steer target. | `FrameTree.StepRecordInStep` |
+| `JoltPhysicsBackend.WriteFrames` | End of step k + 1 | Whether a kinematic hull releases a record, and the record | The record that the snap list keeps for the hull |
+| `JoltPhysicsBackend.Report` and `HandedOffVelocities`, for a plain body | End of step k + 1 | The record's pose and instant velocity | The record that the snap list keeps |
+| `FrameTree.BeginNumericStep` | `PrepareTick` of tick k + 1, before the step | The anchor's record, as the step plan | `FrameTree.StepRecordInStep` |
+| `World.FollowOwners`, for a frame without a hull | Step 2 of the sync point of tick k + 1, before the swap | The record | `FrameTree.StepRecordInStep` |
+| `World.FollowOwners`, for the follow kind | Step 2, before the swap | The case: a full sample gives `Rails`, and an end pose gives `Kinematic`. A dynamic hull gives `Physics`, with or without a steer target. | `Move.TryGetValue` |
+| `World.FollowFramelessEntities` | Step 2, before the swap | The record | `PhysicsIntent.StepRecord` with the transform row's pose |
+| `Self.PoseAtNextStepStartIn(FrameHandle frame)` | Tick k + 1, on the entity's worker, its own intent only | The pose where the entity starts the next step: the aim pose of the running step's end pose or full sample, else that step's teleport pose, else its pose now, all in `frame`. A steer target gives no exact end, so the read skips it. For a dynamic body the read is the pose where the running step started, or its teleport pose. | `AimPose` of an end pose or a full sample. It replaces `FrameTree.TryGetAppliedSample` plus `LocalPose(self.OwnedFrame)`, so it works for an entity without a frame. The null frame is the root's own space, in which the motion intent of a root frame is written. |
+| `FaultInjectingBackend` | Tests | Every motion intent of each step | `context.Intents` |
+
+Physics skips an intent of an entity without a body, as `ApplyIntents` already skips an entity for which it has no body record.
+
+#### The step record of a step in flight
+
+Derived, never stored, except for the step plan below. Physics derives it once, at the start of the step, for each kinematic body that it moves. It keeps it in its snap list (`kinematicTargets`, today's `railsTargets`) for the snap, the body state and a hand-off. The sync point derives it at step 2 for an entity without a body. A steer target has none. `PhysicsStepContext.Samples` goes: physics reads `context.Intents`, which it already has.
+
+#### The step record of the last finished step
+
+Moved from the followed buffer into the frame tree row.
+
+- Analogue: `FrameTree.HullMotion`, the stored value of the last finished step, which changes at the sync point. And the frame tree row as it is today: `FrameTree.Follow` writes the pose, the instant velocity, the angular velocity and the proper acceleration at step 2.
+- Store: the frame tree row, plus a new follow kind per frame. The row keeps what `FrameTree.Follow` writes today: the record's pose, instant velocity, angular velocity and proper acceleration. The record's chord, acceleration and angular acceleration are not kept after step 2. When its design needs one, spin gravity adds its own store (see docs/plans/spin-gravity.md, "Conversions between frames").
+- Change: at step 2, by `FrameTree.Follow` or `FrameTree.HoldStill`. Step 5 and step 6c move a frame between parents, and the row's pose and velocity convert there, as today.
+
+| Writer | When | What |
+|---|---|---|
+| `FrameTree.Follow(frame, relativeTo, record, kind)` | Step 2, from `FollowOwners` | The record's pose, instant velocity, angular velocity and proper acceleration, and the follow kind |
+| `FrameTree.HoldStill` | Step 2 | At rest in the tree parent. The follow kind becomes `Static`. |
+| `FrameTree.Reparent`, the numeric update | Steps 5 and 6c | The pose and the velocity, converted to the new parent, as today |
+
+| Reader | When | The read it uses |
+|---|---|---|
+| `MirrorFrameOwner` | Steps 2, 5, 6c and 7 | The tree row, as today |
+| Every read in a frame, such as `VelocityIn` | Any time | The tree row, as today |
+| `FrameTree.CreateOrbitFrame` | Step 6c | The frame's place and velocity in the tree row. Today it reads the chord from the followed buffer (see "The step plan of a following frame"). |
+| `FrameTree.Followed`, read by `DumpRecorder.FollowsOf` | After the sync point | The stored follow kind |
+
+#### The follow kind
+
+Moved from the rows of the sample table into the frame tree, one byte per frame. Its values follow the names of the two writers, because "rails" names rails motion, which an end pose is not:
+
+| Value | The frame's record came from | Dump string |
+|---|---|---|
+| `Rails` | Its owner's full sample | `rails` |
+| `Kinematic` | Its owner's end pose. This value is new. | `kinematic` |
+| `Physics` | Physics, for a hull that was dynamic in the step, with or without a steer target | `physics` |
+| `Static` | A teleport, a transform write, or no record (the frame held still) | `static` |
+
+`FollowOwners` writes the kind of the last record that the frame takes. So a transform write that wins over a motion intent records `Static`. Today the followed row keeps "rails" while the frame stands on the written pose. Two values decide a hull's kind. They are the motion of the hull in the step (`FrameTree.HullMotionInStep` with the front intents), and the case of its motion intent. Both are read before the swap.
+
+#### The step plan of a following frame
+
+New. It replaces `FrameTree.sampleVelocityPastChord`, and the reads of the applied buffer in `BeginNumericStep`, `PlaceFollowingFrame` and `JumpFollowingFrame`.
+
+- Analogue: `FrameTree.stepAcceleration`, the acceleration of a numeric frame for the step, which `BeginNumericStep` fixes before the step.
+- Store: one `MotionSample?` per numeric frame in the frame tree. Few numeric frames exist.
+- Change: `BeginNumericStep` derives it in `PrepareTick` from the anchor's motion intent, with `FrameTree.StepRecordInStep`. The named reason to keep it for the step: an end pose needs the place where the step starts, and step 2 moves the following frame (`AdvanceNumericFrames`) before it reads the plan.
+
+| Reader | When | What |
+|---|---|---|
+| `BeginNumericStep` | `PrepareTick` | The step acceleration that lands the frame on the plan: the plan's chord minus the frame's velocity, divided by the step. It also gives the anchor's instant velocity past the chord, the plan's velocity minus its chord. |
+| `HomeInstantVelocityOverChord` | Physics and step 2 | The plan's velocity minus its chord, as `sampleVelocityPastChord` today |
+| `PlaceFollowingFrame` | Step 2 | The plan's place and chord, exactly |
+| `JumpFollowingFrame` | Step 2 | The plan's place and chord. After a teleport without a motion intent, the record that physics released, converted into the semantic parent, as `KeepRecord` converts it today. |
+
+The landing rule changes one number of today's model, for a named reason: an end pose has no acceleration that lands the frame on it, because its velocity changes at the start of the step. For a full sample the landing acceleration equals the sample's acceleration to about 3e-10 m/s² in low orbit. Jolt and the numeric frames use one scheme: the velocity gains the acceleration, and then the place gains the velocity. The contents of a numeric frame feel the field minus the frame's acceleration. So in that scheme, the frame's acceleration cancels out of their motion in the semantic frame. Only where the frame lands changes, and it lands on the plan. So `CreateOrbitFrame` needs no chord: a new following frame starts at its anchor's place with its anchor's instant velocity, and its first plan lands it. The case "before the hull's first sample" goes. A limit: a body that sleeps in a following frame does not feel its effective gravity, so it moves with the frame. An end pose that changes velocity can drag it. `ter-zg77`, which brings following frames for motion that is no orbit, decides the wake rule.
+
+#### The transform row of an entity without body or frame
+
+A new writer, `World.FollowFramelessEntities`, at step 2 after `FollowOwners`. It visits the front intent entities that have no body and no frame. For each, it writes the record's pose and velocities into the back row with `SetBackTransform`, unless the entity wrote its transform in the tick: that write wins for one tick, as for a frame. It must run before step 5, where `Rehome` converts the row, and before step 7, where `Derive` reads the root's row for the attached children.
+
+`EntityTable.WritableTransform` also sets the row's velocities to zero. So a transform write leaves every entity without a body at rest, as a frame owner's write does today. Today a bodyless entity spawned with a velocity keeps it while `SetTransform` moves it, and `VelocityIn` reads it.
+
+| Writer or reader | When | What |
+|---|---|---|
+| `EntityTable.WritableTransform`, from `Self.SetTransform` | Tick k, on the entity's worker | Writes the pose and zero velocities into the back row |
+| `World.FollowFramelessEntities` | Step 2 | Writes the record's pose and velocities, unless the tick wrote the transform |
+| `World.Rehome` | Step 5 | Converts the row out of a dying frame. The motion intent converts beside it. |
+| `Attachments.Derive` | Step 7 | Reads the root's back row for the attached children |
+| `EntityTable.CopyDirtyRows`, the spatial index, the render snapshot | Steps 8 and 11 | Read the front row, as for every entity |
+| `Self.VelocityIn`, `Snapshot.TryGetVelocityIn` | Tick k + 1 | Read the front row, in the frame that the read names |
+
+#### The entities without body or frame that moved in the last step
+
+New: `World` keeps the entities without body or frame that took a record at the last step 2, in two lists that it swaps. At step 2, each one in the old list that takes no record now and wrote no transform gets zero velocities: it holds still, as `FrameTree.HoldStill` does for a frame. The analogue is physics' `kinematicMoversLast`, which stops a body after its last kinematic target.
+
+### The sync point and the step, step by step
+
+| Moment | Today | After |
+|---|---|---|
+| Tick k | `MoveOnRails` writes the table's written buffer. `MoveKinematic` writes `PhysicsIntent.Target`. | `MoveOnRails`, `MoveKinematic` and `SteerTo` write `PhysicsIntent.Move`. |
+| `PrepareTick` | `BeginNumericStep` reads the applied buffer | `BeginNumericStep` derives each following frame's step plan from the front intents, and its landing acceleration |
+| Step | `ApplyIntents` aims plain bodies at `Target`, and steers a dynamic body to it. Then `AimHullsOnRails` aims hulls at their samples. Only hulls snap. `PredictRecord` and `WriteFrames` read the applied buffer. | One `Move` branch in `ApplyBodyIntent` aims every kinematic body at its end pose, after its teleport, so the stop rule never zeroes it first. The same branch steers a dynamic body to its steer target, as today. Every kinematic body that it aims snaps. `PredictRecord` derives a frame's record from its owner's motion intent. A plain body reports its record. |
+| 2 | `FollowOwners` reads physics' records and the applied buffer. `KeepRecord` puts each record into the applied buffer. | `FollowOwners` reads physics' records, and derives the record of a frame without a hull from its owner's front intent. It writes the follow kind. `KeepRecord` goes. `PlaceFollowingFrame` and `JumpFollowingFrame` read the step plan. Then `FollowFramelessEntities`. |
+| 4 | Drops of the plan, the swap, then `Samples.MoveOn` | The drops act on `Move` in the written intents, by the guard's rule. The swap exchanges the intent buffers, and keeps `Move` without a backend. No `MoveOn`. |
+| 5 | Intents and samples convert separately | Only intents convert, `Move` among them |
+| 6c | `CreateOrbitFrame` reads the followed buffer | `CreateOrbitFrame` reads the frame tree row |
+| 7b | Intents convert. A contract checks that no sample needs a conversion. | Intents convert, `Move` among them. The contract goes. |
+
+Determinism: each entity writes only its own intent, and each reader reads only one entity's intent. So the order of the chunks and of the visits changes nothing. `DeterminismTests` with one and eight workers checks it.
+
+### What goes, and the docs to change
+
+From the code:
+
+- `MotionSampleTable` with its three buffers and rounds, `MotionSamples`, `FrameTree.Samples`, `FrameTree.TryGetAppliedSample`, the call of `Samples.Grow` in `FrameTree.Grow`, and `PhysicsStepContext.Samples`.
+- `World.KeepRecord`, `World.ConvertSamplesOfMovedFrames`, `IsRelativeToDyingFrame` and `AssertSamplesNeedNoConversion`.
+- The refusal in `World.MoveOnRails` of an entity that owns no frame, and `World.WritableMotionIntent` as the guard of `MoveKinematic`. It stays the guard of `SetVelocity` and `SetAngularVelocity`.
+- `PhysicsIntent.Target`, `IntentFlags.KinematicTarget`, the target line of `ConvertIntent` (it becomes the `Move` line), and the clear of `KinematicTarget` in `ApplyMotionChanges`.
+- `Samples.DropWritten` in `FrameTree.PlanHullMotion`.
+- The duplicated physics paths: `AimHullsOnRails` and the `KinematicTarget` branch of `ApplyBodyIntent` become one `Move` branch. The code that gives a dynamic body the velocities to a target stays, as the steer case of that branch. `SnapHullsOnRails` becomes `SnapKinematicBodies`, for every kinematic body that a motion intent moved. `stepSamples` goes.
+- `FrameTree.sampleVelocityPastChord`, which the step plan replaces.
+- `RailsHull` in the components, which the guard's read replaces. If its entity's body is kinematic in the next step (`self.Body.NextStepMotion`), a component teleports the body on its first run.
+- `BodyHandle.MoveKinematic`, which moves to `Self`. `BodyHandle.SteerTo` takes its case for a dynamic body.
+
+These docs follow this design since it was written:
+
+- The other sections of this doc.
+- The section "Conversions between frames" of `docs/plans/spin-gravity.md`.
+- The acceleration of an orbit frame in the section "Orbit frames" of `docs/plans/numeric-frames.md`. `ter-zg77` rewrites the rest of that section.
+
+In `ARCHITECTURE.md`:
+
+- "Threads and the tick": steps 2, 4, 5 and 7b, and the preparation of the tick.
+- "Entities": the physics row holds the motion intent.
+- "Ownership of transforms": every kinematic body moves only by its motion intents and teleports, and `SetVelocity` and `SetAngularVelocity` throw for it. A kinematic hull takes `MoveKinematic`. A dynamic body takes `SteerTo`. A motion intent converts as every intent does. An entity without a body takes end poses, full samples and `SetTransform`.
+- "The frame tree": the follow kind, and no `Samples`.
+- "How a frame moves" and "Changes of motion": the guard list of `NextStepHullMotion` and the drops.
+- "Rails components and the sample table" becomes "Rails components and motion intents".
+- "Destroying a frame": the motion intents convert.
+- "Numeric frames": the "Orbit frames" row takes the step plan and the landing rule.
+- "Output that only a bug produces": a motion intent whose case the body's motion in the step refuses comes only from a bug: an end pose or a full sample on a body that is not kinematic, or a steer target on a body that is not dynamic. A Debug build breaks a contract. A Release build ignores it and records it in `World.Errors`.
+
+Elsewhere:
+
+- `CLAUDE.md`, "Where the user changed my proposals": a new row. My proposal was a frame-keyed sample table with three buffers beside the intents. The user wanted a motion intent in the entity's intent, with the intent's life. It is a union of an end pose, a full sample and a steer target.
+- The ticket `ter-zg77`: a following frame whose anchor is a plain body needs an anchor keyed by entity. `orbiter[]` holds frames today, and `BeginNumericStep` reads its anchor's intent by entity after this ticket.
+
+### What changes for gameplay
+
+- `self.MoveKinematic(endPose)` moves from `self.Body` to `self`. A kinematic hull, a frame owner without a hull and an entity without body or frame take it now. A dynamic body refuses it.
+- `self.Body.SteerTo(target)` is new. It does for a dynamic body what `MoveKinematic` did: physics gives the body the velocities that carry it to the target over the step. A component that steered a dynamic body with `MoveKinematic` calls `SteerTo` instead.
+- `self.MoveOnRails(sample)` takes every entity that the guard lets through, a plain kinematic body and an entity without a frame included.
+- A static body, a character and an attached entity refuse all three writers, with an `InvalidOperationException`. A character and a static body ignored `MoveKinematic` without a word before.
+- `SetVelocity` and `SetAngularVelocity` throw for every kinematic body, and a spawn refuses a velocity on a kinematic body that owns no frame. A component that moved a kinematic body with a velocity writes an end pose in every tick instead.
+- `self.PoseAtNextStepStartIn(frame)` and `self.MotionIntentProblem(intent)` are new reads.
+- A state dump can report `kinematic`.
+- A transform write leaves an entity without a body at rest.
+
+### Tests
+
+Stage 1, the union, in `Tertius.Core.Tests/MotionIntentTests.cs`:
+
+1. `AnEndPoseGivesAConstantVelocityRecordFromWhereTheStepStarts`
+2. `AnEndPoseRecordKeepsTheProperAccelerationThatItIsGiven`
+3. `AFullSampleIsItsOwnRecordWhereverTheStepStarts`
+4. `ASteerTargetGivesNoStepRecord`
+5. `TheStepStartsAtTheTeleportPoseWhenTheSameIntentTeleports`
+6. `AnEndPoseConvertsAsAPoseAndStaysAnEndPose`
+7. `ASteerTargetConvertsAsAPoseAndStaysASteerTarget`
+8. `AFullSampleConvertsByTheRuleOfAHandOff`, moved from `MotionSampleTableTests`
+9. `AnIntentWithAMotionIntentIsNotEmpty`
+
+Stage 2, the end pose and the steer target in the intent:
+
+10. `MoveKinematicWritesAnEndPoseThatTheNextStepApplies`
+11. `AnEndPoseConvertsWhenItsBodyHandsOff`, in `WorldIntentFrameTests`, with today's bound of 1e-6 m
+12. `ASteerTargetCarriesADynamicBodyToItsPoseOverTheStep`, which replaces `KinematicTargetDrivesDynamicBody`
+13. `ASteerTargetConvertsWhenItsBodyHandsOff`
+
+Stage 3, the full sample in the intent:
+
+14. `AFullSampleWrittenInATickMovesItsFrameInTheNextStep`, with a hull and without a body
+15. `TheLastMotionIntentOfATickWinsWhateverItsCase`
+16. `WithoutAPhysicsBackendAFrameWithoutABodyFollowsItsMotionIntents`
+17. `AMotionIntentRelativeToADyingFrameConvertsIntoItsEntitysNewFrame`
+18. `AHullThatIsNotKinematicInTheNextStepDropsTheMotionIntentOfTheTick`
+19. `EveryKinematicBodyEndsItsStepExactlyOnItsEndPose`, for a plain body and a hull
+20. `AFollowingFrameLandsOnItsAnchorsPlanAtEverySyncPoint`
+21. `ANewFollowingFrameStartsAtItsAnchorsPlaceAndVelocity`
+22. `AStateDumpTellsHowEachFrameFollowedItsOwner`, with all four kinds, and `static` for a write that wins over a motion intent
+23. `ASpinMotionStartsWhereTheLastSampleOfTheComponentBeforeItLeftTheFrame`, through `PoseAtNextStepStartIn`
+
+Stage 4, one guard for every entity:
+
+24. `ADynamicBodyRefusesAnEndPoseAndAFullSample`
+25. `AStaticBodyRefusesEveryMotionIntent`
+26. `ACharacterRefusesEveryMotionIntent`
+27. `AnAttachedEntityRefusesEveryMotionIntent`
+28. `ASteerTargetNeedsADynamicBody`, for a kinematic body, an entity without a body and the owner of a root frame
+29. `AHullThatTurnsKinematicInTheTickDropsItsSteerTarget`
+30. `AKinematicHullTakesAnEndPoseAndItsFrameMovesAtTheChord`, which replaces `MoveKinematicOnAKinematicHullThrows`
+31. `TheOwnerOfARootFrameTakesAnEndPoseAndAFullSample`
+32. `ARailsComponentWritesNothingAndLogsTheGuardsReasonOnce`
+33. `APlainKinematicBodyOnKeplerRailsStandsOnItsOrbitToTheLastBit`
+34. `APlainBodyOnRailsReadsTheSamplesInstantVelocity`
+35. `APlainBodyOnRailsThatHandsOffCarriesTheSamplesInstantVelocity`
+36. `AKinematicBodyHoldsStillInTheStepAfterItsLastMotionIntent`
+37. `AKinematicBodyRefusesSetVelocityAndSetAngularVelocity`
+38. `SpawnRefusesAVelocityOnAKinematicBodyThatOwnsNoFrame`
+
+Stage 5, entities without body or frame:
+
+39. `AnEntityWithoutBodyOrFrameFollowsItsMotionIntent`
+40. `AnEntityWithoutBodyOrFrameHoldsStillInTheStepAfterItsLastMotionIntent`
+41. `ATransformWriteWinsForOneTickOverAMotionIntent`, with a frame and without
+42. `ATransformWriteLeavesAnEntityWithoutABodyAtRest`
+43. `AKeplerMotionMovesAnEntityWithoutBodyOrFrameOnItsOrbit`
+44. `ASpinMotionTurnsAnEntityWithoutAFrameInPlace`
+45. `AnAttachedChildFollowsARootThatMotionIntentsMove`
+46. `MotionIntentsGiveTheSameStateWithOneAndEightWorkers`
+47. A benchmark in `WorldTickBenchmarks`: 1,000 entities without body or frame on Kepler orbits, and `KeplerFrameTickBenchmarks` before and after, with the tick and the sync point. It also measures the swap at 100,000 entities, which tells whether `PhysicsIntent.Move` needs a sparse store (see the decision "Where the motion intent lives").
+
+What changes: `MotionSampleTableTests` and `MotionSampleBufferTests` go or become `MotionIntentTests`. `FrameTreeFollowedTests` tests the stored follow kind. `FrameTreeOrbitFrameTests` gives the tree intents. `RailsHullTests`, `IntentTests`, `SetMotionTests` (the flags in its `InlineData`), `PhysicsIntentTests` line 212, `WorldIntentFrameTests`, `StationSliceTests` and `DeepYardSliceTests` follow the new names. `FaultInjectingBackend` records motion intents (`SampleRecord` becomes a record of the entity, its frame and its motion intent), and `StepRecords` follows. About 10 tests keep a system stepping or move a platform with a kinematic spawn velocity. They use `KinematicDrift`, a test component in `Tertius.Testing` that writes, in every tick, the end pose one step further along a constant velocity. Every implementation brief asks for hand mutations.
+
+### Order of the work
+
+Each stage ends green.
+
+1. The union `MotionIntent`, `EndPose`, `SteerTarget`, `TryRecordFrom`, `Converted`, `MotionSample.Converted` and `DQuaternion.AngularVelocityTo`, in Core, with tests 1 to 9. The sample table calls `MotionSample.Converted`. No behavior changes.
+2. `MoveKinematic` writes the end pose, and the new `self.Body.SteerTo` writes the steer target, into `PhysicsIntent.Move`. `Target` and `KinematicTarget` go. Physics' target branch and `ConvertIntent` read `Move`: physics aims a kinematic body at an end pose, and steers a dynamic body to a steer target. The tests that steer a dynamic body move to `SteerTo`. Until stage 4, the guards stay as they are, and physics steers a dynamic body that gets an end pose, as it does today. Tests 10 to 13.
+3. `MoveOnRails` writes the full sample into `PhysicsIntent.Move`, and every reader of the sample table reads the intents. One physics branch aims and snaps every kinematic body. The stage also brings the step plan with its landing rule. The frame tree row, with the follow kind, becomes the record of the step that ended. It brings the swap without a backend, the exchange of the intent buffers, and `Self.PoseAtNextStepStartIn` for `SpinMotion`. The table goes. The guards keep today's scope. Tests 14 to 23. It is the largest stage. If one agent cannot finish it, two agents do it in a row. The first writes the full sample into both stores, and moves physics and the frame tree to the intent. The second agent moves the World's readers and removes the table. Both end green.
+4. One guard for every entity: `World.MotionIntentProblem`, `Self.MoveKinematic`, `self.MotionIntentProblem`, the refusals of each case, and the step-4 drops by the guard's rule. A kinematic hull takes an end pose, and the owner of a root frame takes an end pose and a full sample. `SetVelocity` and `SetAngularVelocity` throw for every kinematic body. A spawn refuses a velocity on a kinematic body that owns no frame. The tests that drift a kinematic body with a velocity move to `KinematicDrift`. A plain body's record goes into its body state and its hand-off. The components use the guard's read. Tests 24 to 38.
+5. Entities without body or frame: `FollowFramelessEntities`, the movers of the last step, the transform write at rest, and the components on an entity without a frame. Tests 39 to 47.
+6. `ARCHITECTURE.md`, the row in `CLAUDE.md` and the ticket `ter-zg77`, as "What goes, and the docs to change" lists them. The orchestrator runs coverage on the changed lines, and a Stryker run on the changed lines of Core and Simulation.
