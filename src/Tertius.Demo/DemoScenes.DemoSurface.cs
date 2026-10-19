@@ -46,10 +46,19 @@ public static partial class DemoScenes
     /// weightless cabin it floats to the drifting pen and takes it.</item>
     /// <item>The <c>earth</c>, only drawn, is a sphere 1 m smaller than Earth, with the grid of the orbit scene, so the
     /// slab hides it at the pad and the climb shows the planet below.</item>
-    /// <item>More views: <c>ramp-camera</c> stands on the ground beside the ramp and sees all of it; <c>aft-camera</c>, in
-    /// the shuttle's frame in the cabin's forward starboard corner, looks aft along the cabin, past the seat, to the aft
-    /// wall; <c>chase-camera</c> rides in the shuttle's frame, 45 m behind it and 10 m above its roof, and looks at
-    /// it.</item>
+    /// <item>More views: <c>pad-camera</c>, 6 m up, 32 m to starboard of the shuttle and 30 m aft of it, sees the whole
+    /// parked shuttle, with the tower behind it and the ramp rising beyond it; <c>ramp-camera</c> stands on the ground
+    /// beside the ramp and sees all of it; <c>ramp-top-camera</c> hovers 105 m above the ground, 90 m to starboard of the
+    /// ramp's upper end, and sees that end and the first 150 m of the flight past it; <c>aft-camera</c>, in the shuttle's
+    /// frame in the cabin's forward starboard corner, looks aft along the cabin, past the seat, to the aft wall;
+    /// <c>chase-camera</c> rides in the shuttle's frame, 45 m behind it and 10 m above its roof, and looks at it;
+    /// <c>climb-camera</c> rides in the shuttle's frame, 50 m from it, high above and behind its roof, and looks down at it
+    /// 55 degrees below its nose line, so that the ground stays in the view while the shuttle climbs steeply.</item>
+    /// <item>Views of the pen, in the shuttle's frame: <c>pen-camera</c>, near the roof, 1.5 m to port of the cabin's
+    /// middle line and just aft of the clip, looks down at the pen's way from the port wall, from 1.5 to 2 m. The pen
+    /// shows most of its length there, in the clip and while it tumbles. The view also holds the seat and the person's way
+    /// from it to the pen. <c>hand-camera</c>, 0.7 m above the floor on the starboard side, looks across at the place where
+    /// the person takes the pen, and sees the pen in its hand.</item>
     /// <item>The frame <c>sun</c> lies far away, toward +X and +Z and high up, so its light falls the same way on the pad and
     /// in orbit.</item>
     /// </list>
@@ -310,10 +319,22 @@ public static partial class DemoScenes
                 Render = new RenderData(),
             }));
 
+            scene.Add("pad-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = surface,
+                Pose = LookingAt(new Double3(32, EarthRadius + 6, 30), new Double3(0, EarthRadius + 12, -30)),
+                Render = new RenderData(),
+            }));
             scene.Add("ramp-camera", world.Spawn(new SpawnDesc
             {
                 Frame = surface,
                 Pose = LookingAt(new Double3(140, EarthRadius + 25, -95), new Double3(0, EarthRadius + 55, -110)),
+                Render = new RenderData(),
+            }));
+            scene.Add("ramp-top-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = surface,
+                Pose = LookingAt(new Double3(90, EarthRadius + 105, -200), new Double3(0, EarthRadius + 145, -262)),
                 Render = new RenderData(),
             }));
             scene.Add("aft-camera", world.Spawn(new SpawnDesc
@@ -328,6 +349,24 @@ public static partial class DemoScenes
                 Pose = LookingAt(new Double3(0, 10, 45), Double3.Zero),
                 Render = new RenderData(),
             }));
+            scene.Add("climb-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = LookingAt(new Double3(0, 41, 29), Double3.Zero),
+                Render = new RenderData(),
+            }));
+            scene.Add("pen-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = LookingAt(new Double3(-1.5, 1.2, -0.45), new Double3(-1.5, -0.3, -1.6)),
+                Render = new RenderData(),
+            }));
+            scene.Add("hand-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = LookingAt(new Double3(0.7, -1.1, -0.9), new Double3(-0.8, -0.4, -1.9)),
+                Render = new RenderData(),
+            }));
 
             // The sun stands at the distance of the real one, so its light falls the same way everywhere on the flight.
             SunAt(world, scene, surface, new Double3(0, EarthRadius, 0) + new Double3(60, 80, 40).Normalized() * AstronomicalUnit);
@@ -336,9 +375,14 @@ public static partial class DemoScenes
             scene.AddView("terminal-camera");
             scene.AddView("apron-camera");
             scene.AddView("cabin-camera");
+            scene.AddView("pad-camera");
             scene.AddView("ramp-camera");
+            scene.AddView("ramp-top-camera");
             scene.AddView("aft-camera");
             scene.AddView("chase-camera");
+            scene.AddView("climb-camera");
+            scene.AddView("pen-camera");
+            scene.AddView("hand-camera");
             world.Camera = overview;
             return scene;
         }

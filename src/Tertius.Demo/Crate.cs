@@ -29,15 +29,17 @@ public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId 
     /// <summary>
     /// A drawn copy of the crate in the hands of <paramref name="holder"/>, in <paramref name="frame"/>, the holder's frame,
     /// for a holder whose view offset is <paramref name="view"/>: it has no body, it is attached to the holder at
-    /// <see cref="Carry.Hold"/> in the view, turned with the view, and a <see cref="HeldInView"/> keeps it there.
+    /// <paramref name="hold"/> in the view, turned with the view, and a <see cref="HeldInView"/> keeps it there. The holder
+    /// chooses the hold: <see cref="Carry.Hold"/> for a crate in a person's hands, <see cref="Passenger.PenHold"/> for the
+    /// pen in a passenger's hand.
     /// </summary>
-    public SpawnDesc HeldCopy(FrameHandle frame, Entity holder, Pose view) => new()
+    public SpawnDesc HeldCopy(FrameHandle frame, Entity holder, Pose view, Vector3 hold) => new()
     {
         Frame = frame,
         AttachTo = holder,
-        AttachOffset = HeldInView.Place(view, Carry.Hold),
+        AttachOffset = HeldInView.Place(view, hold),
         Render = Drawn(),
-        Components = [new HeldInView(Carry.Hold)],
+        Components = [new HeldInView(hold)],
     };
 
     /// <summary>

@@ -165,6 +165,31 @@ public sealed class PassengerTests : IDisposable
         FromSeat().Should().BeGreaterThan(2, "the passenger left its seat");
     }
 
+    /// <summary>
+    /// The pen in hand touches the person: its near end is less than 2 cm in front of the front of the capsule, 0.3 m
+    /// ahead of its axis, in front of the chest, between the person's center and its eye. A pen held farther out reads as
+    /// a pen that floats free.
+    /// </summary>
+    [Fact]
+    public void ThePassengerHoldsThePenInFrontOfItsChest()
+    {
+        BoardInSpace();
+        TickUntil(PassengerPhase.Holding, limit: 1200);
+        Tick(world, 4);
+
+        Entity copy = With<HeldInView>().Should().ContainSingle().Which;
+        DPose personPose = world.PoseInOwnFrame(person);
+        DPose copyPose = world.PoseInOwnFrame(copy);
+        // The pen's center and its long axis, in the person's axes: +Y up and -Z ahead.
+        Double3 center = personPose.Rotation.Conjugate().Rotate(copyPose.Position - personPose.Position);
+        Double3 axis = (personPose.Rotation.Conjugate() * copyPose.Rotation).Rotate(Double3.UnitZ);
+        double nearEnd = -center.Z - Math.Abs(axis.Z) * DemoSurface.PenHalf.Z;
+
+        nearEnd.Should().BeInRange(0.3, 0.32, "the pen's near end just touches the front of the body");
+        center.Y.Should().BeInRange(0, DemoSurface.Eye.Y, "the pen is in front of the chest");
+        Math.Abs(center.X).Should().BeLessThan(0.3, "the pen is in front of the body, not beside it");
+    }
+
     [Fact]
     public void ThePassengerComesWithinReachOfThePenBeforeItTakesIt()
     {

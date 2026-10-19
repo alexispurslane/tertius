@@ -1,3 +1,4 @@
+using System.Numerics;
 using Tertius.Simulation;
 
 namespace Tertius.Demo;
@@ -35,8 +36,8 @@ public enum PassengerPhase
 /// <item><see cref="PassengerPhase.Fetching"/>: its thrusters, as weak as those of <see cref="PersonControl"/>, push it
 /// toward the pen, until it floats with the pen at <see cref="ApproachDistance"/> from it. Within <see cref="GrabReach"/>
 /// it uses the pen (<see cref="Use"/>), and the pen offers itself. The passenger takes the offer as <see cref="Carry"/>
-/// takes a crate: it tells the pen that it is taken, so that the pen goes, and it holds a drawn copy of the pen. If the pen
-/// goes in another way, the passenger stops.</item>
+/// takes a crate: it tells the pen that it is taken, so that the pen goes, and it holds a drawn copy of the pen in its hand,
+/// at <see cref="PenHold"/>, in front of its chest. If the pen goes in another way, the passenger stops.</item>
 /// <item><see cref="PassengerPhase.Holding"/>: its thrusters stop it relative to its frame.</item>
 /// </list>
 /// </summary>
@@ -79,6 +80,14 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
 
     /// <summary>The time in which the thrusters bring the passenger to the velocity that it wants, in seconds.</summary>
     public const double SteerTime = 0.5;
+
+    /// <summary>
+    /// Where the pen in the passenger's hand sits, from the eye, in meters, in the view's axes: 0.15 m to the right,
+    /// 0.45 m down, in front of the chest, and 0.38 m ahead, so that the near end of a pen 14 cm long lies 1 cm in front of
+    /// the front of a capsule 0.3 m in radius. The pen points ahead, turned with the view. A pen held as far out as a crate
+    /// (<see cref="Carry.Hold"/>) reads as a pen that floats free.
+    /// </summary>
+    public static readonly Vector3 PenHold = new(0.15f, -0.45f, -0.38f);
 
     private readonly Waypoint seat = seat;
     private readonly Entity pen = pen;
@@ -166,7 +175,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     private void Take(Self self, Outbox outbox, CrateSpec offered)
     {
         outbox.Send(pen, new CrateTaken());
-        self.Spawn(offered.HeldCopy(self.Frame, self.Entity, self.Render.ViewOffset));
+        self.Spawn(offered.HeldCopy(self.Frame, self.Entity, self.Render.ViewOffset, PenHold));
         Phase = PassengerPhase.Holding;
     }
 
