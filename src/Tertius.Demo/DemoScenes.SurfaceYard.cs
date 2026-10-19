@@ -60,17 +60,7 @@ public static partial class DemoScenes
     private static SceneInstance SurfaceYard(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        // The frame's bounds do not matter for a root frame, which nothing leaves.
-        FrameHandle surface = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f), GravityField.Point(EarthMu)));
-        scene.Add("earth-surface", surface.Entity);
-
-        scene.Add("floor", world.Spawn(new SpawnDesc
-        {
-            Frame = surface,
-            Pose = new DPose(new Double3(0, EarthRadius - YardFloorHalfExtents.Y, 0), DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(YardFloorHalfExtents), BodyMotion.Static),
-            Render = Drawn(resources, Primitives.Box(YardFloorHalfExtents), new Vector4(0.4f, 0.4f, 0.38f, 1), boundingRadius: 36),
-        }));
+        FrameHandle surface = EarthSurface(world, resources, scene, YardFloorHalfExtents);
 
         MeshId crateMesh = resources.CreateMesh(Primitives.Box(new Vector3(YardCrateHalfSize)));
         var heavy = new CrateSpec(new Vector3(YardCrateHalfSize), HeavyCrateMass, crateMesh,
@@ -118,20 +108,47 @@ public static partial class DemoScenes
         }));
 
         // The sun frame's origin is where the light comes from: up, and to the cameras' side of the yard.
-        Entity sun = world.Spawn(new SpawnDesc
-        {
-            Frame = surface,
-            Pose = new DPose(new Double3(30, EarthRadius + 50, 20), DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
-        });
-        scene.Add("sun", sun);
-        world.SunFrame = world.GetOwnedFrame(sun);
+        SunAt(world, scene, surface, new Double3(30, EarthRadius + 50, 20));
 
         scene.AddView("yard-camera");
         scene.AddView("stack-camera");
         scene.AddView("person");
         world.Camera = yardCamera;
         return scene;
+    }
+
+    /// <summary>
+    /// The ground at Earth's north pole, which the surface scenes share. The root frame <c>earth-surface</c> has its
+    /// origin at Earth's center and Earth's point gravity, μ = <see cref="EarthMu"/>, and it does not turn, so +Y is up at
+    /// the pole. The planet has no ground (ticket ter-7u6t), so a static gray slab, the <c>floor</c>, with the half extents
+    /// <paramref name="floorHalfExtents"/>, lies centered on the Y axis with its top at y = <see cref="EarthRadius"/>.
+    /// </summary>
+    private static FrameHandle EarthSurface(World world, IRenderResources resources, SceneInstance scene, Vector3 floorHalfExtents)
+    {
+        // The frame's bounds do not matter for a root frame, which nothing leaves.
+        FrameHandle surface = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e8f), GravityField.Point(EarthMu)));
+        scene.Add("earth-surface", surface.Entity);
+        scene.Add("floor", world.Spawn(new SpawnDesc
+        {
+            Frame = surface,
+            Pose = new DPose(new Double3(0, EarthRadius - floorHalfExtents.Y, 0), DQuaternion.Identity),
+            Body = new BodyDesc(new BoxShapeDesc(floorHalfExtents), BodyMotion.Static),
+            Render = Drawn(resources, Primitives.Box(floorHalfExtents), new Vector4(0.4f, 0.4f, 0.38f, 1), boundingRadius: MathF.Ceiling(floorHalfExtents.Length())),
+        }));
+        return surface;
+    }
+
+    /// <summary>The frame <c>sun</c> in <paramref name="frame"/>, whose origin at <paramref name="position"/> is where the world's light comes from.</summary>
+    private static void SunAt(World world, SceneInstance scene, FrameHandle frame, Double3 position)
+    {
+        Entity sun = world.Spawn(new SpawnDesc
+        {
+            Frame = frame,
+            Pose = new DPose(position, DQuaternion.Identity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
+        });
+        scene.Add("sun", sun);
+        world.SunFrame = world.GetOwnedFrame(sun);
     }
 
     /// <summary>

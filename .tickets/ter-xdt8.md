@@ -1,6 +1,6 @@
 ---
 id: ter-xdt8
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-18T23:50:45Z

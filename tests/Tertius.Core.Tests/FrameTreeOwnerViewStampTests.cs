@@ -90,12 +90,12 @@ public class FrameTreeOwnerViewStampTests
     public void A_frame_that_takes_its_step_record_changes_the_stamp()
     {
         var record = new MotionSample(new DPose(X(101), DQuaternion.Identity), X(60), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
-        StampChanges(() => frames.Follow(ship, ground, record, FollowKind.Rails, measured: null, step: 1.0 / 60)).Should().BeTrue();
+        StampChanges(() => frames.TakeStepRecords([], 1.0 / 60, new StepOwners().WithHullRecord(ship, record))).Should().BeTrue();
     }
 
     [Fact]
     public void A_frame_that_holds_still_changes_the_stamp() =>
-        StampChanges(() => frames.HoldStill(ship, 1.0 / 60)).Should().BeTrue();
+        StampChanges(() => frames.TakeStepRecords([], 1.0 / 60)).Should().BeTrue();
 
     // A change of a hull's motion writes no pose, velocity or parent: a parked ship stops through the record of its next
     // step, which changes the stamp (see A_frame_that_takes_its_step_record_changes_the_stamp). So the change leaves the
@@ -160,8 +160,6 @@ public class FrameTreeOwnerViewStampTests
         {
             var views = new ViewCounter();
             frames.VisitOwnerViews(ref views);
-            var links = new LinksCounter();
-            frames.VisitFrames(ref links);
             _ = frames.OwnerView(ship);
             _ = frames.LocalPose(ship);
             _ = frames.TreeLocalPose(ship);
@@ -182,12 +180,5 @@ public class FrameTreeOwnerViewStampTests
         public int Count;
 
         public void Visit(in FrameOwnerView view) => Count++;
-    }
-
-    private struct LinksCounter : IFrameVisitor
-    {
-        public int Count;
-
-        public void Visit(in FrameLinks links) => Count++;
     }
 }

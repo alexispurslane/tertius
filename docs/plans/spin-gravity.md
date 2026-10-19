@@ -303,13 +303,13 @@ No gameplay code reads V1 or V2. A tick reads the tree row's angular velocity, w
 
 - Analogue: the row's angular velocity, `FrameTree.AngularVelocity`, a value of the last finished step that the tree writes at step 2.
 - Store: the frame tree, one `Double3` per frame. `ter-xdt8` keeps no angular acceleration in the row and leaves this store to spin gravity.
-- Change: at step 2, by `Follow` and `HoldStill`. A move to another parent at step 5 or 6c converts it.
+- Change: at step 2, in the pass `FrameTree.TakeStepRecords` (`ter-6azq`), where a frame takes its record or holds still. A move to another parent at step 5 or 6c converts it.
 - Every step record means the same by its angular acceleration: the mean over its step. A dynamic hull's record already gives Jolt's change over the step. `KeplerOrbit.Sample` changes: it solves the angular velocity at both ends of the step, where today it gives the angular acceleration at the step's start. `FrameSpin.Sample` gives zero.
 
 | Writer | When | What |
 |---|---|---|
-| `FrameTree.Follow` | Step 2, from `FollowOwners` | The record's angular acceleration |
-| `FrameTree.HoldStill` | Step 2 | Zero |
+| `FrameTree.TakeStepRecords`, a frame with a record | Step 2, from `FollowOwners` | The record's angular acceleration |
+| `FrameTree.TakeStepRecords`, a frame without a record | Step 2 | Zero |
 | `FrameTree.Reparent`, the numeric update | Steps 5 and 6c | Converted by `FrameMotion`'s rule (V7) |
 
 | Reader | When | What for |

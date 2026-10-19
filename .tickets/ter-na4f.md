@@ -1,6 +1,6 @@
 ---
 id: ter-na4f
-status: in_progress
+status: closed
 deps: [ter-ozm8]
 links: []
 created: 2026-10-18T14:08:42Z

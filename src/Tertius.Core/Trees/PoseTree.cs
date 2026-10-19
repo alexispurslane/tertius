@@ -227,6 +227,15 @@ public sealed class PoseTree<TPose> where TPose : struct, IPose<TPose>
         get { EnsureOrder(); return local.AsSpan(0, count); }
     }
 
+    /// <summary>
+    /// The local poses by dense index, to write, for a pass over many nodes. Writing them makes world poses stale until
+    /// <see cref="UpdateWorld"/>, as <see cref="Local"/> does. Valid until the next structural change.
+    /// </summary>
+    internal Span<TPose> LocalPosesForWrite
+    {
+        get { EnsureOrder(); worldDirty = true; return local.AsSpan(0, count); }
+    }
+
     /// <summary>World poses by dense index, as of the last <see cref="UpdateWorld"/>.</summary>
     public ReadOnlySpan<TPose> WorldPoses
     {
