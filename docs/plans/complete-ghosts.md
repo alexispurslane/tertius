@@ -1,6 +1,6 @@
 # Complete ghosts between semantic frames
 
-Epic: `ter-imi5`. It closes `ter-xxmj`, the first half of `ter-3mwi` and `ter-7ul9`. The user decided its three items on 2026-10-17. This doc is the design and the plan in one: it says what to build, and "Order of the work" says in which order. The choices that the ticket, the code and the rules do not settle are in "Open forks". The rest of the doc describes the end state with the recommended side of each fork, and names the fork where the other side changes it.
+Epic: `ter-imi5`. It closes `ter-xxmj`, the first half of `ter-3mwi` and `ter-7ul9`. The user decided its three items on 2026-10-17. This doc is the design and the plan in one: it says what to build, and "Order of the work" says in which order. The ticket, the code and the rules did not settle four choices, and the user settled them on 2026-10-18. "Decided forks" keeps both designs of each choice and the user's answer, and "Decisions" gives the reasons. The rest of the doc describes the chosen end state.
 
 ## Goal
 
@@ -47,11 +47,11 @@ A ghost that stands in for its body as fully as Jolt allows then follows six rul
 5. Reports. Every contact through a ghost is a contact of the two entities, also a contact of two ghosts. The ledger counts it once, however many systems hold it.
 6. Change. When a real body changes its motion, every pair of its bodies follows the new motion at once: each pair that the new motion cannot make ends, and each pair that it can make starts.
 
-How the plan compares, with the recommended side of each fork:
+How the plan compares:
 
 | Rule | Today | This plan | Left after this plan |
 |---|---|---|---|
-| 1. Placement | Movable bodies have child ghosts and stick-out ghosts. Hulls have child ghosts and anchor ghosts. A static plain body has only anchor ghosts. An interior has none. | A static plain body has child ghosts too. | Stick-out ghosts of static bodies, and child ghosts of interiors in the frames inside the owner's frame (fork F3). |
+| 1. Placement | Movable bodies have child ghosts and stick-out ghosts. Hulls have child ghosts and anchor ghosts. A static plain body has only anchor ghosts. An interior has none. | A static plain body has child ghosts too. | Stick-out ghosts of static bodies, child ghosts of interiors in the frames inside the owner's frame, and the carry of contacts between an interior and its ghosts. A follow-up ticket builds them, and the orchestrator files it at the merge (fork F3). |
 | 2. Reach | The body's bounding sphere touches the bubble. | The sphere reaches the content (fork F2). | None. |
 | 3. Meeting | Every ghost but an anchor ghost has the `Ghost` role, so it never meets a hull. The contact filter covers only ghosts of static bodies, and it reads the other body's Jolt motion. | A child ghost of a static body or a hull meets hulls (fork F1). The filter compares the contact motions of every pair with a ghost. | None. |
 | 4. Motion | Only the ghost of a mesh is static while it holds still. | Every ghost of a static body is. | None. |
@@ -72,7 +72,7 @@ The user made the decisions marked (User).
 |---|---|---|
 | What a static plain body gets | A child ghost in each child bubble that it reaches, as a hull has. (User) | The ticket. Without it, the bodies of a child pass through the static bodies of the parent (`ter-xxmj`). |
 | A pair of two ghosts | A contact of their entities. (User) The ghost clause of `FrameWorld.IsReported` goes. | Jolt makes a contact of two ghosts only when one of them is a sensor, because no ghost is dynamic. So the clause dropped only sensor pairs, which no real-ghost pair reports when the bodies touch only outside both bubbles. |
-| Sensors and frame owners | One answer for each motion of the sensor and of the hull, in every frame. (User) Which answer: fork F4. | The ticket (`ter-7ul9`). |
+| Sensors and frame owners | One answer for each motion of the sensor and of the hull, in every frame. (User) The row of fork F4 gives the answer. | The ticket (`ter-7ul9`). |
 | A pair after a change of motion | It ends when the new motion cannot make it. (User) A pair that the new motion can make starts if its bodies overlap. | One rule both ways. Jolt offers a pair again only to a new body, or to a body that it starts to simulate. |
 | The motion of a ghost of a static body | Static while it holds still in its system, kinematic while it moves, as the ghost of a mesh is today. This rule replaces the mesh rule, because a real body with a mesh is always static. | Jolt never simulates a static ghost, so the bodies on it sleep, and a child system with no other active body does not step. With 100 boxes asleep on the ghost of a station's floor, a tick took 37 µs with a static ghost and 116 µs with a kinematic one (`MeshGhostBenchmarks`). A static ghost also meets exactly what its static body meets by Jolt's rule. |
 | How a ghost follows a change of its body's motion | Physics removes the ghost and makes a new one at once, at the old one's pose and velocity, with the new motion's layer, Jolt motion and contact motion. | Jolt offers every pair of a new body to the filter. Removing the old ghost loosens its contacts, and the carry keeps each one that the new motion allows (`ResolveLooseContacts`). No new path. The new ghost lags the hull by one step, as every ghost lags an intent that the step applies. The ghost pass at the end of the step puts it where the hull is. |
@@ -81,6 +81,10 @@ The user made the decisions marked (User).
 | The pair test of the ledger | One predicate replaces `PrimariesTouch` and `GhostTouches` (see "The pair test and the filter"). | The carry and the new check after a change of motion must ask exactly what Jolt and the filter make. |
 | A system without child bubbles | Its static members cost nothing in the ghost pass, as today. | Most systems hold no child frame. |
 | Overlap with `ter-xdt8` | `ter-xdt8` builds motion intents for every entity in another worktree. Both tickets touch `FollowHullMotions` and `ApplyHullMotion` in `JoltPhysicsBackend.Bodies.cs`. The second ticket to merge resolves the conflicts. | This ticket stays out of rails motion. |
+| Do child ghosts meet hulls (fork F1) | Design B. A child ghost of a static body has the body's own layer, and a child ghost of a hull has the interior's layer. Stick-out ghosts keep the `Ghost` role. `GhostBody.Role` replaces `GhostBody.Anchor`. (User, 2026-10-18) | It is the ticket's model, a ghost that stands in for its body as fully as Jolt allows. The `Ghost` role is the engine's own limit, not Jolt's. A dynamic hull of a frame inside a ship then meets the ghosts of the parent's static bodies and of other hulls, as the real bodies meet each other, and `SetCollision` gets right the layer of a static anchor ghost, which it leaves stale today. |
+| How far a ghost reaches into a child frame (fork F2) | Design B. A body has a child ghost when its bounding sphere reaches the child's content, the bubble grown by its excess. The sibling test of a stick-out ghost grows the same way. (User, 2026-10-18) | One rule for every kind of body. With the bubble alone, item 1 fixes the slab under the shuttle but not the rock at the bubble's edge or the kinematic pusher that `ter-xxmj` names. In the existing scenes it adds no ghost (see "Cost"). |
+| Which static bodies get ghosts now (fork F3) | Design A. Only static plain bodies get child ghosts. Interior ghosts, stick-out ghosts of static bodies and the carry of contacts between an interior and its ghosts go to a follow-up ticket, which the orchestrator files at the merge. (User, 2026-10-18) | The smallest change that unblocks the demo. The interior's ghosts belong with the interior's carry, the second half of `ter-3mwi`, which this ticket does not build. Without that carry, a crate that moves from a room into the ship hears CollisionEnded and Collision again from the walls. |
+| What a sensor detects of a frame owner (fork F4) | Design A. A body of the hull's motion, in every frame. The interior is kinematic and at rest while the hull moves, and static while the hull is static. (User, 2026-10-18) | It keeps every detection that works today, adds the interior cells that `ter-7ul9` names, and matches the contract of `BodyDesc.IsSensor`, that a sensor detects dynamic and kinematic bodies. The hull's motion stays the one store that decides (`FrameTree.HullMotion`). |
 
 ## The flow per kind of body
 
@@ -88,15 +92,15 @@ The user made the decisions marked (User).
 
 | Kind | Child ghosts | Stick-out ghosts | Anchor ghosts |
 |---|---|---|---|
-| Static plain body | Yes (new) | No (fork F3) | No |
+| Static plain body | Yes (new) | No, until the follow-up ticket of fork F3 | No |
 | Kinematic or dynamic plain body | Yes | Yes | No |
 | Character, in either form | Yes | Yes | No |
 | Sensor | As a body of its motion | As a body of its motion | No |
 | Static hull | Yes | No | Yes, when the numeric update names a home |
 | Kinematic or dynamic hull | Yes | Yes | Yes, when the numeric update names a home |
-| Interior | No (fork F3) | No | No |
+| Interior | No, until the follow-up ticket of fork F3 | No | No |
 
-A body has a child ghost in a child frame when its bounding sphere reaches the child's content: when the signed distance of its center from the bubble is at most its reach plus the content's excess. The reach is the body's radius, and for a hull the larger of its radius and its own bubble's largest radius, as today. The same test grows the test of a stick-out ghost for a sibling bubble by the sibling's excess. With fork F2 at A, the excess is zero.
+A body has a child ghost in a child frame when its bounding sphere reaches the child's content: when the signed distance of its center from the bubble is at most its reach plus the content's excess. The reach is the body's radius, and for a hull the larger of its radius and its own bubble's largest radius, as today. The same test grows the test of a stick-out ghost for a sibling bubble by the sibling's excess (fork F2).
 
 ### The layer and the motion of each ghost
 
@@ -108,7 +112,7 @@ A body has a child ghost in a child frame when its bounding sphere reaches the c
 | Stick-out ghost | `Ghost` | Kinematic | The body's motion |
 | Anchor ghost | `FrameHull` | As the ghost of a static body for a static hull, or else kinematic | The hull's motion |
 
-With fork F1 at A, every child ghost has the `Ghost` role. The `Static` role is safe in a child bubble. The child's system holds the child's interior and the hulls of the child's own children, and none of those frames holds the real body. A stick-out ghost keeps the `Ghost` role, because its system holds the hull of the bubble that the body sticks out of. A child ghost of a hull takes the interior's layer, not the hull's: in another frame, the ghost is the owner's surface that the bodies of that frame meet, which the interior is in the owner's own frame. The `FrameHull` layer meets no moving body.
+The `Static` role is safe in a child bubble. The child's system holds the child's interior and the hulls of the child's own children, and none of those frames holds the real body. A stick-out ghost keeps the `Ghost` role, because its system holds the hull of the bubble that the body sticks out of. A child ghost of a hull takes the interior's layer, not the hull's: in another frame, the ghost is the owner's surface that the bodies of that frame meet, which the interior is in the owner's own frame. The `FrameHull` layer meets no moving body.
 
 ### The pair test and the filter
 
@@ -139,9 +143,9 @@ The person's movement in C collides with S′ as with any static body (`NoteChar
 
 ### Case 1b: a crate at the edge of a bubble, and a kinematic pusher
 
-A crate X in C sticks out of C's bubble by more than its radius. A static rock R of P lies just outside the bubble, and R's sphere does not touch the bubble. C's content reaches R, so R has a child ghost R′ in C, and X stops at R′ in C. With fork F2 at A, R has no ghost in C, and X passes through R. X's stick-out ghost in P is kinematic and meets no static body.
+A crate X in C sticks out of C's bubble by more than its radius. A static rock R of P lies just outside the bubble, and R's sphere does not touch the bubble. C's content reaches R, so R has a child ghost R′ in C, and X stops at R′ in C. X's stick-out ghost in P is kinematic and meets no static body.
 
-A kinematic body K of P pushes a crate into C. Once the crate is in C, K touches the crate's stick-out ghost, and Jolt makes no contact between two kinematic bodies. C's content holds the crate, so K reaches it and has a child ghost in C, which pushes the crate. With fork F2 at A, K loses the crate until K's own sphere touches the bubble (`ter-xxmj`).
+A kinematic body K of P pushes a crate into C. Once the crate is in C, K touches the crate's stick-out ghost, and Jolt makes no contact between two kinematic bodies. C's content holds the crate, so K reaches it and has a child ghost in C, which pushes the crate.
 
 ### Case 1c: a query that starts inside a bubble
 
@@ -163,7 +167,7 @@ When the two bodies also touch through a real body and a ghost in B1 or B2, the 
 
 ### Case 3: a sensor and a frame owner
 
-A frame owner shows one body in each frame: the hull in the frame's tree parent, the interior in the frame itself, and the hull's ghost in other frames. With fork F4 at A, the sensor detects the owner as a body of the hull's motion, in every frame:
+A frame owner shows one body in each frame: the hull in the frame's tree parent, the interior in the frame itself, and the hull's ghost in other frames. The sensor detects the owner as a body of the hull's motion, in every frame (fork F4):
 
 | Sensor | Static hull | Kinematic hull | Dynamic hull |
 |---|---|---|---|
@@ -179,13 +183,13 @@ This is Jolt's rule with the owner as a body of the hull's motion. It matches th
 | The frame itself | The interior | The interior is kinematic and at rest while the hull moves, and static while the hull is static. Jolt then gives the table. |
 | Any other frame: a sibling of the frame, a frame that the hull sticks out into, or an anchor home | The hull's ghost | The filter, from the ghost's contact motion, which is the hull's. |
 
-Today a static or kinematic sensor never detects the interior, because the interior is always static (`ter-7ul9`). A kinematic interior at rest falls asleep as any body does. A static sensor that appears beside a sleeping interior then waits for the interior to wake, as it waits for any sleeping body today. With fork F4 at B, the table is the first column for every hull.
+Today a static or kinematic sensor never detects the interior, because the interior is always static (`ter-7ul9`). A kinematic interior at rest falls asleep as any body does. A static sensor that appears beside a sleeping interior then waits for the interior to wake, as it waits for any sleeping body today.
 
 ### Case 3b: a hull changes its motion
 
 `FollowHullMotions` runs at the start of the step, and gives the hull its new motion with `ApplyHullMotion`. Then, for the owner:
 
-1. The interior takes its new Jolt motion: kinematic and at rest while the hull moves, static while it is static (fork F4 at A).
+1. The interior takes its new Jolt motion: kinematic and at rest while the hull moves, static while it is static (fork F4).
 2. The hull and the interior keep their bodies. Physics ends each started pair of each of them that the pair test refuses now. Each such pair counts down in the ledger, and an entity pair that reaches 0 ends at the end of the step.
 3. Each ghost of the hull is removed, which loosens its contacts, and a new one takes its place at once. At the end of the step, the carry keeps each loose contact that the pair test allows with the new ghost, and ends the rest.
 4. Jolt offers the new pairs. A ghost is a new body, so Jolt adds each of its pairs, and the filter judges them with the new contact motion. A hull or an interior that starts to move is active, so Jolt finds its pairs and adds them.
@@ -214,9 +218,6 @@ Each value names its existing analogue and follows that analogue's model. "Step 
 | The pair test, reads | End of step, step start | The ghost's layer. |
 | `AssertInvariants`, reads | On demand | Each ghost's layer is its role's layer. |
 | Growth | Sync point, step start | Reads no role. It copies each ghost's layer from Jolt, as today, so it needs no change. |
-
-With fork F1 at A, the role is `Ghost` for every ghost but an anchor ghost, and `Anchor` can stay as it is.
-
 ### The contact motion of each ghost
 
 - Analogue: `FrameWorld.ghostsOfStaticBodies`, the set of ghosts whose real body is static, which it replaces. `StandsForStaticBody` and `StaticBodyGhostCount` become reads of it.
@@ -256,9 +257,6 @@ With fork F1 at A, the role is `Ghost` for every ghost but an anchor ghost, and 
 | The child ghost test, reads | Ghost pass | Grows the reach by the child's excess. |
 | The sibling test of a stick-out ghost, reads | Ghost pass | Grows the radius by the sibling's excess. |
 | `FrameTree.AddParentPlaces`, its own copy | Sync point, numeric update | The update computes the same excess from the child's bodies, grown by its allowance of 2 s of speed, as `MayStickOut` grows a body. |
-
-With fork F2 at A, this value does not exist.
-
 ### The Jolt motion of an interior
 
 - Analogue: the Jolt motion of the hull, `ToMotionType(owner.Motion)`, which `FollowHullMotions` and `ApplyHullMotion` keep.
@@ -272,9 +270,6 @@ With fork F2 at A, this value does not exist.
 | Jolt and the filter, read | Update | Jolt's rule on the interior's Jolt motion. |
 | The pair test, reads | Step start, end of step | Test 2. |
 | `AssertInvariants`, reads | On demand | The interior's motion type follows the record's motion. |
-
-With fork F4 at B, the interior stays static, and the filter judges the hull and its ghosts as static for every sensor instead.
-
 ### `GhostPlace.MeetsHulls`
 
 - Analogue: `GhostPlace.OfStaticBody` and `GhostPlace.Sensor`, the facts of the ghost behind a place that `NumericFrameRules.MeetsGhost` reads.
@@ -286,9 +281,6 @@ With fork F4 at B, the interior stays static, and the filter judges the hull and
 | `FrameTree.AddParentPlaces`, writes | Sync point, numeric update | True for a static body or a hull. |
 | `AddStickOutPlaces` and `AddSiblingPlaces`, write | Sync point, numeric update | False. |
 | `NumericFrameRules.MeetsGhost`, reads | Sync point, numeric update | A hull meets a place that meets hulls when the hull is dynamic, by Jolt's rule. Today a hull meets no place. |
-
-With fork F1 at A, this value does not exist.
-
 ### The pair test
 
 - Analogue: `PrimariesTouch` and `GhostTouches`, which it replaces.
@@ -324,7 +316,7 @@ With fork F1 at A, this value does not exist.
 - Each ghost's object layer is the layer of its role.
 - Each ghost's entry in its system's table of contact motions is its record's contact motion. The table has no other entry.
 - A ghost of a movable body is kinematic in Jolt. A ghost of a static body can change its motion type.
-- The interior's motion type follows its record's motion (fork F4 at A).
+- The interior's motion type follows its record's motion (fork F4).
 
 A state that only a bug produces fails a contract in a Debug build, and goes to `World.Errors` in a Release build (`ReportBug`). In this design, such states are: a started pair whose other body has no record, found by the check after a change of motion, and a ghost that the filter finds without an entry in the table. The Release build ends the pair in the first case. The filter cannot report from a worker thread, so in the second case it applies Jolt's rule alone, and `AssertInvariants` finds the missing entry.
 
@@ -332,15 +324,15 @@ A state that only a bug produces fails a contract in a Debug build, and goes to 
 
 The numeric update mirrors the ghost rules in the merge test, so that a body that can touch a ghost lives in the ghost's system.
 
-- `FrameTree.AddParentPlaces` stops skipping a static body that is not a hull (`FrameTree.Numeric.cs`, the test `body.Static && body.OwnedFrame.IsNull`). It still skips an interior (`Static`, `Fixed` and no owned frame), because an interior has no child ghosts (fork F3 at A). Without this change, a fast crate in a numeric frame of the shuttle never shares a system with the slab's ghost, and passes through it.
-- With fork F2 at B, it grows the reach by the child's excess (see "The content excess of a frame").
-- With fork F1 at B, `MeetsGhost` lets a dynamic hull meet a place whose ghost meets hulls (`GhostPlace.MeetsHulls`).
+- `FrameTree.AddParentPlaces` stops skipping a static body that is not a hull (`FrameTree.Numeric.cs`, the test `body.Static && body.OwnedFrame.IsNull`). It still skips an interior (`Static`, `Fixed` and no owned frame), because an interior has no child ghosts (fork F3). Without this change, a fast crate in a numeric frame of the shuttle never shares a system with the slab's ghost, and passes through it.
+- It grows the reach by the child's excess (fork F2, see "The content excess of a frame").
+- `MeetsGhost` lets a dynamic hull meet a place whose ghost meets hulls (fork F1, `GhostPlace.MeetsHulls`).
 - Two tests of `FrameTreeGhostPlaceTests` pin the old rule and change.
-- The interior's kinematic motion (fork F4 at A) needs no change. The interior and every place that it can meet are fixed in the frame's own system, so a link between them moves nothing.
+- The interior's kinematic motion (fork F4) needs no change. The interior and every place that it can meet are fixed in the frame's own system, so a link between them moves nothing.
 
 ## Cost
 
-I counted the new ghosts in every checked-in script with the real World and Jolt, through a measurement in the ghost pass that I did not commit. "New ghosts" are the static plain bodies whose sphere reaches a child bubble in a step. "With content" grows the bubble by the child's excess (fork F2 at B).
+I counted the new ghosts in every checked-in script with the real World and Jolt, through a measurement in the ghost pass that I did not commit. "New ghosts" are the static plain bodies whose sphere reaches a child bubble in a step. "With content" grows the bubble by the child's excess, which is the rule that this plan builds (fork F2).
 
 | Script | Steps | Ghosts today, mean (max) | Static plain bodies per step, max | New ghosts per step, max | With content, max |
 |---|---|---|---|---|---|
@@ -363,7 +355,7 @@ The one new ghost is the floor of drop-box in the frame `sun`, a marker frame wi
 The work of the ghost pass grows as follows:
 
 - A system whose semantic frame has a child bubble reads the position of each static member once per step, and measures one distance for each child bubble. A system with no child bubble skips its static members, as today. A station with 2,000 static props and three docked ships costs 2,000 position reads and 6,000 distance tests per step. "Order of the work" adds a benchmark of that scene. If it shows a cost that matters, a later ticket caches the place of static bodies, which move only at a shift or a teleport, or asks Jolt's broad phase for the static bodies near each child bubble.
-- With fork F2 at B, the first pass measures one distance for every movable member, which the stick-out test measures today, and keeps the center for the second pass.
+- The first pass measures one distance for every movable member, which the stick-out test measures today, and keeps the center for the second pass.
 - A ghost of a static body that holds still costs Jolt nothing in a step. One that moves is awake for good, as every kinematic ghost is.
 - A change of a hull's motion makes each of the hull's ghosts again, and lists the started pairs of the hull and the interior. Changes of motion are rare.
 
@@ -377,12 +369,12 @@ Item 1, static bodies in child frames:
 |---|---|
 | A person who walks from a station into a parked shuttle's bubble stays on the slab under it, and hears no CollisionEnded at the hand-off | A person who walks across the same slab in one frame |
 | A crate that slides on a static floor into a bubble keeps its contact with the floor. It replaces `WorldContactEndTests.AHandOffThatEndsAContactReportsTheEndWithTheFrameChange`, which expects an end. | A crate that slides the same distance on the floor in one frame |
-| A crate that sticks out of a ship's bubble stops at a static rock of the parent beyond the bubble's edge (F2 at B) | The crate and the rock in one frame |
-| A kinematic pusher keeps pushing a crate that enters a frame ahead of it (F2 at B) | The pusher and the crate in one frame |
+| A crate that sticks out of a ship's bubble stops at a static rock of the parent beyond the bubble's edge (fork F2) | The crate and the rock in one frame |
+| A kinematic pusher keeps pushing a crate that enters a frame ahead of it (fork F2) | The pusher and the crate in one frame |
 | A ray that starts inside a bubble hits a static body of the parent inside the bubble, at the same distance | The same ray from the parent frame |
 | A crate that falls fast in a numeric frame inside a ship stops at the parent's static slab | The same fall in one frame |
 | The boxes that rest on the ghost of a static floor in a parked frame fall asleep, and the frame's system stops stepping | The same boxes on the real floor |
-| A dynamic hull of a frame inside a ship lands on the ghost of the parent's static slab (F1 at B) | The hull lands on the slab in one frame |
+| A dynamic hull of a frame inside a ship lands on the ghost of the parent's static slab (fork F1) | The hull lands on the slab in one frame |
 
 Item 2, pairs of two ghosts:
 
@@ -433,9 +425,11 @@ All of it is one branch, `ter-imi5-complete-ghosts`, with one commit for each st
 
 The orchestrator runs coverage on the changed lines after step 5, and Stryker on the changed lines of `Tertius.Physics` and of `FrameTree.Numeric.cs`, since this ticket changes core logic.
 
-## Open forks
+## Decided forks
 
-### F1. Do child ghosts meet hulls? Open
+The user settled each fork on 2026-10-18, on the recommended side. Each fork keeps both designs, so that the reasons stay on record. The rest of the doc describes only the chosen side.
+
+### F1. Do child ghosts meet hulls? Design B (User, 2026-10-18)
 
 A child ghost is in the system of a child frame C. That system holds the hulls of C's own child frames. The real static body, or the real hull, meets hulls.
 
@@ -445,9 +439,9 @@ A child ghost is in the system of a child frame C. That system holds the hulls o
 | Gives | The smallest change. | A dynamic hull of a frame inside a ship meets the ghost of the parent's slab and the ghost of a passing station's hull, as the real bodies meet each other. `SetCollision` also gets right the layer of a static anchor ghost, which it leaves stale today. |
 | Costs | A frame inside a ship passes through the ghosts of the parent's static bodies and of other hulls. No scene has such a frame yet. | `GhostBody.Role`, the change in `SetCollision` and in the invariant, `GhostPlace.MeetsHulls` and the change in `MeetsGhost`. Hull ghosts change their layer, so the tests of hull ghosts run again. |
 
-Recommendation: B. It is the ticket's model, a ghost that stands in for its body as fully as Jolt allows. The layer is the engine's own limit, not Jolt's.
+Recommendation: B, which the user chose. It is the ticket's model, a ghost that stands in for its body as fully as Jolt allows. The layer is the engine's own limit, not Jolt's.
 
-### F2. How far does a ghost reach into a child frame? Open
+### F2. How far does a ghost reach into a child frame? Design B (User, 2026-10-18)
 
 | | A: the bubble | B: the content |
 |---|---|---|
@@ -455,9 +449,9 @@ Recommendation: B. It is the ticket's model, a ghost that stands in for its body
 | Gives | No first pass in the ghost pass, and no excess in the numeric update. | The ticket's cases: a crate that sticks out of a ship stops at a rock of the parent just beyond the bubble, and a kinematic pusher keeps its crate when the crate enters a frame ahead of it (`ter-xxmj`). In the existing scenes it adds no ghost (see "Cost"). |
 | Costs | A body of a child that sticks out passes through each static body and each kinematic body of the parent whose sphere misses the bubble. | A first pass over the members of every system in the ghost pass, which reads the distances that the stick-out test reads today. The excess in `AddParentPlaces`. |
 
-Recommendation: B. Without it, item 1 fixes the slab under the shuttle but not the rock at the bubble's edge that `ter-xxmj` names.
+Recommendation: B, which the user chose. Without it, item 1 fixes the slab under the shuttle but not the rock at the bubble's edge that `ter-xxmj` names.
 
-### F3. Which static bodies get ghosts now? Open
+### F3. Which static bodies get ghosts now? Design A (User, 2026-10-18)
 
 The pure model gives a ghost to every static body that a body of another system can touch. That includes two cases beyond the ticket. The first is an interior, which is a static body in its owner's frame, in the frames inside that frame, such as rooms. The second is a static body that sticks out of its own frame's bubble, such as a ramp of a shuttle that reaches beyond the bubble.
 
@@ -467,9 +461,9 @@ The pure model gives a ghost to every static body that a body of another system 
 | Gives | The smallest change that unblocks the demo, and no new case of a contact that ends and starts again at a hand-off. | One rule for every static body now. A crate in a room inside a ship meets the ship's walls, and a person of the station meets the outside part of the shuttle's ramp. |
 | Costs | A body in a room inside a ship passes through the ship's walls where it sticks out of the room. A body of the parent passes through the outside part of a static body that sticks out of a child. No scene has either yet. | Interior ghosts need the shape of the interior and the carry between an interior and its ghosts, which is the second half of `ter-3mwi`. Without that carry, a crate that moves from a room into the ship hears CollisionEnded and Collision again from the walls. |
 
-Recommendation: A, with the follow-up ticket filed at the merge. The interior's ghosts belong with the interior's carry, which this ticket does not build.
+Recommendation: A, which the user chose. The orchestrator files the follow-up ticket at the merge. The interior's ghosts belong with the interior's carry, which this ticket does not build.
 
-### F4. What does a sensor detect of a frame owner? Open
+### F4. What does a sensor detect of a frame owner? Design A (User, 2026-10-18)
 
 | | A: by the hull's motion, everywhere | B: as a static body, everywhere |
 |---|---|---|
@@ -477,4 +471,4 @@ Recommendation: A, with the follow-up ticket filed at the merge. The interior's 
 | Gives | What works today stays: a static sensor in a station detects a ship that arrives, and a sensor in another ship detects a passing ship's ghost. The interior cells that `ter-7ul9` names start to work. It matches the contract of `BodyDesc.IsSensor`, that a sensor detects dynamic and kinematic bodies. | Nothing inside a ship changes when its engines start. No change to the interior's motion, and a smaller filter. |
 | Costs | A static sensor inside a ship that overlaps a wall hears Entered when the engines start and Left when the ship parks. A game keeps a sensor from detecting its own ship with collision groups. The interior's motion type follows the hull's, with `MotionChanges` and a mass in `InteriorSpec`. | A sensor no longer detects a moving ship, in the station or in another ship. A filter on the real hull's pairs, which have none today. |
 
-Recommendation: A. It keeps every detection that works today and adds the missing ones, and the hull's motion stays the one store that decides (`FrameTree.HullMotion`).
+Recommendation: A, which the user chose. It keeps every detection that works today and adds the missing ones, and the hull's motion stays the one store that decides (`FrameTree.HullMotion`).
