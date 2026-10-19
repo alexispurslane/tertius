@@ -1,3 +1,4 @@
+using Tertius.Rendering;
 using Tertius.Simulation;
 
 namespace Tertius.Host.Scripting;
@@ -46,7 +47,7 @@ public sealed class HeadlessPlayback : IPlayback
         world.PublishRenderSnapshot();
         // A snapshot was published just now, so the latest one is that one.
         world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot snapshot);
-        renderer.CaptureNextFrame(path);
+        renderer.CaptureNextFrame(new PngCaptureSink(path));
         renderer.Render(snapshot, alpha: 1f);
         return true;
     }

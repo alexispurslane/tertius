@@ -248,6 +248,11 @@ public interface IRenderer : IRenderResources, IDisposable
     /// <summary>Draws one frame, interpolated between the previous and current transforms by <paramref name="alpha"/>.</summary>
     void Render(RenderSnapshot snapshot, float alpha);
 
-    /// <summary>Saves the next rendered frame as a PNG file.</summary>
-    void CaptureNextFrame(string path);
+    /// <summary>
+    /// Asks for the pixels of the next frame that <see cref="Render"/> draws. Any thread may call it. That
+    /// <c>Render</c> call waits for the frame on the GPU and hands its pixels to <paramref name="sink"/> before it
+    /// returns, on its own thread, once. A frame that the output skips (a minimized window) hands nothing, and the
+    /// request waits for the next frame that draws. A second request before the frame replaces the first.
+    /// </summary>
+    void CaptureNextFrame(ICaptureSink sink);
 }

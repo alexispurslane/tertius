@@ -248,15 +248,16 @@ internal sealed class WindowHost : IInputTarget
             double lastFrame = 0;
             while (!closing.IsCancellationRequested)
             {
-                if (captures.TryTake(out string path))
+                if (captures.TryTake(out ICaptureSink? sink))
                 {
                     // The simulation thread published this tick's snapshot and waits. A capture shows the world's camera.
                     world.RenderSnapshots.TryAcquireLatest(out RenderSnapshot shot);
-                    // A frame that the swapchain skips, for example while the window is minimized, draws and saves
-                    // nothing, so the capture is asked again until a frame is drawn or the window closes.
+                    renderer.CaptureNextFrame(sink);
+                    // A frame that the swapchain skips, for example while the window is minimized, draws nothing and
+                    // hands the sink nothing. The renderer keeps the request, so the frame is drawn again until one is
+                    // drawn or the window closes.
                     do
                     {
-                        renderer.CaptureNextFrame(path);
                         renderer.Render(shot, alpha: 1f);
                     }
                     while (!renderer.LastFrameStats.Rendered && !closing.Token.WaitHandle.WaitOne(10));

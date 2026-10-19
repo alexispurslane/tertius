@@ -303,16 +303,22 @@ public class CaptureMailboxTests
 
     private static CancellationToken TestStop => TestContext.Current.CancellationToken;
 
-    private static string TakeWithin(CaptureMailbox mailbox)
+    private static ICaptureSink TakeWithin(CaptureMailbox mailbox)
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
-        string path;
-        while (!mailbox.TryTake(out path))
+        ICaptureSink? sink;
+        while (!mailbox.TryTake(out sink))
         {
             clock.Elapsed.Should().BeLessThan(Bound, "the request must arrive");
             Thread.Yield();
         }
-        return path;
+        return sink;
+    }
+
+    /// <summary>A sink that the mailbox only carries: no test here hands it pixels.</summary>
+    private sealed class Sink : ICaptureSink
+    {
+        public void Take(in CapturedImage image) => throw new InvalidOperationException("The mailbox never draws.");
     }
 
     /// <summary>True if the task ends within <paramref name="time"/>.</summary>
@@ -323,9 +329,10 @@ public class CaptureMailboxTests
     public async Task ARequestWaitsUntilTheRenderThreadHasSavedTheCapture()
     {
         var mailbox = new CaptureMailbox();
-        Task request = Task.Run(() => mailbox.RequestAndWait("x.png", CancellationToken.None), TestStop);
+        var sink = new Sink();
+        Task request = Task.Run(() => mailbox.RequestAndWait(sink, CancellationToken.None), TestStop);
 
-        TakeWithin(mailbox).Should().Be("x.png");
+        TakeWithin(mailbox).Should().BeSameAs(sink);
         (await EndsWithin(request, TimeSpan.FromMilliseconds(100))).Should().BeFalse("the capture is taken but not saved yet");
 
         mailbox.Done();
@@ -336,12 +343,21 @@ public class CaptureMailboxTests
     public async Task ARequestIsTakenOnce()
     {
         var mailbox = new CaptureMailbox();
-        Task request = Task.Run(() => mailbox.RequestAndWait("x.png", CancellationToken.None), TestStop);
+        Task request = Task.Run(() => mailbox.RequestAndWait(new Sink(), CancellationToken.None), TestStop);
         TakeWithin(mailbox);
 
         mailbox.TryTake(out _).Should().BeFalse();
         mailbox.Done();
         await request.WaitAsync(Bound, TestStop);
+    }
+
+    [Fact]
+    public void ARequestWithNoSinkIsRefused()
+    {
+        // The closing only bounds the test: a request that waited would end with OperationCanceledException.
+        using var closing = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        FluentActions.Invoking(() => new CaptureMailbox().RequestAndWait(null!, closing.Token))
+            .Should().Throw<ArgumentNullException>("a request with no sink would wait for a capture that the render thread never sees");
     }
 
     [Fact]
@@ -356,7 +372,7 @@ public class CaptureMailboxTests
         var mailbox = new CaptureMailbox();
         using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
 
-        Task request = Task.Run(() => mailbox.RequestAndWait("x.png", closing.Token), TestStop);
+        Task request = Task.Run(() => mailbox.RequestAndWait(new Sink(), closing.Token), TestStop);
 
         await FluentActions.Awaiting(() => request.WaitAsync(Bound, TestStop)).Should().ThrowAsync<OperationCanceledException>();
     }
@@ -366,7 +382,7 @@ public class CaptureMailboxTests
     {
         var mailbox = new CaptureMailbox();
         using var closing = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
-        Task request = Task.Run(() => mailbox.RequestAndWait("x.png", closing.Token), TestStop);
+        Task request = Task.Run(() => mailbox.RequestAndWait(new Sink(), closing.Token), TestStop);
         await FluentActions.Awaiting(() => request.WaitAsync(Bound, TestStop)).Should().ThrowAsync<OperationCanceledException>();
 
         mailbox.TryTake(out _).Should().BeFalse("the render thread must not draw a capture that nobody waits for");
@@ -513,6 +529,31 @@ public class WindowPlaybackTests
 
         renderThread.Join();
         fresh.Should().BeTrue("the capture publishes a snapshot of its moment before the render thread draws it");
+    }
+
+    [Fact]
+    public void ACaptureHandsTheRenderThreadASinkThatWritesThePngAtTheCapturesPath()
+    {
+        using World world = HostTesting.NewWorld();
+        string path = Path.Combine(HostTesting.NewFolder(), "shot.png");
+        var mailbox = new CaptureMailbox();
+        var playback = new WindowPlayback(new TickPacer(0.02, 1), mailbox, CancellationToken.None, () => 0);
+        // The render thread hands the sink the pixels of the frame that it drew: here one pixel.
+        var renderThread = new Thread(() =>
+        {
+            ICaptureSink? sink;
+            while (!mailbox.TryTake(out sink))
+                Thread.Yield();
+            sink.Take(new CapturedImage([200, 100, 50, 0], 1, 1));
+            mailbox.Done();
+        });
+        renderThread.Start();
+
+        playback.Capture(world, path).Should().BeTrue();
+
+        renderThread.Join();
+        File.Exists(path).Should().BeTrue("the capture is saved before Capture returns");
+        Png.Load(path).At(0, 0).Should().Be((200, 100, 50));
     }
 
     [Fact]
