@@ -116,7 +116,7 @@ An entity is a 64-bit handle: a 32-bit slot index and a 32-bit generation. The g
 Each live entity has a row in three parallel tables, indexed by the slot index:
 
 - Transform: the frame that the entity is in, a frame-local `DPose`, and linear and angular velocity. Positions are double, because Jolt gives double positions and a planet frame is millions of meters across.
-- Physics: an optional body description and the double-buffered `PhysicsIntent`. The intent also holds the entity's motion intent for the next step (`PhysicsIntent.Move`). An entity without a body writes one too (see "Rails components and motion intents").
+- Physics: an optional body description and the double-buffered `PhysicsIntent`. The intent also holds the entity's motion intent for the next step (`PhysicsIntent.Move`). An entity without a body writes one too (see "Rails components and motion intents"). Every slot holds the field, so an intent is about 380 bytes. With 100,000 entities that each write a motion intent in every tick, step 4 takes 1.8 ms of a sync point of 16 ms, so the field has no sparse store (docs/plans/rails-components.md, "The measured cost").
 - Render: mesh, material, scale, bounding radius, render flags and an optional light (a `LightData`: a point light, a spot light or none).
 
 Each entity also has a list of components, which are classes that implement `IComponent`. The list is sorted by `Priority`. Components with the same priority keep the order in which they were added.
