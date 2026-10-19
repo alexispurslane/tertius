@@ -43,10 +43,11 @@ public sealed partial class World
         for (int i = 0; i < physicsChanges.BodiesCreated.Count; i++)
             pendingCreates[physicsChanges.BodiesCreated[i].Entity] = i;
         numericBodies.Clear();
-        foreach (Entity entity in entities.LiveEntities)
+        foreach (Entity entity in entities.BodyEntities)
         {
-            if (entities.Body(entity) is not { } desc || !attachments.ParentOf(entity).IsNull)
+            if (!attachments.ParentOf(entity).IsNull)
                 continue;
+            BodyDesc desc = entities.Body(entity)!;
             FrameHandle own = entities.OwnedFrame(entity);
             // The interior of a frame owner is a static body of the frame's own system, at the frame's origin, which no
             // numeric update moves: an anchor that fixes each group that it links in that system (docs/plans/numeric-frames.md,
@@ -57,7 +58,7 @@ public sealed partial class World
                     Entity = entity,
                     Semantic = own,
                     Home = own,
-                    Radius = physics!.BoundingRadius(desc.InteriorShape ?? desc.Shape),
+                    Radius = entities.BodyInteriorBoundingRadius(entity),
                     Mass = desc.Mass > 0 ? desc.Mass : 1,
                     Static = true,
                     Fixed = true,
@@ -77,7 +78,7 @@ public sealed partial class World
                 Position = row.Pose.Position,
                 HomePosition = row.HomePose.Position,
                 Velocity = SemanticVelocity(entity, row, own),
-                Radius = physics!.BoundingRadius(desc.Shape),
+                Radius = entities.BodyBoundingRadius(entity),
                 Mass = mass,
                 Character = motion == BodyMotion.Character,
                 ThrustAcceleration = ThrustAcceleration(entity, motion, mass),
@@ -91,7 +92,9 @@ public sealed partial class World
                 OwnedFrame = own,
             });
         }
+        Profile.Lap(23);
         Frames.UpdateNumericFrames(CollectionsMarshal.AsSpan(numericBodies), dt, physicsChanges, applyNumericMoves ??= ApplyNumericMoves);
+        Profile.Lap(24);
         ApplyPhysicsChanges();
         pendingCreates.Clear();
     }
@@ -121,7 +124,8 @@ public sealed partial class World
     {
         if (!own.IsNull)
             return Frames.HomeVelocity(row.PhysicsHome, row.Frame) + Frames.TreeLinearVelocity(own);
-        if (pendingCreates.TryGetValue(entity, out int created))
+        // Most sync points create no body, and a lookup in an empty dictionary still hashes the entity: this runs for every body.
+        if (pendingCreates.Count > 0 && pendingCreates.TryGetValue(entity, out int created))
             return physicsChanges.BodiesCreated[created].LinearVelocity;
         return Frames.HomeVelocity(row.PhysicsHome, row.Frame) + row.LinearVelocity;
     }

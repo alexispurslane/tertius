@@ -318,13 +318,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         }
     }
 
-    /// <inheritdoc/>
-    /// <remarks>The backend keeps the answer of <see cref="ShapeDesc.BoundingRadius"/> for each shape description.</remarks>
-    public float BoundingRadius(ShapeDesc shape)
-    {
-        ArgumentNullException.ThrowIfNull(shape);
-        return radii.GetOrAdd(shape, static s => s.BoundingRadius());
-    }
+    /// <summary>
+    /// The <see cref="ShapeDesc.BoundingRadius"/> of a shape, which the backend keeps for each shape description, because it
+    /// costs a pass over the shape.
+    /// </summary>
+    private float BoundingRadius(ShapeDesc shape) => radii.GetOrAdd(shape, static s => s.BoundingRadius());
 
     /// <inheritdoc/>
     /// <remarks>

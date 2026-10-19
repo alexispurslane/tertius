@@ -7,19 +7,6 @@ namespace Tertius.Physics.Tests;
 public class ShapeTests
 {
     [Fact]
-    public void TheBackendGivesEachShapeTheBoundingRadiusOfItsDescription()
-    {
-        // ShapeDescFactsTests in Tertius.Core.Tests covers the radius of each kind of shape.
-        using var backend = new JoltPhysicsBackend();
-        var box = new BoxShapeDesc(new Vector3(1, 2, 2));
-        var hull = new ConvexHullShapeDesc([new(1, 0, 0), new(-1, 0, 0), new(0, 2, 0), new(0, 0, -3)]);
-
-        backend.BoundingRadius(box).Should().Be(box.BoundingRadius());
-        backend.BoundingRadius(hull).Should().Be(hull.BoundingRadius());
-        backend.BoundingRadius(box).Should().Be(box.BoundingRadius(), "the backend keeps the answer");
-    }
-
-    [Fact]
     public void EveryShapeKindBuildsInJolt()
     {
         using World world = NewWorld(out _);

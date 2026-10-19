@@ -5,21 +5,44 @@ namespace Tertius.Simulation.Tests;
 /// <summary>
 /// A router over a hand-built entity table and topic sets, for the router tests. The table has one slot per chunk, so
 /// every entity has an outbox of its own, and a test fills the outbox of any chunk directly, as the entities of that
-/// chunk would. The tests read an inbox the way the worker that runs the entity does.
+/// chunk would. The tests read an inbox the way the worker that runs the entity does. <see cref="OnWorkers"/> makes a
+/// harness whose router routes every message on the workers.
 /// </summary>
 internal sealed class RouterHarness
 {
     public readonly EntityTable Entities;
     public readonly TopicSets Topics;
     public readonly Router Router;
+    private readonly CountingScheduler? workers;
 
-    public RouterHarness()
+    /// <summary>A harness whose router has no workers, so every routing runs on the calling thread.</summary>
+    public RouterHarness() : this(null) { }
+
+    private RouterHarness(CountingScheduler? workers)
     {
         EngineEvents.Register();
         Entities = new EntityTable(chunkSize: 1, initialCapacity: 16);
         Topics = new TopicSets(Entities);
-        Router = new Router(Entities, Topics);
+        this.workers = workers;
+        Router = new Router(Entities, Topics, workers is null ? null : new ParallelOptions { MaxDegreeOfParallelism = 4, TaskScheduler = workers });
     }
+
+    /// <summary>
+    /// A harness whose router routes on four workers from <paramref name="threshold"/> messages on, in
+    /// <paramref name="workItems"/> work items per phase. A threshold of 1, the default here, sends every routing with a
+    /// message to the workers; null keeps the router's own threshold.
+    /// </summary>
+    public static RouterHarness OnWorkers(int workItems = 3, int? threshold = 1)
+    {
+        var h = new RouterHarness(new CountingScheduler());
+        if (threshold is { } t)
+            h.Router.ParallelThreshold = t;
+        h.Router.WorkItems = workItems;
+        return h;
+    }
+
+    /// <summary>How many tasks the router queued on its workers so far. Always 0 for a harness without workers.</summary>
+    public int TasksQueued => workers?.Queued ?? 0;
 
     /// <summary>A handle for a frame, with a made-up owner. The topic sets only need the index and the generation.</summary>
     public static FrameHandle Frame(int index, uint generation) => new(new Entity(15, generation), index, generation);
@@ -98,3 +121,25 @@ internal sealed class RouterHarness
         return recipients;
     }
 }
+
+/// <summary>
+/// A task scheduler that runs each task on the thread pool and counts the tasks queued on it, so that a test can tell
+/// whether a routing ran on the workers that its router was given.
+/// </summary>
+internal sealed class CountingScheduler : TaskScheduler
+{
+    private int queued;
+
+    public int Queued => Volatile.Read(ref queued);
+
+    protected override void QueueTask(Task task)
+    {
+        Interlocked.Increment(ref queued);
+        ThreadPool.UnsafeQueueUserWorkItem(_ => TryExecuteTask(task), null);
+    }
+
+    protected override bool TryExecuteTaskInline(Task task, bool taskWasPreviouslyQueued) => TryExecuteTask(task);
+
+    protected override IEnumerable<Task> GetScheduledTasks() => [];
+}
+

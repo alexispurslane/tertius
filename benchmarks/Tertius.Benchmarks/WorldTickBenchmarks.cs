@@ -13,7 +13,7 @@ namespace Tertius.Benchmarks;
 [MemoryDiagnoser]
 public class WorldTickBenchmarks
 {
-    private sealed class Busy(Entity neighbor, Topic topic) : IComponent
+    internal sealed class Busy(Entity neighbor, Topic topic) : IComponent
     {
         private readonly Entity neighbor = neighbor;
         private readonly Topic topic = topic;
@@ -36,6 +36,7 @@ public class WorldTickBenchmarks
     }
 
     private World world = null!;
+    private readonly SyncProfileReport profile = new();
 
     [Params(10_000, 100_000)]
     public int Entities;
@@ -65,13 +66,20 @@ public class WorldTickBenchmarks
         world.Camera = previous;
         for (int i = 0; i < 20; i++)
             world.Tick();
+        profile.Mark(world);
+        SyncSampler.RemarkProfile = () => profile.Mark(world);
+        SyncSampler.StateHash = () => WorldStateHash.Of(world);
     }
 
     [Benchmark]
     public void Tick() => world.Tick();
 
     [GlobalCleanup]
-    public void Cleanup() => world.Dispose();
+    public void Cleanup()
+    {
+        profile.Print(world, $"WorldTick-{Entities}-dop{MaxDegreeOfParallelism}");
+        world.Dispose();
+    }
 }
 
 /// <summary>
@@ -88,8 +96,10 @@ public class KeplerFrameTickBenchmarks
     private const double EarthMu = 3.986004418e14;
 
     private World world = null!;
+    internal World World => world;
     private long syncTimestampsAtStart;
     private long syncCountAtStart;
+    private readonly SyncProfileReport profile = new();
 
     [Params(1, -1)]
     public int MaxDegreeOfParallelism;
@@ -118,6 +128,9 @@ public class KeplerFrameTickBenchmarks
             world.Tick();
         syncTimestampsAtStart = world.SyncTimestampTotal;
         syncCountAtStart = world.SyncCount;
+        profile.Mark(world);
+        SyncSampler.RemarkProfile = () => profile.Mark(world);
+        SyncSampler.StateHash = () => WorldStateHash.Of(world);
     }
 
     [Benchmark]
@@ -129,6 +142,98 @@ public class KeplerFrameTickBenchmarks
         long syncs = world.SyncCount - syncCountAtStart;
         double meanMicroseconds = syncs == 0 ? 0 : (world.SyncTimestampTotal - syncTimestampsAtStart) * 1e6 / Stopwatch.Frequency / syncs;
         Console.WriteLine($"KeplerFrameSync MaxDegreeOfParallelism={MaxDegreeOfParallelism}: mean sync point {meanMicroseconds:F2} us per tick over {syncs} ticks");
+        profile.Print(world, $"Kepler1000-dop{MaxDegreeOfParallelism}");
+        world.Dispose();
+    }
+}
+
+/// <summary>
+/// ter-sn28 profiling scene: one tick of a mixed world with physics. A planet root with point gravity holds
+/// <see cref="KeplerFrames"/> frames without bodies on Kepler orbits, as in <see cref="KeplerFrameTickBenchmarks"/>, and
+/// one static station frame without gravity. The station holds 2,000 dynamic cubes 3 m apart that spin without damping,
+/// so Jolt keeps them awake and reports a body state for each in every step, and 8,000 entities without bodies that run
+/// the gameplay of <see cref="WorldTickBenchmarks"/>: each writes its transform and sends one message in every tick.
+/// </summary>
+[MemoryDiagnoser]
+public class MixedBodiesTickBenchmarks
+{
+    private const int Bodies = 2_000;
+    private const int Plain = 8_000;
+    private const int KeplerFrames = 100;
+    private const double EarthMu = 3.986004418e14;
+
+    private World world = null!;
+    private readonly SyncProfileReport profile = new();
+
+    [Params(1, -1)]
+    public int MaxDegreeOfParallelism;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var backend = new Tertius.Physics.JoltPhysicsBackend(new Tertius.Physics.JoltBackendOptions { WorkerThreads = 4 });
+        world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = Bodies + Plain + KeplerFrames + 1024, DisposePhysics = true }, backend);
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
+        for (int i = 0; i < KeplerFrames; i++)
+        {
+            var orbit = KeplerOrbit.Circular(7e6 + i * 35e3, phase: i * 2.399963229728653);
+            (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
+            world.Spawn(new SpawnDesc
+            {
+                Frame = planet,
+                Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
+                LinearVelocity = velocity,
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
+                Components = [new KeplerMotion { Orbit = orbit }],
+            });
+        }
+        FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = planet,
+            Pose = new DPose(new Double3(0, 0, -2e6), DQuaternion.Identity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1000)),
+        }));
+        var mesh = new RenderData { Mesh = new MeshId(0), Flags = RenderFlags.Visible, BoundingRadius = 0.5f };
+        var cube = new BodyDesc(new BoxShapeDesc(new System.Numerics.Vector3(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        for (int i = 0; i < Bodies; i++)
+        {
+            world.Spawn(new SpawnDesc
+            {
+                Frame = station,
+                Pose = new DPose(new Double3(i % 20 * 3.0, i / 20 % 10 * 3.0, i / 200 * 3.0), DQuaternion.Identity),
+                AngularVelocity = new System.Numerics.Vector3(0.3f + i % 7 * 0.1f, 1f, 0.2f),
+                Body = cube,
+                Render = mesh,
+            });
+        }
+        Topic topic = Topics.Get("benchmarks.mixed");
+        Entity previous = default;
+        for (int i = 0; i < Plain; i++)
+        {
+            previous = world.Spawn(new SpawnDesc
+            {
+                Frame = station,
+                Pose = new DPose(new Double3(i % 100 * 2.0, 200 + i / 100 * 2.0, 0), DQuaternion.Identity),
+                Render = mesh,
+                Components = [new WorldTickBenchmarks.Busy(previous.IsNull ? station.Entity : previous, topic)],
+                Subscriptions = i % (Plain / 100) == 0 ? [topic] : [],
+            });
+        }
+        world.Camera = previous;
+        for (int i = 0; i < 20; i++)
+            world.Tick();
+        profile.Mark(world);
+        SyncSampler.RemarkProfile = () => profile.Mark(world);
+        SyncSampler.StateHash = () => WorldStateHash.Of(world);
+    }
+
+    [Benchmark]
+    public void Tick() => world.Tick();
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        profile.Print(world, $"Mixed-dop{MaxDegreeOfParallelism}");
         world.Dispose();
     }
 }

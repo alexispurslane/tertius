@@ -50,9 +50,9 @@ public class ContractChangeTests
         FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
         FrameHandle ship = frames.Create(new Entity(2, 1), root, new DPose(new Double3(1000, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2)), FrameBounds.Sphere(500));
         FrameHandle shuttle = frames.Create(new Entity(3, 1), ship, new DPose(new Double3(10, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(20));
-        frames.TreeLinearVelocity(ship) = new Double3(0, 0, 100);
-        frames.AngularVelocity(ship) = new Vector3(0, 0.1f, 0);
-        frames.TreeLinearVelocity(shuttle) = new Double3(1, 0, 0);
+        frames.SetTreeLinearVelocity(ship, new Double3(0, 0, 100));
+        frames.SetAngularVelocity(ship, new Vector3(0, 0.1f, 0));
+        frames.SetTreeLinearVelocity(shuttle, new Double3(1, 0, 0));
         frames.Update();
 
         Double3 expected = frames.VelocityToParent(ship, new Double3(10, 0, 0), new Double3(1, 0, 0));
@@ -70,7 +70,7 @@ public class ContractChangeTests
         var frames = new FrameTree();
         FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, new DPose(new Double3(5, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(1e6f));
         FrameHandle child = frames.Create(new Entity(2, 1), root, new DPose(new Double3(1, 0, 0), DQuaternion.Identity), FrameBounds.Sphere(10));
-        frames.TreeLinearVelocity(child) = new Double3(0, 3, 0);
+        frames.SetTreeLinearVelocity(child, new Double3(0, 3, 0));
         frames.Update();
 
         frames.Destroy(root);

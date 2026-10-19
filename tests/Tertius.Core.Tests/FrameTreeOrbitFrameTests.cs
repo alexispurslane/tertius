@@ -52,7 +52,7 @@ public class FrameTreeOrbitFrameTests
         double mu = KeplerOrbit.MuFrom(frames.Gravity(space));
         (Double3 place, Double3 velocity) = orbit.StateAt(Start, mu);
         frames.SetLocalPose(frame, new DPose(place, orbit.RotationAt(Start, mu)));
-        frames.TreeLinearVelocity(frame) = velocity;
+        frames.SetTreeLinearVelocity(frame, velocity);
         return frame;
     }
 
@@ -279,7 +279,7 @@ public class FrameTreeOrbitFrameTests
     {
         // 10,000 km out, past the create distance of 2^23 m (about 8,389 km), a hull that turns in place is slow but far.
         FrameHandle station = Station(10, Far);
-        frames.TreeLinearVelocity(station) = Double3.Zero;
+        frames.SetTreeLinearVelocity(station, Double3.Zero);
 
         FrameHandle orbit = Update(Hull(station) with { Velocity = Double3.Zero })[0].Home;
 
@@ -295,7 +295,7 @@ public class FrameTreeOrbitFrameTests
         frames.SetHullMotion(pod, BodyMotion.Dynamic);
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
         frames.SetLocalPose(pod, new DPose(place + new Double3(5, 0, 0), DQuaternion.Identity));
-        frames.TreeLinearVelocity(pod) = velocity + new Double3(0, 1, 0);
+        frames.SetTreeLinearVelocity(pod, velocity + new Double3(0, 1, 0));
         NumericBody podHull = Crate(11, place + new Double3(5, 0, 0), velocity + new Double3(0, 1, 0)) with { OwnedFrame = pod };
         NumericBody[] after = Update(Hull(station), podHull);
         FrameHandle orbit = after[0].Home;
@@ -466,6 +466,26 @@ public class FrameTreeOrbitFrameTests
         frames.TreeParent(station).Should().Be(orbit);
         frames.HullMotion(station).Should().Be(BodyMotion.Kinematic, "the stored motion changes only after the next step");
         frames.AssertInvariants(StepIntents.Changing(station, BodyMotion.Dynamic));
+    }
+
+    // The World skips its second pass over the owner views of a sync point while the owner view stamp has not changed
+    // since the first (see FrameTree.OwnerViewStamp). The change of motion comes between the two passes, at step 4. An
+    // owner view reads the pose, the velocities and the numeric frames above the frame, and an orbit frame that falls is
+    // still a numeric frame, so the skip is right only while the station's owner view stays as it was.
+    [Fact]
+    public void A_hull_that_leaves_its_orbit_frame_changes_no_owner_view_and_leaves_the_owner_view_stamp_as_it_is()
+    {
+        FrameHandle station = Station(10, Low);
+        Update(Hull(station));
+        frames.Update();
+        FrameOwnerView before = frames.OwnerView(station);
+        long stamp = frames.OwnerViewStamp;
+
+        frames.PlanHullMotion(station, BodyMotion.Dynamic);
+
+        frames.InOrbitFrame(station).Should().BeFalse();
+        frames.OwnerView(station).Should().Be(before);
+        frames.OwnerViewStamp.Should().Be(stamp);
     }
 
     [Fact]

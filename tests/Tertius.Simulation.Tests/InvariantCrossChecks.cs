@@ -422,6 +422,8 @@ internal static class Inside
 
     public static Router RouterOf(World world) => Read<Router>(world, "router");
 
+    public static RenderSnapshotBuilder RenderBuilderOf(World world) => Read<RenderSnapshotBuilder>(world, "renderBuilder");
+
     private static T Read<T>(World world, string field)
     {
         FieldInfo info = typeof(World).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)

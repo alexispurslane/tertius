@@ -23,8 +23,9 @@ internal readonly record struct RenderView(
 /// <remarks>
 /// The builder remembers the frame and entity poses of the previous build, so that each instance also carries its
 /// previous transform relative to the same origin. It interpolates only between consecutive builds of the same camera
-/// in the same frame. Runs at the sync point, or on the ticking thread outside a tick; large builds fan out over the
-/// thread pool, one slice of the entity table per worker, and join in slot order.
+/// in the same frame. Runs at the sync point, or on the ticking thread outside a tick. A build of at least
+/// <see cref="ParallelThreshold"/> slots runs on the workers, one chunk of the entity table for each work item, and the
+/// chunks join in slot order.
 /// <para>
 /// Invariants, checked by <see cref="AssertInvariants"/>:
 /// <list type="bullet">
@@ -38,13 +39,17 @@ internal readonly record struct RenderView(
 internal sealed class RenderSnapshotBuilder
 {
     private const int RenderChunkSlots = 1024;
-    private const int ParallelRenderThreshold = 8192;
     private static readonly Double3 LightForward = new(0, 0, -1);
+
+    /// <summary>
+    /// The default of <see cref="ParallelThreshold"/>, in slots of the entity table. It comes from the first version of the
+    /// builder. Unlike the thresholds of the row copy, the cell search and the routing, ter-sn28 did not measure it again.
+    /// </summary>
+    internal const int DefaultParallelThreshold = 8192;
 
     private readonly EntityTable entities;
     private readonly FrameTree frames;
-    private readonly ParallelOptions parallelOptions;
-    private readonly bool parallel;
+    private readonly ParallelOptions? workers;
     private readonly Action<int> renderChunk;
 
     // Frame data by dense index, rebuilt at every build.
@@ -104,15 +109,33 @@ internal sealed class RenderSnapshotBuilder
     private RefList<RenderInstance>[] instanceChunks = [];
     private RefList<RenderLight>[] lightChunks = [];
 
-    public RenderSnapshotBuilder(EntityTable entities, FrameTree frames, ParallelOptions parallelOptions)
+    /// <param name="entities">The entity table whose front rows the builds read.</param>
+    /// <param name="frames">The frame tree whose poses the builds compose.</param>
+    /// <param name="workers">The workers on which a large build runs, or null to run every build on the calling thread.</param>
+    public RenderSnapshotBuilder(EntityTable entities, FrameTree frames, ParallelOptions? workers = null)
     {
         this.entities = entities;
         this.frames = frames;
-        this.parallelOptions = parallelOptions;
-        parallel = parallelOptions.MaxDegreeOfParallelism != 1;
+        this.workers = workers;
         renderChunk = BuildChunk;
         lastEntityPose = entities.AddColumn<PoseMemory>();
     }
+
+    /// <summary>
+    /// The fewest slots of the entity table for which a build runs on the workers. 1 or more. Both paths fill the same
+    /// snapshot, so only tests change it: at 1, every build takes the workers.
+    /// </summary>
+    internal int ParallelThreshold
+    {
+        get => parallelThreshold;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            parallelThreshold = value;
+        }
+    }
+
+    private int parallelThreshold = DefaultParallelThreshold;
 
     /// <summary>
     /// Fills <paramref name="snapshot"/> with the current state. Without a live camera, the snapshot has the view
@@ -269,8 +292,8 @@ internal sealed class RenderSnapshotBuilder
             }
         }
 
-        if (renderSlotCount >= ParallelRenderThreshold && parallel)
-            Parallel.For(0, chunkCount, parallelOptions, renderChunk);
+        if (workers != null && renderSlotCount >= parallelThreshold)
+            Parallel.For(0, chunkCount, workers, renderChunk);
         else
             for (int c = 0; c < chunkCount; c++)
                 BuildChunk(c);

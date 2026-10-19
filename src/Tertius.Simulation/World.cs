@@ -76,13 +76,16 @@ public sealed partial class World : IDisposable
         parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = this.options.MaxDegreeOfParallelism };
         runChunk = RunChunk;
 
-        entities = new EntityTable(this.options.ChunkSize, this.options.InitialCapacity);
+        // The subsystems with a step on the workers take them here, or null when the world has one thread. Each decides
+        // from its own measured threshold whether a step is large enough for them.
+        ParallelOptions? workers = this.options.MaxDegreeOfParallelism == 1 ? null : parallelOptions;
+        entities = new EntityTable(this.options.ChunkSize, this.options.InitialCapacity, workers);
         // The order of the subsystems is the order in which they let go of a released entity.
         topics = new TopicSets(entities);
-        router = new Router(entities, topics);
+        router = new Router(entities, topics, workers);
         attachments = new Attachments(entities);
-        spatial = new SpatialIndex(entities, Frames);
-        renderBuilder = new RenderSnapshotBuilder(entities, Frames, parallelOptions);
+        spatial = new SpatialIndex(entities, Frames, workers);
+        renderBuilder = new RenderSnapshotBuilder(entities, Frames, workers);
         queryRunner = new PhysicsQueryRunner(this, physics, router, message => Report(message, isError: true));
         dyingMarks = entities.AddColumn<bool>();
         characterStanding = entities.AddColumn<bool>();
@@ -307,7 +310,9 @@ public sealed partial class World : IDisposable
     /// root frame, which is in no frame.</item>
     /// <item>Every live entity's physics home is its row frame or a live frame below it. When the home is below, the home
     /// position plus the home's offset is the pose's position, within rounding.</item>
-    /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state. Every live
+    /// <item>Every frame's owner is live, owns that frame, and its transform row mirrors the frame's state, its owner view,
+    /// to the bit. Step 7 of the sync point skips its pass over the owner views while the frame tree's owner view stamp has
+    /// not changed since the pass of step 2, so a write of the tree that leaves the stamp as it is breaks this. Every live
     /// frame's topic resolves.</item>
     /// <item>A frame without a parent, or whose owner has no body, has no stored hull motion (see
     /// <see cref="FrameTree.HullMotion"/>). Every other frame has a stored hull motion that its owner's body can take: not a

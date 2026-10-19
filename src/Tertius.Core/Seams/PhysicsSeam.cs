@@ -675,9 +675,6 @@ public interface IPhysicsBackend : IDisposable
     /// </summary>
     void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter, List<Entity> entities);
 
-    /// <summary>The radius of the bounding sphere of a shape. Used for hand-off and rendering.</summary>
-    float BoundingRadius(ShapeDesc shape);
-
     /// <summary>
     /// Why this backend cannot build <paramref name="shape"/>, or null when it can: what <see cref="ShapeDesc.Problem"/>
     /// finds, and what only the backend can tell, for example that the points of a convex hull coincide. The message

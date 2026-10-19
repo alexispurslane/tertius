@@ -126,7 +126,7 @@ public class NumericFrameEntryTests
         entry!.Value.From.Should().Be(home);
         entry.Value.To.Should().Be(scene.Station);
         world.GetFrame(flier).Should().Be(scene.Station);
-        float radius = faults.BoundingRadius(body.Shape);
+        float radius = body.Shape.BoundingRadius();
         (entry.Value.Pose.Position.Length - StationRadius).Should().BeInRange(radius - 60 * Dt - 1e-3, radius,
             "the body enters on the first step that ends with its bounding sphere touching the bubble");
         (entry.Value.Pose.Position - (expected - new Double3(1000, 0, 0))).Length.Should().BeLessThan(1e-3,

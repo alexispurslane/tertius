@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using DestroyEvent = Tertius.Destroy;
@@ -36,8 +37,9 @@ namespace Tertius.Simulation;
 /// <item>A live slot whose back row differs from its front row is dirty and in a dirty list, so
 /// <see cref="CopyDirtyRows"/> never misses a change. Gameplay never writes the transform of a slot with a body.</item>
 /// <item>A live slot's back component flags are the types of its components. Its collision rows are the default for an
-/// entity without a body. Its kept body bounding radius is the <see cref="ShapeDesc.BoundingRadius"/> of its body's
-/// shape, or 0 without a body.</item>
+/// entity without a body. Its kept bounding radii are the <see cref="ShapeDesc.BoundingRadius"/> of its body's shape and
+/// of the shape inside it (<see cref="BodyDesc.InteriorShape"/>, or the shape when it has none), or 0 without a body.</item>
+/// <item>A slot is in the set of <see cref="BodyEntities"/> exactly when it is live and has a body.</item>
 /// <item>The component index lists exactly the live entities whose front flags hold each type. Nothing changes it
 /// during the gameplay part of a tick, which starts with it settled, so the workers read it without a race.</item>
 /// <item>A back intent is set only for a live entity in its chunk's list of intent writers, and a front intent only
@@ -50,11 +52,13 @@ namespace Tertius.Simulation;
 /// until the next swap, which clears it: releasing it cleared its slot.</item>
 /// <item>Every live entity whose front transform changed since the last <see cref="TakeMoved"/> is in the moved
 /// list.</item>
+/// <item>Outside <see cref="CopyDirtyRows"/>, the lists in which a copy on the workers keeps each chunk's moved entities
+/// and component flag copies, and the list of component flag copies, are empty.</item>
 /// </list>
 /// The gameplay workers call only the members documented as worker-safe, and only for entities of the chunk they run.
 /// </para>
 /// </remarks>
-internal sealed class EntityTable
+internal sealed partial class EntityTable
 {
     private const int MaxSpawnPool = 1024;
 
@@ -102,6 +106,12 @@ internal sealed class EntityTable
         public BodyDesc? Body;
         /// <summary>The <see cref="ShapeDesc.BoundingRadius"/> of the body's shape, or 0 without a body. Kept from the spawn, because it costs a pass over the shape.</summary>
         public float BodyBoundingRadius;
+        /// <summary>
+        /// The <see cref="ShapeDesc.BoundingRadius"/> of the shape inside the body, which a frame owner's interior body
+        /// has: <see cref="BodyDesc.InteriorShape"/>, or <see cref="BodyDesc.Shape"/> when it has none. 0 without a body.
+        /// Kept from the spawn, as <see cref="BodyBoundingRadius"/> is.
+        /// </summary>
+        public float InteriorBoundingRadius;
         /// <summary>The frame this entity is, if any.</summary>
         public FrameHandle OwnedFrame;
     }
@@ -122,6 +132,16 @@ internal sealed class EntityTable
         public readonly List<Entity> MotionChangers = new();
         /// <summary>Free slots reserved for this chunk's spawns, in a deterministic order.</summary>
         public readonly Queue<uint> SpawnPool = new();
+        /// <summary>
+        /// During a <see cref="CopyDirtyRows"/> on the workers: the entities of this chunk that the copy lists as moved,
+        /// in the chunk's dirty order. The copy joins them to the moved list in chunk order, and empties this list.
+        /// </summary>
+        public readonly List<Entity> Moved = new();
+        /// <summary>
+        /// During a <see cref="CopyDirtyRows"/> on the workers: the slots of this chunk whose component flags the copy
+        /// must still bring forward, in the chunk's dirty order. Joined and emptied like <see cref="Moved"/>.
+        /// </summary>
+        public readonly List<uint> ComponentCopies = new();
         public int LiveCount;
         public int SpawnsThisTick;
         public int LastSpawnCount;
@@ -250,6 +270,12 @@ internal sealed class EntityTable
     private readonly Queue<uint> freeSlots = new();
     private ChunkState[] chunks = [];
     private ChunkBook[] books = [];
+    // The slots that are live with a body.
+    private readonly BodySlots bodySlots = new();
+    // The workers that copy the rows that gameplay wrote, or null to copy them on the sync thread, and the fewest such rows
+    // for which they do (see ParallelCopyThreshold).
+    private readonly ParallelOptions? copyParallelism;
+    private int parallelCopyThreshold = DefaultParallelCopyThreshold;
 
     private readonly SlotColumn<SlotFlags> flags;
     private readonly SlotColumn<Record> records;
@@ -282,10 +308,15 @@ internal sealed class EntityTable
 
     /// <param name="chunkSize">Entity slots per gameplay chunk.</param>
     /// <param name="initialCapacity">Slots to allocate up front.</param>
-    public EntityTable(int chunkSize, int initialCapacity)
+    /// <param name="copyParallelism">
+    /// The workers on which <see cref="CopyDirtyRows"/> copies the rows that gameplay wrote, or null to copy every row on
+    /// the calling thread.
+    /// </param>
+    public EntityTable(int chunkSize, int initialCapacity, ParallelOptions? copyParallelism = null)
     {
         Contract.Requires(chunkSize > 0 && initialCapacity >= 0);
         this.chunkSize = chunkSize;
+        this.copyParallelism = copyParallelism;
         flags = AddSlotColumn<SlotFlags>();
         records = AddSlotColumn<Record>();
         masks = AddSlotColumn<EventMask>();
@@ -349,6 +380,13 @@ internal sealed class EntityTable
         Contract.Requires(start >= 0 && count >= 0);
         return new LiveEntityEnumerator(this, start, Math.Max(0, Math.Min(count, SlotCount - start)));
     }
+
+    /// <summary>
+    /// The live entities with a body, in slot order. It costs a step per 64 slots and one per body, so a pass over the
+    /// bodies does not pay for the entities without one. Worker-safe during gameplay, when no entity is released or made
+    /// live.
+    /// </summary>
+    public BodyEntityEnumerator BodyEntities => new(this);
 
     /// <summary>The live entities of one gameplay chunk, in slot order. Worker-safe during gameplay.</summary>
     public LiveEntityEnumerator LiveEntitiesOfChunk(int chunk)
@@ -505,10 +543,14 @@ internal sealed class EntityTable
         Contract.Requires(components.Length == wants.Length);
         ComponentFlags types = ComponentFlags.Of(components);
         BodyCollision collision = body is null ? default : new BodyCollision(body.CollisionGroups, body.CollisionMask);
+        float radius = body?.Shape.BoundingRadius() ?? 0;
         records[slot] = new Record
         {
-            Components = components, Wants = wants, Body = body, BodyBoundingRadius = body?.Shape.BoundingRadius() ?? 0, OwnedFrame = ownedFrame,
+            Components = components, Wants = wants, Body = body, BodyBoundingRadius = radius,
+            InteriorBoundingRadius = body?.InteriorShape is { } interior ? interior.BoundingRadius() : radius, OwnedFrame = ownedFrame,
         };
+        if (body != null)
+            bodySlots.Add(slot);
         frontTransform[slot] = row;
         backTransform[slot] = row;
         frontRender[slot] = render;
@@ -524,7 +566,7 @@ internal sealed class EntityTable
         reservationsOut--;
         liveCount++;
         books[slot / chunkSize].LiveCount++;
-        MarkMoved(slot);
+        MarkMoved(slot, moved);
     }
 
     /// <summary>
@@ -544,6 +586,7 @@ internal sealed class EntityTable
             foreach (Action<Entity> release in releaseHooks)
                 release(entity);
             componentIndex.Remove(entity, frontComponents[slot]);
+            bodySlots.Remove(slot);
             foreach (IColumn column in columns)
                 column.Clear(slot);
             liveCount--;
@@ -618,6 +661,13 @@ internal sealed class EntityTable
     /// body. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe.
     /// </summary>
     public float BodyBoundingRadius(Entity entity) => records[LiveSlot(entity)].BodyBoundingRadius;
+
+    /// <summary>
+    /// The <see cref="ShapeDesc.BoundingRadius"/> of the shape inside the body, kept from the spawn:
+    /// <see cref="BodyDesc.InteriorShape"/>, or <see cref="BodyDesc.Shape"/> when it has none. 0 for an entity without a
+    /// body. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe.
+    /// </summary>
+    public float BodyInteriorBoundingRadius(Entity entity) => records[LiveSlot(entity)].InteriorBoundingRadius;
 
     /// <summary>The frame this entity is, or null. Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe.</summary>
     public FrameHandle OwnedFrame(Entity entity) => records[LiveSlot(entity)].OwnedFrame;
@@ -970,18 +1020,96 @@ internal sealed class EntityTable
 
     /// <summary>
     /// Copies every dirty back row forward: the rows that gameplay wrote, in chunk order, then the rows that the sync
-    /// point wrote. Rows that did not change cost nothing.
+    /// point wrote. Rows that did not change cost nothing. The entities whose front transform changed join the moved list
+    /// in that order, and the component index takes the changed component flags in that order.
     /// </summary>
+    /// <remarks>
+    /// With workers (see the constructor), and at least <see cref="ParallelCopyThreshold"/> rows that gameplay wrote, the
+    /// workers copy those rows, a chunk per work item. A chunk's dirty list holds only the chunk's own slots, so the workers write disjoint
+    /// rows and flags. What the copy on one thread appends to the moved list and the component flag copies waits in each
+    /// chunk's book instead, and joins them here in chunk order. So both lists end in the order of the copy on one thread,
+    /// whatever order the workers ran in, and the table ends the same bit for bit. The rows that the sync point wrote stay
+    /// on this thread: they follow the gameplay rows, and the component index, which the flag copies change, is one shared
+    /// structure.
+    /// </remarks>
     public void CopyDirtyRows()
     {
         Contract.Requires(!gameplayRunning);
         int count = ChunkCountFor(slotCount);
-        for (int c = 0; c < count; c++)
-            foreach (uint slot in books[c].DirtySlots)
-                CopyRow(slot);
+        if (copyParallelism != null && GameplayDirtyCount(count) >= parallelCopyThreshold)
+        {
+            Parallel.For(0, count, copyParallelism, copyChunk ??= CopyChunk);
+            for (int c = 0; c < count; c++)
+            {
+                ChunkBook book = books[c];
+                moved.AddRange(book.Moved);
+                componentCopies.AddRange(book.ComponentCopies);
+                book.Moved.Clear();
+                book.ComponentCopies.Clear();
+            }
+        }
+        else
+        {
+            for (int c = 0; c < count; c++)
+                foreach (uint slot in books[c].DirtySlots)
+                    CopyRow(slot, moved, componentCopies);
+        }
         foreach (uint slot in syncDirty)
-            CopyRow(slot);
+            CopyRow(slot, moved, componentCopies);
         syncDirty.Clear();
+        foreach (uint slot in componentCopies)
+        {
+            componentIndex.Change(new Entity(slot, generation[slot]), frontComponents[slot], backComponents[slot]);
+            frontComponents[slot] = backComponents[slot];
+        }
+        componentCopies.Clear();
+    }
+
+    /// <summary>
+    /// The default of the fewest rows that gameplay wrote in a tick for which <see cref="CopyDirtyRows"/> copies them on
+    /// the workers. Measured on an Apple M1 Max (see RowCopyBenchmarks in the benchmarks): the copy on one thread costs
+    /// about 9 ns a row; on the workers it runs about 1.75 times as fast, after a fixed cost of about 20 us to hand it to
+    /// them. So the workers break even at about 5,000 rows, and win by about 13 percent at 8,192. Below that, a busy
+    /// machine made the parallel copy as often slower as faster: 4,096 rows took 57 us against 40 us on one thread, and
+    /// the 8,000 rows of the Mixed tick benchmark copied faster on one thread.
+    /// </summary>
+    internal const int DefaultParallelCopyThreshold = 8192;
+
+    /// <summary>
+    /// The fewest rows that gameplay wrote in a tick for which <see cref="CopyDirtyRows"/> copies them on the workers. 1 or
+    /// more. Both copies end in the same state, so only tests change it: at 1, a small world takes the workers in every
+    /// tick.
+    /// </summary>
+    internal int ParallelCopyThreshold
+    {
+        get => parallelCopyThreshold;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            parallelCopyThreshold = value;
+        }
+    }
+
+    // The copy of one chunk on a worker, kept so that a parallel copy allocates no delegate.
+    private Action<int>? copyChunk;
+    // The slots whose component flags the running CopyDirtyRows must still copy, in the order of the copy on one thread.
+    private readonly List<uint> componentCopies = new();
+
+    /// <summary>The rows that gameplay wrote in one chunk, on a worker of <see cref="CopyDirtyRows"/>, into the chunk's book.</summary>
+    private void CopyChunk(int chunk)
+    {
+        ChunkBook book = books[chunk];
+        foreach (uint slot in book.DirtySlots)
+            CopyRow(slot, book.Moved, book.ComponentCopies);
+    }
+
+    /// <summary>The rows that gameplay wrote in this tick, in the first <paramref name="chunkCount"/> chunks.</summary>
+    private int GameplayDirtyCount(int chunkCount)
+    {
+        int dirty = 0;
+        for (int c = 0; c < chunkCount; c++)
+            dirty += books[c].DirtySlots.Count;
+        return dirty;
     }
 
     /// <summary>
@@ -1014,7 +1142,7 @@ internal sealed class EntityTable
     {
         Contract.Invariant(!gameplayRunning);
         Contract.Invariant(slotCount <= capacity && ChunkCountFor(capacity) <= chunks.Length && books.Length == chunks.Length);
-        Contract.Invariant(generation.Length == capacity && state.Length == capacity);
+        Contract.Invariant(generation.Length == capacity && state.Length == capacity && bodySlots.WordCount == BodySlots.WordsFor(capacity));
 
         var inFreeList = new bool[capacity];
         foreach (uint slot in freeSlots)
@@ -1047,9 +1175,12 @@ internal sealed class EntityTable
         var motionChangerListed = new bool[capacity];
         var pooled = new bool[capacity];
         int pooledCount = 0;
+        // The lists of a copy on the workers are empty outside CopyDirtyRows, which joins and empties them.
+        Contract.Invariant(componentCopies.Count == 0);
         for (int c = 0; c < books.Length; c++)
         {
             ChunkBook book = books[c];
+            Contract.Invariant(book.Moved.Count == 0 && book.ComponentCopies.Count == 0);
             foreach (uint slot in book.DirtySlots)
                 dirtyListed[slot] = true;
             foreach (Entity writer in book.IntentWriters)
@@ -1101,6 +1232,7 @@ internal sealed class EntityTable
                 Contract.Invariant(inFreeList[slot]);
             if (s == SlotState.Reserved)
                 reserved++;
+            Contract.Invariant(bodySlots.Contains((uint)slot) == (s == SlotState.Live && records[slot].Body != null));
             if (s != SlotState.Live)
             {
                 foreach (IColumn column in columns)
@@ -1126,6 +1258,7 @@ internal sealed class EntityTable
             if (rec.Body == null)
                 Contract.Invariant(frontCollision[slot] == default && backCollision[slot] == default);
             Contract.Invariant(rec.BodyBoundingRadius == (rec.Body?.Shape.BoundingRadius() ?? 0));
+            Contract.Invariant(rec.InteriorBoundingRadius == (rec.Body?.InteriorShape is { } inside ? inside.BoundingRadius() : rec.BodyBoundingRadius));
             var live = new Entity((uint)slot, generation[slot]);
             foreach (int id in frontComponents[slot])
             {
@@ -1219,6 +1352,7 @@ internal sealed class EntityTable
         int size = Math.Max(needed, Math.Max(capacity * 2, 64));
         Array.Resize(ref generation, size);
         Array.Resize(ref state, size);
+        bodySlots.Grow(size);
         foreach (IColumn column in columns)
             column.Grow(size);
         capacity = size;
@@ -1259,16 +1393,23 @@ internal sealed class EntityTable
         f |= bits;
     }
 
-    private void MarkMoved(uint slot)
+    /// <summary>Lists the slot's entity in <paramref name="list"/> unless the moved list or a chunk's list of a parallel copy has it.</summary>
+    private void MarkMoved(uint slot, List<Entity> list)
     {
         ref SlotFlags f = ref flags[slot];
         if ((f & SlotFlags.FrontMoved) != 0)
             return;
         f |= SlotFlags.FrontMoved;
-        moved.Add(new Entity(slot, generation[slot]));
+        list.Add(new Entity(slot, generation[slot]));
     }
 
-    private void CopyRow(uint slot)
+    /// <summary>
+    /// Copies the dirty rows of one slot forward and clears its dirty bits. Its entity joins <paramref name="movedTo"/>
+    /// when the copy changed its front transform, and its slot joins <paramref name="componentCopiesTo"/> when its component
+    /// flags must still be copied, which only the sync thread does. It touches only this slot's rows and flags, so the
+    /// workers of a parallel copy run it on disjoint slots, each with its chunk's lists.
+    /// </summary>
+    private void CopyRow(uint slot, List<Entity> movedTo, List<uint> componentCopiesTo)
     {
         ref SlotFlags f = ref flags[slot];
         SlotFlags dirty = f;
@@ -1278,15 +1419,12 @@ internal sealed class EntityTable
         if ((dirty & SlotFlags.TransformDirty) != 0)
         {
             frontTransform[slot] = backTransform[slot];
-            MarkMoved(slot);
+            MarkMoved(slot, movedTo);
         }
         if ((dirty & SlotFlags.RenderDirty) != 0)
             frontRender[slot] = backRender[slot];
         if ((dirty & SlotFlags.ComponentsDirty) != 0)
-        {
-            componentIndex.Change(new Entity(slot, generation[slot]), frontComponents[slot], backComponents[slot]);
-            frontComponents[slot] = backComponents[slot];
-        }
+            componentCopiesTo.Add(slot);
         if ((dirty & SlotFlags.CollisionDirty) != 0)
             frontCollision[slot] = backCollision[slot];
     }

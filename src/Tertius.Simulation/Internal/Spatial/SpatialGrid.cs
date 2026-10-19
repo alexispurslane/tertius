@@ -1,4 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace Tertius.Simulation;
 
@@ -36,31 +38,70 @@ internal sealed class SpatialGrid
 
     public void Add(CellKey key, Entity entity)
     {
-        if (!cells.TryGetValue(key, out List<Entity>? list))
-        {
+        ref List<Entity>? list = ref CollectionsMarshal.GetValueRefOrAddDefault(cells, key, out bool exists);
+        if (!exists)
             list = spareLists.Count > 0 ? spareLists.Pop() : new List<Entity>(4);
-            cells.Add(key, list);
-        }
-        list.Add(entity);
+        list!.Add(entity);
     }
 
     /// <summary>Removes an entity from a cell. Order inside a cell does not matter, because queries sort their results.</summary>
     public void Remove(CellKey key, Entity entity)
     {
-        if (!cells.TryGetValue(key, out List<Entity>? list))
+        ref List<Entity> list = ref CollectionsMarshal.GetValueRefOrNullRef(cells, key);
+        if (Unsafe.IsNullRef(ref list) || !TakeOut(list, entity))
             return;
-        int index = list.IndexOf(entity);
-        if (index < 0)
-            return;
-        int last = list.Count - 1;
-        list[index] = list[last];
-        list.RemoveAt(last);
         if (list.Count == 0)
         {
-            cells.Remove(key);
             spareLists.Push(list);
+            cells.Remove(key);
         }
     }
 
+    /// <summary>
+    /// Moves an entity from the cell <paramref name="from"/> to the cell <paramref name="to"/>, and leaves the grid as
+    /// <see cref="Remove"/> and then <see cref="Add"/> do, with one lookup of each cell. An entity that is alone in its
+    /// cell takes the cell's list along to an empty cell, instead of handing it to the spare lists and taking it back.
+    /// </summary>
+    public void Move(CellKey from, CellKey to, Entity entity)
+    {
+        ref List<Entity> source = ref CollectionsMarshal.GetValueRefOrNullRef(cells, from);
+        if (Unsafe.IsNullRef(ref source))
+        {
+            Add(to, entity);
+            return;
+        }
+        if (source.Count > 1 || source[0] != entity)
+        {
+            // The old cell keeps its other entities.
+            TakeOut(source, entity);
+            Add(to, entity);
+            return;
+        }
+        List<Entity> list = source;
+        cells.Remove(from);
+        ref List<Entity>? target = ref CollectionsMarshal.GetValueRefOrAddDefault(cells, to, out bool exists);
+        if (!exists)
+        {
+            // The list holds this entity alone, which is what the new cell needs.
+            target = list;
+            return;
+        }
+        target!.Add(entity);
+        list.Clear();
+        spareLists.Push(list);
+    }
+
     public bool TryGetCell(CellKey key, [MaybeNullWhen(false)] out List<Entity> entities) => cells.TryGetValue(key, out entities);
+
+    /// <summary>Takes an entity out of a cell's list by moving the last entry into its place. False if the list does not hold it.</summary>
+    private static bool TakeOut(List<Entity> list, Entity entity)
+    {
+        int index = list.IndexOf(entity);
+        if (index < 0)
+            return false;
+        int last = list.Count - 1;
+        list[index] = list[last];
+        list.RemoveAt(last);
+        return true;
+    }
 }

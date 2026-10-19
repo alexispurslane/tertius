@@ -281,8 +281,8 @@ public sealed partial class World
             // Every new frame stands at the pose of its spawn description, with its velocities. A frame on rails holds still
             // there for its first step, which runs before its components do, and the first sample of its rails component
             // puts it on its rails (docs/plans/rails-components.md, "Other rules" in "The rails components").
-            Frames.TreeLinearVelocity(own) = desc.LinearVelocity;
-            Frames.AngularVelocity(own) = desc.AngularVelocity;
+            Frames.SetTreeLinearVelocity(own, desc.LinearVelocity);
+            Frames.SetAngularVelocity(own, desc.AngularVelocity);
             physicsChanges.FramesCreated.Add(own);
             row = FrameOwnerRow(own);
             velocity = Frames.LinearVelocity(own);
@@ -294,7 +294,8 @@ public sealed partial class World
         if (desc.Body != null)
             physicsChanges.BodiesCreated.Add(new BodyCreate(entity, row.Frame, desc.Body, row.Pose, velocity, row.AngularVelocity));
 
-        MoveMembership(entity, row.Frame, sendFrameChanged: false);
+        // A new entity joins the members of its frame. That is no change of frame, so it hears no FrameChanged.
+        topics.MoveMember(entity, row.Frame, out _);
         foreach (Topic topic in plan.Subscriptions)
             SubscribeEntity(entity, topic);
     }
@@ -532,7 +533,7 @@ public sealed partial class World
             AngularVelocity = (relative.TransformDirection(row.AngularVelocity) + Frames.AngularVelocityRelative(from, to)).ToVector3(),
         };
         entities.SetBackTransform(entity, moved);
-        MoveMembership(entity, to, sendFrameChanged: true);
+        MoveMembership(entity, to);
 
         // The body moves to the other physics system: physics destroys it before it creates the new one, as the body is
         // now: with the collision groups and mask that it has now, and for a hull, the motion of the next step, which the
@@ -625,42 +626,66 @@ public sealed partial class World
 
     // ---- Frames, membership and topics ----------------------------------------------------------------------------
 
-    /// <summary>
-    /// The pose, velocities and parent of a frame, as the owner's transform row. The hull of a frame lives in the system of
-    /// the frame's tree parent, so that parent is the owner's physics home, and the row frame is its semantic frame. The
-    /// pose moves from the home into the row frame in doubles. The velocity stays relative to the home.
-    /// </summary>
-    private TransformRow FrameOwnerRow(FrameHandle frame)
-    {
-        FrameHandle home = Frames.TreeParent(frame);
-        FrameHandle semantic = home.IsNull ? home : Frames.SemanticOf(home);
-        DPose local = Frames.TreeLocalPose(frame);
-        return new TransformRow
-        {
-            Frame = semantic,
-            PhysicsHome = home,
-            Pose = home == semantic ? local : new DPose(Frames.InSemantic(home, semantic, local.Position), local.Rotation),
-            HomePosition = local.Position,
-            LinearVelocity = Frames.TreeLinearVelocity(frame).ToVector3(),
-            AngularVelocity = Frames.AngularVelocity(frame),
-        };
-    }
-
-    /// <summary>The owner's transform row mirrors the frame's local pose, which is the authoritative one.</summary>
-    private void MirrorFrameOwner(FrameHandle frame)
-    {
-        Entity owner = frame.Entity;
-        entities.SetBackTransform(owner, FrameOwnerRow(frame));
-        MoveMembership(owner, entities.BackRow(owner).Frame, sendFrameChanged: true);
-    }
+    /// <summary>The pose, velocities and parent of a frame, as the owner's transform row (see <see cref="OwnerRow"/>).</summary>
+    private TransformRow FrameOwnerRow(FrameHandle frame) => OwnerRow(Frames.OwnerView(frame));
 
     /// <summary>
-    /// Moves an entity to the member set of <paramref name="to"/>. If it was a member of another frame, it optionally
-    /// gets a <see cref="FrameChanged"/> on the next tick.
+    /// The transform row of the owner of a frame whose owner view is <paramref name="view"/>. The hull of a frame lives in the
+    /// system of the frame's tree parent, so that parent is the owner's physics home, and the row frame is its semantic
+    /// frame. The pose moves from the home into the row frame in doubles. The velocity stays relative to the home.
     /// </summary>
-    private void MoveMembership(Entity entity, FrameHandle to, bool sendFrameChanged)
+    /// <remarks>Inlined: as a call that returns the 136-byte row, it cost the mirror pass about 10 ns per frame.</remarks>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private static TransformRow OwnerRow(in FrameOwnerView view) => new()
     {
-        if (!topics.MoveMember(entity, to, out FrameHandle from) || !sendFrameChanged)
+        Frame = view.Semantic,
+        PhysicsHome = view.Home,
+        Pose = new DPose(view.PositionInSemantic, view.LocalPose.Rotation),
+        HomePosition = view.LocalPose.Position,
+        LinearVelocity = view.LinearVelocity.ToVector3(),
+        AngularVelocity = view.AngularVelocity,
+    };
+
+    /// <summary>The owner's transform row mirrors the frame's local pose, which is the authoritative one (see <see cref="MirrorOwner"/>).</summary>
+    private void MirrorFrameOwner(FrameHandle frame) => MirrorOwner(Frames.OwnerView(frame));
+
+    /// <summary>
+    /// The mirror rule, for one frame and for the pass of <see cref="MirrorFrameOwners"/>: the row of the owner of the frame
+    /// whose owner view is <paramref name="view"/> is filled from the view (see <see cref="OwnerRow"/>), and the owner moves
+    /// to the members of the row's frame, the frame's semantic parent (see <see cref="MoveMembership"/>). The frame tree
+    /// holds the owner's exact frame, so this is where the owner follows every move of its frame under another parent:
+    /// a hand-off of its hull, which reparents the frame before the pass of step 2, and a move that the game makes
+    /// itself, such as a docking, which the pass of step 2 of the next tick finds.
+    /// </summary>
+    /// <remarks>Inlined, so that the pass of <see cref="MirrorFrameOwners"/> pays no call per frame for it.</remarks>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
+    private void MirrorOwner(in FrameOwnerView view)
+    {
+        Entity owner = view.Frame.Entity;
+        entities.SetBackTransform(owner, OwnerRow(view));
+        MoveMembership(owner, view.Semantic);
+    }
+
+    /// <summary>
+    /// Moves an entity to the member set of <paramref name="to"/>, its frame, and when that is a change of frame, sends it
+    /// one <see cref="FrameChanged"/>, which the next routing delivers. A call for an entity that is a member of
+    /// <paramref name="to"/> already changes nothing and sends nothing. So however many of the paths below see one change,
+    /// the entity hears it once, from the first of them:
+    /// <list type="bullet">
+    /// <item>A hand-off moves a plain body (see <see cref="RouteStepContacts"/>).</item>
+    /// <item>A move of a frame under another parent moves the frame's owner (see <see cref="MirrorOwner"/>): a hand-off of the
+    /// hull, or a move that the game makes itself. Step 2 fills the owners' rows before it routes the hand-offs, so this
+    /// path comes first for a hand-off of a hull.</item>
+    /// <item>The death of the entity's frame moves it to the nearest ancestor that survives (see <see cref="Rehome"/>). For
+    /// the owner of a frame, this comes before the owner's row is filled from the moved frame.</item>
+    /// <item>A change of frame of an attached entity's chain root moves the attached entity (see
+    /// <see cref="DeriveAttachments"/>).</item>
+    /// </list>
+    /// A new entity joins the members of its frame without it, because that is no change of frame.
+    /// </summary>
+    private void MoveMembership(Entity entity, FrameHandle to)
+    {
+        if (!topics.MoveMember(entity, to, out FrameHandle from))
             return;
         router.AddEngineEvent(Event.Create(new Target(entity), Entity.Null, new FrameChanged { From = from, To = to }));
     }
@@ -680,7 +705,7 @@ public sealed partial class World
     {
         attachments.Derive();
         foreach (Entity attached in attachments.Attached)
-            MoveMembership(attached, entities.BackRow(attached).Frame, sendFrameChanged: true);
+            MoveMembership(attached, entities.BackRow(attached).Frame);
     }
 
     /// <summary>Applies the effects of an outside-tick change that the sync point would otherwise apply.</summary>

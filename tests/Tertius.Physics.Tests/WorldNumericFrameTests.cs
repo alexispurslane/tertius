@@ -117,6 +117,24 @@ public class WorldNumericFrameTests
     }
 
     [Fact]
+    public void ACrateSpawnedAloneAtOrbitalSpeedFallsInAFrameThatTakesItsVelocityInDoubles()
+    {
+        // The crate is the only body that physics has not created yet when the first tick runs the numeric update, so the
+        // update reads its velocity from its creation, in doubles, and not from its row, whose float of 7,672 m/s steps by
+        // 488 µm/s: 7,672.123456 m/s is 79 µm/s from the nearest float.
+        using World world = NewWorld(out _);
+        FrameHandle earth = Earth(world);
+        var velocity = new Double3(7672.123456, 0, 0);
+        Entity crate = world.Spawn(new SpawnDesc { Frame = earth, Pose = At(0, OrbitRadius), LinearVelocity = velocity, Body = Crate });
+
+        Tick(world, 1);
+
+        InFallingFrame(world, crate).Should().BeTrue();
+        // The frame then falls for one step, in which Earth's field gains a part along X of up to 164 µm/s²: 3 µm/s.
+        world.Frames.HomeVelocity(world.PhysicsHomeOf(crate), earth).X.Should().BeApproximately(velocity.X, 1e-5);
+    }
+
+    [Fact]
     public void AGroupThatStartsToFallAtOrbitalSpeedKeepsTheVelocityOfEachBodyToAMicrometerPerSecond()
     {
         // Two crates 10,000 km out rest in one numeric frame, then speed up to orbital speed, far above the 1,000 m/s from
@@ -229,6 +247,32 @@ public class WorldNumericFrameTests
         (world.Frames.PointFromParent(ship, new Double3(-20, 0, 3))).Length.Should().BeLessThan(1e-6);
         world.Frames.VelocityToParent(ship, Double3.Zero, Double3.Zero).Length.Should().BeLessThan(1e-6);
         (world.Snapshot.Frames.LocalPose(ship).Position - new Double3(-20, 0, 3)).Length.Should().BeLessThan(1e-6);
+    }
+
+    // The numeric update moves the ship's frame under its hull's resting frame, a numeric frame. That changes the frame's
+    // tree parent and the owner's physics home, but not the frame's parent, which is the owner's frame.
+    [Fact]
+    public void TheOwnerOfAFrameWhoseHullMovesIntoANumericFrameHearsNoFrameChanged()
+    {
+        using World world = NewWorld(out _, configure: o => o.NumericFrames = EverySlowGroupRests);
+        FrameHandle ground = Ground(world, 0);
+        var frames = new FrameChangedLog();
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(-20, 0, 3),
+            Body = Cube(100) with { InteriorShape = new SphereShapeDesc(0.05f) },
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
+            Components = [frames],
+        });
+        FrameHandle ship = world.GetOwnedFrame(owner);
+
+        Tick(world, 5);
+
+        world.Errors.Should().BeEmpty();
+        world.Frames.IsNumeric(world.Frames.TreeParent(ship)).Should().BeTrue("the ship's frame lies in its hull's numeric frame");
+        world.GetFrame(owner).Should().Be(ground);
+        frames.Seen.Should().BeEmpty();
     }
 
     [Fact]

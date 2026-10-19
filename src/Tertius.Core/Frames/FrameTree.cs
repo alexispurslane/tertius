@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Tertius.Frames.Rails;
 
 namespace Tertius;
@@ -71,6 +72,9 @@ public sealed partial class FrameTree
     // it was at the end of the last UpdateNumericFrames.
     private double[] apartTime = new double[64];
     private int[] numericBodies = new int[64];
+    // The number of changes of the state that an owner view reads (see OwnerViewStamp). Only the writers of the section
+    // "Writes that an owner view reads" increase it.
+    private long ownerViewStamp;
 
     public FrameTree()
     {
@@ -120,6 +124,21 @@ public sealed partial class FrameTree
     /// </summary>
     internal int Version => poses.Version;
 
+    /// <summary>
+    /// Changes on every change of the state that an owner view reads (see <see cref="FrameOwnerView"/>): a write of the local
+    /// pose, the linear velocity or the angular velocity of any frame, and every add, remove or move of a frame. Every such
+    /// change passes through the writers of the section "Writes that an owner view reads", which increase it. An owner view
+    /// also reads whether each frame is numeric: a numeric frame has no owner view, and the walk up from a frame's parent
+    /// passes every numeric frame to find the semantic frame and adds its position. Only an add or a remove changes whether
+    /// a frame is numeric, because a numeric frame only changes from one numeric mode to another (the contracts of
+    /// <see cref="SetNumericMode"/> and <see cref="LeaveOrbit"/> require it), so the mode needs no increase of its own.
+    /// Reads leave it as it is, and so do the writes of what no owner view reads: the proper acceleration, the gravity
+    /// field, the stored motion of a hull (see <see cref="SetHullMotion"/>), and the mode of a frame that stays numeric,
+    /// such as an orbit frame that a hull leaves falling (see <see cref="PlanHullMotion"/>). The World compares it with its
+    /// value at the World's last pass over every owner view, to skip a pass that would change no row.
+    /// </summary>
+    internal long OwnerViewStamp => ownerViewStamp;
+
     public FrameHandle Create(
         Entity frameOwner,
         FrameHandle parent,
@@ -141,8 +160,9 @@ public sealed partial class FrameTree
     private FrameHandle AddFrame(Entity frameOwner, FrameHandle parent, in DPose localPose, FrameBounds frameBounds,
         GravityField field, NumericMode mode)
     {
-        PoseNode node = poses.Add(parent.IsNull ? PoseNode.Null : Node(parent), localPose);
+        PoseNode node = AddNode(parent.IsNull ? PoseNode.Null : Node(parent), localPose);
         Grow(node.Id + 1);
+        // The new frame's row: the add above changed the stamp for all of it.
         owner[node.Id] = frameOwner;
         bounds[node.Id] = frameBounds;
         hullMotion[node.Id] = null;
@@ -237,7 +257,7 @@ public sealed partial class FrameTree
             NumericCount--;
         numeric[node.Id] = NumericMode.None;
         orbiter[node.Id] = FrameHandle.Null;
-        poses.Remove(node);
+        RemovePoseNode(node);
     }
 
     /// <summary>
@@ -264,9 +284,9 @@ public sealed partial class FrameTree
         DPose oldPose = poses.GetLocal(node);
         Double3 w = angularVelocity[node.Id];
         DQuaternion oldToNew = RootPose(newParent).Rotation.Conjugate() * RootPose(oldParent).Rotation;
-        linearVelocity[node.Id] = ConvertVelocity(oldParent, newParent, oldPose.Position, linearVelocity[node.Id]);
-        angularVelocity[node.Id] = (oldToNew.Rotate(w) + AngularVelocityRelative(oldParent, newParent)).ToVector3();
-        poses.Reparent(node, newParent.IsNull ? PoseNode.Null : Node(newParent), keepWorldPose: true);
+        LinearVelocityForWrite(node.Id) = ConvertVelocity(oldParent, newParent, oldPose.Position, linearVelocity[node.Id]);
+        AngularVelocityForWrite(node.Id) = (oldToNew.Rotate(w) + AngularVelocityRelative(oldParent, newParent)).ToVector3();
+        MoveNode(node, newParent.IsNull ? PoseNode.Null : Node(newParent), keepWorldPose: true);
     }
 
     public bool IsAlive(FrameHandle frame) => !frame.IsNull && poses.IsAlive(new PoseNode(frame.Index, frame.Generation)) && owner[frame.Index] == frame.Entity;
@@ -363,6 +383,105 @@ public sealed partial class FrameTree
     internal DPose TreeLocalPose(FrameHandle frame) => poses.GetLocal(Node(frame));
 
     /// <summary>
+    /// Hands every frame that is not numeric to <paramref name="visitor"/>, in dense order, which puts parents before
+    /// children, with its tree parent and its semantic parent (see <see cref="FrameLinks"/>): one pass over the tree's own
+    /// storage, with no handle check. The sync point walks the frames this way once per pass, because a walk through
+    /// <see cref="AtDense"/> and the members that take a handle paid several handle checks and copies per frame. The visitor
+    /// may write the pose and the velocities of a frame (see <see cref="Follow"/> and <see cref="HoldStill"/>), but must not
+    /// add, remove or move a frame, which would replace the arrays that the walk reads: a contract checks it after each
+    /// visit.
+    /// </summary>
+    internal void VisitFrames<TVisitor>(ref TVisitor visitor) where TVisitor : struct, IFrameVisitor
+    {
+        ReadOnlySpan<int> parents = poses.ParentsDense;
+        ReadOnlySpan<int> ids = poses.IdsDense;
+        ReadOnlySpan<uint> generations = poses.Generations;
+        int shape = poses.Version;
+        for (int dense = 0; dense < ids.Length; dense++)
+        {
+            int id = ids[dense];
+            if (numeric[id] != NumericMode.None)
+                continue;
+            int p = parents[dense];
+            FrameHandle treeParent = FrameHandle.Null, parent = FrameHandle.Null;
+            if (p >= 0)
+            {
+                treeParent = HandleOf(ids[p], generations);
+                int s = p;
+                while (numeric[ids[s]] != NumericMode.None)
+                    s = parents[s];
+                parent = s == p ? treeParent : HandleOf(ids[s], generations);
+            }
+            visitor.Visit(new FrameLinks(HandleOf(id, generations), treeParent, parent));
+            Contract.Assert(poses.Version == shape, "A frame visitor added, removed or moved a frame during the walk.");
+        }
+    }
+
+    /// <summary>
+    /// Hands the owner view of every frame that is not numeric (see <see cref="FrameOwnerView"/>) to
+    /// <paramref name="visitor"/>, in dense order: one pass over the tree's own storage, with no handle check. The visitor
+    /// must not change what an owner view reads, which a contract checks with <see cref="OwnerViewStamp"/> after each visit.
+    /// </summary>
+    internal void VisitOwnerViews<TVisitor>(ref TVisitor visitor) where TVisitor : struct, IOwnerViewVisitor
+    {
+        ReadOnlySpan<int> parents = poses.ParentsDense;
+        ReadOnlySpan<DPose> locals = poses.LocalPoses;
+        ReadOnlySpan<int> ids = poses.IdsDense;
+        ReadOnlySpan<uint> generations = poses.Generations;
+        long stamp = ownerViewStamp;
+        for (int dense = 0; dense < ids.Length; dense++)
+        {
+            if (numeric[ids[dense]] != NumericMode.None)
+                continue;
+            visitor.Visit(OwnerViewAt(dense, parents, locals, ids, generations));
+            Contract.Assert(ownerViewStamp == stamp, "An owner view visitor changed the frame tree during the walk.");
+        }
+    }
+
+    /// <summary>
+    /// The owner view of <paramref name="frame"/>, a frame that is not numeric (see <see cref="FrameOwnerView"/>). Throws
+    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// </summary>
+    internal FrameOwnerView OwnerView(FrameHandle frame)
+    {
+        PoseNode node = Node(frame);
+        Contract.Requires(numeric[node.Id] == NumericMode.None);
+        return OwnerViewAt(poses.DenseIndex(node), poses.ParentsDense, poses.LocalPoses, poses.IdsDense, poses.Generations);
+    }
+
+    /// <summary>
+    /// The owner view of the frame at dense index <paramref name="dense"/>, from the tree's dense arrays. The position in
+    /// the semantic frame is the same sum, in the same order, as <see cref="InSemantic"/>: the frame's local position, then
+    /// the place of each numeric frame on the way up, the nearest first, so that it rounds once at the scale of the
+    /// distance.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private FrameOwnerView OwnerViewAt(int dense, ReadOnlySpan<int> parents, ReadOnlySpan<DPose> locals, ReadOnlySpan<int> ids,
+        ReadOnlySpan<uint> generations)
+    {
+        int id = ids[dense];
+        ref readonly DPose local = ref locals[dense];
+        int p = parents[dense];
+        FrameHandle home = FrameHandle.Null, semantic = FrameHandle.Null;
+        Double3 position = local.Position;
+        if (p >= 0)
+        {
+            home = HandleOf(ids[p], generations);
+            int s = p;
+            while (numeric[ids[s]] != NumericMode.None)
+            {
+                position += locals[s].Position;
+                s = parents[s];
+            }
+            semantic = s == p ? home : HandleOf(ids[s], generations);
+        }
+        return new FrameOwnerView(HandleOf(id, generations), home, semantic, local, position, linearVelocity[id], angularVelocity[id]);
+    }
+
+    /// <summary>The handle of the live frame with stable index <paramref name="id"/>, with its generation from <paramref name="generations"/>.</summary>
+    private FrameHandle HandleOf(int id, ReadOnlySpan<uint> generations) => new(owner[id], id, generations[id]);
+
+    /// <summary>
     /// Sets the pose of the frame in its parent (see <see cref="Parent"/>). The rotation must be unit length (see
     /// <see cref="DQuaternion.IsUnit"/>): a caller that cannot promise it normalizes the rotation first (see
     /// <see cref="DPose.WithUnitRotation"/>).
@@ -378,7 +497,7 @@ public sealed partial class FrameTree
     internal void SetTreeLocalPose(FrameHandle frame, in DPose pose)
     {
         Contract.Requires(pose.Rotation.IsUnit);
-        poses.Local(Node(frame)) = pose;
+        LocalForWrite(Node(frame)) = pose;
     }
 
     /// <summary>The bubble of the frame. It never changes after the frame is created.</summary>
@@ -613,13 +732,19 @@ public sealed partial class FrameTree
     }
 
     /// <summary>Linear velocity of the frame origin relative to its tree parent, in its axes, as it is stored.</summary>
-    internal ref Double3 TreeLinearVelocity(FrameHandle frame) => ref linearVelocity[Node(frame).Id];
+    internal Double3 TreeLinearVelocity(FrameHandle frame) => linearVelocity[Node(frame).Id];
+
+    /// <summary>Sets the linear velocity of the frame origin relative to its tree parent, in its axes (see <see cref="TreeLinearVelocity"/>).</summary>
+    internal void SetTreeLinearVelocity(FrameHandle frame, Double3 velocity) => LinearVelocityForWrite(Node(frame).Id) = velocity;
 
     /// <summary>
     /// Angular velocity of the frame relative to the parent, in parent axes. A numeric frame between them has the axes of
     /// its parent and does not turn, so this is also the angular velocity relative to the tree parent.
     /// </summary>
-    public ref Vector3 AngularVelocity(FrameHandle frame) => ref angularVelocity[Node(frame).Id];
+    public Vector3 AngularVelocity(FrameHandle frame) => angularVelocity[Node(frame).Id];
+
+    /// <summary>Sets the angular velocity of the frame relative to its parent, in parent axes (see <see cref="AngularVelocity"/>).</summary>
+    internal void SetAngularVelocity(FrameHandle frame, Vector3 velocity) => AngularVelocityForWrite(Node(frame).Id) = velocity;
 
     /// <summary>What an accelerometer at the frame origin reads, in frame axes. Zero for a frame in free fall.</summary>
     public ref Vector3 ProperAcceleration(FrameHandle frame) => ref properAcceleration[Node(frame).Id];
@@ -943,6 +1068,52 @@ public sealed partial class FrameTree
         return omega;
     }
 
+    // ---- Writes that an owner view reads ------------------------------------------------------------------------
+    // Every change of a frame's local pose, linear velocity or angular velocity, and every add, remove or move of a frame,
+    // passes through these six members, which increase ownerViewStamp (see OwnerViewStamp). AddFrame fills the new frame's
+    // row after its add, so that row needs no write of its own. An owner view also reads whether each frame is numeric,
+    // which only an add or a remove changes: a write that makes a frame numeric, or stops it being numeric, any other way
+    // must increase ownerViewStamp too.
+
+    private PoseNode AddNode(PoseNode parent, in DPose localPose)
+    {
+        ownerViewStamp++;
+        return poses.Add(parent, localPose);
+    }
+
+    private void RemovePoseNode(PoseNode node)
+    {
+        ownerViewStamp++;
+        poses.Remove(node);
+    }
+
+    private void MoveNode(PoseNode node, PoseNode newParent, bool keepWorldPose)
+    {
+        ownerViewStamp++;
+        poses.Reparent(node, newParent, keepWorldPose);
+    }
+
+    /// <summary>The local pose of <paramref name="node"/>, to write.</summary>
+    private ref DPose LocalForWrite(PoseNode node)
+    {
+        ownerViewStamp++;
+        return ref poses.Local(node);
+    }
+
+    /// <summary>The linear velocity of the frame with stable index <paramref name="id"/>, to write.</summary>
+    private ref Double3 LinearVelocityForWrite(int id)
+    {
+        ownerViewStamp++;
+        return ref linearVelocity[id];
+    }
+
+    /// <summary>The angular velocity of the frame with stable index <paramref name="id"/>, to write.</summary>
+    private ref Vector3 AngularVelocityForWrite(int id)
+    {
+        ownerViewStamp++;
+        return ref angularVelocity[id];
+    }
+
     /// <summary>
     /// The linear acceleration of the origin of frame <paramref name="of"/> relative to frame <paramref name="to"/> in the
     /// current step, in <paramref name="to"/> axes. An acceleration in <paramref name="of"/> converts into
@@ -999,4 +1170,28 @@ public sealed partial class FrameTree
         Array.Resize(ref orbiter, size);
         Samples.Grow(size);
     }
+}
+
+/// <summary>A frame that is not numeric, its tree parent and its semantic parent (see <see cref="FrameTree.VisitFrames"/>).</summary>
+internal readonly record struct FrameLinks(FrameHandle Frame, FrameHandle TreeParent, FrameHandle Parent);
+
+/// <summary>Takes each frame of <see cref="FrameTree.VisitFrames"/>.</summary>
+internal interface IFrameVisitor
+{
+    void Visit(in FrameLinks links);
+}
+
+/// <summary>
+/// The state of <see cref="Frame"/> that the transform row of its owner mirrors (see <see cref="FrameTree.VisitOwnerViews"/>):
+/// its tree parent <see cref="Home"/>, which holds its hull and is the owner's physics home; the semantic frame of that
+/// parent, or null for a root frame; its pose in the tree parent; the position of its origin in that semantic frame,
+/// summed as <see cref="FrameTree.InSemantic"/> sums it; and its velocities relative to the tree parent.
+/// </summary>
+internal readonly record struct FrameOwnerView(FrameHandle Frame, FrameHandle Home, FrameHandle Semantic, DPose LocalPose,
+    Double3 PositionInSemantic, Double3 LinearVelocity, Vector3 AngularVelocity);
+
+/// <summary>Takes the owner view of each frame in <see cref="FrameTree.VisitOwnerViews"/>.</summary>
+internal interface IOwnerViewVisitor
+{
+    void Visit(in FrameOwnerView view);
 }

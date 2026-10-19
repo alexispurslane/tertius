@@ -46,8 +46,8 @@ public sealed partial class FrameTree
         FrameHandle orbitFrame = TreeParent(anchor);
         // The sample is relative to the anchor's semantic parent, in which the orbit frame lies (see the class summary).
         Contract.Assert(relativeTo == Parent(orbitFrame));
-        poses.Local(Node(orbitFrame)) = new DPose(sample.Pose.Position, DQuaternion.Identity);
-        linearVelocity[orbitFrame.Index] = sample.ChordVelocity;
+        LocalForWrite(Node(orbitFrame)) = new DPose(sample.Pose.Position, DQuaternion.Identity);
+        LinearVelocityForWrite(orbitFrame.Index) = sample.ChordVelocity;
     }
 
     /// <summary>
@@ -64,11 +64,13 @@ public sealed partial class FrameTree
     /// </summary>
     internal void Follow(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
     {
-        int id = Node(frame).Id;
+        PoseNode node = Node(frame);
+        int id = node.Id;
         Contract.Requires(relativeTo == TreeParent(frame));
-        SetTreeLocalPose(frame, record.Pose);
-        linearVelocity[id] = record.Velocity;
-        angularVelocity[id] = record.AngularVelocity.ToVector3();
+        Contract.Requires(record.Pose.Rotation.IsUnit);
+        LocalForWrite(node) = record.Pose;
+        LinearVelocityForWrite(id) = record.Velocity;
+        AngularVelocityForWrite(id) = record.AngularVelocity.ToVector3();
         properAcceleration[id] = record.ProperAcceleration;
     }
 
@@ -83,8 +85,8 @@ public sealed partial class FrameTree
     {
         int id = Node(frame).Id;
         FrameHandle treeParent = TreeParent(frame);
-        linearVelocity[id] = treeParent.IsNull ? Double3.Zero : HomeInstantVelocityOverChord(treeParent, SemanticOf(treeParent), dt);
-        angularVelocity[id] = Vector3.Zero;
+        LinearVelocityForWrite(id) = treeParent.IsNull ? Double3.Zero : HomeInstantVelocityOverChord(treeParent, SemanticOf(treeParent), dt);
+        AngularVelocityForWrite(id) = Vector3.Zero;
     }
 
     /// <summary>
@@ -107,11 +109,11 @@ public sealed partial class FrameTree
         // or by a teleport in a step without a sample, whose record then fills the applied buffer.
         Contract.Requires(sampled && relativeTo == Parent(orbitFrame));
         int orbitId = Node(orbitFrame).Id;
-        ref DPose orbitLocal = ref poses.Local(Node(orbitFrame));
+        ref DPose orbitLocal = ref LocalForWrite(Node(orbitFrame));
         Double3 offset = sample.Pose.Position - orbitLocal.Position, change = sample.ChordVelocity - linearVelocity[orbitId];
         orbitLocal = new DPose(sample.Pose.Position, DQuaternion.Identity);
-        linearVelocity[orbitId] = sample.ChordVelocity;
-        ref DPose anchorLocal = ref poses.Local(Node(anchor));
+        LinearVelocityForWrite(orbitId) = sample.ChordVelocity;
+        ref DPose anchorLocal = ref LocalForWrite(Node(anchor));
         anchorLocal = new DPose(Double3.Zero, anchorLocal.Rotation);
         shiftChildren.Clear();
         GetTreeChildren(orbitFrame, shiftChildren);
@@ -120,9 +122,9 @@ public sealed partial class FrameTree
             if (child == anchor)
                 continue;
             PoseNode childNode = Node(child);
-            ref DPose childLocal = ref poses.Local(childNode);
+            ref DPose childLocal = ref LocalForWrite(childNode);
             childLocal = new DPose(childLocal.Position - offset, childLocal.Rotation);
-            linearVelocity[childNode.Id] -= change;
+            LinearVelocityForWrite(childNode.Id) -= change;
         }
         changes.FramesShifted.Add(new FrameShift(orbitFrame, offset, change));
     }
@@ -157,8 +159,8 @@ public sealed partial class FrameTree
         FrameHandle orbitFrame = CreateNumeric(semantic, position, chord, NumericMode.Orbiting);
         orbiter[orbitFrame.Index] = frame;
         Reparent(frame, orbitFrame);
-        poses.Local(Node(frame)) = new DPose(Double3.Zero, local.Rotation);
-        linearVelocity[frame.Index] = velocity - chord;
+        LocalForWrite(Node(frame)) = new DPose(Double3.Zero, local.Rotation);
+        LinearVelocityForWrite(frame.Index) = velocity - chord;
         Contract.Ensures(InOrbitFrame(frame) && Parent(frame) == semantic);
         return orbitFrame;
     }
@@ -1073,7 +1075,7 @@ public sealed partial class FrameTree
         Node(parent);
         FrameHandle handle = AddFrame(Entity.Null, parent, new DPose(position, DQuaternion.Identity), default,
             GravityField.None, mode);
-        linearVelocity[handle.Index] = velocity;
+        LinearVelocityForWrite(handle.Index) = velocity;
         NumericCount++;
         Contract.Ensures(Numeric(handle) == mode && TreeParent(handle) == parent);
         return handle;
@@ -1095,18 +1097,18 @@ public sealed partial class FrameTree
         Contract.Requires(numeric[node.Id] == NumericMode.Falling || velocity == Double3.Zero);
         // A nesting frame jumps by whole grid steps only, so that it stays exact.
         Contract.Requires(numeric[node.Id] != NumericMode.Nesting || NumericFrameRules.OnGrid(offset, NumericOptions.NestGrid));
-        ref DPose local = ref poses.Local(node);
+        ref DPose local = ref LocalForWrite(node);
         local = new DPose(local.Position + offset, local.Rotation);
-        linearVelocity[node.Id] += velocity;
+        LinearVelocityForWrite(node.Id) += velocity;
         List<FrameHandle> children = shiftChildren;
         children.Clear();
         GetTreeChildren(frame, children);
         foreach (FrameHandle child in children)
         {
             PoseNode childNode = Node(child);
-            ref DPose childLocal = ref poses.Local(childNode);
+            ref DPose childLocal = ref LocalForWrite(childNode);
             childLocal = new DPose(childLocal.Position - offset, childLocal.Rotation);
-            linearVelocity[childNode.Id] -= velocity;
+            LinearVelocityForWrite(childNode.Id) -= velocity;
         }
     }
 
@@ -1121,8 +1123,8 @@ public sealed partial class FrameTree
         PoseNode node = Node(frame), nestNode = Node(nest);
         Contract.Requires(numeric[node.Id] is NumericMode.Falling or NumericMode.Resting && numeric[nestNode.Id] == NumericMode.Nesting);
         Contract.Requires(SemanticOf(TreeParent(frame)) == TreeParent(nest));
-        poses.Reparent(node, nestNode, keepWorldPose: false);
-        poses.Local(node) = new DPose(position, DQuaternion.Identity);
+        MoveNode(node, nestNode, keepWorldPose: false);
+        LocalForWrite(node) = new DPose(position, DQuaternion.Identity);
         Contract.Ensures(TreeParent(frame) == nest);
     }
 
@@ -1187,15 +1189,18 @@ public sealed partial class FrameTree
     internal void AdvanceNumericFrames(double dt)
     {
         Contract.Requires(dt >= 0 && double.IsFinite(dt));
+        if (NumericCount == 0)
+            return;
         for (int i = 0; i < poses.Count; i++)
         {
             PoseNode node = poses.NodeAt(i);
             int id = node.Id;
             if (numeric[id] is not (NumericMode.Falling or NumericMode.Orbiting))
                 continue;
-            linearVelocity[id] += stepAcceleration[id] * dt;
-            ref DPose local = ref poses.Local(node);
-            local = new DPose(local.Position + linearVelocity[id] * dt, local.Rotation);
+            ref Double3 velocity = ref LinearVelocityForWrite(id);
+            velocity += stepAcceleration[id] * dt;
+            ref DPose local = ref LocalForWrite(node);
+            local = new DPose(local.Position + velocity * dt, local.Rotation);
         }
     }
 }

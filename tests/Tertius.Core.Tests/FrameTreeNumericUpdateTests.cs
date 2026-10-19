@@ -392,7 +392,7 @@ public class FrameTreeNumericUpdateTests
     {
         FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
-        frames.TreeLinearVelocity(hull) = X(60);
+        frames.SetTreeLinearVelocity(hull, X(60));
         NumericBody owner = Body(20, x: 50, vx: 60, character: true) with { OwnedFrame = hull };
         FrameHandle pod = Update(0.1, owner)[0].Home;
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
@@ -536,7 +536,7 @@ public class FrameTreeNumericUpdateTests
     {
         FrameHandle hull = frames.Create(new Entity(20, 1), ground, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
-        frames.TreeLinearVelocity(hull) = X(60);
+        frames.SetTreeLinearVelocity(hull, X(60));
         FrameHandle pod = Update(0.1, Body(20, x: 50, vx: 60, character: true) with { OwnedFrame = hull })[0].Home;
         DPose pose = frames.LocalPose(hull);
         Double3 velocity = frames.LinearVelocity(hull);
@@ -680,10 +680,10 @@ public class FrameTreeNumericUpdateTests
     {
         DQuaternion turned = DQuaternion.FromAxisAngle(new Double3(0, 1, 0), 0.5);
         FrameHandle station = frames.Create(new Entity(2, 1), ground, new DPose(X(1_000), turned), FrameBounds.Sphere(1e6f));
-        frames.AngularVelocity(station) = new System.Numerics.Vector3(0, 0.1f, 0);
+        frames.SetAngularVelocity(station, new System.Numerics.Vector3(0, 0.1f, 0));
         FrameHandle hull = frames.Create(new Entity(20, 1), station, new DPose(X(50), DQuaternion.Identity), FrameBounds.Sphere(50));
         frames.SetHullMotion(hull, BodyMotion.Dynamic);
-        frames.TreeLinearVelocity(hull) = X(60);
+        frames.SetTreeLinearVelocity(hull, X(60));
         NumericBody owner = Body(20, x: 50, vx: 60, character: true) with { Semantic = station, Home = station, HomePosition = X(50), OwnedFrame = hull };
         FrameHandle pod = Update(0.1, owner)[0].Home;
         frames.TreeParent(hull).Should().Be(pod);

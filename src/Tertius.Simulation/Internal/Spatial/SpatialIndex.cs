@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Tertius.Simulation;
 
 /// <summary>
@@ -17,44 +19,148 @@ namespace Tertius.Simulation;
 /// </remarks>
 internal sealed class SpatialIndex
 {
-    /// <summary>Where one entity is in the grids.</summary>
-    private struct Placement
+    /// <summary>The case of a <see cref="Placement"/> of an entity that a grid lists.</summary>
+    /// <param name="Frame">The index of the frame whose grid lists the entity.</param>
+    /// <param name="Cell">The cell of that grid that lists the entity.</param>
+    private readonly record struct InCell(int Frame, CellKey Cell);
+
+    /// <summary>
+    /// Where one entity is in the grids: <see cref="InCell"/>, or in no grid. The empty value is <see cref="NotInGrid"/>,
+    /// the all-zero default, so the row that the entity table clears for a released slot is in no grid.
+    /// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> method let the compiler
+    /// pattern-match it without boxing. <see cref="Value"/> boxes, so use it only for debugging.
+    /// </summary>
+    [Union]
+    private readonly struct Placement : IEquatable<Placement>
     {
-        public bool InGrid;
-        public int Frame;
-        public CellKey Cell;
+        private const byte KindNotInGrid = 0, KindInCell = 1;
+
+        private readonly byte kind;
+        private readonly int frame;
+        private readonly CellKey cell;
+
+        public Placement(InCell inCell) { kind = KindInCell; frame = inCell.Frame; cell = inCell.Cell; }
+
+        public static implicit operator Placement(InCell inCell) => new(inCell);
+
+        /// <summary>In no grid.</summary>
+        public static Placement NotInGrid => default;
+
+        /// <summary>False for <see cref="NotInGrid"/>.</summary>
+        public bool HasValue => kind != KindNotInGrid;
+
+        public bool TryGetValue(out InCell value)
+        {
+            value = kind == KindInCell ? new InCell(frame, cell) : default;
+            return kind == KindInCell;
+        }
+
+        public object? Value => kind == KindInCell ? new InCell(frame, cell) : null;
+
+        // The fields of NotInGrid are always zero, so comparing every field compares the cases.
+        public bool Equals(Placement other) => kind == other.kind && frame == other.frame && cell == other.cell;
+        public override bool Equals(object? obj) => obj is Placement other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(kind, frame, cell);
+        public static bool operator ==(Placement a, Placement b) => a.Equals(b);
+        public static bool operator !=(Placement a, Placement b) => !a.Equals(b);
+
+        public override string ToString() => this switch
+        {
+            InCell at => $"Placement({at})",
+            _ => "Placement(not in a grid)",
+        };
     }
+
+    /// <summary>A moved entity and the placement that <see cref="Update"/> found for it, before the grids change.</summary>
+    private readonly record struct Move(Entity Entity, Placement To);
+
+    /// <summary>The number of work items of an update on the workers, which share the moved entities in equal ranges.</summary>
+    private const int ParallelItems = 32;
 
     private readonly EntityTable entities;
     private readonly FrameTree frames;
+    private readonly ParallelOptions? workers;
     private readonly EntityTable.Column<Placement> placements;
     private SpatialGrid?[] grids = new SpatialGrid?[16];
 
-    public SpatialIndex(EntityTable entities, FrameTree frames)
+    // The moves that the last update found. In an update on the workers, each work item writes the moves of its range of
+    // the moved entities into the same range here, and records how many it found.
+    private Move[] moves = [];
+    private readonly int[] movesPerItem = new int[ParallelItems];
+
+    // The moved entities of an update on the workers, copied out of the entity table so that the workers can read them.
+    private Entity[] movedForWorkers = [];
+    private int movedCount;
+    private Action<int>? findItemMoves;
+
+    /// <param name="entities">The entity table whose front rows the grids index.</param>
+    /// <param name="frames">The frame tree whose frames have the grids.</param>
+    /// <param name="workers">
+    /// The workers on which a large <see cref="Update"/> finds the new cells, or null to run every update on the calling
+    /// thread.
+    /// </param>
+    public SpatialIndex(EntityTable entities, FrameTree frames, ParallelOptions? workers = null)
     {
         this.entities = entities;
         this.frames = frames;
+        this.workers = workers;
         placements = entities.AddColumn<Placement>(Remove);
     }
 
-    /// <summary>Moves each entity whose front transform changed since the last update into its current cell.</summary>
+    /// <summary>
+    /// The default of <see cref="ParallelThreshold"/>. Measured with SpatialUpdateBenchmarks on an M1 Max: while the rows
+    /// that an update reads fit in the caches of the sync thread, up to about 50,000 moved entities, the workers save
+    /// nothing. From 65,536 on they save 8 to 10 percent there, and a third to a half of step 8c in the 100,000-entity
+    /// tick benchmark.
+    /// </summary>
+    internal const int DefaultParallelThreshold = 65_536;
+
+    /// <summary>
+    /// The fewest moved entities for which <see cref="Update"/> finds their new cells on the workers. 1 or more. Both
+    /// paths end in the same grids, so only tests change it: at 1, every update with a moved entity takes the workers.
+    /// </summary>
+    internal int ParallelThreshold
+    {
+        get => parallelThreshold;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            parallelThreshold = value;
+        }
+    }
+
+    private int parallelThreshold = DefaultParallelThreshold;
+
+    /// <summary>
+    /// Moves each entity whose front transform changed since the last update into its current cell. With workers and at
+    /// least <see cref="ParallelThreshold"/> moved entities, the workers find the new cells; the grids end in the same
+    /// state either way.
+    /// </summary>
     public void Update()
     {
-        foreach (Entity entity in entities.TakeMoved())
+        // An update finds the moves first and applies them after, in the order of the moved entities. Finding the move of
+        // an entity reads only that entity's placement and front row, and applying a move writes only that entity's
+        // placement and the grids. The moved list names each entity once, so no entity's move depends on a move applied
+        // before it, and the grids end as if each entity were moved as soon as its move was found.
+        ReadOnlySpan<Entity> moved = entities.TakeMoved();
+        if (moves.Length < moved.Length)
+            moves = new Move[Math.Max(moved.Length, moves.Length * 2)];
+        if (workers == null || moved.Length < parallelThreshold)
         {
-            ref Placement placement = ref placements[entity];
-            ref readonly TransformRow row = ref entities.FrontRow(entity);
-            bool inGrid = !row.Frame.IsNull;
-            int frame = inGrid ? row.Frame.Index : 0;
-            CellKey cell = inGrid ? SpatialGrid.CellOf(row.Pose.Position) : default;
-            if (placement.InGrid == inGrid && (!inGrid || (placement.Frame == frame && placement.Cell == cell)))
-                continue;
-            if (placement.InGrid)
-                grids[placement.Frame]?.Remove(placement.Cell, entity);
-            if (inGrid)
-                GridAt(frame).Add(cell, entity);
-            placement = new Placement { InGrid = inGrid, Frame = frame, Cell = cell };
+            Apply(moves.AsSpan(0, FindMoves(moved, moves)));
+            return;
         }
+
+        // Each work item finds the moves of one range of the moved entities, into the same range of the moves. This
+        // thread applies the ranges in order, so it applies every move in the order of the moved entities, as above.
+        if (movedForWorkers.Length < moved.Length)
+            movedForWorkers = new Entity[moves.Length];
+        moved.CopyTo(movedForWorkers);
+        movedCount = moved.Length;
+        int items = Math.Min(movedCount, ParallelItems);
+        Parallel.For(0, items, workers, findItemMoves ??= FindItemMoves);
+        for (int item = 0; item < items; item++)
+            Apply(moves.AsSpan(ItemStart(item, items), movesPerItem[item]));
     }
 
     /// <summary>
@@ -144,12 +250,12 @@ internal sealed class SpatialIndex
         {
             ref readonly Placement placement = ref placements[entity];
             ref readonly TransformRow row = ref entities.FrontRow(entity);
-            Contract.Invariant(placement.InGrid == !row.Frame.IsNull);
-            if (!placement.InGrid)
+            Contract.Invariant(placement.HasValue == !row.Frame.IsNull);
+            if (placement is not InCell at)
                 continue;
             placed++;
-            Contract.Invariant(placement.Frame == row.Frame.Index && placement.Cell == SpatialGrid.CellOf(row.Pose.Position));
-            Contract.Invariant(grids[placement.Frame] is { } grid && grid.TryGetCell(placement.Cell, out List<Entity>? cell) && cell.Contains(entity));
+            Contract.Invariant(at.Frame == row.Frame.Index && at.Cell == SpatialGrid.CellOf(row.Pose.Position));
+            Contract.Invariant(grids[at.Frame] is { } grid && grid.TryGetCell(at.Cell, out List<Entity>? cell) && cell.Contains(entity));
         }
         int listed = 0;
         for (int frame = 0; frame < grids.Length; frame++)
@@ -162,8 +268,7 @@ internal sealed class SpatialIndex
                 foreach (Entity entity in cell.Value)
                 {
                     Contract.Invariant(entities.IsAlive(entity));
-                    ref readonly Placement placement = ref placements[entity];
-                    Contract.Invariant(placement.InGrid && placement.Frame == frame && placement.Cell == cell.Key);
+                    Contract.Invariant(placements[entity] == new InCell(frame, cell.Key));
                     listed++;
                 }
             }
@@ -171,12 +276,64 @@ internal sealed class SpatialIndex
         Contract.Invariant(listed == placed);
     }
 
+    /// <summary>
+    /// Writes a <see cref="Move"/> into <paramref name="into"/> for each entity of <paramref name="moved"/> whose placement
+    /// changed, in the order of <paramref name="moved"/>, and returns how many. It reads only those entities'
+    /// placements and front rows and writes only <paramref name="into"/>, so workers can run it on disjoint ranges.
+    /// </summary>
+    private int FindMoves(ReadOnlySpan<Entity> moved, Span<Move> into)
+    {
+        int count = 0;
+        foreach (Entity entity in moved)
+        {
+            ref readonly TransformRow row = ref entities.FrontRow(entity);
+            Placement to = row.Frame.IsNull ? Placement.NotInGrid : new InCell(row.Frame.Index, SpatialGrid.CellOf(row.Pose.Position));
+            if (placements[entity] != to)
+                into[count++] = new Move(entity, to);
+        }
+        return count;
+    }
+
+    /// <summary>The moves of one work item of an update on the workers, on a worker.</summary>
+    private void FindItemMoves(int item)
+    {
+        int items = Math.Min(movedCount, ParallelItems);
+        int start = ItemStart(item, items), length = ItemStart(item + 1, items) - start;
+        movesPerItem[item] = FindMoves(movedForWorkers.AsSpan(start, length), moves.AsSpan(start, length));
+    }
+
+    /// <summary>The index of the first moved entity of a work item: the items share the moved entities in equal ranges.</summary>
+    private int ItemStart(int item, int items) => (int)((long)movedCount * item / items);
+
+    /// <summary>Takes each entity of <paramref name="found"/> out of its old cell, puts it into its new one, and records where it is now.</summary>
+    private void Apply(ReadOnlySpan<Move> found)
+    {
+        foreach (ref readonly Move move in found)
+        {
+            ref Placement placement = ref placements[move.Entity];
+            switch (placement, move.To)
+            {
+                case (InCell from, InCell to) when from.Frame == to.Frame:
+                    // Within one grid: one lookup per cell.
+                    GridAt(to.Frame).Move(from.Cell, to.Cell, move.Entity);
+                    break;
+                case (var from, var to):
+                    // Into the grid of another frame, out of every grid, or into a grid from none.
+                    if (from is InCell left)
+                        grids[left.Frame]?.Remove(left.Cell, move.Entity);
+                    if (to is InCell entered)
+                        GridAt(entered.Frame).Add(entered.Cell, move.Entity);
+                    break;
+            }
+            placement = move.To;
+        }
+    }
+
     /// <summary>Takes a released entity, still live while this runs, out of its cell. The entity table clears its placement next.</summary>
     private void Remove(Entity entity)
     {
-        ref Placement placement = ref placements[entity];
-        if (placement.InGrid)
-            grids[placement.Frame]?.Remove(placement.Cell, entity);
+        if (placements[entity] is InCell at)
+            grids[at.Frame]?.Remove(at.Cell, entity);
     }
 
     private SpatialGrid GridAt(int frame)

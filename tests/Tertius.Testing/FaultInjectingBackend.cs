@@ -177,8 +177,6 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
     public void Overlap(FrameHandle frame, in QueryShape shape, in DPose pose, IPhysicsQueryFilter filter, List<Entity> entities) =>
         Jolt.Overlap(frame, shape, pose, filter, entities);
 
-    public float BoundingRadius(ShapeDesc shape) => Jolt.BoundingRadius(shape);
-
     public string? ShapeProblem(ShapeDesc shape) => Jolt.ShapeProblem(shape);
 
     public void Dispose() => Jolt.Dispose();
