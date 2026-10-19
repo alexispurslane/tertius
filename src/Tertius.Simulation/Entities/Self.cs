@@ -61,28 +61,68 @@ public readonly ref struct Self
     public Vector3 AngularVelocityIn(FrameHandle frame) => world.AngularVelocityIn(Entity, frame);
 
     /// <summary>
-    /// Sets this entity's pose in <see cref="Frame"/>. The new pose takes effect at the sync point. Throws
-    /// <see cref="InvalidOperationException"/> if the entity has a body, which physics moves, or if it is attached to a
-    /// parent. The owner of a frame without a body can write it: the frame takes the pose at the sync point of the tick,
-    /// and a frame on rails goes back on its rails with its next sample.
+    /// Sets this entity's pose in <see cref="Frame"/>. The new pose takes effect at the sync point, and leaves the entity at
+    /// rest: its velocities become zero. The write wins over the motion intent of the step that runs beside this tick, and the
+    /// next motion intent moves the entity on from the new pose. Throws <see cref="InvalidOperationException"/> if the entity
+    /// has a body, which physics moves, or if it is attached to a parent. The owner of a frame without a body can write it:
+    /// the frame takes the pose at the sync point of the tick, and a frame on rails goes back on its rails with its next
+    /// sample.
     /// </summary>
     public void SetTransform(in DPose pose) => world.WritableTransform(Entity) = pose;
+
+    /// <summary>
+    /// This entity's pose in <paramref name="frame"/> where it starts the next physics step, the step in which this tick's
+    /// intent acts: where the motion intent of the step that runs beside this tick ends, an end pose or a full sample, which
+    /// puts the entity there exactly; else where that step's teleport puts it; else its pose now. A kinematic body without a
+    /// motion intent holds still in its home in that step, hull or not, so the read moves its pose now with a numeric home
+    /// over the step. Physics moves a dynamic body or a character, which the read does not predict: for one, it gives the
+    /// pose now. A steer target gives no exact end, so the read skips it. The null frame is the root's own space, in which
+    /// the owner of a root frame writes its motion intents. A rails component reads it to start its motion where the motion before it, such as the last sample
+    /// of a component that it replaced, leaves the entity (see <see cref="SpinMotion"/>). Throws
+    /// <see cref="ArgumentException"/> for a stale frame.
+    /// </summary>
+    public DPose PoseAtNextStepStartIn(FrameHandle frame) => world.PoseAtNextStepStartIn(Entity, frame);
 
     /// <summary>A proxy over this entity's physics intent for this tick. Physics receives it in the next step.</summary>
     public BodyHandle Body => new(world, Entity);
 
     /// <summary>
-    /// Writes the motion of the frame that this entity owns over the next physics step: the step in which this tick's
-    /// intents act, which ends at <c>TimeAt(Tick + 2)</c>. The sample is relative to <see cref="Frame"/>, the frame's
-    /// semantic parent, in its axes, except its proper acceleration, which is in the frame's own axes. The last write in a
-    /// tick wins. A frame whose owner writes no sample in a tick has none in the next step. Throws
-    /// <see cref="InvalidOperationException"/> if the entity owns no frame, or if the frame has a parent and the entity has a
-    /// body that is not kinematic: that body is the frame's hull, and only a kinematic hull follows a sample. A frame without
-    /// a body can write a sample, and so can the owner of a root frame, whose body is the frame's static interior. Throws
-    /// <see cref="ArgumentException"/> for a sample with a field that is not a finite number or with a zero rotation. Any
-    /// other rotation is made unit length.
+    /// Writes <paramref name="sample"/>, the full motion of this entity over the next physics step, as the motion intent of
+    /// that step (see <see cref="MotionSample"/>): the step in which this tick's intents act, which ends at
+    /// <c>TimeAt(Tick + 2)</c>. The sample is relative to <see cref="Frame"/>, in its axes. Physics or the sync point puts the
+    /// entity exactly on it, and the entity holds still in a step without a motion intent. The frame tree derives the
+    /// proper acceleration of a frame that the entity owns from it (see <see cref="FrameTree.ProperAcceleration"/>). The last
+    /// motion intent of a tick wins, whatever its case. Throws <see cref="ArgumentException"/> for a sample with a field that
+    /// is not a finite number or with a zero rotation, and makes any other rotation unit length. Throws
+    /// <see cref="InvalidOperationException"/> with the reason of <see cref="MotionIntentProblem"/> when the entity refuses a
+    /// full sample: a kinematic body, an entity without a body and the owner of a root frame take one.
     /// </summary>
     public void MoveOnRails(in MotionSample sample) => world.MoveOnRails(Entity, sample);
+
+    /// <summary>
+    /// Writes the end pose <paramref name="endPose"/>, relative to <see cref="Frame"/>, as the motion intent of the next step
+    /// (see <see cref="EndPose"/>): the entity moves there over the step at a constant velocity, physics or the sync point
+    /// puts it exactly there, and it holds still in the step after its last motion intent. The last motion intent of a tick
+    /// wins, whatever its case. Throws <see cref="ArgumentException"/> for a pose that is not finite or has a zero rotation,
+    /// and <see cref="InvalidOperationException"/> with the reason of <see cref="MotionIntentProblem"/> when the entity
+    /// refuses an end pose, as <see cref="MoveOnRails"/> does.
+    /// </summary>
+    public void MoveKinematic(in DPose endPose) =>
+        world.WriteMotionIntent(Entity, nameof(MoveKinematic), new MotionIntent(new EndPose(endPose)));
+
+    /// <summary>
+    /// The reason that this entity refuses the case of <paramref name="intent"/> in the next step, or null when it takes it
+    /// (see <see cref="World.MotionIntentProblem"/>). The writers of a motion intent throw with that reason, so a rails
+    /// component reads it before it writes.
+    /// </summary>
+    public string? MotionIntentProblem(in MotionIntent intent) => world.MotionIntentProblem(Entity, intent);
+
+    /// <summary>
+    /// True when this entity takes the case of <paramref name="intent"/> in the next step (see
+    /// <see cref="World.TakesMotionIntent"/>): <see cref="MotionIntentProblem"/> gives no reason. It builds no reason, so it
+    /// allocates nothing, and a rails component asks it in every tick and reads the reason only for its one log line.
+    /// </summary>
+    public bool TakesMotionIntent(in MotionIntent intent) => world.TakesMotionIntent(Entity, intent);
 
     /// <summary>This entity's physics queries, such as ray casts. Each answer arrives as an event in the next tick.</summary>
     public PhysicsQueries Physics => new(world, chunk, Entity);
@@ -147,8 +187,8 @@ public readonly ref struct Self
 
 /// <summary>
 /// A proxy over the running entity's physics intent. All vectors are in frame axes. Forces, torques and impulses add
-/// up during the tick. Velocity changes, kinematic targets, teleports, character moves and jumps keep the last value
-/// written. Physics applies the intent in the next step. Every method throws <see cref="InvalidOperationException"/>
+/// up during the tick. Velocity changes, the motion intent (an end pose or a steer target), teleports, character moves
+/// and jumps keep the last value written. Physics applies the intent in the next step. Every method throws <see cref="InvalidOperationException"/>
 /// when the entity has no body. The properties work for every entity: <see cref="Pending"/> is the empty intent for an
 /// entity without a body.
 /// </summary>
@@ -179,8 +219,8 @@ public readonly ref struct BodyHandle
     /// body is only the frame's static interior. For a hull it counts the change of motion that the entity wrote so far in
     /// this tick (see <see cref="SetMotion"/>), and the one of the tick before, which the running step applies. The body facts
     /// of the snapshot describe the last finished step, so they show a change only from the tick after the step that applies
-    /// it (see <see cref="BodyFacts.Motion"/>). A rails component asks it before it writes a sample, which only a kinematic
-    /// hull takes (see <see cref="Self.MoveOnRails"/>).
+    /// it (see <see cref="BodyFacts.Motion"/>). A rails component asks it on its first run, to teleport a kinematic body onto
+    /// its rails.
     /// </summary>
     public BodyMotion? NextStepMotion => world.NextStepMotion(entity);
 
@@ -201,8 +241,8 @@ public readonly ref struct BodyHandle
 
     /// <summary>
     /// Sets the linear velocity before the next step, relative to the entity's frame, in its axes. Physics converts it
-    /// when it applies it. Throws <see cref="InvalidOperationException"/> for a kinematic hull, which moves only by
-    /// <see cref="Self.MoveOnRails"/> and <see cref="Teleport"/>.
+    /// when it applies it. Throws <see cref="InvalidOperationException"/> for a body that is kinematic in the next step, hull
+    /// or plain, which moves only by its motion intents and teleports (see <see cref="Self.MoveKinematic"/>).
     /// </summary>
     public void SetVelocity(Double3 velocity)
     {
@@ -212,8 +252,8 @@ public readonly ref struct BodyHandle
     }
 
     /// <summary>
-    /// Sets the angular velocity before the next step. Throws <see cref="InvalidOperationException"/> for a kinematic hull,
-    /// which moves only by <see cref="Self.MoveOnRails"/> and <see cref="Teleport"/>.
+    /// Sets the angular velocity before the next step. Throws <see cref="InvalidOperationException"/> for a body that is
+    /// kinematic in the next step, hull or plain, which moves only by its motion intents and teleports.
     /// </summary>
     public void SetAngularVelocity(Vector3 velocity)
     {
@@ -223,19 +263,21 @@ public readonly ref struct BodyHandle
     }
 
     /// <summary>
-    /// Moves a kinematic body to <paramref name="target"/> over the next step. Throws <see cref="InvalidOperationException"/>
-    /// for a kinematic hull, which moves only by <see cref="Self.MoveOnRails"/> and <see cref="Teleport"/>.
+    /// Writes the steer target <paramref name="target"/>, relative to the entity's frame, as the motion intent of the next
+    /// step (see <see cref="SteerTarget"/>): physics gives a dynamic body the velocities that carry it to the target over
+    /// the step. Contacts and gravity still act on it, so it can end the step away from the target. In the step after its
+    /// last steer target, physics stops it, unless that step sets its velocity. The last motion intent of a tick wins,
+    /// whatever its case. Throws <see cref="ArgumentException"/> for a pose that is not finite or has a zero rotation, and
+    /// <see cref="InvalidOperationException"/> with the reason of <see cref="World.MotionIntentProblem"/> when the entity
+    /// refuses a steer target: only a dynamic body takes one.
     /// </summary>
-    public void MoveKinematic(in DPose target)
-    {
-        ref PhysicsIntent intent = ref world.WritableMotionIntent(entity, nameof(MoveKinematic));
-        intent.Target = target;
-        intent.Flags |= IntentFlags.KinematicTarget;
-    }
+    public void SteerTo(in DPose target) =>
+        world.WriteMotionIntent(entity, nameof(SteerTo), new MotionIntent(new SteerTarget(target)));
 
     /// <summary>
-    /// Puts the body at <paramref name="pose"/> before the next step, without sweeping. It is separate from
-    /// <see cref="MoveKinematic"/>, so a body can teleport and then move kinematically in the same step.
+    /// Puts the body at <paramref name="pose"/> before the next step, without sweeping. It is separate from the motion
+    /// intent (<see cref="Self.MoveKinematic"/>, <see cref="Self.MoveOnRails"/> and <see cref="SteerTo"/>), so a body can
+    /// teleport and then move on from the teleport's pose in the same step.
     /// </summary>
     public void Teleport(in DPose pose)
     {
@@ -293,9 +335,11 @@ public readonly ref struct BodyHandle
     /// in the next one. The stored motion, which <see cref="FrameTree.HullMotion"/> and the body facts show, describes the
     /// last finished step, as the collision groups do: it changes at step 4 of the sync point after the next step. The hull
     /// keeps its body, its system and its contacts. The last change in a tick wins, and a change to the motion that the hull
-    /// has changes nothing. A hull that is not kinematic in the next step drops the sample written in this tick, and one that
-    /// is kinematic drops the velocities and the kinematic target set in this tick, because a kinematic hull moves only by
-    /// its samples and teleports. A parked frame stops at the sync point after the next step.
+    /// has changes nothing. The hull drops the motion intent written in this tick that the guard refuses under its motion in
+    /// the next step (see <see cref="Self.MotionIntentProblem"/>): one that is not kinematic drops an end pose or a full
+    /// sample, and one that is not dynamic drops a steer target. One that is kinematic also drops the velocities set in this
+    /// tick (<see cref="SetVelocity"/> and <see cref="SetAngularVelocity"/>), because a kinematic hull moves only by its
+    /// motion intents and teleports. A parked frame stops at the sync point after the next step.
     /// </summary>
     /// <exception cref="InvalidOperationException">The body is no hull: the entity has no body, owns no frame, or owns a root frame.</exception>
     /// <exception cref="ArgumentException">

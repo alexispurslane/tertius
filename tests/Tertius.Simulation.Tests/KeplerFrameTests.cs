@@ -50,23 +50,34 @@ public class KeplerFrameTests
     }
 
     private static Entity SpawnKeplerFrame(TestWorld test, KeplerOrbit orbit, FrameHandle parent = default, GravityField gravity = default,
-        params IComponent[] components) =>
+        params IComponent[] components) => SpawnKeplerFrame(test, orbit, firstMove: false, parent, gravity, components);
+
+    private static Entity SpawnKeplerFrame(TestWorld test, KeplerOrbit orbit, bool firstMove, FrameHandle parent = default,
+        GravityField gravity = default, params IComponent[] components) =>
         test.World.Spawn(new SpawnDesc
         {
             Frame = parent.IsNull ? test.Root : parent,
             AsFrame = new FrameSpec(FrameBounds.Sphere(1), gravity),
             Components = components,
-        }.OnKeplerOrbit(test.World, orbit));
+        }.OnKeplerOrbit(test.World, orbit, firstMove));
 
+    /// <summary>
+    /// The frame has no body, so only its motion intents move it, and it spawns with no velocity. Its first motion intent
+    /// carries it along the orbit from its first step, so its first sync point gives it the orbit's velocity at the end of
+    /// that step, at mean anomaly n dt.
+    /// </summary>
     [Fact]
     public void AKeplerFrameIsPlacedOnItsOrbitAtTheStartTimeAsSoonAsItExists()
     {
         using var test = NewWorld();
-        FrameHandle moon = test.World.GetOwnedFrame(SpawnKeplerFrame(test, Circle(1000)));
+        FrameHandle moon = test.World.GetOwnedFrame(SpawnKeplerFrame(test, Circle(1000), firstMove: true));
 
-        // At mean anomaly 0 the body is at the parent's +X and moves toward -Z at the orbital speed.
+        // At mean anomaly 0 the body is at the parent's +X.
         PoseChecks.AssertNear(test.World.Frames.LocalPose(moon).Position, new Double3(1000, 0, 0), 1e-9);
-        PoseChecks.AssertNear(test.World.Frames.LinearVelocity(moon), new Double3(0, 0, -1000 * MeanMotion), 1e-9);
+        test.Run(1);
+        // At mean anomaly M the body moves along (-sin M, 0, -cos M), so at M = 0 toward -Z, at the orbital speed.
+        double m = MeanMotion * test.World.Time;
+        PoseChecks.AssertNear(test.World.Frames.LinearVelocity(moon), 1000 * MeanMotion * new Double3(-Math.Sin(m), 0, -Math.Cos(m)), 1e-9);
     }
 
     [Theory]
@@ -97,12 +108,19 @@ public class KeplerFrameTests
         PoseChecks.AssertNear(test.World.Frames.LinearVelocity(moon), new Double3(-1000 * MeanMotion, 0, 0), 1e-6);
     }
 
+    /// <summary>
+    /// The world starts one step before the orbit's epoch, so the comet's first step, which its first motion intent moves,
+    /// ends at periapsis. The comet has no body, so it spawns with no velocity, and its first sync point gives it the
+    /// velocity of that step's end.
+    /// </summary>
     [Fact]
     public void AKeplerFrameOnAnEllipseStartsAtPeriapsisWhereItIsClosestAndFastest()
     {
         const double a = 1000, e = 0.5;
-        using var test = NewWorld();
-        FrameHandle comet = test.World.GetOwnedFrame(SpawnKeplerFrame(test, Ellipse(a, e)));
+        using var test = NewWorld(startTime: -1.0 / 64);
+        FrameHandle comet = test.World.GetOwnedFrame(SpawnKeplerFrame(test, Ellipse(a, e), firstMove: true));
+
+        test.Run(1);
 
         // Periapsis is at a (1 - e) on the +X axis, and the vis-viva speed there is a n sqrt((1 + e) / (1 - e)).
         PoseChecks.AssertNear(test.World.Frames.LocalPose(comet).Position, new Double3(a * (1 - e), 0, 0), 1e-9);

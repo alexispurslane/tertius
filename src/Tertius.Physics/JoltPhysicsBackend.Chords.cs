@@ -90,6 +90,21 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
+    /// The step record of the motion intent that aimed the plain kinematic body of <paramref name="record"/> in the current
+    /// step, relative to the body's semantic frame, when the body is still in the home where the step started; else false.
+    /// Jolt's velocity of the body is the chord of the step, to its float rounding, and its rotation a float, so the body
+    /// state and a hand-off of the step take the record's instant velocity and rotation instead (docs/plans/
+    /// rails-components.md, "The flow per kind of entity"). After a hand-off the body is in another home, and Jolt holds
+    /// the velocity that the hand-off carried, which came from the record. A hull's frame takes its record from the frame
+    /// tree (see <see cref="StepRecordOf"/>).
+    /// </summary>
+    private bool TryAimedRecord(BodyRecord record, out MotionSample aimed)
+    {
+        aimed = record.AimedRecord;
+        return record is { IsHull: false, Motion: BodyMotion.Kinematic } && record.KinematicTargetStep == stepIndex && record.Frame == record.AimedHome;
+    }
+
+    /// <summary>
     /// The instant velocity at the end of the step of the primary body of <paramref name="record"/>, whose state Jolt has
     /// at <paramref name="s"/>: relative to the instant velocity of its home there. It is Jolt's chord plus half a step of
     /// the acceleration that the step gave the body: the gravity that physics applied to it, and its damping. A body that
@@ -98,6 +113,10 @@ public sealed partial class JoltPhysicsBackend
     private Double3 InstantVelocity(BodyRecord record, in BodySnapshot s)
     {
         Contract.Requires(stepDt > 0);
+        // A plain kinematic body that a motion intent aimed moves as its step record says (see TryAimedRecord).
+        if (TryAimedRecord(record, out MotionSample aimed))
+            return aimed.Velocity + Double3.Cross(aimed.AngularVelocity, s.CenterOfMass - s.Pose.Position)
+                   - InstantHomeVelocity(record.Frame, frames.SemanticOf(record.Frame));
         double half = 0.5 * stepDt;
         Double3 chord = s.Linear;
         return record.Motion switch
@@ -113,6 +132,8 @@ public sealed partial class JoltPhysicsBackend
     private Vector3 InstantAngularVelocity(BodyRecord record, in BodySnapshot s)
     {
         Contract.Requires(stepDt > 0);
+        if (TryAimedRecord(record, out MotionSample aimed))
+            return aimed.AngularVelocity.ToVector3();
         return record.Motion == BodyMotion.Dynamic && record.World!.Bodies.IsActive(record.Body)
             ? s.Angular * (1 - record.Material.AngularDamping * 0.5f * stepDt)
             : s.Angular;

@@ -16,7 +16,7 @@ namespace Tertius.Physics;
 // the rigid form takes the path of an ordinary dynamic body everywhere: gravity, intents, hand-offs, moves, shifts,
 // growth, ghosts, collision groups, contacts, queries and the outputs. Only a few places know characters: the record's
 // input state (up, desired velocity) turns with the axes in a hand-off, the outputs report a character state for both
-// forms, the intents of a walk, a jump, a kinematic target and a spin do not move the rigid form, and a held contact of
+// forms, the intents of a walk, a jump, a motion intent and a spin do not move the rigid form, and a held contact of
 // the rigid form ends by the walking form's contact list (see NoteRigidCharacterContacts).
 
 public sealed partial class JoltPhysicsBackend
@@ -233,9 +233,14 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     /// <remarks>
     /// The query takes the walking form's capsule at the rigid body's pose, which is the walking form's pose (see
-    /// <see cref="RigidForm"/>), and Jolt's settings for the contacts of a character (CharacterVirtual::CheckCollision).
-    /// It filters no layer: a body that the character cannot touch never starts a contact with it, so its place in the
-    /// list changes nothing.
+    /// <see cref="RigidForm"/>), and the settings of Jolt's query for the contacts of a character
+    /// (CharacterVirtual::CheckCollision), with one difference. Every character sets enhanced internal edge removal, so
+    /// the walking form's query is CollideShapeWithInternalEdgeRemoval, which collides with every edge and then drops the
+    /// contacts with internal edges, and the binding does not expose it. That drops contact points but never a body: Jolt
+    /// sorts out the contacts with each body on their own, and it always keeps a face contact with a body or, when there
+    /// is none, the deepest contact, so every body that the walking form's query meets is in this query's list too. The
+    /// list holds bodies, not points, so the two match. It filters no layer: a body that the character cannot touch never
+    /// starts a contact with it, so its place in the list changes nothing.
     /// </remarks>
     private void NoteRigidCharacterContacts(FrameWorld world)
     {

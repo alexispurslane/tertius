@@ -136,13 +136,13 @@ public class MotionChangeTests
     /// The engine of the ship pushes it at 1 m/s², which is the proper acceleration of its frame. The ship parks: the hull
     /// holds still where the step of the writing tick left it. The sync point of that tick changes no velocity, so the frame
     /// keeps its old velocity in the tree until the next sync point, where it takes no step record and its velocity becomes
-    /// zero. It keeps its proper acceleration, so the cargo keeps its weight.
+    /// zero. Its proper acceleration follows from that rest: the planet's gravity at its place, reversed, and no thrust.
     /// </summary>
     [Fact]
     public void AShipThatParksHoldsStillWhereTheStepLeftItAndItsFrameStopsAtTheNextSyncPoint()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        var (_, owner, ship) = FlyingShip(world, new Thrust(new Vector3(1000, 0, 0)));
+        var (planet, owner, ship) = FlyingShip(world, new Thrust(new Vector3(1000, 0, 0)));
         world.Frames.ProperAcceleration(ship).X.Should().BeApproximately(1, 1e-3f, "the engine pushes the ship");
 
         world.SetMotionNextTick(owner, BodyMotion.Static);
@@ -157,7 +157,9 @@ public class MotionChangeTests
         (Hull(world, faults.Jolt, owner).Position - parked.Position).Length.Should().BeLessThan(1e-9);
         world.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
         world.Frames.AngularVelocity(ship).Should().Be(Vector3.Zero);
-        world.Frames.ProperAcceleration(ship).X.Should().BeApproximately(1, 1e-3f, "the frame keeps its proper acceleration");
+        Vector3 weight = parked.Rotation.Conjugate().Rotate(-world.Frames.Gravity(planet).AtPrecise(parked.Position)).ToVector3();
+        Vector3.Distance(world.Frames.ProperAcceleration(ship), weight).Should().BeLessThan(1e-6f,
+            "the parked ship feels the planet's gravity at its place reversed, and no thrust");
         FrameStatesSince(faults, ship, reported).Should().BeEmpty("physics no longer moves the ship's frame");
         world.Errors.Should().BeEmpty();
     }
@@ -430,8 +432,8 @@ public class MotionChangeTests
     /// The sample that the step of tick <paramref name="tick"/> applied to <paramref name="frame"/>, or null when that step
     /// applied none. The component of the frame's owner wrote it during the tick before.
     /// </summary>
-    private static SampleRecord? AppliedSample(FaultInjectingBackend faults, FrameHandle frame, long tick) =>
-        faults.Samples.Where(record => record.Frame == frame && record.Tick == tick).Cast<SampleRecord?>().SingleOrDefault();
+    private static MoveRecord? AppliedSample(FaultInjectingBackend faults, FrameHandle frame, long tick) =>
+        faults.Moves.Where(record => record.Entity == frame.Entity && record.Tick == tick).Cast<MoveRecord?>().SingleOrDefault();
 
     /// <summary>
     /// The engines come on when the owner removes its <see cref="KeplerMotion"/> and makes its hull dynamic: the hull coasts
@@ -467,7 +469,7 @@ public class MotionChangeTests
 
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Dynamic);
         FrameStatesSince(faults, station, reported).Should().HaveCount(60);
-        faults.Samples.Where(record => record.Frame == station && record.Tick >= faults.Steps[^60].Tick).Should().BeEmpty("physics moves the frame now");
+        faults.Moves.Where(record => record.Entity == station.Entity && record.Tick >= faults.Steps[^60].Tick).Should().BeEmpty("physics moves the frame now");
         // In free fall the hull stays on the orbit of its last sample, up to the float rounding of its velocity.
         (world.Frames.LocalPose(station).Position - orbit.StateAt(world.Time, EarthMu).Position).Length.Should().BeLessThan(0.5);
 
@@ -480,7 +482,7 @@ public class MotionChangeTests
             world.Tick();
 
             List<FrameStepRecord> records = FrameStatesSince(faults, station, reported);
-            SampleRecord? sample = AppliedSample(faults, station, faults.Steps[^1].Tick);
+            MoveRecord? sample = AppliedSample(faults, station, faults.Steps[^1].Tick);
             (sample is null).Should().Be(i == 0, "only the first step after the change has no sample: the new component writes its first one in the tick beside it, and the next step applies it");
             if (sample is not { } applied)
             {
@@ -568,10 +570,16 @@ public class MotionChangeTests
     /// The ship's bubble overlaps the bubble of a station beside it, so the station's system holds a ghost of the hull. A
     /// ghost meets what its real body meets, and a static body meets less, so the ghost of a hull that parks stands for a
     /// static body from the step that parks the hull, and the ghost of one that unparks stands for a moving body again.
+    /// Physics makes the ghost again at each change, as a new body with the new motion's contact motion, so that Jolt offers
+    /// its pairs to the contact filter again: the parked ship's ghost holds still in the station, so it is static in Jolt,
+    /// and the ghost of a ship that moves is kinematic (docs/plans/complete-ghosts.md, case 3b).
     /// </summary>
     [Fact]
     public void TheGhostOfAHullStandsForABodyOfItsNewMotion()
     {
+        JoltPhysicsBackend.BodyFacts GhostIn(FaultInjectingBackend faults, FrameHandle frame, Entity owner) =>
+            faults.Jolt.BodiesIn(frame).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, owner));
+
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
@@ -589,17 +597,23 @@ public class MotionChangeTests
         });
         Tick(world, 2);
         faults.Jolt.HasGhostIn(owner, station).Should().BeTrue("the bubbles overlap");
+        BodyID moving = GhostIn(faults, station, owner).Id;
 
         world.SetMotionNextTick(owner, BodyMotion.Static);
         Tick(world, 2);
 
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow("the ghost stands for a static body now");
+        JoltPhysicsBackend.BodyFacts parked = GhostIn(faults, station, owner);
+        parked.Id.Should().NotBe(moving, "physics made the ghost again");
+        parked.Motion.Should().Be(MotionType.Static, "the parked ship holds still in the station");
 
         world.SetMotionNextTick(owner, BodyMotion.Dynamic);
         Tick(world, 2);
 
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow("the ghost stands for a moving body again");
-        faults.Jolt.HasGhostIn(owner, station).Should().BeTrue();
+        JoltPhysicsBackend.BodyFacts unparked = GhostIn(faults, station, owner);
+        unparked.Id.Should().NotBe(parked.Id, "physics made the ghost again");
+        unparked.Motion.Should().Be(MotionType.Kinematic, "a ghost of a body that can move is kinematic");
         world.Errors.Should().BeEmpty();
     }
 

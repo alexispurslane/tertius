@@ -284,8 +284,9 @@ internal sealed partial class EntityTable
     private readonly SlotColumn<TransformRow> backTransform;
     private readonly SlotColumn<RenderData> frontRender;
     private readonly SlotColumn<RenderData> backRender;
-    private readonly SlotColumn<PhysicsIntent> frontIntent;
-    private readonly SlotColumn<PhysicsIntent> backIntent;
+    // The swap exchanges the two intent buffers (see SwapIntents), so these two are not readonly.
+    private SlotColumn<PhysicsIntent> frontIntent;
+    private SlotColumn<PhysicsIntent> backIntent;
     private readonly SlotColumn<ComponentFlags> frontComponents;
     private readonly SlotColumn<ComponentFlags> backComponents;
     private readonly SlotColumn<BodyCollision> frontCollision;
@@ -770,15 +771,20 @@ internal sealed partial class EntityTable
     public ref readonly RenderData FrontRender(Entity entity) => ref frontRender[LiveSlot(entity)];
 
     /// <summary>
-    /// The running entity's back pose, for writing. The entity must have no body: physics owns those transforms.
-    /// Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe for the running entity.
+    /// The running entity's back pose, for writing. The entity must have no body: physics owns those transforms. The write
+    /// also sets the row's velocities to zero, so it leaves the entity at rest, as the write of a frame's owner leaves the
+    /// frame (docs/plans/rails-components.md, "The transform row of an entity without body or frame"). Throws
+    /// <see cref="StaleEntityException"/> for a stale handle. Worker-safe for the running entity.
     /// </summary>
     public ref DPose WritableTransform(Entity entity)
     {
         uint slot = LiveSlot(entity);
         Contract.Requires(gameplayRunning && records[slot].Body == null);
         MarkDirty(slot, SlotFlags.TransformDirty | SlotFlags.GameplayWroteTransform);
-        return ref backTransform[slot].Pose;
+        ref TransformRow row = ref backTransform[slot];
+        row.LinearVelocity = Vector3.Zero;
+        row.AngularVelocity = Vector3.Zero;
+        return ref row.Pose;
     }
 
     /// <summary>
@@ -802,6 +808,30 @@ internal sealed partial class EntityTable
     {
         uint slot = LiveSlot(entity);
         Contract.Requires(gameplayRunning && records[slot].Body != null);
+        return ref RegisteredIntent(entity, slot);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="move"/> as the running entity's motion intent for the next physics step
+    /// (<see cref="PhysicsIntent.Move"/>), relative to the frame that the entity is in during the tick, as every part of its
+    /// intent is. The last write in a tick wins, whatever its case. Unlike <see cref="WritableIntent"/>, the entity needs no
+    /// body: the sync point moves an entity without a body by its motion intent, as physics moves a kinematic body. The
+    /// caller checks that the entity takes the case, and makes its rotation unit length. Throws
+    /// <see cref="StaleEntityException"/> for a stale handle. Worker-safe for the running entity.
+    /// </summary>
+    public void WriteMotionIntent(Entity entity, in MotionIntent move)
+    {
+        uint slot = LiveSlot(entity);
+        Contract.Requires(gameplayRunning && move.AimPose.Rotation.IsUnit);
+        RegisteredIntent(entity, slot).Move = move;
+    }
+
+    /// <summary>
+    /// The back intent of the running entity in <paramref name="slot"/>, which its first write of the tick puts in its chunk's
+    /// list of intent writers, naming the frame that the entity is in during the tick.
+    /// </summary>
+    private ref PhysicsIntent RegisteredIntent(Entity entity, uint slot)
+    {
         ref SlotFlags f = ref flags[slot];
         if ((f & SlotFlags.IntentRegistered) == 0)
         {
@@ -893,6 +923,23 @@ internal sealed partial class EntityTable
     }
 
     /// <summary>
+    /// Puts the first motion intent of the new entity <paramref name="entity"/>, <paramref name="move"/>, relative to
+    /// <paramref name="frame"/>, into its front intent, and lists the entity in <see cref="IntentEntities"/>, so that the next
+    /// physics step applies it (see <see cref="SpawnDesc.FirstMove"/>). Step 6 of the sync point calls it after
+    /// <see cref="SwapIntents"/>, and a spawn outside a tick at the call, so the front intents are those of the next step
+    /// either way, and the entity's entry is empty, as for every entity outside the list. The next swap clears it. Every
+    /// case goes into the intent's <see cref="PhysicsIntent.Move"/>, as its writer writes it. The rotation must be unit length.
+    /// </summary>
+    public void SetFirstMove(Entity entity, FrameHandle frame, in MotionIntent move)
+    {
+        uint slot = LiveSlot(entity);
+        Contract.Requires(!gameplayRunning && IsDefault(in frontIntent[slot]) && (flags[slot] & SlotFlags.IntentRegistered) == 0);
+        Contract.Requires(move.HasValue && move.AimPose.Rotation.IsUnit);
+        frontIntent[slot] = new PhysicsIntent { Frame = frame, Move = move };
+        frontIntentEntities.Add(entity);
+    }
+
+    /// <summary>
     /// The intent written so far during this tick. Throws <see cref="StaleEntityException"/> for a stale handle.
     /// Worker-safe for the running entity.
     /// </summary>
@@ -971,16 +1018,20 @@ internal sealed partial class EntityTable
     }
 
     /// <summary>
-    /// Makes this tick's intents the input of the next physics step and clears the back intents. With
-    /// <paramref name="keep"/> false, as with no physics backend, the intents are dropped, except each change of a hull's
-    /// motion: the World still counts its steps without a backend, and the stored motion takes the change from the front
-    /// intents at the next sync point (see <see cref="CollectFrontMotionChanges"/>).
+    /// Makes this tick's intents the input of the next physics step and clears the back intents: it exchanges the two intent
+    /// buffers, so that the written intents become the front intents, after it cleared the old front entries, which become
+    /// the back entries. So it touches the entries of the writers and of the old front list only, and copies no intent. With
+    /// <paramref name="keep"/> false, as with no physics backend, each front intent keeps only its motion intent, which the
+    /// sync point applies to an entity without a body (see <c>World.FollowOwners</c>), and its change of a hull's motion: the
+    /// World still counts its steps without a backend, and the stored motion takes the change from the front intents at the
+    /// next sync point (see <see cref="CollectFrontMotionChanges"/>). A front intent that keeps neither is dropped.
     /// </summary>
     public void SwapIntents(bool keep)
     {
         Contract.Requires(!gameplayRunning);
         foreach (Entity entity in frontIntentEntities.AsSpan())
             frontIntent[entity.Index] = default;
+        (frontIntent, backIntent) = (backIntent, frontIntent);
         frontIntentEntities.Clear();
         frontMotionChangers.Clear();
         intentEntitiesMayHoldDead = false;
@@ -996,18 +1047,17 @@ internal sealed partial class EntityTable
                     continue;
                 uint slot = writer.Index;
                 flags[slot] &= ~SlotFlags.IntentRegistered;
-                ref PhysicsIntent back = ref backIntent[slot];
-                if (keep)
+                ref PhysicsIntent front = ref frontIntent[slot];
+                if (!keep)
                 {
-                    frontIntent[slot] = back;
-                    frontIntentEntities.Add(writer);
+                    front = new PhysicsIntent { Frame = front.Frame, Move = front.Move, Motion = front.Motion, Flags = front.Flags & IntentFlags.SetMotion };
+                    if (front.IsEmpty)
+                    {
+                        front = default;
+                        continue;
+                    }
                 }
-                else if ((back.Flags & IntentFlags.SetMotion) != 0)
-                {
-                    frontIntent[slot] = new PhysicsIntent { Frame = back.Frame, Motion = back.Motion, Flags = IntentFlags.SetMotion };
-                    frontIntentEntities.Add(writer);
-                }
-                back = default;
+                frontIntentEntities.Add(writer);
             }
             // Each motion changer is an intent writer, so the loop above moved its change to the front intents.
             foreach (Entity changer in books[c].MotionChangers)

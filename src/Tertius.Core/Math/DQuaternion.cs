@@ -96,5 +96,23 @@ public record struct DQuaternion(double X, double Y, double Z, double W)
             a.W + (sign * b.W - a.W) * t).Normalized();
     }
 
+    /// <summary>
+    /// The constant angular velocity, in the parent's axes, in rad/s, that turns this rotation into <paramref name="to"/> in
+    /// <paramref name="time"/> seconds, the short way. Zero when the two are the same rotation, whatever their signs. Neither
+    /// rotation needs to be unit length.
+    /// </summary>
+    public readonly Double3 AngularVelocityTo(DQuaternion to, double time)
+    {
+        DQuaternion delta = (to * Conjugate()).Normalized();
+        if (delta.W < 0)
+            delta = new DQuaternion(-delta.X, -delta.Y, -delta.Z, -delta.W);
+        var axis = new Double3(delta.X, delta.Y, delta.Z);
+        double sinHalf = axis.Length;
+        if (sinHalf < 1e-15)
+            return Double3.Zero;
+        double angle = 2 * Math.Atan2(sinHalf, delta.W);
+        return axis * (angle / (sinHalf * time));
+    }
+
     public override readonly string ToString() => $"({X:G9}, {Y:G9}, {Z:G9}, {W:G9})";
 }

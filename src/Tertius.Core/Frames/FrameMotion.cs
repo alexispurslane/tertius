@@ -3,8 +3,9 @@ namespace Tertius;
 /// <summary>
 /// The motion of a frame relative to another frame, which the methods call the parent, in the parent's axes: the pose,
 /// the velocity of the frame's origin and the angular velocity. It is the one rule by which the motion of a body converts
-/// between two frames: physics converts a body that hands off with it, and the sample table converts the samples of a
-/// frame whose relative frame changes (see <see cref="MotionSampleTable.ConvertInto"/>). The conversions follow
+/// between two frames: physics converts a body that hands off with it, and a motion intent converts a full sample with it
+/// (see <see cref="Frames.Rails.MotionSample.Converted"/>) when its entity changes frame (see <c>World.ConvertIntent</c>).
+/// The conversions follow
 /// ARCHITECTURE.md, hand-off rule 5: v' = R⁻¹(v − v_frame − ω × r).
 /// </summary>
 internal readonly record struct FrameMotion(DPose Pose, Double3 Velocity, Double3 AngularVelocity)

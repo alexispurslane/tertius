@@ -215,9 +215,11 @@ public class WorldCollisionGroupTests
     }
 
     /// <summary>
-    /// A ball floats in a bubble without gravity, 8 m above a floor in the ground frame that meets only Solid. An intent
-    /// moves the ball from Glass into Solid, or from Solid into Glass, each with a mask that names only that group. Then
-    /// the bubble dies, so the ball moves into the ground frame, where physics creates its body again, and falls. It meets
+    /// A ball hangs in a bubble without a field of its own, 8 m above a floor in the ground frame that meets only Solid. The
+    /// bubble holds still in the ground's gravity, so the ball starts to fall in it (see "The proper acceleration of a
+    /// frame" in docs/plans/rails-components.md). An intent moves the ball from Glass into Solid, or from Solid into Glass,
+    /// each with a mask that names only that group. Then the bubble dies, so the ball moves into the ground frame, where
+    /// physics creates its body again, and falls on. It meets
     /// the floor by the groups and mask of the intent, not by those of its spawn.
     /// </summary>
     [Theory]
@@ -236,7 +238,7 @@ public class WorldCollisionGroupTests
         pilot.Once = body => body.SetCollision(changed.Groups, changed.Mask);
         Tick(world, 3);
         FactsOf(world, ball).CollisionGroups.Should().Be(changed.Groups, "the step after the intent applied it");
-        Height(world, ball, ground).Should().BeApproximately(8, 1e-6, "the ball floats in the bubble");
+        Height(world, ball, ground).Should().BeApproximately(8, 0.05, "the ball has only started to fall in the bubble");
 
         world.Destroy(owner).Should().BeTrue();
         world.Tick();

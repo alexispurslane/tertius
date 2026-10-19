@@ -177,7 +177,7 @@ public class HandOffTests
             Frame = planet,
             Body = hull,
             AsFrame = new FrameSpec(FrameBounds.Sphere(25)),
-        }.OnKeplerOrbit(world, orbit)));
+        }.OnKeplerOrbit(world, orbit, firstMove: true)));
         // The ball drifts out along +Z at 1 m/s and leaves the bubble about 15.7 s later, near apoapsis.
         Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 0, 10), LinearVelocity = new Vector3(0, 0, 1), Body = BallBody(0.2f) });
 
@@ -227,7 +227,7 @@ public class HandOffTests
                 Frame = planet,
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(4)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1)),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(25)),
-            }.OnKeplerOrbit(world, orbit)));
+            }.OnKeplerOrbit(world, orbit, firstMove: true)));
             BodyDesc ballBody = BallBody(0.2f);
             Entity ball = world.Spawn(new SpawnDesc
             {
@@ -669,6 +669,37 @@ public class HandOffTests
         world.GetFrame(walker).Should().Be(ground);
         world.PoseInOwnFrame(walker).Should().Be(exit.Pose);
         // It keeps walking with the same desired velocity in the parent.
+        double x = world.PoseInOwnFrame(walker).Position.X;
+        Tick(world, 30);
+        world.GetFrame(walker).Should().Be(ground);
+        (world.PoseInOwnFrame(walker).Position.X - x).Should().BeInRange(1.8, 2.2);
+        world.PoseInOwnFrame(walker).Position.Y.Should().BeInRange(0.85, 1.0);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The scene of <see cref="CharacterWalkingOutOfAFrameIsRecreatedInTheParent"/> without the building's own floor. The
+    /// ground's floor reaches the building's bubble, so it has a ghost there (ticket ter-xxmj), and the walker stands on that
+    /// ghost from its spawn until it leaves the frame.
+    /// </summary>
+    [Fact]
+    public void CharacterWalkingOutOfAFrameWithoutAFloorOfItsOwnStandsOnTheGhostOfTheParentsFloor()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        var gravity = GravityField.Uniform(new Vector3(0, -9.81f, 0));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), gravity));
+        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, -0.5), Body = FloorBody(100) });
+        FrameHandle building = Bubble(world, ground, At(0, 0, 0), 10, gravity);
+        var body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+        var pilot = new Pilot { EveryTick = handle => handle.MoveCharacter(new Vector3(4, 0, 0)) };
+        Entity walker = world.Spawn(new SpawnDesc { Frame = building, Pose = At(0, 0.95), Body = body, Components = [pilot] });
+
+        TickUntil(world, () => HandOffsSent(faults).Count > 0, 300);
+
+        HandOff exit = HandOffsSent(faults).Should().ContainSingle().Which;
+        exit.From.Should().Be(building);
+        exit.To.Should().Be(ground);
+        exit.Pose.Position.Y.Should().BeInRange(0.85, 1.0, "the walker stood on the floor's ghost in the building");
         double x = world.PoseInOwnFrame(walker).Position.X;
         Tick(world, 30);
         world.GetFrame(walker).Should().Be(ground);

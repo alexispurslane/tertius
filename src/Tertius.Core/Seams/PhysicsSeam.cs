@@ -41,6 +41,12 @@ public enum ShapeKind : byte
 /// </summary>
 public abstract record ShapeDesc
 {
+    /// <summary>
+    /// The convex radius, in m, that a <see cref="BoxShapeDesc"/> or a <see cref="ConvexHullShapeDesc"/> gets when its
+    /// description names none: 5 cm, Jolt's own default.
+    /// </summary>
+    public const float DefaultConvexRadius = 0.05f;
+
     private protected ShapeDesc()
     {
     }
@@ -144,10 +150,10 @@ public abstract record ShapeDesc
     {
         switch (this)
         {
-            case BoxShapeDesc { HalfExtents: var half }:
-                return IsFinite(half) && half.X >= 0 && half.Y >= 0 && half.Z >= 0
-                    ? null
-                    : $"has the half extents {half}, which must be finite and not negative";
+            case BoxShapeDesc { HalfExtents: var half, ConvexRadius: var convexRadius }:
+                if (!(IsFinite(half) && half.X >= 0 && half.Y >= 0 && half.Z >= 0))
+                    return $"has the half extents {half}, which must be finite and not negative";
+                return ConvexRadiusProblem(convexRadius);
             case SphereShapeDesc { Radius: var radius }:
                 return float.IsFinite(radius) && radius > 0 ? null : $"has the radius {radius}, which must be finite and positive";
             case CapsuleShapeDesc capsule:
@@ -159,7 +165,9 @@ public abstract record ShapeDesc
             case ConvexHullShapeDesc hull:
                 if (hull.Points is not { Length: >= 4 } points)
                     return "has fewer than 4 points";
-                return AllFinite(points) ? null : "has a point that is not finite";
+                if (!AllFinite(points))
+                    return "has a point that is not finite";
+                return ConvexRadiusProblem(hull.ConvexRadius);
             case MeshShapeDesc mesh:
                 if (mesh.Vertices is not { } vertices || mesh.Indices is not { } indices)
                     return "has no vertex list or no index list";
@@ -189,6 +197,9 @@ public abstract record ShapeDesc
         }
     }
 
+    private static string? ConvexRadiusProblem(float convexRadius) =>
+        float.IsFinite(convexRadius) && convexRadius >= 0 ? null : $"has the convex radius {convexRadius}, which must be finite and not negative";
+
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
     private static bool AllFinite(Vector3[] points)
@@ -215,16 +226,72 @@ public abstract record ShapeDesc
                 return false;
         }
     }
+
+    /// <summary>
+    /// True when the shape is made of sharp pieces: a mesh, whose pieces are its triangles, or a compound whose every
+    /// child is a box or a convex hull of convex radius 0, a mesh, or such a compound. It checks only what the pieces
+    /// are, not that they meet. Where two sharp pieces meet, the edge of one at the joint is no feature of the surface:
+    /// a contact with it stands for the neighbor's face. Where pieces do not meet, Jolt's internal edge removal changes
+    /// nothing, because it drops a contact with an edge or a corner only when the corners of that edge or corner are
+    /// corners of a face that another contact of the same pair touches first. A rounded child, or a sphere or a
+    /// capsule, leaves a real groove at its joints, and a single convex shape is one piece, with no joints.
+    /// </summary>
+    public bool IsMadeOfSharpPieces()
+    {
+        switch (this)
+        {
+            case MeshShapeDesc:
+                return true;
+            case CompoundShapeDesc { Children: { } children }:
+                foreach (CompoundChild child in children)
+                    if (!IsSharpPiece(child.Shape))
+                        return false;
+                return true;
+            default:
+                return false;
+        }
+
+        static bool IsSharpPiece(ShapeDesc? piece) => piece switch
+        {
+            BoxShapeDesc box => box.ConvexRadius == 0,
+            ConvexHullShapeDesc hull => hull.ConvexRadius == 0,
+            MeshShapeDesc or CompoundShapeDesc => piece.IsMadeOfSharpPieces(),
+            _ => false,
+        };
+    }
 }
 
-public sealed record BoxShapeDesc(Vector3 HalfExtents) : ShapeDesc;
+/// <summary>A box with the given half extents about its origin, axes aligned with the body.</summary>
+/// <param name="HalfExtents">The distance, in m, from the center of the box to each pair of faces, along X, Y and Z.</param>
+/// <param name="ConvexRadius">
+/// The largest rounding, in m, that physics may give the edges of the box. Jolt shrinks a box by its convex radius and
+/// rounds it back out, so every edge becomes a curve of that radius. Two such boxes side by side leave a groove at their
+/// joint, so a compound of boxes with flat faces that must line up uses 0. Physics uses less when the box is too thin: the
+/// radius never exceeds the smallest half extent. Jolt also never rounds a box contact by more than 5 cm, whatever larger
+/// radius the box keeps. Every radius below those limits changes a contact. The default is
+/// <see cref="ShapeDesc.DefaultConvexRadius"/>. Zero is allowed, a negative or non-finite value is refused by
+/// <see cref="ShapeDesc.Problem"/>.
+/// </param>
+public sealed record BoxShapeDesc(Vector3 HalfExtents, float ConvexRadius = ShapeDesc.DefaultConvexRadius) : ShapeDesc;
 
 public sealed record SphereShapeDesc(float Radius) : ShapeDesc;
 
 /// <summary>A capsule along +Y. The total height is 2 · (HalfHeight + Radius).</summary>
 public sealed record CapsuleShapeDesc(float HalfHeight, float Radius) : ShapeDesc;
 
-public sealed record ConvexHullShapeDesc(Vector3[] Points) : ShapeDesc;
+/// <summary>The convex hull of a set of points about the body's origin.</summary>
+/// <param name="Points">The points, in m, in the body's axes. At least 4, none of them NaN or infinite.</param>
+/// <param name="ConvexRadius">
+/// The largest rounding, in m, that physics may give the edges of the hull. Jolt shrinks a hull by its convex radius and
+/// rounds it back out, so every edge becomes a curve of that radius. A ring is a compound of one hull per segment, and
+/// each joint between two segments is a groove when the hulls are rounded, so such hulls use 0. Physics passes this value
+/// to Jolt as the maximum convex radius, and Jolt reduces it when it builds the hull: to half the thinnest width of the
+/// hull at most, and so that the rounded hull stays within 5 cm of the true hull at every corner. That allows 6.83 cm
+/// where three faces meet at right angles, and about 12 cm at the rim of a cylinder hull of many segments. Every radius
+/// below those limits changes a contact. The default is <see cref="ShapeDesc.DefaultConvexRadius"/>. Zero is
+/// allowed, a negative or non-finite value is refused by <see cref="ShapeDesc.Problem"/>.
+/// </param>
+public sealed record ConvexHullShapeDesc(Vector3[] Points, float ConvexRadius = ShapeDesc.DefaultConvexRadius) : ShapeDesc;
 
 /// <summary>A triangle mesh. Only static bodies can use it.</summary>
 public sealed record MeshShapeDesc(Vector3[] Vertices, int[] Indices) : ShapeDesc;
@@ -235,8 +302,8 @@ public readonly record struct CompoundChild(ShapeDesc Shape, Pose Pose);
 
 /// <summary>
 /// The physics description of an entity. For an entity that owns a frame, <see cref="Shape"/> is the hull body in
-/// the parent frame, and <see cref="InteriorShape"/> (or <see cref="Shape"/> if null) is static geometry in the
-/// frame's own system.
+/// the parent frame, and <see cref="InteriorShape"/> (or <see cref="Shape"/> if null) is the interior, a body at rest in
+/// the frame's own system, static while the hull is static and kinematic while the hull can move.
 /// </summary>
 /// <param name="Restitution">
 /// How much of its approach speed a contact gives back as a rebound. A contact takes the larger restitution of its two
@@ -270,8 +337,10 @@ public sealed record BodyDesc(
     /// of a sensor starts when the two bodies overlap and ends when they stop overlapping, with a
     /// <see cref="ContactStarted"/> whose impulse is zero and a <see cref="ContactEnded"/>. A sensor detects dynamic and
     /// kinematic bodies and characters when the collision groups and masks of both match. Sleep and wake end no touch. A
-    /// ghost's touch is a touch of its entity, and an entity's body and its ghosts make one touch. A character or the owner
-    /// of a frame cannot be a sensor.
+    /// ghost's touch is a touch of its entity, and an entity's body and its ghosts make one touch. A sensor detects the owner
+    /// of a frame as a body of the hull's motion in every frame: the hull in the frame's parent, the frame's interior in the
+    /// frame, and the hull's ghosts in other frames. A change of the hull's motion ends and starts the touches as that rule
+    /// says. A character or the owner of a frame cannot be a sensor.
     /// </summary>
     public bool IsSensor { get; init; }
 
@@ -341,7 +410,8 @@ public enum BodyRole
 
     /// <summary>
     /// The body of the owner of a frame with a parent: the frame's hull, a body in the parent frame with the motion of its
-    /// description, and the frame's static interior.
+    /// description, and the frame's interior, a body at rest at the origin of the frame's own system, which physics keeps
+    /// static while the hull is static and kinematic while the hull can move.
     /// </summary>
     Hull,
 
@@ -355,7 +425,6 @@ public enum IntentFlags : ushort
     None = 0,
     SetVelocity = 1 << 0,
     SetAngularVelocity = 1 << 1,
-    KinematicTarget = 1 << 2,
     Teleport = 1 << 3,
     CharacterMove = 1 << 4,
     Jump = 1 << 5,
@@ -384,8 +453,6 @@ public struct PhysicsIntent
     /// <summary>The new linear velocity relative to the entity's frame, in doubles. Physics converts it to the body's home when it applies it.</summary>
     public Double3 Velocity;
     public Vector3 AngularVelocity;
-    /// <summary>The target pose for a kinematic body, in frame coordinates. Used with <see cref="IntentFlags.KinematicTarget"/>.</summary>
-    public DPose Target;
     /// <summary>The new pose for a teleport, in frame coordinates. Used with <see cref="IntentFlags.Teleport"/>.</summary>
     public DPose TeleportPose;
     /// <summary>The desired movement velocity of a character.</summary>
@@ -403,11 +470,27 @@ public struct PhysicsIntent
     /// <see cref="FrameTree.HullMotion"/>).
     /// </summary>
     public BodyMotion Motion;
+    /// <summary>
+    /// How the entity moves in the step that applies the intent: an end pose, a full sample or a steer target, relative to
+    /// <see cref="Frame"/>, or no case (see <see cref="MotionIntent"/>). <see cref="StepRecord"/> turns it into the entity's
+    /// step record.
+    /// </summary>
+    public MotionIntent Move;
     public IntentFlags Flags;
+
+    /// <summary>
+    /// The step record of <see cref="Move"/>, the one read that turns the motion intent into the entity's motion over the
+    /// step, which lasts <paramref name="step"/> seconds (see <see cref="MotionIntent.TryRecordFrom"/>). If the intent
+    /// teleports, the step starts at <see cref="TeleportPose"/>. Else it starts at <paramref name="standing"/>, the pose of
+    /// the entity at the start of the step, relative to <see cref="Frame"/>. False without a motion intent and for a steer
+    /// target.
+    /// </summary>
+    public readonly bool StepRecord(in DPose standing, double step, out MotionSample record) =>
+        Move.TryRecordFrom((Flags & IntentFlags.Teleport) != 0 ? TeleportPose : standing, step, out record);
 
     public readonly bool IsEmpty =>
         Flags == IntentFlags.None && Force == Vector3.Zero && Torque == Vector3.Zero &&
-        Impulse == Vector3.Zero && AngularImpulse == Vector3.Zero;
+        Impulse == Vector3.Zero && AngularImpulse == Vector3.Zero && !Move.HasValue;
 
     public void Clear() => this = default;
 }
@@ -494,8 +577,7 @@ public sealed class PhysicsChanges
 /// <summary>Read-only inputs to one physics step. Everything here is fixed for the duration of the step.</summary>
 public readonly struct PhysicsStepContext
 {
-    public PhysicsStepContext(long tick, float deltaTime, double time, FrameTree frames, ReadOnlyMemory<PhysicsIntent> intents, ReadOnlyMemory<Entity> intentEntities,
-        MotionSamples samples = default)
+    public PhysicsStepContext(long tick, float deltaTime, double time, FrameTree frames, ReadOnlyMemory<PhysicsIntent> intents, ReadOnlyMemory<Entity> intentEntities)
     {
         Tick = tick;
         DeltaTime = deltaTime;
@@ -503,7 +585,6 @@ public readonly struct PhysicsStepContext
         Frames = frames;
         Intents = intents;
         IntentEntities = intentEntities;
-        Samples = samples;
     }
 
     public long Tick { get; }
@@ -518,13 +599,11 @@ public readonly struct PhysicsStepContext
     /// of its owner (see <see cref="FrameTree.HullMotionInStep"/>).
     /// </summary>
     public ReadOnlyMemory<PhysicsIntent> Intents { get; }
-    /// <summary>The entities that wrote an intent during the previous tick.</summary>
-    public ReadOnlyMemory<Entity> IntentEntities { get; }
     /// <summary>
-    /// The motion samples that this step applies, by frame: what the owners of frames wrote with <c>Self.MoveOnRails</c>
-    /// during the previous tick, each relative to the frame's semantic parent at the write. The default has no sample.
+    /// The entities that wrote an intent during the previous tick, and the new entities whose spawn gave them a first motion
+    /// intent (see <see cref="SpawnDesc.FirstMove"/>).
     /// </summary>
-    public MotionSamples Samples { get; }
+    public ReadOnlyMemory<Entity> IntentEntities { get; }
 }
 
 /// <summary>
@@ -567,16 +646,21 @@ public readonly record struct ContactEnded(Entity A, Entity B);
 
 /// <summary>
 /// The step record of a frame whose hull physics moved in the step: the frame's motion over the step that just ended (see
-/// "One motion record per frame" in docs/plans/rails-components.md). Every field of <see cref="Motion"/> except its proper
-/// acceleration is relative to the frame's tree parent after this step, in its axes; the proper acceleration is in the
-/// frame's own axes. If the step also handed the frame off, the parent is the hand-off's <see cref="HandOff.To"/>, so the
-/// sync point applies hand-offs first. The sync point puts the frame on its record (see <c>World.FollowOwners</c>).
+/// "One motion record per frame" in docs/plans/rails-components.md). Every field of <see cref="Motion"/> is relative to the
+/// frame's tree parent after this step, in its axes. If the step also handed the frame off, the parent is the hand-off's
+/// <see cref="HandOff.To"/>, so the sync point applies hand-offs first. The sync point puts the frame on its record (see
+/// <c>World.FollowOwners</c>).
 /// </summary>
 /// <param name="Frame">The frame whose hull moved.</param>
 /// <param name="Motion">The frame's motion over the step: the pose at its end, the chord, the instant velocity at its end,
-/// the acceleration and the angular acceleration over the step, the angular velocity at its end and the proper
-/// acceleration.</param>
-public readonly record struct FrameStepRecord(FrameHandle Frame, MotionSample Motion);
+/// the acceleration and the angular acceleration over the step, and the angular velocity at its end.</param>
+/// <param name="ProperAcceleration">
+/// The proper acceleration that physics measured for a dynamic hull, in m/s², in the frame's own axes: Jolt's whole change
+/// of velocity over the step minus the gravity that physics applied, so an impulse reads as a jolt. Null for every other
+/// hull, whose frame takes the value that the frame tree derives from <see cref="Motion"/> and the gravity at its place (see
+/// <see cref="FrameTree.ProperAcceleration"/>).
+/// </param>
+public readonly record struct FrameStepRecord(FrameHandle Frame, MotionSample Motion, Vector3? ProperAcceleration);
 
 /// <summary>
 /// Results of one step. The backend fills it on the physics thread. The sync point reads and clears it. Every entity

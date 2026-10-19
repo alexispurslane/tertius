@@ -45,10 +45,12 @@ public class WorldSensorTests
         var sensorLog = new CollisionLog();
         Entity sensor = world.Spawn(new SpawnDesc { Frame = space, Body = SensorBox(new Vector3(0.5f)), Components = [sensorLog] });
         var ballLog = new CollisionLog();
-        Entity ball = world.Spawn(new SpawnDesc
+        var flyer = new SpawnDesc
         {
             Frame = space, Pose = At(x0), LinearVelocity = new Vector3((float)speed, 0, 0), Body = SmallBall(motion), Components = [ballLog],
-        });
+        };
+        // A kinematic body moves only by its motion intents, so it drifts by end poses.
+        Entity ball = world.Spawn(motion == BodyMotion.Kinematic ? KinematicDrift.Drifting(flyer, world, flyer.LinearVelocity) : flyer);
 
         Tick(world, 60);
 
@@ -131,7 +133,8 @@ public class WorldSensorTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         if (systemKeepsStepping)
-            world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-40, 20), LinearVelocity = new Vector3(0, 0, 0.1f), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic) });
+            world.Spawn(KinematicDrift.Drifting(new SpawnDesc { Frame = ground, Pose = At(-40, 20), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic) },
+                world, new Double3(0, 0, 0.1)));
         var sensorLog = new CollisionLog();
         Entity sensor = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1), Body = SensorBox(new Vector3(2, 1, 2)), Components = [sensorLog] });
         var boxLog = new CollisionLog();
@@ -170,11 +173,11 @@ public class WorldSensorTests
         var sensorLog = new CollisionLog();
         Entity sensor = world.Spawn(new SpawnDesc { Frame = space, Pose = At(12.3), Body = SensorBox(new Vector3(2.2f, 1, 1)), Components = [sensorLog] });
         var blockLog = new CollisionLog();
-        Entity block = world.Spawn(new SpawnDesc
+        Entity block = world.Spawn(KinematicDrift.Drifting(new SpawnDesc
         {
-            Frame = bubble, Pose = At(9.5), LinearVelocity = new Vector3(2, 0, 0),
+            Frame = bubble, Pose = At(9.5),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic), Components = [blockLog],
-        });
+        }, world, new Double3(2, 0, 0)));
         world.Tick();
         faults.Jolt.HasGhostIn(block, space).Should().BeTrue("the block sticks out of its bubble");
 

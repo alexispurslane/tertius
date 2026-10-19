@@ -185,14 +185,6 @@ public class KeplerOrbitTests
             orbit.Sample(Mu, stepEnd, Tick).AngularAcceleration.Should().Be(orbit.AngularAccelerationAt(stepEnd - Tick, Mu));
     }
 
-    [Theory]
-    [InlineData(KeplerAttitude.Spin)]
-    [InlineData(KeplerAttitude.FacesParent)]
-    public void A_sample_of_an_orbit_has_no_proper_acceleration_because_an_orbit_falls_freely(KeplerAttitude attitude)
-    {
-        (InclinedOval with { Attitude = attitude }).Sample(Mu, 1334.56, Tick).ProperAcceleration.Should().Be(Vector3.Zero);
-    }
-
     // ---- An orbit around no G·M ---------------------------------------------------------------------------------
 
     [Fact]

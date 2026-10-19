@@ -316,7 +316,7 @@ public class SetMotionTests
     private sealed class HoldsOnRails : IComponent
     {
         public static readonly MotionSample Sample =
-            new(TestWorld.At(100), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Vector3.Zero);
+            new(TestWorld.At(100), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
 
         public int Priority => 0;
 
@@ -325,27 +325,70 @@ public class SetMotionTests
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.MoveOnRails(Sample);
     }
 
-    /// <summary>
-    /// The rails component runs before the change in the same tick, so it writes a sample that no step may apply: a dynamic
-    /// hull follows no sample. The sample that the last step applied stays, as the record that the frame follows.
-    /// </summary>
-    [Fact]
-    public void AHullThatStopsBeingKinematicDropsTheSampleWrittenInTheSameTick()
+    /// <summary>A component that writes the same end pose in every tick: the frame stands still 100 m along +X.</summary>
+    private sealed class HoldsByEndPoses : IComponent
     {
-        using var test = new TestWorld();
-        var rails = new HoldsOnRails();
-        FrameHandle station = SpawnHull(test, BodyMotion.Kinematic, ShipBody, rails);
-        test.Run(2);
-        test.World.Frames.Samples.Applied.TryGet(station, out _).Should().BeTrue("the rails component writes a sample in every tick");
+        public int Priority => 0;
 
-        test.World.SetMotionNextTick(station.Entity, BodyMotion.Dynamic, remove: rails);
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.MoveKinematic(HoldsOnRails.Sample.Pose);
+    }
+
+    /// <summary>
+    /// The component runs before the change in the same tick, so it writes a motion intent that no step may apply: a dynamic
+    /// hull takes no end pose and no full sample. The motion intent that the last step applied stays the record that the
+    /// frame took.
+    /// </summary>
+    [Theory]
+    [InlineData("full sample")]
+    [InlineData("end pose")]
+    public void AHullThatIsNotKinematicInTheNextStepDropsTheMotionIntentOfTheTick(string write)
+    {
+        using var test = TestWorld.OnJolt(out _);
+        IComponent writer = write == "full sample" ? new HoldsOnRails() : new HoldsByEndPoses();
+        FrameHandle station = SpawnHull(test, BodyMotion.Kinematic, ShipBody, writer);
+        test.Run(2);
+        test.World.Entities.NextStepIntent(station.Entity).Move.HasValue.Should().BeTrue("the component writes a motion intent in every tick");
+
+        test.World.SetMotionNextTick(station.Entity, BodyMotion.Dynamic, remove: writer);
         test.Run(1);
 
         test.World.NextStepHullMotion(station).Should().Be(BodyMotion.Dynamic);
-        test.World.Frames.TryGetAppliedSample(station, out _).Should().BeFalse("the next step applies no sample to a dynamic hull");
-        test.World.Frames.Samples.Followed.TryGet(station, out _).Should().BeTrue("the sample that the step of the tick applied stays");
+        test.World.Entities.NextStepIntent(station.Entity).Move.HasValue.Should().BeFalse("the next step applies no motion intent to a dynamic hull");
+        test.World.Frames.LocalPose(station).Should().Be(HoldsOnRails.Sample.Pose, "the motion intent that the step of the tick applied moved the frame");
+        test.World.Frames.Followed(station).Should().Be(write == "full sample" ? FollowKind.Rails : FollowKind.Kinematic);
         test.World.Errors.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// A dynamic hull steers in a tick, and the same tick makes it kinematic or static. Only a dynamic body takes a steer
+    /// target, so step 4 drops it by the guard's rule, with the hull's motion in the next step.
+    /// </summary>
+    [Theory]
+    [InlineData(BodyMotion.Kinematic)]
+    [InlineData(BodyMotion.Static)]
+    public void AHullThatTurnsKinematicOrStaticInTheTickDropsItsSteerTarget(BodyMotion to)
+    {
+        using var test = TestWorld.OnJolt(out _);
+        FrameHandle ship = SpawnHull(test, BodyMotion.Dynamic, ShipBody);
+        test.Run(1);
+
+        Exception? refused = WriteInATick(test, ship.Entity, self =>
+        {
+            self.Body.SteerTo(TestWorld.At(103));
+            self.Body.SetMotion(to);
+        });
+
+        refused.Should().BeNull("the steer target came while the next step was to be dynamic");
+        test.World.NextStepHullMotion(ship).Should().Be(to);
+        test.World.Entities.NextStepIntent(ship.Entity).Move.HasValue.Should().BeFalse("the next step applies no steer target to a hull that is not dynamic");
+        test.World.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>True when the next step applies a full sample to the owner of <paramref name="frame"/>, between two ticks.</summary>
+    private static bool HasNextSample(TestWorld test, FrameHandle frame) =>
+        test.World.Entities.NextStepIntent(frame.Entity).Move.TryGetValue(out MotionSample _);
 
     /// <summary>
     /// A sample written while the tick's first change made the hull kinematic goes when the last change of the tick makes it
@@ -367,12 +410,12 @@ public class SetMotionTests
         });
 
         refused.Should().BeNull("the sample came while the next step was to be kinematic");
-        test.World.Frames.TryGetAppliedSample(ship, out _).Should().BeFalse("the next step applies no sample to a dynamic hull");
+        HasNextSample(test, ship).Should().BeFalse("the next step applies no sample to a dynamic hull");
         test.World.Errors.Should().BeEmpty();
     }
 
     /// <summary>
-    /// A dynamic hull may set its velocities and a kinematic target in a tick. When the same tick makes the hull kinematic,
+    /// A dynamic hull may set its velocities and a steer target in a tick. When the same tick makes the hull kinematic,
     /// they go: a kinematic hull moves only by its samples and teleports, which tell its frame how to follow. A force of the
     /// same tick stays, because physics applies it only to a dynamic body.
     /// </summary>
@@ -390,7 +433,7 @@ public class SetMotionTests
             done = true;
             self.Body.SetVelocity(new Double3(5, 0, 0));
             self.Body.SetAngularVelocity(new Vector3(0, 1, 0));
-            self.Body.MoveKinematic(TestWorld.At(3));
+            self.Body.SteerTo(TestWorld.At(3));
             self.Body.AddForce(new Vector3(10, 0, 0));
             self.Body.SetMotion(BodyMotion.Kinematic);
         }));
@@ -398,7 +441,8 @@ public class SetMotionTests
         test.Run(1);
 
         PhysicsIntent next = test.World.Entities.NextStepIntent(ship.Entity);
-        next.Flags.Should().Be(IntentFlags.SetMotion, "the velocities and the target went, and the change of motion stays");
+        next.Flags.Should().Be(IntentFlags.SetMotion, "the velocities went, and the change of motion stays");
+        next.Move.HasValue.Should().BeFalse("the steer target went");
         next.Motion.Should().Be(BodyMotion.Kinematic);
         next.Force.Should().Be(new Vector3(10, 0, 0), "a force stays, because physics applies it only to a dynamic body");
         test.World.Errors.Should().BeEmpty();

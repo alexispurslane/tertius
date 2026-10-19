@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation;
 
@@ -34,8 +35,9 @@ public sealed partial class World
     /// <see cref="DPose.IsValid"/>), a velocity that is not finite, a body that physics cannot create (see
     /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>, which checks a frame's hull as a body
     /// with the motion of its description), a gravity field that is not valid, or an attachment
-    /// parent that is not live or that owns a root frame. The World checks nothing about rails motion: a rails component
-    /// checks its own rules (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). An attached entity is live in
+    /// parent that is not live or that owns a root frame, or a first motion intent that the entity would refuse (see
+    /// <see cref="SpawnDesc.FirstMove"/>). The World checks nothing else about rails motion: a rails component checks its own
+    /// rules (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). An attached entity is live in
     /// the frame of its parent, whatever frame the description names (see <see cref="SpawnDesc.AttachTo"/>).
     /// </summary>
     public Entity Spawn(SpawnDesc desc)
@@ -201,6 +203,10 @@ public sealed partial class World
             if (!spec.Gravity.IsValid)
                 throw new ArgumentException("A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).", nameof(desc));
         }
+        if (SpawnVelocityProblem(desc) is { } velocityProblem)
+            throw new ArgumentException(velocityProblem, nameof(desc));
+        if (FirstMoveProblem(desc) is { } firstMove)
+            throw new ArgumentException($"The new entity cannot take the first motion intent {desc.FirstMove}: it {firstMove}.", nameof(desc));
 
         IReadOnlyList<IComponent> source = desc.Components ?? [];
         var components = new IComponent[source.Count];
@@ -231,6 +237,49 @@ public sealed partial class World
         }
         Topic[] subscriptions = desc.Subscriptions is { Count: > 0 } subs ? [.. subs] : [];
         return new SpawnPlan(components, wants, subscriptions);
+    }
+
+    /// <summary>
+    /// The sentence that refuses the spawn velocities of <paramref name="desc"/>, or null. A spawn velocity is the first
+    /// velocity of a body that physics integrates, a dynamic body or a character, and physics carries it on from there. Every
+    /// other entity moves only by its motion intents, its teleports, its transform writes or its parent, so a velocity at its
+    /// spawn would claim a motion that nothing carries out. A kinematic hull is the one exception: its spawn velocity is its
+    /// frame's velocity until its first sync point, from which the numeric update gives a fast hull its following frame at
+    /// spawn (docs/plans/rails-components.md, "Which entity takes a spawn velocity").
+    /// </summary>
+    private static string? SpawnVelocityProblem(SpawnDesc desc)
+    {
+        if (desc.LinearVelocity == Double3.Zero && desc.AngularVelocity == Vector3.Zero)
+            return null;
+        bool ownsFrame = desc.AsFrame is not null;
+        string? mover = desc.Body?.Motion switch
+        {
+            _ when !desc.AttachTo.IsNull => "An attached entity moves with its parent",
+            null => "An entity without a body moves only by its motion intents and transform writes",
+            _ when ownsFrame && desc.Frame.IsNull => "The owner of a root frame has no hull, so only its motion intents move it",
+            BodyMotion.Static => "A static body moves only by its teleports",
+            BodyMotion.Kinematic when !ownsFrame => "A kinematic body that owns no frame moves only by its motion intents and teleports",
+            _ => null,
+        };
+        if (mover is null)
+            return null;
+        string velocity = desc.LinearVelocity != Double3.Zero ? $"the linear velocity {desc.LinearVelocity}" : $"the angular velocity {desc.AngularVelocity}";
+        return $"{mover}, so it cannot spawn with {velocity}.";
+    }
+
+    /// <summary>
+    /// The reason that the entity of <paramref name="desc"/> refuses its first motion intent (see
+    /// <see cref="SpawnDesc.FirstMove"/>), or null. It judges the case by the rules of the guard (see
+    /// <see cref="MotionIntentProblem"/>), through <see cref="MotionIntent.ProblemFor"/>, with three facts of the
+    /// description: whether it attaches the entity, the motion of its body, which the body keeps in its first step, because a
+    /// change of motion that the new entity writes in its first tick acts in its second step, and whether the entity owns a
+    /// root frame. Then it refuses a number that is not finite and a zero rotation, as the writers do.
+    /// </summary>
+    private static string? FirstMoveProblem(SpawnDesc desc)
+    {
+        MotionIntent move = desc.FirstMove;
+        bool ownsRootFrame = desc.AsFrame is not null && desc.Frame.IsNull;
+        return move.ProblemFor(desc.Body?.Motion, attached: !desc.AttachTo.IsNull, ownsRootFrame) ?? MotionIntentNumberProblem(move);
     }
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
@@ -278,9 +327,10 @@ public sealed partial class World
             if (!frame.IsNull && desc.Body is { } hullBody)
                 Frames.SetHullMotion(own, hullBody.Motion);
             topics.AddFrame(own);
-            // Every new frame stands at the pose of its spawn description, with its velocities. A frame on rails holds still
-            // there for its first step, which runs before its components do, and the first sample of its rails component
-            // puts it on its rails (docs/plans/rails-components.md, "Other rules" in "The rails components").
+            // Every new frame stands at the pose of its spawn description, with its velocities. Its first step runs before its
+            // components do, so a frame on rails follows the first motion intent of its spawn in that step, or without one
+            // holds still there, and the first sample of its rails component puts it on its rails in the second step
+            // (docs/plans/rails-components.md, "The first motion intent of a spawn").
             Frames.SetTreeLinearVelocity(own, desc.LinearVelocity);
             Frames.SetAngularVelocity(own, desc.AngularVelocity);
             physicsChanges.FramesCreated.Add(own);
@@ -291,6 +341,12 @@ public sealed partial class World
         foreach (IComponent component in plan.Components)
             InitializeComponentType(component.GetType());
         entities.Activate(entity, row, desc.Render ?? new RenderData(), plan.Components, plan.Wants, desc.Body, own);
+        // The first motion intent, relative to the spawn's frame, goes into the new entity's front intent, which the next step
+        // applies as an intent that the entity wrote in the spawn's tick (docs/plans/rails-components.md, "The first motion
+        // intent of a spawn"). Step 6 runs after the swap of step 4, and a spawn outside a tick goes live at the call, so either
+        // way the next step is the entity's first.
+        if (desc.FirstMove.HasValue)
+            entities.SetFirstMove(entity, frame, WithUnitRotation(desc.FirstMove));
         if (desc.Body != null)
             physicsChanges.BodiesCreated.Add(new BodyCreate(entity, row.Frame, desc.Body, row.Pose, velocity, row.AngularVelocity));
 
@@ -444,7 +500,6 @@ public sealed partial class World
             }
         }
         ConvertIntentsOfDyingFrames();
-        ConvertSamplesOfMovedFrames();
 
         foreach (Entity entity in dying)
             FreeEntity(entity);
@@ -489,32 +544,6 @@ public sealed partial class World
                 ConvertIntent(ref intent, row.Frame, row.Pose.Position);
         }
     }
-
-    /// <summary>
-    /// Converts each applied and followed row of the sample table that is relative to a dying frame, or to a numeric frame in
-    /// one, into the frame that the row's frame's owner is in after the rehomes, before the dying frames go. Each row names
-    /// the frame that it is relative to: a sample its owner's frame when the owner wrote it, and a record the frame's
-    /// semantic parent when the frame took it (see <see cref="KeepRecord"/>). So the rows of the frames that the destroy batch
-    /// moves out of a dying frame convert here. Both buffers hold rows at step 5: the followed rows of the step that ended,
-    /// which the numeric update of step 6c reads, and the applied samples of the next step. The rows of a dying frame die
-    /// with it: a frame that reuses its index has another generation.
-    /// </summary>
-    private void ConvertSamplesOfMovedFrames()
-    {
-        int n = Frames.Count;
-        for (int i = 0; i < n; i++)
-        {
-            FrameHandle frame = Frames.AtDense(i);
-            if (Frames.IsNumeric(frame) || dyingMarks[frame.Entity])
-                continue;
-            if (IsRelativeToDyingFrame(Frames.Samples.Applied, frame) || IsRelativeToDyingFrame(Frames.Samples.Followed, frame))
-                Frames.Samples.ConvertInto(frame, entities.BackRow(frame.Entity).Frame);
-        }
-    }
-
-    /// <summary>True when <paramref name="samples"/> holds a row of <paramref name="frame"/> that is relative to a frame that dies in this batch.</summary>
-    private bool IsRelativeToDyingFrame(MotionSamples samples, FrameHandle frame) =>
-        samples.TryGet(frame, out _, out FrameHandle relativeTo) && Frames.IsAlive(relativeTo) && dyingMarks[Frames.SemanticOf(relativeTo).Entity];
 
     /// <summary>Moves an entity from a dying frame into an ancestor frame, keeping its pose and velocity relative to everything else.</summary>
     private void Rehome(Entity entity, FrameHandle from, FrameHandle to)

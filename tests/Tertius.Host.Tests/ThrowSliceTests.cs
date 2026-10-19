@@ -22,6 +22,9 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     private const double CrateOnTheFloor = -3.3, Eye = -1.85;
     private const float GravityPerTick = 9.81f / 60;
 
+    // A method call, because an expression tree cannot hold the conversion of a case to its union.
+    private static MessageTarget EntityTarget(string id) => new ToEntity(id);
+
     // How far outside the ship's bubble the crate's center lies when the crate passes into earth, in meters, measured along
     // the ray from the ship's center: the radius of the crate's bounding sphere, 0.35 m, and the margin of 1.11 m, 2 percent
     // of the bubble's largest radius, which is larger than that sphere. The dumps around the hand-off lie within
@@ -74,8 +77,8 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     {
         Dump("in-chamber").Entity("chamber-crate").Pose.Position.Y.Should().BeApproximately(CrateOnTheFloor, 0.005);
         Dump("carrying").Entities.Should().NotContain(e => e.Id == "chamber-crate", "the crate went when the person took it");
-        Dump("carrying").Events.Should().Contain(e => e.Event == nameof(CrateOffer) && e.From == "chamber-crate" && e.To == new ToEntity("person"));
-        Dump("carrying").Events.Should().Contain(e => e.Event == nameof(CrateTaken) && e.From == "person" && e.To == new ToEntity("chamber-crate"));
+        Dump("carrying").Events.Should().Contain(e => e.Event == nameof(CrateOffer) && e.From == "chamber-crate" && e.To == EntityTarget("person"));
+        Dump("carrying").Events.Should().Contain(e => e.Event == nameof(CrateTaken) && e.From == "person" && e.To == EntityTarget("chamber-crate"));
 
         // The person faces the ship's -X, so its right is the ship's -Z. The copy rides 0.35 m to the right of the eye,
         // 0.5 m below it and 0.9 m ahead. The eye is 0.75 m above the person's center.
@@ -89,7 +92,7 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
     {
         string copy = Copy;
 
-        Dump("thrown").Events.Should().Contain(e => e.Event == "Destroy" && e.From == "person" && e.To == new ToEntity(copy));
+        Dump("thrown").Events.Should().Contain(e => e.Event == "Destroy" && e.From == "person" && e.To == EntityTarget(copy));
         Dump("thrown").Entities.Should().NotContain(e => e.Id == copy);
     }
 
@@ -131,7 +134,7 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         string crate = Thrown;
 
         foreach (string name in InShip.Concat(InEarth))
-            Dump(name).Events.Should().NotContain(e => e.Event == "Collision" && e.To == new ToEntity(crate), $"nothing touched the crate before {name}");
+            Dump(name).Events.Should().NotContain(e => e.Event == "Collision" && e.To == EntityTarget(crate), $"nothing touched the crate before {name}");
         RelativeToShip("leaving").Position.X.Should().BeLessThan(-10, "the crate is out of the hull, whose port face is at x = -10 m");
     }
 
@@ -150,7 +153,7 @@ public sealed class ThrowSliceTests(ThrowRun run) : IClassFixture<ThrowRun>
         double leavingDistance = ShipBubble.Outside(RelativeToShip("leaving").Position), inEarthDistance = ShipBubble.Outside(RelativeToShip("in-earth").Position);
         leavingDistance.Should().BeInRange(HandOffDistance - HandOffTolerance, HandOffDistance, "the crate is still in the ship's frame");
         inEarthDistance.Should().BeInRange(HandOffDistance, HandOffDistance + HandOffTolerance, "the crate has just passed into earth");
-        Dump("in-earth").Events.Should().ContainSingle(e => e.Event == "FrameChanged" && e.To == new ToEntity(Thrown));
+        Dump("in-earth").Events.Should().ContainSingle(e => e.Event == "FrameChanged" && e.To == EntityTarget(Thrown));
         // So the crate passes into earth within 25 m of the ship's center.
         RelativeToShip("in-earth").Position.Length.Should().BeLessThan(25);
     }

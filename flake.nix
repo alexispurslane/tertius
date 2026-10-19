@@ -47,6 +47,9 @@
               pkgs.vulkan-loader
               pkgs.vulkan-tools
               pkgs.vulkan-validation-layers
+              # Headless runs stream their captures into ffmpeg, which encodes them into one video (--video).
+              # ffprobe, from the same package, reads the videos in the Host tests.
+              pkgs.ffmpeg-headless
             ]
             ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.moltenvk ];
 

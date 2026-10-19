@@ -69,7 +69,7 @@ internal sealed class TestWindow : IInputTarget, IPlayback
         return true;
     }
 
-    public bool Capture(World world, string path) => throw new InvalidOperationException("Free play captures nothing.");
+    public bool Capture(World world, string name) => throw new InvalidOperationException("Free play captures nothing.");
 }
 
 /// <summary>FreePlay: what the window's input does to the world between two ticks, and the script that records it.</summary>
@@ -512,7 +512,7 @@ public sealed class FreePlayTests : IDisposable
 
         public bool WaitForTick() => !poster.IsCompleted || after++ < 3;
 
-        public bool Capture(World world, string path) => throw new InvalidOperationException("Free play captures nothing.");
+        public bool Capture(World world, string name) => throw new InvalidOperationException("Free play captures nothing.");
     }
 }
 
@@ -585,8 +585,8 @@ public sealed class FreePlayReplayTests : IDisposable
                 .Should().BeGreaterThan(3, "the session moved the person, so that the replay has something to get wrong");
 
             Script script = Script.Load(path);
-            script.Steps.OfType<CameraStep>().Select(step => step.Entity).Should().Equal("chase", "far", "person", "chase", "far");
-            script.Steps.OfType<PostStep>().Count().Should().BeGreaterThan(10);
+            script.Steps.Select(step => step.Value).OfType<CameraStep>().Select(step => step.Entity).Should().Equal("chase", "far", "person", "chase", "far");
+            script.Steps.Select(step => step.Value).OfType<PostStep>().Count().Should().BeGreaterThan(10);
 
             using World replay = NewJoltWorld();
             SceneInstance replayScene = Tertius.Demo.DemoScenes.All.Single(s => s.Name == "orbit").Build(replay, RenderResources.None);

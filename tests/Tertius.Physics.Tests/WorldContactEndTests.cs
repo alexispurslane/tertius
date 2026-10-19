@@ -29,13 +29,12 @@ public class WorldContactEndTests
     });
 
     /// <summary>A kinematic block high above the far end of the floor, which touches nothing and keeps the system stepping.</summary>
-    private static void KeepStepping(World world, FrameHandle frame) => world.Spawn(new SpawnDesc
+    private static void KeepStepping(World world, FrameHandle frame) => world.Spawn(KinematicDrift.Drifting(new SpawnDesc
     {
         Frame = frame,
         Pose = At(-40, 20),
-        LinearVelocity = new Vector3(0, 0, 0.1f),
         Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic),
-    });
+    }, world, new Double3(0, 0, 0.1)));
 
     /// <summary>A frame with no body and a bubble of radius 5 m at <paramref name="x"/> on the X axis of <paramref name="parent"/>.</summary>
     private static FrameHandle Bubble(World world, FrameHandle parent, double x) => world.GetOwnedFrame(world.Spawn(new SpawnDesc
@@ -501,16 +500,18 @@ public class WorldContactEndTests
 
     /// <summary>
     /// Under gravity, a crate that nothing slows down slides on a static floor at 2 m/s into a frame's bubble. The frame has
-    /// the same gravity and no floor, so the crate falls there. Its ghost on the floor's side is kinematic, and Jolt makes
-    /// no contact between a kinematic body and a static one, so nothing carries the contact: the hand-off ends it. The
-    /// crate hears the end in the same tick as its FrameChanged, and so does the floor.
+    /// the same gravity and no floor of its own, but the floor reaches its bubble, so the floor has a ghost there (ticket
+    /// ter-xxmj). The hand-off carries the contact to that ghost, and the crate slides on over it with its one contact, as
+    /// it slides on the floor in one frame.
     /// </summary>
-    [Fact]
-    public void AHandOffThatEndsAContactReportsTheEndWithTheFrameChange()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ACrateThatSlidesOnAStaticFloorIntoABubbleKeepsItsContactWithTheFloor(bool acrossFrames)
     {
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
-        FrameHandle inside = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        FrameHandle inside = !acrossFrames ? ground : world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = ground,
             Pose = At(20, 0.5),
@@ -519,41 +520,26 @@ public class WorldContactEndTests
         var floorLog = new CollisionLog();
         Entity floor = LoggedFloor(world, ground, floorLog);
         var crateLog = new CollisionLog();
-        var crateMoves = new FrameChangeTicks();
         Entity crate = world.Spawn(new SpawnDesc
         {
             Frame = ground,
             Pose = At(13, 0.5),
             LinearVelocity = new Vector3(2, 0, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, Friction: 0, LinearDamping: 0, AngularDamping: 0),
-            Components = [crateLog, crateMoves],
+            Components = [crateLog],
         });
 
         Tick(world, 60);
-
         world.GetFrame(crate).Should().Be(inside);
-        long moved = crateMoves.Ticks.Should().ContainSingle().Subject;
-        crateLog.NewsOf(floor).Should().Equal(Started, Ended);
-        crateLog.Ended.Should().ContainSingle().Which.Should().Be((moved, floor));
-        floorLog.Ended.Should().ContainSingle().Which.Should().Be((moved, crate));
+        Tick(world, 60);
+
+        world.GetFrame(crate).Should().Be(inside, "the crate is 2 m into the bubble");
+        DPose pose = world.PoseIn(crate, ground);
+        pose.Position.X.Should().BeApproximately(17, 0.05);
+        pose.Position.Y.Should().BeApproximately(0.5, 0.02, "the crate slides on the floor");
+        crateLog.NewsOf(floor).Should().Equal(Started);
+        floorLog.NewsOf(crate).Should().Equal(Started);
         world.Errors.Should().BeEmpty();
-    }
-
-    /// <summary>Records the tick of every FrameChanged that its entity hears.</summary>
-    private sealed class FrameChangeTicks : IComponent
-    {
-        public List<long> Ticks { get; } = new();
-
-        public int Priority => 0;
-
-        public EventMask Wants => EventMask.Of<FrameChanged>();
-
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-        {
-            for (int i = 0; i < events.Count; i++)
-                if (events[i].Is<FrameChanged>())
-                    Ticks.Add(self.Tick);
-        }
     }
 
     [Fact]

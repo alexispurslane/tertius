@@ -31,9 +31,13 @@ internal enum NumericMode : byte
     /// it fast or far in its semantic frame, so that the hull rests in this frame (see "Anchors", rule 3, in the doc). At
     /// each sync point, its place in its semantic frame is the orbiter's place on the orbit, and the orbiter hangs at its
     /// origin. Its velocity is the chord of the orbit over the step that ends then: the change of place over that step,
-    /// divided by its length, which is the velocity that Jolt gives a body that moves along the orbit. During a step it
-    /// moves as a falling frame does, with the orbit's acceleration at its origin. So the bodies in it move as they would
-    /// in the semantic frame's own system, and they feel the field minus that acceleration. It never rotates: the
+    /// divided by its length, which is the velocity that Jolt gives a body that moves along the orbit. A new one starts with
+    /// the chord of its orbiter's motion over the step that ended, from the orbiter's row (see
+    /// <see cref="FrameTree.UpdateNumericFrames"/>). During a step it
+    /// moves as a falling frame does, with the acceleration that lands it on the orbiter's step plan, the record of the
+    /// orbiter's motion intent for the step (see <see cref="FrameTree.BeginNumericStep"/>): on an orbit, the orbit's
+    /// acceleration at its origin to about 3e-10 m/s² in low orbit. So the bodies in it move as they would in the semantic
+    /// frame's own system, and they feel the field minus that acceleration. It never rotates: the
     /// orbiter's rotation stays with the orbiter.
     /// </summary>
     Orbiting = 4,

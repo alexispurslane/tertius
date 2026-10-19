@@ -173,34 +173,6 @@ public class SpinFrameTests
     }
 
     [Fact]
-    public void WhenItsOwnerWritesItsTransformABodylessSpinFrameKeepsItsProperAcceleration()
-    {
-        using var test = NewWorld();
-        var weight = new Vector3(0, 9.81f, 0);
-        bool write = false;
-        Entity owner = test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
-            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-            {
-                if (write)
-                    self.SetTransform(TestWorld.At(5));
-                write = false;
-            })],
-        }.Spinning(test.World, QuarterTurnPerSecond, weight));
-        FrameHandle ground = test.World.GetOwnedFrame(owner);
-        test.Run(3);
-        test.World.Frames.ProperAcceleration(ground).Should().Be(weight, "the spin's sample gives the frame its proper acceleration");
-
-        write = true;
-        test.Run(1);
-
-        test.World.Frames.LocalPose(ground).Position.Should().Be(new Double3(5, 0, 0));
-        test.World.Frames.ProperAcceleration(ground).Should().Be(weight, "a write moves the frame and changes nothing else, as a frame that holds still keeps its proper acceleration");
-    }
-
-    [Fact]
     public void ATiltedSpinFrameTurnsAboutItsTiltedPoleAndSaysSoInItsAngularVelocity()
     {
         using var test = NewWorld();
@@ -231,7 +203,7 @@ public class SpinFrameTests
 
         test.Run(10);
 
-        MotionSample sample = spin.Sample(place, Vector3.Zero, test.World.Time, test.World.DeltaTime);
+        MotionSample sample = spin.Sample(place, test.World.Time, test.World.DeltaTime);
         test.World.Frames.LocalPose(ground).Should().Be(sample.Pose);
         // The ground hangs in the root, which is no numeric frame, so the stored velocity is the one relative to the parent.
         test.World.Frames.TreeLinearVelocity(ground).Should().Be(sample.Velocity, "a frame that turns in place does not move");
@@ -274,24 +246,22 @@ public class SpinFrameTests
     }
 
     /// <summary>
-    /// A ship without a body flies along +X at 10 m/s, on samples that a scripted flight writes, and its engines push it up
-    /// at 9.81 m/s², so its cargo has weight. The game parks it on a turntable: a <see cref="SpinMotion"/> in place of the
-    /// flight, into which the game copies the frame's proper acceleration (docs/plans/rails-components.md,
-    /// "The rails components"). The flight's last sample moves the ship in the step of the swap, so the swap has no gap. From
+    /// A ship without a body flies along +X at 10 m/s, on samples that a scripted flight writes. The game parks it on a
+    /// turntable: a <see cref="SpinMotion"/> in place of the flight (docs/plans/rails-components.md, "The rails components").
+    /// The flight's last sample moves the ship in the step of the swap, so the swap has no gap. From
     /// the second sync point after the swap, the ship stands still and turns at the place where that last sample left it: the
     /// spin's first sample starts where the flight's last sample ends.
     /// </summary>
     [Fact]
-    public void AMovingFrameThatGetsASpinMotionInPlaceOfItsFlightStopsButKeepsItsProperAcceleration()
+    public void AMovingFrameThatGetsASpinMotionInPlaceOfItsFlightStopsAndTurnsWhereTheFlightLeftIt()
     {
         using var test = NewWorld();
         var velocity = new Double3(10, 0, 0);
-        var weight = new Vector3(0, 9.81f, 0);
         Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
         {
             double stepEnd = self.TimeAt(self.Tick + 2);
             self.MoveOnRails(new MotionSample(new DPose(velocity * stepEnd, DQuaternion.Identity), velocity, velocity, Double3.Zero,
-                Double3.Zero, Double3.Zero, weight));
+                Double3.Zero, Double3.Zero));
         });
         Entity owner = test.World.Spawn(new SpawnDesc
         {
@@ -302,10 +272,9 @@ public class SpinFrameTests
         FrameHandle ship = test.World.GetOwnedFrame(owner);
         test.Run(TicksPerSecond);
         test.World.Frames.LinearVelocity(ship).Should().Be(velocity, "the ship flies before the swap");
-        test.World.Frames.ProperAcceleration(ship).Should().Be(weight);
 
         test.World.RemoveComponent(owner, flight);
-        test.World.AddComponent(owner, new SpinMotion { Spin = QuarterTurnPerSecond, ProperAcceleration = test.World.Frames.ProperAcceleration(ship) });
+        test.World.AddComponent(owner, new SpinMotion { Spin = QuarterTurnPerSecond });
         test.Run(1);
         Double3 parked = test.World.Frames.LocalPose(ship).Position;
         parked.Should().Be(velocity * test.World.Time, "the flight's last sample moves the ship in the step of the swap");
@@ -316,7 +285,6 @@ public class SpinFrameTests
 
             test.World.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
             test.World.Frames.AngularVelocity(ship).Should().Be(new Vector3(0, MathF.PI / 2, 0), "the ship turns by its spin");
-            test.World.Frames.ProperAcceleration(ship).Should().Be(weight, "a ship on a turntable keeps its cargo's weight, as a parked one does");
             test.World.Frames.LocalPose(ship).Position.Should().Be(parked, "a ship on a turntable turns in place");
         }
     }

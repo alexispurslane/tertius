@@ -5,7 +5,8 @@ namespace Tertius.Physics;
 
 /// <summary>
 /// Native Jolt shapes, cached by <see cref="ShapeDesc"/> reference. Shape descriptions are immutable and shared, so
-/// one native shape serves every body that uses the same description. Not thread-safe: use it at the sync point or
+/// one native shape serves every body that uses the same description. Two descriptions that differ only in their
+/// convex radius are two keys and give two native shapes. Not thread-safe: use it at the sync point or
 /// on the physics thread, never both at once.
 /// </summary>
 internal sealed class ShapeCache : IDisposable
@@ -52,8 +53,9 @@ internal sealed class ShapeCache : IDisposable
     {
         Vector3 half = box.HalfExtents;
         float smallest = MathF.Min(half.X, MathF.Min(half.Y, half.Z));
-        // Jolt requires the convex radius to fit inside the box.
-        return NativeOwnership.Owned(new BoxShape(half, MathF.Min(Foundation.DefaultConvexRadius, smallest)));
+        // The radius never exceeds the smallest half extent. Jolt's box clamps it the same way, so this line only makes
+        // the rule explicit here, where the description meets Jolt.
+        return NativeOwnership.Owned(new BoxShape(half, MathF.Min(box.ConvexRadius, smallest)));
     }
 
     private static SphereShape CreateSphere(float radius) => NativeOwnership.Owned(new SphereShape(radius));
@@ -66,7 +68,7 @@ internal sealed class ShapeCache : IDisposable
 
     private static ConvexHullShape CreateHull(ConvexHullShapeDesc hull)
     {
-        using ConvexHullShapeSettings settings = NativeOwnership.Owned(new ConvexHullShapeSettings(hull.Points.AsSpan(), Foundation.DefaultConvexRadius));
+        using ConvexHullShapeSettings settings = NativeOwnership.Owned(new ConvexHullShapeSettings(hull.Points.AsSpan(), hull.ConvexRadius));
         ConvexHullShape shape = NativeOwnership.Owned(new ConvexHullShape(settings));
         if (shape.Handle == 0)
             throw new ArgumentException($"is a convex hull that Jolt cannot build from its {hull.Points.Length} points: they may coincide or lie on a line");

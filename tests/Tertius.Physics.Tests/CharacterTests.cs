@@ -129,22 +129,22 @@ public class CharacterTests
         var (world, ground) = WorldWithFloor();
         using (world)
         {
-            var liftPilot = new Pilot();
+            var liftPilot = new SelfPilot();
             var platform = new BodyDesc(new BoxShapeDesc(new Vector3(2, 0.25f, 2)), BodyMotion.Kinematic);
             Entity lift = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1, 0), Body = platform, Components = [liftPilot] });
             Entity person = SpawnPerson(world, ground, At(0, 1.25 + StandingHeight + 0.02, 0));
             Tick(world, 20);
             Double3 start = world.PoseInOwnFrame(person).Position;
 
-            // The platform slides sideways and rises, driven by kinematic targets: tick i writes the i-th of 60 targets, and
-            // the step of the next tick moves the platform there. The 61st tick applies the last target.
+            // The platform slides sideways and rises, driven by end poses: tick i writes the i-th of 60 end poses, and the
+            // step of the next tick moves the platform there. The 61st tick applies the last end pose.
             int written = 0;
-            liftPilot.EveryTick = body =>
+            liftPilot.EveryTick = self =>
             {
                 if (written == 60)
                     return;
                 written++;
-                body.MoveKinematic(new DPose(new Double3(2.0 * written / 60, 1 + 0.5 * written / 60, 0), DQuaternion.Identity));
+                self.MoveKinematic(new DPose(new Double3(2.0 * written / 60, 1 + 0.5 * written / 60, 0), DQuaternion.Identity));
             };
             Tick(world, 61);
 
@@ -165,12 +165,13 @@ public class CharacterTests
         var (world, ground) = WorldWithFloor();
         using (world)
         {
-            var deckPilot = new Pilot();
             var platform = new BodyDesc(new BoxShapeDesc(new Vector3(3, 0.25f, 3)), BodyMotion.Kinematic);
-            Entity deck = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1, 0), Body = platform, Components = [deckPilot] });
+            Entity deck = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1, 0), Body = platform });
             Entity person = SpawnPerson(world, ground, At(0, 1.25 + StandingHeight + 0.02, 0));
             Tick(world, 10);
-            Send(world, deckPilot, body => body.SetVelocity(new Double3(0, 0, 2)));
+            // A kinematic body moves only by its motion intents, so the deck drifts by end poses from the step after this tick.
+            world.AddComponent(deck, new KinematicDrift(new Double3(0, 0, 2)));
+            world.Tick();
             double z = world.PoseInOwnFrame(person).Position.Z;
             Tick(world, 60);
             (world.PoseInOwnFrame(person).Position.Z - z).Should().BeInRange(1.9, 2.05);
@@ -335,21 +336,24 @@ public class CharacterTests
         var (world, space, person, _) = Floating();
         using (world)
         {
-            // A kinematic wall whose face is at x = 0.5 moves toward the character at 1 m/s for one second, then stops.
-            var wallPilot = new Pilot();
-            world.Spawn(new SpawnDesc
+            // A kinematic wall whose face is at x = 0.5 moves toward the character at 1 m/s for one second, then stops. A
+            // kinematic body moves only by its motion intents, so the wall drifts by end poses.
+            Entity wall = world.Spawn(new SpawnDesc
             {
                 Frame = space,
                 Pose = At(1, 0, 0),
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f, 5, 5)), BodyMotion.Kinematic),
-                Components = [wallPilot],
             });
             world.Tick();
-            Send(world, wallPilot, body => body.SetVelocity(new Double3(-1, 0, 0)));
-            // The wall moves in the steps of 60 ticks, from the one that applies its velocity. The command to stop it is
-            // written in the last of them, so the step after it applies the command.
+            var drift = new KinematicDrift(new Double3(-1, 0, 0));
+            world.AddComponent(wall, drift);
+            world.Tick();
+            // The wall moves in the steps of 60 ticks, from the one that applies its first end pose. The drift is gone before
+            // the tick after the last of them, so the step of that tick applies the last end pose, and the wall holds still
+            // from the step after it.
             Tick(world, 59);
-            Send(world, wallPilot, body => body.SetVelocity(Double3.Zero));
+            world.RemoveComponent(wall, drift);
+            world.Tick();
             Tick(world, 60);
 
             world.VelocityInOwnFrame(person).X.Should().BeApproximately(-1, 0.01f, "the character drifts on at the speed that the wall gave it");

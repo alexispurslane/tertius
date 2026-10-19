@@ -99,13 +99,12 @@ public partial class NumericFrameStickOutGhostTests
         });
         FrameHandle station = world.GetOwnedFrame(owner);
         var rockLog = new CollisionLog();
-        Entity crate = world.Spawn(new SpawnDesc
+        Entity crate = world.Spawn(KinematicDrift.Drifting(new SpawnDesc
         {
             Frame = space,
             Pose = At(FarOut + 38, 20),
-            LinearVelocity = new Double3(-2, 0, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic),
-        });
+        }, world, new Double3(-2, 0, 0)));
         Entity rock = world.Spawn(new SpawnDesc
         {
             Frame = space,

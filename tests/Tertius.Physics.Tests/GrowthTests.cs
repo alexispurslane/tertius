@@ -353,13 +353,12 @@ public class GrowthTests
             World.Spawn(new SpawnDesc { Frame = Ground, Pose = At(0, -0.5), Body = FloorDesc(100) });
             Sleeper = World.Spawn(new SpawnDesc { Frame = Ground, Pose = At(-20, 30), Body = BoxDesc(0.5f, mass: 5) });
             Roller = World.Spawn(new SpawnDesc { Frame = Ground, Pose = At(20, 0.5), LinearVelocity = new Vector3(2, 0, 0), Body = BallDesc(0.5f, mass: 2) });
-            World.Spawn(new SpawnDesc
+            World.Spawn(KinematicDrift.Drifting(new SpawnDesc
             {
                 Frame = Ground,
                 Pose = At(-10, 3),
-                LinearVelocity = new Vector3(0, 0, 1),
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(1, 0.1f, 1)), BodyMotion.Kinematic),
-            });
+            }, World, new Double3(0, 0, 1)));
             var lopsided = new CompoundShapeDesc([
                 new CompoundChild(new BoxShapeDesc(new Vector3(0.5f)), new Pose(new Vector3(0.6f, 0, 0), Quaternion.Identity)),
                 new CompoundChild(new BoxShapeDesc(new Vector3(0.2f)), new Pose(new Vector3(-0.3f, 0, 0), Quaternion.Identity)),
@@ -611,9 +610,10 @@ public class GrowthTests
 
     /// <summary>
     /// Boxes fall on the floor of a ground frame whose system holds 16 bodies at most, and a ball rolls into a pit frame
-    /// whose system is full. The hand-off grows the pit's system during a step, and at tick 20 more boxes grow the ground's
-    /// system at the sync point. Returns a hash of the output of every step, the capacity of both systems after it, and a
-    /// hash of the whole World after it.
+    /// whose system is full: the pit's floor, 14 crates and the ghost of the ground's floor, which reaches the pit's bubble.
+    /// The hand-off grows the pit's system during a step, and at tick 20 more boxes grow the ground's system at the sync
+    /// point. Returns a hash of the output of every step, the capacity of both systems after it, and a hash of the whole
+    /// World after it.
     /// </summary>
     private static (List<ulong> Hashes, List<(uint Ground, uint Pit)> Capacities, List<ulong> WorldHashes) RunWithGrowth()
     {
@@ -623,7 +623,7 @@ public class GrowthTests
         world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, -0.5), Body = FloorDesc(100) });
         FrameHandle pit = EmptyFrame(world, ground, At(40), 10, gravity);
         world.Spawn(new SpawnDesc { Frame = pit, Pose = At(0, -0.5), Body = FloorDesc(15) });
-        AddCrates(world, pit, 15);
+        AddCrates(world, pit, 14);
         for (int i = 0; i < 6; i++)
             world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0.3 * i, 1 + 1.1 * i, 0.1 * i), Body = BoxDesc(0.4f, mass: 2) });
         world.Spawn(new SpawnDesc { Frame = ground, Pose = At(28, 0.5), LinearVelocity = new Vector3(6, 0, 0), Body = BallDesc(0.5f) });

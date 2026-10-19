@@ -31,7 +31,8 @@ public class WorldCharacterContactTests
         FrameHandle ground = Ground(world, 9.81f);
         Floor(world, ground);
         if (keepStepping)
-            world.Spawn(new SpawnDesc { Frame = ground, Pose = At(-40, 20), LinearVelocity = new Vector3(0, 0, 0.1f), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic) });
+            world.Spawn(KinematicDrift.Drifting(new SpawnDesc { Frame = ground, Pose = At(-40, 20), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic) },
+                world, new Double3(0, 0, 0.1)));
         var boxLog = new CollisionLog();
         Entity box = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(1, 0.5), Body = HeavyBox, Components = [boxLog] });
         var pilot = new Pilot();

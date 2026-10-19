@@ -6,11 +6,12 @@ namespace Tertius.Physics;
 
 public sealed partial class JoltPhysicsBackend
 {
-    // Bodies that a kinematic target moved in the current and the previous step.
+    // Bodies that a motion intent moved in the current and the previous step.
     private List<BodyRecord> kinematicMovers = new();
     private List<BodyRecord> kinematicMoversLast = new();
-    // Each hull on rails that the current step aims at a target, with the target in its home (see AimHullsOnRails).
-    private readonly List<(BodyRecord Hull, DPose Target)> railsTargets = new();
+    // Each kinematic body that the current step aims at the pose of its motion intent, with that pose in its home: the snap
+    // list (see SnapKinematicBodies).
+    private readonly List<(BodyRecord Body, DPose Target)> kinematicTargets = new();
     private BodyID[] activeScratch = new BodyID[256];
 
     /// <summary>The record that a body's user data names, if it is still alive.</summary>
@@ -62,6 +63,7 @@ public sealed partial class JoltPhysicsBackend
     {
         (kinematicMoversLast, kinematicMovers) = (kinematicMovers, kinematicMoversLast);
         kinematicMovers.Clear();
+        kinematicTargets.Clear();
 
         ReadOnlySpan<PhysicsIntent> intents = context.Intents.Span;
         foreach (Entity entity in context.IntentEntities.Span)
@@ -76,17 +78,26 @@ public sealed partial class JoltPhysicsBackend
                 SetCollision(record, intent.CollisionGroups, intent.CollisionMask);
             if (!record.HasPrimary)
                 continue;
+            // The guard of the writers, the drops of step 4 and the check of a spawn give a body only a motion intent whose
+            // case its motion in the step takes, so another comes only from a bug.
+            bool move = intent.Move.HasValue;
+            if (move && intent.Move.ProblemFor(record.IsCharacter ? BodyMotion.Character : record.Motion, attached: false, ownsRootFrame: false) is { } problem)
+            {
+                ReportBug($"Physics: the step gives {entity} the motion intent {intent.Move}, but it {problem}. " +
+                          "Only a bug gives it that motion intent, so the step ignores it.");
+                move = false;
+            }
             if (record.Character is not null)
                 ApplyCharacterIntent(record, intent);
             else if (record.IsCharacter)
                 ApplyRigidCharacterIntent(record, intent);
             else if (record.Motion != BodyMotion.Static)
-                ApplyBodyIntent(record, intent, intent.Flags);
+                ApplyBodyIntent(record, intent, intent.Flags, move);
             else if (record.IsHull && (intent.Flags & IntentFlags.Teleport) != 0)
                 TeleportStaticHull(record, intent.TeleportPose);
         }
 
-        // A body that a target moved last step stops at the target, unless it got a new target or velocity.
+        // A body that a motion intent moved last step stops at its end, unless it got a new motion intent or velocity.
         foreach (BodyRecord record in kinematicMoversLast)
         {
             if (record.KinematicTargetStep == stepIndex || record.VelocitySetStep == stepIndex)
@@ -117,7 +128,8 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Gives every Jolt body of a record the layer for new collision groups and a new mask: the primary body or the
-    /// character's inner body, the interior of the frame that it owns, and its ghosts. A frame's hull keeps its layer.
+    /// character's inner body, the interior of the frame that it owns, and its ghosts, each the layer of its role (see
+    /// <see cref="GhostBody.Role"/>). A frame's hull keeps its layer, and so does a ghost in the frame hull role.
     /// Jolt wakes nothing when a layer changes. So the bodies around each body wake under its old layer, which wakes what
     /// rested on it, and under its new one, which wakes what it now overlaps. The primary body wakes too when it can
     /// move, so that it falls through what it no longer meets.
@@ -144,11 +156,11 @@ public sealed partial class JoltPhysicsBackend
         }
         if (record.InteriorWorld is { } interior)
             SetLayer(interior, record.InteriorBody, InteriorLayer(record));
-        // The ghost of an anchor has the anchor's own layer, a hull's, which ignores the collision groups.
+        // The layer of the frame hull role ignores the collision groups.
         if (record.Ghosts is { } ghosts)
             foreach (GhostBody ghost in ghosts)
-                if (!ghost.Anchor)
-                    SetLayer(ghost.World, ghost.Body, GhostLayer(record));
+                if (ghost.Role != BodyLayer.FrameHull)
+                    SetLayer(ghost.World, ghost.Body, GhostLayer(record, ghost.Role));
     }
 
     private static void SetLayer(FrameWorld world, BodyID body, ObjectLayer layer)
@@ -160,17 +172,18 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Applies the intent of a rigid body, with the flags <paramref name="flags"/>, which are those of the intent or a part
-    /// of them. Impulses and forces act on a dynamic body whatever the flags say.
+    /// of them, and with <paramref name="move"/> its motion intent. Impulses and forces act on a dynamic body whatever the
+    /// flags say.
     /// </summary>
-    private void ApplyBodyIntent(BodyRecord record, in PhysicsIntent intent, IntentFlags flags)
+    private void ApplyBodyIntent(BodyRecord record, in PhysicsIntent intent, IntentFlags flags, bool move)
     {
         BodyInterface bodies = record.World!.Bodies;
         BodyID id = record.Body;
 
-        // Teleport first, so that a kinematic target in the same intent moves the body on from the new pose. Jolt does not
+        // Teleport first, so that a motion intent in the same intent moves the body on from the new pose. Jolt does not
         // simulate the jump, so the bodies around the old place wake. Jolt wakes those that the body touches at the new place.
         // Each velocity here is an instant velocity, and Jolt gets its chord. The pose in the home is the step record of a
-        // hull's frame when the hull has no sample (see PredictRecord).
+        // hull's frame when the hull has no motion intent (see PredictRecord).
         if ((flags & IntentFlags.Teleport) != 0)
         {
             Double3 position = InHome(record, intent.TeleportPose.Position);
@@ -179,7 +192,7 @@ public sealed partial class JoltPhysicsBackend
             record.TeleportStep = stepIndex;
             record.TeleportPose = new DPose(position, intent.TeleportPose.Rotation.Normalized());
             // At rest in the semantic frame, which is not at rest in a falling numeric home. A kinematic hull holds still in
-            // its home, the frame's tree parent, until a sample aims it (see AimHullsOnRails).
+            // its home, the frame's tree parent, unless the motion intent below aims it.
             Vector3 linear = record is { IsHull: true, Motion: BodyMotion.Kinematic }
                 ? Vector3.Zero
                 : LinearChord(record, CenterOfMass(bodies, id), LocalVelocity(record, Double3.Zero));
@@ -198,24 +211,43 @@ public sealed partial class JoltPhysicsBackend
             bodies.SetAngularVelocity(id, AngularChord(record, intent.AngularVelocity));
             record.VelocitySetStep = stepIndex;
         }
-        if ((flags & IntentFlags.KinematicTarget) != 0)
+        if (move)
         {
-            DQuaternion rotation = intent.Target.Rotation.Normalized();
-            // The body reaches the target at the end of the step, where a falling numeric home will be by then.
-            Double3 target = intent.Target.Position - HomeOffsetAfterStep(record.Frame);
+            // One branch for every body that a motion intent moves, after the teleport, so that the stop rule of ApplyIntents
+            // never zeroes it first. Physics aims a kinematic body at the end of its end pose or full sample and puts it
+            // exactly there after the update (see SnapKinematicBodies), and steers a dynamic body to its steer target. A
+            // conversion between frames can leave the rotation off unit length by rounding.
+            DPose aim = intent.Move.AimPose;
+            DQuaternion rotation = aim.Rotation.Normalized();
             if (record.Motion == BodyMotion.Kinematic)
             {
-                bodies.MoveKinematic(id, target.ToJolt(), rotation.ToJolt(), stepDt);
+                DPose target = KinematicTarget(record, aim.Position, rotation);
+                bodies.MoveKinematic(id, target.Position.ToJolt(), target.Rotation.ToJolt(), stepDt);
+                kinematicTargets.Add((record, target));
+                // The step record of a plain body starts where Jolt holds the body now, after the teleport, in the body's
+                // semantic frame, in which the intent is (see World.ConvertMovedIntents). The frame tree derives a hull's
+                // record (see PredictRecord).
+                if (!record.IsHull)
+                {
+                    FrameHandle semantic = frames.SemanticOf(record.Frame);
+                    Contract.Assert(intent.Frame == semantic);
+                    DPose start = ReadPrimary(record).Pose;
+                    var standing = new DPose(start.Position + frames.HomeOffset(record.Frame, semantic), start.Rotation);
+                    intent.StepRecord(standing, stepDt, out record.AimedRecord);
+                    record.AimedHome = record.Frame;
+                }
             }
             else
             {
+                // The body reaches the aim pose at the end of the step, where a falling numeric home will be by then.
+                Double3 target = aim.Position - HomeOffsetAfterStep(record.Frame);
                 // A dynamic body gets the velocities that carry it to the target in one step. Contacts and gravity
                 // still act on it.
                 BodySnapshot s = ReadPrimary(record);
                 Double3 localCenter = s.Pose.InverseTransformPoint(s.CenterOfMass);
                 Double3 targetCenter = target + rotation.Rotate(localCenter);
                 Vector3 linear = ((targetCenter - s.CenterOfMass) / stepDt).ToVector3();
-                Vector3 angular = Rotations.AngularVelocity(s.Pose.Rotation, rotation, stepDt).ToVector3();
+                Vector3 angular = s.Pose.Rotation.AngularVelocityTo(rotation, stepDt).ToVector3();
                 bodies.SetLinearAndAngularVelocity(id, linear, angular);
             }
             record.KinematicTargetStep = stepIndex;
@@ -237,14 +269,14 @@ public sealed partial class JoltPhysicsBackend
     /// Applies the intent of a character in its rigid form, a dynamic body that cannot turn. A teleport, a velocity that the
     /// game sets, impulses and forces act on it as on any dynamic body. A walk and a jump do not move it, the same as in the
     /// walking form while it does not stand: physics keeps the desired velocity of the walk, which applies once the
-    /// character stands, and drops the jump. A kinematic target does nothing to a character, and the rigid form cannot turn,
+    /// character stands, and drops the jump. A motion intent does nothing to a character, and the rigid form cannot turn,
     /// so an angular velocity, an angular impulse and a torque change nothing either.
     /// </summary>
     private void ApplyRigidCharacterIntent(BodyRecord record, in PhysicsIntent intent)
     {
         if ((intent.Flags & IntentFlags.CharacterMove) != 0)
             record.DesiredVelocity = intent.CharacterVelocity;
-        ApplyBodyIntent(record, intent, intent.Flags & (IntentFlags.Teleport | IntentFlags.SetVelocity));
+        ApplyBodyIntent(record, intent, intent.Flags & (IntentFlags.Teleport | IntentFlags.SetVelocity), move: false);
     }
 
     private void ApplyCharacterIntent(BodyRecord record, in PhysicsIntent intent)
@@ -305,61 +337,32 @@ public sealed partial class JoltPhysicsBackend
     private Double3 InHome(BodyRecord record, Double3 position) => InHome(record.Frame, position);
 
     /// <summary>
-    /// Aims each kinematic hull whose frame has a sample in this step at the sample's pose at the end of the step (see
-    /// <see cref="RailsTarget"/>), as a gameplay target aims a kinematic body, and remembers the target for the snap after
-    /// the Jolt update (see <see cref="SnapHullsOnRails"/>). A hull that this step aims ends it on the target, and the rule
-    /// of <see cref="ApplyIntents"/> stops it in the first step without a sample: it holds still in its tree parent.
+    /// The pose in its home at which the kinematic body <paramref name="body"/> ends the step with a motion intent that ends
+    /// at <paramref name="position"/>, in the body's semantic frame, with <paramref name="rotation"/>, which is unit length.
+    /// A hull at the origin of its orbit frame stays at that origin, because the orbit frame lands on the hull's step plan,
+    /// which ends at the same pose, and takes the plan's place at the sync point (see <see cref="FrameTree.PlaceFollowingFrame"/>).
+    /// In the step of a teleport the hull is not at that origin, so it goes to the plan's place, where the orbit frame will be
+    /// at the end of the step: it does not sweep back to the origin, and the orbit frame jumps to it at the sync point (see
+    /// <see cref="FrameTree.JumpFollowingFrame"/>). Any other body goes to that place too, where its home will be at the end
+    /// of the step.
     /// </summary>
-    private void AimHullsOnRails()
+    private DPose KinematicTarget(BodyRecord body, Double3 position, DQuaternion rotation)
     {
-        railsTargets.Clear();
-        foreach (BodyRecord owner in frameOwners)
-        {
-            if (owner.Motion != BodyMotion.Kinematic || !owner.HasPrimary ||
-                !stepSamples.TryGet(owner.OwnedFrame, out MotionSample sample, out FrameHandle relativeTo))
-                continue;
-            DPose target = RailsTarget(owner, sample, relativeTo);
-            owner.World!.Bodies.MoveKinematic(owner.Body, target.Position.ToJolt(), target.Rotation.ToJolt(), stepDt);
-            owner.KinematicTargetStep = stepIndex;
-            kinematicMovers.Add(owner);
-            railsTargets.Add((owner, target));
-        }
-    }
-
-    /// <summary>
-    /// The pose in its home at which the kinematic hull <paramref name="hull"/> ends the step with <paramref name="sample"/>,
-    /// which is relative to <paramref name="relativeTo"/>. The rotation is normalized, as for a gameplay target. A hull at
-    /// the origin of its orbit frame stays at that origin, with the sample's rotation, because the orbit frame falls with
-    /// the sample's acceleration in the step and takes the sample's place at the sync point (see
-    /// <see cref="FrameTree.PlaceFollowingFrame"/>). In the step of a teleport the hull is not at that origin, so it goes
-    /// to the sample's place, where the orbit frame will be at the end of the step: it does not sweep back to the origin,
-    /// and the orbit frame jumps to it at the sync point (see <see cref="FrameTree.JumpFollowingFrame"/>). Any other hull
-    /// goes to the sample's place too, where its home will be at the end of the step.
-    /// </summary>
-    private DPose RailsTarget(BodyRecord hull, in MotionSample sample, FrameHandle relativeTo)
-    {
-        FrameHandle frame = hull.OwnedFrame;
-        bool atOrigin = frames.InOrbitFrame(frame);
-        // A frame with a kinematic hull hangs in its semantic parent, which its sample is relative to, or at the origin of
-        // its orbit frame (see FrameTree).
-        Contract.Assert(relativeTo == frames.Parent(frame) && (atOrigin || frames.TreeParent(frame) == relativeTo),
-            $"The sample of {frame} is relative to {relativeTo}, but the frame hangs in {frames.TreeParent(frame)}.");
-        DQuaternion rotation = sample.Pose.Rotation.Normalized();
-        if (atOrigin && hull.TeleportStep != stepIndex)
+        if (body.IsHull && frames.InOrbitFrame(body.OwnedFrame) && body.TeleportStep != stepIndex)
             return new DPose(Double3.Zero, rotation);
-        return new DPose(sample.Pose.Position - HomeOffsetAfterStep(hull.Frame), rotation);
+        return new DPose(position - HomeOffsetAfterStep(body.Frame), rotation);
     }
 
     /// <summary>
-    /// Puts each hull that <see cref="AimHullsOnRails"/> aimed exactly on its target, right after the Jolt update and before
+    /// Puts each kinematic body that a motion intent aimed exactly on its target, right after the Jolt update and before
     /// anything reads the end of the step. Jolt reaches a kinematic target only to the float rounding of the velocity that it
-    /// gives the hull, about 4 µm per step at 7.6 km/s, and it does not move a hull in a system that it skipped. The move is
-    /// that rounding, so the hull's activation stays as it is and nothing around it wakes.
+    /// gives the body, about 4 µm per step at 7.6 km/s, and it does not move a body in a system that it skipped. The move is
+    /// that rounding, so the body's activation stays as it is and nothing around it wakes.
     /// </summary>
-    private void SnapHullsOnRails()
+    private void SnapKinematicBodies()
     {
-        foreach ((BodyRecord hull, DPose target) in railsTargets)
-            hull.World!.Bodies.SetRPositionAndRotation(hull.Body, target.Position.ToJolt(), target.Rotation.ToJolt(), Activation.DontActivate);
+        foreach ((BodyRecord body, DPose target) in kinematicTargets)
+            body.World!.Bodies.SetRPositionAndRotation(body.Body, target.Position.ToJolt(), target.Rotation.ToJolt(), Activation.DontActivate);
     }
 
     /// <summary>

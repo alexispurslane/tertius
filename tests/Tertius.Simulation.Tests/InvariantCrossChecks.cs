@@ -97,11 +97,12 @@ internal static class InvariantCrossChecks
         if (inboxesCurrent)
             CheckInboxes(world, topics, live, history, Report);
 
+        // An entity without a body writes only a motion intent, which the sync point applies to it.
         foreach (Entity intent in entities.IntentEntities.Span)
         {
             reachable.Add(intent);
-            if (!liveSet.Contains(intent) || entities.Body(intent) == null)
-                Report($"{intent} is in the intent list but is not a live entity with a body.");
+            if (!liveSet.Contains(intent) || (entities.Body(intent) == null && !entities.FrontIntents.Span[(int)intent.Index].Move.HasValue))
+                Report($"{intent} is in the intent list but is not a live entity with a body or a motion intent.");
         }
         foreach (Entity entity in reachable)
         {

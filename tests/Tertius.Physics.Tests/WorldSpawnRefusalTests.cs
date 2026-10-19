@@ -22,12 +22,14 @@ public class WorldSpawnRefusalTests
         "a motion that BodyMotion does not define" => (new BodyDesc(new SphereShapeDesc(1), (BodyMotion)9), "BodyMotion"),
         "a layer that BodyLayer does not define" => (new BodyDesc(new SphereShapeDesc(1), Layer: (BodyLayer)9), "BodyLayer"),
         "a box with a negative half extent" => (new BodyDesc(new BoxShapeDesc(new Vector3(1, -1, 1))), "half extents"),
+        "a box with a negative convex radius" => (new BodyDesc(new BoxShapeDesc(new Vector3(1), -1)), "convex radius"),
         "a box with a half extent that is not a number" => (new BodyDesc(new BoxShapeDesc(new Vector3(1, float.NaN, 1))), "half extents"),
         "a sphere without a radius" => (new BodyDesc(new SphereShapeDesc(0)), "radius"),
         "a capsule with a negative half height" => (new BodyDesc(new CapsuleShapeDesc(-1, 0.5f)), "half height"),
         "a capsule without a radius" => (new BodyDesc(new CapsuleShapeDesc(1, 0)), "radius"),
         "a convex hull with three points" => (new BodyDesc(new ConvexHullShapeDesc([new(0, 0, 0), new(1, 0, 0), new(0, 1, 0)])), "4 points"),
         "a convex hull with a point that is not a number" => (new BodyDesc(new ConvexHullShapeDesc([.. Tetrahedron[..3], new(0, 0, float.NaN)])), "not finite"),
+        "a convex hull with a convex radius that is not a number" => (new BodyDesc(new ConvexHullShapeDesc(Tetrahedron, float.NaN)), "convex radius"),
         "a convex hull whose points all coincide" => (new BodyDesc(new ConvexHullShapeDesc([new(1, 1, 1), new(1, 1, 1), new(1, 1, 1), new(1, 1, 1)])), "convex hull"),
         "a mesh without triangles" => (new BodyDesc(new MeshShapeDesc([new(0, 0, 0)], []), BodyMotion.Static), "multiple of 3"),
         "a mesh whose index count is not a multiple of 3" => (new BodyDesc(new MeshShapeDesc(Triangle.Vertices, [0, 2]), BodyMotion.Static), "multiple of 3"),
@@ -63,11 +65,13 @@ public class WorldSpawnRefusalTests
     [InlineData("a layer that BodyLayer does not define")]
     [InlineData("a box with a negative half extent")]
     [InlineData("a box with a half extent that is not a number")]
+    [InlineData("a box with a negative convex radius")]
     [InlineData("a sphere without a radius")]
     [InlineData("a capsule with a negative half height")]
     [InlineData("a capsule without a radius")]
     [InlineData("a convex hull with three points")]
     [InlineData("a convex hull with a point that is not a number")]
+    [InlineData("a convex hull with a convex radius that is not a number")]
     [InlineData("a convex hull whose points all coincide")]
     [InlineData("a mesh without triangles")]
     [InlineData("a mesh whose index count is not a multiple of 3")]
@@ -267,6 +271,112 @@ public class WorldSpawnRefusalTests
         world.Stats.LiveEntities.Should().Be(live, "nothing changed");
         Tick(world, 120);
         world.PoseInOwnFrame(ball).Position.Y.Should().BeApproximately(0.5, 0.01, "the ball fell onto the floor next to nothing");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A spawn velocity is the first velocity of a body that physics integrates, a dynamic body or a character. Every other
+    /// entity moves only by its motion intents, its teleports, its transform writes or its parent, so a spawn refuses a
+    /// linear or angular velocity on it, which would otherwise claim a motion that nothing carries out
+    /// (docs/plans/rails-components.md, "Which entity takes a spawn velocity"). A kinematic hull is the one exception (see
+    /// <see cref="AKinematicHullKeepsItsSpawnVelocityAsItsFramesVelocity"/>).
+    /// </summary>
+    [Theory]
+    [InlineData("a kinematic body that owns no frame", "linear velocity", "kinematic")]
+    [InlineData("a kinematic body that owns no frame", "angular velocity", "kinematic")]
+    [InlineData("an entity without a body or a frame", "linear velocity", "without a body")]
+    [InlineData("an entity without a body or a frame", "angular velocity", "without a body")]
+    [InlineData("a frame owner without a body", "linear velocity", "without a body")]
+    [InlineData("a frame owner without a body", "angular velocity", "without a body")]
+    [InlineData("the owner of a root frame", "linear velocity", "without a body")]
+    [InlineData("the owner of a root frame with a dynamic body", "angular velocity", "root frame")]
+    [InlineData("an attached entity", "linear velocity", "attached")]
+    [InlineData("an attached entity", "angular velocity", "attached")]
+    [InlineData("a static body", "linear velocity", "static")]
+    [InlineData("a static body", "angular velocity", "static")]
+    [InlineData("a static hull", "linear velocity", "static")]
+    [InlineData("a static hull", "angular velocity", "static")]
+    public void SpawnRefusesAVelocityOnAnEntityThatPhysicsDoesNotIntegrate(string kind, string word, string reason)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        Entity parent = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1) });
+        int live = world.Stats.LiveEntities;
+        Double3 linear = word == "linear velocity" ? new Double3(1, 0, 0) : Double3.Zero;
+        Vector3 angular = word == "angular velocity" ? new Vector3(0, 1, 0) : Vector3.Zero;
+        BodyDesc kinematic = Cube() with { Motion = BodyMotion.Kinematic }, still = Cube() with { Motion = BodyMotion.Static };
+        var bubble = new FrameSpec(FrameBounds.Sphere(2));
+        SpawnDesc desc = kind switch
+        {
+            "a kinematic body that owns no frame" => new() { Frame = ground, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = kinematic },
+            "an entity without a body or a frame" => new() { Frame = ground, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular },
+            "a frame owner without a body" => new() { Frame = ground, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, AsFrame = bubble },
+            "the owner of a root frame" => new() { Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, AsFrame = bubble },
+            "the owner of a root frame with a dynamic body" => new() { Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = Cube(), AsFrame = bubble },
+            "an attached entity" => new() { Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, AttachTo = parent },
+            "a static body" => new() { Frame = ground, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = still },
+            "a static hull" => new() { Frame = ground, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = still, AsFrame = bubble },
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+        };
+
+        Action spawn = () => world.Spawn(desc);
+
+        spawn.Should().Throw<ArgumentException>(kind).WithMessage($"*{reason}*{word}*");
+        world.Stats.LiveEntities.Should().Be(live, "nothing changed");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A dynamic body, a character and a dynamic hull are the bodies that physics integrates, so each one starts with its
+    /// spawn velocity (docs/plans/rails-components.md, "Which entity takes a spawn velocity").
+    /// </summary>
+    [Theory]
+    [InlineData("a dynamic body")]
+    [InlineData("a character")]
+    [InlineData("a dynamic hull")]
+    public void ABodyThatPhysicsIntegratesStartsWithItsSpawnVelocity(string kind)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Ground(world, 0);
+        var linear = new Double3(1, 0, 0);
+        Vector3 angular = kind == "a character" ? Vector3.Zero : new Vector3(0, 0.5f, 0);
+        SpawnDesc desc = kind switch
+        {
+            "a dynamic body" => new() { Frame = space, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = Cube() },
+            "a character" => new() { Frame = space, Pose = At(0, 1), LinearVelocity = linear, Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70) },
+            "a dynamic hull" => new() { Frame = space, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = Cube(), AsFrame = new FrameSpec(FrameBounds.Sphere(2)) },
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+        };
+
+        Entity entity = world.Spawn(desc);
+
+        world.VelocityIn(entity, space).Should().Be(linear, kind);
+        world.AngularVelocityIn(entity, space).Should().Be(angular, kind);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A kinematic hull keeps its spawn velocity as the velocity of its frame until its first sync point, so the numeric
+    /// update can give a fast hull its following frame at spawn (docs/plans/rails-components.md, "The first motion intent of
+    /// a spawn").
+    /// </summary>
+    [Fact]
+    public void AKinematicHullKeepsItsSpawnVelocityAsItsFramesVelocity()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+
+        FrameHandle frame = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(0, 1),
+            LinearVelocity = new Double3(1, 0, 0),
+            AngularVelocity = new Vector3(0, 1, 0),
+            Body = Cube() with { Motion = BodyMotion.Kinematic },
+            AsFrame = new FrameSpec(FrameBounds.Sphere(2)),
+        }));
+
+        world.Frames.LinearVelocity(frame).Should().Be(new Double3(1, 0, 0));
         world.Errors.Should().BeEmpty();
     }
 

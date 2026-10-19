@@ -1,6 +1,6 @@
 ---
 id: ter-7ul9
-status: open
+status: closed
 deps: []
 links: [ter-imi5]
 created: 2026-10-17T05:07:23Z

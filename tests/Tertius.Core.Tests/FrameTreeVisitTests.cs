@@ -84,7 +84,7 @@ public class FrameTreeVisitTests
             Entity = new Entity(20, 1), Semantic = ground, Home = ground, Position = X(x), HomePosition = X(x), Velocity = X(speed),
             Radius = 1, Mass = 1, Character = true, OwnedFrame = hull,
         };
-        frames.UpdateNumericFrames([body], 0.1, new PhysicsChanges(), _ => { });
+        frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), _ => { });
         FrameHandle pod = frames.TreeParent(hull);
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
         return (ground, hull, pod);
@@ -165,7 +165,7 @@ public class FrameTreeVisitTests
         frames.SetTreeLocalPose(hull, new DPose(X(0.5), DQuaternion.Identity));
         // 3/256 s at 64 m/s moves the pod 0.75 m in its nest, exactly.
         frames.Update();
-        frames.BeginNumericStep();
+        frames.BeginNumericStep([], 1.0 / 60);
         frames.AdvanceNumericFrames(3.0 / 256);
 
         // The exact place is a light-year plus 1.25 m, and a double there steps by 2 m. Summed from the hull up, it rounds

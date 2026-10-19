@@ -194,6 +194,72 @@ public class StateDumpTests
         FollowsOf(run.Dump("after"), "ship").Should().Be("physics");
     }
 
+    /// <summary>
+    /// The frame tree stores how each frame followed its owner beside the record of the step that ended (docs/plans/
+    /// rails-components.md, "The follow kind"): a full sample is rails, an end pose kinematic, a dynamic hull physics, and a
+    /// frame that held still static, and so is a frame whose owner wrote its transform in the same tick as a motion intent,
+    /// because the write wins for one tick. The yard is the owner of a root frame, whose body is only the frame's static
+    /// interior, so it takes end poses as a frame without a hull does.
+    /// </summary>
+    [Fact]
+    public void AStateDumpTellsHowEachFrameFollowedItsOwner()
+    {
+        using World world = NewJoltWorld();
+        var scene = new SceneInstance();
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        scene.Add("space", space.Entity);
+        static DPose At(long tick) => new(new Double3(tick, 0, 0), DQuaternion.Identity);
+        static MotionSample Still(long tick) => new(At(tick), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+        scene.Add("yard", world.Spawn(new SpawnDesc
+        {
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
+            Components = [new EachTick(self => self.MoveKinematic(At(self.Tick)))],
+        }));
+        scene.Add("moon", world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            Components = [new EachTick(self => self.MoveOnRails(Still(self.Tick)))],
+        }));
+        scene.Add("room", world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            Components = [new EachTick(self =>
+            {
+                self.MoveOnRails(Still(self.Tick));
+                self.SetTransform(At(-self.Tick));
+            })],
+        }));
+        scene.Add("ship", world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = new DPose(new Double3(500, 0, 0), DQuaternion.Identity),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Dynamic, Mass: 1000),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+        }));
+
+        StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 2 }""", DumpNow).Dump("now");
+
+        FollowsOf(dump, "yard").Should().Be("kinematic");
+        FollowsOf(dump, "moon").Should().Be("rails");
+        FollowsOf(dump, "room").Should().Be("static", "the write of the transform wins over the motion intent for one tick");
+        FollowsOf(dump, "ship").Should().Be("physics");
+        FollowsOf(dump, "space").Should().Be("static");
+        dump.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>Runs <paramref name="act"/> on its entity in every tick.</summary>
+    private sealed class EachTick(Action<Self> act) : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => act(self);
+    }
+
     private static string FollowsOf(StateDump dump, string id) => dump.Frames.Single(frame => frame.Id == id).Follows;
 
     /// <summary>
@@ -244,7 +310,8 @@ public class StateDumpTests
         using World world = NewWorld();
         SceneInstance scene = ShipWithCrate(world);
 
-        EntityRecord crate = Run(world, scene, DumpNow).Dump("now").Entity("crate");
+        // The crate takes its velocities from its first motion intent, at the first sync point.
+        EntityRecord crate = Run(world, scene, """{ "do": "run", "ticks": 1 }""", DumpNow).Dump("now").Entity("crate");
 
         crate.Velocity.Should().Be(new Double3(1, 2, 3));
         crate.AngularVelocity.Should().Be(new Vector3(0.25f, 0.5f, 0.75f));
@@ -285,6 +352,92 @@ public class StateDumpTests
         result.Dump("second").Events.Select(e => ((Nudge)e.Payload).Amount).Should().Equal(2);
     }
 
+    /// <summary>A playback that lets every tick run and draws no capture.</summary>
+    private sealed class DrawsNothing : IPlayback
+    {
+        public bool WaitForTick() => true;
+
+        public bool Capture(World world, string name) => true;
+    }
+
+    [Fact]
+    public void ADumpAfterAFilmListsEveryEventRoutedSinceTheDumpBeforeIt()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        string folder = NewFolder();
+        try
+        {
+            RunResult result = ScriptRunner.Run(Script.Parse("""
+                { "scene": "test", "steps": [
+                  { "do": "camera", "entity": "probe" },
+                  { "do": "post", "to": { "kind": "entity", "id": "probe" }, "event": "Nudge", "payload": { "amount": 1 } },
+                  { "do": "run", "ticks": 2 },
+                  { "do": "dump", "name": "first" },
+                  { "do": "post", "to": { "kind": "entity", "id": "crew" }, "event": "Nudge", "payload": { "amount": 2 } },
+                  { "do": "film", "name": "climb", "frames": 2, "every": 2 },
+                  { "do": "dump", "name": "second" } ] }
+                """), world, scene, folder, new DrawsNothing());
+
+            result.Dump("first").Events.Select(e => ((Nudge)e.Payload).Amount).Should().Equal(1);
+            // Posted after 2 ticks, so the sync point of the film's first tick routes it.
+            result.Dump("second").Events.Should().ContainSingle().Which.Tick.Should().Be(3);
+            result.Dump("second").Events.Select(e => ((Nudge)e.Payload).Amount).Should().Equal(2);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// The bytes that the calling thread allocates to run <paramref name="steps"/> on the scene "probes" with one more
+    /// entity, which sends itself <paramref name="nudgesPerTick"/> nudges on every tick. A first run of the same steps
+    /// comes before the measured one, so that the measured run allocates nothing for code that runs for the first time.
+    /// </summary>
+    private static long BytesToRun(int nudgesPerTick, string steps)
+    {
+        long bytes = 0;
+        for (int run = 0; run < 2; run++)
+        {
+            using World world = NewWorld();
+            SceneInstance scene = Probes(world);
+            world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(scene["space"]), Components = [new NudgesItselfEveryTick(nudgesPerTick)] });
+            Script script = Script.Parse($$"""{ "scene": "test", "steps": [ { "do": "camera", "entity": "probe" }, {{steps}} ] }""");
+            string folder = NewFolder();
+            try
+            {
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                ScriptRunner.Run(script, world, scene, folder, new DrawsNothing());
+                bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+                world.Stats.RoutedEvents.Should().Be(nudgesPerTick, "the last sync point routed the nudges of the last tick");
+            }
+            finally
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+        return bytes;
+    }
+
+    /// <summary>
+    /// Each case runs 100 ticks with 100 nudges a tick, so 10,000 routed events, and no dump step comes after them. Recording
+    /// them would allocate more than 100 bytes for each: the record, its boxed payload, its target and its place in the
+    /// list. So the run with the nudges may allocate at most 8 bytes more for each event than the same run without them.
+    /// </summary>
+    [Theory]
+    [InlineData("""{ "do": "run", "ticks": 100 }""")]
+    [InlineData("""{ "do": "dump", "name": "start" }, { "do": "run", "ticks": 100 }""")]
+    [InlineData("""{ "do": "film", "name": "climb", "frames": 50, "every": 2 }""")]
+    [InlineData("""{ "do": "dump", "name": "start" }, { "do": "film", "name": "climb", "frames": 50, "every": 2 }""")]
+    public void TheRunKeepsNoRoutedEventOfATickAfterWhichNoDumpStepComes(string steps)
+    {
+        long quiet = BytesToRun(0, steps);
+        long busy = BytesToRun(100, steps);
+
+        (busy - quiet).Should().BeLessThan(10_000 * 8, $"no dump reads them (quiet run: {quiet} bytes, busy run: {busy} bytes)");
+    }
+
     [Fact]
     public void ARecordedEventCarriesTheTickCountAfterTheSyncPointThatRoutedIt()
     {
@@ -314,7 +467,7 @@ public class StateDumpTests
 
         EventRecord record = dump.Events.Should().ContainSingle().Which;
         record.Event.Should().Be("Nudge");
-        record.To.Should().Be(new ToTopic("test"));
+        record.To.Should().Be(new MessageTarget(new ToTopic("test")));
         record.From.Should().BeNull("a posted event comes from outside the simulation");
     }
 
@@ -366,7 +519,7 @@ public class StateDumpTests
 
         EventRecord record = dump.Events.Should().ContainSingle().Which;
         record.From.Should().Be("sender");
-        record.To.Should().Be(new ToEntity("probe"));
+        record.To.Should().Be(new MessageTarget(new ToEntity("probe")));
     }
 
     [Fact]

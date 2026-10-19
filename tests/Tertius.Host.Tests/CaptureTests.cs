@@ -17,22 +17,29 @@ public sealed class CaptureTests : IDisposable
 
     public void Dispose() => Directory.Delete(folder, recursive: true);
 
-    /// <summary>Runs the script on a fresh world and a fresh validating renderer, and checks that validation stayed silent.</summary>
-    private static RunResult Run(string json, Func<World> newWorld, Func<World, IRenderResources, SceneInstance> build, string? output)
+    /// <summary>
+    /// Runs the script on a fresh world and a fresh validating renderer, with its dumps and its images in
+    /// <paramref name="output"/>, and checks that validation stayed silent.
+    /// </summary>
+    private static RunResult Run(string json, Func<World> newWorld, Func<World, IRenderResources, SceneInstance> build, string output)
     {
         using World world = newWorld();
-        return Run(json, world, build, output);
+        return Run(json, world, build, output, new PngFolder(output));
     }
 
-    /// <summary>Runs the script on the given world and a fresh validating renderer, and checks that validation stayed silent.</summary>
-    private static RunResult Run(string json, World world, Func<World, IRenderResources, SceneInstance> build, string? output)
+    /// <summary>
+    /// Runs the script on the given world and a fresh validating renderer, with its dumps in <paramref name="output"/> and
+    /// its images in <paramref name="images"/>, and checks that validation stayed silent.
+    /// </summary>
+    private static RunResult Run(string json, World world, Func<World, IRenderResources, SceneInstance> build, string? output, PngFolder images)
     {
         Script script = Script.Parse(json);
         // A small renderer: the runner resizes it to the script's window.
         VulkanRenderer renderer = Headless(16, 16);
         try
         {
-            return ScriptRunner.Run(script, world, build(world, renderer), output, new HeadlessPlayback(renderer, script.Window));
+            using var playback = new HeadlessPlayback(renderer, script.Window, images);
+            return ScriptRunner.Run(script, world, build(world, renderer), output, playback);
         }
         finally
         {
@@ -47,9 +54,8 @@ public sealed class CaptureTests : IDisposable
         RunResult result = Run("""{ "scene": "lit-box", "window": { "width": 320, "height": 180 }, "steps": [ { "do": "capture", "name": "front" } ] }""",
             NewWorld, LitBox, folder);
 
-        string path = Path.Combine(folder, "front.png");
-        result.Captures.Should().Equal(path);
-        Png image = Png.Load(path);
+        result.Captures.Should().Equal("front");
+        Png image = Png.Load(Path.Combine(folder, "front.png"));
         image.Width.Should().Be(320);
         image.Height.Should().Be(180);
     }
@@ -119,15 +125,59 @@ public sealed class CaptureTests : IDisposable
     }
 
     [Fact]
-    public void ACaptureWithoutAnOutputFolderStopsTheRunBeforeTheFirstTick()
+    public void ACaptureWritesItsPngIntoTheFolderOfThePlaybacksTargetWhetherOrNotTheRunHasAnOutputFolder()
     {
         using World world = NewWorld();
+        string images = Path.Combine(folder, "images");
 
-        Action run = () => Run("""{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "run", "ticks": 1 }, { "do": "capture", "name": "now" } ] }""",
-            world, LitBox, output: null);
+        Run("""{ "scene": "lit-box", "window": { "width": 32, "height": 32 }, "steps": [ { "do": "capture", "name": "now" } ] }""",
+            world, LitBox, output: null, new PngFolder(images));
 
-        run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("output folder");
-        world.TickNumber.Should().Be(0);
+        File.Exists(Path.Combine(images, "now.png")).Should().BeTrue("the target names the folder, and the PNG sink makes it");
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    public void APngTargetCannotExistWithoutAFolder(string empty)
+    {
+        Action make = () => _ = new PngFolder(empty);
+
+        make.Should().Throw<ArgumentException>();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData("video.mp4")]
+    [InlineData("video")]
+    [InlineData("video.mkv.png")]
+    public void AVideoTargetCannotExistWithoutAMatroskaFile(string path)
+    {
+        Action make = () => _ = new VideoFile(path, 30);
+
+        make.Should().Throw<ArgumentException>().Where(ex => ex.ParamName == "path");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(241)]
+    [InlineData(-30)]
+    public void AVideoTargetCannotExistWithARateOutside1To240FramesPerSecond(int framesPerSecond)
+    {
+        Action make = () => _ = new VideoFile("video.mkv", framesPerSecond);
+
+        make.Should().Throw<ArgumentOutOfRangeException>().Where(ex => ex.ParamName == "framesPerSecond");
+    }
+
+    [Theory]
+    [InlineData("video.mkv", 1)]
+    [InlineData("runs/VIDEO.MKV", 240)]
+    public void AVideoTargetTakesAMatroskaFileInAnyCaseAndARateFrom1To240FramesPerSecond(string path, int framesPerSecond)
+    {
+        var video = new VideoFile(path, framesPerSecond);
+
+        (video.Path, video.FramesPerSecond).Should().Be((path, framesPerSecond));
     }
 
     [Fact]
@@ -141,7 +191,7 @@ public sealed class CaptureTests : IDisposable
                 SceneInstance scene = LitBox(w, resources);
                 w.AddComponent(scene["front"], new DestroysItselfOnFirstTick());
                 return scene;
-            }, folder);
+            }, folder, new PngFolder(folder));
 
         run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2").And.Contain("camera").And.Contain("not alive");
         File.Exists(Path.Combine(folder, "now.png")).Should().BeFalse("an image of nothing is not written");

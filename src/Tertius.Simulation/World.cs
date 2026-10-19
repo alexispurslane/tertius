@@ -130,6 +130,13 @@ public sealed partial class World : IDisposable
     /// <summary>Vertical field of view in radians.</summary>
     public float VerticalFov { get; set; } = MathF.PI / 3;
 
+    /// <summary>
+    /// Whether the render snapshot carries the outline of each frame that has a parent (<see cref="RenderSnapshot.Outlines"/>).
+    /// A view setting, as <see cref="Camera"/> is: the first snapshot built after a change shows it. Off by default. With it
+    /// off, the builder does no outline work.
+    /// </summary>
+    public bool ShowFrameOutlines { get; set; }
+
     /// <summary>The frame whose origin is the sun. If it is null, the sun shines straight down the camera frame's -Y axis.</summary>
     public FrameHandle SunFrame { get; set; }
 
@@ -321,6 +328,8 @@ public sealed partial class World : IDisposable
     /// <item>Only a character can be standing.</item>
     /// <item>Every intent that the next physics step applies names its entity's frame (see
     /// <see cref="PhysicsIntent.Frame"/>).</item>
+    /// <item>Every live entity among the entities that took a step record at the last step 2 without body or frame has
+    /// neither (see <see cref="FollowFramelessEntities"/>).</item>
     /// </list>
     /// </summary>
     internal void AssertInvariants()
@@ -335,6 +344,9 @@ public sealed partial class World : IDisposable
         Contract.Invariant(dying.Count == 0);
         foreach (Entity entity in entities.IntentEntities.Span)
             Contract.Invariant(entities.NextStepIntent(entity).Frame == entities.BackRow(entity).Frame);
+        foreach (Entity entity in framelessMovers)
+            if (entities.IsAlive(entity))
+                Contract.Invariant(entities.Body(entity) == null && entities.OwnedFrame(entity).IsNull);
         foreach (Entity entity in entities.LiveEntities)
         {
             ref readonly TransformRow row = ref entities.BackRow(entity);
@@ -387,7 +399,7 @@ public sealed partial class World : IDisposable
     private void BuildRenderSnapshot()
     {
         RenderSnapshot snapshot = RenderSnapshots.WriteBuffer;
-        renderBuilder.Build(snapshot, new RenderView(TickNumber, Time, Camera, VerticalFov, SunFrame, SunColor, SunIntensity, Ambient));
+        renderBuilder.Build(snapshot, new RenderView(TickNumber, Time, Camera, VerticalFov, SunFrame, SunColor, SunIntensity, Ambient, ShowFrameOutlines));
         snapshot.PublishedAt = Stopwatch.GetTimestamp();
         RenderSnapshots.Publish();
     }

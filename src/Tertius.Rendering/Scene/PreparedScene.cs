@@ -116,6 +116,13 @@ internal sealed class PreparedScene
     /// <summary>How many far shadows, at the front of <see cref="Occluders"/>, belong to casters that the shadow maps also draw.</summary>
     public int MappedOccluderCount;
 
+    /// <summary>
+    /// The frame outlines to draw, in the order of the snapshot, appended by <see cref="OutlinePass"/> in its
+    /// <see cref="RenderPass.Prepare"/>.
+    /// </summary>
+    public GpuOutline[] Outlines = new GpuOutline[16];
+    public int OutlineCount;
+
     /// <summary>Instances in the snapshot, before any filtering.</summary>
     public int SubmittedInstances;
 
@@ -162,6 +169,14 @@ internal sealed class PreparedScene
         return InstanceCount++;
     }
 
+    /// <summary>Adds a frame outline to draw.</summary>
+    public void AppendOutline(in GpuOutline outline)
+    {
+        if (OutlineCount == Outlines.Length)
+            Array.Resize(ref Outlines, Outlines.Length * 2);
+        Outlines[OutlineCount++] = outline;
+    }
+
     /// <summary>Adds an indirect command after batching, for a pass's own draws. Returns its index.</summary>
     public int AppendCommand(in DrawIndexedIndirectCommand command)
     {
@@ -177,6 +192,7 @@ internal sealed class PreparedScene
         InstanceCount = 0;
         CommandCount = 0;
         LightCount = 0;
+        OutlineCount = 0;
         OccluderCount = 0;
         MappedOccluderCount = 0;
         SubmittedInstances = 0;

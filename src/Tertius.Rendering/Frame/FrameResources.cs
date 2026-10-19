@@ -7,9 +7,9 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// What one frame in flight owns: its command buffer, fence and acquire semaphore, the host-visible buffers the CPU
-/// fills each frame (frame constants, instances, indirect commands, lights, occluders), its descriptor sets and its
-/// staging memory. The CPU touches these only after waiting on <see cref="Fence"/>, so no other synchronization
-/// is needed for them.
+/// fills each frame (frame constants, instances, indirect commands, lights, occluders, frame outlines), its descriptor
+/// sets and its staging memory. The CPU touches these only after waiting on <see cref="Fence"/>, so no other
+/// synchronization is needed for them.
 /// </summary>
 internal sealed unsafe class FrameResources : IDisposable
 {
@@ -58,6 +58,7 @@ internal sealed unsafe class FrameResources : IDisposable
         Commands = new HostArray<DrawIndexedIndirectCommand>(device, allocator, BufferUsageFlags.IndirectBufferBit, $"frame {index} indirect", 256);
         Lights = new HostArray<GpuLight>(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} lights", 64);
         Occluders = new HostArray<Vector4>(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} occluders", 16);
+        Outlines = new HostArray<GpuOutline>(device, allocator, BufferUsageFlags.StorageBufferBit, $"frame {index} outlines", 16);
         Staging = new StagingArena(device, allocator, $"frame {index}");
 
         FrameSet = layouts.AllocateFrameSet();
@@ -67,6 +68,7 @@ internal sealed unsafe class FrameResources : IDisposable
         layouts.WriteBuffer(FrameSet, 3, DescriptorType.StorageBuffer, Lights.Buffer);
         layouts.WriteBuffer(FrameSet, 4, DescriptorType.StorageBuffer, Occluders.Buffer);
         layouts.WriteSampler(FrameSet, 5, textures.MaterialSampler);
+        layouts.WriteBuffer(FrameSet, 6, DescriptorType.StorageBuffer, Outlines.Buffer);
     }
 
     public int Index { get; }
@@ -81,6 +83,7 @@ internal sealed unsafe class FrameResources : IDisposable
     public HostArray<DrawIndexedIndirectCommand> Commands { get; }
     public HostArray<GpuLight> Lights { get; }
     public HostArray<Vector4> Occluders { get; }
+    public HostArray<GpuOutline> Outlines { get; }
     public StagingArena Staging { get; }
     public DescriptorSet FrameSet { get; }
     public DescriptorSet TextureSet { get; }
@@ -100,6 +103,8 @@ internal sealed unsafe class FrameResources : IDisposable
             layouts.WriteBuffer(FrameSet, 3, DescriptorType.StorageBuffer, Lights.Buffer);
         if (Occluders.Write(scene.Occluders.AsSpan(0, scene.OccluderCount)))
             layouts.WriteBuffer(FrameSet, 4, DescriptorType.StorageBuffer, Occluders.Buffer);
+        if (Outlines.Write(scene.Outlines.AsSpan(0, scene.OutlineCount)))
+            layouts.WriteBuffer(FrameSet, 6, DescriptorType.StorageBuffer, Outlines.Buffer);
     }
 
     /// <summary>Points this frame's sets at the current material buffer and writes textures added since its last frame.</summary>
@@ -121,6 +126,7 @@ internal sealed unsafe class FrameResources : IDisposable
         Commands.Dispose();
         Lights.Dispose();
         Occluders.Dispose();
+        Outlines.Dispose();
         Constants.Dispose();
         Staging.Dispose();
         vk.DestroySemaphore(device.Device, ImageAvailable, null);

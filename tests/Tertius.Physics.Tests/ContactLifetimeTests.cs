@@ -7,10 +7,11 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// Physics reports a contact once, when it starts. A contact that never ended is not reported again, whatever Jolt does
-/// underneath. Jolt forgets the contacts of a body that falls asleep while the rest of its system keeps stepping, and the
-/// contacts of a hull that becomes static. It reports them again when the body wakes or moves again. A growth of the
-/// system forgets every contact too. A contact that really ends while a body sleeps or is static still ends, so it is
-/// reported again when it starts again. The tests run the World on the real backend and count the contacts in the step
+/// underneath. Jolt forgets the contacts of a body that falls asleep while the rest of its system keeps stepping, and it
+/// reports them again when the body wakes. A growth of the system forgets every contact too. A contact that really ends
+/// while a body sleeps or is static still ends, so it is reported again when it starts again. A hull that changes its
+/// motion ends each contact that its new motion cannot make, such as a touch of a static body when it parks, and keeps
+/// each one that its new motion can make (rule 6 of docs/plans/complete-ghosts.md). The tests run the World on the real backend and count the contacts in the step
 /// outputs that Jolt really sent, which <see cref="FaultInjectingBackend"/> records.
 /// </summary>
 public class ContactLifetimeTests
@@ -45,6 +46,10 @@ public class ContactLifetimeTests
         public int ContactsOf(Entity a, Entity b) => Faults.Outputs.SelectMany(output => output.Contacts)
             .Count(contact => (contact.A == a && contact.B == b) || (contact.A == b && contact.B == a));
 
+        /// <summary>The number of ends of contacts between <paramref name="a"/> and <paramref name="b"/> that Jolt reported so far.</summary>
+        public int EndsOf(Entity a, Entity b) => Faults.Outputs.SelectMany(output => output.ContactsEnded)
+            .Count(ended => (ended.A == a && ended.B == b) || (ended.A == b && ended.B == a));
+
         /// <summary>True while Jolt simulates the body of <paramref name="entity"/> in the system of the ground.</summary>
         public bool IsAwake(Entity entity) => WorldTesting.IsAwake(Faults.Jolt, Frame, entity);
 
@@ -52,13 +57,12 @@ public class ContactLifetimeTests
         /// A kinematic block that slides slowly, high above the far end of the floor, and touches nothing. It is always
         /// awake, so the system of the ground steps every tick, also while every other body sleeps.
         /// </summary>
-        public void KeepSteppingTheSystem() => World.Spawn(new SpawnDesc
+        public void KeepSteppingTheSystem() => World.Spawn(KinematicDrift.Drifting(new SpawnDesc
         {
             Frame = Frame,
             Pose = At(-40, 20),
-            LinearVelocity = new Vector3(0, 0, 0.1f),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic),
-        });
+        }, World, new Double3(0, 0, 0.1)));
 
         /// <summary>Adds a box of 1 m that rests on the floor, and ticks until it is asleep.</summary>
         public Entity SleepingBox(params IComponent[] components)
@@ -153,14 +157,18 @@ public class ContactLifetimeTests
     }
 
     /// <summary>
-    /// The reviewer's probe C1. A lander with a dynamic hull rests on the floor. The game parks the lander for a second and
-    /// then unparks it, each with a change of the hull's motion in a tick. Jolt drops the contact of two static bodies, but
-    /// the lander never left the floor.
+    /// A lander with a dynamic hull rests on the floor. The game parks the lander for a second and then unparks it, each
+    /// with a change of the hull's motion in a tick. A static body touches no static body, so the parked lander's touch of
+    /// the floor ends at the park, and the lander touches the floor again when it is unparked: every pair of a body follows
+    /// its new motion at once (rule 6 of docs/plans/complete-ghosts.md, which the user decided on 2026-10-17). Jolt does
+    /// not simulate the parked lander or the floor, so it never drops their pair on its own, and the backend ends it at
+    /// the change. Before ter-7ul9 the touch went on through the park, as the reviewer's probe C1 of the contact ledger
+    /// asked, because the ledger counted a pair of two bodies that Jolt does not simulate as held.
     /// </summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ALanderThatIsParkedAndUnparkedOnTheFloorReportsNoNewContact(bool systemKeepsStepping)
+    public void ALanderThatIsParkedOnTheFloorStopsTouchingItAndTouchesItAgainWhenItIsUnparked(bool systemKeepsStepping)
     {
         using var ground = new Ground();
         if (systemKeepsStepping)
@@ -171,11 +179,85 @@ public class ContactLifetimeTests
 
         ground.World.SetMotionNextTick(lander.Entity, BodyMotion.Static);
         Tick(ground.World, 60);
+        ground.EndsOf(lander.Entity, ground.Floor).Should().Be(1, "a parked lander is a static body, which touches no static body");
         ground.World.SetMotionNextTick(lander.Entity, BodyMotion.Dynamic);
         Tick(ground.World, 60);
 
-        ground.ContactsOf(lander.Entity, ground.Floor).Should().Be(1, "the lander never left the floor");
+        ground.ContactsOf(lander.Entity, ground.Floor).Should().Be(2, "the unparked lander touches the floor again");
+        ground.EndsOf(lander.Entity, ground.Floor).Should().Be(1);
         ground.World.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A lander with a dynamic hull rests on a platform with a static hull, which stands on the floor. In one tick, the game
+    /// parks the lander and makes the platform dynamic. The lander and the platform touch under both motions, a static body
+    /// on a dynamic one, so their touch goes on, whichever of the two the backend follows first: physics judges each pair
+    /// after every hull of the step took its new motion. The platform starts to touch the floor. The lander's bubble does not
+    /// fit in the platform's, so the lander never enters the platform's frame.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TwoHullsThatTouchKeepTheirTouchWhenOneParksAndTheOtherStartsToMoveInOneStep(bool landerFirst)
+    {
+        using var ground = new Ground();
+        Entity Spawn(double y, BodyMotion motion, float bubble) => ground.World.Spawn(new SpawnDesc
+        {
+            Frame = ground.Frame,
+            Pose = At(0, y),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), motion, Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(bubble)),
+        });
+        Entity lander = default, platform = default;
+        if (landerFirst)
+            lander = Spawn(6, BodyMotion.Dynamic, 4);
+        platform = Spawn(2, BodyMotion.Static, 3.5f);
+        if (!landerFirst)
+            lander = Spawn(6, BodyMotion.Dynamic, 4);
+        Tick(ground.World, 60);
+        ground.ContactsOf(lander, platform).Should().Be(1, "the lander rests on the platform");
+
+        ground.World.SetMotionNextTick(lander, BodyMotion.Static);
+        ground.World.SetMotionNextTick(platform, BodyMotion.Dynamic);
+        Tick(ground.World, 30);
+
+        ground.World.GetFrame(lander).Should().Be(ground.Frame);
+        ground.ContactsOf(lander, platform).Should().Be(1, "a static body touches a dynamic one");
+        ground.EndsOf(lander, platform).Should().Be(0);
+        ground.ContactsOf(platform, ground.Floor).Should().Be(1, "the dynamic platform rests on the floor");
+        ground.Faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        ground.World.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// With no gravity, a ship with a dynamic hull hangs at rest 1 cm above a static floor. That is within Jolt's
+    /// speculative contact distance of 2 cm, so Jolt finds the pair, but the two never touch, so the pair never starts. The
+    /// ship parks, and the pair that the new motion cannot make is no contact that ends: the ship hears nothing of the
+    /// floor.
+    /// </summary>
+    [Fact]
+    public void AShipThatParksJustAboveAFloorThatItNeverTouchedHearsNothingOfTheFloor()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        Entity floor = WorldTesting.Floor(world, space);
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(0, 2.01),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(4)),
+        });
+        Tick(world, 3);
+        faults.Jolt.PendingPairCount(space).Should().BeGreaterThan(0, "Jolt found the hull and the floor within its speculative contact distance");
+
+        world.SetMotionNextTick(owner, BodyMotion.Static);
+        Tick(world, 5);
+
+        faults.Outputs.SelectMany(output => output.Contacts).Should().NotContain(contact => contact.A == floor || contact.B == floor);
+        faults.Outputs.SelectMany(output => output.ContactsEnded).Should().NotContain(ended => ended.A == floor || ended.B == floor);
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        world.Errors.Should().BeEmpty();
     }
 
     [Theory]
