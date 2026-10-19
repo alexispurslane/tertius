@@ -109,15 +109,22 @@ public sealed class OutlinesStepTests : IDisposable
         captures[1].Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Both runs must draw their capture with the ship's bubble, so that the bytes compared are those of an image with
+    /// outlines. Until the renderer draws the outlines (ticket ter-p51r), the images hold none, so only the two checks of
+    /// the drawn outlines are about outlines.
+    /// </summary>
     [Fact]
     public void TwoRunsWithOutlinesCaptureByteIdenticalImages()
     {
         const string steps = """{ "do": "outlines", "show": true }, { "do": "capture", "name": "outlined" }""";
         string second = Path.Combine(folder, "second");
 
-        Run(steps, folder);
-        Run(steps, second);
+        List<FrameOutline[]> firstCaptures = Run(steps, folder);
+        List<FrameOutline[]> secondCaptures = Run(steps, second);
 
+        firstCaptures.Should().ContainSingle().Which.Should().Equal(ShipBubble);
+        secondCaptures.Should().ContainSingle().Which.Should().Equal(ShipBubble);
         File.ReadAllBytes(Path.Combine(second, "outlined.png")).Should().Equal(File.ReadAllBytes(Path.Combine(folder, "outlined.png")));
     }
 }
