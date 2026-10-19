@@ -1,5 +1,4 @@
 using System.Numerics;
-using Silk.NET.Vulkan;
 using StbImageSharp;
 using Tertius.Rendering;
 
@@ -16,12 +15,12 @@ public sealed class CaptureSinkTests
     private const int Width = 320;
     private const int Height = 180;
 
-    private static VulkanRenderer Offscreen(Format format, out TestOutput output, bool canCapture = true)
+    private static VulkanRenderer Offscreen(out TestOutput output, bool bgra = false, bool canCapture = true)
     {
         TestOutput? made = null;
         VulkanRenderer renderer = VulkanRenderer.CreateOffscreen(
             new RendererOptions { Validation = true, Width = Width, Height = Height, Impostors = false },
-            (device, allocator, extent) => made = new TestOutput(device, allocator, extent, format) { CanCapture = canCapture });
+            (device, allocator, extent) => made = new TestOutput(device, allocator, extent, bgra) { CanCapture = canCapture });
         output = made!;
         return renderer;
     }
@@ -109,7 +108,7 @@ public sealed class CaptureSinkTests
     [Fact]
     public void ACaptureWhoseFrameTheOutputSkippedWaitsForTheNextFrameThatDraws()
     {
-        VulkanRenderer renderer = Offscreen(Format.R8G8B8A8Srgb, out TestOutput output);
+        VulkanRenderer renderer = Offscreen(out TestOutput output);
         try
         {
             RenderSnapshot snapshot = Scene(renderer);
@@ -136,12 +135,12 @@ public sealed class CaptureSinkTests
     [Fact]
     public void ABgraOutputHandsItsSinkThePixelsOfAnRgbaOutputInRgbaOrder()
     {
-        Capture Draw(Format format)
+        Capture Draw(bool bgra)
         {
-            VulkanRenderer renderer = Offscreen(format, out _);
+            VulkanRenderer renderer = Offscreen(out _, bgra);
             try
             {
-                return Gpu.RenderAndCapture(renderer, Scene(renderer), format.ToString());
+                return Gpu.RenderAndCapture(renderer, Scene(renderer), bgra ? "the BGRA output" : "the RGBA output");
             }
             finally
             {
@@ -149,8 +148,8 @@ public sealed class CaptureSinkTests
             }
         }
 
-        Capture rgba = Draw(Format.R8G8B8A8Srgb);
-        Capture bgra = Draw(Format.B8G8R8A8Srgb);
+        Capture rgba = Draw(bgra: false);
+        Capture bgra = Draw(bgra: true);
 
         Vector3 red = rgba.Color(Gpu.Project(TestScene.RedSphere, Width, Height));
         red.X.Should().BeGreaterThan(2 * red.Z, "the scene has a red sphere, so a missed swap of red and blue shows");
@@ -227,7 +226,7 @@ public sealed class CaptureSinkTests
     [Fact]
     public void ACaptureFromAnOutputWhoseImagesCannotBeReadBackIsRefused()
     {
-        VulkanRenderer renderer = Offscreen(Format.R8G8B8A8Srgb, out _, canCapture: false);
+        VulkanRenderer renderer = Offscreen(out _, canCapture: false);
         try
         {
             FluentActions.Invoking(() => renderer.CaptureNextFrame(new MemorySink())).Should().Throw<NotSupportedException>();

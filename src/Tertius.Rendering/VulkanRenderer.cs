@@ -131,7 +131,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
     /// <summary>Creates a renderer that draws into an offscreen image of <see cref="RendererOptions.Width"/> by <see cref="RendererOptions.Height"/>.</summary>
     public static VulkanRenderer CreateHeadless(RendererOptions options) =>
-        CreateOffscreen(options, (device, allocator, extent) => new HeadlessTarget(device, allocator, extent));
+        CreateOffscreen(options, (device, allocator, extent) => new HeadlessTarget(device, allocator, extent, bgra: false));
 
     /// <summary>
     /// Creates a renderer with no window that draws into the output that <paramref name="createOutput"/> makes, at
@@ -273,13 +273,16 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// frame that the output skips (a minimized window) hands nothing, and the request waits for the next frame that
     /// draws. A second request before that frame replaces the first.
     /// </summary>
-    /// <exception cref="NotSupportedException">The swapchain images cannot be read back on this surface.</exception>
+    /// <exception cref="NotSupportedException">
+    /// The swapchain images cannot be captured on this surface: they do not allow transfer reads, or their format is not
+    /// one of the 8-bit color formats whose bytes a sink takes.
+    /// </exception>
     public void CaptureNextFrame(ICaptureSink sink)
     {
         ArgumentNullException.ThrowIfNull(sink);
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!output.CanCapture)
-            throw new NotSupportedException("This surface does not allow transfer reads from swapchain images.");
+            throw new NotSupportedException($"The swapchain images of this surface cannot be captured: they must allow transfer reads and hold 8-bit color, and their format is {output.Format}.");
         Interlocked.Exchange(ref pendingCapture, sink);
     }
 

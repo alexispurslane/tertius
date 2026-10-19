@@ -5,13 +5,13 @@ namespace Tertius.Rendering.Tests;
 
 /// <summary>
 /// An offscreen output for tests, made through <see cref="VulkanRenderer.CreateOffscreen"/>: a real
-/// <see cref="HeadlessTarget"/> of a chosen sRGB format, RGBA as the headless output or BGRA as a window swapchain often
-/// is, plus two test features. It skips the next <see cref="FramesToSkip"/> frames, as a swapchain does while its window
+/// <see cref="HeadlessTarget"/>, RGBA as the headless output or BGRA as a window swapchain often is, plus two test
+/// features. It skips the next <see cref="FramesToSkip"/> frames, as a swapchain does while its window
 /// is minimized, and it can refuse captures, as a swapchain on some surfaces does.
 /// </summary>
-internal sealed class TestOutput(VulkanDevice device, DeviceAllocator allocator, Extent2D extent, Format format) : IOutputTarget
+internal sealed class TestOutput(VulkanDevice device, DeviceAllocator allocator, Extent2D extent, bool bgra) : IOutputTarget
 {
-    private readonly HeadlessTarget target = new(device, allocator, extent, format);
+    private readonly HeadlessTarget target = new(device, allocator, extent, bgra);
 
     /// <summary>How many of the next frames find no image, so that the renderer skips them.</summary>
     public int FramesToSkip { get; set; }

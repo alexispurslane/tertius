@@ -4,7 +4,8 @@ namespace Tertius.Rendering;
 
 /// <summary>
 /// An offscreen sRGB image that stands in for a window. Captures read from it. Its format is R8G8B8A8_SRGB, or
-/// B8G8R8A8_SRGB for a test that needs the BGRA order of a window's swapchain.
+/// B8G8R8A8_SRGB when <c>bgra</c> is set, for a test that needs the BGRA order of a window's swapchain. These are the
+/// only two formats, because a capture must know the byte order and the hardware must apply the sRGB curve.
 /// </summary>
 internal sealed class HeadlessTarget : IOutputTarget
 {
@@ -12,18 +13,19 @@ internal sealed class HeadlessTarget : IOutputTarget
     private readonly DeviceAllocator allocator;
     private GpuImage image;
 
-    public HeadlessTarget(VulkanDevice device, DeviceAllocator allocator, Extent2D extent, Format format = Format.R8G8B8A8Srgb)
+    public HeadlessTarget(VulkanDevice device, DeviceAllocator allocator, Extent2D extent, bool bgra)
     {
         this.device = device;
         this.allocator = allocator;
-        Format = format;
+        BgraOrder = bgra;
+        Format = bgra ? Format.B8G8R8A8Srgb : Format.R8G8B8A8Srgb;
         image = CreateImage(extent);
     }
 
     public Format Format { get; }
     public Extent2D Extent => image.Extent;
     public bool EncodeSrgbInShader => false;
-    public bool BgraOrder => Format == Format.B8G8R8A8Srgb;
+    public bool BgraOrder { get; }
     public bool CanCapture => true;
 
     public GpuImage? Acquire(FrameResources frame) => image;
