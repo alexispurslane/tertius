@@ -85,10 +85,11 @@ public sealed partial class World
                 ThrustAcceleration = ThrustAcceleration(entity, motion, mass),
                 Static = motion == BodyMotion.Static,
                 Kinematic = motion == BodyMotion.Kinematic,
-                // A hull that is not dynamic moves only as its frame's step records say, and a kinematic one follows the
-                // motion intents of its owner, so it lives in an orbit frame of its own when they move it fast or far.
+                // A hull that is not dynamic moves only as its frame's step records say. A kinematic body, hull or plain,
+                // moves only by its motion intents and teleports, so it lives in a following frame of its own when they move
+                // it fast or far (docs/plans/numeric-frames.md, "Following frames").
                 Fixed = !own.IsNull && motion != BodyMotion.Dynamic,
-                Orbits = !own.IsNull && motion == BodyMotion.Kinematic,
+                Orbits = motion == BodyMotion.Kinematic,
                 Sensor = desc.IsSensor,
                 OwnedFrame = own,
             });

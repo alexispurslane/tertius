@@ -94,7 +94,7 @@ public class FrameTreeOrbitFrameTests
         if (frames.InOrbitFrame(station))
         {
             frames.AdvanceNumericFrames(Step);
-            frames.PlaceFollowingFrame(station);
+            frames.PlaceFollowingFrame(frames.TreeParent(station));
             record = AtOrigin(sample);
         }
         frames.TakeStepRecords(intents, Step, new StepOwners().WithHullRecord(station, record));
@@ -223,7 +223,7 @@ public class FrameTreeOrbitFrameTests
         FrameHandle orbit = Update(Hull(station))[0].Home;
         DPose before = frames.TreeLocalPose(orbit);
 
-        frames.PlaceFollowingFrame(station);
+        frames.PlaceFollowingFrame(frames.TreeParent(station));
 
         frames.TreeLocalPose(orbit).Should().Be(before);
     }
@@ -282,7 +282,7 @@ public class FrameTreeOrbitFrameTests
             frames.AdvanceNumericFrames(Step);
 
             (frames.TreeLocalPose(orbit).Position - end.Position).Length.Should().BeLessThan(1e-6, "the step lands the frame on its plan to its rounding");
-            frames.PlaceFollowingFrame(station);
+            frames.PlaceFollowingFrame(frames.TreeParent(station));
             frames.TreeLocalPose(orbit).Position.Should().Be(end.Position);
             frames.LinearVelocity(orbit).Should().Be((end.Position - start.Position) / Step, "the plan's chord");
             frames.TakeStepRecords(intents, Step, new StepOwners().WithHullRecord(station,
@@ -493,7 +493,7 @@ public class FrameTreeOrbitFrameTests
         frames.TakeStepRecords(intents, Step, new StepOwners().WithHullRecord(station, record).WithHullRecord(pod, podRecord));
         changes.Clear();
 
-        frames.JumpFollowingFrame(station, record, changes);
+        frames.JumpFollowingFrame(frames.TreeParent(station), record, changes);
 
         frames.TreeLocalPose(orbit).Position.Should().Be(sample.Pose.Position);
         frames.LinearVelocity(orbit).Should().Be(sample.ChordVelocity);

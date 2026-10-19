@@ -68,9 +68,9 @@ public class PoseAtNextStepStartTests
     }
 
     /// <summary>
-    /// A plain kinematic ball that end poses move at 1,200 m/s through space without gravity runs in a falling numeric frame
-    /// that moves with it. Its end poses stop, so a step runs without a motion intent: the ball holds still in its home, which
-    /// moves on 20 m in the step. A read of the next step's start in that step's tick gives the place where the ball stands
+    /// A plain kinematic ball that end poses move at 1,200 m/s through space without gravity rests in a following frame that
+    /// moves with it (docs/plans/numeric-frames.md, "Following frames"). Its end poses stop, so a step runs without a motion
+    /// intent: the ball holds still in its home, which falls on without a plan and moves on 20 m in the step. A read of the next step's start in that step's tick gives the place where the ball stands
     /// when the step ends.
     /// </summary>
     [Fact]
@@ -81,7 +81,7 @@ public class PoseAtNextStepStartTests
         Entity ball = world.Spawn(KinematicDrift.Drifting(new SpawnDesc { Frame = space, Body = Ball() with { Motion = BodyMotion.Kinematic } },
             world, new Double3(1_200, 0, 0)));
         Tick(world, 10);
-        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Falling);
+        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(NumericMode.Orbiting);
 
         (Seen gap, Seen after) = ReadAcrossAStepWithoutAMotionIntent(world, ball, world.GetComponent<KinematicDrift>(ball)!);
 

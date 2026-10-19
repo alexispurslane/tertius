@@ -339,16 +339,16 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// The pose in its home at which the kinematic body <paramref name="body"/> ends the step with a motion intent that ends
     /// at <paramref name="position"/>, in the body's semantic frame, with <paramref name="rotation"/>, which is unit length.
-    /// A hull at the origin of its orbit frame stays at that origin, because the orbit frame lands on the hull's step plan,
-    /// which ends at the same pose, and takes the plan's place at the sync point (see <see cref="FrameTree.PlaceFollowingFrame"/>).
-    /// In the step of a teleport the hull is not at that origin, so it goes to the plan's place, where the orbit frame will be
-    /// at the end of the step: it does not sweep back to the origin, and the orbit frame jumps to it at the sync point (see
-    /// <see cref="FrameTree.JumpFollowingFrame"/>). Any other body goes to that place too, where its home will be at the end
-    /// of the step.
+    /// The anchor of a following frame, a hull or a plain body (see <see cref="FrameTree.Anchors"/>), stays at the frame's
+    /// origin, because the frame lands on the anchor's step plan, which ends at the same pose, and takes the plan's place at
+    /// the sync point (see <see cref="FrameTree.PlaceFollowingFrame"/>). In the step of a teleport the anchor is not at that
+    /// origin, so it goes to the plan's place, where the frame will be at the end of the step: it does not sweep back to the
+    /// origin, and the frame jumps to it at the sync point (see <see cref="FrameTree.JumpFollowingFrame"/>). Any other body
+    /// goes to that place too, where its home will be at the end of the step.
     /// </summary>
     private DPose KinematicTarget(BodyRecord body, Double3 position, DQuaternion rotation)
     {
-        if (body.IsHull && frames.InOrbitFrame(body.OwnedFrame) && body.TeleportStep != stepIndex)
+        if (frames.Anchors(body.Frame, body.Entity) && body.TeleportStep != stepIndex)
             return new DPose(Double3.Zero, rotation);
         return new DPose(position - HomeOffsetAfterStep(body.Frame), rotation);
     }

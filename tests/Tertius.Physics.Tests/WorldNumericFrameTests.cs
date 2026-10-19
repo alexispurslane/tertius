@@ -291,12 +291,16 @@ public class WorldNumericFrameTests
         Tick(world, 30);
         world.Snapshot.IsStanding(person).Should().BeTrue("the person stands on the floor in the frame ground");
 
-        // As outside a ship in orbit: the person, and what it touches, fall freely in a numeric frame.
+        // As outside a ship in orbit: the person, and what it touches, fall freely in a numeric frame. Under these rules the
+        // kinematic floor needs a following frame at any speed, so the person's group takes it, and the frame falls, because
+        // the floor has no motion intent (docs/plans/numeric-frames.md, "Following frames").
         world.Frames.NumericOptions = EveryGroupFalls;
         Tick(world, 30);
 
         world.Errors.Should().BeEmpty();
-        InFallingFrame(world, person).Should().BeTrue();
+        world.Frames.Numeric(world.PhysicsHomeOf(person)).Should().Be(NumericMode.Orbiting);
+        world.Frames.Anchors(world.PhysicsHomeOf(person), floor).Should().BeTrue("the floor anchors the person's home");
+        world.Frames.HomeAcceleration(world.PhysicsHomeOf(person), ground).Should().Be(new Double3(0, -9.81f, 0), "the home falls with the field");
         world.PhysicsHomeOf(floor).Should().Be(world.PhysicsHomeOf(person));
         world.Snapshot.IsStanding(person).Should().BeFalse("in free fall the effective gravity is below the zero-gravity threshold");
         (world.PoseIn(person, ground).Position.Y - world.PoseIn(floor, ground).Position.Y).Should().BeApproximately(1.42, 0.05,

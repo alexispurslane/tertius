@@ -175,7 +175,7 @@ public sealed partial class FrameTree
         if (inTreeParent && treeParent != taker.Parent)
         {
             int t = treeParent.Index;
-            if (orbiter[t] == taker.Frame && stepPlan[t] is { } plan)
+            if (anchor[t] == taker.Frame.Entity && stepPlan[t] is { } plan)
                 return ProperAccelerationFrom(taker.Parent, plan, step);
             return ProperAccelerationFrom(taker.Parent, InSemanticParent(treeParent, record), step);
         }

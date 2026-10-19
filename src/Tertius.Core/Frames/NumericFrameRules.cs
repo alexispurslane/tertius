@@ -57,9 +57,10 @@ internal readonly record struct NumericBody
     public bool Fixed { get; init; }
 
     /// <summary>
-    /// It is a kinematic hull, which the samples of a rails component move. When they move it fast or far in its semantic
-    /// frame, it lives in a numeric frame of its own that follows them (<see cref="NumericMode.Orbiting"/>), where it rests
-    /// (docs/plans/numeric-frames.md, "Anchors", rule 3).
+    /// It is a kinematic body in the step that the update plans, a hull or a plain body, which only its motion intents and
+    /// teleports move. When it is fast or far in its semantic frame, it lives in a following frame of its own, which follows
+    /// its motion intents (<see cref="NumericMode.Orbiting"/>), where it rests at the origin as the frame's anchor
+    /// (docs/plans/numeric-frames.md, "Anchors", rule 3, and "Following frames").
     /// </summary>
     public bool Orbits { get; init; }
 
@@ -68,6 +69,14 @@ internal readonly record struct NumericBody
     /// it in from the tree, so the World leaves it unset.
     /// </summary>
     public NumericMode HomeMode { get; init; }
+
+    /// <summary>
+    /// <see cref="Home"/> is the following frame whose anchor the body is (see <see cref="FrameTree.Anchors"/>), so the body
+    /// rests at its origin, or its frame hangs there. The update fills it in from the tree, as it fills
+    /// <see cref="HomeMode"/>, so the World leaves it unset. A body that follows in another home, such as a plain body that
+    /// sped up in the following frame of another anchor, has none of its own yet.
+    /// </summary>
+    public bool AnchorsHome { get; init; }
 
     /// <summary>
     /// A sensor, which detects touches but does not push. Jolt makes a contact between a kinematic body and a static one
@@ -104,13 +113,6 @@ internal readonly record struct NumericBody
 
     /// <summary>The frame that the entity owns, or null. A move puts that frame under the body's new home.</summary>
     public FrameHandle OwnedFrame { get; init; }
-
-    /// <summary>
-    /// True for a static body, for the hull of a frame that physics does not drive, and for the interior of a frame owner.
-    /// No force moves an anchor, so it counts as infinitely heavy: a group that the merge test links to it takes its home
-    /// (docs/plans/numeric-frames.md, "Anchors").
-    /// </summary>
-    public bool Anchor => Static || Fixed;
 
     /// <summary>
     /// True when physics lets the body's ghosts reach the content of a frame, its bubble grown by its excess, and not only
@@ -193,6 +195,18 @@ internal static class NumericFrameRules
     /// other group those of <see cref="NumericFrameOptions.CreateSpeed"/> and <see cref="NumericFrameOptions.LeaveSpeed"/>.
     /// A fixed group never gets a frame, and an anchored group never falls.
     /// </summary>
+    /// <summary>
+    /// True when <paramref name="body"/> is an anchor in the rules of the update (docs/plans/numeric-frames.md, "Anchors" and
+    /// "Following frames"): no force moves it, and it cannot move between frames, so it counts as infinitely heavy, and a
+    /// group that the merge test links to it takes its home. The split clock of a numeric frame holds none of its anchors,
+    /// and an anchor gets no leave clock. A static body, a hull that is not dynamic and the interior of a frame owner are
+    /// anchors always. A kinematic body is one while it lives in a following frame of its own (see
+    /// <see cref="OrbitsInFrame"/>), which follows its motion intents: a plain kinematic body that is slow and near is
+    /// infinitely heavy in its group, but it moves between frames, so it is no anchor.
+    /// </summary>
+    internal static bool IsAnchor(in NumericBody body, NumericFrameOptions options) =>
+        body.Static || body.Fixed || OrbitsInFrame(body, options);
+
     internal static NumericMode Mode(NumericMode current, Double3 velocity, Double3 center, bool anchored, bool isFixed,
         bool thrusts, NumericFrameOptions options)
     {
@@ -226,13 +240,15 @@ internal static class NumericFrameRules
 
     /// <summary>
     /// The mode that a body alone, outside a numeric frame, needs, with the speeds of a body that thrusts when
-    /// <paramref name="thrusts"/> is true: None when it needs no frame. A Kepler hull never thrusts, and when the speed and
-    /// distance rules give it a frame, it needs an orbit frame (see <see cref="OrbitsInFrame"/>).
+    /// <paramref name="thrusts"/> is true: None when it needs no frame. A kinematic body never thrusts, and when the speed
+    /// and distance rules of a free body give it a frame, it needs a following frame (see <see cref="OrbitsInFrame"/>).
+    /// Else it is a body as any other: a hull is fixed in its semantic frame's own system, and a plain kinematic body takes
+    /// the speeds of a body that thrusts with the semantic frame's other bodies, because it can join the group of one.
     /// </summary>
     internal static NumericMode BodyMode(in NumericBody body, bool thrusts, NumericFrameOptions options) =>
-        !body.Orbits ? Mode(NumericMode.None, body.Velocity, body.Position, body.Static, body.Fixed, thrusts, options)
-        : Mode(NumericMode.None, body.Velocity, body.Position, false, false, false, options) == NumericMode.None ? NumericMode.None
-        : NumericMode.Orbiting;
+        body.Orbits && Mode(NumericMode.None, body.Velocity, body.Position, false, false, false, options) != NumericMode.None
+            ? NumericMode.Orbiting
+            : Mode(NumericMode.None, body.Velocity, body.Position, body.Static, body.Fixed, thrusts, options);
 
     /// <summary>
     /// True when <paramref name="body"/> is the hull of a Kepler frame that lives in an orbit frame of its own
@@ -465,7 +481,8 @@ internal static class NumericFrameRules
             }
             anchored |= body.Static;
             isFixed |= body.Fixed || body.MayTouchFixedGhost;
-            thrusts |= body.Thrusts && !body.Anchor;
+            // A body that follows is the orbiter above, so only a static or fixed body is an anchor here.
+            thrusts |= body.Thrusts && !body.Static && !body.Fixed;
             mass += body.Mass;
             moment += body.Position * body.Mass;
             if (body.Static)
@@ -499,7 +516,7 @@ internal static class NumericFrameRules
         if (orbiter >= 0 && !anchored && !isFixed)
         {
             ref readonly NumericBody hull = ref members[orbiter];
-            FrameHandle orbit = hull.HomeMode == NumericMode.Orbiting ? hull.Home : FrameHandle.Null;
+            FrameHandle orbit = hull.AnchorsHome ? hull.Home : FrameHandle.Null;
             return new NumericGroup(Double3.Zero, hull.Position, false, false, orbit, orbit.IsNull ? 0 : double.PositiveInfinity, orbiter, true, thrusts);
         }
         FrameHandle frame = FrameHandle.Null;

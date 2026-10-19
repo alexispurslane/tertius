@@ -408,8 +408,9 @@ public sealed partial class JoltPhysicsBackend
                 // want, as for every body.
                 if (!movable && !member.IsHull && ghostBubbles.Count == 0 && member.Ghosts is not { Count: > 0 })
                     continue;
-                // The numeric update names only hulls as anchors (see FrameTree.AnchorGhosts).
-                bool anchor = member.IsHull && HasAnchorGhost(anchorGhosts, member.Entity);
+                // The numeric update names the anchors of following frames, hulls and plain kinematic bodies (see
+                // FrameTree.AnchorGhosts).
+                bool anchor = HasAnchorGhost(anchorGhosts, member.Entity);
                 if (member.Ghosts is { Count: > 0 } existing)
                     foreach (ref GhostBody ghost in CollectionsMarshal.AsSpan(existing))
                         ghost.Wanted = false;
@@ -597,9 +598,11 @@ public sealed partial class JoltPhysicsBackend
     /// Keeps a ghost of the anchor <paramref name="anchor"/>, whose body is at <paramref name="s"/> at the end of the step,
     /// in each home of a group that the numeric update names for it. The ghost goes where the anchor will be relative to the
     /// frame at the end of the step, when the frame has moved on, with the anchor's velocity relative to the frame then. The
-    /// anchor is a Kepler hull in its orbit frame, so that velocity is about the orbit's speed in the home's system, and
+    /// anchor rests in a following frame of its own, so that velocity is about the anchor's speed in the home's system, and
     /// the ghost has no linear cast there: the limit that the doc accepts for anchors that move differently. The ghost has
-    /// the hull's own layer, so it meets only static bodies and other hulls, as the hull does.
+    /// the anchor's own layer, so it meets what the anchor meets: a hull's ghost only static bodies and other hulls, and a
+    /// plain kinematic body's ghost what that body's layer and collision groups name (docs/plans/numeric-frames.md,
+    /// "Following frames").
     /// </summary>
     private void WantAnchorGhosts(BodyRecord anchor, ReadOnlySpan<NumericGhost> anchorGhosts, in BodySnapshot s)
     {
@@ -612,7 +615,7 @@ public sealed partial class JoltPhysicsBackend
             Double3 offset = frames.OffsetAfter(home, ghost.Frame, stepDt);
             Double3 velocity = frames.HomeVelocityAfter(home, semantic, stepDt) - frames.HomeVelocityAfter(ghost.Frame, semantic, stepDt);
             WantGhost(anchor, ghost.Frame, new DPose(s.Pose.Position + offset, s.Pose.Rotation), (Double3)s.Linear + velocity, s.Angular,
-                BodyLayer.FrameHull);
+                anchor.IsHull ? BodyLayer.FrameHull : RoleFor(anchor.Desc));
         }
     }
 

@@ -642,7 +642,7 @@ public class NumericFrameRulesTests
 
     /// <summary>The kinematic hull of a frame on a Kepler orbit, at <paramref name="x"/> and flying at <paramref name="vx"/>.</summary>
     private static NumericBody KeplerHull(double x, double vx, FrameHandle home = default, NumericMode homeMode = NumericMode.None) =>
-        Body(x, vx, home: home) with { Fixed = true, Orbits = true, HomeMode = homeMode };
+        Body(x, vx, home: home) with { Fixed = true, Orbits = true, HomeMode = homeMode, AnchorsHome = homeMode == NumericMode.Orbiting };
 
     /// <summary>The orbit frame of the Kepler hull of these tests.</summary>
     private static readonly FrameHandle Orbit = new(Entity.Null, 3, 1);

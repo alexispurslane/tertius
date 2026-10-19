@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
 
@@ -118,5 +119,260 @@ public class FollowingFrameTests
                 .Should().BeLessThan(0.01, "the crate drifts on in a straight line relative to the hull, 1 m/s for 480 ticks");
             world.Errors.Should().BeEmpty();
         }
+    }
+
+    // ---- A plain kinematic body as the anchor ------------------------------------------------------------------------
+
+    /// <summary>A plain kinematic ball of radius 0.5 m and 1 kg, the body of an entity that owns no frame.</summary>
+    private static BodyDesc KinematicBall => Ball() with { Motion = BodyMotion.Kinematic };
+
+    /// <summary>
+    /// A world on the real backend, a frame without gravity, and in it at the origin a plain kinematic ball that
+    /// <see cref="KinematicDrift"/> moves at <see cref="Drift"/> from its first step on. A plain kinematic body takes no spawn
+    /// velocity, so it is at rest at the sync point of its spawn.
+    /// </summary>
+    private static (World World, FrameHandle Space, Entity Ball) DriftingBall()
+    {
+        World world = NewWorld(out _);
+        FrameHandle space = Ground(world, 0);
+        Entity ball = world.Spawn(KinematicDrift.Drifting(new SpawnDesc { Frame = space, Body = KinematicBall }, world, Drift));
+        return (world, space, ball);
+    }
+
+    /// <summary>
+    /// The ball gets a following frame at the sync point after its first step, the first at which it moves, and it is that
+    /// frame's anchor. It rests at the frame's origin for ten seconds of the drift: every read of the ball in space is the
+    /// frame's place, which is on the line of the drift, and the ball moves at the drift's velocity.
+    /// </summary>
+    [Fact]
+    public void APlainKinematicBodyThatEndPosesDriveAt2KmPerSecondRestsAtTheOriginOfAFollowingFrame()
+    {
+        (World world, FrameHandle space, Entity ball) = DriftingBall();
+        using (world)
+        {
+            Tick(world, 2);
+            FrameHandle home = world.PhysicsHomeOf(ball);
+            world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting, "the ball moves at 2 km/s, so it lives in a following frame");
+            world.Frames.Anchors(home, ball).Should().BeTrue("the ball is the anchor of its following frame");
+            world.Frames.TreeParent(home).Should().Be(space);
+
+            for (int tick = 0; tick < 600; tick++)
+            {
+                world.Tick();
+                world.PhysicsHomeOf(ball).Should().Be(home, "the ball keeps its following frame at tick {0}", world.TickNumber);
+                DPose pose = world.PoseIn(ball, space);
+                pose.Position.Should().Be(world.Frames.TreeLocalPose(home).Position, "the ball rests at the frame's origin at tick {0}", world.TickNumber);
+                (pose.Position - Drift * world.Time).Length.Should().BeLessThan(1e-6, "the ball is on the line of the drift at tick {0}", world.TickNumber);
+                (world.VelocityIn(ball, space) - Drift).Length.Should().BeLessThan(1e-9, "the ball moves at the drift's velocity");
+            }
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// A crate floats 2 m beside the ball and drifts away from it at 0.5 m/s. The merge test links the two, so the crate's
+    /// group takes the ball's following frame, where the crate is slow, and it drifts on there in a straight line relative
+    /// to the ball.
+    /// </summary>
+    [Fact]
+    public void ACrateBesideAPlainKinematicBodyJoinsItsFollowingFrameAndDriftsOnThereRelativeToIt()
+    {
+        (World world, FrameHandle space, Entity ball) = DriftingBall();
+        using (world)
+        {
+            Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, 2), LinearVelocity = Drift + new Double3(0, 0.5, 0), Body = Crate });
+            Tick(world, 2);
+            FrameHandle home = world.PhysicsHomeOf(ball);
+            world.Frames.Anchors(home, ball).Should().BeTrue("the ball lives in a following frame of its own");
+            world.PhysicsHomeOf(crate).Should().Be(home, "the crate's group takes the ball's following frame");
+
+            double fastest = 0;
+            for (int tick = 0; tick < 240; tick++)
+            {
+                world.Tick();
+                world.PhysicsHomeOf(crate).Should().Be(home, "the crate stays linked to the ball at tick {0}", world.TickNumber);
+                fastest = Math.Max(fastest, (world.VelocityIn(crate, space) - world.Frames.LinearVelocity(home)).Length);
+            }
+            fastest.Should().BeInRange(0.45, 0.55, "the crate is slow in the following frame");
+            (world.PoseIn(crate, space).Position - world.PoseIn(ball, space).Position - new Double3(0, 2 + 0.5 * world.Time, 0)).Length
+                .Should().BeLessThan(0.01, "the crate drifts on in a straight line relative to the ball");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// A plain kinematic ball on a low orbit of earth at 7.66 km/s, which its <see cref="KeplerMotion"/> moves, rests in a
+    /// following frame, and every read of it in earth is the orbit's place and rotation to the last bit, at every sync point
+    /// for ten seconds.
+    /// </summary>
+    [Fact]
+    public void APlainKinematicBodyOnALowKeplerOrbitStandsOnItsOrbitToTheLastBitInAFollowingFrame()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
+        KeplerOrbit orbit = KeplerOrbit.Circular(6.8e6, phase: 0.4);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = earth, Body = KinematicBall }.OnKeplerOrbit(world, orbit, firstMove: true));
+        Tick(world, 2);
+        FrameHandle home = world.PhysicsHomeOf(ball);
+        world.Frames.Anchors(home, ball).Should().BeTrue();
+
+        for (int tick = 0; tick < 600; tick++)
+        {
+            world.Tick();
+            world.PhysicsHomeOf(ball).Should().Be(home);
+            world.PoseIn(ball, earth).Should().Be(new DPose(orbit.StateAt(world.Time, Scenes.EarthMu).Position, orbit.RotationAt(world.Time, Scenes.EarthMu)),
+                "the ball stands on its orbit at sync point {0}", world.TickNumber);
+            (world.VelocityIn(ball, earth) - orbit.StateAt(world.Time, Scenes.EarthMu).Velocity).Length.Should().BeLessThan(1e-6);
+        }
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The ball of <see cref="DriftingBall"/>, with the crate of the test above in its following frame, dies. Its following
+    /// frame turns into a falling frame that falls on from its place at its velocity, and the crate keeps it, with its
+    /// place and velocity in space.
+    /// </summary>
+    [Fact]
+    public void TheFollowingFrameOfAPlainAnchorThatDiesFallsOnAndTheCrateInItKeepsItsMotion()
+    {
+        (World world, FrameHandle space, Entity ball) = DriftingBall();
+        using (world)
+        {
+            Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, 2), LinearVelocity = Drift + new Double3(0, 0.5, 0), Body = Crate });
+            Tick(world, 60);
+            FrameHandle home = world.PhysicsHomeOf(crate);
+            world.Frames.Anchors(home, ball).Should().BeTrue();
+            Double3 velocity = world.VelocityIn(crate, space);
+
+            world.Destroy(ball);
+            Tick(world, 60);
+
+            world.PhysicsHomeOf(crate).Should().Be(home, "the crate keeps the frame");
+            world.Frames.Numeric(home).Should().Be(NumericMode.Falling, "the frame lost its anchor and falls on");
+            (world.VelocityIn(crate, space) - velocity).Length.Should().BeLessThan(1e-6, "the crate keeps its velocity in space");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// Drives its kinematic body along a straight line at <paramref name="velocity"/>, as <see cref="KinematicDrift"/> does,
+    /// and in the tick <paramref name="jumpTick"/> teleports it <paramref name="jump"/> ahead, from where it would start
+    /// the next step, and drives it on from there in the same step.
+    /// </summary>
+    private sealed class JumpingDrift(Double3 velocity, long jumpTick, Double3 jump) : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            DPose start = self.PoseAtNextStepStartIn(self.Frame);
+            if (self.Tick == jumpTick)
+            {
+                start = new DPose(start.Position + jump, start.Rotation);
+                self.Body.Teleport(start);
+            }
+            self.MoveKinematic(new DPose(start.Position + velocity * self.DeltaTime, start.Rotation));
+        }
+    }
+
+    /// <summary>
+    /// The ball, with the crate in its following frame, teleports 1 km ahead in one tick and drives on. In that step physics
+    /// aims it at its plan's place, away from the origin of its frame, and at the sync point the frame jumps to it, so it
+    /// rests at the origin again. The crate keeps its place and velocity in space: it does not jump with the ball.
+    /// </summary>
+    [Fact]
+    public void TheFollowingFrameOfAPlainAnchorThatTeleportsJumpsWithItAndTheCrateInItStaysWhereItWas()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Ground(world, 0);
+        var jump = new Double3(1_000, 0, 0);
+        Entity ball = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Body = KinematicBall,
+            FirstMove = new MotionIntent(new EndPose(new DPose(Drift * world.DeltaTime, DQuaternion.Identity))),
+            Components = [new JumpingDrift(Drift, 60, jump)],
+        });
+        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, 2), LinearVelocity = Drift + new Double3(0, 0.5, 0), Body = Crate });
+        // Tick 60 writes the teleport, and the step of tick 61 applies it.
+        Tick(world, 61);
+        FrameHandle home = world.PhysicsHomeOf(ball);
+        world.PhysicsHomeOf(crate).Should().Be(home);
+        DPose crateBefore = world.PoseIn(crate, space);
+        Double3 crateVelocity = world.VelocityIn(crate, space);
+
+        world.Tick();
+
+        world.PhysicsHomeOf(ball).Should().Be(home, "the ball keeps its following frame");
+        world.PoseIn(ball, space).Position.Should().Be(world.Frames.TreeLocalPose(home).Position, "the ball rests at the frame's origin again");
+        (world.PoseIn(ball, space).Position - (Drift * world.Time + jump)).Length.Should().BeLessThan(1e-6, "the ball is 1 km ahead on its line");
+        (world.PoseIn(crate, space).Position - (crateBefore.Position + crateVelocity * world.DeltaTime)).Length.Should().BeLessThan(1e-6,
+            "the crate does not jump with the ball");
+        (world.VelocityIn(crate, space) - crateVelocity).Length.Should().BeLessThan(1e-6);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The far orbit of the scene of the orbit tests: 10,000 km round a point gravity of 4e10 m³/s², at 63 m/s, beyond the
+    /// 2^23 m (8,389 km) from which a kinematic body gets a following frame by its distance, and a slow static body a resting
+    /// frame. It starts at (10,000 km, 0, 0) and passes along -Z.
+    /// </summary>
+    private static readonly KeplerOrbit FarOrbit = KeplerOrbit.Circular(1e7);
+
+    /// <summary>
+    /// A root frame with the point gravity of <see cref="FarOrbit"/>, a plain kinematic ball of radius 2 m on that orbit with
+    /// its first motion intent, and 100 m ahead on its path a crate at rest with <paramref name="log"/>, and 8 m to the
+    /// orbit's outer side a static rock of radius 1 m, which the ball misses.
+    /// </summary>
+    private static (FrameHandle Space, Entity Ball, Entity Rock, Entity Crate) BallAndRock(World world, CollisionLog log)
+    {
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(2e7f), GravityField.Point(4e10)));
+        Entity ball = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Body = new BodyDesc(new SphereShapeDesc(2), BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0),
+        }.OnKeplerOrbit(world, FarOrbit, firstMove: true));
+        Entity rock = world.Spawn(new SpawnDesc { Frame = space, Pose = At(1e7 + 8, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
+        Entity crate = world.Spawn(new SpawnDesc { Frame = space, Pose = At(1e7, 0, -100), Body = Crate, Components = [log] });
+        return (space, ball, rock, crate);
+    }
+
+    /// <summary>
+    /// The ball and the static rock are anchors that move differently, so no home holds both at rest. The group that links
+    /// them and the crate lives in the rock's resting frame, the ball stays in its following frame, and the rock's home
+    /// keeps a ghost of the ball, with the ball's own layer, which meets the crate. The ghost hits the crate as the ball does
+    /// without numeric frames.
+    /// </summary>
+    [Fact]
+    public void AGroupThatLinksAFastPlainKinematicBodyAndAStaticRockLivesInTheRocksHomeAndKeepsAGhostOfTheBody()
+    {
+        var withLog = new CollisionLog();
+        var withoutLog = new CollisionLog();
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        using World plain = NewWorld(out _, configure: options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+        (FrameHandle space, Entity ball, Entity rock, Entity crate) = BallAndRock(world, withLog);
+        BallAndRock(plain, withoutLog);
+        world.Tick();
+        plain.Tick();
+        FrameHandle home = world.PhysicsHomeOf(ball);
+        world.Frames.Anchors(home, ball).Should().BeTrue("the ball lies beyond the distance of a following frame");
+        FrameHandle rockHome = world.PhysicsHomeOf(rock);
+        world.Frames.Numeric(rockHome).Should().Be(NumericMode.Resting, "the rock rests 10,000 km from the origin");
+        world.PhysicsHomeOf(crate).Should().Be(rockHome, "the group of the ball, the rock and the crate lives in the rock's home");
+        world.Frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(ball, rockHome));
+        world.Tick();
+        plain.Tick();
+        faults.Jolt.HasGhostIn(ball, rockHome).Should().BeTrue("the rock's home keeps a ghost of the ball");
+
+        Tick(world, 200);
+        Tick(plain, 200);
+
+        withLog.Seen.Should().NotBeEmpty("the ghost hits the crate");
+        withLog.Seen.Select(seen => (seen.Tick, seen.Other.Index)).Should().Equal(withoutLog.Seen.Select(seen => (seen.Tick, seen.Other.Index)),
+            "the ghost hits the crate at the tick at which the ball does without numeric frames");
+        world.Errors.Should().BeEmpty();
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        space.IsNull.Should().BeFalse();
     }
 }

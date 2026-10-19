@@ -136,7 +136,8 @@ public partial class NumericFrameStickOutGhostTests
 
         withoutNumericFrames.RockNews.Should().Equal([ContactNews.Started], "the rock rides on the crate without a break");
         withoutNumericFrames.RockVelocity.X.Should().BeApproximately(-2, 0.05, "the rock rides on the crate at the crate's speed");
-        withNumericFrames.RockMode.Should().Be(NumericMode.Resting, "the crate and the rock are slow and 9,000 km out");
+        withNumericFrames.RockMode.Should().Be(NumericMode.Orbiting,
+            "the kinematic crate is 9,000 km out, so it anchors a following frame, which the rock shares (docs/plans/numeric-frames.md, \"Following frames\")");
         withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews, "numeric frames do not change which events gameplay hears");
         (withNumericFrames.RockPosition - withoutNumericFrames.RockPosition).Length.Should().BeLessThan(1e-2);
         (withNumericFrames.RockVelocity - withoutNumericFrames.RockVelocity).Length.Should().BeLessThan(1e-2);
