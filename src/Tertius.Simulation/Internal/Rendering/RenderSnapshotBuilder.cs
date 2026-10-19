@@ -1,9 +1,13 @@
+using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace Tertius.Simulation;
 
-/// <summary>What a render snapshot shows, apart from the entities: the tick, the camera and the lights of the scene.</summary>
+/// <summary>
+/// What a render snapshot shows, apart from the entities: the tick, the camera, the lights of the scene, and whether it
+/// shows the outlines of the frames (<see cref="World.ShowFrameOutlines"/>).
+/// </summary>
 internal readonly record struct RenderView(
     long Tick,
     double Time,
@@ -12,7 +16,8 @@ internal readonly record struct RenderView(
     FrameHandle SunFrame,
     Vector3 SunColor,
     float SunIntensity,
-    AmbientLight Ambient);
+    AmbientLight Ambient,
+    bool ShowFrameOutlines);
 
 /// <summary>
 /// Builds render snapshots from the front tables. Every frame's pose relative to the camera's frame is computed in
@@ -109,6 +114,9 @@ internal sealed class RenderSnapshotBuilder
     private RefList<RenderInstance>[] instanceChunks = [];
     private RefList<RenderLight>[] lightChunks = [];
 
+    // The radius of each numeric frame's contents sphere, by dense index, during one build with outlines.
+    private double[] contentsRadius = [];
+
     /// <param name="entities">The entity table whose front rows the builds read.</param>
     /// <param name="frames">The frame tree whose poses the builds compose.</param>
     /// <param name="workers">The workers on which a large build runs, or null to run every build on the calling thread.</param>
@@ -191,6 +199,8 @@ internal sealed class RenderSnapshotBuilder
 
         BuildInstances(snapshot);
         BuildSun(snapshot, view);
+        if (view.ShowFrameOutlines)
+            BuildOutlines(snapshot);
 
         lastCamera = view.Camera;
         lastCameraFrame = cameraFrame;
@@ -502,6 +512,75 @@ internal sealed class RenderSnapshotBuilder
         float radius = entities.IsAlive(sun.Entity) ? entities.FrontRender(sun.Entity).BoundingRadius : 0;
         snapshot.Sun.Direction = (toSun / distance).ToVector3();
         snapshot.Sun.AngularRadius = radius > 0 ? (float)Math.Atan(radius / distance) : 0;
+    }
+
+    /// <summary>
+    /// Adds the outline of each frame that has a parent to <paramref name="snapshot"/>, in the dense order of the tree, on
+    /// the calling thread: a semantic frame's bubble, and a numeric frame's contents sphere. A root frame has no outline,
+    /// because nothing enters or leaves it. Each center and rotation is the frame's pose relative to the camera's physics
+    /// home, which also places the instances, less the render origin.
+    /// </summary>
+    /// <remarks>
+    /// The contents sphere of a numeric frame is the smallest sphere centred on its origin that holds the bounding sphere of
+    /// each body whose physics home it is and the outline sphere of each frame whose parent in the tree, as the tree stores
+    /// it, is this frame. The outline sphere of a frame is the smallest sphere centred on its origin that holds its outline:
+    /// the largest radius of the bubble for a semantic frame, and the contents sphere for a numeric frame. A largest value
+    /// does not depend on the order of the bodies, but the list does, so it keeps the dense order, which every run shares.
+    /// The radii are doubles until each narrows to a float in its outline.
+    /// </remarks>
+    private void BuildOutlines(RenderSnapshot snapshot)
+    {
+        int n = frames.Count;
+        if (contentsRadius.Length < n)
+            contentsRadius = new double[Math.Max(n, contentsRadius.Length * 2)];
+        Span<double> contents = contentsRadius.AsSpan(0, n);
+        contents.Clear();
+
+        // Each body grows its physics home, when that is numeric, to the far side of its bounding sphere: its position in the
+        // home plus the radius that the entity table kept at its spawn.
+        foreach (Entity entity in entities.BodyEntities)
+        {
+            ref readonly TransformRow row = ref entities.FrontRow(entity);
+            FrameHandle home = row.PhysicsHome;
+            if (!FrameSeen(home) || !frames.IsNumeric(home))
+                continue;
+            int dense = denseOfFrame[home.Index];
+            contents[dense] = Math.Max(contents[dense], row.HomePosition.Length + entities.BodyBoundingRadius(entity));
+        }
+
+        // Each frame grows its numeric parent to the far side of its outline sphere. A parent comes before its children in
+        // the dense order, so the walk from the last frame to the first finishes each frame's sphere before its parent reads it.
+        ReadOnlySpan<DPose> locals = frames.LocalPosesDense;
+        for (int i = n - 1; i >= 0; i--)
+        {
+            FrameHandle frame = denseFrames[i];
+            FrameHandle parent = frames.TreeParent(frame);
+            if (parent.IsNull || !frames.IsNumeric(parent))
+                continue;
+            double sphere = frames.IsNumeric(frame) ? contents[i] : frames.Bounds(frame).MaxRadius;
+            int p = denseOfFrame[parent.Index];
+            contents[p] = Math.Max(contents[p], locals[i].Position.Length + sphere);
+        }
+
+        Double3 origin = renderOrigin;
+        for (int i = 0; i < n; i++)
+        {
+            FrameHandle frame = denseFrames[i];
+            if (frames.TreeParent(frame).IsNull)
+                continue;
+            ref readonly DPose pose = ref relCurrent[i];
+            Vector3 center = (pose.Position - origin).ToVector3();
+            float radius = (float)contents[i];
+            snapshot.Outlines.Add(frames.Numeric(frame) switch
+            {
+                NumericMode.None => new SemanticOutline(center, pose.Rotation.ToQuaternion(), frames.Bounds(frame).Radii),
+                NumericMode.Falling => new FallingOutline(center, radius),
+                NumericMode.Resting => new RestingOutline(center, radius),
+                NumericMode.Nesting => new NestingOutline(center, radius),
+                NumericMode.Orbiting => new OrbitingOutline(center, radius),
+                var mode => throw new UnreachableException($"A frame has the numeric mode {mode}, which has no outline."),
+            });
+        }
     }
 
     private void EnsureDenseFrameArrays(int n)

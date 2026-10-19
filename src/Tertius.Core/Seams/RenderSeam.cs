@@ -188,11 +188,13 @@ public sealed class RenderSnapshot
     public Quaternion PreviousRootRotation;
     public readonly List<RenderInstance> Instances = new();
     public readonly List<RenderLight> Lights = new();
+    public readonly List<FrameOutline> Outlines = new();
 
     public void Clear()
     {
         Instances.Clear();
         Lights.Clear();
+        Outlines.Clear();
     }
 }
 
