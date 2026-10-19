@@ -1,6 +1,6 @@
 ---
 id: ter-sn28
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-18T18:04:36Z
@@ -19,3 +19,7 @@ User decision (2026-10-18): the rails components (ter-6r8c) merged with their be
 **2026-10-18T19:34:48Z**
 
 Profile done (branch ter-sn28-sync-profile, base 9721338, busy machine so numbers are noisy). Kepler scene, one worker, sync point 202 us: spatial.Update 54 (every Kepler frame changes its 32 m cell every tick), mirror pass in step 2c 46, mirror pass in step 7a 44 (repeats 2c when the tree did not change), follow pass 36, Frames.Update 9, CopyDirtyRows 7, AdvanceNumericFrames 5. The per-frame cost is layered calls and struct copies, not the handle checks. Prototype P1 (c1b03ea, one walk of the tree per pass with struct visitors): sync point 202 -> 151 us (one worker), 217 -> 162 us (all), same state hash, all suites green. Prototype P2 (06c1a98, CopyDirtyRows per chunk on the workers, merged in chunk order): -450 us at 100k entities, nothing below 4,096 rows. Parallel loops pay off only at scale: one Parallel.For costs 4-7 us and about 2 KB. Larger scenes: routing (37% at 100k), render snapshot, CopyDirtyRows, spatial grid, numeric gather (102 us at 2k bodies). Ranked: P1; skip the 7a mirror pass when the tree did not change; a cheaper spatial move; numeric gather fixes; P2; a parallel stable sort in routing; parallel follow and mirror passes last. Full report in the session scratchpad sn28/report.md. Numbers must be measured again on a quiet machine.
+
+**2026-10-19T00:15:46Z**
+
+Measured after the merge on main (b620ac9), load about 4, 3 interleaved rounds of 6 s each, median sync point in us, base 8b4cb08 -> main: Kepler one worker 196.9 -> 110.1 (-44%); Kepler all workers 216.3 -> 125.2 (-42%); Mixed all workers 809.5 -> 648.7 (-20%); Tick10k all workers 567.5 -> 385.6 (-32%). Step 7a mirror pass 43 -> 0 (stamp); routing 168-200 -> 99-100 in Mixed and Tick10k. The ranges stayed within 2% of the medians. The rest went to ter-ep5j.
