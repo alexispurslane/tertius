@@ -70,6 +70,7 @@ Ticket `ter-1i4z` added these. The user chose each point marked (User).
 - A `capture` step renders the current state with the headless renderer and writes `<out>/<name>.png`. A capture name follows the grammar of a scene id, and two captures cannot have one name.
 - `window` sets the image size in pixels, 1 to 16384 on each side. Without it, the size is 1280 by 720.
 - A `camera` step makes a live entity the camera of the world, `World.Camera`. The camera is the entity's pose composed with the view offset of its render row. (User) The scene picks the camera at the start.
+- An `outlines` step, `{ "do": "outlines", "show": true }`, sets the view setting `World.ShowFrameOutlines` (ticket `ter-3j2b`, from docs/plans/blue-danube-demo.md, change 3). With `"show": true`, the render snapshot carries the outline of each frame that has a parent, and with `"show": false` it carries none. As after a `camera` step, the next capture shows the change. `show` is required, and the step needs no camera and no renderer.
 - A scripted run renders with interpolation alpha 1 and no impostor captures. So on one machine, the captures of a script are the same in every run.
 - A capture needs a live camera, a renderer and an output folder. The runner checks all three before the first tick. If a component destroys the camera during the run, the run stops at the next capture or camera step. The error names the step and the tick.
 - The command makes a headless renderer only for a script that has a capture step. So a script with dumps only runs with no GPU.

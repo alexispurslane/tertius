@@ -309,6 +309,46 @@ public class ScriptRunnerTests
         result.Dump("after").Camera.Should().BeNull("the camera entity is not alive");
     }
 
+    /// <summary>A playback that lets every tick run and notes the world's outline setting just before each one.</summary>
+    private sealed class NotesTheOutlineSetting(World world) : IPlayback
+    {
+        public List<bool> BeforeEachTick { get; } = [];
+
+        public bool WaitForTick()
+        {
+            BeforeEachTick.Add(world.ShowFrameOutlines);
+            return true;
+        }
+
+        public bool Capture(World world, string path) => throw new InvalidOperationException("no captures in this test");
+    }
+
+    [Fact]
+    public void AnOutlinesStepChangesTheWorldsOutlineSettingBetweenTheTicksBeforeAndAfterIt()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        var playback = new NotesTheOutlineSetting(world);
+
+        ScriptRunner.Run(Script.Parse("""
+            { "scene": "test", "steps": [ { "do": "run", "ticks": 1 }, { "do": "outlines", "show": true }, { "do": "run", "ticks": 2 }, { "do": "outlines", "show": false }, { "do": "run", "ticks": 1 } ] }
+            """), world, scene, playback: playback);
+
+        playback.BeforeEachTick.Should().Equal(false, true, true, false);
+    }
+
+    [Fact]
+    public void AnOutlinesStepNeedsNoCameraAndNoRenderer()
+    {
+        using World world = NewWorld();
+        // The probes scene sets no camera, and the run has no playback.
+        SceneInstance scene = Probes(world);
+
+        Run(world, scene, """{ "do": "outlines", "show": true }""");
+
+        world.ShowFrameOutlines.Should().BeTrue();
+    }
+
     /// <summary>A playback that lets a number of ticks run and then stops the run, as closing the window does.</summary>
     private sealed class StopsAfter(int ticks) : IPlayback
     {
