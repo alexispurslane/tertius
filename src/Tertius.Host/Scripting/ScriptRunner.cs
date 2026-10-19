@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Tertius.Simulation;
 
@@ -68,18 +70,43 @@ public static class ScriptRunner
         return new RunResult(dumps, captures);
     }
 
-    /// <summary>A step after its checks, with every name in it resolved. Running it cannot fail for a reason of the script.</summary>
-    private abstract record ReadyStep;
+    /// <summary>
+    /// A step after its checks, with every name in it resolved. Running it cannot fail for a reason of the script. This is a
+    /// custom C# 15 union, like <see cref="ScriptStep"/>, so that a step and its ready form are the same kind of thing.
+    /// </summary>
+    [Union]
+    private readonly struct ReadyStep
+    {
+        private readonly object? step;
 
-    private sealed record ReadyRun(int Ticks) : ReadyStep;
+        public ReadyStep(ReadyRun run) { step = run; }
+        public ReadyStep(ReadyPost post) { step = post; }
+        public ReadyStep(ReadyCamera camera) { step = camera; }
+        public ReadyStep(ReadyDump dump) { step = dump; }
+        public ReadyStep(ReadyCapture capture) { step = capture; }
 
-    private sealed record ReadyPost(Event Event) : ReadyStep;
+        public bool HasValue => step != null;
 
-    private sealed record ReadyCamera(Entity Entity, string Where) : ReadyStep;
+        public bool TryGetValue([NotNullWhen(true)] out ReadyRun? value) => (value = step as ReadyRun) != null;
+        public bool TryGetValue([NotNullWhen(true)] out ReadyPost? value) => (value = step as ReadyPost) != null;
+        public bool TryGetValue([NotNullWhen(true)] out ReadyCamera? value) => (value = step as ReadyCamera) != null;
+        public bool TryGetValue([NotNullWhen(true)] out ReadyDump? value) => (value = step as ReadyDump) != null;
+        public bool TryGetValue([NotNullWhen(true)] out ReadyCapture? value) => (value = step as ReadyCapture) != null;
 
-    private sealed record ReadyDump(string Name) : ReadyStep;
+        public object? Value => step;
 
-    private sealed record ReadyCapture(string Path, string Where) : ReadyStep;
+        public override string ToString() => step?.ToString() ?? "ReadyStep(none)";
+    }
+
+    private sealed record ReadyRun(int Ticks);
+
+    private sealed record ReadyPost(Event Event);
+
+    private sealed record ReadyCamera(Entity Entity, string Where);
+
+    private sealed record ReadyDump(string Name);
+
+    private sealed record ReadyCapture(string Path, string Where);
 
     /// <summary>
     /// Checks every step and resolves its names before the first tick, so that a bad step changes nothing. Throws
