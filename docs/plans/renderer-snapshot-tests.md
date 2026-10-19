@@ -19,7 +19,9 @@ Catch visual regressions in the renderer. A snapshot test renders a scene headle
 
 1. Add the deterministic-rendering switch to `RendererOptions`, test-first.
 2. Add FLIP. Prefer a C# port or a small native build from the dev shell. Check the license first.
+   Built in ticket `ter-721k`: `Flip` in `tests/Tertius.Rendering.Tests`, a C# port written from the paper. It uses no code from NVIDIA's reference implementation.
 3. Write a snapshot test helper: render a scene description, compare, write the failure files, and honor the approval variable.
+   Built in ticket `ter-721k`: `ReferenceImages.Verify`. It fails when a pixel's FLIP value is above 0.1, and `TERTIUS_APPROVE_SNAPSHOTS=1` approves. ARCHITECTURE.md, "Snapshot tests", gives the details.
 4. Write the first scenes. Each scene tests one feature:
    - A sun-lit cube with cascaded shadows.
    - An eclipse.
