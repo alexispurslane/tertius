@@ -22,7 +22,7 @@ These features are out of scope. Do not design for them.
 | Windowing and input | Silk.NET.Windowing and Silk.NET.Input (GLFW) |
 | Shaders | GLSL 4.60, compiled to SPIR-V with `glslc` at build time |
 | Tests | xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions. Coverage uses Microsoft.Testing.Extensions.CodeCoverage. |
-| Images | StbImageWriteSharp writes the PNG captures. The tests read PNG files with StbImageSharp. |
+| Images | StbImageWriteSharp writes the PNG captures, in `PngCaptureSink`. The tests read PNG files with StbImageSharp. |
 | Benchmarks | BenchmarkDotNet 0.15.8 |
 | Platforms | The flake supports `aarch64-darwin`, `x86_64-linux` and `aarch64-linux`. |
 
@@ -39,7 +39,8 @@ src/Tertius.Core        math, handles, messages, contracts, TripleBuffer, PoseTr
 src/Tertius.Simulation  World, entities, components, rails components, chunked gameplay runs, router, sync point,
                         snapshots, spatial index, render snapshot builder, blueprints
 src/Tertius.Physics     Jolt backend: one PhysicsSystem per frame, intents, gravity, hand-off, ghosts
-src/Tertius.Rendering   Vulkan deferred renderer: G-buffer, depth ranges, lighting, shadows, impostors
+src/Tertius.Rendering   Vulkan deferred renderer: G-buffer, depth ranges, lighting, shadows, impostors, the PNG
+                        capture sink
 src/Tertius.Host        threads, window, input, tick pacing, scripted and headless runs, state dumps,
                         wiring of all modules
 src/Tertius.Demo        the vertical slice game: its scenes and components (its scripts are in scripts/)
@@ -575,13 +576,15 @@ The renderer records each rendered frame in this order. `FrameGraph.Stage` fixes
 6. The lighting pass, into the HDR target.
 7. The transparent forward pass.
 8. Tone mapping: an exposure scale, then the ACES curve in Stephen Hill's fit.
-9. The readback of a requested capture.
+9. The readback of a requested capture. After the GPU finishes the frame, `Render` hands the pixels to the capture's sink.
 
 A pass is a `RenderPass` in one stage of the `FrameGraph`. Shadows and impostors use three hooks:
 
 - A `RenderPass` in a stage.
 - An `IRangeDrawer`, which draws inside each depth range of the G-buffer pass.
 - An `IInstanceProcessor`, which gets the culled instances before batching.
+
+A capture is a one-shot request. `IRenderer.CaptureNextFrame(sink)` takes an `ICaptureSink`, and any thread can call it. The next `Render` call that draws a frame waits for that frame on the GPU. Then it calls the sink's `Take` with a `CapturedImage`, on the thread that called `Render`, before it returns. The image holds width × height × 4 bytes, rows from the top, each pixel red, green, blue with sRGB encoding, then a fourth byte with no defined value. The bytes are in the renderer's readback buffer, so they are valid only during the call. A BGRA output, such as a window swapchain, swaps red and blue in place in that buffer first, so every sink gets one pixel order. A frame that the output skips, such as one of a minimized window, keeps the request for the next frame that draws. The renderer knows nothing about files. `PngCaptureSink`, in Rendering, copies the pixels, makes every pixel opaque, and writes a PNG file before `Take` returns.
 
 ### The render snapshot
 
@@ -721,7 +724,7 @@ Reflection runs only in `Blueprints.Register`, which C# code calls. For each com
 - A scene is a named C# function (`Scene`). It fills a new `World` and gives scene ids to some of its entities (`SceneInstance`). The table `DemoScenes.All` lists the scenes of the Demo. A script names its scene.
 - A script is a JSON file of steps, which run in file order: `run`, `post`, `dump`, `capture` and `camera`. Only a `run` step advances time. The ticks run in lock-step with the steps, not with the wall clock.
 - A `dump` step writes a JSON state dump: poses, frames, routed events and errors. A `capture` step renders the current state and writes a PNG image, at the size of the window of the script.
-- A headless capture builds the render snapshot at that moment. It draws the snapshot on the calling thread at interpolation alpha 1, with impostors off. In the window, the simulation thread gives the path of the capture to the render thread. Then it waits until the render thread saves the image.
+- Each capture writes its PNG file through a `PngCaptureSink` (see "The order of a rendered frame"). A headless capture builds the render snapshot at that moment. It draws the snapshot on the calling thread at interpolation alpha 1, with impostors off, and the sink writes the file before the capture returns. In the window, the simulation thread gives the sink to the render thread through `CaptureMailbox`. Then it waits until the render thread has drawn the capture and the sink has written the file.
 - A `post` step reads its payload into the fields of the payload type by their camelCase names. `InputEvent` is the exception, because it is a union: it has its own JSON form, in scripts, in recordings and in dumps. A key or a mouse button is `{"kind":"keyDown","code":87}`, and a move or a scroll is `{"kind":"mouseMove","delta":[3,-4]}`. The kinds are `keyDown`, `keyUp`, `mouseDown`, `mouseUp`, `mouseMove` and `scroll`. Reading refuses a kind that is missing or unknown, a member that its kind needs and lacks, and a member that its kind does not have (`delta` on a key, `code` on a move). The one exception is that member with its zero value (`"delta":[0, 0]` on a key, `"code":0` on a move), which reading ignores: the recorder wrote it into every input post before `InputEvent` was a union, so recordings from then still play. A delta reads and writes in the form of every other vector of a script or a dump, because the converter of `InputEvent` and the vector converters of the host call the same methods (`JsonVectors`).
 - During a script, live input reaches no entity, so a script runs the same with or without a person at the keyboard.
 - In free play, the main thread decides where each input event goes (`InputRouter`). Esc closes the window, F1 switches the debug fly camera on and off, and V makes the next view of the scene the camera. The game sees none of these keys. The window host queues every other event. The simulation thread posts the queued events to the `input` topic before its next tick. So each event joins a known tick, and a recording replays it exactly.
