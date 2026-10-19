@@ -27,11 +27,18 @@ namespace Tertius.Demo;
 /// at the axis less than half a turn apart, so each has the other on one side too. So the segment is convex.
 /// </para>
 /// <para>
-/// Jolt rounds the edges of every hull by its convex radius of 5 cm. So where two segments of a ring or a torus meet, the
-/// rounded edges of their hulls leave a groove along the joint, up to 5 cm deep and 10 cm wide. A ball of 0.25 m in radius
-/// that rests on a joint sinks 3.7 mm below the facets of a ring's floor, and 4.2 mm on a torus. On a facet, clear of the
-/// joints, it rests on the facet. A cylinder in segments, with a joint at every corner, had the same grooves, and a pit
-/// 5.7 mm deep at the center of each cap, where all the segments meet. That is why it is one hull.
+/// Jolt rounds the edges of a hull by its convex radius, 5 cm by default. Two rounded hulls side by side leave a groove
+/// along their joint: a ball of 0.25 m in radius sinks 3.7 mm into it on a ring's floor, and 4.2 mm on a torus. So every
+/// hull here has the convex radius 0, and its edges are as sharp as the mesh's. A ball rests on the facets within 0.03 mm,
+/// and in the crease at a joint of a ring's floor within 0.12 mm of both facets.
+/// </para>
+/// <para>
+/// Where the hulls of two segments meet in one plane, as on the flat top and bottom of a torus's tube, a ball that lands
+/// within about 2 cm of the joint also touches the edge of the other hull, and that contact pushes it 5 to 17 mm away from
+/// the joint before it rests. A ball that lands exactly on the joint, or farther from it, rests where it landed. A
+/// cylinder in segments has such a joint along each radius of each cap. A ball that lands on the cap's center rests there,
+/// within 0.0001 mm, but one that lands 5 mm from a joint moves 11 mm. That is why a cylinder is one hull, which has no
+/// joints, and why it has at most 128 segments.
 /// </para>
 /// </remarks>
 public sealed class RevolvedSolid
@@ -201,7 +208,8 @@ public sealed class RevolvedSolid
     /// <summary>
     /// The collision shape. For a cylinder, the convex hull of its corners off the axis at every angle. For a ring or a
     /// torus, a compound of one convex hull for each segment, of the profile's corners at the segment's two angles, which
-    /// is exactly the mesh's segment. Each call builds a new shape, and a backend builds one native shape for each, so a
+    /// is exactly the mesh's segment. Every hull has the convex radius 0, so that Jolt does not round its edges (see the
+    /// remarks of <see cref="RevolvedSolid"/>). Each call builds a new shape, and a backend builds one native shape for each, so a
     /// caller that spawns several bodies of one solid keeps the shape and shares it.
     /// </summary>
     public ShapeDesc Shape()
@@ -211,12 +219,12 @@ public sealed class RevolvedSolid
         // A cylinder's corners on the axis are inside the hull of its rims, and Jolt refuses a hull with points that
         // coincide, as the corners on the axis at every angle would.
         if (convex)
-            return new ConvexHullShapeDesc([.. Enumerable.Range(0, n).SelectMany(k => all.Where(c => corners[c].X != 0).Select(c => Point(c, k)))]);
+            return new ConvexHullShapeDesc([.. Enumerable.Range(0, n).SelectMany(k => all.Where(c => corners[c].X != 0).Select(c => Point(c, k)))], ConvexRadius: 0);
         var children = new CompoundChild[n];
         for (int k = 0; k < n; k++)
         {
             int next = (k + 1) % n;
-            children[k] = new CompoundChild(new ConvexHullShapeDesc([.. all.SelectMany(c => new[] { Point(c, k), Point(c, next) })]), Pose.Identity);
+            children[k] = new CompoundChild(new ConvexHullShapeDesc([.. all.SelectMany(c => new[] { Point(c, k), Point(c, next) })], ConvexRadius: 0), Pose.Identity);
         }
         return new CompoundShapeDesc(children);
     }

@@ -30,19 +30,22 @@ public sealed class RevolvedSolidShapeTests
     private const float BallRadius = 0.25f;
 
     /// <summary>
-    /// How far a resting ball may be off the facet that the mesh draws, in meters, either way. Jolt would let a resting
-    /// body sink into its support by up to the penetration slop, 5 mm in the engine
-    /// (<see cref="JoltBackendOptions.PenetrationSlop"/>), but a ball dropped gently onto a flat facet rests within 0.1 mm
-    /// of it. So 1 mm is a margin for rounding, and a shape off its mesh by more fails.
+    /// How far a resting ball may be off the flat facet that the mesh draws, in meters, either way. Jolt would let a
+    /// resting body sink into its support by up to the penetration slop, 5 mm in the engine
+    /// (<see cref="JoltBackendOptions.PenetrationSlop"/>), but a ball dropped gently onto a flat facet rests within 0.03 mm
+    /// of it, across a joint of two segments too. So 0.1 mm is a margin, and a shape off its mesh by more fails. Hulls
+    /// that Jolt rounds leave a groove at each joint: under the ball, 4.2 mm deep on a torus for the default convex radius
+    /// of 5 cm, and 0.19 mm for a radius of 1 cm.
     /// </summary>
-    private const double OffFacet = 0.001;
+    private const double OffFacet = 0.0001;
 
     /// <summary>
-    /// How far a ball at the joint of two segments may sink below the mesh's facets, in meters. Jolt rounds the edges of
-    /// each hull by its convex radius of 5 cm, so at a joint the two rounded edges leave a groove. A ball of 0.25 m in
-    /// radius sinks 3.7 mm into the groove in a ring's floor, and 4.2 mm on a torus.
+    /// How far a resting ball in the crease at a joint of a ring's floor may be off each of the two facets, in meters,
+    /// either way. The facets meet at 2π / 256 short of flat, so the bottom of the crease is a shallow trough, and the ball
+    /// comes to rest up to a few millimeters off its bottom, nearer to one facet's plane: 0.12 mm off it in the test. So
+    /// 0.25 mm is a margin. Hulls rounded by the default convex radius of 5 cm leave a groove 3.7 mm deep there.
     /// </summary>
-    private const double Groove = 0.005;
+    private const double OffCrease = 0.00025;
 
     private static Double3 At(double rho, double theta, double y) => new(rho * Math.Cos(theta), y, -rho * Math.Sin(theta));
 
@@ -93,10 +96,23 @@ public sealed class RevolvedSolidShapeTests
     [Fact]
     public void ABallDroppedOnTheCenterOfACylindersCapRestsOnTheCap()
     {
-        // Every segment's facet of the cap has a corner at its center.
+        // Every segment's triangle of the cap's mesh has a corner at its center.
         var (position, speed) = Drop(Cylinder, DQuaternion.Identity, new Double3(0, CylinderHalfHeight + BallRadius + 0.1, 0), -Double3.UnitY);
 
         ExpectRestingOnFacet(position.Y - CylinderHalfHeight, speed);
+    }
+
+    [Fact]
+    public void ABallDroppedNearTheRimOfACylindersCapRestsOnTheCap()
+    {
+        // The ball's center is 5 mm inside the rim, across the middle of segment 0, so it rests on the flat cap there.
+        // A hull with rounded edges would slope down toward the rim under it, and the ball would roll off.
+        Double3 landing = At(CylinderRadius * Math.Cos(Math.PI / CylinderSegments) - 0.005, Math.PI / CylinderSegments, 0);
+
+        var (position, speed) = Drop(Cylinder, DQuaternion.Identity, landing + new Double3(0, CylinderHalfHeight + BallRadius + 0.1, 0), -Double3.UnitY);
+
+        ExpectRestingOnFacet(position.Y - CylinderHalfHeight, speed);
+        (new Double3(position.X, 0, position.Z) - landing).Length.Should().BeLessThan(1e-3, "the cap is flat out to its rim, so the ball stays where it landed");
     }
 
     [Fact]
@@ -135,7 +151,7 @@ public sealed class RevolvedSolidShapeTests
         {
             // The facet's plane is facet from the axis across the direction to its middle, and the ball is on the axis's side.
             var toMiddle = new Double3(Math.Cos(middle), Math.Sin(middle), 0);
-            (facet - Double3.Dot(position, toMiddle) - BallRadius).Should().BeInRange(-Groove, OffFacet, "the ball rests in the crease, or in the groove that Jolt's rounding leaves there");
+            (facet - Double3.Dot(position, toMiddle) - BallRadius).Should().BeInRange(-OffCrease, OffCrease, "the ball rests in the crease, on both facets");
         }
     }
 
@@ -160,6 +176,19 @@ public sealed class RevolvedSolidShapeTests
 
         ExpectRestingOnFacet(position.Y - top, speed);
         (new Double3(position.X, 0, position.Z) - landing).Length.Should().BeLessThan(1e-3, "the facet is flat, so the ball stays where it landed");
+    }
+
+    [Fact]
+    public void ABallDroppedOnATorusAtAJointRestsOnTheFlatTopOfItsTube()
+    {
+        // The joint of segments 63 and 0 is on +X. Exactly on the joint, the ball touches both hulls' flat tops alike.
+        double top = TorusMinor * Math.Cos(Math.PI / TorusSides);
+        Double3 landing = At(TorusMajor, 0, 0);
+
+        var (position, speed) = Drop(Torus, DQuaternion.Identity, landing + new Double3(0, top + BallRadius + 0.1, 0), -Double3.UnitY);
+
+        ExpectRestingOnFacet(position.Y - top, speed);
+        (new Double3(position.X, 0, position.Z) - landing).Length.Should().BeLessThan(1e-3, "the top is flat across the joint, so the ball stays where it landed");
     }
 
     /// <summary>A query filter that accepts every entity.</summary>
