@@ -90,7 +90,7 @@ public class FrameTreeOwnerViewStampTests
     public void A_frame_that_takes_its_step_record_changes_the_stamp()
     {
         var record = new MotionSample(new DPose(X(101), DQuaternion.Identity), X(60), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
-        StampChanges(() => frames.Follow(ship, ground, record, measured: null, step: 1.0 / 60)).Should().BeTrue();
+        StampChanges(() => frames.Follow(ship, ground, record, FollowKind.Rails, measured: null, step: 1.0 / 60)).Should().BeTrue();
     }
 
     [Fact]
@@ -116,7 +116,7 @@ public class FrameTreeOwnerViewStampTests
     {
         Update(x: 50, vx: 60);
         frames.Update();
-        frames.BeginNumericStep();
+        frames.BeginNumericStep([], 1.0 / 60);
         StampChanges(() => frames.AdvanceNumericFrames(0.1)).Should().BeTrue();
     }
 
@@ -138,7 +138,7 @@ public class FrameTreeOwnerViewStampTests
         FrameHandle nest = frames.TreeParent(pod);
         frames.Numeric(nest).Should().Be(NumericMode.Nesting);
         frames.Update();
-        frames.BeginNumericStep();
+        frames.BeginNumericStep([], 1.0 / 60);
         frames.AdvanceNumericFrames(2e9 / 60);
         double drift = frames.TreeLocalPose(pod).Position.X;
         Double3 nestPlace = frames.TreeLocalPose(nest).Position;

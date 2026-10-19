@@ -66,7 +66,7 @@ public class FrameProperAccelerationTests
         FrameHandle pod = FallingFrame(earth, new Double3(OrbitRadius, 0, 0), new Double3(0, 0, OrbitSpeed));
         FrameHandle cabin = Frame(pod);
         frames.Update();
-        frames.BeginNumericStep();
+        frames.BeginNumericStep([], 1.0 / 60);
 
         frames.AdvanceNumericFrames(Dt);
         HoldStillAndStore(cabin);
@@ -87,7 +87,7 @@ public class FrameProperAccelerationTests
         Double3 gravity = Earth.AtPrecise(place);
         var record = new MotionSample(new DPose(end, DQuaternion.Identity), chord, chord, gravity + thrust, Double3.Zero, Double3.Zero);
 
-        frames.Follow(ship, earth, record, measured: null, Dt);
+        frames.Follow(ship, earth, record, FollowKind.Rails, measured: null, Dt);
         frames.StoreNewProperAccelerations();
 
         Vector3 proper = frames.ProperAcceleration(ship);
@@ -104,7 +104,7 @@ public class FrameProperAccelerationTests
         var jolt = new Vector3(0, 0, 120);
 
         frames.Follow(ship, ground, new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero),
-            jolt, Dt);
+            FollowKind.Physics, jolt, Dt);
         frames.StoreNewProperAccelerations();
 
         frames.ProperAcceleration(ship).Should().Be(jolt);

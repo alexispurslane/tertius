@@ -432,8 +432,8 @@ public class MotionChangeTests
     /// The sample that the step of tick <paramref name="tick"/> applied to <paramref name="frame"/>, or null when that step
     /// applied none. The component of the frame's owner wrote it during the tick before.
     /// </summary>
-    private static SampleRecord? AppliedSample(FaultInjectingBackend faults, FrameHandle frame, long tick) =>
-        faults.Samples.Where(record => record.Frame == frame && record.Tick == tick).Cast<SampleRecord?>().SingleOrDefault();
+    private static MoveRecord? AppliedSample(FaultInjectingBackend faults, FrameHandle frame, long tick) =>
+        faults.Moves.Where(record => record.Entity == frame.Entity && record.Tick == tick).Cast<MoveRecord?>().SingleOrDefault();
 
     /// <summary>
     /// The engines come on when the owner removes its <see cref="KeplerMotion"/> and makes its hull dynamic: the hull coasts
@@ -469,7 +469,7 @@ public class MotionChangeTests
 
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Dynamic);
         FrameStatesSince(faults, station, reported).Should().HaveCount(60);
-        faults.Samples.Where(record => record.Frame == station && record.Tick >= faults.Steps[^60].Tick).Should().BeEmpty("physics moves the frame now");
+        faults.Moves.Where(record => record.Entity == station.Entity && record.Tick >= faults.Steps[^60].Tick).Should().BeEmpty("physics moves the frame now");
         // In free fall the hull stays on the orbit of its last sample, up to the float rounding of its velocity.
         (world.Frames.LocalPose(station).Position - orbit.StateAt(world.Time, EarthMu).Position).Length.Should().BeLessThan(0.5);
 
@@ -482,7 +482,7 @@ public class MotionChangeTests
             world.Tick();
 
             List<FrameStepRecord> records = FrameStatesSince(faults, station, reported);
-            SampleRecord? sample = AppliedSample(faults, station, faults.Steps[^1].Tick);
+            MoveRecord? sample = AppliedSample(faults, station, faults.Steps[^1].Tick);
             (sample is null).Should().Be(i == 0, "only the first step after the change has no sample: the new component writes its first one in the tick beside it, and the next step applies it");
             if (sample is not { } applied)
             {

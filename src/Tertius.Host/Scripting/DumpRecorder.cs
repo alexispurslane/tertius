@@ -92,6 +92,7 @@ internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloa
     private string FollowsOf(FrameHandle frame) => world.Frames.Followed(frame) switch
     {
         FollowKind.Rails => "rails",
+        FollowKind.Kinematic => "kinematic",
         FollowKind.Physics => "physics",
         _ => "static",
     };

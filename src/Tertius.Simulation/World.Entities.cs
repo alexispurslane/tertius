@@ -327,8 +327,12 @@ public sealed partial class World
         foreach (IComponent component in plan.Components)
             InitializeComponentType(component.GetType());
         entities.Activate(entity, row, desc.Render ?? new RenderData(), plan.Components, plan.Wants, desc.Body, own);
+        // The first motion intent, relative to the spawn's frame, goes into the new entity's front intent, which the next step
+        // applies as an intent that the entity wrote in the spawn's tick (docs/plans/rails-components.md, "The first motion
+        // intent of a spawn"). Step 6 runs after the swap of step 4, and a spawn outside a tick goes live at the call, so either
+        // way the next step is the entity's first.
         if (desc.FirstMove.HasValue)
-            StoreFirstMove(entity, own, frame, desc.FirstMove);
+            entities.SetFirstMove(entity, frame, WithUnitRotation(desc.FirstMove));
         if (desc.Body != null)
             physicsChanges.BodiesCreated.Add(new BodyCreate(entity, row.Frame, desc.Body, row.Pose, velocity, row.AngularVelocity));
 
@@ -336,26 +340,6 @@ public sealed partial class World
         topics.MoveMember(entity, row.Frame, out _);
         foreach (Topic topic in plan.Subscriptions)
             SubscribeEntity(entity, topic);
-    }
-
-    /// <summary>
-    /// Puts the first motion intent of the new entity <paramref name="entity"/>, <paramref name="move"/>, relative to
-    /// <paramref name="frame"/>, the frame of its spawn, with its rotation made unit length, where the next physics step
-    /// reads it (docs/plans/rails-components.md, "The first motion intent of a spawn"). It runs at step 6 of the sync point,
-    /// after the swap of step 4, for a spawn of the tick, and at the call of <see cref="Spawn(SpawnDesc)"/> outside a tick,
-    /// so either way the next step is the entity's first. Each case goes where the motion intent of its writer stands after
-    /// the swap: a full sample into the applied buffer of the sample table, as the sample of <see cref="Self.MoveOnRails"/>
-    /// for <paramref name="own"/>, the frame that the entity owns, and an end pose or a steer target into the motion intent
-    /// of the entity's front intent, as <see cref="BodyHandle.MoveKinematic"/> and <see cref="BodyHandle.SteerTo"/> write
-    /// them (see <see cref="EntityTable.SetFirstMove"/>).
-    /// </summary>
-    private void StoreFirstMove(Entity entity, FrameHandle own, FrameHandle frame, in MotionIntent move)
-    {
-        MotionIntent unit = WithUnitRotation(move);
-        if (unit.TryGetValue(out MotionSample sample))
-            Frames.Samples.WriteApplied(own, frame, sample);
-        else if (unit.HasValue)
-            entities.SetFirstMove(entity, frame, unit);
     }
 
     /// <summary>
@@ -502,7 +486,6 @@ public sealed partial class World
             }
         }
         ConvertIntentsOfDyingFrames();
-        ConvertSamplesOfMovedFrames();
 
         foreach (Entity entity in dying)
             FreeEntity(entity);
@@ -547,32 +530,6 @@ public sealed partial class World
                 ConvertIntent(ref intent, row.Frame, row.Pose.Position);
         }
     }
-
-    /// <summary>
-    /// Converts each applied and followed row of the sample table that is relative to a dying frame, or to a numeric frame in
-    /// one, into the frame that the row's frame's owner is in after the rehomes, before the dying frames go. Each row names
-    /// the frame that it is relative to: a sample its owner's frame when the owner wrote it, and a record the frame's
-    /// semantic parent when the frame took it (see <see cref="KeepRecord"/>). So the rows of the frames that the destroy batch
-    /// moves out of a dying frame convert here. Both buffers hold rows at step 5: the followed rows of the step that ended,
-    /// which the numeric update of step 6c reads, and the applied samples of the next step. The rows of a dying frame die
-    /// with it: a frame that reuses its index has another generation.
-    /// </summary>
-    private void ConvertSamplesOfMovedFrames()
-    {
-        int n = Frames.Count;
-        for (int i = 0; i < n; i++)
-        {
-            FrameHandle frame = Frames.AtDense(i);
-            if (Frames.IsNumeric(frame) || dyingMarks[frame.Entity])
-                continue;
-            if (IsRelativeToDyingFrame(Frames.Samples.Applied, frame) || IsRelativeToDyingFrame(Frames.Samples.Followed, frame))
-                Frames.Samples.ConvertInto(frame, entities.BackRow(frame.Entity).Frame);
-        }
-    }
-
-    /// <summary>True when <paramref name="samples"/> holds a row of <paramref name="frame"/> that is relative to a frame that dies in this batch.</summary>
-    private bool IsRelativeToDyingFrame(MotionSamples samples, FrameHandle frame) =>
-        samples.TryGet(frame, out _, out FrameHandle relativeTo) && Frames.IsAlive(relativeTo) && dyingMarks[Frames.SemanticOf(relativeTo).Entity];
 
     /// <summary>Moves an entity from a dying frame into an ancestor frame, keeping its pose and velocity relative to everything else.</summary>
     private void Rehome(Entity entity, FrameHandle from, FrameHandle to)

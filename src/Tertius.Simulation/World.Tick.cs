@@ -34,7 +34,7 @@ public sealed partial class World
             if (physicsWorker != null)
             {
                 stepOutput.Clear();
-                physicsWorker.Begin(new PhysicsStepContext(TickNumber, DeltaTime, Time, Frames, entities.FrontIntents, entities.IntentEntities, Frames.Samples.Applied));
+                physicsWorker.Begin(new PhysicsStepContext(TickNumber, DeltaTime, Time, Frames, entities.FrontIntents, entities.IntentEntities));
                 stepping = true;
             }
 
@@ -97,8 +97,9 @@ public sealed partial class World
         FlushPhysicsChanges();
         Frames.Update();
         // The falling numeric frames and the orbit frames fix their accelerations for the step, which physics reads and the
-        // sync point follows.
-        Frames.BeginNumericStep();
+        // sync point follows, and each orbit frame its step plan, from its anchor's motion intent in the intents of the step,
+        // while the tree stands where the step starts.
+        Frames.BeginNumericStep(entities.FrontIntents.Span, DeltaTime);
         // The indexes that entity queries start from apply their queued changes, so that the workers only read them.
         topics.SettleMembers();
         entities.BeginTick(options.SpawnPoolSize);
@@ -333,9 +334,10 @@ public sealed partial class World
     /// The running entity's intent, for writing a request that sets its body's motion: <paramref name="call"/>, an end pose,
     /// a steer target or a velocity. Throws <see cref="InvalidOperationException"/> as <see cref="WritableIntent"/> does,
     /// and also when the body is a kinematic hull in the step that applies the request (see <see cref="NextStepHullMotion"/>,
-    /// which counts a change of motion that the entity wrote earlier in the tick), because only a motion sample tells the
-    /// frame of a kinematic hull how to follow (see <see cref="MoveOnRails"/>): a kinematic hull takes only
-    /// <c>MoveOnRails</c> and <c>Teleport</c>.
+    /// which counts a change of motion that the entity wrote earlier in the tick), because only a full sample tells the
+    /// frame of a kinematic hull how to follow until every writer takes the rules of one guard (docs/plans/
+    /// rails-components.md, stage 6 of "Order of the work"): a kinematic hull takes only <c>MoveOnRails</c> and
+    /// <c>Teleport</c>.
     /// </summary>
     internal ref PhysicsIntent WritableMotionIntent(Entity entity, string call)
     {
@@ -457,28 +459,56 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Writes the running entity's motion sample for the next physics step into the written buffer of the sample table,
-    /// relative to the frame that the entity is in during the tick, with its rotation made unit length. The last write in a
-    /// tick wins. Throws <see cref="InvalidOperationException"/> if the entity owns no frame, or if its frame has a parent
-    /// and the entity has a body that is not kinematic in the next step (see <see cref="NextStepHullMotion"/>),
-    /// <see cref="ArgumentException"/> for a sample with a field that is not a finite number or with a zero rotation, and
-    /// <see cref="StaleEntityException"/> for a stale handle.
+    /// Writes the running entity's full sample for the next physics step as its motion intent (see
+    /// <see cref="PhysicsIntent.Move"/>), relative to the frame that the entity is in during the tick, with its rotation made
+    /// unit length. The last write in a tick wins, whatever its case. Throws <see cref="ArgumentException"/> for a sample
+    /// with a field that is not a finite number or with a zero rotation, then <see cref="InvalidOperationException"/> if the
+    /// entity owns no frame, or if its frame has a parent and the entity has a body that is not kinematic in the next step
+    /// (see <see cref="NextStepHullMotion"/>), and <see cref="StaleEntityException"/> for a stale handle. The entity needs no
+    /// body, so it writes through <see cref="EntityTable.WriteMotionIntent"/>.
     /// </summary>
     /// <remarks>
     /// When the frame has a parent, the owner's body is the frame's hull, and only a kinematic hull follows a sample. A frame
-    /// without a body has no hull, so the sample acts on its transform. A root frame has no parent, so its owner's body is
-    /// only the frame's static interior, not a hull. The sample applies in the next step, so the motion of the hull in that
-    /// step decides.
+    /// without a body has no hull, so the sync point moves it by the sample. A root frame has no parent, so its owner's body
+    /// is only the frame's static interior, not a hull. The sample applies in the next step, so the motion of the hull in that
+    /// step decides. Until every writer takes the rules of one guard (docs/plans/rails-components.md, stage 6 of "Order of the
+    /// work"), only the owner of a frame takes a full sample.
     /// </remarks>
     internal void MoveOnRails(Entity entity, in MotionSample sample)
     {
+        MotionSample unit = CheckedSample(sample);
         FrameHandle own = entities.OwnedFrame(entity);
         if (own.IsNull)
             throw new InvalidOperationException($"{entity} owns no frame, so it has no frame to move on rails.");
         if (NextStepHullMotion(own) is { } motion && motion != BodyMotion.Kinematic)
             throw new InvalidOperationException(
                 $"{entity} owns {own}, whose hull is {motion}, so the hull cannot follow a motion sample: only a kinematic hull can.");
-        Frames.Samples.Write(own, entities.FrontRow(entity).Frame, CheckedSample(sample));
+        entities.WriteMotionIntent(entity, new MotionIntent(unit));
+    }
+
+    /// <summary>
+    /// The pose in <paramref name="frame"/> at which <paramref name="entity"/> starts the next step (see
+    /// <see cref="Self.PoseAtNextStepStartIn"/>): the end of its motion intent in the step that applies the front intents, an
+    /// end pose or a full sample, which physics or the sync point puts the entity on exactly; else that step's teleport;
+    /// else its pose now, in the front snapshot, which for a frame owner is its frame's pose in its parent. A steer target
+    /// gives no exact end, so the read skips it. Each of them is in the frame that the entity is in, or for the owner of a
+    /// root frame in the root's own space, the null frame. Throws <see cref="StaleEntityException"/> for a stale entity, and
+    /// <see cref="ArgumentException"/> for a stale frame. During a tick, only the worker of the entity may ask it: it reads
+    /// the entity's own front intent, which nothing writes during the tick.
+    /// </summary>
+    internal DPose PoseAtNextStepStartIn(Entity entity, FrameHandle frame)
+    {
+        ref readonly TransformRow row = ref entities.FrontRow(entity);
+        ref readonly PhysicsIntent intent = ref entities.FrontIntents.Span[(int)entity.Index];
+        FrameHandle own = entities.OwnedFrame(entity);
+        (DPose pose, FrameHandle from) = intent.Move switch
+        {
+            EndPose end => (end.Pose, intent.Frame),
+            MotionSample sample => (sample.Pose, intent.Frame),
+            _ when (intent.Flags & IntentFlags.Teleport) != 0 => (intent.TeleportPose, intent.Frame),
+            _ => own.IsNull ? (row.Pose, row.Frame) : (Frames.LocalPose(own), Frames.Parent(own)),
+        };
+        return from == frame ? pose : DPose.Compose(Frames.Relative(from, LiveFrame(frame)), pose);
     }
 
     /// <summary>

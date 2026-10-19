@@ -58,8 +58,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private long[] predictedStep = new long[16];
 
     private FrameTree frames = null!;
-    // The motion samples that the current step applies, by frame (see PhysicsStepContext.Samples).
-    private MotionSamples stepSamples;
+    // The intents that the current step applies, by entity slot (see PhysicsStepContext.Intents). Valid during a step only.
+    private ReadOnlyMemory<PhysicsIntent> stepIntents;
     private long stepIndex;
     private float stepDt;
     private bool disposed;
@@ -279,7 +279,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             bugReport = output.Errors;
             stepIndex++;
             stepDt = context.DeltaTime;
-            stepSamples = context.Samples;
+            stepIntents = context.Intents;
 
             // The World hands physics a batch at every sync point, which reconciles, but the game can change the tree
             // between two ticks with no batch, for example to dock a ship, and a batch that failed reconciled nothing.
@@ -298,15 +298,12 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             FollowStaticHulls();
             CaptureHullVelocities();
             ApplyIntents(context);
-            // After the intents, so that the teleport of a hull on rails applies first, and the target moves the hull on
-            // from there.
-            AimHullsOnRails();
             CaptureHullVelocitiesAfterIntents();
             ApplyGravity();
             UpdateCharacters();
             UpdateSystems();
             // Before anything reads the end of the step: the proper accelerations, the contacts, the hand-offs and the ghosts.
-            SnapHullsOnRails();
+            SnapKinematicBodies();
             ComputeProperAccelerations();
             CollectContacts(output);
             HandOffBodies(output);
@@ -816,19 +813,21 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>
     /// The step record of <paramref name="frame"/> at the end of the current step, relative to its tree parent now, after any
-    /// hand-off of the step (see "One motion record per frame" in docs/plans/rails-components.md). Physics predicts every
-    /// frame from it: ghosts take its chord (see <see cref="MotionOf"/>), hand-offs its instant velocity (see
+    /// hand-off of the step (see "The step record of a step in flight" in docs/plans/rails-components.md). Physics predicts
+    /// every frame from it: ghosts take its chord (see <see cref="MotionOf"/>), hand-offs its instant velocity (see
     /// <see cref="InstantMotionOf"/>). The owner's kind decides it:
     /// <list type="bullet">
     /// <item>A dynamic hull: Jolt's state after the update (see <see cref="TryHullRecord"/>). Its instant velocity is relative
     /// to the instant velocity of a numeric home, as every velocity that a hand-off carries. The record that physics
     /// releases for the tree differs there (see <see cref="WriteFrames"/>).</item>
-    /// <item>A kinematic hull, or no body, with a sample: the sample, in the tree parent. A hull at the origin of its orbit
-    /// frame rests there, with the sample's rotation and no velocity (see <see cref="RailsTarget"/>): the orbit frame's own
-    /// chord and instant velocity are the sample's (see <see cref="FrameTree.HomeInstantVelocityOverChord"/>). The record that
-    /// physics releases for the tree differs there (see <see cref="WriteFrames"/>).</item>
-    /// <item>A static hull, or a kinematic hull without a sample, that teleported in the step: the teleport's pose in the
-    /// hull's home, the tree parent, with no velocity. The record that physics releases for the tree differs in a numeric
+    /// <item>A kinematic hull, or no body, whose owner has an end pose or a full sample: the record of that motion intent, in
+    /// the tree parent, from the frame's tree pose where the step starts, as the sync point derives it for a frame without a
+    /// hull (see <see cref="FrameTree.StepRecordInStep"/>), so that the two agree to the last bit. A hull at the origin of its
+    /// orbit frame rests there, with the record's rotation and no velocity (see <see cref="KinematicTarget"/>): the orbit
+    /// frame's own chord and instant velocity are the step plan's (see <see cref="FrameTree.HomeInstantVelocityOverChord"/>).
+    /// The record that physics releases for the tree differs there (see <see cref="WriteFrames"/>).</item>
+    /// <item>A static hull, or a kinematic hull without a motion intent, that teleported in the step: the teleport's pose in
+    /// the hull's home, the tree parent, with no velocity. The record that physics releases for the tree differs in a numeric
     /// home (see <see cref="WriteFrames"/>).</item>
     /// <item>Anything else: the tree pose, with no velocity. The frame holds still.</item>
     /// </list>
@@ -858,25 +857,26 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     private MotionSample PredictRecord(FrameHandle frame)
     {
         BodyRecord? hull = OwnerRecord(frame);
-        if ((hull is null || hull.Motion == BodyMotion.Kinematic) && stepSamples.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
+        if ((hull is null || hull.Motion == BodyMotion.Kinematic) && frames.StepRecordInStep(frame, stepIntents.Span, stepDt, out MotionSample move))
         {
             if (hull is { HasPrimary: true } && frames.InOrbitFrame(frame))
             {
-                DPose target = RailsTarget(hull, sample, relativeTo);
-                return sample with
+                DPose target = KinematicTarget(hull, move.Pose.Position, move.Pose.Rotation);
+                return move with
                 {
-                    Pose = new DPose(target.Position, sample.Pose.Rotation),
+                    Pose = new DPose(target.Position, move.Pose.Rotation),
                     ChordVelocity = Double3.Zero,
                     Velocity = Double3.Zero,
                     Acceleration = Double3.Zero,
                 };
             }
-            // A frame with a sample hangs in its semantic parent, which the sample is relative to (see FrameTree).
-            Contract.Assert(relativeTo == frames.TreeParent(frame), $"The sample of {frame} is relative to {relativeTo}, not to its tree parent {frames.TreeParent(frame)}.");
-            return sample;
+            // A frame with a kinematic hull or without a body hangs in its semantic parent, which its motion intent is
+            // relative to, unless it hangs at the origin of its orbit frame (see FrameTree).
+            Contract.Assert(frames.TreeParent(frame) == frames.Parent(frame), $"{frame} has a motion intent, but it hangs in {frames.TreeParent(frame)}.");
+            return move;
         }
-        // A static hull, or a kinematic hull without a sample, that teleported in the step stands at the teleport's pose in its
-        // home, the frame's tree parent, at rest.
+        // A static hull, or a kinematic hull without a motion intent, that teleported in the step stands at the teleport's
+        // pose in its home, the frame's tree parent, at rest.
         if (hull is { HasPrimary: true } && hull.TeleportStep == stepIndex)
             return new MotionSample(hull.TeleportPose, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
         return new MotionSample(frames.TreeLocalPose(frame), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);

@@ -88,7 +88,7 @@ public class FrameTreeNumericUpdateTests
     private void Advance(double seconds)
     {
         frames.Update();
-        frames.BeginNumericStep();
+        frames.BeginNumericStep([], 1.0 / 60);
         frames.AdvanceNumericFrames(seconds);
     }
 

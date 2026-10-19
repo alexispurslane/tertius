@@ -7,8 +7,8 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// Motion samples and rails components on the owner of a frame that has a body: who may write a sample, what the rails
-/// components check, and the teleport with which a rails component puts a hull on its rails. These tests read the sample table and what each step
-/// received; RailsFollowTests checks how frames follow the samples. The world runs on the real backend.
+/// components check, and the teleport with which a rails component puts a hull on its rails. These tests read the motion intent of the next step and what each
+/// step received; RailsFollowTests checks how frames follow the samples. The world runs on the real backend.
 /// </summary>
 public class RailsHullTests
 {
@@ -43,7 +43,7 @@ public class RailsHullTests
         Tick(world, 1);
 
         world.Errors.Should().ContainSingle().Which.Should().Contain(owner.ToString()).And.Contain(nameof(InvalidOperationException));
-        world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out _).Should().BeFalse();
+        NextSample(world, owner, out _).Should().BeFalse();
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class RailsHullTests
         Tick(world, 1);
 
         world.Errors.Should().BeEmpty();
-        world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out MotionSample sample).Should().BeTrue();
+        NextSample(world, owner, out MotionSample sample).Should().BeTrue();
         sample.Should().Be(Parked);
     }
 
@@ -74,7 +74,7 @@ public class RailsHullTests
         Tick(world, 1);
 
         world.Errors.Should().BeEmpty();
-        world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out _).Should().BeTrue();
+        NextSample(world, owner, out _).Should().BeTrue();
     }
 
     /// <summary>
@@ -90,13 +90,13 @@ public class RailsHullTests
         Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, rails);
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 2);
-        world.Frames.Samples.Applied.TryGet(frame, out _).Should().BeTrue("tick 1 wrote a sample for step 2");
+        NextSample(world, owner, out _).Should().BeTrue("tick 1 wrote a sample for step 2");
 
         world.SetMotionNextTick(owner, BodyMotion.Dynamic, remove: rails);
         Tick(world, 2);
 
-        faults.Samples.Should().Contain(record => record.Frame == frame && record.Tick == 2, "step 2 moves the kinematic hull by the sample of tick 1");
-        faults.Samples.Should().NotContain(record => record.Frame == frame && record.Tick == 3, "step 3 moves a dynamic hull");
+        faults.Moves.Should().Contain(record => record.Entity == frame.Entity && record.Tick == 2, "step 2 moves the kinematic hull by the sample of tick 1");
+        faults.Moves.Should().NotContain(record => record.Entity == frame.Entity && record.Tick == 3, "step 3 moves a dynamic hull");
         world.Errors.Should().BeEmpty();
     }
 
@@ -235,9 +235,8 @@ public class RailsHullTests
 
         Tick(world, 3);
 
-        // The applied buffer holds what the tick wrote. The followed buffer holds the step record that physics measured for
-        // the dynamic hull, which is no sample of the component.
-        world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out _).Should().BeFalse();
+        // The next step's intent holds what the tick wrote, which is no sample of the component.
+        NextSample(world, owner, out _).Should().BeFalse();
         log.Where(line => line.Contains(owner.ToString())).Should().ContainSingle();
         world.Errors.Should().BeEmpty();
     }
@@ -258,7 +257,7 @@ public class RailsHullTests
         IntentRecord[] teleports = faults.Intents.Where(r => r.Entity == owner && (r.Intent.Flags & IntentFlags.Teleport) != 0).ToArray();
         teleports.Should().ContainSingle().Which.Tick.Should().Be(1);
         teleports[0].Intent.TeleportPose.Should().Be(RailsPose(component, world.TimeAt(1)));
-        world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out _).Should().BeTrue();
+        NextSample(world, owner, out _).Should().BeTrue();
     }
 
     [Fact]
@@ -305,4 +304,8 @@ public class RailsHullTests
         component == "KeplerMotion"
             ? new DPose(Orbit.StateAt(time, Scenes.AsteroidMu).Position, Orbit.RotationAt(time, Scenes.AsteroidMu))
             : new DPose(SpinPlace, Spin.RotationAt(time));
+
+    /// <summary>The full sample that the next step applies to <paramref name="owner"/>, between two ticks, or false.</summary>
+    private static bool NextSample(World world, Entity owner, out MotionSample sample) =>
+        world.Entities.NextStepIntent(owner).Move.TryGetValue(out sample);
 }

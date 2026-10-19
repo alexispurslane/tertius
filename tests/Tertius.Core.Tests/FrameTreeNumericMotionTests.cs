@@ -45,7 +45,7 @@ public class FrameTreeNumericMotionTests
         };
         frames.UpdateNumericFrames([body], 0.1, new PhysicsChanges(), moves => home = moves.Single().To);
         frames.Update();
-        frames.BeginNumericStep();
+        frames.BeginNumericStep([], 1.0 / 60);
         return home;
     }
 

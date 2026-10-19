@@ -759,10 +759,10 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Releases the step record of the frame of every hull that moved in the step (see <see cref="StepRecordOf"/>): every
-    /// dynamic hull, from Jolt's state after the update; every kinematic hull that followed a sample, from the sample that
-    /// it applied, exactly; and every static hull, or kinematic hull without a sample, that teleported in the step, at the
-    /// teleport's pose in its home, at rest there: a kinematic hull holds still in its home after a teleport too (see
-    /// <see cref="ApplyBodyIntent"/>). Any other static hull, and a kinematic hull without a sample, held still, and the
+    /// dynamic hull, from Jolt's state after the update; every kinematic hull that a motion intent aimed, from the record of
+    /// that motion intent, exactly; and every static hull, or kinematic hull without a motion intent, that teleported in the
+    /// step, at the teleport's pose in its home, at rest there: a kinematic hull holds still in its home after a teleport too
+    /// (see <see cref="ApplyBodyIntent"/>). Any other static hull, and a kinematic hull without a motion intent, held still, and the
     /// sync point holds its frame still in its home (see <see cref="FrameTree.HoldStill"/>). A record is relative to the
     /// frame's tree parent, the hull's home, so a frame that a hand-off moved this step reports relative to its new parent,
     /// and a hull at the origin of its orbit frame reports at that origin.
@@ -773,7 +773,7 @@ public sealed partial class JoltPhysicsBackend
     /// Physics keeps a velocity relative to the home's instant velocity. So each record that physics releases adds the
     /// home's instant velocity past its chord (see <see cref="FrameTree.HomeInstantVelocityOverChord"/>), zero in a semantic
     /// home. A hull at the origin of its orbit frame rests there, so its record keeps just that term: for an orbit frame
-    /// whose hull has a sample, the sample's instant velocity less the sample's chord, which is the orbit frame's frame
+    /// whose hull has a step plan, the plan's instant velocity less the plan's chord, which is the orbit frame's frame
     /// velocity after the step (see <see cref="FrameTree.PlaceFollowingFrame"/>). Every other frame in that orbit frame adds
     /// the same term, so it reads its velocity in the semantic parent relative to the hull's.
     /// </para>
@@ -785,8 +785,9 @@ public sealed partial class JoltPhysicsBackend
             if (!owner.HasPrimary || owner.Character is not null)
                 continue;
             FrameHandle frame = owner.OwnedFrame;
-            bool sampled = owner.Motion == BodyMotion.Kinematic && stepSamples.TryGet(frame, out _);
-            if (owner.Motion != BodyMotion.Dynamic && !sampled && owner.TeleportStep != stepIndex)
+            // A kinematic hull that a motion intent aimed in the step moved by it (see ApplyBodyIntent).
+            bool aimed = owner.Motion == BodyMotion.Kinematic && owner.KinematicTargetStep == stepIndex;
+            if (owner.Motion != BodyMotion.Dynamic && !aimed && owner.TeleportStep != stepIndex)
                 continue;
             MotionSample record = StepRecordOf(frame);
             // Physics measures the proper acceleration of a dynamic hull (see ComputeProperAccelerations). The frame tree

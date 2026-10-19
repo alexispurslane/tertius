@@ -528,11 +528,10 @@ public partial class NumericFrameStickOutGhostTests
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(7_000_000)));
         FrameHandle station = world.GetOwnedFrame(owner);
         // The station holds still for its first step, so the planet's gravity pulls on its contents then, and stands on its
-        // rails from the second sync point on. The crate and the rock come once it falls freely on its orbit. A first motion
-        // intent would put the station on its rails from its first step, but the hull's new orbit frame starts with the
-        // hull's instant velocity and takes the sample's acceleration, so it does not land on that sample by itself, and
-        // step 2 moves it there, with the rock that joined it: about 0.07 m/s toward the crate, or 7 ticks. The step plan
-        // with its landing rule ends that (docs/plans/rails-components.md, "The step plan of a following frame").
+        // rails from the second sync point on. The crate and the rock come once it falls freely on its orbit, as they did
+        // before the station could have a first motion intent: the hull's new orbit frame starts with the hull's instant
+        // velocity, and its first step plan lands it on the orbit with an acceleration that is not the orbit's (docs/plans/
+        // rails-components.md, "The step plan of a following frame").
         Tick(world, 2);
         long start = world.TickNumber;
         Double3 stationPlace = world.Frames.LocalPose(station).Position;

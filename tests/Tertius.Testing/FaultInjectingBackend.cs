@@ -16,12 +16,17 @@ public readonly record struct StepRecord(long Tick, double Time, int ThreadId, b
 /// <param name="Intent">A copy of what it wrote.</param>
 public readonly record struct IntentRecord(long Tick, Entity Entity, PhysicsIntent Intent);
 
-/// <summary>The motion sample of one frame that a step applied.</summary>
+/// <summary>The motion intent of one entity that a step applied (see <see cref="PhysicsIntent.Move"/>).</summary>
 /// <param name="Tick">The number of the tick the step belongs to.</param>
-/// <param name="Frame">The frame that the sample moves.</param>
-/// <param name="RelativeTo">The frame that the sample is relative to: the frame's semantic parent when its owner wrote it.</param>
-/// <param name="Sample">A copy of the sample, which the owner wrote during the previous tick.</param>
-public readonly record struct SampleRecord(long Tick, FrameHandle Frame, FrameHandle RelativeTo, MotionSample Sample);
+/// <param name="Entity">The entity that the motion intent moves.</param>
+/// <param name="Frame">The frame that the motion intent is relative to: the entity's frame when it wrote it.</param>
+/// <param name="Move">A copy of the motion intent, which the entity wrote during the previous tick, or its spawn gave it.</param>
+public readonly record struct MoveRecord(long Tick, Entity Entity, FrameHandle Frame, MotionIntent Move)
+{
+    /// <summary>The full sample of <see cref="Move"/>. Throws <see cref="InvalidOperationException"/> for another case.</summary>
+    public MotionSample Sample => Move.TryGetValue(out MotionSample sample) ? sample
+        : throw new InvalidOperationException($"The motion intent of {Entity} in tick {Tick} is {Move}, not a full sample.");
+}
 
 /// <summary>
 /// The real Jolt backend plus the power to edit what the World sends it, edit what it sends back, or make a call throw.
@@ -68,10 +73,10 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
     public List<IntentRecord> Intents { get; } = [];
 
     /// <summary>
-    /// The motion sample of each frame that had one when a step began, in the order of the steps, and in each step in the
-    /// tree's dense order of the frames. The World hands the backend a buffer that it reuses, so these are copies.
+    /// The motion intent of each entity that had one when a step began, in the order of the steps, and in each step in the
+    /// order of the intents (see <see cref="Intents"/>). These are copies.
     /// </summary>
-    public List<SampleRecord> Samples { get; } = [];
+    public List<MoveRecord> Moves { get; } = [];
 
     /// <summary>Edits the next change batch before Jolt applies it, once. Null edits nothing.</summary>
     public Action<PhysicsChanges>? EditNextChanges { get; set; }
@@ -125,12 +130,11 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
         PhysicsStepContext step = EditNextIntents is { } editIntents ? EditIntents(context, editIntents) : context;
         ReadOnlySpan<PhysicsIntent> intents = step.Intents.Span;
         foreach (Entity entity in step.IntentEntities.Span)
-            Intents.Add(new IntentRecord(step.Tick, entity, intents[(int)entity.Index]));
-        for (int i = 0; i < context.Frames.Count; i++)
         {
-            FrameHandle frame = context.Frames.AtDense(i);
-            if (context.Samples.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
-                Samples.Add(new SampleRecord(context.Tick, frame, relativeTo, sample));
+            ref readonly PhysicsIntent intent = ref intents[(int)entity.Index];
+            Intents.Add(new IntentRecord(step.Tick, entity, intent));
+            if (intent.Move.HasValue)
+                Moves.Add(new MoveRecord(step.Tick, entity, intent.Frame, intent.Move));
         }
         if (ThrowFromStep is { } fault)
         {
@@ -163,7 +167,7 @@ public sealed class FaultInjectingBackend(JoltPhysicsBackend jolt) : IPhysicsBac
             table[edited[i].Entity.Index] = edited[i].Intent;
             entities[i] = edited[i].Entity;
         }
-        return new PhysicsStepContext(context.Tick, context.DeltaTime, context.Time, context.Frames, table, entities, context.Samples);
+        return new PhysicsStepContext(context.Tick, context.DeltaTime, context.Time, context.Frames, table, entities);
     }
 
     public void CastRay(FrameHandle frame, Double3 origin, Double3 direction, double start, double end, IPhysicsQueryFilter filter,

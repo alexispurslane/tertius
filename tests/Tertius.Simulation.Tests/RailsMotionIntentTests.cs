@@ -5,36 +5,41 @@ using Tertius.Frames.Rails;
 namespace Tertius.Simulation.Tests;
 
 /// <summary>
-/// The sample table: the motion samples that the owners of frames write with <see cref="Self.MoveOnRails"/>, what a sample
-/// must hold, how the World moves its three buffers on, and how it converts them. A sample that tick N writes is the
-/// applied sample of step N + 1, and the followed sample at the sync point of tick N + 1. The tests read the buffers between
-/// ticks: then the applied buffer holds what the next step applies, and the followed buffer what the frames followed at the
-/// last sync point. Also the public reads that a rails component needs: <see cref="Self.TimeAt"/>,
-/// <see cref="Self.OwnedFrame"/> and <see cref="FrameTree.TryGetAppliedSample"/>. Most tests read the table itself;
-/// RailsFollowTests (Physics.Tests) checks how frames follow the samples.
+/// Full samples as motion intents: the motion samples that the owners of frames write with <see cref="Self.MoveOnRails"/>
+/// into their intents (<see cref="PhysicsIntent.Move"/>), what a sample must hold, how the World swaps and converts them with
+/// the rest of the intent, and how a frame follows them (docs/plans/rails-components.md, "Rails motion for every entity"). A
+/// sample that tick N writes is the motion intent of step N + 1, and the frame stands on it at the sync point of tick N + 1.
+/// The tests read the next step's intent between ticks. Also the public reads that a rails component needs:
+/// <see cref="Self.TimeAt"/>, <see cref="Self.OwnedFrame"/> and <see cref="Self.PoseAtNextStepStartIn"/>. RailsFollowTests
+/// (Physics.Tests) checks how frames follow the samples in physics.
 /// </summary>
-public class MotionSampleTableTests
+public class RailsMotionIntentTests
 {
-    // ---- The buffers --------------------------------------------------------------------------------------------
+    // ---- The life of a full sample ------------------------------------------------------------------------------
 
-    [Fact]
-    public void ASampleThatATickWritesIsTheAppliedSampleOfTheNextStepAndTheFollowedSampleAtTheSyncPointAfterThatStep()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AFullSampleWrittenInATickMovesItsFrameInTheNextStep(bool withHull)
     {
-        using var test = TestWorld.OnJolt(out _);
-        FrameHandle frame = SpawnFrame(test, components: WritesTheTickNumber());
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        FrameHandle frame = SpawnFrame(test, body: withHull ? KinematicHull : null, components: WritesTheTickNumber());
 
         test.Run(1);
 
-        Applied(test, frame).Should().Be(SampleOfTick(0), "tick 0 wrote it, and step 1 applies it");
+        NextSample(test, frame).Should().Be(SampleOfTick(0), "tick 0 wrote it, and step 1 applies it");
 
         test.Run(1);
 
-        Followed(test, frame).Should().Be(SampleOfTick(0), "step 1 applied it, so the frame follows it at the sync point of tick 1");
-        Applied(test, frame).Should().Be(SampleOfTick(1));
+        faults.Intents.Should().Contain(record => record.Entity == frame.Entity && record.Tick == 1 && record.Intent.Move == new MotionIntent(SampleOfTick(0)),
+            "step 1 gets the sample in the owner's intent");
+        test.World.Frames.LocalPose(frame).Should().Be(SampleOfTick(0).Pose, "step 1 applied it, so the frame stands on it at the sync point of tick 1");
+        test.World.Frames.Followed(frame).Should().Be(FollowKind.Rails);
+        NextSample(test, frame).Should().Be(SampleOfTick(1));
     }
 
     [Fact]
-    public void AFrameWhoseComponentWritesNoSampleInATickHasNoAppliedSampleInTheNextStep()
+    public void AFrameWhoseComponentWritesNoSampleInATickHasNoMotionIntentInTheNextStep()
     {
         using var test = new TestWorld();
         FrameHandle frame = SpawnFrame(test, components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
@@ -43,39 +48,61 @@ public class MotionSampleTableTests
                 self.MoveOnRails(SampleOfTick(0));
         }));
         test.Run(1);
-        Applied(test, frame).Should().NotBeNull("tick 0 wrote a sample");
+        NextSample(test, frame).Should().NotBeNull("tick 0 wrote a sample");
 
         test.Run(1);
 
-        Applied(test, frame).Should().BeNull("tick 1 wrote none");
-        Followed(test, frame).Should().Be(SampleOfTick(0));
+        NextMove(test, frame).HasValue.Should().BeFalse("tick 1 wrote none");
+        test.World.Frames.LocalPose(frame).Should().Be(SampleOfTick(0).Pose);
     }
 
-    [Fact]
-    public void TheLastMoveOnRailsOfATickWins()
+    /// <summary>
+    /// One field holds the motion intent of a step, so the last write of a tick wins whatever its case. Until every writer
+    /// takes the rules of one guard (docs/plans/rails-components.md, stage 6 of "Order of the work"), a dynamic body takes an
+    /// end pose and a steer target, and the owner of a root frame with a body an end pose and a full sample.
+    /// </summary>
+    [Theory]
+    [InlineData("end pose", "steer target")]
+    [InlineData("steer target", "end pose")]
+    [InlineData("end pose", "full sample")]
+    [InlineData("full sample", "end pose")]
+    [InlineData("full sample", "full sample")]
+    public void TheLastMotionIntentOfATickWinsWhateverItsCase(string first, string last)
     {
         using var test = new TestWorld();
-        FrameHandle frame = SpawnFrame(test, components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        bool steers = first == "steer target" || last == "steer target";
+        Entity entity = test.World.Spawn(new SpawnDesc
         {
-            self.MoveOnRails(SampleOfTick(7));
-            self.MoveOnRails(SampleOfTick(8));
-        }));
+            Frame = steers ? test.Root : FrameHandle.Null,
+            Body = steers ? TestWorld.Ball : new BodyDesc(new SphereShapeDesc(0.5f), Motion: BodyMotion.Static),
+            AsFrame = steers ? null : new FrameSpec(FrameBounds.Sphere(10)),
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                Write(self, first, 1);
+                Write(self, last, 2);
+            })],
+        });
 
         test.Run(1);
 
-        Applied(test, frame).Should().Be(SampleOfTick(8));
+        test.World.Errors.Should().BeEmpty();
+        test.World.Entities.NextStepIntent(entity).Move.Should().Be(Case(last, 2));
     }
 
     [Fact]
-    public void TheSampleBuffersMoveOnWithoutAPhysicsBackend()
+    public void WithoutAPhysicsBackendAFrameWithoutABodyFollowsItsMotionIntents()
     {
         using var test = new TestWorld();
         FrameHandle frame = SpawnFrame(test, components: WritesTheTickNumber());
 
-        test.Run(2);
+        for (int tick = 1; tick <= 3; tick++)
+        {
+            test.Run(1);
 
-        Followed(test, frame).Should().Be(SampleOfTick(0));
-        Applied(test, frame).Should().Be(SampleOfTick(1));
+            NextSample(test, frame).Should().Be(SampleOfTick(tick - 1), "the swap keeps the motion intents without a backend");
+            if (tick > 1)
+                test.World.Frames.LocalPose(frame).Should().Be(SampleOfTick(tick - 2).Pose, "the sync point applies them to a frame without a body");
+        }
     }
 
     [Fact]
@@ -90,12 +117,12 @@ public class MotionSampleTableTests
         test.Run(2);
 
         test.World.Errors.Should().BeEmpty();
-        Followed(test, frame).Should().Be(SampleOfTick(0));
-        Applied(test, frame).Should().Be(SampleOfTick(1));
+        test.World.Frames.LocalPose(frame).Should().Be(SampleOfTick(0).Pose);
+        NextSample(test, frame).Should().Be(SampleOfTick(1));
     }
 
     [Fact]
-    public void ANewFrameThatReusesTheIndexOfADeadFrameHasNoSample()
+    public void ANewFrameThatReusesTheSlotOfADeadFrameHasNoMotionIntent()
     {
         using var test = new TestWorld();
         FrameHandle dead = SpawnFrame(test, components: WritesTheTickNumber());
@@ -105,12 +132,12 @@ public class MotionSampleTableTests
         FrameHandle reused = SpawnFrame(test);
 
         reused.Index.Should().Be(dead.Index, "the tree reuses the index of the dead frame");
-        Applied(test, reused).Should().BeNull();
-        Followed(test, reused).Should().BeNull();
+        NextMove(test, reused).HasValue.Should().BeFalse();
+        test.World.Frames.Followed(reused).Should().Be(FollowKind.Static);
     }
 
     [Fact]
-    public void ASampleRelativeToADyingFrameConvertsIntoTheFramesNewParentInTheAppliedAndTheFollowedBuffer()
+    public void AMotionIntentRelativeToADyingFrameConvertsIntoItsEntitysNewFrame()
     {
         using var test = new TestWorld();
         const double mu = 4e14;
@@ -149,35 +176,32 @@ public class MotionSampleTableTests
 
         test.World.Destroy(parent.Entity);
 
-        foreach ((string buffer, MotionSamples samples) in new[] { ("applied", frames.Samples.Applied), ("followed", frames.Samples.Followed) })
-        {
-            samples.TryGet(child, out MotionSample converted, out FrameHandle relativeTo).Should().BeTrue(buffer);
-            relativeTo.Should().Be(test.Root, buffer);
-            Distance(converted.Pose.Position, composed.Position).Should().BeLessThan(1e-6, $"the {buffer} place");
-            Distance(converted.Pose.Rotation, composed.Rotation).Should().BeLessThan(1e-12, $"the {buffer} rotation");
-            Distance(converted.ChordVelocity, turn.Rotate(sample.ChordVelocity) + carried).Should().BeLessThan(1e-9, $"the {buffer} chord");
-            Distance(converted.Velocity, turn.Rotate(sample.Velocity) + carried).Should().BeLessThan(1e-9, $"the {buffer} velocity");
-            // A known gap, not the right value: the right value also adds the dying parent's own acceleration on its orbit,
-            // which only the parent's step record holds. FrameTree.AccelerationRelative adds no acceleration of a semantic
-            // frame on its path yet, so this pins only the turn of the sample's acceleration. The numeric update can read the
-            // converted applied sample as the step acceleration of an orbit frame of the child, so the term matters.
-            Distance(converted.Acceleration, turn.Rotate(sample.Acceleration)).Should().BeLessThan(1e-12, $"the {buffer} acceleration");
-            Distance(converted.AngularVelocity, turn.Rotate(sample.AngularVelocity) + parentSpin).Should().BeLessThan(1e-12, $"the {buffer} angular velocity");
-            Distance(converted.AngularAcceleration, turn.Rotate(sample.AngularAcceleration)).Should().BeLessThan(1e-12, $"the {buffer} angular acceleration");
-        }
+        PhysicsIntent intent = test.World.Entities.NextStepIntent(child.Entity);
+        intent.Frame.Should().Be(test.Root);
+        intent.Move.TryGetValue(out MotionSample converted).Should().BeTrue("a full sample stays a full sample");
+        Distance(converted.Pose.Position, composed.Position).Should().BeLessThan(1e-6, "the place");
+        Distance(converted.Pose.Rotation, composed.Rotation).Should().BeLessThan(1e-12, "the rotation");
+        Distance(converted.ChordVelocity, turn.Rotate(sample.ChordVelocity) + carried).Should().BeLessThan(1e-9, "the chord");
+        Distance(converted.Velocity, turn.Rotate(sample.Velocity) + carried).Should().BeLessThan(1e-9, "the velocity");
+        // A known gap, not the right value: the right value also adds the dying parent's own acceleration on its orbit, which
+        // the frame tree no longer holds after step 2. FrameTree.AccelerationRelative adds no acceleration of a semantic frame
+        // on its path yet, so this pins only the turn of the sample's acceleration.
+        Distance(converted.Acceleration, turn.Rotate(sample.Acceleration)).Should().BeLessThan(1e-12, "the acceleration");
+        Distance(converted.AngularVelocity, turn.Rotate(sample.AngularVelocity) + parentSpin).Should().BeLessThan(1e-12, "the angular velocity");
+        Distance(converted.AngularAcceleration, turn.Rotate(sample.AngularAcceleration)).Should().BeLessThan(1e-12, "the angular acceleration");
     }
 
     [Fact]
-    public void EachStepsContextCarriesTheSamplesThatTheStepApplies()
+    public void EachStepGetsTheMotionIntentsThatItAppliesInItsIntents()
     {
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         FrameHandle frame = SpawnFrame(test, components: WritesTheTickNumber());
 
         test.Run(3);
 
-        faults.Samples.Where(record => record.Frame == frame).Should().Equal(
-            new SampleRecord(1, frame, test.Root, SampleOfTick(0)),
-            new SampleRecord(2, frame, test.Root, SampleOfTick(1)));
+        faults.Moves.Where(record => record.Entity == frame.Entity).Should().Equal(
+            new MoveRecord(1, frame.Entity, test.Root, new MotionIntent(SampleOfTick(0))),
+            new MoveRecord(2, frame.Entity, test.Root, new MotionIntent(SampleOfTick(1))));
     }
 
     // ---- Who can write a sample ---------------------------------------------------------------------------------
@@ -217,7 +241,7 @@ public class MotionSampleTableTests
         test.Run(1);
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain(frame.Entity.ToString()).And.Contain(nameof(ArgumentException));
-        Applied(test, frame).Should().BeNull("the World keeps no sample that it refused");
+        NextMove(test, frame).HasValue.Should().BeFalse("the World keeps no sample that it refused");
     }
 
     [Fact]
@@ -230,7 +254,7 @@ public class MotionSampleTableTests
         test.Run(1);
 
         test.World.Errors.Should().ContainSingle().Which.Should().Contain(frame.Entity.ToString()).And.Contain(nameof(ArgumentException));
-        Applied(test, frame).Should().BeNull("the World keeps no sample that it refused");
+        NextMove(test, frame).HasValue.Should().BeFalse("the World keeps no sample that it refused");
     }
 
     /// <summary>
@@ -250,7 +274,7 @@ public class MotionSampleTableTests
 
         test.World.Errors.Should().BeEmpty();
         Distance(test.World.Frames.LocalPose(frame).Rotation, turn).Should().BeLessThan(1e-15);
-        Distance(Applied(test, frame)!.Value.Pose.Rotation, turn).Should().BeLessThan(1e-15, "physics gets the same unit rotation");
+        Distance(NextSample(test, frame)!.Value.Pose.Rotation, turn).Should().BeLessThan(1e-15, "physics gets the same unit rotation");
     }
 
     // ---- What Self tells a rails component ----------------------------------------------------------------------
@@ -303,6 +327,59 @@ public class MotionSampleTableTests
         seenByPlain.Should().Be(FrameHandle.Null);
     }
 
+    [Fact]
+    public void ThePoseAtTheNextStepStartIsTheEndOfTheRunningStepsMotionIntentInTheFrameThatTheReadNames()
+    {
+        using var test = new TestWorld();
+        var turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5);
+        FrameHandle parent = test.SpawnStaticFrame(new DPose(new Double3(100, 0, 0), turn));
+        MotionSample sample = SampleOfTick(7);
+        DPose inParent = default, inRoot = default;
+        SpawnFrame(test, parent, components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            if (self.Tick == 0)
+                self.MoveOnRails(sample);
+            else if (self.Tick == 1)
+            {
+                inParent = self.PoseAtNextStepStartIn(self.Frame);
+                inRoot = self.PoseAtNextStepStartIn(test.Root);
+            }
+        }));
+
+        test.Run(2);
+
+        inParent.Should().Be(sample.Pose, "step 1 ends on the sample of tick 0, where step 2 starts");
+        Distance(inRoot.Position, DPose.Compose(new DPose(new Double3(100, 0, 0), turn), sample.Pose).Position).Should().BeLessThan(1e-12);
+    }
+
+    [Fact]
+    public void WithoutAMotionIntentThePoseAtTheNextStepStartIsTheRunningStepsTeleportOrThePoseNow()
+    {
+        using var test = TestWorld.OnJolt(out _);
+        var seen = new List<DPose>();
+        test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Pose = TestWorld.At(3),
+            Body = TestWorld.Ball,
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                seen.Add(self.PoseAtNextStepStartIn(self.Frame));
+                if (self.Tick == 0)
+                    self.Body.Teleport(TestWorld.At(40));
+                else if (self.Tick == 2)
+                    self.Body.SteerTo(TestWorld.At(90));
+            })],
+        });
+
+        test.Run(4);
+
+        seen[0].Should().Be(TestWorld.At(3), "no step applies an intent of the ball, so it starts the next step where it stands");
+        seen[1].Should().Be(TestWorld.At(40), "the running step teleports the ball");
+        seen[2].Position.Should().Be(new Double3(40, 0, 0), "the ball stands at the teleport's pose now, in no gravity");
+        seen[3].Position.Should().Be(new Double3(40, 0, 0), "a steer target gives no exact end, so the read takes the pose now");
+    }
+
     /// <summary>
     /// A mod's rails component can do what <see cref="SpinMotion"/> does with public reads only (docs/plans/rails-components.md,
     /// "The rails components"). This turntable holds its frame still at the place where the frame stands when the step of its
@@ -317,13 +394,7 @@ public class MotionSampleTableTests
         Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
             self.MoveOnRails(StillAt(velocity * self.TimeAt(self.Tick + 2)) with { ChordVelocity = velocity, Velocity = velocity }));
         Lambda turntable = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
-        {
-            FrameTree frames = self.Snapshot.Frames;
-            Double3 place = frames.TryGetAppliedSample(self.OwnedFrame, out MotionSample current)
-                ? current.Pose.Position
-                : frames.LocalPose(self.OwnedFrame).Position;
-            self.MoveOnRails(StillAt(place));
-        });
+            self.MoveOnRails(StillAt(self.PoseAtNextStepStartIn(self.Frame).Position)));
         FrameHandle frame = SpawnFrame(test, components: flight);
         test.Run(10);
 
@@ -381,23 +452,56 @@ public class MotionSampleTableTests
     private static Lambda WritesTheTickNumber() =>
         Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(SampleOfTick(self.Tick)));
 
-    /// <summary>Spawns a frame without a body at the origin of <paramref name="parent"/>, or of the root, and returns it.</summary>
-    private static FrameHandle SpawnFrame(TestWorld test, FrameHandle parent = default, params IComponent[] components) =>
+    /// <summary>A kinematic box of 1 m, the hull of a frame on rails.</summary>
+    private static readonly BodyDesc KinematicHull = new(new BoxShapeDesc(new Vector3(0.5f)), Motion: BodyMotion.Kinematic);
+
+    /// <summary>
+    /// Spawns a frame at the origin of <paramref name="parent"/>, or of the root, with <paramref name="body"/> as its hull or
+    /// without a body, and returns it.
+    /// </summary>
+    private static FrameHandle SpawnFrame(TestWorld test, FrameHandle parent = default, BodyDesc? body = null, params IComponent[] components) =>
         test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
         {
             Frame = parent.IsNull ? test.Root : parent,
+            Body = body,
             AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = components,
         }));
+
+    /// <summary>Writes the case <paramref name="kind"/> of <see cref="Case"/> through its writer.</summary>
+    private static void Write(Self self, string kind, double x)
+    {
+        switch (Case(kind, x))
+        {
+            case EndPose end:
+                self.Body.MoveKinematic(end.Pose);
+                break;
+            case SteerTarget steer:
+                self.Body.SteerTo(steer.Pose);
+                break;
+            case MotionSample sample:
+                self.MoveOnRails(sample);
+                break;
+        }
+    }
+
+    /// <summary>A motion intent of the case <paramref name="kind"/> at <paramref name="x"/> m along X.</summary>
+    private static MotionIntent Case(string kind, double x) => kind switch
+    {
+        "end pose" => new MotionIntent(new EndPose(TestWorld.At(x))),
+        "steer target" => new MotionIntent(new SteerTarget(TestWorld.At(x))),
+        _ => new MotionIntent(SampleOfTick((long)x)),
+    };
 
     private static double Distance(Double3 a, Double3 b) => (a - b).Length;
 
     private static double Distance(DQuaternion a, DQuaternion b) =>
         Math.Max(Math.Max(Math.Abs(a.X - b.X), Math.Abs(a.Y - b.Y)), Math.Max(Math.Abs(a.Z - b.Z), Math.Abs(a.W - b.W)));
 
-    private static MotionSample? Applied(TestWorld test, FrameHandle frame) =>
-        test.World.Frames.Samples.Applied.TryGet(frame, out MotionSample sample) ? sample : null;
+    /// <summary>The motion intent that the next step applies to the owner of <paramref name="frame"/>, between two ticks.</summary>
+    private static MotionIntent NextMove(TestWorld test, FrameHandle frame) => test.World.Entities.NextStepIntent(frame.Entity).Move;
 
-    private static MotionSample? Followed(TestWorld test, FrameHandle frame) =>
-        test.World.Frames.Samples.Followed.TryGet(frame, out MotionSample sample) ? sample : null;
+    /// <summary>The full sample that the next step applies to the owner of <paramref name="frame"/>, or null.</summary>
+    private static MotionSample? NextSample(TestWorld test, FrameHandle frame) =>
+        NextMove(test, frame).TryGetValue(out MotionSample sample) ? sample : null;
 }

@@ -327,25 +327,30 @@ public class SetMotionTests
 
     /// <summary>
     /// The rails component runs before the change in the same tick, so it writes a sample that no step may apply: a dynamic
-    /// hull follows no sample. The sample that the last step applied stays, as the record that the frame follows.
+    /// hull follows no sample. The sample that the last step applied stays the record that the frame took.
     /// </summary>
     [Fact]
-    public void AHullThatStopsBeingKinematicDropsTheSampleWrittenInTheSameTick()
+    public void AHullThatIsNotKinematicInTheNextStepDropsTheMotionIntentOfTheTick()
     {
-        using var test = new TestWorld();
+        using var test = TestWorld.OnJolt(out _);
         var rails = new HoldsOnRails();
         FrameHandle station = SpawnHull(test, BodyMotion.Kinematic, ShipBody, rails);
         test.Run(2);
-        test.World.Frames.Samples.Applied.TryGet(station, out _).Should().BeTrue("the rails component writes a sample in every tick");
+        HasNextSample(test, station).Should().BeTrue("the rails component writes a sample in every tick");
 
         test.World.SetMotionNextTick(station.Entity, BodyMotion.Dynamic, remove: rails);
         test.Run(1);
 
         test.World.NextStepHullMotion(station).Should().Be(BodyMotion.Dynamic);
-        test.World.Frames.TryGetAppliedSample(station, out _).Should().BeFalse("the next step applies no sample to a dynamic hull");
-        test.World.Frames.Samples.Followed.TryGet(station, out _).Should().BeTrue("the sample that the step of the tick applied stays");
+        test.World.Entities.NextStepIntent(station.Entity).Move.HasValue.Should().BeFalse("the next step applies no motion intent to a dynamic hull");
+        test.World.Frames.LocalPose(station).Should().Be(HoldsOnRails.Sample.Pose, "the sample that the step of the tick applied moved the frame");
+        test.World.Frames.Followed(station).Should().Be(FollowKind.Rails);
         test.World.Errors.Should().BeEmpty();
     }
+
+    /// <summary>True when the next step applies a full sample to the owner of <paramref name="frame"/>, between two ticks.</summary>
+    private static bool HasNextSample(TestWorld test, FrameHandle frame) =>
+        test.World.Entities.NextStepIntent(frame.Entity).Move.TryGetValue(out MotionSample _);
 
     /// <summary>
     /// A sample written while the tick's first change made the hull kinematic goes when the last change of the tick makes it
@@ -367,7 +372,7 @@ public class SetMotionTests
         });
 
         refused.Should().BeNull("the sample came while the next step was to be kinematic");
-        test.World.Frames.TryGetAppliedSample(ship, out _).Should().BeFalse("the next step applies no sample to a dynamic hull");
+        HasNextSample(test, ship).Should().BeFalse("the next step applies no sample to a dynamic hull");
         test.World.Errors.Should().BeEmpty();
     }
 

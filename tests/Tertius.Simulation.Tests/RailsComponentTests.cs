@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// <summary>
 /// The rails components <see cref="KeplerMotion"/> and <see cref="SpinMotion"/> on frames without a body: what they check,
 /// and the sample that each writes in each tick. The tests of rails components on hulls are in Physics.Tests
-/// (RailsHullTests). These tests read the sample table; KeplerFrameTests, SpinFrameTests and RailsFollowTests (Physics.Tests)
+/// (RailsHullTests). These tests read the motion intent of the next step; KeplerFrameTests, SpinFrameTests and RailsFollowTests (Physics.Tests)
 /// check how frames follow the samples.
 /// </summary>
 public class RailsComponentTests
@@ -135,6 +135,37 @@ public class RailsComponentTests
         Applied(test, moon).Should().Be(parked);
     }
 
+    /// <summary>
+    /// A swap of rails components leaves no step without a motion intent, and the new component starts where the old one's
+    /// last sample leaves the frame, which it reads through <see cref="Self.PoseAtNextStepStartIn"/>: so a SpinMotion that
+    /// replaces a flight turns the frame where the flight's last sample put it, and holds it there.
+    /// </summary>
+    [Fact]
+    public void ASpinMotionStartsWhereTheLastSampleOfTheComponentBeforeItLeftTheFrame()
+    {
+        using var test = new TestWorld();
+        var velocity = new Double3(10, -2, 0.5);
+        Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            Double3 place = velocity * self.TimeAt(self.Tick + 2);
+            self.MoveOnRails(new MotionSample(new DPose(place, DQuaternion.Identity), velocity, velocity, Double3.Zero, Double3.Zero, Double3.Zero));
+        });
+        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, 0.1), 0.7);
+        FrameHandle frame = SpawnFrame(test, components: flight);
+        test.Run(10);
+
+        test.World.RemoveComponent(frame.Entity, flight);
+        test.World.AddComponent(frame.Entity, new SpinMotion { Spin = spin });
+        test.Run(1);
+        Double3 stop = velocity * test.World.Time;
+        test.World.Frames.LocalPose(frame).Position.Should().Be(stop, "the flight's last sample moves the frame in the step of the swap");
+
+        test.Run(3);
+
+        test.World.Frames.LocalPose(frame).Position.Should().Be(stop, "the spin turns the frame where the flight left it");
+        Applied(test, frame)!.Value.Should().Be(spin.Sample(stop, test.World.TimeAt(test.World.TickNumber + 1), test.World.DeltaTime));
+    }
+
     // ---- The checks of a run ------------------------------------------------------------------------------------
 
     [Fact]
@@ -148,7 +179,7 @@ public class RailsComponentTests
         test.Run(3);
 
         Applied(test, moon).Should().BeNull();
-        Followed(test, moon).Should().BeNull();
+        test.World.Frames.Followed(moon).Should().Be(FollowKind.Static);
         log.Where(line => line.Contains(moon.Entity.ToString())).Should().ContainSingle();
     }
 
@@ -166,7 +197,7 @@ public class RailsComponentTests
         test.Run(3);
 
         Applied(test, moon).Should().BeNull();
-        Followed(test, moon).Should().BeNull();
+        test.World.Frames.Followed(moon).Should().Be(FollowKind.Static);
         log.Where(line => line.Contains(moon.Entity.ToString())).Should().ContainSingle();
         test.World.Errors.Should().BeEmpty();
     }
@@ -233,9 +264,7 @@ public class RailsComponentTests
             Components = components,
         }));
 
+    /// <summary>The full sample that the next step applies to the owner of <paramref name="frame"/>, between two ticks, or null.</summary>
     private static MotionSample? Applied(TestWorld test, FrameHandle frame) =>
-        test.World.Frames.Samples.Applied.TryGet(frame, out MotionSample sample) ? sample : null;
-
-    private static MotionSample? Followed(TestWorld test, FrameHandle frame) =>
-        test.World.Frames.Samples.Followed.TryGet(frame, out MotionSample sample) ? sample : null;
+        test.World.Entities.NextStepIntent(frame.Entity).Move.TryGetValue(out MotionSample sample) ? sample : null;
 }

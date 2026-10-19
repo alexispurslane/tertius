@@ -7,8 +7,8 @@ namespace Tertius.Core.Tests;
 /// Orbit frames (<see cref="NumericMode.Orbiting"/>, docs/plans/numeric-frames.md, "Anchors", rule 3) on a tree built in
 /// the test: the kinematic hull of a frame whose samples move it fast or far in its semantic frame lives in a numeric frame
 /// of its own, K, that follows the frame's motion samples (docs/plans/rails-components.md, "Numeric frames"), and the hull's
-/// frame hangs at K's origin. The tests feed the samples to the tree's sample table and do at each sync point what the
-/// World and physics do with them (see <see cref="Sync"/>). The tests run
+/// frame hangs at K's origin. The tests hand the tree the intents of each step, with the samples as the owners' motion
+/// intents, and do before each step and at each sync point what the World and physics do with them (see <see cref="Sync"/>). The tests run
 /// <see cref="FrameTree.UpdateNumericFrames"/> with plain body records, at the defaults of <see cref="NumericFrameOptions"/>.
 /// A group of free bodies gets a falling frame from 1,000 m/s and keeps it down to 400 m/s. A group with a body that
 /// thrusts, such as a character, gets one from 50 m/s and keeps it down to 20 m/s. A slow group gets a resting frame from
@@ -57,25 +57,45 @@ public class FrameTreeOrbitFrameTests
     }
 
     /// <summary>
-    /// The sync point after the step that ends at <paramref name="time"/>, for <paramref name="station"/> on
-    /// <paramref name="orbit"/>: its owner wrote the orbit's sample of that step in the tick before, and the sample table moved
-    /// it on to the applied buffer. A station that hangs in its orbit frame: the orbit frame takes the sample's place and chord
-    /// (<see cref="FrameTree.PlaceFollowingFrame"/>), and the station takes the record that physics releases for its hull, at
-    /// the origin of the orbit frame with the rest of the sample's velocity. Any other station takes the sample.
+    /// The intents of a step in which only the owner of <paramref name="station"/> wrote one: <paramref name="move"/>, relative
+    /// to the station's semantic parent, as the owner writes it, with a teleport to <paramref name="teleport"/> when it has one.
+    /// </summary>
+    private PhysicsIntent[] Moving(FrameHandle station, in MotionIntent move, DPose? teleport = null)
+    {
+        var intents = new PhysicsIntent[station.Entity.Index + 1];
+        intents[station.Entity.Index] = new PhysicsIntent
+        {
+            Frame = frames.Parent(station),
+            Move = move,
+            Flags = teleport is null ? IntentFlags.None : IntentFlags.Teleport,
+            TeleportPose = teleport ?? default,
+        };
+        return intents;
+    }
+
+    /// <summary>
+    /// The step that ends at <paramref name="time"/> and its sync point, for <paramref name="station"/> on
+    /// <paramref name="orbit"/>: its owner wrote the orbit's sample of that step in the tick before, which the step applies,
+    /// so before the step the tree derives the plan of a station that hangs in its orbit frame (see
+    /// <see cref="FrameTree.BeginNumericStep"/>). At the sync point, the orbit frame lands on the plan, takes its place and
+    /// chord exactly (<see cref="FrameTree.PlaceFollowingFrame"/>), and the station takes the record that physics releases
+    /// for its hull, at the origin of the orbit frame with the rest of the sample's velocity. Any other station takes the
+    /// sample.
     /// </summary>
     private MotionSample Sync(FrameHandle station, KeplerOrbit orbit, double time)
     {
         double mu = KeplerOrbit.MuFrom(frames.Gravity(frames.Parent(station)));
         MotionSample sample = orbit.Sample(mu, time, Step);
-        frames.Samples.Write(station, frames.Parent(station), sample);
-        frames.Samples.MoveOn();
+        frames.Update();
+        frames.BeginNumericStep(Moving(station, new MotionIntent(sample)), Step);
         if (frames.InOrbitFrame(station))
         {
+            frames.AdvanceNumericFrames(Step);
             frames.PlaceFollowingFrame(station);
-            frames.Follow(station, frames.TreeParent(station), AtOrigin(sample), measured: null, Step);
+            frames.Follow(station, frames.TreeParent(station), AtOrigin(sample), FollowKind.Rails, measured: null, Step);
         }
         else
-            frames.Follow(station, frames.Parent(station), sample, measured: null, Step);
+            frames.Follow(station, frames.Parent(station), sample, FollowKind.Rails, measured: null, Step);
         frames.StoreNewProperAccelerations();
         return sample;
     }
@@ -207,19 +227,18 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void During_a_step_an_orbit_frame_falls_with_its_anchors_sample_acceleration_and_ends_on_the_sample()
+    public void During_a_step_an_orbit_frame_falls_with_the_acceleration_that_lands_it_on_its_anchors_plan_and_ends_on_the_plan()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
         Sync(station, Low, Start + Step);
         // The sample of the next step, which its owner wrote in the tick before.
         MotionSample next = Low.Sample(EarthMu, Start + 2 * Step, Step);
-        frames.Samples.Write(station, earth, next);
-        frames.Samples.MoveOn();
+        Double3 velocity = frames.LinearVelocity(orbit);
 
         frames.Update();
-        frames.BeginNumericStep();
-        frames.HomeAcceleration(orbit, earth).Should().Be(next.Acceleration);
+        frames.BeginNumericStep(Moving(station, new MotionIntent(next)), Step);
+        frames.HomeAcceleration(orbit, earth).Should().Be((next.ChordVelocity - velocity) / Step);
         frames.EffectiveGravity(orbit, Double3.Zero).Length().Should().BeLessThan(1e-6f, "a body at the hull feels the field minus the orbit's pull");
         frames.AdvanceNumericFrames(Step);
 
@@ -227,18 +246,46 @@ public class FrameTreeOrbitFrameTests
     }
 
     [Fact]
-    public void An_orbit_frame_takes_the_acceleration_of_its_anchors_sample_whatever_the_field_says()
+    public void An_orbit_frame_takes_the_acceleration_that_lands_it_on_its_anchors_plan_whatever_the_field_or_the_plans_acceleration_says()
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
         var pushed = new MotionSample(frames.LocalPose(station), Double3.Zero, Double3.Zero, new Double3(1, 2, 3), Double3.Zero, Double3.Zero);
-        frames.Samples.Write(station, earth, pushed);
-        frames.Samples.MoveOn();
+        Double3 velocity = frames.LinearVelocity(orbit);
 
         frames.Update();
-        frames.BeginNumericStep();
+        frames.BeginNumericStep(Moving(station, new MotionIntent(pushed)), Step);
 
-        frames.HomeAcceleration(orbit, earth).Should().Be(new Double3(1, 2, 3));
+        frames.HomeAcceleration(orbit, earth).Should().Be((Double3.Zero - velocity) / Step, "the plan's chord is zero, so the frame stops");
+    }
+
+    /// <summary>
+    /// The landing rule of "The step plan of a following frame" (docs/plans/rails-components.md): an end pose has no
+    /// acceleration that lands the frame on it, because its velocity changes at the start of the step, so the orbit frame
+    /// takes the acceleration that turns its velocity into the plan's chord.
+    /// </summary>
+    [Fact]
+    public void AFollowingFrameLandsOnItsAnchorsPlanAtEverySyncPoint()
+    {
+        FrameHandle station = Station(10, Low);
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+
+        for (int tick = 1; tick <= 5; tick++)
+        {
+            DPose start = frames.LocalPose(station);
+            var end = new DPose(start.Position + new Double3(7_000, 100 * tick, -50) * Step, start.Rotation);
+            frames.Update();
+            frames.BeginNumericStep(Moving(station, new MotionIntent(new EndPose(end))), Step);
+            frames.AdvanceNumericFrames(Step);
+
+            (frames.TreeLocalPose(orbit).Position - end.Position).Length.Should().BeLessThan(1e-6, "the step lands the frame on its plan to its rounding");
+            frames.PlaceFollowingFrame(station);
+            frames.TreeLocalPose(orbit).Position.Should().Be(end.Position);
+            frames.LinearVelocity(orbit).Should().Be((end.Position - start.Position) / Step, "the plan's chord");
+            frames.Follow(station, orbit, new MotionSample(new DPose(Double3.Zero, end.Rotation), Double3.Zero, Double3.Zero, Double3.Zero,
+                Double3.Zero, Double3.Zero), FollowKind.Kinematic, measured: null, Step);
+            frames.StoreNewProperAccelerations();
+        }
     }
 
     [Fact]
@@ -249,31 +296,30 @@ public class FrameTreeOrbitFrameTests
         Double3 place = frames.TreeLocalPose(orbit).Position;
 
         frames.Update();
-        frames.BeginNumericStep();
+        frames.BeginNumericStep([], Step);
 
         frames.Numeric(orbit).Should().Be(NumericMode.Orbiting, "the hull is still kinematic");
         frames.HomeAcceleration(orbit, earth).Should().Be(GravityField.Point(EarthMu).AtPrecise(place), "the field of earth at its origin pulls it");
     }
 
     [Fact]
-    public void A_new_orbit_frame_starts_from_its_anchors_followed_sample()
+    public void ANewFollowingFrameStartsAtItsAnchorsPlaceAndVelocity()
     {
         FrameHandle station = Station(10, Low);
-        // The sample of the step that ended at this sync point, with a chord of its own, so that only the sample gives it.
+        // The record of the step that ended at this sync point, with a chord of its own, which the new frame does not take:
+        // its first plan lands it (see AFollowingFrameLandsOnItsAnchorsPlanAtEverySyncPoint).
         MotionSample sample = Low.Sample(EarthMu, Start, Step) with { ChordVelocity = new Double3(7_000, 100, 200) };
-        frames.Samples.Write(station, earth, sample);
-        frames.Samples.MoveOn();
-        frames.Samples.MoveOn();
-        frames.Follow(station, earth, sample, measured: null, Step);
+        frames.Follow(station, earth, sample, FollowKind.Rails, measured: null, Step);
         frames.StoreNewProperAccelerations();
 
         FrameHandle orbit = Update(Hull(station))[0].Home;
 
         frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
         frames.TreeLocalPose(orbit).Position.Should().Be(sample.Pose.Position);
-        frames.LinearVelocity(orbit).Should().Be(sample.ChordVelocity);
+        frames.LinearVelocity(orbit).Should().Be(sample.Velocity, "the anchor's instant velocity");
         frames.TreeLocalPose(station).Should().Be(new DPose(Double3.Zero, sample.Pose.Rotation));
-        frames.TreeLinearVelocity(station).Should().Be(sample.Velocity - sample.ChordVelocity);
+        frames.TreeLinearVelocity(station).Should().Be(Double3.Zero);
+        frames.LinearVelocity(station).Should().Be(sample.Velocity, "a read in earth keeps the anchor's velocity");
     }
 
     [Fact]
@@ -306,15 +352,16 @@ public class FrameTreeOrbitFrameTests
         Double3 podVelocity = frames.LinearVelocity(pod);
         // The hull teleported 1 km on along its orbit in the step, so physics released its record 1 km from the origin.
         MotionSample sample = Low.Sample(EarthMu, Start + 0.13, Step);
-        frames.Samples.Write(station, earth, sample);
-        frames.Samples.MoveOn();
+        frames.Update();
+        frames.BeginNumericStep(Moving(station, new MotionIntent(sample), teleport: sample.Pose), Step);
         Double3 offset = sample.Pose.Position - frames.TreeLocalPose(orbit).Position;
         Double3 change = sample.ChordVelocity - frames.LinearVelocity(orbit);
-        frames.Follow(station, orbit, AtOrigin(sample) with { Pose = new DPose(offset, sample.Pose.Rotation) }, measured: null, Step);
+        MotionSample record = AtOrigin(sample) with { Pose = new DPose(offset, sample.Pose.Rotation) };
+        frames.Follow(station, orbit, record, FollowKind.Rails, measured: null, Step);
         frames.StoreNewProperAccelerations();
         changes.Clear();
 
-        frames.JumpFollowingFrame(station, changes);
+        frames.JumpFollowingFrame(station, record, changes);
 
         frames.TreeLocalPose(orbit).Position.Should().Be(sample.Pose.Position);
         frames.LinearVelocity(orbit).Should().Be(sample.ChordVelocity);

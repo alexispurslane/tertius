@@ -507,8 +507,7 @@ public sealed class PhysicsChanges
 /// <summary>Read-only inputs to one physics step. Everything here is fixed for the duration of the step.</summary>
 public readonly struct PhysicsStepContext
 {
-    public PhysicsStepContext(long tick, float deltaTime, double time, FrameTree frames, ReadOnlyMemory<PhysicsIntent> intents, ReadOnlyMemory<Entity> intentEntities,
-        MotionSamples samples = default)
+    public PhysicsStepContext(long tick, float deltaTime, double time, FrameTree frames, ReadOnlyMemory<PhysicsIntent> intents, ReadOnlyMemory<Entity> intentEntities)
     {
         Tick = tick;
         DeltaTime = deltaTime;
@@ -516,7 +515,6 @@ public readonly struct PhysicsStepContext
         Frames = frames;
         Intents = intents;
         IntentEntities = intentEntities;
-        Samples = samples;
     }
 
     public long Tick { get; }
@@ -531,13 +529,11 @@ public readonly struct PhysicsStepContext
     /// of its owner (see <see cref="FrameTree.HullMotionInStep"/>).
     /// </summary>
     public ReadOnlyMemory<PhysicsIntent> Intents { get; }
-    /// <summary>The entities that wrote an intent during the previous tick.</summary>
-    public ReadOnlyMemory<Entity> IntentEntities { get; }
     /// <summary>
-    /// The motion samples that this step applies, by frame: what the owners of frames wrote with <c>Self.MoveOnRails</c>
-    /// during the previous tick, each relative to the frame's semantic parent at the write. The default has no sample.
+    /// The entities that wrote an intent during the previous tick, and the new entities whose spawn gave them a first motion
+    /// intent (see <see cref="SpawnDesc.FirstMove"/>).
     /// </summary>
-    public MotionSamples Samples { get; }
+    public ReadOnlyMemory<Entity> IntentEntities { get; }
 }
 
 /// <summary>

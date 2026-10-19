@@ -65,13 +65,10 @@ public sealed class SpinMotion : IComponent
 
     /// <summary>
     /// The place in its parent where the frame stands at the start of the step that this tick's sample describes, which is
-    /// the end of the step that runs beside this tick. A sample that the frame follows in that step puts it at the sample's
-    /// place, so the spin starts where the motion before it, such as the last sample of a component that this one replaced,
-    /// leaves the frame. Without such a sample the frame holds still in that step, at its place in the front snapshot. Both
-    /// reads are public (see <see cref="FrameTree.TryGetAppliedSample"/>), so a mod's rails component can do the same.
+    /// the end of the step that runs beside this tick. A motion intent that the frame follows in that step puts it at its
+    /// end, so the spin starts where the motion before it, such as the last sample of a component that this one replaced,
+    /// leaves the frame. Without one the frame holds still in that step, at its place now. The read is public (see
+    /// <see cref="Self.PoseAtNextStepStartIn"/>), so a mod's rails component can do the same.
     /// </summary>
-    private static Double3 PlaceAtStepStart(Self self) =>
-        self.Snapshot.Frames.TryGetAppliedSample(self.OwnedFrame, out MotionSample current)
-            ? current.Pose.Position
-            : self.Snapshot.Frames.LocalPose(self.OwnedFrame).Position;
+    private static Double3 PlaceAtStepStart(Self self) => self.PoseAtNextStepStartIn(self.Frame).Position;
 }

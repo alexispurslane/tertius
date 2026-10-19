@@ -194,6 +194,72 @@ public class StateDumpTests
         FollowsOf(run.Dump("after"), "ship").Should().Be("physics");
     }
 
+    /// <summary>
+    /// The frame tree stores how each frame followed its owner beside the record of the step that ended (docs/plans/
+    /// rails-components.md, "The follow kind"): a full sample is rails, an end pose kinematic, a dynamic hull physics, and a
+    /// frame that held still static, and so is a frame whose owner wrote its transform in the same tick as a motion intent,
+    /// because the write wins for one tick. Until every writer takes the rules of the guard (stage 6 of "Order of the work"),
+    /// the owner of a root frame with a body is the one owner of a frame that takes an end pose.
+    /// </summary>
+    [Fact]
+    public void AStateDumpTellsHowEachFrameFollowedItsOwner()
+    {
+        using World world = NewJoltWorld();
+        var scene = new SceneInstance();
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        scene.Add("space", space.Entity);
+        static DPose At(long tick) => new(new Double3(tick, 0, 0), DQuaternion.Identity);
+        static MotionSample Still(long tick) => new(At(tick), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+        scene.Add("yard", world.Spawn(new SpawnDesc
+        {
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
+            Components = [new EachTick(self => self.Body.MoveKinematic(At(self.Tick)))],
+        }));
+        scene.Add("moon", world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            Components = [new EachTick(self => self.MoveOnRails(Still(self.Tick)))],
+        }));
+        scene.Add("room", world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+            Components = [new EachTick(self =>
+            {
+                self.MoveOnRails(Still(self.Tick));
+                self.SetTransform(At(-self.Tick));
+            })],
+        }));
+        scene.Add("ship", world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = new DPose(new Double3(500, 0, 0), DQuaternion.Identity),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Dynamic, Mass: 1000),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
+        }));
+
+        StateDump dump = Run(world, scene, """{ "do": "run", "ticks": 2 }""", DumpNow).Dump("now");
+
+        FollowsOf(dump, "yard").Should().Be("kinematic");
+        FollowsOf(dump, "moon").Should().Be("rails");
+        FollowsOf(dump, "room").Should().Be("static", "the write of the transform wins over the motion intent for one tick");
+        FollowsOf(dump, "ship").Should().Be("physics");
+        FollowsOf(dump, "space").Should().Be("static");
+        dump.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>Runs <paramref name="act"/> on its entity in every tick.</summary>
+    private sealed class EachTick(Action<Self> act) : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => act(self);
+    }
+
     private static string FollowsOf(StateDump dump, string id) => dump.Frames.Single(frame => frame.Id == id).Follows;
 
     /// <summary>
