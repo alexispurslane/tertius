@@ -12,17 +12,19 @@ namespace Tertius.Demo;
 /// at an even pace stays at the anchor, but a sudden change of the subject's velocity, such as a jolt, a stair or a turn,
 /// goes into a lag between the anchor and the subject, which a spring, damped critically at the angular frequency
 /// 1 / <see cref="SmoothTime"/>, takes out.</item>
-/// <item>The heading: the way the subject goes, across the subject's up. It turns toward the direction of the anchor's
+/// <item>The camera's up: it turns toward the subject's up with the time constant <see cref="TurnTime"/>, so a person
+/// whose up the engine turns at once, as under a ship's thrust, does not swing the camera round in one tick.</item>
+/// <item>The heading: the way the subject goes, across the camera's up. It turns toward the direction of the anchor's
 /// velocity across that up, with the time constant <see cref="TurnTime"/>, while that speed is above
-/// <see cref="TurnSpeed"/>, and it holds while the subject stands. It turns with the subject's up when that up turns. It
+/// <see cref="TurnSpeed"/>, and it holds while the subject stands or its belt jolts it. It turns with the camera's up. It
 /// starts opposite to the camera's offset at its spawn, so the scene places the camera behind the subject.</item>
 /// <item>The arm: from the anchored eye, <paramref name="behind"/> meters back along the heading and
-/// <paramref name="above"/> meters up along the subject's up. The eye is the place of the subject's view offset. A ray
+/// <paramref name="above"/> meters up along the camera's up. The eye is the place of the subject's view offset. A ray
 /// along the arm measures the free distance to the nearest body that is not the subject's, and the arm stops
 /// <see cref="WallGap"/> short of it: at once when it must shorten, and with the time constant <see cref="ArmTime"/> when
 /// it can grow back.</item>
 /// <item>The look: from the camera toward the point <paramref name="ahead"/> meters ahead of the anchored eye along the
-/// heading, with the subject's up as the view's up. When the arm shortens, that point comes nearer in proportion, so the
+/// heading, with the camera's up as the view's up. When the arm shortens, that point comes nearer in proportion, so the
 /// eye keeps its place in the view.</item>
 /// </list>
 /// </summary>
@@ -31,23 +33,29 @@ namespace Tertius.Demo;
 /// writes to the subject's pose at the end of the step that runs beside its tick. So a sudden move of the subject, which
 /// no camera can foresee, reaches the camera once, in the tick of the move: in that tick the camera moves as a hard attach
 /// would, and from the next tick on the lag takes the move out. A walk that turns at 3 m/s moves the camera about 5 cm in
-/// that tick, and a stair 0.3 m high moves it 0.3 m. Film a stair with a fixed camera.</para>
+/// that tick, and a stair 0.3 m high moves it 0.3 m. The attachment also keeps the offset in the subject's axes, so a
+/// sudden turn of the subject swings the camera with it in the tick of the turn, by the arm's length times the angle. The
+/// engine turns a character's up at once when the gravity round it turns, as at a ship's ignition, by up to 90 degrees.
+/// Film a stair, and a person at such a moment, with a fixed camera.</para>
 /// <para>The ray's answer arrives in the next tick, so the arm stops short of a wall one tick after the wall comes into
 /// it, and in the first tick of the camera it has no answer yet.</para>
 /// </remarks>
 /// <param name="behind">How far behind the subject's eye the camera keeps, along the heading, in meters.</param>
-/// <param name="above">How far above the subject's eye the camera keeps, along the subject's up, in meters.</param>
+/// <param name="above">How far above the subject's eye the camera keeps, along the camera's up, in meters.</param>
 /// <param name="ahead">How far ahead of the subject's eye the camera looks, along the heading, in meters.</param>
 public sealed class ChaseCamera(double behind, double above, double ahead) : IComponent
 {
     /// <summary>The time constant of the anchor's spring, in seconds: it swings at the angular frequency 1 / this, damped critically.</summary>
     public const double SmoothTime = 0.3;
 
-    /// <summary>The time constant with which the heading turns toward the anchor's way, in seconds.</summary>
+    /// <summary>The time constant with which the camera's up turns toward the subject's up, and the heading toward the anchor's way, in seconds.</summary>
     public const double TurnTime = 0.5;
 
-    /// <summary>The speed of the anchor across the subject's up, in m/s, below which the heading holds.</summary>
-    public const double TurnSpeed = 0.3;
+    /// <summary>
+    /// The speed of the anchor across the camera's up, in m/s, below which the heading holds: a sixth of a walk at
+    /// <see cref="PersonControl.WalkSpeed"/>, and above the few tenths of a meter per second of a belted person's jolt.
+    /// </summary>
+    public const double TurnSpeed = 0.5;
 
     /// <summary>How far short of the nearest body along it the arm stops, in meters.</summary>
     public const double WallGap = 0.2;
@@ -68,7 +76,7 @@ public sealed class ChaseCamera(double behind, double above, double ahead) : ICo
     private Double3 lastPosition, subjectVelocity;
     // The anchor minus the subject's position, and its rate of change.
     private Double3 lag, lagVelocity;
-    // The subject's up at the last tick, and the heading, a unit vector across it.
+    // The camera's up, which follows the subject's up, and the heading, a unit vector across it.
     private Double3 up, heading;
     // The length of the arm, in meters, and the free distance along it that the last answered ray measured.
     private double arm, free = double.PositiveInfinity;
@@ -102,16 +110,17 @@ public sealed class ChaseCamera(double behind, double above, double ahead) : ICo
         lagVelocity += (-rate * rate * lag - 2 * rate * lagVelocity) * dt;
         lag += lagVelocity * dt;
 
-        // The heading turns with the subject's up, then toward the anchor's way across it.
-        Double3 subjectUp = pose.Rotation.Rotate(Double3.UnitY);
-        heading = Across(Turn(heading, up, subjectUp), subjectUp) is { Length: > 1e-9 } kept ? kept.Normalized() : heading;
-        up = subjectUp;
+        // The camera's up turns toward the subject's up, and the heading turns with it, then toward the anchor's way.
+        double turn = 1 - Math.Exp(-dt / TurnTime);
+        Double3 nextUp = TurnToward(up, pose.Rotation.Rotate(Double3.UnitY), turn, heading);
+        heading = Across(Turn(heading, up, nextUp), nextUp) is { Length: > 1e-9 } kept ? kept.Normalized() : heading;
+        up = nextUp;
         Double3 way = Across(subjectVelocity + lagVelocity, up);
         if (way.Length > TurnSpeed)
         {
             Double3 target = way.Normalized();
             double angle = Math.Atan2(Double3.Dot(up, Double3.Cross(heading, target)), Double3.Dot(heading, target));
-            heading = DQuaternion.FromAxisAngle(up, angle * (1 - Math.Exp(-dt / TurnTime))).Rotate(heading).Normalized();
+            heading = DQuaternion.FromAxisAngle(up, angle * turn).Rotate(heading).Normalized();
         }
 
         // The arm, short of the nearest body along it.
@@ -184,6 +193,21 @@ public sealed class ChaseCamera(double behind, double above, double ahead) : ICo
 
     /// <summary>The part of <paramref name="v"/> across the unit vector <paramref name="up"/>.</summary>
     private static Double3 Across(Double3 v, Double3 up) => v - up * Double3.Dot(v, up);
+
+    /// <summary>
+    /// The unit vector <paramref name="from"/> turned toward the unit vector <paramref name="to"/> by the share
+    /// <paramref name="share"/> of the angle between them, about the axis across both. Opposite vectors turn about
+    /// <paramref name="across"/>, a unit vector across <paramref name="from"/>.
+    /// </summary>
+    private static Double3 TurnToward(Double3 from, Double3 to, double share, Double3 across)
+    {
+        Double3 axis = Double3.Cross(from, to);
+        double sine = axis.Length, cosine = Double3.Dot(from, to);
+        if (sine < 1e-12 && cosine > 0)
+            return from;
+        axis = sine < 1e-12 ? across : axis / sine;
+        return DQuaternion.FromAxisAngle(axis, Math.Atan2(sine, cosine) * share).Rotate(from).Normalized();
+    }
 
     /// <summary><paramref name="v"/> turned by the shortest turn that takes the unit vector <paramref name="from"/> to the unit vector <paramref name="to"/>.</summary>
     private static Double3 Turn(Double3 v, Double3 from, Double3 to)
