@@ -1,3 +1,4 @@
+using System.Runtime.Versioning;
 using Tertius.Host.Scripting;
 using static Tertius.Host.Tests.HostTesting;
 using static Tertius.Host.Tests.VideoTesting;
@@ -166,6 +167,42 @@ public sealed class FfmpegVideoSinkTests : IDisposable
         failure.ExitCode.Should().NotBe(0);
         failure.FramesWritten.Should().Be(1);
         failure.ErrorLines.Should().Contain(line => line.Contains("Is a directory"));
+    }
+
+    [Fact]
+    // The stand-in is a shell script, which needs its execute permission.
+    [UnsupportedOSPlatform("windows")]
+    public void AFailureReportsTheLast20LinesOfFfmpegsErrorOutputOldestFirst()
+    {
+        // A stand-in for ffmpeg that writes 25 error lines and exits with code 3. The real ffmpeg, at -loglevel error,
+        // writes only a few lines before it fails.
+        string program = Path.Combine(folder, "noisy-ffmpeg");
+        File.WriteAllText(program, "#!/bin/sh\nfor i in $(seq 1 25); do echo \"line $i\" >&2; done\nexit 3\n");
+        File.SetUnixFileMode(program, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new VideoFile(VideoPath(), 30), Size, program);
+
+        VideoStreamException failure = sink.Invoking(s => s.Finish()).Should().Throw<VideoStreamException>().Which;
+
+        failure.ExitCode.Should().Be(3);
+        failure.ErrorLines.Should().Equal(Enumerable.Range(6, 20).Select(i => $"line {i}"));
+    }
+
+    [Fact]
+    public void TakingAFrameAllocatesNothing()
+    {
+        byte[] rgba = Frame(0);
+        using FfmpegVideoSink sink = FfmpegVideoSink.Start(new VideoFile(VideoPath(), 30), Size);
+        // The first frames warm up the path of the write.
+        for (int number = 0; number < 5; number++)
+            Take(sink, rgba);
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int number = 0; number < 200; number++)
+            Take(sink, rgba);
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        sink.Finish();
+
+        allocated.Should().Be(0, "an 18,000-frame run writes each frame into ffmpeg's input with no copy and no allocation");
     }
 
     [Fact]

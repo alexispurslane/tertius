@@ -12,9 +12,10 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// The measurement that docs/plans/blue-danube-demo.md asks of the video ticket, under "Cost to measure" of change 1: 600
-/// frames of the orbit scene, 2 ticks apart, at 1280x720 and at 1920x1080, into a video and into PNG files. It runs only
-/// when the variable <see cref="Variable"/> names the file of its report, in a Release build:
-/// <c>TERTIUS_VIDEO_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*VideoCostMeasurement"</c>.
+/// frames of the orbit scene, 2 ticks apart, at 1280x720 and at 1920x1080, into a video and into PNG files. It is an
+/// explicit test, so a normal run reports it as not run. It runs in a Release build, with the variable
+/// <see cref="Variable"/> set to the file of its report:
+/// <c>TERTIUS_VIDEO_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*VideoCostMeasurement" --explicit only</c>.
 /// It drives the objects of a headless run as the command makes them, with validation off, and times them through a
 /// renderer and a playback that forward every call.
 /// </summary>
@@ -25,11 +26,12 @@ public sealed class VideoCostMeasurement
 
     private const int Frames = 600, Every = 2;
 
-    [Fact]
+    [Fact(Explicit = true)]
     public void WritesItsReportWhereTheVariableNamesAFile()
     {
-        if (Environment.GetEnvironmentVariable(Variable) is not { Length: > 0 } reportPath)
-            return;
+        string reportPath = Environment.GetEnvironmentVariable(Variable) is { Length: > 0 } path
+            ? path
+            : throw new InvalidOperationException($"Set {Variable} to the file of the report.");
         string folder = NewFolder();
         try
         {

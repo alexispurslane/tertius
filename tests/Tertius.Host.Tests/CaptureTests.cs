@@ -146,6 +146,40 @@ public sealed class CaptureTests : IDisposable
         make.Should().Throw<ArgumentException>();
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("  ")]
+    [InlineData("video.mp4")]
+    [InlineData("video")]
+    [InlineData("video.mkv.png")]
+    public void AVideoTargetCannotExistWithoutAMatroskaFile(string path)
+    {
+        Action make = () => _ = new VideoFile(path, 30);
+
+        make.Should().Throw<ArgumentException>().Where(ex => ex.ParamName == "path");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(241)]
+    [InlineData(-30)]
+    public void AVideoTargetCannotExistWithARateOutside1To240FramesPerSecond(int framesPerSecond)
+    {
+        Action make = () => _ = new VideoFile("video.mkv", framesPerSecond);
+
+        make.Should().Throw<ArgumentOutOfRangeException>().Where(ex => ex.ParamName == "framesPerSecond");
+    }
+
+    [Theory]
+    [InlineData("video.mkv", 1)]
+    [InlineData("runs/VIDEO.MKV", 240)]
+    public void AVideoTargetTakesAMatroskaFileInAnyCaseAndARateFrom1To240FramesPerSecond(string path, int framesPerSecond)
+    {
+        var video = new VideoFile(path, framesPerSecond);
+
+        (video.Path, video.FramesPerSecond).Should().Be((path, framesPerSecond));
+    }
+
     [Fact]
     public void ACaptureAfterTheCameraEntityDiesStopsTheRunAndNamesTheStep()
     {

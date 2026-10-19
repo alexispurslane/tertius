@@ -42,28 +42,48 @@ public sealed class FfmpegVideoSink : ICaptureSink, IDisposable
     }
 
     /// <summary>
-    /// Starts ffmpeg for a video of <paramref name="size"/> into <paramref name="video"/>, and makes the folder of the
-    /// file if it is missing. ffmpeg replaces an older file at that path.
+    /// Starts ffmpeg for a video of <paramref name="size"/> into <paramref name="video"/>, and then makes the folder of
+    /// the file if it is missing. ffmpeg opens its output only when the first frame reaches it, so the folder is there in
+    /// time, and a shell without ffmpeg leaves no folder. ffmpeg replaces an older file at that path.
     /// </summary>
     /// <exception cref="System.ComponentModel.Win32Exception">ffmpeg is not on the search path, or cannot start.</exception>
-    public static FfmpegVideoSink Start(VideoFile video, ScriptWindow size)
+    /// <exception cref="IOException">The folder cannot be made, for example because a file has its name. ffmpeg is stopped.</exception>
+    /// <exception cref="UnauthorizedAccessException">The folder cannot be made for lack of permission. ffmpeg is stopped.</exception>
+    public static FfmpegVideoSink Start(VideoFile video, ScriptWindow size) => Start(video, size, "ffmpeg");
+
+    /// <summary>
+    /// <see cref="Start(VideoFile, ScriptWindow)"/> with the program to start in place of ffmpeg, so that a test can name a
+    /// program that does not exist, or one that writes more error lines than the real ffmpeg does.
+    /// </summary>
+    internal static FfmpegVideoSink Start(VideoFile video, ScriptWindow size, string program)
     {
         ArgumentNullException.ThrowIfNull(video);
         ArgumentNullException.ThrowIfNull(size);
         string full = Path.GetFullPath(video.Path);
-        if (Path.GetDirectoryName(full) is { Length: > 0 } directory)
-            Directory.CreateDirectory(directory);
-        var start = new ProcessStartInfo("ffmpeg") { RedirectStandardInput = true, RedirectStandardError = true, UseShellExecute = false };
+        var start = new ProcessStartInfo(program) { RedirectStandardInput = true, RedirectStandardError = true, UseShellExecute = false };
         foreach (string argument in Arguments(full, size.Width, size.Height, video.FramesPerSecond))
             start.ArgumentList.Add(argument);
         var ffmpeg = new Process { StartInfo = start };
         try
         {
             ffmpeg.Start();
-            return new FfmpegVideoSink(ffmpeg, full, size.Width, size.Height);
         }
         catch
         {
+            ffmpeg.Dispose();
+            throw;
+        }
+        try
+        {
+            if (Path.GetDirectoryName(full) is { Length: > 0 } directory)
+                Directory.CreateDirectory(directory);
+            return new FfmpegVideoSink(ffmpeg, full, size.Width, size.Height);
+        }
+        // ffmpeg has had no frame, so it has opened no output, and once stopped it never does.
+        catch
+        {
+            ffmpeg.Kill();
+            ffmpeg.WaitForExit();
             ffmpeg.Dispose();
             throw;
         }

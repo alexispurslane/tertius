@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using Tertius.Host.Scripting;
 using Tertius.Rendering;
 using static Tertius.Host.Tests.GpuTesting;
@@ -103,9 +102,10 @@ public sealed class ScriptCommandVideoTests : IDisposable
     }
 
     [Fact]
-    public void WhenFfmpegCannotStartTheCommandExitsWithTheToolErrorCodeBeforeTheSceneBuildsAndWritesNoVideoAndNoDump()
+    public void WhenFfmpegCannotStartTheCommandExitsWithTheToolErrorCodeBeforeTheSceneBuildsAndWritesNothing()
     {
         string script = ScriptFile("""{ "do": "dump", "name": "start" }, { "do": "capture", "name": "only" }""", scene: "counted");
+        string video = Path.Combine(folder, "runs", "new", "video.mkv");
         int builds = 0;
         var counted = new Scene("counted", (world, resources) =>
         {
@@ -113,14 +113,28 @@ public sealed class ScriptCommandVideoTests : IDisposable
             return LitDrop(world, resources);
         });
 
-        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out, "--video", Video], [counted], output, error,
-            VulkanRenderer.CreateHeadless, (_, _) => throw new Win32Exception(2, "No such file or directory"));
+        // The real start of the sink, with a program that is not on the search path, as in a shell without ffmpeg.
+        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out, "--video", video], [counted], output, error,
+            VulkanRenderer.CreateHeadless, (file, size) => FfmpegVideoSink.Start(file, size, "no-such-ffmpeg"));
 
         code.Should().Be(ScriptCommand.ToolError);
-        error.ToString().Should().Contain("ffmpeg").And.Contain(Video).And.Contain("No such file or directory");
+        error.ToString().Should().Contain("Cannot start ffmpeg").And.Contain(video).And.Contain("No such file or directory");
         builds.Should().Be(0, "the command starts ffmpeg before the scene builds");
-        File.Exists(Video).Should().BeFalse();
-        File.Exists(Path.Combine(Out, "start.json")).Should().BeFalse("no tick runs and no dump is taken");
+        Directory.EnumerateFileSystemEntries(folder).Select(Path.GetFileName).Should().Equal(["script.json"],
+            "no tick runs, so nothing is written: no folder of the video, no video, no output folder and no dump");
+    }
+
+    [Fact]
+    public void AVideoFolderThatCannotBeMadeExitsWithTheFileErrorCode()
+    {
+        string script = ScriptFile("""{ "do": "capture", "name": "only" }""");
+        string taken = Path.Combine(folder, "taken");
+        File.WriteAllText(taken, "a file, not a folder");
+
+        int code = Run(script, "--video", Path.Combine(taken, "video.mkv"));
+
+        code.Should().Be(ScriptCommand.FileError, error.ToString());
+        error.ToString().Should().StartWith($"Cannot write the video {Path.Combine(taken, "video.mkv")} of {script}: ").And.Contain("taken");
     }
 
     [Theory]
@@ -138,7 +152,8 @@ public sealed class ScriptCommandVideoTests : IDisposable
         int code = Run(path, "--video", Video);
 
         code.Should().Be(ScriptCommand.FileError);
-        error.ToString().Should().Contain("ffmpeg stopped with exit code").And.Contain("Is a directory").And.Contain(Video);
+        error.ToString().Should().StartWith($"Cannot write the video of {path}: ffmpeg stopped with exit code", "the video is not in the output folder")
+            .And.Contain("Is a directory").And.Contain(Video);
     }
 
     [Fact]

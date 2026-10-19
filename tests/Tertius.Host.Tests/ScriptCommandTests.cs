@@ -61,7 +61,7 @@ public sealed class ScriptCommandTests : IDisposable
         int code = Run("--script", script, "--headless", "--out", taken);
 
         code.Should().Be(ScriptCommand.FileError);
-        error.ToString().Should().Contain("taken");
+        error.ToString().Should().StartWith($"Cannot write into {taken}: ", "the window reports a dump that cannot be written in the same words");
     }
 
     [Fact]

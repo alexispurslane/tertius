@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Tertius.Host.Scripting;
 using Tertius.Physics;
 using Tertius.Host.Windowing;
@@ -135,11 +136,18 @@ public static class ScriptCommand
             {
                 playback = new HeadlessPlayback(renderer, script.Window, target, startVideo ?? FfmpegVideoSink.Start);
             }
-            // Only a video target starts a tool: ffmpeg.
-            catch (Exception ex) when (options.Video is not null)
+            // Only a video target starts a tool, ffmpeg. Process.Start throws a Win32Exception when ffmpeg is not on the
+            // search path or cannot start.
+            catch (Win32Exception ex) when (options.Video is { } file)
             {
-                error.WriteLine($"Cannot start ffmpeg for the video {options.Video.Path} of {options.Script}: {ex.Message}");
+                error.WriteLine($"Cannot start ffmpeg for the video {file.Path} of {options.Script}: {ex.Message}");
                 return ToolError;
+            }
+            // The folder of the video cannot be made: a file problem, as for a dump or an image.
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && options.Video is { } file)
+            {
+                error.WriteLine($"Cannot write the video {file.Path} of {options.Script}: {ex.Message}");
+                return FileError;
             }
         }
         // Disposed in reverse order: the playback, which ends the video on every way out, then the renderer, then the world
@@ -160,11 +168,16 @@ public static class ScriptCommand
             error.WriteLine($"{options.Script}: {ex.Message}");
             return ScriptError;
         }
-        // A dump or an image that cannot be written, or a VideoStreamException: ffmpeg failed, and the message gives the
-        // video, ffmpeg's exit code and its last error lines.
+        // ffmpeg failed, and the message gives the video, ffmpeg's exit code and its last error lines.
+        catch (VideoStreamException ex)
+        {
+            error.WriteLine($"Cannot write the video of {options.Script}: {ex.Message}");
+            return FileError;
+        }
+        // A dump or an image that cannot be written: the same words as in the window.
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            error.WriteLine($"Cannot write the outputs of {options.Script}: {ex.Message}");
+            error.WriteLine($"Cannot write into {options.Out}: {ex.Message}");
             return FileError;
         }
         // A bug, such as a broken contract that escapes World.Tick: the same exit code as in the window.

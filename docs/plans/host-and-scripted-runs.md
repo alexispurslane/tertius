@@ -16,7 +16,7 @@ Wire all modules into a running program, and let tests and agents drive it with 
 
 - A script is a JSON file of timed steps: events to post before a given tick, image captures and state dumps.
 - In a scripted run, ticks run in lock-step with the script, not with the wall clock. Rendering uses interpolation alpha 1, so every frame is deterministic.
-- A run writes PNG images and JSON state dumps. A state dump holds poses, frames, recent events and errors.
+- A run writes PNG images, or one video in a headless run with `--video`, and JSON state dumps. A state dump holds poses, frames, recent events and errors.
 - The command line is `dotnet run --project src/Tertius.Demo -- --script scripts/x.json --headless --out captures/x`.
 - xUnit tests call the same code, so an integration test is a script plus assertions.
 
