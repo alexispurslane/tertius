@@ -198,32 +198,35 @@ public sealed class RevolvedSolidShapeTests
     }
 
     /// <summary>
-    /// For each segment of <paramref name="segments"/>, and for three angles inside it, a quarter, a half and three quarters
-    /// of the way across, casts the ray that <paramref name="ray"/> gives for the segment's middle angle and the ray's own
-    /// angle, against a static body of <paramref name="solid"/> at the origin of a frame without gravity. Then checks that
-    /// it hits at the distance and with the normal that <paramref name="expect"/> gives.
+    /// Splits a turn into <paramref name="arcs"/> equal arcs, the first from the angle 0. For each arc, and for three angles
+    /// inside it, a quarter, a half and three quarters of the way across, casts the ray that <paramref name="ray"/> gives
+    /// for the ray's angle, against a static body of <paramref name="solid"/> at the origin of a frame without gravity.
+    /// Then checks that it hits at the distance and with the normal that <paramref name="expect"/> gives for the arc's
+    /// middle angle and the ray's angle, or at the distance alone when it gives no normal. Each arc is a segment of the
+    /// solid, or a side of a torus's tube.
     /// </summary>
-    private static void ExpectRaysHit(RevolvedSolid solid, int segments,
-        Func<double, (Double3 Origin, Double3 Direction)> ray, Func<double, double, (double Distance, Vector3 Normal)> expect)
+    private static void ExpectRaysHit(RevolvedSolid solid, int arcs,
+        Func<double, (Double3 Origin, Double3 Direction)> ray, Func<double, double, (double Distance, Vector3? Normal)> expect)
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         FrameHandle frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         world.Spawn(new SpawnDesc { Frame = frame, Pose = DPose.Identity, Body = new BodyDesc(solid.Shape(), BodyMotion.Static) });
         world.Tick();
         var hits = new List<RayCastHit>();
-        for (int k = 0; k < segments; k++)
+        for (int k = 0; k < arcs; k++)
         {
-            double middle = (k + 0.5) * Math.Tau / segments;
+            double middle = (k + 0.5) * Math.Tau / arcs;
             foreach (double across in new[] { 0.25, 0.5, 0.75 })
             {
-                double angle = (k + across) * Math.Tau / segments;
+                double angle = (k + across) * Math.Tau / arcs;
                 (Double3 origin, Double3 direction) = ray(angle);
-                (double distance, Vector3 normal) = expect(middle, angle);
+                (double distance, Vector3? normal) = expect(middle, angle);
                 hits.Clear();
                 backend.CastRay(frame, origin, direction, 0, 100, new AcceptsEveryEntity(), RayCastKind.Nearest, hits);
-                hits.Should().ContainSingle($"the ray at {angle} in segment {k} meets the shape");
-                hits[0].Distance.Should().BeApproximately(distance, 1e-4, $"the ray at {angle} in segment {k} meets the facet");
-                (hits[0].Normal - normal).Length().Should().BeLessThan(1e-4f, $"the facet of segment {k} faces {normal}");
+                hits.Should().ContainSingle($"the ray at {angle} in arc {k} meets the shape");
+                hits[0].Distance.Should().BeApproximately(distance, 1e-4, $"the ray at {angle} in arc {k} meets the facet");
+                if (normal is { } facing)
+                    (hits[0].Normal - facing).Length().Should().BeLessThan(1e-4f, $"the facet of arc {k} faces {facing}");
             }
         }
     }
@@ -266,6 +269,38 @@ public sealed class RevolvedSolidShapeTests
         ExpectRaysHit(Torus, TorusSegments,
             angle => (At(TorusMajor, angle, 5), -Double3.UnitY),
             (_, _) => (5 - top, Vector3.UnitY));
+    }
+
+    [Theory]
+    [InlineData(1f, 128)]
+    [InlineData(0.1f, 44)]
+    public void RaysFromOutsideACylinderWhoseSideBendsByJustOver1MillimeterMeetTheFacetsOfItsSideAllAround(float radius, int segments)
+    {
+        // The side bends by 1.2 mm and by 1.02 mm at each edge between two facets, just over the 1 mm within which Jolt
+        // drops a corner of a hull. A hull without some corners would put some facets up to the bend inside the mesh.
+        double facet = radius * Math.Cos(Math.PI / segments);
+
+        ExpectRaysHit(RevolvedSolid.Cylinder(radius, CylinderHalfHeight, segments), segments,
+            angle => (At(5, angle, 0.3), -At(1, angle, 0)),
+            (middle, angle) => (5 - facet / Math.Cos(angle - middle), At(1, middle, 0).ToVector3()));
+    }
+
+    [Fact]
+    public void RaysAcrossATorusTubeOf128SidesMeetEachSide()
+    {
+        // The tube of 1 m bends by 1.2 mm at each edge between two sides. The rays lie in the plane through the axis and
+        // +X, the joint of the last segment and the first, where the tube's cross-section is its profile: side j runs
+        // between the corners at the angles 2π (j + 1/2) / 128 about the tube's center, from +X toward +Y, so the arcs of
+        // the helper start half a side later than the sides. Each ray comes in toward the tube's center. It lies in the
+        // face that the two hulls share there, so Jolt may give the normal of that face, and only the distance counts.
+        const int sides = 128;
+        double halfSide = Math.PI / sides, side = TorusMinor * Math.Cos(halfSide);
+        Double3 center = new(TorusMajor, 0, 0);
+        Double3 Across(double angle) => new(Math.Cos(angle), Math.Sin(angle), 0);
+
+        ExpectRaysHit(RevolvedSolid.Torus(TorusMajor, TorusMinor, 8, sides), sides,
+            angle => (center + 5 * Across(angle + halfSide), -Across(angle + halfSide)),
+            (middle, angle) => (5 - side / Math.Cos(angle - middle), null));
     }
 
     [Fact]

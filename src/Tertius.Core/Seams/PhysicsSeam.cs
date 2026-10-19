@@ -234,8 +234,8 @@ public abstract record ShapeDesc
 /// The largest rounding, in m, that physics may give the edges of the box. Jolt shrinks a box by its convex radius and
 /// rounds it back out, so every edge becomes a curve of that radius. Two such boxes side by side leave a groove at their
 /// joint, so a compound of boxes with flat faces that must line up uses 0. Physics uses less when the box is too thin: the
-/// radius never exceeds the smallest half extent. Jolt can also round a contact by less than the radius that the
-/// description names: in the tests, a ball touches a box as if it were rounded by 5 cm at the most. The default is
+/// radius never exceeds the smallest half extent. Jolt also never rounds a box contact by more than 5 cm, whatever larger
+/// radius the box keeps. Every radius below those limits changes a contact. The default is
 /// <see cref="ShapeDesc.DefaultConvexRadius"/>. Zero is allowed, a negative or non-finite value is refused by
 /// <see cref="ShapeDesc.Problem"/>.
 /// </param>
@@ -251,10 +251,11 @@ public sealed record CapsuleShapeDesc(float HalfHeight, float Radius) : ShapeDes
 /// <param name="ConvexRadius">
 /// The largest rounding, in m, that physics may give the edges of the hull. Jolt shrinks a hull by its convex radius and
 /// rounds it back out, so every edge becomes a curve of that radius. A ring is a compound of one hull per segment, and
-/// each joint between two segments is a groove when the hulls are rounded, so such hulls use 0. Physics uses less when the
-/// hull is too thin: it passes this value to Jolt as the maximum convex radius, and Jolt reduces it to fit the hull. Jolt
-/// can also round a contact by less than the radius that the description names: in the tests, a ball touches a hull as
-/// if it were rounded by about 7 cm at the most. The default is <see cref="ShapeDesc.DefaultConvexRadius"/>. Zero is
+/// each joint between two segments is a groove when the hulls are rounded, so such hulls use 0. Physics passes this value
+/// to Jolt as the maximum convex radius, and Jolt reduces it when it builds the hull: to half the thinnest width of the
+/// hull at most, and so that the rounded hull stays within 5 cm of the true hull at every corner. That allows 6.83 cm
+/// where three faces meet at right angles, and about 12 cm at the rim of a cylinder hull of many segments. Every radius
+/// below those limits changes a contact. The default is <see cref="ShapeDesc.DefaultConvexRadius"/>. Zero is
 /// allowed, a negative or non-finite value is refused by <see cref="ShapeDesc.Problem"/>.
 /// </param>
 public sealed record ConvexHullShapeDesc(Vector3[] Points, float ConvexRadius = ShapeDesc.DefaultConvexRadius) : ShapeDesc;

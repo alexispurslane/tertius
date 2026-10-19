@@ -54,22 +54,8 @@ public sealed class RevolvedSolidMeshTests
     /// of its own, and faces out of the solid: a point <see cref="Probe"/> in front of its center is outside, and one
     /// behind it is inside.
     /// </summary>
-    private static void ExpectFacingOut(MeshData mesh, Func<Vector3, bool> inside)
-    {
-        mesh.Indices.Should().NotBeEmpty("a mesh with no triangle proves nothing");
-        for (int i = 0; i < mesh.Indices.Length; i += 3)
-        {
-            Vertex a = mesh.Vertices[mesh.Indices[i]], b = mesh.Vertices[mesh.Indices[i + 1]], c = mesh.Vertices[mesh.Indices[i + 2]];
-            Vector3 wound = Vector3.Cross(b.Position - a.Position, c.Position - a.Position);
-            wound.Length().Should().BeGreaterThan(1e-6f, "no triangle is degenerate");
-            Vector3 face = Vector3.Normalize(wound);
-            foreach (Vertex corner in (ReadOnlySpan<Vertex>)[a, b, c])
-                Vector3.Dot(face, corner.Normal).Should().BeGreaterThan(MathF.Cos(MathF.PI / 12), $"the triangle at {a.Position} winds around its corner's normal {corner.Normal}");
-            Vector3 center = (a.Position + b.Position + c.Position) / 3;
-            inside(center + Probe * face).Should().BeFalse($"the triangle at {center} faces out of the solid along {face}");
-            inside(center - Probe * face).Should().BeTrue($"the triangle at {center} has the solid behind it");
-        }
-    }
+    private static void ExpectFacingOut(MeshData mesh, Func<Vector3, bool> inside) =>
+        MeshChecks.ExpectFacingOut(mesh, inside, Probe, maxNormalAngle: MathF.PI / 12);
 
     /// <summary>A vertex of a cylinder's cap is the cap's center, on the axis, or on its rim.</summary>
     private static void ExpectCenterOrRim(Vector3 p) =>
@@ -293,16 +279,25 @@ public sealed class RevolvedSolidMeshTests
         build.Should().Throw<ArgumentOutOfRangeException>();
     }
 
-    [Fact]
-    public void ACylinderWith128SegmentsIsAllowed()
+    [Theory]
+    [InlineData(0.5f, 128)]
+    [InlineData(0.1f, 48)]
+    public void ACylinderWhoseSideBendsBy1MillimeterOrLessAtEachEdgeIsAnError(float radius, int segments)
     {
-        // Its hull has two points for each segment, and Jolt keeps at most 256.
-        RevolvedSolid.Cylinder(1, 1, 128).Mesh().Vertices.Length.Should().Be(6 * 128);
+        // The side bends by radius (1 - cos(2π / segments)) at each edge between two facets: 0.6 mm and 0.86 mm here.
+        // Jolt drops a corner of a hull that bends by 1 mm or less, so the shape would not match the mesh.
+        Action build = () => RevolvedSolid.Cylinder(radius, 1, segments);
+
+        build.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("segments").WithMessage("*Jolt drops*");
     }
 
-    [Fact]
-    public void ATorusWith128SidesIsAllowed()
+    [Theory]
+    [InlineData(0.5f, 128)]
+    [InlineData(0.1f, 48)]
+    public void ATorusWhoseTubeBendsBy1MillimeterOrLessAtEachEdgeIsAnError(float minor, int sides)
     {
-        RevolvedSolid.Torus(3, 1, 8, 128).Mesh().Vertices.Length.Should().Be(8 * 128);
+        Action build = () => RevolvedSolid.Torus(3, minor, 8, sides);
+
+        build.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("sides").WithMessage("*Jolt drops*");
     }
 }

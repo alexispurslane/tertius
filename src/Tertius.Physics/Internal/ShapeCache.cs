@@ -53,7 +53,8 @@ internal sealed class ShapeCache : IDisposable
     {
         Vector3 half = box.HalfExtents;
         float smallest = MathF.Min(half.X, MathF.Min(half.Y, half.Z));
-        // Jolt requires the convex radius to fit inside the box.
+        // The radius never exceeds the smallest half extent. Jolt's box clamps it the same way, so this line only makes
+        // the rule explicit here, where the description meets Jolt.
         return NativeOwnership.Owned(new BoxShape(half, MathF.Min(box.ConvexRadius, smallest)));
     }
 

@@ -87,15 +87,33 @@ public class ConvexRadiusTests
         height.Should().BeApproximately(0.245804, 2 * Tolerance);
     }
 
+    /// <summary>
+    /// The height, in m, of the center of a ball of <see cref="BallRadius"/> across the joint of two slabs whose edges are
+    /// rounded by <paramref name="radius"/>: the rounded edges lie that far on each side of the joint and below the flat
+    /// faces, and the ball touches both at the distance <see cref="BallRadius"/> + radius from its center.
+    /// </summary>
+    private static double HeightAcrossAGrooveOf(double radius) =>
+        Math.Sqrt((BallRadius + radius) * (BallRadius + radius) - radius * radius) - radius;
+
+    [Fact]
+    public void ABallAcrossTheJointOfTwoHullsOfASmallConvexRadiusSinksLessThanWithTheDefault()
+    {
+        // Every radius below Jolt's limit changes a contact. A groove of 1 cm is 0.19 mm deep under the ball, against
+        // 4.2 mm for 5 cm. The ball rests 0.12 mm deeper than that in the test, as a ball in a shallow crease does.
+        double height = HeightOfBallAcrossTheJointOf(Joint(LeftHull(0.01f), RightHull(0.01f)));
+
+        height.Should().BeInRange(HeightAcrossAGrooveOf(0.01) - 2 * Tolerance, RestingHeight - Tolerance);
+    }
+
     [Fact]
     public void ABallAcrossTheJointOfTwoHullsOfALargerConvexRadiusSinksDeeperThanWithTheDefault()
     {
         double height = HeightOfBallAcrossTheJointOf(Joint(LeftHull(0.1f), RightHull(0.1f)));
 
-        // A full radius of 0.1 m would put the rounded edges 0.1 m on each side of the joint and 0.1 m below the flat
-        // faces, and the ball at 0.1² + (h + 0.1)² = (0.25 + 0.1)², so h = 0.23541 m. Jolt may round a hull by less than
-        // the radius that the description allows, so the ball lies between that depth and the depth of the default radius.
-        height.Should().BeInRange(0.23541 - Tolerance, 0.245804 - 0.001);
+        // Jolt reduces a hull's radius when it builds the hull, so that the rounded hull stays within 5 cm of the true hull
+        // at every corner. Three faces meet at right angles at each corner of a slab, and the corner of the rounded hull
+        // lies √3 r from the corner of the shrunk hull, so r (√3 - 1) ≤ 0.05 m, and r = 6.83 cm instead of 10 cm.
+        height.Should().BeApproximately(HeightAcrossAGrooveOf(0.05 / (Math.Sqrt(3) - 1)), 2 * Tolerance);
     }
 
     [Fact]
@@ -113,6 +131,28 @@ public class ConvexRadiusTests
 
         height.Should().BeApproximately(0.245804, 2 * Tolerance);
     }
+
+    [Fact]
+    public void ABallAcrossTheJointOfTwoBoxesOfASmallConvexRadiusSinksLessThanWithTheDefault()
+    {
+        double height = HeightOfBallAcrossTheJointOf(new CompoundShapeDesc([BoxChild(-1, 0.01f), BoxChild(0, 0.01f)]));
+
+        height.Should().BeInRange(HeightAcrossAGrooveOf(0.01) - 2 * Tolerance, RestingHeight - Tolerance);
+    }
+
+    [Fact]
+    public void ABallAcrossTheJointOfTwoBoxesOfALargerConvexRadiusSinksOnlyAsDeepAsWithTheDefault()
+    {
+        // The boxes keep the radius of 0.1 m, which fits inside them, but Jolt never rounds a box contact by more than 5 cm.
+        double height = HeightOfBallAcrossTheJointOf(new CompoundShapeDesc([BoxChild(-1, 0.1f), BoxChild(0, 0.1f)]));
+
+        height.Should().BeApproximately(HeightAcrossAGrooveOf(ShapeDesc.DefaultConvexRadius), 2 * Tolerance);
+    }
+
+    // Jolt's box clamps its radius to its smallest half extent by itself. So the two tests below and
+    // ABoxNeverRoundsByMoreThanItsSmallestHalfExtent pass with or without the same clamp in the shape cache. They pin
+    // Jolt's clamp, and that a box of any radius builds and holds a ball on the middle of its top face, where no radius
+    // matters.
 
     [Fact]
     public void ABoxOfConvexRadiusZeroHoldsARestingBallAtItsTopFace()
@@ -156,7 +196,8 @@ public class ConvexRadiusTests
         JoltRuntime.EnsureInitialized();
         using var cache = new ShapeCache();
 
-        // Jolt requires the convex radius to fit inside the box, so a plate of 0.1 m half thickness is rounded by 0.1 m.
+        // A plate of 0.1 m half thickness is rounded by 0.1 m. Jolt's box clamps the radius so by itself, and the shape
+        // cache does the same, so this pins Jolt's clamp as much as the cache's.
         var plate = (BoxShape)cache.Get(new BoxShapeDesc(new Vector3(2, 0.1f, 2), 5));
 
         plate.ConvexRadius.Should().Be(0.1f);

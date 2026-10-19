@@ -33,18 +33,44 @@ namespace Tertius.Demo;
 /// and in the crease at a joint of a ring's floor within 0.12 mm of both facets.
 /// </para>
 /// <para>
-/// Where the hulls of two segments meet in one plane, as on the flat top and bottom of a torus's tube, a ball that lands
-/// within about 2 cm of the joint also touches the edge of the other hull, and that contact pushes it 5 to 17 mm away from
-/// the joint before it rests. A ball that lands exactly on the joint, or farther from it, rests where it landed. A
-/// cylinder in segments has such a joint along each radius of each cap. A ball that lands on the cap's center rests there,
-/// within 0.0001 mm, but one that lands 5 mm from a joint moves 11 mm. That is why a cylinder is one hull, which has no
-/// joints, and why it has at most 128 segments.
+/// Jolt also drops a point that lies within its hull tolerance, 1 mm, of the hull of the other points. Take a polygon of
+/// n corners on a circle of radius ρ. Before Jolt adds a corner whose two neighbors are already in the hull, the corner
+/// lies ρ (1 - cos(2π / n)) outside the hull, the bend of the polygon at that corner. So a cylinder refuses a count of
+/// segments, and a torus a count of sides, whose bend is 1 mm or less. Its hull would be up to that bend inside the mesh.
+/// </para>
+/// <para>
+/// Where two segments meet, a ball that lands up to about 2 cm from the joint also touches the edge of the other segment
+/// as it lands, and that contact pushes it away from the joint. On the flat top of a torus's tube, a ball
+/// dropped from 10 cm that lands 2, 5, 10 or 20 mm from the joint moves 7, 11, 17 or 5 mm away from it. Dropped from
+/// 1 mm, a ball that lands 5 mm from it moves 3 mm. A ball that lands exactly on the joint rests there. On a ring's floor,
+/// where the joint is the bottom of a shallow crease, a ball dropped from 10 cm that lands 5 mm from the joint comes to
+/// rest 14 mm from it, uphill. Jolt's own mesh shape of the same mesh pushes the ball just as far. Jolt's enhanced
+/// internal edge removal on the solid's body (<c>BodyCreationSettings.EnhancedInternalEdgeRemoval</c>, which the engine
+/// does not set) takes the push away on the torus's top for a landing 5 mm or more from the joint, but not at 2 mm, and
+/// it changes the push on a ring's floor little. A cylinder in segments has such a joint
+/// along each radius of each cap, and a ball that lands 5 mm from one moves 11 mm. So a cylinder is one hull, which has
+/// no joints, and it has at most 128 segments, two points each in a hull of at most 256.
+/// </para>
+/// <para>
+/// One hull has a cost too. Jolt makes the contacts of a body that rests on a face of a hull from at most 16 corners of
+/// that face, and skips the others evenly. A cap of 48 segments is one face of 48 corners, so a box on it touches only
+/// inside a polygon of 12 of them, which lies up to ρ (1 - cos(π / 12)) inside the rim: 3.4 cm for a radius of 1 m. A
+/// box whose center of mass is that close to the rim can tip over where the mesh would hold it. A ball touches at one
+/// point and does not feel this. Hulls of segments would not have this cost, because each of their faces on a cap is a
+/// triangle, but they have the push at the joints.
 /// </para>
 /// </remarks>
 public sealed class RevolvedSolid
 {
     /// <summary>The most points that Jolt keeps in a convex hull.</summary>
     private const int MaxHullPoints = 256;
+
+    /// <summary>
+    /// How far, in meters, a point may lie outside the hull of the other points before Jolt keeps it in a convex hull:
+    /// Jolt's hull tolerance, <c>ConvexHullShapeSettings::mHullTolerance</c>, which the binding does not expose. Jolt
+    /// drops a point that lies within it, and the hull is then coarser than the mesh.
+    /// </summary>
+    private const double HullTolerance = 0.001;
 
     /// <summary>The profile's corners, (ρ, y), counterclockwise with ρ to the right and y up.</summary>
     private readonly Vector2[] corners;
@@ -83,13 +109,18 @@ public sealed class RevolvedSolid
     /// <summary>
     /// A cylinder of <paramref name="radius"/> about the Y axis, from -<paramref name="halfHeight"/> to
     /// +<paramref name="halfHeight"/> along it, in <paramref name="segments"/> segments, from 3 to 128: its hull has two
-    /// points for each segment, and Jolt keeps at most 256. Its caps are flat and its side is smooth.
+    /// points for each segment, and Jolt keeps at most 256. The segments must also be few enough that the side bends by
+    /// more than 1 mm at each edge between two facets, <paramref name="radius"/> (1 - cos(2π / segments)) > 1 mm, or Jolt
+    /// would drop points from the hull (see the remarks of <see cref="RevolvedSolid"/>). Its caps are flat and its side is
+    /// smooth.
     /// </summary>
     public static RevolvedSolid Cylinder(float radius, float halfHeight, int segments)
     {
         Positive(radius, nameof(radius));
         Positive(halfHeight, nameof(halfHeight));
+        ArgumentOutOfRangeException.ThrowIfLessThan(segments, 3);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(segments, MaxHullPoints / 2);
+        ExpectBends(radius, segments, nameof(segments));
         return new([new(0, -halfHeight), new(radius, -halfHeight), new(radius, halfHeight), new(0, halfHeight)], smooth: false, convex: true, segments);
     }
 
@@ -112,7 +143,9 @@ public sealed class RevolvedSolid
     /// A torus about the Y axis: a smooth tube of <paramref name="minorRadius"/> round the circle of
     /// <paramref name="majorRadius"/> in the plane y = 0, in <paramref name="segments"/> segments, at least 3. The tube
     /// has <paramref name="sides"/> sides, from 3 to 128, because a segment's hull has two points for each side and Jolt
-    /// keeps at most 256. The corners of the sides are half a side off the outermost point, at the angles
+    /// keeps at most 256. The sides must also be few enough that the tube bends by more than 1 mm at each edge between two
+    /// sides, <paramref name="minorRadius"/> (1 - cos(2π / sides)) > 1 mm, or Jolt would drop points from the hulls (see
+    /// the remarks of <see cref="RevolvedSolid"/>). The corners of the sides are half a side off the outermost point, at the angles
     /// 2π (j + 1/2) / sides about the tube's center from +ρ toward +y. So when the sides are a multiple of 4, the tube's
     /// top and bottom are flat and the torus lies on a floor on them.
     /// </summary>
@@ -123,6 +156,7 @@ public sealed class RevolvedSolid
             throw new ArgumentOutOfRangeException(nameof(majorRadius), majorRadius, $"The major radius must be finite and more than the minor radius {minorRadius}, so that the torus has a hole.");
         ArgumentOutOfRangeException.ThrowIfLessThan(sides, 3);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(sides, MaxHullPoints / 2);
+        ExpectBends(minorRadius, sides, nameof(sides));
         var tube = new Vector2[sides];
         for (int j = 0; j < sides; j++)
         {
@@ -245,6 +279,18 @@ public sealed class RevolvedSolid
         Vector2 along = corners[(i + 1) % corners.Length] - corners[i];
         // The corners run counterclockwise, so the outside is to the right of each edge.
         return Vector2.Normalize(new Vector2(along.Y, -along.X));
+    }
+
+    /// <summary>
+    /// Refuses a polygon of <paramref name="count"/> corners on a circle of <paramref name="radius"/> whose bend at each
+    /// corner, radius (1 - cos(2π / count)), is <see cref="HullTolerance"/> or less, because Jolt would drop corners of it
+    /// from a hull. The bend is 0.6 mm for 128 corners on a circle of 0.5 m, and 1.2 mm for 128 corners on 1 m.
+    /// </summary>
+    private static void ExpectBends(float radius, int count, string name)
+    {
+        double bend = radius * (1 - Math.Cos(Math.Tau / count));
+        if (!(bend > HullTolerance))
+            throw new ArgumentOutOfRangeException(name, count, $"{count} corners on a circle of {radius} m bend by {bend * 1000:0.###} mm at each corner, and Jolt drops a corner of a hull that bends by {HullTolerance * 1000} mm or less, so the collision shape would not match the mesh. Use fewer.");
     }
 
     private static void Positive(float value, string name)

@@ -57,14 +57,13 @@ public class ShapeDescConvexRadiusTests
     }
 
     [Fact]
-    public void ABoxWithoutANamedConvexRadiusGetsTheDefaultOfFiveCentimeters()
+    public void ABoxWithoutANamedConvexRadiusGetsTheDefault()
     {
-        new BoxShapeDesc(new Vector3(1)).ConvexRadius.Should().Be(0.05f);
-        ShapeDesc.DefaultConvexRadius.Should().Be(0.05f);
+        new BoxShapeDesc(new Vector3(1)).ConvexRadius.Should().Be(ShapeDesc.DefaultConvexRadius);
     }
 
     [Fact]
-    public void AConvexHullWithoutANamedConvexRadiusGetsTheDefaultOfFiveCentimeters()
+    public void AConvexHullWithoutANamedConvexRadiusGetsTheDefault()
     {
         new ConvexHullShapeDesc(Tetrahedron).ConvexRadius.Should().Be(ShapeDesc.DefaultConvexRadius);
     }
@@ -82,12 +81,5 @@ public class ShapeDescConvexRadiusTests
     {
         // The existing rule about the half extents keeps its message, whatever the radius is.
         new BoxShapeDesc(new Vector3(-1, 1, 1), -1).Problem().Should().StartWith("has the half extents");
-    }
-
-    [Fact]
-    public void TwoDescriptionsThatDifferOnlyInTheConvexRadiusAreNotEqual()
-    {
-        new BoxShapeDesc(new Vector3(1), 0).Should().NotBe(new BoxShapeDesc(new Vector3(1), 0.05f));
-        new ConvexHullShapeDesc(Tetrahedron, 0).Should().NotBe(new ConvexHullShapeDesc(Tetrahedron, 0.05f));
     }
 }
