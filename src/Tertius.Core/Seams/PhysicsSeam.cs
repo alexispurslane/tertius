@@ -510,9 +510,13 @@ public struct PhysicsIntent
         Flags &= IntentFlags.SetMotion;
     }
 
+    /// <summary>
+    /// True when the intent asks nothing: no flag, force, torque, impulse or motion intent. The motion intent comes second,
+    /// so that the intent of an entity on rails, which holds only its motion intent, is judged at the second test.
+    /// </summary>
     public readonly bool IsEmpty =>
-        Flags == IntentFlags.None && Force == Vector3.Zero && Torque == Vector3.Zero &&
-        Impulse == Vector3.Zero && AngularImpulse == Vector3.Zero && !Move.HasValue;
+        Flags == IntentFlags.None && !Move.HasValue && Force == Vector3.Zero && Torque == Vector3.Zero &&
+        Impulse == Vector3.Zero && AngularImpulse == Vector3.Zero;
 
     public void Clear() => this = default;
 }

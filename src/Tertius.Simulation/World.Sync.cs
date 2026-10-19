@@ -152,8 +152,9 @@ public sealed partial class World
         //     after the hand-offs of step 2 and the rehomes of step 5, which move entities, and after step 7, so that every
         //     entity is in the frame of the next tick, and every frame stands where the next step starts.
         //     The destroy batch of step 5 converted the intents that name its dying frames, which are gone by now. The
-        //     motion intents convert with the rest of each intent.
-        ConvertMovedIntents();
+        //     motion intents convert with the rest of each intent. A pass that would find no moved entity is skipped.
+        if (entities.RowFrameChanges != convertedAtRowFrameChanges)
+            ConvertMovedIntents();
         Profile.Lap(14);
 
         // 8. The back tables become the front tables.
@@ -353,7 +354,8 @@ public sealed partial class World
         ReadOnlySpan<PhysicsIntent> stepIntents = entities.FrontIntents.Span;
         foreach (Entity entity in entities.IntentEntities.Span)
         {
-            if (entities.Body(entity) != null || !entities.OwnedFrame(entity).IsNull)
+            // The frame first: in a scene of frames on rails, most intent writers own one.
+            if (!entities.OwnedFrame(entity).IsNull || entities.Body(entity) != null)
                 continue;
             ref readonly PhysicsIntent intent = ref stepIntents[(int)entity.Index];
             ref readonly TransformRow row = ref entities.BackRow(entity);
@@ -563,7 +565,8 @@ public sealed partial class World
     /// ran during the tick, or a rehome out of a frame that died. Physics applies an intent in the entity's frame, so each
     /// such intent converts into it here, for a body where its row is now. Without this, a kinematic body that gameplay
     /// moved in every tick and that a passing bubble took in got a target of its old frame in the new one, jumped out of
-    /// the bubble and back, and changed frames in every tick (ter-dhkf).
+    /// the bubble and back, and changed frames in every tick (ter-dhkf). The sync point skips the pass while no back row
+    /// moved to another frame since the last one (see <see cref="convertedAtRowFrameChanges"/>).
     /// </summary>
     private void ConvertMovedIntents()
     {
@@ -574,7 +577,16 @@ public sealed partial class World
             if (intent.Frame != row.Frame)
                 ConvertIntent(ref intent, row.Frame, row.Pose.Position);
         }
+        convertedAtRowFrameChanges = entities.RowFrameChanges;
     }
+
+    // The count of the entity table's writes that moved a back row to another frame (see EntityTable.RowFrameChanges) at
+    // the end of the last pass of ConvertMovedIntents. Each intent names the frame of its entity's front row when gameplay
+    // wrote it, and step 8 copied the back rows forward after that pass, so while the table's count equals this one, no row
+    // is in another frame than its intent names, and the pass would convert nothing. In a scene of frames on rails, that
+    // skips a visit of every intent writer in every sync point. World.AssertInvariants checks that every intent names its
+    // entity's frame at the end of each sync point.
+    private long convertedAtRowFrameChanges = -1;
 
     /// <summary>
     /// Step 4, before the intents swap (docs/plans/rails-components.md, "Changes of motion"). First each hull whose change of
