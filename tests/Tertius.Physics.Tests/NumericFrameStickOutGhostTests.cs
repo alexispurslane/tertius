@@ -116,12 +116,12 @@ public partial class NumericFrameStickOutGhostTests
     /// </summary>
     private static Scene Build(World world, Layout layout, Double3? crateInBubble = null, double rockOffset = 0)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         (DPose ownerPose, Double3 ownerVelocity, BodyDesc? hull, FrameSpec bubble) = layout switch
         {
-            Layout.StationAndFastRock => (At(1000), Double3.Zero, null, new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static)),
-            Layout.ShipAndFarRock => (At(FarOut + 130), new Double3(-60, 0, 0), ShipHull, new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics)),
-            _ => (At(1100), new Double3(-60, 0, 0), ShipHull, new FrameSpec(FrameBounds.Sphere(200), MotionDriver.Physics)),
+            Layout.StationAndFastRock => (At(1000), Double3.Zero, null, new FrameSpec(FrameBounds.Sphere(40))),
+            Layout.ShipAndFarRock => (At(FarOut + 130), new Double3(-60, 0, 0), ShipHull, new FrameSpec(FrameBounds.Sphere(200))),
+            _ => (At(1100), new Double3(-60, 0, 0), ShipHull, new FrameSpec(FrameBounds.Sphere(200))),
         };
         Entity owner = world.Spawn(new SpawnDesc
         {
@@ -357,7 +357,7 @@ public partial class NumericFrameStickOutGhostTests
 
     /// <summary>A frame with no body, in <paramref name="parent"/>, at <paramref name="pose"/>, with a bubble of <paramref name="radius"/> m.</summary>
     private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius) =>
-        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static) }));
+        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius)) }));
 
     /// <summary>
     /// The reconcile at the start of a step drops each ghost that the frame tree does not allow. The rock may touch the
@@ -491,7 +491,7 @@ public partial class NumericFrameStickOutGhostTests
         world.Errors.Should().BeEmpty();
     }
 
-    // ---- Frames that their drivers move, sensors and hulls ----------------------------------------------------------
+    // ---- Frames on rails, sensors and hulls ---------------------------------------------------------------------------
 
     /// <summary>The G·M of the earth, in m³/s².</summary>
     private const double EarthMu = 3.986004418e14;
@@ -505,7 +505,7 @@ public partial class NumericFrameStickOutGhostTests
 
     /// <summary>
     /// A planet whose point gravity has the G·M <paramref name="mu"/>, and a station on a circular orbit 7,000 km from its
-    /// center, which the Kepler driver moves: a hull of 4 m by 4 m by 4 m and a bubble of radius 40 m, so it hangs directly
+    /// center, which its Kepler orbit moves: a kinematic hull of 4 m by 4 m by 4 m and a bubble of radius 40 m, so it hangs directly
     /// in the planet. A crate floats at (0, 40.5, 0) in the station and sticks 1.5 m out of its bubble. A rock co-orbits
     /// beside the station, from (3, 41, 0) in the station's place, and drifts toward the crate at 1 m/s relative to the
     /// station. The rock never touches the bubble, so only the ghost of the crate can stop it. The ghost lives in the
@@ -519,12 +519,12 @@ public partial class NumericFrameStickOutGhostTests
     private static OrbitOutcome RunStationOnAnOrbit(bool numericFrames, double mu, bool rockThrusts = false)
     {
         using World world = NewWorld(numericFrames, out _);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(mu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(mu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = planet,
-            Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Kepler),
+            Body = ShipHull with { Motion = BodyMotion.Kinematic },
+            AsFrame = new FrameSpec(FrameBounds.Sphere(40)),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(7_000_000)));
         FrameHandle station = world.GetOwnedFrame(owner);
         Double3 stationPlace = world.Frames.LocalPose(station).Position;
@@ -639,13 +639,13 @@ public partial class NumericFrameStickOutGhostTests
         RunStaticSensorBesideAStation(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         Entity station = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(FarOut),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(40)),
         });
         FrameHandle bubble = world.GetOwnedFrame(station);
         Entity crate = world.Spawn(new SpawnDesc { Frame = bubble, Pose = At(0, 39), LinearVelocity = new Double3(0, 1, 0), Body = CrateBody });
@@ -678,8 +678,8 @@ public partial class NumericFrameStickOutGhostTests
 
     /// <summary>
     /// A parked station <see cref="FarOut"/>, 9,000 km, out in space, a static hull with a bubble of radius 40 m, holds a
-    /// radar frame that the Spin driver turns, at (0, 39, 0). The radar's hull is a ball of radius 5 m whose description is
-    /// static, which a hull may be: physics gives the hull of a Spin frame the kinematic motion of its driver. So it reaches
+    /// radar frame that a <see cref="SpinMotion"/> turns, at (0, 39, 0). The radar's hull is a kinematic ball of radius 5 m.
+    /// So it reaches
     /// 44 m from the station's origin and sticks out of the bubble, and its kinematic ghost in space stops a rock that
     /// drifts at it at 0.3 m/s from 0.05 m above it, outside the bubble. 9,000 km out the rock alone would rest in a
     /// numeric frame of its own. But it may touch the ghost of the radar's hull, which lives in the home of the station's
@@ -691,20 +691,20 @@ public partial class NumericFrameStickOutGhostTests
         FrameHandle Space) RunRadarAndRock(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out _);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         Entity station = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(FarOut),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(40), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(40)),
         });
         Entity radar = world.Spawn(new SpawnDesc
         {
             Frame = world.GetOwnedFrame(station),
             Pose = At(0, 39),
-            Body = new BodyDesc(new SphereShapeDesc(5f), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(6), MotionDriver.Spin),
+            Body = new BodyDesc(new SphereShapeDesc(5f), BodyMotion.Kinematic),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(6)),
         }.Spinning(world, new FrameSpin(DQuaternion.Identity, 0.1)));
         var rockLog = new CollisionLog();
         Entity rock = world.Spawn(new SpawnDesc

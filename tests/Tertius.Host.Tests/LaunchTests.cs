@@ -17,13 +17,13 @@ public sealed class LaunchTests : IDisposable
 
     public LaunchTests()
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = space,
             LinearVelocity = new Double3(20, 0, 0),
             Body = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(0.05f)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
         });
         frame = world.GetOwnedFrame(ship);
         crate = world.Spawn(new SpawnDesc

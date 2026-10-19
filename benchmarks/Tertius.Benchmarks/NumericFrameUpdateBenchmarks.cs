@@ -32,7 +32,7 @@ public class NumericFrameUpdateBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle space = frames.Create(new Entity(next++, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
+        FrameHandle space = frames.Create(new Entity(next++, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
         var list = new List<NumericBody>();
         for (int r = 0; r < Rocks; r++)
         {
@@ -53,7 +53,7 @@ public class NumericFrameUpdateBenchmarks
         for (int b = 0; b < Bubbles; b++)
         {
             FrameHandle station = frames.Create(new Entity(next++, 1), space, new DPose(new Double3(100 * b, 50, 0), DQuaternion.Identity),
-                FrameBounds.Sphere(40), MotionDriver.Static);
+                FrameBounds.Sphere(40));
             for (int c = 0; c < 10; c++)
             {
                 var position = new Double3(3 * c - 15, 0, 0);
@@ -123,14 +123,13 @@ public class NumericFramePlaceBenchmarks
     public void Setup()
     {
         uint next = 1;
-        FrameHandle space = frames.Create(new Entity(next++, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
+        FrameHandle space = frames.Create(new Entity(next++, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
         var list = new List<NumericBody>();
         var ships = new Double3[Ships];
         for (int s = 0; s < Ships; s++)
         {
             ships[s] = new Double3(80 * s, 0, 0);
-            FrameHandle ship = frames.Create(new Entity(next++, 1), space, new DPose(ships[s], DQuaternion.Identity), FrameBounds.Sphere(40),
-                MotionDriver.Static);
+            FrameHandle ship = frames.Create(new Entity(next++, 1), space, new DPose(ships[s], DQuaternion.Identity), FrameBounds.Sphere(40));
             list.Add(Body(next++, ship, Double3.Zero, new Double3(60, 0, 0)) with { Character = true });
             foreach (Double3 axis in Axes)
                 list.Add(Body(next++, ship, axis * 39.5, Double3.Zero));

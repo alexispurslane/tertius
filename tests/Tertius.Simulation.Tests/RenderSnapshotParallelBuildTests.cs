@@ -103,7 +103,7 @@ public class RenderSnapshotParallelBuildTests
             entities = new EntityTable(chunkSize: 64, initialCapacity: visible + 2);
             var frames = new FrameTree();
             Entity owner = entities.Reserve();
-            FrameHandle root = frames.Create(owner, FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
+            FrameHandle root = frames.Create(owner, FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
             entities.Activate(owner, new TransformRow { Pose = DPose.Identity }, new RenderData(), [], [], null, root);
             camera = Spawn(root, new RenderData(), 0);
             for (int i = 0; i < visible; i++)

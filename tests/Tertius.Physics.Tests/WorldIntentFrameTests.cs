@@ -15,14 +15,14 @@ namespace Tertius.Physics.Tests;
 public class WorldIntentFrameTests
 {
     /// <summary>A root frame without gravity.</summary>
-    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
 
     /// <summary>A static frame without a body in <paramref name="space"/>, at <paramref name="pose"/>, with a bubble of <paramref name="radius"/> m.</summary>
     private static Entity Room(World world, FrameHandle space, DPose pose, float radius, params IComponent[] components) => world.Spawn(new SpawnDesc
     {
         Frame = space,
         Pose = pose,
-        AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(radius)),
         Components = components,
     });
 
@@ -163,7 +163,7 @@ public class WorldIntentFrameTests
     }
 
     /// <summary>
-    /// A ship of the physics driver in <paramref name="space"/> at (30, 0, 0), turned by <see cref="Turned"/>, that drifts at
+    /// A ship with a dynamic hull in <paramref name="space"/> at (30, 0, 0), turned by <see cref="Turned"/>, that drifts at
     /// 0.5 m/s along +Y, with a bubble of 20 m, and a ball that flies along +X at 12 m/s and touches the bubble in the
     /// step of tick 30, with <paramref name="pilot"/> on it.
     /// </summary>
@@ -175,7 +175,7 @@ public class WorldIntentFrameTests
             Pose = new DPose(new Double3(30, 0, 0), Turned),
             LinearVelocity = new Double3(0, 0.5, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         });
         FrameHandle ship = world.GetOwnedFrame(hull);
         // The ship drifts 0.25 m sideways before the touch, which moves the touch by 2 mm: well inside half a step.

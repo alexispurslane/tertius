@@ -103,7 +103,7 @@ public class NumericFrameGhostTests
         Pose = new DPose(at + new Double3(WarmUpDistance, 0, 0), DQuaternion.Identity),
         LinearVelocity = new Vector3(-ShipSpeed, 0, 0),
         Body = ShipHull,
-        AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Physics),
+        AsFrame = new FrameSpec(FrameBounds.Sphere(radius)),
         Components = [ShipThruster()],
     });
 
@@ -131,13 +131,13 @@ public class NumericFrameGhostTests
     private static StationScene CratesPassingAStation(World world, double lane, DPose? stationCrate, DPose? shipCrate,
         double shipX = 1100, GravityField gravity = default)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, gravity));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), gravity));
         Entity stationOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = new DPose(StationCenter, DQuaternion.Identity),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius)),
         });
         FrameHandle station = world.GetOwnedFrame(stationOwner);
         Entity crate = stationCrate is { } inStation ? world.Spawn(new SpawnDesc { Frame = station, Pose = inStation, Body = CrateBody }) : Entity.Null;
@@ -250,14 +250,14 @@ public class NumericFrameGhostTests
     public void TheGhostOfAFallingShipMovesInAParkedStationWithTheShipsVelocityOverTheLastStep(bool numericFrames)
     {
         using World world = NewStationWorld(numericFrames, out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static,
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f),
             GravityField.Uniform(new Vector3(0, -9.81f, 0))));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = new DPose(StationCenter, DQuaternion.Identity),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius)),
         }));
         // After the warm-up and 3 more ticks, the ship is at about (1057, 28.6, 0), 64 m from the station's center, so
         // the bubbles overlap.
@@ -289,21 +289,21 @@ public class NumericFrameGhostTests
     public void TheGhostOfAShipBesideAFallingShipMovesInItWithItsVelocityOverTheLastStep()
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static,
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f),
             GravityField.Uniform(new Vector3(0, -9.81f, 0))));
         Entity leftOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = DPose.Identity,
             Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(ShipRadius), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(ShipRadius)),
         });
         Entity rightOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(50),
             Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(ShipRadius), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(ShipRadius)),
         });
         FrameHandle left = world.GetOwnedFrame(leftOwner);
         Tick(world, 3);
@@ -572,7 +572,7 @@ public class NumericFrameGhostTests
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity hull = Scenes.FastKeplerHull(world, space, ShipHull);
+        Entity hull = Scenes.FastKeplerHull(world, space, ShipHull with { Motion = BodyMotion.Kinematic });
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
         FrameHandle buoy = EmptyFrame(world, space, At(-5000), 5);
         FrameHandle depot = EmptyFrame(world, space, At(-6000), 50);
@@ -606,7 +606,7 @@ public class NumericFrameGhostTests
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        Entity hull = Scenes.FastKeplerHull(world, space, ShipHull);
+        Entity hull = Scenes.FastKeplerHull(world, space, ShipHull with { Motion = BodyMotion.Kinematic });
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
         // 5.8 km from every point of the hull's orbit, beyond the reach of the merge test at 2 km/s.
         FrameHandle station = EmptyFrame(world, space, At(0, 3_000), 10);
@@ -766,13 +766,13 @@ public class NumericFrameGhostTests
     /// </summary>
     private static ShipsScene ShipPassingAShip(World world)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         Entity slowOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = DPose.Identity,
             Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
         });
         Entity fastOwner = SpawnFastShip(world, space, new Double3(150, 140, 0), 60);
         Tick(world, WarmUpTicks);
@@ -813,7 +813,7 @@ public class NumericFrameGhostTests
 
     /// <summary>A frame with no body, in <paramref name="parent"/>, at <paramref name="pose"/>, with a bubble of <paramref name="radius"/> m.</summary>
     private static FrameHandle EmptyFrame(World world, FrameHandle parent, DPose pose, float radius) =>
-        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static) }));
+        world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius)) }));
 
     /// <summary>
     /// The reconcile at the start of a step drops each ghost that the frame tree does not allow, and the ghost pass at the
@@ -875,14 +875,14 @@ public class NumericFrameGhostTests
     private static RockScene ShipAndRock(World world, DPose shipPose, Double3 shipVelocity, DPose cratePose, DPose? rockPose,
         Double3 rockVelocity = default, GravityField gravity = default, IReadOnlyList<IComponent>? shipComponents = null)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static, gravity));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), gravity));
         Entity shipOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = shipPose,
             LinearVelocity = shipVelocity,
             Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(BigShipRadius), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(BigShipRadius)),
             Components = shipComponents ?? [],
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
@@ -1064,13 +1064,13 @@ public class NumericFrameGhostTests
     public void ACrateThatLeavesAShipInARestingFrameWhileItPushesARockInSpaceKeepsTheContactAsItDoesWithoutNumericFrames(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         Entity shipOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = At(RestDistance + 150),
             Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(BigShipRadius), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(BigShipRadius)),
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         var crateLog = new CollisionLog();

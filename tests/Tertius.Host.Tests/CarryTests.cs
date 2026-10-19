@@ -66,7 +66,7 @@ public sealed class CarryTests : IDisposable
     /// </summary>
     private (FrameHandle Room, Entity Person) StandInARoom()
     {
-        FrameHandle room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        FrameHandle room = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
         world.Spawn(new SpawnDesc
         {
             Frame = room,
@@ -136,7 +136,7 @@ public sealed class CarryTests : IDisposable
         return (space, first, second);
     }
 
-    private FrameHandle NewSpace() => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), MotionDriver.Static));
+    private FrameHandle NewSpace() => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
 
     private Entity SpawnCrate(FrameHandle frame, Double3 at, Vector3 velocity = default) =>
         world.Spawn(Spec.Spawn(frame, new DPose(at, DQuaternion.Identity), velocity));

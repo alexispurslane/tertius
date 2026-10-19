@@ -19,8 +19,9 @@ public class FrameTreeOwnerViewStampTests
 
     public FrameTreeOwnerViewStampTests()
     {
-        ground = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), MotionDriver.Static);
-        ship = frames.Create(new Entity(2, 1), ground, new DPose(X(100), DQuaternion.Identity), FrameBounds.Sphere(50), MotionDriver.Physics);
+        ground = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f));
+        ship = frames.Create(new Entity(2, 1), ground, new DPose(X(100), DQuaternion.Identity), FrameBounds.Sphere(50));
+        frames.SetHullMotion(ship, BodyMotion.Dynamic);
     }
 
     private static Double3 X(double x) => new(x, 0, 0);
@@ -59,7 +60,7 @@ public class FrameTreeOwnerViewStampTests
 
     [Fact]
     public void A_new_frame_changes_the_stamp() =>
-        StampChanges(() => frames.Create(new Entity(3, 1), ground, DPose.Identity, FrameBounds.Sphere(5), MotionDriver.Static))
+        StampChanges(() => frames.Create(new Entity(3, 1), ground, DPose.Identity, FrameBounds.Sphere(5)))
             .Should().BeTrue();
 
     [Fact]
@@ -69,7 +70,7 @@ public class FrameTreeOwnerViewStampTests
     [Fact]
     public void A_frame_that_moves_under_another_parent_changes_the_stamp()
     {
-        FrameHandle dock = frames.Create(new Entity(3, 1), ground, new DPose(X(-100), DQuaternion.Identity), FrameBounds.Sphere(500), MotionDriver.Static);
+        FrameHandle dock = frames.Create(new Entity(3, 1), ground, new DPose(X(-100), DQuaternion.Identity), FrameBounds.Sphere(500));
         StampChanges(() => frames.Reparent(ship, dock)).Should().BeTrue();
     }
 
@@ -97,11 +98,18 @@ public class FrameTreeOwnerViewStampTests
     public void A_frame_that_holds_still_changes_the_stamp() =>
         StampChanges(() => frames.HoldStill(ship, 1.0 / 60)).Should().BeTrue();
 
+    // A change of a hull's motion writes no pose, velocity or parent: a parked ship stops through the record of its next
+    // step, which changes the stamp (see A_frame_that_takes_its_step_record_changes_the_stamp). So the change leaves the
+    // stamp as it is, and the World's second pass of a sync point can still be skipped.
     [Fact]
-    public void A_frame_that_gets_the_static_driver_changes_the_stamp()
+    public void A_change_of_a_hulls_motion_leaves_the_stamp_as_it_is()
     {
         frames.SetTreeLinearVelocity(ship, X(5));
-        StampChanges(() => frames.SetDriver(ship, MotionDriver.Static)).Should().BeTrue();
+        StampChanges(() =>
+        {
+            frames.PlanHullMotion(ship, BodyMotion.Static);
+            frames.SetHullMotion(ship, BodyMotion.Static);
+        }).Should().BeFalse();
     }
 
     [Fact]

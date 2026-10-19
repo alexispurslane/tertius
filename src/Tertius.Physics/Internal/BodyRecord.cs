@@ -64,19 +64,14 @@ internal sealed class BodyRecord
     /// <summary>The bounding-sphere radius of the primary shape, about the body origin.</summary>
     public float Radius;
     /// <summary>
-    /// The motion of the primary body as Jolt sees it. For a frame hull it follows <see cref="Driver"/>, as far as Jolt can
-    /// move the hull that way. For a character it is its form: <see cref="BodyMotion.Character"/> for the walking form, a
+    /// The motion of the primary body as Jolt sees it. For a frame hull, physics gives the record the motion of each step at
+    /// the start of that step (see <see cref="FrameTree.HullMotionInStep"/>), and a record that the simulation creates
+    /// between two steps, at a spawn or a rehome, starts with the motion of the next step, which it runs first. The owner of
+    /// a root frame, which has no hull, gets the static motion of its interior. For a character it is its form: <see cref="BodyMotion.Character"/> for the walking form, a
     /// Jolt CharacterVirtual in <see cref="Character"/>, and <see cref="BodyMotion.Dynamic"/> for the rigid form, a dynamic
     /// Jolt body in <see cref="Body"/> whose rotation is locked (see <c>JoltPhysicsBackend.NextCharacterMotion</c>).
     /// </summary>
     public BodyMotion Motion;
-    /// <summary>
-    /// For the owner of a frame: the driver of <see cref="OwnedFrame"/> that <see cref="Motion"/> follows. It is the
-    /// frame's driver when the record was created or at the last reconcile, whichever came later.
-    /// </summary>
-    public MotionDriver Driver;
-    /// <summary>For the owner of a frame: the <see cref="FrameTree.DriverVersion"/> of <see cref="OwnedFrame"/> that <see cref="Driver"/> follows.</summary>
-    public int DriverVersion;
     /// <summary>
     /// The entity's collision groups and mask now: those of <see cref="Desc"/>, until a collision intent changes them.
     /// Every Jolt body of the record carries them, except the hull of a frame (see <see cref="Layers"/>).
@@ -155,7 +150,7 @@ internal sealed class BodyRecord
     /// while it was awake, and to a character that the ground did not hold (zero when it did).
     /// </summary>
     public Vector3 GravityApplied;
-    /// <summary>For a physics-driven frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>
+    /// <summary>For a dynamic frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>
     public Vector3 ProperAcceleration;
     public long KinematicTargetStep = -1;
     public long VelocitySetStep = -1;

@@ -325,45 +325,100 @@ public sealed partial class World
     /// <summary>
     /// The running entity's intent, for writing a request that sets its body's motion: <paramref name="call"/>, a kinematic
     /// target or a velocity. Throws <see cref="InvalidOperationException"/> as <see cref="WritableIntent"/> does, and also
-    /// when the body is a kinematic hull, because only a motion sample tells the frame of a kinematic hull how to follow
-    /// (see <see cref="MoveOnRails"/>): a kinematic hull takes only <c>MoveOnRails</c> and <c>Teleport</c>.
+    /// when the body is a kinematic hull in the step that applies the request (see <see cref="NextStepHullMotion"/>, which
+    /// counts a change of motion that the entity wrote earlier in the tick), because only a motion sample tells the frame of
+    /// a kinematic hull how to follow (see <see cref="MoveOnRails"/>): a kinematic hull takes only <c>MoveOnRails</c> and
+    /// <c>Teleport</c>.
     /// </summary>
     internal ref PhysicsIntent WritableMotionIntent(Entity entity, string call)
     {
         FrameHandle own = entities.OwnedFrame(entity);
-        if (!own.IsNull && entities.Body(entity) != null && HullMotion(own) == BodyMotion.Kinematic)
+        if (!own.IsNull && NextStepHullMotion(own) == BodyMotion.Kinematic)
             throw new InvalidOperationException(
                 $"{entity} owns {own}, whose body is a kinematic hull, so it cannot take {call}: a kinematic hull moves only by Self.MoveOnRails and Teleport.");
         return ref WritableIntent(entity);
     }
 
     /// <summary>
-    /// The motion of the hull of <paramref name="own"/>, whose owner has a body, or null when the frame has no parent: a root
-    /// frame's owner has only the frame's static interior. In this ticket the frame's driver chooses the hull's motion (see
-    /// <see cref="BodyDesc.FrameHullMotion"/>).
+    /// The motion that the hull of <paramref name="frame"/> has in the next step: the step that applies the intents written
+    /// in this tick. That is the change of motion that the frame's owner wrote in this tick so far (see
+    /// <see cref="BodyHandle.SetMotion"/>), or else the motion in the step that applies the front intents (see
+    /// <see cref="FrameTree.HullMotionInStep"/>). During the tick, and at the sync point until step 4, that is the running
+    /// step, which counts the change of the tick before. After step 4 swaps the intents, this tick's writes are the front
+    /// intents, so that step is the next step itself, and the answer stays the same. Null for a frame without a hull.
+    /// Throws <see cref="StaleEntityException"/> for a stale owner and <see cref="InvalidOperationException"/> for a stale
+    /// frame.
     /// </summary>
-    private BodyMotion? HullMotion(FrameHandle own) =>
-        Frames.Parent(own).IsNull ? null : BodyDesc.FrameHullMotion(Frames.Driver(own));
+    /// <remarks>
+    /// The readers that ask about that step: the guards of a tick, which judge the tick's writes (see
+    /// <see cref="WritableMotionIntent"/> and <see cref="MoveOnRails"/>); the rails components, before they write a sample
+    /// (see <see cref="BodyHandle.NextStepMotion"/>); the numeric update, which plans that step; and the body that a rehome
+    /// creates for it. During a tick only the worker of the frame's owner may ask it, because the owner writes its own
+    /// intent; at the sync point and outside a tick anyone may.
+    /// </remarks>
+    internal BodyMotion? NextStepHullMotion(FrameHandle frame)
+    {
+        BodyMotion? inFrontStep = Frames.HullMotionInStep(frame, entities.FrontIntents.Span);
+        return inFrontStep is null ? null : entities.WrittenMotionChange(frame.Entity) ?? inFrontStep;
+    }
+
+    /// <summary>
+    /// The motion of the body of <paramref name="entity"/> in the next step (see <see cref="NextStepHullMotion"/>): null
+    /// without a body, the motion of the description for a body that owns no frame, and static for the owner of a root
+    /// frame, whose body is only the frame's static interior. Throws <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    internal BodyMotion? NextStepMotion(Entity entity)
+    {
+        if (entities.Body(entity) is not { } body)
+            return null;
+        FrameHandle own = entities.OwnedFrame(entity);
+        return own.IsNull ? body.Motion : NextStepHullMotion(own) ?? BodyMotion.Static;
+    }
+
+    /// <summary>
+    /// Writes a change of the running entity's hull motion to <paramref name="motion"/> into its intent, which the next step
+    /// applies (see <see cref="EntityTable.WriteMotionChange"/> and <see cref="ApplyMotionChanges"/>). Throws
+    /// <see cref="InvalidOperationException"/> if the entity's body is no hull: it has no body, owns no frame, or owns a root
+    /// frame, whose owner's body is only the frame's static interior. Throws <see cref="ArgumentException"/> for a motion that
+    /// the hull cannot take (see <see cref="BodyDesc.Problem"/> with <see cref="BodyRole.Hull"/>), and
+    /// <see cref="StaleEntityException"/> for a stale handle.
+    /// </summary>
+    internal void WriteHullMotion(Entity entity, BodyMotion motion)
+    {
+        FrameHandle own = entities.OwnedFrame(entity);
+        string owner = own.IsNull ? $"{entity}" : $"{entity}, which owns {own},";
+        if (entities.Body(entity) is not { } body)
+            throw new InvalidOperationException($"{owner} has no physics body, so it has no hull whose motion can change.");
+        if (own.IsNull)
+            throw new InvalidOperationException($"{owner} owns no frame, so its body is no hull: only a hull can change its motion.");
+        if (Frames.HullMotion(own) is null)
+            throw new InvalidOperationException(
+                $"{owner} has a root frame, so its body is only the frame's static interior, not a hull: only a hull can change its motion.");
+        if ((body with { Motion = motion }).Problem(BodyRole.Hull) is { } problem)
+            throw new ArgumentException($"The hull of {owner} cannot take the motion {motion}: as a hull it {problem}.", nameof(motion));
+        entities.WriteMotionChange(entity, motion);
+    }
 
     /// <summary>
     /// Writes the running entity's motion sample for the next physics step into the written buffer of the sample table,
     /// relative to the frame that the entity is in during the tick, with its rotation made unit length. The last write in a
     /// tick wins. Throws <see cref="InvalidOperationException"/> if the entity owns no frame, or if its frame has a parent
-    /// and the entity has a body that is not kinematic, <see cref="ArgumentException"/> for a sample with a field that is not
-    /// a finite number or with a zero rotation, and <see cref="StaleEntityException"/> for a stale handle.
+    /// and the entity has a body that is not kinematic in the next step (see <see cref="NextStepHullMotion"/>),
+    /// <see cref="ArgumentException"/> for a sample with a field that is not a finite number or with a zero rotation, and
+    /// <see cref="StaleEntityException"/> for a stale handle.
     /// </summary>
     /// <remarks>
     /// When the frame has a parent, the owner's body is the frame's hull, and only a kinematic hull follows a sample. A frame
     /// without a body has no hull, so the sample acts on its transform. A root frame has no parent, so its owner's body is
-    /// only the frame's static interior, not a hull. In this ticket a hull is kinematic when its frame has a driver whose
-    /// hull motion is kinematic (see <see cref="BodyDesc.FrameHullMotion"/>).
+    /// only the frame's static interior, not a hull. The sample applies in the next step, so the motion of the hull in that
+    /// step decides.
     /// </remarks>
     internal void MoveOnRails(Entity entity, in MotionSample sample)
     {
         FrameHandle own = entities.OwnedFrame(entity);
         if (own.IsNull)
             throw new InvalidOperationException($"{entity} owns no frame, so it has no frame to move on rails.");
-        if (entities.Body(entity) != null && HullMotion(own) is { } motion && motion != BodyMotion.Kinematic)
+        if (NextStepHullMotion(own) is { } motion && motion != BodyMotion.Kinematic)
             throw new InvalidOperationException(
                 $"{entity} owns {own}, whose hull is {motion}, so the hull cannot follow a motion sample: only a kinematic hull can.");
         Frames.Samples.Write(own, entities.FrontRow(entity).Frame, CheckedSample(sample));

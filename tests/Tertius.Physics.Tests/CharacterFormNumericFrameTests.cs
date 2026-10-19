@@ -33,20 +33,20 @@ public class CharacterFormNumericFrameTests
 
     /// <summary>Earth with its point gravity.</summary>
     private static FrameHandle Earth(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(Scenes.EarthMu)));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
 
-    /// <summary>A hull that its frame's Kepler driver moves: a box of 4 m.</summary>
-    private static readonly BodyDesc Core = new(new BoxShapeDesc(new Vector3(2)), Mass: 1e4f, Restitution: 0);
+    /// <summary>A kinematic hull that its frame's Kepler orbit moves: a box of 4 m.</summary>
+    private static readonly BodyDesc Core = new(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic, Mass: 1e4f, Restitution: 0);
 
     /// <summary>
-    /// A hull that its frame's Kepler driver moves: <see cref="Core"/>, and a plate of 16 m by 0.5 m by 16 m across the +Y
+    /// A kinematic hull that its frame's Kepler orbit moves: <see cref="Core"/>, and a plate of 16 m by 0.5 m by 16 m across the +Y
     /// axis, whose face toward the core is 19.75 m from it. The plate makes the hull's bounding sphere about 21.6 m wide, so
     /// that the merge test links the hull to a body near the bubble of 16 m, as in <see cref="NumericFrameOrbitTests"/>.
     /// </summary>
     private static readonly BodyDesc StationHull = new(new CompoundShapeDesc([
         new CompoundChild(new BoxShapeDesc(new Vector3(2)), new Pose(Vector3.Zero, Quaternion.Identity)),
         new CompoundChild(new BoxShapeDesc(new Vector3(8, 0.25f, 8)), new Pose(new Vector3(0, 20, 0), Quaternion.Identity)),
-    ]), Mass: 1e5f, Restitution: 0);
+    ]), BodyMotion.Kinematic, Mass: 1e5f, Restitution: 0);
 
     /// <summary>What a test sees of a character at the end of a tick: the kind of its physics home and its form.</summary>
     private static string State(World world, JoltPhysicsBackend backend, Entity person, FrameHandle station, FrameHandle earth)
@@ -63,7 +63,7 @@ public class CharacterFormNumericFrameTests
 
     /// <summary>
     /// Space has no gravity, so a character there has the rigid form. It flies along +X at 12 m/s into the bubble of a ship
-    /// of the physics driver, turned by <see cref="Turned"/>, that drifts at 0.5 m/s along +Y, and whose frame has a
+    /// with a dynamic hull, turned by <see cref="Turned"/>, that drifts at 0.5 m/s along +Y, and whose frame has a
     /// gravity of 9.81 m/s² along its own -Y. The step of tick 30 hands the character into the ship, in the rigid form,
     /// which a hand-off keeps. In tick 30 gameplay adds an impulse of 140 N·s along space's +Y, which sync step 7b converts
     /// into the ship's axes. The step of tick 31 gives the character the walking form, because the ship's gravity asks for
@@ -76,14 +76,14 @@ public class CharacterFormNumericFrameTests
     public void AnImpulseAddedInTheTickOfAWeightlessCharactersHandOffIntoAShipWithGravityPushesTheWalkingFormAlongTheAxesOfTheFrameThatGameplayNamed()
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Entity hull = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = new DPose(new Double3(30, 0, 0), Turned),
             LinearVelocity = new Double3(0, 0.5, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         });
         FrameHandle ship = world.GetOwnedFrame(hull);
         var pilot = new Pilot();
@@ -132,7 +132,7 @@ public class CharacterFormNumericFrameTests
         FrameHandle earth = Earth(world);
         Entity hull = world.Spawn(new SpawnDesc
         {
-            Frame = earth, Body = Core, AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f), MotionDriver.Kepler),
+            Frame = earth, Body = Core, AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         }.OnKeplerOrbit(world, LowOrbit));
         (Double3 place, Double3 velocity) = LowOrbit.StateAt(world.Time, Scenes.EarthMu);
         var offset = new Double3(0, -3.5, 0);
@@ -191,7 +191,7 @@ public class CharacterFormNumericFrameTests
         FrameHandle earth = Earth(world);
         Entity owner = world.Spawn(new SpawnDesc
         {
-            Frame = earth, Body = plate ? StationHull : Core, AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius), MotionDriver.Kepler),
+            Frame = earth, Body = plate ? StationHull : Core, AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius)),
         }.OnKeplerOrbit(world, LowOrbit));
         FrameHandle station = world.GetOwnedFrame(owner);
         Entity person = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 10), LinearVelocity = new Double3(0, 1, 0), Body = Person });

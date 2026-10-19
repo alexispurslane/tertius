@@ -296,7 +296,7 @@ public class BlueprintTests
     {
         using var t = new TestWorld();
         t.World.Blueprints.Register(new Blueprint("outpost", [new ComponentSpec(typeof(Radio))],
-            Frame: new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Static)));
+            Frame: new FrameSpec(FrameBounds.Sphere(30))));
 
         Entity outpost = t.World.Spawn("outpost", t.Root, TestWorld.At(100));
 

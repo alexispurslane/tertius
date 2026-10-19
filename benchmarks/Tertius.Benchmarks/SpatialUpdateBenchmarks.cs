@@ -49,7 +49,7 @@ public class SpatialUpdateBenchmarks
         ParallelOptions? workers = Mode == UpdateMode.Workers ? new ParallelOptions { MaxDegreeOfParallelism = -1 } : null;
         spatial = new SpatialIndex(entities, frames, workers) { ParallelThreshold = 1 };
         // The owner of the root is a handle that the table never hands out, so it is in no grid.
-        FrameHandle root = frames.Create(new Entity((uint)Moved + 1000, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e12f), MotionDriver.Static);
+        FrameHandle root = frames.Create(new Entity((uint)Moved + 1000, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e12f));
         double spacing = ChangeCells ? 40 : 2;
         movers = new Entity[Moved];
         for (int i = 0; i < Moved; i++)

@@ -18,7 +18,7 @@ public class BackendTests
         var frames = new FrameTree();
         var changes = new PhysicsChanges();
         var output = new PhysicsStepOutput();
-        FrameHandle space = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), MotionDriver.Static, default);
+        FrameHandle space = frames.Create(new Entity(1, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e6f), default);
         changes.FramesCreated.Add(space);
         using var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
         backend.ApplyChanges(changes, frames);
@@ -79,7 +79,7 @@ public class BackendTests
     public void SceneWithMoreFramesThanTheFirstTablesHoldKeepsEveryBodyInItsFrame()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         // A ball in space makes the step look at every child bubble of space.
         Entity probe = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0, -100), Body = Ball() });
         var rooms = new List<(FrameHandle Frame, Entity Ball)>();
@@ -90,7 +90,7 @@ public class BackendTests
             {
                 Frame = space,
                 Pose = At(i * 50),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             }));
             Entity ball = world.Spawn(new SpawnDesc { Frame = room, Pose = At(0, 0, 0), LinearVelocity = new Vector3(0, 1, 0), Body = Ball() });
             rooms.Add((room, ball));
@@ -114,7 +114,7 @@ public class BackendTests
     {
         var warnings = new List<string>();
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults, warnings);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         var roomOwners = new List<Entity>();
         for (int i = 0; i < 45; i++)
         {
@@ -122,7 +122,7 @@ public class BackendTests
             {
                 Frame = space,
                 Pose = At(i * 50),
-                AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             }));
         }
         // Only one room, far past the first tables, gets a body and so a system.

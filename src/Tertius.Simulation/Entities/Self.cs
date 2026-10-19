@@ -173,6 +173,17 @@ public readonly ref struct BodyHandle
     /// </summary>
     public bool Standing => world.IsStanding(entity);
 
+    /// <summary>
+    /// The motion that the body has in the next step, the step that applies this tick's writes: null for an entity without
+    /// a body, the motion of the description for a body that owns no frame, and static for the owner of a root frame, whose
+    /// body is only the frame's static interior. For a hull it counts the change of motion that the entity wrote so far in
+    /// this tick (see <see cref="SetMotion"/>), and the one of the tick before, which the running step applies. The body facts
+    /// of the snapshot describe the last finished step, so they show a change only from the tick after the step that applies
+    /// it (see <see cref="BodyFacts.Motion"/>). A rails component asks it before it writes a sample, which only a kinematic
+    /// hull takes (see <see cref="Self.MoveOnRails"/>).
+    /// </summary>
+    public BodyMotion? NextStepMotion => world.NextStepMotion(entity);
+
     /// <summary>The intent written so far during this tick.</summary>
     public PhysicsIntent Pending => world.Entities.PendingIntent(entity);
 
@@ -273,6 +284,25 @@ public readonly ref struct BodyHandle
         intent.CollisionMask = mask;
         intent.Flags |= IntentFlags.SetCollision;
     }
+
+    /// <summary>
+    /// Gives the hull of the frame that the entity owns the motion <paramref name="motion"/> from the next step on, for
+    /// example <see cref="BodyMotion.Static"/> to park a ship (docs/plans/rails-components.md, "Changes of motion"). Physics
+    /// gives the Jolt body the new motion at the start of the next step, which runs beside the next tick, and every read
+    /// about that step counts it at once: <see cref="NextStepMotion"/> and the guards of the writes after it in this tick and
+    /// in the next one. The stored motion, which <see cref="FrameTree.HullMotion"/> and the body facts show, describes the
+    /// last finished step, as the collision groups do: it changes at step 4 of the sync point after the next step. The hull
+    /// keeps its body, its system and its contacts. The last change in a tick wins, and a change to the motion that the hull
+    /// has changes nothing. A hull that is not kinematic in the next step drops the sample written in this tick, and one that
+    /// is kinematic drops the velocities and the kinematic target set in this tick, because a kinematic hull moves only by
+    /// its samples and teleports. A parked frame stops at the sync point after the next step.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The body is no hull: the entity has no body, owns no frame, or owns a root frame.</exception>
+    /// <exception cref="ArgumentException">
+    /// A motion that the hull cannot take: a value that <see cref="BodyMotion"/> does not define, a character, a dynamic
+    /// motion for a hull without mass, or any motion but static for a hull whose shape is or holds a mesh.
+    /// </exception>
+    public void SetMotion(BodyMotion motion) => world.WriteHullMotion(entity, motion);
 
     private ref PhysicsIntent Intent => ref world.WritableIntent(entity);
 }

@@ -66,7 +66,7 @@ public unsafe class RayFilterBenchmarks
     {
         var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
         world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         asker = world.Spawn(new SpawnDesc
         {
             Frame = root,

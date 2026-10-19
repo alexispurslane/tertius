@@ -6,7 +6,7 @@ using static Tertius.Testing.NumericFrameTesting;
 namespace Tertius.Physics.Tests.Precision;
 
 /// <summary>
-/// One scene of a motion drift measurement (ticket ter-kugq). The scene sits in one root frame with the Static driver.
+/// One scene of a motion drift measurement (ticket ter-kugq). The scene sits in one root frame.
 /// Its reference point starts at a given place, and every body in it gets the same extra velocity, the common velocity,
 /// on top of its own motion. A Galilean shift must not change physics, so the scene's exact answer is known for every
 /// common velocity, and the measurement records how far the World on the real Jolt backend ends up from it.

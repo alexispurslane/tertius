@@ -164,13 +164,13 @@ public class PhysicsStepTests
     public void AFailedStepLeavesTheFrameOfADynamicHullWithTheVelocityThatItHad()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Body = Ball(),
             LinearVelocity = new Double3(5, 0, 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(2), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(2)),
         });
         FrameHandle frame = world.GetOwnedFrame(ship);
         world.Run(2);
@@ -191,7 +191,7 @@ public class PhysicsStepTests
     public void AFailedStepLeavesTheAnchorOfAnOrbitFrameWithTheVelocityThatItHadInIt()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        Entity hull = Scenes.FastKeplerHull(world, Scenes.AsteroidSpace(world), Ball());
+        Entity hull = Scenes.FastKeplerHull(world, Scenes.AsteroidSpace(world), Ball() with { Motion = BodyMotion.Kinematic });
         FrameHandle frame = world.GetOwnedFrame(hull);
         world.Run(5);
         world.Frames.Numeric(world.Frames.TreeParent(frame)).Should().Be(NumericMode.Orbiting);

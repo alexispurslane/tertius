@@ -17,7 +17,7 @@ public class FaultInjectingBackendTests
     /// </summary>
     private static ulong RunShipWithContactAndHandOff(World world)
     {
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Scenes.ShipScene ship = Scenes.ShipWithInterior(world, space);
         world.Spawn(new SpawnDesc { Frame = ship.Interior, Pose = At(-3, Scenes.DeckTop + 1), LinearVelocity = new Vector3(0, -4, 0), Body = Ball() });
         world.Spawn(new SpawnDesc { Frame = ship.Interior, Pose = At(3), LinearVelocity = new Vector3(0, 0, 12), Body = Ball() });

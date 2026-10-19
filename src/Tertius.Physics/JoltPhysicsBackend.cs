@@ -83,7 +83,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// body. An entity that owns a frame gets two bodies: its hull in the parent frame's system on the
     /// <see cref="BodyLayer.FrameHull"/> layer, and its interior as static geometry in its own frame's system. The
     /// frame must exist in <paramref name="frames"/> before its owner's body is created; the hull starts at the
-    /// frame's pose and velocity in the tree, and its motion comes from the frame's driver.
+    /// frame's pose and velocity in the tree, with the motion of its description, which is the motion that the hull has in
+    /// the next step (see <see cref="BodyCreate"/>).
     /// </summary>
     /// <remarks>
     /// <para>
@@ -93,13 +94,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// poses and velocities converted. The hulls of those child frames move with them and take pose and velocity from
     /// the tree. Any other body still in the destroyed frame is removed with a warning, and so is the hull of an owner
     /// that outlives its frame. A frame in FramesDestroyed that the tree still has keeps its system, with a warning,
-    /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, a
-    /// frame that the simulation reparents on its own, and a frame whose driver the game changes are handled here or at
-    /// the start of the next step, whichever comes first. A hull follows its frame's driver: dynamic for the physics
-    /// driver, kinematic for the Kepler and Spin drivers, static for the static driver. The simulation never gives a frame a driver
-    /// that its hull cannot follow (see <see cref="BodyDesc.FrameHullProblem"/>). Such a driver comes only from a bug: it
-    /// breaks a contract in a Debug build, and a Release build keeps the hull's motion and reports the bug (see
-    /// <see cref="ReportBug"/>).
+    /// until it leaves the tree. A refused hand-off, a frame that leaves the tree without a FramesDestroyed change, and a
+    /// frame that the simulation reparents on its own are handled here or at the start of the next step, whichever comes
+    /// first. A hull has the motion of its description at spawn. A change of motion that its owner wrote in a tick is in the
+    /// intents of the next step, and the hull takes it at the start of that step; any step takes the motion that the hull
+    /// has in it, from the change in the step's intents or else from the stored motion of the last finished step (see
+    /// <see cref="FollowHullMotions"/> and <see cref="FrameTree.HullMotionInStep"/>). The simulation never gives a hull
+    /// a motion that it cannot take. Such a motion comes only from a bug: it breaks a contract in a Debug build, and a
+    /// Release build keeps the hull's motion and reports the bug (see <see cref="ReportBug"/>).
     /// </para>
     /// <para>
     /// After the moves and the reconcile, the backend drops each ghost whose place the numeric update of the sync point
@@ -187,9 +189,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>
     /// Runs one physics step for every frame with awake bodies or characters: puts every frame hull where the frame tree
-    /// says, with the motion of its frame's driver, which drops the hand-offs of the last step that the simulation refused
-    /// and follows changes to the tree that no change batch announced, then gives every character the form that the
-    /// gravity at it asks for, applies intents, drives kinematic frame hulls, applies gravity, moves the characters in the
+    /// says, which drops the hand-offs of the last step that the simulation refused and follows changes to the tree that no
+    /// change batch announced, then gives each hull the motion that it has in this step (see
+    /// <see cref="FollowHullMotions"/>), then gives every character the form that the
+    /// gravity at it asks for, applies intents, aims the kinematic frame hulls at their samples, applies gravity, moves the characters in the
     /// walking form, updates every system, then reports contacts, hands bodies between frames, updates ghosts and writes
     /// body, character and frame states to <paramref name="output"/>.
     /// </summary>
@@ -237,8 +240,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// character in the rigid form never stands.
     /// <see cref="PhysicsStepOutput.HandOffs"/> holds each body that moved to another frame, with its pose there. For a
     /// character that is the rotation that it got in its new frame, which a turn to the new gravity can change.
-    /// <see cref="PhysicsStepOutput.Frames"/> holds every physics-driven frame with a hull, relative to its parent
-    /// after any hand-off in this step, with the velocity of the frame origin. Apply hand-offs before frame states.
+    /// <see cref="PhysicsStepOutput.Frames"/> holds the step record of each frame whose hull moved in the step, relative to
+    /// its parent after any hand-off in this step, with the velocity of the frame origin. Apply hand-offs before the step records.
     /// <see cref="PhysicsStepOutput.Contacts"/> holds each pair of entities whose contact started, with A before B in
     /// entity order and the normal from A to B. A contact between the body of one entity and the ghost of another
     /// entity's body is a contact of the two entities, and a pair of two ghosts is none. A body pair starts at a real
@@ -282,6 +285,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // between two ticks with no batch, for example to dock a ship, and a batch that failed reconciled nothing.
             ReconcileFrames();
             RefreshFrameStructure();
+            // Before anything reads a record's motion: a hull that becomes dynamic joins the spawned rigid bodies, whose
+            // velocities the next pass converts into chords.
+            FollowHullMotions(context.Intents.Span);
             // Before the intents and the gravity, which act on the form that a character has for the whole step, and before
             // the spawn velocities, which a spawned character that turns rigid needs as chords too.
             SwitchCharacterForms();
@@ -535,15 +541,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
 
     /// <summary>
     /// Brings physics in line with the frame tree, which is the authority: drops the hand-offs of frames from the last
-    /// step, removes the systems of frames that left the tree, gives every frame hull the motion that its frame's driver
-    /// needs, puts every frame hull in the system of the parent that the tree names, and removes every ghost that the tree
-    /// no longer allows. The sync point has applied or refused each hand-off before this runs, so a hull whose hand-off
-    /// the tree did not take, or whose frame the simulation moved on its own, goes where the tree says, with the tree's
-    /// pose and velocity. A hull whose frame got a driver keeps its body and takes the tree's pose and velocity too, also
-    /// when the driver is the one that the frame had. A
-    /// system that is full grows to take the hull. Afterwards <see cref="AssertInvariants"/> holds: every system belongs
-    /// to a live frame, every record has the bodies that it must have, every hull is in the system of its frame's parent
-    /// in the tree and has the motion of its frame's driver, and every ghost is in a frame next to its body's frame.
+    /// step, removes the systems of frames that left the tree, puts every frame hull in the system of the parent that the
+    /// tree names, and removes every ghost that the tree no longer allows. The sync point has applied or refused each
+    /// hand-off before this runs, so a hull whose hand-off the tree did not take, or whose frame the simulation moved on its
+    /// own, goes where the tree says, with the tree's pose and velocity and its own motion. A system that is full grows to
+    /// take the hull. A change of a hull's motion is no change of the tree's structure, so it is not handled here (see
+    /// <see cref="FollowHullMotions"/>). Afterwards <see cref="AssertInvariants"/> holds: every system belongs to a live
+    /// frame, every record has the bodies that it must have, every hull is in the system of its frame's parent in the tree,
+    /// and every ghost is in a frame next to its body's frame.
     /// </summary>
     private void ReconcileFrames()
     {
@@ -554,7 +559,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         bool handedOffFrames = parentOverrides.Count > 0;
         parentOverrides.Clear();
 
-        // Every structural change of the tree, removals included, and every driver change changes its version.
+        // Every structural change of the tree, removals included, changes its version.
         // Stryker disable once Statement : the check only saves work; reconciling an unchanged tree changes nothing.
         if (frames.Version == reconciledFrameVersion && !handedOffFrames)
             return;
@@ -584,14 +589,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // After the sweep every owner's frame is alive, so this test is only a guard.
             if (!frames.IsAlive(owner.OwnedFrame))
                 continue;
-            // The hull's motion follows the frame's driver, and its system follows the frame's parent. A hull that moves
-            // to another system has its new motion there from the start. Either way it starts from the tree.
-            bool newDriver = FollowDriver(owner);
+            // The hull's system follows the frame's parent. A hull that moves to another system keeps its motion and
+            // starts from the tree's pose and velocity.
             FrameHandle parent = frames.TreeParent(owner.OwnedFrame);
             if (owner.Frame != parent)
                 PlaceHullFromTree(owner, parent);
-            else if (newDriver && owner.HasPrimary)
-                ApplyHullMotion(owner);
         }
 
         // Ghosts follow the tree too. A frame that the game moved, or a hull that the tree moved, can leave a ghost in a
@@ -624,8 +626,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// character. Each system counts its members that are characters, and those in the walking form.</item>
     /// <item>Every frame owner's frame is alive. The hull of a frame with a parent sits in the system of that parent,
     /// and the owner of a root frame has no hull.</item>
-    /// <item>Every frame owner follows its frame's driver: the record has the frame's driver version and driver, and the
-    /// motion that <see cref="BodyDesc.FrameHullMotion"/> gives for it, and Jolt moves the hull with that motion.</item>
+    /// <item>Jolt moves every hull with the motion of its record. The record takes the motion of each step at the start of
+    /// that step (see <see cref="FollowHullMotions"/>). A record that the simulation creates between two steps, at a spawn
+    /// or a rehome, starts with the motion of the next step, which it runs first.</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame among the semantic
     /// frames, or in the home of a group that keeps a ghost of an anchor, the body's own or the hull of its home's semantic
     /// frame (see <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
@@ -716,8 +719,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(!owner.HasPrimary);
             else
                 Contract.Invariant(owner.Frame == parent && owner.HasPrimary && owner.World == ExistingWorld(parent));
-            Contract.Invariant(owner.DriverVersion == frames.DriverVersion(owner.OwnedFrame) && owner.Driver == frames.Driver(owner.OwnedFrame));
-            Contract.Invariant(owner.Motion == BodyDesc.FrameHullMotion(owner.Driver));
+            // A hull has the Jolt motion type of its record's motion. The record takes the motion of each step at the start of
+            // that step (see FollowHullMotions).
             if (owner.HasPrimary)
                 Contract.Invariant(owner.World!.Bodies.GetMotionType(owner.Body) == ToMotionType(owner.Motion));
         }

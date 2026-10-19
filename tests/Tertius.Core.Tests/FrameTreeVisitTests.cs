@@ -22,8 +22,8 @@ public class FrameTreeVisitTests
     private static Double3 X(double x) => new(x, 0, 0);
 
     /// <summary>A frame owned by entity <paramref name="owner"/> under <paramref name="parent"/>, at <paramref name="x"/> on X.</summary>
-    private FrameHandle Frame(uint owner, FrameHandle parent, double x = 0, MotionDriver driver = MotionDriver.Static) =>
-        frames.Create(new Entity(owner, 1), parent, new DPose(X(x), DQuaternion.Identity), FrameBounds.Sphere(1e9f), driver);
+    private FrameHandle Frame(uint owner, FrameHandle parent, double x = 0) =>
+        frames.Create(new Entity(owner, 1), parent, new DPose(X(x), DQuaternion.Identity), FrameBounds.Sphere(1e9f));
 
     private struct LinksRecorder(List<FrameLinks> seen) : IFrameVisitor
     {
@@ -76,7 +76,8 @@ public class FrameTreeVisitTests
     private (FrameHandle Ground, FrameHandle Hull, FrameHandle Pod) HullInPod(double x = 50, double speed = 60)
     {
         FrameHandle ground = Frame(1, FrameHandle.Null);
-        FrameHandle hull = Frame(20, ground, x, MotionDriver.Physics);
+        FrameHandle hull = Frame(20, ground, x);
+        frames.SetHullMotion(hull, BodyMotion.Dynamic);
         frames.SetTreeLinearVelocity(hull, X(speed));
         var body = new NumericBody
         {
@@ -131,9 +132,9 @@ public class FrameTreeVisitTests
     [Fact]
     public void The_owner_view_of_a_frame_holds_its_parent_as_home_and_semantic_frame_its_pose_and_its_velocities()
     {
-        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, new DPose(X(5), Turned), FrameBounds.Sphere(1e9f), MotionDriver.Static);
+        FrameHandle root = frames.Create(new Entity(1, 1), FrameHandle.Null, new DPose(X(5), Turned), FrameBounds.Sphere(1e9f));
         var childPose = new DPose(new Double3(7, 8, 9), Turned);
-        FrameHandle child = frames.Create(new Entity(2, 1), root, childPose, FrameBounds.Sphere(50), MotionDriver.Physics);
+        FrameHandle child = frames.Create(new Entity(2, 1), root, childPose, FrameBounds.Sphere(50));
         frames.SetTreeLinearVelocity(child, new Double3(1, 2, 3));
         frames.SetAngularVelocity(child, new Vector3(0, 0.5f, 0));
 

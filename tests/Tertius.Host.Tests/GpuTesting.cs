@@ -90,7 +90,7 @@ public static class GpuTesting
     public static SceneInstance LitBox(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         scene.Add("space", space);
         MaterialId red = resources.CreateMaterial(MaterialDesc.Color(new Vector4(1, 0, 0, 1)));
         scene.Add("box", world.Spawn(new SpawnDesc { Frame = space, Render = Drawn(resources.CreateMesh(Primitives.Box(new Vector3(0.5f))), red) }));
@@ -112,7 +112,7 @@ public static class GpuTesting
     public static SceneInstance LitDrop(World world, IRenderResources resources)
     {
         var scene = new SceneInstance();
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
         scene.Add("ground", ground);
         scene.Add("floor", world.Spawn(new SpawnDesc
         {

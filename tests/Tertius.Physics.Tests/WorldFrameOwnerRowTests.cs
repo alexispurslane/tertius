@@ -34,7 +34,7 @@ public class WorldFrameOwnerRowTests
         // tick, so its place there has fine bits. The crates sit at other distances from their ships, so the bits differ.
         using World world = WorldTesting.NewWorld(out _, debugChecks: false,
             configure: o => o.NumericFrames = new NumericFrameOptions { NestDistance = 1 << 21 });
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e18f), MotionDriver.Static, GravityField.None));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e18f), GravityField.None));
         var ships = new List<FrameHandle>();
         for (int i = 0; i < 24; i++)
         {
@@ -45,7 +45,7 @@ public class WorldFrameOwnerRowTests
                 Pose = WorldTesting.At(x, 500 * i),
                 LinearVelocity = new Double3(Speed, 0, 0),
                 Body = ShipHull,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
             });
             ships.Add(world.GetOwnedFrame(ship));
             world.Spawn(new SpawnDesc

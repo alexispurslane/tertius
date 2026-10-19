@@ -39,7 +39,7 @@ public class InstantVelocityTests
 
     /// <summary>A root frame without gravity.</summary>
     private static FrameHandle Space(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
 
     /// <summary>
     /// Gives <paramref name="command"/> to the pilot and ticks once. The tick writes the command into the body's intent, so
@@ -277,7 +277,7 @@ public class InstantVelocityTests
         {
             Frame = space,
             Pose = roomPose,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         }));
         var start = new Double3(10, 0, 0);
         var velocity = new Double3(6, 1, 0);
@@ -333,7 +333,7 @@ public class InstantVelocityTests
         {
             Frame = ground,
             Pose = roomPose,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         }));
         // A group with a body that thrusts falls in a numeric frame from 50 m/s, and a free body only from 1,000 m/s. So the
         // ball carries a gentle thruster, which pushes it up along the vertical, about which the room is turned, so that the
@@ -386,7 +386,7 @@ public class InstantVelocityTests
             Pose = new DPose(start, DQuaternion.Identity),
             LinearVelocity = velocity,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
         }));
 
         double dt = world.DeltaTime;
@@ -404,14 +404,14 @@ public class InstantVelocityTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         var gravity = GravityField.Uniform(new Vector3(0, -9.81f, 0));
-        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static, gravity));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), gravity));
         Floor(world, ground);
         // A building with the same gravity, whose floor reaches past its bubble, so the walker has ground under it all the way.
         FrameHandle building = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = ground,
             Pose = At(0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static, gravity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10), gravity),
         }));
         world.Spawn(new SpawnDesc { Frame = building, Pose = At(0, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(15, 0.5f, 15)), BodyMotion.Static) });
         var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new Vector3(4, 0, 0)) };

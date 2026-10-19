@@ -27,7 +27,7 @@ public class UnitRotationTests
     public void EveryRotationOfABodyThatPhysicsReportsIsUnitLength()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
         var cube = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
         var ball = new BodyDesc(new SphereShapeDesc(0.5f), Mass: 10, LinearDamping: 0, AngularDamping: 0);
         Entity tumbling = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0), Body = cube, AngularVelocity = new Vector3(1.3f, 0.7f, -0.9f) });
@@ -49,7 +49,7 @@ public class UnitRotationTests
     public void EveryLocalPoseOfAShipFrameThatPhysicsReportsIsUnitLength()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
@@ -57,7 +57,7 @@ public class UnitRotationTests
             LinearVelocity = new Vector3(0, 7700, 0),
             AngularVelocity = new Vector3(0.0011f, 0.0007f, 0.0013f),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
 

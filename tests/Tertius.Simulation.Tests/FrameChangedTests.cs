@@ -19,8 +19,8 @@ public class FrameChangedTests
         PlainBody,
 
         /// <summary>
-        /// The owner of a frame whose bubble is a sphere of 10 m and whose driver is the physics driver. Its body is the
-        /// frame's hull, a sphere of 5 m in the frame's parent, and its row mirrors the frame.
+        /// The owner of a frame whose bubble is a sphere of 10 m. Its body is the frame's hull, a dynamic sphere of 5 m in the
+        /// frame's parent, and its row is filled from the frame tree.
         /// </summary>
         FrameOwner,
     }
@@ -34,7 +34,7 @@ public class FrameChangedTests
             Frame = frame,
             Pose = pose,
             Body = new BodyDesc(new SphereShapeDesc(5), Layer: BodyLayer.FrameHull),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(10)),
             Components = [log],
         },
     });

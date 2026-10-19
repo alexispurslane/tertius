@@ -73,11 +73,11 @@ public class CharacterOrbitHandOffTests
         var run = new Drift();
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults,
             configure: numericFrames ? null : options => options.NumericFrames = WithoutNumericFrames);
-        FrameHandle sun = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e13f), MotionDriver.Static, GravityField.Point(SunMu)));
+        FrameHandle sun = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e13f), GravityField.Point(SunMu)));
         run.Earth = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = sun,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), MotionDriver.Kepler, GravityField.Point(EarthMu)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), GravityField.Point(EarthMu)),
         }.OnKeplerOrbit(world, KeplerOrbit.Circular(1.496e11))));
         var hull = new BodyDesc(new BoxShapeDesc(new Vector3(10, 4, 30)), Mass: 1e5f, LinearDamping: 0, AngularDamping: 0, InteriorShape: new SphereShapeDesc(1));
         var cabin = new BoundingBox(new Vector3(-9.5f, -3.5f, -29.5f), new Vector3(9.5f, 3.5f, 29.5f));
@@ -87,7 +87,7 @@ public class CharacterOrbitHandOffTests
             Pose = new DPose(new Double3(OrbitRadius, 0, 0), ShipAttitude),
             LinearVelocity = new Vector3(0, 0, (float)Math.Sqrt(EarthMu / OrbitRadius)),
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics, GravityField.Uniform(new Vector3(0, -9.81f, 0), cabin)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), GravityField.Uniform(new Vector3(0, -9.81f, 0), cabin)),
         });
         run.Ship = world.GetOwnedFrame(shipOwner);
         var pilot = new Pilot();

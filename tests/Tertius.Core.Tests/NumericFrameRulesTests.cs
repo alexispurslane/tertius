@@ -627,7 +627,7 @@ public class NumericFrameRulesTests
 
     // ---- Kepler hulls and their orbit frames ----------------------------------------------------------------------
 
-    /// <summary>The hull of a frame whose Kepler driver moves it, at <paramref name="x"/> and flying at <paramref name="vx"/>.</summary>
+    /// <summary>The kinematic hull of a frame on a Kepler orbit, at <paramref name="x"/> and flying at <paramref name="vx"/>.</summary>
     private static NumericBody KeplerHull(double x, double vx, FrameHandle home = default, NumericMode homeMode = NumericMode.None) =>
         Body(x, vx, home: home) with { Fixed = true, Orbits = true, HomeMode = homeMode };
 

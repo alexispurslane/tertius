@@ -165,8 +165,8 @@ public class WorldSensorTests
     public void ASensorHearsTheTouchOfABodysGhostOnceAndNoSecondTouchWhenTheBodyFollowsIt()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
-        FrameHandle bubble = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10), MotionDriver.Static) }));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
+        FrameHandle bubble = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10)) }));
         var sensorLog = new CollisionLog();
         Entity sensor = world.Spawn(new SpawnDesc { Frame = space, Pose = At(12.3), Body = SensorBox(new Vector3(2.2f, 1, 1)), Components = [sensorLog] });
         var blockLog = new CollisionLog();

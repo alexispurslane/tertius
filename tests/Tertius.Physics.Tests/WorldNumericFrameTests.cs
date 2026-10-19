@@ -42,7 +42,7 @@ public class WorldNumericFrameTests
         InteriorShape: new SphereShapeDesc(0.05f));
 
     private static FrameHandle Earth(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
 
     private static bool InFallingFrame(World world, Entity entity) =>
         world.Frames.Numeric(world.PhysicsHomeOf(entity)) == NumericMode.Falling;
@@ -217,7 +217,7 @@ public class WorldNumericFrameTests
             Frame = ground,
             Pose = At(-20, 0, 3),
             Body = Cube(100) with { InteriorShape = new SphereShapeDesc(0.05f) },
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
         });
         FrameHandle ship = world.Frames.TryGetFrame(owner, out FrameHandle own) ? own : FrameHandle.Null;
 
@@ -262,7 +262,7 @@ public class WorldNumericFrameTests
             Frame = ground,
             Pose = At(-20, 0, 3),
             Body = Cube(100) with { InteriorShape = new SphereShapeDesc(0.05f) },
-            AsFrame = new FrameSpec(FrameBounds.Sphere(5), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
             Components = [frames],
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
@@ -314,7 +314,7 @@ public class WorldNumericFrameTests
             Pose = At(OrbitRadius),
             LinearVelocity = new Double3(0, 0, OrbitSpeed),
             Body = Hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         });
         world.Frames.TryGetFrame(owner, out FrameHandle ship).Should().BeTrue();
         Entity cargo = world.Spawn(new SpawnDesc { Frame = ship, Pose = At(1, 2, 3), Body = Crate });
@@ -333,6 +333,11 @@ public class WorldNumericFrameTests
             "the cargo moved with the ship");
     }
 
+    /// <summary>
+    /// The game parks a ship that falls in a numeric frame: in one tick its owner makes the hull static. The step of that
+    /// tick still moves the ship, and the frame stops at the next sync point, where its hull held still. A frame with a
+    /// static hull moves relative to its semantic parent, so the numeric update moves the hull into earth's own system.
+    /// </summary>
     [Fact]
     public void AShipInAFallingNumericFrameThatTheGameParksStopsWhereItIs()
     {
@@ -344,18 +349,19 @@ public class WorldNumericFrameTests
             Pose = At(OrbitRadius),
             LinearVelocity = new Double3(0, 0, OrbitSpeed),
             Body = Hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         });
         world.Frames.TryGetFrame(owner, out FrameHandle ship).Should().BeTrue();
         Tick(world, 2);
         InFallingFrame(world, owner).Should().BeTrue();
 
-        world.SetFrameDriver(ship, MotionDriver.Static);
+        world.SetMotionNextTick(owner, BodyMotion.Static);
+        world.Tick();
         DPose parked = world.PoseIn(owner, earth);
         Tick(world, 60);
 
         world.Errors.Should().BeEmpty();
-        world.Frames.TreeParent(ship).Should().Be(earth, "a frame that physics does not drive moves relative to its semantic parent");
+        world.Frames.TreeParent(ship).Should().Be(earth, "a frame with a static hull moves relative to its semantic parent");
         world.PhysicsHomeOf(owner).Should().Be(earth);
         (world.PoseIn(owner, earth).Position - parked.Position).Length.Should().BeLessThan(1e-6, "a parked ship does not fall");
         world.VelocityIn(owner, earth).Length.Should().BeLessThan(1e-6);
@@ -663,7 +669,7 @@ public class WorldNumericFrameTests
     }
 
     /// <summary>Space without gravity.</summary>
-    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+    private static FrameHandle Space(World world) => world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
 
     /// <summary>
     /// The hull of a ship of <see cref="StickingWall"/>: a ball of radius 10 cm and 1 kg, light beside a crate of 10 kg,
@@ -676,7 +682,7 @@ public class WorldNumericFrameTests
 
     /// <summary>
     /// A still wall 1 m thick and 10 m square, across the X axis at <paramref name="x"/> in <paramref name="space"/>: a
-    /// kinematic body at rest in a ship, a frame with the Physics driver, the hull <see cref="WallHull"/> and a bubble of
+    /// kinematic body at rest in a ship, a frame with the dynamic hull <see cref="WallHull"/> and a bubble of
     /// radius 2 m, on the edge of the bubble, so that it sticks out. The ship lies on the side of the wall away from the
     /// crates, whose side is <paramref name="cratesSide"/>: +1 for +X, -1 for -X, and its hull rests at its origin, 2 m
     /// behind the wall's center. A body that sticks out of a bubble has a ghost in the bubble's tree parent, the home of the
@@ -689,7 +695,7 @@ public class WorldNumericFrameTests
     {
         Entity hull = world.Spawn(new SpawnDesc
         {
-            Frame = space, Pose = At(x - 2 * cratesSide), Body = WallHull, AsFrame = new FrameSpec(FrameBounds.Sphere(2), MotionDriver.Physics),
+            Frame = space, Pose = At(x - 2 * cratesSide), Body = WallHull, AsFrame = new FrameSpec(FrameBounds.Sphere(2)),
         });
         Entity wall = world.Spawn(new SpawnDesc
         {

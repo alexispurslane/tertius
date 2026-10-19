@@ -105,7 +105,7 @@ public class SleepTests
     public void CargoAsleepOnADeckSlidesTowardTheSternWhenTheShipsThrustGrows(float newtonsPerTick)
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(10, 0.25f, 30)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
         var hull = new BodyDesc(new BoxShapeDesc(new Vector3(10, 3, 30)), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: deck);
         // The ship's engine pushes with this force along +Z in every tick. A pilot writes it in one tick and Jolt applies
@@ -117,7 +117,7 @@ public class SleepTests
             Frame = space,
             Pose = At(0),
             Body = hull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
             Components = [pilot],
         });
         FrameHandle ship = world.GetOwnedFrame(owner);

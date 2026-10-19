@@ -78,10 +78,10 @@ public sealed class DumpFileTests : IDisposable
         JsonElement ship = dump.GetProperty("frames")[1];
         ship.GetProperty("id").GetString().Should().Be("ship");
         ship.GetProperty("parent").GetString().Should().Be("space");
-        ship.GetProperty("driver").GetString().Should().Be("static");
+        ship.GetProperty("follows").GetString().Should().Be("static");
         JsonElement moon = dump.GetProperty("frames")[3];
         moon.GetProperty("id").GetString().Should().Be("moon");
-        moon.GetProperty("driver").GetString().Should().Be("kepler");
+        moon.GetProperty("follows").GetString().Should().Be("rails");
     }
 
     [Fact]

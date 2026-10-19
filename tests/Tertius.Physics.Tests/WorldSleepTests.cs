@@ -123,14 +123,14 @@ public class WorldSleepTests
     public void CargoThatFrictionCannotQuiteHoldSlidesTowardTheStern(float g, float thrust)
     {
         using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(10, 0.25f, 30)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
         var pilot = new Pilot();
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(10, 3, 30)), Mass: 1000, LinearDamping: 0, AngularDamping: 0, InteriorShape: deck),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(100), MotionDriver.Physics, GravityField.Uniform(new Vector3(0, -g, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100), GravityField.Uniform(new Vector3(0, -g, 0))),
             Components = [pilot],
         });
         FrameHandle ship = world.GetOwnedFrame(owner);
@@ -156,7 +156,7 @@ public class WorldSleepTests
     public void ABoxThatDriftsSlowlyWithoutGravityKeepsDrifting()
     {
         using World world = NewWorld(out _, debugChecks: false);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Entity box = world.Spawn(new SpawnDesc
         {
             Frame = space,

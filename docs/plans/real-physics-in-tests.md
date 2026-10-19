@@ -162,7 +162,7 @@ The Release halves of the tests run only in a Release build, and the documented 
    - A ship hand-off with ghosts.
    - A frame destroy with rehome.
    - A contact that becomes Collision events, with the point and the normal converted into each body's frame.
-   - The Kepler and physics drivers, and a driver change.
+   - A Kepler hull, a dynamic hull, and a change of motion with `SetMotion`.
    - The growth of a full system.
    - A change batch that partly fails.
    - A destroyed slot that a new entity reuses in the same batch.

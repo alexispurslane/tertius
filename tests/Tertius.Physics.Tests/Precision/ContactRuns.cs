@@ -10,7 +10,7 @@ namespace Tertius.Physics.Tests.Precision;
 /// What the four contact measurements of ticket ter-kugq share. Each measurement runs one scene at a set of common speeds
 /// V: every body gets the same extra velocity V along a direction d. A Galilean shift must not change physics, so each
 /// error is measured against the same scene at V = 0, shifted by V t, or against an analytic answer. Numeric frames are
-/// off, so Jolt holds every body in the system of one root semantic frame with the static driver, and every float
+/// off, so Jolt holds every body in the system of one root semantic frame, and every float
 /// velocity in Jolt holds the whole common velocity. A distance control runs the scene at V = 0, placed at the largest
 /// distance from the origin that the speed run reached, to separate the part of an error that comes from distance alone.
 /// </summary>
@@ -57,9 +57,9 @@ internal static class ContactRuns
         return new World(options, backend);
     }
 
-    /// <summary>The root frame that every scene runs in: the static driver, a uniform field of <paramref name="gravity"/> m/s², or none when it is zero.</summary>
+    /// <summary>The root frame that every scene runs in: a uniform field of <paramref name="gravity"/> m/s², or none when it is zero.</summary>
     public static FrameHandle Space(World world, Vector3 gravity) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(SpaceRadius), MotionDriver.Static,
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(SpaceRadius),
             gravity == Vector3.Zero ? default : GravityField.Uniform(gravity)));
 
     public static DPose At(Double3 position) => new(position, DQuaternion.Identity);

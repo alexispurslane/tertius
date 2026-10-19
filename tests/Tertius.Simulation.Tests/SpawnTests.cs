@@ -256,7 +256,7 @@ public class SpawnTests
                 {
                     Frame = self.Frame,
                     Pose = TestWorld.At(500),
-                    AsFrame = new FrameSpec(FrameBounds.Sphere(50), MotionDriver.Static),
+                    AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
                 });
             }
             else if (self.Tick == 1 && self.Snapshot.Frames.TryGetFrame(bay, out FrameHandle frame))

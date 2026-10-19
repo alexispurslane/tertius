@@ -48,7 +48,7 @@ public class SpatialIndexSubsystemTests
         }
 
         public FrameHandle NewFrame(FrameHandle parent) =>
-            Frames.Create(new Entity(nextOwnerSlot++, 1), parent, DPose.Identity, FrameBounds.Sphere(1e12f), MotionDriver.Static);
+            Frames.Create(new Entity(nextOwnerSlot++, 1), parent, DPose.Identity, FrameBounds.Sphere(1e12f));
 
         /// <summary>Makes an entity live at a position. The index does not know about it until <see cref="Settle"/>.</summary>
         public Entity Add(FrameHandle frame, Double3 position)

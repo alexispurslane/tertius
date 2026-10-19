@@ -48,7 +48,7 @@ public class WorldTickBenchmarks
     public void Setup()
     {
         world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = Entities + 1024 });
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static));
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
         Topic topic = Topics.Get("benchmarks.squad");
         var mesh = new RenderData { Mesh = new MeshId(0), Flags = RenderFlags.Visible, BoundingRadius = 0.5f };
         Entity previous = default;
@@ -108,7 +108,7 @@ public class KeplerFrameTickBenchmarks
     public void Setup()
     {
         world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = FrameCount + 1024 });
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
         for (int i = 0; i < FrameCount; i++)
         {
             double radius = 7e6 + i * 35e3;
@@ -120,7 +120,7 @@ public class KeplerFrameTickBenchmarks
                 Frame = root,
                 Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
                 LinearVelocity = velocity,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
                 Components = [new KeplerMotion { Orbit = orbit }],
             });
         }
@@ -173,7 +173,7 @@ public class MixedBodiesTickBenchmarks
     {
         var backend = new Tertius.Physics.JoltPhysicsBackend(new Tertius.Physics.JoltBackendOptions { WorkerThreads = 4 });
         world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = Bodies + Plain + KeplerFrames + 1024, DisposePhysics = true }, backend);
-        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), MotionDriver.Static, GravityField.Point(EarthMu)));
+        FrameHandle planet = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
         for (int i = 0; i < KeplerFrames; i++)
         {
             var orbit = KeplerOrbit.Circular(7e6 + i * 35e3, phase: i * 2.399963229728653);
@@ -183,7 +183,7 @@ public class MixedBodiesTickBenchmarks
                 Frame = planet,
                 Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
                 LinearVelocity = velocity,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(1), MotionDriver.Kepler),
+                AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
                 Components = [new KeplerMotion { Orbit = orbit }],
             });
         }
@@ -191,7 +191,7 @@ public class MixedBodiesTickBenchmarks
         {
             Frame = planet,
             Pose = new DPose(new Double3(0, 0, -2e6), DQuaternion.Identity),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(1000), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1000)),
         }));
         var mesh = new RenderData { Mesh = new MeshId(0), Flags = RenderFlags.Visible, BoundingRadius = 0.5f };
         var cube = new BodyDesc(new BoxShapeDesc(new System.Numerics.Vector3(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);

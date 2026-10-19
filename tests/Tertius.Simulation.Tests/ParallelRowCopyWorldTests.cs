@@ -81,7 +81,7 @@ public class ParallelRowCopyWorldTests
             DebugChecks = true,
         });
         world.Entities.ParallelCopyThreshold = 1;
-        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         var random = new Random(20261018);
         for (int i = 0; i < 120; i++)
             world.Spawn(new SpawnDesc

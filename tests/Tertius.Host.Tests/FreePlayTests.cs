@@ -90,7 +90,7 @@ public sealed class FreePlayTests : IDisposable
     private static readonly Scene InputProbeScene = new("input-probe", (world, _) =>
     {
         var scene = new SceneInstance();
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         scene.Add("space", space);
         Entity probe = world.Spawn(new SpawnDesc { Frame = space, Components = [new Probe()] });
         world.Subscribe(probe, Topics.Input);

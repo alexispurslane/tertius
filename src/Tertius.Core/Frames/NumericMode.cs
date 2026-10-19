@@ -27,7 +27,7 @@ internal enum NumericMode : byte
     Nesting = 3,
 
     /// <summary>
-    /// Follows the Kepler orbit of the one frame that it holds, its orbiter: the frame of a hull whose Kepler driver moves
+    /// Follows the Kepler orbit of the one frame that it holds, its orbiter: the frame of a kinematic hull whose rails move
     /// it fast or far in its semantic frame, so that the hull rests in this frame (see "Anchors", rule 3, in the doc). At
     /// each sync point, its place in its semantic frame is the orbiter's place on the orbit, and the orbiter hangs at its
     /// origin. Its velocity is the chord of the orbit over the step that ends then: the change of place over that step,

@@ -60,15 +60,15 @@ public class ContactTests
     public void ContactWithFrameInteriorNamesTheFrameOwner()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(5, 0.25f, 5)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
         var shipLog = new CollisionLog();
         Entity shipOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = DPose.Identity,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), InteriorShape: deck),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), BodyMotion.Static, InteriorShape: deck),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
             Components = [shipLog],
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
@@ -119,14 +119,14 @@ public class ContactTests
     public void DestroyingTheBodyOfAFrameOwnerEndsTheContactsOfItsInterior()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), MotionDriver.Static));
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         var deck = new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(5, 0.25f, 5)), new Pose(new Vector3(0, -2.25f, 0), Quaternion.Identity))]);
         Entity shipOwner = world.Spawn(new SpawnDesc
         {
             Frame = space,
             Pose = DPose.Identity,
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), InteriorShape: deck),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(30), MotionDriver.Static, GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 5)), BodyMotion.Static, InteriorShape: deck),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
         });
         var crateLog = new CollisionLog();
         Entity crate = world.Spawn(new SpawnDesc { Frame = world.GetOwnedFrame(shipOwner), Pose = At(0, -1.5), Body = BoxBody(0.5f), Components = [crateLog] });

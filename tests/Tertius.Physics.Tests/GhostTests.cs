@@ -21,11 +21,11 @@ public class GhostTests
         new(new BoxShapeDesc(new Vector3(half)), Mass: 1, Restitution: 0, LinearDamping: 0, AngularDamping: 0);
 
     private static FrameHandle Space(World world) =>
-        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f), MotionDriver.Static));
+        world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
 
     /// <summary>A frame without a body, as a child of <paramref name="parent"/>. Returns the entity that owns it.</summary>
     private static Entity BubbleOwner(World world, FrameHandle parent, DPose pose, float radius) =>
-        world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius), MotionDriver.Static) });
+        world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, AsFrame = new FrameSpec(FrameBounds.Sphere(radius)) });
 
     private static FrameHandle Bubble(World world, FrameHandle parent, DPose pose, float radius) =>
         world.GetOwnedFrame(BubbleOwner(world, parent, pose, radius));
@@ -206,7 +206,7 @@ public class GhostTests
             Frame = space,
             Pose = At(30),
             Body = new BodyDesc(wall, BodyMotion.Static, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Static),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         });
         FrameHandle station = world.GetOwnedFrame(stationOwner);
         // A ship next to it, at rest, whose bubble overlaps the station's.
@@ -215,7 +215,7 @@ public class GhostTests
             Frame = space,
             Pose = At(0),
             Body = new BodyDesc(new SphereShapeDesc(2), Mass: 1000, InteriorShape: new SphereShapeDesc(1)),
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), MotionDriver.Physics),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         // A crate in the ship flies at the station's wall. It stays in the ship until it leaves the ship's bubble,
