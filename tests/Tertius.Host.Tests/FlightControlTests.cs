@@ -174,3 +174,95 @@ public sealed class FlightControlTests : IDisposable
         }
     }
 }
+
+/// <summary>
+/// <see cref="AttitudeAutopilot.Facing"/>, the rotation that points a hull's nose along one direction and its roof along
+/// another. The nose is the rotated -Z, and the roof is the rotated +Y, as near to the given roof as it can be across the
+/// nose. The rotation comes from the rotation matrix of the hull's axes, which has four ways to take its quaternion, one
+/// for each of: a positive sum of the three diagonal entries, and the X, the Y or the Z entry being the largest of the
+/// three when that sum is not positive. Each case below names the way that it reaches.
+/// </summary>
+public sealed class AttitudeFacingTests
+{
+    // The unit axes of the hull before it turns: the nose is -Z and the roof is +Y.
+    private static readonly Double3 NoseAxis = -Double3.UnitZ;
+    private static readonly Double3 RoofAxis = Double3.UnitY;
+
+    /// <summary>
+    /// Each row is a nose (three numbers) and a roof (three numbers). The quarter turns and the half turns lie on the
+    /// axes, where two diagonal entries can tie at zero, and a tie does not count as larger. The slanted rows have
+    /// nose and roof that are neither unit length nor at a right angle. The three slanted rows of the last three ways
+    /// have their largest diagonal entry alone, by at least 0.4 over the next one, and every entry off the diagonal at
+    /// least 0.4 away from zero, so that each sign in their quaternion matters.
+    /// </summary>
+    [Theory]
+    // Positive sum of the diagonal entries.
+    [InlineData(0, 0, -1, 0, 1, 0)] // no turn
+    [InlineData(1, 0, 0, 0, 1, 0)] // a quarter turn about Y
+    [InlineData(-1, -2, -3, 1, 2, 0)] // slanted, the sum is 2.4
+    [InlineData(0, 0, -4, 0, 3, 2)] // the nose is already along -Z, and the roof is slanted toward it
+    [InlineData(0, 0, -1, 0, 1e-6, -1)] // the roof is almost along the nose, but 1e-6 of its length across it is enough
+    // The sum is not positive, and the X entry is the largest.
+    [InlineData(0, 0, 1, 0, -1, 0)] // a half turn about X
+    [InlineData(-3, -2, 2, 1, -3, 3)] // slanted, the diagonal is (0.00, -0.51, -0.49)
+    // The sum is not positive, and the Y entry is the largest.
+    [InlineData(0, 0, 1, 0, 1, 0)] // a half turn about Y
+    [InlineData(-2, -3, 2, -1, -3, 3)] // slanted, the diagonal is (-0.51, 0.00, -0.49)
+    // The sum is not positive, and the Z entry is the largest, or no entry is larger than both others: the last way.
+    [InlineData(0, 0, -1, 0, -1, 0)] // a half turn about Z
+    [InlineData(-2, -1, -1, 1, -3, -2)] // slanted, the diagonal is (-0.12, -0.71, 0.41)
+    [InlineData(1, 0, 0, 0, -1, 0)] // the diagonal is (0, -1, 0): X and Z tie at zero, so the Z way
+    [InlineData(0, -1, 0, 1, 0, 0)] // the diagonal is (0, 0, 0): all three tie, so the Z way
+    [InlineData(0, 1, 0, 0, 0, -1)] // the diagonal is (-1, 0, 0): Y and Z tie at zero, so the Z way
+    public void TheRotationTurnsItsNoseAxisAlongTheNoseAndItsRoofAxisAcrossTheNoseTowardTheRoof(
+        double noseX, double noseY, double noseZ, double roofX, double roofY, double roofZ)
+    {
+        Double3 nose = new(noseX, noseY, noseZ);
+        Double3 roof = new(roofX, roofY, roofZ);
+        Double3 expectedNose = nose.Normalized();
+        Double3 expectedRoof = (roof - expectedNose * Double3.Dot(roof, expectedNose)).Normalized();
+
+        DQuaternion facing = AttitudeAutopilot.Facing(nose, roof);
+
+        facing.IsUnit.Should().BeTrue($"{facing} is a rotation");
+        ShouldBeNear(facing.Rotate(NoseAxis), expectedNose, "the rotated nose axis");
+        ShouldBeNear(facing.Rotate(RoofAxis), expectedRoof, "the rotated roof axis");
+    }
+
+    /// <summary>A zero nose has no direction to point along, and a zero roof has no direction to turn toward.</summary>
+    [Theory]
+    [InlineData(0, 0, 0, 0, 1, 0)] // a zero nose
+    [InlineData(0, 0, -1, 0, 0, 0)] // a zero roof
+    [InlineData(0, 0, 0, 0, 0, 0)] // both
+    public void ANoseOrARoofOfZeroLengthIsRefused(
+        double noseX, double noseY, double noseZ, double roofX, double roofY, double roofZ)
+    {
+        Action facing = () => AttitudeAutopilot.Facing(new Double3(noseX, noseY, noseZ), new Double3(roofX, roofY, roofZ));
+
+        facing.Should().Throw<ArgumentException>().WithMessage("*need a direction each*");
+    }
+
+    /// <summary>
+    /// A roof along the nose, or against it, has no part across the nose, so it gives no turn about the nose. The test
+    /// sizes the part across the nose against the roof's own length, so a long roof refuses what a short roof accepts.
+    /// </summary>
+    [Theory]
+    [InlineData(0, 0, -1, 0, 0, -2)] // along the nose
+    [InlineData(0, 0, -1, 0, 0, 3)] // against the nose
+    [InlineData(1, 2, 3, 2, 4, 6)] // along a slanted nose
+    [InlineData(0, 0, -1, 0, 1e-10, -1)] // across the nose by 1e-10 of its length, which is too little
+    public void ARoofAlongTheNoseIsRefused(
+        double noseX, double noseY, double noseZ, double roofX, double roofY, double roofZ)
+    {
+        Action facing = () => AttitudeAutopilot.Facing(new Double3(noseX, noseY, noseZ), new Double3(roofX, roofY, roofZ));
+
+        facing.Should().Throw<ArgumentException>().WithMessage("*lies along the nose*");
+    }
+
+    private static void ShouldBeNear(Double3 actual, Double3 expected, string what)
+    {
+        actual.X.Should().BeApproximately(expected.X, 1e-9, $"X of {what} is {actual}, not {expected}");
+        actual.Y.Should().BeApproximately(expected.Y, 1e-9, $"Y of {what} is {actual}, not {expected}");
+        actual.Z.Should().BeApproximately(expected.Z, 1e-9, $"Z of {what} is {actual}, not {expected}");
+    }
+}
