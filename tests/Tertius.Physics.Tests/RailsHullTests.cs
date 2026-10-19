@@ -158,10 +158,11 @@ public class RailsHullTests
     /// for the system of space. A teleport without a sample then moves the hull 100 m, and it holds still there. Jolt's hull
     /// stands where its frame is at every sync point after the teleport: it keeps no velocity of the following frame. The step
     /// before the teleport has no sample either, so no rule that stops a hull after its last sample applies to the step of
-    /// the teleport. Before ter-zsku the following frame fell on without a sample, and jumped with the hull at the teleport.
+    /// the teleport. Before ter-zsku the following frame fell on without a sample, and the hull teleported in it and jumped
+    /// with it.
     /// </summary>
     [Fact]
-    public void AKinematicHullThatTeleportsWithoutASampleInItsFollowingFrameStaysWithItsFrame()
+    public void AKinematicHullThatLeavesItsStillFollowingFrameAndTeleportsWithoutASampleStaysWithItsFrame()
     {
         using World world = NewWorld(out JoltPhysicsBackend backend);
         FrameHandle space = Scenes.AsteroidSpace(world);
@@ -172,9 +173,9 @@ public class RailsHullTests
         Tick(world, 4);
         world.Frames.Numeric(world.Frames.TreeParent(frame)).Should().Be(NumericMode.Following, "the hull moves at 2 km/s");
 
-        // Tick 3 wrote the last sample, for step 4. Step 5 has none, and the teleport of tick 5 acts in step 6.
+        // Tick 3 wrote the last sample, for step 4. Steps 5 and 6 have none, and the teleport of tick 6 acts in step 7.
         world.RemoveComponent(owner, rails);
-        Tick(world, 1);
+        Tick(world, 2);
         DPose there = world.PoseIn(owner, space);
         world.VelocityIn(owner, space).Should().Be(Double3.Zero, "the following frame holds the hull still without a sample");
         world.Frames.TreeParent(frame).Should().Be(space, "the still hull is slow and near the origin, so it leaves its following frame");

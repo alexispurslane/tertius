@@ -659,17 +659,21 @@ public class RailsFollowTests
     /// A kinematic hull without a sample that a <see cref="Hopper"/> teleports up in every step in its following frame holds
     /// still at each teleport's pose (ticket ter-zsku): the step plan starts there and stays there, so the following frame
     /// jumps with the hull to that place, with no velocity, and the hull rests at its origin. Every read of the hull in space
-    /// gives no velocity, and the hull only rises. The hopper reads the pose now, which lags the teleport of the step in
-    /// flight, so the hull rises 1 m every second step. Before ter-zsku the following frame fell on after each jump, and the
-    /// read gave its instant velocity.
+    /// gives no velocity. The hopper reads the pose now, which lags the teleport of the step in flight, so each teleport lifts
+    /// the pose of two ticks before by 1 m, and nothing else moves the hull. The last sample moved the hull one step along its
+    /// orbit, so the poses of odd and even ticks stand in two columns 0.75 m apart, and each column only rises. Before
+    /// ter-zsku the following frame fell on after each jump, and the read gave its instant velocity.
     /// </summary>
     [Fact]
     public void AKinematicHullWithoutASampleThatTeleportsInItsFollowingFrameHoldsStillAtEachTeleportsPose()
     {
         using World world = NewWorld(out _);
         (FrameHandle space, Entity owner, FrameHandle followingFrame) = FarHullWhoseSamplesStop(world, new Hopper());
-        Tick(world, 2);
+        world.Tick();
+        DPose twoTicksBefore = world.PoseIn(owner, space);
+        world.Tick();
         DPose start = world.PoseIn(owner, space);
+        DPose oneTickBefore = start;
 
         for (int tick = 0; tick < 10; tick++)
         {
@@ -679,8 +683,9 @@ public class RailsFollowTests
             world.Frames.TreeLocalPose(world.GetOwnedFrame(owner)).Position.Should().Be(Double3.Zero, "the following frame jumped with the hull");
             pose.Position.Should().Be(world.Frames.TreeLocalPose(followingFrame).Position, "the hull rests at the following frame's origin");
             world.VelocityIn(owner, space).Should().Be(Double3.Zero, "the hull has no velocity in space at tick {0}", world.TickNumber);
-            (pose.Position - start.Position - new Double3(0, pose.Position.Y - start.Position.Y, 0)).Length
-                .Should().BeLessThan(1e-6, "the hull only rises at tick {0}", world.TickNumber);
+            (pose.Position - twoTicksBefore.Position - new Double3(0, 1, 0)).Length
+                .Should().BeLessThan(1e-6, "the hull only rose 1 m in the two steps before tick {0}", world.TickNumber);
+            (twoTicksBefore, oneTickBefore) = (oneTickBefore, pose);
         }
         (world.PoseIn(owner, space).Position.Y - start.Position.Y).Should().BeApproximately(5, 1e-6, "the hull rose 1 m every second step");
         world.Errors.Should().BeEmpty();
