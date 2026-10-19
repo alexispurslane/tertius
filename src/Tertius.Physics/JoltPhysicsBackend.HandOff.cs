@@ -748,10 +748,27 @@ public sealed partial class JoltPhysicsBackend
         }
     }
 
+    /// <summary>
+    /// Reports the state of the body of <paramref name="record"/> after the step. A plain kinematic body that a motion intent
+    /// aimed in the step, and that no hand-off moved, reports the step record of that motion intent (see
+    /// <see cref="TryAimedRecord"/>): the record's pose, exact in doubles with its rotation, where the snap put the body, and
+    /// the record's instant velocity at the end of the step, not Jolt's chord. As for every body, the linear velocity is
+    /// that of the centre of mass relative to the home, which a read adds to the home's velocity after the sync point (see
+    /// <see cref="FrameTree.HomeVelocityAfter"/>).
+    /// </summary>
     private void Report(FrameWorld world, BodyRecord record, PhysicsStepOutput output, bool track)
     {
         BodySnapshot s = ReadPrimary(record);
-        output.Bodies.Add(new BodyState(record.Entity, record.Frame, s.Pose, s.Linear, s.Angular));
+        if (TryAimedRecord(record, out MotionSample aimed))
+        {
+            Double3 center = s.CenterOfMass - s.Pose.Position;
+            Double3 linear = aimed.Velocity + Double3.Cross(aimed.AngularVelocity, center)
+                             - frames.HomeVelocityAfter(record.Frame, frames.SemanticOf(record.Frame), stepDt);
+            output.Bodies.Add(new BodyState(record.Entity, record.Frame, new DPose(s.Pose.Position, aimed.Pose.Rotation), linear.ToVector3(),
+                aimed.AngularVelocity.ToVector3()));
+        }
+        else
+            output.Bodies.Add(new BodyState(record.Entity, record.Frame, s.Pose, s.Linear, s.Angular));
         record.ReportedStep = stepIndex;
         if (track)
             world.ReportedNow.Add(record);

@@ -159,8 +159,9 @@ public class FrameTreeFollowedTests
     }
 
     /// <summary>
-    /// Physics moves a static hull only by a teleport, and leaves its motion intent alone, until every writer takes the rules
-    /// of one guard (docs/plans/rails-components.md, stage 6 of "Order of the work").
+    /// Physics moves a static hull only by a teleport. A static hull refuses every motion intent, so one in its intent comes
+    /// only from a bug, which physics ignores (docs/plans/rails-components.md, "The flow per kind of entity"), and the
+    /// record stays static.
     /// </summary>
     [Fact]
     public void TheRecordOfAStaticHullIsStaticWhateverItsMotionIntent()

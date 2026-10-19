@@ -52,13 +52,12 @@ public class ContactLifetimeTests
         /// A kinematic block that slides slowly, high above the far end of the floor, and touches nothing. It is always
         /// awake, so the system of the ground steps every tick, also while every other body sleeps.
         /// </summary>
-        public void KeepSteppingTheSystem() => World.Spawn(new SpawnDesc
+        public void KeepSteppingTheSystem() => World.Spawn(KinematicDrift.Drifting(new SpawnDesc
         {
             Frame = Frame,
             Pose = At(-40, 20),
-            LinearVelocity = new Vector3(0, 0, 0.1f),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic),
-        });
+        }, World, new Double3(0, 0, 0.1)));
 
         /// <summary>Adds a box of 1 m that rests on the floor, and ticks until it is asleep.</summary>
         public Entity SleepingBox(params IComponent[] components)

@@ -198,8 +198,8 @@ public class StateDumpTests
     /// The frame tree stores how each frame followed its owner beside the record of the step that ended (docs/plans/
     /// rails-components.md, "The follow kind"): a full sample is rails, an end pose kinematic, a dynamic hull physics, and a
     /// frame that held still static, and so is a frame whose owner wrote its transform in the same tick as a motion intent,
-    /// because the write wins for one tick. Until every writer takes the rules of the guard (stage 6 of "Order of the work"),
-    /// the owner of a root frame with a body is the one owner of a frame that takes an end pose.
+    /// because the write wins for one tick. The yard is the owner of a root frame, whose body is only the frame's static
+    /// interior, so it takes end poses as a frame without a hull does.
     /// </summary>
     [Fact]
     public void AStateDumpTellsHowEachFrameFollowedItsOwner()
@@ -214,7 +214,7 @@ public class StateDumpTests
         {
             AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Static),
-            Components = [new EachTick(self => self.Body.MoveKinematic(At(self.Tick)))],
+            Components = [new EachTick(self => self.MoveKinematic(At(self.Tick)))],
         }));
         scene.Add("moon", world.Spawn(new SpawnDesc
         {

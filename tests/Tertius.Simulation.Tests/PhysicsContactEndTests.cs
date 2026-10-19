@@ -125,14 +125,14 @@ public class PhysicsContactEndTests
             Body = WorldTesting.Ball(),
             Components = [firstLog],
         });
-        Entity second = test.World.Spawn(new SpawnDesc
+        // A kinematic body moves only by its motion intents, so the second ball drifts by end poses.
+        Entity second = test.World.Spawn(KinematicDrift.Drifting(new SpawnDesc
         {
             Frame = test.Root,
             Pose = TestWorld.At(flight.Pose.Position.X - 0.9, flight.Pose.Position.Y, flight.Pose.Position.Z),
-            LinearVelocity = flight.Velocity,
             Body = new BodyDesc(new SphereShapeDesc(0.5f), BodyMotion.Kinematic),
             Components = [secondLog],
-        });
+        }, test.World, flight.Velocity));
 
         test.Run(2);
 
@@ -142,7 +142,8 @@ public class PhysicsContactEndTests
         (contact.A, contact.B).Should().Be((first, second));
         firstStep.ContactsEnded.Should().Equal(new ContactEnded(first, second));
         firstLog.Seen.Select(s => s.Event.Type).Should().Equal(EventType<Collision>.Id, EventType<CollisionEnded>.Id);
-        secondLog.Seen.Select(s => s.Event.Type).Should().Equal(EventType<Collision>.Id, EventType<CollisionEnded>.Id);
+        // The drift of the second ball wants the tick, so its log sees the ticks too.
+        secondLog.Seen.Select(s => s.Event.Type).Where(type => type != EventType<Tick>.Id).Should().Equal(EventType<Collision>.Id, EventType<CollisionEnded>.Id);
         test.World.Errors.Should().BeEmpty();
     }
 

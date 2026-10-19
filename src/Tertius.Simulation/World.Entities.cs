@@ -190,6 +190,14 @@ public sealed partial class World
             BodyRole role = !ownsFrame ? BodyRole.OwnsNoFrame : desc.Frame.IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
             if (body.Problem(role) is { } problem)
                 throw new ArgumentException($"Physics cannot create this body: it {problem}.", nameof(desc));
+            // A kinematic body moves only by its motion intents and teleports. A kinematic hull keeps its spawn velocity as
+            // its frame's velocity, from which the numeric update gives a fast hull its following frame at spawn.
+            if (body.Motion == BodyMotion.Kinematic && !ownsFrame && (desc.LinearVelocity != Double3.Zero || desc.AngularVelocity != Vector3.Zero))
+            {
+                string velocity = desc.LinearVelocity != Double3.Zero ? $"the linear velocity {desc.LinearVelocity}" : $"the angular velocity {desc.AngularVelocity}";
+                throw new ArgumentException(
+                    $"A kinematic body that owns no frame moves only by its motion intents and teleports, so it cannot spawn with {velocity}.", nameof(desc));
+            }
             // Only the backend can tell that it cannot build some shapes, for example a convex hull whose points coincide.
             if (physics?.ShapeProblem(body.Shape) is { } shape)
                 throw new ArgumentException($"Physics cannot create this body: its shape {shape}.", nameof(desc));
@@ -239,33 +247,17 @@ public sealed partial class World
 
     /// <summary>
     /// The reason that the entity of <paramref name="desc"/> refuses its first motion intent (see
-    /// <see cref="SpawnDesc.FirstMove"/>), or null. It judges the case by the rules of the guard, through
-    /// <see cref="MotionIntent.ProblemFor"/>, with three facts of the description: whether it attaches the entity, the motion
-    /// of its body, which the body keeps in its first step, because a change of motion that the new entity writes in its
-    /// first tick acts in its second step, and whether the entity owns a root frame. Until every writer of a motion intent
-    /// takes those rules (docs/plans/rails-components.md, stage 6 of "Order of the work"), it also refuses what the writer
-    /// of the same case refuses, so that a first motion intent is never wider than an intent that the entity could write: a
-    /// full sample needs the owner of a frame, as <see cref="Self.MoveOnRails"/> does, and an end pose needs a body that is
-    /// no kinematic hull, as <see cref="BodyHandle.MoveKinematic"/> does. Last, it refuses a number that is not finite and
-    /// a zero rotation, as the writers do.
+    /// <see cref="SpawnDesc.FirstMove"/>), or null. It judges the case by the rules of the guard (see
+    /// <see cref="MotionIntentProblem"/>), through <see cref="MotionIntent.ProblemFor"/>, with three facts of the
+    /// description: whether it attaches the entity, the motion of its body, which the body keeps in its first step, because a
+    /// change of motion that the new entity writes in its first tick acts in its second step, and whether the entity owns a
+    /// root frame. Then it refuses a number that is not finite and a zero rotation, as the writers do.
     /// </summary>
     private static string? FirstMoveProblem(SpawnDesc desc)
     {
         MotionIntent move = desc.FirstMove;
-        bool ownsFrame = desc.AsFrame is not null;
-        if (move.ProblemFor(desc.Body?.Motion, attached: !desc.AttachTo.IsNull, ownsRootFrame: ownsFrame && desc.Frame.IsNull) is { } problem)
-            return problem;
-        switch (move)
-        {
-            case MotionSample when !ownsFrame:
-                return "owns no frame, so it cannot take a full sample: Self.MoveOnRails moves only the owner of a frame";
-            case EndPose when desc.Body is null:
-                return "has no body, so it cannot take an end pose: BodyHandle.MoveKinematic moves only a body";
-            case EndPose when ownsFrame && !desc.Frame.IsNull && desc.Body!.Motion == BodyMotion.Kinematic:
-                return "has a kinematic hull, so it cannot take an end pose: a kinematic hull moves only by Self.MoveOnRails and Teleport";
-            default:
-                return MotionIntentNumberProblem(move);
-        }
+        bool ownsRootFrame = desc.AsFrame is not null && desc.Frame.IsNull;
+        return move.ProblemFor(desc.Body?.Motion, attached: !desc.AttachTo.IsNull, ownsRootFrame) ?? MotionIntentNumberProblem(move);
     }
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);

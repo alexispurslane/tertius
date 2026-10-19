@@ -56,7 +56,7 @@ public class WorldIntentFrameTests
             if (steer)
                 self.Body.SteerTo(place);
             else
-                self.Body.MoveKinematic(place);
+                self.MoveKinematic(place);
         }
     }
 

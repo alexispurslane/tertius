@@ -1273,8 +1273,9 @@ public sealed partial class FrameTree
         }
         ref readonly PhysicsIntent intent = ref stepIntents[(int)slot];
         // The World converts every intent into its entity's frame at step 7b, the semantic parent of a frame that it owns,
-        // and only a dynamic hull hands off during a step.
-        Contract.Assert(intent.Frame == Parent(frame), $"The motion intent of {frame.Entity} is relative to {intent.Frame}, not to the parent {Parent(frame)} of its frame.");
+        // and only a dynamic hull hands off during a step. The assertion takes no message of its own, which a Debug build
+        // would build for every frame with a motion intent in every step.
+        Contract.Assert(intent.Frame == Parent(frame));
         return intent.StepRecord(LocalPose(frame), step, out record);
     }
 

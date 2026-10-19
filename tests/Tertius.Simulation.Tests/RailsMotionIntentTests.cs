@@ -57,20 +57,19 @@ public class RailsMotionIntentTests
     }
 
     /// <summary>
-    /// One field holds the motion intent of a step, so the last write of a tick wins whatever its case. Until every writer
-    /// takes the rules of one guard (docs/plans/rails-components.md, stage 6 of "Order of the work"), a dynamic body takes an
-    /// end pose and a steer target, and the owner of a root frame with a body an end pose and a full sample.
+    /// One field holds the motion intent of a step, so the last write of a tick wins whatever its case. The owner of a root
+    /// frame takes an end pose and a full sample, and a dynamic body takes a steer target.
     /// </summary>
     [Theory]
-    [InlineData("end pose", "steer target")]
-    [InlineData("steer target", "end pose")]
     [InlineData("end pose", "full sample")]
     [InlineData("full sample", "end pose")]
     [InlineData("full sample", "full sample")]
+    [InlineData("end pose", "end pose")]
+    [InlineData("steer target", "steer target")]
     public void TheLastMotionIntentOfATickWinsWhateverItsCase(string first, string last)
     {
         using var test = new TestWorld();
-        bool steers = first == "steer target" || last == "steer target";
+        bool steers = first == "steer target";
         Entity entity = test.World.Spawn(new SpawnDesc
         {
             Frame = steers ? test.Root : FrameHandle.Null,
@@ -202,20 +201,6 @@ public class RailsMotionIntentTests
         faults.Moves.Where(record => record.Entity == frame.Entity).Should().Equal(
             new MoveRecord(1, frame.Entity, test.Root, new MotionIntent(SampleOfTick(0))),
             new MoveRecord(2, frame.Entity, test.Root, new MotionIntent(SampleOfTick(1))));
-    }
-
-    // ---- Who can write a sample ---------------------------------------------------------------------------------
-
-    [Fact]
-    public void MoveOnRailsThrowsForAnEntityThatOwnsNoFrame()
-    {
-        using var test = new TestWorld();
-        Entity plain = test.SpawnWith(Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(SampleOfTick(0))));
-
-        test.Run(1);
-
-        test.World.Errors.Should().ContainSingle().Which.Should().Contain(plain.ToString()).And.Contain(nameof(InvalidOperationException))
-            .And.Contain("owns no frame");
     }
 
     // ---- What a sample must hold --------------------------------------------------------------------------------
@@ -474,7 +459,7 @@ public class RailsMotionIntentTests
         switch (Case(kind, x))
         {
             case EndPose end:
-                self.Body.MoveKinematic(end.Pose);
+                self.MoveKinematic(end.Pose);
                 break;
             case SteerTarget steer:
                 self.Body.SteerTo(steer.Pose);

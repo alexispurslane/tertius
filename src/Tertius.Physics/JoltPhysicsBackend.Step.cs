@@ -78,12 +78,21 @@ public sealed partial class JoltPhysicsBackend
                 SetCollision(record, intent.CollisionGroups, intent.CollisionMask);
             if (!record.HasPrimary)
                 continue;
+            // The guard of the writers, the drops of step 4 and the check of a spawn give a body only a motion intent whose
+            // case its motion in the step takes, so another comes only from a bug.
+            bool move = intent.Move.HasValue;
+            if (move && intent.Move.ProblemFor(record.IsCharacter ? BodyMotion.Character : record.Motion, attached: false, ownsRootFrame: false) is { } problem)
+            {
+                ReportBug($"Physics: the step gives {entity} the motion intent {intent.Move}, but it {problem}. " +
+                          "Only a bug gives it that motion intent, so the step ignores it.");
+                move = false;
+            }
             if (record.Character is not null)
                 ApplyCharacterIntent(record, intent);
             else if (record.IsCharacter)
                 ApplyRigidCharacterIntent(record, intent);
             else if (record.Motion != BodyMotion.Static)
-                ApplyBodyIntent(record, intent, intent.Flags, move: true);
+                ApplyBodyIntent(record, intent, intent.Flags, move);
             else if (record.IsHull && (intent.Flags & IntentFlags.Teleport) != 0)
                 TeleportStaticHull(record, intent.TeleportPose);
         }
@@ -201,12 +210,11 @@ public sealed partial class JoltPhysicsBackend
             bodies.SetAngularVelocity(id, AngularChord(record, intent.AngularVelocity));
             record.VelocitySetStep = stepIndex;
         }
-        if (move && intent.Move.HasValue)
+        if (move)
         {
             // One branch for every body that a motion intent moves, after the teleport, so that the stop rule of ApplyIntents
-            // never zeroes it first. Physics aims a kinematic body at the aim pose and puts it exactly there after the update
-            // (see SnapKinematicBodies), and steers a dynamic body to it, whatever the case, until every writer of a motion
-            // intent takes the rules of the guard (docs/plans/rails-components.md, stage 6 of "Order of the work"). A
+            // never zeroes it first. Physics aims a kinematic body at the end of its end pose or full sample and puts it
+            // exactly there after the update (see SnapKinematicBodies), and steers a dynamic body to its steer target. A
             // conversion between frames can leave the rotation off unit length by rounding.
             DPose aim = intent.Move.AimPose;
             DQuaternion rotation = aim.Rotation.Normalized();
@@ -215,6 +223,18 @@ public sealed partial class JoltPhysicsBackend
                 DPose target = KinematicTarget(record, aim.Position, rotation);
                 bodies.MoveKinematic(id, target.Position.ToJolt(), target.Rotation.ToJolt(), stepDt);
                 kinematicTargets.Add((record, target));
+                // The step record of a plain body starts where Jolt holds the body now, after the teleport, in the body's
+                // semantic frame, in which the intent is (see World.ConvertMovedIntents). The frame tree derives a hull's
+                // record (see PredictRecord).
+                if (!record.IsHull)
+                {
+                    FrameHandle semantic = frames.SemanticOf(record.Frame);
+                    Contract.Assert(intent.Frame == semantic);
+                    DPose start = ReadPrimary(record).Pose;
+                    var standing = new DPose(start.Position + frames.HomeOffset(record.Frame, semantic), start.Rotation);
+                    intent.StepRecord(standing, stepDt, out record.AimedRecord);
+                    record.AimedHome = record.Frame;
+                }
             }
             else
             {

@@ -21,11 +21,10 @@ public class KinematicEndPoseTests
 
     /// <summary>
     /// Moves its entity along a line at <see cref="Velocity"/> from <see cref="Start"/> at the time <paramref name="t0"/>: in
-    /// each tick it writes the pose at the end of the next step, as an end pose for a plain body and as a full sample for a
-    /// hull, which takes no end pose until every writer takes the rules of the guard (docs/plans/rails-components.md, stage 6
-    /// of "Order of the work").
+    /// each tick it writes the pose at the end of the next step, as an end pose, or with <paramref name="sample"/> as a full
+    /// sample.
     /// </summary>
-    private sealed class Line(double t0, bool hull) : IComponent
+    private sealed class Line(double t0, bool sample) : IComponent
     {
         public int Priority => 0;
 
@@ -34,19 +33,21 @@ public class KinematicEndPoseTests
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
             var end = new DPose(Place(self.TimeAt(self.Tick + 2), t0), DQuaternion.Identity);
-            if (hull)
+            if (sample)
                 self.MoveOnRails(new MotionSample(end, Velocity, Velocity, Double3.Zero, Double3.Zero, Double3.Zero));
             else
-                self.Body.MoveKinematic(end);
+                self.MoveKinematic(end);
         }
     }
 
     private static Double3 Place(double time, double t0) => Start + Velocity * (time - t0);
 
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void EveryKinematicBodyEndsItsStepExactlyOnItsEndPose(bool hull)
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void EveryKinematicBodyEndsItsStepExactlyOnItsEndPose(bool hull, bool sample)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
@@ -57,7 +58,7 @@ public class KinematicEndPoseTests
             Pose = new DPose(Start, DQuaternion.Identity),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Motion: BodyMotion.Kinematic),
             AsFrame = hull ? new FrameSpec(FrameBounds.Sphere(5)) : null,
-            Components = [new Line(t0, hull)],
+            Components = [new Line(t0, sample)],
         });
         Tick(world, 2);
 

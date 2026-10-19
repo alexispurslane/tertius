@@ -191,10 +191,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// Runs one physics step for every frame with awake bodies or characters: puts every frame hull where the frame tree
     /// says, which drops the hand-offs of the last step that the simulation refused and follows changes to the tree that no
     /// change batch announced, then gives each hull the motion that it has in this step (see
-    /// <see cref="FollowHullMotions"/>), then gives every character the form that the
-    /// gravity at it asks for, applies intents, aims the kinematic frame hulls at their samples, applies gravity, moves the characters in the
-    /// walking form, updates every system, then reports contacts, hands bodies between frames, updates ghosts and writes
-    /// body, character and frame states to <paramref name="output"/>.
+    /// <see cref="FollowHullMotions"/>), then gives every character the form that the gravity at it asks for, applies
+    /// intents, which aim each kinematic body at its end pose or full sample and steer each dynamic body to its steer target,
+    /// applies gravity, moves the characters in the walking form, updates every system, puts each aimed kinematic body
+    /// exactly on its aim, then reports contacts, hands bodies between frames, updates ghosts and writes body, character and
+    /// frame states to <paramref name="output"/>.
     /// </summary>
     /// <remarks>
     /// <para>Intents, in the entity's frame axes. The intent of a frame's owner acts on the frame's hull.</para>
@@ -205,9 +206,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <item>A velocity that SetVelocity, SetAngularVelocity, a teleport or a jump gives, like a velocity that a spawn
     /// gives, is an instant velocity: from the start of the step the body moves as it says, with Jolt's acceleration
     /// (docs/plans/spin-gravity.md, "The velocity convention").</item>
-    /// <item>An end pose or a steer target in <see cref="PhysicsIntent.Move"/> moves a kinematic body to its pose over one
-    /// step and stops it there unless the next step gives a new motion intent or velocity. A dynamic body gets the
-    /// velocities that would carry it there.</item>
+    /// <item>An end pose or a full sample in <see cref="PhysicsIntent.Move"/> moves a kinematic body to its pose over one
+    /// step, puts it exactly there, and stops it there unless the next step gives a new motion intent. A plain kinematic
+    /// body reports the step record of that motion intent, and a hand-off carries the record's instant velocity. A steer
+    /// target gives a dynamic body the velocities that would carry it there. Only a bug gives a body a case that its motion
+    /// refuses, which the step ignores and reports.</item>
     /// <item>Force, Torque, Impulse and AngularImpulse act on dynamic bodies, for this step only.</item>
     /// <item>SetCollision gives every body of the entity new collision groups and a new mask, before anything else moves,
     /// and they stay. It works for every entity with a body, a static body and the owner of a root frame too. A frame's
@@ -219,7 +222,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// not stand, in the air, on steep ground or weightless, in any frame and any gravity, keeps its momentum, and
     /// gravity changes it. (User) CharacterMove and Jump do not move it, but physics keeps the desired velocity, which
     /// applies once the character stands. Impulses and forces change a character's velocity by their mass.
-    /// A motion intent does nothing to a character.</item>
+    /// A character refuses every motion intent.</item>
     /// <item>A character has two forms (see <see cref="NextCharacterMotion"/>). Below the threshold it is weightless, and
     /// physics makes it a rigid body with its rotation locked, the rigid form, whose contacts Jolt solves as it solves
     /// those of any rigid body: it pushes a dynamic body as hard as its momentum says, takes the reaction, and slides on a
@@ -871,8 +874,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 };
             }
             // A frame with a kinematic hull or without a body hangs in its semantic parent, which its motion intent is
-            // relative to, unless it hangs at the origin of its orbit frame (see FrameTree).
-            Contract.Assert(frames.TreeParent(frame) == frames.Parent(frame), $"{frame} has a motion intent, but it hangs in {frames.TreeParent(frame)}.");
+            // relative to, unless it hangs at the origin of its orbit frame (see FrameTree). The assertion takes no message
+            // of its own, which a Debug build would build in every step.
+            Contract.Assert(frames.TreeParent(frame) == frames.Parent(frame));
             return move;
         }
         // A static hull, or a kinematic hull without a motion intent, that teleported in the step stands at the teleport's

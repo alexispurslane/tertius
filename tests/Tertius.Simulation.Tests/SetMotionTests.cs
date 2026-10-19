@@ -325,26 +325,64 @@ public class SetMotionTests
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.MoveOnRails(Sample);
     }
 
+    /// <summary>A component that writes the same end pose in every tick: the frame stands still 100 m along +X.</summary>
+    private sealed class HoldsByEndPoses : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.MoveKinematic(HoldsOnRails.Sample.Pose);
+    }
+
     /// <summary>
-    /// The rails component runs before the change in the same tick, so it writes a sample that no step may apply: a dynamic
-    /// hull follows no sample. The sample that the last step applied stays the record that the frame took.
+    /// The component runs before the change in the same tick, so it writes a motion intent that no step may apply: a dynamic
+    /// hull takes no end pose and no full sample. The motion intent that the last step applied stays the record that the
+    /// frame took.
     /// </summary>
-    [Fact]
-    public void AHullThatIsNotKinematicInTheNextStepDropsTheMotionIntentOfTheTick()
+    [Theory]
+    [InlineData("full sample")]
+    [InlineData("end pose")]
+    public void AHullThatIsNotKinematicInTheNextStepDropsTheMotionIntentOfTheTick(string write)
     {
         using var test = TestWorld.OnJolt(out _);
-        var rails = new HoldsOnRails();
-        FrameHandle station = SpawnHull(test, BodyMotion.Kinematic, ShipBody, rails);
+        IComponent writer = write == "full sample" ? new HoldsOnRails() : new HoldsByEndPoses();
+        FrameHandle station = SpawnHull(test, BodyMotion.Kinematic, ShipBody, writer);
         test.Run(2);
-        HasNextSample(test, station).Should().BeTrue("the rails component writes a sample in every tick");
+        test.World.Entities.NextStepIntent(station.Entity).Move.HasValue.Should().BeTrue("the component writes a motion intent in every tick");
 
-        test.World.SetMotionNextTick(station.Entity, BodyMotion.Dynamic, remove: rails);
+        test.World.SetMotionNextTick(station.Entity, BodyMotion.Dynamic, remove: writer);
         test.Run(1);
 
         test.World.NextStepHullMotion(station).Should().Be(BodyMotion.Dynamic);
         test.World.Entities.NextStepIntent(station.Entity).Move.HasValue.Should().BeFalse("the next step applies no motion intent to a dynamic hull");
-        test.World.Frames.LocalPose(station).Should().Be(HoldsOnRails.Sample.Pose, "the sample that the step of the tick applied moved the frame");
-        test.World.Frames.Followed(station).Should().Be(FollowKind.Rails);
+        test.World.Frames.LocalPose(station).Should().Be(HoldsOnRails.Sample.Pose, "the motion intent that the step of the tick applied moved the frame");
+        test.World.Frames.Followed(station).Should().Be(write == "full sample" ? FollowKind.Rails : FollowKind.Kinematic);
+        test.World.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A dynamic hull steers in a tick, and the same tick makes it kinematic or static. Only a dynamic body takes a steer
+    /// target, so step 4 drops it by the guard's rule, with the hull's motion in the next step.
+    /// </summary>
+    [Theory]
+    [InlineData(BodyMotion.Kinematic)]
+    [InlineData(BodyMotion.Static)]
+    public void AHullThatTurnsKinematicOrStaticInTheTickDropsItsSteerTarget(BodyMotion to)
+    {
+        using var test = TestWorld.OnJolt(out _);
+        FrameHandle ship = SpawnHull(test, BodyMotion.Dynamic, ShipBody);
+        test.Run(1);
+
+        Exception? refused = WriteInATick(test, ship.Entity, self =>
+        {
+            self.Body.SteerTo(TestWorld.At(103));
+            self.Body.SetMotion(to);
+        });
+
+        refused.Should().BeNull("the steer target came while the next step was to be dynamic");
+        test.World.NextStepHullMotion(ship).Should().Be(to);
+        test.World.Entities.NextStepIntent(ship.Entity).Move.HasValue.Should().BeFalse("the next step applies no steer target to a hull that is not dynamic");
         test.World.Errors.Should().BeEmpty();
     }
 

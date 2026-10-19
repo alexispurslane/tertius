@@ -541,12 +541,13 @@ public sealed partial class World
     /// as the collision rows take their groups from the same intents: the stored motion describes the last finished step.
     /// Then each owner that wrote a change in this tick, which the next step applies, gets its frame planned for that step
     /// (see <see cref="FrameTree.PlanHullMotion"/>), and its intent loses the requests that the hull refuses in a tick under
-    /// its motion in that step: a kinematic hull its velocities, an end pose and a steer target (see
-    /// <see cref="WritableMotionIntent"/>), because only its full samples and teleports tell its frame how to follow, and
-    /// any other hull a full sample, which only a kinematic hull follows (see <see cref="MoveOnRails"/>). Its forces and
-    /// impulses stay, because physics applies them only to a dynamic body. These drops follow the motion of the next step,
-    /// whatever the motion of the step that ended: the guards of the tick judge each write by the motion at its moment, and a
-    /// later change of the same tick can turn it.
+    /// its motion in that step: a motion intent whose case the guard refuses (see <see cref="MotionIntentProblem"/>), so an
+    /// end pose or a full sample of a hull that is not kinematic, and a steer target of a hull that is not dynamic, and the
+    /// velocities of a kinematic hull (see <see cref="WritableMotionIntent"/>), which moves only by its motion intents and
+    /// teleports. Its forces and impulses stay, because physics applies them only to a dynamic body. The motion intent that
+    /// the running step applies stays, because the frame follows it at the next sync point. These drops follow the motion of
+    /// the next step, whatever the motion of the step that ended: the guards of the tick judge each write by the motion at
+    /// its moment, and a later change of the same tick can turn it.
     /// </summary>
     private void ApplyMotionChanges()
     {
@@ -569,15 +570,11 @@ public sealed partial class World
             FrameHandle frame = entities.OwnedFrame(owner);
             Contract.Assert(!frame.IsNull && Frames.HullMotion(frame) is not null);
             Frames.PlanHullMotion(frame, intent.Motion);
-            bool sample = intent.Move.TryGetValue(out MotionSample _);
-            if (intent.Motion == BodyMotion.Kinematic)
-            {
-                intent.Flags &= ~(IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity);
-                if (!sample)
-                    intent.Move = default;
-            }
-            else if (sample)
+            // Before the swap, the guard reads the change that this intent holds as the hull's motion in the next step.
+            if (MotionIntentProblem(owner, intent.Move) is not null)
                 intent.Move = default;
+            if (intent.Motion == BodyMotion.Kinematic)
+                intent.Flags &= ~(IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity);
         }
     }
 

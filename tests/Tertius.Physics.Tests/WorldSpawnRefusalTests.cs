@@ -270,6 +270,59 @@ public class WorldSpawnRefusalTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A kinematic body moves only by its motion intents and teleports (docs/plans/rails-components.md, "The flow per kind
+    /// of entity"). So a spawn refuses a linear or angular velocity on a kinematic body that owns no frame, which would
+    /// otherwise drift at that velocity for good.
+    /// </summary>
+    [Theory]
+    [InlineData("linear velocity")]
+    [InlineData("angular velocity")]
+    public void SpawnRefusesAVelocityOnAKinematicBodyThatOwnsNoFrame(string word)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        int live = world.Stats.LiveEntities;
+
+        Action spawn = () => world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(0, 1),
+            LinearVelocity = word == "linear velocity" ? new Double3(1, 0, 0) : Double3.Zero,
+            AngularVelocity = word == "angular velocity" ? new Vector3(0, 1, 0) : Vector3.Zero,
+            Body = Cube() with { Motion = BodyMotion.Kinematic },
+        });
+
+        spawn.Should().Throw<ArgumentException>().WithMessage($"*kinematic*{word}*");
+        world.Stats.LiveEntities.Should().Be(live, "nothing changed");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A kinematic hull keeps its spawn velocity as the velocity of its frame until its first sync point, so the numeric
+    /// update can give a fast hull its following frame at spawn (docs/plans/rails-components.md, "The first motion intent of
+    /// a spawn").
+    /// </summary>
+    [Fact]
+    public void AKinematicHullKeepsItsSpawnVelocityAsItsFramesVelocity()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+
+        FrameHandle frame = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = At(0, 1),
+            LinearVelocity = new Double3(1, 0, 0),
+            AngularVelocity = new Vector3(0, 1, 0),
+            Body = Cube() with { Motion = BodyMotion.Kinematic },
+            AsFrame = new FrameSpec(FrameBounds.Sphere(2)),
+        }));
+
+        world.Frames.LinearVelocity(frame).Should().Be(new Double3(1, 0, 0));
+        world.Errors.Should().BeEmpty();
+    }
+
     /// <summary>The interior of a frame is a static body in the frame's own system, so it must be a shape that physics can build.</summary>
     [Theory]
     [InlineData("a sphere without a radius")]

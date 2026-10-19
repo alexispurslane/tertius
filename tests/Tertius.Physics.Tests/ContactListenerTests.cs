@@ -201,13 +201,12 @@ public class ContactAllocationTests
     {
         using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
         FrameHandle ground = Ground(world, 9.81f);
-        world.Spawn(new SpawnDesc
+        world.Spawn(KinematicDrift.Drifting(new SpawnDesc
         {
             Frame = ground,
             Pose = At(0, -0.5),
-            LinearVelocity = new Vector3(1, 0, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(60, 0.5f, 60)), BodyMotion.Kinematic),
-        });
+        }, world, new Double3(1, 0, 0)));
         for (int i = 0; i < Columns * Rows; i++)
         {
             double x = i % Columns - Columns / 2 - (i == 0 ? 0.01 : 0);
