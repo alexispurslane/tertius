@@ -893,6 +893,27 @@ internal sealed partial class EntityTable
     }
 
     /// <summary>
+    /// Puts the first motion intent of the new entity <paramref name="entity"/>, <paramref name="move"/>, relative to
+    /// <paramref name="frame"/>, into its front intent, and lists the entity in <see cref="IntentEntities"/>, so that the next
+    /// physics step applies it (see <see cref="SpawnDesc.FirstMove"/>). Step 6 of the sync point calls it after
+    /// <see cref="SwapIntents"/>, and a spawn outside a tick at the call, so the front intents are those of the next step
+    /// either way, and the entity's entry is empty, as for every entity outside the list. The next swap clears it. An end
+    /// pose or a steer target goes where the target of <c>BodyHandle.MoveKinematic</c> stands after the swap, which physics
+    /// aims a kinematic body at and steers a dynamic body to. The rotation must be unit length. A full sample goes into the
+    /// sample table instead (see <c>World.StoreFirstMove</c>).
+    /// </summary>
+    public void SetFirstMove(Entity entity, FrameHandle frame, in MotionIntent move)
+    {
+        uint slot = LiveSlot(entity);
+        Contract.Requires(!gameplayRunning && IsDefault(in frontIntent[slot]) && (flags[slot] & SlotFlags.IntentRegistered) == 0);
+        Contract.Requires(move is EndPose or SteerTarget);
+        DPose target = move switch { EndPose end => end.Pose, SteerTarget steer => steer.Pose, _ => default };
+        Contract.Requires(target.Rotation.IsUnit);
+        frontIntent[slot] = new PhysicsIntent { Frame = frame, Target = target, Flags = IntentFlags.KinematicTarget };
+        frontIntentEntities.Add(entity);
+    }
+
+    /// <summary>
     /// The intent written so far during this tick. Throws <see cref="StaleEntityException"/> for a stale handle.
     /// Worker-safe for the running entity.
     /// </summary>

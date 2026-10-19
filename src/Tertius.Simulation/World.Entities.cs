@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation;
 
@@ -34,8 +35,9 @@ public sealed partial class World
     /// <see cref="DPose.IsValid"/>), a velocity that is not finite, a body that physics cannot create (see
     /// <see cref="BodyDesc.Problem"/> and <see cref="IPhysicsBackend.ShapeProblem"/>, which checks a frame's hull as a body
     /// with the motion of its description), a gravity field that is not valid, or an attachment
-    /// parent that is not live or that owns a root frame. The World checks nothing about rails motion: a rails component
-    /// checks its own rules (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). An attached entity is live in
+    /// parent that is not live or that owns a root frame, or a first motion intent that the entity would refuse (see
+    /// <see cref="SpawnDesc.FirstMove"/>). The World checks nothing else about rails motion: a rails component checks its own
+    /// rules (see <see cref="KeplerMotion"/> and <see cref="SpinMotion"/>). An attached entity is live in
     /// the frame of its parent, whatever frame the description names (see <see cref="SpawnDesc.AttachTo"/>).
     /// </summary>
     public Entity Spawn(SpawnDesc desc)
@@ -201,6 +203,8 @@ public sealed partial class World
             if (!spec.Gravity.IsValid)
                 throw new ArgumentException("A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).", nameof(desc));
         }
+        if (FirstMoveProblem(desc) is { } firstMove)
+            throw new ArgumentException($"The new entity cannot take the first motion intent {desc.FirstMove}: it {firstMove}.", nameof(desc));
 
         IReadOnlyList<IComponent> source = desc.Components ?? [];
         var components = new IComponent[source.Count];
@@ -231,6 +235,43 @@ public sealed partial class World
         }
         Topic[] subscriptions = desc.Subscriptions is { Count: > 0 } subs ? [.. subs] : [];
         return new SpawnPlan(components, wants, subscriptions);
+    }
+
+    /// <summary>
+    /// The reason that the entity of <paramref name="desc"/> refuses its first motion intent (see
+    /// <see cref="SpawnDesc.FirstMove"/>), or null. It judges the case by the rules of the guard, through
+    /// <see cref="MotionIntent.ProblemFor"/>, with three facts of the description: whether it attaches the entity, the motion
+    /// of its body, which the body keeps in its first step, because a change of motion that the new entity writes in its
+    /// first tick acts in its second step, and whether the entity owns a root frame. Until every writer of a motion intent
+    /// takes those rules (docs/plans/rails-components.md, stage 6 of "Order of the work"), it also refuses what the writer
+    /// of the same case refuses, so that a first motion intent is never wider than an intent that the entity could write: a
+    /// full sample needs the owner of a frame, as <see cref="Self.MoveOnRails"/> does, and an end pose needs a body that is
+    /// no kinematic hull, as <see cref="BodyHandle.MoveKinematic"/> does. Last, it refuses a number that is not finite and
+    /// a zero rotation, as the writers do.
+    /// </summary>
+    private static string? FirstMoveProblem(SpawnDesc desc)
+    {
+        MotionIntent move = desc.FirstMove;
+        bool ownsFrame = desc.AsFrame is not null;
+        if (move.ProblemFor(desc.Body?.Motion, attached: !desc.AttachTo.IsNull, ownsRootFrame: ownsFrame && desc.Frame.IsNull) is { } problem)
+            return problem;
+        switch (move)
+        {
+            case MotionSample sample:
+                if (!ownsFrame)
+                    return "owns no frame, so it cannot take a full sample: Self.MoveOnRails moves only the owner of a frame";
+                return SampleProblem(sample);
+            case EndPose end:
+                if (desc.Body is not { } body)
+                    return "has no body, so it cannot take an end pose: BodyHandle.MoveKinematic moves only a body";
+                if (ownsFrame && !desc.Frame.IsNull && body.Motion == BodyMotion.Kinematic)
+                    return "has a kinematic hull, so it cannot take an end pose: a kinematic hull moves only by Self.MoveOnRails and Teleport";
+                return end.Pose.IsValid ? null : $"needs an end pose with a finite position and a finite rotation that is not zero, not {end.Pose}";
+            case SteerTarget steer:
+                return steer.Pose.IsValid ? null : $"needs a steer target with a finite position and a finite rotation that is not zero, not {steer.Pose}";
+            default:
+                return null;
+        }
     }
 
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
@@ -278,9 +319,10 @@ public sealed partial class World
             if (!frame.IsNull && desc.Body is { } hullBody)
                 Frames.SetHullMotion(own, hullBody.Motion);
             topics.AddFrame(own);
-            // Every new frame stands at the pose of its spawn description, with its velocities. A frame on rails holds still
-            // there for its first step, which runs before its components do, and the first sample of its rails component
-            // puts it on its rails (docs/plans/rails-components.md, "Other rules" in "The rails components").
+            // Every new frame stands at the pose of its spawn description, with its velocities. Its first step runs before its
+            // components do, so a frame on rails follows the first motion intent of its spawn in that step, or without one
+            // holds still there, and the first sample of its rails component puts it on its rails in the second step
+            // (docs/plans/rails-components.md, "The first motion intent of a spawn").
             Frames.SetTreeLinearVelocity(own, desc.LinearVelocity);
             Frames.SetAngularVelocity(own, desc.AngularVelocity);
             physicsChanges.FramesCreated.Add(own);
@@ -291,6 +333,8 @@ public sealed partial class World
         foreach (IComponent component in plan.Components)
             InitializeComponentType(component.GetType());
         entities.Activate(entity, row, desc.Render ?? new RenderData(), plan.Components, plan.Wants, desc.Body, own);
+        if (desc.FirstMove.HasValue)
+            StoreFirstMove(entity, own, frame, desc.FirstMove);
         if (desc.Body != null)
             physicsChanges.BodiesCreated.Add(new BodyCreate(entity, row.Frame, desc.Body, row.Pose, velocity, row.AngularVelocity));
 
@@ -298,6 +342,32 @@ public sealed partial class World
         topics.MoveMember(entity, row.Frame, out _);
         foreach (Topic topic in plan.Subscriptions)
             SubscribeEntity(entity, topic);
+    }
+
+    /// <summary>
+    /// Puts the first motion intent of the new entity <paramref name="entity"/>, <paramref name="move"/>, relative to
+    /// <paramref name="frame"/>, the frame of its spawn, with its rotation made unit length, where the next physics step
+    /// reads it (docs/plans/rails-components.md, "The first motion intent of a spawn"). It runs at step 6 of the sync point,
+    /// after the swap of step 4, for a spawn of the tick, and at the call of <see cref="Spawn(SpawnDesc)"/> outside a tick,
+    /// so either way the next step is the entity's first. Each case goes where the motion intent of its writer stands after
+    /// the swap: a full sample into the applied buffer of the sample table, as the sample of <see cref="Self.MoveOnRails"/>
+    /// for <paramref name="own"/>, the frame that the entity owns, and an end pose or a steer target into the entity's front
+    /// intent, as the target of <see cref="BodyHandle.MoveKinematic"/> (see <see cref="EntityTable.SetFirstMove"/>).
+    /// </summary>
+    private void StoreFirstMove(Entity entity, FrameHandle own, FrameHandle frame, in MotionIntent move)
+    {
+        switch (move)
+        {
+            case MotionSample sample:
+                Frames.Samples.WriteApplied(own, frame, sample with { Pose = sample.Pose.WithUnitRotation() });
+                break;
+            case EndPose end:
+                entities.SetFirstMove(entity, frame, new MotionIntent(new EndPose(end.Pose.WithUnitRotation())));
+                break;
+            case SteerTarget steer:
+                entities.SetFirstMove(entity, frame, new MotionIntent(new SteerTarget(steer.Pose.WithUnitRotation())));
+                break;
+        }
     }
 
     /// <summary>

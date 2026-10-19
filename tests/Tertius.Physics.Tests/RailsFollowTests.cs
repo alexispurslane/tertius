@@ -45,11 +45,11 @@ public class RailsFollowTests
     }.OnKeplerOrbit(world, orbit));
 
     /// <summary>The owner of a frame without a body on <paramref name="orbit"/> in <paramref name="space"/>, whose bubble has a radius of <paramref name="bubble"/> m.</summary>
-    private static Entity Bodyless(World world, FrameHandle space, KeplerOrbit orbit, float bubble = 5) => world.Spawn(new SpawnDesc
+    private static Entity Bodyless(World world, FrameHandle space, KeplerOrbit orbit, float bubble = 5, bool firstMove = false) => world.Spawn(new SpawnDesc
     {
         Frame = space,
         AsFrame = new FrameSpec(FrameBounds.Sphere(bubble)),
-    }.OnKeplerOrbit(world, orbit));
+    }.OnKeplerOrbit(world, orbit, firstMove));
 
     private static Entity Owner(World world, FrameHandle space, KeplerOrbit orbit, bool withBody) =>
         withBody ? Hull(world, space, orbit) : Bodyless(world, space, orbit);
@@ -175,10 +175,8 @@ public class RailsFollowTests
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        FrameHandle frame = world.GetOwnedFrame(Bodyless(world, space, FastStill));
-        // The frame holds still for its first step, so space's gravity pulls on its contents then, and stands on its rails
-        // from the second sync point on. Then it falls freely.
-        Tick(world, 2);
+        // The frame's first motion intent puts it on its rails from its first step, so it falls freely from its spawn on.
+        FrameHandle frame = world.GetOwnedFrame(Bodyless(world, space, FastStill, firstMove: true));
         // A ball of 1 m whose center is 4.5 m from the frame's origin sticks out of the bubble of 5 m. The frame has no
         // gravity, falls freely and does not turn, so the ball rests in it, and its ghost in space moves with the frame's origin.
         Entity ball = world.Spawn(new SpawnDesc { Frame = frame, Pose = At(0, 4.5), Body = Ball(1) });

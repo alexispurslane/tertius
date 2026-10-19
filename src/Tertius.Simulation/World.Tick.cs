@@ -73,7 +73,14 @@ public sealed partial class World
     /// <summary>The number of sync points that <see cref="SyncTimestampTotal"/> sums.</summary>
     internal long SyncCount { get; private set; }
 
-    internal double TimeAt(long tick) => options.StartTime + tick * (double)DeltaTime;
+    /// <summary>
+    /// The simulation time at the start of tick <paramref name="tick"/>, in seconds: the same double that <see cref="Time"/>
+    /// holds during that tick, and the same read as <see cref="Self.TimeAt"/>. Use it for a time in another tick, because a
+    /// sum such as <c>Time + DeltaTime</c> can round to another double. Outside a tick, the step of the next tick ends at
+    /// <c>TimeAt(TickNumber + 1)</c>, which is the end of the first step of an entity spawned now (see
+    /// <see cref="SpawnDesc.FirstMove"/>).
+    /// </summary>
+    public double TimeAt(long tick) => options.StartTime + tick * (double)DeltaTime;
 
     private void PrepareTick()
     {
@@ -431,12 +438,23 @@ public sealed partial class World
     /// </summary>
     private static MotionSample CheckedSample(in MotionSample sample)
     {
+        if (SampleProblem(sample) is { } problem)
+            throw new ArgumentException($"A motion sample {problem}.", nameof(sample));
+        return sample with { Pose = sample.Pose.WithUnitRotation() };
+    }
+
+    /// <summary>
+    /// What is wrong with the numbers of <paramref name="sample"/>, or null: a field that is not a finite number, or a rotation
+    /// that is zero or not finite. The writers and the check of a spawn's first motion intent refuse such a sample.
+    /// </summary>
+    private static string? SampleProblem(in MotionSample sample)
+    {
         if (!IsFinite(sample.Pose.Position) || !IsFinite(sample.ChordVelocity) || !IsFinite(sample.Velocity) || !IsFinite(sample.Acceleration)
             || !IsFinite(sample.AngularVelocity) || !IsFinite(sample.AngularAcceleration))
-            throw new ArgumentException($"A motion sample needs fields that are finite numbers, not {sample}.", nameof(sample));
+            return $"needs fields that are finite numbers, not {sample}";
         double rotationSize = sample.Pose.Rotation.LengthSquared;
         if (!(rotationSize > 0) || !double.IsFinite(rotationSize))
-            throw new ArgumentException($"A motion sample needs a finite rotation that is not zero, not {sample.Pose.Rotation}.", nameof(sample));
-        return sample with { Pose = sample.Pose.WithUnitRotation() };
+            return $"needs a finite rotation that is not zero, not {sample.Pose.Rotation}";
+        return null;
     }
 }

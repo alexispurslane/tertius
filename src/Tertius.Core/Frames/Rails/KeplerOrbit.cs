@@ -134,9 +134,8 @@ public record struct KeplerOrbit(
     /// the pose, the instant velocity and the angular velocity, which equal <see cref="StateAt"/>, <see cref="RotationAt"/>
     /// and <see cref="AngularVelocityAt"/> there to the last bit. The chord velocity is <see cref="Chord"/> of that state.
     /// The acceleration is the pull (<see cref="Acceleration"/>) where the step starts, the end place less the chord times
-    /// the step, and the angular acceleration is <see cref="AngularAccelerationAt"/> at the start of the step. The proper
-    /// acceleration is zero, because an orbit falls freely. Around a parent without G·M, the frame rests at the parent's
-    /// origin with no chord and no acceleration.
+    /// the step, and the angular acceleration is <see cref="AngularAccelerationAt"/> at the start of the step. Around a
+    /// parent without G·M, the frame rests at the parent's origin with no chord and no acceleration.
     /// </summary>
     public readonly MotionSample Sample(double mu, double stepEnd, double step)
     {

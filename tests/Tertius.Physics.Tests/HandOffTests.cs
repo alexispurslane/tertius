@@ -177,10 +177,7 @@ public class HandOffTests
             Frame = planet,
             Body = hull,
             AsFrame = new FrameSpec(FrameBounds.Sphere(25)),
-        }.OnKeplerOrbit(world, orbit)));
-        // The station holds still for its first step, so the planet's gravity pulls on its contents then, and stands on its
-        // rails from the second sync point on. The ball comes once the station falls freely on its orbit.
-        Tick(world, 2);
+        }.OnKeplerOrbit(world, orbit, firstMove: true)));
         // The ball drifts out along +Z at 1 m/s and leaves the bubble about 15.7 s later, near apoapsis.
         Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 0, 10), LinearVelocity = new Vector3(0, 0, 1), Body = BallBody(0.2f) });
 
@@ -230,9 +227,7 @@ public class HandOffTests
                 Frame = planet,
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(4)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1)),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(25)),
-            }.OnKeplerOrbit(world, orbit)));
-            // The ball comes once the station stands on its rails and falls freely, as in the test above.
-            Tick(world, 2);
+            }.OnKeplerOrbit(world, orbit, firstMove: true)));
             BodyDesc ballBody = BallBody(0.2f);
             Entity ball = world.Spawn(new SpawnDesc
             {
@@ -261,10 +256,7 @@ public class HandOffTests
         var without = Run(numericFrames: false);
         with.Home.Should().Be("Falling", "the ball falls in a frame of its own apart from the hull");
         without.Home.Should().Be("planet");
-        // Without numeric frames the ball moves at 734 m/s in earth's own system for the second after it leaves, and each
-        // step's pull of 2 m/s rounds in a float velocity whose step is 6e-5 m/s: up to about 2 mm in 60 steps, by the phase
-        // of the orbit at which the ball leaves.
-        (with.Position - without.Position).Length.Should().BeLessThan(3e-3);
+        (with.Position - without.Position).Length.Should().BeLessThan(1e-3);
         (with.Velocity - without.Velocity).Length.Should().BeLessThan(1e-3);
     }
 

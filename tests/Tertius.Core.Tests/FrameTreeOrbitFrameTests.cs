@@ -76,6 +76,7 @@ public class FrameTreeOrbitFrameTests
         }
         else
             frames.Follow(station, frames.Parent(station), sample, measured: null, Step);
+        frames.StoreNewProperAccelerations();
         return sample;
     }
 
@@ -264,6 +265,7 @@ public class FrameTreeOrbitFrameTests
         frames.Samples.MoveOn();
         frames.Samples.MoveOn();
         frames.Follow(station, earth, sample, measured: null, Step);
+        frames.StoreNewProperAccelerations();
 
         FrameHandle orbit = Update(Hull(station))[0].Home;
 
@@ -309,6 +311,7 @@ public class FrameTreeOrbitFrameTests
         Double3 offset = sample.Pose.Position - frames.TreeLocalPose(orbit).Position;
         Double3 change = sample.ChordVelocity - frames.LinearVelocity(orbit);
         frames.Follow(station, orbit, AtOrigin(sample) with { Pose = new DPose(offset, sample.Pose.Rotation) }, measured: null, Step);
+        frames.StoreNewProperAccelerations();
         changes.Clear();
 
         frames.JumpFollowingFrame(station, changes);

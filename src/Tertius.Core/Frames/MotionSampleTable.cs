@@ -72,6 +72,21 @@ internal sealed class MotionSampleTable
     }
 
     /// <summary>
+    /// Puts <paramref name="sample"/>, relative to <paramref name="relativeTo"/>, into the applied buffer as the sample of the
+    /// new frame <paramref name="frame"/>, so that the next physics step applies it: the first motion intent of a spawn, a full
+    /// sample (see <c>SpawnDesc.FirstMove</c>). Step 6 of the sync point stores it after <see cref="MoveOn"/>, and a spawn
+    /// outside a tick at the call, so the applied buffer holds the samples of the next step either way. The rotation must be
+    /// unit length, and the slot holds no sample of the frame yet, because the frame is new.
+    /// </summary>
+    internal void WriteApplied(FrameHandle frame, FrameHandle relativeTo, in MotionSample sample)
+    {
+        Contract.Requires(frames.IsAlive(frame) && sample.Pose.Rotation.IsUnit);
+        ref Row row = ref appliedRows[frame.Index];
+        Contract.Requires(row.Round != round - 1 || row.Frame != frame);
+        row = new Row(frame, relativeTo, sample, round - 1, FollowKind.Rails);
+    }
+
+    /// <summary>
     /// Step 2 of the sync point: puts the step record that <paramref name="frame"/> took, relative to
     /// <paramref name="relativeTo"/>, into the frame's slot of the applied buffer, unless the slot holds a sample of the frame
     /// already, which is then the record (see "One motion record per frame" in docs/plans/rails-components.md). So after

@@ -28,18 +28,35 @@ public class FrameProperAccelerationTests
             FrameBounds.Sphere(1e9f), field);
 
     [Fact]
-    public void AFrameAtRestInAFrameThatHoldsStillInAFieldFeelsThatFieldToo()
+    public void AFrameAtRestInAFrameThatHoldsStillInAFieldFeelsThatFieldOneSyncPointLater()
     {
         FrameHandle ground = Frame(FrameHandle.Null, field: GravityField.Uniform(new Vector3(0, -9.81f, 0)));
         FrameHandle cabin = Frame(ground, TestPose(0, 10, 0));
         FrameHandle crate = Frame(cabin, TestPose(1, 0, 0));
 
-        frames.HoldStill(cabin, Dt);
-        frames.HoldStill(crate, Dt);
+        HoldStillAndStore(cabin, crate);
 
         frames.ProperAcceleration(cabin).Should().Be(new Vector3(0, 9.81f, 0), "the cabin holds still against the ground's gravity");
+        frames.ProperAcceleration(crate).Should().Be(Vector3.Zero, "the rule read the cabin's value as stored before the pass");
+
+        HoldStillAndStore(cabin, crate);
+
         frames.ProperAcceleration(crate).Should().Be(new Vector3(0, 9.81f, 0),
             "the cabin has no field of its own, so the gravity at the crate's place is the cabin's proper acceleration reversed");
+    }
+
+    [Fact]
+    public void TheNewProperAccelerationsReachTheRowsOnlyWhenTheTreeStoresThem()
+    {
+        FrameHandle ground = Frame(FrameHandle.Null, field: GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+        FrameHandle cabin = Frame(ground, TestPose(0, 10, 0));
+
+        frames.HoldStill(cabin, Dt);
+        frames.ProperAcceleration(cabin).Should().Be(Vector3.Zero, "the pass of step 2 keeps each new value aside");
+
+        frames.StoreNewProperAccelerations();
+        frames.ProperAcceleration(cabin).Should().Be(new Vector3(0, 9.81f, 0));
+        frames.AssertInvariants();
     }
 
     [Fact]
@@ -52,7 +69,7 @@ public class FrameProperAccelerationTests
         frames.BeginNumericStep();
 
         frames.AdvanceNumericFrames(Dt);
-        frames.HoldStill(cabin, Dt);
+        HoldStillAndStore(cabin);
 
         frames.ProperAcceleration(cabin).Length().Should().BeLessThan(1e-6f,
             "the cabin moves with the falling frame, which accelerates by the gravity at its origin");
@@ -71,6 +88,7 @@ public class FrameProperAccelerationTests
         var record = new MotionSample(new DPose(end, DQuaternion.Identity), chord, chord, gravity + thrust, Double3.Zero, Double3.Zero);
 
         frames.Follow(ship, earth, record, measured: null, Dt);
+        frames.StoreNewProperAccelerations();
 
         Vector3 proper = frames.ProperAcceleration(ship);
         proper.X.Should().BeApproximately(0, 1e-9f);
@@ -87,8 +105,17 @@ public class FrameProperAccelerationTests
 
         frames.Follow(ship, ground, new MotionSample(DPose.Identity, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero),
             jolt, Dt);
+        frames.StoreNewProperAccelerations();
 
         frames.ProperAcceleration(ship).Should().Be(jolt);
+    }
+
+    /// <summary>What step 2 does for frames without a record: each holds still, then the tree stores their new values.</summary>
+    private void HoldStillAndStore(params FrameHandle[] stillFrames)
+    {
+        foreach (FrameHandle frame in stillFrames)
+            frames.HoldStill(frame, Dt);
+        frames.StoreNewProperAccelerations();
     }
 
     private static DPose TestPose(double x, double y, double z) => new(new Double3(x, y, z), DQuaternion.Identity);

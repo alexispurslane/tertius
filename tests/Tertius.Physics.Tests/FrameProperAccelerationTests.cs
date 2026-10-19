@@ -179,6 +179,83 @@ public class FrameProperAccelerationTests
         world.Errors.Should().BeEmpty();
     }
 
+    [Fact]
+    public void AFrameInAnAcceleratingFrameFeelsItsParentsProperAcceleration()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        var engine = new Thrust();
+        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(100)),
+            Components = [engine],
+        }));
+        FrameHandle turntable = world.GetOwnedFrame(SmallFrame(world, ship, At(10), body: null));
+        FrameHandle cart = world.GetOwnedFrame(SmallFrame(world, turntable, At(1), body: null));
+        // The fighter's hull, 0.5 m half high, stands on the hangar's floor, whose top is at y = 0 in the ship.
+        world.Spawn(new SpawnDesc { Frame = ship, Pose = At(-10, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 0.5f, 5)), BodyMotion.Static) });
+        FrameHandle fighter = world.GetOwnedFrame(SmallFrame(world, ship, At(-10, 0.5), HullBody(BodyMotion.Dynamic, 100)));
+        Tick(world, 3);
+        var thrust = new Vector3(0, 1.5f, 0);
+
+        // The engine starts in tick T: its sample acts in the step of the next tick, step N.
+        engine.Acceleration = thrust;
+        world.Tick();
+        world.Frames.ProperAcceleration(ship).Should().Be(Vector3.Zero, "the step of tick T applied the sample of the tick before");
+
+        world.Tick();
+        world.Frames.ProperAcceleration(ship).Should().Be(thrust, "step N carried the ship at 1.5 m/s² in free space");
+        world.Frames.ProperAcceleration(turntable).Should().Be(Vector3.Zero,
+            "during step N the ship's stored value was zero, so no gravity acted at the turntable's place");
+        ShouldBeNear(world.Frames.ProperAcceleration(fighter), Vector3.Zero, 1e-3f, "physics gave the fighter no gravity in step N");
+
+        world.Tick();
+        world.Frames.ProperAcceleration(turntable).Should().Be(thrust, "in step N + 1 the ship's value acted on everything in it");
+        ShouldBeNear(world.Frames.ProperAcceleration(fighter), thrust, 1e-2f, "the floor held the fighter against the gravity of step N + 1");
+        world.Frames.ProperAcceleration(cart).Should().Be(Vector3.Zero, "during step N + 1 the turntable's stored value was still zero");
+
+        world.Tick();
+        world.Frames.ProperAcceleration(cart).Should().Be(thrust, "a change moves one level down the chain in each step");
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ANewFrameTakesItsProperAccelerationByTheRuleAtItsFirstSyncPoint()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, G);
+        FrameHandle cabin = world.GetOwnedFrame(SpawnFrame(world, ground, At(0, 100), HullBody(BodyMotion.Static)));
+        // The ball's bottom hangs 1 m above the cabin's floor, the top of the static hull's shape inside the cabin, at y = 0.5.
+        Entity crate = world.Spawn(new SpawnDesc { Frame = cabin, Pose = At(0, 2), Body = Ball() });
+        world.Frames.ProperAcceleration(cabin).Should().Be(Vector3.Zero, "a new frame has no step record yet");
+
+        world.Tick();
+        world.VelocityInOwnFrame(crate).Should().Be(Vector3.Zero, "the cabin had zero proper acceleration during its first step");
+        ShouldBeNear(world.Frames.ProperAcceleration(cabin), Weight, 1e-6f, "the first step 2 gives the cabin the gravity at its place, reversed");
+
+        world.Tick();
+        ((double)world.VelocityInOwnFrame(crate).Y).Should().BeApproximately(-G * world.DeltaTime, 1e-4, "the crate falls from the second step on");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>A frame with a bubble of 1 m, so that nothing near it hands into it.</summary>
+    private static Entity SmallFrame(World world, FrameHandle parent, DPose pose, BodyDesc? body) =>
+        world.Spawn(new SpawnDesc { Frame = parent, Pose = pose, Body = body, AsFrame = new FrameSpec(FrameBounds.Sphere(1)) });
+
+    /// <summary>Writes in every tick a sample at the origin with no velocity and the acceleration <see cref="Acceleration"/>.</summary>
+    private sealed class Thrust : IComponent
+    {
+        public Vector3 Acceleration { get; set; }
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            self.MoveOnRails(new MotionSample(At(0), Double3.Zero, Double3.Zero, (Double3)Acceleration, Double3.Zero, Double3.Zero));
+    }
+
     /// <summary>
     /// Writes in every tick a sample at (0, 100, 0) with an acceleration of 2 m/s² along +Y, and after it, once
     /// <see cref="Write"/> is set, a write of the transform to the pose it was given, which wins for one tick.

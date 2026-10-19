@@ -44,6 +44,8 @@ namespace Tertius;
 /// semantic frame's own system, so no clock outlives its body's place in the input. Every thrust clock (see
 /// <see cref="NumericFrameRules.ThrustClock"/>) names a body of the last update that is not static, with a thrust time above
 /// zero and a quiet time from zero to below <see cref="NumericFrameOptions.ThrustWindow"/>.</item>
+/// <item>No new proper acceleration waits to be stored: step 2 derives them in its pass over the frames and stores them
+/// after the pass (see <see cref="StoreNewProperAccelerations"/>).</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -61,6 +63,9 @@ public sealed partial class FrameTree
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
     private Vector3[] properAcceleration = new Vector3[64];
+    // The proper accelerations that step 2 derived in its pass over the frames, by frame index, in the order of the pass,
+    // which StoreNewProperAccelerations writes into the rows after the pass. Empty outside step 2.
+    private readonly List<(int Id, Vector3 Value)> newProperAccelerations = new();
     // Numeric frames: the mode, and the acceleration that a falling frame keeps for the current step, relative to its
     // parent. A semantic frame has the mode None and no step acceleration.
     private NumericMode[] numeric = new NumericMode[64];
@@ -686,6 +691,8 @@ public sealed partial class FrameTree
                 Contract.Invariant(numericBodies[id] > 0 || holdsFrame[id]);
         }
         Contract.Invariant(NumericCount == numericFrames);
+        // Step 2 stores every proper acceleration that its pass derived before the sync point goes on.
+        Contract.Invariant(newProperAccelerations.Count == 0);
         foreach (NumericGhost ghost in anchorGhosts)
         {
             Contract.Invariant(TryGetFrame(ghost.Anchor, out FrameHandle hullFrame) && InOrbitFrame(hullFrame) && IsAlive(ghost.Frame));
@@ -751,11 +758,27 @@ public sealed partial class FrameTree
     /// acceleration minus the gravity that acts at its place. Zero for a frame in free fall, and the gravity at its place,
     /// reversed, for a frame that holds still, so a parked cabin's contents have weight. Step 2 of every sync point derives
     /// it from the frame's step record (see <see cref="Follow"/> and <see cref="HoldStill"/>), and takes a dynamic hull's
-    /// from physics, which measures it by the same rule. No gameplay writes it. For now a new frame reads zero until its
-    /// first sync point, a choice that is still open (docs/plans/rails-components.md, "Open: the proper acceleration of a
-    /// new frame").
+    /// from physics, which measures it by the same rule. No gameplay writes it. The rule reads the parent's value as stored
+    /// before step 2, so a change moves one level down a chain of frames in each step (see
+    /// <see cref="StoreNewProperAccelerations"/>). A new frame reads zero during its first step, and the rule's value from
+    /// the first step 2 after its spawn on (docs/plans/rails-components.md, "The proper acceleration of a new frame").
     /// </summary>
     public Vector3 ProperAcceleration(FrameHandle frame) => properAcceleration[Node(frame).Id];
+
+    /// <summary>
+    /// Step 2 of the sync point, once, after the pass in which every frame took its step record: writes the proper
+    /// acceleration that <see cref="Follow"/> or <see cref="HoldStill"/> derived for each frame into its row, in the order of
+    /// the pass, so that a frame that took two records takes the value of the last. Until then each frame keeps its value of
+    /// the step that ended, so the rule of every frame in the pass read its parent's value as the step found it, the value
+    /// that physics used for the parent's bodies during the step (docs/plans/rails-components.md, "Which proper acceleration
+    /// of the parent"). A frame that the pass skipped keeps its value.
+    /// </summary>
+    internal void StoreNewProperAccelerations()
+    {
+        foreach ((int id, Vector3 value) in newProperAccelerations)
+            properAcceleration[id] = value;
+        newProperAccelerations.Clear();
+    }
 
     /// <summary>The pose of <paramref name="of"/> in the space of <paramref name="to"/>, through their common ancestor.</summary>
     public DPose Relative(FrameHandle of, FrameHandle to) => poses.Relative(Node(of), Node(to));

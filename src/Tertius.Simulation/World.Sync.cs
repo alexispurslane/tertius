@@ -259,9 +259,9 @@ public sealed partial class World
     /// wins for one tick, and the next sample puts the frame back on its rails.</item>
     /// </list>
     /// Each frame takes the proper acceleration that its record gives, and a dynamic hull the one that physics measured
-    /// beside its record (see <see cref="FrameTree.ProperAcceleration"/>). A frame visits after its parent, so for now it
-    /// reads the value that its parent took in the same pass. Which value it reads is still open
-    /// (docs/plans/rails-components.md, "Open: which proper acceleration of the parent").
+    /// beside its record (see <see cref="FrameTree.ProperAcceleration"/>). The rule reads the parent's value as the step
+    /// found it, the value stored before step 2, so the tree keeps each new value aside in the pass and stores them all
+    /// after it (see <see cref="FrameTree.StoreNewProperAccelerations"/>).
     /// A frame without a record holds still in its tree parent, unless its owner's update was skipped: the output check
     /// skipped it in a Release build (see <see cref="SkipBrokenPhysicsUpdates"/>), or the owner has a hull and the step
     /// failed (<paramref name="stepFailed"/>), so that physics released no record and may have moved the hull or not. Then
@@ -275,6 +275,9 @@ public sealed partial class World
     {
         var follower = new OwnerFollower(this, stepFailed);
         Frames.VisitFrames(ref follower);
+        // Every frame derived its proper acceleration with its parent's value as the step found it, so the new values go
+        // into the rows only now.
+        Frames.StoreNewProperAccelerations();
 
         Profile.Lap(3);
         // A hull that teleported in the step left the origin of its orbit frame, toward its sample's place.

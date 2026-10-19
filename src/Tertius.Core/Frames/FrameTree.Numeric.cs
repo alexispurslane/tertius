@@ -58,7 +58,8 @@ public sealed partial class FrameTree
     /// frame with a hull hangs in a numeric frame (see the class summary). The frame takes the record's pose, its instant
     /// velocity, its angular velocity, narrowed to a float, and a proper acceleration: <paramref name="measured"/>, which
     /// physics measured for a dynamic hull, or else the value that the record gives by the rule of
-    /// <see cref="ProperAccelerationFrom"/>, after a step of <paramref name="step"/> seconds. Under a numeric parent the record's
+    /// <see cref="ProperAccelerationFrom"/>, after a step of <paramref name="step"/> seconds, which the frame's row takes only
+    /// at <see cref="StoreNewProperAccelerations"/>. Under a numeric parent the record's
     /// instant velocity is relative to the parent's frame velocity, the chord of the step, so that a read in the semantic
     /// parent gives the instant velocity (see <see cref="HomeInstantVelocityOverChord"/>). A frame at the origin of its orbit
     /// frame that takes a record with another place left that origin in the step, because its hull teleported:
@@ -73,7 +74,7 @@ public sealed partial class FrameTree
         LocalForWrite(node) = record.Pose;
         LinearVelocityForWrite(id) = record.Velocity;
         AngularVelocityForWrite(id) = record.AngularVelocity.ToVector3();
-        properAcceleration[id] = measured ?? ProperAccelerationFrom(frame, InSemanticParent(relativeTo, record), step);
+        newProperAccelerations.Add((id, measured ?? ProperAccelerationFrom(frame, InSemanticParent(relativeTo, record), step)));
     }
 
     /// <summary>
@@ -83,7 +84,7 @@ public sealed partial class FrameTree
     /// frame velocity (see <see cref="HomeInstantVelocityOverChord"/>), and in a semantic parent no velocity. Its proper
     /// acceleration follows from that rest by the rule of <see cref="ProperAccelerationFrom"/>: a frame that holds still in a
     /// gravity field feels that gravity reversed, so a parked cabin has weight, and one that holds still in a falling frame
-    /// falls freely with it.
+    /// falls freely with it. The row takes that value only at <see cref="StoreNewProperAccelerations"/>.
     /// </summary>
     internal void HoldStill(FrameHandle frame, double dt)
     {
@@ -92,7 +93,7 @@ public sealed partial class FrameTree
         LinearVelocityForWrite(id) = treeParent.IsNull ? Double3.Zero : HomeInstantVelocityOverChord(treeParent, SemanticOf(treeParent), dt);
         AngularVelocityForWrite(id) = Vector3.Zero;
         var rest = new MotionSample(TreeLocalPose(frame), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
-        properAcceleration[id] = ProperAccelerationFrom(frame, InSemanticParent(treeParent, rest), dt);
+        newProperAccelerations.Add((id, ProperAccelerationFrom(frame, InSemanticParent(treeParent, rest), dt)));
     }
 
     /// <summary>
@@ -101,7 +102,8 @@ public sealed partial class FrameTree
     /// a frame"): the frame's acceleration over the step minus the gravity that acts at its place where the step started,
     /// turned into the frame's own axes by its rotation at the end of the step, and narrowed once to a float. The gravity at
     /// its place is the semantic parent's field there minus the parent's own proper acceleration, as for a body at the
-    /// frame's origin (see <see cref="FieldOf"/>). No gravity acts at the place of a root frame. The place where the step
+    /// frame's origin (see <see cref="FieldOf"/>), with the parent's value as stored before step 2. No gravity acts at the
+    /// place of a root frame. The place where the step
     /// started is the record's place less its chord over the step, the same expression from which
     /// <see cref="KeplerOrbit.Sample"/> takes its acceleration, so a frame on a Kepler orbit in a parent that falls freely
     /// gets exactly zero.
