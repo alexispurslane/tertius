@@ -151,6 +151,40 @@ public class RenderSnapshotOutlineTests
             "only the cabin has a parent");
     }
 
+    /// <summary>
+    /// The camera sits 50 m along +Z from the origin of the test's root. A second root lies 1 km along +X from it under the
+    /// shared virtual root, turned a quarter turn about Y, and a buoy hangs 200 m along that root's -Z, with an ellipsoid
+    /// bubble. The quarter turn takes the root's -Z to the first root's -X, so the buoy sits at (800, 0, 0) in the first
+    /// root, and at (800, 0, -50) from the camera. Its axes are the second root's: a quarter turn about Y.
+    /// </summary>
+    [Fact]
+    public void AFrameOfAnotherTreeHasAnOutlinePlacedThroughTheSharedRoot()
+    {
+        using var test = new TestWorld();
+        FrameHandle other = test.World.GetOwnedFrame(test.World.Spawn(new SpawnDesc
+        {
+            Pose = new DPose(new Double3(1000, 0, 0), QuarterTurnAboutY),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5e5f)),
+        }));
+        test.World.Spawn(new SpawnDesc
+        {
+            Frame = other,
+            Pose = TestWorld.At(0, 0, -200),
+            AsFrame = new FrameSpec(new FrameBounds(new Vector3(30, 40, 50))),
+        });
+        test.World.Camera = test.SpawnCamera(test.Root, TestWorld.At(0, 0, 50));
+        test.World.ShowFrameOutlines = true;
+
+        test.Run(1);
+
+        FrameOutline outline = test.World.Latest().Outlines.Should().ContainSingle("the buoy is the one frame with a parent").Subject;
+        outline.TryGetValue(out SemanticOutline buoy).Should().BeTrue($"the buoy is a semantic frame, not {outline}");
+        (buoy.Center - new Vector3(800, 0, -50)).Length().Should().BeLessThan(1e-3f, $"the buoy is 800 m along +X and 50 m along -Z from the camera, not at {buoy.Center}");
+        Quaternion quarterTurn = Quaternion.CreateFromAxisAngle(Vector3.UnitY, MathF.PI / 2);
+        Math.Abs(Quaternion.Dot(buoy.Rotation, quarterTurn)).Should().BeApproximately(1, 1e-6f, $"the buoy has the second root's axes, not {buoy.Rotation}");
+        buoy.Radii.Should().Be(new Vector3(30, 40, 50));
+    }
+
     // ---- Numeric frames ------------------------------------------------------------------------------------------
 
     /// <summary>
@@ -162,16 +196,7 @@ public class RenderSnapshotOutlineTests
     public void AShipThatFallsFastGetsAFallingOutlineCentredOnItsFrameThatHoldsItsBubble()
     {
         using TestWorld test = OnJolt();
-        Entity hull = test.World.Spawn(new SpawnDesc
-        {
-            Frame = test.Root,
-            LinearVelocity = new Double3(FallingSpeed, 0, 0),
-            Body = ShipHull,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
-        });
-        FrameHandle ship = test.World.GetOwnedFrame(hull);
-        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
-        test.World.ShowFrameOutlines = true;
+        FrameHandle ship = ShipFallingFast(test);
 
         test.Run(2);
 
@@ -186,6 +211,70 @@ public class RenderSnapshotOutlineTests
         SemanticOutline shipOutline = Semantic(outlines).Should().ContainSingle().Subject;
         ((shipOutline.Center - outline.Center).Length() + 50).Should().BeLessThanOrEqualTo(outline.Radius + 1e-3f, "the sphere holds the bubble");
         test.World.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The ship of <see cref="ShipFallingFast"/>, with a crate at rest in the ship's frame, 49.5 m along its +Y. The crate's bounding sphere
+    /// of √0.75 m reaches out of the ship's bubble of 50 m. The ship's frame is semantic, so its outline sphere is its bubble,
+    /// and the crate does not grow the falling frame's sphere.
+    /// </summary>
+    [Fact]
+    public void ABodyThatReachesOutOfASemanticFramesBubbleDoesNotGrowTheNumericFrameAroundIt()
+    {
+        using TestWorld test = OnJolt();
+        FrameHandle ship = ShipFallingFast(test);
+        Entity crate = test.World.Spawn(new SpawnDesc { Frame = ship, Pose = TestWorld.At(0, 49.5), Body = CrateBody });
+
+        test.Run(2);
+
+        FrameHandle home = test.World.Frames.TreeParent(ship);
+        test.World.Frames.Numeric(home).Should().Be(NumericMode.Falling, "the ship is fast, so it falls in a numeric frame");
+        test.World.PhysicsHomeOf(crate).Should().Be(ship, "the crate rests in the ship's frame");
+        FallingOutline outline = Falling(test.World.Latest().Outlines).Should().ContainSingle().Subject;
+        double reach = test.World.Frames.TreeLocalPose(ship).Position.Length + 50;
+        outline.Radius.Should().BeApproximately((float)reach, 1e-3f, "the sphere reaches the far side of the ship's bubble, not of the crate");
+        test.World.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The ship of <see cref="ShipFallingFast"/>, with a cabin in the ship's frame, 45 m along its +Y, whose bubble of 20 m reaches 65 m from
+    /// the ship's origin, out of the ship's bubble of 50 m. The ship's frame is semantic, so its outline sphere is its bubble,
+    /// and the cabin does not grow the falling frame's sphere.
+    /// </summary>
+    [Fact]
+    public void AFrameThatReachesOutOfASemanticFramesBubbleDoesNotGrowTheNumericFrameAroundIt()
+    {
+        using TestWorld test = OnJolt();
+        FrameHandle ship = ShipFallingFast(test);
+        FrameHandle cabin = test.SpawnStaticFrame(TestWorld.At(0, 45), radius: 20, parent: ship);
+
+        test.Run(2);
+
+        FrameHandle home = test.World.Frames.TreeParent(ship);
+        test.World.Frames.Numeric(home).Should().Be(NumericMode.Falling, "the ship is fast, so it falls in a numeric frame");
+        test.World.Frames.TreeParent(cabin).Should().Be(ship, "the cabin hangs in the ship's frame");
+        FallingOutline outline = Falling(test.World.Latest().Outlines).Should().ContainSingle().Subject;
+        double reach = test.World.Frames.TreeLocalPose(ship).Position.Length + 50;
+        outline.Radius.Should().BeApproximately((float)reach, 1e-3f, "the sphere reaches the far side of the ship's bubble, not of the cabin's");
+        test.World.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A ship that coasts at 2,048 m/s through the test's root, which has no gravity, with a frame of its own whose bubble
+    /// has a radius of 50 m. The camera sits at the root's origin, and the outlines are on.
+    /// </summary>
+    private static FrameHandle ShipFallingFast(TestWorld test)
+    {
+        Entity hull = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            LinearVelocity = new Double3(FallingSpeed, 0, 0),
+            Body = ShipHull,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(50)),
+        });
+        test.World.Camera = test.SpawnCamera(test.Root, DPose.Identity);
+        test.World.ShowFrameOutlines = true;
+        return test.World.GetOwnedFrame(hull);
     }
 
     /// <summary>

@@ -310,7 +310,7 @@ A film costs what its expansion costs, so it has no measurement of its own. The 
 
 #### The model
 
-With outlines on, every capture and every window frame shows the outline of each frame in the camera's frame tree. A frame outline shows the region that the rule of its frame covers. Each kind of frame has one rule:
+With outlines on, every capture and every window frame shows the outline of each frame that has a parent, in every frame tree. The outlines follow the instances: a frame in another tree than the camera's is placed through the shared virtual root above every root frame, as its instances are. A frame outline shows the region that the rule of its frame covers. Each kind of frame has one rule:
 
 | Kind of frame | How the engine tells it | Outline | Case of `FrameOutline` |
 |---|---|---|---|
