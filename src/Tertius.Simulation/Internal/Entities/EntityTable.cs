@@ -1050,7 +1050,7 @@ internal sealed partial class EntityTable
                 ref PhysicsIntent front = ref frontIntent[slot];
                 if (!keep)
                 {
-                    front = new PhysicsIntent { Frame = front.Frame, Move = front.Move, Motion = front.Motion, Flags = front.Flags & IntentFlags.SetMotion };
+                    front.KeepOnlyMotion();
                     if (front.IsEmpty)
                     {
                         front = default;
