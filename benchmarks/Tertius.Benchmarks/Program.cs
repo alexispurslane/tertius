@@ -33,6 +33,12 @@ public static class Program
                 int.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture));
             return;
         }
+        // ter-fb3w: --edges <rounds> times the scenes of EdgeRemovalBenchmarks in turn, a tick of each per round.
+        if (args.Length == 2 && args[0] == "--edges")
+        {
+            EdgeRemovalBenchmarks.Interleaved(int.Parse(args[1], System.Globalization.CultureInfo.InvariantCulture));
+            return;
+        }
         if (args.Length == 4 && args[0] == "--sample")
         {
             SyncSampler.Run(args[1], double.Parse(args[2], System.Globalization.CultureInfo.InvariantCulture), args[3]);

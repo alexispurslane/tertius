@@ -103,36 +103,38 @@ public class PhysicsContactEndTests
     }
 
     /// <summary>
-    /// The first ball flies into the bubble of a frame in the step of tick 0 and overlaps the second ball, a kinematic one,
-    /// which is behind it and still outside the bubble. In that step Jolt finds the contact of the two balls, and then hands
-    /// the first ball off to the frame, where the second ball has no body. The first ball's ghost stays outside, but a ghost
-    /// is kinematic, and Jolt makes no contact between two kinematic bodies, so nothing carries the contact on. So the one
-    /// step sends the start of the contact and its end.
+    /// The first ball flies into the bubble of a frame in the step of tick 0, so fast that it ends the step 1 m inside the
+    /// bubble, and it overlaps the second ball, a dynamic one of the frame's parent, which it leaves behind 2.4 m outside
+    /// the bubble. In that step Jolt finds the contact of the two balls, and then hands the first ball off to the frame,
+    /// where the second ball has no body. A dynamic body reaches only the bubble with its ghosts, so the second ball has no
+    /// ghost in the frame, and the first ball does not stick out of the bubble, so it has no ghost in the parent. So
+    /// nothing carries the contact on, and the one step sends the start of the contact and its end. (Before ter-imi5 the
+    /// second ball was kinematic, and it now has a ghost in the frame, which carries the contact, because a kinematic body
+    /// reaches the frame's content.)
     /// </summary>
     [Fact]
     public void AContactThatStartsAndEndsInOneStepArrivesAsTheStartAndThenTheEnd()
     {
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        // The bubble's edge toward the balls lies at x = 400 m. At 180 m/s the first ball flies 3 m in a step.
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         var firstLog = new Recorder(Scene.Wants);
         var secondLog = new Recorder(Scene.Wants);
-        Scenes.Approach flight = Scenes.ApproachToBubble(test.World, station, tick: 0);
         Entity first = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            Pose = flight.Pose,
-            LinearVelocity = flight.Velocity,
+            Pose = TestWorld.At(398),
+            LinearVelocity = new Vector3(180, 0, 0),
             Body = WorldTesting.Ball(),
             Components = [firstLog],
         });
-        // A kinematic body moves only by its motion intents, so the second ball drifts by end poses.
-        Entity second = test.World.Spawn(KinematicDrift.Drifting(new SpawnDesc
+        Entity second = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            Pose = TestWorld.At(flight.Pose.Position.X - 0.9, flight.Pose.Position.Y, flight.Pose.Position.Z),
-            Body = new BodyDesc(new SphereShapeDesc(0.5f), BodyMotion.Kinematic),
+            Pose = TestWorld.At(397.1),
+            Body = WorldTesting.Ball(),
             Components = [secondLog],
-        }, test.World, flight.Velocity));
+        });
 
         test.Run(2);
 
@@ -142,8 +144,7 @@ public class PhysicsContactEndTests
         (contact.A, contact.B).Should().Be((first, second));
         firstStep.ContactsEnded.Should().Equal(new ContactEnded(first, second));
         firstLog.Seen.Select(s => s.Event.Type).Should().Equal(EventType<Collision>.Id, EventType<CollisionEnded>.Id);
-        // The drift of the second ball wants the tick, so its log sees the ticks too.
-        secondLog.Seen.Select(s => s.Event.Type).Where(type => type != EventType<Tick>.Id).Should().Equal(EventType<Collision>.Id, EventType<CollisionEnded>.Id);
+        secondLog.Seen.Select(s => s.Event.Type).Should().Equal(EventType<Collision>.Id, EventType<CollisionEnded>.Id);
         test.World.Errors.Should().BeEmpty();
     }
 

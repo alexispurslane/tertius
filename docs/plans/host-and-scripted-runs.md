@@ -16,7 +16,7 @@ Wire all modules into a running program, and let tests and agents drive it with 
 
 - A script is a JSON file of timed steps: events to post before a given tick, image captures and state dumps.
 - In a scripted run, ticks run in lock-step with the script, not with the wall clock. Rendering uses interpolation alpha 1, so every frame is deterministic.
-- A run writes PNG images and JSON state dumps. A state dump holds poses, frames, recent events and errors.
+- A run writes PNG images, or one video in a headless run with `--video`, and JSON state dumps. A state dump holds poses, frames, recent events and errors.
 - The command line is `dotnet run --project src/Tertius.Demo -- --script scripts/x.json --headless --out captures/x`.
 - xUnit tests call the same code, so an integration test is a script plus assertions.
 
@@ -37,7 +37,7 @@ A scene is a C# function that fills a new `World` and gives scene ids to some of
 }
 ```
 
-- The steps run in file order. Only a `run` step advances time. (User) This is the shape of the editor scripts in the editor design.
+- The steps run in file order. Only a `run` step and a `film` step advance time. (User) This is the shape of the editor scripts in the editor design. A `film` step advances time because it is a series of runs and captures (see "Captures and the camera").
 - A `run` step runs `ticks` ticks, at least 1.
 - A `post` step calls `World.Post` at once. The event joins the routing at the end of the next tick, and its recipients handle it during the tick after that.
 - A `dump` step writes the state of the world to `<out>/<name>.json`. A dump name follows the grammar of a scene id, and two dumps cannot have one name.
@@ -45,6 +45,7 @@ A scene is a C# function that fills a new `World` and gives scene ids to some of
 - `to` is a union with `kind`: `{"kind": "entity", "id": "box"}`, `{"kind": "topic", "name": "input"}`, `{"kind": "frame", "id": "ship"}` (every entity in the frame that the entity `ship` owns), or `{"kind": "broadcast"}`.
 - `event` is the C# name of a payload type, such as `InputEvent`. The runner finds the type through reflection over the loaded assemblies. (User) Two payload types with one name make that name an error.
 - `payload` holds the fields of the payload by their camelCase names. A missing `payload` is the same as `{}`. The exception is `InputEvent`, a union with its own JSON form: `{"kind":"keyDown","code":87}` for a key or a mouse button (`keyDown`, `keyUp`, `mouseDown`, `mouseUp`), and `{"kind":"mouseMove","delta":[3,-4]}` for a move or a scroll (`mouseMove`, `scroll`). A kind has exactly its own member, so a missing kind or member, an unknown kind and a member of another kind are errors. The exception is a member of another kind with its zero value (`"delta":[0, 0]` on a key, `"code":0` on a move), which reading ignores, because the recorder wrote it into every input post before `InputEvent` was a union. A key for a read-only member is an unknown key, and a number out of the range of its field is an error.
+- In code, a step and a target are custom C# unions (ticket `ter-q8ge`): `ScriptStep` and `MessageTarget`, as the engine's `Target` is. A JSON converter for each reads and writes the `do` key and the `kind` key. The JSON above did not change. A `do` or `kind` that is missing or unknown is an error that lists the kinds. One that is given twice or is not a string is an error with its own short message. A `null` step is refused with its step number. A `null` target is refused when it is read, and a post step built in code with a target that holds no case is refused with its step number.
 - A target, or an entity field of a payload, must name a live entity.
 - A payload type must fit an event: no field that holds a reference, and at most 48 bytes. The runner checks this, because a type that reflection finds passed no compiler check.
 - The JSON follows the conventions of the content formats design: camelCase keys and enum values, `[x, y, z]` vectors, `[x, y, z, w]` quaternions, scene ids for entities, no comments, and an unknown key is an error.
@@ -66,12 +67,15 @@ Ticket `ter-1i4z` added these. The user chose each point marked (User).
 }
 ```
 
-- A `capture` step renders the current state with the headless renderer and writes `<out>/<name>.png`. A capture name follows the grammar of a scene id, and two captures cannot have one name.
+- A `capture` step renders the current state with the headless renderer and gives the image to the run's capture target by its name. With the PNG target, the default, it writes `<out>/<name>.png`. With `--video` (ticket `ter-mln3`, see "Command line"), the image is the next frame of one video. A capture name follows the grammar of a scene id, and two captures cannot have one name.
 - `window` sets the image size in pixels, 1 to 16384 on each side. Without it, the size is 1280 by 720.
 - A `camera` step makes a live entity the camera of the world, `World.Camera`. The camera is the entity's pose composed with the view offset of its render row. (User) The scene picks the camera at the start.
+- An `outlines` step, `{ "do": "outlines", "show": true }`, sets the view setting `World.ShowFrameOutlines` (ticket `ter-3j2b`, from docs/plans/blue-danube-demo.md, change 3). With `"show": true`, the render snapshot carries the outline of each frame that has a parent, and with `"show": false` it carries none. As after a `camera` step, the next capture shows the change. `show` is required, and the step needs no camera and no renderer.
 - A scripted run renders with interpolation alpha 1 and no impostor captures. So on one machine, the captures of a script are the same in every run.
-- A capture needs a live camera, a renderer and an output folder. The runner checks all three before the first tick. If a component destroys the camera during the run, the run stops at the next capture or camera step. The error names the step and the tick.
-- The command makes a headless renderer only for a script that has a capture step. So a script with dumps only runs with no GPU.
+- A `film` step, `{ "do": "film", "name": "climb", "frames": 18000, "every": 2 }`, captures every Nth tick (ticket `ter-bgk5`, from docs/plans/blue-danube-demo.md, change 2). It is the same as `frames` repetitions of a `run` step of `every` ticks followed by a `capture`, so it runs frames × every ticks, and its first capture comes after its first `every` ticks. Frame k, counted from 0, is the capture `<name>-<k>`, with k in six digits, so the PNG target writes `climb-000000.png`, `climb-000001.png`. `frames` is 1 to 1,000,000, `every` is at least 1, and all three keys are required. The name follows the grammar of a scene id and has at most 57 characters, so that each frame name is a scene id of at most 64.
+- The frames of a film count as captures, so no two films have one name, and no capture has the name of a frame of a film, such as `climb-000002` beside a film `climb` of 3 frames or more. The error names both steps. A dump can have the name of a frame, because their files differ.
+- A capture needs a live camera and a renderer, and so does a film. The runner checks both before the first tick. The capture target says where the images go, and a PNG target cannot exist without its folder, so the runner has no check for a folder. If a component destroys the camera during the run, the run stops at the next capture, frame of a film or camera step. The error names the step, the frame of a film and the tick, and the images before it stay.
+- The command makes a headless renderer only for a script that has a capture or film step. So a script with dumps only runs with no GPU.
 - A scene gets the resource half of the renderer, `IRenderResources`, to make its meshes and materials. A run with no renderer gives the scene `RenderResources.None`, whose meshes are `MeshId.None`. The scene makes the same entities either way.
 - A dump names the camera in `camera`.
 - The window comes with input in ticket `ter-mu7k`. (User) It plays a script at real time, 60 ticks a second, and `--speed` changes the rate. When the script ends, the window closes.
@@ -90,7 +94,7 @@ dotnet run --project src/Tertius.Demo -- --scene orbit --record sessions/today.j
 - Separate threads do the work, as in "Threads and the tick" of ARCHITECTURE.md. (User) The main thread runs the window and its input. The simulation thread runs the ticks and the script. The render thread draws the latest render snapshot. The gameplay workers and Jolt run as during any tick.
 - The simulation thread runs 60 ticks a second of wall-clock time, times `--speed`. A tick late by less than one tick runs at once. A tick that starts later than that, after a stall such as a capture, moves the schedule by its delay. So the ticks after a stall keep their pace, instead of rushing to catch up, and no tick is ever skipped.
 - The render thread interpolates between the last two ticks. The interpolation alpha is the wall-clock time since the newest snapshot, divided by the wall-clock length of one tick.
-- A capture step works in the window. (User) The simulation thread waits while the render thread draws that tick with alpha 1 and saves it. The image has the size of the window's framebuffer. On a Retina display, that is twice the size in the `window` key. On a screen that is smaller than the `window` key, macOS makes the window smaller, and the images are smaller too.
+- A capture step works in the window, and so do the frames of a film. (User) The simulation thread waits while the render thread draws that tick with alpha 1 and saves it. The image has the size of the window's framebuffer. On a Retina display, that is twice the size in the `window` key. On a screen that is smaller than the `window` key, macOS makes the window smaller, and the images are smaller too.
 - Keys and mouse movement become `InputEvent` messages to the `input` topic in free play. During a script, live input reaches no entity, so a script runs the same with or without a person at the keyboard. `InputRouter` holds these rules. The game never sees Esc or F1, and every key or button down that it sees gets its release: switching the fly camera on releases the keys and buttons that the game holds.
 - The main thread does not post input to the world. It queues each event, and the simulation thread posts the queued events between two ticks. See "Recording free play" for why.
 - In free play the window captures the cursor, so that the mouse can turn the game's view. (User) During a script it captures the cursor only while the fly camera is on. To reach other apps, use Cmd-Tab.
@@ -177,6 +181,7 @@ So an event that the record puts after `n` ticks is handled during the tick that
 - `pose` is the pose in the entity's own frame. `rootPose` is the pose in the root frame of its frame tree. (User) The owner of a root frame has no frame, so its `pose.frame` is null.
 - `frames` lists every frame in the dense order of the frame tree, which puts each parent before its children. Its `follows` says how the frame followed its owner at the dump's sync point, which is what moved it in the step that ended there: `rails` for a frame that took a motion sample that its owner wrote one tick before, `physics` for a frame whose hull was dynamic in that step, and `static` for every other frame. A change of a hull's motion in a tick acts from the next step, so it shows in the dump of the tick after. A new frame on rails holds still at its first sync point, so it shows `rails` from the dump of its second tick on.
 - `events` lists every event that the sync points routed since the previous dump, or since the start of the run. (User) Each event carries the tick count after the sync point that routed it. The order is by tick, then routing order.
+- The runner records the routed events of a tick only while a dump step lies ahead (docs/plans/blue-danube-demo.md, change 2). After the last dump step, or in a script with none, it records nothing, because no dump reads those records. So a long run with no dump keeps no events in memory.
 - `errors` is `World.Errors` at the time of the dump, oldest first.
 - `World.RoutedEvents` is the source of `events`: the events that the last sync point routed, in routing order. `Tick` and `Spawned` go straight into each entity's own event list, so they are never routed and never in a dump.
 - A number that JSON cannot hold, such as NaN, appears as a string, such as `"NaN"`. So a dump of a broken state still writes.
@@ -188,8 +193,11 @@ dotnet run --project src/Tertius.Demo -- --script scripts/drop-box.json --headle
 ```
 
 - The command builds the scene that the script names, in a new `World` on the Jolt backend, and runs the script.
-- It writes the path of each dump and each captured image to standard output. It writes each problem and the world's log to standard error.
+- It writes the path of each dump and each captured image, the frames of films included, to standard output, or the path of each dump and then the path of the video. It writes each problem and the world's log to standard error.
 - With `--headless`, the ticks run back to back and no window opens. Without it, a window opens (see "The window").
+- `--video <file.mkv>` sends every capture of a headless run into one video, and `--fps <rate>` sets its frame rate, a whole number from 1 to 240, 30 without the option (ticket `ter-mln3`, from docs/plans/blue-danube-demo.md, change 1). The dumps still go to `--out`. ffmpeg from the dev shell encodes the frames losslessly into a Matroska file, which the edit encodes again. With N ticks between frames, the video plays N × rate / 60 times faster than the simulation. For example: `dotnet run -c Release --project src/Tertius.Demo -- --script scripts/danube.json --headless --out runs/danube --video runs/danube/danube.mkv --fps 30`.
+- The command refuses with exit code 1: `--video` without `--headless`, because the window writes PNG files; `--fps` without `--video`, or outside 1 to 240; a `--video` file whose name does not end in `.mkv`; and `--video` for a script with no capture or film step.
+- If ffmpeg stops during a video run, or fails at its end, the command exits with code 2 and prints ffmpeg's exit code and its last lines of error output. A run that fails at a step exits with the code of that failure, and its video holds one frame for each capture before the failure. A script that fails before the first tick leaves no video.
 - With `--scene`, the command can also write your session as a script: `--scene <name> --record <file>`. See "Recording free play".
 - The exit codes are the codes of the `tertius` command line in the content packages design:
   - 0: the run finished, or the user closed its window.
@@ -197,7 +205,7 @@ dotnet run --project src/Tertius.Demo -- --script scripts/drop-box.json --headle
   - 2: a file cannot be read or written.
   - 3: the script cannot run, or it names an unknown scene.
   - 4: an internal error, which is a bug.
-  - 5: the renderer or the window cannot start, for example on a machine with no Vulkan driver.
+  - 5: a tool that the run needs cannot start: the renderer, the window or ffmpeg. Examples are a machine with no Vulkan driver, and a shell without ffmpeg.
 
 ## The vertical slice
 

@@ -3,7 +3,6 @@ using Silk.NET.Core.Contexts;
 using Silk.NET.Maths;
 using Silk.NET.Vulkan;
 using Silk.NET.Windowing;
-using StbImageWriteSharp;
 
 namespace Tertius.Rendering;
 
@@ -26,7 +25,9 @@ namespace Tertius.Rendering;
 /// <item>Lighting: one fullscreen pass into the HDR target.</item>
 /// <item>Transparent objects: forward-shaded, blended, back to front.</item>
 /// <item>Tone mapping into the swapchain image or the offscreen output.</item>
-/// <item>Capture readback, when requested.</item>
+/// <item>The overlay (<see cref="OutlinePass"/>): the frame outlines of the snapshot, blended over the tone-mapped image.</item>
+/// <item>Capture readback, when requested. After the GPU finishes the frame, <see cref="Render"/> hands the pixels to
+/// the capture's <see cref="ICaptureSink"/>.</item>
 /// </list>
 /// <para>Threading: the Create methods, <see cref="Resize"/> and <see cref="CaptureNextFrame"/> may be called from
 /// any thread. <see cref="Render"/> and <see cref="Dispose"/> belong to the render thread.</para>
@@ -62,7 +63,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
     private IWindow? window;
     private Action<Vector2D<int>>? onFramebufferResize;
     private GpuBuffer? captureBuffer;
-    private string? pendingCapture;
+    private ICaptureSink? pendingCapture;
     private long pendingResize = -1;
     private long frameNumber;
     private bool disposed;
@@ -107,6 +108,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             graph.Add(FrameGraph.Stage.Lighting, new LightingPass(device, shaders, layouts));
             graph.Add(FrameGraph.Stage.Transparent, new TransparentPass(device, shaders, layouts));
             graph.Add(FrameGraph.Stage.ToneMap, new ToneMapPass(device, shaders, layouts, output.Format));
+            graph.Add(FrameGraph.Stage.Overlay, new OutlinePass(device, shaders, layouts, output.Format));
             graph.Add(FrameGraph.Stage.Readback, new CapturePass());
             Own(graph);
 
@@ -130,14 +132,22 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>Creates a renderer that draws into an offscreen image of <see cref="RendererOptions.Width"/> by <see cref="RendererOptions.Height"/>.</summary>
-    public static VulkanRenderer CreateHeadless(RendererOptions options)
+    public static VulkanRenderer CreateHeadless(RendererOptions options) =>
+        CreateOffscreen(options, (device, allocator, extent) => new HeadlessTarget(device, allocator, extent, bgra: false));
+
+    /// <summary>
+    /// Creates a renderer with no window that draws into the output that <paramref name="createOutput"/> makes, at
+    /// <see cref="RendererOptions.Width"/> by <see cref="RendererOptions.Height"/>. <see cref="CreateHeadless"/> makes
+    /// a <see cref="HeadlessTarget"/>. A test and tooling hook: a test makes outputs that skip frames or store BGRA.
+    /// </summary>
+    internal static VulkanRenderer CreateOffscreen(RendererOptions options, Func<VulkanDevice, DeviceAllocator, Extent2D, IOutputTarget> createOutput)
     {
         CheckOptions(options);
         if (options.Width <= 0 || options.Height <= 0)
             throw new ArgumentOutOfRangeException(nameof(options), "A headless renderer needs a positive Width and Height.");
         VulkanDevice device = VulkanDevice.Create(options.Validation, [], null);
         var extent = new Extent2D((uint)options.Width, (uint)options.Height);
-        return new VulkanRenderer(options, device, (d, a) => new HeadlessTarget(d, a, extent), headless: true);
+        return new VulkanRenderer(options, device, (d, a) => createOutput(d, a, extent), headless: true);
     }
 
     /// <summary>
@@ -204,9 +214,6 @@ public sealed unsafe class VulkanRenderer : IRenderer
     /// <summary>The size of the image the renderer draws.</summary>
     public (int Width, int Height) OutputSize => ((int)output.Extent.Width, (int)output.Extent.Height);
 
-    /// <summary>The pixels of the last capture, RGBA8 with top row first. A test and tooling hook.</summary>
-    internal (byte[] Rgba, int Width, int Height)? LastCapture { get; private set; }
-
     internal DeviceAllocator Allocator => allocator;
     internal ShadowMap ShadowMap => shadowMap;
     /// <summary>The impostor manager, or null when impostors are off. A test and tooling hook.</summary>
@@ -262,17 +269,23 @@ public sealed unsafe class VulkanRenderer : IRenderer
     }
 
     /// <summary>
-    /// Saves the next rendered frame as a PNG. <see cref="Render"/> waits for that frame on the GPU and writes the
-    /// file before it returns, so use it for tests and tools, not every frame.
+    /// Asks for the pixels of the next frame that <see cref="Render"/> draws. That <c>Render</c> call waits for the
+    /// frame on the GPU and hands its pixels to <paramref name="sink"/> before it returns, on its own thread, once.
+    /// Use it for tests, tools and recordings, not for every frame of play: the wait stalls the frames in flight. A
+    /// frame that the output skips (a minimized window) hands nothing, and the request waits for the next frame that
+    /// draws. A second request before that frame replaces the first.
     /// </summary>
-    /// <exception cref="NotSupportedException">The swapchain images cannot be read back on this surface.</exception>
-    public void CaptureNextFrame(string path)
+    /// <exception cref="NotSupportedException">
+    /// The swapchain images cannot be captured on this surface: they do not allow transfer reads, or their format is not
+    /// one of the 8-bit color formats whose bytes a sink takes.
+    /// </exception>
+    public void CaptureNextFrame(ICaptureSink sink)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(sink);
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!output.CanCapture)
-            throw new NotSupportedException("This surface does not allow transfer reads from swapchain images.");
-        Interlocked.Exchange(ref pendingCapture, path);
+            throw new NotSupportedException($"The swapchain images of this surface cannot be captured: they must allow transfer reads and hold 8-bit color, and their format is {output.Format}.");
+        Interlocked.Exchange(ref pendingCapture, sink);
     }
 
     public void Render(RenderSnapshot snapshot, float alpha)
@@ -321,8 +334,8 @@ public sealed unsafe class VulkanRenderer : IRenderer
 
         batcher.Prepare(snapshot, alpha, (int)targets.Extent.Width, (int)targets.Extent.Height, geometry.Meshes, materials.Count, scene);
 
-        string? capturePath = Interlocked.Exchange(ref pendingCapture, null);
-        GpuBuffer? capture = capturePath != null ? CaptureBuffer(image.Extent) : null;
+        ICaptureSink? sink = Interlocked.Exchange(ref pendingCapture, null);
+        GpuBuffer? capture = sink != null ? CaptureBuffer(image.Extent) : null;
 
         context.Frame = frame;
         context.Snapshot = snapshot;
@@ -364,13 +377,14 @@ public sealed unsafe class VulkanRenderer : IRenderer
             ImpostorTilesInUse = impostors?.TilesInUse ?? 0,
             IndirectDrawCalls = context.IndirectDrawCalls,
             Lights = scene.LightCount,
+            Outlines = scene.OutlineCount,
             Rendered = true,
         };
 
-        if (capturePath != null && capture != null)
+        if (sink != null && capture != null)
         {
             vk.WaitForFences(device.Device, 1, &fence, true, ulong.MaxValue).Check("vkWaitForFences");
-            SaveCapture(capturePath, capture, image.Extent);
+            HandOver(sink, capture, image.Extent);
         }
     }
 
@@ -536,25 +550,21 @@ public sealed unsafe class VulkanRenderer : IRenderer
         return captureBuffer;
     }
 
-    private void SaveCapture(string path, GpuBuffer buffer, Extent2D extent)
+    /// <summary>
+    /// Hands the pixels of a captured frame, read back into <paramref name="buffer"/>, to <paramref name="sink"/>. Every
+    /// sink gets RGBA: for a BGRA output, red and blue are swapped in place in the buffer first. The buffer can be
+    /// larger than the frame, after a resize to a smaller size, so the sink gets only the frame's bytes.
+    /// </summary>
+    private void HandOver(ICaptureSink sink, GpuBuffer buffer, Extent2D extent)
     {
         int width = (int)extent.Width, height = (int)extent.Height;
-        var rgba = new byte[width * height * 4];
-        new ReadOnlySpan<byte>(buffer.Mapped, rgba.Length).CopyTo(rgba);
-        bool swap = output.BgraOrder;
-        for (int i = 0; i < rgba.Length; i += 4)
+        var pixels = new Span<byte>(buffer.Mapped, width * height * 4);
+        if (output.BgraOrder)
         {
-            if (swap)
-                (rgba[i], rgba[i + 2]) = (rgba[i + 2], rgba[i]);
-            rgba[i + 3] = 255;
+            for (int i = 0; i < pixels.Length; i += 4)
+                (pixels[i], pixels[i + 2]) = (pixels[i + 2], pixels[i]);
         }
-        string full = Path.GetFullPath(path);
-        string? directory = Path.GetDirectoryName(full);
-        if (!string.IsNullOrEmpty(directory))
-            Directory.CreateDirectory(directory);
-        using (FileStream stream = File.Create(full))
-            new ImageWriter().WritePng(rgba, width, height, ColorComponents.RedGreenBlueAlpha, stream);
-        LastCapture = (rgba, width, height);
+        sink.Take(new CapturedImage(pixels, width, height));
     }
 
     private T Own<T>(T resource) where T : IDisposable

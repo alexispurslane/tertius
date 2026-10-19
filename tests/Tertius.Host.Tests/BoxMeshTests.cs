@@ -1,5 +1,6 @@
 using System.Numerics;
 using Tertius.Demo;
+using static Tertius.Host.Tests.MeshChecks;
 
 namespace Tertius.Host.Tests;
 
@@ -30,35 +31,12 @@ public sealed class BoxMeshTests
         }
     }
 
-    /// <summary>Every directed edge of every triangle, by the positions of its ends.</summary>
-    private static void ExpectClosed(MeshData mesh)
-    {
-        var edges = new Dictionary<(Vector3, Vector3), int>();
-        foreach (var (a, b, c, _) in Triangles(mesh))
-        {
-            foreach (var edge in new[] { (a, b), (b, c), (c, a) })
-                edges[edge] = edges.GetValueOrDefault(edge) + 1;
-        }
-        foreach (var ((from, to), count) in edges)
-        {
-            count.Should().Be(1, $"one triangle runs from {from} to {to}");
-            edges.GetValueOrDefault((to, from)).Should().Be(1, $"one triangle runs back from {to} to {from}");
-        }
-    }
-
-    /// <summary>Each triangle winds counterclockwise around its normal, and a point just off it along the normal is outside.</summary>
-    private static void ExpectFacingOut(MeshData mesh, Func<Vector3, bool> inside)
-    {
-        foreach (var (a, b, c, normal) in Triangles(mesh))
-        {
-            Vector3 wound = Vector3.Cross(b - a, c - a);
-            wound.Length().Should().BeGreaterThan(1e-6f, "no triangle is degenerate");
-            Vector3.Dot(Vector3.Normalize(wound), normal).Should().BeApproximately(1, 1e-5f, $"the triangle {a}, {b}, {c} winds around {normal}");
-            Vector3 center = (a + b + c) / 3;
-            inside(center + 0.01f * normal).Should().BeFalse($"the triangle at {center} faces out of the solid along {normal}");
-            inside(center - 0.01f * normal).Should().BeTrue($"the triangle at {center} has the solid behind it");
-        }
-    }
+    /// <summary>
+    /// Each triangle winds counterclockwise around the normal of each corner, which is the triangle's own because every
+    /// face is flat (0.001 rad allows for rounding), and a point 1 cm in front of its center is outside the solid.
+    /// </summary>
+    private static void ExpectFacingOut(MeshData mesh, Func<Vector3, bool> inside) =>
+        MeshChecks.ExpectFacingOut(mesh, inside, probe: 0.01f, maxNormalAngle: 0.001f);
 
     private static bool Within(BoundingBox box, Vector3 point) => box.Contains(point);
 

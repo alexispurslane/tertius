@@ -3,11 +3,13 @@
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <UsesJolt>true</UsesJolt>
+    <UsesVulkan>true</UsesVulkan>
     <!-- BenchmarkDotNet refuses unoptimized code, so run it with: dotnet run -c Release -->
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Tertius.Simulation/Tertius.Simulation.csproj" />
     <ProjectReference Include="../../src/Tertius.Physics/Tertius.Physics.csproj" />
+    <ProjectReference Include="../../src/Tertius.Rendering/Tertius.Rendering.csproj" />
     <PackageReference Include="BenchmarkDotNet" />
   </ItemGroup>
 </Project>

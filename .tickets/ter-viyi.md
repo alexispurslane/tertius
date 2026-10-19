@@ -25,3 +25,7 @@ A capture in the window holds the simulation thread for less than one tick at 12
 **2026-10-11T17:40:12Z**
 
 Second change, found while answering the user (2026-10-11): the simulation thread waits longer than it needs to. WindowPlayback.Capture calls captures.RequestAndWait, which returns only after the PNG is on disk. The simulation needs to wait only until the render thread has taken this tick's snapshot with TryAcquireLatest. The triple buffer never gives the reader's buffer back to the writer, so after that handover the simulation can tick and publish newer snapshots while the render thread draws and saves the old one. So CaptureMailbox gets a signal at the handover, and Capture waits for that instead of Done. That cuts the simulation's pause from 110 to 150 ms to under one display frame. Alone, it does not remove the freeze from the screen: the render thread still draws nothing while it encodes, and then shows a jump. Both changes together remove the pause: the simulation waits only for the handover, and a worker encodes the PNG.
+
+**2026-10-19T11:39:20Z**
+
+The capture sink of ter-vbrx (2026-10-19) answers the open question. A sink that copies the pixels in Take and encodes the PNG on a worker lets Render return after the copy. SaveCapture is now PngCaptureSink. The renderer tests capture into an in-memory sink and no longer need the file.

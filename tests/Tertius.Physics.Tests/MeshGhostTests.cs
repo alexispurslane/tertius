@@ -286,13 +286,13 @@ public class MeshGhostTests
     }
 
     /// <summary>
-    /// The invariants find a ghost that Jolt holds static although its real body is no mesh: Jolt would hold it at rest
-    /// while its real body moves, and only a ghost of a mesh turns kinematic when it starts to move (see
+    /// The invariants find a ghost that Jolt holds static although its real body can move: Jolt would hold it at rest
+    /// while its real body moves, and only a ghost of a static body turns static while it holds still (see
     /// <see cref="CrateOnAStationsMeshHull"/>). The ship's hull, a ball, touches the station's bubble, so the station's
     /// system holds a kinematic ghost of it. The test turns that ghost static in Jolt, as only a bug would.
     /// </summary>
     [Fact]
-    public void TheInvariantsFindAGhostThatJoltHoldsStaticThoughItIsNoMesh()
+    public void TheInvariantsFindAGhostThatJoltHoldsStaticThoughItsRealBodyCanMove()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         DockScene scene = CrateOnAStationsMeshHull(world);

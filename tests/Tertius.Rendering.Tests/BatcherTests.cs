@@ -446,6 +446,9 @@ public sealed class BatcherTests
         Unsafe.SizeOf<GpuInstance>().Should().Be(80);
         Unsafe.SizeOf<GpuMaterial>().Should().Be(48);
         Unsafe.SizeOf<GpuLight>().Should().Be(64);
+        Unsafe.SizeOf<GpuOutline>().Should().Be(48);
+        ((int)Marshal.OffsetOf<GpuOutline>(nameof(GpuOutline.Radii))).Should().Be(32);
+        Unsafe.SizeOf<OutlinePushConstants>().Should().Be(4);
         Unsafe.SizeOf<GpuFrameConstants>().Should().Be(720);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.ShadowViewProj))).Should().Be(352);
         ((int)Marshal.OffsetOf<GpuFrameConstants>(nameof(GpuFrameConstants.RootRotation))).Should().Be(704);
@@ -466,6 +469,8 @@ public sealed class BatcherTests
     [InlineData("impostor_capture.frag")]
     [InlineData("impostor.vert")]
     [InlineData("impostor.frag")]
+    [InlineData("outline.vert")]
+    [InlineData("outline.frag")]
     public void ShadersAreCompiledAndEmbedded(string file)
     {
         byte[] spirv = ShaderLibrary.LoadSpirv(file);

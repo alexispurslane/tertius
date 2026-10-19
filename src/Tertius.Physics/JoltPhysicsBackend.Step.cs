@@ -128,7 +128,8 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Gives every Jolt body of a record the layer for new collision groups and a new mask: the primary body or the
-    /// character's inner body, the interior of the frame that it owns, and its ghosts. A frame's hull keeps its layer.
+    /// character's inner body, the interior of the frame that it owns, and its ghosts, each the layer of its role (see
+    /// <see cref="GhostBody.Role"/>). A frame's hull keeps its layer, and so does a ghost in the frame hull role.
     /// Jolt wakes nothing when a layer changes. So the bodies around each body wake under its old layer, which wakes what
     /// rested on it, and under its new one, which wakes what it now overlaps. The primary body wakes too when it can
     /// move, so that it falls through what it no longer meets.
@@ -155,11 +156,11 @@ public sealed partial class JoltPhysicsBackend
         }
         if (record.InteriorWorld is { } interior)
             SetLayer(interior, record.InteriorBody, InteriorLayer(record));
-        // The ghost of an anchor has the anchor's own layer, a hull's, which ignores the collision groups.
+        // The layer of the frame hull role ignores the collision groups.
         if (record.Ghosts is { } ghosts)
             foreach (GhostBody ghost in ghosts)
-                if (!ghost.Anchor)
-                    SetLayer(ghost.World, ghost.Body, GhostLayer(record));
+                if (ghost.Role != BodyLayer.FrameHull)
+                    SetLayer(ghost.World, ghost.Body, GhostLayer(record, ghost.Role));
     }
 
     private static void SetLayer(FrameWorld world, BodyID body, ObjectLayer layer)

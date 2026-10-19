@@ -8,11 +8,16 @@ namespace Tertius.Physics;
 /// <remarks>
 /// <para>
 /// Contacts are kept by body pair in each system (<see cref="FrameWorld"/>), and reported by entity pair. A contact
-/// between the body of one entity and the ghost of another entity's body is a contact of the two entities, and it can
-/// start through the ghost. (User) A pair of two ghosts is not reported: the real bodies' own systems report it. So the
-/// same pair of entities can be in contact in several systems at once. For example, a body that sticks out of a child
-/// frame has a ghost in the parent, where a body of the parent touches the ghost, while that body touches the child's
-/// bubble and has a ghost in the child, which the first body touches. Each system then holds a mirror pair.
+/// through a ghost is a contact of the two entities, and it can start through the ghost. (User) That holds for the body of
+/// one entity and the ghost of another entity's body, and for the ghosts of two entities (the first half of ter-3mwi):
+/// Jolt makes a contact of two ghosts only when one of them is a sensor, because no ghost is dynamic in Jolt. So a
+/// sensor and a body that stick out of two sibling frames, and overlap only in the parent, outside both bubbles, touch
+/// through their two stick-out ghosts there. A ghost meets what its real body meets: the contact filter judges each pair
+/// with a ghost by the contact motions of both bodies, the motions of their real bodies (see
+/// <see cref="FrameWorld.CanTouch"/>). The same pair of entities can be in contact in several systems at once. For
+/// example, a body that sticks out of a child frame has a ghost in the parent, where a body of the parent touches the
+/// ghost, while that body touches the child's bubble and has a ghost in the child, which the first body touches. Each
+/// system then holds a mirror pair.
 /// </para>
 /// <para>
 /// The contact ledger, <see cref="contactCounts"/>, keeps the reports right. For each pair of entities in contact, it
@@ -58,6 +63,8 @@ public sealed partial class JoltPhysicsBackend
     // Scratch for AssertContactInvariants.
     private readonly Dictionary<(Entity A, Entity B), int> countScratch = new();
     private readonly List<RawEnd> pairScratch = new();
+    // Scratch for EndPairsThatCannotTouch: the other bodies of the started pairs of one body.
+    private readonly List<BodyID> partnerScratch = new();
 
     // ---- Contacts ----
 
@@ -183,6 +190,37 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
+    /// The check after a change of motion (case 3b of docs/plans/complete-ghosts.md): ends each started pair of
+    /// <paramref name="body"/> in <paramref name="world"/> that the pair test refuses now (see
+    /// <see cref="FrameWorld.CanTouch"/>). The body is a hull or an interior whose motion changed, which keeps its body
+    /// through the change. Jolt drops a pair that it can no longer make only when it simulates one of the two bodies, so
+    /// without the check a pair of two bodies that Jolt does not simulate, such as a parked hull and a static sensor,
+    /// would outlive the change, and the filter never sees a pair that Jolt holds already. Each pair that ends counts down
+    /// in the ledger, and a contact whose count reaches 0 ends at the end of the step (see <see cref="Recount"/>). A pair
+    /// that the new motion allows goes on. A started pair that is no contact of two entities comes only from a bug, since
+    /// only the contacts of two entities enter the pair tables (see <see cref="ReportBug"/>), and a Release build ends it.
+    /// </summary>
+    private void EndPairsThatCannotTouch(FrameWorld world, BodyID body)
+    {
+        partnerScratch.Clear();
+        world.StartedPairsOf(body, partnerScratch);
+        BodyInterface bodies = world.Bodies;
+        foreach (BodyID other in partnerScratch)
+        {
+            (Entity A, Entity B)? pair = EntityPair(new RawEnd(bodies.GetUserData(body), bodies.GetUserData(other)));
+            if (pair is not null && world.CanTouch(body, other))
+                continue;
+            world.DropPair(body, other);
+            if (pair is { } ended)
+                Recount(ended, -1);
+            else
+                ReportBug($"Physics: the system of {world.Frame} held a started pair of {body} and {other}, which is no contact of two entities. " +
+                          "Only a bug starts such a pair, so it was dropped.");
+        }
+        partnerScratch.Clear();
+    }
+
+    /// <summary>
     /// Settles each contact whose body left its system since the last call. Call it after the ghosts of the step, so that
     /// the new ghost of a body that left can carry its contacts. A contact goes on in every system that holds a body of each
     /// entity that can touch the other one there (see <see cref="CarryContact"/>): the system takes it over as a held
@@ -268,34 +306,33 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Lets every system that holds a body of each of the two records carry their contact, and returns how many of them
     /// took it over: the ones that did not hold it as started already (see <see cref="FrameWorld.Carry"/>). The bodies are
-    /// the primary body of each, or the primary body of one and a ghost of the other, which must be able to touch (see
-    /// <see cref="PrimariesTouch"/> and <see cref="GhostTouches"/>), because Jolt would never find a pair that cannot, and
-    /// a held pair that Jolt never finds ends a step late, or never while both its bodies sleep. Two ghosts carry no
-    /// contact.
+    /// the primary body or a ghost of each: two primary bodies, a primary body and a ghost, or two ghosts. They must pass
+    /// the pair test (see <see cref="FrameWorld.CanTouch"/>), because Jolt would never find a pair that cannot touch, and a
+    /// held pair that Jolt never finds ends a step late, or never while both its bodies sleep. Of two ghosts, only a pair
+    /// with a sensor passes it.
     /// </summary>
     private int CarryContact(BodyRecord first, BodyRecord second)
     {
         int taken = 0;
         if (first.World is { } home)
-        {
-            if (second.World == home)
-            {
-                if (PrimariesTouch(first, second))
-                    taken += Carried(home, PrimaryId(first), PrimaryId(second));
-            }
-            else if (GhostIn(second, home) is { Body.IsValid: true } ghost && GhostTouches(second, ghost.Anchor, first))
-            {
-                taken += Carried(home, PrimaryId(first), ghost.Body);
-            }
-        }
-        if (first.Ghosts is { } ghosts && second.World is { } other)
+            taken += CarryIn(home, PrimaryId(first), second);
+        if (first.Ghosts is { } ghosts)
             foreach (GhostBody ghost in ghosts)
-                if (ghost.World == other && GhostTouches(first, ghost.Anchor, second))
-                    taken += Carried(other, ghost.Body, PrimaryId(second));
+                taken += CarryIn(ghost.World, ghost.Body, second);
         return taken;
     }
 
-    private static int Carried(FrameWorld world, BodyID a, BodyID b) => world.Carry(a, b) ? 1 : 0;
+    /// <summary>
+    /// Lets <paramref name="world"/> carry the contact of <paramref name="body"/>, a body of one record there, with the body
+    /// of <paramref name="other"/> there: its primary body, or its ghost. Returns 1 when the system took the contact over,
+    /// and 0 when it holds no body of <paramref name="other"/>, when the two cannot touch, or when it holds the contact as
+    /// started already.
+    /// </summary>
+    private static int CarryIn(FrameWorld world, BodyID body, BodyRecord other)
+    {
+        BodyID otherBody = other.World == world ? PrimaryId(other) : GhostIn(other, world).Body;
+        return otherBody.IsValid && world.CanTouch(body, otherBody) && world.Carry(body, otherBody) ? 1 : 0;
+    }
 
     /// <summary>The ghost of the record's body in <paramref name="world"/>, or one with an invalid ID when it has none there.</summary>
     private static GhostBody GhostIn(BodyRecord record, FrameWorld world)
@@ -308,34 +345,11 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// True when the primary bodies of <paramref name="first"/> and <paramref name="second"/> can touch in one system: their
-    /// layers meet (see <see cref="Layers"/>), so that neither is the hull of a frame while the other moves, and their
-    /// motions meet (see <see cref="MotionsMeet"/>).
+    /// The contact motion of a ghost of the record's body, which decides what the ghost meets (see
+    /// <see cref="FrameWorld.GhostContactMotion"/>): the motion of the real body, with a character in either form as
+    /// dynamic, since a character counts as dynamic in Jolt's rule. For a hull it is the hull's motion.
     /// </summary>
-    private static bool PrimariesTouch(BodyRecord first, BodyRecord second) =>
-        Layers.Meet(PrimaryLayer(first), PrimaryLayer(second)) &&
-        MotionsMeet(first.Motion, first.Desc.IsSensor, second.Motion, second.Desc.IsSensor);
-
-    /// <summary>
-    /// True when a ghost of <paramref name="ghostOf"/> and the primary body of <paramref name="other"/> can touch in one
-    /// system: their layers meet, so that a ghost never meets the hull of a frame, and the ghost of an anchor, which has the
-    /// anchor's own layer when <paramref name="anchor"/> is true (see <see cref="GhostBody.Anchor"/>), meets what the anchor
-    /// meets (see <see cref="Layers"/>), and their motions meet (see <see cref="MotionsMeet"/>). A ghost is kinematic, or
-    /// static for a mesh that holds still. A ghost of a static body, such as every ghost of a mesh, meets only what that
-    /// body meets (see <see cref="FrameWorld.StandsForStaticBody"/>), so it counts as static too.
-    /// </summary>
-    private static bool GhostTouches(BodyRecord ghostOf, bool anchor, BodyRecord other) =>
-        Layers.Meet(anchor ? PrimaryLayer(ghostOf) : GhostLayer(ghostOf), PrimaryLayer(other)) &&
-        MotionsMeet(ghostOf.IsMovable ? BodyMotion.Kinematic : BodyMotion.Static, ghostOf.Desc.IsSensor, other.Motion, other.Desc.IsSensor);
-
-    /// <summary>
-    /// True when Jolt makes a contact between two bodies of these motions whose layers meet: when one of them is dynamic,
-    /// or when one is kinematic and the other is a sensor. The engine never sets <c>CollideKinematicVsNonDynamic</c>, so
-    /// that is Jolt's whole rule. A character's own collisions find every body that its layer meets.
-    /// </summary>
-    private static bool MotionsMeet(BodyMotion a, bool aIsSensor, BodyMotion b, bool bIsSensor) =>
-        a is BodyMotion.Dynamic or BodyMotion.Character || b is BodyMotion.Dynamic or BodyMotion.Character ||
-        (a == BodyMotion.Kinematic && bIsSensor) || (b == BodyMotion.Kinematic && aIsSensor);
+    private static MotionType GhostContactMotion(BodyRecord record) => ToMotionType(record.Motion);
 
     /// <summary>The two entities of a contact, in canonical order, or null when the contact is not reported.</summary>
     private (Entity A, Entity B)? EntityPair(in RawEnd raw)

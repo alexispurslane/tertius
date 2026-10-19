@@ -80,8 +80,9 @@ internal abstract class RenderPass : IDisposable
 /// The passes of a frame in a fixed order of stages. Each stage holds any number of passes, recorded in the order
 /// they were added. The renderer fills <see cref="Stage.ShadowMaps"/> (<see cref="ShadowPass"/>),
 /// <see cref="Stage.ImpostorCaptures"/> (<see cref="ImpostorPass"/>, when impostors are on) and
-/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>. Draws that belong inside the G-buffer pass's
-/// depth ranges, such as impostor billboards, go through <see cref="GeometryPass.RangeDrawers"/>.
+/// <see cref="Stage.GBuffer"/> through <see cref="Stage.Readback"/>, the overlay included (<see cref="OutlinePass"/>). Draws
+/// that belong inside the G-buffer pass's depth ranges, such as impostor billboards, go through
+/// <see cref="GeometryPass.RangeDrawers"/>.
 /// </summary>
 internal sealed class FrameGraph : IDisposable
 {
@@ -93,6 +94,8 @@ internal sealed class FrameGraph : IDisposable
         Lighting,
         Transparent,
         ToneMap,
+        /// <summary>Debug drawing over the tone-mapped image, such as frame outlines, before the readback so a capture holds it.</summary>
+        Overlay,
         Readback,
     }
 

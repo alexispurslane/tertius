@@ -81,7 +81,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <see cref="PhysicsChanges.FramesDestroyed"/>, then creates the bodies in <see cref="PhysicsChanges.BodiesCreated"/>.
     /// <see cref="PhysicsChanges.FramesCreated"/> needs no work, because a frame's system is created with its first
     /// body. An entity that owns a frame gets two bodies: its hull in the parent frame's system on the
-    /// <see cref="BodyLayer.FrameHull"/> layer, and its interior as static geometry in its own frame's system. The
+    /// <see cref="BodyLayer.FrameHull"/> layer, and its interior at rest in its own frame's system, static while the hull is
+    /// static and kinematic while it can move (see <see cref="InteriorMotion"/>). The
     /// frame must exist in <paramref name="frames"/> before its owner's body is created; the hull starts at the
     /// frame's pose and velocity in the tree, with the motion of its description, which is the motion that the hull has in
     /// the next step (see <see cref="BodyCreate"/>).
@@ -246,8 +247,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <see cref="PhysicsStepOutput.Frames"/> holds the step record of each frame whose hull moved in the step, relative to
     /// its parent after any hand-off in this step, with the velocity of the frame origin. Apply hand-offs before the step records.
     /// <see cref="PhysicsStepOutput.Contacts"/> holds each pair of entities whose contact started, with A before B in
-    /// entity order and the normal from A to B. A contact between the body of one entity and the ghost of another
-    /// entity's body is a contact of the two entities, and a pair of two ghosts is none. A body pair starts at a real
+    /// entity order and the normal from A to B. A contact through a ghost is a contact of the two entities, between the
+    /// body of one entity and the ghost of another entity's body, and between the ghosts of two entities, which Jolt makes
+    /// only when one of them is a sensor. A body pair starts at a real
     /// touch: the first step in which its bodies are at most <see cref="FrameWorld.TouchTolerance"/> apart or approach
     /// fast enough to close their gap, and not when Jolt finds them within its speculative contact distance. The contact of
     /// two entities starts when the first system starts a body pair of theirs, and the system of the frame with the lowest
@@ -446,7 +448,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         Vector3 InverseInertia,
         Quaternion InertiaRotation,
         float LinearDamping,
-        float AngularDamping);
+        float AngularDamping,
+        bool EnhancedInternalEdgeRemoval);
 
     /// <summary>Every body in the system of <paramref name="frame"/>, in the order of its ID, as Jolt holds it.</summary>
     internal unsafe List<BodyFacts> BodiesIn(FrameHandle frame)
@@ -469,20 +472,25 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 float inverseMass = 0, linearDamping = 0, angularDamping = 0;
                 Vector3 inverseInertia = Vector3.Zero;
                 Quaternion inertiaRotation = Quaternion.Identity;
+                bool edgeRemoval = false;
                 locks.LockRead(id, out BodyLockRead read);
-                if (read.Succeeded && read.Body is { MotionProperties: { IsNotNull: true } motion })
+                if (read.Succeeded && read.Body is { } body)
                 {
-                    inverseMass = motion.InverseMassUnchecked;
-                    inverseInertia = motion.InverseInertiaDiagonal;
-                    inertiaRotation = motion.InertiaRotation;
-                    linearDamping = motion.LinearDamping;
-                    angularDamping = motion.AngularDamping;
+                    edgeRemoval = body.EnhancedInternalEdgeRemoval;
+                    if (body.MotionProperties is { IsNotNull: true } motion)
+                    {
+                        inverseMass = motion.InverseMassUnchecked;
+                        inverseInertia = motion.InverseInertiaDiagonal;
+                        inertiaRotation = motion.InertiaRotation;
+                        linearDamping = motion.LinearDamping;
+                        angularDamping = motion.AngularDamping;
+                    }
                 }
                 locks.UnlockRead(read);
                 facts.Add(new BodyFacts(id, bodies.GetUserData(id), bodies.GetMotionType(id), bodies.GetObjectLayer(id),
                     bodies.GetShape(id)?.Handle ?? 0, bodies.GetMotionQuality(id), position.ToDouble3(), bodies.GetRotation(id),
                     linear, angular, bodies.IsActive(id), bodies.GetFriction(id), bodies.GetRestitution(id), inverseMass,
-                    inverseInertia, inertiaRotation, linearDamping, angularDamping));
+                    inverseInertia, inertiaRotation, linearDamping, angularDamping, edgeRemoval));
             }
         }
         facts.Sort(static (a, b) => a.Id.Index.CompareTo(b.Id.Index));
@@ -628,20 +636,21 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// and the owner of a root frame has no hull.</item>
     /// <item>Jolt moves every hull with the motion of its record. The record takes the motion of each step at the start of
     /// that step (see <see cref="FollowHullMotions"/>). A record that the simulation creates between two steps, at a spawn
-    /// or a rehome, starts with the motion of the next step, which it runs first.</item>
+    /// or a rehome, starts with the motion of the next step, which it runs first. Every interior has the Jolt motion that
+    /// its record's motion gives it, static while the hull is static and kinematic otherwise (see
+    /// <see cref="InteriorMotion"/>).</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame among the semantic
     /// frames, or in the home of a group that keeps a ghost of an anchor, the body's own or the hull of its home's semantic
     /// frame (see <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
     /// <item>The ghosts of each system (see <see cref="FrameWorld.AddGhost"/>) are the ghosts that the records keep in
-    /// it, no more and no fewer. A system marks exactly the ghosts of static bodies as such (see
-    /// <see cref="FrameWorld.StandsForStaticBody"/>). Every ghost is kinematic, except a ghost of a mesh, which is static
-    /// while it holds still (see <see cref="GhostMotion"/>). Jolt can move every ghost of a mesh as a kinematic body, with
+    /// it, no more and no fewer, and each has the contact motion of its record (see <see cref="GhostContactMotion"/> and
+    /// <see cref="FrameWorld.GhostContactMotion"/>). Every ghost of a body that can move is kinematic. A ghost of a static
+    /// body is static while it holds still (see <see cref="GhostMotion"/>), and Jolt can move it as a kinematic body, with
     /// a finite mass (see <see cref="FrameWorld.CanMove"/>), so the ghost pass and the shifts can turn it kinematic when
     /// it starts to move.</item>
     /// <item>Every Jolt body of a record has the layer that the record's collision groups and mask give it: the primary
-    /// body or the character's inner body, the interior and every ghost (see <see cref="Layers"/>). A ghost that stands
-    /// for an anchor has the anchor's primary layer, and every other ghost the ghost layer (see
-    /// <see cref="GhostBody.Anchor"/>).</item>
+    /// body or the character's inner body, the interior and every ghost (see <see cref="Layers"/>). Each ghost has the
+    /// layer of its role (see <see cref="GhostBody.Role"/>).</item>
     /// <item>The contact ledger counts, for each pair of entities, the body pairs that hold their contact as started in
     /// every system, and its loose and waiting contacts (see <see cref="AssertContactInvariants"/>). This one holds at
     /// every sync point.</item>
@@ -658,7 +667,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         }
         int hulls = 0;
         int recordGhosts = 0;
-        int staticBodyGhosts = 0;
         foreach (BodyRecord? record in records)
         {
             if (record is null)
@@ -682,35 +690,32 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(home.Bodies.GetObjectLayer(primary) == PrimaryLayer(record));
             }
             if (record.InteriorWorld is { } interior)
+            {
                 Contract.Invariant(interior.Bodies.GetObjectLayer(record.InteriorBody) == InteriorLayer(record));
+                Contract.Invariant(interior.Bodies.GetMotionType(record.InteriorBody) == InteriorMotion(record));
+            }
             if (record.Ghosts is not { } ghosts)
                 continue;
             foreach (GhostBody ghost in ghosts)
             {
                 Contract.Invariant(GhostAllowed(record, ghost.Frame) && ghost.World == ExistingWorld(ghost.Frame));
                 Contract.Invariant(ghost.World.HasGhost(ghost.Body));
-                Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == (ghost.Anchor ? PrimaryLayer(record) : GhostLayer(record)));
-                Contract.Invariant(ghost.World.StandsForStaticBody(ghost.Body) == !record.IsMovable);
-                Contract.Invariant(record.HasMesh || ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic);
-                Contract.Invariant(!record.HasMesh || ghost.World.CanMove(ghost.Body));
-                if (!record.IsMovable)
-                    staticBodyGhosts++;
+                Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == GhostLayer(record, ghost.Role));
+                Contract.Invariant(ghost.World.GhostContactMotion(ghost.Body) == GhostContactMotion(record));
+                Contract.Invariant(record.IsMovable
+                    ? ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic
+                    : ghost.World.CanMove(ghost.Body));
             }
             recordGhosts += ghosts.Count;
         }
         Contract.Invariant(hulls == frameOwners.Count);
         AssertContactInvariants();
         // Every ghost of a record is in its system's ghosts, and each is a body of its own, so the systems hold as many
-        // ghosts as the records only when they hold no other.
-        int systemGhosts = 0, systemStaticBodyGhosts = 0;
+        // ghosts as the records only when they hold no other, and so no contact motion of another body.
+        int systemGhosts = 0;
         foreach (FrameWorld world in worldList)
-        {
             systemGhosts += world.GhostCount;
-            systemStaticBodyGhosts += world.StaticBodyGhostCount;
-        }
         Contract.Invariant(systemGhosts == recordGhosts);
-        // In the same way, the systems mark no body as a ghost of a static body that is not one.
-        Contract.Invariant(systemStaticBodyGhosts == staticBodyGhosts);
         foreach (BodyRecord owner in frameOwners)
         {
             Contract.Invariant(frames.IsAlive(owner.OwnedFrame));
@@ -740,7 +745,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             log($"Physics: {world.Frame} was replaced by {frame} without a FramesDestroyed change. Its system is discarded.");
             DisposeWorld(world);
         }
-        world = new FrameWorld(frame, options);
+        world = new FrameWorld(frame, options, ReportBug);
         worlds[frame.Index] = world;
         worldList.Add(world);
         return world;
@@ -779,15 +784,21 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             DestroyRecord(owner.Entity);
         }
 
-        // Ghosts that other records keep in this system go with it, and so do the system's own ghosts. A pair of two ghosts
-        // is no contact, so every contact of a ghost here is with an interior or a member, whose removal below loosens it.
+        // Ghosts that other records keep in this system go with it, and so do the system's own ghosts. Each one's contacts
+        // loosen first, as when the ghost pass removes a ghost: a contact of two ghosts here has no member whose removal
+        // below loosens it. The carry of the end of the next step keeps each one that another system holds then (see
+        // ResolveLooseContacts).
         foreach (BodyRecord? record in records)
         {
             if (record?.Ghosts is not { } ghosts)
                 continue;
             for (int i = ghosts.Count - 1; i >= 0; i--)
-                if (ghosts[i].World == world)
-                    ghosts.RemoveAt(i);
+            {
+                if (ghosts[i].World != world)
+                    continue;
+                LoosenContacts(world, ghosts[i].Body);
+                ghosts.RemoveAt(i);
+            }
         }
 
         for (int i = world.Members.Count - 1; i >= 0; i--)

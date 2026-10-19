@@ -1,6 +1,9 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using JoltPhysicsSharp;
 using Tertius.Frames.Rails;
 using Tertius.Simulation;
+using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
 
 namespace Tertius.Physics.Tests;
@@ -129,6 +132,103 @@ public class WorldBugOnlyTests
 
         world.Errors.Should().ContainSingle().Which.Should().Contain(body.ToString()).And.Contain("Only a bug");
         world.PoseIn(body, space).Position.Length.Should().BeLessThan(1e-9, "physics ignored the motion intent");
+#endif
+    }
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "Find")]
+    private static extern BodyRecord? RecordOf(JoltPhysicsBackend backend, Entity entity);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "WantGhost")]
+    private static extern void WantGhost(JoltPhysicsBackend backend, BodyRecord record, FrameHandle frame, in DPose pose, Double3 linearVelocity,
+        Double3 angularVelocity, BodyLayer role);
+
+    /// <summary>
+    /// No frame gets two ghosts of one body, so a ghost pass wants each ghost once, and a ghost changes its role only before
+    /// the pass wants it (see <c>GhostBody.Role</c>). A ghost that a pass kept counts as wanted until the next pass. A test
+    /// stands in for a bug that wants a ghost again in another role: a parked shuttle beside a dock has a child ghost in
+    /// the dock, with the static role of the shuttle's interior, and the test wants that ghost again in the frame hull role
+    /// of an anchor ghost. A Debug build breaks a contract. A Release build skips the second want, so the ghost keeps its
+    /// role and its Jolt body.
+    /// </summary>
+    [Fact]
+    public void AGhostThatIsWantedAgainInAnotherRoleComesOnlyFromABugAndKeepsItsRole()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle dock = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, Pose = At(43), AsFrame = new FrameSpec(FrameBounds.Sphere(20)) }));
+        Entity shuttle = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(19),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2.5f)), BodyMotion.Static, InteriorShape: new SphereShapeDesc(0.1f)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(11)),
+        });
+        world.Tick();
+        JoltPhysicsBackend.BodyFacts GhostInDock() =>
+            faults.Jolt.BodiesIn(dock).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, shuttle));
+        JoltPhysicsBackend.BodyFacts kept = GhostInDock();
+        BodyRecord record = RecordOf(faults.Jolt, shuttle)!;
+
+        Action want = () => WantGhost(faults.Jolt, record, dock, new DPose(kept.Position, DQuaternion.Identity), default, default, BodyLayer.FrameHull);
+
+#if TERTIUS_CONTRACTS
+        want.Should().Throw<ContractException>().WithMessage($"*{shuttle}*{dock}*Only a bug*");
+#else
+        want.Should().NotThrow();
+#endif
+        GhostInDock().Id.Should().Be(kept.Id, "the second want is skipped");
+        GhostInDock().Layer.Should().Be(kept.Layer);
+    }
+
+    [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "ExistingWorld")]
+    private static extern FrameWorld? SystemOf(JoltPhysicsBackend backend, FrameHandle frame);
+
+    [UnsafeAccessor(UnsafeAccessorKind.Field, Name = "ghosts")]
+    private static extern ref Dictionary<BodyID, MotionType> ContactMotionsOf(FrameWorld world);
+
+    /// <summary>
+    /// The backend records the contact motion of every ghost when it adds the ghost to a system, so a ghost without one
+    /// comes only from a bug. A test stands in for that bug: a pod, a frame with a dynamic hull in a frame above a static
+    /// slab, rests on the slab's ghost, and the test forgets the contact motion of that ghost. When the pod parks, the
+    /// check after the change of motion asks the pair test about the pod's hull and the slab's ghost, and the pair test
+    /// finds the ghost without a contact motion. A Debug build breaks a contract. A Release build judges the ghost by its
+    /// Jolt motion, which is static, as its contact motion is, so the pod's touch of the slab ends as when a pod parks on
+    /// the slab in one frame, and the state goes to <see cref="World.Errors"/>.
+    /// </summary>
+    [Fact]
+    public void AGhostWithoutAContactMotionThatThePairTestFindsComesOnlyFromABug()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, debugChecks: false);
+        var gravity = GravityField.Uniform(new Vector3(0, -9.81f, 0));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), gravity));
+        Entity slab = world.Spawn(new SpawnDesc
+        {
+            Frame = ground, Pose = At(0, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(20, 0.5f, 20)), BodyMotion.Static),
+        });
+        FrameHandle home = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 5), AsFrame = new FrameSpec(FrameBounds.Sphere(20), gravity) }));
+        var podLog = new CollisionLog();
+        Entity pod = world.Spawn(new SpawnDesc
+        {
+            Frame = home,
+            Pose = At(0, -2),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 100, Restitution: 0, InteriorShape: new SphereShapeDesc(0.1f)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1.5f), gravity),
+            Components = [podLog],
+        });
+        Tick(world, 180);
+        podLog.NewsOf(slab).Should().Equal(Started);
+        BodyID ghost = faults.Jolt.BodiesIn(home).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, slab)).Id;
+        ContactMotionsOf(SystemOf(faults.Jolt, home)!).Remove(ghost).Should().BeTrue();
+        world.SetMotionNextTick(pod, BodyMotion.Static);
+
+        Action ticks = () => Tick(world, 3);
+
+#if TERTIUS_CONTRACTS
+        ticks.Should().Throw<ContractException>().WithMessage("*no contact motion*Only a bug*");
+#else
+        ticks.Should().NotThrow();
+        world.Errors.Should().ContainSingle().Which.Should().Contain("no contact motion").And.Contain("Only a bug");
+        podLog.NewsOf(slab).Should().Equal(Started, Ended);
 #endif
     }
 }

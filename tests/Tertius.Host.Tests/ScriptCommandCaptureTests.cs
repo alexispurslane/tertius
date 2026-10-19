@@ -61,14 +61,27 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Fact]
-    public void ARendererThatCannotStartExitsWithTheRendererErrorCodeAndWritesNoImage()
+    public void AScriptThatOnlyFilmsGetsAHeadlessRendererAndWritesThePathOfEveryFrame()
+    {
+        string script = ScriptFile("""{ "scene": "lit-box", "window": { "width": 160, "height": 90 }, "steps": [ { "do": "film", "name": "box", "frames": 2, "every": 1 } ] }""");
+
+        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], [LitBoxScene], output, error);
+
+        code.Should().Be(ScriptCommand.Ok, error.ToString());
+        Png.Load(Path.Combine(Out, "box-000000.png")).IsRed(80, 45).Should().BeTrue("the scene gets the renderer's resources, so its box has a mesh");
+        Png.Load(Path.Combine(Out, "box-000001.png")).IsRed(80, 45).Should().BeTrue();
+        output.ToString().Should().Contain(Path.Combine(Out, "box-000000.png")).And.Contain(Path.Combine(Out, "box-000001.png"));
+    }
+
+    [Fact]
+    public void ARendererThatCannotStartExitsWithTheToolErrorCodeAndWritesNoImage()
     {
         string script = ScriptFile("""{ "scene": "lit-box", "steps": [ { "do": "capture", "name": "front" } ] }""");
 
         int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], [LitBoxScene], output, error,
             _ => throw new InvalidOperationException("no Vulkan driver"));
 
-        code.Should().Be(ScriptCommand.RendererError);
+        code.Should().Be(ScriptCommand.ToolError);
         error.ToString().Should().Contain(script).And.Contain("no Vulkan driver");
         File.Exists(Path.Combine(Out, "front.png")).Should().BeFalse();
     }

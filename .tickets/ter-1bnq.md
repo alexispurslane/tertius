@@ -1,7 +1,7 @@
 ---
 id: ter-1bnq
 status: open
-deps: [ter-ediu, ter-ozm8]
+deps: [ter-ediu, ter-xdt8]
 links: []
 created: 2026-10-16T23:00:45Z
 type: feature

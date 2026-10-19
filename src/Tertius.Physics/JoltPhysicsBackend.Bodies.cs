@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using JoltPhysicsSharp;
 
 namespace Tertius.Physics;
@@ -60,11 +61,16 @@ public sealed partial class JoltPhysicsBackend
     private static ObjectLayer PrimaryLayer(BodyRecord record) =>
         record.IsHull ? Layers.FrameHull : Layers.For(RoleFor(record.Desc), record.CollisionGroups, record.CollisionMask);
 
-    /// <summary>The object layer of the static interior of the frame that a record owns.</summary>
+    /// <summary>The object layer of the interior of the frame that a record owns.</summary>
     private static ObjectLayer InteriorLayer(BodyRecord record) => Layers.For(BodyLayer.Static, record.CollisionGroups, record.CollisionMask);
 
-    /// <summary>The object layer of each ghost of a record's body.</summary>
-    private static ObjectLayer GhostLayer(BodyRecord record) => Layers.For(BodyLayer.Ghost, record.CollisionGroups, record.CollisionMask);
+    /// <summary>
+    /// The object layer of a ghost of a record's body in <paramref name="role"/> (see <see cref="GhostBody.Role"/>): the
+    /// layer of every hull for the frame hull role, and otherwise the layer of the role with the record's collision groups
+    /// and mask.
+    /// </summary>
+    private static ObjectLayer GhostLayer(BodyRecord record, BodyLayer role) =>
+        role == BodyLayer.FrameHull ? Layers.FrameHull : Layers.For(role, record.CollisionGroups, record.CollisionMask);
 
     // ---- Creation ----
 
@@ -234,14 +240,14 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// What a rigid body is apart from its state. The backend changes none of it after the body exists, except the motion
-    /// of a body whose <see cref="MotionChanges"/> is true: the hull of a frame takes a change of motion (see
-    /// <see cref="FollowHullMotions"/>), and a ghost of a mesh is static or kinematic as it holds still or moves (see
-    /// <see cref="GhostMotion"/>). Its spec then has the new motion. So the spec of a body and its state rebuild the body
-    /// exactly.
+    /// of a body whose <see cref="MotionChanges"/> is true: the hull of a frame takes a change of motion, and its interior
+    /// follows it (see <see cref="FollowHullMotions"/>), and a ghost of a static body is static or kinematic as it holds
+    /// still or moves (see <see cref="GhostMotion"/>). Its spec then has the new motion. So the spec of a body and its
+    /// state rebuild the body exactly.
     /// </summary>
     /// <param name="MotionChanges">
     /// True when the backend can change the body's motion type: the hull of a frame, unless it is a mesh, which never
-    /// moves, and a ghost of a mesh.
+    /// moves, the interior of a frame, and a ghost of a static body.
     /// </param>
     /// <param name="Freedom">How the body can move: freely, or only along the three axes, for the rigid form of a character.</param>
     private readonly record struct RigidSpec(ShapeDesc Shape, MotionType Motion, ObjectLayer Layer, ulong UserData, BodyDesc Material, bool MotionChanges = false,
@@ -258,36 +264,71 @@ public sealed partial class JoltPhysicsBackend
         new(record.Material.Shape, ToMotionType(record.Motion), PrimaryLayer(record), BodyUserData.Encode(BodyKind.Primary, record.Entity), record.Material,
             MotionChanges: record.IsHull && !record.HasMesh, Freedom: record.IsCharacter ? TranslationOnly : AllowedDOFs.All);
 
-    /// <summary>The spec of the static interior of the frame that a record owns, in the frame's own system.</summary>
+    /// <summary>
+    /// The spec of the interior of the frame that a record owns, in the frame's own system, with the Jolt motion of
+    /// <see cref="InteriorMotion"/>. Its motion changes with the hull's, so Jolt creates it to allow that and gives it a
+    /// mass (see <see cref="Settings"/>).
+    /// </summary>
     private static RigidSpec InteriorSpec(BodyRecord record) =>
-        new(record.Desc.InteriorShape ?? record.Desc.Shape, MotionType.Static, InteriorLayer(record), BodyUserData.Encode(BodyKind.Interior, record.Entity), record.Desc);
+        new(record.Desc.InteriorShape ?? record.Desc.Shape, InteriorMotion(record), InteriorLayer(record), BodyUserData.Encode(BodyKind.Interior, record.Entity),
+            record.Desc, MotionChanges: true);
+
+    /// <summary>
+    /// The Jolt motion of the interior of the frame that a record owns: static while the hull is static, and kinematic
+    /// otherwise, at rest in the frame's own system (fork F4 of docs/plans/complete-ghosts.md). So a sensor detects the
+    /// owner in the frame as a body of the hull's motion, as it detects the hull in the frame's tree parent and the hull's
+    /// ghosts in other frames: a static or kinematic sensor detects the interior of a ship that moves, and only a dynamic
+    /// sensor detects the interior of a parked ship. A kinematic interior at rest falls asleep as any body does. A root
+    /// frame has no hull, so its interior is always static: the owner of a frame that is a root from its spawn has the
+    /// static motion (see <see cref="CreateRecord"/>), and a frame that becomes a root later loses its hull (see
+    /// <see cref="PlaceHullFromTree"/>), whatever the motion of that hull was.
+    /// </summary>
+    private static MotionType InteriorMotion(BodyRecord record) =>
+        record.HasPrimary && record.Motion != BodyMotion.Static ? MotionType.Kinematic : MotionType.Static;
+
+    /// <summary>
+    /// Gives the interior of the frame that the record owns the Jolt motion of <see cref="InteriorMotion"/>, and wakes it
+    /// when it turns kinematic. The interior keeps its BodyID and its contacts, and it does not move. True when its motion
+    /// changed.
+    /// </summary>
+    private static bool FollowInteriorMotion(BodyRecord owner)
+    {
+        BodyInterface bodies = owner.InteriorWorld!.Bodies;
+        MotionType motion = InteriorMotion(owner);
+        if (bodies.GetMotionType(owner.InteriorBody) == motion)
+            return false;
+        bodies.SetMotionType(owner.InteriorBody, motion, motion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
+        return true;
+    }
 
     /// <summary>
     /// The spec of a ghost of a record's body with the Jolt motion <paramref name="motion"/>, which
-    /// <see cref="GhostMotion"/> gives it, in the object layer <paramref name="layer"/>: the ghost layer of the body, or the
-    /// body's own layer for the ghost of an anchor (see <see cref="GhostBody.Anchor"/>). A ghost of a static body meets only
-    /// what the static body meets (see <see cref="FrameWorld.StandsForStaticBody"/>). A ghost of a mesh changes its motion
-    /// as it starts and stops moving.
+    /// <see cref="GhostMotion"/> gives it, in the object layer <paramref name="layer"/>, the layer of its role (see
+    /// <see cref="GhostBody.Role"/>). A ghost meets only what its real body meets (see
+    /// <see cref="FrameWorld.GhostContactMotion"/>). A ghost of a static body changes its motion as it starts and stops moving, so Jolt
+    /// creates it to allow that and gives it a mass (see <see cref="Settings"/>).
     /// </summary>
     private static RigidSpec GhostSpec(BodyRecord record, MotionType motion, ObjectLayer layer) =>
-        new(record.Desc.Shape, motion, layer, BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc, MotionChanges: record.HasMesh);
+        new(record.Desc.Shape, motion, layer, BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc, MotionChanges: !record.IsMovable);
 
     /// <summary>
     /// The Jolt motion of a ghost of a record's body that moves in its system with <paramref name="linear"/> m/s and
-    /// <paramref name="angular"/> rad/s. A ghost is kinematic, so that Jolt moves it with that velocity during a step, and
-    /// a body that hits it meets a body that moves as the real body does relative to the ghost's frame: Jolt stops the
-    /// body, bounces it by the real approach, and gives a character the ghost's velocity. Jolt moves a kinematic mesh
-    /// too, given a mass (see <see cref="Settings"/>). A ghost of a mesh is static while it holds still, as its real body
-    /// does, for example the ghost of a parked station's hull in a parked ship beside it. Jolt never simulates a static
-    /// body. A kinematic ghost is awake for good, because the ghost pass sets its pose in every step, and Jolt searches
-    /// the contacts of an awake body in every step, also with the bodies that sleep on it. With 100 boxes asleep on the
-    /// ghost of a parked station's floor, a tick took 37 µs with a static ghost and 116 µs with a kinematic one
-    /// (MeshGhostBenchmarks). A real body with a mesh is always static, so such a ghost holds still exactly when its
-    /// velocity in its system is zero. (Before ter-dq92, the ghost of a mesh was always static, and the ghost pass moved it
-    /// after every step, so Jolt saw it at rest: a crate in a falling frame passed into a mesh anchor.)
+    /// <paramref name="angular"/> rad/s. A ghost that moves is kinematic, so that Jolt moves it with that velocity during a
+    /// step, and a body that hits it meets a body that moves as the real body does relative to the ghost's frame: Jolt
+    /// stops the body, bounces it by the real approach, and gives a character the ghost's velocity. Jolt moves a kinematic
+    /// mesh too, given a mass (see <see cref="Settings"/>). A ghost of a static body is static while it holds still, as
+    /// its real body does, for example the ghost of a parked station's hull in a parked ship beside it, or of the slab
+    /// under a parked shuttle in the shuttle's bubble. Jolt never simulates a static body, so the bodies that rest on the
+    /// ghost sleep, and a system with no other awake body does not step. A kinematic ghost is awake for good, because the
+    /// ghost pass sets its pose in every step, and Jolt searches the contacts of an awake body in every step, also with
+    /// the bodies that sleep on it. With 100 boxes asleep on the ghost of a parked station's floor, a tick took 37 µs with
+    /// a static ghost and 116 µs with a kinematic one (MeshGhostBenchmarks). A static ghost also meets exactly what its
+    /// static body meets by Jolt's rule. A ghost of a body that can move is always kinematic. (Before ter-dq92, the ghost
+    /// of a mesh was always static, and the ghost pass moved it after every step, so Jolt saw it at rest: a crate in a
+    /// falling frame passed into a mesh anchor. Before ter-imi5, only the ghost of a mesh was static while it held still.)
     /// </summary>
     private static MotionType GhostMotion(BodyRecord record, Vector3 linear, Vector3 angular) =>
-        record.HasMesh && linear == Vector3.Zero && angular == Vector3.Zero ? MotionType.Static : MotionType.Kinematic;
+        !record.IsMovable && linear == Vector3.Zero && angular == Vector3.Zero ? MotionType.Static : MotionType.Kinematic;
 
     /// <summary>
     /// Creates a rigid body in the system of <paramref name="world"/>, which grows first if it is full. A body that moves is
@@ -323,17 +364,36 @@ public sealed partial class JoltPhysicsBackend
             // A ghost of a sensor is a sensor too, so that it pushes nothing in the other frame either.
             IsSensor = material.IsSensor,
             AllowedDOFs = spec.Freedom,
+            // A body near the joint of two triangles of a mesh, or of two children of a compound, also meets the edge
+            // of the neighbor piece there, and Jolt's contact with that edge tilts away from the joint. Jolt's active
+            // edges never drop it for a body that lands, and manifold reduction averages it into the face contact, so a
+            // ball that lands near a joint is pushed sideways, and a box that slides across the joints of a compound
+            // trips at each one. Enhanced internal edge removal drops such a contact beyond about 5 mm from a flat
+            // joint and 10 mm from a concave crease (ter-fb3w). Jolt uses it for a pair when either body has it, but it
+            // removes only the internal edges of the pair's second body: the static or kinematic body of a pair with a
+            // dynamic one, or of two dynamic bodies the one with the higher Jolt body ID
+            // (PhysicsSystem::ProcessBodyPair). So a static or kinematic surface removes its edges for every dynamic
+            // body that touches it, and a dynamic one only for a dynamic body of a lower ID (InternalEdgeRemovalTests).
+            // Where the bodies move alike with and without it, it costs nothing that EdgeRemovalBenchmarks can see:
+            // balls on the hulls of a ring, and balls and boxes on its mesh. Only a shape made of sharp pieces sets it,
+            // because only there is the edge at a joint no feature of the surface. Between two rounded children of a
+            // compound the groove is real: the flag would keep only one of its two contacts, and a ball would sink
+            // 0.8 mm deeper and roll to and fro for seconds, where without it the ball rests in the groove
+            // (ConvexRadiusTests). A convex body has no joints. Each body of an entity follows its own shape: a ghost
+            // has the body's shape, and an interior its own.
+            EnhancedInternalEdgeRemoval = spec.Shape.IsMadeOfSharpPieces(),
         });
         // Jolt gives a body that is or can become kinematic motion properties from its mass, but it cannot compute the mass
         // of a mesh, and would divide by zero. A mesh is never dynamic, and Jolt reads the mass only of a dynamic body, so
-        // the mass of 1 kg only keeps Jolt's inverse mass finite. Only a ghost of a mesh moves (see GhostMotion).
+        // the mass of 1 kg only keeps Jolt's inverse mass finite. Of a mesh, only a ghost moves (see GhostMotion).
         if ((spec.Motion != MotionType.Static || spec.MotionChanges) && spec.Shape.ContainsMesh())
         {
             settings.OverrideMassProperties = OverrideMassProperties.CalculateInertia;
             settings.MassPropertiesOverride = new MassProperties { Mass = 1 };
         }
         // A body whose motion can change keeps its mass while it is static or kinematic, for the time that it is dynamic.
-        // A body without mass never becomes dynamic.
+        // A body without mass never becomes dynamic, and Jolt gives it the mass of its shape. A ghost of a static body takes
+        // its body's mass the same way, though it is never dynamic: Jolt needs a finite mass to move it as a kinematic body.
         else if (spec.Motion == MotionType.Dynamic || (spec.MotionChanges && material.Mass > 0))
         {
             settings.OverrideMassProperties = OverrideMassProperties.CalculateInertia;
@@ -402,6 +462,22 @@ public sealed partial class JoltPhysicsBackend
             PredictiveContactDistance = CharacterContactReach,
             // Contacts below the center of the lower hemisphere support the character.
             SupportingVolume = new Plane(Vector3.UnitY, -capsule.Radius),
+            // A Jolt character finds its contacts by a shape query of its own, which ignores the flag of the body that
+            // it touches, so the flag of a floor made of sharp pieces never reaches it. The query drops a contact with
+            // an edge that a mesh marks inactive, but a compound of hulls marks none, so at each joint of the hulls of
+            // a ring's floor, a character that walks across it meets the edge of the next hull and is lifted by up to
+            // 3.7 mm. Enhanced internal edge removal drops those contacts (ter-fb3w, RevolvedSolidJointTests). The flag
+            // acts on every floor that the query touches, a rounded groove and a mesh included. A character that stands
+            // in the middle of the groove between two boxes of the default convex radius keeps only one of the groove's
+            // two contacts, and it moves 1.1 mm aside and rests 0.15 mm higher; one that walks across the groove walks
+            // as without the flag (InternalEdgeRemovalTests). On a ring's mesh, which needs no flag (it lifts a walking
+            // character by 0.06 mm at most without it), a character that walks at 3 m/s dips up to 1.0 mm into a
+            // joint's crease, against 0.6 mm without the flag. The engine accepts both: each is about 1 mm, and a
+            // character's walk sets its own speed, so neither carries it on. The rigid form is a body, which follows
+            // the floor's flag, so it keeps both contacts of a groove. The flag adds about 2 % to the tick of 100
+            // characters that walk across the joints of a ring's hulls, and nothing on its mesh
+            // (EdgeRemovalBenchmarks).
+            EnhancedInternalEdgeRemoval = true,
         };
         CharacterVirtual character = NativeOwnership.Owned(new CharacterVirtual(settings, position, rotation, BodyUserData.Encode(BodyKind.CharacterInner, record.Entity), system));
         character.LinearVelocity = linearVelocity;
@@ -500,20 +576,25 @@ public sealed partial class JoltPhysicsBackend
     /// Puts a frame hull where the tree says: the simulation refused the hull's hand-off or reparented its frame on its
     /// own, or the frame's parent was destroyed. The hull takes the tree's pose and velocity. A frame that became a root
     /// loses its hull. A full system grows to take the hull. The bodies around the old hull wake, and so do the bodies
-    /// around a new hull that is static, because Jolt does not simulate the move.
+    /// around a new hull that is static, because Jolt does not simulate the move. The interior follows the hull: it turns
+    /// static when its frame becomes a root (see <see cref="InteriorMotion"/>), and each started pair of it that the new
+    /// motion cannot make ends, as when a ship parks (see <see cref="EndPairsThatCannotTouch"/>).
     /// </summary>
     private void PlaceHullFromTree(BodyRecord owner, FrameHandle parent)
     {
         if (!parent.IsNull && ExistingWorld(parent) is { } target)
             RemoveGhostIn(owner, target);
         RemovePrimary(owner);
-        if (parent.IsNull)
-            return;
-        CreateHullFromTree(owner, parent);
-        if (owner.Motion == BodyMotion.Dynamic)
-            spawnedRigid.Add(owner);
-        if (owner.Motion == BodyMotion.Static)
-            owner.World!.WakeAround(owner.Body);
+        if (!parent.IsNull)
+        {
+            CreateHullFromTree(owner, parent);
+            if (owner.Motion == BodyMotion.Dynamic)
+                spawnedRigid.Add(owner);
+            if (owner.Motion == BodyMotion.Static)
+                owner.World!.WakeAround(owner.Body);
+        }
+        if (FollowInteriorMotion(owner))
+            EndPairsThatCannotTouch(owner.InteriorWorld!, owner.InteriorBody);
     }
 
     /// <summary>
@@ -538,9 +619,14 @@ public sealed partial class JoltPhysicsBackend
     /// motion at every step, as the reconcile follows the tree's structure (see <see cref="ReconcileFrames"/>). The tree stores
     /// a change at the sync point after the step that applied it, also when that step failed, so a step that failed loses no
     /// change: the next step that runs takes it from the stored motion. It runs at the start of the step, before anything
-    /// reads a record's motion: the spawn velocities, the static hulls, the hull velocities and the intents. The hull keeps
-    /// its body, its system and its contacts, and takes the frame's pose and velocity from the tree (see
-    /// <see cref="ApplyHullMotion"/>). Its ghosts meet what a body of its new motion meets.
+    /// reads a record's motion: the spawn velocities, the static hulls, the hull velocities and the intents. The hull and the
+    /// interior keep their bodies and their systems, and the hull takes the frame's pose and velocity from the tree (see
+    /// <see cref="ApplyHullMotion"/>). Once every hull of the step has its new motion, every pair of their bodies follows the
+    /// new motions at once (case 3b of docs/plans/complete-ghosts.md): each ghost of such a hull is made again (see
+    /// <see cref="MakeGhostsAgain"/>), so that Jolt offers its pairs to the contact filter with the new motion, and each
+    /// started pair of the hull and of the interior that the new motions cannot make ends (see
+    /// <see cref="EndPairsThatCannotTouch"/>). So the order of the owners does not change the result. Jolt finds the new
+    /// pairs of a hull or an interior that starts to move, since it simulates a body that moves.
     /// </summary>
     /// <remarks>
     /// The simulation lets a hull take only a motion that the hull can take (see <see cref="BodyDesc.Problem"/>), so another
@@ -549,6 +635,7 @@ public sealed partial class JoltPhysicsBackend
     /// </remarks>
     private void FollowHullMotions(ReadOnlySpan<PhysicsIntent> intents)
     {
+        changedHulls.Clear();
         foreach (BodyRecord owner in frameOwners)
         {
             // The owner of a root frame has no hull, and the tree keeps no motion for it.
@@ -562,18 +649,68 @@ public sealed partial class JoltPhysicsBackend
             }
             owner.Motion = motion;
             ApplyHullMotion(owner);
-            // A ghost meets what its real body meets, and a static body meets less (see FrameWorld.StandsForStaticBody).
-            if (owner.Ghosts is { } ghosts)
-                foreach (GhostBody ghost in ghosts)
-                    ghost.World.SetGhostOfStaticBody(ghost.Body, !owner.IsMovable);
+            changedHulls.Add(owner);
+        }
+        // Every hull of the step has its new motion now, and every ghost of one is new, so each check judges a pair by the
+        // new motions of both bodies, whichever owner comes first. A pair of two hulls that both change, such as a lander
+        // that parks on a platform that starts to move, goes on when the new motions allow it.
+        foreach (BodyRecord owner in changedHulls)
+            MakeGhostsAgain(owner);
+        foreach (BodyRecord owner in changedHulls)
+        {
+            EndPairsThatCannotTouch(owner.World!, owner.Body);
+            EndPairsThatCannotTouch(owner.InteriorWorld!, owner.InteriorBody);
+        }
+        changedHulls.Clear();
+    }
+
+    // Scratch for FollowHullMotions: the owners whose hull took a new motion at the start of this step.
+    private readonly List<BodyRecord> changedHulls = new();
+
+    /// <summary>
+    /// Makes each ghost of a hull whose motion changed again: removes it, which loosens its contacts (see
+    /// <see cref="RemoveGhostBody"/>), and puts a new ghost of the same role in its place at once, at the old one's pose
+    /// and velocity, with the Jolt motion and the contact motion of the hull's new motion (see <see cref="CreateGhostBody"/>).
+    /// A ghost's contact motion never changes, because Jolt offers the pairs of a body to the contact filter only once,
+    /// when it adds them: the pairs of a new body. The carry of the end of the step keeps each loose contact that the new
+    /// ghost can make, and ends the rest (see <see cref="ResolveLooseContacts"/>). The new ghost lags the hull by one step,
+    /// as every ghost lags an intent that the step applies, and the ghost pass of the end of the step puts it where the
+    /// hull is. The old ghost goes first, so its system has room for the new one and does not grow.
+    /// </summary>
+    private void MakeGhostsAgain(BodyRecord record)
+    {
+        if (record.Ghosts is not { } ghosts)
+            return;
+        foreach (ref GhostBody ghost in CollectionsMarshal.AsSpan(ghosts))
+        {
+            BodyInterface bodies = ghost.World.Bodies;
+            bodies.GetRPosition(ghost.Body, out RVector3 position);
+            var pose = new DPose(position.ToDouble3(), bodies.GetRotation(ghost.Body).ToDouble());
+            bodies.GetLinearAndAngularVelocity(ghost.Body, out Vector3 linear, out Vector3 angular);
+            RemoveGhostBody(ghost);
+            ghost.Body = CreateGhostBody(record, ghost.World, pose, linear, angular, ghost.Role);
         }
     }
 
     /// <summary>
-    /// Gives a frame owner's hull the Jolt motion type of the record's motion, also when it has that type already. The hull
-    /// keeps its BodyID, its system and its contacts. Like a hull that the reconcile moves to another system, it takes the
-    /// frame's pose and velocity from the tree. If that moves the hull, the bodies around its old place wake, and for a
-    /// static hull the bodies around its new place too.
+    /// Creates a ghost of the record's body in <paramref name="world"/>, in <paramref name="role"/> (see
+    /// <see cref="GhostBody.Role"/>), at <paramref name="pose"/>, moving with <paramref name="linear"/> and
+    /// <paramref name="angular"/> there, with the Jolt motion of <see cref="GhostMotion"/>, and counts it among the ghosts
+    /// of the system with the record's contact motion (see <see cref="FrameWorld.AddGhost"/>). Every ghost comes from here.
+    /// </summary>
+    private BodyID CreateGhostBody(BodyRecord record, FrameWorld world, in DPose pose, Vector3 linear, Vector3 angular, BodyLayer role)
+    {
+        BodyID id = CreateRigid(world, GhostSpec(record, GhostMotion(record, linear, angular), GhostLayer(record, role)), pose, linear, angular);
+        world.AddGhost(id, GhostContactMotion(record));
+        return id;
+    }
+
+    /// <summary>
+    /// Gives a frame owner's hull the Jolt motion type of the record's motion, also when it has that type already, and the
+    /// interior the motion of <see cref="InteriorMotion"/>, kinematic and at rest while the hull moves. The hull and the
+    /// interior keep their BodyIDs, their systems and their contacts. Like a hull that the reconcile moves to another
+    /// system, the hull takes the frame's pose and velocity from the tree. If that moves the hull, the bodies around its old
+    /// place wake, and for a static hull the bodies around its new place too. The interior does not move.
     /// </summary>
     private void ApplyHullMotion(BodyRecord owner)
     {
@@ -603,5 +740,6 @@ public sealed partial class JoltPhysicsBackend
             if (owner.Motion == BodyMotion.Dynamic)
                 spawnedRigid.Add(owner);
         }
+        FollowInteriorMotion(owner);
     }
 }

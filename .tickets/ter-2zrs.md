@@ -1,7 +1,7 @@
 ---
 id: ter-2zrs
 status: open
-deps: [ter-y0e5, ter-2n31]
+deps: [ter-y0e5, ter-2n31, ter-p51r, ter-3j2b]
 links: []
 created: 2026-10-18T14:08:43Z
 type: task

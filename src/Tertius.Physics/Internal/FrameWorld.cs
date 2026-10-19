@@ -95,9 +95,17 @@ internal sealed class FrameWorld : IDisposable
     // The pairs that a growth holds, before they take the new IDs, and the held pairs that a drain ends.
     private readonly List<ulong> heldScratch = new();
 
-    public FrameWorld(FrameHandle frame, JoltBackendOptions options)
+    // Reports a state that only a bug produces, which the system found on the physics thread (see JoltPhysicsBackend.ReportBug).
+    private readonly Action<string> reportBug;
+
+    /// <summary>
+    /// The system of <paramref name="frame"/>. It hands each state that only a bug produces and that it finds on the physics
+    /// thread to <paramref name="reportBug"/>.
+    /// </summary>
+    public FrameWorld(FrameHandle frame, JoltBackendOptions options, Action<string> reportBug)
     {
         Frame = frame;
+        this.reportBug = reportBug;
         penetrationSlop = options.PenetrationSlop;
         Limits = SystemLimits.From(options);
         listener = new ContactListener(this);
@@ -178,64 +186,49 @@ internal sealed class FrameWorld : IDisposable
             CharacterCount--;
     }
 
-    // The ghosts in this system: copies of bodies whose own system is another frame's (see GhostBody). It holds the body of
-    // every ghost that a record keeps in this system, and nothing else. The backend's AssertInvariants checks that.
-    private readonly HashSet<BodyID> ghosts = new();
+    // The ghosts in this system, copies of bodies whose own system is another frame's (see GhostBody), each with its
+    // contact motion: the motion of its real body, Static, Kinematic or Dynamic, and Dynamic for a character in either
+    // form. A ghost stands for its real body, so the contact filter and the pair test judge a pair with a ghost by Jolt's
+    // rule on the contact motions of both bodies (see ContactMotionsMeet and CanTouch): the ghost of a static body is
+    // kinematic in Jolt while it moves, and the ghost of every body that can move is kinematic in Jolt, but each meets
+    // only what its real body meets. It holds the body of every ghost that a record keeps in this system, with the
+    // record's contact motion, and nothing else. The backend's AssertInvariants checks that. Only the physics thread
+    // changes it, between updates, so Jolt's worker threads read it during an update without the gate.
+    private readonly Dictionary<BodyID, MotionType> ghosts = new();
 
     /// <summary>The number of ghosts in this system.</summary>
     public int GhostCount => ghosts.Count;
 
     /// <summary>True when <paramref name="body"/> is a ghost in this system.</summary>
-    public bool HasGhost(BodyID body) => ghosts.Contains(body);
+    public bool HasGhost(BodyID body) => ghosts.ContainsKey(body);
 
     /// <summary>Adds the body of every ghost in this system to <paramref name="into"/>.</summary>
-    public void CopyGhosts(List<BodyID> into) => into.AddRange(ghosts);
-
-    // The ghosts in this system whose real body is static, by body ID: the hull of a parked frame, or an anchor in a
-    // falling frame. Jolt makes a contact of a static body only with a dynamic body, or with a kinematic body when the
-    // static body is a sensor. The ghost of such a body is kinematic unless it is a mesh that holds still, so that a
-    // dynamic body that hits it meets a body that moves as the real body does in this frame, and Jolt also makes a contact
-    // between it and every sensor. A ghost stands for its real body, so the reports drop the contacts that the real body
-    // would not make (see MeetsAsItsRealBody). Only the physics thread changes it, between updates, so Jolt's worker
-    // threads read it during an update without the gate.
-    private readonly HashSet<uint> ghostsOfStaticBodies = new();
-
-    /// <summary>The number of ghosts in this system whose real body is static (see <see cref="StandsForStaticBody"/>).</summary>
-    public int StaticBodyGhostCount => ghostsOfStaticBodies.Count;
-
-    /// <summary>True when <paramref name="ghost"/> is a ghost in this system whose real body is static.</summary>
-    public bool StandsForStaticBody(BodyID ghost) => ghostsOfStaticBodies.Contains(ghost.ID);
+    public void CopyGhosts(List<BodyID> into) => into.AddRange(ghosts.Keys);
 
     /// <summary>
-    /// Counts <paramref name="body"/>, a new body of this system, as a ghost, whose real body is static when
-    /// <paramref name="ofStaticBody"/> is true.
+    /// The contact motion of <paramref name="ghost"/>, a ghost in this system: the motion of its real body, which decides
+    /// what the ghost meets (see <see cref="ContactMotionsMeet"/>). Null when it is no ghost in this system.
     /// </summary>
-    public void AddGhost(BodyID body, bool ofStaticBody)
-    {
-        Contract.Requires(!ghosts.Contains(body));
-        ghosts.Add(body);
-        SetGhostOfStaticBody(body, ofStaticBody);
-    }
+    public MotionType? GhostContactMotion(BodyID ghost) => ghosts.TryGetValue(ghost, out MotionType motion) ? motion : null;
 
     /// <summary>
-    /// Records whether the real body of <paramref name="ghost"/>, a ghost in this system, is static. Call it when the
-    /// motion of the real body changes, so that the ghost meets what the real body meets from the next update on.
+    /// Counts <paramref name="body"/>, a new body of this system, as a ghost whose real body has the contact motion
+    /// <paramref name="contactMotion"/>: <see cref="MotionType.Static"/>, <see cref="MotionType.Kinematic"/>, or
+    /// <see cref="MotionType.Dynamic"/> for a dynamic body or a character. A ghost keeps it: Jolt offers the pairs of a body
+    /// to the contact filter only when it adds them, so when the real body changes its motion, the backend makes the ghost
+    /// again (see <c>JoltPhysicsBackend.MakeGhostsAgain</c>).
     /// </summary>
-    public void SetGhostOfStaticBody(BodyID ghost, bool ofStaticBody)
+    public void AddGhost(BodyID body, MotionType contactMotion)
     {
-        Contract.Requires(ghosts.Contains(ghost));
-        if (ofStaticBody)
-            ghostsOfStaticBodies.Add(ghost.ID);
-        else
-            ghostsOfStaticBodies.Remove(ghost.ID);
+        Contract.Requires(!ghosts.ContainsKey(body));
+        ghosts.Add(body, contactMotion);
     }
 
     /// <summary>Removes and destroys the ghost <paramref name="body"/>, after it wakes the bodies around it (see <see cref="WakeAround"/>).</summary>
     public void RemoveGhost(BodyID body)
     {
-        Contract.Requires(ghosts.Contains(body));
+        Contract.Requires(ghosts.ContainsKey(body));
         ghosts.Remove(body);
-        ghostsOfStaticBodies.Remove(body.ID);
         RemoveBody(body);
     }
 
@@ -258,7 +251,7 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>
     /// Moves every ghost in this system by a shift of the frame, like a member: each ghost loses <paramref name="offset"/>
     /// from its position and <paramref name="velocity"/> from its velocity, so that its place and velocity in the frame's
-    /// parent stay the same. A static ghost is the ghost of a mesh that held still in this frame (see
+    /// parent stay the same. A static ghost is the ghost of a static body that held still in this frame (see
     /// <c>JoltPhysicsBackend.GhostMotion</c>). A shift that changes the frame's velocity makes it move, so it turns
     /// kinematic, which the backend created it to allow, and Jolt moves it with its new velocity in the next update.
     /// Numeric frames do not rotate, so the angular velocity stays. Jolt does not simulate the move, and the ghosts move
@@ -268,7 +261,7 @@ internal sealed class FrameWorld : IDisposable
     public void ShiftGhosts(Double3 offset, Double3 velocity)
     {
         BodyInterface bodies = Bodies;
-        foreach (BodyID ghost in ghosts)
+        foreach (BodyID ghost in ghosts.Keys)
         {
             bodies.GetRPosition(ghost, out RVector3 position);
             Quaternion rotation = bodies.GetRotation(ghost);
@@ -616,6 +609,48 @@ internal sealed class FrameWorld : IDisposable
     }
 
     /// <summary>
+    /// Appends to <paramref name="others"/> the other body of each body pair of <paramref name="body"/> in this system that
+    /// has started and not ended, as <see cref="StartedPairs"/> lists them for the whole system. Costs time in proportion to
+    /// the number of pairs in the system.
+    /// </summary>
+    public void StartedPairsOf(BodyID body, List<BodyID> others)
+    {
+        lock (contactGate)
+        {
+            foreach (ulong key in touching.Keys)
+                if (Involves(key, body) && !pending.Contains(key))
+                    others.Add(Other(key, body));
+            foreach (ulong key in held)
+                if (Involves(key, body))
+                    others.Add(Other(key, body));
+        }
+    }
+
+    /// <summary>The body of the pair <paramref name="key"/> that is not <paramref name="body"/>, one of its two bodies.</summary>
+    private static BodyID Other(ulong key, BodyID body) => (uint)(key >> 32) == body.ID ? Second(key) : First(key);
+
+    /// <summary>
+    /// Forgets that the pair of <paramref name="a"/> and <paramref name="b"/>, two bodies of this system, started, touching
+    /// or held. The backend does this when a change of motion makes a started pair impossible for Jolt (see
+    /// <c>JoltPhysicsBackend.EndPairsThatCannotTouch</c>). A touching pair is a pair that Jolt holds, and it keeps it in its
+    /// cache until an update of this system no longer finds it, which never comes while the system holds no awake body. So
+    /// the pair waits in pending again, as a pair that Jolt found without a touch: if a later change makes the pair possible
+    /// again before Jolt drops it, Jolt reports it as a pair that it held, and it starts at its first touch (see
+    /// <see cref="OnContactPersisted"/>); when Jolt drops it, it goes without a report. A held pair is one that Jolt does not
+    /// hold, so it goes, and Jolt adds it again when it finds it again.
+    /// </summary>
+    public void DropPair(BodyID a, BodyID b)
+    {
+        ulong key = PairKey(a, b);
+        lock (contactGate)
+        {
+            if (touching.ContainsKey(key))
+                pending.Add(key);
+            held.Remove(key);
+        }
+    }
+
+    /// <summary>
     /// Appends to <paramref name="pairs"/> each body pair of this system that has started and not ended: the pairs of
     /// <c>touching</c> that are not pending, and the held pairs. Only the backend's check of its invariants reads them.
     /// </summary>
@@ -742,7 +777,7 @@ internal sealed class FrameWorld : IDisposable
     /// that Jolt would give it rises too little (see <see cref="KeptRestitution(float, float, float, float)"/>). It reads
     /// what Jolt simulates, as Jolt does when it bounces a contact: Jolt holds a static body at rest, and only a dynamic
     /// body's forces count, as in the semantic frame (see <see cref="ForceAcceleration"/>). A ghost moves in Jolt as its
-    /// real body does, and a ghost of a mesh is static only while it holds still (see
+    /// real body does, and a ghost of a static body is static only while it holds still (see
     /// <c>JoltPhysicsBackend.GhostMotion</c>), so the approach that Jolt simulates is the approach of the entities, which
     /// the touch test and the impulse read too (see <see cref="PointVelocity"/>).
     /// </summary>
@@ -858,7 +893,7 @@ internal sealed class FrameWorld : IDisposable
         if (settings->CombinedRestitution > 0f)
             settings->CombinedRestitution = KeptRestitution(body1, body2, manifold, settings->CombinedRestitution);
         ulong data1 = JoltNative.BodyUserData(body1), data2 = JoltNative.BodyUserData(body2);
-        if (!IsReported(data1, data2) || !MeetsAsItsRealBody(body1, data1, body2) || !MeetsAsItsRealBody(body2, data2, body1))
+        if (!IsReported(data1, data2) || !ContactMotionsMeet(body1, data1, body2, data2))
             return;
         RawContact contact = Describe(body1, body2, data1, data2, manifold, settings->IsSensor);
         lock (contactGate)
@@ -939,28 +974,113 @@ internal sealed class FrameWorld : IDisposable
     }
 
     /// <summary>
-    /// True when a contact of the two bodies is a contact of their entities: both stand for an entity, and they are not
-    /// two ghosts. A ghost stands for its real body, so its contact with any other body counts. The real bodies of two
-    /// ghosts are in their own systems, which report their contact if they touch.
+    /// True when a contact of the two bodies is a contact of their entities: both stand for an entity. A ghost stands for
+    /// its real body, so its contact with any other body counts, also with another ghost. Jolt makes a contact of two
+    /// ghosts only when one of them is a sensor, because no ghost is dynamic in Jolt.
     /// </summary>
-    private static bool IsReported(ulong data1, ulong data2) =>
-        IsContactBody(data1) && IsContactBody(data2) && !(BodyUserData.Kind(data1) == BodyKind.Ghost && BodyUserData.Kind(data2) == BodyKind.Ghost);
+    private static bool IsReported(ulong data1, ulong data2) => IsContactBody(data1) && IsContactBody(data2);
 
     /// <summary>
-    /// False when <paramref name="body"/> is the ghost of a static body (see <see cref="StandsForStaticBody"/>), and Jolt
-    /// would make no contact between that static body and <paramref name="other"/>: Jolt makes a contact of a static body
-    /// only with a dynamic body, or with a kinematic body when the static body is a sensor. The engine never sets
-    /// <c>CollideKinematicVsNonDynamic</c>, so this is Jolt's whole rule. Such a ghost is kinematic unless it is a mesh
-    /// that holds still, and Jolt also makes a contact between a kinematic body and any sensor, so a kinematic sensor
-    /// would detect it, and it would detect a static sensor. A ghost stands for its real body, so it meets only what that
-    /// body meets, and numeric frames, whose anchors have such ghosts, change nothing. Reads Jolt's motion of
-    /// <paramref name="other"/>, whose body can be a ghost too, only for a ghost of a static body.
+    /// Test 3 of the pair test (see <see cref="CanTouch"/>), which the contact filter runs on each pair that Jolt adds:
+    /// true when neither body is a ghost, or when Jolt's rule passes on the contact motions of the two bodies (see
+    /// <see cref="MotionsMeet"/>). A ghost stands for its real body, so it meets only what that body meets, while Jolt
+    /// judges it by its own motion: the ghost of a static body is kinematic in Jolt while it moves, and Jolt makes a
+    /// contact of a kinematic body with every sensor, so a kinematic sensor would detect it. And the ghost of a dynamic
+    /// sensor is kinematic in Jolt, so judged by its Jolt motion it would not meet the moving ghost of a static body. A
+    /// ghost without a contact motion comes only from a bug, which the filter cannot report from a worker thread, so it
+    /// applies Jolt's rule alone, and the backend's AssertInvariants finds the missing entry. Reads the bodies only for a
+    /// pair with a ghost.
     /// </summary>
-    private bool MeetsAsItsRealBody(nint body, ulong data, nint other)
+    private bool ContactMotionsMeet(nint body1, ulong data1, nint body2, ulong data2)
     {
-        if (BodyUserData.Kind(data) != BodyKind.Ghost || ghostsOfStaticBodies.Count == 0 || !ghostsOfStaticBodies.Contains(JoltNative.BodyId(body)))
+        if (BodyUserData.Kind(data1) != BodyKind.Ghost && BodyUserData.Kind(data2) != BodyKind.Ghost)
             return true;
-        return JoltNative.BodyIsDynamic(other) != 0 || (JoltNative.BodyIsKinematic(other) != 0 && JoltNative.BodyIsSensor(body) != 0);
+        if (ContactMotion(body1, data1) is not { } motion1 || ContactMotion(body2, data2) is not { } motion2)
+            return true;
+        return MotionsMeet(motion1, JoltNative.BodyIsSensor(body1) != 0, motion2, JoltNative.BodyIsSensor(body2) != 0);
+    }
+
+    /// <summary>
+    /// The contact motion of a body that Jolt passes to a report: for a ghost, its entry in the table of ghosts, or null
+    /// when it has none; for a character's inner body, <see cref="MotionType.Dynamic"/>, since a character counts as
+    /// dynamic; for any other body, its Jolt motion.
+    /// </summary>
+    private MotionType? ContactMotion(nint body, ulong data) => BodyUserData.Kind(data) switch
+    {
+        BodyKind.Ghost => GhostContactMotion(new BodyID(JoltNative.BodyId(body))),
+        BodyKind.CharacterInner => MotionType.Dynamic,
+        _ => JoltNative.BodyIsDynamic(body) != 0 ? MotionType.Dynamic
+            : JoltNative.BodyIsKinematic(body) != 0 ? MotionType.Kinematic
+            : MotionType.Static,
+    };
+
+    /// <summary>
+    /// True when Jolt makes a contact between two bodies of these motions whose layers meet: when one of them is dynamic,
+    /// or when one is kinematic and the other is a sensor. The engine never sets <c>CollideKinematicVsNonDynamic</c>, so
+    /// that is Jolt's whole rule. A character counts as dynamic: its own collisions find every body that its layer meets.
+    /// </summary>
+    internal static bool MotionsMeet(MotionType a, bool aIsSensor, MotionType b, bool bIsSensor) =>
+        a == MotionType.Dynamic || b == MotionType.Dynamic ||
+        (a == MotionType.Kinematic && bIsSensor) || (b == MotionType.Kinematic && aIsSensor);
+
+    /// <summary>
+    /// What the pair test reads of one body of a system: its object layer, its Jolt motion, its contact motion and whether
+    /// it is a sensor. A character's inner body has the dynamic motion and contact motion of a character. A body that is
+    /// not a ghost has its Jolt motion as its contact motion.
+    /// </summary>
+    private readonly record struct PairSide(ObjectLayer Layer, MotionType Motion, MotionType ContactMotion, bool IsSensor);
+
+    /// <summary>
+    /// The pair test: true when Jolt and the contact filter can make a contact between <paramref name="a"/> and
+    /// <paramref name="b"/>, two bodies of this system. All three tests pass:
+    /// <list type="number">
+    /// <item>Their layers meet (see <see cref="Layers.Meet"/>).</item>
+    /// <item>Jolt's rule passes on their Jolt motions (see <see cref="MotionsMeet"/>).</item>
+    /// <item>When one of them is a ghost, Jolt's rule passes on their contact motions (see
+    /// <see cref="ContactMotionsMeet"/>). A body that is not a ghost has its Jolt motion as its contact motion, so the test
+    /// repeats test 2 for a pair of two such bodies.</item>
+    /// </list>
+    /// Jolt runs tests 1 and 2, and the filter runs test 3, but only on a pair that Jolt adds. The backend asks the pair
+    /// test where Jolt would not ask the filter: when it carries a contact into a system (see
+    /// <c>JoltPhysicsBackend.CarryContact</c>). False when a body is not in this system. A ghost without a contact motion
+    /// comes only from a bug: the pair test reports it and judges the ghost by its Jolt motion, as the filter does. Call it
+    /// on the physics thread, between updates.
+    /// </summary>
+    public bool CanTouch(BodyID a, BodyID b) => SideOf(a) is { } x && SideOf(b) is { } y &&
+        Layers.Meet(x.Layer, y.Layer) && MotionsMeet(x.Motion, x.IsSensor, y.Motion, y.IsSensor) &&
+        MotionsMeet(x.ContactMotion, x.IsSensor, y.ContactMotion, y.IsSensor);
+
+    /// <summary>
+    /// What the pair test reads of <paramref name="body"/>, or null when it is not in this system. A ghost without a contact
+    /// motion has its Jolt motion as its contact motion, and goes to the report of bugs.
+    /// </summary>
+    private PairSide? SideOf(BodyID body)
+    {
+        BodyLockInterface locks = System.BodyLockInterface;
+        locks.LockRead(body, out BodyLockRead read);
+        PairSide? side = null;
+        bool ghostWithoutContactMotion = false;
+        if (read.Succeeded && read.Body is { } jolt)
+        {
+            BodyKind kind = BodyUserData.Kind(BodiesNoLock.GetUserData(body));
+            MotionType motion = kind == BodyKind.CharacterInner ? MotionType.Dynamic : jolt.MotionType;
+            MotionType contactMotion = motion;
+            if (kind == BodyKind.Ghost)
+            {
+                if (ghosts.TryGetValue(body, out MotionType ofGhost))
+                    contactMotion = ofGhost;
+                else
+                    ghostWithoutContactMotion = true;
+            }
+            side = new PairSide(jolt.ObjectLayer, motion, contactMotion, jolt.IsSensor);
+        }
+        locks.UnlockRead(read);
+        // The backend gives every ghost its contact motion when it adds the ghost (see AddGhost). The report comes after the
+        // lock, because in a Debug build it throws.
+        if (ghostWithoutContactMotion)
+            reportBug($"Physics: the ghost {body.ID} in the system of {Frame} has no contact motion. Only a bug leaves such a ghost, " +
+                "so the pair test judged it by its Jolt motion.");
+        return side;
     }
 
     /// <summary>True for a body that stands for an entity in contacts: a primary body, an interior, a character's inner body or a ghost.</summary>

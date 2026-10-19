@@ -570,10 +570,16 @@ public class MotionChangeTests
     /// The ship's bubble overlaps the bubble of a station beside it, so the station's system holds a ghost of the hull. A
     /// ghost meets what its real body meets, and a static body meets less, so the ghost of a hull that parks stands for a
     /// static body from the step that parks the hull, and the ghost of one that unparks stands for a moving body again.
+    /// Physics makes the ghost again at each change, as a new body with the new motion's contact motion, so that Jolt offers
+    /// its pairs to the contact filter again: the parked ship's ghost holds still in the station, so it is static in Jolt,
+    /// and the ghost of a ship that moves is kinematic (docs/plans/complete-ghosts.md, case 3b).
     /// </summary>
     [Fact]
     public void TheGhostOfAHullStandsForABodyOfItsNewMotion()
     {
+        JoltPhysicsBackend.BodyFacts GhostIn(FaultInjectingBackend faults, FrameHandle frame, Entity owner) =>
+            faults.Jolt.BodiesIn(frame).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, owner));
+
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e7f)));
         FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
@@ -591,17 +597,23 @@ public class MotionChangeTests
         });
         Tick(world, 2);
         faults.Jolt.HasGhostIn(owner, station).Should().BeTrue("the bubbles overlap");
+        BodyID moving = GhostIn(faults, station, owner).Id;
 
         world.SetMotionNextTick(owner, BodyMotion.Static);
         Tick(world, 2);
 
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow("the ghost stands for a static body now");
+        JoltPhysicsBackend.BodyFacts parked = GhostIn(faults, station, owner);
+        parked.Id.Should().NotBe(moving, "physics made the ghost again");
+        parked.Motion.Should().Be(MotionType.Static, "the parked ship holds still in the station");
 
         world.SetMotionNextTick(owner, BodyMotion.Dynamic);
         Tick(world, 2);
 
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow("the ghost stands for a moving body again");
-        faults.Jolt.HasGhostIn(owner, station).Should().BeTrue();
+        JoltPhysicsBackend.BodyFacts unparked = GhostIn(faults, station, owner);
+        unparked.Id.Should().NotBe(parked.Id, "physics made the ghost again");
+        unparked.Motion.Should().Be(MotionType.Kinematic, "a ghost of a body that can move is kinematic");
         world.Errors.Should().BeEmpty();
     }
 
