@@ -38,6 +38,47 @@ public static partial class DemoScenes
         public const float Mass = 2e4f;
 
         /// <summary>
+        /// The moments of inertia of the hull about its own X, Y and Z axes, in kg·m²: those of a solid box of
+        /// <see cref="Mass"/> with the hull's size, as physics gives a body whose description has a mass.
+        /// </summary>
+        public static Vector3 Inertia { get; } = BoxInertia(Mass, 2 * Hull);
+
+        /// <summary>
+        /// The acceleration that the main engine gives the shuttle at full throttle, in m/s²: three standard gravities,
+        /// as a rocket sled pushes.
+        /// </summary>
+        public const float ThrustAcceleration = 3 * 9.81f;
+
+        /// <summary>
+        /// The radius of the circle that the ascent autopilot flies the shuttle to, in meters, in <c>earth-surface</c>:
+        /// <see cref="ParkingOrbitAltitude"/> above Earth's mean radius.
+        /// </summary>
+        public const double ParkingOrbitRadius = EarthRadius + ParkingOrbitAltitude;
+
+        /// <summary>
+        /// How high the parking orbit lies above Earth's mean radius, in meters: 200 km, above
+        /// <see cref="AtmosphereTop"/> and below the station's 400 km.
+        /// </summary>
+        public const double ParkingOrbitAltitude = 200e3;
+
+        /// <summary>
+        /// The shuttle's flight controls for the climb to its parking orbit, in the order in which they run in a tick: the
+        /// <see cref="AscentAutopilot"/>, which sets the throttle of the <see cref="MainEngine"/> and the target of the
+        /// <see cref="AttitudeAutopilot"/>, and those two. The engine pushes <see cref="Mass"/> with
+        /// <see cref="ThrustAcceleration"/> at full throttle. The autopilot steers only once the shuttle is
+        /// <paramref name="climbHeight"/> meters higher than where it launched, clear of its ramp.
+        /// </summary>
+        public static IComponent[] FlightControls(double climbHeight)
+        {
+            var engine = new MainEngine(Mass * ThrustAcceleration);
+            var attitude = new AttitudeAutopilot(Inertia);
+            return [new AscentAutopilot(engine, attitude, ParkingOrbitRadius, climbHeight), attitude, engine];
+        }
+
+        private static Vector3 BoxInertia(float mass, Vector3 size) => mass / 12 * new Vector3(
+            size.Y * size.Y + size.Z * size.Z, size.X * size.X + size.Z * size.Z, size.X * size.X + size.Y * size.Y);
+
+        /// <summary>
         /// The hatch, the doorway through the starboard wall, in the shuttle's axes: 1.2 m wide, 2.1 m tall, centered 2 m
         /// aft of the shuttle's center, with a sill 0.1 m above the cabin floor. A person on the ground below the hull
         /// steps 0.3 m up onto the sill, within the 0.4 m that a character climbs as a stair.
@@ -107,13 +148,14 @@ public static partial class DemoScenes
 
         /// <summary>
         /// Spawns the shuttle parked at <paramref name="pose"/> in <paramref name="frame"/>, drawn with
-        /// <paramref name="render"/>: its hull is static, so that a later <see cref="BodyHandle.SetMotion"/> unparks it.
+        /// <paramref name="render"/>, with the <paramref name="components"/>, such as its <see cref="FlightControls"/>: its
+        /// hull is static, so that a later <see cref="BodyHandle.SetMotion"/> unparks it.
         /// The cabin needs no value of its own for its weight. The engine derives every frame's proper acceleration from
         /// how the frame moved in the step (ARCHITECTURE.md, "How a frame moves"): a frame that holds still in a gravity
         /// field feels that gravity reversed, so the person in the parked cabin feels the weight of the ground. A new frame
         /// reads no proper acceleration during its first step, and the derived value from its second step on.
         /// </summary>
-        public static Entity Park(World world, FrameHandle frame, DPose pose, RenderData? render = null) => world.Spawn(new SpawnDesc
+        public static Entity Park(World world, FrameHandle frame, DPose pose, RenderData? render = null, IReadOnlyList<IComponent>? components = null) => world.Spawn(new SpawnDesc
         {
             Frame = frame,
             Pose = pose,
@@ -121,6 +163,7 @@ public static partial class DemoScenes
                 InteriorShape: new CompoundShapeDesc([.. Interior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
             AsFrame = new FrameSpec(new FrameBounds(Bubble)),
             Render = render,
+            Components = components ?? [],
         });
     }
 }

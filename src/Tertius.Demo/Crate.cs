@@ -27,6 +27,20 @@ public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId 
     };
 
     /// <summary>
+    /// A drawn copy of the crate in the hands of <paramref name="holder"/>, in <paramref name="frame"/>, the holder's frame,
+    /// for a holder whose view offset is <paramref name="view"/>: it has no body, it is attached to the holder at
+    /// <see cref="Carry.Hold"/> in the view, turned with the view, and a <see cref="HeldInView"/> keeps it there.
+    /// </summary>
+    public SpawnDesc HeldCopy(FrameHandle frame, Entity holder, Pose view) => new()
+    {
+        Frame = frame,
+        AttachTo = holder,
+        AttachOffset = HeldInView.Place(view, Carry.Hold),
+        Render = Drawn(),
+        Components = [new HeldInView(Carry.Hold)],
+    };
+
+    /// <summary>
     /// A loose crate at <paramref name="pose"/> in <paramref name="frame"/>, which moves at <paramref name="velocity"/> in
     /// the frame's axes: a dynamic box with no damping, drawn by <see cref="Drawn"/>, with a <see cref="Crate"/> component.
     /// Throws <see cref="ArgumentOutOfRangeException"/> if the size or the mass is not positive and finite.

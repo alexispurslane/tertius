@@ -35,7 +35,22 @@ public static partial class DemoScenes
     /// <c>apron-camera</c>, 3 m up off the shuttle's aft starboard quarter, between the shuttle and the terminal's gate side,
     /// sees the hatch, the walk across the pad and the person's step into the hatch, with the terminal off to its right;
     /// <c>cabin-camera</c>, in the shuttle's frame in the cabin's aft port corner, sees the seat and the hatch.</item>
-    /// <item>The frame <c>sun</c>, high up toward +X and +Z, is where the light comes from.</item>
+    /// <item>The launch (docs/plans/blue-danube-demo.md, "The sequence", step 2): the <c>ramp</c> (see
+    /// <see cref="LaunchRamp"/>) starts under the parked shuttle and rises at 30 degrees along -Z. The shuttle carries its
+    /// <see cref="Shuttle.FlightControls"/>, which wait for an <see cref="Ignition"/> that a script posts to it. Then the
+    /// shuttle unparks, slides up the ramp at three gravities, and flies to a circle 200 km up. A red <c>pen</c>, 14 cm
+    /// long, lies loose on the cabin floor beside the seat, 2 m to port of it (see <see cref="PenStart"/>). The climb
+    /// presses it aft, as it presses everything loose in the cabin, into the corner of the floor and the aft wall. The
+    /// person is a <see cref="Passenger"/>: its belt holds it at <see cref="Shuttle.SeatStand"/> through the climb, and in
+    /// the weightless cabin in orbit it floats aft to the pen and takes it.</item>
+    /// <item>The <c>earth</c>, only drawn, is a sphere 1 m smaller than Earth, with the grid of the orbit scene, so the
+    /// slab hides it at the pad and the climb shows the planet below.</item>
+    /// <item>More views: <c>ramp-camera</c> stands on the ground beside the ramp and sees all of it; <c>aft-camera</c>, in
+    /// the shuttle's frame in the cabin's forward starboard corner, looks aft along the cabin, past the seat, to the aft
+    /// wall; <c>chase-camera</c> rides in the shuttle's frame, 45 m behind it and 10 m above its roof, and looks at
+    /// it.</item>
+    /// <item>The frame <c>sun</c> lies far away, toward +X and +Z and high up, so its light falls the same way on the pad and
+    /// in orbit.</item>
     /// </list>
     /// </summary>
     /// <remarks>
@@ -50,6 +65,27 @@ public static partial class DemoScenes
 
         /// <summary>The terminal's half extents, in meters: 10 m deep along X, 5 m tall and 16 m wide along Z.</summary>
         public static Vector3 TerminalHalf { get; } = new(5, 2.5f, 8);
+
+        /// <summary>
+        /// How much higher than the ramp's top the shuttle climbs before its autopilot steers, in meters, so that the
+        /// shuttle is clear of the ramp.
+        /// </summary>
+        public const double ClimbClearance = 30;
+
+        /// <summary>The pen's half extents, in meters: 14 cm long along its own Z, and 12 mm thick.</summary>
+        public static Vector3 PenHalf { get; } = new(0.006f, 0.006f, 0.07f);
+
+        /// <summary>The pen's mass, in kilograms.</summary>
+        public const float PenMass = 0.02f;
+
+        /// <summary>
+        /// Where the pen lies at the start, in the shuttle's axes: on the cabin floor, 2 m to port of the seat's line, beside
+        /// the seat. Its length lies along the cabin.
+        /// </summary>
+        public static Double3 PenStart { get; } = new(-1, -Shuttle.Cabin.Y + 0.006, Shuttle.Seat.Center.Z);
+
+        /// <summary>The eye of the person, relative to its center, in its axes: 1.65 m above its feet.</summary>
+        public static Vector3 Eye { get; } = new(0, 0.75f, 0);
 
         /// <summary>Where the person starts: the center of its capsule, 9 m outside the entrance, 0.05 m above the slab's top.</summary>
         public static Double3 PersonStart { get; } = new(36, EarthRadius + 0.95, 0);
@@ -130,6 +166,19 @@ public static partial class DemoScenes
         {
             var scene = new SceneInstance();
             FrameHandle surface = EarthSurface(world, resources, scene, new Vector3(70, 0.5f, 50));
+            scene.Add("earth", world.Spawn(new SpawnDesc
+            {
+                Frame = surface,
+                Pose = new DPose(Double3.Zero, DQuaternion.Identity),
+                Render = new RenderData
+                {
+                    Mesh = resources.CreateMesh(Primitives.Sphere((float)(EarthRadius - 1), 256, 128)),
+                    Material = resources.CreateMaterial(new MaterialDesc(Vector4.One, SpecularIntensity: 0.1f, Albedo: resources.CreateTexture(EarthGrid()))),
+                    BoundingRadius = (float)EarthRadius,
+                    Flags = RenderFlags.Visible | RenderFlags.Celestial,
+                },
+            }));
+            scene.Add("ramp", LaunchRamp.Spawn(world, surface, Drawn(resources, LaunchRamp.Mesh(), new Vector4(0.6f, 0.6f, 0.58f, 1), boundingRadius: LaunchRamp.Length + 6)));
 
             MeshId lampMesh = resources.CreateMesh(Primitives.Box(new Vector3(0.6f, 0.05f, 0.6f)));
             MaterialId lampMaterial = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(6, 5.4f, 4.5f)));
@@ -177,7 +226,8 @@ public static partial class DemoScenes
             }));
 
             Entity shuttle = Shuttle.Park(world, surface, new DPose(new Double3(0, EarthRadius + Shuttle.Hull.Y, 0), DQuaternion.Identity),
-                Drawn(resources, Shuttle.HullMesh(), new Vector4(0.85f, 0.85f, 0.88f, 1), boundingRadius: MathF.Ceiling(Shuttle.Hull.Length())));
+                Drawn(resources, Shuttle.HullMesh(), new Vector4(0.85f, 0.85f, 0.88f, 1), boundingRadius: MathF.Ceiling(Shuttle.Hull.Length())),
+                Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance));
             scene.Add("shuttle", shuttle);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             Vector3 seatHalf = Shuttle.Seat.Extents;
@@ -190,14 +240,21 @@ public static partial class DemoScenes
             world.Spawn(Lamp(cabin, new Double3(0, Shuttle.Cabin.Y - 0.05, 2), range: 10));
             world.Spawn(Lamp(cabin, new Double3(0, Shuttle.Cabin.Y - 0.05, -4.5), range: 10));
 
-            // The capsule is 1.8 m tall, and its center rests 0.9 m above the slab.
+            // The capsule is 1.8 m tall, and its center rests 0.9 m above the slab. Its eye is a view, which the pen in its
+            // hand follows.
+            var penSpec = new CrateSpec(PenHalf, PenMass, resources.CreateMesh(Primitives.Box(PenHalf)),
+                resources.CreateMaterial(MaterialDesc.Color(new Vector4(0.85f, 0.1f, 0.08f, 1))));
+            Entity pen = world.Spawn(penSpec.Spawn(cabin, new DPose(PenStart, DQuaternion.Identity), Double3.Zero));
+            scene.Add("pen", pen);
+            RenderData personRender = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1);
+            personRender.ViewOffset = new Pose(Eye, Quaternion.Identity);
             scene.Add("person", world.Spawn(new SpawnDesc
             {
                 Frame = surface,
                 Pose = new DPose(PersonStart, DQuaternion.Identity),
                 Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: YardPersonMass),
-                Render = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1),
-                Components = [new Walker(Path(surface, cabin))],
+                Render = personRender,
+                Components = [new Walker(Path(surface, cabin)), new Passenger(new Waypoint(cabin, Shuttle.SeatStand), pen)],
             }));
 
             Entity overview = world.Spawn(new SpawnDesc
@@ -226,12 +283,35 @@ public static partial class DemoScenes
                 Render = new RenderData(),
             }));
 
-            SunAt(world, scene, surface, new Double3(60, EarthRadius + 80, 40));
+            scene.Add("ramp-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = surface,
+                Pose = LookingAt(new Double3(140, EarthRadius + 25, -95), new Double3(0, EarthRadius + 55, -110)),
+                Render = new RenderData(),
+            }));
+            scene.Add("aft-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = LookingAt(new Double3(2.3, 1.2, -7.3), new Double3(-0.5, -1, 6.5)),
+                Render = new RenderData(),
+            }));
+            scene.Add("chase-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = LookingAt(new Double3(0, 10, 45), Double3.Zero),
+                Render = new RenderData(),
+            }));
+
+            // The sun stands at the distance of the real one, so its light falls the same way everywhere on the flight.
+            SunAt(world, scene, surface, new Double3(0, EarthRadius, 0) + new Double3(60, 80, 40).Normalized() * AstronomicalUnit);
 
             scene.AddView("overview");
             scene.AddView("terminal-camera");
             scene.AddView("apron-camera");
             scene.AddView("cabin-camera");
+            scene.AddView("ramp-camera");
+            scene.AddView("aft-camera");
+            scene.AddView("chase-camera");
             world.Camera = overview;
             return scene;
         }
