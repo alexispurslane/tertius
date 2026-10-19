@@ -49,10 +49,11 @@ public sealed partial class FrameTree
     /// the hull, relative to the frame's tree parent. Physics releases one when the hull is dynamic, kinematic and aimed by
     /// a motion intent, or static or kinematic without one and teleported in the step.</item>
     /// <item>A frame without a hull: the record of its owner's motion intent in <paramref name="stepIntents"/>, relative to
-    /// the frame's semantic parent (see <see cref="StepRecordInStep"/>), from where the frame stands, which nothing moved
-    /// since the step started. Then a write of the owner's transform in the tick, which the frame takes as a record at
-    /// rest. The write comes last, so it wins for one tick, and its record is static. The next motion intent puts the frame
-    /// back on its rails.</item>
+    /// the frame's semantic parent, from where the frame stands, which nothing moved since the step started, by the rule of
+    /// <see cref="StepRecordInStep"/> (see <see cref="StepRecordOfIntent"/>), so that it agrees to the last bit with the
+    /// record that physics predicted for the frame in the step. Then a write of the owner's transform in the tick, which the
+    /// frame takes as a record at rest. The write comes last, so it wins for one tick, and its record is static. The next
+    /// motion intent puts the frame back on its rails.</item>
     /// </list>
     /// Each record comes with its follow kind (see <see cref="FollowKindInStep"/>), and the frame takes the record's pose, its
     /// instant velocity and its angular velocity, narrowed to a float. Under a numeric tree parent the instant velocity is
@@ -117,7 +118,8 @@ public sealed partial class FrameTree
         bool hull = !taker.TreeParent.IsNull && hullMotion[frame.Index].HasValue;
         if (owners.TryGetHullRecord(frame, out FrameStepRecord released))
             FollowAt(taker, locals, released.Motion, inTreeParent: true, FollowKindAt(taker, stepIntents), released.ProperAcceleration, step);
-        else if (!hull && TryIntentRecord(taker, locals, stepIntents, step, out MotionSample move))
+        // A frame without a hull hangs in its semantic parent, so its tree pose is its pose there, which FollowAt checks.
+        else if (!hull && StepRecordOfIntent(frame.Entity.Index, taker.Parent, locals[taker.Dense], stepIntents, step, out MotionSample move))
             FollowAt(taker, locals, move, inTreeParent: false, FollowKindAt(taker, stepIntents), measured: null, step);
         else if (!(hull && stepFailed) && !owners.IsSkipped(frame))
             HoldStillAt(taker, locals, step);
@@ -128,29 +130,6 @@ public sealed partial class FrameTree
             var rest = new MotionSample(written, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
             FollowAt(taker, locals, rest, inTreeParent: false, FollowKind.Static, measured: null, step);
         }
-    }
-
-    /// <summary>
-    /// The record of the motion intent of the owner of the frame in <paramref name="stepIntents"/>, in the frame's semantic
-    /// parent, from the frame's pose there where the step started, as <see cref="StepRecordInStep"/> derives it. False
-    /// without a motion intent and for a steer target.
-    /// </summary>
-    private bool TryIntentRecord(in RecordTaker taker, Span<DPose> locals, ReadOnlySpan<PhysicsIntent> stepIntents, double step,
-        out MotionSample record)
-    {
-        uint slot = taker.Frame.Entity.Index;
-        if (slot >= (uint)stepIntents.Length || !stepIntents[(int)slot].Move.HasValue)
-        {
-            record = default;
-            return false;
-        }
-        ref readonly PhysicsIntent intent = ref stepIntents[(int)slot];
-        // The World converts every intent into its entity's frame at step 7b. No message of its own, as in StepRecordInStep.
-        Contract.Assert(intent.Frame == taker.Parent);
-        ref readonly DPose local = ref locals[taker.Dense];
-        DPose standing = taker.TreeParent == taker.Parent ? local
-            : new DPose(InSemantic(taker.TreeParent, taker.Parent, local.Position), local.Rotation);
-        return intent.StepRecord(standing, step, out record);
     }
 
     /// <summary>

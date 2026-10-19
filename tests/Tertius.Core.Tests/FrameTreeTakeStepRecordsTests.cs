@@ -205,6 +205,32 @@ public class FrameTreeTakeStepRecordsTests
         frames.TreeLocalPose(hull).Should().Be(DPose.Identity, "the hull's frame takes its record relative to the pod, its tree parent");
     }
 
+    [Fact]
+    public void AFrameThatHoldsStillInAFallingPodKeepsThePodsInstantVelocityPastItsChord()
+    {
+        FrameHandle hull = Child(20, BodyMotion.Dynamic);
+        var body = new NumericBody
+        {
+            Entity = hull.Entity, Semantic = ground, Home = ground, Position = X(100), HomePosition = X(100), Velocity = X(60),
+            Radius = 1, Mass = 1, Character = true, OwnedFrame = hull,
+        };
+        frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), _ => { });
+        frames.Numeric(frames.TreeParent(hull)).Should().Be(NumericMode.Falling);
+        frames.Update();
+        frames.BeginNumericStep([], Step);
+        frames.AdvanceNumericFrames(Step);
+
+        frames.TakeStepRecords([], Step);
+
+        // The pod's velocity is its chord of the step, and it falls by ground's field, so its instant velocity at the end of
+        // the step lies half a step of that fall past the chord.
+        Double3 velocity = frames.TreeLinearVelocity(hull);
+        velocity.X.Should().Be(0);
+        velocity.Y.Should().BeApproximately(-G * Step / 2, 1e-12, "a frame at rest in the pod moves with the pod's instant velocity");
+        velocity.Z.Should().Be(0);
+        frames.Followed(hull).Should().Be(FollowKind.Static);
+    }
+
 #if TERTIUS_CONTRACTS
     /// <summary>Owner facts that move <paramref name="frame"/> under <paramref name="parent"/> when the pass asks about it.</summary>
     private readonly struct Mover(FrameTree frames, FrameHandle frame, FrameHandle parent) : IFrameOwnerFacts

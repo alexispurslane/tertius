@@ -1184,10 +1184,20 @@ public sealed partial class FrameTree
     /// has no motion intent, or a steer target, which gives no record. Valid only while the tree stands where the step starts:
     /// before the step, during it, and at step 2 for a frame without a hull, which nothing moves between the two. The
     /// intents are by entity slot, as <see cref="PhysicsStepContext.Intents"/> holds them; a slot past their end holds none.
+    /// Step 2 derives the record of a frame without a hull by the same rule (see <see cref="StepRecordOfIntent"/>), so the
+    /// record that physics predicts for such a frame and the one that the frame takes agree to the last bit.
     /// </summary>
-    internal bool StepRecordInStep(FrameHandle frame, ReadOnlySpan<PhysicsIntent> stepIntents, double step, out MotionSample record)
+    internal bool StepRecordInStep(FrameHandle frame, ReadOnlySpan<PhysicsIntent> stepIntents, double step, out MotionSample record) =>
+        StepRecordOfIntent(frame.Entity.Index, Parent(frame), LocalPose(frame), stepIntents, step, out record);
+
+    /// <summary>
+    /// The rule of <see cref="StepRecordInStep"/>, for a frame whose owner has the slot <paramref name="slot"/>, whose
+    /// semantic parent is <paramref name="parent"/>, and which stands at <paramref name="standing"/> in that parent where the
+    /// step starts. Step 2 calls it for a frame without a hull (see <see cref="TakeStepRecords"/>).
+    /// </summary>
+    private static bool StepRecordOfIntent(uint slot, FrameHandle parent, in DPose standing, ReadOnlySpan<PhysicsIntent> stepIntents,
+        double step, out MotionSample record)
     {
-        uint slot = frame.Entity.Index;
         if (slot >= (uint)stepIntents.Length || !stepIntents[(int)slot].Move.HasValue)
         {
             record = default;
@@ -1197,8 +1207,8 @@ public sealed partial class FrameTree
         // The World converts every intent into its entity's frame at step 7b, the semantic parent of a frame that it owns,
         // and only a dynamic hull hands off during a step. The assertion takes no message of its own, which a Debug build
         // would build for every frame with a motion intent in every step.
-        Contract.Assert(intent.Frame == Parent(frame));
-        return intent.StepRecord(LocalPose(frame), step, out record);
+        Contract.Assert(intent.Frame == parent);
+        return intent.StepRecord(standing, step, out record);
     }
 
     /// <summary>

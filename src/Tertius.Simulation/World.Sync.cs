@@ -261,12 +261,14 @@ public sealed partial class World
     /// docs/plans/rails-components.md), which asks the World about each frame's owner (see <see cref="OwnerFacts"/>). The
     /// owner's kind decides where the record comes from: a hull takes the record that physics released for it, and an
     /// owner without a hull the record of its motion intent in the front intents, the intents of the step that ended, which
-    /// step 4 swaps out after this, and then a write of its transform in the tick, which wins for one tick. Physics released
-    /// no record after a step that failed (<paramref name="stepFailed"/>), and none for a frame whose owner's update the
-    /// output check skipped (see <see cref="SkipBrokenPhysicsUpdates"/>), so such frames keep their state. Then an orbit frame
-    /// whose anchor's hull teleported jumps with it (see <see cref="FrameTree.JumpFollowingFrame"/>), and the rows of the
-    /// bodies in it and the bodies in physics shift at once. Last, every frame owner mirrors its frame, whose state changed;
-    /// a body state of a hull wrote no row.
+    /// step 4 swaps out after this, and then a write of its transform in the tick, which wins for one tick. A frame without
+    /// a record holds still in its tree parent, unless its owner's update was skipped: the output check skipped it in a
+    /// Release build (see <see cref="SkipBrokenPhysicsUpdates"/>), or the owner has a hull and the step failed
+    /// (<paramref name="stepFailed"/>), so that physics released no record and may have moved the hull or not. Then the
+    /// frame keeps its state. After a step that failed, a frame without a hull takes its owner's motion intent, or holds
+    /// still without one, as after any other step. Then an orbit frame whose anchor's hull teleported jumps with it (see
+    /// <see cref="FrameTree.JumpFollowingFrame"/>), and the rows of the bodies in it and the bodies in physics shift at once.
+    /// Last, every frame owner mirrors its frame, whose state changed; a body state of a hull wrote no row.
     /// </summary>
     private void FollowOwners(bool stepFailed)
     {
