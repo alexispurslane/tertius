@@ -14,9 +14,9 @@
     {"do":"camera","entity":"follow-camera"},
     {"do":"film","name":"pad","frames":210,"every":1},
     {"do":"camera","entity":"apron-camera"},
-    {"do":"film","name":"boarding","frames":100,"every":1},
+    {"do":"film","name":"boarding","frames":150,"every":1},
     {"do":"camera","entity":"follow-camera"},
-    {"do":"film","name":"cabin","frames":215,"every":1},
+    {"do":"film","name":"cabin","frames":165,"every":1},
     {"do":"camera","entity":"cabin-camera"},
     {"do":"film","name":"seated","frames":90,"every":1},
     {"do":"camera","entity":"pen-camera"},
@@ -45,9 +45,7 @@
     {"do":"camera","entity":"pen-camera"},
     {"do":"film","name":"fetch","frames":345,"every":1},
     {"do":"camera","entity":"hand-camera"},
-    {"do":"film","name":"take","frames":259,"every":1},
-    {"do":"camera","entity":"cabin-camera"},
-    {"do":"film","name":"holding","frames":90,"every":1},
+    {"do":"film","name":"take","frames":349,"every":1},
     {"do":"camera","entity":"chase-camera"},
     {"do":"film","name":"coast","frames":180,"every":10}
   ]

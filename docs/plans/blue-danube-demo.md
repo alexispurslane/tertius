@@ -97,8 +97,8 @@ The sections today, as the checked-in script has them:
 | `approach` | `follow-camera` | 1 | 118 | 1.5 | The person is 1 m inside the terminal's entrance |
 | `terminal` | `terminal-camera` | 1 | 229 | 3.5 | The person is 1 m outside the gate |
 | `pad` | `follow-camera` | 1 | 210 | 7.3 | The person is within 1.5 m of `Shuttle.OutsideHatch` |
-| `boarding` | `apron-camera` | 1 | 100 | 10.8 | The person's capsule is inside the cabin |
-| `cabin` | `follow-camera` | 1 | 215 | 12.4 | 1 s after the person shuts its belt |
+| `boarding` | `apron-camera` | 1 | 150 | 10.8 | The `follow-camera` is inside the cabin, 0.1 m from its walls |
+| `cabin` | `follow-camera` | 1 | 165 | 13.3 | 1 s after the person shuts its belt |
 | `seated` | `cabin-camera` | 1 | 90 | 16.0 | After 1.5 s |
 | `pen-on-the-pad` | `pen-camera` | 1 | 60 | 17.5 | After 1 s |
 | `on-the-pad` | `pad-camera` | 1 | 60 | 18.5 | After 1 s |
@@ -112,8 +112,7 @@ The sections today, as the checked-in script has them:
 | `orbit` | `chase-camera` | 1 | 60 | 340.4 | After 1 s |
 | `pen-release` | `pen-camera` | 1 | 121 | 341.4 | 2 s after the clip lets the pen go |
 | `fetch` | `pen-camera` | 1 | 345 | 343.4 | The person's hand is within 0.3 m of the pen |
-| `take` | `hand-camera` | 1 | 259 | 349.2 | 1.5 s after the person takes the pen |
-| `holding` | `cabin-camera` | 1 | 90 | 353.5 | After 1.5 s |
+| `take` | `hand-camera` | 1 | 349 | 349.2 | 3 s after the person takes the pen |
 | `coast` | `chase-camera` | 10 | 180 | 355.0 | After 30 s |
 
 ### How a later ticket adds a section
@@ -133,9 +132,11 @@ The demo is one unbroken run in one scene, so a later part, such as the station 
 - The camera's up turns toward the subject's up, with a time constant of 0.5 s.
 - The heading is the way the subject goes, across the camera's up. It turns toward the anchor's way with a time constant of 0.5 s while the anchor moves faster than 0.5 m/s, and it holds while the subject stands. It starts opposite to the camera's offset at its spawn, so the scene places the camera behind the subject.
 - The arm runs from the anchored eye, the place of the subject's view offset, back along the heading and up along the camera's up. A ray along the arm finds the nearest body that is not the subject's, and the arm stops 0.2 m short of it: at once when it must shorten, and with a time constant of 0.5 s when it can grow back. So the camera stays in the cabin and passes the terminal's doorways.
-- The camera looks at a point ahead of the anchored eye along the heading. The point comes nearer with a shorter arm, so the eye keeps its place in the view.
+- The camera looks along the heading, pitched toward a point ahead of the anchored eye, and lowered as far as the subject's whole box needs to stay in the picture: every corner of the box stays within 85 percent of the half picture's height from its middle, in the world's vertical view angle. The point comes nearer with a shorter arm. When the box is too tall for the picture, as with a wall close behind the subject, the top of the box stays in the picture. The scene gives the camera the box of the person and the world's view angle.
 
-The demo surface's `follow-camera` keeps 3.5 m behind the eye, 0.8 m above it, and looks 2 m ahead of it (`ChaseCameraTests`, `DemoFollowCameraTests`).
+The demo surface's `follow-camera` keeps 3.5 m behind the eye, 0.8 m above it, and looks toward the point 2 m ahead of it (`ChaseCameraTests`, `DemoFollowCameraTests`). At its full arm, a look at that point would put the person's feet at the picture's bottom edge, so the camera tilts down by 3 degrees. In the climb, the cabin's up lies along the shuttle's length, so the arm runs across the cabin and stops 2 m behind the person at the cabin's side, and the camera tilts down further to keep the feet in the picture. `DemoFollowCameraTests` projects the 8 corners of the person's box through the camera in every tick of the walk, the ramp and the climb through the film `climb-cabin`, and requires them within 95 percent of the half picture.
+
+The arm shortens at once when a wall comes into it. In the walk this happens once: the camera follows the person through the shuttle's hatch while it looks through the hatch, until the arm meets the hull's side, and then the camera jumps 1.3 m into the cabin. So the film `boarding` lasts until the camera is inside the cabin, and the jump falls in it, from the apron camera. Elsewhere in the walk the camera's move in one tick differs from the move in the tick before by less than 10 cm: 7 cm in the tick of a turn at a waypoint, and 9 cm at the step onto the hatch's sill, which the apron camera films (`TheFollowCameraMovesSmoothlyThroughTheTurnsOfTheWalk`).
 
 Two limits come from the attachment, not from the component. The camera reads the subject at the end of the last finished step, and the attachment applies the camera's offset to the subject's pose at the end of the step that runs beside the camera's tick, in the subject's axes. So a sudden move or turn of the subject, which no camera can foresee, reaches the camera once, in the tick of the move, as a hard attach would, and from the next tick on the camera takes it out:
 
@@ -350,20 +351,21 @@ The pipe write takes 1 ms of a 720p frame and 2.3 ms of a 1080p frame, about the
 
 #### Measured for the demo scene
 
-Ticket ter-2n31 measured this on 2026-10-19, on an Apple M1 Max with 10 logical processors under macOS 27.0, in a Release build with validation off. The explicit test `DemoFrameCostMeasurement` in the Host tests repeats it, with the variable `TERTIUS_DEMO_COST` set to the file of its report: `TERTIUS_DEMO_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*DemoFrameCostMeasurement" --explicit only`. It runs the checked-in `scripts/blue-danube.json` from its start through the film `seated`: the walk on the surface and the person at its seat in the cabin, 1,052 frames, one tick apart, at 1280x720 into a video at 60 frames per second. It drives the objects of a headless run as the command makes them, through the renderer and the playback that time every call, as `VideoCostMeasurement` does. The times are wall-clock means per frame, in ms, from the fastest of three runs. Other work loaded the machine, with a load average from 6 to 18, so the other two runs took 5.5 and 6.8 ms per frame, with the ticks up to three times as long.
+Ticket ter-2n31 measured this on 2026-10-19, on an Apple M1 Max with 10 logical processors under macOS 27.0, in a Release build with validation off. The explicit test `DemoFrameCostMeasurement` in the Host tests repeats it, with the variable `TERTIUS_DEMO_COST` set to the file of its report: `TERTIUS_DEMO_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*DemoFrameCostMeasurement" --explicit only`. It runs the checked-in `scripts/blue-danube.json` from its start through the film `seated`: the walk on the surface and the person at its seat in the cabin, 1,052 frames, one tick apart, at 1280x720 into a video at 60 frames per second. It drives the objects of a headless run as the command makes them, through the renderer and the playback that time every call, as `VideoCostMeasurement` does. The times are wall-clock means per frame, in ms, from one run.
 
 | Film | Camera | Frames | Ticks | Draw, fence wait and readback | Video's pipe write | All |
 |---|---|---|---|---|---|---|
-| `overview` | `overview` | 90 | 1.61 | 2.35 | 0.87 | 4.83 |
-| `approach` | `follow-camera` | 118 | 0.76 | 2.21 | 2.25 | 5.23 |
-| `terminal` | `terminal-camera` | 229 | 0.72 | 2.16 | 2.40 | 5.28 |
-| `pad` | `follow-camera` | 210 | 0.33 | 1.77 | 1.03 | 3.13 |
-| `boarding` | `apron-camera` | 100 | 0.21 | 1.73 | 0.94 | 2.88 |
-| `cabin` | `follow-camera` | 215 | 0.24 | 1.72 | 0.99 | 2.95 |
-| `seated` | `cabin-camera` | 90 | 0.42 | 2.08 | 1.66 | 4.16 |
+| `overview` | `overview` | 90 | 1.46 | 2.23 | 0.83 | 4.51 |
+| `approach` | `follow-camera` | 118 | 0.44 | 1.86 | 0.85 | 3.14 |
+| `terminal` | `terminal-camera` | 229 | 0.33 | 1.67 | 0.84 | 2.84 |
+| `pad` | `follow-camera` | 210 | 0.34 | 1.75 | 0.85 | 2.94 |
+| `boarding` | `apron-camera` | 150 | 0.22 | 1.73 | 0.83 | 2.79 |
+| `cabin` | `follow-camera` | 165 | 0.24 | 1.67 | 0.89 | 2.80 |
+| `seated` | `cabin-camera` | 90 | 0.21 | 1.72 | 0.87 | 2.80 |
 
-- The whole stretch took 4.00 ms per frame, and the end of the video (`Finish`) 17 ms once.
-- On the surface a frame takes 3 to 5 ms, and in the cabin 3 to 4 ms. The draw takes about 2 ms everywhere, a little more than the 1.6 ms of the orbit scene. The tick takes 0.2 to 0.8 ms, more on the surface, where the terminal and the slab are near the person, than in the cabin. The first film also pays for the first ticks of the run.
+- The whole stretch took 3.02 ms per frame, and the end of the video (`Finish`) 14 ms once.
+- On the surface a frame takes 2.8 to 3.1 ms, and in the cabin 2.8 ms. The draw takes 1.7 to 1.9 ms, a little more than the 1.6 ms of the orbit scene, and the pipe write 0.85 ms. The tick takes 0.2 to 0.45 ms, more on the surface, where the terminal and the slab are near the person, than in the cabin. The first film also pays for the first ticks of the run.
+- The first measurement, with the sections of the first round and a load average from 6 to 18, gave 4.00 ms per frame, with ticks up to 0.8 ms and pipe writes up to 2.4 ms. This one ran with the follow camera's framing of the second round, at a load average from 3 to 4.5.
 - The whole script, 4,210 frames and 23,101 ticks, took 30 s from the command line, about 7 ms per frame, with 5.5 ticks per frame on average. So the 70 s of video of today take half a minute, and the demo's 18,000 frames would take a few minutes.
 
 #### Compared with today

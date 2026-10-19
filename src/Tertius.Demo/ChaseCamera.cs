@@ -23,9 +23,13 @@ namespace Tertius.Demo;
 /// along the arm measures the free distance to the nearest body that is not the subject's, and the arm stops
 /// <see cref="WallGap"/> short of it: at once when it must shorten, and with the time constant <see cref="ArmTime"/> when
 /// it can grow back.</item>
-/// <item>The look: from the camera toward the point <paramref name="ahead"/> meters ahead of the anchored eye along the
-/// heading, with the camera's up as the view's up. When the arm shortens, that point comes nearer in proportion, so the
-/// eye keeps its place in the view.</item>
+/// <item>The look: along the heading, with the camera's up as the view's up, pitched toward the point
+/// <paramref name="ahead"/> meters ahead of the anchored eye along the heading, and lowered as far as the subject's whole
+/// body needs to stay in the picture: the pitch is held where every corner of the subject's box, <paramref name="subjectHalf"/>,
+/// lies within <see cref="FrameMargin"/> of the half picture's height from the middle of the picture, in the
+/// <paramref name="verticalFov"/> of the view. When the arm shortens, the point ahead comes nearer in proportion. When the
+/// box is too tall for the picture, as with a wall close behind the subject, the top of the box stays in the picture and
+/// its bottom leaves it. When a corner lies beside or behind the camera, the camera pitches toward the point ahead.</item>
 /// </list>
 /// </summary>
 /// <remarks>
@@ -43,7 +47,9 @@ namespace Tertius.Demo;
 /// <param name="behind">How far behind the subject's eye the camera keeps, along the heading, in meters.</param>
 /// <param name="above">How far above the subject's eye the camera keeps, along the camera's up, in meters.</param>
 /// <param name="ahead">How far ahead of the subject's eye the camera looks, along the heading, in meters.</param>
-public sealed class ChaseCamera(double behind, double above, double ahead) : IComponent
+/// <param name="subjectHalf">The half extents of the box that draws the subject, around its center, in its axes, in meters.</param>
+/// <param name="verticalFov">The vertical angle of the view through the camera, in radians: the world's <see cref="World.VerticalFov"/>.</param>
+public sealed class ChaseCamera(double behind, double above, double ahead, Vector3 subjectHalf, double verticalFov) : IComponent
 {
     /// <summary>The time constant of the anchor's spring, in seconds: it swings at the angular frequency 1 / this, damped critically.</summary>
     public const double SmoothTime = 0.3;
@@ -63,10 +69,19 @@ public sealed class ChaseCamera(double behind, double above, double ahead) : ICo
     /// <summary>The time constant with which a shortened arm grows back, in seconds.</summary>
     public const double ArmTime = 0.5;
 
+    /// <summary>
+    /// How far from the middle of the picture the corners of the subject's box may lie, as a share of the half picture's
+    /// height: the box keeps 15 percent of the half height to the picture's top and bottom edges.
+    /// </summary>
+    public const double FrameMargin = 0.85;
+
     // The tag of the camera's rays, which matches each answer to its question.
     private const int RayTag = 0x43_48_41_53;
 
     private readonly double behind = behind, above = above, ahead = ahead;
+    private readonly Double3 subjectHalf = (Double3)subjectHalf;
+    // The largest angle from the view's axis, up or down, at which a corner of the subject's box may lie.
+    private readonly double reach = Math.Atan(FrameMargin * Math.Tan(verticalFov / 2));
 
     // False until the first tick, which takes the heading from the offset at the spawn.
     private bool started;
@@ -128,16 +143,42 @@ public sealed class ChaseCamera(double behind, double above, double ahead) : ICo
         double reach = Math.Clamp(free - WallGap, 0, length);
         arm = reach < arm ? reach : arm + (reach - arm) * (1 - Math.Exp(-dt / ArmTime));
         Double3 back = -heading * behind + up * above;
-        Double3 forward = (heading * (behind + ahead) - up * above).Normalized();
 
         // Relative to the subject, in the frame's axes: the anchored eye, then the camera at the end of the arm.
         Double3 eye = lag + pose.Rotation.Rotate((Double3)snapshot.RenderOf(subject).ViewOffset.Position);
         Double3 camera = eye + back * (arm / length);
+        double pitch = Pitch(eye + heading * (ahead * arm / length) - camera, pose.Rotation, camera);
+        Double3 forward = heading * Math.Cos(pitch) + up * Math.Sin(pitch);
         DQuaternion toSubject = pose.Rotation.Conjugate();
         self.AttachOffset = new Pose(toSubject.Rotate(camera).ToVector3(), View(toSubject.Rotate(forward), toSubject.Rotate(up)));
 
         // The free distance along the whole arm, from the anchored eye where the step that runs now ends.
         self.Physics.CastRayAll(pose.Position + subjectVelocity * dt + eye, back, length + WallGap, default, RayTag);
+    }
+
+    /// <summary>
+    /// The pitch of the look above the heading, in radians: the pitch of <paramref name="aim"/>, a way from the camera,
+    /// lowered until the lowest corner of the subject's box lies within <see cref="reach"/> of the view's axis, but never
+    /// so far that the highest corner lies farther than that above it. The subject's center is at the origin, turned by
+    /// <paramref name="rotation"/>, and the camera at <paramref name="camera"/>. When a corner lies beside or behind the
+    /// camera, the pitch is that of the aim.
+    /// </summary>
+    private double Pitch(Double3 aim, DQuaternion rotation, Double3 camera)
+    {
+        double lowest = double.PositiveInfinity, highest = double.NegativeInfinity;
+        bool inFront = true;
+        for (int corner = 0; corner < 8; corner++)
+        {
+            var local = new Double3((corner & 1) == 0 ? -subjectHalf.X : subjectHalf.X, (corner & 2) == 0 ? -subjectHalf.Y : subjectHalf.Y,
+                (corner & 4) == 0 ? -subjectHalf.Z : subjectHalf.Z);
+            Double3 seen = rotation.Rotate(local) - camera;
+            double along = Double3.Dot(seen, heading), pitch = Math.Atan2(Double3.Dot(seen, up), along);
+            inFront &= along > 0;
+            lowest = Math.Min(lowest, pitch);
+            highest = Math.Max(highest, pitch);
+        }
+        double toward = Math.Atan2(Double3.Dot(aim, up), Double3.Dot(aim, heading));
+        return inFront ? Math.Max(Math.Min(toward, lowest + reach), highest - reach) : toward;
     }
 
     /// <summary>Takes the free distance from this tick's answers to the camera's ray: the nearest hit on a body that is not the subject's.</summary>

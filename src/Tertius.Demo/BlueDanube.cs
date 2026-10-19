@@ -39,7 +39,9 @@ public static class BlueDanube
         new("approach", "follow-camera", Every: 1, (world, scene) => PersonOnTheGround(world, scene).X < DemoSurface.TerminalCenter.X + DemoSurface.TerminalHalf.X - 1),
         new("terminal", "terminal-camera", Every: 1, (world, scene) => PersonOnTheGround(world, scene).X < DemoSurface.TerminalCenter.X - DemoSurface.TerminalHalf.X - 1),
         new("pad", "follow-camera", Every: 1, (world, scene) => Double3.Distance(PersonInCabin(world, scene), Shuttle.OutsideHatch) < 1.5),
-        new("boarding", "apron-camera", Every: 1, (world, scene) => PersonInCabin(world, scene).X < Shuttle.Cabin.X - 0.3),
+        // The follow camera, which looks through the hatch after the person, meets the hull's side and jumps into the
+        // cabin, so the apron camera films the boarding until the follow camera is in the cabin.
+        new("boarding", "apron-camera", Every: 1, (world, scene) => InsideTheCabin(world.PoseIn(scene["follow-camera"], world.GetOwnedFrame(scene["shuttle"])).Position)),
         new("cabin", "follow-camera", Every: 1, (world, scene) => PassengerOf(world, scene).Value is not Boarding, Hold: Second),
         new("seated", "cabin-camera", Every: 1, FilmSection.Now, Hold: Second * 3 / 2),
         new("pen-on-the-pad", "pen-camera", Every: 1, FilmSection.Now, Hold: Second),
@@ -62,8 +64,8 @@ public static class BlueDanube
         new("orbit", "chase-camera", Every: 1, FilmSection.Now, Hold: Second),
         new("pen-release", "pen-camera", Every: 1, (world, scene) => PenReleased(world, scene), Hold: Second * 2),
         new("fetch", "pen-camera", Every: 1, (world, scene) => HandToPen(world, scene) < 0.3),
-        new("take", "hand-camera", Every: 1, (world, scene) => PassengerOf(world, scene).Value is Holding or Stopped, Hold: Second * 3 / 2),
-        new("holding", "cabin-camera", Every: 1, FilmSection.Now, Hold: Second * 3 / 2),
+        // The hand camera films the take and the person holding the pen, which its body hides from the cabin camera.
+        new("take", "hand-camera", Every: 1, (world, scene) => PassengerOf(world, scene).Value is Holding or Stopped, Hold: Second * 3),
 
         // The coast in orbit, as a time-lapse. The rendezvous with the station follows here.
         new("coast", "chase-camera", Every: 10, FilmSection.Now, Hold: Second * 30),
@@ -71,6 +73,13 @@ public static class BlueDanube
 
     /// <summary>The script of the run, which the generator rehearses in a new world (see <see cref="FilmScript.Generate"/>).</summary>
     public static Script Generate() => FilmScript.Generate(DemoScenes.All.Single(scene => scene.Name == SceneName), Window, Sections);
+
+    /// <summary>
+    /// True when <paramref name="position"/>, in the shuttle's frame, lies inside the cabin, 0.1 m from its walls, floor
+    /// and roof.
+    /// </summary>
+    public static bool InsideTheCabin(Double3 position) =>
+        Math.Abs(position.X) < Shuttle.Cabin.X - 0.1 && Math.Abs(position.Y) < Shuttle.Cabin.Y - 0.1 && Math.Abs(position.Z) < Shuttle.Cabin.Z - 0.1;
 
     /// <summary>The person's position in the frame of the ground, earth-surface, in which the shuttle stands.</summary>
     private static Double3 PersonOnTheGround(World world, SceneInstance scene) => world.PoseIn(scene["person"], world.GetFrame(scene["shuttle"])).Position;

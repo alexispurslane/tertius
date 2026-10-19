@@ -19,6 +19,9 @@ public sealed class ChaseCameraTests : IDisposable
 
     private static readonly Vector3 Eye = new(0, 0.75f, 0);
 
+    /// <summary>The half extents of the person's box: the capsule's height and width.</summary>
+    private static readonly Vector3 Half = new(0.3f, 0.9f, 0.3f);
+
     private readonly World world = NewWorld(out _);
 
     public void Dispose() => world.Dispose();
@@ -38,7 +41,7 @@ public sealed class ChaseCameraTests : IDisposable
         AttachTo = person,
         AttachOffset = new Pose(Eye + new Vector3(0, (float)Above, 0) + behind * (float)Behind, Quaternion.Identity),
         Render = new RenderData(),
-        Components = [new ChaseCamera(Behind, Above, Ahead)],
+        Components = [new ChaseCamera(Behind, Above, Ahead, Half, world.VerticalFov)],
     });
 
     /// <summary>Where the person's eye is in <paramref name="frame"/>.</summary>
@@ -63,7 +66,9 @@ public sealed class ChaseCameraTests : IDisposable
 
     /// <summary>
     /// A person that stands still at the origin, with its camera behind it along +Z: the camera rests 3.5 m behind the eye
-    /// and 0.8 m above it, at (0, 2.45, 3.5), and looks at (0, 1.65, -2), 2 m ahead of the eye.
+    /// and 0.8 m above it, at (0, 2.45, 3.5), and looks along -Z. A look at (0, 1.65, -2), 2 m ahead of the eye, would put
+    /// the near bottom edge of the person's box 98 percent of the half picture below its middle, so the camera tilts down
+    /// until that edge lies at <see cref="ChaseCamera.FrameMargin"/>, 85 percent.
     /// </summary>
     [Fact]
     public void TheCameraRestsBehindAndAboveTheEyeOfAPersonThatStands()
@@ -76,8 +81,10 @@ public sealed class ChaseCameraTests : IDisposable
 
         DPose view = world.PoseIn(camera, ground);
         Double3.Distance(view.Position, new Double3(0, 2.45, 3.5)).Should().BeLessThan(0.01);
-        Degrees(view.Rotation.Rotate(-Double3.UnitZ), new Double3(0, 1.65, -2) - view.Position).Should().BeLessThan(0.5);
-        Degrees(view.Rotation.Rotate(Double3.UnitY), Double3.UnitY).Should().BeLessThan(12, "the view's up leans only by its look down");
+        view.Rotation.Rotate(-Double3.UnitZ).X.Should().BeApproximately(0, 1e-3);
+        Double3 nearFoot = view.Rotation.Conjugate().Rotate(world.PoseIn(person, ground).TransformPoint(new Double3(0.3, -0.9, 0.3)) - view.Position);
+        (nearFoot.Y / -nearFoot.Z / Math.Tan(world.VerticalFov / 2)).Should().BeApproximately(-ChaseCamera.FrameMargin, 0.01);
+        Degrees(view.Rotation.Rotate(Double3.UnitY), Double3.UnitY).Should().BeLessThan(15, "the view's up leans only by its look down");
     }
 
     /// <summary>
@@ -139,8 +146,9 @@ public sealed class ChaseCameraTests : IDisposable
     /// <summary>
     /// The person stands with its back 1 m from a wall, and the camera's framing lies 3.5 m behind it, beyond the wall: from
     /// the third tick on, the camera stays at least 0.15 m in front of the wall, more than 0.5 m behind the eye, and with
-    /// the eye within 15 degrees of the middle of its view. The camera's arm starts in the person's capsule, which it
-    /// passes through.
+    /// the eye within 20 degrees of the middle of its view. So close, the person's box is too tall for the picture, and the
+    /// camera keeps its top in the picture, which puts the eye about 17 degrees above the middle. The camera's arm starts
+    /// in the person's capsule, which it passes through.
     /// </summary>
     [Fact]
     public void TheCameraStopsShortOfAWallBehindThePerson()
@@ -157,7 +165,7 @@ public sealed class ChaseCameraTests : IDisposable
             Double3 at = world.PoseIn(camera, ground).Position;
             at.Z.Should().BeLessThan(0.85, $"at tick {world.TickNumber}");
             Double3.Distance(at, EyeOf(person, ground)).Should().BeGreaterThan(0.5, $"at tick {world.TickNumber}");
-            AngleToEye(camera, person, ground).Should().BeLessThan(15, $"at tick {world.TickNumber}");
+            AngleToEye(camera, person, ground).Should().BeLessThan(20, $"at tick {world.TickNumber}");
         }
     }
 

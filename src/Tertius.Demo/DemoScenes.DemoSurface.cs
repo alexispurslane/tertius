@@ -61,8 +61,9 @@ public static partial class DemoScenes
     /// across at the place where the person's hand takes the pen, 1.5 m away, about 1.8 m above the floor and 2.1 m from
     /// the port wall, and sees the hand close on the pen from above and the pen in the hand.</item>
     /// <item>The <c>follow-camera</c> is a <see cref="ChaseCamera"/> attached to the person: it keeps 3.5 m behind the
-    /// person's eye along the way the person walks, 0.8 m above it, and looks at the point 2 m ahead of it. It goes with the
-    /// person into the shuttle's frame, and stops short of the terminal's walls and the cabin's.</item>
+    /// person's eye along the way the person walks, 0.8 m above it, and looks toward the point 2 m ahead of it, tilted down as
+    /// far as the person's whole box needs to stay in the picture. It goes with the person into the shuttle's frame, and
+    /// stops short of the terminal's walls and the cabin's.</item>
     /// <item>The frame <c>sun</c> lies far away, toward +X and +Z and high up, so its light falls the same way on the pad and
     /// in orbit.</item>
     /// </list>
@@ -132,6 +133,9 @@ public static partial class DemoScenes
 
         /// <summary>The eye of the person, relative to its center, in its axes: 1.65 m above its feet.</summary>
         public static Vector3 Eye { get; } = new(0, 0.75f, 0);
+
+        /// <summary>The half extents of the box that draws the person, in meters, in its axes: 0.6 m wide and deep, 1.8 m tall.</summary>
+        public static Vector3 PersonHalf { get; } = new(0.3f, 0.9f, 0.3f);
 
         /// <summary>How far behind the person's eye the <c>follow-camera</c> keeps, in meters (see <see cref="ChaseCamera"/>).</summary>
         public const double FollowBehind = 3.5;
@@ -305,7 +309,7 @@ public static partial class DemoScenes
                 resources.CreateMaterial(MaterialDesc.Color(new Vector4(0.85f, 0.1f, 0.08f, 1))));
             Entity pen = world.Spawn(ClippedPen(penSpec, cabin));
             scene.Add("pen", pen);
-            RenderData personRender = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1);
+            RenderData personRender = Drawn(resources, Primitives.Box(PersonHalf), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1);
             personRender.ViewOffset = new Pose(Eye, Quaternion.Identity);
             Entity person = world.Spawn(new SpawnDesc
             {
@@ -322,7 +326,7 @@ public static partial class DemoScenes
                 AttachTo = person,
                 AttachOffset = new Pose(Eye + new Vector3((float)FollowBehind, (float)FollowAbove, 0), Quaternion.Identity),
                 Render = new RenderData(),
-                Components = [new ChaseCamera(FollowBehind, FollowAbove, FollowAhead)],
+                Components = [new ChaseCamera(FollowBehind, FollowAbove, FollowAhead, PersonHalf, world.VerticalFov)],
             }));
 
             Entity overview = world.Spawn(new SpawnDesc
