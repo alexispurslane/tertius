@@ -1,6 +1,6 @@
 ---
 id: ter-1bnq
-status: open
+status: in_progress
 deps: [ter-ediu, ter-xdt8]
 links: []
 created: 2026-10-16T23:00:45Z
