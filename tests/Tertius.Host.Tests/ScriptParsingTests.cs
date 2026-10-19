@@ -161,6 +161,131 @@ public class ScriptParsingTests
         script.Steps.Should().Equal(new OutlinesStep(true), new OutlinesStep(false));
     }
 
+    private static string ScriptOf(params string[] steps) => $$"""{ "scene": "lit-box", "steps": [ {{string.Join(", ", steps)}} ] }""";
+
+    private static string Film(string name, int frames, int every) => $$"""{ "do": "film", "name": "{{name}}", "frames": {{frames}}, "every": {{every}} }""";
+
+    private static string Capture(string name) => $$"""{ "do": "capture", "name": "{{name}}" }""";
+
+    [Fact]
+    public void AFilmStepReadsItsNameItsNumberOfFramesAndTheTicksBeforeEachFrame()
+    {
+        Script script = Script.Parse(ScriptOf(Film("climb", 18000, 2)));
+
+        script.Steps.Should().Equal(new FilmStep("climb", 18000, 2));
+    }
+
+    [Theory]
+    [InlineData(0, 1, "frames")]
+    [InlineData(-1, 1, "frames")]
+    [InlineData(1_000_001, 1, "frames")]
+    [InlineData(1, 0, "every")]
+    [InlineData(1, -3, "every")]
+    public void AFilmOfFramesOutsideOneToAMillionOrOfLessThanOneTickBeforeEachFrameIsRefused(int frames, int every, string named)
+    {
+        Action parse = () => Script.Parse(ScriptOf(Film("climb", frames, every)));
+
+        parse.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 1 (film)").And.Contain(named);
+    }
+
+    [Theory]
+    [InlineData(1, 1)]
+    [InlineData(1_000_000, 1)]
+    [InlineData(1, int.MaxValue)]
+    public void AFilmOfOneToAMillionFramesWithOneTickOrMoreBeforeEachIsAccepted(int frames, int every)
+    {
+        Script script = Script.Parse(ScriptOf(Film("climb", frames, every)));
+
+        script.Steps.Should().Equal(new FilmStep("climb", frames, every));
+    }
+
+    [Theory]
+    [InlineData("../escape")]
+    [InlineData("Upper")]
+    [InlineData("")]
+    [InlineData("-leading-dash")]
+    public void AFilmNameOutsideTheSceneIdGrammarIsRefused(string name)
+    {
+        Action parse = () => Script.Parse(ScriptOf(Film(name, 1, 1)));
+
+        parse.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 1 (film)");
+    }
+
+    [Fact]
+    public void AFilmNameOfMoreThan57CharactersIsRefusedBecauseItsFrameNamesWouldPassTheSceneIdLimitOf64()
+    {
+        Action parse = () => Script.Parse(ScriptOf(Film(new string('a', 58), 1, 1)));
+
+        parse.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 1 (film)").And.Contain("57");
+    }
+
+    [Fact]
+    public void AFilmNameOf57CharactersIsAccepted()
+    {
+        Script script = Script.Parse(ScriptOf(Film(new string('a', 57), 1, 1)));
+
+        script.Steps.Should().Equal(new FilmStep(new string('a', 57), 1, 1));
+    }
+
+    [Fact]
+    public void TwoFilmsWithOneNameAreRefusedBecauseTheirFramesHaveTheSameNamesAndTheMessageNamesBothSteps()
+    {
+        Action parse = () => Script.Parse(ScriptOf(Film("climb", 3, 1), """{ "do": "run", "ticks": 1 }""", Film("climb", 1, 5)));
+
+        parse.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 3 (film)").And.Contain("step 1").And.Contain("climb");
+    }
+
+    [Fact]
+    public void ACaptureNamedAfterAFrameOfAnEarlierFilmIsRefusedAndTheMessageNamesBothSteps()
+    {
+        Action parse = () => Script.Parse(ScriptOf(Film("climb", 3, 1), Capture("climb-000002")));
+
+        parse.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2 (capture)").And.Contain("step 1").And.Contain("climb-000002");
+    }
+
+    [Fact]
+    public void AFilmWithAFrameNamedLikeAnEarlierCaptureIsRefusedAndTheMessageNamesBothSteps()
+    {
+        Action parse = () => Script.Parse(ScriptOf(Capture("climb-000002"), Film("climb", 3, 1)));
+
+        parse.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 2 (film)").And.Contain("step 1").And.Contain("climb-000002");
+    }
+
+    /// <summary>The film "climb" has 3 frames, <c>climb-000000</c> to <c>climb-000002</c>, and none of these names is one of them.</summary>
+    [Theory]
+    [InlineData("climb-000003")]
+    [InlineData("climb")]
+    [InlineData("climb-00001")]
+    [InlineData("climb-0000001")]
+    [InlineData("climb--00001")]
+    [InlineData("climb_000001")]
+    [InlineData("climbs-000001")]
+    [InlineData("climx-000001")]
+    public void ACaptureWhoseNameIsNoFrameOfAFilmStandsBeforeOrAfterIt(string capture)
+    {
+        Script after = Script.Parse(ScriptOf(Film("climb", 3, 1), Capture(capture)));
+        Script before = Script.Parse(ScriptOf(Capture(capture), Film("climb", 3, 1)));
+
+        after.Steps.Should().HaveCount(2);
+        before.Steps.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void TwoFilmsWithDifferentNamesStandTogetherEvenWhenOneNameIsAFrameNameOfTheOther()
+    {
+        Script script = Script.Parse(ScriptOf(Film("climb", 3, 1), Film("climb-000001", 3, 1)));
+
+        script.Steps.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void AFrameOfAFilmAndADumpCanShareANameBecauseTheirFilesDiffer()
+    {
+        Script script = Script.Parse(ScriptOf(Film("climb", 3, 1), """{ "do": "dump", "name": "climb-000001" }"""));
+
+        script.Steps.Should().HaveCount(2);
+    }
+
     [Theory]
     [InlineData(0, 360)]
     [InlineData(640, -1)]

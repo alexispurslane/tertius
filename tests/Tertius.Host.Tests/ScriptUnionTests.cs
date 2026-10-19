@@ -30,24 +30,24 @@ public class ScriptUnionTests
     }
 
     [Fact]
-    public void AScriptStepIsACustomUnionOfTheSixStepRecords() =>
-        ShouldBeACustomUnionOf(typeof(ScriptStep), nameof(RunStep), nameof(PostStep), nameof(DumpStep), nameof(CaptureStep), nameof(CameraStep), nameof(OutlinesStep));
+    public void AScriptStepIsACustomUnionOfTheSevenStepRecords() =>
+        ShouldBeACustomUnionOf(typeof(ScriptStep), nameof(RunStep), nameof(PostStep), nameof(DumpStep), nameof(CaptureStep), nameof(CameraStep), nameof(FilmStep), nameof(OutlinesStep));
 
     [Fact]
     public void AMessageTargetIsACustomUnionOfTheFourTargetRecords() =>
         ShouldBeACustomUnionOf(typeof(MessageTarget), nameof(ToEntity), nameof(ToTopic), nameof(ToFrame), nameof(ToEveryone));
 
     [Fact]
-    public void TheRunnersReadyStepIsACustomUnionOfItsSixReadyRecords()
+    public void TheRunnersReadyStepIsACustomUnionOfItsSevenReadyRecords()
     {
         Type ready = typeof(ScriptRunner).GetNestedType("ReadyStep", BindingFlags.NonPublic)!;
 
-        ShouldBeACustomUnionOf(ready, "ReadyRun", "ReadyPost", "ReadyCamera", "ReadyDump", "ReadyCapture", "ReadyOutlines");
+        ShouldBeACustomUnionOf(ready, "ReadyRun", "ReadyPost", "ReadyCamera", "ReadyDump", "ReadyCapture", "ReadyFilm", "ReadyOutlines");
     }
 
     // One sample of every case. A new case without a sample fails the two tests that compare the samples with the cases.
     private static readonly ScriptStep[] StepSamples =
-        [new RunStep(3), new PostStep(new ToEntity("probe"), "Nudge"), new DumpStep("a"), new CaptureStep("b"), new CameraStep("c"), new OutlinesStep(true)];
+        [new RunStep(3), new PostStep(new ToEntity("probe"), "Nudge"), new DumpStep("a"), new CaptureStep("b"), new CameraStep("c"), new FilmStep("d", 3, 2), new OutlinesStep(true)];
 
     private static readonly MessageTarget[] TargetSamples = [new ToEntity("probe"), new ToTopic("input"), new ToFrame("ship"), new ToEveryone()];
 
@@ -313,7 +313,7 @@ public class ScriptUnionTests
     private static Script ScriptWith(string step) => Script.Parse($$"""{ "scene": "probes", "steps": [ {{step}} ] }""");
 
     private const string NotValid = "The script is not valid JSON of a script: ";
-    private const string KindsOfStep = "The kinds of step are run, post, dump, capture, camera and outlines.";
+    private const string KindsOfStep = "The kinds of step are run, post, dump, capture, camera, film and outlines.";
     private const string KindsOfTarget = "The kinds of event target are entity, topic, frame and broadcast.";
 
     [Theory]
