@@ -92,3 +92,7 @@ A new member or subtype fails the build at every switch that dispatches on it. T
 **2026-10-18T21:23:39Z**
 
 ter-ru5u removed World.SetFrameDriver and BodyDesc.FrameHullProblem, with the MotionDriver enum and BodyDesc.FrameHullMotion. A change of motion is now the intent Self.Body.SetMotion, which World.WritableHullMotionIntent guards. The hull rules live in BodyDesc.Problem(BodyRole), with the roles OwnsNoFrame, Hull and OwnsRootFrame. So the items of this ticket on FrameHullProblem and the MotionDriver chains have no code left to change.
+
+**2026-10-19T11:39:20Z**
+
+Change to step 3 (2026-10-19): ter-q8ge makes ScriptStep, MessageTarget and the runner's ReadyStep custom [Union] structs, not record hierarchies. So step 3 applies only to ShapeDesc. A switch expression over a union already gets the compiler's check for every case, with a null arm for the empty union (as step 4 says for Target). The runner's switch statements over the step union keep a throw for the empty union.
