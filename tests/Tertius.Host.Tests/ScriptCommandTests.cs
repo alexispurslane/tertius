@@ -1,3 +1,4 @@
+using Tertius.Host.Scripting;
 using static Tertius.Host.Tests.HostTesting;
 
 namespace Tertius.Host.Tests;
@@ -150,6 +151,17 @@ public sealed class ScriptCommandTests : IDisposable
     [InlineData("--record needs a value", "--scene", "no-such-scene", "--record")]
     [InlineData("--record applies to free play", "--script", "script.json", "--out", "out", "--record", "record.json")]
     [InlineData("--record applies to free play", "--script", "script.json", "--headless", "--out", "out", "--record", "record.json")]
+    [InlineData("--video applies to a headless run", "--script", "script.json", "--out", "out", "--video", "v.mkv")]
+    [InlineData("--video applies to a headless run", "--scene", "no-such-scene", "--video", "v.mkv")]
+    [InlineData("--video needs a value", "--script", "script.json", "--headless", "--out", "out", "--video")]
+    [InlineData("ends in .mkv", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mp4")]
+    [InlineData("ends in .mkv", "--script", "script.json", "--headless", "--out", "out", "--video", "mkv")]
+    [InlineData("--fps applies to a video", "--script", "script.json", "--headless", "--out", "out", "--fps", "30")]
+    [InlineData("--fps needs a value", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mkv", "--fps")]
+    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mkv", "--fps", "0")]
+    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mkv", "--fps", "241")]
+    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mkv", "--fps", "29.97")]
+    [InlineData("whole number from 1 to 240", "--script", "script.json", "--headless", "--out", "out", "--video", "v.mkv", "--fps", "fast")]
     public void AnOptionThatTheWindowRulesRefuseExitsWithTheCommandLineErrorCodeAndNamesTheRule(string rule, params string[] args)
     {
         int code = Run(args);
@@ -158,8 +170,8 @@ public sealed class ScriptCommandTests : IDisposable
         error.ToString().Should().Contain(rule);
     }
 
-    // The refused rows above name a scene that no table has. If a rule breaks, the run then ends in ScriptError before
-    // any window code runs, instead of opening a window on a test thread.
+    // The refused rows above name a scene that no table has, or a script file that does not exist. If a rule breaks, the
+    // run then ends in ScriptError or FileError before any window code runs, instead of opening a window on a test thread.
 
     [Fact]
     public void TheWindowOptionsCarryTheirValues()
@@ -169,6 +181,41 @@ public sealed class ScriptCommandTests : IDisposable
 
         free.Should().Be(new ScriptCommand.Options(null, "drop-box", null, false, 0.5));
         played.Should().Be(new ScriptCommand.Options("s.json", null, "o", false, 1));
+    }
+
+    [Fact]
+    public void TheVideoOptionsCarryTheFileAndTheFrameRateWhichIs30WithoutFps()
+    {
+        ScriptCommand.Options? rated = ScriptCommand.ReadOptions(["--script", "s.json", "--headless", "--out", "o", "--video", "o/v.mkv", "--fps", "24"], out _);
+        ScriptCommand.Options? plain = ScriptCommand.ReadOptions(["--script", "s.json", "--headless", "--out", "o", "--video", "o/v.mkv"], out _);
+
+        rated.Should().Be(new ScriptCommand.Options("s.json", null, "o", true, 1, Video: new VideoFile("o/v.mkv", 24)));
+        plain.Should().Be(new ScriptCommand.Options("s.json", null, "o", true, 1, Video: new VideoFile("o/v.mkv", 30)));
+    }
+
+    [Theory]
+    [InlineData("1")]
+    [InlineData("240")]
+    public void TheFrameRateMayBeAnyWholeNumberFrom1To240(string rate)
+    {
+        ScriptCommand.ReadOptions(["--script", "s.json", "--headless", "--out", "o", "--video", "v.mkv", "--fps", rate], out string? problem)
+            .Should().NotBeNull(problem);
+    }
+
+    [Fact]
+    public void AVideoForAScriptWithNoCaptureOrFilmExitsWithTheCommandLineErrorCodeAndStartsNoFfmpeg()
+    {
+        string script = ScriptFile("""{ "scene": "probes", "steps": [ { "do": "run", "ticks": 1 }, { "do": "dump", "name": "end" } ] }""");
+        string video = Path.Combine(folder, "v.mkv");
+        int started = 0;
+
+        int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out, "--video", video], Scenes, output, error, Rendering.VulkanRenderer.CreateHeadless,
+            (_, _) => { started++; throw new InvalidOperationException("no ffmpeg in this test"); });
+
+        code.Should().Be(ScriptCommand.CommandLineError);
+        error.ToString().Should().Contain("--video").And.Contain("no capture or film step");
+        started.Should().Be(0);
+        File.Exists(Path.Combine(Out, "end.json")).Should().BeFalse("the command refuses the run before the first tick");
     }
 
     [Fact]

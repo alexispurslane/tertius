@@ -96,7 +96,7 @@ internal sealed class WindowHost : IInputTarget
         {
             error.WriteLine($"Cannot open the window: {ex.Message}");
             window?.Dispose();
-            return ScriptCommand.RendererError;
+            return ScriptCommand.ToolError;
         }
         try
         {
@@ -109,7 +109,7 @@ internal sealed class WindowHost : IInputTarget
             catch (Exception ex)
             {
                 error.WriteLine($"Cannot start the renderer for the window: {ex.Message}");
-                return ScriptCommand.RendererError;
+                return ScriptCommand.ToolError;
             }
             var host = default(WindowHost);
             try
@@ -383,7 +383,7 @@ internal sealed class WindowHost : IInputTarget
         if (failure is NotSupportedException)
         {
             error.WriteLine($"The window cannot do what the script asks: {failure.Message}");
-            return ScriptCommand.RendererError;
+            return ScriptCommand.ToolError;
         }
         if (failure != null)
         {
