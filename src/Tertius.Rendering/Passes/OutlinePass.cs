@@ -87,8 +87,9 @@ internal sealed class OutlinePass : RenderPass
     /// Writes one <see cref="GpuOutline"/> into <paramref name="scene"/> for each outline of <paramref name="snapshot"/> that
     /// can show, in the order of the snapshot, and nothing for the others. An outline shows when its outline sphere has a
     /// radius above 0 and is not outside the view frustum: the largest radius for an ellipsoid, the radius for a sphere.
-    /// The center becomes relative to the interpolated eye of <see cref="PreparedScene.Camera"/>, as a light's does. The
-    /// batcher has reset <paramref name="scene"/> for the frame, so the records of the frame before are gone.
+    /// A sphere, which gets <see cref="GpuOutline.SphereFlag"/>, is the contents sphere of a numeric frame, or a bubble
+    /// with three equal radii (<see cref="FrameBounds.IsSphere"/>). The center becomes relative to the interpolated eye
+    /// of <see cref="PreparedScene.Camera"/>, as a light's does. The batcher has reset <paramref name="scene"/> for the frame, so the records of the frame before are gone.
     /// </summary>
     internal static void Collect(RenderSnapshot snapshot, PreparedScene scene)
     {
@@ -98,7 +99,9 @@ internal sealed class OutlinePass : RenderPass
             switch (outline)
             {
                 case SemanticOutline(var center, var rotation, var radii):
-                    Add(scene, center, new Vector4(rotation.X, rotation.Y, rotation.Z, rotation.W), radii, OutlineColors.Semantic, 0);
+                    // A bubble with three equal radii is a sphere, by the rule of FrameBounds, so it also gets its rim.
+                    Add(scene, center, new Vector4(rotation.X, rotation.Y, rotation.Z, rotation.W), radii, OutlineColors.Semantic,
+                        new FrameBounds(radii).IsSphere ? GpuOutline.SphereFlag : 0);
                     break;
                 case FallingOutline(var center, var radius):
                     AddSphere(scene, center, radius, OutlineColors.Falling);

@@ -98,6 +98,25 @@ public sealed class OutlinePassTests
     }
 
     [Fact]
+    public void ASphericalBubbleGetsItsOutlineAsSeenFromTheCameraAndKeepsTheAxesOfItsFrame()
+    {
+        // A bubble with three equal radii is a sphere (FrameBounds.IsSphere), like the bubble of Earth in the demo.
+        RenderSnapshot snapshot = Empty();
+        Quaternion turned = Quaternion.CreateFromAxisAngle(Vector3.Normalize(new Vector3(1, 2, 0)), 0.7f);
+        snapshot.Outlines.Add(new SemanticOutline(new Vector3(1, 2, -20), turned, new Vector3(5)));
+        // Two equal radii do not make a sphere.
+        snapshot.Outlines.Add(new SemanticOutline(new Vector3(1, 2, -20), turned, new Vector3(5, 5, 6)));
+
+        GpuOutline[] records = Records(Collect(snapshot));
+
+        GpuOutline sphere = records[0];
+        (sphere.Flags & GpuOutline.SphereFlag).Should().Be(GpuOutline.SphereFlag, "a sphere seen from outside also draws its rim");
+        sphere.Rotation.Should().Be(new Vector4(turned.X, turned.Y, turned.Z, turned.W), "a bubble's rings lie in the principal planes of its frame");
+        sphere.Radii.Should().Be(new Vector3(5));
+        (records[1].Flags & GpuOutline.SphereFlag).Should().Be(0u);
+    }
+
+    [Fact]
     public void AnOutlineOfRadiusZeroDrawsNothing()
     {
         RenderSnapshot snapshot = Empty();

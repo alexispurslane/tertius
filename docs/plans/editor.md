@@ -950,7 +950,7 @@ These are targets, not measurements, on the Apple M1 Max of this machine. Step C
 | Draw data copy into `UiDrawList` | Under 0.1 ms per 50,000 vertices | Block copies |
 | UI pass on the GPU at 2560 × 1600 pixels | Under 0.3 ms | |
 | Hierarchy with 10,000 entities, all open | Under 0.5 ms | Visible rows only |
-| Overlays for 100 reference frames with bubbles and orbits | Under 0.3 ms CPU | About 40,000 line vertices |
+| Line overlays for 100 reference frames: orbits and frame axes | Under 0.3 ms CPU | About 26,000 line vertices: 256 for each orbit of 128 points and 6 for each triad. The frame bubbles are not in the `LineList`. `OutlinePass` draws them, and ARCHITECTURE.md, "The overlay pass", gives their measured cost. |
 | `CameraView` snapshot build, 10,000 entities | Under 1 ms | |
 | In-place sync of one changed entity | Under 50 µs | |
 | One edit and diff, 10,000-entity scene | Under 0.2 ms | |
