@@ -206,8 +206,9 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// The velocities that the hull of a record's frame needs, in Jolt's terms, to move like the frame in the tree when the
     /// hull is at <paramref name="pose"/>: the linear velocity of the hull's center of mass, and the angular velocity. A
-    /// kinematic hull gets none: it moves only toward the targets of its frame's samples, so without a sample it holds still
-    /// in its tree parent, also in its first step (docs/plans/rails-components.md, "The motion sample").
+    /// kinematic hull gets none: it moves only by its owner's motion intents, toward the end of each end pose or full sample,
+    /// so without one it holds still in its tree parent, also in its first step (docs/plans/rails-components.md, "The flow
+    /// per kind of entity").
     /// </summary>
     private (Vector3 Linear, Vector3 Angular) HullVelocityFromTree(BodyRecord record, in DPose pose)
     {

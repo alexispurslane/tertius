@@ -12,7 +12,7 @@ public enum FollowKind : byte
     /// </summary>
     Static = 0,
 
-    /// <summary>The frame followed a motion sample that a component of its owner wrote with <c>Self.MoveOnRails</c>.</summary>
+    /// <summary>The frame followed a full sample that a component of its owner wrote with <c>Self.MoveOnRails</c>.</summary>
     Rails = 1,
 
     /// <summary>The frame followed its owner's dynamic hull, which physics moved.</summary>

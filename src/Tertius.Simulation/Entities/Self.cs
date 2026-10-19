@@ -335,9 +335,11 @@ public readonly ref struct BodyHandle
     /// in the next one. The stored motion, which <see cref="FrameTree.HullMotion"/> and the body facts show, describes the
     /// last finished step, as the collision groups do: it changes at step 4 of the sync point after the next step. The hull
     /// keeps its body, its system and its contacts. The last change in a tick wins, and a change to the motion that the hull
-    /// has changes nothing. A hull that is not kinematic in the next step drops the sample written in this tick, and one that
-    /// is kinematic drops the velocities, the end pose and the steer target set in this tick, because a kinematic hull moves
-    /// only by its samples and teleports. A parked frame stops at the sync point after the next step.
+    /// has changes nothing. The hull drops the motion intent written in this tick that the guard refuses under its motion in
+    /// the next step (see <see cref="Self.MotionIntentProblem"/>): one that is not kinematic drops an end pose or a full
+    /// sample, and one that is not dynamic drops a steer target. One that is kinematic also drops the velocities set in this
+    /// tick (<see cref="SetVelocity"/> and <see cref="SetAngularVelocity"/>), because a kinematic hull moves only by its
+    /// motion intents and teleports. A parked frame stops at the sync point after the next step.
     /// </summary>
     /// <exception cref="InvalidOperationException">The body is no hull: the entity has no body, owns no frame, or owns a root frame.</exception>
     /// <exception cref="ArgumentException">
