@@ -73,9 +73,11 @@ public readonly ref struct Self
     /// <summary>
     /// This entity's pose in <paramref name="frame"/> where it starts the next physics step, the step in which this tick's
     /// intent acts: where the motion intent of the step that runs beside this tick ends, an end pose or a full sample, which
-    /// puts the entity there exactly; else where that step's teleport puts it; else its pose now. A steer target gives no
-    /// exact end, so the read skips it. The null frame is the root's own space, in which the owner of a root frame writes its
-    /// motion intents. A rails component reads it to start its motion where the motion before it, such as the last sample
+    /// puts the entity there exactly; else where that step's teleport puts it; else its pose now. A kinematic body without a
+    /// motion intent holds still in its home in that step, hull or not, so the read moves its pose now with a numeric home
+    /// over the step. Physics moves a dynamic body or a character, which the read does not predict: for one, it gives the
+    /// pose now. A steer target gives no exact end, so the read skips it. The null frame is the root's own space, in which
+    /// the owner of a root frame writes its motion intents. A rails component reads it to start its motion where the motion before it, such as the last sample
     /// of a component that it replaced, leaves the entity (see <see cref="SpinMotion"/>). Throws
     /// <see cref="ArgumentException"/> for a stale frame.
     /// </summary>

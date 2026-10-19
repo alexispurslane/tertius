@@ -69,7 +69,8 @@ public sealed class SpinMotion : IComponent
     /// The place in its parent where the entity stands at the start of the step that this tick's sample describes, which is
     /// the end of the step that runs beside this tick. A motion intent that the entity follows in that step puts it at its
     /// end, so the spin starts where the motion before it, such as the last sample of a component that this one replaced,
-    /// leaves the entity. Without one the entity holds still in that step, at its place now. The read is public (see
+    /// leaves the entity. Without one the entity holds still in that step, so it ends the step at its place now, which a
+    /// numeric home carries on over the step. The read is public (see
     /// <see cref="Self.PoseAtNextStepStartIn"/>), so a mod's rails component can do the same.
     /// </summary>
     private static Double3 PlaceAtStepStart(Self self) => self.PoseAtNextStepStartIn(self.Frame).Position;

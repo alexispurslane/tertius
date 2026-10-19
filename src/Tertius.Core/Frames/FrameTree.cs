@@ -854,6 +854,26 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
+    /// How far the origin of <paramref name="home"/> moves relative to <paramref name="semantic"/>, the home itself or an
+    /// ancestor of it, over a step of <paramref name="dt"/> seconds that starts now: the sum of the move of each numeric frame
+    /// between them, as <see cref="AdvanceNumericFrames"/> moves it. It is <see cref="HomeOffsetAfter"/> less
+    /// <see cref="HomeOffset"/>, without the rounding of their sums of places. A body that holds still in its home ends the
+    /// step this far from where it stands now, in the axes of the semantic frame, because a numeric frame never turns. Zero
+    /// when the home is the semantic frame.
+    /// </summary>
+    internal Double3 HomeMoveOver(FrameHandle home, FrameHandle semantic, double dt)
+    {
+        Contract.Requires(home == semantic || IsAncestorOf(semantic, home));
+        Double3 move = Double3.Zero;
+        for (FrameHandle f = home; f != semantic; f = TreeParent(f))
+        {
+            int id = Node(f).Id;
+            move += (linearVelocity[id] + stepAcceleration[id] * dt) * dt;
+        }
+        return move;
+    }
+
+    /// <summary>
     /// Like <see cref="HomeVelocity"/>, but at the end of a step of <paramref name="dt"/> seconds that starts now (see
     /// <see cref="AdvanceNumericFrames"/>).
     /// </summary>
