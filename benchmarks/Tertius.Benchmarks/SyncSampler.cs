@@ -14,7 +14,10 @@ namespace Tertius.Benchmarks;
 /// </summary>
 internal static class SyncSampler
 {
-    /// <summary>Builds a scene by name: kepler, mixed or tick10k, then the gameplay parallelism, 1 or -1, such as "kepler1".</summary>
+    /// <summary>
+    /// Builds a scene by name: kepler, keplerEntities1k or keplerEntities100k (each also with Jolt at the end), mixed, tick10k
+    /// or tick100k, then the gameplay parallelism, 1 or -1, such as "kepler1".
+    /// </summary>
     private static (Action Tick, Action Cleanup) Scene(string scene)
     {
         int dop = scene.EndsWith("-1") ? -1 : 1;
@@ -24,6 +27,20 @@ internal static class SyncSampler
             case "kepler":
             {
                 var b = new KeplerFrameTickBenchmarks { MaxDegreeOfParallelism = dop };
+                b.Setup();
+                return (b.Tick, b.Cleanup);
+            }
+            case "keplerEntities1k":
+            case "keplerEntities100k":
+            case "keplerEntities1kJolt":
+            case "keplerEntities100kJolt":
+            {
+                var b = new KeplerEntityTickBenchmarks
+                {
+                    MaxDegreeOfParallelism = dop,
+                    Entities = name.Contains("100k") ? 100_000 : 1_000,
+                    Jolt = name.EndsWith("Jolt"),
+                };
                 b.Setup();
                 return (b.Tick, b.Cleanup);
             }

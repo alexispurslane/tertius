@@ -1067,7 +1067,7 @@ Stage 6, one guard for every entity:
 
 Tests 70 to 76 take the numbers after 69. Test 30 runs both cases on a hull and on a plain body, and test 46 runs a cube whose centre of mass is at its origin and one whose centre of mass is 1 m away.
 
-Stage 7, entities without body or frame:
+Stage 7, entities without body or frame, in `Tertius.Simulation.Tests/FramelessMotionIntentTests.cs`:
 
 50. `AnEntityWithoutBodyOrFrameFollowsItsMotionIntent`
 51. `AnEntityWithoutBodyOrFrameHoldsStillInTheStepAfterItsLastMotionIntent`
@@ -1077,7 +1077,7 @@ Stage 7, entities without body or frame:
 55. `ASpinMotionTurnsAnEntityWithoutAFrameInPlace`
 56. `AnAttachedChildFollowsARootThatMotionIntentsMove`
 57. `MotionIntentsGiveTheSameStateWithOneAndEightWorkers`
-58. A benchmark in `WorldTickBenchmarks`: 1,000 entities without body or frame on Kepler orbits, and `KeplerFrameTickBenchmarks` before and after, with the tick and the sync point. It also measures the swap at 100,000 entities, which tells whether `PhysicsIntent.Move` needs a sparse store (see the decision "Where the motion intent lives").
+58. A benchmark in `WorldTickBenchmarks.cs`, `KeplerEntityTickBenchmarks`: 1,000 entities without body or frame on Kepler orbits, and `KeplerFrameTickBenchmarks` before and after, with the tick and the sync point. It also measures the swap at 100,000 entities, which tells whether `PhysicsIntent.Move` needs a sparse store (see the decision "Where the motion intent lives").
 
 What changes: `MotionSampleTableTests` and `MotionSampleBufferTests` go or become `MotionIntentTests`. The proper acceleration changes these tests: `RailsComponentTests`, `FrameSpinTests` and `KeplerOrbitTests` lose it from the sample and from `Sample`. `RailsSpawn` and `SpinFrameTests` lose the property of `SpinMotion`, and the tests in `SpinFrameTests` that keep a frame's proper acceleration expect the rule's value. The park test of `MotionChangeTests` expects the gravity at the ship's place, reversed, in place of the thrust. `WorldWakeTests` no longer writes a proper acceleration. `IntentTests`, `GravityTests`, `PhysicsFrameStateTests` and `RailsFollowTests` read physics' value from `FrameStepRecord.ProperAcceleration`. A test whose still frame has a field that copies its parent's gravity drops that field. `FrameTreeFollowedTests` tests the stored follow kind. `FrameTreeOrbitFrameTests` gives the tree intents. `RailsHullTests`, `IntentTests`, `SetMotionTests` (the flags in its `InlineData`), `PhysicsIntentTests` line 212, `WorldIntentFrameTests`, `StationSliceTests` and `DeepYardSliceTests` follow the new names. `FaultInjectingBackend` records motion intents (`SampleRecord` becomes a record of the entity, its frame and its motion intent), and `StepRecords` follows. About 10 tests keep a system stepping or move a platform with a kinematic spawn velocity. They use `KinematicDrift`, a test component in `Tertius.Testing` that writes, in every tick, the end pose one step further along a constant velocity. Its spawn helper `KinematicDrift.Drifting` also gives the spawn the end pose of its first step as its first motion intent, so the body moves from its first step, as the spawn velocity moved it. A test that wrote `MoveKinematic` through a `Pilot`, whose commands get the body, uses `SelfPilot`, whose commands get the entity. `RailsSpawn.OnKeplerOrbit` and `RailsSpawn.Spinning` take a parameter `firstMove`, which gives a spawn its first motion intent (see stage 2 of the order of the work). Every implementation brief asks for hand mutations.
 

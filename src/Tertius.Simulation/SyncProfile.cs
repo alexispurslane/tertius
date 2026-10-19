@@ -30,7 +30,7 @@ internal sealed class SyncProfile
         "2c FollowOwners: MirrorFrameOwners",
         "2d route step contacts (+ MoveMembership)",
         "3 debug invariants",
-        "4 collision intents, swap intents, samples MoveOn",
+        "4 collision intents, motion changes, swap intents",
         "5 subscriptions, destroys",
         "6 spawns live",
         "6c numeric update, flush physics changes",
@@ -47,6 +47,7 @@ internal sealed class SyncProfile
         "  (part of 2b) output check and hand-off reparents",
         "  (part of 6c) gather numeric bodies",
         "  (part of 6c) FrameTree.UpdateNumericFrames",
+        "2c FollowFramelessEntities",
     ];
 
     internal readonly long[] Totals = new long[Names.Length];

@@ -771,15 +771,20 @@ internal sealed partial class EntityTable
     public ref readonly RenderData FrontRender(Entity entity) => ref frontRender[LiveSlot(entity)];
 
     /// <summary>
-    /// The running entity's back pose, for writing. The entity must have no body: physics owns those transforms.
-    /// Throws <see cref="StaleEntityException"/> for a stale handle. Worker-safe for the running entity.
+    /// The running entity's back pose, for writing. The entity must have no body: physics owns those transforms. The write
+    /// also sets the row's velocities to zero, so it leaves the entity at rest, as the write of a frame's owner leaves the
+    /// frame (docs/plans/rails-components.md, "The transform row of an entity without body or frame"). Throws
+    /// <see cref="StaleEntityException"/> for a stale handle. Worker-safe for the running entity.
     /// </summary>
     public ref DPose WritableTransform(Entity entity)
     {
         uint slot = LiveSlot(entity);
         Contract.Requires(gameplayRunning && records[slot].Body == null);
         MarkDirty(slot, SlotFlags.TransformDirty | SlotFlags.GameplayWroteTransform);
-        return ref backTransform[slot].Pose;
+        ref TransformRow row = ref backTransform[slot];
+        row.LinearVelocity = Vector3.Zero;
+        row.AngularVelocity = Vector3.Zero;
+        return ref row.Pose;
     }
 
     /// <summary>

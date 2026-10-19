@@ -225,9 +225,11 @@ public sealed partial class World
 
     /// <summary>
     /// The running entity's back pose, for writing. Throws <see cref="InvalidOperationException"/> if physics or an
-    /// attachment parent owns the transform, and <see cref="StaleEntityException"/> for a stale handle. The owner of a frame
-    /// without a body writes its transform whatever moves the frame otherwise: the frame takes the write at the sync point of
-    /// the tick, after its sample, so the write wins for one tick (see <see cref="FollowOwners"/>).
+    /// attachment parent owns the transform, and <see cref="StaleEntityException"/> for a stale handle. The write leaves the
+    /// entity at rest (see <see cref="EntityTable.WritableTransform"/>). An entity without a body writes its transform whatever
+    /// moves it otherwise: the sync point of the tick puts a frame on the write after its record, and skips the record of an
+    /// entity without a frame, so the write wins for one tick (see <see cref="FollowOwners"/> and
+    /// <see cref="FollowFramelessEntities"/>).
     /// </summary>
     internal ref DPose WritableTransform(Entity entity)
     {

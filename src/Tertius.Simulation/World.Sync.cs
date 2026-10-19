@@ -16,6 +16,12 @@ public sealed partial class World
     // is empty without a physics backend and after a step that failed.
     private readonly Dictionary<FrameHandle, FrameStepRecord> stepRecords = new();
 
+    // The entities without body or frame that took a step record at step 2 of this sync point, and those that took one at
+    // the step 2 before, which FollowFramelessEntities swaps. An entity in the old list that takes no record now holds still
+    // (see FollowFramelessEntities).
+    private List<Entity> framelessMovers = new();
+    private List<Entity> framelessMoversLast = new();
+
     // Scratch of step 4 (see ApplyMotionChanges): the owners whose change of motion the step that ended applied, then the
     // owners that wrote a change in the tick that ends.
     private readonly List<Entity> motionChanges = new();
@@ -77,7 +83,10 @@ public sealed partial class World
         //    FollowOwners): a record from physics is relative to the parent after the hand-offs, and every record must land
         //    before step 5 can destroy that parent or move the frame, so that a write in the tick in which a frame's parent
         //    dies converts with the frame. The motion intents that the step applied are still the front intents, which step
-        //    4 swaps. Contacts last, so that a point converted between frames uses the frame poses after the step.
+        //    4 swaps. Then each entity without body or frame takes its record on its transform row (see
+        //    FollowFramelessEntities), before step 5 converts the rows out of dying frames and step 7 derives the attached
+        //    children from their roots' rows. Contacts last, so that a point converted between frames uses the frame poses
+        //    after the step.
         Frames.AdvanceNumericFrames(DeltaTime);
         Profile.Lap(1);
         stepRecords.Clear();
@@ -86,6 +95,8 @@ public sealed partial class World
             ApplyPhysicsOutput();
         Profile.Lap(2);
         FollowOwners(stepFailed: physicsError != null);
+        FollowFramelessEntities();
+        Profile.Lap(25);
         if (physics != null)
             RouteStepContacts();
         Profile.Lap(6);
@@ -335,6 +346,52 @@ public sealed partial class World
             ref readonly TransformRow row = ref entities.BackRow(owner);
             var write = new MotionSample(row.Pose.WithUnitRotation(), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
             Frames.Follow(frame, row.Frame, write, FollowKind.Static, measured: null, DeltaTime);
+        }
+    }
+
+    /// <summary>
+    /// Step 2, after <see cref="FollowOwners"/>: each entity without body or frame whose motion intent the step that ended
+    /// applied takes the step record of that intent on its transform row (docs/plans/rails-components.md, "The transform row
+    /// of an entity without body or frame"). Nothing moves such an entity but the sync point, so the record starts where the
+    /// row stood when the step started (see <see cref="PhysicsIntent.StepRecord"/>), and the row takes the record's pose and
+    /// its instant velocities narrowed to floats. A write of the entity's transform in the tick wins for one tick, as for a
+    /// frame, and that write left the entity at rest (see <see cref="EntityTable.WritableTransform"/>). Then each entity that
+    /// took a record at the step 2 before, and takes none now and wrote no transform, holds still: it gets zero velocities, as
+    /// <see cref="FrameTree.HoldStill"/> gives a frame without a record, and as physics stops a kinematic body after its last
+    /// motion intent. Physics skips an intent of an entity without a body, and the sync point moves it with or without a
+    /// physics backend, also after a step that failed.
+    /// </summary>
+    private void FollowFramelessEntities()
+    {
+        (framelessMoversLast, framelessMovers) = (framelessMovers, framelessMoversLast);
+        framelessMovers.Clear();
+        // The intents of the step that ended, which step 4 swaps out after this.
+        ReadOnlySpan<PhysicsIntent> stepIntents = entities.FrontIntents.Span;
+        foreach (Entity entity in entities.IntentEntities.Span)
+        {
+            if (entities.Body(entity) != null || !entities.OwnedFrame(entity).IsNull)
+                continue;
+            ref readonly PhysicsIntent intent = ref stepIntents[(int)entity.Index];
+            ref readonly TransformRow row = ref entities.BackRow(entity);
+            // The guard lets no attached entity write a motion intent, and step 7b of the last sync point converted the intent
+            // into the entity's frame, which is its home.
+            Contract.Assert(intent.Frame == row.Frame && row.PhysicsHome == row.Frame);
+            if (entities.GameplayWroteTransform(entity) || !intent.StepRecord(row.Pose, DeltaTime, out MotionSample record))
+                continue;
+            entities.SetBackTransform(entity, row with
+            {
+                Pose = record.Pose,
+                LinearVelocity = record.Velocity.ToVector3(),
+                AngularVelocity = record.AngularVelocity.ToVector3(),
+            });
+            framelessMovers.Add(entity);
+        }
+        foreach (Entity entity in framelessMoversLast)
+        {
+            if (!entities.IsAlive(entity) || stepIntents[(int)entity.Index].Move is EndPose or MotionSample || entities.GameplayWroteTransform(entity))
+                continue;
+            ref readonly TransformRow row = ref entities.BackRow(entity);
+            entities.SetBackTransform(entity, row with { LinearVelocity = Vector3.Zero, AngularVelocity = Vector3.Zero });
         }
     }
 

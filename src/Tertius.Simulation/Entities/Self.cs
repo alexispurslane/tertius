@@ -61,10 +61,12 @@ public readonly ref struct Self
     public Vector3 AngularVelocityIn(FrameHandle frame) => world.AngularVelocityIn(Entity, frame);
 
     /// <summary>
-    /// Sets this entity's pose in <see cref="Frame"/>. The new pose takes effect at the sync point. Throws
-    /// <see cref="InvalidOperationException"/> if the entity has a body, which physics moves, or if it is attached to a
-    /// parent. The owner of a frame without a body can write it: the frame takes the pose at the sync point of the tick,
-    /// and a frame on rails goes back on its rails with its next sample.
+    /// Sets this entity's pose in <see cref="Frame"/>. The new pose takes effect at the sync point, and leaves the entity at
+    /// rest: its velocities become zero. The write wins over the motion intent of the step that runs beside this tick, and the
+    /// next motion intent moves the entity on from the new pose. Throws <see cref="InvalidOperationException"/> if the entity
+    /// has a body, which physics moves, or if it is attached to a parent. The owner of a frame without a body can write it:
+    /// the frame takes the pose at the sync point of the tick, and a frame on rails goes back on its rails with its next
+    /// sample.
     /// </summary>
     public void SetTransform(in DPose pose) => world.WritableTransform(Entity) = pose;
 
