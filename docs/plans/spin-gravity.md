@@ -1,12 +1,12 @@
 # Spin gravity
 
-Epic: `ter-s9m0`. Rewritten on 2026-10-18 after a design check, with the user's answers to its eight forks (see "Decisions").
+Epic: `ter-s9m0`. Rewritten on 2026-10-18 after a design check, with the user's answers to its eight forks and to the three forks of a second check (see "Decisions").
 
 A station can be a semantic frame that turns. Characters and objects inside it then stand, walk, fall, throw and jump correctly, because physics applies the forces of a turning frame. The same forces act in every frame that turns: a ship that faces its planet on its orbit, the ground of a planet that turns with its day, or a ship that physics spins.
 
 This design builds on two pieces of work:
 
-- The motion intent of `ter-xdt8` ([Rails components](rails-components.md), "Rails motion for every entity"). That section lands on main when `ter-xdt8`'s design merges. Until then it is on the branch `ter-xdt8-motion-intent`, and "Terms" below defines the names that this doc takes from it. An owner moves its frame by a motion intent, `PhysicsIntent.Move`, and `FrameTree.StepRecordInStep` gives the step record of the step in flight from the front intents. The frame tree derives a frame's proper acceleration from its step record (the accelerometer rule).
+- The motion intent of `ter-xdt8` ([Rails components](rails-components.md), "Rails motion for every entity"). That section lands on main when `ter-xdt8`'s design merges. Until then it is on the branch `ter-xdt8-motion-intent`, and "Terms" below defines the names that this doc takes from it. An owner moves its frame by a motion intent, `PhysicsIntent.Move`, and `FrameTree.StepRecordInStep` gives the step record of the step in flight from the front intents. A spawn can carry the new entity's first motion intent, so that a frame moves on its rails from its first step. The frame tree derives a frame's proper acceleration from its step record (the accelerometer rule).
 - The instant velocities of `ter-ediu`, merged on 2026-10-16 (`ARCHITECTURE.md`, "Instant velocities and chords"). A velocity that gameplay sets is an instant velocity, and Jolt gets the matching chord.
 
 The spike on the branch `spike-spin-gravity` showed that Jolt handles a turning frame. Its numbers come from a station of radius 100 m that spins at 0.31321 rad/s, which gives 9.81 m/s² at the floor. A Sonnet reader recomputed every expected value from straight-line motion in inertial space. The spike branched before the rails components, and it found turning frames by a driver enum that is gone. So its math carries over, and its plumbing does not. Its results:
@@ -47,7 +47,8 @@ The first version of this doc, written on 2026-10-16 from the spike, differed fr
 | A ship inside a turning parent | Silent: a rotation force outside `GravityApplied` read as thrust | V4 holds the whole acceleration that the frame gave the body, and the accelerometer rule covers every frame |
 | The chord rule in a turning frame | "The engine corrects it everywhere", with no rule | The chord rule and its exact inverse, with the two turns |
 | The angular velocity of a free body | Not covered | The angular form of the two-turn update |
-| The velocity shadow and the contact turn | Loose fields, no scope, no events that end them | V6, a custom `[Union]`, only in turning frames (fork F8) |
+| The velocity shadow and the contact turn | Loose fields, no scope, no events that end them | V6, a custom `[Union]`, only in turning frames (fork F8), with Jolt's damping in its expected velocity (fork O3) |
+| A turning frame that spawns with its contents | Silent | The spawn can carry the frame's first motion intent, so it turns from its first step, and its contents turn with it (fork O1) |
 | The wake on a change of turn | No unit and no threshold. A facing frame on an oval orbit would wake its sleepers in every step. | V8, in m/s², against `WakeAccelerationThreshold` |
 | Ghosts | Silent | A chord converts by the frame's poses at both ends of the step |
 | The velocity convention | Step 1 of this epic | Done by `ter-ediu`. Its text is in `ARCHITECTURE.md`, "Instant velocities and chords". |
@@ -74,6 +75,7 @@ The first version of this doc, written on 2026-10-16 from the spike, differed fr
 | Contact turn | The turn by the previous step's turn of a velocity change that a contact made, because Jolt applies a contact in the frame's axes at the step's start, while the step's chord is in its axes at the step's end |
 | Accelerometer rule | The proper acceleration of a frame is its acceleration minus the gravity at its place, in its own axes (`ter-xdt8`). This epic extends "the gravity at its place" by the parent's rotation terms. |
 | Motion intent | What an entity's components say about its motion in the next step, in the field `PhysicsIntent.Move` of its intent: a custom `[Union]` of an end pose, a full sample and a steer target. Tick k writes it, and step k + 1 applies it. ([Rails components](rails-components.md), "Rails motion for every entity", which lands with `ter-xdt8`) |
+| First motion intent | The motion intent that a spawn description can carry for the new entity: a property of `SpawnDesc` beside `LinearVelocity` and `AngularVelocity`, of the type `MotionIntent`, which `ter-xdt8` adds. It is the intent that the entity would have written in the spawn's tick. A spawn in tick k becomes live at step 6 of that tick's sync point, and step 6 stores the intent in the new entity's front intent, so step k + 1 applies it. A spawn without it gives the entity no motion intent for its first step. |
 | Step record | An entity's motion over one step, a `MotionSample`: its pose at the end of the step, its chord and instant velocity, its acceleration, its angular velocity and its angular acceleration. An end pose or a full sample gives the record of the step that applies it. Physics measures the record of a dynamic hull. |
 | Step plan | The step record of a following frame's anchor, which the frame tree derives before the step and keeps for that step |
 | Chord behind | The chord that matches an instant velocity: the chord of the step that ends at the instant of the velocity. Physics gives Jolt the chord behind, and Jolt's next step then carries it on. Under a steady acceleration `a` and no turn, it is the instant velocity minus `a dt / 2`. |
@@ -210,9 +212,9 @@ Each kind of level gives its three inputs (fork F1, design B). `BeginStep` choos
 
 | Level | Chosen when | `start` | `end` | `levelAngularVelocity` |
 |---|---|---|---|---|
-| A frame whose owner has an end pose or a full sample | The owner's front motion intent holds one of those cases. Its hull is kinematic in the step, or it has no hull. | The tree pose, or the teleport pose of the same intent | The rotation of the step record from `FrameTree.StepRecordInStep` | The record's angular velocity |
+| A frame whose owner has an end pose or a full sample | The owner's front motion intent holds one of those cases, also a first motion intent that step 6 stored for a new frame. Its hull is kinematic in the step, or it has no hull. | The tree pose, or the teleport pose of the same intent | The rotation of the step record from `FrameTree.StepRecordInStep` | The record's angular velocity |
 | A frame with a dynamic hull | `HullMotionInStep` gives `Dynamic`, with or without a steer target | The tree pose, or the teleport pose | `start` turned about the parent's axes by the predicted angular velocity times the step, as Jolt turns a body by its angular velocity after the velocity update | The predicted angular velocity: the row's angular velocity plus V3 times the step (fork F3, design A). It holds Jolt's float rounding. |
-| A frame that holds still or teleports | Any other frame: a static hull, a kinematic hull without a motion intent, a frame without a body and without a motion intent. A frame that a rails component moves holds still in its first step, because its components first write a motion intent in the tick beside that step (see "Frames without a last turn" and fork O1). | The tree pose, or the teleport pose | `start` | Zero |
+| A frame that holds still or teleports | Any other frame: a static hull, a kinematic hull without a motion intent, a frame without a body and without a motion intent. A new frame whose spawn gave no first motion intent holds still in its first step, because its components first write a motion intent in the tick beside that step (see "Frames without a last turn"). | The tree pose, or the teleport pose | `start` | Zero |
 | A numeric frame | Always | The identity | The identity | Zero |
 
 A transform write of a tick is in the tree pose by `PrepareTick`, so it needs no row of its own. Every pose here is a double. The records of the rails components are exact, so the turn of a rails level holds no float rounding of a rate. A dynamic hull's level takes Jolt's float angular velocity.
@@ -232,19 +234,24 @@ V2 must be the turn that the chords of a frame's bodies came from. Some frames h
 | A transform write that turns a frame without a hull | `FollowOwners` at step 2, which tells the write apart already (`GameplayWroteTransform`) | The same jump, between the end of the step and the next `BeginStep` |
 | A failed step | `BeginStep`, for every frame, when `lastStepFailed` is true | Its results were dropped. Frames without a hull turned by V1 at step 2, while the chords of the bodies may or may not come from it. |
 
-A frame below a listed frame is listed too, in the same pass, because its axes jumped with its parent's. A move that does not turn the frame leaves its axes as they were, so it lists nothing. Destroying a frame drops it from the list. The analogue is physics' list of the rigid bodies created since the last step, whose spawn velocities the next step converts.
+A frame below a listed frame is listed too, in the same pass, because its axes jumped with its parent's. A move that does not turn the frame leaves its axes as they were, so it lists nothing. A listed frame leaves the list at the `BeginStep` that gives it its new V1 as its V2. Destroying a frame drops it from the list. The analogue is physics' list of the rigid bodies created since the last step, whose spawn velocities the next step converts.
 
 A jump moves a frame and its contents together, as a spawn places them, so the step after a jump has the history of a new frame. Two other rules were weighed and dropped. Turning V2 by the jump keeps the parent's angular acceleration, but it gives a false one when the jump tilts the frame's own spin axis: about 27 rad/s² for a tilt of 90° of the spike's station at 60 Hz. Keeping V2 after a failed step reads the change of two steps as the angular acceleration of one. A jump can still wake the frame's sleepers through the wake test, because ω at the last wake (V8) is in the old axes. A jump moves the sleepers in inertial space, so that wake does no harm.
 
-How long a new frame stays on the list is open (fork O1). The first version of this design took a new frame off the list at its first `BeginStep`. That misbehaves for a frame that a rails component moves: it holds still in its first step, so its first V1 is the identity, and the rule copies that identity into V2. In its second step V1 holds a full turn against an identity V2. "Open forks" gives the misbehavior with numbers, and what bodies spawned at rest in a turning frame do in steps 1 and 2 under each design.
+A new frame leaves the list at its first `BeginStep` (fork O1, design C). So V2 of its first step is its first V1, and that step assumes a steady turn. What its first V1 holds depends on its spawn:
+
+- A spawn that carries a first motion intent (see "Terms") puts the frame on its rails, turning, from its first step. Step 6 stores the intent in the owner's front intent, so the first `BeginStep` reads it, and V1 of the first step is the real turn. The rule of a new frame makes V2 equal to it. So contents spawned at rest on the floor of a turning frame start out turning with it, with no spin-up: crates spawned at rest on the floor of the spike's station stay on the floor from step 1 and press on it with m ω² r, with no Euler term and no wake. The station scene `spin-station` and the acceptance tests give the station its first motion intent.
+- A spawn without it holds still for its first step, because its components first write a motion intent in the tick beside that step. Its first V1 is the identity, and so is its first V2. In its second step V1 holds the full turn against an identity V2, so the frame spins up in one step. That is the physical result of a frame that held still. For the spike's station at 60 Hz, the angular acceleration of that step is ω / `dt`, about 18.8 rad/s², which is about 1,900 m/s² of Euler acceleration at 100 m. Bodies at rest on its floor keep their place in inertial space, as on a real floor that starts to turn at full rate all at once: in the station's axes, the floor slides under them at ω r, 31.3 m/s at the spike's floor. The wake test wakes any of them that sleep.
+
+A dynamic hull needs no first motion intent: physics moves it from its first step, by its spawn velocities. A frame that holds still on purpose, such as a static room, needs none either.
 
 Some readers read V1 and V2 of a frame before its first `BeginStep`. Physics creates bodies in `FlushPhysicsChanges` and at step 6c, before the next `BeginStep`. So the up of a character created in a new frame (`SemanticGravity`, read in `JoltPhysicsBackend.Bodies.cs` at line 368) reads them. So does `EffectiveGravity` read right after a scene build, as `OrbitSliceTests` reads it on the turning ship. They read `FrameTurn.None`, so they get the linear gravity. A test pins this.
 
 | Writer | When | What |
 |---|---|---|
-| `FrameTree.BeginStep` | `PrepareTick` of tick k + 1 | V1 of step k + 1, for every semantic frame in dense order. Lists a frame whose level a teleport turns, and every frame after a failed step. |
+| `FrameTree.BeginStep` | `PrepareTick` of tick k + 1 | V1 of step k + 1, for every semantic frame in dense order. Lists a frame whose level a teleport turns, and every frame after a failed step. Takes each listed frame off the list once it has given it its V2. |
 | `FrameTree.Grow` | When the tree grows | `None` in every new slot |
-| `FrameTree.Create` | At a spawn, and outside a tick | `None` in its slot, and lists the frame among the frames without a last turn |
+| `FrameTree.Create` | At a spawn, and outside a tick | `None` in its slot, and lists the frame among the frames without a last turn until its first `BeginStep` |
 | `World.FollowOwners` | Step 2 | Lists a frame without a hull whose transform write turned it |
 | `FrameTree.Destroy` | Step 5, and outside a tick | Drops the frame from the list |
 
@@ -393,12 +400,12 @@ where
 - The default holds no case: the body has no shadow, and the next update starts from Jolt's velocity.
 - `Chord` = the double chord that the last update gave the body, relative to its home, in m/s.
 - `Place` = the double place at which that update expects the body at the end of its step, in the home.
-- `JoltTarget` = the float velocity that physics gave Jolt for that step. A Jolt velocity that differs from it by more than rounding means a contact.
+- `JoltTarget` = the float velocity that physics expects Jolt to hold at the end of that step, after the force and Jolt's damping. A Jolt velocity that differs from it by more than rounding means a contact.
 - `Step` = the index of the step that wrote it. A shadow from any other step than the last one is stale, for a cause that cleared nothing, such as a failed step.
 
 - Analogue: the double frame velocity of a falling frame, which the numeric update carries from step to step beside Jolt's floats.
 - Store: `BodyRecord`, in physics.
-- Scope: only the dynamic bodies of a system whose semantic frame is a turning frame, `FrameTurns.Turns` (fork F8, design A). Everywhere else it holds no case. Whether it serves bodies with Jolt's damping is open (fork O3). This is an exception keyed on turning frames, which the user accepted for its cost: float rounding grows only where the turn of a step is large, and free bodies keep their gaps up to 1,000 m/s without a shadow ([Numeric frames](numeric-frames.md), "Decisions").
+- Scope: only the dynamic bodies of a system whose semantic frame is a turning frame, `FrameTurns.Turns` (fork F8, design A). Everywhere else it holds no case. It serves bodies with Jolt's damping as well as bodies without, because its expected velocity holds the damping (fork O3, design A, and "Jolt's damping in the shadow" below). This is an exception keyed on turning frames, which the user accepted for its cost: float rounding grows only where the turn of a step is large, and free bodies keep their gaps up to 1,000 m/s without a shadow ([Numeric frames](numeric-frames.md), "Decisions").
 
 | Writer | When | What |
 |---|---|---|
@@ -410,7 +417,18 @@ where
 
 | Reader | When | What it does |
 |---|---|---|
-| `ApplyGravity` | Step k + 1 | If the shadow is from the last step and Jolt's velocity differs from `JoltTarget` by at most 1e-6 times the sum of `JoltTarget`'s length and 1 m/s (the spike's bound for rounding), the update starts from `Chord` and `Place`, and Jolt gets the velocity that also takes back its rounding of the last step. If Jolt's velocity differs by more, a contact changed it: the update starts from Jolt's velocity, with the contact's change turned by `R_(n−1)` (the contact turn). Otherwise the update starts from Jolt's velocity. Jolt's damping breaks this test, which fork O3 settles: Jolt multiplies its velocity by (1 − c `dt`) after the force, with c the body's linear damping, 0.05/s by default (`BodyDesc.LinearDamping`, `src/Tertius.Core/Seams/PhysicsSeam.cs`, line 254). At 60 Hz that changes the velocity by 8.3e-4 of its value in each step, far above the bound, so a damped body would take the contact branch in every step. Until fork O3 is settled, the rule holds for bodies without damping. |
+| `ApplyGravity` | Step k + 1 | If the shadow is from the last step and Jolt's velocity differs from `JoltTarget` by at most 1e-6 times the sum of `JoltTarget`'s length and 1 m/s (the spike's bound for rounding), the update starts from `Chord` and `Place`, and Jolt gets the velocity that also takes back its rounding of the last step. If Jolt's velocity differs by more, a contact changed it: the update starts from Jolt's velocity, with the contact's change turned by `R_(n−1)` (the contact turn). Otherwise the update starts from Jolt's velocity. `JoltTarget` and `Chord` hold Jolt's damping, so a damped body in free motion passes the test too. |
+| `ApplyGravity`, for `JoltTarget`, `Chord` and the angular form | Step k + 1 | The body's linear damping and angular damping, from its description: `BodyRecord.Material`, the `BodyDesc` that created the body (`LinearDamping` and `AngularDamping`) |
+
+#### Jolt's damping in the shadow
+
+After it adds the force, Jolt multiplies a body's velocity by `max(0, 1 − c dt)` in single precision, with c the body's linear damping, 0.05/s by default (`BodyDesc.LinearDamping`, `src/Tertius.Core/Seams/PhysicsSeam.cs`, line 254), and its angular velocity by the same factor with the angular damping (Jolt's `MotionProperties::ApplyForceTorqueAndDragInternal`). At 60 Hz the default changes the velocity by 8.3e-4 of its value in each step, far above the bound of the test above. So the expected velocity holds the damping (fork O3, design A):
+
+- `JoltTarget` = the float velocity after the force, times the body's linear damping factor for the step, computed with the same float operations as Jolt: the factor `max(0, 1 − c dt)` in floats, applied after the force.
+- `Chord` = the chord of the update, times the same factor in doubles. `Place` = the body's place at the start of the step plus `Chord` times the step.
+- The angular form expects, at the end of the step, the angular velocity that it gave Jolt times the angular damping factor, in the same form. Jolt damps the angular velocity before it turns the body, so the angular chord that the next step's `AngularChordAhead` reads holds the damping as the turn that Jolt made.
+
+Physics reads both damping values from the body's description, `BodyRecord.Material`, as the chord sites read them today (`JoltPhysicsBackend.Chords.cs`, lines 72 and 89). The rigid form of a character has zero damping, so its factor is 1. A damped body in free motion then keeps its shadow, and a contact still shows as a difference beyond rounding. Jolt's damping acts relative to the frame's axes, like air that turns with the station, so a damped body leaves its inertial line: its velocity relative to the frame's axes shrinks by the factor in each step. A test pins the damped shadow over many steps (see "Acceptance tests").
 
 ### V7, the relative motion of two frames
 
@@ -696,14 +714,19 @@ where
 
 - `record` = the frame's step record in its semantic parent, as `ter-xdt8` defines it for each kind of record.
 - `start` = the place of the frame's origin where the step started, `record.Pose.Position − record.ChordVelocity · dt`.
-- `turns` = the parent's V1 and V2 at step 2: the turns of the step that ended. They are the same under either answer to `ter-xdt8`'s open question on which proper acceleration of the parent the rule reads, because `BeginStep` fixed them before the step. `FieldOf(parent, start)` does depend on that answer, because it subtracts the parent's proper acceleration (fork O2).
+- `FieldOf(parent, start)` = the parent's field at `start` minus the parent's proper acceleration as the step found it: the value stored before step 2, which physics used for the parent's bodies during the step (fork O2, design A, which `ter-xdt8` builds). `FollowOwners` derives every frame's value from the stored values first, and writes the new values after its loop.
+- `turns` = the parent's V1 and V2 at step 2: the turns of the step that ended, which `BeginStep` fixed before the step.
 - `R_end⁻¹` = the turn from the parent's axes into the frame's axes at the end of the step.
+
+So every child of a parent reads the same parent value in every step, a dynamic child and every other child alike, and a change of a proper acceleration moves down one level of the chain in each step. A static room inside a parent whose own proper acceleration holds ω² R, such as a ship that rests on the floor of a spinning station, gets that ω² R one sync point after its parent. The rotation terms do not wait: they come from the parent's V1 and V2, so a static room at rest directly in the spinning station reads ω² R at step 2 of the sync point after the station's first turning step, at the same sync point as the station's own record of that step.
+
+A new frame gives zero during its first step, as `FrameTree.Create` sets it, and the first step 2 after its spawn derives its value from its first record, or its rest, as for every frame (fork O2, design A). So a static room spawned in a spinning station gives its contents only its own field and its own rotation terms for one step, and ω² R from its second step on. A crate spawned above the room's floor gets no ω² R in that step, so it starts to fall one step late.
 
 Physics measures a dynamic hull's value by the same rule, from V4's `Total`. What the extension gives:
 
 | Frame | Proper acceleration |
 |---|---|
-| A static room at rest in a spinning station | ω² R toward the axis. Its contents feel that reversed, plus the room's own rotation terms, so ω² (R + r) in all. |
+| A static room at rest in a spinning station | ω² R toward the axis, from the first step 2 after its spawn. Its contents feel that reversed, plus the room's own rotation terms, so ω² (R + r) in all. |
 | A ship that physics keeps on a station floor | The same, measured by physics |
 | A ship that holds its radius in a station by thrust | Its thrust |
 | A frame at rest in a parent that does not turn | As `ter-xdt8` gives it |
@@ -755,7 +778,7 @@ The sleep threshold reads V5. An awake body near the hub, where V5 is weak, lowe
 
 | Scene | What changes |
 |---|---|
-| A new scene, `spin-station`, with `scripts/spin-station.json` (`ter-n44b`) | A station on a floor of 256 faces per ring, a person who stands, walks both ways and jumps, and crates that drop and are thrown. The name `station` is taken by the orbiting station of `ter-dhkf`, which does not turn and does not change. |
+| A new scene, `spin-station`, with `scripts/spin-station.json` (`ter-n44b`) | A station on a floor of 256 faces per ring, a person who stands, walks both ways and jumps, and crates that drop and are thrown. The station's spawn carries its first motion intent, so the person and the crates spawned on its floor turn with it from its first step. The name `station` is taken by the orbiting station of `ter-dhkf`, which does not turn and does not change. |
 | `orbit`, and its scripts `orbit`, `walk`, `spacewalk`, `airlock`, `throw` and `windows` | The ship is a dynamic hull on the facing orbit, so it turns at about 1.13e-3 rad/s, and its contents get the terms. The Coriolis term on a body at 5 m/s is about 0.011 m/s². |
 | `orbit-cluster` | The same ship. `OrbitClusterTests` expects the step of the thrown crate to rise at the ship's bubble, because no Coriolis force acted inside the ship. Now it acts on both sides. |
 | `surface-yard` | Nothing in behavior: its `earth-surface` is a root that does not turn. The comment at `DemoScenes.SurfaceYard.cs` line 42 gives "the engine applies no Coriolis or centrifugal force" as a reason, which becomes false. |
@@ -763,7 +786,7 @@ The sleep threshold reads V5. An awake body near the hub, where V5 is weak, lowe
 
 ### Acceptance tests
 
-The spike's experiments become the acceptance tests, each against the inertial line, worked out by hand. All run the real World on the real Jolt backend. The tests of free motion use bodies without damping, because Jolt's damping acts relative to the frame's axes, like air that turns with the station, so a damped body is not free (see fork O3).
+The spike's experiments become the acceptance tests, each against the expected path of its bodies, worked out by hand. All run the real World on the real Jolt backend, and every station in them spawns with its first motion intent, unless the test is about a spawn without one. The tests of free motion use bodies with the default damping, because the shadow holds Jolt's damping (fork O3, design A) and most bodies have the default. The expected path of a body is its inertial line with Jolt's damping: in each step, its velocity relative to the frame's axes shrinks by the damping factor of "Jolt's damping in the shadow". For a body without damping it is the inertial line. The spike's numbers below are those of bodies without damping, so a test that quotes one also runs a body without damping against it.
 
 `ter-1bnq`, pure Core tests, worked out by hand:
 
@@ -775,6 +798,7 @@ The spike's experiments become the acceptance tests, each against the inertial l
 - Before its first `BeginStep`, a new frame's V1 and V2 are `FrameTurn.None`, also in a reused slot of a destroyed frame that turned, and `EffectiveGravity` equals `LinearGravity` there.
 - A teleport that turns a frame inside a turning parent gives no false angular acceleration: the station turned by 90° about its axis inside the facing orbit reads zero, where the rule without the list read about 0.09 rad/s². The frames below it are listed too.
 - After a failed step, every frame takes its new V1 as its V2.
+- A new frame whose spawn carries a first motion intent of a spin gets the real turn as both V1 and V2 in its first step, and leaves the list. One whose spawn carries none gets the identity in its first step and the full turn against an identity V2 in its second.
 - `BeginStep` chooses a hull's row by `HullMotionInStep`: a hull that a `SetMotion` makes kinematic for the step takes the row of its motion intent.
 - `FrameMotion`'s accelerations to the parent and back, for a point that moves in a frame that turns and spins up.
 - `MotionRelativeInStep` for each kind of level, and the relation by which each part of an intent converts.
@@ -782,19 +806,21 @@ The spike's experiments become the acceptance tests, each against the inertial l
 
 `ter-1bnq`, bodies in the station:
 
-- Rest: a crate at rest in inertial space stays within 1 mm of its place over 10 minutes.
-- A drop lands at 0.5607786 s and 0.176458 m antispinward.
-- Throws at 60 and 120 Hz land where the instant velocity's inertial line says.
-- An impulse in the station gives the crate the inertial line of its instant velocity plus the impulse's change, at 60 and 120 Hz.
+- Rest: a crate that starts at rest in inertial space stays within 1 mm of its expected path over 10 minutes. Without damping, that is its place.
+- A drop lands where the expected path says. Without damping, it lands at 0.5607786 s and 0.176458 m antispinward.
+- Throws at 60 and 120 Hz land where the expected path from the instant velocity says.
+- An impulse in the station gives the crate the expected path of its instant velocity plus the impulse's change, at 60 and 120 Hz.
+- A body with the default damping in free motion in the station keeps its shadow over many steps: over 10 minutes, every update after its first starts from the shadow, none takes the contact branch, and the body stays within 1 mm of its expected path.
 - A body steered to a target in the station reaches it.
-- A free orbit: a body at rest in inertial space circles in the station's axes.
+- A free orbit: a body that starts at rest in inertial space follows its expected path. Without damping, it circles in the station's axes.
+- Crates spawned at rest on the floor with a station that carries its first motion intent stay on the floor from the first step and press on it with m ω² r. Spawned with a station that carries none, they keep their place in inertial space while the floor slides under them in the station's second step.
 - A stack rests, presses with m ω² r, and sleeps.
 - Sleepers wake when the station spins up and stay at rest in inertial space. The Euler force matches. A test component in `Tertius.Testing` writes full samples of a spin with a constant angular acceleration. The engine needs no new rails type for it, so it gets none.
-- The contents of a dynamic hull that spins up feel the Euler force one step late (fork F3). A ship that physics spins up by a steady torque holds a free crate. Worked out by hand, the crate's path in the ship's axes is the path in which each step turns by the rate predicted from the hull's last record. It differs from the crate's inertial line by the Euler force of one step, and the test checks both: it matches the first and misses the second by that much.
-- A tumbling body keeps its inertial angular velocity.
-- A ball that leaves the station hands off with the velocity of its inertial line. Its ghost at the bubble follows its chord and its angular chord.
+- The contents of a dynamic hull that spins up feel the Euler force one step late (fork F3). A ship that physics spins up by a steady torque holds a free crate. Worked out by hand, the crate's path in the ship's axes is the path in which each step turns by the rate predicted from the hull's last record. It differs from the crate's expected path by the Euler force of one step, and the test checks both: it matches the first and misses the second by that much.
+- A tumbling body follows its expected angular velocity: its inertial angular velocity, with Jolt's angular damping relative to the frame's axes. Without damping, it keeps its inertial angular velocity.
+- A ball that leaves the station hands off with the velocity of its expected path. Its ghost at the bubble follows its chord and its angular chord.
 - A ship on the floor reads ω² R toward the axis, and its cargo weighs ω² (R + r). A ship that holds its radius by thrust reads its thrust.
-- A static room at rest in the station gives its contents ω² (R + r).
+- A static room at rest in the station gives its contents ω² (R + r) from its second step on, and only its own field and rotation terms in its first step. A room at rest in a ship on the floor reads the ship's ω² R one sync point after the ship.
 - A facing frame on an eccentric orbit lets its sleepers sleep.
 - A body in a falling frame inside the station moves as it does in the station's own system.
 - The same events and hashes with one and four threads.
@@ -813,7 +839,7 @@ The spike's experiments become the acceptance tests, each against the inertial l
 - The landing case: a person who crosses the middle at 40 m/s lands on the floor and stays on it.
 - The same events with one and four threads.
 
-`ter-n44b`: a checked-in Host test runs the `spin-station` script against the inertial lines. Opus builds and runs it, and Sonnet reads the outputs. The work ends with screenshots of a person on the inside of the ring.
+`ter-n44b`: a checked-in Host test runs the `spin-station` script against the expected paths of its bodies. Opus builds and runs it, and Sonnet reads the outputs. The work ends with screenshots of a person on the inside of the ring.
 
 ### Tests that change on purpose
 
@@ -853,6 +879,9 @@ The user made the decisions marked (User).
 | F6. A standing character's walk and press | It moves along the ground plane and is pressed along the ground normal, in every frame. (User, 2026-10-18, design A) |
 | F7. Does the station scene wait for falling frames in turning frames | Yes: the block stays, with no new test first. (User, 2026-10-18, design A) |
 | F8. Where the velocity shadow runs | Only for dynamic bodies whose system's semantic frame turns. It is an exception keyed on turning frames, which the user accepted for its cost. (User, 2026-10-18, design A) |
+| O1. The start of a turning frame that spawns with its contents | `ter-xdt8` lets a spawn description carry the new entity's first motion intent, which step 6 stores in its front intent, so the spawn's first step applies it. A frame spawned with one turns from its first step. A new frame leaves the list of frames without a last turn at its first `BeginStep`, so V2 of its first step equals the real V1, and contents spawned at rest on its floor turn with it, with no spin-up. A spawn without one holds still for its first step and spins up in its second. Reason: it removes the cause, a first step without the frame's real motion, so the rule of a new frame needs no exception, and a frame that did hold still keeps the physical result. The station scene and the acceptance tests give the first motion intent. (User, 2026-10-18, design C) |
+| O2. Which proper acceleration of the parent the accelerometer rule reads, and the proper acceleration of a new frame | Both as in design A of `ter-xdt8`. The rule reads each parent's value as the step found it: the value stored before step 2, which physics used for the parent's bodies during the step. A new frame gives zero during its first step, and the first step 2 after its spawn derives its value. Reason: the rule then reads the gravity that acted at the frame's place during the step, so every child of a parent agrees in every step, and a new frame's value comes from one rule on a step record, with no guess about a step that has not run. The cost: a change moves down one level per step, and a new frame gives its contents no proper acceleration for one step. (User, 2026-10-18, design A for both questions) |
+| O3. The velocity shadow and Jolt's damping | The expected velocity holds Jolt's damping: `JoltTarget` takes the body's linear damping factor for the step, in the form Jolt applies it, the shadow's `Chord` takes the same factor in doubles, and the angular form expects the angular damping factor. The damping is read from the body's description. Reason: most bodies have the default damping, so a shadow without it would serve few bodies and would read the damping of every damped body as a contact. The cost: physics repeats a detail of Jolt's integrator, which a test of a damped body pins. The tests of free motion use the default damping. (User, 2026-10-18, design A) |
 | The cases of a character's update | A custom `[Union]`, `CharacterStartVelocity`, by the user's rule that every closed set is one |
 | The angular form | The exact form with the two turns, in place of the spike's second-order expansion, which needs a rate that V1 and V2 do not hold |
 | A new rails type for a spin-up | None. A test component writes the samples. |
@@ -902,53 +931,13 @@ The rewrite of 2026-10-18 removed the sections "The velocity convention", "Conve
 | `.tickets/ter-1bnq.md` | "Section 'The rotation terms'" | This doc, "The two-turn update", "Values" and "The flow per kind of entity" | A note on the ticket (see below) |
 | `.tickets/ter-n44b.md` | "Sections 'Content' and 'Tests'" | This doc, "Content" and "Scenes and tests" | A note on the ticket (see below) |
 
-## Open forks
-
-These choices are not settled. Each gives its designs, with what the user gets and what it costs.
-
-### O1. The start of a turning frame that spawns with its contents
-
-The misbehavior: a frame that a rails component moves holds still in its first step, because its components first write a motion intent in the tick beside that step. That is Q1 of the rails epic, which the user decided on 2026-10-17, and `ter-xdt8`'s "Open: the proper acceleration of a new frame" states it again. So its first V1 is the identity. If the frame leaves the list of frames without a last turn at its first `BeginStep`, it copies that identity into V2. In its second step V1 holds a full turn against an identity V2.
-
-An example: the spike's station spawns with crates at rest on its floor, and its spin component turns it at ω = 0.31321 rad/s. In step 1 the station holds still, and the crates rest. In step 2 the station turns by ω `dt`, and the angular acceleration is α = ω / `dt` ≈ 18.8 rad/s² at 60 Hz. That is about 1,900 m/s² of Euler acceleration at 100 m. It wakes the crates, and they stay at rest in inertial space while the floor moves under them at ω r = 31.3 m/s. During step 1, the tree row still holds the spawn's angular velocity, while V1 says that the frame does not turn.
-
-| Design | The crates in steps 1 and 2 | The rule | What it costs |
-|---|---|---|---|
-| A. Seed V2 with the frame's first real turn | Step 1: the station holds still, and the crates rest. Step 2: V2 is V1, so the step assumes a steady spin. The crates' zero chords read as turning with the floor, so they stay on it and press with m ω² r. No Euler term, and no wake. | A new frame stays on the list until the first `BeginStep` in which its level moves as its owner moves it: at once for a dynamic hull, and at its second `BeginStep` for every other kind, because its components' motion intents act from its second step on. A static room leaves at its second `BeginStep` too, so it never stays on the list. | The engine treats the station as if it had always spun, so no body feels the spin-up of step 2. The tree row and V1 disagree during step 1. |
-| B. Keep the physical one-step spin-up | Step 1: the same. Step 2: the station spins up in one step, and the crates stay at rest in inertial space, left behind at 31.3 m/s, as above. A scene that wants contents at rest on a turning floor spawns them after the frame's first record, as `ter-xdt8`'s stage 1 already does for loose bodies in a new Kepler station. | A new frame leaves the list at its first `BeginStep`, as the first version of this design said | Every scene and test that spawns contents with a turning frame waits for its first record. The tree row and V1 disagree during step 1. |
-| C. Change `ter-xdt8` so that a frame moved by a rails component moves in its first step | Step 1: the station turns by its first real turn, and V2 is that V1, so the crates turn with the floor from the start. Step 2: a steady spin. | A new frame leaves the list at its first `BeginStep`, and its first V1 is real. `ter-xdt8` gives the frame a motion intent for its first step, for example from a first run of its rails components before that step. | It reverses Q1 of the rails epic, a user decision, and changes `ter-xdt8`'s design while that ticket is in progress. The tree row and V1 agree in every step. |
-
-All three share: the list of frames without a last turn for jumps and failed steps, `FrameTurn.None` before a frame's first `BeginStep`, and a dynamic hull, which physics moves from its first step. Design C is a change to another ticket's design, so it reaches beyond this doc. It is listed because it removes the cause.
-
-### O2. Which proper acceleration of the parent, and the proper acceleration of a new frame
-
-Two questions are open in `ter-xdt8`'s design, `rails-components.md`, "Open: which proper acceleration of the parent" and "Open: the proper acceleration of a new frame". `ter-xdt8`'s stage 1 code reads the parent's value from the same pass and gives a new frame zero until its first sync point, and no test pins either. The extended accelerometer rule reads `FieldOf(parent, start)`, which subtracts the parent's proper acceleration, so it depends on the first answer. Its rotation terms do not: they come from the parent's V1 and V2, which `BeginStep` fixed before the step.
-
-| Design | The parent's value that `FieldOf` reads | A room at rest in a ship that rests on the floor of a spinning station, or a static room in a station that rests in a turning frame | What it costs |
-|---|---|---|---|
-| A. As the step found it (`ter-xdt8`'s recommendation) | The value stored before step 2 | The ship reads ω² R toward the axis at the sync point after a step. The room reads the ship's value through `FieldOf(ship, start)` one sync point later. A change moves one level down the chain in each step. | `FollowOwners` derives every value from the stored values first, and writes the new values after the loop. A dynamic child and every other child of the same parent agree in every step. |
-| B. Of the same step | The value that the parent took earlier in the same pass of `FollowOwners` | The room reads the ship's ω² R at the same sync point as the ship | None: the loop reads the parent's row. A dynamic child still reads it one sync point later. |
-
-The second question decides what a new frame inside a turning frame gives its contents in its first step. Under `ter-xdt8`'s design A it reads zero until its first step 2, so a new room in a spinning station gives its contents only its own field and its own rotation terms for one step. Under `ter-xdt8`'s design B it takes the value of its rest at the spawn. With this epic that value holds the parent's centrifugal term at the spawn, read from the parent's V1, which is `FrameTurn.None` for a parent that spawned in the same sync point (see O1).
-
-### O3. The velocity shadow and Jolt's damping
-
-The misbehavior: `JoltTarget` is the velocity that physics expects Jolt to reach from the force. Jolt then multiplies its velocity by (1 − c `dt`), with c the body's linear damping, 0.05/s by default (`BodyDesc.LinearDamping`, `src/Tertius.Core/Seams/PhysicsSeam.cs`, line 254). At 60 Hz that changes the velocity by 8.3e-4 of its value in every step, far above the shadow's bound of 1e-6. So every damped body in a turning frame takes the contact branch in every step: it never uses its shadow, and its damping change is turned as if a contact had made it. The answer to fork F8 set the shadow's scope by turning frames and did not cover damping.
-
-| Design | `JoltTarget` | Which bodies get the shadow and the contact turn | What it costs |
-|---|---|---|---|
-| A. Build the damping into `JoltTarget` | The velocity after Jolt's damping: physics repeats Jolt's float update, the force and then the factor (1 − c `dt`), with the same float operations. The shadow's double chord takes the same damping. | Every dynamic body in a turning frame | Physics copies a detail of Jolt's integrator, which a change in Jolt can break. A test with a damped body pins it. |
-| B. Serve only bodies without damping | As now | Only bodies whose linear and angular damping are zero. A damped body has no shadow and no contact turn. | Most bodies have the default damping. A damped crate at rest on a station floor gets no contact turn, so it feels a sideways error of about ω³ r `dt`, 0.051 m/s² at the spike's floor, which friction must hold. |
-
-Both designs share: Jolt's damping acts relative to the frame's axes, like air that turns with the station, so a damped body is not free, and the acceptance tests of free motion use bodies without damping under either design.
-
 ## Notes for the tickets
 
 This design check changes no file in `.tickets/`. The tickets' texts should take these notes:
 
-- `ter-s9m0`: the design was rewritten on 2026-10-18 after a design check, with the user's answers to forks F1 to F8 (see "Decisions"). A second check on the same day fixed its gaps and left three forks open (see "Open forks"). Replace the dependency on `ter-ozm8` by one on `ter-xdt8`: `ter-1bnq` needs only `ter-xdt8` of the rails epic, and no ticket of spin gravity needs `ter-zg77`.
+- `ter-s9m0`: the design was rewritten on 2026-10-18 after a design check, with the user's answers to forks F1 to F8 (see "Decisions"). A second check on the same day fixed its gaps, and the user answered its three forks on the same day (O1 to O3 in "Decisions"). Replace the dependency on `ter-ozm8` by one on `ter-xdt8`: `ter-1bnq` needs only `ter-xdt8` of the rails epic, and no ticket of spin gravity needs `ter-zg77`.
 - `ter-rb26` and `ter-ozm8`: their notes say that spin gravity starts when the rails epic closes. Spin gravity now starts when `ter-xdt8` merges, and stage 1 of `ter-1bnq` can start before. The demo steps keep their own dependencies.
-- `ter-1bnq`: the ticket's pointer "Section 'The rotation terms'" goes to "The two-turn update", "Values" and "The flow per kind of entity". Replace "the inertial angular velocity summed along the chain" and "the angular acceleration from the change between steps" by V1 and V2 from `BeginStep`. Replace the list "Spin frames, Kepler frames that face their parent, frames that physics drives and that turn" by "every turning frame: V1 or V2 is not the identity (`FrameTurns.Turns`)". The note of 2026-10-18 on the proper acceleration of a ship inside a turning parent is answered by V4's `Total` and the accelerometer rule, with the two tests in "Acceptance tests". The ticket builds in two stages (see "Order of the work"), builds the origin term of a falling frame, fixes the pointers of "Pointers to removed sections", and updates its lines of `ARCHITECTURE.md`. Its re-baselines are the rows for `ter-1bnq` in "Tests that change on purpose".
+- `ter-1bnq`: the ticket's pointer "Section 'The rotation terms'" goes to "The two-turn update", "Values" and "The flow per kind of entity". Replace "the inertial angular velocity summed along the chain" and "the angular acceleration from the change between steps" by V1 and V2 from `BeginStep`. Replace the list "Spin frames, Kepler frames that face their parent, frames that physics drives and that turn" by "every turning frame: V1 or V2 is not the identity (`FrameTurns.Turns`)". The note of 2026-10-18 on the proper acceleration of a ship inside a turning parent is answered by V4's `Total` and the accelerometer rule, with the two tests in "Acceptance tests". The ticket builds in two stages (see "Order of the work"), builds the origin term of a falling frame, fixes the pointers of "Pointers to removed sections", and updates its lines of `ARCHITECTURE.md`. Its re-baselines are the rows for `ter-1bnq` in "Tests that change on purpose". Its tests of free motion use the default damping, and the shadow holds Jolt's damping (fork O3). Its stations spawn with their first motion intent, which `ter-xdt8` adds (fork O1).
 - `ter-1b21`: the note of 2026-10-18 on the form near the hub is answered: the form reads V5, which holds the centrifugal and the Euler term. Up in the air and the walk along the ground plane act in every frame (forks F5 and F6). The ticket updates the character paragraphs of `ARCHITECTURE.md`.
 - `ter-vja8`: the block of `ter-n44b` stays (fork F7). The origin of a falling frame moved to `ter-1bnq`, so this ticket keeps the landing case, its fix, and the numeric tests that need it. The ticket updates "Numeric frames" in `ARCHITECTURE.md` if its fix changes a rule there.
-- `ter-n44b`: the ticket's pointer "Sections 'Content' and 'Tests'" goes to "Content" and "Scenes and tests". The scene is `spin-station`, because `station` is taken. Each engine ticket now updates its own lines of `ARCHITECTURE.md`, so this ticket keeps `CLAUDE.md`, with the new row for fork F7, `GUIDE.md`, `README.md` and the demo plan's questions.
+- `ter-n44b`: the ticket's pointer "Sections 'Content' and 'Tests'" goes to "Content" and "Scenes and tests". The scene is `spin-station`, because `station` is taken. Its station spawns with its first motion intent, so the contents spawned on its floor turn with it from the first step (fork O1). Each engine ticket now updates its own lines of `ARCHITECTURE.md`, so this ticket keeps `CLAUDE.md`, with the new row for fork F7, `GUIDE.md`, `README.md` and the demo plan's questions.
