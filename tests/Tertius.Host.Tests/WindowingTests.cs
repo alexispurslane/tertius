@@ -299,11 +299,13 @@ public class MouseTrackerTests
 /// <summary>CaptureMailbox: the handover of a capture from the simulation thread to the render thread.</summary>
 public class CaptureMailboxTests
 {
-    private static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
+    /// <summary>How long a test waits for another thread before it fails, so that a bug fails the test instead of hanging the run.</summary>
+    internal static readonly TimeSpan Bound = TimeSpan.FromSeconds(5);
 
     private static CancellationToken TestStop => TestContext.Current.CancellationToken;
 
-    private static ICaptureSink TakeWithin(CaptureMailbox mailbox)
+    /// <summary>Takes the sink of the waiting capture, as the render thread does. Fails if no request arrives within <see cref="Bound"/>.</summary>
+    internal static ICaptureSink TakeWithin(CaptureMailbox mailbox)
     {
         var clock = System.Diagnostics.Stopwatch.StartNew();
         ICaptureSink? sink;
@@ -505,8 +507,27 @@ public class WindowPlaybackTests
         second.Should().BeFalse();
     }
 
+    /// <summary>
+    /// Plays the render thread for one capture, on a thread of its own: takes the request within
+    /// <see cref="CaptureMailboxTests.Bound"/>, runs <paramref name="draw"/> with its sink, and tells the mailbox that it
+    /// is done, also when <paramref name="draw"/> throws, so that the capture does not wait for ever. Await the task
+    /// within the same bound: it rethrows on the test thread what the render thread threw.
+    /// </summary>
+    private static Task ServeOneCapture(CaptureMailbox mailbox, Action<ICaptureSink> draw) =>
+        Task.Factory.StartNew(() =>
+        {
+            try
+            {
+                draw(CaptureMailboxTests.TakeWithin(mailbox));
+            }
+            finally
+            {
+                mailbox.Done();
+            }
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
     [Fact]
-    public void ACapturePublishesTheStateOfItsMomentForTheRenderThread()
+    public async Task ACapturePublishesTheStateOfItsMomentForTheRenderThread()
     {
         using World world = HostTesting.NewWorld();
         HostTesting.Probes(world);
@@ -516,42 +537,27 @@ public class WindowPlaybackTests
         var mailbox = new CaptureMailbox();
         var playback = new WindowPlayback(new TickPacer(0.02, 1), mailbox, CancellationToken.None, () => 0);
         bool fresh = false;
-        var renderThread = new Thread(() =>
-        {
-            while (!mailbox.TryTake(out _))
-                Thread.Yield();
-            fresh = world.RenderSnapshots.TryAcquireLatest(out _);
-            mailbox.Done();
-        });
-        renderThread.Start();
+        Task renderThread = ServeOneCapture(mailbox, sink => fresh = world.RenderSnapshots.TryAcquireLatest(out _));
 
         playback.Capture(world, "x.png").Should().BeTrue();
 
-        renderThread.Join();
+        await renderThread.WaitAsync(CaptureMailboxTests.Bound, TestContext.Current.CancellationToken);
         fresh.Should().BeTrue("the capture publishes a snapshot of its moment before the render thread draws it");
     }
 
     [Fact]
-    public void ACaptureHandsTheRenderThreadASinkThatWritesThePngAtTheCapturesPath()
+    public async Task ACaptureHandsTheRenderThreadASinkThatWritesThePngAtTheCapturesPath()
     {
         using World world = HostTesting.NewWorld();
         string path = Path.Combine(HostTesting.NewFolder(), "shot.png");
         var mailbox = new CaptureMailbox();
         var playback = new WindowPlayback(new TickPacer(0.02, 1), mailbox, CancellationToken.None, () => 0);
         // The render thread hands the sink the pixels of the frame that it drew: here one pixel.
-        var renderThread = new Thread(() =>
-        {
-            ICaptureSink? sink;
-            while (!mailbox.TryTake(out sink))
-                Thread.Yield();
-            sink.Take(new CapturedImage([200, 100, 50, 0], 1, 1));
-            mailbox.Done();
-        });
-        renderThread.Start();
+        Task renderThread = ServeOneCapture(mailbox, sink => sink.Take(new CapturedImage([200, 100, 50, 0], 1, 1)));
 
         playback.Capture(world, path).Should().BeTrue();
 
-        renderThread.Join();
+        await renderThread.WaitAsync(CaptureMailboxTests.Bound, TestContext.Current.CancellationToken);
         File.Exists(path).Should().BeTrue("the capture is saved before Capture returns");
         Png.Load(path).At(0, 0).Should().Be((200, 100, 50));
     }

@@ -1,5 +1,4 @@
 using System.Numerics;
-using StbImageSharp;
 using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
@@ -106,8 +105,8 @@ internal static class Gpu
 }
 
 /// <summary>
-/// The pixels of one capture, RGBA8, top row first: from an in-memory sink, whose fourth byte of each pixel holds no
-/// defined value, or from a PNG file, whose fourth byte is 255.
+/// The pixels of one capture from an in-memory sink, RGBA8, top row first. The fourth byte of each pixel holds no
+/// defined value.
 /// </summary>
 internal sealed class Capture
 {
@@ -121,13 +120,6 @@ internal sealed class Capture
     public int Width { get; }
     public int Height { get; }
     public byte[] Rgba { get; }
-
-    public static Capture Load(string path)
-    {
-        using FileStream stream = File.OpenRead(path);
-        ImageResult image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
-        return new Capture(image.Width, image.Height, image.Data);
-    }
 
     /// <summary>Color in [0, 1] (display-encoded, as stored).</summary>
     public Vector3 Color(int x, int y)

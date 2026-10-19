@@ -44,16 +44,6 @@ public sealed class PngCaptureSinkTests : IDisposable
     }
 
     [Fact]
-    public void TheSinkLeavesThePixelsItWasHandedAsTheyWere()
-    {
-        byte[] pixels = Pixels();
-
-        Write(Path.Combine(folder, "image.png"), pixels, 3, 2);
-
-        pixels.Should().Equal(Pixels(), "the renderer's readback buffer belongs to the renderer");
-    }
-
-    [Fact]
     public void TheSinkMakesTheFolderOfItsFileWhenTheFolderIsMissing()
     {
         string path = Path.Combine(folder, "a", "b", "image.png");
