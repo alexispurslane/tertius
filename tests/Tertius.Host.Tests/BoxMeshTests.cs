@@ -1,5 +1,6 @@
 using System.Numerics;
 using Tertius.Demo;
+using static Tertius.Host.Tests.MeshChecks;
 
 namespace Tertius.Host.Tests;
 
@@ -27,22 +28,6 @@ public sealed class BoxMeshTests
             a.Normal.Should().Be(b.Normal, "a face is flat");
             a.Normal.Should().Be(c.Normal, "a face is flat");
             yield return (a.Position, b.Position, c.Position, a.Normal);
-        }
-    }
-
-    /// <summary>Every directed edge of every triangle, by the positions of its ends.</summary>
-    private static void ExpectClosed(MeshData mesh)
-    {
-        var edges = new Dictionary<(Vector3, Vector3), int>();
-        foreach (var (a, b, c, _) in Triangles(mesh))
-        {
-            foreach (var edge in new[] { (a, b), (b, c), (c, a) })
-                edges[edge] = edges.GetValueOrDefault(edge) + 1;
-        }
-        foreach (var ((from, to), count) in edges)
-        {
-            count.Should().Be(1, $"one triangle runs from {from} to {to}");
-            edges.GetValueOrDefault((to, from)).Should().Be(1, $"one triangle runs back from {to} to {from}");
         }
     }
 
