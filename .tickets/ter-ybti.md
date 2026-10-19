@@ -2,7 +2,7 @@
 id: ter-ybti
 status: open
 deps: []
-links: []
+links: [ter-6htl]
 created: 2026-10-19T20:57:50Z
 type: bug
 priority: 3
