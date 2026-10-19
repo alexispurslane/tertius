@@ -52,6 +52,8 @@ Jolt applies a contact's velocity change in the frame's axes at the start of the
 
 A body's velocity drifts by float rounding over long runs. A velocity shadow in doubles, with position feedback, kept a free body within 1 mm over 10 minutes in the spike.
 
+Since `ter-xdt8`, the frame tree derives a frame's proper acceleration from its step record: the frame's acceleration minus the gravity that acts at its place, which is its semantic parent's field there minus the parent's own proper acceleration (see "The proper acceleration of a frame" in [Rails components](rails-components.md)). That rule has no rotation terms, because the bodies in a frame feel none yet. Once the rotation terms act on the bodies in a turning frame, they act at the place of a frame in it too. So this epic adds them to the gravity in that rule, with the child frame's place and its velocity relative to the turning parent. Physics measures a dynamic hull's proper acceleration from Jolt's change of velocity and the force that it applied, so such a hull takes the terms through that force.
+
 ## The velocity convention
 
 A velocity that gameplay sets, at spawn, through `SetVelocity` or at a hand-off, is an instant velocity. Jolt reads a stored velocity as a chord, half a tick behind. So the engine gives Jolt the chord: the instant velocity minus the body's acceleration times half a tick, and the same for angular velocity. Without this, a thrown crate lands 2.5 cm off at 60 Hz, with or without spin. A body at rest in inertial space inside a station also drifts by up to 8 cm/s.
@@ -76,7 +78,7 @@ where
 - `ω_body` = the body's angular velocity in the turning frame.
 - `r`, `v` = the place and the velocity of the point in the turning frame, in the other frame's axes.
 
-The Euler terms need the angular acceleration of a semantic frame. `AccelerationRelative` also leaves out the linear acceleration of a semantic frame on its path. Only the step record of a step in flight holds them: a full sample in the owner's motion intent, or the record that physics measures for a dynamic hull. Since `ter-xdt8`, no store keeps them after the sync point. The frame tree row keeps only the record's pose, instant velocity, angular velocity and proper acceleration. The decision "What the frame tree row keeps of a step record" in [Rails components](rails-components.md) gives the reason. When its design needs one, spin gravity adds its own store for them. The linear term is not a rotation term, so it needs a ticket of its own.
+The Euler terms need the angular acceleration of a semantic frame. `AccelerationRelative` also leaves out the linear acceleration of a semantic frame on its path. Only the step record of a step in flight holds them: a full sample in the owner's motion intent, or the record that physics measures for a dynamic hull. Since `ter-xdt8`, no store keeps them after the sync point. The frame tree row keeps only the record's pose, instant velocity and angular velocity, and the frame's proper acceleration, which the tree derives from the record. The decision "What the frame tree row keeps of a step record" in [Rails components](rails-components.md) gives the reason. When its design needs one, spin gravity adds its own store for them. The linear term is not a rotation term, so it needs a ticket of its own.
 
 ## Characters
 
