@@ -109,6 +109,15 @@ internal readonly record struct NumericBody
     /// (docs/plans/numeric-frames.md, "Anchors").
     /// </summary>
     public bool Anchor => Static || Fixed;
+
+    /// <summary>
+    /// True when physics lets the body's ghosts reach the content of a frame, its bubble grown by its excess, and not only
+    /// its bubble (fork F2 of docs/plans/complete-ghosts.md): a static body, a kinematic body or a hull. A stick-out ghost
+    /// meets none of them but a sensor, so only a ghost of the body in the frame brings them together with the frame's
+    /// members. A dynamic plain body or a character reaches only the bubble, as in <c>BodyRecord.GhostsReachContent</c> of
+    /// the physics backend.
+    /// </summary>
+    public bool GhostsReachContent => Static || Kinematic || !OwnedFrame.IsNull;
 }
 
 /// <summary>

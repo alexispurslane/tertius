@@ -536,17 +536,59 @@ public class FrameTreeGhostPlaceTests
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
     }
 
-    [Fact]
-    public void A_body_of_the_parent_that_reaches_the_childs_content_beyond_its_bubble_leaves_a_place_in_it()
+    [Theory]
+    [InlineData(BodyMotion.Static)]
+    [InlineData(BodyMotion.Kinematic)]
+    public void A_static_or_kinematic_body_of_the_parent_that_reaches_the_childs_content_beyond_its_bubble_leaves_a_place_in_it(BodyMotion motion)
     {
         // The body in the station flies at 60 m/s 1 m inside the bubble, so within 2 s it can stick out by 120 m: the
         // station's content reaches that far beyond the bubble. The rock of ground rests 15 m outside the bubble, beyond its
-        // own reach of 1 m and the split margin, but within the content, so it has a ghost in the station's own system,
-        // 17 m from the body.
+        // own reach of 1 m and the split margin, but within the content. The stick-out ghost of the body in the station is
+        // kinematic and meets no static or kinematic body, so the rock reaches the content (fork F2) and has a ghost in the
+        // station's own system, 17 m from the body.
+        FrameHandle station = Station(2, X(1_000));
+        NumericBody inside = BodyOf(station, 12, Y(39), X(60)) with { Character = true };
+        NumericBody rock = Body(10, new Double3(1_000, 56, 0)) with
+        {
+            Static = motion == BodyMotion.Static,
+            Kinematic = motion == BodyMotion.Kinematic,
+        };
+
+        NumericBody[] after = Update(0.1, rock, inside);
+
+        after[1].Home.Should().Be(station);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_dynamic_body_or_character_of_the_parent_that_reaches_only_the_childs_content_leaves_no_place_in_it(bool character)
+    {
+        // The scene of the static rock, with a rock that can be pushed. The stick-out ghost of the body in the station meets
+        // it, and a ghost of the rock in the station would make a mirror pair of two kinematic ghosts, in which each real body
+        // meets the other as an immovable body. So the rock reaches only the bubble (fork F2), and the body in the station
+        // falls in a frame of its own.
         FrameHandle station = Station(2, X(1_000));
         NumericBody inside = BodyOf(station, 12, Y(39), X(60)) with { Character = true };
 
-        NumericBody[] after = Update(0.1, Body(10, new Double3(1_000, 56, 0)), inside);
+        NumericBody[] after = Update(0.1, Body(10, new Double3(1_000, 56, 0), character: character), inside);
+
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
+    }
+
+    [Fact]
+    public void A_dynamic_hull_of_the_parent_that_reaches_the_childs_content_beyond_its_own_bubble_leaves_a_place_in_it()
+    {
+        // The scene of the static rock, with the dynamic hull of a pod in place of the rock. The pod's bubble of 1 m is no
+        // larger than the hull's sphere, so the hull reaches 1 m. A stick-out ghost has the ghost role, which meets no hull,
+        // so the hull reaches the content although it is dynamic (fork F2).
+        FrameHandle station = Station(2, X(1_000));
+        var at = new Double3(1_000, 56, 0);
+        FrameHandle pod = frames.Create(new Entity(10, 1), ground, new DPose(at, DQuaternion.Identity), FrameBounds.Sphere(1));
+        frames.SetHullMotion(pod, BodyMotion.Dynamic);
+        NumericBody inside = BodyOf(station, 12, Y(39), X(60)) with { Character = true };
+
+        NumericBody[] after = Update(0.1, Body(10, at) with { OwnedFrame = pod }, inside);
 
         after[1].Home.Should().Be(station);
     }
@@ -688,20 +730,47 @@ public class FrameTreeGhostPlaceTests
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
     }
 
-    [Fact]
-    public void A_body_that_sticks_out_of_a_sibling_on_its_far_side_leaves_a_place_in_the_frame_within_its_content()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_kinematic_body_or_hull_that_sticks_out_of_a_sibling_on_its_far_side_leaves_a_place_in_the_frame_within_its_content(bool hull)
     {
-        // The depot's crate sticks out of it at 1,120 m in ground, 80 m outside the station's bubble. The body in the station
-        // flies at 60 m/s 10 m inside the bubble, so within 2 s it can stick out by 111 m: the station's content reaches the
-        // crate, which has a ghost in the station's own system (fork F2). The body is 90 m from it, within 2 m plus 2 s of
-        // 60 m/s. Before the content, the crate's ghost needed the bubble itself, and the body fell in a frame of its own.
+        // The depot's crate, kinematic or the dynamic hull of a pod in the depot, sticks out of it at 1,120 m in ground, 80 m
+        // outside the station's bubble. The body in the station flies at 60 m/s 10 m inside the bubble, so within 2 s it can
+        // stick out by 111 m: the station's content reaches the crate. The stick-out ghost of the body in the station meets
+        // neither a kinematic body nor a hull, so the crate reaches the content (fork F2) and has a ghost in the station's own
+        // system. The body is 90 m from it, within 2 m plus 2 s of 60 m/s.
+        FrameHandle station = Station(2, X(1_000));
+        FrameHandle depot = Station(3, X(1_080));
+        NumericBody crate = BodyOf(depot, 11, X(40)) with { Kinematic = !hull };
+        if (hull)
+        {
+            FrameHandle pod = frames.Create(new Entity(11, 1), depot, new DPose(X(40), DQuaternion.Identity), FrameBounds.Sphere(1));
+            frames.SetHullMotion(pod, BodyMotion.Dynamic);
+            crate = crate with { OwnedFrame = pod };
+        }
+        NumericBody inside = BodyOf(station, 12, X(30), Y(60)) with { Character = true };
+
+        NumericBody[] after = Update(0.1, crate, inside);
+
+        after[1].Home.Should().Be(station);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void A_dynamic_body_or_character_that_sticks_out_of_a_sibling_on_its_far_side_leaves_no_place_in_the_frame(bool character)
+    {
+        // The scene of the kinematic crate, with a crate that can be pushed. The stick-out ghost of the body in the station
+        // meets it, and a ghost of the crate in the station would make a mirror pair of two kinematic ghosts. So the crate
+        // reaches only the bubble (fork F2), 80 m away, and the body in the station falls in a frame of its own.
         FrameHandle station = Station(2, X(1_000));
         FrameHandle depot = Station(3, X(1_080));
         NumericBody inside = BodyOf(station, 12, X(30), Y(60)) with { Character = true };
 
-        NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(40)), inside);
+        NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(40)) with { Character = character }, inside);
 
-        after[1].Home.Should().Be(station);
+        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
     }
 
     [Fact]

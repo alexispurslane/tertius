@@ -340,8 +340,10 @@ public sealed partial class JoltPhysicsBackend
     /// frame whose content it reaches, and, for a body that can move and sticks out of its bubble, in the bubble's tree
     /// parent and in each sibling frame whose content it reaches. The content of a frame is its bubble grown by its
     /// excess, how far the bounding spheres of the members of the frame's systems that can move reach beyond the bubble
-    /// (fork F2). A first pass over the members of every system measures it, and keeps the origin of each member that can
-    /// move for the second pass, which places the ghosts, so no position is read twice.
+    /// (fork F2). Only a static body, a kinematic body or a hull reaches the content; a dynamic plain body or a character
+    /// reaches only the bubble (see <see cref="BodyRecord.GhostsReachContent"/>). A first pass over the members of every
+    /// system measures the excess, and keeps the origin of each member that can move for the second pass, which places the
+    /// ghosts, so no position is read twice.
     /// Numeric frames are an engine detail with no bubbles, so every body, hull and anchor gets the ghosts in semantic
     /// frames that it gets without numeric frames. The bubbles inside a body's frame are those that the hand-off lets it
     /// enter (see <see cref="PrepareBubbles"/>). A static body and an anchor never enter them, but a ghost is about
@@ -419,7 +421,8 @@ public sealed partial class JoltPhysicsBackend
 
                 // A moving body that sticks out of the bubble (see BubbleOf) has a ghost in the bubble's tree parent, the
                 // home of the bubble's hull, and in each sibling frame whose content it reaches (it lost the tie of rule 3,
-                // or the bubbles overlap there). The body is partly in the parent, so its siblings are the bubbles that
+                // or the bubbles overlap there). A dynamic plain body or a character reaches only the sibling's bubble (see
+                // BodyRecord.GhostsReachContent). The body is partly in the parent, so its siblings are the bubbles that
                 // the members of the parent's system meet, those of the semantic children of the parent's semantic frame
                 // (see PrepareBubbles), apart from the bubble itself. So a body in a ship that falls in a numeric frame
                 // meets a parked station beside it, and so does a crate that falls in a numeric frame below the ship.
@@ -456,7 +459,7 @@ public sealed partial class JoltPhysicsBackend
                         FrameMotion motion = sibling.Motion;
                         var poseInSiblingParent = new DPose(parentPose.Position + sibling.Offset, parentPose.Rotation);
                         if (frames.Bounds(sibling.Frame).SignedDistance(motion.Pose.InverseTransformPoint(poseInSiblingParent.Position)) >
-                            radius + ContentExcessOf(sibling.Frame))
+                            radius + ContentExcessFor(member, sibling.Frame))
                             continue;
                         WantGhost(member, sibling.Frame, motion.PoseFromParent(poseInSiblingParent),
                             motion.VelocityFromParent(parentCenter + sibling.Offset, parentLinear + sibling.Velocity),
@@ -466,10 +469,11 @@ public sealed partial class JoltPhysicsBackend
 
                 // A body that reaches the content of a semantic child of its semantic frame without being in it (it lost a
                 // tie, it is a hull that does not fit, or it never moves between frames) has a ghost in that child. A hull
-                // reaches as far as its own bubble. A ghost is about touching, not entering, so a static body and an anchor
-                // meet the same bubbles, although they never move between frames: the slab under a parked shuttle has a
-                // ghost in the shuttle's bubble, and a parked station's hull has a ghost in a ship that falls past it in a
-                // numeric frame. None of these bubbles is a numeric frame, so none of them holds a ghost that the numeric
+                // reaches as far as its own bubble. A dynamic plain body or a character reaches only the child's bubble
+                // (see BodyRecord.GhostsReachContent). A ghost is about touching, not entering, so a static body and an
+                // anchor meet the same bubbles, although they never move between frames: the slab under a parked shuttle
+                // has a ghost in the shuttle's bubble, and a parked station's hull has a ghost in a ship that falls past it
+                // in a numeric frame. None of these bubbles is a numeric frame, so none of them holds a ghost that the numeric
                 // update names. The child's system holds no hull of a frame that holds the body, so a child ghost of a
                 // static body or a hull meets hulls, as its body does (see GhostBody.Role).
                 double reach = member.IsHull ? Math.Max(radius, frames.Bounds(member.OwnedFrame).MaxRadius) : radius;
@@ -480,7 +484,7 @@ public sealed partial class JoltPhysicsBackend
                     if (child.Frame == member.OwnedFrame)
                         continue;
                     FrameMotion motion = child.Motion;
-                    if (frames.Bounds(child.Frame).SignedDistance(motion.Pose.InverseTransformPoint(center + child.Offset)) > reach + ContentExcessOf(child.Frame))
+                    if (frames.Bounds(child.Frame).SignedDistance(motion.Pose.InverseTransformPoint(center + child.Offset)) > reach + ContentExcessFor(member, child.Frame))
                         continue;
                     if (!haveSnapshot)
                     {
@@ -545,8 +549,13 @@ public sealed partial class JoltPhysicsBackend
         }
     }
 
-    /// <summary>The content excess of <paramref name="frame"/> that the first pass of the ghost pass measured (see <see cref="MeasureContent"/>).</summary>
-    private double ContentExcessOf(FrameHandle frame) => contentExcess.TryGetValue(frame, out double excess) ? excess : 0;
+    /// <summary>
+    /// How far beyond the bubble of <paramref name="frame"/> a ghost of <paramref name="member"/> reaches: the frame's content
+    /// excess that the first pass of the ghost pass measured (see <see cref="MeasureContent"/>) when the member's ghosts reach
+    /// the content, and zero when they reach only the bubble (see <see cref="BodyRecord.GhostsReachContent"/>).
+    /// </summary>
+    private double ContentExcessFor(BodyRecord member, FrameHandle frame) =>
+        member.GhostsReachContent && contentExcess.TryGetValue(frame, out double excess) ? excess : 0;
 
     private static bool HasAnchorGhost(ReadOnlySpan<NumericGhost> anchorGhosts, Entity entity)
     {

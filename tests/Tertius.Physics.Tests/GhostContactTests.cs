@@ -200,6 +200,76 @@ public class GhostContactTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The scene of <see cref="TheImpulseOfAHitOnTheGhostOfADynamicBodyUsesTheMassesOfBothRealBodies"/>: a crate of 10 kg
+    /// sticks 1 m out of a frame of radius 10 m, and a ball of 1 kg in space hits it at 5 m/s. The crate's bounding sphere
+    /// grows the frame's content 1.7 m beyond the bubble, and the ball comes within 1 m of the bubble. But a dynamic body
+    /// reaches only the bubble (fork F2 of docs/plans/complete-ghosts.md): the crate meets it through the crate's own
+    /// stick-out ghost in space, so the ball gets no ghost in the frame. Such a ghost would make a mirror pair of two
+    /// kinematic ghosts, in which each real body meets the other as an immovable body: the crate would be shoved into its
+    /// bubble at about the ball's full speed. So the ball stops at the crate's ghost, and the crate stays where it is, as
+    /// before the content.
+    /// </summary>
+    [Fact]
+    public void ABallThatHitsACrateThatSticksOutOfAFrameGetsNoGhostInTheFrameAndLeavesTheCrateWhereItIs()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = Space(world);
+        FrameHandle bubble = Bubble(world, space, 0, 10);
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = bubble, Pose = At(10), Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 10, LinearDamping: 0, AngularDamping: 0),
+        });
+        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = At(16), LinearVelocity = new Vector3(-5, 0, 0), Body = Ball(0.25f) });
+
+        for (int i = 0; i < 90; i++)
+        {
+            world.Tick();
+            faults.Jolt.HasGhostIn(ball, bubble).Should().BeFalse("the ball's bounding sphere never touches the bubble");
+        }
+
+        world.PoseIn(ball, space).Position.X.Should().BeGreaterThan(11.2, "the ball stops at the crate's ghost");
+        world.VelocityIn(crate, space).Length.Should().BeLessThan(0.05, "nothing pushes the crate");
+        world.PoseIn(crate, space).Position.X.Should().BeApproximately(10, 0.01);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Under gravity, a frame without a body at the origin has a bubble of 5 m, and a static floor of the parent, with its
+    /// top at y = 0, crosses it. A crate of 10 kg of the frame rests on the floor's ghost at x = 5.3 m, so it sticks out of
+    /// the bubble, and its bounding sphere grows the frame's content 1.2 m beyond the bubble. A person of the parent walks
+    /// along -X at 2 m/s into the crate, and its bounding sphere comes within 1.2 m of the bubble. A character reaches
+    /// only the bubble, as a dynamic body does (fork F2): the crate meets the person through the crate's own stick-out ghost,
+    /// so the person gets no ghost in the frame, which would shove the crate as an immovable body. So the person stops at
+    /// the crate's ghost, and the crate stays where it is.
+    /// </summary>
+    [Fact]
+    public void APersonWhoWalksIntoACrateThatSticksOutOfAFrameGetsNoGhostInTheFrameAndLeavesTheCrateWhereItIs()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        var gravity = GravityField.Uniform(new Vector3(0, -9.81f, 0));
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), gravity));
+        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, -0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(20, 0.5f, 20)), BodyMotion.Static) });
+        FrameHandle bubble = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0), AsFrame = new FrameSpec(FrameBounds.Sphere(5), gravity) }));
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = bubble, Pose = At(5.3, 0.5), Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, Restitution: 0),
+        });
+        var pilot = new Pilot { EveryTick = handle => handle.MoveCharacter(new Vector3(-2, 0, 0)) };
+        Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(9, 0.9), Body = Person, Components = [pilot] });
+
+        for (int i = 0; i < 150; i++)
+        {
+            world.Tick();
+            faults.Jolt.HasGhostIn(person, bubble).Should().BeFalse("the person's bounding sphere never touches the bubble");
+        }
+
+        world.PoseIn(person, ground).Position.X.Should().BeInRange(6.0, 6.3, "the person stops at the crate's ghost");
+        world.VelocityIn(crate, ground).Length.Should().BeLessThan(0.05, "nothing pushes the crate");
+        world.PoseIn(crate, ground).Position.X.Should().BeApproximately(5.3, 0.01);
+        world.Errors.Should().BeEmpty();
+    }
+
     /// <summary>True while Jolt simulates the ghost of <paramref name="entity"/> in the system of <paramref name="frame"/>.</summary>
     private static bool IsGhostAwake(JoltPhysicsBackend backend, FrameHandle frame, Entity entity) =>
         backend.BodiesIn(frame).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, entity)).Active;

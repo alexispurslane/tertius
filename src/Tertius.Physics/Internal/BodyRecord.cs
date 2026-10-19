@@ -176,5 +176,15 @@ internal sealed class BodyRecord
     /// <summary>True when the primary body can move: dynamic, kinematic or a character.</summary>
     public bool IsMovable => Motion != BodyMotion.Static;
 
+    /// <summary>
+    /// True when the body's ghosts reach the content of a frame, its bubble grown by its excess, and not only its bubble
+    /// (fork F2 of docs/plans/complete-ghosts.md): a static body, a kinematic body or a hull. A stick-out ghost of a member
+    /// of the frame is kinematic and has the ghost role, so it meets none of them but a sensor, and only a ghost of the
+    /// body in the frame brings the two together. A dynamic plain body or a character reaches only the bubble: a member
+    /// that sticks out meets it through the member's own stick-out ghost, and a ghost of the body in the frame would make
+    /// a mirror pair of two kinematic ghosts, in which each real body meets the other as an immovable body.
+    /// </summary>
+    public bool GhostsReachContent => IsHull || Motion is BodyMotion.Static or BodyMotion.Kinematic;
+
     public bool HasPrimary => World is not null;
 }

@@ -123,6 +123,56 @@ public class StaticBodyGhostTests
     }
 
     /// <summary>
+    /// The scene of <see cref="ACrateThatSticksOutOfABubbleStopsAtAStaticRockOfTheParentBeyondTheBubblesEdge"/>, with a
+    /// ship of space in place of the rock: a frame whose hull of 10 t, static or dynamic, is a box of 1 m at x = 6.5 m, with
+    /// a bubble of 0.9 m. The hull reaches as far as its own bubble, 0.6 m short of the frame's bubble. Once the crate sticks
+    /// out, the frame's content reaches the hull. The crate's stick-out ghost has the ghost role, which meets no hull, so a
+    /// hull reaches the content whatever its motion, a dynamic one too (fork F2). Its ghost in the frame has the interior's
+    /// layer, and the crate stops at it, as at the rock. Nothing pushes the hull.
+    /// </summary>
+    [Theory]
+    [InlineData(BodyMotion.Static)]
+    [InlineData(BodyMotion.Dynamic)]
+    public void ACrateThatSticksOutOfABubbleStopsAtTheHullOfAShipOfTheParentBeyondTheBubblesEdge(BodyMotion motion)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle home = Bubble(world, space, At(0), 5);
+        var shipLog = new CollisionLog();
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = At(6.5),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), motion, Mass: 10_000, Restitution: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(0.9f)),
+            Components = [shipLog],
+        });
+        var crateLog = new CollisionLog();
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = home,
+            Pose = At(3),
+            LinearVelocity = new Vector3(1, 0, 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            Components = [crateLog],
+        });
+
+        double farthest = double.MinValue;
+        for (int i = 0; i < 240; i++)
+        {
+            world.Tick();
+            farthest = Math.Max(farthest, world.PoseIn(crate, space).Position.X);
+        }
+
+        farthest.Should().BeLessThan(5.55, "the crate stops with its front at the hull's face");
+        world.GetFrame(crate).Should().Be(home);
+        world.PoseIn(ship, space).Position.X.Should().BeApproximately(6.5, 0.01, "nothing pushes the hull");
+        crateLog.NewsOf(ship).Should().Equal(Started);
+        shipLog.NewsOf(crate).Should().Equal(Started);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// Space, with no gravity. A frame without a body at the origin has a bubble of 5 m. A kinematic ball of radius 0.5 m
     /// moves along +X at 1 m/s from x = -8 m, and pushes a crate that rests against it into the bubble. When the crate moves
     /// into the frame, the ball's bounding sphere does not reach the bubble yet, but it reaches the frame's content, which the
