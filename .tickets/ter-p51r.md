@@ -1,6 +1,6 @@
 ---
 id: ter-p51r
-status: in_progress
+status: closed
 deps: [ter-721k, ter-84iw]
 links: []
 created: 2026-10-19T01:22:33Z
