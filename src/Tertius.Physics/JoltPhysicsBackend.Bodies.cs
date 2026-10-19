@@ -426,7 +426,7 @@ public sealed partial class JoltPhysicsBackend
         if (upFromGravity)
         {
             // Up is against the semantic frame's gravity, which equals the effective gravity outside numeric frames.
-            Vector3 gravity = frames.SemanticGravity(world.Frame, pose.Position);
+            Vector3 gravity = frames.SemanticGravity(world.Frame, pose.Position).ToVector3();
             float strength = gravity.Length();
             if (strength >= FrameTree.ZeroGravityThreshold)
                 record.Up = -gravity / strength;

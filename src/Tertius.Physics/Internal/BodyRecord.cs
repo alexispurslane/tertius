@@ -161,8 +161,9 @@ internal sealed class BodyRecord
     /// <summary>The pose in its home, with a unit rotation, at which the teleport of <see cref="TeleportStep"/> put the body.</summary>
     public DPose TeleportPose;
     /// <summary>
-    /// The effective gravity that the last step applied to the body, in the axes of its home: to a dynamic rigid body
-    /// while it was awake, and to a character that the ground did not hold (zero when it did).
+    /// The gravity that the last step applied to the body, in the axes of its home: the linear gravity to a dynamic rigid
+    /// body while it was awake, and to a character that the ground did not hold (zero when it did). A sleeping dynamic hull
+    /// gets the effective gravity, with the centrifugal and the Euler term of a turning frame, against which it rests.
     /// </summary>
     public Vector3 GravityApplied;
     /// <summary>For a dynamic frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>

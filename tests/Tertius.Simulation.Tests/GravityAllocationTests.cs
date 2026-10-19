@@ -45,7 +45,7 @@ public class GravityAllocationTests
                 test.World.Frames.EffectiveGravity(frame, warm % 2 == 0 ? inside : outside);
 
         const int rounds = 10_000;
-        Vector3 total = Vector3.Zero;
+        Double3 total = Double3.Zero;
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < rounds; i++)
             foreach (FrameHandle frame in frames)
@@ -59,7 +59,7 @@ public class GravityAllocationTests
         // method that allocates at every call does.
         long perCall = allocated / (rounds * frames.Length);
         perCall.Should().Be(0, "physics reads the effective gravity of every awake body at every step");
-        total.Should().NotBe(Vector3.Zero, "the fields did pull, so the loop did read them");
+        total.Should().NotBe(Double3.Zero, "the fields did pull, so the loop did read them");
     }
 
     [Fact]

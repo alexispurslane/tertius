@@ -10,9 +10,10 @@ namespace Tertius.Physics;
 /// The physics backend on Jolt in double precision. Each reference frame that contains bodies gets its own Jolt
 /// physics system, created when the first body arrives. All systems share one job system and step one after
 /// another; each update spreads over the job threads. Jolt gravity is zero: before each step, every awake dynamic
-/// body gets the force m · g_eff, where g_eff is the frame's own field minus the frame's proper acceleration. The force
-/// leaves the body's sleep timer alone, so a body at rest falls asleep. The sleep threshold of each system scales with the
-/// weakest effective gravity on its awake bodies, so a body that a small share of a weak gravity moves stays awake.
+/// body gets the force m · g, where g is the linear gravity: the frame's own field minus the frame's proper acceleration.
+/// The force leaves the body's sleep timer alone, so a body at rest falls asleep. The sleep threshold of each system scales
+/// with the weakest effective gravity on its awake bodies, the linear gravity plus the centrifugal and the Euler term of a
+/// turning frame, so a body that a small share of a weak gravity moves stays awake.
 /// After each step, the backend moves bodies between frames (hand-off) and keeps ghosts of bodies that cross a
 /// bubble boundary. See ARCHITECTURE.md, "Reference frames" and "Physics".
 /// </summary>

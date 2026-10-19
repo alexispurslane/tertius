@@ -759,30 +759,62 @@ public sealed partial class FrameTree
     public const float ZeroGravityThreshold = 0.05f;
 
     /// <summary>
-    /// The effective gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/>, which holds the
+    /// The linear gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/>, which holds the
     /// body in its physics system, in frame axes: the field of the frame's semantic frame at the body's true position, minus
-    /// the acceleration of <paramref name="frame"/> relative to the semantic frame. For a semantic frame, that is its own
-    /// field minus its proper acceleration. In a falling numeric frame it is the tidal gravity. Both terms are in doubles,
-    /// and only their difference narrows to a float, so a tidal gravity of a fraction of a mm/s² keeps its digits.
+    /// the acceleration of <paramref name="frame"/> relative to the semantic frame (docs/plans/spin-gravity.md, "Terms"). For
+    /// a semantic frame, that is its own field minus its proper acceleration. In a falling numeric frame it is the tidal
+    /// gravity, plus the difference of the rotation terms that the frame's origin takes (see <see cref="BeginStep"/>). It
+    /// leaves out the rotation terms of a turning frame, which <see cref="EffectiveGravity"/> adds. Physics reads it for the
+    /// field part of a body's update and of the chord rule. It stays in doubles, so that the reader that needs a float narrows
+    /// only the difference, and a tidal gravity of a fraction of a mm/s² keeps its digits. Like the effective gravity, it
+    /// reads the home's acceleration in the step in flight, so it is internal.
     /// </summary>
-    public Vector3 EffectiveGravity(FrameHandle frame, Double3 position)
+    internal Double3 LinearGravity(FrameHandle frame, Double3 position)
     {
         int id = Node(frame).Id;
         if (numeric[id] == NumericMode.None)
-            return FieldOf(id, position).ToVector3();
+            return FieldOf(id, position);
         FrameHandle semantic = SemanticOf(frame);
-        return (FieldOf(semantic.Index, position + HomeOffset(frame, semantic)) - HomeAcceleration(frame, semantic)).ToVector3();
+        return FieldOf(semantic.Index, position + HomeOffset(frame, semantic)) - HomeAcceleration(frame, semantic);
+    }
+
+    /// <summary>
+    /// The effective gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/>, in frame axes,
+    /// which are the axes of its semantic frame (docs/plans/spin-gravity.md, "V5, the effective gravity"): the linear gravity
+    /// (see <see cref="LinearGravity"/>) plus the centrifugal and the Euler term of the semantic frame's turns at the body's
+    /// semantic place (see <see cref="WithRotationTerms"/>). It takes no velocity, so it has no Coriolis term. It is the one
+    /// continuous value for the readers that need one: the form, the standing and the weight of a character, the sleep
+    /// threshold, and the acceleration that a sleeping hull rests against. The sum of its double terms narrows once, in the
+    /// reader that needs a float. In a frame that does not turn it is the linear gravity, to the bit, and so it is before the
+    /// frame's first <see cref="BeginStep"/>.
+    /// <para>
+    /// It reads the turns, which describe the step in flight from <see cref="BeginStep"/> on and the last finished step from
+    /// step 2 on, so only physics and the frame tree read it, in the step whose turn they hold. A public read for gameplay,
+    /// when one is needed, describes the last finished step under a name of its own.
+    /// </para>
+    /// </summary>
+    internal Double3 EffectiveGravity(FrameHandle frame, Double3 position)
+    {
+        int id = Node(frame).Id;
+        if (numeric[id] == NumericMode.None)
+            return WithRotationTerms(FieldOf(id, position), id, position);
+        FrameHandle semantic = SemanticOf(frame);
+        Double3 place = position + HomeOffset(frame, semantic);
+        return WithRotationTerms(FieldOf(semantic.Index, place) - HomeAcceleration(frame, semantic), semantic.Index, place);
     }
 
     /// <summary>
     /// The gravity of the semantic frame of <paramref name="frame"/> at a body's true position, for a body at
-    /// <paramref name="position"/> in <paramref name="frame"/>, in frame axes. It equals <see cref="EffectiveGravity"/> in a
-    /// semantic frame. In a numeric frame it is the gravity that the semantic frame shows, which says where up is.
+    /// <paramref name="position"/> in <paramref name="frame"/>, in frame axes: the semantic frame's field minus its proper
+    /// acceleration, plus its centrifugal and Euler term there (see <see cref="WithRotationTerms"/>). It equals
+    /// <see cref="EffectiveGravity"/> in a semantic frame. In a numeric frame it is the gravity that the semantic frame
+    /// shows, which says where up is. It reads the turns as the effective gravity does.
     /// </summary>
-    internal Vector3 SemanticGravity(FrameHandle frame, Double3 position)
+    internal Double3 SemanticGravity(FrameHandle frame, Double3 position)
     {
         FrameHandle semantic = SemanticOf(frame);
-        return FieldOf(semantic.Index, position + HomeOffset(frame, semantic)).ToVector3();
+        Double3 place = position + HomeOffset(frame, semantic);
+        return WithRotationTerms(FieldOf(semantic.Index, place), semantic.Index, place);
     }
 
     /// <summary>The field of the semantic frame with index <paramref name="id"/> minus its proper acceleration, in doubles.</summary>

@@ -390,8 +390,10 @@ public sealed partial class JoltPhysicsBackend
     // ---- Gravity ----
 
     /// <summary>
-    /// Applies m · g_eff to every awake dynamic body, and gives each system the sleep threshold of the weakest effective
-    /// gravity on its awake dynamic bodies (see <see cref="SleepThresholdFor"/>). Wakes a frame's bodies when its gravity
+    /// Applies m · g to every awake dynamic body, with g the linear gravity at the body (see
+    /// <see cref="FrameTree.LinearGravity"/>), and gives each system the sleep threshold of the weakest effective gravity on
+    /// its awake dynamic bodies, with the centrifugal and the Euler term of a turning frame (see
+    /// <see cref="FrameTree.EffectiveGravity"/> and <see cref="SleepThresholdFor"/>). Wakes a frame's bodies when its gravity
     /// field changes, or when its proper acceleration has moved more than <see cref="JoltBackendOptions.WakeAccelerationThreshold"/>
     /// from its value when they last woke. A sleeping body gets no force, and the force does not reset the sleep timer of
     /// an awake body, so a body at rest falls asleep.
@@ -419,19 +421,21 @@ public sealed partial class JoltPhysicsBackend
             BodyLockInterface locks = world.System.BodyLockInterface;
             int count = CopyActiveBodies(world);
             float weakest = float.PositiveInfinity;
+            bool turning = frames.Turns(frame).Turns;
             for (int i = 0; i < count; i++)
             {
                 BodyID id = activeScratch[i];
                 locks.LockWrite(id, out BodyLockWrite write);
                 if (write.Succeeded && write.Body is { } body)
-                    weakest = MathF.Min(weakest, ApplyGravity(frame, id, body));
+                    weakest = MathF.Min(weakest, ApplyGravity(frame, turning, id, body));
                 locks.UnlockWrite(write);
             }
             if (weakest < float.PositiveInfinity)
                 world.SetSleepThreshold(SleepThresholdFor(weakest));
         }
 
-        // A sleeping hull still rests against gravity, and its frame's accelerometer reads that.
+        // A sleeping hull still rests against gravity, and its frame's accelerometer reads that: the effective gravity, with
+        // the centrifugal and the Euler term of a turning frame, against which it rests.
         foreach (BodyRecord owner in frameOwners)
         {
             if (owner.Motion != BodyMotion.Dynamic || !owner.HasPrimary)
@@ -440,25 +444,29 @@ public sealed partial class JoltPhysicsBackend
             if (bodies.IsActive(owner.Body))
                 continue;
             bodies.GetRCenterOfMassPosition(owner.Body, out RVector3 center);
-            owner.GravityApplied = frames.EffectiveGravity(owner.Frame, center.ToDouble3());
+            owner.GravityApplied = frames.EffectiveGravity(owner.Frame, center.ToDouble3()).ToVector3();
         }
     }
 
     /// <summary>
-    /// Adds m · g_eff to the locked body <paramref name="id"/> in the system of <paramref name="frame"/>, if it is the
-    /// primary body of a dynamic record. Returns the strength of g_eff, in m/s², or positive infinity for any other body.
+    /// Adds m · g to the locked body <paramref name="id"/> in the system of <paramref name="frame"/>, with g the linear
+    /// gravity at its center of mass, if it is the primary body of a dynamic record. Returns the strength of the effective
+    /// gravity there, in m/s², or positive infinity for any other body. The effective gravity adds the centrifugal and the
+    /// Euler term when the frame is a turning frame (<paramref name="turning"/>), and is the linear gravity otherwise.
     /// </summary>
-    private float ApplyGravity(FrameHandle frame, BodyID id, Body body)
+    private float ApplyGravity(FrameHandle frame, bool turning, BodyID id, Body body)
     {
         ulong data = body.GetUserData();
         if (BodyUserData.Kind(data) != BodyKind.Primary || RecordFor(data) is not { Motion: BodyMotion.Dynamic } record || record.Body != id)
             return float.PositiveInfinity;
         body.GetRCenterOfMassPosition(out RVector3 center);
-        Vector3 gravity = frames.EffectiveGravity(frame, center.ToDouble3());
+        Double3 place = center.ToDouble3();
+        Vector3 gravity = frames.LinearGravity(frame, place).ToVector3();
         record.GravityApplied = gravity;
         if (gravity != Vector3.Zero)
             body.AddForce(gravity * record.Material.Mass);
-        return gravity.Length();
+        // The read of the effective gravity evaluates the field again, so a frame that does not turn takes the linear one.
+        return (turning ? frames.EffectiveGravity(frame, place).ToVector3() : gravity).Length();
     }
 
     /// <summary>Standard gravity, in m/s².</summary>
@@ -534,8 +542,12 @@ public sealed partial class JoltPhysicsBackend
     {
         float dt = stepDt;
         Double3 position = character.RPosition.ToDouble3();
-        Vector3 gravity = frames.EffectiveGravity(world.Frame, position);
-        float strength = gravity.Length();
+        // The linear gravity is the field part of the character's velocity rule. The effective gravity adds the centrifugal
+        // and the Euler term of a turning frame: it says whether the character is under gravity, and it presses a standing
+        // character's weight onto its ground. In a frame that does not turn, the two are the same.
+        Vector3 gravity = frames.LinearGravity(world.Frame, position).ToVector3();
+        Vector3 effective = frames.EffectiveGravity(world.Frame, position).ToVector3();
+        float strength = effective.Length();
         bool underGravity = strength >= FrameTree.ZeroGravityThreshold;
         // The ground state comes from the last update. Any touch counts, also on steep ground and on the head or the
         // side, so a character that landed tilted turns upright.
@@ -543,8 +555,8 @@ public sealed partial class JoltPhysicsBackend
         bool touching = groundState != GroundState.InAir;
         Vector3 up = record.Up;
         // Up is against the semantic frame's gravity, which in a falling numeric frame is far stronger than the effective
-        // gravity. In a semantic frame the two are the same.
-        Vector3 semanticGravity = frames.SemanticGravity(world.Frame, position);
+        // gravity. In a semantic frame the two are the same. Both hold the centrifugal and the Euler term of a turning frame.
+        Vector3 semanticGravity = frames.SemanticGravity(world.Frame, position).ToVector3();
         float semanticStrength = semanticGravity.Length();
         if (semanticStrength >= FrameTree.ZeroGravityThreshold && touching)
         {
@@ -605,7 +617,7 @@ public sealed partial class JoltPhysicsBackend
         character.LinearVelocity = next;
 
         // Jolt reads the system gravity to press the character's weight onto what it stands on.
-        world.System.Gravity = gravity;
+        world.System.Gravity = effective;
         if (standing)
         {
             // A standing character sticks to the floor and climbs stairs.

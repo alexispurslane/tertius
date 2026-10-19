@@ -241,7 +241,7 @@ public class FrameTreeOrbitFrameTests
         frames.Update();
         frames.BeginStep(Moving(station, new MotionIntent(next)), Step, lastStepFailed: false);
         frames.HomeAcceleration(orbit, earth).Should().Be((next.ChordVelocity - velocity) / Step);
-        frames.EffectiveGravity(orbit, Double3.Zero).Length().Should().BeLessThan(1e-6f, "a body at the hull feels the field minus the orbit's pull");
+        frames.EffectiveGravity(orbit, Double3.Zero).Length.Should().BeLessThan(1e-6, "a body at the hull feels the field minus the orbit's pull");
         frames.AdvanceNumericFrames(Step);
 
         (frames.TreeLocalPose(orbit).Position - next.Pose.Position).Length.Should().BeLessThan(1e-6);

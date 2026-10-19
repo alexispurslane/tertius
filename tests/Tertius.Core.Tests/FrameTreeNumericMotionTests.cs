@@ -54,7 +54,7 @@ public class FrameTreeNumericMotionTests
     {
         FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
         frames.HomeAcceleration(pod, earth).Should().Be(Earth.AtPrecise(X(OrbitRadius)));
-        frames.EffectiveGravity(pod, Double3.Zero).Should().Be(Vector3.Zero);
+        frames.EffectiveGravity(pod, Double3.Zero).Should().Be(Double3.Zero);
     }
 
     [Fact]
@@ -114,17 +114,18 @@ public class FrameTreeNumericMotionTests
     public void A_body_away_from_the_origin_of_a_falling_frame_feels_the_tidal_gravity_from_doubles()
     {
         FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
-        Vector3 tidal = frames.EffectiveGravity(pod, X(100));
-        tidal.Should().Be((Earth.AtPrecise(X(OrbitRadius + 100)) - Earth.AtPrecise(X(OrbitRadius))).ToVector3());
-        // About 2·μ/r³ per meter outward: 2.6e-4 m/s² at 100 m. A difference of two floats near 8.7 m/s² steps by 9.5e-7.
-        tidal.X.Should().BeApproximately((float)(-2 * EarthMu / Math.Pow(OrbitRadius, 3) * -100), 1e-7f);
+        Double3 tidal = frames.EffectiveGravity(pod, X(100));
+        tidal.Should().Be(Earth.AtPrecise(X(OrbitRadius + 100)) - Earth.AtPrecise(X(OrbitRadius)));
+        // About 2·μ/r³ per meter outward: 2.6e-4 m/s² at 100 m. The read stays in doubles, so the reader that needs a float
+        // narrows only the difference, and a tidal gravity of a fraction of a mm/s² keeps its digits.
+        tidal.X.Should().BeApproximately(-2 * EarthMu / Math.Pow(OrbitRadius, 3) * -100, 1e-7);
     }
 
     [Fact]
     public void The_semantic_gravity_in_a_numeric_frame_is_the_field_at_the_bodys_true_position()
     {
         FrameHandle pod = FrameFor(X(OrbitRadius), new Double3(0, 0, OrbitSpeed));
-        frames.SemanticGravity(pod, X(100)).Should().Be(Earth.AtPrecise(X(OrbitRadius + 100)).ToVector3());
+        frames.SemanticGravity(pod, X(100)).Should().Be(Earth.AtPrecise(X(OrbitRadius + 100)));
         frames.SemanticGravity(earth, X(OrbitRadius)).Should().Be(frames.EffectiveGravity(earth, X(OrbitRadius)));
     }
 
@@ -160,6 +161,6 @@ public class FrameTreeNumericMotionTests
         frames.Numeric(raft).Should().Be(NumericMode.Resting);
         frames.AdvanceNumericFrames(Dt);
         frames.TreeLocalPose(raft).Position.Should().Be(X(RestRadius));
-        frames.EffectiveGravity(raft, X(100)).Should().Be(Earth.AtPrecise(X(RestRadius + 100)).ToVector3());
+        frames.EffectiveGravity(raft, X(100)).Should().Be(Earth.AtPrecise(X(RestRadius + 100)));
     }
 }

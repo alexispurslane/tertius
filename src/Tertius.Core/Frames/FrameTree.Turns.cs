@@ -20,6 +20,9 @@ public sealed partial class FrameTree
     private Double3[] angularAcceleration = new Double3[64];
     // The frames without a last turn (see BeginStep), by stable index.
     private bool[] withoutLastTurn = new bool[64];
+    // The length in seconds of the step that BeginStep last prepared, whose turns the store holds: the step over which the
+    // angular velocity of V2 grew into that of V1 (see WithRotationTerms). Zero before the first BeginStep, when no frame turns.
+    private double turnsStep;
 
     private static FrameTurns[] NewTurns(int size)
     {
@@ -98,6 +101,7 @@ public sealed partial class FrameTree
         }
         // Every frame that the list held took its new turn as its last turn in the pass.
         Array.Clear(withoutLastTurn);
+        turnsStep = step;
     }
 
     /// <summary>
@@ -193,6 +197,21 @@ public sealed partial class FrameTree
         }
         rotation = default;
         return false;
+    }
+
+    /// <summary>
+    /// <paramref name="linear"/>, the linear gravity on a body at <paramref name="place"/> in the semantic frame with stable
+    /// index <paramref name="semantic"/>, plus the frame's centrifugal and Euler term there (docs/plans/spin-gravity.md, "V5,
+    /// the effective gravity"): the centrifugal term at the inertial angular velocity of V1, the end of the step in flight,
+    /// and the Euler term at the mean angular acceleration over that step, from V2's angular velocity to V1's. A frame that
+    /// does not turn (see <see cref="FrameTurns.Turns"/>) adds nothing, so its readers keep the linear gravity to the bit, and
+    /// so does every frame before its first <see cref="BeginStep"/>, when its turns are <see cref="FrameTurn.None"/> and no
+    /// step length is known.
+    /// </summary>
+    private Double3 WithRotationTerms(Double3 linear, int semantic, Double3 place)
+    {
+        ref readonly FrameTurns frameTurns = ref turns[semantic];
+        return frameTurns.Turns ? linear + frameTurns.Centrifugal(place) + frameTurns.Euler(place, turnsStep) : linear;
     }
 
     /// <summary>

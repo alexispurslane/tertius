@@ -12,7 +12,7 @@ namespace Tertius.Physics;
 // carries into another frame is an instant velocity: the velocity at that moment. So physics gives Jolt the chord of the
 // coming step, the instant velocity minus the body's acceleration times half a step, and a body under a steady
 // acceleration moves exactly as its instant velocity says. The acceleration is the one that the step gives the body
-// relative to its home: the home's effective gravity and Jolt's linear damping for a dynamic body, nothing for a
+// relative to its home: the home's linear gravity and Jolt's linear damping for a dynamic body, nothing for a
 // kinematic one. Jolt's angular damping is the only angular acceleration that a free body has in Jolt, which applies no
 // gyroscopic torque.
 //
@@ -64,12 +64,13 @@ public sealed partial class JoltPhysicsBackend
     /// The acceleration relative to <paramref name="home"/> that the coming step gives the rigid body of
     /// <paramref name="record"/>, with its center of mass at <paramref name="center"/> and the local instant velocity
     /// <paramref name="local"/>, which turns that velocity into Jolt's chord (see
-    /// <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>): the home's effective gravity and Jolt's linear
-    /// damping for a dynamic body, nothing for a kinematic one.
+    /// <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>): the home's linear gravity (see
+    /// <see cref="FrameTree.LinearGravity"/>) and Jolt's linear damping for a dynamic body, nothing for a kinematic one. The
+    /// gravity is the float that <see cref="ApplyGravity()"/> gives Jolt as the body's force.
     /// </summary>
     private Double3 ChordAcceleration(BodyRecord record, FrameHandle home, Double3 center, Double3 local) =>
         record.Motion == BodyMotion.Dynamic
-            ? (Double3)frames.EffectiveGravity(home, center) - record.Material.LinearDamping * local
+            ? (Double3)frames.LinearGravity(home, center).ToVector3() - record.Material.LinearDamping * local
             : Double3.Zero;
 
     /// <summary>The chord for a rigid body in the system of its home: see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>.</summary>
@@ -154,8 +155,9 @@ public sealed partial class JoltPhysicsBackend
         if (record.Character is not null)
         {
             // A character that stood in the step stands in its new frame too, as a rule, where the ground holds it, so its
-            // chord is its instant velocity. One that did not stand falls freely there.
-            Double3 acceleration = record.Standing ? Double3.Zero : (Double3)frames.EffectiveGravity(to, center);
+            // chord is its instant velocity. One that did not stand falls freely there, under the float linear gravity that
+            // its update gives it.
+            Double3 acceleration = record.Standing ? Double3.Zero : (Double3)frames.LinearGravity(to, center).ToVector3();
             return ((linear - acceleration * half).ToVector3(), Vector3.Zero, acceleration);
         }
         // The frame velocity of a numeric home in the next step is its velocity at the end of this step, which lies behind

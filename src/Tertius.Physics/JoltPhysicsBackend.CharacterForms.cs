@@ -152,7 +152,7 @@ public sealed partial class JoltPhysicsBackend
             {
                 if (!member.IsCharacter)
                     continue;
-                float gravity = frames.EffectiveGravity(world.Frame, PrimaryPosition(member)).Length();
+                float gravity = frames.EffectiveGravity(world.Frame, PrimaryPosition(member)).ToVector3().Length();
                 // The rule reads the touch only of a rigid character from RigidBelow on, and the test costs time in
                 // proportion to the pairs of the system, so it runs only then.
                 bool touches = member.Motion == BodyMotion.Dynamic && gravity >= RigidBelow && world.HasStartedPair(member.Body);
