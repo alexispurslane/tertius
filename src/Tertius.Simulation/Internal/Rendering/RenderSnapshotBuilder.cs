@@ -114,8 +114,19 @@ internal sealed class RenderSnapshotBuilder
     private RefList<RenderInstance>[] instanceChunks = [];
     private RefList<RenderLight>[] lightChunks = [];
 
-    // The radius of each numeric frame's contents sphere, by dense index, during one build with outlines.
-    private double[] contentsRadius = [];
+    // What the outline build knows of each frame, by dense index, during one build with outlines.
+    private OutlineFrame[] outlineFrames = [];
+
+    /// <summary>What the outline build knows of one frame, by dense index.</summary>
+    private struct OutlineFrame
+    {
+        /// <summary>How the frame moves as a numeric frame: <see cref="NumericMode.None"/> for a semantic frame.</summary>
+        public NumericMode Mode;
+        /// <summary>The dense index of the frame's parent in the tree as it is stored, or -1 for a root frame.</summary>
+        public int Parent;
+        /// <summary>The radius of a numeric frame's contents sphere, in meters: the farthest reach of what it holds so far.</summary>
+        public double Contents;
+    }
 
     /// <param name="entities">The entity table whose front rows the builds read.</param>
     /// <param name="frames">The frame tree whose poses the builds compose.</param>
@@ -531,10 +542,15 @@ internal sealed class RenderSnapshotBuilder
     private void BuildOutlines(RenderSnapshot snapshot)
     {
         int n = frames.Count;
-        if (contentsRadius.Length < n)
-            contentsRadius = new double[Math.Max(n, contentsRadius.Length * 2)];
-        Span<double> contents = contentsRadius.AsSpan(0, n);
-        contents.Clear();
+        if (outlineFrames.Length < n)
+            outlineFrames = new OutlineFrame[Math.Max(n, outlineFrames.Length * 2)];
+        Span<OutlineFrame> outline = outlineFrames.AsSpan(0, n);
+        for (int i = 0; i < n; i++)
+        {
+            FrameHandle frame = denseFrames[i];
+            FrameHandle parent = frames.TreeParent(frame);
+            outline[i] = new OutlineFrame { Mode = frames.Numeric(frame), Parent = parent.IsNull ? -1 : denseOfFrame[parent.Index] };
+        }
 
         // Each body grows its physics home, when that is numeric, to the far side of its bounding sphere: its position in the
         // home plus the radius that the entity table kept at its spawn.
@@ -542,10 +558,11 @@ internal sealed class RenderSnapshotBuilder
         {
             ref readonly TransformRow row = ref entities.FrontRow(entity);
             FrameHandle home = row.PhysicsHome;
-            if (!FrameSeen(home) || !frames.IsNumeric(home))
+            if (!FrameSeen(home))
                 continue;
-            int dense = denseOfFrame[home.Index];
-            contents[dense] = Math.Max(contents[dense], row.HomePosition.Length + entities.BodyBoundingRadius(entity));
+            ref OutlineFrame frame = ref outline[denseOfFrame[home.Index]];
+            if (frame.Mode != NumericMode.None)
+                frame.Contents = Math.Max(frame.Contents, row.HomePosition.Length + entities.BodyBoundingRadius(entity));
         }
 
         // Each frame grows its numeric parent to the far side of its outline sphere. A parent comes before its children in
@@ -553,27 +570,26 @@ internal sealed class RenderSnapshotBuilder
         ReadOnlySpan<DPose> locals = frames.LocalPosesDense;
         for (int i = n - 1; i >= 0; i--)
         {
-            FrameHandle frame = denseFrames[i];
-            FrameHandle parent = frames.TreeParent(frame);
-            if (parent.IsNull || !frames.IsNumeric(parent))
+            ref readonly OutlineFrame frame = ref outline[i];
+            if (frame.Parent < 0 || outline[frame.Parent].Mode == NumericMode.None)
                 continue;
-            double sphere = frames.IsNumeric(frame) ? contents[i] : frames.Bounds(frame).MaxRadius;
-            int p = denseOfFrame[parent.Index];
-            contents[p] = Math.Max(contents[p], locals[i].Position.Length + sphere);
+            double sphere = frame.Mode != NumericMode.None ? frame.Contents : frames.Bounds(denseFrames[i]).MaxRadius;
+            ref OutlineFrame parent = ref outline[frame.Parent];
+            parent.Contents = Math.Max(parent.Contents, locals[i].Position.Length + sphere);
         }
 
         Double3 origin = renderOrigin;
         for (int i = 0; i < n; i++)
         {
-            FrameHandle frame = denseFrames[i];
-            if (frames.TreeParent(frame).IsNull)
+            ref readonly OutlineFrame frame = ref outline[i];
+            if (frame.Parent < 0)
                 continue;
             ref readonly DPose pose = ref relCurrent[i];
             Vector3 center = (pose.Position - origin).ToVector3();
-            float radius = (float)contents[i];
-            snapshot.Outlines.Add(frames.Numeric(frame) switch
+            float radius = (float)frame.Contents;
+            snapshot.Outlines.Add(frame.Mode switch
             {
-                NumericMode.None => new SemanticOutline(center, pose.Rotation.ToQuaternion(), frames.Bounds(frame).Radii),
+                NumericMode.None => new SemanticOutline(center, pose.Rotation.ToQuaternion(), frames.Bounds(denseFrames[i]).Radii),
                 NumericMode.Falling => new FallingOutline(center, radius),
                 NumericMode.Resting => new RestingOutline(center, radius),
                 NumericMode.Nesting => new NestingOutline(center, radius),
