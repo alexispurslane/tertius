@@ -302,8 +302,8 @@ public readonly record struct CompoundChild(ShapeDesc Shape, Pose Pose);
 
 /// <summary>
 /// The physics description of an entity. For an entity that owns a frame, <see cref="Shape"/> is the hull body in
-/// the parent frame, and <see cref="InteriorShape"/> (or <see cref="Shape"/> if null) is static geometry in the
-/// frame's own system.
+/// the parent frame, and <see cref="InteriorShape"/> (or <see cref="Shape"/> if null) is the interior, a body at rest in
+/// the frame's own system, static while the hull is static and kinematic while the hull can move.
 /// </summary>
 /// <param name="Restitution">
 /// How much of its approach speed a contact gives back as a rebound. A contact takes the larger restitution of its two
@@ -337,8 +337,10 @@ public sealed record BodyDesc(
     /// of a sensor starts when the two bodies overlap and ends when they stop overlapping, with a
     /// <see cref="ContactStarted"/> whose impulse is zero and a <see cref="ContactEnded"/>. A sensor detects dynamic and
     /// kinematic bodies and characters when the collision groups and masks of both match. Sleep and wake end no touch. A
-    /// ghost's touch is a touch of its entity, and an entity's body and its ghosts make one touch. A character or the owner
-    /// of a frame cannot be a sensor.
+    /// ghost's touch is a touch of its entity, and an entity's body and its ghosts make one touch. A sensor detects the owner
+    /// of a frame as a body of the hull's motion in every frame: the hull in the frame's parent, the frame's interior in the
+    /// frame, and the hull's ghosts in other frames. A change of the hull's motion ends and starts the touches as that rule
+    /// says. A character or the owner of a frame cannot be a sensor.
     /// </summary>
     public bool IsSensor { get; init; }
 
@@ -408,7 +410,8 @@ public enum BodyRole
 
     /// <summary>
     /// The body of the owner of a frame with a parent: the frame's hull, a body in the parent frame with the motion of its
-    /// description, and the frame's static interior.
+    /// description, and the frame's interior, a body at rest at the origin of the frame's own system, which physics keeps
+    /// static while the hull is static and kinematic while the hull can move.
     /// </summary>
     Hull,
 

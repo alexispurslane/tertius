@@ -2,8 +2,10 @@ namespace Tertius;
 
 /// <summary>
 /// One entity with a body that is not attached, as the World hands it to <see cref="FrameTree.UpdateNumericFrames"/> at a
-/// sync point, or the interior of a frame owner: a static body at the origin of the owner's frame, in that frame's own
-/// system, which is <see cref="Fixed"/> there and owns no frame. Speeds are in m/s and distances in meters, both in the
+/// sync point, or the interior of a frame owner: a body at rest at the origin of the owner's frame, in that frame's own
+/// system, which owns no frame. Physics keeps the interior static while the hull is static and kinematic while the hull
+/// can move, and the update counts it as <see cref="Static"/> and <see cref="Fixed"/> in either motion, because the
+/// interior and every place that it can meet are fixed in the frame's own system. Speeds are in m/s and distances in meters, both in the
 /// axes of <see cref="Semantic"/>.
 /// </summary>
 internal readonly record struct NumericBody
@@ -48,8 +50,8 @@ internal readonly record struct NumericBody
 
     /// <summary>
     /// It stays in its semantic frame's own system, and so does its group. It is a hull whose motion is not dynamic, which
-    /// holds still or follows the samples of a rails component, or the interior of a frame owner, which physics keeps as a
-    /// static body in the frame's own system, at its origin. A kinematic hull that lives in an orbit frame of its own (see
+    /// holds still or follows the samples of a rails component, or the interior of a frame owner, which physics keeps at
+    /// rest at the origin of the frame's own system, in either motion of the hull. A kinematic hull that lives in an orbit frame of its own (see
     /// <see cref="NumericFrameRules.OrbitsInFrame"/>) is the one exception.
     /// </summary>
     public bool Fixed { get; init; }
@@ -109,6 +111,25 @@ internal readonly record struct NumericBody
     /// (docs/plans/numeric-frames.md, "Anchors").
     /// </summary>
     public bool Anchor => Static || Fixed;
+
+    /// <summary>
+    /// True when physics lets the body's ghosts reach the content of a frame, its bubble grown by its excess, and not only
+    /// its bubble (fork F2 of docs/plans/complete-ghosts.md): a static body, a kinematic body or a hull. The stick-out ghost
+    /// of a member of the frame in the frame's tree parent meets none of them but a sensor, so only a ghost of the body in
+    /// the frame brings them together with the frame's members. A dynamic plain body or a character reaches only the bubble,
+    /// as in <c>BodyRecord.GhostsReachContent</c> of the physics backend.
+    /// </summary>
+    public bool GhostsReachContent => Static || Kinematic || !OwnedFrame.IsNull;
+
+    /// <summary>
+    /// True when the body's ghost in a frame whose system holds no hull of a frame that holds the body meets hulls: a static
+    /// body or a hull. Such a frame is a semantic child of the body's semantic frame, or a sibling of the bubble that the
+    /// body sticks out of. Physics gives a ghost there the role of a child ghost, the body's own role for a static body and
+    /// the static role of the owner's interior for a hull, which the mask of a hull names, and the ghost role, which it does
+    /// not, to a ghost of a plain body that can move (see <c>GhostBody.Role</c> of the physics backend and
+    /// <see cref="GhostPlace.MeetsHulls"/>).
+    /// </summary>
+    public bool GhostsMeetHulls => Static || !OwnedFrame.IsNull;
 }
 
 /// <summary>
@@ -126,8 +147,11 @@ internal readonly record struct NumericBody
 /// <param name="OfStaticBody">The body behind the ghost is static, so its ghost meets only what a static body meets (see
 /// <see cref="NumericFrameRules.MeetsGhost"/>).</param>
 /// <param name="Sensor">The body behind the ghost is a sensor, and so is its ghost.</param>
+/// <param name="MeetsHulls">The ghost meets hulls: it is a ghost in a child frame or in a sibling of a static body or of a hull
+/// (see <see cref="NumericBody.GhostsMeetHulls"/>). A ghost in the tree parent of the bubble that the body sticks out of
+/// has the ghost role, which the mask of a hull does not name (see <see cref="NumericFrameRules.MeetsGhost"/>).</param>
 internal readonly record struct GhostPlace(FrameHandle Home, Double3 HomePosition, Double3 Velocity, double Radius, int Target,
-    bool OfStaticBody, bool Sensor);
+    bool OfStaticBody, bool Sensor, bool MeetsHulls);
 
 /// <summary>
 /// The motion of a group of bodies of one semantic frame that the merge test links.
@@ -269,6 +293,24 @@ internal static class NumericFrameRules
         !body.Static && bubble.SignedDistance(body.Position) > -(body.Radius + Allowance(body.Velocity.Length, options));
 
     /// <summary>
+    /// The content excess of a frame before the next update: how far, in meters, the bounding sphere of a body of
+    /// <paramref name="bodies"/>, the bodies of the frame whose bubble is <paramref name="bubble"/>, can reach beyond the
+    /// bubble, each grown by how far it can move (see <see cref="Allowance"/>), as <see cref="MayStickOut"/> grows it. Only a
+    /// body that can stick out counts, so a static body does not. Zero while every body stays inside. Physics gives a body
+    /// of the frame's semantic parent a ghost in the frame when its bounding sphere reaches the bubble grown by the excess,
+    /// the frame's content, and so does the sibling test of a body that sticks out of a sibling bubble (fork F2 of
+    /// docs/plans/complete-ghosts.md).
+    /// </summary>
+    internal static double ContentExcess(FrameBounds bubble, ReadOnlySpan<NumericBody> bodies, NumericFrameOptions options)
+    {
+        double excess = 0;
+        foreach (ref readonly NumericBody body in bodies)
+            if (!body.Static)
+                excess = Math.Max(excess, bubble.SignedDistance(body.Position) + body.Radius + Allowance(body.Velocity.Length, options));
+        return excess;
+    }
+
+    /// <summary>
     /// True when a body outside a frame's bubble <paramref name="bubble"/>, at <paramref name="position"/> in the frame and
     /// moving at <paramref name="velocity"/> relative to it, can touch the bubble before the next update, so that physics can
     /// give it a ghost in the frame's own system: the bubble is within <paramref name="reach"/> of the body, grown by how far
@@ -298,18 +340,20 @@ internal static class NumericFrameRules
     /// True when Jolt makes a contact between <paramref name="body"/> and the ghost behind <paramref name="place"/>, so that
     /// the place links the body. It mirrors the two tests that physics runs on each pair of bodies:
     /// <list type="bullet">
-    /// <item>The table of layers. Physics gives every ghost behind a place the ghost layer of its body, and the mask of a frame
-    /// hull names only the static and hull roles. So a hull never meets the ghost. The collision groups and masks of the two
-    /// bodies do not count, as in the merge test of two bodies.</item>
+    /// <item>The table of layers. Physics gives a ghost of a static body or of a hull in a child frame or in a sibling the
+    /// role of a child ghost, which the mask of a frame hull names, and every other ghost the ghost role, which it does not
+    /// (see <see cref="GhostPlace.MeetsHulls"/>).
+    /// So a hull meets only a place that meets hulls. The collision groups and masks of the two bodies do not count, as in
+    /// the merge test of two bodies.</item>
     /// <item>The motions. The ghost of a body that can move is kinematic, and Jolt makes a contact between a kinematic body
     /// and another body only when the other one is dynamic or either one is a sensor. The engine never asks Jolt for other
     /// contacts. The ghost of a static body meets only what the static body meets: a dynamic body, and a kinematic one when
-    /// the static body is a sensor. A character counts as dynamic.</item>
+    /// the static body is a sensor. A character counts as dynamic, and a hull is never a sensor.</item>
     /// </list>
     /// </summary>
     internal static bool MeetsGhost(in NumericBody body, in GhostPlace place)
     {
-        if (!body.OwnedFrame.IsNull)
+        if (!body.OwnedFrame.IsNull && !place.MeetsHulls)
             return false;
         bool dynamic = !(body.Static || body.Kinematic);
         return dynamic || (body.Kinematic && place.Sensor) || (body.Sensor && !place.OfStaticBody);

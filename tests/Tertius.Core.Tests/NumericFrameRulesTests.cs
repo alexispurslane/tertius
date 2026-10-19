@@ -402,8 +402,9 @@ public class NumericFrameRulesTests
     /// The place of a ghost of radius 1 m in <paramref name="home"/>, moving at <paramref name="vx"/> along X, of a body that
     /// is static or a sensor as asked.
     /// </summary>
-    private static GhostPlace Place(double vx = 0, FrameHandle home = default, double radius = 1, bool ofStaticBody = false, bool sensor = false) =>
-        new(home.IsNull ? Ground : home, Double3.Zero, X(vx), radius, Target: -1, ofStaticBody, sensor);
+    private static GhostPlace Place(double vx = 0, FrameHandle home = default, double radius = 1, bool ofStaticBody = false, bool sensor = false,
+        bool meetsHulls = false) =>
+        new(home.IsNull ? Ground : home, Double3.Zero, X(vx), radius, Target: -1, ofStaticBody, sensor, meetsHulls);
 
     [Fact]
     public void A_dynamic_body_and_a_character_meet_a_ghost()
@@ -424,13 +425,25 @@ public class NumericFrameRulesTests
     }
 
     [Fact]
-    public void A_frame_hull_never_meets_a_ghost()
+    public void A_frame_hull_never_meets_a_ghost_with_the_ghost_role()
     {
-        // A ghost has the ghost role, and the mask of a hull names only the static and hull roles.
+        // A stick-out ghost has the ghost role, and the mask of a hull names only the static and hull roles.
         FrameHandle ship = new(new Entity(20, 1), 3, 1);
         MeetsGhost(Body(0) with { OwnedFrame = ship }, Place()).Should().BeFalse();
         MeetsGhost(Body(0) with { OwnedFrame = ship, Character = true }, Place()).Should().BeFalse();
-        MeetsGhost(Body(0) with { OwnedFrame = ship, Kinematic = true, Sensor = true }, Place(sensor: true)).Should().BeFalse();
+        MeetsGhost(Body(0) with { OwnedFrame = ship, Kinematic = true, Fixed = true }, Place(sensor: true)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void A_frame_hull_meets_a_ghost_that_meets_hulls_by_jolts_rule()
+    {
+        // A child ghost of a static body or a hull has the static role, which the mask of a hull names (fork F1). Jolt then
+        // makes the contact when the hull is dynamic, or when it is kinematic and the ghost is a sensor's.
+        FrameHandle ship = new(new Entity(20, 1), 3, 1);
+        MeetsGhost(Body(0) with { OwnedFrame = ship }, Place(ofStaticBody: true, meetsHulls: true)).Should().BeTrue();
+        MeetsGhost(Body(0) with { OwnedFrame = ship, Kinematic = true, Fixed = true }, Place(ofStaticBody: true, meetsHulls: true)).Should().BeFalse();
+        MeetsGhost(Body(0) with { OwnedFrame = ship, Static = true, Fixed = true }, Place(meetsHulls: true)).Should().BeFalse();
+        MeetsGhost(Body(0) with { OwnedFrame = ship, Kinematic = true, Fixed = true }, Place(ofStaticBody: true, sensor: true, meetsHulls: true)).Should().BeTrue();
     }
 
     [Fact]

@@ -554,7 +554,10 @@ public sealed partial class FrameTree
     /// Each place comes from the tree and from the positions and velocities of the bodies in their semantic frames, never
     /// from another semantic frame's homes or places in them, which an earlier update of that frame can change. It
     /// runs before any frame of this semantic frame shifts and any of its bodies moves, while the tree holds where each
-    /// ghost lives.
+    /// ghost lives. A static body, a kinematic body or a hull of the semantic parent or of a sibling reaches the frame's
+    /// content: its bubble grown by the frame's excess, how far a body of the frame can stick out of it before the next
+    /// update (see <see cref="NumericFrameRules.ContentExcess"/>), which the first of those places measures. A dynamic plain
+    /// body or a character reaches only the bubble (see <see cref="NumericBody.GhostsReachContent"/>).
     /// </summary>
     private void CollectGhostPlaces(int start, int end)
     {
@@ -563,16 +566,25 @@ public sealed partial class FrameTree
         FrameHandle parent = Parent(semantic);
         ReadOnlySpan<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
         Span<SemanticRange> ranges = CollectionsMarshal.AsSpan(semanticRanges);
+        double excess = -1;
         for (int r = 0; r < ranges.Length; r++)
         {
             (FrameHandle frame, int from, int to) = ranges[r];
             FrameHandle frameParent = Parent(frame);
             if (frameParent == semantic)
+            {
                 AddStickOutPlaces(frame, bodies[from..to], start, end);
-            else if (frame == parent)
-                AddParentPlaces(semantic, bodies[from..to]);
-            else if (!parent.IsNull && frameParent == parent && frame != semantic)
-                AddSiblingPlaces(semantic, ref ranges[r]);
+                continue;
+            }
+            bool fromParent = frame == parent;
+            if (!fromParent && (parent.IsNull || frameParent != parent || frame == semantic))
+                continue;
+            if (excess < 0)
+                excess = NumericFrameRules.ContentExcess(Bounds(semantic), bodies[start..end], NumericOptions);
+            if (fromParent)
+                AddParentPlaces(semantic, bodies[from..to], excess);
+            else
+                AddSiblingPlaces(semantic, ref ranges[r], excess);
         }
     }
 
@@ -608,41 +620,47 @@ public sealed partial class FrameTree
                 prepared = true;
             }
             ghostPlaces.Add(new GhostPlace(home, pose.TransformPoint(body.Position),
-                VelocityToParent(pose, velocity, spin, body.Position, body.Velocity), body.Radius, hull, body.Static, body.Sensor));
+                VelocityToParent(pose, velocity, spin, body.Position, body.Velocity), body.Radius, hull, body.Static, body.Sensor, MeetsHulls: false));
         }
     }
 
     /// <summary>
     /// Adds the place of each body of <paramref name="members"/>, the bodies of the semantic parent of
-    /// <paramref name="semantic"/>, that can touch the bubble of <paramref name="semantic"/> before the next update (see
-    /// <see cref="NumericFrameRules.MayTouchBubble"/>): physics gives such a body a ghost in the frame's own system while it
-    /// touches the bubble without being in it (ticket ter-tenw). A body that can move counts, and the hull of a frame, which
-    /// reaches as far as its own bubble, as physics has it. A static body that is not a hull has no ghost in a bubble, and
-    /// the frame's own hull lives inside it. The ghost is fixed in the frame's own system. A first test on the distance from
-    /// the bubble's center skips each body that cannot reach the bubble (see <see cref="NumericFrameRules.MayReachBubble"/>),
-    /// before the full test turns the body's place and velocity into the frame's axes.
+    /// <paramref name="semantic"/>, that can touch the content of <paramref name="semantic"/> before the next update, its
+    /// bubble grown by <paramref name="excess"/> (see <see cref="NumericFrameRules.MayTouchBubble"/>): physics gives such a
+    /// body a ghost in the frame's own system while it reaches the content without being in the frame (tickets ter-tenw and
+    /// ter-xxmj). Every body counts, static or not, and the hull of a frame reaches as far as its own bubble, as physics has
+    /// it. A dynamic plain body or a character reaches only the bubble, not the content (see
+    /// <see cref="NumericBody.GhostsReachContent"/>). The interior of the semantic parent's owner has no ghost in a child
+    /// frame yet, and the frame's own hull lives inside its bubble. A child ghost of a static body or of a hull meets hulls
+    /// (see <see cref="GhostPlace.MeetsHulls"/>). The ghost is fixed in the frame's own system. A first test on the distance from the bubble's center skips each body
+    /// that cannot reach the content (see <see cref="NumericFrameRules.MayReachBubble"/>), before the full test turns the
+    /// body's place and velocity into the frame's axes.
     /// </summary>
-    private void AddParentPlaces(FrameHandle semantic, ReadOnlySpan<NumericBody> members)
+    private void AddParentPlaces(FrameHandle semantic, ReadOnlySpan<NumericBody> members, double excess)
     {
         FrameBounds bubble = Bounds(semantic);
         DPose pose = LocalPose(semantic);
         Double3 velocity = LinearVelocity(semantic), spin = (Double3)AngularVelocity(semantic);
-        double radius = bubble.MaxRadius, spinRate = spin.Length, center = pose.Position.Length;
+        double spinRate = spin.Length, center = pose.Position.Length;
         foreach (ref readonly NumericBody body in members)
         {
-            if (body.OwnedFrame == semantic || (body.Static && body.OwnedFrame.IsNull))
+            // An interior is static and fixed, and it owns no frame.
+            if (body.OwnedFrame == semantic || (body.Static && body.Fixed && body.OwnedFrame.IsNull))
                 continue;
-            double reach = body.OwnedFrame.IsNull ? body.Radius : Math.Max(body.Radius, Bounds(body.OwnedFrame).MaxRadius);
+            double reach = (body.OwnedFrame.IsNull ? body.Radius : Math.Max(body.Radius, Bounds(body.OwnedFrame).MaxRadius)) +
+                (body.GhostsReachContent ? excess : 0);
             // The rounding scales with the distances of the body and the center from the semantic parent's origin. The body's is
             // at most the center's plus the distance between them.
             double distance = (body.Position - pose.Position).Length;
-            if (!NumericFrameRules.MayReachBubble(distance, radius + reach, (body.Velocity - velocity).Length + spinRate * distance,
+            if (!NumericFrameRules.MayReachBubble(distance, bubble.MaxRadius + reach, (body.Velocity - velocity).Length + spinRate * distance,
                 2 * center + distance, NumericOptions))
                 continue;
             Double3 position = pose.InverseTransformPoint(body.Position);
             Double3 relative = VelocityFromParent(pose, velocity, spin, body.Position, body.Velocity);
             if (NumericFrameRules.MayTouchBubble(bubble, position, relative, reach, NumericOptions))
-                ghostPlaces.Add(new GhostPlace(semantic, position, relative, body.Radius, -1, body.Static, body.Sensor));
+                ghostPlaces.Add(new GhostPlace(semantic, position, relative, body.Radius, -1, body.Static, body.Sensor,
+                    MeetsHulls: body.GhostsMeetHulls));
         }
     }
 
@@ -650,12 +668,15 @@ public sealed partial class FrameTree
     /// Adds the place of each body of <paramref name="sibling"/>, the bodies of a semantic sibling of
     /// <paramref name="semantic"/>, that can stick out of the sibling's bubble and touch the bubble of
     /// <paramref name="semantic"/> before the next update: physics gives such a body a ghost in the frame's own system, as
-    /// the body is partly in their semantic parent (ticket ter-tenw). The ghost is fixed in the frame's own system. A first
-    /// test on the distance between the two centers skips the whole sibling when none of its bodies can reach the bubble
-    /// (see <see cref="NumericFrameRules.MayReachBubble"/>), from bounds of where its bodies are (see
-    /// <see cref="SemanticRange"/>).
+    /// the body is partly in their semantic parent (ticket ter-tenw). A kinematic body or a hull reaches the frame's content,
+    /// its bubble grown by <paramref name="excess"/>, and a dynamic plain body or a character only its bubble, as for a body
+    /// of the semantic parent (see <see cref="AddParentPlaces"/>). The frame's system holds no hull of a frame that holds
+    /// the body, so the ghost has the role of a child ghost, and a ghost of a hull meets hulls (see
+    /// <see cref="GhostPlace.MeetsHulls"/>). The ghost is fixed in the frame's own system. A first test on the distance between
+    /// the two centers skips the whole sibling when none of its bodies can reach the content (see
+    /// <see cref="NumericFrameRules.MayReachBubble"/>), from bounds of where its bodies are (see <see cref="SemanticRange"/>).
     /// </summary>
-    private void AddSiblingPlaces(FrameHandle semantic, ref SemanticRange sibling)
+    private void AddSiblingPlaces(FrameHandle semantic, ref SemanticRange sibling, double excess)
     {
         if (!sibling.Bounded)
             Bound(ref sibling);
@@ -672,7 +693,7 @@ public sealed partial class FrameTree
         // the two centers is enough for the test.
         double distance = (siblingPose.Position - pose.Position).Length;
         double speedBound = sibling.Fastest + siblingSpin.Length * sibling.Farthest + (siblingVelocity - velocity).Length + spin.Length * distance;
-        if (!NumericFrameRules.MayReachBubble(distance, bubble.MaxRadius + sibling.Extent, speedBound,
+        if (!NumericFrameRules.MayReachBubble(distance, bubble.MaxRadius + excess + sibling.Extent, speedBound,
             siblingPose.Position.Length + pose.Position.Length + sibling.Farthest, NumericOptions))
             return;
         foreach (ref readonly NumericBody body in CollectionsMarshal.AsSpan(sortedBodies)[sibling.Start..sibling.End])
@@ -683,8 +704,9 @@ public sealed partial class FrameTree
             Double3 velocityInParent = VelocityToParent(siblingPose, siblingVelocity, siblingSpin, body.Position, body.Velocity);
             Double3 position = pose.InverseTransformPoint(inParent);
             Double3 relative = VelocityFromParent(pose, velocity, spin, inParent, velocityInParent);
-            if (NumericFrameRules.MayTouchBubble(bubble, position, relative, body.Radius, NumericOptions))
-                ghostPlaces.Add(new GhostPlace(semantic, position, relative, body.Radius, -1, body.Static, body.Sensor));
+            if (NumericFrameRules.MayTouchBubble(bubble, position, relative, body.Radius + (body.GhostsReachContent ? excess : 0), NumericOptions))
+                ghostPlaces.Add(new GhostPlace(semantic, position, relative, body.Radius, -1, body.Static, body.Sensor,
+                    MeetsHulls: body.GhostsMeetHulls));
         }
     }
 
