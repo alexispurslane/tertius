@@ -131,7 +131,8 @@ public class ScriptJsonFormatTests
     [Fact]
     public void ADoKeyWrittenWithAnEscapeStillNamesTheStep()
     {
-        Script script = ScriptWith("""{ "do": "run", "ticks": 4 }""");
+        // The key is d, a backslash, u006f: the JSON escape of the letter o. (char)92 is the backslash.
+        Script script = ScriptWith($$"""{ "d{{(char)92}}u006f": "run", "ticks": 4 }""");
 
         script.Steps.Should().Equal(new RunStep(4));
     }

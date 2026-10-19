@@ -225,6 +225,14 @@ public class ScriptUnionTests
         write.Should().Throw<InvalidOperationException>().Which.Message.Should().Contain("do");
     }
 
+    [Fact]
+    public void OptionsThatAreNotOfTheScriptFormatCannotReadAStepEither()
+    {
+        Action read = () => JsonSerializer.Deserialize<ScriptStep>("""{ "do": "run", "ticks": 1 }""", new JsonSerializerOptions());
+
+        read.Should().Throw<InvalidOperationException>().Which.Message.Should().Contain("do");
+    }
+
     private static Script ScriptWith(string step) => Script.Parse($$"""{ "scene": "probes", "steps": [ {{step}} ] }""");
 
     private const string NotValid = "The script is not valid JSON of a script: ";

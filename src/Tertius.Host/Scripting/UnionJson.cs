@@ -41,8 +41,8 @@ internal static class JsonCase
 /// <remarks>
 /// <para>
 /// Reading finds the key in a copy of the reader, then hands the whole object to System.Text.Json as the record of the
-/// case, with the same options, so every rule of the strict reader holds for the members: an unknown key, a duplicate key, a
-/// missing key and a wrong value are errors, and they carry its words. The record's contract has the key as one more
+/// case, with the same options, so every rule of the strict reader holds for the members: an unknown member, a duplicate
+/// member, a missing member and a wrong value are errors, and they carry its words. The record's contract has the key as one more
 /// member (<see cref="AddKeyTo"/>), which reading ignores because the name was read already, and which writing puts first.
 /// </para>
 /// <para>
@@ -152,9 +152,8 @@ internal sealed class ScriptStepJsonConverter : JsonConverter<ScriptStep>
         JsonCase.Of("capture", (CaptureStep step) => new ScriptStep(step)),
         JsonCase.Of("camera", (CameraStep step) => new ScriptStep(step)));
 
-    // A null reads as the default step, which holds no case. Script.CheckSteps names its step number.
-    public override bool HandleNull => true;
-
+    // System.Text.Json gives a null to the converter of a struct. It reads as the default step, which holds no case, and
+    // Script.CheckSteps names its step number.
     public override ScriptStep Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
         reader.TokenType == JsonTokenType.Null ? default : Cases.Read(ref reader, typeToConvert, options);
 
@@ -176,9 +175,7 @@ internal sealed class MessageTargetJsonConverter : JsonConverter<MessageTarget>
         JsonCase.Of("frame", (ToFrame target) => new MessageTarget(target)),
         JsonCase.Of("broadcast", (ToEveryone target) => new MessageTarget(target)));
 
-    // A post needs a target, so a null is an error here. The converter is the only reader of targets.
-    public override bool HandleNull => true;
-
+    // System.Text.Json gives a null to the converter of a struct. A post needs a target, so a null is an error here.
     public override MessageTarget Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
         reader.TokenType == JsonTokenType.Null ? throw new UnionJsonException("An event target cannot be null.") : Cases.Read(ref reader, typeToConvert, options);
 
