@@ -1,0 +1,139 @@
+using System.Numerics;
+using Tertius.Host;
+using Tertius.Simulation;
+
+namespace Tertius.Demo;
+
+public static partial class DemoScenes
+{
+    /// <summary>The radius of each ball of the scene demo-meshes, in meters.</summary>
+    private const float MeshesBallRadius = 0.25f;
+
+    /// <summary>The cylinder of demo-meshes: 1 m in radius and 1.5 m tall, in 48 segments.</summary>
+    private const float MeshesCylinderRadius = 1, MeshesCylinderHalfHeight = 0.75f;
+    private const int MeshesCylinderSegments = 48;
+
+    /// <summary>The torus of demo-meshes: a tube 0.5 m in radius round a circle 1.6 m in radius, in 64 segments of 24 sides.</summary>
+    private const float MeshesTorusMajor = 1.6f, MeshesTorusMinor = 0.5f;
+    private const int MeshesTorusSegments = 64, MeshesTorusSides = 24;
+
+    /// <summary>
+    /// The ring of demo-meshes, a station's floor in small: 3 m to 3.25 m from its axis and 1.5 m wide along it, in 256
+    /// segments.
+    /// </summary>
+    private const float MeshesRingInner = 3, MeshesRingOuter = 3.25f, MeshesRingHalfWidth = 0.75f;
+    private const int MeshesRingSegments = 256;
+
+    /// <summary>Where the centers of the cylinder, the torus and the ring of demo-meshes stand along X, in meters.</summary>
+    private const double MeshesCylinderX = -5, MeshesTorusX = 0, MeshesRingX = 6;
+
+    /// <summary>
+    /// The scene demo-meshes shows the solids of <see cref="RevolvedSolid"/>, each with a ball that rests on it, in a root
+    /// frame <c>ground</c> with 1 g along -Y. The solids and their balls are static and dynamic bodies, each solid with the
+    /// mesh and the collision shape of one <see cref="RevolvedSolid"/>.
+    /// <list type="bullet">
+    /// <item>A <c>floor</c> of 100 m by 100 m, whose top is at y = 0.</item>
+    /// <item>The <c>cylinder</c>, blue, stands on the floor at x = <see cref="MeshesCylinderX"/>. Its ball,
+    /// <c>cylinder-ball</c>, drops 0.5 m onto its top cap, 0.3 m off its center.</item>
+    /// <item>The <c>torus</c>, orange, lies on the floor at x = <see cref="MeshesTorusX"/>, on the flat bottom of its tube.
+    /// Its ball, <c>torus-ball</c>, drops 0.5 m onto the flat top of its tube, in the middle of a segment.</item>
+    /// <item>The <c>ring</c>, light grey, stands on edge on the floor at x = <see cref="MeshesRingX"/>, its axis along Z, on
+    /// the middle of one of its outer facets. Its ball, <c>ring-ball</c>, drops 0.5 m inside it onto its floor, the middle
+    /// of its lowest inner facet.</item>
+    /// <item>The views: <c>camera</c>, the camera at the start, sees all three from the front and above. <c>cylinder-view</c>,
+    /// <c>torus-view</c> and <c>ring-view</c> look at each solid closer. The ring's view looks into it along its axis.</item>
+    /// </list>
+    /// </summary>
+    private static SceneInstance DemoMeshes(World world, IRenderResources resources)
+    {
+        var scene = new SceneInstance();
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        scene.Add("ground", ground);
+        scene.Add("floor", world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(0, -0.5, 0), DQuaternion.Identity),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), BodyMotion.Static),
+            Render = Drawn(resources, Primitives.Box(new Vector3(50, 0.5f, 50)), new Vector4(0.35f, 0.35f, 0.35f, 1), boundingRadius: 71),
+        }));
+        var ball = new SphereShapeDesc(MeshesBallRadius);
+        MeshData ballMesh = Primitives.Sphere(MeshesBallRadius);
+        void Solid(string id, RevolvedSolid solid, DPose pose, Vector4 color)
+        {
+            ShapeDesc shape = solid.Shape();
+            scene.Add(id, world.Spawn(new SpawnDesc
+            {
+                Frame = ground,
+                Pose = pose,
+                Body = new BodyDesc(shape, BodyMotion.Static),
+                Render = Drawn(resources, solid.Mesh(), color, shape.BoundingRadius()),
+            }));
+        }
+        void Ball(string id, Double3 position) => scene.Add(id, world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(position, DQuaternion.Identity),
+            Body = new BodyDesc(ball, Mass: 1),
+            Render = Drawn(resources, ballMesh, new Vector4(0.85f, 0.15f, 0.15f, 1), MeshesBallRadius),
+        }));
+
+        Solid("cylinder", RevolvedSolid.Cylinder(MeshesCylinderRadius, MeshesCylinderHalfHeight, MeshesCylinderSegments),
+            new DPose(new Double3(MeshesCylinderX, MeshesCylinderHalfHeight, 0), DQuaternion.Identity), new Vector4(0.25f, 0.5f, 0.85f, 1));
+        Ball("cylinder-ball", new Double3(MeshesCylinderX + 0.3, 2 * MeshesCylinderHalfHeight + MeshesBallRadius + 0.5, 0));
+
+        // The tube's flat bottom and top are r cos(π / sides) below and above its center circle.
+        double tubeFlat = MeshesTorusMinor * Math.Cos(Math.PI / MeshesTorusSides);
+        Solid("torus", RevolvedSolid.Torus(MeshesTorusMajor, MeshesTorusMinor, MeshesTorusSegments, MeshesTorusSides),
+            new DPose(new Double3(MeshesTorusX, tubeFlat, 0), DQuaternion.Identity), new Vector4(0.9f, 0.55f, 0.15f, 1));
+        // The middle of segment 0's facet, half a segment from +X toward -Z.
+        double half = Math.PI / MeshesTorusSegments, middle = MeshesTorusMajor * Math.Cos(half);
+        Ball("torus-ball", new Double3(MeshesTorusX + middle * Math.Cos(half), 2 * tubeFlat + MeshesBallRadius + 0.5, -middle * Math.Sin(half)));
+
+        // On edge, the ring's angle θ is at (ρ cos θ, ρ sin θ) across its axis, and half a segment's turn about its axis puts
+        // the middle of a facet at its lowest point, θ = 3π / 2, inside and out.
+        double facet = Math.Cos(Math.PI / MeshesRingSegments);
+        double ringY = MeshesRingOuter * facet;
+        DQuaternion onEdge = DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2) * DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / MeshesRingSegments);
+        Solid("ring", RevolvedSolid.Ring(MeshesRingInner, MeshesRingOuter, MeshesRingHalfWidth, MeshesRingSegments),
+            new DPose(new Double3(MeshesRingX, ringY, 0), onEdge), new Vector4(0.75f, 0.75f, 0.8f, 1));
+        Ball("ring-ball", new Double3(MeshesRingX, ringY - MeshesRingInner * facet + MeshesBallRadius + 0.5, 0));
+
+        Entity camera = world.Spawn(new SpawnDesc { Frame = ground, Pose = LookingAt(new Double3(0.5, 6, 15), new Double3(0.5, 1.2, 0)), Render = new RenderData() });
+        scene.Add("camera", camera);
+        scene.Add("cylinder-view", world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = LookingAt(new Double3(MeshesCylinderX + 1.5, 3.2, 3.5), new Double3(MeshesCylinderX, 1.1, 0)),
+            Render = new RenderData(),
+        }));
+        scene.Add("torus-view", world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = LookingAt(new Double3(MeshesTorusX + 1, 3.2, 4.5), new Double3(MeshesTorusX, 0.4, 0)),
+            Render = new RenderData(),
+        }));
+        scene.Add("ring-view", world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = LookingAt(new Double3(MeshesRingX + 0.8, 2.2, 6.5), new Double3(MeshesRingX, 0.6, 0)),
+            Render = new RenderData(),
+        }));
+        world.Camera = camera;
+
+        // The sun frame's origin is where the light comes from: up, to the right and in front of the solids.
+        Entity sun = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(30, 50, 40), DQuaternion.Identity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
+        });
+        scene.Add("sun", sun);
+        world.SunFrame = world.GetOwnedFrame(sun);
+
+        scene.AddView("camera");
+        scene.AddView("cylinder-view");
+        scene.AddView("torus-view");
+        scene.AddView("ring-view");
+        return scene;
+    }
+}
