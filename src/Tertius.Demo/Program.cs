@@ -8,6 +8,8 @@ public static class Program
     /// Runs one of the demo's scenes. See <see cref="ScriptCommand"/> and docs/plans/host-and-scripted-runs.md.
     /// <list type="bullet">
     /// <item><c>--script scripts/drop-box.json --headless --out captures/drop-box</c> runs a script with no window.</item>
+    /// <item><c>--script scripts/drop-box.json --headless --out captures/drop-box --video captures/drop-box.mkv --fps 30</c>
+    /// does the same and makes its captures the frames of one video, which ffmpeg from the dev shell encodes.</item>
     /// <item><c>--script scripts/drop-box.json --out captures/drop-box --speed 0.5</c> plays it in a window.</item>
     /// <item><c>--scene drop-box</c> runs the scene live in a window until you close it.</item>
     /// <item><c>--scene orbit --record sessions/today.json</c> does the same and writes your session as a script that replays it.</item>

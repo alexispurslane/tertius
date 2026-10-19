@@ -13,9 +13,9 @@ public static class ScriptRunner
     /// <paramref name="scene"/>. Checks every step before the first tick, and throws <see cref="ScriptException"/>
     /// without changing the world for a step that cannot run. With <paramref name="outputFolder"/>, writes each dump
     /// there as <c>&lt;name&gt;.json</c> when it is taken. <paramref name="playback"/> paces the ticks and draws each capture,
-    /// and each frame of a film, into <c>&lt;name&gt;.png</c> in the output folder, so a script with captures or films needs
-    /// both. With no playback, the ticks run back to back. If the playback stops the run, the steps after that point do not
-    /// run, and the result says so.
+    /// and each frame of a film, by its name into the playback's target, so a script with captures or films needs a
+    /// playback. With no playback, the ticks run back to back. If the playback stops the run, the steps after that point do
+    /// not run, and the result says so.
     /// </summary>
     /// <remarks>
     /// A dump reports the routed events since the dump before it, so the runner records the routed events of a tick only
@@ -28,7 +28,7 @@ public static class ScriptRunner
         ArgumentNullException.ThrowIfNull(world);
         ArgumentNullException.ThrowIfNull(scene);
         EventPayloads payloads = EventPayloads.FromLoadedAssemblies();
-        ReadyStep[] steps = MakeReady(script, world, scene, outputFolder, playback, payloads, out int lastDump);
+        ReadyStep[] steps = MakeReady(script, world, scene, playback, payloads, out int lastDump);
         JsonSerializerOptions dumpJson = ScriptJson.Dumps(scene);
 
         if (outputFolder != null)
@@ -60,14 +60,14 @@ public static class ScriptRunner
                     if (outputFolder != null)
                         File.WriteAllText(Path.Combine(outputFolder, name + ".json"), JsonSerializer.Serialize(dump, dumpJson) + "\n");
                     break;
-                case ReadyCapture(string path, string where):
-                    if (!Capture(path, where))
+                case ReadyCapture(string name, string where):
+                    if (!Capture(name, where))
                         return new RunResult(dumps, captures, stopped: true);
                     break;
                 // The film is its expansion: for each frame, a run of its ticks and a capture.
                 case ReadyFilm film:
                     for (int frame = 0; frame < film.Step.Frames; frame++)
-                        if (!RunTicks(film.Step.Every, recordEvents: i < lastDump) || !Capture(film.PathOf(frame), film.Where, frame))
+                        if (!RunTicks(film.Step.Every, recordEvents: i < lastDump) || !Capture(film.Step.FrameName(frame), film.Where, frame))
                             return new RunResult(dumps, captures, stopped: true);
                     break;
                 default:
@@ -91,14 +91,14 @@ public static class ScriptRunner
         }
 
         // Captures an image of a capture step, or a film's frame. Returns false if the playback stopped the run.
-        bool Capture(string path, string where, int? frame = null)
+        bool Capture(string name, string where, int? frame = null)
         {
             // The check before the first tick saw a live camera, but a component may have destroyed it since.
             if (!world.IsAlive(world.Camera))
                 throw new ScriptException($"{where}{(frame is int number ? $", frame {number}" : "")}: at tick {world.TickNumber}, the camera '{scene.IdOf(world.Camera)}' is not alive.");
-            if (!playback!.Capture(world, path))
+            if (!playback!.Capture(world, name))
                 return false;
-            captures.Add(path);
+            captures.Add(name);
             return true;
         }
     }
@@ -143,14 +143,9 @@ public static class ScriptRunner
 
     private sealed record ReadyDump(string Name);
 
-    private sealed record ReadyCapture(string Path, string Where);
+    private sealed record ReadyCapture(string Name, string Where);
 
-    /// <summary>A film step whose frames go into <paramref name="Folder"/>.</summary>
-    private sealed record ReadyFilm(FilmStep Step, string Folder, string Where)
-    {
-        /// <summary>The path of the image of frame <paramref name="number"/>, counted from 0.</summary>
-        public string PathOf(int number) => Path.Combine(Folder, Step.FrameName(number) + ".png");
-    }
+    private sealed record ReadyFilm(FilmStep Step, string Where);
 
     private sealed record ReadyOutlines(bool Show);
 
@@ -159,7 +154,7 @@ public static class ScriptRunner
     /// <see cref="ScriptException"/> for the first step that cannot run. <paramref name="lastDump"/> is the index of the
     /// last dump step, or -1 for a script with none.
     /// </summary>
-    private static ReadyStep[] MakeReady(Script script, World world, SceneInstance scene, string? outputFolder, IPlayback? playback, EventPayloads payloads, out int lastDump)
+    private static ReadyStep[] MakeReady(Script script, World world, SceneInstance scene, IPlayback? playback, EventPayloads payloads, out int lastDump)
     {
         script.CheckSteps();
         JsonSerializerOptions json = ScriptJson.Payloads(world, scene);
@@ -188,10 +183,12 @@ public static class ScriptRunner
                     lastDump = i;
                     break;
                 case CaptureStep capture:
-                    ready[i] = new ReadyCapture(Path.Combine(FolderOfCaptures("capture", capture.Name, where), capture.Name + ".png"), $"{where} (capture)");
+                    CheckCanCapture("capture", capture.Name, where);
+                    ready[i] = new ReadyCapture(capture.Name, $"{where} (capture)");
                     break;
                 case FilmStep film:
-                    ready[i] = new ReadyFilm(film, FolderOfCaptures("film", film.Name, where), $"{where} (film)");
+                    CheckCanCapture("film", film.Name, where);
+                    ready[i] = new ReadyFilm(film, $"{where} (film)");
                     break;
                 case OutlinesStep outlines:
                     ready[i] = new ReadyOutlines(outlines.Show);
@@ -202,15 +199,14 @@ public static class ScriptRunner
         }
         return ready;
 
-        // The checks of a capture, which a film has for its frames too: a live camera, a renderer and an output folder.
-        // Returns the folder.
-        string FolderOfCaptures(string kind, string name, string where)
+        // The checks of a capture, which a film has for its frames too: a live camera and a renderer. The playback's target
+        // says where the images go, so a capture needs no check of its own for that.
+        void CheckCanCapture(string kind, string name, string where)
         {
             if (!world.IsAlive(camera))
                 throw new ScriptException($"{where} ({kind}): a {kind} of '{name}' needs a live camera. Let the scene set one, or put a camera step before the {kind}.");
             if (playback is null)
                 throw new ScriptException($"{where} ({kind}): a {kind} of '{name}' needs a renderer, and the run has none.");
-            return outputFolder ?? throw new ScriptException($"{where} ({kind}): a {kind} of '{name}' needs an output folder, and the run has none.");
         }
     }
 
@@ -255,7 +251,7 @@ public static class ScriptRunner
     }
 }
 
-/// <summary>What a scripted run made: its state dumps and the paths of its captured images, each in the order taken.</summary>
+/// <summary>What a scripted run made: its state dumps and the names of its captures, each in the order taken.</summary>
 public sealed class RunResult(IReadOnlyList<StateDump> dumps, IReadOnlyList<string> captures, bool stopped = false)
 {
     /// <summary>True if the playback stopped the run before its last step, for example because the user closed the window.</summary>
@@ -263,7 +259,10 @@ public sealed class RunResult(IReadOnlyList<StateDump> dumps, IReadOnlyList<stri
 
     public IReadOnlyList<StateDump> Dumps => dumps;
 
-    /// <summary>The path of each captured image, in the order taken.</summary>
+    /// <summary>
+    /// The name of each capture, and of each frame of a film, in the order taken. The playback's target says where each one
+    /// went: a PNG file of that name, or the next frame of a video.
+    /// </summary>
     public IReadOnlyList<string> Captures => captures;
 
     /// <summary>The dump with the name. Throws <see cref="KeyNotFoundException"/> if the run took none.</summary>

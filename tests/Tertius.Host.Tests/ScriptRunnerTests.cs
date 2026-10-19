@@ -320,7 +320,7 @@ public class ScriptRunnerTests
             return true;
         }
 
-        public bool Capture(World world, string path) => throw new InvalidOperationException("no captures in this test");
+        public bool Capture(World world, string name) => throw new InvalidOperationException("no captures in this test");
     }
 
     [Fact]
@@ -351,19 +351,19 @@ public class ScriptRunnerTests
 
     /// <summary>
     /// A playback that lets <paramref name="ticks"/> ticks run and then stops the run, as closing the window does. It
-    /// draws no capture: it notes the tick count and the path of each one, and lets the run go on.
+    /// draws no capture: it notes the tick count and the name of each one, and lets the run go on.
     /// </summary>
     private sealed class NotesTheCaptures(int ticks = int.MaxValue) : IPlayback
     {
         private int run;
 
-        public List<(long Tick, string Path)> Captured { get; } = [];
+        public List<(long Tick, string Name)> Captured { get; } = [];
 
         public bool WaitForTick() => run++ < ticks;
 
-        public bool Capture(World world, string path)
+        public bool Capture(World world, string name)
         {
-            Captured.Add((world.TickNumber, path));
+            Captured.Add((world.TickNumber, name));
             return true;
         }
     }
@@ -387,7 +387,7 @@ public class ScriptRunnerTests
                 CameraOnProbe, """{ "do": "run", "ticks": 1 }""", """{ "do": "film", "name": "climb", "frames": 3, "every": 2 }""");
 
             // The film starts after tick 1, and its frame k comes after (k + 1) × 2 of its own ticks.
-            string[] frames = [Path.Combine(folder, "climb-000000.png"), Path.Combine(folder, "climb-000001.png"), Path.Combine(folder, "climb-000002.png")];
+            string[] frames = ["climb-000000", "climb-000001", "climb-000002"];
             playback.Captured.Should().Equal((3, frames[0]), (5, frames[1]), (7, frames[2]));
             result.Captures.Should().Equal(frames);
             world.TickNumber.Should().Be(7, "a film of 3 frames every 2 ticks runs 6 ticks");
@@ -418,11 +418,25 @@ public class ScriptRunnerTests
         }
     }
 
+    [Fact]
+    public void ACaptureAndAFilmNeedNoOutputFolderBecauseThePlaybackKnowsWhereTheirImagesGo()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        var playback = new NotesTheCaptures();
+
+        RunResult result = ScriptRunner.Run(Script.Parse($$"""
+            { "scene": "test", "steps": [ {{CameraOnProbe}}, { "do": "capture", "name": "first" }, { "do": "film", "name": "climb", "frames": 1, "every": 1 } ] }
+            """), world, scene, outputFolder: null, playback);
+
+        playback.Captured.Should().Equal((0, "first"), (1, "climb-000000"));
+        result.Captures.Should().Equal("first", "climb-000000");
+    }
+
     [Theory]
-    [InlineData(false, true, true, "camera")]
-    [InlineData(true, false, true, "renderer")]
-    [InlineData(true, true, false, "output folder")]
-    public void AFilmNeedsALiveCameraARendererAndAnOutputFolderBeforeTheFirstTick(bool cameraStep, bool hasPlayback, bool hasFolder, string named)
+    [InlineData(false, true, "camera")]
+    [InlineData(true, false, "renderer")]
+    public void AFilmNeedsALiveCameraAndARendererBeforeTheFirstTick(bool cameraStep, bool hasPlayback, string named)
     {
         using World world = NewWorld();
         // The probes scene sets no camera, so only the camera step gives the film one.
@@ -433,7 +447,7 @@ public class ScriptRunnerTests
             string first = cameraStep ? CameraOnProbe : """{ "do": "dump", "name": "start" }""";
             Script script = Script.Parse($$"""{ "scene": "test", "steps": [ {{first}}, { "do": "run", "ticks": 1 }, { "do": "film", "name": "climb", "frames": 2, "every": 1 } ] }""");
 
-            Action run = () => ScriptRunner.Run(script, world, scene, hasFolder ? folder : null, hasPlayback ? new NotesTheCaptures() : null);
+            Action run = () => ScriptRunner.Run(script, world, scene, folder, hasPlayback ? new NotesTheCaptures() : null);
 
             run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 3 (film)").And.Contain(named);
             world.TickNumber.Should().Be(0);
@@ -457,7 +471,7 @@ public class ScriptRunnerTests
 
             result.Stopped.Should().BeTrue();
             world.TickNumber.Should().Be(5);
-            result.Captures.Should().Equal(Path.Combine(folder, "climb-000000.png"), Path.Combine(folder, "climb-000001.png"));
+            result.Captures.Should().Equal("climb-000000", "climb-000001");
             result.Dumps.Should().BeEmpty("the steps after the film do not run");
         }
         finally
@@ -495,7 +509,7 @@ public class ScriptRunnerTests
 
         public bool WaitForTick() => run++ < ticks;
 
-        public bool Capture(World world, string path) => throw new InvalidOperationException("no captures in this test");
+        public bool Capture(World world, string name) => throw new InvalidOperationException("no captures in this test");
     }
 
     [Fact]
@@ -527,7 +541,7 @@ public class ScriptRunnerTests
     {
         public bool WaitForTick() => true;
 
-        public bool Capture(World world, string path) => false;
+        public bool Capture(World world, string name) => false;
     }
 
     [Fact]

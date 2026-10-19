@@ -31,7 +31,7 @@ public abstract class CheckedInRun : IDisposable
         try
         {
             Scene = DemoScenes.All.Single(s => s.Name == Script.Scene).Build(World, renderer);
-            IPlayback playback = new HeadlessPlayback(renderer, Script.Window);
+            IPlayback playback = new HeadlessPlayback(renderer, Script.Window, new PngFolder(Folder));
             long lastWatched = -1;
             void Watch()
             {
@@ -78,6 +78,6 @@ public abstract class CheckedInRun : IDisposable
             return inner.WaitForTick();
         }
 
-        public bool Capture(World world, string path) => inner.Capture(world, path);
+        public bool Capture(World world, string name) => inner.Capture(world, name);
     }
 }

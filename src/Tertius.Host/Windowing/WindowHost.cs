@@ -32,6 +32,8 @@ internal sealed class WindowHost : IInputTarget
     private readonly RecordTo? record;
     private readonly Script? script;
     private readonly string? outputFolder;
+    // Where the captures of a script go: PNG files in its output folder. Free play has none, because it captures nothing.
+    private readonly PngFolder? images;
     private readonly TickPacer pacer;
     private readonly CaptureMailbox captures = new();
     private readonly CancellationTokenSource closing = new();
@@ -63,6 +65,7 @@ internal sealed class WindowHost : IInputTarget
         this.record = record;
         this.script = script;
         this.outputFolder = outputFolder;
+        images = outputFolder is null ? null : new PngFolder(outputFolder);
         pacer = new TickPacer(world.DeltaTime, speed);
         router = new InputRouter(freePlay: script is null, this);
     }
@@ -93,7 +96,7 @@ internal sealed class WindowHost : IInputTarget
         {
             error.WriteLine($"Cannot open the window: {ex.Message}");
             window?.Dispose();
-            return ScriptCommand.RendererError;
+            return ScriptCommand.ToolError;
         }
         try
         {
@@ -106,7 +109,7 @@ internal sealed class WindowHost : IInputTarget
             catch (Exception ex)
             {
                 error.WriteLine($"Cannot start the renderer for the window: {ex.Message}");
-                return ScriptCommand.RendererError;
+                return ScriptCommand.ToolError;
             }
             var host = default(WindowHost);
             try
@@ -216,7 +219,7 @@ internal sealed class WindowHost : IInputTarget
     private void SimulationLoop()
     {
         var clock = Stopwatch.StartNew();
-        var playback = new WindowPlayback(pacer, captures, closing.Token, () => clock.Elapsed.TotalSeconds);
+        var playback = new WindowPlayback(pacer, captures, images, closing.Token, () => clock.Elapsed.TotalSeconds);
         try
         {
             if (freePlay != null)
@@ -380,7 +383,7 @@ internal sealed class WindowHost : IInputTarget
         if (failure is NotSupportedException)
         {
             error.WriteLine($"The window cannot do what the script asks: {failure.Message}");
-            return ScriptCommand.RendererError;
+            return ScriptCommand.ToolError;
         }
         if (failure != null)
         {
@@ -393,7 +396,7 @@ internal sealed class WindowHost : IInputTarget
             return ScriptCommand.ScriptError;
         }
         if (result != null)
-            ScriptCommand.WriteFiles(result, outputFolder!, output);
+            ScriptCommand.WriteFiles(result, outputFolder!, images!, output);
         if (result is { Stopped: true })
             error.WriteLine($"The window closed at tick {world.TickNumber}, so the script stopped before its last step.");
         return ScriptCommand.Ok;

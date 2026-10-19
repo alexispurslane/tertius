@@ -30,7 +30,8 @@ public sealed class FilmStepTests : IDisposable
         VulkanRenderer renderer = Headless(16, 16);
         try
         {
-            return ScriptRunner.Run(script, world, build(world, renderer), output, new HeadlessPlayback(renderer, script.Window));
+            using var playback = new HeadlessPlayback(renderer, script.Window, new PngFolder(output));
+            return ScriptRunner.Run(script, world, build(world, renderer), output, playback);
         }
         finally
         {

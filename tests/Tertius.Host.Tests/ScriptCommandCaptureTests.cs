@@ -74,14 +74,14 @@ public sealed class ScriptCommandCaptureTests : IDisposable
     }
 
     [Fact]
-    public void ARendererThatCannotStartExitsWithTheRendererErrorCodeAndWritesNoImage()
+    public void ARendererThatCannotStartExitsWithTheToolErrorCodeAndWritesNoImage()
     {
         string script = ScriptFile("""{ "scene": "lit-box", "steps": [ { "do": "capture", "name": "front" } ] }""");
 
         int code = ScriptCommand.Run(["--script", script, "--headless", "--out", Out], [LitBoxScene], output, error,
             _ => throw new InvalidOperationException("no Vulkan driver"));
 
-        code.Should().Be(ScriptCommand.RendererError);
+        code.Should().Be(ScriptCommand.ToolError);
         error.ToString().Should().Contain(script).And.Contain("no Vulkan driver");
         File.Exists(Path.Combine(Out, "front.png")).Should().BeFalse();
     }

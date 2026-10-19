@@ -62,7 +62,7 @@ public sealed class AmbientFrameTests : IDisposable
         VulkanRenderer renderer = GpuTesting.Headless(16, 16);
         try
         {
-            ScriptRunner.Run(script, world, Build(world, renderer), folder, new HeadlessPlayback(renderer, script.Window));
+            ScriptRunner.Run(script, world, Build(world, renderer), folder, new HeadlessPlayback(renderer, script.Window, new PngFolder(folder)));
         }
         finally
         {

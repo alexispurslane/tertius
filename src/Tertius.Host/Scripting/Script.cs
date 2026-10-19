@@ -202,7 +202,10 @@ public sealed record PostStep(MessageTarget To, string Event, JsonElement? Paylo
 /// <summary>Takes a state dump named <paramref name="Name"/>, written to <c>&lt;out&gt;/&lt;name&gt;.json</c>.</summary>
 public sealed record DumpStep(string Name);
 
-/// <summary>Renders the current state and writes <c>&lt;out&gt;/&lt;name&gt;.png</c>, at the size of the script's window.</summary>
+/// <summary>
+/// Renders the current state at the size of the script's window, into the run's capture target: the file
+/// <c>&lt;out&gt;/&lt;name&gt;.png</c>, or the next frame of the video of <c>--video</c>.
+/// </summary>
 public sealed record CaptureStep(string Name);
 
 /// <summary>Makes the live entity with the scene id <paramref name="Entity"/> the camera of the world.</summary>
