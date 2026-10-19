@@ -58,8 +58,8 @@ internal static class ScriptJson
 
     /// <summary>
     /// Writes the steps of a script as an array with each step on one line of compact JSON. The converter is for the list
-    /// and not for the step, because System.Text.Json cannot write the discriminator of a polymorphic type through a
-    /// custom converter of that type. Writing only.
+    /// and not for the step, because the options indent, and the converter of a step cannot choose to write its object
+    /// without indentation. Writing only.
     /// </summary>
     private sealed class OneLinePerStepConverter(JsonSerializerOptions lineOptions) : JsonConverter<IReadOnlyList<ScriptStep>>
     {
@@ -73,8 +73,7 @@ internal static class ScriptJson
             // adds the comma before it, and the new line and the indentation of the closing bracket.
             string indentation = "\n" + new string(options.IndentCharacter, options.IndentSize * writer.CurrentDepth);
             foreach (ScriptStep step in value)
-                // The declared type ScriptStep makes the line options write the step's "do" key.
-                writer.WriteRawValue(indentation + JsonSerializer.Serialize(step, typeof(ScriptStep), lineOptions), skipInputValidation: true);
+                writer.WriteRawValue(indentation + JsonSerializer.Serialize(step, lineOptions), skipInputValidation: true);
             writer.WriteEndArray();
         }
     }
@@ -116,6 +115,9 @@ internal static class ScriptJson
         options.Converters.Add(new QuaternionConverter());
         options.Converters.Add(new DQuaternionConverter());
         options.Converters.Add(new TopicConverter());
+        // The records of the cases of a step and of a target carry their do or kind key as a member of their contract.
+        resolver.Modifiers.Add(ScriptStepJsonConverter.Cases.AddKeyTo);
+        resolver.Modifiers.Add(MessageTargetJsonConverter.Cases.AddKeyTo);
         return options;
     }
 

@@ -130,7 +130,7 @@ public class ScriptRecorderTests
 
         recorder.Post(2, moved);
 
-        var post = (PostStep)recorder.ToScript(2).Steps.Single(step => step is PostStep);
+        var post = (PostStep)recorder.ToScript(2).Steps.Single(step => step is PostStep).Value!;
         PayloadOf(post).TryGetValue(out MouseMoved read).Should().BeTrue();
         BitConverter.SingleToInt32Bits(read.Delta.X).Should().Be(BitConverter.SingleToInt32Bits(0.1f));
         BitConverter.SingleToInt32Bits(read.Delta.Y).Should().Be(BitConverter.SingleToInt32Bits(-1f / 3f));
@@ -191,14 +191,14 @@ public class ScriptRecorderTests
         parsed.Scene.Should().Be("orbit");
         parsed.Window.Should().Be(new ScriptWindow(800, 600));
         parsed.Steps.Should().HaveCount(script.Steps.Count);
-        parsed.Steps.Select(step => step.GetType()).Should().Equal(script.Steps.Select(step => step.GetType()));
-        var moved = (PostStep)parsed.Steps[3];
+        parsed.Steps.Select(step => step.Value!.GetType()).Should().Equal(script.Steps.Select(step => step.Value!.GetType()));
+        var moved = (PostStep)parsed.Steps[3].Value!;
         (PayloadOf(moved) == InputEvent.MouseMove(new Vector2(12.5f, -3f))).Should().BeTrue();
-        var scrolled = (PostStep)parsed.Steps[6];
+        var scrolled = (PostStep)parsed.Steps[6].Value!;
         (PayloadOf(scrolled) == InputEvent.Scroll(new Vector2(0, 1))).Should().BeTrue();
-        ((CameraStep)parsed.Steps[0]).Entity.Should().Be("chase");
-        ((CameraStep)parsed.Steps[5]).Entity.Should().Be("far");
-        ((DumpStep)parsed.Steps[^1]).Name.Should().Be("end");
+        ((CameraStep)parsed.Steps[0].Value!).Entity.Should().Be("chase");
+        ((CameraStep)parsed.Steps[5].Value!).Entity.Should().Be("far");
+        ((DumpStep)parsed.Steps[^1].Value!).Name.Should().Be("end");
     }
 
     [Fact]

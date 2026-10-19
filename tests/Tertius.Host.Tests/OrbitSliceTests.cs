@@ -199,8 +199,8 @@ public sealed class OrbitSliceTests(OrbitRun run) : IClassFixture<OrbitRun>
         Script script = Script.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "scripts", "orbit.json")));
 
         script.Scene.Should().Be("orbit");
-        script.Steps.OfType<CameraStep>().Should().NotBeEmpty();
-        foreach (CameraStep step in script.Steps.OfType<CameraStep>())
+        script.Steps.Select(step => step.Value).OfType<CameraStep>().Should().NotBeEmpty();
+        foreach (CameraStep step in script.Steps.Select(step => step.Value).OfType<CameraStep>())
             run.Scene.TryGetEntity(step.Entity, out _).Should().BeTrue($"the scene has no entity {step.Entity}");
     }
 }

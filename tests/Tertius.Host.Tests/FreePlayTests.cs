@@ -585,8 +585,8 @@ public sealed class FreePlayReplayTests : IDisposable
                 .Should().BeGreaterThan(3, "the session moved the person, so that the replay has something to get wrong");
 
             Script script = Script.Load(path);
-            script.Steps.OfType<CameraStep>().Select(step => step.Entity).Should().Equal("chase", "far", "person", "chase", "far");
-            script.Steps.OfType<PostStep>().Count().Should().BeGreaterThan(10);
+            script.Steps.Select(step => step.Value).OfType<CameraStep>().Select(step => step.Entity).Should().Equal("chase", "far", "person", "chase", "far");
+            script.Steps.Select(step => step.Value).OfType<PostStep>().Count().Should().BeGreaterThan(10);
 
             using World replay = NewJoltWorld();
             SceneInstance replayScene = Tertius.Demo.DemoScenes.All.Single(s => s.Name == "orbit").Build(replay, RenderResources.None);

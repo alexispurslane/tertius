@@ -170,13 +170,13 @@ public class ScriptJsonFormatTests
     }
 
     [Theory]
-    [InlineData("""{ "do": "run", "ticks": "1" }""", "The JSON value could not be converted to System.Int32. Path: $.steps[0].ticks | LineNumber: 0 | BytePositionInLine: 59.")]
-    [InlineData("""{ "do": "run", "ticks": 1.5 }""", "The JSON value could not be converted to System.Int32. Path: $.steps[0].ticks | LineNumber: 0 | BytePositionInLine: 59.")]
-    [InlineData("""{ "do": "run", "ticks": 99999999999 }""", "The JSON value could not be converted to System.Int32. Path: $.steps[0].ticks | LineNumber: 0 | BytePositionInLine: 67.")]
-    [InlineData("""{ "do": "dump", "name": 5 }""", "The JSON value could not be converted to System.String. Path: $.steps[0].name | LineNumber: 0 | BytePositionInLine: 57.")]
-    [InlineData("""{ "do": "capture", "name": null }""", "The constructor parameter 'Name' on type 'Tertius.Host.Scripting.CaptureStep' doesn't allow null values. Consider updating its nullability annotation. Path: $.steps[0].name | LineNumber: 0 | BytePositionInLine: 63.")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": 3 }, "event": "Nudge" }""", "The JSON value could not be converted to System.String. Path: $.steps[0].to.id | LineNumber: 0 | BytePositionInLine: 81.")]
-    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": null }, "event": "Nudge" }""", "The constructor parameter 'Id' on type 'Tertius.Host.Scripting.ToEntity' doesn't allow null values. Consider updating its nullability annotation. Path: $.steps[0].to.id | LineNumber: 0 | BytePositionInLine: 84.")]
+    [InlineData("""{ "do": "run", "ticks": "1" }""", "The JSON value could not be converted to System.Int32. Path: $.ticks | LineNumber: 0 | BytePositionInLine: 59.")]
+    [InlineData("""{ "do": "run", "ticks": 1.5 }""", "The JSON value could not be converted to System.Int32. Path: $.ticks | LineNumber: 0 | BytePositionInLine: 59.")]
+    [InlineData("""{ "do": "run", "ticks": 99999999999 }""", "The JSON value could not be converted to System.Int32. Path: $.ticks | LineNumber: 0 | BytePositionInLine: 67.")]
+    [InlineData("""{ "do": "dump", "name": 5 }""", "The JSON value could not be converted to System.String. Path: $.name | LineNumber: 0 | BytePositionInLine: 57.")]
+    [InlineData("""{ "do": "capture", "name": null }""", "The constructor parameter 'Name' on type 'Tertius.Host.Scripting.CaptureStep' doesn't allow null values. Consider updating its nullability annotation. Path: $.name | LineNumber: 0 | BytePositionInLine: 63.")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": 3 }, "event": "Nudge" }""", "The JSON value could not be converted to System.String. Path: $.id | LineNumber: 0 | BytePositionInLine: 81.")]
+    [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": null }, "event": "Nudge" }""", "The constructor parameter 'Id' on type 'Tertius.Host.Scripting.ToEntity' doesn't allow null values. Consider updating its nullability annotation. Path: $.id | LineNumber: 0 | BytePositionInLine: 84.")]
     public void AMistypedMemberIsRefusedWithItsPathAndItsPositionInTheText(string step, string message)
     {
         Action parse = () => ScriptWith(step);
@@ -188,7 +188,7 @@ public class ScriptJsonFormatTests
     [InlineData("\"run\"", "The JSON value could not be converted to Tertius.Host.Scripting.ScriptStep. Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 37.")]
     [InlineData("5", "The JSON value could not be converted to Tertius.Host.Scripting.ScriptStep. Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 33.")]
     [InlineData("[1]", "The JSON value could not be converted to Tertius.Host.Scripting.ScriptStep. Path: $.steps[0] | LineNumber: 0 | BytePositionInLine: 33.")]
-    [InlineData("""{ "do": "post", "to": "x", "event": "Nudge" }""", "The JSON value could not be converted to Tertius.Host.Scripting.MessageTarget. Path: $.steps[0].to | LineNumber: 0 | BytePositionInLine: 57.")]
+    [InlineData("""{ "do": "post", "to": "x", "event": "Nudge" }""", "The JSON value could not be converted to Tertius.Host.Scripting.MessageTarget. Path: $.to | LineNumber: 0 | BytePositionInLine: 57.")]
     public void AStepOrATargetThatIsNotAnObjectIsRefusedWithItsPathAndItsPositionInTheText(string step, string message)
     {
         Action parse = () => ScriptWith(step);

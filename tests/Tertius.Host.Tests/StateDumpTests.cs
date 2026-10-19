@@ -314,7 +314,7 @@ public class StateDumpTests
 
         EventRecord record = dump.Events.Should().ContainSingle().Which;
         record.Event.Should().Be("Nudge");
-        record.To.Should().Be(new ToTopic("test"));
+        record.To.Should().Be(new MessageTarget(new ToTopic("test")));
         record.From.Should().BeNull("a posted event comes from outside the simulation");
     }
 
@@ -366,7 +366,7 @@ public class StateDumpTests
 
         EventRecord record = dump.Events.Should().ContainSingle().Which;
         record.From.Should().Be("sender");
-        record.To.Should().Be(new ToEntity("probe"));
+        record.To.Should().Be(new MessageTarget(new ToEntity("probe")));
     }
 
     [Fact]

@@ -24,12 +24,12 @@ public class ScriptParsingTests
 
         script.Scene.Should().Be("probes");
         script.Steps.Should().HaveCount(3);
-        script.Steps[0].Should().Be(new RunStep(3));
-        PostStep post = script.Steps[1].Should().BeOfType<PostStep>().Which;
-        post.To.Should().Be(new ToEntity("probe"));
+        script.Steps[0].Should().Be(new ScriptStep(new RunStep(3)));
+        PostStep post = script.Steps[1].Value.Should().BeOfType<PostStep>().Which;
+        post.To.Should().Be(new MessageTarget(new ToEntity("probe")));
         post.Event.Should().Be("Nudge");
         post.Payload!.Value.GetProperty("amount").GetDouble().Should().Be(2.5);
-        script.Steps[2].Should().Be(new DumpStep("after-nudge"));
+        script.Steps[2].Should().Be(new ScriptStep(new DumpStep("after-nudge")));
     }
 
     [Theory]
@@ -48,7 +48,7 @@ public class ScriptParsingTests
             "frame" => new ToFrame("ship"),
             _ => new ToEveryone(),
         };
-        script.Steps[0].Should().BeOfType<PostStep>().Which.To.Should().Be(expected);
+        script.Steps[0].Value.Should().BeOfType<PostStep>().Which.To.Should().Be(expected);
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class ScriptParsingTests
     {
         Script script = Script.Parse("""{ "scene": "probes", "steps": [ { "do": "post", "to": { "kind": "broadcast" }, "event": "Nudge" } ] }""");
 
-        script.Steps[0].Should().BeOfType<PostStep>().Which.Payload.Should().BeNull();
+        script.Steps[0].Value.Should().BeOfType<PostStep>().Which.Payload.Should().BeNull();
     }
 
     [Theory]
