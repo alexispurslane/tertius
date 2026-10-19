@@ -418,6 +418,10 @@ public sealed partial class JoltPhysicsBackend
                 double radius = member.Radius;
                 BodySnapshot s = default;
                 bool haveSnapshot = false;
+                // The role of a child ghost, which a ghost in a sibling of the bubble has too: neither system holds a hull of
+                // a frame that holds the body, so a ghost of a static body or of a hull there meets hulls, as its body does
+                // (see GhostBody.Role).
+                BodyLayer childRole = member.IsHull ? BodyLayer.Static : movable ? BodyLayer.Ghost : RoleFor(member.Desc);
 
                 // A moving body that sticks out of the bubble (see BubbleOf) has a ghost in the bubble's tree parent, the
                 // home of the bubble's hull, and in each sibling frame whose content it reaches (it lost the tie of rule 3,
@@ -426,7 +430,8 @@ public sealed partial class JoltPhysicsBackend
                 // the members of the parent's system meet, those of the semantic children of the parent's semantic frame
                 // (see PrepareBubbles), apart from the bubble itself. So a body in a ship that falls in a numeric frame
                 // meets a parked station beside it, and so does a crate that falls in a numeric frame below the ship.
-                // These ghosts have the ghost role, since the parent's system holds the bubble's hull.
+                // The ghost in the parent has the ghost role, since the parent's system holds the bubble's hull. A sibling's
+                // system holds no hull of a frame that holds the body, so a ghost there has the role of a child ghost.
                 if (movable && !parent.IsNull && bounds.SignedDistance(center + homeOffset) > -radius)
                 {
                     if (!haveFrameMotion)
@@ -463,7 +468,7 @@ public sealed partial class JoltPhysicsBackend
                             continue;
                         WantGhost(member, sibling.Frame, motion.PoseFromParent(poseInSiblingParent),
                             motion.VelocityFromParent(parentCenter + sibling.Offset, parentLinear + sibling.Velocity),
-                            motion.AngularFromParent(parentAngular), BodyLayer.Ghost);
+                            motion.AngularFromParent(parentAngular), childRole);
                     }
                 }
 
@@ -477,7 +482,6 @@ public sealed partial class JoltPhysicsBackend
                 // update names. The child's system holds no hull of a frame that holds the body, so a child ghost of a
                 // static body or a hull meets hulls, as its body does (see GhostBody.Role).
                 double reach = member.IsHull ? Math.Max(radius, frames.Bounds(member.OwnedFrame).MaxRadius) : radius;
-                BodyLayer childRole = member.IsHull ? BodyLayer.Static : movable ? BodyLayer.Ghost : RoleFor(member.Desc);
                 for (int i = 0; i < ghostBubbles.Count; i++)
                 {
                     BubbleEntry child = ghostBubbles[i];
@@ -617,8 +621,10 @@ public sealed partial class JoltPhysicsBackend
     /// <paramref name="frame"/> at <paramref name="pose"/>, moving with <paramref name="linearVelocity"/> and
     /// <paramref name="angularVelocity"/> in that frame, and marks it wanted. The ghost has the motion of
     /// <see cref="GhostMotion"/>, so a ghost of a static body turns kinematic when it starts to move and static when it
-    /// holds still. No frame gets two ghosts of one body. A ghost keeps its role, so one that needs another role is made
-    /// again: a dynamic hull that moves into a frame turns its child ghost in a sibling of that frame into a stick-out ghost.
+    /// holds still. No frame gets two ghosts of one body, so a second want of one ghost in another role before the next
+    /// pass is a bug, which the backend reports and skips. A ghost keeps its role, so one that needs another role is made
+    /// again: when a frame enters a sibling, a hull in it that sticks out turns its ghost in that sibling, which had the role
+    /// of a child ghost, into a stick-out ghost in the frame's new tree parent, in the ghost role.
     /// Removing the old ghost loosens its contacts, and the carry of the end of the step keeps each one that the new ghost
     /// can make (see <see cref="ResolveLooseContacts"/>).
     /// </summary>
@@ -635,6 +641,14 @@ public sealed partial class JoltPhysicsBackend
                 continue;
             if (ghost.Role != role)
             {
+                // No frame gets two ghosts of one body, so a pass wants each ghost once, and a ghost that a pass kept
+                // counts as wanted until the next pass. Only one that the pass has not wanted yet can change its role.
+                if (ghost.Wanted)
+                {
+                    ReportBug($"Physics: the ghost of {record.Entity} in {frame} has the role {ghost.Role}, and the same pass wants it in the role {role}. " +
+                        "Only a bug wants one ghost twice, so the second want was skipped.");
+                    return;
+                }
                 RemoveGhostAt(ghosts, i);
                 break;
             }

@@ -81,7 +81,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <see cref="PhysicsChanges.FramesDestroyed"/>, then creates the bodies in <see cref="PhysicsChanges.BodiesCreated"/>.
     /// <see cref="PhysicsChanges.FramesCreated"/> needs no work, because a frame's system is created with its first
     /// body. An entity that owns a frame gets two bodies: its hull in the parent frame's system on the
-    /// <see cref="BodyLayer.FrameHull"/> layer, and its interior as static geometry in its own frame's system. The
+    /// <see cref="BodyLayer.FrameHull"/> layer, and its interior at rest in its own frame's system, static while the hull is
+    /// static and kinematic while it can move (see <see cref="InteriorMotion"/>). The
     /// frame must exist in <paramref name="frames"/> before its owner's body is created; the hull starts at the
     /// frame's pose and velocity in the tree, with the motion of its description, which is the motion that the hull has in
     /// the next step (see <see cref="BodyCreate"/>).
@@ -738,7 +739,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             log($"Physics: {world.Frame} was replaced by {frame} without a FramesDestroyed change. Its system is discarded.");
             DisposeWorld(world);
         }
-        world = new FrameWorld(frame, options);
+        world = new FrameWorld(frame, options, ReportBug);
         worlds[frame.Index] = world;
         worldList.Add(world);
         return world;

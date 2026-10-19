@@ -513,13 +513,13 @@ public class StaticBodyGhostTests
     /// Space, with no gravity. Two frames without bodies lie side by side with bubbles of 20 m, at x = 0 and x = 43, so
     /// their bubbles are 3 m apart. A pod, a frame with a dynamic hull of radius 1.73 m and a bubble of 6 m, starts in the
     /// first frame at x = 19 and drifts along +X at 1 m/s. It sticks out of the first bubble, so once it reaches the second
-    /// bubble it has a stick-out ghost there, in the ghost role. It leaves the first frame into space beyond x = 23.46,
-    /// where it reaches the second bubble with its own bubble, so that ghost turns into a child ghost of a hull, which has
-    /// the static role of the pod's interior and meets hulls (fork F1). A ghost keeps its role, so the backend makes it
-    /// again.
+    /// bubble it has a stick-out ghost there. The second frame's system holds no hull of a frame that holds the pod, so
+    /// that ghost has the role of a child ghost of a hull, the static role of the pod's interior, which meets hulls (fork
+    /// F1). The pod leaves the first frame into space beyond x = 23.46, where it reaches the second bubble with its own
+    /// bubble, so that ghost becomes a child ghost. Its role stays, so the backend keeps the same Jolt body.
     /// </summary>
     [Fact]
-    public void AHullThatLeavesAFrameMakesItsGhostInASiblingAgainInTheRoleOfAChildGhost()
+    public void AHullThatLeavesAFrameKeepsItsGhostInASiblingInTheLayerOfItsInterior()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
@@ -540,12 +540,66 @@ public class StaticBodyGhostTests
         TickUntil(world, () => faults.Jolt.HasGhostIn(pod, second), 240);
         world.GetFrame(pod).Should().Be(first);
         ObjectLayer interior = faults.Jolt.BodiesIn(inside).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Interior).Layer;
-        GhostIn(second).Layer.Should().NotBe(interior, "a stick-out ghost has the ghost role");
+        JoltPhysicsBackend.BodyFacts stickOut = GhostIn(second);
+        stickOut.Layer.Should().Be(interior, "a stick-out ghost in a sibling has the layer of a child ghost of the hull");
 
         TickUntil(world, () => world.GetFrame(pod) == space, 240);
 
         world.GetFrame(pod).Should().Be(space);
         GhostIn(second).Layer.Should().Be(interior, "a child ghost of a hull has the layer of its interior");
+        GhostIn(second).Id.Should().Be(stickOut.Id, "the ghost keeps its role, so the backend keeps its body");
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Space, with no gravity. A shuttle, a frame with a dynamic hull of 100 t, half extents of 2.5 m and a bubble of 11 m,
+    /// rests at x = 19, so its face is at x = 21.5. A pod, a frame with a dynamic hull of 100 kg, half extents of 0.5 m and
+    /// a bubble of 6 m, which does not fit in the shuttle's bubble, starts at x = 28 and flies along -X at 2 m/s at the
+    /// shuttle. Neither body bounces. Across frames the pod flies in a dock, a frame without a body at x = 41 with a bubble
+    /// of 20 m, whose edge is at x = 21, and which the shuttle does not fit in. So the pod stops 1 m inside the dock's
+    /// bubble, without sticking out of it. The shuttle rests in a bay, a frame without a body at x = -10 with a bubble of
+    /// 30 m, whose edge is at x = 20, so it sticks out of the bay into the dock, or in space, beside the dock. In the bay,
+    /// the shuttle's ghost in the dock is a stick-out ghost in a sibling, and in space it is a child ghost. The dock's
+    /// system holds no hull of a frame that holds the shuttle, so both ghosts have the layer of the shuttle's interior, and
+    /// the pod's hull meets them and stops at x = 22, as it stops at the real shuttle in one frame.
+    /// </summary>
+    [Theory]
+    [InlineData("bay")]
+    [InlineData("space")]
+    [InlineData("one frame")]
+    public void APodStopsAtTheGhostOfAShuttleThatSticksIntoItsFrameWhereverTheShuttleLives(string shuttleHome)
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle bay = shuttleHome == "bay" ? Bubble(world, space, At(-10), 30) : space;
+        FrameHandle dock = shuttleHome == "one frame" ? space : Bubble(world, space, At(41), 20);
+        Entity shuttle = world.Spawn(new SpawnDesc
+        {
+            Frame = bay,
+            Pose = shuttleHome == "bay" ? At(29) : At(19),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2.5f)), Mass: 100_000, LinearDamping: 0, AngularDamping: 0,
+                InteriorShape: new SphereShapeDesc(0.1f)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(11)),
+        });
+        var podLog = new CollisionLog();
+        Entity pod = world.Spawn(new SpawnDesc
+        {
+            Frame = dock,
+            Pose = shuttleHome == "one frame" ? At(28) : At(-13),
+            LinearVelocity = new Vector3(-2, 0, 0),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 100, LinearDamping: 0, AngularDamping: 0,
+                InteriorShape: new SphereShapeDesc(0.1f)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(6)),
+            Components = [podLog],
+        });
+
+        Tick(world, 300);
+
+        world.PoseIn(pod, space).Position.X.Should().BeInRange(21.8, 22.2, "the pod's face stops at the shuttle's face at x = 21.5");
+        podLog.NewsOf(shuttle).Should().Equal(Started);
+        world.GetFrame(shuttle).Should().Be(bay);
+        world.GetFrame(pod).Should().Be(dock);
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         world.Errors.Should().BeEmpty();
     }

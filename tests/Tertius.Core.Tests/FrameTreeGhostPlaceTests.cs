@@ -611,6 +611,22 @@ public class FrameTreeGhostPlaceTests
     }
 
     [Fact]
+    public void A_falling_hull_in_a_child_is_linked_to_the_place_of_a_static_body_of_the_parent()
+    {
+        // The scene of the parked depot, with a static rock of radius 30 m in place of the depot's hull. The rock reaches the
+        // station's bubble, so it has a ghost in the station's own system with its own static role, which the mask of a hull
+        // names (fork F1).
+        FrameHandle station = Station(2, X(1_000), bubble: 200);
+        FrameHandle shuttle = frames.Create(new Entity(30, 1), station, new DPose(Y(190), DQuaternion.Identity), FrameBounds.Sphere(10));
+        frames.SetHullMotion(shuttle, BodyMotion.Dynamic);
+        NumericBody hull = BodyOf(station, 30, Y(190), X(60)) with { Entity = shuttle.Entity, OwnedFrame = shuttle, Character = true, Radius = 2 };
+
+        NumericBody[] after = Update(0.1, Body(3, new Double3(1_000, 260, 0), radius: 30) with { Static = true }, hull);
+
+        after[1].Home.Should().Be(station);
+    }
+
+    [Fact]
     public void The_hull_of_a_frame_leaves_no_place_in_the_frames_own_system()
     {
         // The hull lies at the ship's origin, inside its bubble, and the body in the ship flies at 60 m/s 5 m from it. The
@@ -771,6 +787,27 @@ public class FrameTreeGhostPlaceTests
         NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(40)) with { Character = character }, inside);
 
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
+    }
+
+    [Fact]
+    public void A_falling_hull_in_a_frame_is_linked_to_the_place_of_a_hull_that_sticks_out_of_a_sibling()
+    {
+        // The scene of the depot's crate that sticks out of it at 1,040 m in ground, with the dynamic hull of a pod in the
+        // depot in place of the crate. The station's system holds no hull of a frame that holds the pod, so physics gives
+        // the pod's ghost there the static role of a child ghost of a hull, which the mask of a hull names (fork F1). The
+        // shuttle's hull falls at 60 m/s in the station, 10 m from the pod's hull, and alone it would fall in a frame of
+        // the station.
+        FrameHandle station = Station(2, X(1_000));
+        FrameHandle depot = Station(3, X(1_080));
+        FrameHandle pod = frames.Create(new Entity(11, 1), depot, new DPose(X(-40), DQuaternion.Identity), FrameBounds.Sphere(1));
+        frames.SetHullMotion(pod, BodyMotion.Dynamic);
+        FrameHandle shuttle = frames.Create(new Entity(30, 1), station, new DPose(X(30), DQuaternion.Identity), FrameBounds.Sphere(5));
+        frames.SetHullMotion(shuttle, BodyMotion.Dynamic);
+        NumericBody hull = BodyOf(station, 30, X(30), Y(60)) with { Entity = shuttle.Entity, OwnedFrame = shuttle, Character = true, Radius = 2 };
+
+        NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(-40)) with { OwnedFrame = pod }, hull);
+
+        after[1].Home.Should().Be(station);
     }
 
     [Fact]

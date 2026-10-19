@@ -103,36 +103,36 @@ public class PhysicsContactEndTests
     }
 
     /// <summary>
-    /// The first ball flies out of the bubble of a frame in the step of tick 0, and overlaps the second ball, a static one of
-    /// the frame, which is behind it at the bubble's edge. In that step Jolt finds the contact of the two balls, and then
-    /// hands the first ball off to the frame's parent, where the second ball has no body: a static body has no ghost in the
-    /// parent of its frame (fork F3 of docs/plans/complete-ghosts.md). The first ball's sphere then ends 3.3 m outside
-    /// the bubble, so it has no ghost in the frame, and nothing carries the contact on. So the one step sends the start of the
-    /// contact and its end. (Before ter-imi5 the scene flew a ball into the bubble with a kinematic ball behind it, which
-    /// now has a ghost in the frame that carries the contact, because the frame's content reaches it.)
+    /// The first ball flies into the bubble of a frame in the step of tick 0, so fast that it ends the step 1 m inside the
+    /// bubble, and it overlaps the second ball, a dynamic one of the frame's parent, which it leaves behind 2.4 m outside
+    /// the bubble. In that step Jolt finds the contact of the two balls, and then hands the first ball off to the frame,
+    /// where the second ball has no body. A dynamic body reaches only the bubble with its ghosts, so the second ball has no
+    /// ghost in the frame, and the first ball does not stick out of the bubble, so it has no ghost in the parent. So
+    /// nothing carries the contact on, and the one step sends the start of the contact and its end. (Before ter-imi5 the
+    /// second ball was kinematic, and it now has a ghost in the frame, which carries the contact, because a kinematic body
+    /// reaches the frame's content.)
     /// </summary>
     [Fact]
     public void AContactThatStartsAndEndsInOneStepArrivesAsTheStartAndThenTheEnd()
     {
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
-        // The bubble has a radius of 100 m, so a ball of radius 0.5 m leaves it beyond 102.5 m from its center: its radius
-        // and the exit margin of 2 m outside. At 60 m/s the first ball passes that in one step.
+        // The bubble's edge toward the balls lies at x = 400 m. At 180 m/s the first ball flies 3 m in a step.
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         var firstLog = new Recorder(Scene.Wants);
         var secondLog = new Recorder(Scene.Wants);
         Entity first = test.World.Spawn(new SpawnDesc
         {
-            Frame = station,
-            Pose = TestWorld.At(101.8),
-            LinearVelocity = new Vector3(60, 0, 0),
+            Frame = test.Root,
+            Pose = TestWorld.At(398),
+            LinearVelocity = new Vector3(180, 0, 0),
             Body = WorldTesting.Ball(),
             Components = [firstLog],
         });
         Entity second = test.World.Spawn(new SpawnDesc
         {
-            Frame = station,
-            Pose = TestWorld.At(100.9),
-            Body = new BodyDesc(new SphereShapeDesc(0.5f), BodyMotion.Static),
+            Frame = test.Root,
+            Pose = TestWorld.At(397.1),
+            Body = WorldTesting.Ball(),
             Components = [secondLog],
         });
 

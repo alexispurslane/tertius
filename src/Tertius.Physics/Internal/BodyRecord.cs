@@ -50,8 +50,11 @@ internal struct GhostBody
     /// record's collision groups and mask. It is set when the ghost is made and never changes: a ghost that needs another
     /// role is made again. A child ghost of a static body has the body's own role, and a child ghost of a hull the static
     /// role of the owner's interior, so both meet hulls as their real bodies do (fork F1 of docs/plans/complete-ghosts.md).
-    /// A child ghost of a body that can move and every stick-out ghost have the <see cref="BodyLayer.Ghost"/> role, which
-    /// meets no hull, because the system of a stick-out ghost holds the hull of the frame that its real body sticks out of.
+    /// A child ghost of a plain body that can move has the <see cref="BodyLayer.Ghost"/> role, as it meets no hull. A
+    /// stick-out ghost in a sibling of the bubble that its body sticks out of has the role of a child ghost, since the
+    /// sibling's system holds no hull of a frame that holds the body either. A stick-out ghost in the bubble's tree parent,
+    /// and a ghost beside the bubble's hull in a home of the hull's group, have the <see cref="BodyLayer.Ghost"/> role,
+    /// which meets no hull, because their systems hold the bubble's hull or the bodies that the merge test links to it.
     /// The ghost of an anchor in the home of a group of the anchor's own semantic frame (see
     /// <see cref="FrameTree.AnchorGhosts"/>) has the <see cref="BodyLayer.FrameHull"/> role of its hull, so it meets there
     /// only what the hull meets: static bodies and other hulls.
@@ -76,7 +79,9 @@ internal sealed class BodyRecord
     /// The motion of the primary body as Jolt sees it. For a frame hull, physics gives the record the motion of each step at
     /// the start of that step (see <see cref="FrameTree.HullMotionInStep"/>), and a record that the simulation creates
     /// between two steps, at a spawn or a rehome, starts with the motion of the next step, which it runs first. The owner of
-    /// a root frame, which has no hull, gets the static motion of its interior. For a character it is its form: <see cref="BodyMotion.Character"/> for the walking form, a
+    /// a frame that is a root from its spawn, which has no hull, gets the static motion of its interior. A frame that
+    /// becomes a root later loses its hull and keeps the motion of that hull, which the interior no longer follows: the
+    /// interior of a root frame is static (see <c>JoltPhysicsBackend.InteriorMotion</c>). For a character it is its form: <see cref="BodyMotion.Character"/> for the walking form, a
     /// Jolt CharacterVirtual in <see cref="Character"/>, and <see cref="BodyMotion.Dynamic"/> for the rigid form, a dynamic
     /// Jolt body in <see cref="Body"/> whose rotation is locked (see <c>JoltPhysicsBackend.NextCharacterMotion</c>).
     /// </summary>
@@ -181,9 +186,9 @@ internal sealed class BodyRecord
 
     /// <summary>
     /// True when the body's ghosts reach the content of a frame, its bubble grown by its excess, and not only its bubble
-    /// (fork F2 of docs/plans/complete-ghosts.md): a static body, a kinematic body or a hull. A stick-out ghost of a member
-    /// of the frame is kinematic and has the ghost role, so it meets none of them but a sensor, and only a ghost of the
-    /// body in the frame brings the two together. A dynamic plain body or a character reaches only the bubble: a member
+    /// (fork F2 of docs/plans/complete-ghosts.md): a static body, a kinematic body or a hull. The stick-out ghost of a member
+    /// of the frame in the frame's tree parent is kinematic and has the ghost role, so it meets none of them but a sensor,
+    /// and only a ghost of the body in the frame brings the two together. A dynamic plain body or a character reaches only the bubble: a member
     /// that sticks out meets it through the member's own stick-out ghost, and a ghost of the body in the frame would make
     /// a mirror pair of two kinematic ghosts, in which each real body meets the other as an immovable body.
     /// </summary>

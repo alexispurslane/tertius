@@ -306,6 +306,34 @@ public class SensorFrameOwnerTests
     }
 
     /// <summary>
+    /// The interior of a root frame is always static, since a root frame has no hull. In the World a frame never becomes a
+    /// root after its spawn, but the frame tree lets a frame become a root when its root parent dies, and physics then
+    /// removes the frame's hull. A test stands in for that change: it moves the ship's frame out of space, while a static
+    /// sensor in the ship's frame detects the interior of the ship, whose hull moves. The interior becomes static, as the
+    /// interior of every root frame is, so the sensor's pair with it ends, as the pair of a static sensor and the interior
+    /// of a ship that parks ends.
+    /// </summary>
+    [Theory]
+    [InlineData(BodyMotion.Kinematic)]
+    [InlineData(BodyMotion.Dynamic)]
+    public void TheInteriorOfAFrameThatBecomesARootTurnsStaticAndAStaticSensorStopsDetectingIt(BodyMotion hull)
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults, debugChecks: false);
+        Scene scene = ShipAndSensor(world, hull, BodyMotion.Static, Place.Frame);
+        Tick(world, 10);
+        scene.SensorLog.NewsOf(scene.Owner).Should().Equal(Started);
+        FrameHandle ship = world.GetOwnedFrame(scene.Owner);
+
+        world.Frames.Reparent(ship, FrameHandle.Null);
+        Tick(world, 10);
+
+        faults.Jolt.BodiesIn(ship).Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Interior).Motion
+            .Should().Be(MotionType.Static, "the interior of a root frame is always static");
+        scene.SensorLog.NewsOf(scene.Owner).Should().Equal(Started, Ended);
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+    }
+
+    /// <summary>
     /// A lander rests on a floor under a gravity of 9.81 m/s², and a crate of 10 kg rests on the top of the lander's
     /// interior, a box of 4 m at the origin of the lander's frame, where the frame's proper acceleration gives it its weight.
     /// The lander parks, which makes the interior static, and its engines start again, which makes the interior kinematic

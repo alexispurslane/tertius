@@ -95,9 +95,17 @@ internal sealed class FrameWorld : IDisposable
     // The pairs that a growth holds, before they take the new IDs, and the held pairs that a drain ends.
     private readonly List<ulong> heldScratch = new();
 
-    public FrameWorld(FrameHandle frame, JoltBackendOptions options)
+    // Reports a state that only a bug produces, which the system found on the physics thread (see JoltPhysicsBackend.ReportBug).
+    private readonly Action<string> reportBug;
+
+    /// <summary>
+    /// The system of <paramref name="frame"/>. It hands each state that only a bug produces and that it finds on the physics
+    /// thread to <paramref name="reportBug"/>.
+    /// </summary>
+    public FrameWorld(FrameHandle frame, JoltBackendOptions options, Action<string> reportBug)
     {
         Frame = frame;
+        this.reportBug = reportBug;
         penetrationSlop = options.PenetrationSlop;
         Limits = SystemLimits.From(options);
         listener = new ContactListener(this);
@@ -1034,27 +1042,44 @@ internal sealed class FrameWorld : IDisposable
     /// </list>
     /// Jolt runs tests 1 and 2, and the filter runs test 3, but only on a pair that Jolt adds. The backend asks the pair
     /// test where Jolt would not ask the filter: when it carries a contact into a system (see
-    /// <c>JoltPhysicsBackend.CarryContact</c>). False when a body is not in this system. Call it on the physics thread,
-    /// between updates.
+    /// <c>JoltPhysicsBackend.CarryContact</c>). False when a body is not in this system. A ghost without a contact motion
+    /// comes only from a bug: the pair test reports it and judges the ghost by its Jolt motion, as the filter does. Call it
+    /// on the physics thread, between updates.
     /// </summary>
     public bool CanTouch(BodyID a, BodyID b) => SideOf(a) is { } x && SideOf(b) is { } y &&
         Layers.Meet(x.Layer, y.Layer) && MotionsMeet(x.Motion, x.IsSensor, y.Motion, y.IsSensor) &&
         MotionsMeet(x.ContactMotion, x.IsSensor, y.ContactMotion, y.IsSensor);
 
-    /// <summary>What the pair test reads of <paramref name="body"/>, or null when it is not in this system.</summary>
+    /// <summary>
+    /// What the pair test reads of <paramref name="body"/>, or null when it is not in this system. A ghost without a contact
+    /// motion has its Jolt motion as its contact motion, and goes to the report of bugs.
+    /// </summary>
     private PairSide? SideOf(BodyID body)
     {
         BodyLockInterface locks = System.BodyLockInterface;
         locks.LockRead(body, out BodyLockRead read);
         PairSide? side = null;
+        bool ghostWithoutContactMotion = false;
         if (read.Succeeded && read.Body is { } jolt)
         {
             BodyKind kind = BodyUserData.Kind(BodiesNoLock.GetUserData(body));
             MotionType motion = kind == BodyKind.CharacterInner ? MotionType.Dynamic : jolt.MotionType;
-            MotionType contactMotion = kind == BodyKind.Ghost && ghosts.TryGetValue(body, out MotionType ofGhost) ? ofGhost : motion;
+            MotionType contactMotion = motion;
+            if (kind == BodyKind.Ghost)
+            {
+                if (ghosts.TryGetValue(body, out MotionType ofGhost))
+                    contactMotion = ofGhost;
+                else
+                    ghostWithoutContactMotion = true;
+            }
             side = new PairSide(jolt.ObjectLayer, motion, contactMotion, jolt.IsSensor);
         }
         locks.UnlockRead(read);
+        // The backend gives every ghost its contact motion when it adds the ghost (see AddGhost). The report comes after the
+        // lock, because in a Debug build it throws.
+        if (ghostWithoutContactMotion)
+            reportBug($"Physics: the ghost {body.ID} in the system of {Frame} has no contact motion. Only a bug leaves such a ghost, " +
+                "so the pair test judged it by its Jolt motion.");
         return side;
     }
 

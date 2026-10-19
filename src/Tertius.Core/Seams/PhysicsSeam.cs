@@ -235,8 +235,8 @@ public readonly record struct CompoundChild(ShapeDesc Shape, Pose Pose);
 
 /// <summary>
 /// The physics description of an entity. For an entity that owns a frame, <see cref="Shape"/> is the hull body in
-/// the parent frame, and <see cref="InteriorShape"/> (or <see cref="Shape"/> if null) is static geometry in the
-/// frame's own system.
+/// the parent frame, and <see cref="InteriorShape"/> (or <see cref="Shape"/> if null) is the interior, a body at rest in
+/// the frame's own system, static while the hull is static and kinematic while the hull can move.
 /// </summary>
 /// <param name="Restitution">
 /// How much of its approach speed a contact gives back as a rebound. A contact takes the larger restitution of its two
@@ -343,7 +343,8 @@ public enum BodyRole
 
     /// <summary>
     /// The body of the owner of a frame with a parent: the frame's hull, a body in the parent frame with the motion of its
-    /// description, and the frame's static interior.
+    /// description, and the frame's interior, a body at rest at the origin of the frame's own system, which physics keeps
+    /// static while the hull is static and kinematic while the hull can move.
     /// </summary>
     Hull,
 

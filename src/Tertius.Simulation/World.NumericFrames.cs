@@ -49,9 +49,10 @@ public sealed partial class World
                 continue;
             BodyDesc desc = entities.Body(entity)!;
             FrameHandle own = entities.OwnedFrame(entity);
-            // The interior of a frame owner is a static body of the frame's own system, at the frame's origin, which no
-            // numeric update moves: an anchor that fixes each group that it links in that system (docs/plans/numeric-frames.md,
-            // "Anchors"). A root frame has an interior and no hull.
+            // The interior of a frame owner is a body at rest at the frame's origin, in the frame's own system, which no
+            // numeric update moves. Physics keeps it static while the hull is static and kinematic while the hull can move,
+            // and the update counts it as a static anchor in either motion, which fixes each group that it links in that
+            // system (docs/plans/numeric-frames.md, "Anchors"). A root frame has an interior and no hull.
             if (!own.IsNull)
                 numericBodies.Add(new NumericBody
                 {

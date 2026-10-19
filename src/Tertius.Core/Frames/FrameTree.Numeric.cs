@@ -660,7 +660,7 @@ public sealed partial class FrameTree
             Double3 relative = VelocityFromParent(pose, velocity, spin, body.Position, body.Velocity);
             if (NumericFrameRules.MayTouchBubble(bubble, position, relative, reach, NumericOptions))
                 ghostPlaces.Add(new GhostPlace(semantic, position, relative, body.Radius, -1, body.Static, body.Sensor,
-                    MeetsHulls: body.Static || !body.OwnedFrame.IsNull));
+                    MeetsHulls: body.GhostsMeetHulls));
         }
     }
 
@@ -670,8 +670,9 @@ public sealed partial class FrameTree
     /// <paramref name="semantic"/> before the next update: physics gives such a body a ghost in the frame's own system, as
     /// the body is partly in their semantic parent (ticket ter-tenw). A kinematic body or a hull reaches the frame's content,
     /// its bubble grown by <paramref name="excess"/>, and a dynamic plain body or a character only its bubble, as for a body
-    /// of the semantic parent (see <see cref="AddParentPlaces"/>). The ghost has
-    /// the ghost role, so it meets no hull, and it is fixed in the frame's own system. A first test on the distance between
+    /// of the semantic parent (see <see cref="AddParentPlaces"/>). The frame's system holds no hull of a frame that holds
+    /// the body, so the ghost has the role of a child ghost, and a ghost of a hull meets hulls (see
+    /// <see cref="GhostPlace.MeetsHulls"/>). The ghost is fixed in the frame's own system. A first test on the distance between
     /// the two centers skips the whole sibling when none of its bodies can reach the content (see
     /// <see cref="NumericFrameRules.MayReachBubble"/>), from bounds of where its bodies are (see <see cref="SemanticRange"/>).
     /// </summary>
@@ -704,7 +705,8 @@ public sealed partial class FrameTree
             Double3 position = pose.InverseTransformPoint(inParent);
             Double3 relative = VelocityFromParent(pose, velocity, spin, inParent, velocityInParent);
             if (NumericFrameRules.MayTouchBubble(bubble, position, relative, body.Radius + (body.GhostsReachContent ? excess : 0), NumericOptions))
-                ghostPlaces.Add(new GhostPlace(semantic, position, relative, body.Radius, -1, body.Static, body.Sensor, MeetsHulls: false));
+                ghostPlaces.Add(new GhostPlace(semantic, position, relative, body.Radius, -1, body.Static, body.Sensor,
+                    MeetsHulls: body.GhostsMeetHulls));
         }
     }
 

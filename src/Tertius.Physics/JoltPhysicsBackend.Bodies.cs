@@ -277,10 +277,28 @@ public sealed partial class JoltPhysicsBackend
     /// otherwise, at rest in the frame's own system (fork F4 of docs/plans/complete-ghosts.md). So a sensor detects the
     /// owner in the frame as a body of the hull's motion, as it detects the hull in the frame's tree parent and the hull's
     /// ghosts in other frames: a static or kinematic sensor detects the interior of a ship that moves, and only a dynamic
-    /// sensor detects the interior of a parked ship. A kinematic interior at rest falls asleep as any body does. The owner
-    /// of a root frame has no hull and the static motion (see <see cref="CreateRecord"/>), so its interior is always static.
+    /// sensor detects the interior of a parked ship. A kinematic interior at rest falls asleep as any body does. A root
+    /// frame has no hull, so its interior is always static: the owner of a frame that is a root from its spawn has the
+    /// static motion (see <see cref="CreateRecord"/>), and a frame that becomes a root later loses its hull (see
+    /// <see cref="PlaceHullFromTree"/>), whatever the motion of that hull was.
     /// </summary>
-    private static MotionType InteriorMotion(BodyRecord record) => record.Motion == BodyMotion.Static ? MotionType.Static : MotionType.Kinematic;
+    private static MotionType InteriorMotion(BodyRecord record) =>
+        record.HasPrimary && record.Motion != BodyMotion.Static ? MotionType.Kinematic : MotionType.Static;
+
+    /// <summary>
+    /// Gives the interior of the frame that the record owns the Jolt motion of <see cref="InteriorMotion"/>, and wakes it
+    /// when it turns kinematic. The interior keeps its BodyID and its contacts, and it does not move. True when its motion
+    /// changed.
+    /// </summary>
+    private static bool FollowInteriorMotion(BodyRecord owner)
+    {
+        BodyInterface bodies = owner.InteriorWorld!.Bodies;
+        MotionType motion = InteriorMotion(owner);
+        if (bodies.GetMotionType(owner.InteriorBody) == motion)
+            return false;
+        bodies.SetMotionType(owner.InteriorBody, motion, motion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
+        return true;
+    }
 
     /// <summary>
     /// The spec of a ghost of a record's body with the Jolt motion <paramref name="motion"/>, which
@@ -523,20 +541,25 @@ public sealed partial class JoltPhysicsBackend
     /// Puts a frame hull where the tree says: the simulation refused the hull's hand-off or reparented its frame on its
     /// own, or the frame's parent was destroyed. The hull takes the tree's pose and velocity. A frame that became a root
     /// loses its hull. A full system grows to take the hull. The bodies around the old hull wake, and so do the bodies
-    /// around a new hull that is static, because Jolt does not simulate the move.
+    /// around a new hull that is static, because Jolt does not simulate the move. The interior follows the hull: it turns
+    /// static when its frame becomes a root (see <see cref="InteriorMotion"/>), and each started pair of it that the new
+    /// motion cannot make ends, as when a ship parks (see <see cref="EndPairsThatCannotTouch"/>).
     /// </summary>
     private void PlaceHullFromTree(BodyRecord owner, FrameHandle parent)
     {
         if (!parent.IsNull && ExistingWorld(parent) is { } target)
             RemoveGhostIn(owner, target);
         RemovePrimary(owner);
-        if (parent.IsNull)
-            return;
-        CreateHullFromTree(owner, parent);
-        if (owner.Motion == BodyMotion.Dynamic)
-            spawnedRigid.Add(owner);
-        if (owner.Motion == BodyMotion.Static)
-            owner.World!.WakeAround(owner.Body);
+        if (!parent.IsNull)
+        {
+            CreateHullFromTree(owner, parent);
+            if (owner.Motion == BodyMotion.Dynamic)
+                spawnedRigid.Add(owner);
+            if (owner.Motion == BodyMotion.Static)
+                owner.World!.WakeAround(owner.Body);
+        }
+        if (FollowInteriorMotion(owner))
+            EndPairsThatCannotTouch(owner.InteriorWorld!, owner.InteriorBody);
     }
 
     /// <summary>
@@ -682,8 +705,6 @@ public sealed partial class JoltPhysicsBackend
             if (owner.Motion == BodyMotion.Dynamic)
                 spawnedRigid.Add(owner);
         }
-        MotionType interiorMotion = InteriorMotion(owner);
-        owner.InteriorWorld!.Bodies.SetMotionType(owner.InteriorBody, interiorMotion,
-            interiorMotion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
+        FollowInteriorMotion(owner);
     }
 }
