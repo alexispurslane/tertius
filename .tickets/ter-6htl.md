@@ -1,6 +1,6 @@
 ---
 id: ter-6htl
-status: open
+status: in_progress
 deps: [ter-m13s]
 links: [ter-ybti]
 created: 2026-10-19T21:14:46Z
