@@ -349,6 +349,145 @@ public class ScriptRunnerTests
         world.ShowFrameOutlines.Should().BeTrue();
     }
 
+    /// <summary>
+    /// A playback that lets <paramref name="ticks"/> ticks run and then stops the run, as closing the window does. It
+    /// draws no capture: it notes the tick count and the path of each one, and lets the run go on.
+    /// </summary>
+    private sealed class NotesTheCaptures(int ticks = int.MaxValue) : IPlayback
+    {
+        private int run;
+
+        public List<(long Tick, string Path)> Captured { get; } = [];
+
+        public bool WaitForTick() => run++ < ticks;
+
+        public bool Capture(World world, string path)
+        {
+            Captured.Add((world.TickNumber, path));
+            return true;
+        }
+    }
+
+    /// <summary>Runs the steps on the scene with an output folder that the test deletes, and the playback.</summary>
+    private static RunResult RunWithCaptures(World world, SceneInstance scene, string folder, IPlayback playback, params string[] steps) =>
+        ScriptRunner.Run(Script.Parse($$"""{ "scene": "test", "steps": [ {{string.Join(", ", steps)}} ] }"""), world, scene, folder, playback);
+
+    private const string CameraOnProbe = """{ "do": "camera", "entity": "probe" }""";
+
+    [Fact]
+    public void AFilmCapturesEachFrameAfterItsTicksAndNamesItByItsNumberFromZeroInSixDigits()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        string folder = NewFolder();
+        var playback = new NotesTheCaptures();
+        try
+        {
+            RunResult result = RunWithCaptures(world, scene, folder, playback,
+                CameraOnProbe, """{ "do": "run", "ticks": 1 }""", """{ "do": "film", "name": "climb", "frames": 3, "every": 2 }""");
+
+            // The film starts after tick 1, and its frame k comes after (k + 1) × 2 of its own ticks.
+            string[] frames = [Path.Combine(folder, "climb-000000.png"), Path.Combine(folder, "climb-000001.png"), Path.Combine(folder, "climb-000002.png")];
+            playback.Captured.Should().Equal((3, frames[0]), (5, frames[1]), (7, frames[2]));
+            result.Captures.Should().Equal(frames);
+            world.TickNumber.Should().Be(7, "a film of 3 frames every 2 ticks runs 6 ticks");
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TwoFilmsInARowWithTheSameTicksBeforeEachFrameGiveEvenlySpacedFrames()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        string folder = NewFolder();
+        var playback = new NotesTheCaptures();
+        try
+        {
+            RunWithCaptures(world, scene, folder, playback, CameraOnProbe,
+                """{ "do": "film", "name": "a", "frames": 2, "every": 3 }""", """{ "do": "film", "name": "b", "frames": 2, "every": 3 }""");
+
+            playback.Captured.Select(capture => capture.Tick).Should().Equal(3, 6, 9, 12);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Theory]
+    [InlineData(false, true, true, "camera")]
+    [InlineData(true, false, true, "renderer")]
+    [InlineData(true, true, false, "output folder")]
+    public void AFilmNeedsALiveCameraARendererAndAnOutputFolderBeforeTheFirstTick(bool cameraStep, bool hasPlayback, bool hasFolder, string named)
+    {
+        using World world = NewWorld();
+        // The probes scene sets no camera, so only the camera step gives the film one.
+        SceneInstance scene = Probes(world);
+        string folder = NewFolder();
+        try
+        {
+            string first = cameraStep ? CameraOnProbe : """{ "do": "dump", "name": "start" }""";
+            Script script = Script.Parse($$"""{ "scene": "test", "steps": [ {{first}}, { "do": "run", "ticks": 1 }, { "do": "film", "name": "climb", "frames": 2, "every": 1 } ] }""");
+
+            Action run = () => ScriptRunner.Run(script, world, scene, hasFolder ? folder : null, hasPlayback ? new NotesTheCaptures() : null);
+
+            run.Should().Throw<ScriptException>().Which.Message.Should().Contain("step 3 (film)").And.Contain(named);
+            world.TickNumber.Should().Be(0);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void APlaybackThatStopsDuringTheTicksOfAFilmEndsTheRunWithTheFramesBeforeIt()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        string folder = NewFolder();
+        try
+        {
+            RunResult result = RunWithCaptures(world, scene, folder, new NotesTheCaptures(ticks: 5),
+                CameraOnProbe, """{ "do": "film", "name": "climb", "frames": 5, "every": 2 }""", """{ "do": "dump", "name": "after" }""");
+
+            result.Stopped.Should().BeTrue();
+            world.TickNumber.Should().Be(5);
+            result.Captures.Should().Equal(Path.Combine(folder, "climb-000000.png"), Path.Combine(folder, "climb-000001.png"));
+            result.Dumps.Should().BeEmpty("the steps after the film do not run");
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void APlaybackThatStopsDuringACaptureOfAFilmEndsTheRun()
+    {
+        using World world = NewWorld();
+        SceneInstance scene = Probes(world);
+        string folder = NewFolder();
+        try
+        {
+            RunResult result = RunWithCaptures(world, scene, folder, new ClosesDuringCaptures(),
+                CameraOnProbe, """{ "do": "film", "name": "climb", "frames": 3, "every": 2 }""", """{ "do": "dump", "name": "after" }""");
+
+            result.Stopped.Should().BeTrue();
+            world.TickNumber.Should().Be(2, "the first frame waits for its capture after 2 ticks");
+            result.Captures.Should().BeEmpty("the capture did not finish");
+            result.Dumps.Should().BeEmpty();
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
     /// <summary>A playback that lets a number of ticks run and then stops the run, as closing the window does.</summary>
     private sealed class StopsAfter(int ticks) : IPlayback
     {

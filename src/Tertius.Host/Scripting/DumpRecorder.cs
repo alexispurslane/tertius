@@ -4,14 +4,16 @@ using Tertius.Simulation;
 namespace Tertius.Host.Scripting;
 
 /// <summary>
-/// Takes the state dumps of one run. After each tick, <see cref="RecordRoutedEvents"/> keeps what the sync point routed,
-/// and <see cref="Take"/> hands those events to the next dump. So a dump holds every event since the previous dump.
+/// Takes the state dumps of one run. After each tick that a dump step comes after, the runner calls
+/// <see cref="RecordRoutedEvents"/>, which keeps what the sync point routed, and <see cref="Take"/> hands those events to the
+/// next dump. So a dump holds every event since the previous dump. After the last dump step, the runner records nothing,
+/// because no dump would read it.
 /// </summary>
 internal sealed class DumpRecorder(World world, SceneInstance scene, EventPayloads payloads)
 {
     private List<EventRecord> eventsSinceDump = new();
 
-    /// <summary>Keeps the events that the last sync point routed, in routing order. Call it after every tick.</summary>
+    /// <summary>Keeps the events that the last sync point routed, in routing order. Call it after every tick that a dump step comes after.</summary>
     public void RecordRoutedEvents()
     {
         foreach (ref readonly Event e in world.RoutedEvents)

@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -19,8 +20,9 @@ public sealed record Script(string Scene, [property: JsonPropertyOrder(1)] IRead
 
     /// <summary>
     /// Reads a script from JSON text. Throws <see cref="ScriptException"/> for a script that is not valid: bad JSON, a
-    /// missing, unknown or mistyped key, no steps, a run of less than one tick, or a dump name that is not a scene id or
-    /// that an earlier dump has.
+    /// missing, unknown or mistyped key, no steps, a run of less than one tick, a film with a number of frames or of ticks
+    /// before each frame out of its range, a dump, capture or film name that is not a scene id, or a name that an earlier
+    /// step has: two dumps, two captures or two films with one name, or a capture with the name of a frame of a film.
     /// </summary>
     public static Script Parse(string json)
     {
@@ -67,7 +69,11 @@ public sealed record Script(string Scene, [property: JsonPropertyOrder(1)] IRead
         if (Steps.Count == 0)
             throw new ScriptException("The script has no steps.");
         var dumpSteps = new Dictionary<string, int>(StringComparer.Ordinal);
+        // The capture names and the films, each with its step number. The frames of a film count as captures, but the
+        // check makes no list of them: a frame name is its film's name with seven characters more, so a film's frames
+        // clash with another film's frames only when the two films have one name.
         var captureSteps = new Dictionary<string, int>(StringComparer.Ordinal);
+        var filmSteps = new Dictionary<string, (FilmStep Film, int Number)>(StringComparer.Ordinal);
         for (int i = 0; i < Steps.Count; i++)
         {
             int number = i + 1;
@@ -91,18 +97,48 @@ public sealed record Script(string Scene, [property: JsonPropertyOrder(1)] IRead
                     throw new ScriptException($"step {number} (capture): '{capture.Name}' is not a capture name. A capture name follows the grammar of a scene id: lowercase letters, digits, '_', '.' and '-', starting with a letter or a digit.");
                 case CaptureStep capture when captureSteps.TryGetValue(capture.Name, out int earlier):
                     throw new ScriptException($"step {number} (capture): step {earlier} has the capture name '{capture.Name}' already.");
+                case CaptureStep capture when FilmWithFrameNamed(capture.Name, filmSteps) is int film:
+                    throw new ScriptException($"step {number} (capture): the capture name '{capture.Name}' is the name of a frame of the film of step {film}.");
                 case CaptureStep capture:
                     captureSteps.Add(capture.Name, number);
                     break;
+                case FilmStep { Frames: < 1 or > FilmStep.MaxFrames } film:
+                    throw new ScriptException($"step {number} (film): it has {film.Frames} frames, and a film has 1 to {FilmStep.MaxFrames:N0}.");
+                case FilmStep { Every: < 1 } film:
+                    throw new ScriptException($"step {number} (film): it runs every {film.Every} ticks, and a film runs at least 1 tick before each frame.");
+                case FilmStep film when !SceneInstance.IsSceneId(film.Name) || film.Name.Length > FilmStep.MaxNameLength:
+                    throw new ScriptException($"step {number} (film): '{film.Name}' is not a film name. A film name follows the grammar of a scene id: lowercase letters, digits, '_', '.' and '-', starting with a letter or a digit. It has at most {FilmStep.MaxNameLength} characters, so that the names of its frames, such as '{film.Name}-000000', are capture names.");
+                case FilmStep film when filmSteps.TryGetValue(film.Name, out var earlier):
+                    throw new ScriptException($"step {number} (film): step {earlier.Number} films '{film.Name}' already, so the frames of the two films would have the same names.");
+                case FilmStep film when CaptureNamedAfterAFrameOf(film, captureSteps) is (string capture, int earlier):
+                    throw new ScriptException($"step {number} (film): step {earlier} has the capture name '{capture}', which is the name of a frame of this film.");
+                case FilmStep film:
+                    filmSteps.Add(film.Name, (film, number));
+                    break;
             }
         }
+    }
+
+    /// <summary>The step number of the film that has a frame named <paramref name="captureName"/>, or null for none.</summary>
+    private static int? FilmWithFrameNamed(string captureName, Dictionary<string, (FilmStep Film, int Number)> filmSteps) =>
+        captureName.Length > 7 && filmSteps.TryGetValue(captureName[..^7], out var found) && found.Film.HasFrameNamed(captureName)
+            ? found.Number
+            : null;
+
+    /// <summary>A capture whose name is the name of a frame of <paramref name="film"/>, with its step number, or null for none.</summary>
+    private static (string Name, int Number)? CaptureNamedAfterAFrameOf(FilmStep film, Dictionary<string, int> captureSteps)
+    {
+        foreach ((string name, int number) in captureSteps)
+            if (film.HasFrameNamed(name))
+                return (name, number);
+        return null;
     }
 }
 
 /// <summary>
 /// One step of a script: a <see cref="RunStep"/>, a <see cref="PostStep"/>, a <see cref="DumpStep"/>, a
-/// <see cref="CaptureStep"/>, a <see cref="CameraStep"/> or an <see cref="OutlinesStep"/>. Its <c>do</c> key names the case
-/// in JSON (<see cref="ScriptStepJsonConverter"/>).
+/// <see cref="CaptureStep"/>, a <see cref="CameraStep"/>, a <see cref="FilmStep"/> or an <see cref="OutlinesStep"/>. Its
+/// <c>do</c> key names the case in JSON (<see cref="ScriptStepJsonConverter"/>).
 /// This is a custom C# 15 union. <see cref="HasValue"/> and the <c>TryGetValue</c> methods let the compiler pattern-match
 /// it, and a <c>switch</c> over it names every case. The cases are classes, so <see cref="Value"/> does not box.
 /// The default value holds no case: it is the JSON <c>null</c>, and <see cref="Script.Parse"/> and the runner refuse it.
@@ -119,6 +155,7 @@ public readonly struct ScriptStep : IEquatable<ScriptStep>
     public ScriptStep(DumpStep dump) { ArgumentNullException.ThrowIfNull(dump); step = dump; }
     public ScriptStep(CaptureStep capture) { ArgumentNullException.ThrowIfNull(capture); step = capture; }
     public ScriptStep(CameraStep camera) { ArgumentNullException.ThrowIfNull(camera); step = camera; }
+    public ScriptStep(FilmStep film) { ArgumentNullException.ThrowIfNull(film); step = film; }
     public ScriptStep(OutlinesStep outlines) { ArgumentNullException.ThrowIfNull(outlines); step = outlines; }
 
     /// <summary>False for the default value, which holds no case.</summary>
@@ -129,6 +166,7 @@ public readonly struct ScriptStep : IEquatable<ScriptStep>
     public bool TryGetValue([NotNullWhen(true)] out DumpStep? value) => (value = step as DumpStep) != null;
     public bool TryGetValue([NotNullWhen(true)] out CaptureStep? value) => (value = step as CaptureStep) != null;
     public bool TryGetValue([NotNullWhen(true)] out CameraStep? value) => (value = step as CameraStep) != null;
+    public bool TryGetValue([NotNullWhen(true)] out FilmStep? value) => (value = step as FilmStep) != null;
     public bool TryGetValue([NotNullWhen(true)] out OutlinesStep? value) => (value = step as OutlinesStep) != null;
 
     /// <summary>The held case, or null for the default value.</summary>
@@ -169,6 +207,42 @@ public sealed record CaptureStep(string Name);
 
 /// <summary>Makes the live entity with the scene id <paramref name="Entity"/> the camera of the world.</summary>
 public sealed record CameraStep(string Entity);
+
+/// <summary>
+/// Films the world: runs <paramref name="Every"/> ticks and captures, <paramref name="Frames"/> times. It is the same as
+/// <paramref name="Frames"/> repetitions of a <see cref="RunStep"/> of <paramref name="Every"/> ticks followed by a
+/// <see cref="CaptureStep"/> named <see cref="FrameName"/>, so it runs <paramref name="Frames"/> × <paramref name="Every"/>
+/// ticks, and its first capture comes after its first <paramref name="Every"/> ticks. See docs/plans/blue-danube-demo.md,
+/// change 2.
+/// </summary>
+/// <param name="Name">The name of the film. Its frames are named after it, so it follows the grammar of a scene id and has at most <see cref="MaxNameLength"/> characters.</param>
+/// <param name="Frames">How many images it captures, 1 to <see cref="MaxFrames"/>.</param>
+/// <param name="Every">How many ticks it runs before each image, at least 1.</param>
+public sealed record FilmStep(string Name, int Frames, int Every)
+{
+    /// <summary>The most frames that one film captures.</summary>
+    public const int MaxFrames = 1_000_000;
+
+    /// <summary>
+    /// The longest name of a film. A frame name has seven characters more, and it must be a scene id of at most 64
+    /// characters, as a capture name is.
+    /// </summary>
+    public const int MaxNameLength = 57;
+
+    /// <summary>
+    /// The capture name of frame <paramref name="number"/>, counted from 0: the film's name, a dash and the number in six
+    /// digits, such as <c>climb-000001</c>. That fits ffmpeg's <c>%06d</c> pattern.
+    /// </summary>
+    public string FrameName(int number) => $"{Name}-{number:D6}";
+
+    /// <summary>True if <paramref name="captureName"/> is the <see cref="FrameName"/> of one of the film's frames.</summary>
+    public bool HasFrameNamed(string captureName) =>
+        captureName.Length == Name.Length + 7
+        && captureName.StartsWith(Name, StringComparison.Ordinal)
+        && captureName[Name.Length] == '-'
+        && int.TryParse(captureName.AsSpan(Name.Length + 1), NumberStyles.None, CultureInfo.InvariantCulture, out int number)
+        && number < Frames;
+}
 
 /// <summary>
 /// Sets the view setting <c>World.ShowFrameOutlines</c> to <paramref name="Show"/>: true shows the outline of each frame

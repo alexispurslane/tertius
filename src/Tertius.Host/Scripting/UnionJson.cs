@@ -161,6 +161,7 @@ internal sealed class ScriptStepJsonConverter : JsonConverter<ScriptStep>
         JsonCase.Of("dump", (DumpStep step) => new ScriptStep(step)),
         JsonCase.Of("capture", (CaptureStep step) => new ScriptStep(step)),
         JsonCase.Of("camera", (CameraStep step) => new ScriptStep(step)),
+        JsonCase.Of("film", (FilmStep step) => new ScriptStep(step)),
         JsonCase.Of("outlines", (OutlinesStep step) => new ScriptStep(step)));
 
     // System.Text.Json gives a null to the converter of a struct. It reads as the default step, which holds no case, and

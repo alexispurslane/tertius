@@ -100,7 +100,7 @@ public static class ScriptCommand
 
         using var world = new World(new WorldOptions { DisposePhysics = true }, new JoltPhysicsBackend());
         VulkanRenderer? renderer = null;
-        if (script.Steps.Any(step => step is CaptureStep))
+        if (script.Steps.Any(step => step is CaptureStep or FilmStep))
         {
             try
             {

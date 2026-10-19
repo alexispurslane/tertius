@@ -29,6 +29,7 @@ public class ScriptJsonFormatTests
                 new DumpStep("a"),
                 new CaptureStep("b"),
                 new CameraStep("c"),
+                new FilmStep("climb", 3, 2),
                 new OutlinesStep(true),
             ],
             new ScriptWindow(640, 360));
@@ -49,6 +50,7 @@ public class ScriptJsonFormatTests
                 {"do":"dump","name":"a"},
                 {"do":"capture","name":"b"},
                 {"do":"camera","entity":"c"},
+                {"do":"film","name":"climb","frames":3,"every":2},
                 {"do":"outlines","show":true}
               ]
             }
@@ -61,7 +63,7 @@ public class ScriptJsonFormatTests
     {
         var script = new Script("probes",
             [new RunStep(3), new PostStep(new ToEntity("probe"), "Nudge"), new PostStep(new ToTopic("input"), "Nudge"), new PostStep(new ToFrame("ship"), "Nudge"),
-             new PostStep(new ToEveryone(), "Nudge"), new DumpStep("a"), new CaptureStep("b"), new CameraStep("c"), new OutlinesStep(true), new OutlinesStep(false)]);
+             new PostStep(new ToEveryone(), "Nudge"), new DumpStep("a"), new CaptureStep("b"), new CameraStep("c"), new FilmStep("climb", 3, 2), new OutlinesStep(true), new OutlinesStep(false)]);
 
         Script parsed = Script.Parse(script.ToJson());
 
@@ -188,6 +190,8 @@ public class ScriptJsonFormatTests
     [InlineData("""{ "do": "camera", "entity": "a", "name": "b" }""", "The JSON property 'name' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.CameraStep'.")]
     [InlineData("""{ "do": "outlines", "show": true, "name": "b" }""", "The JSON property 'name' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.OutlinesStep'.")]
     [InlineData("""{ "do": "outlines" }""", "JSON deserialization for type 'Tertius.Host.Scripting.OutlinesStep' was missing required properties including: 'show'.")]
+    [InlineData("""{ "do": "film", "name": "a", "frames": 1, "every": 1, "ticks": 2 }""", "The JSON property 'ticks' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.FilmStep'.")]
+    [InlineData("""{ "do": "film", "name": "a", "frames": 1 }""", "JSON deserialization for type 'Tertius.Host.Scripting.FilmStep' was missing required properties including: 'every'.")]
     [InlineData("""{ "do": "post", "to": { "kind": "broadcast" }, "event": "Nudge", "extra": 1 }""", "The JSON property 'extra' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.PostStep'.")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity" }, "event": "Nudge" }""", "JSON deserialization for type 'Tertius.Host.Scripting.ToEntity' was missing required properties including: 'id'.")]
     [InlineData("""{ "do": "post", "to": { "kind": "broadcast", "id": "x" }, "event": "Nudge" }""", "The JSON property 'id' could not be mapped to any .NET member contained in type 'Tertius.Host.Scripting.ToEveryone'.")]
@@ -206,6 +210,7 @@ public class ScriptJsonFormatTests
     [InlineData("""{ "do": "run", "ticks": 99999999999 }""", "The JSON value could not be converted to System.Int32. Path: $.ticks | LineNumber: 0 | BytePositionInLine: 67.")]
     [InlineData("""{ "do": "dump", "name": 5 }""", "The JSON value could not be converted to System.String. Path: $.name | LineNumber: 0 | BytePositionInLine: 57.")]
     [InlineData("""{ "do": "outlines", "show": "yes" }""", "The JSON value could not be converted to System.Boolean. Path: $.show | LineNumber: 0 | BytePositionInLine: 65.")]
+    [InlineData("""{ "do": "film", "name": "a", "frames": 2.5, "every": 1 }""", "The JSON value could not be converted to System.Int32. Path: $.frames | LineNumber: 0 | BytePositionInLine: 74.")]
     [InlineData("""{ "do": "capture", "name": null }""", "The constructor parameter 'Name' on type 'Tertius.Host.Scripting.CaptureStep' doesn't allow null values. Consider updating its nullability annotation. Path: $.name | LineNumber: 0 | BytePositionInLine: 63.")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": 3 }, "event": "Nudge" }""", "The JSON value could not be converted to System.String. Path: $.id | LineNumber: 0 | BytePositionInLine: 81.")]
     [InlineData("""{ "do": "post", "to": { "kind": "entity", "id": null }, "event": "Nudge" }""", "The constructor parameter 'Id' on type 'Tertius.Host.Scripting.ToEntity' doesn't allow null values. Consider updating its nullability annotation. Path: $.id | LineNumber: 0 | BytePositionInLine: 84.")]
