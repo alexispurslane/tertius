@@ -1,6 +1,6 @@
 ---
 id: ter-zsku
-status: open
+status: in_progress
 deps: [ter-zg77]
 links: []
 created: 2026-10-19T21:02:13Z
