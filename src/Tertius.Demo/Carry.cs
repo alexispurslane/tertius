@@ -105,7 +105,7 @@ public sealed class Carry(CapsuleShapeDesc body) : IComponent
     {
         carried = spec;
         outbox.Send(crate, new CrateTaken());
-        copy = self.Spawn(spec.HeldCopy(self.Frame, self.Entity, self.Render.ViewOffset, Hold));
+        copy = self.Spawn(spec.HeldCopy(self.Frame, self.Entity, self.Render.ViewOffset, new Pose(Hold, Quaternion.Identity)));
     }
 
     private void Throw(Self self, Outbox outbox)

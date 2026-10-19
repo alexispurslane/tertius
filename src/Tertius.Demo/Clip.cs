@@ -1,7 +1,55 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using Tertius.Simulation;
 
 namespace Tertius.Demo;
+
+/// <summary>A <see cref="Clip"/> holds its body at its place.</summary>
+/// <param name="WeightlessTicks">How many ticks in a row the frame has been weightless at the place, up to the last one.</param>
+public readonly record struct Clipped(int WeightlessTicks);
+
+/// <summary>A <see cref="Clip"/> has let its body go, and never holds it again.</summary>
+public readonly record struct Released;
+
+/// <summary>
+/// What a <see cref="Clip"/> does: <see cref="Clipped"/>, from the start, or <see cref="Released"/>. The default value is
+/// <see cref="Clipped"/> with no weightless tick. This is a custom C# 15 union, like <see cref="AscentState"/>.
+/// </summary>
+[Union]
+public readonly struct ClipState : IEquatable<ClipState>
+{
+    // True for the released case. A clipped state fills the weightless ticks, and a released one leaves them zero.
+    private readonly bool released;
+    private readonly int weightlessTicks;
+
+    public ClipState(Clipped clipped) { weightlessTicks = clipped.WeightlessTicks; }
+    public ClipState(Released released) { this.released = true; }
+
+    /// <summary>Always true: every value is a state.</summary>
+    public bool HasValue => true;
+
+    public bool TryGetValue(out Clipped value)
+    {
+        value = new Clipped(weightlessTicks);
+        return !released;
+    }
+
+    public bool TryGetValue(out Released value)
+    {
+        value = default;
+        return released;
+    }
+
+    public object Value => released ? new Released() : new Clipped(weightlessTicks);
+
+    public bool Equals(ClipState other) => released == other.released && weightlessTicks == other.weightlessTicks;
+    public override bool Equals(object? obj) => obj is ClipState other && Equals(other);
+    public override int GetHashCode() => HashCode.Combine(released, weightlessTicks);
+    public static bool operator ==(ClipState a, ClipState b) => a.Equals(b);
+    public static bool operator !=(ClipState a, ClipState b) => !a.Equals(b);
+
+    public override string ToString() => $"ClipState({Value})";
+}
 
 /// <summary>
 /// A clip that holds its entity, a small dynamic body such as the demo's pen, at <paramref name="place"/> in the
@@ -34,11 +82,8 @@ public sealed class Clip(DPose place, Double3 push, Vector3 spin) : IComponent
     private readonly Double3 push = push;
     private readonly Vector3 spin = spin;
 
-    // How many ticks in a row the frame has been weightless at the place.
-    private int weightlessTicks;
-
-    /// <summary>True while the clip holds the body, false from the tick on which it lets go.</summary>
-    public bool Holds { get; private set; } = true;
+    /// <summary>What the clip does now: <see cref="Clipped"/> from the start, <see cref="Released"/> from the tick on which it lets go.</summary>
+    public ClipState State { get; private set; } = new Clipped(0);
 
     public int Priority => 0;
 
@@ -46,17 +91,18 @@ public sealed class Clip(DPose place, Double3 push, Vector3 spin) : IComponent
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
-        if (!Holds)
+        if (State is not Clipped clipped)
             return;
         bool weightless = self.Snapshot.Frames.EffectiveGravity(self.Frame, place.Position).Length() < FrameTree.ZeroGravityThreshold;
-        weightlessTicks = weightless ? weightlessTicks + 1 : 0;
+        int weightlessTicks = weightless ? clipped.WeightlessTicks + 1 : 0;
         if (weightlessTicks * (double)self.DeltaTime >= ReleaseSeconds)
         {
-            Holds = false;
+            State = new Released();
             self.Body.SetVelocity(push);
             self.Body.SetAngularVelocity(spin);
             return;
         }
+        State = new Clipped(weightlessTicks);
         self.Body.SteerTo(place);
     }
 }

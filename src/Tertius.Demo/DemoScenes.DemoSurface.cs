@@ -19,9 +19,10 @@ public static partial class DemoScenes
     /// hall's floor. Its entrance faces +X, 2.5 m wide and 3 m tall above a sill 3 cm high, centered at z = 0. Its gate, of the same size, faces -X toward the pad, centered
     /// at z = -4 m. Benches stand along the +Z wall and a check-in counter by the gate. Two lamps under the roof light the
     /// hall.</item>
-    /// <item>The <c>shuttle</c> (see <see cref="Shuttle"/>) stands parked on the slab at the origin, unturned: its nose
-    /// points along -Z and its hatch faces +X, toward the terminal. A dark gray <c>pad</c>, only drawn, marks the ground
-    /// round it, and a service <c>tower</c> stands on its port side. The <c>seat</c> is drawn in blue, and two lamps light
+    /// <item>The <c>shuttle</c> (see <see cref="Shuttle"/>) stands parked at <see cref="ShuttleParked"/>, over the
+    /// origin, unturned: its nose points along -Z and its hatch faces +X, toward the terminal. It rests on the launch
+    /// ramp's bed, 2 cm above the slab. A dark gray <c>pad</c>, only drawn, as thick as that rise, marks the ground round
+    /// it, and a service <c>tower</c> stands on its port side. The <c>seat</c> is drawn in blue, and two lamps light
     /// the cabin.</item>
     /// <item>The <c>person</c>, the capsule character of the other scenes, 1.8 m tall and of 70 kg, starts 9 m outside the
     /// entrance, at x = 36 m. Its <see cref="Walker"/> walks it through the entrance, round to the gate, out across the pad
@@ -43,22 +44,22 @@ public static partial class DemoScenes
     /// <see cref="ClippedPen"/>). The clip holds it through the climb, and lets it go with a small push and a slow spin a
     /// second after the cabin becomes weightless in orbit, so that the pen drifts into the middle of the cabin. The person
     /// is a <see cref="Passenger"/>: its belt holds it at <see cref="Shuttle.SeatStand"/> through the climb, and in the
-    /// weightless cabin it floats to the drifting pen and takes it.</item>
+    /// weightless cabin it floats to the drifting pen and takes it in its hand, where and as the pen floats.</item>
     /// <item>The <c>earth</c>, only drawn, is a sphere 1 m smaller than Earth, with the grid of the orbit scene, so the
     /// slab hides it at the pad and the climb shows the planet below.</item>
     /// <item>More views: <c>pad-camera</c>, 6 m up, 32 m to starboard of the shuttle and 30 m aft of it, sees the whole
-    /// parked shuttle, with the tower behind it and the ramp rising beyond it; <c>ramp-camera</c> stands on the ground
-    /// beside the ramp and sees all of it; <c>ramp-top-camera</c> hovers 105 m above the ground, 90 m to starboard of the
-    /// ramp's upper end, and sees that end and the first 150 m of the flight past it; <c>aft-camera</c>, in the shuttle's
-    /// frame in the cabin's forward starboard corner, looks aft along the cabin, past the seat, to the aft wall;
-    /// <c>chase-camera</c> rides in the shuttle's frame, 45 m behind it and 10 m above its roof, and looks at it;
+    /// parked shuttle, with the tower behind it and the ramp rising beyond it; <c>ramp-camera</c> hovers 25 m above the
+    /// ground, 140 m to starboard of the ramp, and sees all of it; <c>ramp-top-camera</c> hovers 105 m above the ground,
+    /// 90 m to starboard of the ramp's upper end, and sees that end and the first 150 m of the flight past it;
+    /// <c>chase-camera</c> rides in the shuttle's frame, 45 m behind it and 8 m above its roof, and looks at it;
     /// <c>climb-camera</c> rides in the shuttle's frame, 50 m from it, high above and behind its roof, and looks down at it
     /// 55 degrees below its nose line, so that the ground stays in the view while the shuttle climbs steeply.</item>
     /// <item>Views of the pen, in the shuttle's frame: <c>pen-camera</c>, near the roof, 1.5 m to port of the cabin's
     /// middle line and just aft of the clip, looks down at the pen's way from the port wall, from 1.5 to 2 m. The pen
-    /// shows most of its length there, in the clip and while it tumbles. The view also holds the seat and the person's way
-    /// from it to the pen. <c>hand-camera</c>, 0.7 m above the floor on the starboard side, looks across at the place where
-    /// the person takes the pen, and sees the pen in its hand.</item>
+    /// shows most of its length there, in the clip and while it tumbles. The view also holds the seat and the start of the
+    /// person's way from it. <c>hand-camera</c>, 0.9 m above the floor and 0.5 m to starboard of the middle line, looks up
+    /// across at the place where the person's hand takes the pen, 1.5 m away, about 1.8 m above the floor and 2.1 m from
+    /// the port wall, and sees the hand close on the pen from above and the pen in the hand.</item>
     /// <item>The frame <c>sun</c> lies far away, toward +X and +Z and high up, so its light falls the same way on the pad and
     /// in orbit.</item>
     /// </list>
@@ -119,6 +120,12 @@ public static partial class DemoScenes
         /// </summary>
         public static SpawnDesc ClippedPen(CrateSpec pen, FrameHandle cabin) =>
             pen.Spawn(cabin, PenClip, Double3.Zero, new Clip(PenClip, PenPush, PenSpin));
+
+        /// <summary>
+        /// Where the shuttle stands parked, in <c>earth-surface</c>: over the north pole, unturned, with its hull's bottom on
+        /// the launch ramp's bed (<see cref="LaunchRamp.BedTop"/>).
+        /// </summary>
+        public static DPose ShuttleParked { get; } = new(new Double3(0, LaunchRamp.BedTop + Shuttle.Hull.Y, 0), DQuaternion.Identity);
 
         /// <summary>The eye of the person, relative to its center, in its axes: 1.65 m above its feet.</summary>
         public static Vector3 Eye { get; } = new(0, 0.75f, 0);
@@ -245,7 +252,8 @@ public static partial class DemoScenes
             world.Spawn(Lamp(surface, new Double3(TerminalCenter.X + 1, lampHeight, -3), range: 12));
             world.Spawn(Lamp(surface, new Double3(TerminalCenter.X + 1, lampHeight, 3), range: 12));
 
-            var padHalf = new Vector3(10, 0.01f, 14);
+            // The pad is as thick as the bed's rise, so the parked hull stands on its drawn top.
+            var padHalf = new Vector3(10, (float)LaunchRamp.BedRise / 2, 14);
             scene.Add("pad", world.Spawn(new SpawnDesc
             {
                 Frame = surface,
@@ -261,7 +269,7 @@ public static partial class DemoScenes
                 Render = Drawn(resources, Primitives.Box(towerHalf), new Vector4(0.55f, 0.3f, 0.2f, 1), boundingRadius: towerHalf.Length()),
             }));
 
-            Entity shuttle = Shuttle.Park(world, surface, new DPose(new Double3(0, EarthRadius + Shuttle.Hull.Y, 0), DQuaternion.Identity),
+            Entity shuttle = Shuttle.Park(world, surface, ShuttleParked,
                 Drawn(resources, Shuttle.HullMesh(), new Vector4(0.85f, 0.85f, 0.88f, 1), boundingRadius: MathF.Ceiling(Shuttle.Hull.Length())),
                 Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance));
             scene.Add("shuttle", shuttle);
@@ -337,12 +345,6 @@ public static partial class DemoScenes
                 Pose = LookingAt(new Double3(90, EarthRadius + 105, -200), new Double3(0, EarthRadius + 145, -262)),
                 Render = new RenderData(),
             }));
-            scene.Add("aft-camera", world.Spawn(new SpawnDesc
-            {
-                Frame = cabin,
-                Pose = LookingAt(new Double3(2.3, 1.2, -7.3), new Double3(-0.5, -1, 6.5)),
-                Render = new RenderData(),
-            }));
             scene.Add("chase-camera", world.Spawn(new SpawnDesc
             {
                 Frame = cabin,
@@ -364,7 +366,7 @@ public static partial class DemoScenes
             scene.Add("hand-camera", world.Spawn(new SpawnDesc
             {
                 Frame = cabin,
-                Pose = LookingAt(new Double3(0.7, -1.1, -0.9), new Double3(-0.8, -0.4, -1.9)),
+                Pose = LookingAt(new Double3(0.5, -0.9, -0.7), new Double3(-0.7, 0.05, -0.95)),
                 Render = new RenderData(),
             }));
 
@@ -378,7 +380,6 @@ public static partial class DemoScenes
             scene.AddView("pad-camera");
             scene.AddView("ramp-camera");
             scene.AddView("ramp-top-camera");
-            scene.AddView("aft-camera");
             scene.AddView("chase-camera");
             scene.AddView("climb-camera");
             scene.AddView("pen-camera");

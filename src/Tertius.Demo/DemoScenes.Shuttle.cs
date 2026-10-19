@@ -63,16 +63,16 @@ public static partial class DemoScenes
 
         /// <summary>
         /// The shuttle's flight controls for the climb to its parking orbit, in the order in which they run in a tick: the
-        /// <see cref="AscentAutopilot"/>, which sets the throttle of the <see cref="MainEngine"/> and the target of the
-        /// <see cref="AttitudeAutopilot"/>, and those two. The engine pushes <see cref="Mass"/> with
-        /// <see cref="ThrustAcceleration"/> at full throttle. The autopilot steers only once the shuttle is
+        /// <see cref="AscentAutopilot"/>, which adds the <see cref="Throttle"/> and the <see cref="AttitudeTarget"/> of
+        /// each tick to the shuttle's events, then the <see cref="AttitudeAutopilot"/> and the <see cref="MainEngine"/>,
+        /// which read them. The engine pushes <see cref="Mass"/> with <see cref="ThrustAcceleration"/> at full throttle,
+        /// and the ascent autopilot plans with that thrust. It steers only once the shuttle is
         /// <paramref name="climbHeight"/> meters higher than where it launched, clear of its ramp.
         /// </summary>
         public static IComponent[] FlightControls(double climbHeight)
         {
-            var engine = new MainEngine(Mass * ThrustAcceleration);
-            var attitude = new AttitudeAutopilot(Inertia);
-            return [new AscentAutopilot(engine, attitude, ParkingOrbitRadius, climbHeight), attitude, engine];
+            const float thrust = Mass * ThrustAcceleration;
+            return [new AscentAutopilot(thrust, ParkingOrbitRadius, climbHeight), new AttitudeAutopilot(Inertia), new MainEngine(thrust)];
         }
 
         private static Vector3 BoxInertia(float mass, Vector3 size) => mass / 12 * new Vector3(

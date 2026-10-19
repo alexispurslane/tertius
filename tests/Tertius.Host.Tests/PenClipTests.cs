@@ -31,28 +31,50 @@ public sealed class PenClipTests : IDisposable
     /// <summary>
     /// The shuttle parked in space, and the demo's pen in its clip. With <paramref name="thrust"/>, the shuttle unparks on
     /// its first tick and its main engine pushes at full throttle from then on. With <paramref name="passenger"/>, the
-    /// demo's person stands at its seat as a <see cref="Passenger"/> that fetches the pen.
+    /// demo's person floats at its seat as a <see cref="Passenger"/> that fetches the pen, turned as the climb leaves it in
+    /// the demo (see <see cref="FaceDown"/>). The pen starts at its clip
+    /// place, moving at <paramref name="penDrift"/>, in the shuttle's axes.
     /// </summary>
-    private void Board(bool thrust = false, bool passenger = false)
+    private void Board(bool thrust = false, bool passenger = false, Double3 penDrift = default)
     {
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-        IComponent[] engine = thrust ? [new Unpark(), new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration) { Throttle = 1 }] : [];
+        IComponent[] engine = thrust ? [new Unpark(), new FullThrottle(), new MainEngine(Shuttle.Mass * Shuttle.ThrustAcceleration)] : [];
         Entity shuttle = Shuttle.Park(world, space, WorldTesting.At(0, Shuttle.Hull.Y), components: engine);
         cabin = world.GetOwnedFrame(shuttle);
-        pen = world.Spawn(DemoSurface.ClippedPen(Pen, cabin));
+        pen = world.Spawn(penDrift == default
+            ? DemoSurface.ClippedPen(Pen, cabin)
+            : Pen.Spawn(cabin, DemoSurface.PenClip, penDrift, new Clip(DemoSurface.PenClip, DemoSurface.PenPush, DemoSurface.PenSpin)));
         if (!passenger)
             return;
         person = world.Spawn(new SpawnDesc
         {
             Frame = cabin,
-            Pose = new DPose(Shuttle.SeatStand, DQuaternion.Identity),
+            Pose = new DPose(Shuttle.SeatStand, FaceDown),
             Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
             Render = new RenderData { ViewOffset = new Pose(DemoSurface.Eye, Quaternion.Identity) },
             Components = [new Passenger(new Waypoint(cabin, Shuttle.SeatStand), pen)],
         });
     }
 
+    /// <summary>
+    /// The person's turn in the demo's orbit: face-down, with its head toward the nose. Its up, +Y, points along the
+    /// cabin's -Z, and its view, -Z, along the cabin's -Y, so the pen floats above its back when it leaves its seat.
+    /// </summary>
+    private static readonly DQuaternion FaceDown = DQuaternion.FromAxisAngle(Double3.UnitX, -Math.PI / 2);
+
     private Clip ClipOf() => world.GetComponent<Clip>(pen)!;
+
+    /// <summary>
+    /// How far the pen's center is from the axis of the person's capsule, a segment 1.2 m long along the person's up
+    /// through its center, in meters. The capsule's radius is 0.3 m, so the body cannot touch the pen, 7 cm from its center
+    /// to its ends, while this is more than 0.37 m.
+    /// </summary>
+    private double PenFromBodyAxis()
+    {
+        DPose body = world.PoseIn(person, cabin);
+        Double3 local = body.InverseTransformPoint(world.PoseIn(pen, cabin).Position);
+        return (local - new Double3(0, Math.Clamp(local.Y, -0.6, 0.6), 0)).Length;
+    }
 
     /// <summary>How far the pen's center is from where the clip holds it, in meters.</summary>
     private double FromClip() => Double3.Distance(world.PoseIn(pen, cabin).Position, DemoSurface.PenClip.Position);
@@ -81,14 +103,19 @@ public sealed class PenClipTests : IDisposable
         }
 
         world.Frames.ProperAcceleration(cabin).Z.Should().BeApproximately(-Shuttle.ThrustAcceleration, 0.5f, "the shuttle thrusts along its nose");
-        ClipOf().Holds.Should().BeTrue();
+        ClipOf().State.Value.Should().BeOfType<Clipped>();
         farthest.Should().BeLessThan(0.015);
     }
 
+    /// <summary>
+    /// The cabin is weightless from the start, and the pen starts with a drift of 0.1 m/s across the cabin, which would
+    /// carry a loose pen 0.1 m in the second. The clip holds the pen within millimeters of its place for that second, and
+    /// then lets it go.
+    /// </summary>
     [Fact]
     public void InAWeightlessCabinTheClipHoldsThePenForASecondAndThenLetsItGo()
     {
-        Board();
+        Board(penDrift: new Double3(0.1, 0, 0));
         double farthest = 0;
 
         for (int t = 0; t < (int)(Clip.ReleaseSeconds * 60) - 2; t++)
@@ -97,17 +124,17 @@ public sealed class PenClipTests : IDisposable
             farthest = Math.Max(farthest, FromClip());
         }
 
-        ClipOf().Holds.Should().BeTrue();
-        farthest.Should().BeLessThan(0.001, "the clip holds the pen");
+        ClipOf().State.Value.Should().BeOfType<Clipped>();
+        farthest.Should().BeLessThan(0.005, "the clip holds the pen");
         Tick(world, 4);
-        ClipOf().Holds.Should().BeFalse();
+        ClipOf().State.Value.Should().BeOfType<Released>();
     }
 
     [Fact]
     public void TheClipLetsThePenGoWithASmallPushAndASlowSpin()
     {
         Board();
-        TickUntil(world, () => !ClipOf().Holds, 120);
+        TickUntil(world, () => ClipOf().State.Value is Released, 120);
 
         Tick(world, 30);
 
@@ -123,7 +150,7 @@ public sealed class PenClipTests : IDisposable
     public void ALetGoPenFloatsFreeIntoTheMiddleOfTheCabin()
     {
         Board();
-        TickUntil(world, () => !ClipOf().Holds, 120);
+        TickUntil(world, () => ClipOf().State.Value is Released, 120);
         Tick(world, 2);
         double fastest = 0, slowest = double.PositiveInfinity;
 
@@ -152,7 +179,7 @@ public sealed class PenClipTests : IDisposable
 
         for (int t = 0; t < 1500 && world.IsAlive(pen); t++)
         {
-            if (released < 0 && !ClipOf().Holds)
+            if (released < 0 && ClipOf().State.Value is Released)
                 released = world.TickNumber;
             last = world.PoseIn(pen, cabin).Position;
             world.Tick();
@@ -160,7 +187,59 @@ public sealed class PenClipTests : IDisposable
 
         world.IsAlive(pen).Should().BeFalse("the passenger took the pen");
         released.Should().BeGreaterThan(0, "the clip let the pen go before the passenger took it");
-        world.GetComponent<Passenger>(person)!.Phase.Should().Be(PassengerPhase.Holding);
+        world.GetComponent<Passenger>(person)!.State.TryGetValue(out Holding holding).Should().BeTrue("the passenger holds the pen");
+        world.IsAlive(holding.Copy).Should().BeTrue();
         Clearance(last).Should().BeGreaterThan(0.5, "the pen floated in the middle of the cabin");
+    }
+
+    /// <summary>
+    /// The passenger's hand takes the drifting, tumbling pen where and as it floats: in the tick in which the drawn copy in
+    /// the hand first shows, the loose pen still shows too, for its last tick, and the two lie within a centimeter and a
+    /// degree of each other. So the pen does not jump into the hand.
+    /// </summary>
+    [Fact]
+    public void ThePassengerGripsThePenWhereAndAsItFloats()
+    {
+        Board(passenger: true);
+
+        TickUntil(world, () => world.IsAlive(pen) && HeldCopies().Count > 0, 1500);
+
+        DPose loose = world.PoseIn(pen, cabin), held = world.PoseIn(HeldCopies().Should().ContainSingle().Which, cabin);
+        Double3.Distance(held.Position, loose.Position).Should().BeLessThan(0.01);
+        (loose.Rotation.AngularVelocityTo(held.Rotation, 1).Length * 180 / Math.PI).Should().BeLessThan(1);
+    }
+
+    /// <summary>
+    /// The person floats face-down below the pen, which floats above its back. Its hand, under its chest, lines up behind
+    /// the pen first and then closes in on it from in front, so the body never comes within reach of touching the pen, and
+    /// the pen keeps the velocity of the clip's push until the take.
+    /// </summary>
+    [Fact]
+    public void ThePassengerTakesThePenWithoutItsBodyTouchingThePen()
+    {
+        Board(passenger: true);
+        TickUntil(world, () => ClipOf().State.Value is Released, 120);
+        Tick(world, 2);
+        double nearest = double.PositiveInfinity;
+
+        TickUntil(world, () =>
+        {
+            if (!world.IsAlive(pen))
+                return true;
+            nearest = Math.Min(nearest, PenFromBodyAxis());
+            (world.VelocityIn(pen, cabin) - DemoSurface.PenPush).Length.Should().BeLessThan(1e-3, "nothing touches the pen");
+            return false;
+        }, 1500);
+
+        world.IsAlive(pen).Should().BeFalse("the passenger took the pen");
+        nearest.Should().BeGreaterThan(0.3 + DemoSurface.PenHalf.Z);
+    }
+
+    /// <summary>Every live entity with a <see cref="HeldInView"/>: the drawn copies of a pen in a hand.</summary>
+    private List<Entity> HeldCopies()
+    {
+        var live = new List<Entity>();
+        world.CopyLiveEntities(live);
+        return [.. live.Where(entity => world.GetComponent<HeldInView>(entity) != null)];
     }
 }

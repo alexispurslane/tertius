@@ -4,11 +4,23 @@ using Tertius.Simulation;
 namespace Tertius.Demo;
 
 /// <summary>
-/// Turns its entity's body toward <see cref="Target"/> with a torque on every tick, as the attitude thrusters of a ship
-/// do. It asks for a turn rate along the shortest turn to the target, <see cref="Gain"/> per radian of the turn that is
-/// left, and at most <see cref="MaxTurnRate"/>. Then it gives the torque that brings the body's angular velocity to that
-/// rate in <see cref="RateTime"/>, from the body's moments of inertia. With no target it gives no torque. Its entity needs
-/// a dynamic body, whose principal axes are its own axes.
+/// The rotation that a hull's <see cref="AttitudeAutopilot"/> turns the body toward in one tick, which a component that
+/// flies the hull adds to its entity's events (see <see cref="EventList.Add{T}"/>), for the attitude autopilot of the same
+/// entity, which runs after it.
+/// </summary>
+public struct AttitudeTarget : IEventPayload
+{
+    /// <summary>The rotation to turn to, in the axes of the entity's frame.</summary>
+    public DQuaternion Rotation;
+}
+
+/// <summary>
+/// Turns its entity's body toward the <see cref="AttitudeTarget"/> of each tick that brings one, with a torque, as the
+/// attitude thrusters of a ship do. It asks for a turn rate along the shortest turn to the target, <see cref="Gain"/> per
+/// radian of the turn that is left, and at most <see cref="MaxTurnRate"/>. Then it gives the torque that brings the body's
+/// angular velocity to that rate in <see cref="RateTime"/>, from the body's moments of inertia. A tick without a target
+/// gives no torque, so the autopilot keeps nothing from an earlier tick. When a tick brings several targets, the last one
+/// counts. Its entity needs a dynamic body, whose principal axes are its own axes.
 /// </summary>
 /// <remarks>
 /// The autopilot reads the body's rotation and angular velocity at the end of the last finished step, and its torque
@@ -29,15 +41,10 @@ public sealed class AttitudeAutopilot(Vector3 inertia) : IComponent
 
     private readonly Vector3 inertia = inertia;
 
-    /// <summary>
-    /// The rotation that the body turns to, in the axes of the entity's frame, or null for no torque. It starts null.
-    /// </summary>
-    public DQuaternion? Target { get; set; }
-
-    // After the autopilot that sets the target in the same tick.
+    // After the components that fly the hull, which add the target in the same tick.
     public int Priority => 1;
 
-    public EventMask Wants => EventMask.Of<Tick>();
+    public EventMask Wants => EventMask.Of<AttitudeTarget>();
 
     /// <summary>
     /// The rotation whose nose, its -Z, points along <paramref name="nose"/>, and whose roof, its +Y, points as near to
@@ -60,8 +67,10 @@ public sealed class AttitudeAutopilot(Vector3 inertia) : IComponent
 
     public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
     {
-        if (Target is not DQuaternion target)
-            return;
+        // The autopilot wants only AttitudeTarget, so the events hold at least one, and the last one counts.
+        DQuaternion target = default;
+        foreach (ref AttitudeTarget each in events.Of<AttitudeTarget>())
+            target = each.Rotation;
         DPose pose = self.PoseIn(self.Frame);
         // The turn that is left, as a rotation vector in the frame's axes, and the turn rate that the autopilot asks for.
         Double3 rate = pose.Rotation.AngularVelocityTo(target, 1) * Gain;

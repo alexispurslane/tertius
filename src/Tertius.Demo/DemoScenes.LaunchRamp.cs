@@ -10,17 +10,18 @@ public static partial class DemoScenes
     /// up which the shuttle slides like a rocket sled. It is one static body in the frame <c>earth-surface</c>, at the north
     /// pole, where +Y is up and the parked shuttle's nose points along -Z.
     /// <list type="bullet">
-    /// <item>The <see cref="Foot"/> of the ramp lies on the slab's top, under the parked shuttle's nose. From there the
-    /// incline rises at <see cref="Angle"/> toward -Z for <see cref="Length"/>, to its <see cref="Top"/>, 125 m up and
-    /// 216.5 m along -Z.</item>
-    /// <item>A flat bed lies under the parked shuttle, from the foot to 1 m aft of the hull. Its top is level with the
-    /// slab's top, so the parked hull rests on it, and the hull slides along it onto the incline. Only the slab is drawn
-    /// there, because the two tops lie in one plane.</item>
+    /// <item>The <see cref="Foot"/> of the ramp lies <see cref="BedRise"/> above the slab's top, under the parked shuttle's
+    /// nose. From there the incline rises at <see cref="Angle"/> toward -Z for <see cref="Length"/>, to its
+    /// <see cref="Top"/>, 125 m up and 216.5 m along -Z.</item>
+    /// <item>A flat bed lies under the parked shuttle, from the foot to 1 m aft of the hull. Its top, the
+    /// <see cref="BedTop"/>, lies <see cref="BedRise"/> above the slab's top, so the parked hull rests on the bed alone, and
+    /// the hull slides along it onto the incline without touching the slab, which has friction. The bed is not drawn: the
+    /// drawn pad round the shuttle is as thick as the rise.</item>
     /// <item>Both pieces are <see cref="Width"/> wide, narrower than the hull, so the hull overhangs them, and a person who
     /// walks to the hatch never steps onto them. They are boxes with sharp edges, so physics removes the contacts with the
     /// edge between them, and they have no friction: the rails of the sled are greased.</item>
-    /// <item>The drawn ramp is a solid gray wedge under the incline, which reaches 5 m below the slab's top, so that it
-    /// stands on the drawn planet beyond the slab, which lies lower there.</item>
+    /// <item>The drawn ramp is a solid gray wedge under the incline, which reaches 5 m below its foot, so that it stands on
+    /// the drawn planet beyond the slab, which lies lower there.</item>
     /// </list>
     /// </summary>
     /// <remarks>
@@ -42,11 +43,20 @@ public static partial class DemoScenes
         /// <summary>The thickness of the incline and the bed, in meters.</summary>
         public const float Thickness = 1;
 
+        /// <summary>
+        /// How far the bed's top lies above the slab's top, in meters: 2 cm. A hull that rests on the bed can sink into
+        /// it by Jolt's penetration slop, 5 mm (<c>JoltBackendOptions.PenetrationSlop</c>), so it stays clear of the slab.
+        /// </summary>
+        public const double BedRise = 0.02;
+
+        /// <summary>The height of the bed's top, where the parked hull's bottom rests, in <c>earth-surface</c>, in meters from Earth's center.</summary>
+        public const double BedTop = EarthRadius + BedRise;
+
         // How far the drawn wedge reaches below the slab's top, in meters.
         private const float Sink = 5;
 
-        /// <summary>Where the incline starts, in <c>earth-surface</c>: on the slab's top, under the parked shuttle's nose.</summary>
-        public static Double3 Foot { get; } = new(0, EarthRadius, -Shuttle.Hull.Z);
+        /// <summary>Where the incline starts, in <c>earth-surface</c>: on the bed's top, under the parked shuttle's nose.</summary>
+        public static Double3 Foot { get; } = new(0, BedTop, -Shuttle.Hull.Z);
 
         /// <summary>The direction up the incline, a unit vector in the axes of <c>earth-surface</c>.</summary>
         public static Double3 Up { get; } = new(0, Math.Sin(Angle), -Math.Cos(Angle));
@@ -54,7 +64,7 @@ public static partial class DemoScenes
         /// <summary>The middle of the incline's upper end, on its surface, in <c>earth-surface</c>.</summary>
         public static Double3 Top => Foot + Up * Length;
 
-        /// <summary>How high the top of the incline lies above the slab's top, in meters: 125.</summary>
+        /// <summary>How high the top of the incline lies above its foot, in meters: 125.</summary>
         public static double Height => Length * Math.Sin(Angle);
 
         /// <summary>The boxes of the ramp's static shape, relative to the <see cref="Foot"/>, in the axes of <c>earth-surface</c>.</summary>
@@ -73,7 +83,7 @@ public static partial class DemoScenes
 
         /// <summary>
         /// The drawn wedge, relative to the <see cref="Foot"/>: its top is the incline's surface, its back is vertical under
-        /// the top, and its bottom lies 5 m below the slab's top. Its six faces wind counterclockwise from outside, as in
+        /// the top, and its bottom lies 5 m below the foot. Its six faces wind counterclockwise from outside, as in
         /// <see cref="Primitives"/>.
         /// </summary>
         public static MeshData Mesh()

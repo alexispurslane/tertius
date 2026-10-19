@@ -35,15 +35,20 @@ public sealed class DemoLaunchRun : CheckedInRun
 /// <param name="Tick">The number of completed ticks.</param>
 /// <param name="Position">The shuttle's position in earth-surface, in meters from Earth's center.</param>
 /// <param name="Velocity">The shuttle's velocity in earth-surface, in m/s.</param>
-/// <param name="Phase">What the ascent autopilot does.</param>
+/// <param name="Ascent">What the ascent autopilot does.</param>
 /// <param name="CabinAcceleration">The proper acceleration of the shuttle's frame, in m/s², in its axes.</param>
 /// <param name="PersonFrame">The person's frame.</param>
 /// <param name="PersonInCabin">The person's position in the shuttle's frame, in meters.</param>
 /// <param name="Passenger">What the person does.</param>
-/// <param name="Pen">The pen's position and velocity in the shuttle's frame, in meters and m/s, while the loose pen lives, or null.</param>
-/// <param name="ClipHolds">Whether the pen's clip holds it, while the loose pen lives, or null.</param>
-internal sealed record LaunchTick(long Tick, Double3 Position, Double3 Velocity, AscentPhase Phase, System.Numerics.Vector3 CabinAcceleration,
-    FrameHandle PersonFrame, Double3 PersonInCabin, PassengerPhase Passenger, (Double3 Position, Double3 Velocity)? Pen, bool? ClipHolds);
+/// <param name="Pen">
+/// The loose pen's position, velocity and rotation in the shuttle's frame, in meters and m/s, while the loose pen lives,
+/// or null.
+/// </param>
+/// <param name="Clip">What the pen's clip does, while the loose pen lives, or null.</param>
+/// <param name="Held">The pose of the drawn copy of the pen in the person's hand, in the shuttle's frame, while the person holds it, or null.</param>
+internal sealed record LaunchTick(long Tick, Double3 Position, Double3 Velocity, AscentState Ascent, System.Numerics.Vector3 CabinAcceleration,
+    FrameHandle PersonFrame, Double3 PersonInCabin, PassengerState Passenger, (Double3 Position, Double3 Velocity, DQuaternion Rotation)? Pen,
+    ClipState? Clip, DPose? Held);
 
 /// <summary>A ball at rest in the cabin, 2 s after the engines stop, and where it is after 5 s.</summary>
 /// <param name="Start">Where the ball was put, in the shuttle's frame, in meters.</param>
@@ -72,12 +77,15 @@ internal sealed class LaunchLog
     {
         Entity shuttle = scene["shuttle"], person = scene["person"], pen = scene["pen"];
         FrameHandle surface = world.GetFrame(shuttle), cabin = world.GetOwnedFrame(shuttle);
-        AscentPhase phase = world.GetComponent<AscentAutopilot>(shuttle)!.Phase;
+        AscentState ascent = world.GetComponent<AscentAutopilot>(shuttle)!.State;
+        PassengerState passenger = world.GetComponent<Passenger>(person)!.State;
         bool penLives = world.IsAlive(pen);
-        Ticks.Add(new LaunchTick(world.TickNumber, world.PoseIn(shuttle, surface).Position, world.VelocityIn(shuttle, surface), phase,
-            world.Frames.ProperAcceleration(cabin), world.GetFrame(person), world.PoseIn(person, cabin).Position, world.GetComponent<Passenger>(person)!.Phase,
-            penLives ? (world.PoseIn(pen, cabin).Position, world.VelocityIn(pen, cabin)) : null, penLives ? world.GetComponent<Clip>(pen)?.Holds : null));
-        if (phase == AscentPhase.Orbit && orbitTick < 0)
+        DPose? held = passenger.TryGetValue(out Holding holding) && world.IsAlive(holding.Copy) ? world.PoseIn(holding.Copy, cabin) : null;
+        Ticks.Add(new LaunchTick(world.TickNumber, world.PoseIn(shuttle, surface).Position, world.VelocityIn(shuttle, surface), ascent,
+            world.Frames.ProperAcceleration(cabin), world.GetFrame(person), world.PoseIn(person, cabin).Position, passenger,
+            penLives ? (world.PoseIn(pen, cabin).Position, world.VelocityIn(pen, cabin), world.PoseIn(pen, cabin).Rotation) : null,
+            penLives ? world.GetComponent<Clip>(pen)!.State : null, held));
+        if (ascent.Value is Orbit && orbitTick < 0)
             orbitTick = world.TickNumber;
         if (orbitTick >= 0 && ball.IsNull && world.TickNumber == orbitTick + 120)
         {
@@ -120,8 +128,8 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         StateDump seated = Dump("seated");
 
         seated.Frames.Single(frame => frame.Id == "shuttle").Follows.Should().Be("static");
-        Double3.Distance(seated.Entity("shuttle").Pose.Position, new Double3(0, DemoScenes.EarthRadius + Shuttle.Hull.Y, 0)).Should().BeLessThan(1e-9);
-        Log.Where(tick => tick.Tick <= seated.Tick).Should().OnlyContain(tick => tick.Phase == AscentPhase.Parked);
+        Double3.Distance(seated.Entity("shuttle").Pose.Position, DemoSurface.ShuttleParked.Position).Should().BeLessThan(1e-9);
+        Log.Where(tick => tick.Tick <= seated.Tick).Should().OnlyContain(tick => tick.Ascent.Value is Parked);
     }
 
     /// <summary>
@@ -179,7 +187,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         List<LaunchTick> coasting = [.. Log.Where(tick => tick.Tick > run.Log.OrbitTick + 2)];
 
         coasting.Should().HaveCountGreaterThan(300);
-        coasting.Should().OnlyContain(tick => tick.Phase == AscentPhase.Orbit);
+        coasting.Should().OnlyContain(tick => tick.Ascent.Value is Orbit);
         coasting.Should().OnlyContain(tick => tick.CabinAcceleration.Length() < FrameTree.ZeroGravityThreshold);
         (double startPeri, double startApo) = Apsides(coasting[0].Position, coasting[0].Velocity);
         (double endPeri, double endApo) = Apsides(coasting[^1].Position, coasting[^1].Velocity);
@@ -206,14 +214,14 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     [Fact]
     public void ThePassengerStaysAtItsSeatThroughTheClimb()
     {
-        List<LaunchTick> flight = [.. Log.Where(tick => tick.Phase is AscentPhase.Ramp or AscentPhase.Climb)];
+        List<LaunchTick> flight = [.. Log.Where(tick => tick.Ascent.Value is Ramp or Climb)];
         FrameHandle cabin = run.World.GetOwnedFrame(run.Scene["shuttle"]);
 
         flight.Should().HaveCountGreaterThan(10_000);
         flight.Should().OnlyContain(tick => tick.PersonFrame == cabin);
-        flight.Should().OnlyContain(tick => tick.Passenger == PassengerPhase.Seated);
+        flight.Should().OnlyContain(tick => tick.Passenger.Value is Seated);
         flight.Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.25);
-        flight.Where(tick => tick.Phase == AscentPhase.Climb).Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.01);
+        flight.Where(tick => tick.Ascent.Value is Climb).Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.01);
     }
 
     /// <summary>
@@ -225,11 +233,11 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     [Fact]
     public void TheClipHoldsThePenOnTheWallUntilTheOrbit()
     {
-        List<LaunchTick> held = [.. Log.Where(tick => tick.Phase != AscentPhase.Orbit)];
+        List<LaunchTick> held = [.. Log.Where(tick => tick.Ascent.Value is not Orbit)];
         List<double> fromClip = [.. held.Select(tick => Double3.Distance(tick.Pen!.Value.Position, DemoSurface.PenClip.Position))];
 
         held.Should().HaveCountGreaterThan(20_000);
-        held.Should().OnlyContain(tick => tick.ClipHolds == true);
+        held.Should().OnlyContain(tick => tick.Clip!.Value.Value is Clipped);
         fromClip.Max().Should().BeLessThan(0.15);
         fromClip.Count(distance => distance > 0.015).Should().BeLessThanOrEqualTo(1, "only the step of the jolt at the ramp's foot moves the pen more");
     }
@@ -244,7 +252,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     {
         // The push of the tick on which the clip lets go acts in the step beside the next tick, so the snapshots of the
         // first two logged ticks after the release show the pen before the push.
-        List<LaunchTick> free = [.. Log.Where(tick => tick.ClipHolds == false).Skip(2)];
+        List<LaunchTick> free = [.. Log.Where(tick => tick.Clip?.Value is Released).Skip(2)];
 
         free.Should().HaveCountGreaterThan(120);
         free.Should().OnlyContain(tick => (tick.Pen!.Value.Velocity - DemoSurface.PenPush).Length < 1e-3);
@@ -258,11 +266,26 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         var live = new List<Entity>();
         world.CopyLiveEntities(live);
 
-        world.GetComponent<Passenger>(run.Scene["person"])!.Phase.Should().Be(PassengerPhase.Holding);
+        world.GetComponent<Passenger>(run.Scene["person"])!.State.Value.Should().BeOfType<Holding>();
         world.IsAlive(run.Scene["pen"]).Should().BeFalse("the person took the loose pen");
         live.Where(entity => world.GetComponent<HeldInView>(entity) != null).Should().ContainSingle("the person holds the pen");
         Double3.Distance(Dump("holding").Entity("person").Pose.Position, Shuttle.SeatStand).Should().BeGreaterThan(1, "the person left its seat");
-        Log.Should().Contain(tick => tick.Passenger == PassengerPhase.Fetching);
+        Log.Should().Contain(tick => tick.Passenger.Value is Fetching);
+    }
+
+    /// <summary>
+    /// The person's hand takes the drifting, tumbling pen where and as it floats: in the first tick that shows the drawn
+    /// copy in the hand, the loose pen still shows, for its last tick, and the two lie within a centimeter and a degree of
+    /// each other. So the pen does not jump into the hand.
+    /// </summary>
+    [Fact]
+    public void InOrbitTheHandTakesThePenWhereAndAsItFloats()
+    {
+        LaunchTick take = Log.First(tick => tick.Held != null);
+
+        take.Pen.Should().NotBeNull("the loose pen goes one tick after the copy shows");
+        Double3.Distance(take.Held!.Value.Position, take.Pen!.Value.Position).Should().BeLessThan(0.01);
+        (take.Pen.Value.Rotation.AngularVelocityTo(take.Held.Value.Rotation, 1).Length * 180 / Math.PI).Should().BeLessThan(1);
     }
 
     [Fact]
