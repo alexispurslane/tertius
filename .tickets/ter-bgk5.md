@@ -1,6 +1,6 @@
 ---
 id: ter-bgk5
-status: open
+status: in_progress
 deps: [ter-q8ge]
 links: []
 created: 2026-10-19T01:22:33Z
