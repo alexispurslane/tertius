@@ -121,7 +121,11 @@ public class CharacterFormNumericFrameTests
     /// of about 1e-5 m/s², and the character has the rigid form. Without numeric frames it lives in earth's own system,
     /// where the pull is 8.6 m/s², so it keeps the walking form and falls freely, without standing. Either way it falls with
     /// the hull and stays beside it: in K to a micrometer, and in earth's own system to a few millimeters, because a float
-    /// velocity of 7.66 km/s steps by 0.5 mm/s, and each step's pull of 0.14 m/s rounds to that step.
+    /// velocity of 7.66 km/s steps by 0.5 mm/s, and each step's pull of 0.14 m/s rounds to that step. The hull has no first
+    /// motion intent, so it holds still in K for its first step, and its first planned step is the second. The test reads
+    /// the form from the third step, the step after the first plan, because in the first planned step a new following frame
+    /// shows half the pull in its system (see
+    /// <see cref="ACharacterAtRestBesideANewKeplerHullTakesTheWalkingFormInTheFirstPlannedStepOfTheHullsOrbitFrameOnly"/>).
     /// </summary>
     [Theory]
     [InlineData(true)]
@@ -137,7 +141,7 @@ public class CharacterFormNumericFrameTests
         (Double3 place, Double3 velocity) = LowOrbit.StateAt(world.Time, Scenes.EarthMu);
         var offset = new Double3(0, -3.5, 0);
         Entity person = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + offset, DQuaternion.Identity), LinearVelocity = velocity, Body = Person });
-        Tick(world, 2);
+        Tick(world, 3);
 
         FrameHandle home = world.PhysicsHomeOf(person);
         if (numericFrames)
@@ -151,12 +155,56 @@ public class CharacterFormNumericFrameTests
             home.Should().Be(earth);
             faults.Jolt.HasRigidForm(person).Should().BeFalse("earth's own system has the full pull of 8.6 m/s²");
         }
-        Tick(world, 58);
+        Tick(world, 57);
 
         faults.Jolt.HasRigidForm(person).Should().Be(numericFrames, "the character keeps its form for the second");
         world.Snapshot.IsStanding(person).Should().BeFalse("nothing stands the character, which falls freely");
         Double3 drift = world.PoseIn(person, earth).Position - world.PoseIn(hull, earth).Position - offset;
         drift.Length.Should().BeLessThan(numericFrames ? 1e-5 : 0.02, $"the character falls with the hull, 7.66 km in the second, and drifted {drift}");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The limit of the landing rule in the first planned step of a new following frame (docs/plans/rails-components.md,
+    /// "The first step of a new following frame"). The scene of
+    /// <see cref="ACharacterAtRestBesideAKeplerHullIsRigidInTheHullsOrbitFrameAndWalksInEarthsOwnSystemAndStaysBesideTheHull"/>
+    /// with numeric frames, with and without a first motion intent of the hull. The hull's orbit frame K starts with the
+    /// hull's instant velocity, and its first planned step takes the acceleration that turns that velocity into the plan's
+    /// chord: about half the pull of 8.6 m/s². So in that one step the gravity in K is the other half, and the character at
+    /// rest in K takes the walking form. From the next step on, K lands on each plan with the full pull, and the character
+    /// is rigid. With a first motion intent the first planned step is K's first step; without one, the hull holds still in
+    /// K for its first step, K falls, and the first planned step is the second.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ACharacterAtRestBesideANewKeplerHullTakesTheWalkingFormInTheFirstPlannedStepOfTheHullsOrbitFrameOnly(bool firstMove)
+    {
+        using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
+        FrameHandle earth = Earth(world);
+        Entity hull = world.Spawn(new SpawnDesc
+        {
+            Frame = earth, Body = Core, AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
+        }.OnKeplerOrbit(world, LowOrbit, firstMove));
+        (Double3 place, Double3 velocity) = LowOrbit.StateAt(world.Time, Scenes.EarthMu);
+        Entity person = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity, Body = Person });
+        int firstPlannedStep = firstMove ? 1 : 2;
+        double halfPull = Scenes.EarthMu / (6.8e6 * 6.8e6) / 2;
+
+        var forms = new List<string>();
+        for (int step = 1; step <= 4; step++)
+        {
+            world.Tick();
+            FrameHandle home = world.PhysicsHomeOf(person);
+            home.Should().Be(world.PhysicsHomeOf(hull), $"the character shares the hull's orbit frame in step {step}");
+            forms.Add(faults.Jolt.HasRigidForm(person) ? "rigid" : "walking");
+            if (step == firstPlannedStep)
+                ((double)world.Frames.EffectiveGravity(home, world.PoseIn(person, home).Position).Length()).Should().BeApproximately(halfPull, 0.01,
+                    "the orbit frame's acceleration in its first planned step is half the pull, so its system shows the other half");
+        }
+
+        forms.Should().Equal(firstMove ? ["walking", "rigid", "rigid", "rigid"] : ["rigid", "walking", "rigid", "rigid"],
+            "only the first planned step of the new orbit frame shows half the pull in its system");
         world.Errors.Should().BeEmpty();
     }
 
