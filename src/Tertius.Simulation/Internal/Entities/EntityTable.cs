@@ -302,6 +302,8 @@ internal sealed partial class EntityTable
     private bool intentEntitiesMayHoldDead;
     // Back rows that the sync point changed. The chunk books hold the rows that gameplay changed.
     private readonly List<uint> syncDirty = new();
+    // The writes of a back row that moved it to another frame (see RowFrameChanges).
+    private long rowFrameChanges;
     // Entities whose front transform changed, or that became live, since the last TakeMoved; and the list that the last
     // TakeMoved handed out, kept until the next call. An entity that died since it was listed stays listed until then.
     private List<Entity> moved = new();
@@ -949,6 +951,15 @@ internal sealed partial class EntityTable
     public bool GameplayWroteTransform(Entity entity) => (flags[LiveSlot(entity)] & SlotFlags.GameplayWroteTransform) != 0;
 
     /// <summary>
+    /// How many writes of a back row moved it to another frame (see <see cref="SetBackTransform"/>) since the table was
+    /// made. Gameplay writes a row only relative to its frame (see <see cref="WritableTransform"/>), and a spawn starts its
+    /// row in its frame, so only the sync point and a change outside a tick add to it. The World compares it with its value
+    /// at the last conversion of the moved intents, to skip a pass that would find none (see
+    /// <c>World.ConvertMovedIntents</c>).
+    /// </summary>
+    public long RowFrameChanges => rowFrameChanges;
+
+    /// <summary>
     /// Writes a live entity's back transform row, outside the gameplay part of a tick. The row is copied forward at the
     /// next <see cref="CopyDirtyRows"/>, unless it is equal bit for bit to the row it replaces. Throws
     /// <see cref="StaleEntityException"/> for a stale handle.
@@ -960,6 +971,8 @@ internal sealed partial class EntityTable
         ref TransformRow back = ref backTransform[slot];
         if (BitEquals(back, row))
             return;
+        if (back.Frame != row.Frame)
+            rowFrameChanges++;
         back = row;
         MarkDirty(slot, SlotFlags.TransformDirty);
     }
@@ -1050,7 +1063,7 @@ internal sealed partial class EntityTable
                 ref PhysicsIntent front = ref frontIntent[slot];
                 if (!keep)
                 {
-                    front = new PhysicsIntent { Frame = front.Frame, Move = front.Move, Motion = front.Motion, Flags = front.Flags & IntentFlags.SetMotion };
+                    front.KeepOnlyMotion();
                     if (front.IsEmpty)
                     {
                         front = default;

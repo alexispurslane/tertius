@@ -44,8 +44,6 @@ namespace Tertius;
 /// semantic frame's own system, so no clock outlives its body's place in the input. Every thrust clock (see
 /// <see cref="NumericFrameRules.ThrustClock"/>) names a body of the last update that is not static, with a thrust time above
 /// zero and a quiet time from zero to below <see cref="NumericFrameOptions.ThrustWindow"/>.</item>
-/// <item>No new proper acceleration waits to be stored: step 2 derives them in its pass over the frames and stores them
-/// after the pass (see <see cref="StoreNewProperAccelerations"/>).</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -64,15 +62,11 @@ public sealed partial class FrameTree
     private Vector3[] angularVelocity = new Vector3[64];
     private Vector3[] properAcceleration = new Vector3[64];
     // Each frame's proper acceleration as the last finished step found it, the value that physics used for the frame's
-    // bodies during that step: StoreNewProperAccelerations copies the rows here before it writes the new values, and a new
-    // frame has zero. It is valid from step 2 to the next step 2, after the rows took the new values (see
-    // FieldTheStepFound).
+    // bodies during that step: TakeStepRecords copies the rows here before it writes the new values, and a new frame has
+    // zero. It is valid from step 2 to the next step 2 (see FieldTheStepFound).
     private Vector3[] properAccelerationTheStepFound = new Vector3[64];
     // What made the record that each frame took at the last sync point (see Followed).
     private FollowKind[] followKind = new FollowKind[64];
-    // The proper accelerations that step 2 derived in its pass over the frames, by frame index, in the order of the pass,
-    // which StoreNewProperAccelerations writes into the rows after the pass. Empty outside step 2.
-    private readonly List<(int Id, Vector3 Value)> newProperAccelerations = new();
     // Numeric frames: the mode, and the acceleration that a falling frame keeps for the current step, relative to its
     // parent. A semantic frame has the mode None and no step acceleration.
     private NumericMode[] numeric = new NumericMode[64];
@@ -374,41 +368,6 @@ public sealed partial class FrameTree
     internal DPose TreeLocalPose(FrameHandle frame) => poses.GetLocal(Node(frame));
 
     /// <summary>
-    /// Hands every frame that is not numeric to <paramref name="visitor"/>, in dense order, which puts parents before
-    /// children, with its tree parent and its semantic parent (see <see cref="FrameLinks"/>): one pass over the tree's own
-    /// storage, with no handle check. The sync point walks the frames this way once per pass, because a walk through
-    /// <see cref="AtDense"/> and the members that take a handle paid several handle checks and copies per frame. The visitor
-    /// may write the pose and the velocities of a frame (see <see cref="Follow"/> and <see cref="HoldStill"/>), but must not
-    /// add, remove or move a frame, which would replace the arrays that the walk reads: a contract checks it after each
-    /// visit.
-    /// </summary>
-    internal void VisitFrames<TVisitor>(ref TVisitor visitor) where TVisitor : struct, IFrameVisitor
-    {
-        ReadOnlySpan<int> parents = poses.ParentsDense;
-        ReadOnlySpan<int> ids = poses.IdsDense;
-        ReadOnlySpan<uint> generations = poses.Generations;
-        int shape = poses.Version;
-        for (int dense = 0; dense < ids.Length; dense++)
-        {
-            int id = ids[dense];
-            if (numeric[id] != NumericMode.None)
-                continue;
-            int p = parents[dense];
-            FrameHandle treeParent = FrameHandle.Null, parent = FrameHandle.Null;
-            if (p >= 0)
-            {
-                treeParent = HandleOf(ids[p], generations);
-                int s = p;
-                while (numeric[ids[s]] != NumericMode.None)
-                    s = parents[s];
-                parent = s == p ? treeParent : HandleOf(ids[s], generations);
-            }
-            visitor.Visit(new FrameLinks(HandleOf(id, generations), treeParent, parent));
-            Contract.Assert(poses.Version == shape, "A frame visitor added, removed or moved a frame during the walk.");
-        }
-    }
-
-    /// <summary>
     /// Hands the owner view of every frame that is not numeric (see <see cref="FrameOwnerView"/>) to
     /// <paramref name="visitor"/>, in dense order: one pass over the tree's own storage, with no handle check. The visitor
     /// must not change what an owner view reads, which a contract checks with <see cref="OwnerViewStamp"/> after each visit.
@@ -532,10 +491,15 @@ public sealed partial class FrameTree
     /// The intents that the step applies, by entity slot (<see cref="Entity.Index"/>), as
     /// <see cref="PhysicsStepContext.Intents"/> holds them. A slot past their end holds no intent.
     /// </param>
-    public BodyMotion? HullMotionInStep(FrameHandle frame, ReadOnlySpan<PhysicsIntent> stepIntents)
+    public BodyMotion? HullMotionInStep(FrameHandle frame, ReadOnlySpan<PhysicsIntent> stepIntents) =>
+        HullMotionInStep(HullMotion(frame), frame.Entity.Index, stepIntents);
+
+    /// <summary>
+    /// The rule of <see cref="HullMotionInStep(FrameHandle, ReadOnlySpan{PhysicsIntent})"/> for a frame whose hull has the
+    /// stored motion <paramref name="stored"/>, or no hull, and whose owner has the slot <paramref name="slot"/>.
+    /// </summary>
+    private static BodyMotion? HullMotionInStep(BodyMotion? stored, uint slot, ReadOnlySpan<PhysicsIntent> stepIntents)
     {
-        BodyMotion? stored = HullMotion(frame);
-        uint slot = frame.Entity.Index;
         if (stored is null || slot >= (uint)stepIntents.Length)
             return stored;
         ref readonly PhysicsIntent intent = ref stepIntents[(int)slot];
@@ -675,8 +639,6 @@ public sealed partial class FrameTree
                 Contract.Invariant(numericBodies[id] > 0 || holdsFrame[id]);
         }
         Contract.Invariant(NumericCount == numericFrames);
-        // Step 2 stores every proper acceleration that its pass derived before the sync point goes on.
-        Contract.Invariant(newProperAccelerations.Count == 0);
         foreach (NumericGhost ghost in anchorGhosts)
         {
             Contract.Invariant(TryGetFrame(ghost.Anchor, out FrameHandle hullFrame) && InOrbitFrame(hullFrame) && IsAlive(ghost.Frame));
@@ -741,30 +703,13 @@ public sealed partial class FrameTree
     /// What an accelerometer at the frame origin reads over the last finished step, in m/s², in frame axes: the frame's
     /// acceleration minus the gravity that acts at its place. Zero for a frame in free fall, and the gravity at its place,
     /// reversed, for a frame that holds still, so a parked cabin's contents have weight. Step 2 of every sync point derives
-    /// it from the frame's step record (see <see cref="Follow"/> and <see cref="HoldStill"/>), and takes a dynamic hull's
-    /// from physics, which measures it by the same rule. No gameplay writes it. The rule reads the parent's value as stored
-    /// before step 2, so a change moves one level down a chain of frames in each step (see
-    /// <see cref="StoreNewProperAccelerations"/>). A new frame reads zero during its first step, and the rule's value from
+    /// it from the frame's step record (see <see cref="TakeStepRecords"/>), and takes a dynamic hull's from physics, which
+    /// measures it by the same rule. No gameplay writes it. The rule reads the parent's value as the step found it, the
+    /// value stored before step 2, so a change moves one level down a chain of frames in each step (see
+    /// <see cref="FieldTheStepFound"/>). A new frame reads zero during its first step, and the rule's value from
     /// the first step 2 after its spawn on (docs/plans/rails-components.md, "The proper acceleration of a new frame").
     /// </summary>
     public Vector3 ProperAcceleration(FrameHandle frame) => properAcceleration[Node(frame).Id];
-
-    /// <summary>
-    /// Step 2 of the sync point, once, after the pass in which every frame took its step record: writes the proper
-    /// acceleration that <see cref="Follow"/> or <see cref="HoldStill"/> derived for each frame into its row, in the order of
-    /// the pass, so that a frame that took two records takes the value of the last. Until then each frame keeps its value of
-    /// the step that ended, so the rule of every frame in the pass read its parent's value as the step found it, the value
-    /// that physics used for the parent's bodies during the step (docs/plans/rails-components.md, "Which proper acceleration
-    /// of the parent"). A frame that the pass skipped keeps its value. Before it writes, it keeps every row's value as the
-    /// step that ended found it, which a read after step 2 of the rule backward needs (see <see cref="FieldTheStepFound"/>).
-    /// </summary>
-    internal void StoreNewProperAccelerations()
-    {
-        properAcceleration.AsSpan().CopyTo(properAccelerationTheStepFound);
-        foreach ((int id, Vector3 value) in newProperAccelerations)
-            properAcceleration[id] = value;
-        newProperAccelerations.Clear();
-    }
 
     /// <summary>The pose of <paramref name="of"/> in the space of <paramref name="to"/>, through their common ancestor.</summary>
     public DPose Relative(FrameHandle of, FrameHandle to) => poses.Relative(Node(of), Node(to));
@@ -831,10 +776,11 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Like <see cref="FieldOf"/>, but with the frame's proper acceleration as the last finished step found it: the gravity at
-    /// <paramref name="position"/> that the rule of <see cref="ProperAccelerationFrom"/> subtracted for a child at step 2.
-    /// After step 2 a frame's row holds the value of the step that ended, so a read of a child's acceleration from its
-    /// stored proper acceleration, the rule backward, takes this one (see <see cref="CreateOrbitFrame"/>). It is valid
-    /// from step 2 to the next step 2 (see <see cref="StoreNewProperAccelerations"/>).
+    /// <paramref name="position"/> that the rule of <see cref="ProperAccelerationFrom"/> subtracts for a child at step 2,
+    /// whether the pass gave the frame its new value already or not. After step 2 a frame's row holds the value of the
+    /// step that ended, so a read of a child's acceleration from its stored proper acceleration, the rule backward, takes
+    /// this one too (see <see cref="CreateOrbitFrame"/>). It is valid from step 2 to the next step 2: the pass of
+    /// <see cref="TakeStepRecords"/> copies every row's value before it writes the new ones.
     /// </summary>
     private Double3 FieldTheStepFound(int id, Double3 position) =>
         gravity[id].AtPrecise(position) - (Double3)properAccelerationTheStepFound[id];
@@ -911,7 +857,7 @@ public sealed partial class FrameTree
     /// The tree keeps the velocity of a frame under a numeric home relative to the home's frame velocity, so that a read in
     /// the semantic frame gives the frame's instant velocity. Physics keeps a velocity relative to the home's instant
     /// velocity. So a velocity converts from physics into the tree by the addition of this one term, and back by its
-    /// subtraction: a frame at rest in its home keeps it (see <see cref="HoldStill"/>), every step record that physics
+    /// subtraction: a frame at rest in its home keeps it (see <see cref="TakeStepRecords"/>), every step record that physics
     /// releases adds it, and the gameplay velocity of a body loses it when physics gives the body its chord.
     /// </para>
     /// </summary>
@@ -1117,7 +1063,7 @@ public sealed partial class FrameTree
 
     // ---- Writes that an owner view reads ------------------------------------------------------------------------
     // Every change of a frame's local pose, linear velocity or angular velocity, and every add, remove or move of a frame,
-    // passes through these six members, which increase ownerViewStamp (see OwnerViewStamp). AddFrame fills the new frame's
+    // passes through these seven members, which increase ownerViewStamp (see OwnerViewStamp). AddFrame fills the new frame's
     // row after its add, so that row needs no write of its own. An owner view also reads whether each frame is numeric,
     // which only an add or a remove changes: a write that makes a frame numeric, or stops it being numeric, any other way
     // must increase ownerViewStamp too.
@@ -1145,6 +1091,17 @@ public sealed partial class FrameTree
     {
         ownerViewStamp++;
         return ref poses.Local(node);
+    }
+
+    /// <summary>
+    /// The local poses of all frames by dense index, to write, for a pass that writes many frames (see
+    /// <see cref="TakeStepRecords"/>). One increase covers every write of the pass, because no reader compares the stamp
+    /// during it. Valid until the next structural change.
+    /// </summary>
+    private Span<DPose> LocalPosesForWrite()
+    {
+        ownerViewStamp++;
+        return poses.LocalPosesForWrite;
     }
 
     /// <summary>The linear velocity of the frame with stable index <paramref name="id"/>, to write.</summary>
@@ -1218,15 +1175,6 @@ public sealed partial class FrameTree
         Array.Resize(ref numericBodies, size);
         Array.Resize(ref orbiter, size);
     }
-}
-
-/// <summary>A frame that is not numeric, its tree parent and its semantic parent (see <see cref="FrameTree.VisitFrames"/>).</summary>
-internal readonly record struct FrameLinks(FrameHandle Frame, FrameHandle TreeParent, FrameHandle Parent);
-
-/// <summary>Takes each frame of <see cref="FrameTree.VisitFrames"/>.</summary>
-internal interface IFrameVisitor
-{
-    void Visit(in FrameLinks links);
 }
 
 /// <summary>

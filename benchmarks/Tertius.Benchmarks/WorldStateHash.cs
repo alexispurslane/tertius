@@ -12,8 +12,9 @@ namespace Tertius.Benchmarks;
 internal static class WorldStateHash
 {
     /// <summary>
-    /// The FNV-1a hash of the front and back transform rows of every live entity, in slot order, then of the local pose and
-    /// the velocities of every frame, numeric frames included, in dense order.
+    /// The FNV-1a hash of the front and back transform rows of every live entity, in slot order, then of the local pose,
+    /// the velocities, the proper acceleration and the follow kind of every frame, numeric frames included, in dense order
+    /// (the last two since ter-6azq).
     /// </summary>
     public static ulong Of(World world)
     {
@@ -41,6 +42,10 @@ internal static class WorldStateHash
             Mix(MemoryMarshal.AsBytes(new ReadOnlySpan<DPose>(in local)));
             Mix(MemoryMarshal.AsBytes(new ReadOnlySpan<Double3>(in velocity)));
             Mix(MemoryMarshal.AsBytes(new ReadOnlySpan<Vector3>(in angular)));
+            Vector3 proper = world.Frames.ProperAcceleration(frame);
+            FollowKind followed = world.Frames.Followed(frame);
+            Mix(MemoryMarshal.AsBytes(new ReadOnlySpan<Vector3>(in proper)));
+            Mix(MemoryMarshal.AsBytes(new ReadOnlySpan<FollowKind>(in followed)));
         }
         return hash;
     }

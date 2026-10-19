@@ -6,7 +6,7 @@ namespace Tertius.Core.Tests;
 /// <summary>
 /// The frame tree tells how each frame followed its owner at the last sync point (<see cref="FrameTree.Followed"/>): the
 /// follow kind that the frame's row stores beside the record of the step that ended (docs/plans/rails-components.md, "The
-/// follow kind"). Step 2 writes it with the record (<see cref="FrameTree.Follow"/>, <see cref="FrameTree.HoldStill"/>), and
+/// follow kind"). Step 2 writes it with the record (<see cref="FrameTree.TakeStepRecords"/>), and
 /// the tree tells which kind a record of a step has, from the intents that the step applied
 /// (<see cref="FrameTree.FollowKindInStep"/>): the record of a hull that was dynamic in the step is physics, the record of a
 /// full sample is rails, that of an end pose is kinematic, and any other record is static.
@@ -40,12 +40,12 @@ public class FrameTreeFollowedTests
         return intents;
     }
 
-    /// <summary>Step 2: <paramref name="frame"/> takes <see cref="Sample"/> as its record, of the kind <paramref name="kind"/>.</summary>
-    private void Follow(FrameHandle frame, FollowKind kind)
-    {
-        frames.Follow(frame, frames.TreeParent(frame), Sample, kind, measured: null, Step);
-        frames.StoreNewProperAccelerations();
-    }
+    /// <summary>
+    /// Step 2: <paramref name="frame"/>, which has no hull, takes the record of its owner's full sample, <see cref="Sample"/>,
+    /// relative to its parent.
+    /// </summary>
+    private void FollowRails(FrameHandle frame) =>
+        frames.TakeStepRecords(Only(frame, new PhysicsIntent { Frame = frames.Parent(frame), Move = new MotionIntent(Sample) }), Step);
 
     [Fact]
     public void ANewFrameFollowedNothing()
@@ -55,28 +55,55 @@ public class FrameTreeFollowedTests
         frames.Followed(moon).Should().Be(FollowKind.Static);
     }
 
-    [Theory]
-    [InlineData(FollowKind.Rails)]
-    [InlineData(FollowKind.Kinematic)]
-    [InlineData(FollowKind.Physics)]
-    [InlineData(FollowKind.Static)]
-    public void AFrameKeepsTheKindOfTheRecordThatItTookAtTheLastSyncPoint(FollowKind kind)
+    [Fact]
+    public void AFrameThatTookItsOwnersFullSampleFollowedRails()
     {
         FrameHandle moon = Child(2, root, motion: null);
 
-        Follow(moon, kind);
+        FollowRails(moon);
 
-        frames.Followed(moon).Should().Be(kind);
+        frames.Followed(moon).Should().Be(FollowKind.Rails);
+    }
+
+    [Fact]
+    public void AFrameThatTookItsOwnersEndPoseFollowedKinematic()
+    {
+        FrameHandle moon = Child(2, root, motion: null);
+
+        frames.TakeStepRecords(Only(moon, new PhysicsIntent { Frame = root, Move = new MotionIntent(new EndPose(Sample.Pose)) }), Step);
+
+        frames.Followed(moon).Should().Be(FollowKind.Kinematic);
+    }
+
+    [Fact]
+    public void AFrameThatTookTheRecordOfItsDynamicHullFollowedPhysics()
+    {
+        FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
+
+        frames.TakeStepRecords([], Step, new StepOwners().WithHullRecord(ship, Sample));
+
+        frames.Followed(ship).Should().Be(FollowKind.Physics);
+    }
+
+    [Fact]
+    public void AFrameWhoseOwnerWroteItsTransformFollowedStaticWhateverItsMotionIntent()
+    {
+        FrameHandle moon = Child(2, root, motion: null);
+        var owners = new StepOwners();
+        owners.Writes[moon] = Sample.Pose;
+
+        frames.TakeStepRecords(Only(moon, new PhysicsIntent { Frame = root, Move = new MotionIntent(Sample) }), Step, owners);
+
+        frames.Followed(moon).Should().Be(FollowKind.Static, "the write comes last, so it wins for one tick");
     }
 
     [Fact]
     public void AFrameThatHoldsStillFollowsAsAStaticFrame()
     {
         FrameHandle moon = Child(2, root, motion: null);
-        Follow(moon, FollowKind.Rails);
+        FollowRails(moon);
 
-        frames.HoldStill(moon, Step);
-        frames.StoreNewProperAccelerations();
+        frames.TakeStepRecords([], Step);
 
         frames.Followed(moon).Should().Be(FollowKind.Static, "the frame took no record of the step");
     }
@@ -86,7 +113,7 @@ public class FrameTreeFollowedTests
     {
         FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
         FrameHandle moon = Child(3, ship, motion: null);
-        Follow(moon, FollowKind.Rails);
+        FollowRails(moon);
 
         frames.Reparent(moon, root);
 
@@ -97,7 +124,7 @@ public class FrameTreeFollowedTests
     public void AFrameInTheSlotOfADeadFrameFollowsNothingOfTheDeadFrame()
     {
         FrameHandle first = Child(2, root, motion: null);
-        Follow(first, FollowKind.Rails);
+        FollowRails(first);
         frames.Destroy(first);
 
         FrameHandle second = Child(3, root, motion: null);
