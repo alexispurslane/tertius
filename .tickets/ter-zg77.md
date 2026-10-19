@@ -1,6 +1,6 @@
 ---
 id: ter-zg77
-status: in_progress
+status: closed
 deps: [ter-ru5u, ter-xdt8]
 links: []
 created: 2026-10-17T21:44:05Z

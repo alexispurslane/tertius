@@ -1,6 +1,6 @@
 ---
 id: ter-ozm8
-status: open
+status: closed
 deps: [ter-zg77]
 links: []
 created: 2026-10-17T21:44:05Z
