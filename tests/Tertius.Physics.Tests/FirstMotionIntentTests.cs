@@ -217,6 +217,38 @@ public class FirstMotionIntentTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A spawn takes a first motion intent that its entity would take from its writer, by the same guard
+    /// (see <see cref="World.MotionIntentProblem"/>): an end pose and a full sample on a kinematic body, hull or plain, on an
+    /// entity without a body, and on the owner of a root frame.
+    /// </summary>
+    [Theory]
+    [InlineData("full sample on a plain kinematic body", false)]
+    [InlineData("full sample on a plain kinematic body", true)]
+    [InlineData("end pose on a kinematic hull", false)]
+    [InlineData("end pose on a kinematic hull", true)]
+    [InlineData("end pose on an entity without a body", false)]
+    [InlineData("full sample on an entity without a body", true)]
+    [InlineData("end pose on the owner of a root frame without a body", false)]
+    public void ASpawnTakesAFirstMotionIntentThatItsEntityTakes(string kind, bool inTick)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Space(world);
+        var endPose = new MotionIntent(new EndPose(Turned));
+        var sample = new MotionIntent(new MotionSample(Turned, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero));
+        SpawnDesc desc = kind switch
+        {
+            "full sample on a plain kinematic body" => new SpawnDesc { Frame = space, Body = Ball() with { Motion = BodyMotion.Kinematic }, FirstMove = sample },
+            "end pose on a kinematic hull" => new SpawnDesc { Frame = space, Body = Box(BodyMotion.Kinematic), AsFrame = SmallBubble, FirstMove = endPose },
+            "end pose on an entity without a body" => new SpawnDesc { Frame = space, FirstMove = endPose },
+            "full sample on an entity without a body" => new SpawnDesc { Frame = space, FirstMove = sample },
+            _ => new SpawnDesc { AsFrame = SmallBubble, FirstMove = endPose },
+        };
+
+        SpawnRefusal(world, space, desc, inTick).Should().BeNull();
+        world.Errors.Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData("end pose at a place that is not finite")]
     [InlineData("end pose with a zero rotation")]

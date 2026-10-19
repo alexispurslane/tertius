@@ -73,16 +73,77 @@ public class PlainBodyOnRailsTests
     }
 
     /// <summary>
-    /// Moves its body on a straight line along +X in <paramref name="space"/> that speeds up at <paramref name="acceleration"/>
-    /// m/s², from <paramref name="start"/> at 2 m/s at time 0. In every tick it writes the full sample of the step that the
-    /// tick's intents act in, in the frame that the body is in, through the frames' relation that the tick reads. The frames
-    /// in these tests do not move relative to each other, so the relation converts the sample exactly.
+    /// A plain kinematic ball that end poses move at 1,200 m/s through a frame without gravity gets a falling numeric frame
+    /// as its physics home, which moves with it. It reads the velocity of its end poses in the frame that it is in, so the
+    /// body state takes away the velocity that the home has after the step, and a read adds it back.
     /// </summary>
-    private sealed class Speeding(FrameHandle space, Double3 start, double acceleration) : IComponent
+    [Fact]
+    public void APlainBodyOnRailsInANumericFrameReadsTheVelocityOfItsMotionIntents()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Ground(world, 0);
+        Entity ball = world.Spawn(KinematicDrift.Drifting(new SpawnDesc { Frame = space, Body = KinematicBall }, world, new Double3(1_200, 0, 0)));
+        Tick(world, 10);
+        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().NotBe(NumericMode.None, "a body at 1,200 m/s runs in a numeric frame");
+
+        for (int i = 0; i < 30; i++)
+        {
+            world.Tick();
+            (world.VelocityIn(ball, space) - new Double3(1_200, 0, 0)).Length.Should().BeLessThan(1e-3,
+                "the ball reads the velocity of its end poses at sync point {0}", world.TickNumber);
+        }
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The ball of the test above flies through the bubble of a room at rest, 2 km away. It hands off from its numeric
+    /// home into the room and out again, and at each hand-off it reads the velocity of its end poses: the hand-off takes
+    /// away the instant velocity of the numeric home, as it does for every body, before it adds the motion of the home.
+    /// </summary>
+    [Fact]
+    public void APlainBodyOnRailsThatHandsOffFromANumericFrameCarriesTheVelocityOfItsMotionIntents()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Ground(world, 0);
+        FrameHandle room = world.GetOwnedFrame(world.Spawn(new SpawnDesc { Frame = space, Pose = At(2_000), AsFrame = new FrameSpec(FrameBounds.Sphere(100)) }));
+        Entity ball = world.Spawn(KinematicDrift.Drifting(new SpawnDesc { Frame = space, Body = KinematicBall }, world, new Double3(1_200, 0, 0)));
+
+        var handOffs = new List<(FrameHandle To, bool FromNumeric, double Off)>();
+        FrameHandle frame = world.GetFrame(ball);
+        bool numeric = false;
+        for (int i = 0; i < 240; i++)
+        {
+            world.Tick();
+            if (world.GetFrame(ball) != frame)
+            {
+                frame = world.GetFrame(ball);
+                handOffs.Add((frame, numeric, (world.VelocityIn(ball, space) - new Double3(1_200, 0, 0)).Length));
+            }
+            numeric = world.Frames.Numeric(world.PhysicsHomeOf(ball)) != NumericMode.None;
+        }
+
+        handOffs.Select(handOff => handOff.To).Should().Equal([room, space], "the ball passes through the room's bubble");
+        handOffs.Should().Contain(handOff => handOff.FromNumeric, "the ball hands off from a numeric home at least once");
+        handOffs.Should().AllSatisfy(handOff => handOff.Off.Should().BeLessThan(1e-3, "the hand-off into {0} carries the velocity of the end poses", handOff.To));
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Moves its body on a straight line along +X in <paramref name="space"/> that speeds up at <paramref name="acceleration"/>
+    /// m/s², from <paramref name="start"/> at 2 m/s at time 0, and turns it about Z, from 0.5 rad/s at time 0, faster by
+    /// <paramref name="spinUp"/> rad/s². In every tick it writes the full sample of the step that the tick's intents act in,
+    /// in the frame that the body is in, through the frames' relation that the tick reads. The frames in these tests do not
+    /// move relative to each other, so the relation converts the sample exactly.
+    /// </summary>
+    private sealed class Speeding(FrameHandle space, Double3 start, double acceleration, double spinUp) : IComponent
     {
         public Double3 At(double time) => start + new Double3(2 * time + 0.5 * acceleration * time * time, 0, 0);
 
         public Double3 VelocityAt(double time) => new(2 + acceleration * time, 0, 0);
+
+        public DQuaternion RotationAt(double time) => DQuaternion.FromAxisAngle(Double3.UnitZ, 0.5 * time + 0.5 * spinUp * time * time);
+
+        public Double3 AngularVelocityAt(double time) => new(0, 0, 0.5 + spinUp * time);
 
         public int Priority => 0;
 
@@ -95,25 +156,99 @@ public class PlainBodyOnRailsTests
             DPose relation = self.Snapshot.Frames.Relative(space, self.Frame);
             DQuaternion turn = relation.Rotation;
             self.MoveOnRails(new MotionSample(
-                DPose.Compose(relation, new DPose(At(end), DQuaternion.Identity)),
+                DPose.Compose(relation, new DPose(At(end), RotationAt(end))),
                 turn.Rotate((At(end) - At(end - step)) / step),
                 turn.Rotate(VelocityAt(end)),
                 turn.Rotate(new Double3(acceleration, 0, 0)),
-                Double3.Zero,
-                Double3.Zero));
+                turn.Rotate(AngularVelocityAt(end)),
+                turn.Rotate(new Double3(0, 0, spinUp))));
         }
     }
 
     /// <summary>
-    /// A plain kinematic cube on rails that speeds up at 3 m/s² passes through the bubble of a turned room at rest. At the
-    /// sync point of each hand-off it reads the instant velocity of its rails in the frame that it left, as at every other
-    /// sync point: the hand-off carries the instant velocity of the step's sample, not Jolt's chord, which lies 0.025 m/s
+    /// A plain kinematic cube of 1 m that <paramref name="rails"/> moves, spawned where the rails put it at time 0. With
+    /// <paramref name="lopsided"/>, the cube sits 1 m along its X axis from the body's origin, so its centre of mass does too
+    /// (see <see cref="CentreOfMass"/>).
+    /// </summary>
+    private static Entity CubeOn(World world, FrameHandle space, Speeding rails, bool lopsided = false) => world.Spawn(new SpawnDesc
+    {
+        Frame = space,
+        Pose = new DPose(rails.At(0), rails.RotationAt(0)),
+        Body = new BodyDesc(lopsided
+            ? new CompoundShapeDesc([new CompoundChild(new BoxShapeDesc(new Vector3(0.5f)), new Pose(new Vector3(1, 0, 0), Quaternion.Identity))])
+            : new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic),
+        Components = [rails],
+    });
+
+    /// <summary>The centre of mass of a cube of <see cref="CubeOn"/> in its body's axes.</summary>
+    private static Double3 CentreOfMass(bool lopsided) => lopsided ? new Double3(1, 0, 0) : Double3.Zero;
+
+    /// <summary>
+    /// The instant velocity of the centre of mass of a cube of <see cref="CubeOn"/> on <paramref name="rails"/> at
+    /// <paramref name="time"/>: the velocity of its origin, plus the turn of the arm from the origin to the centre of mass.
+    /// </summary>
+    private static Double3 CentreVelocity(Speeding rails, double time, bool lopsided) =>
+        rails.VelocityAt(time) + Double3.Cross(rails.AngularVelocityAt(time), rails.RotationAt(time).Rotate(CentreOfMass(lopsided)));
+
+    /// <summary>
+    /// The velocity that gameplay reads for a plain body is that of its centre of mass, as Jolt gives it for every body. So
+    /// a plain body on rails whose centre of mass lies 1 m from its origin reads the instant velocity of its rails at the
+    /// origin plus the turn of that arm, which is 0.5 m/s and more here.
+    /// </summary>
+    [Fact]
+    public void APlainBodyOnRailsReadsTheInstantVelocityOfItsCentreOfMass()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        var rails = new Speeding(space, Double3.Zero, acceleration: 3, spinUp: 2);
+        Entity cube = CubeOn(world, space, rails, lopsided: true);
+        Tick(world, 2);
+
+        for (int i = 0; i < 30; i++)
+        {
+            world.Tick();
+            (world.VelocityIn(cube, space) - CentreVelocity(rails, world.Time, lopsided: true)).Length.Should().BeLessThan(1e-4,
+                "the body reads the instant velocity of its centre of mass at sync point {0}", world.TickNumber);
+        }
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// The angular velocity that gameplay reads for a plain body on rails is the instant angular velocity of its sample at
+    /// the end of the step, not Jolt's chord of the turn, which lies half a step of the spin-up of 2 rad/s², 0.017 rad/s,
     /// behind.
     /// </summary>
     [Fact]
-    public void APlainBodyOnRailsThatHandsOffCarriesTheSamplesInstantVelocity()
+    public void APlainBodyOnRailsReadsTheSamplesInstantAngularVelocity()
     {
         using World world = NewWorld(out _);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        var rails = new Speeding(space, Double3.Zero, acceleration: 0, spinUp: 2);
+        Entity cube = CubeOn(world, space, rails);
+        Tick(world, 2);
+
+        for (int i = 0; i < 30; i++)
+        {
+            world.Tick();
+            ((Double3)world.AngularVelocityIn(cube, space) - rails.AngularVelocityAt(world.Time)).Length.Should().BeLessThan(1e-4,
+                "the body reads its sample's instant angular velocity at sync point {0}", world.TickNumber);
+        }
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A plain kinematic cube on rails that speeds up at 3 m/s² and spins up at 2 rad/s² passes through the bubble of a
+    /// turned room at rest. At the sync point of each hand-off it reads the instant velocities of its rails in the frame
+    /// that it left, as at every other sync point: the hand-off carries the instant velocities of the step's sample at the
+    /// cube's centre of mass, not Jolt's chords, which lie 0.025 m/s and 0.017 rad/s behind. The body state of the step
+    /// agrees with the hand-off: it is the cube's state in its new frame.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void APlainBodyOnRailsThatHandsOffCarriesTheSamplesInstantVelocity(bool lopsided)
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         var turned = DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2) * DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2);
         FrameHandle room = world.GetOwnedFrame(world.Spawn(new SpawnDesc
@@ -122,17 +257,11 @@ public class PlainBodyOnRailsTests
             Pose = new DPose(new Double3(20, 0, 0), turned),
             AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
         }));
-        var rails = new Speeding(space, new Double3(5, 0, 0), acceleration: 3);
-        Entity cube = world.Spawn(new SpawnDesc
-        {
-            Frame = space,
-            Pose = new DPose(rails.At(0), DQuaternion.Identity),
-            Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic),
-            Components = [rails],
-        });
+        var rails = new Speeding(space, new Double3(5, 0, 0), acceleration: 3, spinUp: 2);
+        Entity cube = CubeOn(world, space, rails, lopsided);
         Tick(world, 2);
 
-        var handOffs = new List<(FrameHandle To, double Off)>();
+        var handOffs = new List<(FrameHandle To, double Off, double TurnOff)>();
         FrameHandle frame = world.GetFrame(cube);
         for (int i = 0; i < 240; i++)
         {
@@ -140,12 +269,24 @@ public class PlainBodyOnRailsTests
             if (world.GetFrame(cube) == frame)
                 continue;
             frame = world.GetFrame(cube);
-            handOffs.Add((frame, (world.VelocityIn(cube, space) - rails.VelocityAt(world.Time)).Length));
+            handOffs.Add((frame, (world.VelocityIn(cube, space) - CentreVelocity(rails, world.Time, lopsided)).Length,
+                ((Double3)world.AngularVelocityIn(cube, space) - rails.AngularVelocityAt(world.Time)).Length));
+            HandOff handOff = faults.Outputs[^1].HandOffs.Single(h => h.Entity == cube);
+            BodyState state = faults.Outputs[^1].Bodies.Single(b => b.Entity == cube);
+            state.Frame.Should().Be(handOff.To);
+            (state.Pose.Position - handOff.Pose.Position).Length.Should().BeLessThan(1e-9, "the body state is the cube's place in its new frame");
+            Math.Abs(Dot(state.Pose.Rotation, handOff.Pose.Rotation)).Should().BeGreaterThan(1 - 1e-6, "and its rotation there");
+            (state.LinearVelocity - handOff.LinearVelocity).Length().Should().BeLessThan(1e-5f, "and its velocity there");
         }
 
         handOffs.Select(handOff => handOff.To).Should().Equal([room, space], "the cube passes through the room's bubble");
-        handOffs.Should().AllSatisfy(handOff => handOff.Off.Should().BeLessThan(1e-4,
-            "the hand-off into {0} carries the instant velocity of the step's sample", handOff.To));
+        handOffs.Should().AllSatisfy(handOff =>
+        {
+            handOff.Off.Should().BeLessThan(1e-4, "the hand-off into {0} carries the instant velocity of the step's sample", handOff.To);
+            handOff.TurnOff.Should().BeLessThan(1e-4, "the hand-off into {0} carries the instant angular velocity of the step's sample", handOff.To);
+        });
         world.Errors.Should().BeEmpty();
     }
+
+    private static double Dot(DQuaternion a, DQuaternion b) => a.X * b.X + a.Y * b.Y + a.Z * b.Z + a.W * b.W;
 }
