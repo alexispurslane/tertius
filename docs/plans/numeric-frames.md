@@ -549,6 +549,7 @@ The public surface reports only semantic frames. The work covers each of these s
 - `World.Frames` and `Snapshot.Frames` report the semantic tree. A numeric frame is invisible to `Parent`, `GetChildren` and `GetAll`.
 - Contact points and normals reach gameplay in the semantic frame's coordinates.
 - State dumps, scripts and the render snapshot use semantic frames. The camera's frame is semantic, so render interpolation and the shadow grid never restart because of a numeric frame.
+- The frame outlines of the render snapshot (`World.ShowFrameOutlines`, docs/plans/blue-danube-demo.md, "Change 3: frame outlines") show numeric frames too: a numeric frame's outline is its contents sphere. That is so that a capture can show the frames that the engine makes. Gameplay cannot read the render snapshot, so no component can tell from it that a numeric frame exists.
 
 ## Limits
 

@@ -411,7 +411,7 @@ The engine makes and removes frames of its own around groups of bodies, only for
 | Question | Rule |
 |---|---|
 | Where a numeric frame lives | In the frame tree, with the `NumericMode` `Falling`, `Resting`, `Nesting` or `Orbiting`, and a Jolt system of its own. It has no owner, no bubble, no gravity of its own and no rotation. |
-| What gameplay sees | Nothing. `Self.Frame`, `World.Frames`, `Snapshot`, `FrameChanged`, the topics, `QueryRadius`, the state dumps and the render snapshot's camera frame show only semantic frames, the frames that content or gameplay made. The public members of `FrameTree` answer relative to `Parent`, the semantic parent, and list frames in an order that numeric frames do not change. The members that show the tree as it is stored are internal. |
+| What gameplay sees | Nothing. `Self.Frame`, `World.Frames`, `Snapshot`, `FrameChanged`, the topics, `QueryRadius`, the state dumps and the render snapshot's camera frame show only semantic frames, the frames that content or gameplay made. The public members of `FrameTree` answer relative to `Parent`, the semantic parent, and list frames in an order that numeric frames do not change. The members that show the tree as it is stored are internal. The frame outlines of the render snapshot (see "Frame outlines" under "Rendering") show numeric frames too, so that a capture can show them. Gameplay cannot read the render snapshot. |
 | The entity row | `Frame` is the semantic frame. `PhysicsHome` is the frame whose Jolt system holds the body. `Pose` is in `Frame`, `HomePosition` is the position in `PhysicsHome`, and `LinearVelocity` is a float relative to `PhysicsHome`. |
 | Reads | Every read of a position or velocity names its frame. A read in another frame starts from the physics home and composes through the lowest common ancestor. |
 | Writes and directions | Relative to `self.Frame`, in its axes. Physics converts a write when it applies it. |
@@ -597,7 +597,7 @@ The skip does not change physics. At the next reconcile, a frame hull goes back 
 
 ## Rendering
 
-The renderer is a deferred Vulkan renderer. It gets a flat list of instances, each relative to the render origin, and it knows nothing about frames.
+The renderer is a deferred Vulkan renderer. It gets a flat list of instances, each relative to the render origin, and it knows nothing about frames, except that each frame outline of the snapshot names the kind of its frame, for its color (see "Frame outlines" below). No pass draws the outlines yet. The overlay pass of ticket ter-p51r will.
 
 ### The order of a rendered frame
 
@@ -634,8 +634,30 @@ The snapshot also carries:
 - The ambient light, and one `RenderLight` for each light that an entity carries: a `PointRenderLight` or a `SpotRenderLight` (see "Shading"). A light sits at the pose of its entity composed with the offset of its `LightData`.
 - `OriginInFrame` and `OriginFrameId`: the render origin in the camera's frame, and an id of that frame. The shadow texel grid uses them.
 - `RootRotation` and `PreviousRootRotation`, for the star field (see "Shading").
+- `Outlines`: with `World.ShowFrameOutlines` on, one `FrameOutline` for each frame that has a parent (see "Frame outlines" below).
 
 A build of 8,192 or more slots runs on the gameplay workers when the world has more than one, in chunks of 1,024 slots. The chunks join in slot order, so the order of the instances does not depend on threads.
+
+#### Frame outlines
+
+A frame outline shows the region that the rule of its frame covers. `World.ShowFrameOutlines` turns them on. It is a view setting, as `World.Camera` is: the builder reads it through `RenderView` at each build, so the first snapshot that is built after a change shows it. It is off by default, and then the builder does no outline work. `FrameOutline` is a custom union, as `RenderLight` is, with one case for each kind of frame that has an outline:
+
+| Kind of frame | Outline | Case |
+|---|---|---|
+| Root frame | None. Nothing enters or leaves a root frame, so its rule covers no region. | None |
+| Semantic frame with a parent | Its bubble: the ellipsoid of `FrameTree.Bounds`, centred on its origin, in its axes. | `SemanticOutline(Center, Rotation, Radii)` |
+| Falling, resting, nesting and orbit frame | Its contents sphere | `FallingOutline`, `RestingOutline`, `NestingOutline` and `OrbitingOutline`, each `(Center, Radius)` |
+
+A numeric frame has no bubble. Its members are a group of bodies, not the bodies in a region, so its outline shows what it holds. Its contents sphere is the smallest sphere centred on its origin that holds these:
+
+- The bounding sphere of each body whose physics home it is: at the body's `HomePosition`, with the radius that the entity table kept at the spawn.
+- The outline sphere of each frame whose parent in the tree, as the tree stores it, is this frame. The outline sphere of a frame is the smallest sphere centred on its origin that holds its outline: the largest radius of the bubble for a semantic frame, and the contents sphere for a numeric frame.
+
+So the sphere of a falling frame holds the bubble of the ship that falls in it, and the sphere of an orbit frame holds the station's bubble. The sphere is centred on the frame's origin, as a bubble is, so it also shows how far the members drift from that origin before the frame moves its origin to them.
+
+With the setting on, the builder adds the outlines after the instances and the sun, on the calling thread, after the chunks join. It first makes one pass over the live bodies in slot order. Each numeric physics home keeps the largest value of |`HomePosition`| + the bounding radius. Then it walks the frames from the last dense index to the first, so that it reaches each child before its parent, and grows each numeric parent to |the child's local position| + the child's outline sphere. A semantic frame's outline sphere is its bubble, so a body or a frame that reaches out of a bubble grows nothing. It computes in doubles and narrows each radius to a float at the end. Then it adds one outline for each frame that has a parent, in the dense order of the tree. The list keeps that order, so it is the same in every run and on any number of threads. The center and the rotation of an outline are its frame's pose relative to the camera's physics home, which also places the instances, less the render origin, in the axes of the camera's frame. A frame of another tree gets an outline too, placed through the shared root, as its instances are. An outline is not interpolated: in a capture, at alpha 1, an outline and the instances of its frame agree exactly. In the window, an outline can lag the objects of its frame by one tick of their motion relative to the camera.
+
+`RenderSnapshotBenchmarks` measures the build with the outlines off and on (ter-84iw, Release, one thread). With them off, a build takes the time that it took before the outlines, within the noise. With them on, a world of 1,000 frames and 20,000 bodies in 100 resting frames builds in about 1,165 µs instead of 950 µs, and its 1,000 outlines take 48,000 bytes. The orbit scene, with 15 frames, builds in 1.95 µs instead of 1.5 µs. No build allocates.
 
 ### Instances and draws
 
