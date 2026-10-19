@@ -129,7 +129,7 @@ public class FrameProperAccelerationTests
             Entity = new Entity(1000, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
             Velocity = velocity, Radius = 1, Mass = 1,
         };
-        frames.UpdateNumericFrames([body], 0.1, new PhysicsChanges(), moves => home = moves.Single().To);
+        frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), moves => home = moves.Single().To);
         frames.IsNumeric(home).Should().BeTrue();
         return home;
     }

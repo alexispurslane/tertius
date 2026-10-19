@@ -84,7 +84,7 @@ public class FrameTreeVisitTests
             Entity = new Entity(20, 1), Semantic = ground, Home = ground, Position = X(x), HomePosition = X(x), Velocity = X(speed),
             Radius = 1, Mass = 1, Character = true, OwnedFrame = hull,
         };
-        frames.UpdateNumericFrames([body], 0.1, new PhysicsChanges(), _ => { });
+        frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), _ => { });
         FrameHandle pod = frames.TreeParent(hull);
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
         return (ground, hull, pod);

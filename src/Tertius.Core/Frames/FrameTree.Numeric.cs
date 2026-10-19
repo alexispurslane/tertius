@@ -200,25 +200,36 @@ public sealed partial class FrameTree
     /// <summary>
     /// Creates the orbit frame of the frame that <paramref name="hull"/> owns, a hull that is kinematic in the step that the
     /// update plans (<see cref="NumericBody.Orbits"/>), which the numeric update moves into it, and moves the frame under it.
-    /// The new frame lies in the frame's semantic parent at the frame's place, with the frame's instant velocity there, as the
-    /// frame's row holds them after the record of the step that ended (see <see cref="NumericMode.Orbiting"/>). The frame
-    /// rests at its origin. The first step plan lands the new frame on the anchor's motion (see
-    /// <see cref="BeginNumericStep"/>). The frame's place and velocity in the semantic parent stay what they were.
+    /// The new frame lies in the frame's semantic parent at the frame's place, as the frame's row holds it after the record
+    /// of the step that ended. Its velocity is the chord that the numeric frames expect of a frame at the start of a step
+    /// (docs/plans/rails-components.md, "The first step of a new following frame"): the chord of the frame's motion over the
+    /// step that ended, from what its row keeps of that step, for a step as long as the next, of <paramref name="step"/>
+    /// seconds. That is the frame's instant velocity less half a step of its acceleration, as physics gives a body its chord
+    /// and as a falling frame's instant velocity lies past its chord (see <see cref="HomeInstantVelocityOverChord"/>). The
+    /// acceleration follows from the rule of <see cref="ProperAccelerationFrom"/> read backward: the gravity at the frame's
+    /// place plus its proper acceleration, turned out of its axes. So the first step plan lands the new frame on the anchor's
+    /// motion with the acceleration of the step before, to the jerk of the motion, as every later plan does, and a first step
+    /// that falls continues the anchor's free fall. A frame spawned at this sync point has no proper acceleration yet, so it
+    /// starts as one that fell freely. The frame rests at its origin and keeps the rest of its instant velocity, so its place
+    /// and velocity in the semantic parent stay what they were.
     /// </summary>
-    private FrameHandle CreateOrbitFrame(in NumericBody hull)
+    private FrameHandle CreateOrbitFrame(in NumericBody hull, double step)
     {
         FrameHandle frame = hull.OwnedFrame;
-        Contract.Requires(hull.Orbits && !IsNumeric(frame) && !InOrbitFrame(frame));
+        Contract.Requires(hull.Orbits && !IsNumeric(frame) && !InOrbitFrame(frame) && step > 0);
         FrameHandle treeParent = TreeParent(frame);
         FrameHandle semantic = SemanticOf(treeParent);
         DPose local = TreeLocalPose(frame);
         Double3 position = InSemantic(treeParent, semantic, local.Position);
         Double3 velocity = HomeVelocity(treeParent, semantic) + linearVelocity[frame.Index];
-        FrameHandle orbitFrame = CreateNumeric(semantic, position, velocity, NumericMode.Orbiting);
+        // A numeric frame never turns, so the frame's rotation in its tree parent is its rotation in the semantic parent.
+        Double3 acceleration = FieldOf(semantic.Index, position) + local.Rotation.Rotate((Double3)properAcceleration[frame.Index]);
+        Double3 chord = velocity - acceleration * (step / 2);
+        FrameHandle orbitFrame = CreateNumeric(semantic, position, chord, NumericMode.Orbiting);
         orbiter[orbitFrame.Index] = frame;
         Reparent(frame, orbitFrame);
         LocalForWrite(Node(frame)) = new DPose(Double3.Zero, local.Rotation);
-        LinearVelocityForWrite(frame.Index) = Double3.Zero;
+        LinearVelocityForWrite(frame.Index) = velocity - chord;
         Contract.Ensures(InOrbitFrame(frame) && Parent(frame) == semantic);
         return orbitFrame;
     }
@@ -327,7 +338,9 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Runs the membership and nesting rules of numeric frames (docs/plans/numeric-frames.md, "Membership" and "Nesting for
-    /// vast distances") once, over a sync point of <paramref name="dt"/> seconds. <paramref name="bodies"/> holds every
+    /// vast distances") once, over a sync point of <paramref name="dt"/> seconds, before a physics step of
+    /// <paramref name="step"/> seconds, whose length a new orbit frame needs for its velocity (see
+    /// <see cref="CreateOrbitFrame"/>). <paramref name="bodies"/> holds every
     /// entity with a body that is not attached, in entity slot order, and a frame owner twice: its interior in its frame,
     /// then its hull in the frame's parent. First the thrust clock of every body that is not static runs over the sync
     /// point (see <see cref="NumericFrameRules.ThrustClock"/>), and a group with a body that thrusts then uses the lower
@@ -367,9 +380,9 @@ public sealed partial class FrameTree
     /// frame with each place of a ghost there, and finds the bodies behind the places among the bodies of the semantic
     /// parent, children and siblings in the input.
     /// </remarks>
-    internal void UpdateNumericFrames(ReadOnlySpan<NumericBody> bodies, double dt, PhysicsChanges changes, Action<List<NumericMove>> applyMoves)
+    internal void UpdateNumericFrames(ReadOnlySpan<NumericBody> bodies, double dt, double step, PhysicsChanges changes, Action<List<NumericMove>> applyMoves)
     {
-        Contract.Requires(dt >= 0);
+        Contract.Requires(dt >= 0 && step > 0);
         SortBySemanticFrame(bodies, dt);
         moves.Clear();
         anchorGhosts.Clear();
@@ -389,7 +402,7 @@ public sealed partial class FrameTree
         {
             (_, int start, int end) = semanticRanges[r];
             if (NeedsWork(CollectionsMarshal.AsSpan(sortedBodies)[start..end]))
-                UpdateSemanticFrame(start, end, dt, changes);
+                UpdateSemanticFrame(start, end, dt, step, changes);
         }
         (leaveClocks, nextLeaveClocks) = (nextLeaveClocks, leaveClocks);
         NestFarFrames(changes);
@@ -477,7 +490,7 @@ public sealed partial class FrameTree
         return false;
     }
 
-    private void UpdateSemanticFrame(int start, int end, double dt, PhysicsChanges changes)
+    private void UpdateSemanticFrame(int start, int end, double dt, double step, PhysicsChanges changes)
     {
         Span<NumericBody> bodies = CollectionsMarshal.AsSpan(sortedBodies);
         for (int i = start; i < end; i++)
@@ -506,7 +519,7 @@ public sealed partial class FrameTree
             if (group.Keeps && group.Mode != NumericMode.Orbiting)
                 DrainFrame(group, changes);
         foreach (BodyGroup group in groups)
-            MoveHome(group, changes);
+            MoveHome(group, step, changes);
         // After the moves, which give each group its home and each Kepler hull apart from its group its orbit frame.
         KeepAnchorGhosts();
     }
@@ -934,17 +947,18 @@ public sealed partial class FrameTree
     /// that a moving body owns goes under the new home, because a hull lives in the system of its frame's tree parent. A
     /// body that owns a frame that physics does not drive and that no orbit frame holds goes back to its semantic frame
     /// this way: its group gets the mode None. A group that takes the orbit frame of its orbiter, a Kepler hull, gets a new
-    /// one for the hull when the hull has none (see <see cref="CreateOrbitFrame"/>). Each other Kepler hull that lives in
+    /// one for the hull when the hull has none, whose velocity needs the length of the next physics step,
+    /// <paramref name="step"/> seconds (see <see cref="CreateOrbitFrame"/>). Each other Kepler hull that lives in
     /// an orbit frame of its own stays apart from the group, in that frame, which it gets when it has none. Those hulls go
     /// first, in the order of the members, and then the group, so that two runs make the same frames in the same order;
     /// an orbit frame follows its own orbit, so no hull's frame depends on where the group goes.
     /// </summary>
-    private void MoveHome(in BodyGroup group, PhysicsChanges changes)
+    private void MoveHome(in BodyGroup group, double step, PhysicsChanges changes)
     {
         Span<NumericBody> members = CollectionsMarshal.AsSpan(sortedBodies)[group.Start..group.End];
         for (int i = 0; i < members.Length; i++)
             if (apart[group.Start + i] && members[i].HomeMode != NumericMode.Orbiting)
-                MoveIntoOrbitFrame(ref members[i], changes);
+                MoveIntoOrbitFrame(ref members[i], step, changes);
         FrameHandle semantic = members[0].Semantic;
         FrameHandle home = group.Mode == NumericMode.None ? semantic : group.Keeps ? group.Motion.Frame : FrameHandle.Null;
         bool anyMoves = false;
@@ -955,7 +969,7 @@ public sealed partial class FrameTree
         if (home.IsNull)
         {
             Double3 velocity = group.Mode == NumericMode.Falling ? group.Motion.Velocity : Double3.Zero;
-            home = group.Mode == NumericMode.Orbiting ? CreateOrbitFrame(members[group.Motion.Orbiter])
+            home = group.Mode == NumericMode.Orbiting ? CreateOrbitFrame(members[group.Motion.Orbiter], step)
                 : CreateNumeric(semantic, group.Motion.Center, velocity, group.Mode);
             changes.FramesCreated.Add(home);
         }
@@ -977,9 +991,9 @@ public sealed partial class FrameTree
     /// Moves the hull <paramref name="body"/> of a Kepler frame, which lives apart from its group, into a new orbit frame of
     /// its own, with its frame.
     /// </summary>
-    private void MoveIntoOrbitFrame(ref NumericBody body, PhysicsChanges changes)
+    private void MoveIntoOrbitFrame(ref NumericBody body, double step, PhysicsChanges changes)
     {
-        FrameHandle orbitFrame = CreateOrbitFrame(body);
+        FrameHandle orbitFrame = CreateOrbitFrame(body, step);
         changes.FramesCreated.Add(orbitFrame);
         moves.Add(new NumericMove(body.Entity, body.Home, orbitFrame));
         body = body with { Home = orbitFrame, HomeMode = NumericMode.Orbiting };

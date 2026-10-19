@@ -49,7 +49,7 @@ public class FrameTreeOwnerViewStampTests
             OwnedFrame = owned,
         };
         FrameHandle after = physicsHome;
-        frames.UpdateNumericFrames([body], 0.1, new PhysicsChanges(), moves =>
+        frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), moves =>
         {
             foreach (NumericMove move in moves)
                 after = move.To;

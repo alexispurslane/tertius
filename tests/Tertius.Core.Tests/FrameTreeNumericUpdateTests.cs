@@ -61,7 +61,7 @@ public class FrameTreeNumericUpdateTests
     {
         changes.Clear();
         moves = [];
-        frames.UpdateNumericFrames(bodies, dt, changes, handed =>
+        frames.UpdateNumericFrames(bodies, dt, 1.0 / 60, changes, handed =>
         {
             foreach (NumericMove move in handed)
                 frames.IsAlive(move.From).Should().BeTrue("physics converts each move through the frame that the body leaves");

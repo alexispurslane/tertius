@@ -93,7 +93,7 @@ public sealed partial class World
             });
         }
         Profile.Lap(23);
-        Frames.UpdateNumericFrames(CollectionsMarshal.AsSpan(numericBodies), dt, physicsChanges, applyNumericMoves ??= ApplyNumericMoves);
+        Frames.UpdateNumericFrames(CollectionsMarshal.AsSpan(numericBodies), dt, DeltaTime, physicsChanges, applyNumericMoves ??= ApplyNumericMoves);
         Profile.Lap(24);
         ApplyPhysicsChanges();
         pendingCreates.Clear();

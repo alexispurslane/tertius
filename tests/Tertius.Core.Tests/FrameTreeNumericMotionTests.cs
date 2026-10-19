@@ -43,7 +43,7 @@ public class FrameTreeNumericMotionTests
             Entity = new Entity(10, 1), Semantic = semantic, Home = semantic, Position = position, HomePosition = position,
             Velocity = velocity, Radius = 1, Mass = 1,
         };
-        frames.UpdateNumericFrames([body], 0.1, new PhysicsChanges(), moves => home = moves.Single().To);
+        frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), moves => home = moves.Single().To);
         frames.Update();
         frames.BeginNumericStep([], 1.0 / 60);
         return home;

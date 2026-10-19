@@ -1,3 +1,4 @@
+using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
 
@@ -154,7 +155,7 @@ public class FrameTreeOrbitFrameTests
     {
         changes.Clear();
         moves = [];
-        frames.UpdateNumericFrames(bodies, Step, changes, handed =>
+        frames.UpdateNumericFrames(bodies, Step, Step, changes, handed =>
         {
             foreach (NumericMove move in handed)
                 frames.IsAlive(move.From).Should().BeTrue("physics converts each move through the frame that the body leaves");
@@ -187,9 +188,10 @@ public class FrameTreeOrbitFrameTests
         frames.TreeLocalPose(orbit).Position.Should().Be(place, "the orbit frame is where the orbit is");
         frames.LocalPose(station).Position.Should().Be(place, "a read in earth is the orbit's place, to the last bit");
         frames.LocalPose(station).Rotation.Should().Be(Low.RotationAt(Start, EarthMu), "the frame keeps its own rotation");
-        frames.LinearVelocity(orbit).Should().Be(velocity, "before the hull's first sample, the orbit frame takes the frame's velocity");
-        frames.TreeLinearVelocity(station).Should().Be(Double3.Zero);
-        frames.LinearVelocity(station).Should().Be(velocity, "a read in earth is the frame's velocity");
+        Double3 chord = velocity - GravityField.Point(EarthMu).AtPrecise(place) * (Step / 2);
+        frames.LinearVelocity(orbit).Should().Be(chord, "the orbit frame starts with the chord of the frame's instant velocity");
+        frames.TreeLinearVelocity(station).Should().Be(velocity - chord);
+        (frames.LinearVelocity(station) - velocity).Length.Should().BeLessThan(1e-9, "a read in earth is the frame's velocity");
         changes.FramesCreated.Should().Equal(orbit);
         moves.Should().Equal(new NumericMove(station.Entity, earth, orbit));
     }
@@ -302,24 +304,84 @@ public class FrameTreeOrbitFrameTests
         frames.HomeAcceleration(orbit, earth).Should().Be(GravityField.Point(EarthMu).AtPrecise(place), "the field of earth at its origin pulls it");
     }
 
+    /// <summary>
+    /// The start of a new following frame (docs/plans/rails-components.md, "The first step of a new following frame"): it
+    /// lies at its anchor's place, and its velocity is the chord that the numeric frames expect of a frame at the start of a
+    /// step, the chord of its anchor's motion over the step that ended, from what the anchor's row keeps of that step: the
+    /// instant velocity less half a step of the acceleration, which is the gravity at the anchor's place plus the anchor's
+    /// proper acceleration, turned out of its axes. The anchor rests at its origin and keeps the rest of its instant
+    /// velocity, so a read in earth gives that velocity.
+    /// </summary>
     [Fact]
-    public void ANewFollowingFrameStartsAtItsAnchorsPlaceAndVelocity()
+    public void ANewFollowingFrameStartsAtItsAnchorsPlaceWithTheChordOfItsAnchorsMotionOverTheStepThatEnded()
     {
         FrameHandle station = Station(10, Low);
-        // The record of the step that ended at this sync point, with a chord of its own, which the new frame does not take:
-        // its first plan lands it (see AFollowingFrameLandsOnItsAnchorsPlanAtEverySyncPoint).
+        // The record of the step that ended at this sync point, with a chord of its own, which the row does not keep, so the
+        // new frame does not take it. The chord moves the place where the record says the step started, and the gravity
+        // there, so the station's proper acceleration is not zero.
         MotionSample sample = Low.Sample(EarthMu, Start, Step) with { ChordVelocity = new Double3(7_000, 100, 200) };
         frames.Follow(station, earth, sample, FollowKind.Rails, measured: null, Step);
         frames.StoreNewProperAccelerations();
 
         FrameHandle orbit = Update(Hull(station))[0].Home;
 
+        Double3 acceleration = GravityField.Point(EarthMu).AtPrecise(sample.Pose.Position)
+            + sample.Pose.Rotation.Rotate((Double3)frames.ProperAcceleration(station));
+        Double3 chord = sample.Velocity - acceleration * (Step / 2);
+        frames.ProperAcceleration(station).Should().NotBe(Vector3.Zero);
         frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
         frames.TreeLocalPose(orbit).Position.Should().Be(sample.Pose.Position);
-        frames.LinearVelocity(orbit).Should().Be(sample.Velocity, "the anchor's instant velocity");
+        frames.LinearVelocity(orbit).Should().Be(chord, "the anchor's instant velocity less half a step of the acceleration that its row keeps");
         frames.TreeLocalPose(station).Should().Be(new DPose(Double3.Zero, sample.Pose.Rotation));
-        frames.TreeLinearVelocity(station).Should().Be(Double3.Zero);
-        frames.LinearVelocity(station).Should().Be(sample.Velocity, "a read in earth keeps the anchor's velocity");
+        frames.TreeLinearVelocity(station).Should().Be(sample.Velocity - chord, "the anchor keeps the rest of its instant velocity");
+        (frames.LinearVelocity(station) - sample.Velocity).Length.Should().BeLessThan(1e-9, "a read in earth keeps the anchor's velocity");
+    }
+
+    /// <summary>
+    /// An anchor on a Kepler orbit falls freely, so its proper acceleration is zero and its acceleration is the pull at its
+    /// place. Its new following frame starts with the orbit's chord of the step that ended (<see cref="KeplerOrbit.Chord"/>,
+    /// the two-body form) to the jerk term, 4.5e-7 m/s in low orbit, and its first plan lands it with the pull, as every
+    /// later plan does.
+    /// </summary>
+    [Fact]
+    public void ANewFollowingFrameOfAnAnchorOnAKeplerOrbitStartsWithTheOrbitsChordAndLandsOnItsFirstPlanWithThePull()
+    {
+        FrameHandle station = Station(10, Low);
+        MotionSample sample = Low.Sample(EarthMu, Start, Step);
+        frames.Follow(station, earth, sample, FollowKind.Rails, measured: null, Step);
+        frames.StoreNewProperAccelerations();
+
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+        frames.Update();
+        frames.BeginNumericStep(Moving(station, new MotionIntent(Low.Sample(EarthMu, Start + Step, Step))), Step);
+
+        (frames.LinearVelocity(orbit) - KeplerOrbit.Chord(sample.Pose.Position, sample.Velocity, EarthMu, Step)).Length
+            .Should().BeLessThan(1e-6, "the orbit's chord over the step that ended, to its jerk");
+        (frames.HomeAcceleration(orbit, earth) - GravityField.Point(EarthMu).AtPrecise(sample.Pose.Position)).Length
+            .Should().BeLessThan(1e-4, "the first plan lands the frame with the pull of 8.6 m/s², to the jerk of the orbit");
+    }
+
+    /// <summary>
+    /// An anchor that moves on end poses at a steady velocity does not fall: its record has no acceleration, so its proper
+    /// acceleration is the pull reversed. Its new following frame starts with the anchor's velocity, which is the chord of
+    /// the step that ended, and its first plan, the next end pose, lands it without an acceleration, as every later plan
+    /// does. A start from the pull alone would give that first step half the pull.
+    /// </summary>
+    [Fact]
+    public void ANewFollowingFrameOfAnAnchorOnEndPosesStartsWithItsAnchorsVelocityAndTakesNoAccelerationInItsFirstPlannedStep()
+    {
+        FrameHandle station = Station(10, Low);
+        Double3 place = new(6.8e6, 0, 0), velocity = new(0, 2_000, 0);
+        var record = new MotionSample(new DPose(place, DQuaternion.Identity), velocity, velocity, Double3.Zero, Double3.Zero, Double3.Zero);
+        frames.Follow(station, earth, record, FollowKind.Kinematic, measured: null, Step);
+        frames.StoreNewProperAccelerations();
+
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+        frames.Update();
+        frames.BeginNumericStep(Moving(station, new MotionIntent(new EndPose(new DPose(place + velocity * Step, DQuaternion.Identity)))), Step);
+
+        (frames.LinearVelocity(orbit) - velocity).Length.Should().BeLessThan(1e-6, "the anchor's velocity is its chord");
+        frames.HomeAcceleration(orbit, earth).Length.Should().BeLessThan(1e-4, "an end pose at a steady velocity has no acceleration");
     }
 
     [Fact]
@@ -378,13 +440,14 @@ public class FrameTreeOrbitFrameTests
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
         (Double3 place, Double3 velocity) = StateAt(Low, Start);
+        Double3 start = frames.LinearVelocity(orbit);
 
         // The merge test reaches the radii of 5 m and 1 m, and 2 s of the crate's 1 m/s relative to the hull.
         NumericBody[] after = Update(Hull(station), Crate(11, place + new Double3(7, 0, 0), velocity + new Double3(1, 0, 0)));
 
         after[1].Home.Should().Be(orbit);
         frames.NumericCount.Should().Be(1);
-        frames.LinearVelocity(orbit).Should().Be(velocity, "an orbit frame never drains");
+        frames.LinearVelocity(orbit).Should().Be(start, "an orbit frame never drains");
     }
 
     [Fact]
