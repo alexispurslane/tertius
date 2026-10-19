@@ -8,8 +8,8 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// Contacts through ghosts (ter-ejx9), on the World and the real backend. A contact between the body of one entity and
-/// the ghost of another entity's body is a contact of the two entities, and it can start through the ghost. A pair of
-/// two ghosts is not reported: the real bodies' own systems report it. The backend counts, for each pair of entities,
+/// the ghost of another entity's body is a contact of the two entities, and it can start through the ghost. So is a
+/// pair of two ghosts, which Jolt makes only when one of them is a sensor (see GhostPairTests). The backend counts, for each pair of entities,
 /// the systems that hold their contact as started, so each pair hears one Collision when the first system starts it
 /// and one CollisionEnded when the last system drops it.
 /// </summary>

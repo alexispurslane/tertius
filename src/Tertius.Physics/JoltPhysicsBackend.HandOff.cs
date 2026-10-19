@@ -663,7 +663,7 @@ public sealed partial class JoltPhysicsBackend
             return;
         }
         BodyID id = CreateRigid(world, GhostSpec(record, motion, GhostLayer(record, role)), pose, linear, angular);
-        world.AddGhost(id, ofStaticBody: !record.IsMovable);
+        world.AddGhost(id, GhostContactMotion(record));
         ghosts.Add(new GhostBody { Frame = frame, World = world, Body = id, Wanted = true, Role = role });
     }
 

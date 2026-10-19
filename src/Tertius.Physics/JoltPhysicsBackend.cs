@@ -243,8 +243,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <see cref="PhysicsStepOutput.Frames"/> holds the step record of each frame whose hull moved in the step, relative to
     /// its parent after any hand-off in this step, with the velocity of the frame origin. Apply hand-offs before the step records.
     /// <see cref="PhysicsStepOutput.Contacts"/> holds each pair of entities whose contact started, with A before B in
-    /// entity order and the normal from A to B. A contact between the body of one entity and the ghost of another
-    /// entity's body is a contact of the two entities, and a pair of two ghosts is none. A body pair starts at a real
+    /// entity order and the normal from A to B. A contact through a ghost is a contact of the two entities, between the
+    /// body of one entity and the ghost of another entity's body, and between the ghosts of two entities, which Jolt makes
+    /// only when one of them is a sensor. A body pair starts at a real
     /// touch: the first step in which its bodies are at most <see cref="FrameWorld.TouchTolerance"/> apart or approach
     /// fast enough to close their gap, and not when Jolt finds them within its speculative contact distance. The contact of
     /// two entities starts when the first system starts a body pair of theirs, and the system of the frame with the lowest
@@ -633,8 +634,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// frames, or in the home of a group that keeps a ghost of an anchor, the body's own or the hull of its home's semantic
     /// frame (see <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
     /// <item>The ghosts of each system (see <see cref="FrameWorld.AddGhost"/>) are the ghosts that the records keep in
-    /// it, no more and no fewer. A system marks exactly the ghosts of static bodies as such (see
-    /// <see cref="FrameWorld.StandsForStaticBody"/>). Every ghost of a body that can move is kinematic. A ghost of a static
+    /// it, no more and no fewer, and each has the contact motion of its record (see <see cref="GhostContactMotion"/> and
+    /// <see cref="FrameWorld.GhostContactMotion"/>). Every ghost of a body that can move is kinematic. A ghost of a static
     /// body is static while it holds still (see <see cref="GhostMotion"/>), and Jolt can move it as a kinematic body, with
     /// a finite mass (see <see cref="FrameWorld.CanMove"/>), so the ghost pass and the shifts can turn it kinematic when
     /// it starts to move.</item>
@@ -657,7 +658,6 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         }
         int hulls = 0;
         int recordGhosts = 0;
-        int staticBodyGhosts = 0;
         foreach (BodyRecord? record in records)
         {
             if (record is null)
@@ -689,28 +689,21 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(GhostAllowed(record, ghost.Frame) && ghost.World == ExistingWorld(ghost.Frame));
                 Contract.Invariant(ghost.World.HasGhost(ghost.Body));
                 Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == GhostLayer(record, ghost.Role));
-                Contract.Invariant(ghost.World.StandsForStaticBody(ghost.Body) == !record.IsMovable);
+                Contract.Invariant(ghost.World.GhostContactMotion(ghost.Body) == GhostContactMotion(record));
                 Contract.Invariant(record.IsMovable
                     ? ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic
                     : ghost.World.CanMove(ghost.Body));
-                if (!record.IsMovable)
-                    staticBodyGhosts++;
             }
             recordGhosts += ghosts.Count;
         }
         Contract.Invariant(hulls == frameOwners.Count);
         AssertContactInvariants();
         // Every ghost of a record is in its system's ghosts, and each is a body of its own, so the systems hold as many
-        // ghosts as the records only when they hold no other.
-        int systemGhosts = 0, systemStaticBodyGhosts = 0;
+        // ghosts as the records only when they hold no other, and so no contact motion of another body.
+        int systemGhosts = 0;
         foreach (FrameWorld world in worldList)
-        {
             systemGhosts += world.GhostCount;
-            systemStaticBodyGhosts += world.StaticBodyGhostCount;
-        }
         Contract.Invariant(systemGhosts == recordGhosts);
-        // In the same way, the systems mark no body as a ghost of a static body that is not one.
-        Contract.Invariant(systemStaticBodyGhosts == staticBodyGhosts);
         foreach (BodyRecord owner in frameOwners)
         {
             Contract.Invariant(frames.IsAlive(owner.OwnedFrame));
@@ -779,15 +772,21 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             DestroyRecord(owner.Entity);
         }
 
-        // Ghosts that other records keep in this system go with it, and so do the system's own ghosts. A pair of two ghosts
-        // is no contact, so every contact of a ghost here is with an interior or a member, whose removal below loosens it.
+        // Ghosts that other records keep in this system go with it, and so do the system's own ghosts. Each one's contacts
+        // loosen first, as when the ghost pass removes a ghost: a contact of two ghosts here has no member whose removal
+        // below loosens it. The carry of the end of the next step keeps each one that another system holds then (see
+        // ResolveLooseContacts).
         foreach (BodyRecord? record in records)
         {
             if (record?.Ghosts is not { } ghosts)
                 continue;
             for (int i = ghosts.Count - 1; i >= 0; i--)
-                if (ghosts[i].World == world)
-                    ghosts.RemoveAt(i);
+            {
+                if (ghosts[i].World != world)
+                    continue;
+                LoosenContacts(world, ghosts[i].Body);
+                ghosts.RemoveAt(i);
+            }
         }
 
         for (int i = world.Members.Count - 1; i >= 0; i--)

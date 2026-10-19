@@ -168,13 +168,15 @@ The left column keeps the known limit of a ghost of a dynamic body: the other sy
 
 ### Case 2: a sensor and a body that touch only through two ghosts
 
-Two sibling frames B1 and B2 lie in P. A kinematic sensor Σ sticks out of B1, and a dynamic body Y sticks out of B2. They overlap only in P, outside both bubbles. Σ's sphere does not reach B2's content, and Y's sphere does not reach B1's bubble, which is as far as a dynamic body reaches (rule 2). So P's system holds Σ's stick-out ghost Σ′ and Y's stick-out ghost Y′, and no system holds a real body of one and a ghost of the other.
+Two sibling frames B1 and B2 lie in P. A dynamic sensor Σ sticks out of B1, and a dynamic body Y sticks out of B2. They overlap only in P, outside both bubbles. Neither sphere reaches the other's bubble, which is as far as a dynamic body reaches (rule 2). So P's system holds Σ's stick-out ghost Σ′ and Y's stick-out ghost Y′, and no system holds a real body of one and a ghost of the other.
+
+Only bodies that reach the bubble alone, dynamic bodies and characters, can touch through two ghosts alone. A body that reaches the content, such as a kinematic sensor, always has a ghost in the other's frame when the two overlap. Take Σ kinematic, with its center c, Y's center y, their radii r and r_Y, and Y's signed distance s_Y from B2's bubble. The two overlap, so |c − y| < r + r_Y, and the distance of c from B2's bubble is at most |c − y| + s_Y < r + (s_Y + r_Y), which is at most r plus B2's excess. (The first build of step 2 found this. The design first named a kinematic sensor here.)
 
 | Test | Result |
 |---|---|
 | Layers | Both have the `Ghost` role with the default groups, which meet. |
 | Jolt's rule on Jolt motions | Σ′ and Y′ are kinematic, and Σ′ is a sensor, so Jolt makes the contact. |
-| The filter on contact motions | A kinematic sensor and a dynamic body meet. |
+| The filter on contact motions | A dynamic sensor and a dynamic body meet. |
 | `IsReported` | Both stand for an entity. |
 | Ledger | 0 to 1: Collision. When they part, 1 to 0: CollisionEnded. |
 
@@ -235,9 +237,9 @@ Each value names its existing analogue and follows that analogue's model. "Step 
 | Growth | Sync point, step start | Reads no role. It copies each ghost's layer from Jolt, as today, so it needs no change. |
 ### The contact motion of each ghost
 
-- Analogue: `FrameWorld.ghostsOfStaticBodies`, the set of ghosts whose real body is static, which it replaces. `StandsForStaticBody` and `StaticBodyGhostCount` become reads of it.
-- Store: `FrameWorld`, a table from the ghost's body ID to its contact motion: `Static`, `Kinematic` or `Dynamic`. A character's ghost holds `Dynamic`, since a character counts as dynamic in either form.
-- Change: written when the ghost is added, removed when it is removed. A ghost's contact motion never changes, because a change of its body's motion makes a new ghost. `SetGhostOfStaticBody` goes.
+- Analogue: `FrameWorld.ghostsOfStaticBodies`, the set of ghosts whose real body is static, which it replaces. The table also replaces `FrameWorld.ghosts`, the set of every ghost in the system, which had the same keys. `StandsForStaticBody` and `StaticBodyGhostCount` go, because no reader is left: `FrameWorld.GhostContactMotion` reads an entry, and `AssertInvariants` compares it with the record's.
+- Store: `FrameWorld.ghosts`, a table from the ghost's body ID to its contact motion, a Jolt `MotionType`: `Static`, `Kinematic` or `Dynamic`. A character's ghost holds `Dynamic`, since a character counts as dynamic in either form. `JoltPhysicsBackend.GhostContactMotion` gives a record's.
+- Change: written when the ghost is added, removed when it is removed. A ghost's contact motion never changes, because a change of its body's motion makes a new ghost (step 3). Until step 3, `FollowHullMotions` sets the new contact motion with `SetGhostContactMotion`, which takes the place of `SetGhostOfStaticBody`, and step 3 removes it.
 
 | Reader or writer | Phase | What it does |
 |---|---|---|
@@ -334,7 +336,7 @@ Each value names its existing analogue and follows that analogue's model. "Step 
 
 ### `DisposeWorld`
 
-- Change: it loosens the contacts of each ghost that another record keeps in the disposed system, before it drops the ghost. Its comment says that a pair of two ghosts is no contact, which item 2 makes false. Without the change, a started pair of two ghosts keeps a count with no body pair, and `AssertContactInvariants` fails.
+- Change: it loosens the contacts of each ghost that another record keeps in the disposed system, before it drops the ghost. Its comment says that a pair of two ghosts is no contact, which item 2 makes false. Without the change, a started pair of two ghosts keeps a count with no body pair, and `AssertContactInvariants` fails. The carry of the end of the next step keeps each loose contact that another system holds then. When the bodies survive the frame, their frames move to its parent, and the ghost pass of that step makes their ghosts there, so a contact of two ghosts goes on, as the contact of two real bodies that move to the parent does.
 
 ## Invariants
 
@@ -421,8 +423,10 @@ Item 2, pairs of two ghosts:
 |---|---|
 | A sensor and a body that stick out of sibling frames and overlap only outside both bubbles hear one Collision, and one CollisionEnded when they part | The same sensor and body in the parent frame |
 | A dynamic sensor that sticks out of a room inside a ship detects the moving ghost of a static body of the ship's parent | The sensor and the static body in one frame |
-| A contact through two ghosts ends when the frame that holds the ghosts is destroyed | The contact of the two real bodies ends when their frame is destroyed |
-| A contact through two ghosts goes on when a numeric move replaces one of the ghosts | The same contact in one frame across the same move |
+| A kinematic sensor in a ship, in the ship's frame or in a room, does not detect the moving ghost of a static body of the ship's parent. It locks in the filter on contact motions: the ghost is kinematic in Jolt. | A kinematic sensor that flies past the static body in one frame |
+| A static sensor of a ship's parent detects a kinematic body in the ship, in the ship's frame or in a room, through the sensor's moving ghost | A kinematic body that flies past the static sensor in one frame |
+| A contact through two ghosts goes on when the frame that holds the ghosts is destroyed and the bodies survive it. The design first said "ends", but the bubbles move into the frame's parent, and the carry keeps the contact in the new ghosts there (see `DisposeWorld`). | The contact of the two real bodies goes on when their frame is destroyed and they move into its parent |
+| A contact through two ghosts goes on when a numeric move replaces the ghosts: two thrusting ships move into one falling frame, and each takes the ghost of its body that sticks out along | The same contact in one frame across the same move |
 | Two sensors that overlap only through their ghosts report what two real sensors report in one frame | Two real sensors in one frame |
 
 Item 3, sensors and frame owners. Here the twin in one frame is the same sensor beside a plain body with the hull's shape and motion. A plain body cannot change its motion, so the twin of a change of motion is a static sensor beside the real hull in the frame's tree parent.

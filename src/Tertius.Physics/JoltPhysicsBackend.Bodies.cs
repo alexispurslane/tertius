@@ -269,8 +269,8 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// The spec of a ghost of a record's body with the Jolt motion <paramref name="motion"/>, which
     /// <see cref="GhostMotion"/> gives it, in the object layer <paramref name="layer"/>, the layer of its role (see
-    /// <see cref="GhostBody.Role"/>). A ghost of a static body meets only what the static body meets (see
-    /// <see cref="FrameWorld.StandsForStaticBody"/>), and it changes its motion as it starts and stops moving, so Jolt
+    /// <see cref="GhostBody.Role"/>). A ghost meets only what its real body meets (see
+    /// <see cref="FrameWorld.GhostContactMotion"/>). A ghost of a static body changes its motion as it starts and stops moving, so Jolt
     /// creates it to allow that and gives it a mass (see <see cref="Settings"/>).
     /// </summary>
     private static RigidSpec GhostSpec(BodyRecord record, MotionType motion, ObjectLayer layer) =>
@@ -569,10 +569,10 @@ public sealed partial class JoltPhysicsBackend
             }
             owner.Motion = motion;
             ApplyHullMotion(owner);
-            // A ghost meets what its real body meets, and a static body meets less (see FrameWorld.StandsForStaticBody).
+            // A ghost meets what its real body meets (see FrameWorld.GhostContactMotion).
             if (owner.Ghosts is { } ghosts)
                 foreach (GhostBody ghost in ghosts)
-                    ghost.World.SetGhostOfStaticBody(ghost.Body, !owner.IsMovable);
+                    ghost.World.SetGhostContactMotion(ghost.Body, GhostContactMotion(owner));
         }
     }
 
