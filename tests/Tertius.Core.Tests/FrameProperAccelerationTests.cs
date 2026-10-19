@@ -69,7 +69,7 @@ public class FrameProperAccelerationTests
         FrameHandle pod = FallingFrame(earth, new Double3(OrbitRadius, 0, 0), new Double3(0, 0, OrbitSpeed));
         FrameHandle cabin = Frame(pod);
         frames.Update();
-        frames.BeginNumericStep([], 1.0 / 60);
+        frames.BeginStep([], 1.0 / 60, lastStepFailed: false);
 
         frames.AdvanceNumericFrames(Dt);
         frames.TakeStepRecords([], Dt);

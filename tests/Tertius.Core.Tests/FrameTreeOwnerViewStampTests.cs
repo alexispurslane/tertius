@@ -116,7 +116,7 @@ public class FrameTreeOwnerViewStampTests
     {
         Update(x: 50, vx: 60);
         frames.Update();
-        frames.BeginNumericStep([], 1.0 / 60);
+        frames.BeginStep([], 1.0 / 60, lastStepFailed: false);
         StampChanges(() => frames.AdvanceNumericFrames(0.1)).Should().BeTrue();
     }
 
@@ -138,7 +138,7 @@ public class FrameTreeOwnerViewStampTests
         FrameHandle nest = frames.TreeParent(pod);
         frames.Numeric(nest).Should().Be(NumericMode.Nesting);
         frames.Update();
-        frames.BeginNumericStep([], 1.0 / 60);
+        frames.BeginStep([], 1.0 / 60, lastStepFailed: false);
         frames.AdvanceNumericFrames(2e9 / 60);
         double drift = frames.TreeLocalPose(pod).Position.X;
         Double3 nestPlace = frames.TreeLocalPose(nest).Position;

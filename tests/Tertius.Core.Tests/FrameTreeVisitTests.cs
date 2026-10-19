@@ -115,7 +115,7 @@ public class FrameTreeVisitTests
         frames.SetTreeLocalPose(hull, new DPose(X(0.5), DQuaternion.Identity));
         // 3/256 s at 64 m/s moves the pod 0.75 m in its nest, exactly.
         frames.Update();
-        frames.BeginNumericStep([], 1.0 / 60);
+        frames.BeginStep([], 1.0 / 60, lastStepFailed: false);
         frames.AdvanceNumericFrames(3.0 / 256);
 
         // The exact place is a light-year plus 1.25 m, and a double there steps by 2 m. Summed from the hull up, it rounds

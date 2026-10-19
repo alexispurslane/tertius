@@ -78,7 +78,7 @@ public class FrameTreeOrbitFrameTests
     /// The step that ends at <paramref name="time"/> and its sync point, for <paramref name="station"/> on
     /// <paramref name="orbit"/>: its owner wrote the orbit's sample of that step in the tick before, which the step applies,
     /// so before the step the tree derives the plan of a station that hangs in its orbit frame (see
-    /// <see cref="FrameTree.BeginNumericStep"/>). At the sync point, the orbit frame lands on the plan, takes its place and
+    /// <see cref="FrameTree.BeginStep"/>). At the sync point, the orbit frame lands on the plan, takes its place and
     /// chord exactly (<see cref="FrameTree.PlaceFollowingFrame"/>), and the station takes the record that physics releases
     /// for its hull, at the origin of the orbit frame with the rest of the sample's velocity. Any other station takes the
     /// sample.
@@ -89,7 +89,7 @@ public class FrameTreeOrbitFrameTests
         MotionSample sample = orbit.Sample(mu, time, Step);
         PhysicsIntent[] intents = Moving(station, new MotionIntent(sample));
         frames.Update();
-        frames.BeginNumericStep(intents, Step);
+        frames.BeginStep(intents, Step, lastStepFailed: false);
         MotionSample record = sample;
         if (frames.InOrbitFrame(station))
         {
@@ -239,7 +239,7 @@ public class FrameTreeOrbitFrameTests
         Double3 velocity = frames.LinearVelocity(orbit);
 
         frames.Update();
-        frames.BeginNumericStep(Moving(station, new MotionIntent(next)), Step);
+        frames.BeginStep(Moving(station, new MotionIntent(next)), Step, lastStepFailed: false);
         frames.HomeAcceleration(orbit, earth).Should().Be((next.ChordVelocity - velocity) / Step);
         frames.EffectiveGravity(orbit, Double3.Zero).Length().Should().BeLessThan(1e-6f, "a body at the hull feels the field minus the orbit's pull");
         frames.AdvanceNumericFrames(Step);
@@ -256,7 +256,7 @@ public class FrameTreeOrbitFrameTests
         Double3 velocity = frames.LinearVelocity(orbit);
 
         frames.Update();
-        frames.BeginNumericStep(Moving(station, new MotionIntent(pushed)), Step);
+        frames.BeginStep(Moving(station, new MotionIntent(pushed)), Step, lastStepFailed: false);
 
         frames.HomeAcceleration(orbit, earth).Should().Be((Double3.Zero - velocity) / Step, "the plan's chord is zero, so the frame stops");
     }
@@ -278,7 +278,7 @@ public class FrameTreeOrbitFrameTests
             var end = new DPose(start.Position + new Double3(7_000, 100 * tick, -50) * Step, start.Rotation);
             PhysicsIntent[] intents = Moving(station, new MotionIntent(new EndPose(end)));
             frames.Update();
-            frames.BeginNumericStep(intents, Step);
+            frames.BeginStep(intents, Step, lastStepFailed: false);
             frames.AdvanceNumericFrames(Step);
 
             (frames.TreeLocalPose(orbit).Position - end.Position).Length.Should().BeLessThan(1e-6, "the step lands the frame on its plan to its rounding");
@@ -298,7 +298,7 @@ public class FrameTreeOrbitFrameTests
         Double3 place = frames.TreeLocalPose(orbit).Position;
 
         frames.Update();
-        frames.BeginNumericStep([], Step);
+        frames.BeginStep([], Step, lastStepFailed: false);
 
         frames.Numeric(orbit).Should().Be(NumericMode.Orbiting, "the hull is still kinematic");
         frames.HomeAcceleration(orbit, earth).Should().Be(GravityField.Point(EarthMu).AtPrecise(place), "the field of earth at its origin pulls it");
@@ -351,7 +351,7 @@ public class FrameTreeOrbitFrameTests
 
         FrameHandle orbit = Update(Hull(station))[0].Home;
         frames.Update();
-        frames.BeginNumericStep(Moving(station, new MotionIntent(Low.Sample(EarthMu, Start + Step, Step))), Step);
+        frames.BeginStep(Moving(station, new MotionIntent(Low.Sample(EarthMu, Start + Step, Step))), Step, lastStepFailed: false);
 
         (frames.LinearVelocity(orbit) - KeplerOrbit.Chord(sample.Pose.Position, sample.Velocity, EarthMu, Step)).Length
             .Should().BeLessThan(1e-6, "the orbit's chord over the step that ended, to its jerk");
@@ -375,7 +375,7 @@ public class FrameTreeOrbitFrameTests
 
         FrameHandle orbit = Update(Hull(station))[0].Home;
         frames.Update();
-        frames.BeginNumericStep(Moving(station, new MotionIntent(new EndPose(new DPose(place + velocity * Step, DQuaternion.Identity)))), Step);
+        frames.BeginStep(Moving(station, new MotionIntent(new EndPose(new DPose(place + velocity * Step, DQuaternion.Identity)))), Step, lastStepFailed: false);
 
         (frames.LinearVelocity(orbit) - velocity).Length.Should().BeLessThan(1e-6, "the anchor's velocity is its chord");
         frames.HomeAcceleration(orbit, earth).Length.Should().BeLessThan(1e-4, "an end pose at a steady velocity has no acceleration");
@@ -413,7 +413,7 @@ public class FrameTreeOrbitFrameTests
 
         FrameHandle orbit = Update(Hull(station))[0].Home;
         frames.Update();
-        frames.BeginNumericStep(Moving(station, new MotionIntent(new EndPose(new DPose(place + velocity * Step, DQuaternion.Identity)))), Step);
+        frames.BeginStep(Moving(station, new MotionIntent(new EndPose(new DPose(place + velocity * Step, DQuaternion.Identity)))), Step, lastStepFailed: false);
 
         frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
         frames.LinearVelocity(orbit).Should().Be(velocity, "the anchor's velocity is the chord of its end poses");
@@ -482,7 +482,7 @@ public class FrameTreeOrbitFrameTests
         MotionSample sample = Low.Sample(EarthMu, Start + 0.13, Step);
         PhysicsIntent[] intents = Moving(station, new MotionIntent(sample), teleport: sample.Pose);
         frames.Update();
-        frames.BeginNumericStep(intents, Step);
+        frames.BeginStep(intents, Step, lastStepFailed: false);
         Double3 offset = sample.Pose.Position - frames.TreeLocalPose(orbit).Position;
         Double3 change = sample.ChordVelocity - frames.LinearVelocity(orbit);
         MotionSample record = AtOrigin(sample) with { Pose = new DPose(offset, sample.Pose.Rotation) };

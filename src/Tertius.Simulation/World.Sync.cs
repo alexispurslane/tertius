@@ -55,12 +55,19 @@ public sealed partial class World
     }
 
     /// <summary>
+    /// Whether the physics step of the last sync point failed, so that its results were dropped. The next tick's preparation
+    /// passes it to <see cref="FrameTree.BeginStep"/>.
+    /// </summary>
+    private bool lastStepFailed;
+
+    /// <summary>
     /// The sync point, the steps of "Threads and the tick" in ARCHITECTURE.md. One thread runs it; nothing else runs
     /// meanwhile. Each step calls into the subsystems, which keep their own bookkeeping; the comments say why a step
     /// needs what came before it.
     /// </summary>
     private void Sync(Exception? physicsError)
     {
+        lastStepFailed = physicsError != null;
         double endTime = TimeAt(TickNumber + 1);
         Profile.Start();
 

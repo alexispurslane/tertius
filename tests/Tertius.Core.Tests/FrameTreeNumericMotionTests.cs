@@ -4,7 +4,7 @@ using AwesomeAssertions;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// How numeric frames move and what gravity their members feel: <see cref="FrameTree.BeginNumericStep"/>,
+/// How numeric frames move and what gravity their members feel: <see cref="FrameTree.BeginStep"/>,
 /// <see cref="FrameTree.AdvanceNumericFrames"/>, <see cref="FrameTree.HomeOffsetAfter"/>,
 /// <see cref="FrameTree.EffectiveGravity"/> and <see cref="FrameTree.SemanticGravity"/>, around Earth, with frames that a
 /// numeric update made.
@@ -45,7 +45,7 @@ public class FrameTreeNumericMotionTests
         };
         frames.UpdateNumericFrames([body], 0.1, 0.1, new PhysicsChanges(), moves => home = moves.Single().To);
         frames.Update();
-        frames.BeginNumericStep([], 1.0 / 60);
+        frames.BeginStep([], 1.0 / 60, lastStepFailed: false);
         return home;
     }
 

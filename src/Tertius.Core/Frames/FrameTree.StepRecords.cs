@@ -60,10 +60,12 @@ public sealed partial class FrameTree
     /// relative to the parent's frame velocity, the chord of the step, so that a read in the semantic parent gives the
     /// instant velocity (see <see cref="HomeInstantVelocityOverChord"/>). A frame at the origin of its orbit frame that takes
     /// a record with another place left that origin in the step, because its hull teleported: <see cref="JumpFollowingFrame"/>
-    /// brings it back after this pass. The record's chord, acceleration and angular acceleration are not kept.
+    /// brings it back after this pass. The frame keeps the record's angular acceleration (see <see cref="AngularAcceleration"/>),
+    /// and not its chord or its acceleration. A write of the owner's transform that turns the frame lists it among the frames
+    /// without a last turn, because its axes jump against inertial space before the next step (see <see cref="BeginStep"/>).
     /// <para>
-    /// A frame without a record holds still in its tree parent: it keeps its pose and does not turn, and it moves with its
-    /// tree parent, so a read in the semantic parent gives the parent's instant velocity. Under a numeric parent it keeps the
+    /// A frame without a record holds still in its tree parent: it keeps its pose and does not turn, with no angular
+    /// acceleration, and it moves with its tree parent, so a read in the semantic parent gives the parent's instant velocity. Under a numeric parent it keeps the
     /// parent's instant velocity past its frame velocity, and in a semantic parent it has no velocity. Its follow kind
     /// becomes <see cref="FollowKind.Static"/>. A frame keeps its whole state when its owner's update was skipped: the check
     /// of the physics output skipped it in a Release build, or the frame has a hull and the step failed
@@ -124,9 +126,12 @@ public sealed partial class FrameTree
         else if (!(hull && stepFailed) && !owners.IsSkipped(frame))
             HoldStillAt(taker, locals, step);
 
-        // Physics owns the transform of a hull, so only an owner without one writes it.
+        // Physics owns the transform of a hull, so only an owner without one writes it. A write that turns the frame jumps
+        // its axes against inertial space, so its next step has no last turn (see BeginStep).
         if (!hull && owners.TryGetTransformWrite(frame, out DPose written))
         {
+            if (written.Rotation != locals[taker.Dense].Rotation)
+                withoutLastTurn[frame.Index] = true;
             var rest = new MotionSample(written, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
             FollowAt(taker, locals, rest, inTreeParent: false, FollowKind.Static, measured: null, step);
         }
@@ -146,6 +151,7 @@ public sealed partial class FrameTree
         locals[taker.Dense] = record.Pose;
         LinearVelocityForWrite(id) = record.Velocity;
         AngularVelocityForWrite(id) = record.AngularVelocity.ToVector3();
+        angularAcceleration[id] = record.AngularAcceleration;
         followKind[id] = kind;
         properAcceleration[id] = measured ?? ProperAccelerationOf(taker, inTreeParent, record, step);
     }
@@ -157,6 +163,7 @@ public sealed partial class FrameTree
         FrameHandle treeParent = taker.TreeParent;
         LinearVelocityForWrite(id) = treeParent == taker.Parent ? Double3.Zero : HomeInstantVelocityOverChord(treeParent, taker.Parent, dt);
         AngularVelocityForWrite(id) = Vector3.Zero;
+        angularAcceleration[id] = Double3.Zero;
         followKind[id] = FollowKind.Static;
         var rest = new MotionSample(locals[taker.Dense], Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
         properAcceleration[id] = ProperAccelerationOf(taker, inTreeParent: true, rest, dt);
@@ -166,7 +173,7 @@ public sealed partial class FrameTree
     /// The proper acceleration that <paramref name="record"/> gives the frame by the rule of <see cref="ProperAccelerationFrom"/>,
     /// after the record moves into the frame's semantic parent (docs/plans/rails-components.md, "The proper acceleration of a
     /// frame"). A record relative to the semantic parent is there already. The anchor of a following frame that has a step
-    /// plan moved on the plan, which is its record in the semantic parent (see <see cref="BeginNumericStep"/>). Any other
+    /// plan moved on the plan, which is its record in the semantic parent (see <see cref="BeginStep"/>). Any other
     /// record relative to a numeric tree parent converts as <see cref="InSemanticParent"/> says.
     /// </summary>
     private Vector3 ProperAccelerationOf(in RecordTaker taker, bool inTreeParent, in MotionSample record, double step)

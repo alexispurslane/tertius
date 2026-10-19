@@ -35,7 +35,7 @@ internal enum NumericMode : byte
     /// the chord of its orbiter's motion over the step that ended, from the orbiter's row (see
     /// <see cref="FrameTree.UpdateNumericFrames"/>). During a step it
     /// moves as a falling frame does, with the acceleration that lands it on the orbiter's step plan, the record of the
-    /// orbiter's motion intent for the step (see <see cref="FrameTree.BeginNumericStep"/>): on an orbit, the orbit's
+    /// orbiter's motion intent for the step (see <see cref="FrameTree.BeginStep"/>): on an orbit, the orbit's
     /// acceleration at its origin to about 3e-10 m/s² in low orbit. So the bodies in it move as they would in the semantic
     /// frame's own system, and they feel the field minus that acceleration. It never rotates: the
     /// orbiter's rotation stays with the orbiter.

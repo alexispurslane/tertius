@@ -34,7 +34,7 @@ public sealed partial class FrameTree
     /// Step 2 of the sync point, before the rows of the bodies take the end of the step: the orbit frame in which
     /// <paramref name="anchor"/> hangs takes the place and the chord of the anchor's step plan, the anchor's record of the step
     /// that just ended in its semantic parent (docs/plans/rails-components.md, "The step plan of a following frame"). The
-    /// landing acceleration of the step put it there to its rounding (see <see cref="BeginNumericStep"/> and
+    /// landing acceleration of the step put it there to its rounding (see <see cref="BeginStep"/> and
     /// <see cref="AdvanceNumericFrames"/>), so its contents keep their places in it: the move is that rounding. An anchor
     /// without a step plan leaves its orbit frame where its fall put it. The anchor itself takes the record that physics
     /// releases for its hull (see <see cref="TakeStepRecords"/>).
@@ -1140,41 +1140,48 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// Fixes the acceleration that each falling numeric frame keeps for the step that starts now, a step of
-    /// <paramref name="step"/> seconds that applies <paramref name="stepIntents"/>: the field of its semantic frame at its
-    /// origin, relative to its parent. That is the field minus the acceleration of the numeric frames above it, which the
-    /// dense order, parents first, has fixed already. An orbit frame, which lies in its semantic frame, keeps the step
-    /// record of its anchor's motion intent as its step plan (see <see cref="StepRecordInStep"/>, and "The step plan of a
-    /// following frame" in docs/plans/rails-components.md), and the acceleration that lands it on the plan: the plan's chord
-    /// minus the frame's velocity, divided by the step, so that the step of <see cref="AdvanceNumericFrames"/> turns the
-    /// velocity into the chord and the place into the plan's, to its rounding. It keeps the plan's instant velocity past
-    /// its chord as its own at the end of the step (see <see cref="HomeInstantVelocityOverChord"/>). The plan is kept for the
-    /// step because an end pose needs the place where the step starts, and step 2 moves the frame before it reads the plan.
-    /// An orbit frame whose anchor has no record for the step falls as a falling frame, with its anchor at rest in it. A
-    /// resting frame has none. Call it after <see cref="Update"/> and before the physics step, which reads it through
-    /// <see cref="EffectiveGravity"/>, while the tree stands where the step starts.
+    /// The part of <see cref="BeginStep"/> for the numeric frame at dense index <paramref name="dense"/>, with stable index
+    /// <paramref name="id"/>: the acceleration that it keeps for the step that starts now, a step of <paramref name="step"/>
+    /// seconds that applies <paramref name="stepIntents"/>, relative to its parent. A falling frame takes the acceleration
+    /// that keeps its origin on the inertial line of a free body at its place: the field of its semantic frame at its origin
+    /// minus the semantic frame's proper acceleration, plus the two-turn update of its semantic place and chord over the
+    /// step, divided by the step, minus the acceleration of the numeric frames above it, which the dense order, parents
+    /// first, has fixed already (docs/plans/spin-gravity.md, "The origin of a falling frame"). The semantic frame's turns
+    /// are fixed earlier in the same pass. Its members then feel only the difference between their own rotation terms and
+    /// the origin's, so a falling group keeps small local velocities. In a semantic frame that does not turn (see
+    /// <see cref="FrameTurns.Turns"/>), the update is left out, so the frame keeps the field's acceleration to the bit.
+    /// <para>
+    /// An orbit frame, which lies in its semantic frame, keeps the step record of its anchor's motion intent as its step
+    /// plan (see <see cref="StepRecordInStep"/>, and "The step plan of a following frame" in docs/plans/rails-components.md),
+    /// and the acceleration that lands it on the plan: the plan's chord minus the frame's velocity, divided by the step, so
+    /// that the step of <see cref="AdvanceNumericFrames"/> turns the velocity into the chord and the place into the plan's,
+    /// to its rounding. The plan is motion in the semantic frame's coordinates already, so the frame takes no turn term. It
+    /// keeps the plan's instant velocity past its chord as its own at the end of the step (see
+    /// <see cref="HomeInstantVelocityOverChord"/>). The plan is kept for the step because an end pose needs the place where
+    /// the step starts, and step 2 moves the frame before it reads the plan. An orbit frame whose anchor has no record for
+    /// the step falls as a falling frame, with its anchor at rest in it. A resting frame has none.
+    /// </para>
     /// </summary>
-    internal void BeginNumericStep(ReadOnlySpan<PhysicsIntent> stepIntents, double step)
+    private void BeginNumericFrame(int dense, int id, ReadOnlySpan<PhysicsIntent> stepIntents, double step)
     {
-        // The dense order puts parents first only after Update.
-        Contract.Requires(!poses.WorldIsStale && step > 0);
-        for (int i = 0; i < poses.Count; i++)
+        stepPlan[id] = null;
+        if (numeric[id] == NumericMode.Orbiting && StepRecordInStep(orbiter[id], stepIntents, step, out MotionSample plan))
         {
-            int id = poses.NodeAt(i).Id;
-            stepPlan[id] = null;
-            if (numeric[id] == NumericMode.Orbiting && StepRecordInStep(orbiter[id], stepIntents, step, out MotionSample plan))
-            {
-                stepPlan[id] = plan;
-                stepAcceleration[id] = (plan.ChordVelocity - linearVelocity[id]) / step;
-                continue;
-            }
-            if (numeric[id] is not (NumericMode.Falling or NumericMode.Orbiting))
-                continue;
-            FrameHandle frame = AtDense(i);
-            FrameHandle semantic = SemanticOf(frame);
-            FrameHandle parent = TreeParent(frame);
-            stepAcceleration[id] = FieldOf(semantic.Index, HomeOffset(frame, semantic)) - HomeAcceleration(parent, semantic);
+            stepPlan[id] = plan;
+            stepAcceleration[id] = (plan.ChordVelocity - linearVelocity[id]) / step;
+            return;
         }
+        if (numeric[id] is not (NumericMode.Falling or NumericMode.Orbiting))
+            return;
+        FrameHandle frame = AtDense(dense);
+        FrameHandle semantic = SemanticOf(frame);
+        FrameHandle parent = TreeParent(frame);
+        Double3 place = HomeOffset(frame, semantic);
+        Double3 acceleration = FieldOf(semantic.Index, place);
+        ref readonly FrameTurns semanticTurns = ref turns[semantic.Index];
+        if (semanticTurns.Turns)
+            acceleration += semanticTurns.FreeChange(place, HomeVelocity(frame, semantic), step) / step;
+        stepAcceleration[id] = acceleration - HomeAcceleration(parent, semantic);
     }
 
     /// <summary>
