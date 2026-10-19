@@ -114,12 +114,12 @@ public class KeplerFrameTickBenchmarks
             double radius = 7e6 + i * 35e3;
             double phase = i * 2.399963229728653;
             var orbit = KeplerOrbit.Circular(radius, phase: phase);
-            (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
+            // A frame without a body takes no spawn velocity: its first motion intent moves it in its first step.
             world.Spawn(new SpawnDesc
             {
                 Frame = root,
-                Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
-                LinearVelocity = velocity,
+                Pose = new DPose(orbit.StateAt(world.Time, EarthMu).Position, orbit.RotationAt(world.Time, EarthMu)),
+                FirstMove = new MotionIntent(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
                 Components = [new KeplerMotion { Orbit = orbit }],
             });
@@ -254,12 +254,12 @@ public class MixedBodiesTickBenchmarks
         for (int i = 0; i < KeplerFrames; i++)
         {
             var orbit = KeplerOrbit.Circular(7e6 + i * 35e3, phase: i * 2.399963229728653);
-            (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
+            // A frame without a body takes no spawn velocity: its first motion intent moves it in its first step.
             world.Spawn(new SpawnDesc
             {
                 Frame = planet,
-                Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
-                LinearVelocity = velocity,
+                Pose = new DPose(orbit.StateAt(world.Time, EarthMu).Position, orbit.RotationAt(world.Time, EarthMu)),
+                FirstMove = new MotionIntent(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
                 Components = [new KeplerMotion { Orbit = orbit }],
             });

@@ -402,12 +402,15 @@ public class FirstMotionIntentTests
             double mu = KeplerOrbit.MuFrom(self.Snapshot.Frames.Gravity(desc.Frame));
             double live = self.TimeAt(self.Tick + 1);
             (Double3 place, Double3 velocity) = orbit.StateAt(live, mu);
+            // Only a kinematic hull takes the orbit's velocities: a spawn refuses a velocity on an entity without a body,
+            // which only its motion intents move.
+            bool hull = desc.Body is not null;
             Spawned = self.Spawn(new SpawnDesc
             {
                 Frame = desc.Frame,
                 Pose = new DPose(place, orbit.RotationAt(live, mu)),
-                LinearVelocity = velocity,
-                AngularVelocity = orbit.AngularVelocityAt(live, mu).ToVector3(),
+                LinearVelocity = hull ? velocity : Double3.Zero,
+                AngularVelocity = hull ? orbit.AngularVelocityAt(live, mu).ToVector3() : Vector3.Zero,
                 FirstMove = new MotionIntent(orbit.Sample(mu, self.TimeAt(self.Tick + 2), self.DeltaTime)),
                 Body = desc.Body,
                 AsFrame = desc.AsFrame,

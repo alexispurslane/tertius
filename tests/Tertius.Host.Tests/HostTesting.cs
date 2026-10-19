@@ -224,9 +224,9 @@ public static class HostTesting
 
     /// <summary>
     /// The scene "ship-with-crate", with no physics. The root frame <c>space</c> holds the frame <c>ship</c> at (10, 0, 0),
-    /// turned 90 degrees about +Y, which takes +X to -Z. The ship holds <c>crate</c> at (1, 0, 0), moving at (1, 2, 3) m/s
-    /// and turning at (0.25, 0.5, 0.75) rad/s, and the frame <c>shuttle</c> at (0, 0, 2), which holds <c>pod</c> at
-    /// (1, 0, 0). Space has a point gravity with G·M 1e9 m³/s², and it also holds the frame <c>moon</c> on a Kepler orbit around
+    /// turned 90 degrees about +Y, which takes +X to -Z. The ship holds <c>crate</c> at (1, 0, 0), which moves at
+    /// (1, 2, 3) m/s and turns at (0.25, 0.5, 0.75) rad/s in its first step, so it has these velocities after the first
+    /// tick, and the frame <c>shuttle</c> at (0, 0, 2), which holds <c>pod</c> at (1, 0, 0). Space has a point gravity with G·M 1e9 m³/s², and it also holds the frame <c>moon</c> on a Kepler orbit around
     /// that G·M, and one entity with no scene id at (0, 5, 0).
     /// They are made in that order.
     /// </summary>
@@ -240,12 +240,18 @@ public static class HostTesting
         FrameHandle ship = ChildFrame(world, space, turned);
         scene.Add("space", space);
         scene.Add("ship", ship);
+        // The crate has no body, so only its motion intents move it, and a spawn refuses a velocity on it. Its first motion
+        // intent is the full sample of a steady drift and turn over its first step, so the first sync point gives it the
+        // velocities of that sample.
+        var crateVelocity = new Double3(1, 2, 3);
+        var crateSpin = new Double3(0.25, 0.5, 0.75);
+        double step = world.DeltaTime;
+        var crateEnd = new DPose(At(1).Position + crateVelocity * step, DQuaternion.FromAxisAngle(crateSpin / crateSpin.Length, crateSpin.Length * step));
         scene.Add("crate", world.Spawn(new SpawnDesc
         {
             Frame = ship,
             Pose = At(1),
-            LinearVelocity = new Vector3(1, 2, 3),
-            AngularVelocity = new Vector3(0.25f, 0.5f, 0.75f),
+            FirstMove = new MotionIntent(new MotionSample(crateEnd, crateVelocity, crateVelocity, Double3.Zero, crateSpin, Double3.Zero)),
         }));
         FrameHandle shuttle = ChildFrame(world, ship, At(0, 0, 2));
         scene.Add("shuttle", shuttle);

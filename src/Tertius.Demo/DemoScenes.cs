@@ -256,15 +256,15 @@ public static partial class DemoScenes
         var earthOrbit = new KeplerOrbit(1.00000261 * AstronomicalUnit, eccentricity, 0, 0, perihelion, meanAnomaly, 0, obliquity, 0, 0);
         // Earth starts on its orbit at the world's time. Its first motion intent moves it along the orbit in the step of the
         // next tick, and its KeplerMotion from the second step on. So earth falls freely from its first step, and the
-        // station of the station scene, which reads earth's proper acceleration, feels none of the sun's gravity.
-        (Double3 earthPlace, Double3 earthVelocity) = earthOrbit.StateAt(world.Time, SunMu);
+        // station of the station scene, which reads earth's proper acceleration, feels none of the sun's gravity. Earth has
+        // no body, so only its motion intents move it, and it spawns with no velocity: its first sync point gives its frame
+        // the velocities of its first step.
+        Double3 earthPlace = earthOrbit.StateAt(world.Time, SunMu).Position;
         double firstStepEnd = world.TimeAt(world.TickNumber + 1);
         Entity earthOwner = world.Spawn(new SpawnDesc
         {
             Frame = sun,
             Pose = new DPose(earthPlace, earthOrbit.RotationAt(world.Time, SunMu)),
-            LinearVelocity = earthVelocity,
-            AngularVelocity = earthOrbit.AngularVelocityAt(world.Time, SunMu).ToVector3(),
             FirstMove = new MotionIntent(earthOrbit.Sample(SunMu, firstStepEnd, world.DeltaTime)),
             AsFrame = new FrameSpec(FrameBounds.Sphere(9.25e8f), GravityField.Point(EarthMu)),
             Components = [new KeplerMotion { Orbit = earthOrbit }],
@@ -279,7 +279,6 @@ public static partial class DemoScenes
         {
             Frame = earth,
             Pose = new DPose(Double3.Zero, turning.RotationAt(world.Time)),
-            AngularVelocity = turning.AngularVelocity.ToVector3(),
             FirstMove = new MotionIntent(turning.Sample(Double3.Zero, firstStepEnd, world.DeltaTime)),
             // The bubble holds the air, 100 km up, and ends below the ship's orbit.
             AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + 100e3)), GravityField.Point(EarthMu)),

@@ -187,7 +187,9 @@ public class DeterminismTests(DeterminismTests.Runs runs, ITestOutputHelper outp
                 Pose = TestWorld.At(random.NextDouble() * 60 - 30, 0, random.NextDouble() * 60 - 30 + distance),
                 Body = hasBody ? TestWorld.Ball : null,
                 Render = new RenderData { Mesh = new MeshId(i % 3), Flags = RenderFlags.Visible },
-                LinearVelocity = new Double3(speed, 0, 0),
+                // Only a body takes a spawn velocity: motion intents move an entity without one. The speed is drawn for
+                // every entity, so the random scatter stays the same.
+                LinearVelocity = hasBody ? new Double3(speed, 0, 0) : Double3.Zero,
                 Components = i % 5 == 0
                     ? [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }, new Shield()]
                     : [new Chatter(threads) { Rng = (ulong)random.NextInt64() | 1 }],

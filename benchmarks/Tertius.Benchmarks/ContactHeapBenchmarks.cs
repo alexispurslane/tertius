@@ -41,12 +41,16 @@ public class ContactHeapBenchmarks
         world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
         FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f),
             GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        // A kinematic body moves only by its motion intents, so the floor's Conveyor writes its end pose in every tick, and
+        // its first motion intent moves it in its first step.
+        DPose floor = At(0, -0.5, 0);
         world.Spawn(new SpawnDesc
         {
             Frame = ground,
-            Pose = At(0, -0.5, 0),
-            LinearVelocity = new Vector3(1, 0, 0),
+            Pose = floor,
+            FirstMove = new MotionIntent(new EndPose(Conveyor.After(floor, world.DeltaTime))),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(60, 0.5f, 60)), BodyMotion.Kinematic),
+            Components = [new Conveyor()],
         });
         var boxes = new List<Entity>();
         for (int i = 0; i < Columns * Rows; i++)
@@ -75,6 +79,20 @@ public class ContactHeapBenchmarks
     }
 
     private static DPose At(double x, double y, double z) => new(new Double3(x, y, z), DQuaternion.Identity);
+
+    /// <summary>Moves the kinematic floor along +X at 1 m/s: in every tick, the end pose one step on from where it starts the next step.</summary>
+    private sealed class Conveyor : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        /// <summary>The pose one step of <paramref name="step"/> seconds along +X at 1 m/s from <paramref name="start"/>.</summary>
+        public static DPose After(DPose start, double step) => new(start.Position + new Double3(step, 0, 0), start.Rotation);
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            self.MoveKinematic(After(self.PoseAtNextStepStartIn(self.Frame), self.DeltaTime));
+    }
 
     [Benchmark]
     public void Tick() => world.Tick();

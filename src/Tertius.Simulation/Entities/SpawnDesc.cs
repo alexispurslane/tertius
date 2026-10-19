@@ -15,10 +15,15 @@ public sealed class SpawnDesc
     /// <summary>The pose in <see cref="Frame"/>. For a frame entity, this is the frame's local pose.</summary>
     public DPose Pose { get; init; } = DPose.Identity;
 
-    /// <summary>Linear velocity relative to <see cref="Frame"/>, in its axes. Physics converts it when it creates the body.</summary>
+    /// <summary>
+    /// Linear velocity relative to <see cref="Frame"/>, in its axes. Physics converts it when it creates the body. Only a body
+    /// that physics integrates, a dynamic body or a character, and a kinematic hull, whose frame keeps it, take a spawn
+    /// velocity. A spawn refuses one on every other entity, which its motion intents, teleports, transform writes or parent
+    /// move: such a spawner gives <see cref="FirstMove"/> instead.
+    /// </summary>
     public Double3 LinearVelocity { get; init; }
 
-    /// <summary>Angular velocity in frame axes.</summary>
+    /// <summary>Angular velocity in frame axes. The same entities take it as take <see cref="LinearVelocity"/>.</summary>
     public Vector3 AngularVelocity { get; init; }
 
     /// <summary>

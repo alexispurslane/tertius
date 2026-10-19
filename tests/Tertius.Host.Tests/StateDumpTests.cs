@@ -310,7 +310,8 @@ public class StateDumpTests
         using World world = NewWorld();
         SceneInstance scene = ShipWithCrate(world);
 
-        EntityRecord crate = Run(world, scene, DumpNow).Dump("now").Entity("crate");
+        // The crate takes its velocities from its first motion intent, at the first sync point.
+        EntityRecord crate = Run(world, scene, """{ "do": "run", "ticks": 1 }""", DumpNow).Dump("now").Entity("crate");
 
         crate.Velocity.Should().Be(new Double3(1, 2, 3));
         crate.AngularVelocity.Should().Be(new Vector3(0.25f, 0.5f, 0.75f));

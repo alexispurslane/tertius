@@ -190,14 +190,6 @@ public sealed partial class World
             BodyRole role = !ownsFrame ? BodyRole.OwnsNoFrame : desc.Frame.IsNull ? BodyRole.OwnsRootFrame : BodyRole.Hull;
             if (body.Problem(role) is { } problem)
                 throw new ArgumentException($"Physics cannot create this body: it {problem}.", nameof(desc));
-            // A kinematic body moves only by its motion intents and teleports. A kinematic hull keeps its spawn velocity as
-            // its frame's velocity, from which the numeric update gives a fast hull its following frame at spawn.
-            if (body.Motion == BodyMotion.Kinematic && !ownsFrame && (desc.LinearVelocity != Double3.Zero || desc.AngularVelocity != Vector3.Zero))
-            {
-                string velocity = desc.LinearVelocity != Double3.Zero ? $"the linear velocity {desc.LinearVelocity}" : $"the angular velocity {desc.AngularVelocity}";
-                throw new ArgumentException(
-                    $"A kinematic body that owns no frame moves only by its motion intents and teleports, so it cannot spawn with {velocity}.", nameof(desc));
-            }
             // Only the backend can tell that it cannot build some shapes, for example a convex hull whose points coincide.
             if (physics?.ShapeProblem(body.Shape) is { } shape)
                 throw new ArgumentException($"Physics cannot create this body: its shape {shape}.", nameof(desc));
@@ -211,6 +203,8 @@ public sealed partial class World
             if (!spec.Gravity.IsValid)
                 throw new ArgumentException("A frame needs a gravity field that physics can apply: this gravity field is not valid (see GravityField.IsValid).", nameof(desc));
         }
+        if (SpawnVelocityProblem(desc) is { } velocityProblem)
+            throw new ArgumentException(velocityProblem, nameof(desc));
         if (FirstMoveProblem(desc) is { } firstMove)
             throw new ArgumentException($"The new entity cannot take the first motion intent {desc.FirstMove}: it {firstMove}.", nameof(desc));
 
@@ -243,6 +237,34 @@ public sealed partial class World
         }
         Topic[] subscriptions = desc.Subscriptions is { Count: > 0 } subs ? [.. subs] : [];
         return new SpawnPlan(components, wants, subscriptions);
+    }
+
+    /// <summary>
+    /// The sentence that refuses the spawn velocities of <paramref name="desc"/>, or null. A spawn velocity is the first
+    /// velocity of a body that physics integrates, a dynamic body or a character, and physics carries it on from there. Every
+    /// other entity moves only by its motion intents, its teleports, its transform writes or its parent, so a velocity at its
+    /// spawn would claim a motion that nothing carries out. A kinematic hull is the one exception: its spawn velocity is its
+    /// frame's velocity until its first sync point, from which the numeric update gives a fast hull its following frame at
+    /// spawn (docs/plans/rails-components.md, "Which entity takes a spawn velocity").
+    /// </summary>
+    private static string? SpawnVelocityProblem(SpawnDesc desc)
+    {
+        if (desc.LinearVelocity == Double3.Zero && desc.AngularVelocity == Vector3.Zero)
+            return null;
+        bool ownsFrame = desc.AsFrame is not null;
+        string? mover = desc.Body?.Motion switch
+        {
+            _ when !desc.AttachTo.IsNull => "An attached entity moves with its parent",
+            null => "An entity without a body moves only by its motion intents and transform writes",
+            _ when ownsFrame && desc.Frame.IsNull => "The owner of a root frame has no hull, so only its motion intents move it",
+            BodyMotion.Static => "A static body moves only by its teleports",
+            BodyMotion.Kinematic when !ownsFrame => "A kinematic body that owns no frame moves only by its motion intents and teleports",
+            _ => null,
+        };
+        if (mover is null)
+            return null;
+        string velocity = desc.LinearVelocity != Double3.Zero ? $"the linear velocity {desc.LinearVelocity}" : $"the angular velocity {desc.AngularVelocity}";
+        return $"{mover}, so it cannot spawn with {velocity}.";
     }
 
     /// <summary>

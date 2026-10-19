@@ -271,30 +271,83 @@ public class WorldSpawnRefusalTests
     }
 
     /// <summary>
-    /// A kinematic body moves only by its motion intents and teleports (docs/plans/rails-components.md, "The flow per kind
-    /// of entity"). So a spawn refuses a linear or angular velocity on a kinematic body that owns no frame, which would
-    /// otherwise drift at that velocity for good.
+    /// A spawn velocity is the first velocity of a body that physics integrates, a dynamic body or a character. Every other
+    /// entity moves only by its motion intents, its teleports, its transform writes or its parent, so a spawn refuses a
+    /// linear or angular velocity on it, which would otherwise claim a motion that nothing carries out
+    /// (docs/plans/rails-components.md, "Which entity takes a spawn velocity"). A kinematic hull is the one exception (see
+    /// <see cref="AKinematicHullKeepsItsSpawnVelocityAsItsFramesVelocity"/>).
     /// </summary>
     [Theory]
-    [InlineData("linear velocity")]
-    [InlineData("angular velocity")]
-    public void SpawnRefusesAVelocityOnAKinematicBodyThatOwnsNoFrame(string word)
+    [InlineData("a kinematic body that owns no frame", "linear velocity", "kinematic")]
+    [InlineData("a kinematic body that owns no frame", "angular velocity", "kinematic")]
+    [InlineData("an entity without a body or a frame", "linear velocity", "without a body")]
+    [InlineData("an entity without a body or a frame", "angular velocity", "without a body")]
+    [InlineData("a frame owner without a body", "linear velocity", "without a body")]
+    [InlineData("a frame owner without a body", "angular velocity", "without a body")]
+    [InlineData("the owner of a root frame", "linear velocity", "without a body")]
+    [InlineData("the owner of a root frame with a dynamic body", "angular velocity", "root frame")]
+    [InlineData("an attached entity", "linear velocity", "attached")]
+    [InlineData("an attached entity", "angular velocity", "attached")]
+    [InlineData("a static body", "linear velocity", "static")]
+    [InlineData("a static body", "angular velocity", "static")]
+    [InlineData("a static hull", "linear velocity", "static")]
+    [InlineData("a static hull", "angular velocity", "static")]
+    public void SpawnRefusesAVelocityOnAnEntityThatPhysicsDoesNotIntegrate(string kind, string word, string reason)
     {
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
+        Entity parent = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 1) });
         int live = world.Stats.LiveEntities;
-
-        Action spawn = () => world.Spawn(new SpawnDesc
+        Double3 linear = word == "linear velocity" ? new Double3(1, 0, 0) : Double3.Zero;
+        Vector3 angular = word == "angular velocity" ? new Vector3(0, 1, 0) : Vector3.Zero;
+        BodyDesc kinematic = Cube() with { Motion = BodyMotion.Kinematic }, still = Cube() with { Motion = BodyMotion.Static };
+        var bubble = new FrameSpec(FrameBounds.Sphere(2));
+        SpawnDesc desc = kind switch
         {
-            Frame = ground,
-            Pose = At(0, 1),
-            LinearVelocity = word == "linear velocity" ? new Double3(1, 0, 0) : Double3.Zero,
-            AngularVelocity = word == "angular velocity" ? new Vector3(0, 1, 0) : Vector3.Zero,
-            Body = Cube() with { Motion = BodyMotion.Kinematic },
-        });
+            "a kinematic body that owns no frame" => new() { Frame = ground, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = kinematic },
+            "an entity without a body or a frame" => new() { Frame = ground, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular },
+            "a frame owner without a body" => new() { Frame = ground, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, AsFrame = bubble },
+            "the owner of a root frame" => new() { Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, AsFrame = bubble },
+            "the owner of a root frame with a dynamic body" => new() { Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = Cube(), AsFrame = bubble },
+            "an attached entity" => new() { Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, AttachTo = parent },
+            "a static body" => new() { Frame = ground, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = still },
+            "a static hull" => new() { Frame = ground, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = still, AsFrame = bubble },
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+        };
 
-        spawn.Should().Throw<ArgumentException>().WithMessage($"*kinematic*{word}*");
+        Action spawn = () => world.Spawn(desc);
+
+        spawn.Should().Throw<ArgumentException>(kind).WithMessage($"*{reason}*{word}*");
         world.Stats.LiveEntities.Should().Be(live, "nothing changed");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A dynamic body, a character and a dynamic hull are the bodies that physics integrates, so each one starts with its
+    /// spawn velocity (docs/plans/rails-components.md, "Which entity takes a spawn velocity").
+    /// </summary>
+    [Theory]
+    [InlineData("a dynamic body")]
+    [InlineData("a character")]
+    [InlineData("a dynamic hull")]
+    public void ABodyThatPhysicsIntegratesStartsWithItsSpawnVelocity(string kind)
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Ground(world, 0);
+        var linear = new Double3(1, 0, 0);
+        Vector3 angular = kind == "a character" ? Vector3.Zero : new Vector3(0, 0.5f, 0);
+        SpawnDesc desc = kind switch
+        {
+            "a dynamic body" => new() { Frame = space, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = Cube() },
+            "a character" => new() { Frame = space, Pose = At(0, 1), LinearVelocity = linear, Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70) },
+            "a dynamic hull" => new() { Frame = space, Pose = At(0, 1), LinearVelocity = linear, AngularVelocity = angular, Body = Cube(), AsFrame = new FrameSpec(FrameBounds.Sphere(2)) },
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
+        };
+
+        Entity entity = world.Spawn(desc);
+
+        world.VelocityIn(entity, space).Should().Be(linear, kind);
+        world.AngularVelocityIn(entity, space).Should().Be(angular, kind);
         world.Errors.Should().BeEmpty();
     }
 
