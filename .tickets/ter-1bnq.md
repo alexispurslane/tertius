@@ -24,3 +24,7 @@ From the Blue Danube demo survey (2026-10-18): the design is silent on the prope
 **2026-10-19T19:27:45Z**
 
 2026-10-19: stage 1 is done on branch ter-1bnq-rotation-terms (FrameTurn, FrameTurns, FrameMotion's acceleration terms, reviewed twice). Stage 2 waits for ter-6azq, because both change the proper acceleration code. The ticket's pointer 'Section The rotation terms' now goes to 'The two-turn update', 'Values' and 'The flow per kind of entity' of docs/plans/spin-gravity.md. Read 'the inertial angular velocity summed along the chain' and 'the angular acceleration from the change between steps' as V1 and V2 from BeginStep, and the list of turning kinds as every turning frame (FrameTurns.Turns).
+
+**2026-10-19T21:59:47Z**
+
+2026-10-19, stage 2 part 4: the design contradicted itself on the contact turn. Its rule kept the contact turn out of V4's Total, but its stated result is that a ship on a station floor reads omega^2 R toward the axis, and a sleeping hull's Total is V5. Builder 4 measured both: with the contact turn out, the ship read 0.0507 m/s^2 across the floor; with it in, 4.4e-5 m/s^2 across and omega^2 R within 5.1e-4 m/s^2. The orchestrator settled it by the design's stated result: the contact turn joins Total. The docs part corrects the V4 paragraph and the Decisions row of docs/plans/spin-gravity.md. The two HandOffTests of a ball in a station that faces its planet also change, which the design missed; part 8 keeps what they check and changes their scenes where the premise fails.
