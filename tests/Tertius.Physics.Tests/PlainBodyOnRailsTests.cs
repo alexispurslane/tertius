@@ -51,6 +51,47 @@ public class PlainBodyOnRailsTests
     }
 
     /// <summary>
+    /// The rails spawns of the test helpers put a plain kinematic body on its orbit with its first motion intent and no spawn
+    /// velocity, which a kinematic body that owns no frame refuses (see <see cref="RailsSpawn"/>). So it stands on its
+    /// orbit from the first sync point on.
+    /// </summary>
+    [Fact]
+    public void ARailsSpawnPutsAPlainKinematicBodyOnItsKeplerOrbitFromItsFirstStep()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Body = KinematicBall }.OnKeplerOrbit(world, Orbit, firstMove: true));
+
+        for (int i = 0; i < 5; i++)
+        {
+            world.Tick();
+            (world.PoseIn(ball, space).Position - Orbit.StateAt(world.Time, Scenes.AsteroidMu).Position).Length.Should().BeLessThan(1e-9,
+                "the body stands on its orbit at sync point {0}", world.TickNumber);
+        }
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>The spin of the rails spawns does the same for a plain kinematic body: it turns in place from its first step.</summary>
+    [Fact]
+    public void ARailsSpawnTurnsAPlainKinematicBodyInPlaceFromItsFirstStep()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Ground(world, 0);
+        var spin = new FrameSpin(DQuaternion.Identity, 0.5);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = At(3), Body = KinematicBall }.Spinning(world, spin, firstMove: true));
+
+        for (int i = 0; i < 5; i++)
+        {
+            world.Tick();
+            DPose pose = world.PoseIn(ball, space);
+            pose.Position.Should().Be(new Double3(3, 0, 0), "the body turns in place at sync point {0}", world.TickNumber);
+            DQuaternion expected = spin.RotationAt(world.Time);
+            Math.Abs((pose.Rotation.Conjugate() * expected).W).Should().BeGreaterThan(1 - 1e-12, "the body turns with the spin at sync point {0}", world.TickNumber);
+        }
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// The velocity that gameplay reads for a plain body on rails is the instant velocity of its sample at the end of the
     /// step, narrowed to a float, not Jolt's chord of the step, which lies 0.067 m/s behind on this orbit.
     /// </summary>
