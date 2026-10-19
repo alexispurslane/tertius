@@ -228,10 +228,35 @@ public abstract record ShapeDesc
     }
 
     /// <summary>
-    /// True when the shape is a compound or contains one, the read for a compound that matches <see cref="ContainsMesh"/>.
-    /// Only a compound holds other shapes, so a shape contains a compound exactly when it is one.
+    /// True when the shape is a surface that sharp pieces tile: a mesh, or a compound whose every child is a box or a
+    /// convex hull of convex radius 0, a mesh, or such a compound. At a joint of two such pieces their faces meet with
+    /// no gap, so the edge of one piece at the joint is no feature of the surface: a contact with it stands for the
+    /// neighbor's face. A rounded child, or a sphere or a capsule, leaves a real groove at its joints, and a single convex
+    /// shape has no joints.
     /// </summary>
-    public bool ContainsCompound() => this is CompoundShapeDesc;
+    public bool TilesSharply()
+    {
+        switch (this)
+        {
+            case MeshShapeDesc:
+                return true;
+            case CompoundShapeDesc { Children: { } children }:
+                foreach (CompoundChild child in children)
+                    if (!IsSharpPiece(child.Shape))
+                        return false;
+                return true;
+            default:
+                return false;
+        }
+
+        static bool IsSharpPiece(ShapeDesc? piece) => piece switch
+        {
+            BoxShapeDesc box => box.ConvexRadius == 0,
+            ConvexHullShapeDesc hull => hull.ConvexRadius == 0,
+            MeshShapeDesc or CompoundShapeDesc => piece.TilesSharply(),
+            _ => false,
+        };
+    }
 }
 
 /// <summary>A box with the given half extents about its origin, axes aligned with the body.</summary>

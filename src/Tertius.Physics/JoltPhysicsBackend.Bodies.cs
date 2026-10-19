@@ -327,12 +327,14 @@ public sealed partial class JoltPhysicsBackend
             // never drop it for a body that lands, and manifold reduction averages it into the face contact, so a ball
             // that lands near a joint is pushed sideways, and a box that slides across the joints of a compound trips at
             // each one. Enhanced internal edge removal drops such a contact beyond about 5 mm from a flat joint and 10 mm
-            // from a concave crease (ter-fb3w). Jolt applies it to a pair when either body has it, so the body of a mesh or
-            // a compound sets it for every body that touches it, and a convex body, which has no joints, leaves it off.
-            // It costs nothing measurable (EdgeRemovalBenchmarks). In the groove between two rounded children of a
-            // compound, it keeps only one of the two contacts, so a ball sinks 0.8 mm deeper there (ConvexRadiusTests).
-            // Each body of an entity follows its own shape: a ghost has the body's shape, and an interior its own.
-            EnhancedInternalEdgeRemoval = spec.Shape.ContainsMesh() || spec.Shape.ContainsCompound(),
+            // from a concave crease (ter-fb3w). Jolt applies it to a pair when either body has it, so the body of the
+            // surface sets it for every body that touches it, and it costs nothing measurable (EdgeRemovalBenchmarks).
+            // Only a surface that sharp pieces tile sets it, because only there is the edge at a joint no feature of the
+            // surface. Between two rounded children of a compound the groove is real: the flag would keep only one of its
+            // two contacts, and a ball would sink 0.8 mm deeper and roll to and fro for seconds, where without it the ball
+            // rests in the groove (ConvexRadiusTests). A convex body has no joints. Each body of an entity follows its own
+            // shape: a ghost has the body's shape, and an interior its own.
+            EnhancedInternalEdgeRemoval = spec.Shape.TilesSharply(),
         });
         // Jolt gives a body that is or can become kinematic motion properties from its mass, but it cannot compute the mass
         // of a mesh, and would divide by zero. A mesh is never dynamic, and Jolt reads the mass only of a dynamic body, so
@@ -412,6 +414,14 @@ public sealed partial class JoltPhysicsBackend
             PredictiveContactDistance = CharacterContactReach,
             // Contacts below the center of the lower hemisphere support the character.
             SupportingVolume = new Plane(Vector3.UnitY, -capsule.Radius),
+            // A Jolt character finds its contacts by a shape query of its own, which ignores the flag of the body that it
+            // touches, so the flag of a floor that sharp pieces tile never reaches it. The query drops a contact with an
+            // edge that a mesh marks inactive, but a compound of hulls marks none, so at each joint of the hulls of a
+            // ring's floor, a character that walks across it meets the edge of the next hull and is lifted by up to
+            // 3.7 mm. Enhanced internal edge removal drops those contacts (ter-fb3w, RevolvedSolidJointTests). It adds
+            // about 1 % to the tick of 100 characters that walk across the joints of the hulls, and nothing on the mesh
+            // (EdgeRemovalBenchmarks).
+            EnhancedInternalEdgeRemoval = true,
         };
         CharacterVirtual character = NativeOwnership.Owned(new CharacterVirtual(settings, position, rotation, BodyUserData.Encode(BodyKind.CharacterInner, record.Entity), system));
         character.LinearVelocity = linearVelocity;

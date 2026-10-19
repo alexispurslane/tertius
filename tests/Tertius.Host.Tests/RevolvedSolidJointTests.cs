@@ -7,12 +7,13 @@ namespace Tertius.Host.Tests;
 
 /// <summary>
 /// Bodies at the joints between the segments of a <see cref="RevolvedSolid"/>, on the real World and Jolt, on both of the
-/// solid's collision shapes: the compound of one hull per segment (<see cref="RevolvedSolid.Shape"/>), and Jolt's mesh
-/// shape of its mesh. A body near a joint also meets the edge of the neighbor segment there, and Jolt's contact with that
-/// edge tilts away from the joint. Jolt's enhanced internal edge removal, which physics sets on every body whose shape is
-/// or holds a mesh or a compound, drops such contacts beyond a few millimeters from the joint (ter-fb3w). Without it, a
-/// ball that lands near a joint moves away from it, and a box that slides across the joints of the compound trips over
-/// each one. Angles follow <see cref="RevolvedSolid"/>: θ runs from +X toward -Z, and segment k of n spans 2π k / n to
+/// solid's collision shapes: the compound of one hull of convex radius 0 per segment (<see cref="RevolvedSolid.Shape"/>),
+/// and Jolt's mesh shape of its mesh. A body near a joint also meets the edge of the neighbor segment there, and Jolt's
+/// contact with that edge tilts away from the joint. Jolt's enhanced internal edge removal, which physics sets on every
+/// body whose shape sharp pieces tile, as both of these shapes are, and on every character, drops such contacts beyond a
+/// few millimeters from the joint (ter-fb3w). Without it, a ball that lands near a joint moves away from it, a box that
+/// slides across the joints of the compound trips over each one, and a character that walks across the joints of the
+/// compound is lifted at each one. Angles follow <see cref="RevolvedSolid"/>: θ runs from +X toward -Z, and segment k of n spans 2π k / n to
 /// 2π (k + 1) / n.
 /// </summary>
 public sealed class RevolvedSolidJointTests
@@ -32,6 +33,9 @@ public sealed class RevolvedSolidJointTests
     private static readonly RevolvedSolid Torus = RevolvedSolid.Torus(TorusMajor, TorusMinor, TorusSegments, TorusSides);
 
     private const float BallRadius = 0.25f;
+
+    /// <summary>The length of a tick of the test world, in s.</summary>
+    private const double TickSeconds = 1.0 / 60;
 
     /// <summary>
     /// How far, in meters, a ball that lands near a joint may move along the floor. It lands on a level facet, so nothing
@@ -186,6 +190,90 @@ public sealed class RevolvedSolidJointTests
         theta.Should().BeGreaterThanOrEqualTo(4.5 * step, "the box has crossed the ten joints");
         lift.Should().BeLessThan(0.001, "the box never leaves the floor");
         (pitch * 180 / Math.PI).Should().BeLessThan(180.0 / RingSegments + 0.5, "the box tilts only with the facets under it");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>Walks its character along -Z at <see cref="PersonControl.WalkSpeed"/> once <see cref="Walking"/> is set, and stands it still before.</summary>
+    private sealed class Walker : IComponent
+    {
+        public bool Walking;
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tertius.Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) =>
+            self.Body.MoveCharacter(Walking ? new Vector3(0, 0, -PersonControl.WalkSpeed) : Vector3.Zero);
+    }
+
+    /// <summary>
+    /// The demo's person, a character capsule of half height 0.6 m and radius 0.3 m and 70 kg, stands still in the middle
+    /// of facet 250 of the ring's floor for 1 s, and then walks at the demo's walking speed, 3 m/s, to the middle of facet
+    /// 4, across the ten joints between them, with the seam between the last segment and the first in the middle. Gravity
+    /// is uniform, 9.81 m/s² along +X, toward the seam, so the person's up is -X, and it walks along -Z, across its up. At
+    /// each tick, its lift is the distance from the floor to its lower sphere, whose center is 0.6 m below its own center
+    /// along its up: the least distance from that center to the plane of a facet near it, less the radius. A Jolt
+    /// character drops the contacts with the edges at a mesh's joints, which its mesh marks inactive, but a compound of
+    /// hulls marks none. Without enhanced internal edge removal on the character, on the hulls, it is lifted up to 3.6 mm
+    /// above its standing lift at the joints, and not at all on the mesh. With it, it is never lifted above its standing
+    /// lift on either floor. Its speed across the up stays within 1.3 % of the walk on either floor, with the flag or
+    /// without it on the mesh, and within 2.1 % without it on the hulls.
+    /// </summary>
+    [Theory]
+    [InlineData(Floor.Hulls)]
+    [InlineData(Floor.Mesh)]
+    public void ACharacterThatWalksAcrossTenJointsOfARingsFloorKeepsToTheFloorAtItsWalkingSpeed(Floor floor)
+    {
+        const float halfHeight = 0.6f, radius = 0.3f;
+        const double step = Math.Tau / RingSegments;
+        double apothem = RingInner * Math.Cos(Math.PI / RingSegments);
+        using World world = NewWorld(out _);
+        FrameHandle frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(9.81f, 0, 0))));
+        world.Spawn(new SpawnDesc { Frame = frame, Body = new BodyDesc(ShapeOf(Ring, floor), BodyMotion.Static) });
+        double start = -5.5 * step;
+        // The person's up, its local +Y, is -X, and its lower sphere starts 1 cm above the middle of facet 250.
+        Double3 lowerCenter = (apothem - radius - 0.01) * Radial(start);
+        var walker = new Walker();
+        Entity person = world.Spawn(new SpawnDesc
+        {
+            Frame = frame,
+            Pose = new DPose(lowerCenter - halfHeight * Double3.UnitX, DQuaternion.FromAxisAngle(Double3.UnitZ, Math.PI / 2)),
+            Body = new BodyDesc(new CapsuleShapeDesc(halfHeight, radius), BodyMotion.Character, Mass: 70),
+            Components = [walker],
+        });
+
+        // The lift of the lower sphere of a person at the pose, from the facet before its own to the one after.
+        double Lift(DPose pose)
+        {
+            Double3 center = pose.Position - halfHeight * pose.Rotation.Rotate(Double3.UnitY);
+            double k = Math.Floor(Math.Atan2(-center.Z, center.X) / step), distance = double.MaxValue;
+            for (double j = k - 1; j <= k + 1; j++)
+                distance = Math.Min(distance, apothem - Double3.Dot(new Double3(center.X, 0, center.Z), Radial((j + 0.5) * step)));
+            return distance - radius;
+        }
+
+        Tick(world, 60);
+        double standing = Lift(world.PoseIn(person, frame));
+        walker.Walking = true;
+        double lift = double.MinValue, slowest = double.MaxValue, theta = start;
+        Double3 last = world.PoseIn(person, frame).Position;
+        for (int t = 0; t < 120 && theta < 4.5 * step; t++)
+        {
+            world.Tick();
+            DPose pose = world.PoseIn(person, frame);
+            theta = Math.Atan2(-pose.Position.Z, pose.Position.X);
+            lift = Math.Max(lift, Lift(pose));
+            // The speed across the up, from the move in the tick's step. The step of the walk's first tick does not know
+            // the walk yet.
+            Double3 move = pose.Position - last;
+            last = pose.Position;
+            if (t > 0)
+                slowest = Math.Min(slowest, Math.Sqrt(move.Y * move.Y + move.Z * move.Z) / TickSeconds);
+        }
+
+        theta.Should().BeGreaterThanOrEqualTo(4.5 * step, "the person has crossed the ten joints");
+        (lift - standing).Should().BeLessThan(0.001, "the person is never lifted off the floor at a joint");
+        slowest.Should().BeGreaterThan(0.95 * PersonControl.WalkSpeed, "a joint never slows the walk");
         world.Errors.Should().BeEmpty();
     }
 }
