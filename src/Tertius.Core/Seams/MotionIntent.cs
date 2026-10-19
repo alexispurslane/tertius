@@ -61,6 +61,56 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
         return kind == KindSteer;
     }
 
+    /// <summary>
+    /// The pose that physics aims the entity at, which every case gives. For an end pose and a full sample, it is the pose at
+    /// the end of the step, where physics or the sync point puts the entity exactly. For a steer target, it is the pose that
+    /// physics steers a dynamic body toward, which contacts and gravity can keep the body from. The empty union gives the
+    /// default pose.
+    /// </summary>
+    public DPose AimPose => sample.Pose;
+
+    /// <summary>
+    /// The step record of this intent, the entity's motion over a step that starts at <paramref name="stepStart"/> and lasts
+    /// <paramref name="step"/> seconds, both in the intent's frame. A full sample is its own record. An end pose gives the
+    /// motion at a constant velocity from <paramref name="stepStart"/> to the end pose, as Jolt moves a kinematic body to
+    /// its target (docs/plans/rails-components.md, "MoveKinematic as an end pose"): the chord is also the instant velocity,
+    /// the angular velocity turns the start's rotation into the end's, and both accelerations are zero. A steer target gives
+    /// no record, because physics measures the motion of a dynamic body, and neither does the empty union: both return false.
+    /// </summary>
+    public bool TryRecordFrom(in DPose stepStart, double step, out MotionSample record)
+    {
+        switch (kind)
+        {
+            case KindSample:
+                record = sample;
+                return true;
+            case KindEndPose:
+                DPose end = sample.Pose;
+                Double3 chord = (end.Position - stepStart.Position) / step;
+                Double3 spin = stepStart.Rotation.AngularVelocityTo(end.Rotation, step);
+                record = new MotionSample(end, chord, chord, Double3.Zero, spin, Double3.Zero);
+                return true;
+            default:
+                record = default;
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// This intent in another frame, which <paramref name="motion"/> calls the parent: the motion of the intent's frame
+    /// relative to it now. An end pose and a steer target convert as a pose and keep their case, so the frames' motion gives
+    /// them no velocity. A full sample converts by the rule of a hand-off, with <paramref name="relativeAcceleration"/>, the
+    /// acceleration of the intent's frame relative to the parent (see <see cref="MotionSample.Converted"/>). The empty union
+    /// stays empty.
+    /// </summary>
+    internal MotionIntent Converted(in FrameMotion motion, Double3 relativeAcceleration) => kind switch
+    {
+        KindEndPose => new MotionIntent(new EndPose(motion.PoseToParent(sample.Pose))),
+        KindSample => new MotionIntent(sample.Converted(motion, relativeAcceleration)),
+        KindSteer => new MotionIntent(new SteerTarget(motion.PoseToParent(sample.Pose))),
+        _ => this,
+    };
+
     public object? Value => kind switch
     {
         KindEndPose => new EndPose(sample.Pose),

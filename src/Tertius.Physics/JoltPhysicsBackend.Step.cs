@@ -215,7 +215,7 @@ public sealed partial class JoltPhysicsBackend
                 Double3 localCenter = s.Pose.InverseTransformPoint(s.CenterOfMass);
                 Double3 targetCenter = target + rotation.Rotate(localCenter);
                 Vector3 linear = ((targetCenter - s.CenterOfMass) / stepDt).ToVector3();
-                Vector3 angular = Rotations.AngularVelocity(s.Pose.Rotation, rotation, stepDt).ToVector3();
+                Vector3 angular = s.Pose.Rotation.AngularVelocityTo(rotation, stepDt).ToVector3();
                 bodies.SetLinearAndAngularVelocity(id, linear, angular);
             }
             record.KinematicTargetStep = stepIndex;

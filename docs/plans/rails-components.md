@@ -482,7 +482,7 @@ public readonly struct MotionIntent
     public bool TryGetValue(out SteerTarget steer) { ... }
     public DPose AimPose => sample.Pose;
     public bool TryRecordFrom(in DPose stepStart, double step, out MotionSample record) { ... }
-    public MotionIntent Converted(in DPose relative, in FrameMotion motion, Double3 relativeAcceleration) { ... }
+    internal MotionIntent Converted(in FrameMotion motion, Double3 relativeAcceleration) { ... }
 }
 ```
 
@@ -492,7 +492,7 @@ where
 - `sample` = the private field that the three cases share. An end pose and a steer target read only its pose.
 - `AimPose` = the pose that physics aims the body at, which every case gives. For an end pose and a full sample, it is the pose at the end of the step. Physics or the sync point puts the entity exactly there. For a steer target, it is the pose that physics steers a dynamic body toward, which contacts and gravity can keep the body from.
 - `TryRecordFrom` = the step record of the intent, for a step that starts at `stepStart`, in the intent's frame, and lasts `step` seconds. A full sample gives itself. An end pose gives the constant-velocity motion described under "MoveKinematic as an end pose". A steer target and an intent with no case give false.
-- `Converted` = the intent in another frame. An end pose and a steer target convert as a pose, `DPose.Compose(relative, pose)`, as `PhysicsIntent.Target` converts today, and keep their case. A full sample converts by the rule of a hand-off, as `MotionSampleTable.Convert` does today. That body moves to `MotionSample.Converted`. Today `ConvertInto` adds the relative velocity of the two frames to the zero velocities of an end pose. The result is no end pose any more.
+- `Converted` = the intent in another frame. `motion` is the motion of the intent's frame relative to the other frame now, whose pose is the relative pose of the two frames, and `relativeAcceleration` is the acceleration of one frame relative to the other (`FrameTree.AccelerationRelative`). An end pose and a steer target convert as a pose, `motion.PoseToParent(pose)`, which is `DPose.Compose(relative, pose)`, as `PhysicsIntent.Target` converts today, and keep their case. A full sample converts by the rule of a hand-off, as `MotionSampleTable.Convert` does today. That body moves to `MotionSample.Converted`. Today `ConvertInto` adds the relative velocity of the two frames to the zero velocities of an end pose. The result is no end pose any more.
 
 The new field `PhysicsIntent.Move` holds it. The flag `IntentFlags.KinematicTarget` and the field `PhysicsIntent.Target` go, because `HasValue` tells whether the intent holds a motion intent. `PhysicsIntent.IsEmpty` also asks `!Move.HasValue`. The name `Move` matches the writers, and `PhysicsIntent.Motion` already names the change of motion.
 

@@ -15,4 +15,25 @@ namespace Tertius.Frames.Rails;
 /// <param name="AngularAcceleration">The frame's angular acceleration during the step, in rad/s².</param>
 public readonly record struct MotionSample(
     DPose Pose, Double3 ChordVelocity, Double3 Velocity, Double3 Acceleration,
-    Double3 AngularVelocity, Double3 AngularAcceleration);
+    Double3 AngularVelocity, Double3 AngularAcceleration)
+{
+    /// <summary>
+    /// This sample in another frame, which <paramref name="motion"/> calls the parent: the motion of the sample's frame
+    /// relative to it now. The pose, the chord velocity and the instant velocity at the sample's place at the end of its
+    /// step, the angular velocity and the angular acceleration convert with that motion, by the rule of a hand-off (see
+    /// <see cref="FrameMotion"/>). The acceleration turns into the parent's axes and adds
+    /// <paramref name="relativeAcceleration"/>, the acceleration of the sample's frame relative to the parent, in the
+    /// parent's axes (see <see cref="FrameTree.AccelerationRelative"/>).
+    /// </summary>
+    internal MotionSample Converted(in FrameMotion motion, Double3 relativeAcceleration)
+    {
+        Double3 place = Pose.Position;
+        return new MotionSample(
+            motion.PoseToParent(Pose),
+            motion.VelocityToParent(place, ChordVelocity),
+            motion.VelocityToParent(place, Velocity),
+            motion.Pose.TransformDirection(Acceleration) + relativeAcceleration,
+            motion.AngularToParent(AngularVelocity),
+            motion.AngularAccelerationToParent(AngularAcceleration));
+    }
+}

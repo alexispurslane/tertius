@@ -136,11 +136,9 @@ internal sealed class MotionSampleTable
 
     /// <summary>
     /// Converts the applied and the followed sample of <paramref name="frame"/>, each when it is relative to another frame
-    /// than <paramref name="to"/>, into <paramref name="to"/>, with the relation of the two frames now. The pose, the chord
-    /// velocity and the instant velocity at the sample's place at the end of its step, the angular velocity and the angular
-    /// acceleration convert with the motion of one frame relative to the other, by the rule of a hand-off (see
-    /// <see cref="FrameMotion"/>). The acceleration converts with the acceleration of one frame relative to the other (see
-    /// <see cref="FrameTree.AccelerationRelative"/>). Both frames must be live: the World converts the samples of the frames in a frame that dies before it dies.
+    /// than <paramref name="to"/>, into <paramref name="to"/>, with the relation of the two frames now, by the rule of a
+    /// hand-off (see <see cref="MotionSample.Converted"/>). Both frames must be live: the World converts the samples of the
+    /// frames in a frame that dies before it dies.
     /// </summary>
     internal void ConvertInto(FrameHandle frame, FrameHandle to)
     {
@@ -175,16 +173,7 @@ internal sealed class MotionSampleTable
         // between the two frames does.
         var motion = new FrameMotion(frames.Relative(from, to), frames.ConvertVelocity(from, to, Double3.Zero, Double3.Zero),
             frames.AngularVelocityRelative(from, to));
-        MotionSample sample = row.Sample;
-        Double3 place = sample.Pose.Position;
-        var converted = new MotionSample(
-            motion.PoseToParent(sample.Pose),
-            motion.VelocityToParent(place, sample.ChordVelocity),
-            motion.VelocityToParent(place, sample.Velocity),
-            motion.Pose.TransformDirection(sample.Acceleration) + frames.AccelerationRelative(from, to),
-            motion.AngularToParent(sample.AngularVelocity),
-            motion.AngularAccelerationToParent(sample.AngularAcceleration));
-        row = row with { RelativeTo = to, Sample = converted };
+        row = row with { RelativeTo = to, Sample = row.Sample.Converted(motion, frames.AccelerationRelative(from, to)) };
     }
 
     /// <summary>

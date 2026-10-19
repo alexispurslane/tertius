@@ -403,11 +403,27 @@ public struct PhysicsIntent
     /// <see cref="FrameTree.HullMotion"/>).
     /// </summary>
     public BodyMotion Motion;
+    /// <summary>
+    /// How the entity moves in the step that applies the intent: an end pose, a full sample or a steer target, relative to
+    /// <see cref="Frame"/>, or no case (see <see cref="MotionIntent"/>). <see cref="StepRecord"/> turns it into the entity's
+    /// step record.
+    /// </summary>
+    public MotionIntent Move;
     public IntentFlags Flags;
+
+    /// <summary>
+    /// The step record of <see cref="Move"/>, the one read that turns the motion intent into the entity's motion over the
+    /// step, which lasts <paramref name="step"/> seconds (see <see cref="MotionIntent.TryRecordFrom"/>). If the intent
+    /// teleports, the step starts at <see cref="TeleportPose"/>. Else it starts at <paramref name="standing"/>, the pose of
+    /// the entity at the start of the step, relative to <see cref="Frame"/>. False without a motion intent and for a steer
+    /// target.
+    /// </summary>
+    public readonly bool StepRecord(in DPose standing, double step, out MotionSample record) =>
+        Move.TryRecordFrom((Flags & IntentFlags.Teleport) != 0 ? TeleportPose : standing, step, out record);
 
     public readonly bool IsEmpty =>
         Flags == IntentFlags.None && Force == Vector3.Zero && Torque == Vector3.Zero &&
-        Impulse == Vector3.Zero && AngularImpulse == Vector3.Zero;
+        Impulse == Vector3.Zero && AngularImpulse == Vector3.Zero && !Move.HasValue;
 
     public void Clear() => this = default;
 }
