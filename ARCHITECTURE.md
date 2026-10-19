@@ -22,7 +22,7 @@ These features are out of scope. Do not design for them.
 | Windowing and input | Silk.NET.Windowing and Silk.NET.Input (GLFW) |
 | Shaders | GLSL 4.60, compiled to SPIR-V with `glslc` at build time |
 | Tests | xUnit v3 on Microsoft.Testing.Platform, with AwesomeAssertions. Coverage uses Microsoft.Testing.Extensions.CodeCoverage. |
-| Images | StbImageWriteSharp writes the PNG captures, in `PngCaptureSink`. The tests read PNG files with StbImageSharp. |
+| Images | StbImageWriteSharp writes the PNG captures, in `PngCaptureSink`. The tests read PNG files with StbImageSharp, and write the approved reference images and the failure files of snapshot tests with StbImageWriteSharp. |
 | Benchmarks | BenchmarkDotNet 0.15.8 |
 | Platforms | The flake supports `aarch64-darwin`, `x86_64-linux` and `aarch64-linux`. |
 
@@ -44,7 +44,8 @@ src/Tertius.Rendering   Vulkan deferred renderer: G-buffer, depth ranges, lighti
 src/Tertius.Host        threads, window, input, tick pacing, scripted and headless runs, state dumps,
                         wiring of all modules
 src/Tertius.Demo        the vertical slice game: its scenes and components (its scripts are in scripts/)
-tests/Tertius.*.Tests   one test project per engine module, and Tertius.Host.Tests also tests the Demo
+tests/Tertius.*.Tests   one test project per engine module, and Tertius.Host.Tests also tests the Demo;
+                        Tertius.Rendering.Tests also holds FLIP and the snapshot test check
 tests/Tertius.Testing   shared test helpers: FaultInjectingBackend, WorldTesting, Scenes, test components
 benchmarks/             BenchmarkDotNet benchmarks
 ```
@@ -736,6 +737,19 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
 | `ImpostorTiles` | 64 | The number of 512 px tiles in the impostor atlas. Each tile takes about 3.3 MB, so the default takes about 213 MB. |
 
 A switch that makes rendering deterministic for snapshot tests is planned, not built (ticket `ter-rtxu`, `docs/plans/renderer-snapshot-tests.md`).
+
+### Snapshot tests
+
+A snapshot test renders a scene headlessly and compares the image with its approved reference image through FLIP, a perceptual image difference from NVIDIA (Andersson et al. 2020, in its form for display-encoded images). FLIP gives each pixel a value from 0 to 1: how much the pixel seems to change when a viewer flips between the two images. It blurs both images as the eye does at a given viewing distance, measures the color difference of the blurred images in CIELAB, and makes that difference count more where an edge or a point changed. The tests use the paper's default viewer, who sees 67 pixels in each degree of view. `Flip` in `tests/Tertius.Rendering.Tests` is a C# port, written from the paper, so the project needs no native build and no package for it. It uses no code from NVIDIA's reference implementation. Tests on hand-made images pin its values, each derived by hand from the paper: black against white, green against blue, two close grays, a checker of one-pixel squares at two viewing distances, a step edge and a line.
+
+`ReferenceImages.Verify` renders a scene with the headless capture and checks the image. The reference image of a test is `tests/Tertius.Rendering.Tests/ReferenceImages/<name>.png`.
+
+- The check fails when any pixel's FLIP value is above the tolerance of the test. The default tolerance is 0.1, and a test can name its own. In a flat area, 0.1 is the value of a CIELAB lightness step of about 2.2, about one just noticeable difference. So a change of one level in every pixel passes, and one changed pixel that anyone can see fails. A rule on the mean FLIP value would let a small object disappear without a failure, because the object hardly moves the mean.
+- When the check fails, it writes the actual image as `<name>.actual.png` and the FLIP heat map as `<name>.flip.png`, beside the reference. Git ignores both files, and a passing check removes them. The heat map is black where nothing changed, and it grows brighter, through purple, red and orange to pale yellow, as the change grows.
+- With the environment variable `TERTIUS_APPROVE_SNAPSHOTS` set to 1, the check makes the image the reference and passes. A snapshot proves only that nothing changed. So the first approval of each reference image is a real review against the description of its scene.
+- The references come from one machine with MoltenVK. On that machine, two headless renders of one scene give the same bytes. Tolerance across GPUs is out of scope.
+
+No reference image exists yet. The first scenes come with ticket `ter-rtxu`, which also adds the switch for deterministic rendering, and with the overlay pass of ticket `ter-p51r`.
 
 ## Blueprints
 

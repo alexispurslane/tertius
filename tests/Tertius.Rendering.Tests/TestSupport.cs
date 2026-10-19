@@ -1,4 +1,5 @@
 using System.Numerics;
+using StbImageSharp;
 using Tertius.Rendering;
 
 namespace Tertius.Rendering.Tests;
@@ -8,6 +9,16 @@ namespace Tertius.Rendering.Tests;
 public sealed class GpuCollection
 {
     public const string Name = "GPU";
+}
+
+/// <summary>
+/// Tests that change an environment variable of the test process run alone, after the parallel tests: the variable is
+/// shared by every test that runs beside them.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class ProcessEnvironmentCollection
+{
+    public const string Name = "Process environment";
 }
 
 /// <summary>Helpers for GPU tests: renderer creation, captures, projection of world points to pixels.</summary>
@@ -37,6 +48,9 @@ internal static class Gpu
             Impostors = impostors,
             ImpostorTiles = impostorTiles,
         });
+
+    /// <summary>The folder that holds Tertius.slnx.</summary>
+    public static string RepositoryRoot => RepoRoot.Value;
 
     public static string CapturePath(string name) => Path.Combine(RepoRoot.Value, "captures", name + ".png");
 
@@ -120,6 +134,30 @@ internal sealed class Capture
     public int Width { get; }
     public int Height { get; }
     public byte[] Rgba { get; }
+
+    public static Capture Load(string path)
+    {
+        using FileStream stream = File.OpenRead(path);
+        ImageResult image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
+        return new Capture(image.Width, image.Height, image.Data);
+    }
+
+    /// <summary>An image made in memory: <paramref name="rgba"/> holds 4 bytes per pixel, top row first.</summary>
+    public static Capture FromRgba(int width, int height, byte[] rgba)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        if (rgba.Length != width * height * 4)
+            throw new ArgumentException($"A {width}×{height} image needs {width * height * 4} bytes, not {rgba.Length}.", nameof(rgba));
+        return new Capture(width, height, rgba);
+    }
+
+    /// <summary>Writes the image as a PNG file, replacing any file at <paramref name="path"/>.</summary>
+    public void Save(string path)
+    {
+        using FileStream stream = File.Create(path);
+        new StbImageWriteSharp.ImageWriter().WritePng(Rgba, Width, Height, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, stream);
+    }
 
     /// <summary>Color in [0, 1] (display-encoded, as stored).</summary>
     public Vector3 Color(int x, int y)
