@@ -74,8 +74,8 @@ public readonly ref struct Self
     /// <summary>
     /// Writes the motion of the frame that this entity owns over the next physics step: the step in which this tick's
     /// intents act, which ends at <c>TimeAt(Tick + 2)</c>. The sample is relative to <see cref="Frame"/>, the frame's
-    /// semantic parent, in its axes, except its proper acceleration, which is in the frame's own axes. The last write in a
-    /// tick wins. A frame whose owner writes no sample in a tick has none in the next step. Throws
+    /// semantic parent, in its axes. The frame tree derives the frame's proper acceleration from it (see
+    /// <see cref="FrameTree.ProperAcceleration"/>). The last write in a tick wins. A frame whose owner writes no sample in a tick has none in the next step. Throws
     /// <see cref="InvalidOperationException"/> if the entity owns no frame, or if the frame has a parent and the entity has a
     /// body that is not kinematic: that body is the frame's hull, and only a kinematic hull follows a sample. A frame without
     /// a body can write a sample, and so can the owner of a root frame, whose body is the frame's static interior. Throws

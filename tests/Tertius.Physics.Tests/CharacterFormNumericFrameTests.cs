@@ -194,6 +194,9 @@ public class CharacterFormNumericFrameTests
             Frame = earth, Body = plate ? StationHull : Core, AsFrame = new FrameSpec(FrameBounds.Sphere(StationRadius)),
         }.OnKeplerOrbit(world, LowOrbit));
         FrameHandle station = world.GetOwnedFrame(owner);
+        // The station holds still for its first step, so earth's gravity would weigh on the character then, and stands on
+        // its rails from the second sync point on. The character comes once the station falls freely on its orbit.
+        Tick(world, 2);
         Entity person = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 10), LinearVelocity = new Double3(0, 1, 0), Body = Person });
 
         var states = new List<string>();

@@ -136,7 +136,7 @@ public class FrameMotionTests
         test.World.Frames.LocalPose(frame).Should().Be(written);
         test.World.Frames.Samples.Followed.TryGet(frame, out MotionSample record, out FrameHandle relativeTo).Should().BeTrue();
         relativeTo.Should().Be(test.Root);
-        record.Should().Be(new MotionSample(written, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Vector3.Zero),
+        record.Should().Be(new MotionSample(written, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero),
             "a write moves the frame with no velocity");
     }
 

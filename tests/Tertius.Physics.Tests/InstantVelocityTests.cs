@@ -327,13 +327,14 @@ public class InstantVelocityTests
     {
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
-        // A room 100 m out along X and 6 m down, turned about the vertical, with the ground's gravity.
+        // A room 100 m out along X and 6 m down, turned about the vertical. It holds still in the ground's gravity, so its
+        // contents feel that gravity with no field of the room's own.
         var roomPose = new DPose(new Double3(100, -6, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5));
         FrameHandle room = world.GetOwnedFrame(world.Spawn(new SpawnDesc
         {
             Frame = ground,
             Pose = roomPose,
-            AsFrame = new FrameSpec(FrameBounds.Sphere(20), GravityField.Uniform(new Vector3(0, -9.81f, 0))),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
         }));
         // A group with a body that thrusts falls in a numeric frame from 50 m/s, and a free body only from 1,000 m/s. So the
         // ball carries a gentle thruster, which pushes it up along the vertical, about which the room is turned, so that the

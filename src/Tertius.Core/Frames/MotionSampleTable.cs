@@ -125,8 +125,7 @@ internal sealed class MotionSampleTable
     /// velocity and the instant velocity at the sample's place at the end of its step, the angular velocity and the angular
     /// acceleration convert with the motion of one frame relative to the other, by the rule of a hand-off (see
     /// <see cref="FrameMotion"/>). The acceleration converts with the acceleration of one frame relative to the other (see
-    /// <see cref="FrameTree.AccelerationRelative"/>). The proper acceleration is in the frame's own axes, so it stays. Both
-    /// frames must be live: the World converts the samples of the frames in a frame that dies before it dies.
+    /// <see cref="FrameTree.AccelerationRelative"/>). Both frames must be live: the World converts the samples of the frames in a frame that dies before it dies.
     /// </summary>
     internal void ConvertInto(FrameHandle frame, FrameHandle to)
     {
@@ -169,8 +168,7 @@ internal sealed class MotionSampleTable
             motion.VelocityToParent(place, sample.Velocity),
             motion.Pose.TransformDirection(sample.Acceleration) + frames.AccelerationRelative(from, to),
             motion.AngularToParent(sample.AngularVelocity),
-            motion.AngularAccelerationToParent(sample.AngularAcceleration),
-            sample.ProperAcceleration);
+            motion.AngularAccelerationToParent(sample.AngularAcceleration));
         row = row with { RelativeTo = to, Sample = converted };
     }
 
@@ -183,8 +181,7 @@ internal sealed class MotionSampleTable
 
 /// <summary>
 /// One buffer of the sample table, for reading: the motion samples of the frames, by frame. Each sample is relative to the
-/// semantic parent of its frame when its owner wrote it, in the parent's axes, except its proper acceleration, which is in
-/// the frame's own axes. The default has no sample.
+/// semantic parent of its frame when its owner wrote it, in the parent's axes. The default has no sample.
 /// </summary>
 public readonly struct MotionSamples
 {

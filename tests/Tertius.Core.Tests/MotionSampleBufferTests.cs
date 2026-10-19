@@ -26,7 +26,7 @@ public class MotionSampleBufferTests
     private static readonly MotionSample Sample = new(
         new DPose(new Double3(1, 2, 3), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5)),
         new Double3(4, 5, 6), new Double3(7, 8, 9), new Double3(0.1, 0.2, 0.3),
-        new Double3(0, 0, 0.4), new Double3(0, 0.5, 0), new Vector3(0, 9.81f, 0));
+        new Double3(0, 0, 0.4), new Double3(0, 0.5, 0));
 
     [Fact]
     public void A_sample_that_the_owner_writes_is_in_the_written_buffer_and_in_neither_of_the_other_two()

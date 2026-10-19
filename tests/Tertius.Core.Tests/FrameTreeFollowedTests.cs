@@ -28,7 +28,7 @@ public class FrameTreeFollowedTests
 
     /// <summary>A sample at rest 5 m along +X.</summary>
     private static MotionSample Sample =>
-        new(new DPose(new Double3(5, 0, 0), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Vector3.Zero);
+        new(new DPose(new Double3(5, 0, 0), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
 
     /// <summary>Ends a tick: step 4 turns the buffers.</summary>
     private void SyncPoint() => frames.Samples.MoveOn();

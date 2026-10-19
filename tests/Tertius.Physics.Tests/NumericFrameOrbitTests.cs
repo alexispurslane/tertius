@@ -148,6 +148,11 @@ public partial class NumericFrameOrbitTests
     {
         using World world = NewWorld(numericFrames, threads, out FaultInjectingBackend faults);
         Station station = KeplerStation(world);
+        // The station holds still for its first step, so earth's gravity pulls on its contents then, and stands on its
+        // rails from the second sync point on. The bodies come once it falls freely on its orbit, and their ticks count
+        // from then.
+        Tick(world, 2);
+        long start = world.TickNumber;
         var logs = new[] { new CollisionLog(), new CollisionLog(), new CollisionLog() };
         Entity[] drifters = [.. new[] { -3.0, 3.0, 0.0 }.Select((x, i) => world.Spawn(new SpawnDesc
         {
@@ -171,7 +176,7 @@ public partial class NumericFrameOrbitTests
         }
         world.Errors.Should().BeEmpty();
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
-        return [.. drifters.Select((drifter, i) => new Drift(homes[i], [.. logs[i].Seen.Where(s => s.Other == station.Owner).Select(s => s.Tick)],
+        return [.. drifters.Select((drifter, i) => new Drift(homes[i], [.. logs[i].Seen.Where(s => s.Other == station.Owner).Select(s => s.Tick - start)],
             world.PoseIn(drifter, station.Frame).Position,
             world.PoseIn(drifter, station.Earth).Position - world.PoseIn(station.Owner, station.Earth).Position, fastest[i]))];
     }
@@ -323,6 +328,8 @@ public partial class NumericFrameOrbitTests
     {
         using World world = NewWorld(numericFrames, threads: 1, out FaultInjectingBackend faults);
         Station station = KeplerStation(world);
+        // The crates come once the station stands on its rails and falls freely (see DriftOut).
+        Tick(world, 2);
         Entity drifter = world.Spawn(new SpawnDesc { Frame = station.Frame, Pose = At(-5, 0, 5), LinearVelocity = new Double3(0.5, 0, 0), Body = Crate });
         Entity stickOut = world.Spawn(new SpawnDesc { Frame = station.Frame, Pose = At(0, -15.9), Body = Crate });
         Tick(world, 2);

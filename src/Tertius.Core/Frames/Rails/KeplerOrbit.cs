@@ -1,5 +1,3 @@
-using System.Numerics;
-
 namespace Tertius.Frames.Rails;
 
 /// <summary>How a Kepler frame turns as it orbits.</summary>
@@ -152,7 +150,7 @@ public record struct KeplerOrbit(
         Double3 chord = orbits ? Chord(position, velocity, mu, step) : Double3.Zero;
         Double3 acceleration = orbits ? Acceleration(position - chord * step, mu) : Double3.Zero;
         return new MotionSample(new DPose(position, rotation), chord, velocity, acceleration, angularVelocity,
-            AngularAccelerationAt(stepEnd - step, mu), Vector3.Zero);
+            AngularAccelerationAt(stepEnd - step, mu));
     }
 
     /// <summary>

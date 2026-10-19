@@ -12,8 +12,9 @@ public sealed partial class World
 
     // The step record of each frame whose hull physics moved in the step, which the check did not skip, in the order of the
     // output. Step 2 fills it from the output and FollowOwners puts each frame on its record (see "One motion record per
-    // frame" in docs/plans/rails-components.md). It is empty without a physics backend and after a step that failed.
-    private readonly Dictionary<FrameHandle, MotionSample> stepRecords = new();
+    // frame" in docs/plans/rails-components.md), with the proper acceleration that physics measured for a dynamic hull. It
+    // is empty without a physics backend and after a step that failed.
+    private readonly Dictionary<FrameHandle, FrameStepRecord> stepRecords = new();
 
     // Scratch of step 4 (see ApplyMotionChanges): the owners whose change of motion the step that ended applied, then the
     // owners that wrote a change in the tick that ends.
@@ -208,13 +209,13 @@ public sealed partial class World
         // its owner's update skipped.
         foreach (FrameStepRecord record in stepOutput.Frames)
             if (!physicsOutputCheck.IsSkipped(record.Frame.Entity))
-                stepRecords[record.Frame] = record.Motion;
+                stepRecords[record.Frame] = record;
 
         // Each orbit frame takes its anchor's sample before the rows of its members take the end of the step, so that
         // they are relative to its exact place. Physics aims a hull at the origin of its orbit frame, so the hull's record
         // is there, unless the hull teleported in the step: then the orbit frame jumps after the rows (see FollowOwners).
-        foreach ((FrameHandle frame, MotionSample record) in stepRecords)
-            if (record.Pose.Position == Double3.Zero && Frames.InOrbitFrame(frame))
+        foreach ((FrameHandle frame, FrameStepRecord record) in stepRecords)
+            if (record.Motion.Pose.Position == Double3.Zero && Frames.InOrbitFrame(frame))
                 Frames.PlaceFollowingFrame(frame);
 
         // The check put every entity that is not live, or has no body, among the skipped updates. The body of the owner of
@@ -254,10 +255,13 @@ public sealed partial class World
     /// the frame's tree parent. Physics releases one when the hull is dynamic, kinematic with a sample, or static or
     /// kinematic without a sample and teleported in the step.</item>
     /// <item>No hull: the sample of the step in the applied buffer, relative to the frame's semantic parent, and then a write
-    /// of the owner's transform in the tick, which the sync point turns into a record with no velocity that keeps the frame's
-    /// proper acceleration. The write comes last, so it wins for one tick, and the next sample puts the frame back on its
-    /// rails.</item>
+    /// of the owner's transform in the tick, which the sync point turns into a record at rest. The write comes last, so it
+    /// wins for one tick, and the next sample puts the frame back on its rails.</item>
     /// </list>
+    /// Each frame takes the proper acceleration that its record gives, and a dynamic hull the one that physics measured
+    /// beside its record (see <see cref="FrameTree.ProperAcceleration"/>). A frame visits after its parent, so for now it
+    /// reads the value that its parent took in the same pass. Which value it reads is still open
+    /// (docs/plans/rails-components.md, "Open: which proper acceleration of the parent").
     /// A frame without a record holds still in its tree parent, unless its owner's update was skipped: the output check
     /// skipped it in a Release build (see <see cref="SkipBrokenPhysicsUpdates"/>), or the owner has a hull and the step
     /// failed (<paramref name="stepFailed"/>), so that physics released no record and may have moved the hull or not. Then
@@ -275,9 +279,9 @@ public sealed partial class World
         Profile.Lap(3);
         // A hull that teleported in the step left the origin of its orbit frame, toward its sample's place.
         bool jumped = false;
-        foreach ((FrameHandle frame, MotionSample record) in stepRecords)
+        foreach ((FrameHandle frame, FrameStepRecord record) in stepRecords)
         {
-            if (record.Pose.Position == Double3.Zero || !Frames.InOrbitFrame(frame))
+            if (record.Motion.Pose.Position == Double3.Zero || !Frames.InOrbitFrame(frame))
                 continue;
             Frames.JumpFollowingFrame(frame, physicsChanges);
             jumped = true;
@@ -309,28 +313,27 @@ public sealed partial class World
     {
         FrameHandle frame = links.Frame;
         bool hull = !links.Parent.IsNull && entities.Body(frame.Entity) != null;
-        if (stepRecords.Count > 0 && stepRecords.TryGetValue(frame, out MotionSample record))
+        if (stepRecords.Count > 0 && stepRecords.TryGetValue(frame, out FrameStepRecord record))
         {
-            Frames.Follow(frame, links.TreeParent, record);
-            KeepRecord(frame, links.TreeParent, record);
+            KeepRecord(frame, links.TreeParent, record.Motion);
+            Frames.Follow(frame, links.TreeParent, record.Motion, record.ProperAcceleration, DeltaTime);
         }
         else if (!hull && Frames.Samples.Applied.TryGet(frame, out MotionSample sample, out FrameHandle relativeTo))
-            Frames.Follow(frame, relativeTo, sample);
+            Frames.Follow(frame, relativeTo, sample, measured: null, DeltaTime);
         // A skipped update changes nothing, so the frame keeps the velocities that it had before the step.
         else if (!(hull && stepFailed) && !physicsOutputCheck.IsSkipped(frame.Entity))
             Frames.HoldStill(frame, DeltaTime);
 
         // Gameplay can write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the
-        // world normalizes it here, and the owner's row follows the frame below (see MirrorFrameOwner). The write moves
-        // the frame and changes nothing else, so the frame keeps its proper acceleration, as a frame that holds still.
+        // world normalizes it here, and the owner's row follows the frame below (see MirrorFrameOwner). The write leaves
+        // the frame at rest, so it feels the gravity at its new place reversed, as a frame that holds still.
         Entity owner = frame.Entity;
         if (!hull && entities.GameplayWroteTransform(owner))
         {
             ref readonly TransformRow row = ref entities.BackRow(owner);
-            var write = new MotionSample(row.Pose.WithUnitRotation(), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
-                Frames.ProperAcceleration(frame));
-            Frames.Follow(frame, row.Frame, write);
+            var write = new MotionSample(row.Pose.WithUnitRotation(), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
             KeepRecord(frame, row.Frame, write);
+            Frames.Follow(frame, row.Frame, write, measured: null, DeltaTime);
         }
     }
 

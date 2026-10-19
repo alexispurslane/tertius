@@ -789,7 +789,10 @@ public sealed partial class JoltPhysicsBackend
             if (owner.Motion != BodyMotion.Dynamic && !sampled && owner.TeleportStep != stepIndex)
                 continue;
             MotionSample record = StepRecordOf(frame);
-            output.Frames.Add(new FrameStepRecord(frame, record with { Velocity = record.Velocity + HomeInstantVelocityOverChord(owner.Frame) }));
+            // Physics measures the proper acceleration of a dynamic hull (see ComputeProperAccelerations). The frame tree
+            // derives every other frame's from its record (see FrameTree.ProperAcceleration).
+            Vector3? measured = owner.Motion == BodyMotion.Dynamic ? owner.ProperAcceleration : null;
+            output.Frames.Add(new FrameStepRecord(frame, record with { Velocity = record.Velocity + HomeInstantVelocityOverChord(owner.Frame) }, measured));
         }
     }
 }

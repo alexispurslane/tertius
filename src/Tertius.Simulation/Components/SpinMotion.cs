@@ -1,4 +1,3 @@
-using System.Numerics;
 using Tertius.Frames.Rails;
 
 namespace Tertius.Simulation;
@@ -6,8 +5,9 @@ namespace Tertius.Simulation;
 /// <summary>
 /// Turns the frame that its entity owns in place, as the ground of a planet turns. In each tick it writes the spin's motion
 /// sample for the step in which the tick's intents act (see <see cref="Self.MoveOnRails"/>), at the place in its parent where
-/// its frame stands when that step starts, with <see cref="ProperAcceleration"/>. The spin is an exact function of time, so no error builds
-/// up.
+/// its frame stands when that step starts. The spin is an exact function of time, so no error builds up. The sample holds no
+/// proper acceleration: the frame tree derives it from the frame's motion and the gravity at its place, so a turntable on
+/// the ground gives its cargo weight with no value to copy (see <see cref="FrameTree.ProperAcceleration"/>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -43,13 +43,6 @@ public sealed class SpinMotion : IComponent
         }
     }
 
-    /// <summary>
-    /// The frame's proper acceleration in its own axes, in m/s², zero by default. The effective gravity of the frame's
-    /// contents is the frame's field minus this value. A component that starts a turntable copies the frame's value into it,
-    /// so that the cargo of a landed ship keeps its weight.
-    /// </summary>
-    public Vector3 ProperAcceleration { get; init; }
-
     public int Priority => -1000;
 
     public EventMask Wants => EventMask.Of<Tick>();
@@ -67,7 +60,7 @@ public sealed class SpinMotion : IComponent
         if (!started && RailsHull.Exists(self))
             self.Body.Teleport(new DPose(place, spin.RotationAt(self.TimeAt(self.Tick + 1))));
         started = true;
-        self.MoveOnRails(spin.Sample(place, ProperAcceleration, self.TimeAt(self.Tick + 2), self.DeltaTime));
+        self.MoveOnRails(spin.Sample(place, self.TimeAt(self.Tick + 2), self.DeltaTime));
     }
 
     /// <summary>

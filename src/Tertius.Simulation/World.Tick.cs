@@ -432,7 +432,7 @@ public sealed partial class World
     private static MotionSample CheckedSample(in MotionSample sample)
     {
         if (!IsFinite(sample.Pose.Position) || !IsFinite(sample.ChordVelocity) || !IsFinite(sample.Velocity) || !IsFinite(sample.Acceleration)
-            || !IsFinite(sample.AngularVelocity) || !IsFinite(sample.AngularAcceleration) || !IsFinite(sample.ProperAcceleration))
+            || !IsFinite(sample.AngularVelocity) || !IsFinite(sample.AngularAcceleration))
             throw new ArgumentException($"A motion sample needs fields that are finite numbers, not {sample}.", nameof(sample));
         double rotationSize = sample.Pose.Rotation.LengthSquared;
         if (!(rotationSize > 0) || !double.IsFinite(rotationSize))

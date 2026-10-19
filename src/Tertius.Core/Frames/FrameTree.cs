@@ -746,8 +746,16 @@ public sealed partial class FrameTree
     /// <summary>Sets the angular velocity of the frame relative to its parent, in parent axes (see <see cref="AngularVelocity"/>).</summary>
     internal void SetAngularVelocity(FrameHandle frame, Vector3 velocity) => AngularVelocityForWrite(Node(frame).Id) = velocity;
 
-    /// <summary>What an accelerometer at the frame origin reads, in frame axes. Zero for a frame in free fall.</summary>
-    public ref Vector3 ProperAcceleration(FrameHandle frame) => ref properAcceleration[Node(frame).Id];
+    /// <summary>
+    /// What an accelerometer at the frame origin reads over the last finished step, in m/s², in frame axes: the frame's
+    /// acceleration minus the gravity that acts at its place. Zero for a frame in free fall, and the gravity at its place,
+    /// reversed, for a frame that holds still, so a parked cabin's contents have weight. Step 2 of every sync point derives
+    /// it from the frame's step record (see <see cref="Follow"/> and <see cref="HoldStill"/>), and takes a dynamic hull's
+    /// from physics, which measures it by the same rule. No gameplay writes it. For now a new frame reads zero until its
+    /// first sync point, a choice that is still open (docs/plans/rails-components.md, "Open: the proper acceleration of a
+    /// new frame").
+    /// </summary>
+    public Vector3 ProperAcceleration(FrameHandle frame) => properAcceleration[Node(frame).Id];
 
     /// <summary>The pose of <paramref name="of"/> in the space of <paramref name="to"/>, through their common ancestor.</summary>
     public DPose Relative(FrameHandle of, FrameHandle to) => poses.Relative(Node(of), Node(to));

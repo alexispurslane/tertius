@@ -567,16 +567,21 @@ public readonly record struct ContactEnded(Entity A, Entity B);
 
 /// <summary>
 /// The step record of a frame whose hull physics moved in the step: the frame's motion over the step that just ended (see
-/// "One motion record per frame" in docs/plans/rails-components.md). Every field of <see cref="Motion"/> except its proper
-/// acceleration is relative to the frame's tree parent after this step, in its axes; the proper acceleration is in the
-/// frame's own axes. If the step also handed the frame off, the parent is the hand-off's <see cref="HandOff.To"/>, so the
-/// sync point applies hand-offs first. The sync point puts the frame on its record (see <c>World.FollowOwners</c>).
+/// "One motion record per frame" in docs/plans/rails-components.md). Every field of <see cref="Motion"/> is relative to the
+/// frame's tree parent after this step, in its axes. If the step also handed the frame off, the parent is the hand-off's
+/// <see cref="HandOff.To"/>, so the sync point applies hand-offs first. The sync point puts the frame on its record (see
+/// <c>World.FollowOwners</c>).
 /// </summary>
 /// <param name="Frame">The frame whose hull moved.</param>
 /// <param name="Motion">The frame's motion over the step: the pose at its end, the chord, the instant velocity at its end,
-/// the acceleration and the angular acceleration over the step, the angular velocity at its end and the proper
-/// acceleration.</param>
-public readonly record struct FrameStepRecord(FrameHandle Frame, MotionSample Motion);
+/// the acceleration and the angular acceleration over the step, and the angular velocity at its end.</param>
+/// <param name="ProperAcceleration">
+/// The proper acceleration that physics measured for a dynamic hull, in m/s², in the frame's own axes: Jolt's whole change
+/// of velocity over the step minus the gravity that physics applied, so an impulse reads as a jolt. Null for every other
+/// hull, whose frame takes the value that the frame tree derives from <see cref="Motion"/> and the gravity at its place (see
+/// <see cref="FrameTree.ProperAcceleration"/>).
+/// </param>
+public readonly record struct FrameStepRecord(FrameHandle Frame, MotionSample Motion, Vector3? ProperAcceleration);
 
 /// <summary>
 /// Results of one step. The backend fills it on the physics thread. The sync point reads and clears it. Every entity

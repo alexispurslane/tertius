@@ -878,9 +878,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         // A static hull, or a kinematic hull without a sample, that teleported in the step stands at the teleport's pose in its
         // home, the frame's tree parent, at rest.
         if (hull is { HasPrimary: true } && hull.TeleportStep == stepIndex)
-            return new MotionSample(hull.TeleportPose, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, frames.ProperAcceleration(frame));
-        return new MotionSample(frames.TreeLocalPose(frame), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
-            frames.ProperAcceleration(frame));
+            return new MotionSample(hull.TeleportPose, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+        return new MotionSample(frames.TreeLocalPose(frame), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
     }
 
     /// <summary>
@@ -898,10 +897,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// to the hull's system: the hull's pose; the velocity of the frame's origin, the chord of the step, as Jolt keeps it;
     /// the instant velocity at the end of the step, half a step of the hull's acceleration further on; that acceleration in
     /// the update, the change of Jolt's velocity without its float noise and without what the intents set before the
-    /// update (see <see cref="ComputeProperAccelerations"/>); Jolt's angular velocity and the change of it in the update;
-    /// and the proper acceleration. A hull that handed off in the step is in its new home: Jolt's velocity is the chord of
-    /// its first step there, so its acceleration is the one that the hand-off made that chord with, in the new home's axes
-    /// (see <see cref="HandedOffVelocities"/>), the instant velocity is the one that the hand-off carried, and the angular
+    /// update (see <see cref="ComputeProperAccelerations"/>); and Jolt's angular velocity and the change of it in the
+    /// update. Physics releases the proper acceleration that it measured beside the record (see <see cref="WriteFrames"/>).
+    /// A hull that handed off in the step is in its new home: Jolt's velocity is the chord of its first step there, so its
+    /// acceleration is the one that the hand-off made that chord with, in the new home's axes (see
+    /// <see cref="HandedOffVelocities"/>), the instant velocity is the one that the hand-off carried, and the angular
     /// acceleration is the one of the update, turned into the new home's axes (see
     /// <see cref="FrameMotion.AngularAccelerationToParent"/>). False for any other frame.
     /// </summary>
@@ -913,8 +913,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // Jolt's velocity is at the center of mass. The frame origin is the body origin.
             Double3 chord = (Double3)s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);
             Double3 acceleration = hull.StepAcceleration;
-            record = new MotionSample(s.Pose, chord, chord + acceleration * (0.5 * stepDt), acceleration, s.Angular, hull.AngularAcceleration,
-                hull.ProperAcceleration);
+            record = new MotionSample(s.Pose, chord, chord + acceleration * (0.5 * stepDt), acceleration, s.Angular, hull.AngularAcceleration);
             return true;
         }
         record = default;

@@ -89,9 +89,8 @@ public class FrameTreeOwnerViewStampTests
     [Fact]
     public void A_frame_that_takes_its_step_record_changes_the_stamp()
     {
-        var record = new MotionSample(new DPose(X(101), DQuaternion.Identity), X(60), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero,
-            Vector3.Zero);
-        StampChanges(() => frames.Follow(ship, ground, record)).Should().BeTrue();
+        var record = new MotionSample(new DPose(X(101), DQuaternion.Identity), X(60), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+        StampChanges(() => frames.Follow(ship, ground, record, measured: null, step: 1.0 / 60)).Should().BeTrue();
     }
 
     [Fact]

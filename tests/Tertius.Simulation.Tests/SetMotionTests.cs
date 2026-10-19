@@ -316,7 +316,7 @@ public class SetMotionTests
     private sealed class HoldsOnRails : IComponent
     {
         public static readonly MotionSample Sample =
-            new(TestWorld.At(100), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Vector3.Zero);
+            new(TestWorld.At(100), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
 
         public int Priority => 0;
 

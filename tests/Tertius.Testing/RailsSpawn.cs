@@ -30,13 +30,13 @@ public static class RailsSpawn
 
     /// <summary>
     /// A copy of <paramref name="desc"/> whose frame turns in place by <paramref name="spin"/>: a <see cref="SpinMotion"/> with
-    /// that spin and <paramref name="properAcceleration"/> comes before the other components, the pose keeps the place of
+    /// that spin comes before the other components, the pose keeps the place of
     /// <paramref name="desc"/> and takes the spin's rotation at <see cref="World.Time"/>, the velocity is zero, and the angular
     /// velocity is the spin's.
     /// </summary>
-    public static SpawnDesc Spinning(this SpawnDesc desc, World world, FrameSpin spin, Vector3 properAcceleration = default) =>
+    public static SpawnDesc Spinning(this SpawnDesc desc, World world, FrameSpin spin) =>
         With(desc, new DPose(desc.Pose.Position, spin.RotationAt(world.Time)), Double3.Zero, spin.AngularVelocity.ToVector3(),
-            new SpinMotion { Spin = spin, ProperAcceleration = properAcceleration });
+            new SpinMotion { Spin = spin });
 
     private static SpawnDesc With(SpawnDesc desc, DPose pose, Double3 velocity, Vector3 angularVelocity, IComponent rails) => new()
     {

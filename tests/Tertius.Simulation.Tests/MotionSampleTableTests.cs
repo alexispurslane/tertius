@@ -129,8 +129,7 @@ public class MotionSampleTableTests
         }.OnKeplerOrbit(test.World, orbit)));
         var sample = new MotionSample(new DPose(new Double3(30, -40, 50), DQuaternion.FromAxisAngle(Double3.UnitX, 0.3)),
             ChordVelocity: new Double3(1, 2, 3), Velocity: new Double3(1.5, 2.5, 3.5), Acceleration: new Double3(-0.1, 0.2, 0.3),
-            AngularVelocity: new Double3(0.01, 0.02, 0.03), AngularAcceleration: new Double3(0.001, -0.002, 0.003),
-            ProperAcceleration: new Vector3(0, 9.81f, 0));
+            AngularVelocity: new Double3(0.01, 0.02, 0.03), AngularAcceleration: new Double3(0.001, -0.002, 0.003));
         FrameHandle child = SpawnFrame(test, parent, components: Lambda.OnTick((self, scoped ref events, scoped ref outbox) => self.MoveOnRails(sample)));
         // After two ticks the parent stands on its rails: it followed the first sample of its KeplerMotion at the second
         // sync point.
@@ -165,7 +164,6 @@ public class MotionSampleTableTests
             Distance(converted.Acceleration, turn.Rotate(sample.Acceleration)).Should().BeLessThan(1e-12, $"the {buffer} acceleration");
             Distance(converted.AngularVelocity, turn.Rotate(sample.AngularVelocity) + parentSpin).Should().BeLessThan(1e-12, $"the {buffer} angular velocity");
             Distance(converted.AngularAcceleration, turn.Rotate(sample.AngularAcceleration)).Should().BeLessThan(1e-12, $"the {buffer} angular acceleration");
-            converted.ProperAcceleration.Should().Be(sample.ProperAcceleration, "the proper acceleration is in the frame's own axes");
         }
     }
 
@@ -210,7 +208,6 @@ public class MotionSampleTableTests
     [InlineData("acceleration")]
     [InlineData("angular velocity")]
     [InlineData("angular acceleration")]
-    [InlineData("proper acceleration")]
     public void MoveOnRailsThrowsForASampleWithAFieldThatIsNotFinite(string field)
     {
         using var test = new TestWorld();
@@ -354,11 +351,11 @@ public class MotionSampleTableTests
 
     /// <summary>A sample whose place is the tick number along X, so that a test can tell which tick wrote it.</summary>
     private static MotionSample SampleOfTick(long tick) =>
-        new(new DPose(new Double3(tick, 0, 0), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Vector3.Zero);
+        new(new DPose(new Double3(tick, 0, 0), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
 
     /// <summary>A sample of a frame that stands still at <paramref name="place"/>, unturned.</summary>
     private static MotionSample StillAt(Double3 place) =>
-        new(new DPose(place, DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Vector3.Zero);
+        new(new DPose(place, DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
 
     /// <summary>
     /// <see cref="SampleOfTick"/> of tick 0 with a value that is not a finite number in <paramref name="field"/>. The fields
@@ -376,7 +373,6 @@ public class MotionSampleTableTests
             "acceleration" => sample with { Acceleration = new Double3(0, 0, double.NaN) },
             "angular velocity" => sample with { AngularVelocity = new Double3(0, double.PositiveInfinity, 0) },
             "angular acceleration" => sample with { AngularAcceleration = new Double3(double.NaN, 0, 0) },
-            "proper acceleration" => sample with { ProperAcceleration = new Vector3(0, 0, float.NaN) },
             _ => throw new ArgumentOutOfRangeException(nameof(field), field, "no such field"),
         };
     }

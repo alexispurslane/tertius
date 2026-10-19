@@ -72,10 +72,10 @@ public class FrameTreeOrbitFrameTests
         if (frames.InOrbitFrame(station))
         {
             frames.PlaceFollowingFrame(station);
-            frames.Follow(station, frames.TreeParent(station), AtOrigin(sample));
+            frames.Follow(station, frames.TreeParent(station), AtOrigin(sample), measured: null, Step);
         }
         else
-            frames.Follow(station, frames.Parent(station), sample);
+            frames.Follow(station, frames.Parent(station), sample, measured: null, Step);
         return sample;
     }
 
@@ -230,7 +230,7 @@ public class FrameTreeOrbitFrameTests
     {
         FrameHandle station = Station(10, Low);
         FrameHandle orbit = Update(Hull(station))[0].Home;
-        var pushed = new MotionSample(frames.LocalPose(station), Double3.Zero, Double3.Zero, new Double3(1, 2, 3), Double3.Zero, Double3.Zero, default);
+        var pushed = new MotionSample(frames.LocalPose(station), Double3.Zero, Double3.Zero, new Double3(1, 2, 3), Double3.Zero, Double3.Zero);
         frames.Samples.Write(station, earth, pushed);
         frames.Samples.MoveOn();
 
@@ -263,7 +263,7 @@ public class FrameTreeOrbitFrameTests
         frames.Samples.Write(station, earth, sample);
         frames.Samples.MoveOn();
         frames.Samples.MoveOn();
-        frames.Follow(station, earth, sample);
+        frames.Follow(station, earth, sample, measured: null, Step);
 
         FrameHandle orbit = Update(Hull(station))[0].Home;
 
@@ -308,7 +308,7 @@ public class FrameTreeOrbitFrameTests
         frames.Samples.MoveOn();
         Double3 offset = sample.Pose.Position - frames.TreeLocalPose(orbit).Position;
         Double3 change = sample.ChordVelocity - frames.LinearVelocity(orbit);
-        frames.Follow(station, orbit, AtOrigin(sample) with { Pose = new DPose(offset, sample.Pose.Rotation) });
+        frames.Follow(station, orbit, AtOrigin(sample) with { Pose = new DPose(offset, sample.Pose.Rotation) }, measured: null, Step);
         changes.Clear();
 
         frames.JumpFollowingFrame(station, changes);

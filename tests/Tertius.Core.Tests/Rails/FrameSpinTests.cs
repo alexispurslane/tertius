@@ -107,13 +107,13 @@ public class FrameSpinTests
     [Fact]
     public void A_spin_sample_stands_at_its_place_with_the_rotation_of_the_spin_at_the_end_of_its_step()
     {
-        Turning.Sample(Place, Vector3.Zero, 12.5, Tick).Pose.Should().Be(new DPose(Place, Turning.RotationAt(12.5)));
+        Turning.Sample(Place, 12.5, Tick).Pose.Should().Be(new DPose(Place, Turning.RotationAt(12.5)));
     }
 
     [Fact]
     public void A_spin_sample_does_not_move()
     {
-        MotionSample sample = Turning.Sample(Place, Vector3.Zero, 12.5, Tick);
+        MotionSample sample = Turning.Sample(Place, 12.5, Tick);
 
         sample.ChordVelocity.Should().Be(Double3.Zero);
         sample.Velocity.Should().Be(Double3.Zero);
@@ -123,17 +123,9 @@ public class FrameSpinTests
     [Fact]
     public void A_spin_sample_turns_steadily_at_the_angular_velocity_of_the_spin()
     {
-        MotionSample sample = Turning.Sample(Place, Vector3.Zero, 12.5, Tick);
+        MotionSample sample = Turning.Sample(Place, 12.5, Tick);
 
         sample.AngularVelocity.Should().Be(Turning.AngularVelocity);
         sample.AngularAcceleration.Should().Be(Double3.Zero);
-    }
-
-    [Fact]
-    public void A_spin_sample_keeps_the_proper_acceleration_that_it_is_given()
-    {
-        var weight = new Vector3(0, 9.81f, 0.5f);
-
-        Turning.Sample(Place, weight, 12.5, Tick).ProperAcceleration.Should().Be(weight);
     }
 }

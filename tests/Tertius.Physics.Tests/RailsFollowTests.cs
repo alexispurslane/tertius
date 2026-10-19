@@ -176,8 +176,11 @@ public class RailsFollowTests
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
         FrameHandle frame = world.GetOwnedFrame(Bodyless(world, space, FastStill));
+        // The frame holds still for its first step, so space's gravity pulls on its contents then, and stands on its rails
+        // from the second sync point on. Then it falls freely.
+        Tick(world, 2);
         // A ball of 1 m whose center is 4.5 m from the frame's origin sticks out of the bubble of 5 m. The frame has no
-        // gravity and does not turn, so the ball rests in it, and its ghost in space moves with the frame's origin.
+        // gravity, falls freely and does not turn, so the ball rests in it, and its ghost in space moves with the frame's origin.
         Entity ball = world.Spawn(new SpawnDesc { Frame = frame, Pose = At(0, 4.5), Body = Ball(1) });
 
         Tick(world, 10);
@@ -464,11 +467,12 @@ public class RailsFollowTests
 
         Tick(world, 5);
 
-        MotionSample record = faults.Outputs[^1].Frames.Single(state => state.Frame == ship.Interior).Motion;
+        FrameStepRecord sent = faults.Outputs[^1].Frames.Single(state => state.Frame == ship.Interior);
+        MotionSample record = sent.Motion;
         world.Frames.TreeLocalPose(ship.Interior).Should().Be(record.Pose);
         world.Frames.TreeLinearVelocity(ship.Interior).Should().Be(record.Velocity, "the tree keeps the instant velocity");
         world.Frames.AngularVelocity(ship.Interior).Should().Be(record.AngularVelocity.ToVector3());
-        world.Frames.ProperAcceleration(ship.Interior).Should().Be(record.ProperAcceleration);
+        world.Frames.ProperAcceleration(ship.Interior).Should().Be(sent.ProperAcceleration!.Value);
         // The ship falls freely, so the step accelerates it by the gravity of space, and its instant velocity at the end of
         // the step is half a step of that past its chord, which Jolt keeps.
         var gravity = new Double3(0, -g, 0);
@@ -529,7 +533,8 @@ public class RailsFollowTests
 
         Tick(world, 10);
 
-        MotionSample record = faults.Outputs[^1].Frames.Single(state => state.Frame == ship.Interior).Motion;
+        FrameStepRecord sent = faults.Outputs[^1].Frames.Single(state => state.Frame == ship.Interior);
+        MotionSample record = sent.Motion;
         JoltPhysicsBackend.BodyFacts ghost = faults.Jolt.BodiesIn(space)
             .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, crate));
         ((Double3)ghost.LinearVelocity - record.ChordVelocity).Length.Should().BeLessThan(1e-3);
@@ -558,7 +563,8 @@ public class RailsFollowTests
 
         exit.Should().NotBeNull();
         exit!.Value.To.Should().Be(space);
-        MotionSample record = faults.Outputs[^1].Frames.Single(state => state.Frame == ship.Interior).Motion;
+        FrameStepRecord sent = faults.Outputs[^1].Frames.Single(state => state.Frame == ship.Interior);
+        MotionSample record = sent.Motion;
         // The ball's instant velocity in space, of which Jolt gets the chord: half a step of the gravity of space behind it.
         var gravity = new Double3(0, -g, 0);
         Double3 expected = record.Velocity + record.Pose.TransformDirection(velocityBefore) - gravity * (world.DeltaTime / 2.0);

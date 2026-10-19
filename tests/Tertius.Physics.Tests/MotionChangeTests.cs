@@ -136,13 +136,13 @@ public class MotionChangeTests
     /// The engine of the ship pushes it at 1 m/s², which is the proper acceleration of its frame. The ship parks: the hull
     /// holds still where the step of the writing tick left it. The sync point of that tick changes no velocity, so the frame
     /// keeps its old velocity in the tree until the next sync point, where it takes no step record and its velocity becomes
-    /// zero. It keeps its proper acceleration, so the cargo keeps its weight.
+    /// zero. Its proper acceleration follows from that rest: the planet's gravity at its place, reversed, and no thrust.
     /// </summary>
     [Fact]
     public void AShipThatParksHoldsStillWhereTheStepLeftItAndItsFrameStopsAtTheNextSyncPoint()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        var (_, owner, ship) = FlyingShip(world, new Thrust(new Vector3(1000, 0, 0)));
+        var (planet, owner, ship) = FlyingShip(world, new Thrust(new Vector3(1000, 0, 0)));
         world.Frames.ProperAcceleration(ship).X.Should().BeApproximately(1, 1e-3f, "the engine pushes the ship");
 
         world.SetMotionNextTick(owner, BodyMotion.Static);
@@ -157,7 +157,9 @@ public class MotionChangeTests
         (Hull(world, faults.Jolt, owner).Position - parked.Position).Length.Should().BeLessThan(1e-9);
         world.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
         world.Frames.AngularVelocity(ship).Should().Be(Vector3.Zero);
-        world.Frames.ProperAcceleration(ship).X.Should().BeApproximately(1, 1e-3f, "the frame keeps its proper acceleration");
+        Vector3 weight = parked.Rotation.Conjugate().Rotate(-world.Frames.Gravity(planet).AtPrecise(parked.Position)).ToVector3();
+        Vector3.Distance(world.Frames.ProperAcceleration(ship), weight).Should().BeLessThan(1e-6f,
+            "the parked ship feels the planet's gravity at its place reversed, and no thrust");
         FrameStatesSince(faults, ship, reported).Should().BeEmpty("physics no longer moves the ship's frame");
         world.Errors.Should().BeEmpty();
     }

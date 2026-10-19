@@ -56,13 +56,15 @@ public sealed partial class FrameTree
     /// <paramref name="relativeTo"/>, the frame's tree parent. A record that physics releases is relative to it. A sample or
     /// a write from an owner without a body is relative to the semantic parent, which is the same frame, because only a
     /// frame with a hull hangs in a numeric frame (see the class summary). The frame takes the record's pose, its instant
-    /// velocity, its angular velocity, narrowed to a float, and its proper acceleration. Under a numeric parent the record's
+    /// velocity, its angular velocity, narrowed to a float, and a proper acceleration: <paramref name="measured"/>, which
+    /// physics measured for a dynamic hull, or else the value that the record gives by the rule of
+    /// <see cref="ProperAccelerationFrom"/>, after a step of <paramref name="step"/> seconds. Under a numeric parent the record's
     /// instant velocity is relative to the parent's frame velocity, the chord of the step, so that a read in the semantic
     /// parent gives the instant velocity (see <see cref="HomeInstantVelocityOverChord"/>). A frame at the origin of its orbit
     /// frame that takes a record with another place left that origin in the step, because its hull teleported:
     /// <see cref="JumpFollowingFrame"/> brings it back.
     /// </summary>
-    internal void Follow(FrameHandle frame, FrameHandle relativeTo, in MotionSample record)
+    internal void Follow(FrameHandle frame, FrameHandle relativeTo, in MotionSample record, Vector3? measured, double step)
     {
         PoseNode node = Node(frame);
         int id = node.Id;
@@ -71,15 +73,17 @@ public sealed partial class FrameTree
         LocalForWrite(node) = record.Pose;
         LinearVelocityForWrite(id) = record.Velocity;
         AngularVelocityForWrite(id) = record.AngularVelocity.ToVector3();
-        properAcceleration[id] = record.ProperAcceleration;
+        properAcceleration[id] = measured ?? ProperAccelerationFrom(frame, InSemanticParent(relativeTo, record), step);
     }
 
     /// <summary>
     /// Step 2 of the sync point, after a step of <paramref name="dt"/> seconds: a frame without a step record holds still in
-    /// its tree parent. It keeps its pose and its proper acceleration, so the cargo of a parked ship keeps its weight, and it
-    /// does not turn. It moves with its tree parent, so a read in the semantic parent gives the parent's instant velocity:
-    /// under a numeric parent, the frame keeps the parent's instant velocity past its frame velocity (see
-    /// <see cref="HomeInstantVelocityOverChord"/>), and in a semantic parent no velocity.
+    /// its tree parent. It keeps its pose and does not turn. It moves with its tree parent, so a read in the semantic parent
+    /// gives the parent's instant velocity: under a numeric parent, the frame keeps the parent's instant velocity past its
+    /// frame velocity (see <see cref="HomeInstantVelocityOverChord"/>), and in a semantic parent no velocity. Its proper
+    /// acceleration follows from that rest by the rule of <see cref="ProperAccelerationFrom"/>: a frame that holds still in a
+    /// gravity field feels that gravity reversed, so a parked cabin has weight, and one that holds still in a falling frame
+    /// falls freely with it.
     /// </summary>
     internal void HoldStill(FrameHandle frame, double dt)
     {
@@ -87,6 +91,51 @@ public sealed partial class FrameTree
         FrameHandle treeParent = TreeParent(frame);
         LinearVelocityForWrite(id) = treeParent.IsNull ? Double3.Zero : HomeInstantVelocityOverChord(treeParent, SemanticOf(treeParent), dt);
         AngularVelocityForWrite(id) = Vector3.Zero;
+        var rest = new MotionSample(TreeLocalPose(frame), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+        properAcceleration[id] = ProperAccelerationFrom(frame, InSemanticParent(treeParent, rest), dt);
+    }
+
+    /// <summary>
+    /// The proper acceleration of <paramref name="frame"/> after a step of <paramref name="step"/> seconds, from its step
+    /// record in its semantic parent, <paramref name="record"/> (docs/plans/rails-components.md, "The proper acceleration of
+    /// a frame"): the frame's acceleration over the step minus the gravity that acts at its place where the step started,
+    /// turned into the frame's own axes by its rotation at the end of the step, and narrowed once to a float. The gravity at
+    /// its place is the semantic parent's field there minus the parent's own proper acceleration, as for a body at the
+    /// frame's origin (see <see cref="FieldOf"/>). No gravity acts at the place of a root frame. The place where the step
+    /// started is the record's place less its chord over the step, the same expression from which
+    /// <see cref="KeplerOrbit.Sample"/> takes its acceleration, so a frame on a Kepler orbit in a parent that falls freely
+    /// gets exactly zero.
+    /// </summary>
+    internal Vector3 ProperAccelerationFrom(FrameHandle frame, in MotionSample record, double step)
+    {
+        Double3 start = record.Pose.Position - record.ChordVelocity * step;
+        FrameHandle parent = Parent(frame);
+        Double3 gravity = parent.IsNull ? Double3.Zero : FieldOf(parent.Index, start);
+        return record.Pose.Rotation.Conjugate().Rotate(record.Acceleration - gravity).ToVector3();
+    }
+
+    /// <summary>
+    /// <paramref name="record"/>, a step record relative to <paramref name="treeParent"/>, the tree parent of its frame, in
+    /// the frame's semantic parent. In a semantic tree parent it is the record itself. Under a numeric tree parent the frame
+    /// moved with the numeric frames between the two over the step, which never turn: its place gains their places, its
+    /// chord their velocities, which are their chords of the step (see <see cref="AdvanceNumericFrames"/>), and its
+    /// acceleration their step accelerations, the analogue of <see cref="AccelerationRelative"/> for numeric frames (see
+    /// <see cref="HomeAcceleration"/>). Call it at step 2, after <see cref="AdvanceNumericFrames"/> and
+    /// <see cref="PlaceFollowingFrame"/>, and before <see cref="JumpFollowingFrame"/>. An orbit frame then stands on its
+    /// anchor's sample with the sample's chord, and kept the sample's acceleration over the step (see
+    /// <see cref="BeginNumericStep"/>), so the anchor's record in the semantic parent is that sample.
+    /// </summary>
+    private MotionSample InSemanticParent(FrameHandle treeParent, in MotionSample record)
+    {
+        if (treeParent.IsNull || !IsNumeric(treeParent))
+            return record;
+        FrameHandle semantic = SemanticOf(treeParent);
+        return record with
+        {
+            Pose = new DPose(InSemantic(treeParent, semantic, record.Pose.Position), record.Pose.Rotation),
+            ChordVelocity = record.ChordVelocity + HomeVelocity(treeParent, semantic),
+            Acceleration = record.Acceleration + HomeAcceleration(treeParent, semantic),
+        };
     }
 
     /// <summary>
