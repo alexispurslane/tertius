@@ -41,6 +41,12 @@ public enum ShapeKind : byte
 /// </summary>
 public abstract record ShapeDesc
 {
+    /// <summary>
+    /// The convex radius, in m, that a <see cref="BoxShapeDesc"/> or a <see cref="ConvexHullShapeDesc"/> gets when its
+    /// description names none: 5 cm, Jolt's own default.
+    /// </summary>
+    public const float DefaultConvexRadius = 0.05f;
+
     private protected ShapeDesc()
     {
     }
@@ -144,10 +150,10 @@ public abstract record ShapeDesc
     {
         switch (this)
         {
-            case BoxShapeDesc { HalfExtents: var half }:
-                return IsFinite(half) && half.X >= 0 && half.Y >= 0 && half.Z >= 0
-                    ? null
-                    : $"has the half extents {half}, which must be finite and not negative";
+            case BoxShapeDesc { HalfExtents: var half, ConvexRadius: var convexRadius }:
+                if (!(IsFinite(half) && half.X >= 0 && half.Y >= 0 && half.Z >= 0))
+                    return $"has the half extents {half}, which must be finite and not negative";
+                return ConvexRadiusProblem(convexRadius);
             case SphereShapeDesc { Radius: var radius }:
                 return float.IsFinite(radius) && radius > 0 ? null : $"has the radius {radius}, which must be finite and positive";
             case CapsuleShapeDesc capsule:
@@ -159,7 +165,9 @@ public abstract record ShapeDesc
             case ConvexHullShapeDesc hull:
                 if (hull.Points is not { Length: >= 4 } points)
                     return "has fewer than 4 points";
-                return AllFinite(points) ? null : "has a point that is not finite";
+                if (!AllFinite(points))
+                    return "has a point that is not finite";
+                return ConvexRadiusProblem(hull.ConvexRadius);
             case MeshShapeDesc mesh:
                 if (mesh.Vertices is not { } vertices || mesh.Indices is not { } indices)
                     return "has no vertex list or no index list";
@@ -189,6 +197,9 @@ public abstract record ShapeDesc
         }
     }
 
+    private static string? ConvexRadiusProblem(float convexRadius) =>
+        float.IsFinite(convexRadius) && convexRadius >= 0 ? null : $"has the convex radius {convexRadius}, which must be finite and not negative";
+
     private static bool IsFinite(Vector3 v) => float.IsFinite(v.X) && float.IsFinite(v.Y) && float.IsFinite(v.Z);
 
     private static bool AllFinite(Vector3[] points)
@@ -217,14 +228,36 @@ public abstract record ShapeDesc
     }
 }
 
-public sealed record BoxShapeDesc(Vector3 HalfExtents) : ShapeDesc;
+/// <summary>A box with the given half extents about its origin, axes aligned with the body.</summary>
+/// <param name="HalfExtents">The distance, in m, from the center of the box to each pair of faces, along X, Y and Z.</param>
+/// <param name="ConvexRadius">
+/// The largest rounding, in m, that physics may give the edges of the box. Jolt shrinks a box by its convex radius and
+/// rounds it back out, so every edge becomes a curve of that radius. Two such boxes side by side leave a groove at their
+/// joint, so a compound of boxes with flat faces that must line up uses 0. Physics uses less when the box is too thin: the
+/// radius never exceeds the smallest half extent. Jolt can also round a contact by less than the radius that the
+/// description names: in the tests, a ball touches a box as if it were rounded by 5 cm at the most. The default is
+/// <see cref="ShapeDesc.DefaultConvexRadius"/>. Zero is allowed, a negative or non-finite value is refused by
+/// <see cref="ShapeDesc.Problem"/>.
+/// </param>
+public sealed record BoxShapeDesc(Vector3 HalfExtents, float ConvexRadius = ShapeDesc.DefaultConvexRadius) : ShapeDesc;
 
 public sealed record SphereShapeDesc(float Radius) : ShapeDesc;
 
 /// <summary>A capsule along +Y. The total height is 2 · (HalfHeight + Radius).</summary>
 public sealed record CapsuleShapeDesc(float HalfHeight, float Radius) : ShapeDesc;
 
-public sealed record ConvexHullShapeDesc(Vector3[] Points) : ShapeDesc;
+/// <summary>The convex hull of a set of points about the body's origin.</summary>
+/// <param name="Points">The points, in m, in the body's axes. At least 4, none of them NaN or infinite.</param>
+/// <param name="ConvexRadius">
+/// The largest rounding, in m, that physics may give the edges of the hull. Jolt shrinks a hull by its convex radius and
+/// rounds it back out, so every edge becomes a curve of that radius. A ring is a compound of one hull per segment, and
+/// each joint between two segments is a groove when the hulls are rounded, so such hulls use 0. Physics uses less when the
+/// hull is too thin: it passes this value to Jolt as the maximum convex radius, and Jolt reduces it to fit the hull. Jolt
+/// can also round a contact by less than the radius that the description names: in the tests, a ball touches a hull as
+/// if it were rounded by about 7 cm at the most. The default is <see cref="ShapeDesc.DefaultConvexRadius"/>. Zero is
+/// allowed, a negative or non-finite value is refused by <see cref="ShapeDesc.Problem"/>.
+/// </param>
+public sealed record ConvexHullShapeDesc(Vector3[] Points, float ConvexRadius = ShapeDesc.DefaultConvexRadius) : ShapeDesc;
 
 /// <summary>A triangle mesh. Only static bodies can use it.</summary>
 public sealed record MeshShapeDesc(Vector3[] Vertices, int[] Indices) : ShapeDesc;

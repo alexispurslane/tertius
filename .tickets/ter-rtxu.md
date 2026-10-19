@@ -13,3 +13,9 @@ tags: [rendering, tests]
 
 Design: docs/plans/renderer-snapshot-tests.md.
 
+
+## Notes
+
+**2026-10-19T01:22:34Z**
+
+Steps 2 and 3 (FLIP and the snapshot helper) moved to ter-721k on 2026-10-18, so that the demo's overlay pass can be tested now. This ticket keeps the deterministic rendering switch.

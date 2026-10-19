@@ -1,7 +1,7 @@
 ---
 id: ter-r1hi
 status: in_progress
-deps: []
+deps: [ter-aiuy]
 links: []
 created: 2026-10-19T01:06:42Z
 type: task
