@@ -7,45 +7,52 @@ using Tertius.Simulation;
 namespace Tertius.Benchmarks;
 
 /// <summary>
-/// The cost of Jolt's enhanced internal edge removal on the floor of a ring (ter-fb3w). One tick of a world in which 200
-/// boxes and 200 balls rest and slide, or 100 characters walk, on the floor of a static ring, in uniform gravity of 1 g
-/// along +X, so the floor's lowest line runs along the ring's axis at the angle 0. The ring is the demo's
-/// <c>RevolvedSolid.Ring(20, 20.5, 5, 256)</c>, built here the same way, because this project does not reference the
-/// demo: 256 segments of 20 m to 20.5 m from the axis and 10 m along it, so each facet of the floor is 0.49 m wide, and a
-/// body that slides 1 m crosses two joints.
+/// The cost of Jolt's enhanced internal edge removal on the floor of a ring (ter-fb3w). One tick of a world in which
+/// 200 boxes and 200 balls, or 400 balls, rest and slide, or 100 characters walk, on the floor of a static ring, in
+/// uniform gravity of 1 g along +X, so the floor's lowest line runs along the ring's axis at the angle 0. The ring is
+/// the demo's <c>RevolvedSolid.Ring(20, 20.5, 5, 256)</c>, built here the same way, because this project does not
+/// reference the demo: 256 segments of 20 m to 20.5 m from the axis and 10 m along it, so each facet of the floor is
+/// 0.49 m wide, and a body that slides 1 m crosses two joints.
 /// <list type="bullet">
 /// <item><see cref="Floor"/> is the ring's collision shape: <see cref="RingFloor.Hulls"/>, the demo's compound of one
 /// convex hull of convex radius 0 per segment, or <see cref="RingFloor.Mesh"/>, Jolt's mesh shape of the demo's mesh of
-/// the ring. Sharp pieces tile both, so physics sets the flag on the ring's body.</item>
+/// the ring. Both are made of sharp pieces, so physics sets the flag on the ring's body.</item>
 /// <item><see cref="Load"/> is what stands on the floor (see <see cref="FloorLoad"/>).</item>
 /// <item><see cref="EdgeRemoval"/> sets Jolt's <c>EnhancedInternalEdgeRemoval</c>, or clears it, after the backend has
-/// created the bodies, where it acts on the load. Under balls and boxes, it is the ring's body's flag: Jolt removes the
-/// internal edges of a pair when either of its bodies has the flag, and the balls and boxes are convex, so the ring's flag
-/// decides for every pair. Under characters, it is each character's flag: a Jolt character finds its contacts by a query
-/// of its own, which reads only its own flag.</item>
+/// created the bodies, where it acts on the load. Under balls and boxes, it is the ring's body's flag: Jolt uses the
+/// flag of either body of a pair, the balls and boxes are convex, and the static ring is the second body of each of its
+/// pairs, whose internal edges Jolt removes, so the ring's flag decides for every pair. Under characters, it is each
+/// character's flag: a Jolt character finds its contacts by a query of its own, which reads only its own flag.</item>
 /// </list>
 /// The balls and boxes stand in 20 lanes along the floor, 0.5 m apart along the axis, each lane all boxes of 0.3 m and
-/// 10 kg or all balls of 0.3 m across and 1 kg. In half of the lanes the bodies slide: each is 0.45 m from the next, and a
-/// <see cref="Shuttle"/> holds the speed of each along the floor at 1 m/s and turns it every second, so a lane moves
-/// together and crosses two joints each way. In the other half they rest: boxes 0.45 m apart, which friction holds on
-/// the floor up to 12° from its lowest line, and balls in a touching row about the lowest line, which each other hold.
-/// All of them fall asleep, so 200 bodies are awake. On the hulls without the flag, a sliding box trips at every joint
-/// and tumbles. The characters walk in 10 lanes (see <see cref="SpawnCharacters"/> and <see cref="Walker"/>), and all of
-/// them are awake.
+/// 10 kg or all balls of 0.3 m across and 1 kg: every other lane of boxes under <see cref="FloorLoad.BallsAndBoxes"/>,
+/// and no lane under <see cref="FloorLoad.Balls"/>. In half of the lanes the bodies slide: each is 0.45 m from the
+/// next, and a <see cref="Shuttle"/> holds the speed of each along the floor at 1 m/s and turns it every second, so a
+/// lane moves together and crosses two joints each way. In the other half they rest: boxes 0.45 m apart, which friction
+/// holds on the floor up to 12° from its lowest line, and balls in a touching row about the lowest line, which each
+/// other hold. They fall asleep, so 200 bodies are awake. The characters walk in 10 lanes
+/// (see <see cref="SpawnCharacters"/> and <see cref="Walker"/>), and all of them are awake.
 /// <para>
-/// Balls and boxes, measured on 2026-10-19 in Release, on a machine that other work loaded to about 6 of its 10 cores, so
-/// one run of BenchmarkDotNet varies by about 10 %. The mean tick of four runs of 20 or 30 iterations: on the hulls,
-/// 697 µs without the flag and 613 µs with it (-12 %, from -21 % to +4 % in single runs); on the mesh, 591 µs without and
-/// 564 µs with it (-5 %, from -10 % to +5 %). The scenes ticked in turn (<c>--edges 5000</c>, see
-/// <see cref="Interleaved"/>), three runs: on the hulls -19 %, -24 % and -23 %, on the mesh +0.5 %, -4.0 % and -4.5 %.
-/// So the flag costs nothing that these runs can see. It saves time on the hulls, where without it the boxes tumble.
+/// A scene measures what the flag costs only where the bodies move alike with and without it. <see cref="Setup"/>
+/// prints how many bodies are awake after 2 s, how far a sliding ball rises above the floor, and how far a sliding box
+/// tilts, and <see cref="Interleaved"/> prints how many are awake after its rounds. The flag changes how a sliding ball
+/// crosses a joint: without it, the ball rises up to 0.92 mm on the hulls and 0.95 mm on the mesh, against 0.26 mm and
+/// 0.27 mm with it. In two scenes it changes much more, and those measure the motion, not the flag. On the hulls
+/// without the flag, the sliding boxes trip at the joints and tumble, up to 180° against 1.42° with it, and they wake
+/// the resting lanes: after 5000 rounds 333 bodies are awake, against 200 with the flag. On the mesh without the flag,
+/// the 400 balls wake each other: 399 are awake after the rounds, against 200. In the other scenes, 200 bodies stay
+/// awake both ways, or 204 against 200 under balls and boxes on the mesh, and every character stays on the floor.
 /// </para>
 /// <para>
-/// Characters, measured on 2026-10-19 the same way, with the eight scenes ticked in turn, one run of 2000 rounds and three
-/// of 5000: on the hulls, +0.5 %, +2.9 %, +0.1 % and +1.1 % (about 600 µs a tick), on the mesh -5.6 %, -4.5 %, -3.8 % and
-/// -4.2 % (about 750 µs). One short run of BenchmarkDotNet, whose error was larger than the change: 596 µs without the flag
-/// and 622 µs with it on the hulls (+4.3 %), 786 µs and 758 µs on the mesh (-3.5 %). So the character's flag costs about
-/// 1 % on the hulls, where it drops the contacts at the joints, and nothing on the mesh.
+/// Measured on 2026-10-19 in Release, on a machine that other work loaded to about 4 of its 10 cores, with the twelve
+/// scenes ticked in turn (<c>--edges 5000</c>, see <see cref="Interleaved"/>), three runs. In the scenes whose motion
+/// the flag does not change: balls on the hulls, -1.8 %, -2.4 % and -2.2 % (about 345 µs a tick); balls and boxes on
+/// the mesh, -4.8 %, -4.8 % and -5.1 % (about 410 µs); characters on the hulls, +1.8 %, +2.2 % and +2.4 % (about
+/// 565 µs), where the character's flag drops the contacts at the joints; characters on the mesh, -4.7 %, -4.5 % and
+/// -4.6 % (about 715 µs). So the floor's flag costs nothing that these runs can see on either floor, and the character's flag
+/// costs about 2 % on the hulls and nothing on the mesh. In the two scenes whose motion it changes, balls and boxes on
+/// the hulls (-24.5 %, -23.3 % and -24.5 %) and balls on the mesh (-28.5 %, -31.3 % and -29.6 %), the tick without the
+/// flag is longer because more bodies are awake, so those numbers say nothing about what the flag costs.
 /// </para>
 /// </summary>
 [MemoryDiagnoser]
@@ -57,10 +64,11 @@ public class EdgeRemovalBenchmarks
         Mesh,
     }
 
-    /// <summary>What stands on the floor: 200 boxes and 200 balls, or 100 characters that walk.</summary>
+    /// <summary>What stands on the floor: 200 boxes and 200 balls, 400 balls, or 100 characters that walk.</summary>
     public enum FloorLoad
     {
         BallsAndBoxes,
+        Balls,
         Characters,
     }
 
@@ -95,7 +103,7 @@ public class EdgeRemovalBenchmarks
     [Params(RingFloor.Hulls, RingFloor.Mesh)]
     public RingFloor Floor;
 
-    [Params(FloorLoad.BallsAndBoxes, FloorLoad.Characters)]
+    [Params(FloorLoad.BallsAndBoxes, FloorLoad.Balls, FloorLoad.Characters)]
     public FloorLoad Load;
 
     [Params(false, true)]
@@ -120,15 +128,22 @@ public class EdgeRemovalBenchmarks
     }
 
     private World world = null!;
+    private JoltPhysicsBackend backend = null!;
+    private FrameHandle frame;
+    private List<Entity> people = [];
 
     [GlobalSetup]
     public void Setup()
     {
-        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
+        backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
         world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
-        FrameHandle frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(9.81f, 0, 0))));
+        frame = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f), GravityField.Uniform(new Vector3(9.81f, 0, 0))));
         world.Spawn(new SpawnDesc { Frame = frame, Body = new BodyDesc(Floor == RingFloor.Hulls ? RingHulls() : RingMesh(), BodyMotion.Static) });
-        List<Entity> people = Load == FloorLoad.Characters ? SpawnCharacters(frame) : SpawnBallsAndBoxes(frame);
+        List<Entity> slidingBoxes = [], slidingBalls = [];
+        if (Load == FloorLoad.Characters)
+            people = SpawnCharacters();
+        else
+            (slidingBoxes, slidingBalls) = SpawnBallsAndBoxes(withBoxes: Load == FloorLoad.BallsAndBoxes);
         // The first tick creates the bodies.
         world.Tick();
         if (Load == FloorLoad.Characters)
@@ -136,49 +151,87 @@ public class EdgeRemovalBenchmarks
         else
             SetEdgeRemoval(backend, frame, EdgeRemoval);
         // Two seconds: the resting boxes fall asleep, and the sliding lanes and the walkers have turned twice.
+        double tilt = 0, lift = 0;
         for (int i = 0; i < 120; i++)
+        {
             world.Tick();
-
-        List<JoltPhysicsBackend.BodyFacts> facts = backend.BodiesIn(frame);
-        int awake = facts.Count(body => body.Active && body.Motion == MotionType.Dynamic);
-        int onFloor = people.Count(person => world.PoseIn(person, frame).Position.X > Inner * 0.9);
-        Console.WriteLine(Load == FloorLoad.Characters
-            ? $"// {Floor}, characters, edge removal {EdgeRemoval}: {onFloor} of {people.Count} characters on the floor."
-            : $"// {Floor}, balls and boxes, edge removal {EdgeRemoval}: {awake} of {Lanes * PerLane} bodies are awake.");
+            foreach (Entity box in slidingBoxes)
+                tilt = Math.Max(tilt, TiltFromFloor(world.PoseIn(box, frame)));
+            foreach (Entity ball in slidingBalls)
+                lift = Math.Max(lift, LiftFromFloor(world.PoseIn(ball, frame)));
+        }
+        string motion = Load == FloorLoad.Characters ? ""
+            : $", a sliding ball rises up to {lift * 1000:F2} mm" + (slidingBoxes.Count > 0 ? $", a sliding box tilts up to {tilt * 180 / Math.PI:F2}°" : "");
+        Console.WriteLine($"// {Floor}, {Load}, edge removal {EdgeRemoval}, after 2 s: {State()}{motion}.");
     }
 
-    private List<Entity> SpawnBallsAndBoxes(FrameHandle frame)
+    /// <summary>How many of the balls and boxes are awake, or how many of the characters are on the floor.</summary>
+    private string State() => Load == FloorLoad.Characters
+        ? $"{people.Count(person => world.PoseIn(person, frame).Position.X > Inner * 0.9)} of {people.Count} characters on the floor"
+        : $"{backend.BodiesIn(frame).Count(body => body.Active && body.Motion == MotionType.Dynamic)} of {Lanes * PerLane} bodies awake";
+
+    /// <summary>
+    /// The angle, in radians, between the up of a body at <paramref name="pose"/>, its local +Y, and the direction from
+    /// its center to the ring's axis. A box flat on a facet tilts up to half the facet's turn, π / 256 (0.70°).
+    /// </summary>
+    private static double TiltFromFloor(DPose pose)
     {
+        Double3 p = pose.Position, up = pose.Rotation.Rotate(Double3.UnitY);
+        var inward = new Double3(-p.X, 0, -p.Z).Normalized();
+        return Math.Acos(Math.Clamp(Double3.Dot(up, inward), -1, 1));
+    }
+
+    /// <summary>
+    /// How far, in meters, a ball of radius <see cref="Half"/> at <paramref name="pose"/> is above the facet under its
+    /// center, toward the axis: 0 for a ball that rests on the facet.
+    /// </summary>
+    private static double LiftFromFloor(DPose pose)
+    {
+        Double3 p = pose.Position;
+        double step = Math.Tau / Segments, middle = (Math.Floor(Math.Atan2(-p.Z, p.X) / step) + 0.5) * step;
+        double apothem = Inner * Math.Cos(Math.PI / Segments);
+        return apothem - (p.X * Math.Cos(middle) - p.Z * Math.Sin(middle)) - Half;
+    }
+
+    /// <summary>
+    /// Spawns the 20 lanes, every other lane of boxes when <paramref name="withBoxes"/> is true and of balls otherwise,
+    /// and returns the boxes and the balls that slide.
+    /// </summary>
+    private (List<Entity> SlidingBoxes, List<Entity> SlidingBalls) SpawnBallsAndBoxes(bool withBoxes)
+    {
+        List<Entity> slidingBoxes = [], slidingBalls = [];
         var box = new BoxShapeDesc(new Vector3(Half));
         var ball = new SphereShapeDesc(Half);
         for (int lane = 0; lane < Lanes; lane++)
         {
-            bool boxes = lane % 2 == 0, slides = lane / 2 % 2 == 0;
+            bool boxes = withBoxes && lane % 2 == 0, slides = lane / 2 % 2 == 0;
             double y = (lane - (Lanes - 1) / 2.0) * 0.5;
             // A row of resting balls touches, so that each holds the next on the curved floor.
             double spacing = !slides && !boxes ? 2 * Half + 0.001 : 0.45;
             for (int i = 0; i < PerLane; i++)
             {
                 double theta = (i - (PerLane - 1) / 2.0) * spacing / Inner;
-                world.Spawn(new SpawnDesc
+                Entity body = world.Spawn(new SpawnDesc
                 {
                     Frame = frame,
                     Pose = OnFloor(theta, y),
                     Body = new BodyDesc(boxes ? box : ball, Mass: boxes ? 10 : 1),
                     Components = slides ? [new Shuttle()] : [],
                 });
+                if (slides)
+                    (boxes ? slidingBoxes : slidingBalls).Add(body);
             }
         }
-        return [];
+        return (slidingBoxes, slidingBalls);
     }
 
     /// <summary>
-    /// 10 lanes of 10 characters, a capsule of half height 0.6 m and radius 0.3 m and 70 kg each, as the demo's person: the
-    /// lanes 0.9 m apart along the axis, and the characters of a lane 1 m apart along the floor, so that they stand up
-    /// to 13° and walk up to 17° from its lowest line. Each stands upright against the gravity, 1 cm above the facet under it, and walks with a
-    /// <see cref="Walker"/>, so a lane walks together and its characters never meet.
+    /// 10 lanes of 10 characters, a capsule of half height 0.6 m and radius 0.3 m and 70 kg each, as the demo's person:
+    /// the lanes 0.9 m apart along the axis, and the characters of a lane 1 m apart along the floor, so that they stand
+    /// up to 13° and walk up to 17° from its lowest line. Each stands upright against the gravity, 1 cm above the facet
+    /// under it, and walks with a <see cref="Walker"/>, so a lane walks together and its characters never meet.
     /// </summary>
-    private List<Entity> SpawnCharacters(FrameHandle frame)
+    private List<Entity> SpawnCharacters()
     {
         var capsule = new CapsuleShapeDesc(PersonHalfHeight, PersonRadius);
         // The character's up, its local +Y, is -X, against the gravity.
@@ -302,9 +355,10 @@ public class EdgeRemovalBenchmarks
     public void Cleanup() => world.Dispose();
 
     /// <summary>
-    /// ter-fb3w: <c>--edges &lt;rounds&gt;</c> sets up the eight scenes and ticks each once per round, in turn, so that a
-    /// change in the machine's load falls on all of them alike, which BenchmarkDotNet's runs one after the other do not
-    /// give. Prints the mean tick of each scene, and the change that the flag makes on each floor under each load.
+    /// ter-fb3w: <c>--edges &lt;rounds&gt;</c> sets up the twelve scenes and ticks each once per round, in turn, so
+    /// that a change in the machine's load falls on all of them alike, which BenchmarkDotNet's runs one after the other
+    /// do not give. Prints the mean tick of each scene, the change that the flag makes on each floor under each load,
+    /// and then how many bodies of each scene are awake, or how many of its characters are on the floor.
     /// </summary>
     public static void Interleaved(int rounds)
     {
@@ -332,6 +386,9 @@ public class EdgeRemovalBenchmarks
             Console.WriteLine($"{scenes[i].Load} on the {scenes[i].Floor}: {off:F1} us a tick without the flag, {on:F1} us with it, {(on / off - 1) * 100:+0.0;-0.0} %");
         }
         foreach (EdgeRemovalBenchmarks scene in scenes)
+        {
+            Console.WriteLine($"// {scene.Floor}, {scene.Load}, edge removal {scene.EdgeRemoval}, after the rounds: {scene.State()}.");
             scene.Cleanup();
+        }
     }
 }

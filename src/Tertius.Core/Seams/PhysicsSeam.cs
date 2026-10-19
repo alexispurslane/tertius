@@ -228,13 +228,15 @@ public abstract record ShapeDesc
     }
 
     /// <summary>
-    /// True when the shape is a surface that sharp pieces tile: a mesh, or a compound whose every child is a box or a
-    /// convex hull of convex radius 0, a mesh, or such a compound. At a joint of two such pieces their faces meet with
-    /// no gap, so the edge of one piece at the joint is no feature of the surface: a contact with it stands for the
-    /// neighbor's face. A rounded child, or a sphere or a capsule, leaves a real groove at its joints, and a single convex
-    /// shape has no joints.
+    /// True when the shape is made of sharp pieces: a mesh, whose pieces are its triangles, or a compound whose every
+    /// child is a box or a convex hull of convex radius 0, a mesh, or such a compound. It checks only what the pieces
+    /// are, not that they meet. Where two sharp pieces meet, the edge of one at the joint is no feature of the surface:
+    /// a contact with it stands for the neighbor's face. Where pieces do not meet, Jolt's internal edge removal changes
+    /// nothing, because it drops a contact with an edge or a corner only when the corners of that edge or corner are
+    /// corners of a face that another contact of the same pair touches first. A rounded child, or a sphere or a
+    /// capsule, leaves a real groove at its joints, and a single convex shape is one piece, with no joints.
     /// </summary>
-    public bool TilesSharply()
+    public bool IsMadeOfSharpPieces()
     {
         switch (this)
         {
@@ -253,7 +255,7 @@ public abstract record ShapeDesc
         {
             BoxShapeDesc box => box.ConvexRadius == 0,
             ConvexHullShapeDesc hull => hull.ConvexRadius == 0,
-            MeshShapeDesc or CompoundShapeDesc => piece.TilesSharply(),
+            MeshShapeDesc or CompoundShapeDesc => piece.IsMadeOfSharpPieces(),
             _ => false,
         };
     }

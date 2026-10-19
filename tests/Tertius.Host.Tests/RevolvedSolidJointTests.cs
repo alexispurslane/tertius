@@ -10,7 +10,7 @@ namespace Tertius.Host.Tests;
 /// solid's collision shapes: the compound of one hull of convex radius 0 per segment (<see cref="RevolvedSolid.Shape"/>),
 /// and Jolt's mesh shape of its mesh. A body near a joint also meets the edge of the neighbor segment there, and Jolt's
 /// contact with that edge tilts away from the joint. Jolt's enhanced internal edge removal, which physics sets on every
-/// body whose shape sharp pieces tile, as both of these shapes are, and on every character, drops such contacts beyond a
+/// body whose shape is made of sharp pieces, as both of these shapes are, and on every character, drops such contacts beyond a
 /// few millimeters from the joint (ter-fb3w). Without it, a ball that lands near a joint moves away from it, a box that
 /// slides across the joints of the compound trips over each one, and a character that walks across the joints of the
 /// compound is lifted at each one. Angles follow <see cref="RevolvedSolid"/>: θ runs from +X toward -Z, and segment k of n spans 2π k / n to
@@ -216,8 +216,9 @@ public sealed class RevolvedSolidJointTests
     /// character drops the contacts with the edges at a mesh's joints, which its mesh marks inactive, but a compound of
     /// hulls marks none. Without enhanced internal edge removal on the character, on the hulls, it is lifted up to 3.6 mm
     /// above its standing lift at the joints, and not at all on the mesh. With it, it is never lifted above its standing
-    /// lift on either floor. Its speed across the up stays within 1.3 % of the walk on either floor, with the flag or
-    /// without it on the mesh, and within 2.1 % without it on the hulls.
+    /// lift on either floor, and it dips up to 1.0 mm below it into the crease at a joint, against 0.6 mm on the mesh and
+    /// 0.2 mm on the hulls without the flag. Its speed across the up stays within 1.3 % of the walk on either floor, with
+    /// the flag or without it on the mesh, and within 2.1 % without it on the hulls.
     /// </summary>
     [Theory]
     [InlineData(Floor.Hulls)]
@@ -255,7 +256,7 @@ public sealed class RevolvedSolidJointTests
         Tick(world, 60);
         double standing = Lift(world.PoseIn(person, frame));
         walker.Walking = true;
-        double lift = double.MinValue, slowest = double.MaxValue, theta = start;
+        double lift = double.MinValue, dip = double.MaxValue, slowest = double.MaxValue, theta = start;
         Double3 last = world.PoseIn(person, frame).Position;
         for (int t = 0; t < 120 && theta < 4.5 * step; t++)
         {
@@ -263,6 +264,7 @@ public sealed class RevolvedSolidJointTests
             DPose pose = world.PoseIn(person, frame);
             theta = Math.Atan2(-pose.Position.Z, pose.Position.X);
             lift = Math.Max(lift, Lift(pose));
+            dip = Math.Min(dip, Lift(pose));
             // The speed across the up, from the move in the tick's step. The step of the walk's first tick does not know
             // the walk yet.
             Double3 move = pose.Position - last;
@@ -273,6 +275,7 @@ public sealed class RevolvedSolidJointTests
 
         theta.Should().BeGreaterThanOrEqualTo(4.5 * step, "the person has crossed the ten joints");
         (lift - standing).Should().BeLessThan(0.001, "the person is never lifted off the floor at a joint");
+        (dip - standing).Should().BeGreaterThan(-0.0015, "the person dips into the crease at a joint by about 1 mm at most");
         slowest.Should().BeGreaterThan(0.95 * PersonControl.WalkSpeed, "a joint never slows the walk");
         world.Errors.Should().BeEmpty();
     }

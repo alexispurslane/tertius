@@ -29,8 +29,8 @@ namespace Tertius.Demo;
 /// <para>
 /// Jolt rounds the edges of a hull by its convex radius, 5 cm by default. Two rounded hulls side by side leave a groove
 /// along their joint: a ball of 0.25 m in radius sinks 3.7 mm into it on a ring's floor, and 4.2 mm on a torus. So every
-/// hull here has the convex radius 0, and its edges are as sharp as the mesh's. That also makes the compound a surface
-/// that sharp pieces tile, which physics gives edge removal (below). A ball rests on the facets within 0.03 mm, and in the
+/// hull here has the convex radius 0, and its edges are as sharp as the mesh's. That also makes the compound a shape
+/// made of sharp pieces, which physics gives edge removal (below). A ball rests on the facets within 0.03 mm, and in the
 /// crease at a joint of a ring's floor within 0.12 mm of both facets.
 /// </para>
 /// <para>
@@ -42,20 +42,21 @@ namespace Tertius.Demo;
 /// <para>
 /// Where two segments meet, a body that lands up to about 2 cm from the joint also meets the edge of the other segment,
 /// and Jolt's contact with that edge tilts away from the joint. Jolt's own mesh shape of the same mesh has the same
-/// contact. Without more, a ball dropped from 10 cm onto the flat top of a torus's tube, 2, 5, 10 or 20 mm from the joint,
-/// moves 7, 11, 17 or 5 mm away from it, a box that slides across the joints of the compound trips over each one and
-/// tumbles, and a character that walks across the joints of a ring's floor in the compound is lifted up to 3.7 mm at each
-/// one. Physics sets Jolt's enhanced internal edge removal on every body whose shape sharp pieces tile, so on this shape
-/// and on the mesh, and on every character (ter-fb3w). It drops the contact with the edge beyond about 5 mm from a flat
-/// joint and 10 mm from a concave crease, such as a joint of a ring's floor. So a ball that lands 5 mm or more from a
-/// joint of a torus's top, or 20 mm from a joint of a ring's floor, stays where it lands, a box slides across the joints
-/// without tripping, and a character that walks across them is never lifted and keeps within 1.3 % of its walking
-/// speed. Closer to a joint, the
-/// push remains, and the engine accepts it for now: a ball that lands 2 mm from a joint of a torus's top moves 6 mm, and
-/// one that lands 2 to 10 mm from a joint of a ring's floor moves 12 to 17 mm, and on a level facet it can roll on. A ball
-/// that lands exactly on the joint rests there. Only a body that rolls carries the push on: friction stops a box that
-/// lands there, and a character's walk sets its own speed along the floor. A cylinder in segments has such a
-/// joint along each radius of each cap, so a cylinder is one hull, which has no joints, and it has at most 128 segments,
+/// contact. Without more, a ball dropped from 10 cm onto the flat top of a torus's tube, 2, 5, 10 or 20 mm from the
+/// joint, moves 7, 11, 17 or 5 mm away from it, a box that slides across the joints of the compound trips over each one
+/// and tumbles, and a character that walks across the joints of a ring's floor in the compound is lifted up to 3.7 mm
+/// at each one. Physics sets Jolt's enhanced internal edge removal on every body whose shape is made of sharp pieces,
+/// so on this shape and on the mesh, and on every character (ter-fb3w). It drops the contact with the edge beyond about
+/// 5 mm from a flat joint and 10 mm from a concave crease, such as a joint of a ring's floor. So a ball that lands 5 mm
+/// or more from a joint of a torus's top, or 20 mm from a joint of a ring's floor, stays where it lands, a box slides
+/// across the joints without tripping, and a character that walks across them is never lifted and keeps within 1.3 % of
+/// its walking speed. Closer to a joint, the push remains, and the engine accepts it for now: a ball that lands 2 mm
+/// from a joint of a torus's top moves 6 mm, and one that lands 2 to 10 mm from a joint of a ring's floor moves 12 to
+/// 17 mm, and on a level facet it can roll on. A ball that lands exactly on the joint rests there. Only a body that
+/// rolls carries the push on: friction stops a box that lands there, and a character's walk sets its own speed along
+/// the floor. A cylinder in segments has such a flat joint along each radius of each cap. With edge removal, the push
+/// remains only within about 5 mm of each one, as on a torus's top, where a ball that lands 2 mm from a joint moves
+/// 6 mm. One hull has no joints at all, so a cylinder is one hull, at the cost below, and it has at most 128 segments,
 /// two points each in a hull of at most 256.
 /// </para>
 /// <para>
@@ -64,7 +65,7 @@ namespace Tertius.Demo;
 /// inside a polygon of 12 of them, which lies up to ρ (1 - cos(π / 12)) inside the rim: 3.4 cm for a radius of 1 m. A
 /// box whose center of mass is that close to the rim can tip over where the mesh would hold it. A ball touches at one
 /// point and does not feel this. Hulls of segments would not have this cost, because each of their faces on a cap is a
-/// triangle, but they have the push at the joints.
+/// triangle, but a ball that lands within about 5 mm of one of their joints would still be pushed away from it (above).
 /// </para>
 /// </remarks>
 public sealed class RevolvedSolid
