@@ -216,7 +216,7 @@ Today a static or kinematic sensor never detects the interior, because the inter
 | Kinematic to static | Today the pair stays held, because neither body is ever awake. Now it ends at step 2. | Today there is no pair. Now it ends at step 2. | Today Jolt keeps the pair, and the filter never sees it again. Now it ends at step 3. |
 | Static to kinematic, while they overlap | Jolt adds the pair, as today. | Jolt adds the pair once the interior is kinematic. | Today the filter dropped the pair while the hull was static, and Jolt never adds it again. Now the new ghost's pair is added and starts. |
 
-A pair that both motions allow goes on through the change: it is not refused at step 2, and the carry keeps it at step 3.
+A pair that both motions allow goes on through the change: it is not refused at step 2, and the carry keeps it at step 3. When several hulls change their motion in one step, every hull takes its new motion first, then every ghost of them is made again, and then the checks of step 2 run, so each check judges a pair by the new motions of both bodies. Otherwise the order of the owners would matter: a lander that parks on a platform that starts to move would end their touch at the lander's check, against the platform's old static motion, and start it again in the same step. `ContactLifetimeTests.TwoHullsThatTouchKeepTheirTouchWhenOneParksAndTheOtherStartsToMoveInOneStep` pins it.
 
 ## New and changed values
 
@@ -239,7 +239,7 @@ Each value names its existing analogue and follows that analogue's model. "Step 
 
 - Analogue: `FrameWorld.ghostsOfStaticBodies`, the set of ghosts whose real body is static, which it replaces. The table also replaces `FrameWorld.ghosts`, the set of every ghost in the system, which had the same keys. `StandsForStaticBody` and `StaticBodyGhostCount` go, because no reader is left: `FrameWorld.GhostContactMotion` reads an entry, and `AssertInvariants` compares it with the record's.
 - Store: `FrameWorld.ghosts`, a table from the ghost's body ID to its contact motion, a Jolt `MotionType`: `Static`, `Kinematic` or `Dynamic`. A character's ghost holds `Dynamic`, since a character counts as dynamic in either form. `JoltPhysicsBackend.GhostContactMotion` gives a record's.
-- Change: written when the ghost is added, removed when it is removed. A ghost's contact motion never changes, because a change of its body's motion makes a new ghost (step 3). Until step 3, `FollowHullMotions` sets the new contact motion with `SetGhostContactMotion`, which takes the place of `SetGhostOfStaticBody`, and step 3 removes it.
+- Change: written when the ghost is added, removed when it is removed. A ghost's contact motion never changes, because a change of its body's motion makes a new ghost (`MakeGhostsAgain`, step 3 of case 3b). Step 2 of the work set it in place with an interim `SetGhostContactMotion`, and step 3 removed it.
 
 | Reader or writer | Phase | What it does |
 |---|---|---|
@@ -328,7 +328,7 @@ Each value names its existing analogue and follows that analogue's model. "Step 
 ### The started pairs of one body
 
 - Analogue: `FrameWorld.StartedPairs` and `FrameWorld.ForgetContacts`, the forms for a whole system and for a body that leaves.
-- Store: none new. Two members of `FrameWorld` read and change the existing tables: `StartedPairsOf(body, into)` lists the started pairs of one body, and `DropPair(a, b)` forgets one pair, touching or held.
+- Store: none new. Two members of `FrameWorld` read and change the existing tables: `StartedPairsOf(body, into)` lists the other body of each started pair of one body, and `DropPair(a, b)` forgets that one pair started, touching or held. A touching pair is one that Jolt holds, and Jolt keeps it in its cache until an update of the system no longer finds it, which never comes while the system holds no awake body. A parked hull and a static sensor beside it make such a system. If the ship moves again before then, Jolt reports the pair as one that it held, not as a new one. So `DropPair` puts a touching pair back in pending, as a pair that Jolt found without a touch, which starts at its first touch, and drops a held pair, which Jolt does not hold. The build found this: with a pair forgotten for good, a static sensor never detected a ship again that parked and moved again.
 
 | Reader or writer | Phase | What it does |
 |---|---|---|
@@ -436,12 +436,14 @@ Item 3, sensors and frame owners. Here the twin in one frame is the same sensor 
 | A sensor of each motion detects a ship of each motion in the ship's parent, in a sibling frame and in the ship's own frame by the table of case 3 (a theory over both motions and the places) | The sensor beside a plain body with the hull's shape and motion |
 | A static sensor hears Left when the ship that it detects parks, in the ship's frame and in a sibling | A static sensor beside the hull hears Left when the ship parks |
 | A static sensor hears Entered when a parked ship that it overlaps starts to move, in the ship's frame and in a sibling | The same beside the hull |
+| A static sensor detects a ship again when the ship moves again after it parked, in the ship's frame and in a sibling | The same beside the hull |
 | A dynamic sensor's touch of a ship goes on when the ship parks | A dynamic sensor touches a plain body of the hull's shape, both static and kinematic |
 | A crate that rests on a ship's interior hears no CollisionEnded when the ship's engines start or when the ship parks | None: the crate and the interior are in one frame already |
 
 These existing tests change:
 
 - `WorldContactEndTests.AHandOffThatEndsAContactReportsTheEndWithTheFrameChange` (replaced, above).
+- `ContactLifetimeTests.ALanderThatIsParkedAndUnparkedOnTheFloorReportsNoNewContact`, the reviewer's probe C1 of the contact ledger, becomes `ALanderThatIsParkedOnTheFloorStopsTouchingItAndTouchesItAgainWhenItIsUnparked`. A parked lander is a static body, which touches no static body, so rule 6 ends its touch of the floor at the park and starts it again at the unpark. The old test pinned the held pair that let the touch go on.
 - `GhostContactTests.AKinematicSensorDoesNotDetectTheGhostOfAParkedStationsHull` stays green. It now also runs as the case of a kinematic sensor and a static hull in the theory of item 3.
 - `MotionChangeTests` (a ghost follows its hull's motion) checks the new ghost and the ledger, not only the invariants.
 - `HandOffTests.CharacterWalkingOutOfAFrameIsRecreatedInTheParent` keeps its second floor, which is coplanar with the ground's new ghost. A new case without that floor joins it.

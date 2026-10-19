@@ -270,8 +270,10 @@ public sealed record BodyDesc(
     /// of a sensor starts when the two bodies overlap and ends when they stop overlapping, with a
     /// <see cref="ContactStarted"/> whose impulse is zero and a <see cref="ContactEnded"/>. A sensor detects dynamic and
     /// kinematic bodies and characters when the collision groups and masks of both match. Sleep and wake end no touch. A
-    /// ghost's touch is a touch of its entity, and an entity's body and its ghosts make one touch. A character or the owner
-    /// of a frame cannot be a sensor.
+    /// ghost's touch is a touch of its entity, and an entity's body and its ghosts make one touch. A sensor detects the owner
+    /// of a frame as a body of the hull's motion in every frame: the hull in the frame's parent, the frame's interior in the
+    /// frame, and the hull's ghosts in other frames. A change of the hull's motion ends and starts the touches as that rule
+    /// says. A character or the owner of a frame cannot be a sensor.
     /// </summary>
     public bool IsSensor { get; init; }
 

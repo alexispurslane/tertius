@@ -63,6 +63,8 @@ public sealed partial class JoltPhysicsBackend
     // Scratch for AssertContactInvariants.
     private readonly Dictionary<(Entity A, Entity B), int> countScratch = new();
     private readonly List<RawEnd> pairScratch = new();
+    // Scratch for EndPairsThatCannotTouch: the other bodies of the started pairs of one body.
+    private readonly List<BodyID> partnerScratch = new();
 
     // ---- Contacts ----
 
@@ -185,6 +187,37 @@ public sealed partial class JoltPhysicsBackend
             if (EntityPair(raw) is { } pair)
                 looseContacts.Add(pair);
         rawEnds.Clear();
+    }
+
+    /// <summary>
+    /// The check after a change of motion (case 3b of docs/plans/complete-ghosts.md): ends each started pair of
+    /// <paramref name="body"/> in <paramref name="world"/> that the pair test refuses now (see
+    /// <see cref="FrameWorld.CanTouch"/>). The body is a hull or an interior whose motion changed, which keeps its body
+    /// through the change. Jolt drops a pair that it can no longer make only when it simulates one of the two bodies, so
+    /// without the check a pair of two bodies that Jolt does not simulate, such as a parked hull and a static sensor,
+    /// would outlive the change, and the filter never sees a pair that Jolt holds already. Each pair that ends counts down
+    /// in the ledger, and a contact whose count reaches 0 ends at the end of the step (see <see cref="Recount"/>). A pair
+    /// that the new motion allows goes on. A started pair that is no contact of two entities comes only from a bug, since
+    /// only the contacts of two entities enter the pair tables (see <see cref="ReportBug"/>), and a Release build ends it.
+    /// </summary>
+    private void EndPairsThatCannotTouch(FrameWorld world, BodyID body)
+    {
+        partnerScratch.Clear();
+        world.StartedPairsOf(body, partnerScratch);
+        BodyInterface bodies = world.Bodies;
+        foreach (BodyID other in partnerScratch)
+        {
+            (Entity A, Entity B)? pair = EntityPair(new RawEnd(bodies.GetUserData(body), bodies.GetUserData(other)));
+            if (pair is not null && world.CanTouch(body, other))
+                continue;
+            world.DropPair(body, other);
+            if (pair is { } ended)
+                Recount(ended, -1);
+            else
+                ReportBug($"Physics: the system of {world.Frame} held a started pair of {body} and {other}, which is no contact of two entities. " +
+                          "Only a bug starts such a pair, so it was dropped.");
+        }
+        partnerScratch.Clear();
     }
 
     /// <summary>

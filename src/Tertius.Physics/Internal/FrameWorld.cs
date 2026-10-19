@@ -206,24 +206,14 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>
     /// Counts <paramref name="body"/>, a new body of this system, as a ghost whose real body has the contact motion
     /// <paramref name="contactMotion"/>: <see cref="MotionType.Static"/>, <see cref="MotionType.Kinematic"/>, or
-    /// <see cref="MotionType.Dynamic"/> for a dynamic body or a character.
+    /// <see cref="MotionType.Dynamic"/> for a dynamic body or a character. A ghost keeps it: Jolt offers the pairs of a body
+    /// to the contact filter only when it adds them, so when the real body changes its motion, the backend makes the ghost
+    /// again (see <c>JoltPhysicsBackend.MakeGhostsAgain</c>).
     /// </summary>
     public void AddGhost(BodyID body, MotionType contactMotion)
     {
         Contract.Requires(!ghosts.ContainsKey(body));
         ghosts.Add(body, contactMotion);
-    }
-
-    /// <summary>
-    /// Gives <paramref name="ghost"/>, a ghost in this system, the contact motion <paramref name="contactMotion"/>. Call it
-    /// when the motion of the real body changes, so that the ghost meets what the real body meets from the next update on.
-    /// Only a hull changes its motion. Jolt keeps the pairs that it holds of the ghost, and step 3 of
-    /// docs/plans/complete-ghosts.md makes the ghost again instead.
-    /// </summary>
-    public void SetGhostContactMotion(BodyID ghost, MotionType contactMotion)
-    {
-        Contract.Requires(ghosts.ContainsKey(ghost));
-        ghosts[ghost] = contactMotion;
     }
 
     /// <summary>Removes and destroys the ghost <paramref name="body"/>, after it wakes the bodies around it (see <see cref="WakeAround"/>).</summary>
@@ -608,6 +598,48 @@ internal sealed class FrameWorld : IDisposable
                     return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Appends to <paramref name="others"/> the other body of each body pair of <paramref name="body"/> in this system that
+    /// has started and not ended, as <see cref="StartedPairs"/> lists them for the whole system. Costs time in proportion to
+    /// the number of pairs in the system.
+    /// </summary>
+    public void StartedPairsOf(BodyID body, List<BodyID> others)
+    {
+        lock (contactGate)
+        {
+            foreach (ulong key in touching.Keys)
+                if (Involves(key, body) && !pending.Contains(key))
+                    others.Add(Other(key, body));
+            foreach (ulong key in held)
+                if (Involves(key, body))
+                    others.Add(Other(key, body));
+        }
+    }
+
+    /// <summary>The body of the pair <paramref name="key"/> that is not <paramref name="body"/>, one of its two bodies.</summary>
+    private static BodyID Other(ulong key, BodyID body) => (uint)(key >> 32) == body.ID ? Second(key) : First(key);
+
+    /// <summary>
+    /// Forgets that the pair of <paramref name="a"/> and <paramref name="b"/>, two bodies of this system, started, touching
+    /// or held. The backend does this when a change of motion makes a started pair impossible for Jolt (see
+    /// <c>JoltPhysicsBackend.EndPairsThatCannotTouch</c>). A touching pair is a pair that Jolt holds, and it keeps it in its
+    /// cache until an update of this system no longer finds it, which never comes while the system holds no awake body. So
+    /// the pair waits in pending again, as a pair that Jolt found without a touch: if a later change makes the pair possible
+    /// again before Jolt drops it, Jolt reports it as a pair that it held, and it starts at its first touch (see
+    /// <see cref="OnContactPersisted"/>); when Jolt drops it, it goes without a report. A held pair is one that Jolt does not
+    /// hold, so it goes, and Jolt adds it again when it finds it again.
+    /// </summary>
+    public void DropPair(BodyID a, BodyID b)
+    {
+        ulong key = PairKey(a, b);
+        lock (contactGate)
+        {
+            if (touching.ContainsKey(key))
+                pending.Add(key);
+            held.Remove(key);
+        }
     }
 
     /// <summary>

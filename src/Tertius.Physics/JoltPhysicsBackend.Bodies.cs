@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using JoltPhysicsSharp;
 
 namespace Tertius.Physics;
@@ -60,7 +61,7 @@ public sealed partial class JoltPhysicsBackend
     private static ObjectLayer PrimaryLayer(BodyRecord record) =>
         record.IsHull ? Layers.FrameHull : Layers.For(RoleFor(record.Desc), record.CollisionGroups, record.CollisionMask);
 
-    /// <summary>The object layer of the static interior of the frame that a record owns.</summary>
+    /// <summary>The object layer of the interior of the frame that a record owns.</summary>
     private static ObjectLayer InteriorLayer(BodyRecord record) => Layers.For(BodyLayer.Static, record.CollisionGroups, record.CollisionMask);
 
     /// <summary>
@@ -238,14 +239,14 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// What a rigid body is apart from its state. The backend changes none of it after the body exists, except the motion
-    /// of a body whose <see cref="MotionChanges"/> is true: the hull of a frame takes a change of motion (see
-    /// <see cref="FollowHullMotions"/>), and a ghost of a static body is static or kinematic as it holds still or moves
-    /// (see <see cref="GhostMotion"/>). Its spec then has the new motion. So the spec of a body and its state rebuild the
-    /// body exactly.
+    /// of a body whose <see cref="MotionChanges"/> is true: the hull of a frame takes a change of motion, and its interior
+    /// follows it (see <see cref="FollowHullMotions"/>), and a ghost of a static body is static or kinematic as it holds
+    /// still or moves (see <see cref="GhostMotion"/>). Its spec then has the new motion. So the spec of a body and its
+    /// state rebuild the body exactly.
     /// </summary>
     /// <param name="MotionChanges">
     /// True when the backend can change the body's motion type: the hull of a frame, unless it is a mesh, which never
-    /// moves, and a ghost of a static body.
+    /// moves, the interior of a frame, and a ghost of a static body.
     /// </param>
     /// <param name="Freedom">How the body can move: freely, or only along the three axes, for the rigid form of a character.</param>
     private readonly record struct RigidSpec(ShapeDesc Shape, MotionType Motion, ObjectLayer Layer, ulong UserData, BodyDesc Material, bool MotionChanges = false,
@@ -262,9 +263,24 @@ public sealed partial class JoltPhysicsBackend
         new(record.Material.Shape, ToMotionType(record.Motion), PrimaryLayer(record), BodyUserData.Encode(BodyKind.Primary, record.Entity), record.Material,
             MotionChanges: record.IsHull && !record.HasMesh, Freedom: record.IsCharacter ? TranslationOnly : AllowedDOFs.All);
 
-    /// <summary>The spec of the static interior of the frame that a record owns, in the frame's own system.</summary>
+    /// <summary>
+    /// The spec of the interior of the frame that a record owns, in the frame's own system, with the Jolt motion of
+    /// <see cref="InteriorMotion"/>. Its motion changes with the hull's, so Jolt creates it to allow that and gives it a
+    /// mass (see <see cref="Settings"/>).
+    /// </summary>
     private static RigidSpec InteriorSpec(BodyRecord record) =>
-        new(record.Desc.InteriorShape ?? record.Desc.Shape, MotionType.Static, InteriorLayer(record), BodyUserData.Encode(BodyKind.Interior, record.Entity), record.Desc);
+        new(record.Desc.InteriorShape ?? record.Desc.Shape, InteriorMotion(record), InteriorLayer(record), BodyUserData.Encode(BodyKind.Interior, record.Entity),
+            record.Desc, MotionChanges: true);
+
+    /// <summary>
+    /// The Jolt motion of the interior of the frame that a record owns: static while the hull is static, and kinematic
+    /// otherwise, at rest in the frame's own system (fork F4 of docs/plans/complete-ghosts.md). So a sensor detects the
+    /// owner in the frame as a body of the hull's motion, as it detects the hull in the frame's tree parent and the hull's
+    /// ghosts in other frames: a static or kinematic sensor detects the interior of a ship that moves, and only a dynamic
+    /// sensor detects the interior of a parked ship. A kinematic interior at rest falls asleep as any body does. The owner
+    /// of a root frame has no hull and the static motion (see <see cref="CreateRecord"/>), so its interior is always static.
+    /// </summary>
+    private static MotionType InteriorMotion(BodyRecord record) => record.Motion == BodyMotion.Static ? MotionType.Static : MotionType.Kinematic;
 
     /// <summary>
     /// The spec of a ghost of a record's body with the Jolt motion <paramref name="motion"/>, which
@@ -545,9 +561,14 @@ public sealed partial class JoltPhysicsBackend
     /// motion at every step, as the reconcile follows the tree's structure (see <see cref="ReconcileFrames"/>). The tree stores
     /// a change at the sync point after the step that applied it, also when that step failed, so a step that failed loses no
     /// change: the next step that runs takes it from the stored motion. It runs at the start of the step, before anything
-    /// reads a record's motion: the spawn velocities, the static hulls, the hull velocities and the intents. The hull keeps
-    /// its body, its system and its contacts, and takes the frame's pose and velocity from the tree (see
-    /// <see cref="ApplyHullMotion"/>). Its ghosts meet what a body of its new motion meets.
+    /// reads a record's motion: the spawn velocities, the static hulls, the hull velocities and the intents. The hull and the
+    /// interior keep their bodies and their systems, and the hull takes the frame's pose and velocity from the tree (see
+    /// <see cref="ApplyHullMotion"/>). Once every hull of the step has its new motion, every pair of their bodies follows the
+    /// new motions at once (case 3b of docs/plans/complete-ghosts.md): each ghost of such a hull is made again (see
+    /// <see cref="MakeGhostsAgain"/>), so that Jolt offers its pairs to the contact filter with the new motion, and each
+    /// started pair of the hull and of the interior that the new motions cannot make ends (see
+    /// <see cref="EndPairsThatCannotTouch"/>). So the order of the owners does not change the result. Jolt finds the new
+    /// pairs of a hull or an interior that starts to move, since it simulates a body that moves.
     /// </summary>
     /// <remarks>
     /// The simulation lets a hull take only a motion that the hull can take (see <see cref="BodyDesc.Problem"/>), so another
@@ -556,6 +577,7 @@ public sealed partial class JoltPhysicsBackend
     /// </remarks>
     private void FollowHullMotions(ReadOnlySpan<PhysicsIntent> intents)
     {
+        changedHulls.Clear();
         foreach (BodyRecord owner in frameOwners)
         {
             // The owner of a root frame has no hull, and the tree keeps no motion for it.
@@ -569,18 +591,68 @@ public sealed partial class JoltPhysicsBackend
             }
             owner.Motion = motion;
             ApplyHullMotion(owner);
-            // A ghost meets what its real body meets (see FrameWorld.GhostContactMotion).
-            if (owner.Ghosts is { } ghosts)
-                foreach (GhostBody ghost in ghosts)
-                    ghost.World.SetGhostContactMotion(ghost.Body, GhostContactMotion(owner));
+            changedHulls.Add(owner);
+        }
+        // Every hull of the step has its new motion now, and every ghost of one is new, so each check judges a pair by the
+        // new motions of both bodies, whichever owner comes first. A pair of two hulls that both change, such as a lander
+        // that parks on a platform that starts to move, goes on when the new motions allow it.
+        foreach (BodyRecord owner in changedHulls)
+            MakeGhostsAgain(owner);
+        foreach (BodyRecord owner in changedHulls)
+        {
+            EndPairsThatCannotTouch(owner.World!, owner.Body);
+            EndPairsThatCannotTouch(owner.InteriorWorld!, owner.InteriorBody);
+        }
+        changedHulls.Clear();
+    }
+
+    // Scratch for FollowHullMotions: the owners whose hull took a new motion at the start of this step.
+    private readonly List<BodyRecord> changedHulls = new();
+
+    /// <summary>
+    /// Makes each ghost of a hull whose motion changed again: removes it, which loosens its contacts (see
+    /// <see cref="RemoveGhostBody"/>), and puts a new ghost of the same role in its place at once, at the old one's pose
+    /// and velocity, with the Jolt motion and the contact motion of the hull's new motion (see <see cref="CreateGhostBody"/>).
+    /// A ghost's contact motion never changes, because Jolt offers the pairs of a body to the contact filter only once,
+    /// when it adds them: the pairs of a new body. The carry of the end of the step keeps each loose contact that the new
+    /// ghost can make, and ends the rest (see <see cref="ResolveLooseContacts"/>). The new ghost lags the hull by one step,
+    /// as every ghost lags an intent that the step applies, and the ghost pass of the end of the step puts it where the
+    /// hull is. The old ghost goes first, so its system has room for the new one and does not grow.
+    /// </summary>
+    private void MakeGhostsAgain(BodyRecord record)
+    {
+        if (record.Ghosts is not { } ghosts)
+            return;
+        foreach (ref GhostBody ghost in CollectionsMarshal.AsSpan(ghosts))
+        {
+            BodyInterface bodies = ghost.World.Bodies;
+            bodies.GetRPosition(ghost.Body, out RVector3 position);
+            var pose = new DPose(position.ToDouble3(), bodies.GetRotation(ghost.Body).ToDouble());
+            bodies.GetLinearAndAngularVelocity(ghost.Body, out Vector3 linear, out Vector3 angular);
+            RemoveGhostBody(ghost);
+            ghost.Body = CreateGhostBody(record, ghost.World, pose, linear, angular, ghost.Role);
         }
     }
 
     /// <summary>
-    /// Gives a frame owner's hull the Jolt motion type of the record's motion, also when it has that type already. The hull
-    /// keeps its BodyID, its system and its contacts. Like a hull that the reconcile moves to another system, it takes the
-    /// frame's pose and velocity from the tree. If that moves the hull, the bodies around its old place wake, and for a
-    /// static hull the bodies around its new place too.
+    /// Creates a ghost of the record's body in <paramref name="world"/>, in <paramref name="role"/> (see
+    /// <see cref="GhostBody.Role"/>), at <paramref name="pose"/>, moving with <paramref name="linear"/> and
+    /// <paramref name="angular"/> there, with the Jolt motion of <see cref="GhostMotion"/>, and counts it among the ghosts
+    /// of the system with the record's contact motion (see <see cref="FrameWorld.AddGhost"/>). Every ghost comes from here.
+    /// </summary>
+    private BodyID CreateGhostBody(BodyRecord record, FrameWorld world, in DPose pose, Vector3 linear, Vector3 angular, BodyLayer role)
+    {
+        BodyID id = CreateRigid(world, GhostSpec(record, GhostMotion(record, linear, angular), GhostLayer(record, role)), pose, linear, angular);
+        world.AddGhost(id, GhostContactMotion(record));
+        return id;
+    }
+
+    /// <summary>
+    /// Gives a frame owner's hull the Jolt motion type of the record's motion, also when it has that type already, and the
+    /// interior the motion of <see cref="InteriorMotion"/>, kinematic and at rest while the hull moves. The hull and the
+    /// interior keep their BodyIDs, their systems and their contacts. Like a hull that the reconcile moves to another
+    /// system, the hull takes the frame's pose and velocity from the tree. If that moves the hull, the bodies around its old
+    /// place wake, and for a static hull the bodies around its new place too. The interior does not move.
     /// </summary>
     private void ApplyHullMotion(BodyRecord owner)
     {
@@ -610,5 +682,8 @@ public sealed partial class JoltPhysicsBackend
             if (owner.Motion == BodyMotion.Dynamic)
                 spawnedRigid.Add(owner);
         }
+        MotionType interiorMotion = InteriorMotion(owner);
+        owner.InteriorWorld!.Bodies.SetMotionType(owner.InteriorBody, interiorMotion,
+            interiorMotion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
     }
 }

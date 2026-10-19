@@ -9,9 +9,12 @@ internal enum BodyKind : byte
     None = 0,
     /// <summary>The entity's own body: a rigid body, the rigid form of a character, or the hull of a frame in its parent frame.</summary>
     Primary = 1,
-    /// <summary>The static interior geometry of a frame, in the frame's own system.</summary>
+    /// <summary>
+    /// The interior geometry of a frame, in the frame's own system: static while the hull is static, and kinematic and at
+    /// rest while it moves.
+    /// </summary>
     Interior = 2,
-    /// <summary>A kinematic copy of a body that lives in another frame.</summary>
+    /// <summary>A copy of a body that lives in another frame (see <see cref="GhostBody"/>).</summary>
     Ghost = 3,
     /// <summary>The kinematic inner body of a character in its walking form.</summary>
     CharacterInner = 4,

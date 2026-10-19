@@ -629,7 +629,9 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// and the owner of a root frame has no hull.</item>
     /// <item>Jolt moves every hull with the motion of its record. The record takes the motion of each step at the start of
     /// that step (see <see cref="FollowHullMotions"/>). A record that the simulation creates between two steps, at a spawn
-    /// or a rehome, starts with the motion of the next step, which it runs first.</item>
+    /// or a rehome, starts with the motion of the next step, which it runs first. Every interior has the Jolt motion that
+    /// its record's motion gives it, static while the hull is static and kinematic otherwise (see
+    /// <see cref="InteriorMotion"/>).</item>
     /// <item>Every ghost sits in the system of a frame that the tree puts next to its body's frame among the semantic
     /// frames, or in the home of a group that keeps a ghost of an anchor, the body's own or the hull of its home's semantic
     /// frame (see <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
@@ -681,7 +683,10 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
                 Contract.Invariant(home.Bodies.GetObjectLayer(primary) == PrimaryLayer(record));
             }
             if (record.InteriorWorld is { } interior)
+            {
                 Contract.Invariant(interior.Bodies.GetObjectLayer(record.InteriorBody) == InteriorLayer(record));
+                Contract.Invariant(interior.Bodies.GetMotionType(record.InteriorBody) == InteriorMotion(record));
+            }
             if (record.Ghosts is not { } ghosts)
                 continue;
             foreach (GhostBody ghost in ghosts)

@@ -644,8 +644,8 @@ public sealed partial class JoltPhysicsBackend
             if (moves)
                 world.WakeAround(ghost.Body);
             // Jolt stops a body that becomes static, and a kinematic body moves only while it is awake. A ghost of a
-            // static body changes its motion as it starts and stops moving, and so does the ghost of a hull whose motion
-            // changed since the ghost was made.
+            // static body changes its motion as it starts and stops moving. A change of a hull's motion made the hull's
+            // ghosts again (see MakeGhostsAgain), so a ghost of a body that can move is kinematic already.
             if (bodies.GetMotionType(ghost.Body) != motion)
                 bodies.SetMotionType(ghost.Body, motion, motion == MotionType.Static ? Activation.DontActivate : Activation.Activate);
             if (motion == MotionType.Static)
@@ -662,9 +662,7 @@ public sealed partial class JoltPhysicsBackend
             ghost.Wanted = true;
             return;
         }
-        BodyID id = CreateRigid(world, GhostSpec(record, motion, GhostLayer(record, role)), pose, linear, angular);
-        world.AddGhost(id, GhostContactMotion(record));
-        ghosts.Add(new GhostBody { Frame = frame, World = world, Body = id, Wanted = true, Role = role });
+        ghosts.Add(new GhostBody { Frame = frame, World = world, Body = CreateGhostBody(record, world, pose, linear, angular, role), Wanted = true, Role = role });
     }
 
     /// <summary>
