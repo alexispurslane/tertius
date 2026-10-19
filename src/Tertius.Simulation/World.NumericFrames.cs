@@ -85,7 +85,7 @@ public sealed partial class World
                 Static = motion == BodyMotion.Static,
                 Kinematic = motion == BodyMotion.Kinematic,
                 // A hull that is not dynamic moves only as its frame's step records say, and a kinematic one follows the
-                // samples of its owner, so it lives in an orbit frame of its own when they move it fast or far.
+                // motion intents of its owner, so it lives in an orbit frame of its own when they move it fast or far.
                 Fixed = !own.IsNull && motion != BodyMotion.Dynamic,
                 Orbits = !own.IsNull && motion == BodyMotion.Kinematic,
                 Sensor = desc.IsSensor,

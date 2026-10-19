@@ -78,7 +78,7 @@ public sealed partial class World
 
         // 2. The falling numeric frames move over the step that physics made, with the acceleration that physics used.
         //    Then a check of the whole report and the hand-offs' reparents, which decides the skipped updates, then each
-        //    orbit frame takes its anchor's sample, then body states and hand-offs, whose rows take the new places of their
+        //    orbit frame takes its anchor's step plan, then body states and hand-offs, whose rows take the new places of their
         //    numeric homes, exactly. Then every frame takes its step record and every frame owner mirrors its frame (see
         //    FollowOwners): a record from physics is relative to the parent after the hand-offs, and every record must land
         //    before step 5 can destroy that parent or move the frame, so that a write in the tick in which a frame's parent
@@ -198,7 +198,7 @@ public sealed partial class World
 
     /// <summary>
     /// Step 2: the check of the report and the frame owners' reparents of the hand-offs, then the frames' step records and
-    /// the orbit frames that their anchors' samples place, then body states and hand-offs into the back table, then whether
+    /// the orbit frames that their anchors' step plans place, then body states and hand-offs into the back table, then whether
     /// physics stood each character. The frames take their records after this (see <see cref="FollowOwners"/>), and the
     /// contacts come last (see <see cref="RouteStepContacts"/>).
     /// </summary>
