@@ -30,23 +30,6 @@ public sealed class PassengerTests : IDisposable
 
     public void Dispose() => world.Dispose();
 
-    /// <summary>Unparks its hull on its first tick, to dynamic.</summary>
-    private sealed class Unpark : IComponent
-    {
-        private bool done;
-
-        public int Priority => 0;
-
-        public EventMask Wants => EventMask.Of<Tick>();
-
-        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
-        {
-            if (!done)
-                self.Body.SetMotion(BodyMotion.Dynamic);
-            done = true;
-        }
-    }
-
     /// <summary>
     /// The shuttle parked in <paramref name="frame"/> with its belly at <paramref name="belly"/>, the pen at
     /// <see cref="PenPlace"/>, moving at <paramref name="penVelocity"/>, and the passenger at its seat. With

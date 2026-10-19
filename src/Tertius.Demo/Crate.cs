@@ -42,17 +42,18 @@ public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId 
 
     /// <summary>
     /// A loose crate at <paramref name="pose"/> in <paramref name="frame"/>, which moves at <paramref name="velocity"/> in
-    /// the frame's axes: a dynamic box with no damping, drawn by <see cref="Drawn"/>, with a <see cref="Crate"/> component.
-    /// Throws <see cref="ArgumentOutOfRangeException"/> if the size or the mass is not positive and finite.
+    /// the frame's axes: a dynamic box with no damping, drawn by <see cref="Drawn"/>, with a <see cref="Crate"/> component
+    /// and then the components <paramref name="more"/>. Throws <see cref="ArgumentOutOfRangeException"/> if the size or the
+    /// mass is not positive and finite.
     /// </summary>
-    public SpawnDesc Spawn(FrameHandle frame, DPose pose, Double3 velocity) => new()
+    public SpawnDesc Spawn(FrameHandle frame, DPose pose, Double3 velocity, params IComponent[] more) => new()
     {
         Frame = frame,
         Pose = pose,
         LinearVelocity = velocity,
         Body = new BodyDesc(new BoxShapeDesc(HalfExtents), Mass: Mass, LinearDamping: 0, AngularDamping: 0),
         Render = Drawn(),
-        Components = [new Crate(this)],
+        Components = [new Crate(this), .. more],
     };
 }
 

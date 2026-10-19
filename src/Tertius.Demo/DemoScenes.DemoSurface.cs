@@ -39,10 +39,11 @@ public static partial class DemoScenes
     /// <see cref="LaunchRamp"/>) starts under the parked shuttle and rises at 30 degrees along -Z. The shuttle carries its
     /// <see cref="Shuttle.FlightControls"/>, which wait for an <see cref="Ignition"/> that a script posts to it. Then the
     /// shuttle unparks, slides up the ramp at three gravities, and flies to a circle 200 km up. A red <c>pen</c>, 14 cm
-    /// long, lies loose on the cabin floor beside the seat, 2 m to port of it (see <see cref="PenStart"/>). The climb
-    /// presses it aft, as it presses everything loose in the cabin, into the corner of the floor and the aft wall. The
-    /// person is a <see cref="Passenger"/>: its belt holds it at <see cref="Shuttle.SeatStand"/> through the climb, and in
-    /// the weightless cabin in orbit it floats aft to the pen and takes it.</item>
+    /// long, hangs in a <see cref="Clip"/> on the cabin's port wall, at head height, aft of the seat (see
+    /// <see cref="ClippedPen"/>). The clip holds it through the climb, and lets it go with a small push and a slow spin a
+    /// second after the cabin becomes weightless in orbit, so that the pen drifts into the middle of the cabin. The person
+    /// is a <see cref="Passenger"/>: its belt holds it at <see cref="Shuttle.SeatStand"/> through the climb, and in the
+    /// weightless cabin it floats to the drifting pen and takes it.</item>
     /// <item>The <c>earth</c>, only drawn, is a sphere 1 m smaller than Earth, with the grid of the orbit scene, so the
     /// slab hides it at the pad and the climb shows the planet below.</item>
     /// <item>More views: <c>ramp-camera</c> stands on the ground beside the ramp and sees all of it; <c>aft-camera</c>, in
@@ -54,9 +55,13 @@ public static partial class DemoScenes
     /// </list>
     /// </summary>
     /// <remarks>
-    /// A character has no sitting pose for now, so the person stands at <see cref="Shuttle.SeatStand"/>, upright on the
-    /// cabin floor just aft of the seat. The launch step of the demo (docs/plans/blue-danube-demo.md, "The sequence", step 2)
-    /// says that the character leaves its seat: that means that the person walks away from <see cref="Shuttle.SeatStand"/>.
+    /// <para>A character has no sitting pose for now, so the person stands at <see cref="Shuttle.SeatStand"/>, upright on
+    /// the cabin floor just aft of the seat. The launch step of the demo (docs/plans/blue-danube-demo.md, "The sequence",
+    /// step 2) says that the character leaves its seat: that means that the person floats away from
+    /// <see cref="Shuttle.SeatStand"/>.</para>
+    /// <para>Under the climb's thrust, the engine turns a character's up against the cabin's gravity, so the belted person
+    /// tips toward the nose, and it floats that way in orbit, because a weightless character keeps its last up. Ticket
+    /// ter-yrfa will let a weightless character turn its own up, which will right the person in orbit.</para>
     /// </remarks>
     public static class DemoSurface
     {
@@ -79,10 +84,32 @@ public static partial class DemoScenes
         public const float PenMass = 0.02f;
 
         /// <summary>
-        /// Where the pen lies at the start, in the shuttle's axes: on the cabin floor, 2 m to port of the seat's line, beside
-        /// the seat. Its length lies along the cabin.
+        /// Where the clip holds the pen, in the shuttle's axes: on the port wall, 1.5 m above the cabin floor, 2.75 m aft of
+        /// <see cref="Shuttle.SeatStand"/>, with 1 cm between the pen and the wall. Its length lies along the cabin.
         /// </summary>
-        public static Double3 PenStart { get; } = new(-1, -Shuttle.Cabin.Y + 0.006, Shuttle.Seat.Center.Z);
+        public static DPose PenClip { get; } = new(new Double3(-Shuttle.Cabin.X + PenHalf.X + 0.01, -Shuttle.Cabin.Y + 1.5, -1), DQuaternion.Identity);
+
+        /// <summary>
+        /// The push with which the clip lets the pen go, in m/s, in the shuttle's axes: away from the port wall, toward the
+        /// middle of the cabin, and a little up.
+        /// </summary>
+        public static Double3 PenPush { get; } = new(0.2, 0.03, 0);
+
+        /// <summary>
+        /// The spin with which the clip lets the pen go, in rad/s, in the shuttle's axes: 0.5 rad/s, a turn in about 13 s,
+        /// end over end about an axis across the pen. The pen's two short sides are equal, so every axis across it is a
+        /// principal axis, and the spin stays steady. Its ends move at 3.5 cm/s, slower than the push carries the pen from
+        /// the wall, so the pen never swings into it.
+        /// </summary>
+        public static Vector3 PenSpin { get; } = new(0.3f, 0.4f, 0);
+
+        /// <summary>
+        /// The loose <paramref name="pen"/> in <paramref name="cabin"/>, the shuttle's frame, at <see cref="PenClip"/>, with
+        /// a <see cref="Clip"/> that holds it there while the cabin has weight and lets it go with <see cref="PenPush"/> and
+        /// <see cref="PenSpin"/>.
+        /// </summary>
+        public static SpawnDesc ClippedPen(CrateSpec pen, FrameHandle cabin) =>
+            pen.Spawn(cabin, PenClip, Double3.Zero, new Clip(PenClip, PenPush, PenSpin));
 
         /// <summary>The eye of the person, relative to its center, in its axes: 1.65 m above its feet.</summary>
         public static Vector3 Eye { get; } = new(0, 0.75f, 0);
@@ -244,7 +271,7 @@ public static partial class DemoScenes
             // hand follows.
             var penSpec = new CrateSpec(PenHalf, PenMass, resources.CreateMesh(Primitives.Box(PenHalf)),
                 resources.CreateMaterial(MaterialDesc.Color(new Vector4(0.85f, 0.1f, 0.08f, 1))));
-            Entity pen = world.Spawn(penSpec.Spawn(cabin, new DPose(PenStart, DQuaternion.Identity), Double3.Zero));
+            Entity pen = world.Spawn(ClippedPen(penSpec, cabin));
             scene.Add("pen", pen);
             RenderData personRender = Drawn(resources, Primitives.Box(new Vector3(0.3f, 0.9f, 0.3f)), new Vector4(0.2f, 0.45f, 0.8f, 1), boundingRadius: 1);
             personRender.ViewOffset = new Pose(Eye, Quaternion.Identity);

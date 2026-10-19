@@ -2,6 +2,7 @@ using Tertius.Demo;
 using Tertius.Host.Scripting;
 using Tertius.Simulation;
 using static Tertius.Testing.WorldTesting;
+using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
 using LaunchRamp = Tertius.Demo.DemoScenes.LaunchRamp;
 using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 
@@ -10,8 +11,9 @@ namespace Tertius.Host.Tests;
 /// <summary>
 /// The demo launch: one headless run of the checked-in script scripts/demo-launch.json, in the scene demo-surface, with a
 /// log of every tick. The person walks to its seat in the parked shuttle. The script posts the ignition. The shuttle slides
-/// up its ramp and climbs to a circle 200 km up, with the person belted at its seat. In orbit, the person floats to the
-/// loose pen and takes it. Once the engines have been off for 2 s, the log puts a ball at rest in the
+/// up its ramp and climbs to a circle 200 km up, with the person belted at its seat and the pen in its clip on the port
+/// wall. In orbit, the clip lets the pen go, and the person floats to the drifting pen and takes it. Once the engines have
+/// been off for 2 s, the log puts a ball at rest in the
 /// cabin, forward and to port, away from the person's way, and follows it for 5 s. Every test of the class reads that one
 /// run.
 /// </summary>
@@ -38,8 +40,10 @@ public sealed class DemoLaunchRun : CheckedInRun
 /// <param name="PersonFrame">The person's frame.</param>
 /// <param name="PersonInCabin">The person's position in the shuttle's frame, in meters.</param>
 /// <param name="Passenger">What the person does.</param>
+/// <param name="Pen">The pen's position and velocity in the shuttle's frame, in meters and m/s, while the loose pen lives, or null.</param>
+/// <param name="ClipHolds">Whether the pen's clip holds it, while the loose pen lives, or null.</param>
 internal sealed record LaunchTick(long Tick, Double3 Position, Double3 Velocity, AscentPhase Phase, System.Numerics.Vector3 CabinAcceleration,
-    FrameHandle PersonFrame, Double3 PersonInCabin, PassengerPhase Passenger);
+    FrameHandle PersonFrame, Double3 PersonInCabin, PassengerPhase Passenger, (Double3 Position, Double3 Velocity)? Pen, bool? ClipHolds);
 
 /// <summary>A ball at rest in the cabin, 2 s after the engines stop, and where it is after 5 s.</summary>
 /// <param name="Start">Where the ball was put, in the shuttle's frame, in meters.</param>
@@ -66,11 +70,13 @@ internal sealed class LaunchLog
 
     public void Record(World world, SceneInstance scene)
     {
-        Entity shuttle = scene["shuttle"], person = scene["person"];
+        Entity shuttle = scene["shuttle"], person = scene["person"], pen = scene["pen"];
         FrameHandle surface = world.GetFrame(shuttle), cabin = world.GetOwnedFrame(shuttle);
         AscentPhase phase = world.GetComponent<AscentAutopilot>(shuttle)!.Phase;
+        bool penLives = world.IsAlive(pen);
         Ticks.Add(new LaunchTick(world.TickNumber, world.PoseIn(shuttle, surface).Position, world.VelocityIn(shuttle, surface), phase,
-            world.Frames.ProperAcceleration(cabin), world.GetFrame(person), world.PoseIn(person, cabin).Position, world.GetComponent<Passenger>(person)!.Phase));
+            world.Frames.ProperAcceleration(cabin), world.GetFrame(person), world.PoseIn(person, cabin).Position, world.GetComponent<Passenger>(person)!.Phase,
+            penLives ? (world.PoseIn(pen, cabin).Position, world.VelocityIn(pen, cabin)) : null, penLives ? world.GetComponent<Clip>(pen)?.Holds : null));
         if (phase == AscentPhase.Orbit && orbitTick < 0)
             orbitTick = world.TickNumber;
         if (orbitTick >= 0 && ball.IsNull && world.TickNumber == orbitTick + 120)
@@ -208,6 +214,41 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         flight.Should().OnlyContain(tick => tick.Passenger == PassengerPhase.Seated);
         flight.Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.25);
         flight.Where(tick => tick.Phase == AscentPhase.Climb).Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.01);
+    }
+
+    /// <summary>
+    /// From the start to the orbit, through the walk, the ramp and the climb, the clip holds the pen on the cabin's port
+    /// wall: gravity moves it at most about 8 mm in a step at three gravities, before the clip brings it back. The foot of
+    /// the ramp jolts it once: when the hull's tail reaches the foot, at about 27 m/s, the hull stops turning onto the
+    /// incline at once, and in that one step the pen drops about 0.1 m, which the next step takes back.
+    /// </summary>
+    [Fact]
+    public void TheClipHoldsThePenOnTheWallUntilTheOrbit()
+    {
+        List<LaunchTick> held = [.. Log.Where(tick => tick.Phase != AscentPhase.Orbit)];
+        List<double> fromClip = [.. held.Select(tick => Double3.Distance(tick.Pen!.Value.Position, DemoSurface.PenClip.Position))];
+
+        held.Should().HaveCountGreaterThan(20_000);
+        held.Should().OnlyContain(tick => tick.ClipHolds == true);
+        fromClip.Max().Should().BeLessThan(0.15);
+        fromClip.Count(distance => distance > 0.015).Should().BeLessThanOrEqualTo(1, "only the step of the jolt at the ramp's foot moves the pen more");
+    }
+
+    /// <summary>
+    /// In orbit the clip lets the pen go. From the step that applies its push to the person's take, nothing touches the
+    /// pen, so it keeps the push's velocity, and when the person takes it, it floats more than half a meter from every face
+    /// of the cabin.
+    /// </summary>
+    [Fact]
+    public void InOrbitThePenFloatsFreeInTheMiddleOfTheCabinUntilThePersonTakesIt()
+    {
+        // The push of the tick on which the clip lets go acts in the step beside the next tick, so the snapshots of the
+        // first two logged ticks after the release show the pen before the push.
+        List<LaunchTick> free = [.. Log.Where(tick => tick.ClipHolds == false).Skip(2)];
+
+        free.Should().HaveCountGreaterThan(120);
+        free.Should().OnlyContain(tick => (tick.Pen!.Value.Velocity - DemoSurface.PenPush).Length < 1e-3);
+        PenClipTests.Clearance(free[^1].Pen!.Value.Position).Should().BeGreaterThan(0.5);
     }
 
     [Fact]
