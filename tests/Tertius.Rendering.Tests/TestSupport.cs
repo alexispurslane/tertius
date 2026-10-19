@@ -39,6 +39,9 @@ internal static class Gpu
             ImpostorTiles = impostorTiles,
         });
 
+    /// <summary>The folder that holds Tertius.slnx.</summary>
+    public static string RepositoryRoot => RepoRoot.Value;
+
     public static string CapturePath(string name) => Path.Combine(RepoRoot.Value, "captures", name + ".png");
 
     /// <summary>Renders one frame, captures it to captures/<paramref name="name"/>.png, and loads the PNG back.</summary>
@@ -126,6 +129,23 @@ internal sealed class Capture
         using FileStream stream = File.OpenRead(path);
         ImageResult image = ImageResult.FromStream(stream, ColorComponents.RedGreenBlueAlpha);
         return new Capture(image.Width, image.Height, image.Data);
+    }
+
+    /// <summary>An image made in memory: <paramref name="rgba"/> holds 4 bytes per pixel, top row first.</summary>
+    public static Capture FromRgba(int width, int height, byte[] rgba)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        if (rgba.Length != width * height * 4)
+            throw new ArgumentException($"A {width}×{height} image needs {width * height * 4} bytes, not {rgba.Length}.", nameof(rgba));
+        return new Capture(width, height, rgba);
+    }
+
+    /// <summary>Writes the image as a PNG file, replacing any file at <paramref name="path"/>.</summary>
+    public void Save(string path)
+    {
+        using FileStream stream = File.Create(path);
+        new StbImageWriteSharp.ImageWriter().WritePng(Rgba, Width, Height, StbImageWriteSharp.ColorComponents.RedGreenBlueAlpha, stream);
     }
 
     /// <summary>Color in [0, 1] (display-encoded, as stored).</summary>
