@@ -79,3 +79,5 @@ Two questions belong to the spin gravity epic, and its tickets carry notes about
 7. The edit: the time-lapse cuts, the title cards, the music and the final render.
 
 Steps 1 to 3 need the rails epic (`ter-ozm8`). Steps 4 to 6 need the spin gravity epic (`ter-s9m0`).
+
+The boarding in step 2 also needs point 1 of `ter-imi5`: a static body that is not a hull gets a ghost in each child frame whose bubble it touches. Until then the slab is not in the shuttle's physics system, so a person who walks into the shuttle's bubble on the ground falls through the slab. The walk in `scripts/demo-surface.json` ends outside the bubble, and the tests of the boarding are skipped with that reason.
