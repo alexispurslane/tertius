@@ -328,14 +328,14 @@ public class CaptureMailboxTests
         await Task.WhenAny(task, Task.Delay(time, TestStop)) == task;
 
     [Fact]
-    public async Task ARequestWaitsUntilTheRenderThreadHasSavedTheCapture()
+    public async Task ARequestWaitsUntilTheRenderThreadHasHandedTheSinkItsPixels()
     {
         var mailbox = new CaptureMailbox();
         var sink = new Sink();
         Task request = Task.Run(() => mailbox.RequestAndWait(sink, CancellationToken.None), TestStop);
 
         TakeWithin(mailbox).Should().BeSameAs(sink);
-        (await EndsWithin(request, TimeSpan.FromMilliseconds(100))).Should().BeFalse("the capture is taken but not saved yet");
+        (await EndsWithin(request, TimeSpan.FromMilliseconds(100))).Should().BeFalse("the request is taken but the sink has no pixels yet");
 
         mailbox.Done();
         await request.WaitAsync(Bound, TestStop);

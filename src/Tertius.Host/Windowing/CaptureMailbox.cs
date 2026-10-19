@@ -8,7 +8,7 @@ namespace Tertius.Host.Windowing;
 /// </summary>
 public sealed class CaptureMailbox
 {
-    private readonly SemaphoreSlim saved = new(0);
+    private readonly SemaphoreSlim handedOver = new(0);
     private ICaptureSink? pending;
 
     /// <summary>
@@ -21,7 +21,7 @@ public sealed class CaptureMailbox
         Volatile.Write(ref pending, sink);
         try
         {
-            saved.Wait(stop);
+            handedOver.Wait(stop);
         }
         catch (OperationCanceledException)
         {
@@ -39,5 +39,5 @@ public sealed class CaptureMailbox
     }
 
     /// <summary>Tells the waiting simulation thread that its sink has the pixels of the capture. On the render thread.</summary>
-    public void Done() => saved.Release();
+    public void Done() => handedOver.Release();
 }
