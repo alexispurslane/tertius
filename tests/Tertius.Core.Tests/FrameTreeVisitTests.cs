@@ -4,11 +4,11 @@ using AwesomeAssertions;
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The two walks of the frame tree that the sync point makes, once per pass: <see cref="FrameTree.VisitFrames"/>, which hands
-/// each frame its tree parent and its semantic parent, and <see cref="FrameTree.VisitOwnerViews"/>, which hands each frame
-/// the state that the transform row of its owner mirrors. Both visit every frame that is not numeric once, in dense order,
-/// which puts parents before children. Numeric frames have no owner, so neither walk visits them. A visitor must not change
-/// what its walk reads, and a contract checks that in a Debug build.
+/// The walk of the frame tree that the sync point makes once per pass of the owners' mirror,
+/// <see cref="FrameTree.VisitOwnerViews"/>, which hands each frame the state that the transform row of its owner mirrors.
+/// It visits every frame that is not numeric once, in dense order, which puts parents before children. Numeric frames have
+/// no owner, so the walk does not visit them. A visitor must not change what the walk reads, and a contract checks that in a
+/// Debug build. The pass of step 2 walks the tree the same way (see FrameTreeTakeStepRecordsTests).
 /// </summary>
 public class FrameTreeVisitTests
 {
@@ -25,41 +25,18 @@ public class FrameTreeVisitTests
     private FrameHandle Frame(uint owner, FrameHandle parent, double x = 0) =>
         frames.Create(new Entity(owner, 1), parent, new DPose(X(x), DQuaternion.Identity), FrameBounds.Sphere(1e9f));
 
-    private struct LinksRecorder(List<FrameLinks> seen) : IFrameVisitor
-    {
-        public readonly void Visit(in FrameLinks links) => seen.Add(links);
-    }
-
     private struct ViewRecorder(List<FrameOwnerView> seen) : IOwnerViewVisitor
     {
         public readonly void Visit(in FrameOwnerView view) => seen.Add(view);
     }
 
 #if TERTIUS_CONTRACTS
-    /// <summary>A visitor that moves the frame <paramref name="frame"/> under <paramref name="parent"/> when the walk reaches it.</summary>
-    private struct Mover(FrameTree frames, FrameHandle frame, FrameHandle parent) : IFrameVisitor
-    {
-        public readonly void Visit(in FrameLinks links)
-        {
-            if (links.Frame == frame)
-                frames.Reparent(frame, parent);
-        }
-    }
-
     /// <summary>A visitor that sets the linear velocity of each frame that it visits.</summary>
     private struct Pusher(FrameTree frames) : IOwnerViewVisitor
     {
         public readonly void Visit(in FrameOwnerView view) => frames.SetTreeLinearVelocity(view.Frame, X(1));
     }
 #endif
-
-    private List<FrameLinks> Links()
-    {
-        var seen = new List<FrameLinks>();
-        var recorder = new LinksRecorder(seen);
-        frames.VisitFrames(ref recorder);
-        return seen;
-    }
 
     private List<FrameOwnerView> Views()
     {
@@ -88,33 +65,6 @@ public class FrameTreeVisitTests
         FrameHandle pod = frames.TreeParent(hull);
         frames.Numeric(pod).Should().Be(NumericMode.Falling);
         return (ground, hull, pod);
-    }
-
-    [Fact]
-    public void Each_frame_is_visited_once_in_dense_order_with_its_tree_parent_and_its_parent()
-    {
-        FrameHandle a = Frame(1, FrameHandle.Null);
-        FrameHandle b = Frame(2, a);
-        FrameHandle c = Frame(3, a);
-        FrameHandle d = Frame(4, b);
-        // c moves under d, which was made after it, so the dense order, parents first, puts it last: a, b, d, c.
-        frames.Reparent(c, d);
-
-        Links().Should().Equal(
-            new FrameLinks(a, FrameHandle.Null, FrameHandle.Null),
-            new FrameLinks(b, a, a),
-            new FrameLinks(d, b, b),
-            new FrameLinks(c, d, d));
-    }
-
-    [Fact]
-    public void A_numeric_frame_is_not_visited_and_a_frame_in_it_has_it_as_tree_parent_and_the_semantic_frame_as_parent()
-    {
-        (FrameHandle ground, FrameHandle hull, FrameHandle pod) = HullInPod();
-
-        Links().Should().Equal(
-            new FrameLinks(ground, FrameHandle.Null, FrameHandle.Null),
-            new FrameLinks(hull, pod, ground));
     }
 
     [Fact]
@@ -176,20 +126,7 @@ public class FrameTreeVisitTests
     }
 
 #if TERTIUS_CONTRACTS
-    // The walks check these with Contract.Assert, which compiles out of Release builds, so the two tests run only in Debug.
-    [Fact]
-    public void A_frame_visitor_that_moves_a_frame_during_the_walk_breaks_a_contract()
-    {
-        FrameHandle a = Frame(1, FrameHandle.Null);
-        FrameHandle b = Frame(2, a);
-        FrameHandle c = Frame(3, a);
-        var mover = new Mover(frames, c, b);
-
-        Action walk = () => frames.VisitFrames(ref mover);
-
-        walk.Should().Throw<ContractException>();
-    }
-
+    // The walk checks it with Contract.Assert, which compiles out of Release builds, so the test runs only in Debug.
     [Fact]
     public void An_owner_view_visitor_that_writes_a_frame_during_the_walk_breaks_a_contract()
     {

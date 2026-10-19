@@ -255,37 +255,22 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// Step 2, after the physics output: every frame takes its step record, in the tree's dense order (see "The step record
-    /// of the last finished step" in docs/plans/rails-components.md), with the follow kind of the record (see
-    /// <see cref="FrameTree.FollowKindInStep"/>). The owner's kind decides where the record comes from:
-    /// <list type="bullet">
-    /// <item>A hull, the body of the owner of a frame that has a parent: the record that physics released for it, relative to
-    /// the frame's tree parent. Physics releases one when the hull is dynamic, kinematic and aimed by a motion intent, or
-    /// static or kinematic without one and teleported in the step.</item>
-    /// <item>No hull: the record of the owner's motion intent in the front intents, the intents of the step that ended,
-    /// relative to the frame's semantic parent (see <see cref="FrameTree.StepRecordInStep"/>), and then a write of the
-    /// owner's transform in the tick, which the sync point turns into a record at rest. The write comes last, so it wins for
-    /// one tick, and its record is static. The next motion intent puts the frame back on its rails.</item>
-    /// </list>
-    /// Each frame takes the proper acceleration that its record gives, and a dynamic hull the one that physics measured
-    /// beside its record (see <see cref="FrameTree.ProperAcceleration"/>). The rule reads the parent's value as the step
-    /// found it, the value stored before step 2, so the tree keeps each new value aside in the pass and stores them all
-    /// after it (see <see cref="FrameTree.StoreNewProperAccelerations"/>).
-    /// A frame without a record holds still in its tree parent, unless its owner's update was skipped: the output check
-    /// skipped it in a Release build (see <see cref="SkipBrokenPhysicsUpdates"/>), or the owner has a hull and the step
-    /// failed (<paramref name="stepFailed"/>), so that physics released no record and may have moved the hull or not. Then
-    /// the frame keeps its state, and the next step that works moves it on from Jolt's state. Then an orbit frame whose
-    /// anchor's hull teleported jumps with it (see <see cref="FrameTree.JumpFollowingFrame"/>), and the rows of the bodies in
-    /// it and the bodies in physics shift at once. Last, every frame owner mirrors its frame, whose state changed; a body
-    /// state of a hull wrote no row.
+    /// Step 2, after the physics output: every frame takes its step record and its proper acceleration in one pass of the
+    /// frame tree (see <see cref="FrameTree.TakeStepRecords"/>, and "The step record of the last finished step" in
+    /// docs/plans/rails-components.md), which asks the World about each frame's owner (see <see cref="OwnerFacts"/>). The
+    /// owner's kind decides where the record comes from: a hull takes the record that physics released for it, and an
+    /// owner without a hull the record of its motion intent in the front intents, the intents of the step that ended, which
+    /// step 4 swaps out after this, and then a write of its transform in the tick, which wins for one tick. Physics released
+    /// no record after a step that failed (<paramref name="stepFailed"/>), and none for a frame whose owner's update the
+    /// output check skipped (see <see cref="SkipBrokenPhysicsUpdates"/>), so such frames keep their state. Then an orbit frame
+    /// whose anchor's hull teleported jumps with it (see <see cref="FrameTree.JumpFollowingFrame"/>), and the rows of the
+    /// bodies in it and the bodies in physics shift at once. Last, every frame owner mirrors its frame, whose state changed;
+    /// a body state of a hull wrote no row.
     /// </summary>
     private void FollowOwners(bool stepFailed)
     {
-        var follower = new OwnerFollower(this, stepFailed);
-        Frames.VisitFrames(ref follower);
-        // Every frame derived its proper acceleration with its parent's value as the step found it, so the new values go
-        // into the rows only now.
-        Frames.StoreNewProperAccelerations();
+        var owners = new OwnerFacts(this);
+        Frames.TakeStepRecords(ref owners, entities.FrontIntents.Span, stepFailed, DeltaTime);
 
         Profile.Lap(3);
         // A hull that teleported in the step left the origin of its orbit frame, toward its step plan's place.
@@ -313,39 +298,38 @@ public sealed partial class World
         Profile.Lap(5);
     }
 
-    /// <summary>The pass of <see cref="FollowOwners"/> over every frame, in the tree's dense order.</summary>
-    private readonly struct OwnerFollower(World world, bool stepFailed) : IFrameVisitor
+    /// <summary>What the World knows about the owner of each frame at step 2, for <see cref="FrameTree.TakeStepRecords"/>.</summary>
+    private readonly struct OwnerFacts(World world) : IFrameOwnerFacts
     {
-        public void Visit(in FrameLinks links) => world.FollowOwner(links, stepFailed);
-    }
-
-    /// <summary>One frame of <see cref="FollowOwners"/>: it takes its step record.</summary>
-    private void FollowOwner(in FrameLinks links, bool stepFailed)
-    {
-        FrameHandle frame = links.Frame;
-        Entity owner = frame.Entity;
-        bool hull = !links.Parent.IsNull && entities.Body(owner) != null;
-        // The intents of the step that ended, which step 4 swaps out after this.
-        ReadOnlySpan<PhysicsIntent> stepIntents = entities.FrontIntents.Span;
-        if (stepRecords.Count > 0 && stepRecords.TryGetValue(frame, out FrameStepRecord record))
-            Frames.Follow(frame, links.TreeParent, record.Motion, Frames.FollowKindInStep(frame, stepIntents), record.ProperAcceleration, DeltaTime);
-        // Nothing moved the tree pose of a frame without a hull since the step started, so the record starts there, as the
-        // record that physics predicted for the frame's ghosts and hand-offs did.
-        else if (!hull && Frames.StepRecordInStep(frame, stepIntents, DeltaTime, out MotionSample move))
-            Frames.Follow(frame, links.Parent, move, Frames.FollowKindInStep(frame, stepIntents), measured: null, DeltaTime);
-        // A skipped update changes nothing, so the frame keeps the velocities that it had before the step.
-        else if (!(hull && stepFailed) && !physicsOutputCheck.IsSkipped(owner))
-            Frames.HoldStill(frame, DeltaTime);
-
-        // Gameplay can write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the
-        // world normalizes it here, and the owner's row follows the frame below (see MirrorFrameOwner). The write leaves
-        // the frame at rest, so it feels the gravity at its new place reversed, as a frame that holds still, and it wins over
-        // a motion intent of the same tick, so its record is static.
-        if (!hull && entities.GameplayWroteTransform(owner))
+        // Without a physics backend, and after a step that failed, physics released no record, so the pass asks an empty
+        // table for every frame.
+        public bool TryGetHullRecord(FrameHandle frame, out FrameStepRecord record)
         {
-            ref readonly TransformRow row = ref entities.BackRow(owner);
-            var write = new MotionSample(row.Pose.WithUnitRotation(), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
-            Frames.Follow(frame, row.Frame, write, FollowKind.Static, measured: null, DeltaTime);
+            if (world.stepRecords.Count == 0)
+            {
+                record = default;
+                return false;
+            }
+            return world.stepRecords.TryGetValue(frame, out record);
+        }
+
+        public bool IsSkipped(FrameHandle frame) => world.physicsOutputCheck.IsSkipped(frame.Entity);
+
+        // Gameplay can write any rotation, but the local pose of a frame must be unit length (see FrameTree), so the world
+        // normalizes it here, and the owner's row follows the frame (see MirrorFrameOwner). The write left the owner's row
+        // at rest (see EntityTable.WritableTransform), and the frame takes it at rest.
+        public bool TryGetTransformWrite(FrameHandle frame, out DPose pose)
+        {
+            Entity owner = frame.Entity;
+            if (!world.entities.GameplayWroteTransform(owner))
+            {
+                pose = default;
+                return false;
+            }
+            ref readonly TransformRow row = ref world.entities.BackRow(owner);
+            Contract.Assert(row.Frame == world.Frames.Parent(frame));
+            pose = row.Pose.WithUnitRotation();
+            return true;
         }
     }
 

@@ -97,6 +97,19 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
     }
 
     /// <summary>
+    /// How a frame follows when it takes the record of this intent (docs/plans/rails-components.md, "The follow kind"):
+    /// <see cref="FollowKind.Rails"/> for a full sample, <see cref="FollowKind.Kinematic"/> for an end pose, and
+    /// <see cref="FollowKind.Static"/> for a steer target and the empty union, which give no record. It reads the case alone,
+    /// so it copies no field (see <see cref="FrameTree.FollowKindInStep"/>).
+    /// </summary>
+    internal FollowKind FollowKind => kind switch
+    {
+        KindSample => FollowKind.Rails,
+        KindEndPose => FollowKind.Kinematic,
+        _ => FollowKind.Static,
+    };
+
+    /// <summary>
     /// This intent in another frame, which <paramref name="motion"/> calls the parent: the motion of the intent's frame
     /// relative to it now. An end pose and a steer target convert as a pose and keep their case, so the frames' motion gives
     /// them no velocity. A full sample converts by the rule of a hand-off, with <paramref name="relativeAcceleration"/>, the
