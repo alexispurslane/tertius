@@ -1,6 +1,6 @@
 ---
 id: ter-aiuy
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-19T01:37:17Z
