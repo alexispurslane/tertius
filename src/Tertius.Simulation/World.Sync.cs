@@ -628,7 +628,7 @@ public sealed partial class World
             Contract.Assert(!frame.IsNull && Frames.HullMotion(frame) is not null);
             Frames.PlanHullMotion(frame, intent.Motion);
             // Before the swap, the guard reads the change that this intent holds as the hull's motion in the next step.
-            if (MotionIntentProblem(owner, intent.Move) is not null)
+            if (!TakesMotionIntent(owner, intent.Move))
                 intent.Move = default;
             if (intent.Motion == BodyMotion.Kinematic)
                 intent.Flags &= ~(IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity);

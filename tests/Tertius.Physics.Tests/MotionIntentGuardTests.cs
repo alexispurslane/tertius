@@ -318,4 +318,47 @@ public class MotionIntentGuardTests
         (world.Entities.NextStepIntent(entity).Flags & (IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity)).Should().Be(IntentFlags.None);
         world.Errors.Should().BeEmpty();
     }
+
+    // ---- A refused rails component on the hot path -----------------------------------------------------------------
+
+    /// <summary>
+    /// A rails component whose entity the guard refuses logs the reason once and writes nothing (see
+    /// <see cref="World.MotionIntentProblem"/>). It still runs in every tick, so it must judge its sample without building
+    /// the reason, which allocates: here a static ball with a <see cref="KeplerMotion"/> and one with a
+    /// <see cref="SpinMotion"/>, which a static body refuses, run hundreds of ticks without allocating on any thread.
+    /// </summary>
+    [Fact]
+    public void ARailsComponentThatTheGuardRefusesAllocatesNothingInTheTicksAfterItsLog()
+    {
+        using World world = NewWorld(out _, debugChecks: false);
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        var log = new List<string>();
+        world.Log += line => log.Add(line);
+        world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(5_000), Body = Box(BodyMotion.Static), Components = [new KeplerMotion { Orbit = KeplerOrbit.Circular(5_000) }],
+        });
+        world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(0, 5_000), Body = Box(BodyMotion.Static), Components = [new SpinMotion { Spin = new FrameSpin(DQuaternion.Identity, 0.5) }],
+        });
+        Tick(world, 10);
+        log.Should().HaveCount(2, "each component logs its refusal once");
+
+        const int Ticks = 200;
+        long first = BytesPerTick(world, Ticks);
+        long second = BytesPerTick(world, Ticks);
+
+        Math.Min(first, second).Should().Be(0, $"a refused rails component must not allocate (the windows gave {first} and {second} bytes per tick)");
+        log.Should().HaveCount(2);
+        world.Errors.Should().BeEmpty();
+    }
+
+    private static long BytesPerTick(World world, int ticks)
+    {
+        long before = GC.GetTotalAllocatedBytes(precise: true);
+        for (int t = 0; t < ticks; t++)
+            world.Tick();
+        return (GC.GetTotalAllocatedBytes(precise: true) - before) / ticks;
+    }
 }

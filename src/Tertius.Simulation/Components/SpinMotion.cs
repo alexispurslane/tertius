@@ -52,10 +52,12 @@ public sealed class SpinMotion : IComponent
     {
         Double3 place = PlaceAtStepStart(self);
         MotionSample sample = spin.Sample(place, self.TimeAt(self.Tick + 2), self.DeltaTime);
-        if (self.MotionIntentProblem(new MotionIntent(sample)) is { } problem)
+        var move = new MotionIntent(sample);
+        if (!self.TakesMotionIntent(move))
         {
+            // The reason allocates, so the component words it only for its one log line.
             if (!loggedRefusal)
-                self.Log($"SpinMotion writes no sample for {RailsLog.Mover(self)}: {self.Entity} {problem}.");
+                self.Log($"SpinMotion writes no sample for {RailsLog.Mover(self)}: {self.Entity} {self.MotionIntentProblem(move)}.");
             loggedRefusal = true;
             return;
         }

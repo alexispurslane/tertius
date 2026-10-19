@@ -117,6 +117,13 @@ public readonly ref struct Self
     /// </summary>
     public string? MotionIntentProblem(in MotionIntent intent) => world.MotionIntentProblem(Entity, intent);
 
+    /// <summary>
+    /// True when this entity takes the case of <paramref name="intent"/> in the next step (see
+    /// <see cref="World.TakesMotionIntent"/>): <see cref="MotionIntentProblem"/> gives no reason. It builds no reason, so it
+    /// allocates nothing, and a rails component asks it in every tick and reads the reason only for its one log line.
+    /// </summary>
+    public bool TakesMotionIntent(in MotionIntent intent) => world.TakesMotionIntent(Entity, intent);
+
     /// <summary>This entity's physics queries, such as ray casts. Each answer arrives as an event in the next tick.</summary>
     public PhysicsQueries Physics => new(world, chunk, Entity);
 

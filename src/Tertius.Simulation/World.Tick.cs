@@ -374,6 +374,19 @@ public sealed partial class World
     }
 
     /// <summary>
+    /// True when <paramref name="entity"/> takes the case of <paramref name="intent"/> in the next step: the guard of
+    /// <see cref="MotionIntentProblem"/> gives no reason. It judges by the same rules and builds no reason, so it allocates
+    /// nothing, and a rails component asks it in every tick. Throws <see cref="StaleEntityException"/> for a stale handle.
+    /// During a tick only the worker of the entity may ask it, as for <see cref="MotionIntentProblem"/>.
+    /// </summary>
+    public bool TakesMotionIntent(Entity entity, in MotionIntent intent)
+    {
+        FrameHandle own = entities.OwnedFrame(entity);
+        bool ownsRootFrame = !own.IsNull && Frames.Parent(own).IsNull;
+        return intent.RefusalFor(NextStepMotion(entity), attached: !attachments.ParentOf(entity).IsNull, ownsRootFrame) == MotionIntentRefusal.None;
+    }
+
+    /// <summary>
     /// Writes <paramref name="move"/>, relative to the frame that the running entity is in during the tick, as the motion
     /// intent of its next step (see <see cref="PhysicsIntent.Move"/>), with its rotation made unit length. The last write
     /// in a tick wins, whatever its case. <paramref name="call"/> names the writer for the messages. It throws

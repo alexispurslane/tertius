@@ -120,8 +120,9 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
     };
 
     /// <summary>
-    /// The reason that an entity refuses this motion intent in the step that applies it, or null when it takes it, by the
-    /// rules of the guard (docs/plans/rails-components.md, "The flow per kind of entity"), in this order:
+    /// Which rule of the guard refuses this motion intent for an entity in the step that applies it, or
+    /// <see cref="MotionIntentRefusal.None"/> when the entity takes it (docs/plans/rails-components.md, "The flow per kind of
+    /// entity"). The rules, in this order:
     /// <list type="number">
     /// <item>An attached entity refuses every case: its pose follows its parent.</item>
     /// <item>A character refuses every case: a walk, a jump, forces and impulses move it.</item>
@@ -130,31 +131,57 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
     /// <item>A steer target needs a dynamic body. The owner of a root frame refuses it whatever its body, because that body is
     /// only the frame's static interior.</item>
     /// </list>
-    /// No motion intent has no reason to be refused. The function is pure, so that a writer, the drops of step 4 and the
-    /// check of a spawn judge each case by the same rules.
+    /// No motion intent is never refused. The function is pure and allocates nothing, so that a writer, the drops of step 4,
+    /// the check of a spawn and a rails component in every tick judge each case by the same rules. <see cref="ProblemFor"/>
+    /// words the refusal.
     /// </summary>
     /// <param name="motion">The motion of the entity's body in the step that applies the intent, or null without a body.</param>
     /// <param name="attached">True when the entity is attached to a parent.</param>
     /// <param name="ownsRootFrame">True when the entity owns a root frame.</param>
-    internal string? ProblemFor(BodyMotion? motion, bool attached, bool ownsRootFrame)
+    internal MotionIntentRefusal RefusalFor(BodyMotion? motion, bool attached, bool ownsRootFrame)
     {
         if (!HasValue)
-            return null;
-        string name = kind switch { KindEndPose => "an end pose", KindSample => "a full sample", _ => "a steer target" };
+            return MotionIntentRefusal.None;
         if (attached)
-            return $"is attached, so its pose follows its parent, and it takes no motion intent, not {name}";
+            return MotionIntentRefusal.Attached;
         if (motion == BodyMotion.Character)
-            return $"is a character, which a walk, a jump, forces and impulses move, so it takes no motion intent, not {name}";
+            return MotionIntentRefusal.Character;
         if (kind != KindSteer)
-            return motion is null or BodyMotion.Kinematic || ownsRootFrame
-                ? null
-                : $"has a {motion} body, so it cannot take {name}: only a kinematic body, an entity without a body and the owner of a root frame take one";
+            return motion is null or BodyMotion.Kinematic || ownsRootFrame ? MotionIntentRefusal.None : MotionIntentRefusal.NeedsKinematicBody;
         if (ownsRootFrame)
-            return "owns a root frame, whose body is only the frame's static interior, so it has nothing to steer with a steer target";
+            return MotionIntentRefusal.SteerOfRootFrame;
         return motion switch
         {
-            BodyMotion.Dynamic => null,
-            null => "has no body, so it has nothing to steer with a steer target",
+            BodyMotion.Dynamic => MotionIntentRefusal.None,
+            null => MotionIntentRefusal.SteerWithoutBody,
+            _ => MotionIntentRefusal.NeedsDynamicBody,
+        };
+    }
+
+    /// <summary>
+    /// The reason that an entity refuses this motion intent in the step that applies it, or null when it takes it: the
+    /// rule of <see cref="RefusalFor"/>, in words. It builds a string for a refusal, so a reader that asks in every tick asks
+    /// <see cref="RefusalFor"/> and words only the refusal that it reports.
+    /// </summary>
+    /// <param name="motion">The motion of the entity's body in the step that applies the intent, or null without a body.</param>
+    /// <param name="attached">True when the entity is attached to a parent.</param>
+    /// <param name="ownsRootFrame">True when the entity owns a root frame.</param>
+    internal string? ProblemFor(BodyMotion? motion, bool attached, bool ownsRootFrame) =>
+        Reason(RefusalFor(motion, attached, ownsRootFrame), motion);
+
+    /// <summary>The words of <paramref name="refusal"/> of this motion intent for a body of <paramref name="motion"/>, or null for none.</summary>
+    private string? Reason(MotionIntentRefusal refusal, BodyMotion? motion)
+    {
+        string name = kind switch { KindEndPose => "an end pose", KindSample => "a full sample", _ => "a steer target" };
+        return refusal switch
+        {
+            MotionIntentRefusal.None => null,
+            MotionIntentRefusal.Attached => $"is attached, so its pose follows its parent, and it takes no motion intent, not {name}",
+            MotionIntentRefusal.Character => $"is a character, which a walk, a jump, forces and impulses move, so it takes no motion intent, not {name}",
+            MotionIntentRefusal.NeedsKinematicBody =>
+                $"has a {motion} body, so it cannot take {name}: only a kinematic body, an entity without a body and the owner of a root frame take one",
+            MotionIntentRefusal.SteerOfRootFrame => "owns a root frame, whose body is only the frame's static interior, so it has nothing to steer with a steer target",
+            MotionIntentRefusal.SteerWithoutBody => "has no body, so it has nothing to steer with a steer target",
             _ => $"has a {motion} body, so it cannot take a steer target: only a dynamic body takes one",
         };
     }
@@ -172,4 +199,23 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
         SteerTarget steer => $"MotionIntent({steer})",
         _ => "MotionIntent(none)",
     };
+}
+
+/// <summary>Which rule of the guard refuses a motion intent (see <see cref="MotionIntent.RefusalFor"/>), or none.</summary>
+internal enum MotionIntentRefusal : byte
+{
+    /// <summary>The entity takes the motion intent.</summary>
+    None,
+    /// <summary>An attached entity takes no motion intent.</summary>
+    Attached,
+    /// <summary>A character takes no motion intent.</summary>
+    Character,
+    /// <summary>An end pose or a full sample needs a kinematic body, no body, or the owner of a root frame.</summary>
+    NeedsKinematicBody,
+    /// <summary>The owner of a root frame has only a static interior to steer.</summary>
+    SteerOfRootFrame,
+    /// <summary>An entity without a body has nothing to steer.</summary>
+    SteerWithoutBody,
+    /// <summary>A steer target needs a dynamic body.</summary>
+    NeedsDynamicBody,
 }
