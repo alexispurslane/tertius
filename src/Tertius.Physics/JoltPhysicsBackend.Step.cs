@@ -392,9 +392,11 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Applies m · g_eff to every awake dynamic body, and gives each system the sleep threshold of the weakest effective
     /// gravity on its awake dynamic bodies (see <see cref="SleepThresholdFor"/>). Wakes a frame's bodies when its gravity
-    /// field changes, or when its proper acceleration has moved more than <see cref="JoltBackendOptions.WakeAccelerationThreshold"/>
-    /// from its value when they last woke. A sleeping body gets no force, and the force does not reset the sleep timer of
-    /// an awake body, so a body at rest falls asleep.
+    /// field changes, or when its push (see <see cref="FrameTree.PushInStep"/>) has moved more than
+    /// <see cref="JoltBackendOptions.WakeAccelerationThreshold"/> from its value when they last woke: the proper acceleration
+    /// of a semantic frame, and for a numeric frame its acceleration less the field at its origin, so that a sleeping body,
+    /// which moves with its frame, does not ride along when an anchor speeds up its following frame. A sleeping body gets no
+    /// force, and the force does not reset the sleep timer of an awake body, so a body at rest falls asleep.
     /// </summary>
     private void ApplyGravity()
     {
@@ -402,14 +404,14 @@ public sealed partial class JoltPhysicsBackend
         foreach (FrameWorld world in worldList)
         {
             FrameHandle frame = world.Frame;
-            Vector3 properAcceleration = frames.ProperAcceleration(frame);
+            Vector3 push = frames.PushInStep(frame);
             GravityField field = frames.Gravity(frame);
             bool wake = world.HasGravityState &&
-                (field != world.LastGravity || Vector3.DistanceSquared(properAcceleration, world.WakeProperAcceleration) > wakeThreshold * wakeThreshold);
+                (field != world.LastGravity || Vector3.DistanceSquared(push, world.WakePush) > wakeThreshold * wakeThreshold);
             if (wake)
                 WakeDynamicMembers(world);
             if (wake || !world.HasGravityState)
-                world.WakeProperAcceleration = properAcceleration;
+                world.WakePush = push;
             world.HasGravityState = true;
             world.LastGravity = field;
             world.HomeAcceleration = frames.IsNumeric(frame) ? frames.HomeAcceleration(frame, frames.SemanticOf(frame)).ToVector3() : Vector3.Zero;

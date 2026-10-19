@@ -799,6 +799,25 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
+    /// The push of <paramref name="frame"/> in the step in flight, in m/s², in frame axes: what an accelerometer at its origin
+    /// reads, apart from the frame's own field. The members of the frame feel it, reversed, in their effective gravity (see
+    /// <see cref="EffectiveGravity"/>). For a semantic frame it is the stored proper acceleration, which the step in flight
+    /// subtracts. For a numeric frame it is the acceleration of its origin relative to its semantic frame in the step in
+    /// flight less the field of the semantic frame there, which takes in the semantic frame's own proper acceleration: zero
+    /// for a falling frame, the field reversed for a resting frame, and for a following frame the acceleration that lands it
+    /// on its anchor's step plan less the field. Physics wakes the members of a frame when its push moves
+    /// (docs/plans/numeric-frames.md, "Following frames"). Valid from <see cref="BeginNumericStep"/> to the end of the step.
+    /// </summary>
+    internal Vector3 PushInStep(FrameHandle frame)
+    {
+        int id = Node(frame).Id;
+        if (numeric[id] == NumericMode.None)
+            return properAcceleration[id];
+        FrameHandle semantic = SemanticOf(frame);
+        return (HomeAcceleration(frame, semantic) - FieldOf(semantic.Index, HomeOffset(frame, semantic))).ToVector3();
+    }
+
+    /// <summary>
     /// The gravity of the semantic frame of <paramref name="frame"/> at a body's true position, for a body at
     /// <paramref name="position"/> in <paramref name="frame"/>, in frame axes. It equals <see cref="EffectiveGravity"/> in a
     /// semantic frame. In a numeric frame it is the gravity that the semantic frame shows, which says where up is.
