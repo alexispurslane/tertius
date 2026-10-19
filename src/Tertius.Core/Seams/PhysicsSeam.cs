@@ -226,6 +226,12 @@ public abstract record ShapeDesc
                 return false;
         }
     }
+
+    /// <summary>
+    /// True when the shape is a compound or contains one, the read for a compound that matches <see cref="ContainsMesh"/>.
+    /// Only a compound holds other shapes, so a shape contains a compound exactly when it is one.
+    /// </summary>
+    public bool ContainsCompound() => this is CompoundShapeDesc;
 }
 
 /// <summary>A box with the given half extents about its origin, axes aligned with the body.</summary>

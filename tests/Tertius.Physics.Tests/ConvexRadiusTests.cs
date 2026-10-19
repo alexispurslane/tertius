@@ -7,10 +7,14 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// The convex radius of a box and of a convex hull, on the real World and the real Jolt backend. Jolt shrinks such a shape
-/// by its convex radius and rounds it back out, so a compound of two shapes with a radius has a groove at the joint of
+/// by its convex radius and rounds it back out, so two shapes with a radius side by side have a groove at the joint of
 /// their flat faces. A ball of radius 0.25 m across such a joint of two default shapes touches the two rounded edges
 /// before it touches the flat faces, so it sinks by 0.25 - 0.2458 = 4.2 mm: the two rounded edges lie 0.05 m on each side of
 /// the joint and 0.05 m below the flat faces, and the ball touches both at the distance 0.25 + 0.05 from its center.
+/// Each test of a joint makes the two shapes two static bodies, so the ball meets two convex bodies. In one compound,
+/// Jolt's enhanced internal edge removal, which physics sets on a compound, keeps only one of the two contacts at the
+/// joint, and the ball sinks deeper than the groove (see
+/// <see cref="InACompoundABallAcrossTheJointOfTwoRoundedHullsSinksDeeperThanTheGroove"/>).
 /// </summary>
 public class ConvexRadiusTests
 {
@@ -39,16 +43,22 @@ public class ConvexRadiusTests
 
     private static ConvexHullShapeDesc RightHull(float convexRadius) => new(RightSlab, convexRadius);
 
-    /// <summary>A box of 1 m along X, 2 m along Z and 0.5 m along Y, whose flat top is at height 0, as a child of a compound.</summary>
-    private static CompoundChild BoxChild(float x0, float convexRadius) =>
-        new(new BoxShapeDesc(new Vector3(0.5f, 0.25f, 1), convexRadius), new Pose(new Vector3(x0 + 0.5f, -0.25f, 0), Quaternion.Identity));
+    /// <summary>One of the two shapes at a joint, with its origin at <paramref name="Position"/> relative to the joint.</summary>
+    private readonly record struct Side(ShapeDesc Shape, Vector3 Position);
 
-    private static CompoundShapeDesc Joint(ShapeDesc left, ShapeDesc right) =>
-        new([new CompoundChild(left, Pose.Identity), new CompoundChild(right, Pose.Identity)]);
+    /// <summary>A box of 1 m along X, 2 m along Z and 0.5 m along Y, from <paramref name="x0"/> to x0 + 1, whose flat top is at height 0.</summary>
+    private static Side BoxSide(float x0, float convexRadius) =>
+        new(new BoxShapeDesc(new Vector3(0.5f, 0.25f, 1), convexRadius), new Vector3(x0 + 0.5f, -0.25f, 0));
 
-    /// <summary>Spawns <paramref name="shape"/> as a static body whose origin is at (<paramref name="x"/>, 0, 0).</summary>
-    private static void SpawnStatic(World world, FrameHandle ground, double x, ShapeDesc shape) =>
-        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(x), Body = new BodyDesc(shape, BodyMotion.Static) });
+    /// <summary>A hull whose points already lie where they belong, from the joint.</summary>
+    private static Side HullSide(ConvexHullShapeDesc hull) => new(hull, Vector3.Zero);
+
+    /// <summary>Spawns each side as a static body, with the joint at (<paramref name="x"/>, 0, 0).</summary>
+    private static void SpawnJoint(World world, FrameHandle ground, double x, params Side[] sides)
+    {
+        foreach (Side side in sides)
+            world.Spawn(new SpawnDesc { Frame = ground, Pose = At(x + side.Position.X, side.Position.Y, side.Position.Z), Body = new BodyDesc(side.Shape, BodyMotion.Static) });
+    }
 
     /// <summary>Drops a ball 1 cm above its resting height onto (<paramref name="x"/>, 0, 0), lets it settle, and returns the height of its center.</summary>
     private static double RestingHeightOfBallAt(World world, FrameHandle ground, double x)
@@ -58,11 +68,11 @@ public class ConvexRadiusTests
         return world.PoseInOwnFrame(ball).Position.Y;
     }
 
-    private static double HeightOfBallAcrossTheJointOf(ShapeDesc joint)
+    private static double HeightOfBallAcrossTheJointOf(params Side[] sides)
     {
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
-        SpawnStatic(world, ground, 0, joint);
+        SpawnJoint(world, ground, 0, sides);
 
         double height = RestingHeightOfBallAt(world, ground, 0);
 
@@ -73,7 +83,7 @@ public class ConvexRadiusTests
     [Fact]
     public void ABallAcrossTheJointOfTwoHullsOfConvexRadiusZeroRestsAtTheHeightOfTheirFlatFaces()
     {
-        double height = HeightOfBallAcrossTheJointOf(Joint(LeftHull(0), RightHull(0)));
+        double height = HeightOfBallAcrossTheJointOf(HullSide(LeftHull(0)), HullSide(RightHull(0)));
 
         height.Should().BeApproximately(RestingHeight, Tolerance);
     }
@@ -82,7 +92,7 @@ public class ConvexRadiusTests
     public void ABallAcrossTheJointOfTwoHullsWithTheDefaultConvexRadiusSinksBelowTheirFlatFaces()
     {
         // The default keeps today's shapes: the groove is the one that a 5 cm radius makes.
-        double height = HeightOfBallAcrossTheJointOf(Joint(new ConvexHullShapeDesc(LeftSlab), new ConvexHullShapeDesc(RightSlab)));
+        double height = HeightOfBallAcrossTheJointOf(HullSide(new ConvexHullShapeDesc(LeftSlab)), HullSide(new ConvexHullShapeDesc(RightSlab)));
 
         height.Should().BeApproximately(0.245804, 2 * Tolerance);
     }
@@ -99,8 +109,8 @@ public class ConvexRadiusTests
     public void ABallAcrossTheJointOfTwoHullsOfASmallConvexRadiusSinksLessThanWithTheDefault()
     {
         // Every radius below Jolt's limit changes a contact. A groove of 1 cm is 0.19 mm deep under the ball, against
-        // 4.2 mm for 5 cm. The ball rests 0.12 mm deeper than that in the test, as a ball in a shallow crease does.
-        double height = HeightOfBallAcrossTheJointOf(Joint(LeftHull(0.01f), RightHull(0.01f)));
+        // 4.2 mm for 5 cm. The ball rests 0.11 mm deeper than that in the test, as a ball in a shallow crease does.
+        double height = HeightOfBallAcrossTheJointOf(HullSide(LeftHull(0.01f)), HullSide(RightHull(0.01f)));
 
         height.Should().BeInRange(HeightAcrossAGrooveOf(0.01) - 2 * Tolerance, RestingHeight - Tolerance);
     }
@@ -108,7 +118,7 @@ public class ConvexRadiusTests
     [Fact]
     public void ABallAcrossTheJointOfTwoHullsOfALargerConvexRadiusSinksDeeperThanWithTheDefault()
     {
-        double height = HeightOfBallAcrossTheJointOf(Joint(LeftHull(0.1f), RightHull(0.1f)));
+        double height = HeightOfBallAcrossTheJointOf(HullSide(LeftHull(0.1f)), HullSide(RightHull(0.1f)));
 
         // Jolt reduces a hull's radius when it builds the hull, so that the rounded hull stays within 5 cm of the true hull
         // at every corner. Three faces meet at right angles at each corner of a slab, and the corner of the rounded hull
@@ -116,10 +126,35 @@ public class ConvexRadiusTests
         height.Should().BeApproximately(HeightAcrossAGrooveOf(0.05 / (Math.Sqrt(3) - 1)), 2 * Tolerance);
     }
 
+    /// <summary>
+    /// The two default hulls of <see cref="ABallAcrossTheJointOfTwoHullsWithTheDefaultConvexRadiusSinksBelowTheirFlatFaces"/>
+    /// as one compound. Physics sets Jolt's enhanced internal edge removal on a compound (ter-fb3w), and Jolt takes the two
+    /// contacts on the rounded edges for contacts at one feature, because the top faces of the two hulls share their
+    /// corners at the joint. So it keeps only the deeper one, the ball sinks into the other edge until that one is deeper,
+    /// and it comes to rest 0.8 mm deeper than the groove and 1.3 mm off the joint. A ball without damping that lands 2 cm
+    /// from the joint still rolls to and fro in the groove after 4 s, more than 3.5 mm deeper than it. Without edge
+    /// removal, the compound held the ball within 0.05 mm of the groove, and the ball from 2 cm settled in it within
+    /// 1.4 s. A compound of unrounded hulls, as of a ring or a torus, has no groove, so this never happens there.
+    /// </summary>
+    [Fact]
+    public void InACompoundABallAcrossTheJointOfTwoRoundedHullsSinksDeeperThanTheGroove()
+    {
+        var compound = new CompoundShapeDesc(
+        [
+            new CompoundChild(new ConvexHullShapeDesc(LeftSlab), Pose.Identity),
+            new CompoundChild(new ConvexHullShapeDesc(RightSlab), Pose.Identity),
+        ]);
+
+        double height = HeightOfBallAcrossTheJointOf(new Side(compound, Vector3.Zero));
+
+        // The groove of 5 cm would hold the ball at 0.2458 m. Jolt's penetration slop lets it sink 5 mm at most.
+        height.Should().BeInRange(HeightAcrossAGrooveOf(ShapeDesc.DefaultConvexRadius) - 0.005, HeightAcrossAGrooveOf(ShapeDesc.DefaultConvexRadius) - 0.0005);
+    }
+
     [Fact]
     public void ABallAcrossTheJointOfTwoBoxesOfConvexRadiusZeroRestsAtTheHeightOfTheirFlatFaces()
     {
-        double height = HeightOfBallAcrossTheJointOf(new CompoundShapeDesc([BoxChild(-1, 0), BoxChild(0, 0)]));
+        double height = HeightOfBallAcrossTheJointOf(BoxSide(-1, 0), BoxSide(0, 0));
 
         height.Should().BeApproximately(RestingHeight, Tolerance);
     }
@@ -127,7 +162,7 @@ public class ConvexRadiusTests
     [Fact]
     public void ABallAcrossTheJointOfTwoBoxesWithTheDefaultConvexRadiusSinksBelowTheirFlatFaces()
     {
-        double height = HeightOfBallAcrossTheJointOf(new CompoundShapeDesc([BoxChild(-1, ShapeDesc.DefaultConvexRadius), BoxChild(0, ShapeDesc.DefaultConvexRadius)]));
+        double height = HeightOfBallAcrossTheJointOf(BoxSide(-1, ShapeDesc.DefaultConvexRadius), BoxSide(0, ShapeDesc.DefaultConvexRadius));
 
         height.Should().BeApproximately(0.245804, 2 * Tolerance);
     }
@@ -135,7 +170,7 @@ public class ConvexRadiusTests
     [Fact]
     public void ABallAcrossTheJointOfTwoBoxesOfASmallConvexRadiusSinksLessThanWithTheDefault()
     {
-        double height = HeightOfBallAcrossTheJointOf(new CompoundShapeDesc([BoxChild(-1, 0.01f), BoxChild(0, 0.01f)]));
+        double height = HeightOfBallAcrossTheJointOf(BoxSide(-1, 0.01f), BoxSide(0, 0.01f));
 
         height.Should().BeInRange(HeightAcrossAGrooveOf(0.01) - 2 * Tolerance, RestingHeight - Tolerance);
     }
@@ -144,7 +179,7 @@ public class ConvexRadiusTests
     public void ABallAcrossTheJointOfTwoBoxesOfALargerConvexRadiusSinksOnlyAsDeepAsWithTheDefault()
     {
         // The boxes keep the radius of 0.1 m, which fits inside them, but Jolt never rounds a box contact by more than 5 cm.
-        double height = HeightOfBallAcrossTheJointOf(new CompoundShapeDesc([BoxChild(-1, 0.1f), BoxChild(0, 0.1f)]));
+        double height = HeightOfBallAcrossTheJointOf(BoxSide(-1, 0.1f), BoxSide(0, 0.1f));
 
         height.Should().BeApproximately(HeightAcrossAGrooveOf(ShapeDesc.DefaultConvexRadius), 2 * Tolerance);
     }
@@ -211,8 +246,8 @@ public class ConvexRadiusTests
         // The same point arrays, in one world and so in one shape cache. Only the radius differs.
         var roundedLeft = new ConvexHullShapeDesc(LeftSlab);
         var roundedRight = new ConvexHullShapeDesc(RightSlab);
-        SpawnStatic(world, ground, -10, Joint(roundedLeft, roundedRight));
-        SpawnStatic(world, ground, 10, Joint(roundedLeft with { ConvexRadius = 0 }, roundedRight with { ConvexRadius = 0 }));
+        SpawnJoint(world, ground, -10, HullSide(roundedLeft), HullSide(roundedRight));
+        SpawnJoint(world, ground, 10, HullSide(roundedLeft with { ConvexRadius = 0 }), HullSide(roundedRight with { ConvexRadius = 0 }));
 
         double onRounded = RestingHeightOfBallAt(world, ground, -10);
         double onSharp = RestingHeightOfBallAt(world, ground, 10);

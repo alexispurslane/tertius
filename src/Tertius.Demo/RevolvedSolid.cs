@@ -28,8 +28,10 @@ namespace Tertius.Demo;
 /// </para>
 /// <para>
 /// Jolt rounds the edges of a hull by its convex radius, 5 cm by default. Two rounded hulls side by side leave a groove
-/// along their joint: a ball of 0.25 m in radius sinks 3.7 mm into it on a ring's floor, and 4.2 mm on a torus. So every
-/// hull here has the convex radius 0, and its edges are as sharp as the mesh's. A ball rests on the facets within 0.03 mm,
+/// along their joint, 3.7 mm deep under a ball of 0.25 m in radius on a ring's floor, and 4.2 mm on a torus. In one
+/// compound, as this shape is, edge removal (below) keeps only one of the two contacts at the joint, so a ball sinks
+/// deeper still: 0.8 mm deeper across the flat joint of two rounded slabs. So every hull here has the convex radius 0,
+/// and its edges are as sharp as the mesh's. A ball rests on the facets within 0.03 mm,
 /// and in the crease at a joint of a ring's floor within 0.12 mm of both facets.
 /// </para>
 /// <para>
@@ -39,17 +41,20 @@ namespace Tertius.Demo;
 /// segments, and a torus a count of sides, whose bend is 1 mm or less. Its hull would be up to that bend inside the mesh.
 /// </para>
 /// <para>
-/// Where two segments meet, a ball that lands up to about 2 cm from the joint also touches the edge of the other segment
-/// as it lands, and that contact pushes it away from the joint. On the flat top of a torus's tube, a ball
-/// dropped from 10 cm that lands 2, 5, 10 or 20 mm from the joint moves 7, 11, 17 or 5 mm away from it. Dropped from
-/// 1 mm, a ball that lands 5 mm from it moves 3 mm. A ball that lands exactly on the joint rests there. On a ring's floor,
-/// where the joint is the bottom of a shallow crease, a ball dropped from 10 cm that lands 5 mm from the joint comes to
-/// rest 14 mm from it, uphill. Jolt's own mesh shape of the same mesh pushes the ball just as far. Jolt's enhanced
-/// internal edge removal on the solid's body (<c>BodyCreationSettings.EnhancedInternalEdgeRemoval</c>, which the engine
-/// does not set) takes the push away on the torus's top for a landing 5 mm or more from the joint, but not at 2 mm, and
-/// it changes the push on a ring's floor little. A cylinder in segments has such a joint
-/// along each radius of each cap, and a ball that lands 5 mm from one moves 11 mm. So a cylinder is one hull, which has
-/// no joints, and it has at most 128 segments, two points each in a hull of at most 256.
+/// Where two segments meet, a body that lands up to about 2 cm from the joint also meets the edge of the other segment,
+/// and Jolt's contact with that edge tilts away from the joint. Jolt's own mesh shape of the same mesh has the same
+/// contact. Without more, a ball dropped from 10 cm onto the flat top of a torus's tube, 2, 5, 10 or 20 mm from the joint,
+/// moves 7, 11, 17 or 5 mm away from it, and a box that slides across the joints of the compound trips over each one and
+/// tumbles. Physics sets Jolt's enhanced internal edge removal on every body whose shape is or holds a mesh or a
+/// compound, so on this shape and on the mesh (ter-fb3w). It drops the contact with the edge beyond about 5 mm from a
+/// flat joint and 10 mm from a concave crease, such as a joint of a ring's floor. So a ball that lands 5 mm or more from a
+/// joint of a torus's top, or 20 mm from a joint of a ring's floor, stays where it lands, and a box slides across the
+/// joints without tripping. Closer to a joint, the push remains: a ball that lands 2 mm from a joint of a torus's top
+/// moves 6 mm, and one that lands 2 to 10 mm from a joint of a ring's floor moves 12 to 17 mm, and on a level facet it can
+/// roll on. A ball that lands exactly on the joint rests there. Only a body that rolls carries the push on: friction stops
+/// a box that lands there, and a character's walk sets its own speed along the floor. A cylinder in segments has such a
+/// joint along each radius of each cap, so a cylinder is one hull, which has no joints, and it has at most 128 segments,
+/// two points each in a hull of at most 256.
 /// </para>
 /// <para>
 /// One hull has a cost too. Jolt makes the contacts of a body that rests on a face of a hull from at most 16 corners of
