@@ -65,7 +65,7 @@ public sealed class DemoSurfaceTests(DemoSurfaceRun run) : IClassFixture<DemoSur
         StateDump end = Dump("end");
 
         end.Frames.Single(frame => frame.Id == "shuttle").Follows.Should().Be("static");
-        Double3.Distance(end.Entity("shuttle").Pose.Position, new Double3(0, DemoScenes.EarthRadius + Shuttle.Hull.Y, 0)).Should().BeLessThan(1e-9);
+        Double3.Distance(end.Entity("shuttle").Pose.Position, DemoSurface.ShuttleParked.Position).Should().BeLessThan(1e-9);
     }
 
     [Fact]

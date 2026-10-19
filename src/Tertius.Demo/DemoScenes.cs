@@ -16,6 +16,13 @@ public static partial class DemoScenes
     /// <summary>Earth's mean radius, in meters.</summary>
     public const double EarthRadius = 6.371e6;
 
+    /// <summary>
+    /// The top of Earth's air, in meters above <see cref="EarthRadius"/>: 100 km, the Kármán line. The engine has no air,
+    /// so nothing drags a ship below it. The demo keeps the periapsis of every orbit above it, and the bubble of the orbit
+    /// scene's earth-surface ends there.
+    /// </summary>
+    public const double AtmosphereTop = 100e3;
+
     /// <summary>Earth's G·M, in m³/s².</summary>
     public const double EarthMu = 3.986004418e14;
 
@@ -281,7 +288,7 @@ public static partial class DemoScenes
             Pose = new DPose(Double3.Zero, turning.RotationAt(world.Time)),
             FirstMove = new MotionIntent(turning.Sample(Double3.Zero, firstStepEnd, world.DeltaTime)),
             // The bubble holds the air, 100 km up, and ends below the ship's orbit.
-            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + 100e3)), GravityField.Point(EarthMu)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere((float)(EarthRadius + AtmosphereTop)), GravityField.Point(EarthMu)),
             Components = [new SpinMotion { Spin = turning }],
             Render = new RenderData
             {
