@@ -342,7 +342,7 @@ public sealed partial class World
     /// its instant velocities narrowed to floats. A write of the entity's transform in the tick wins for one tick, as for a
     /// frame, and that write left the entity at rest (see <see cref="EntityTable.WritableTransform"/>). Then each entity that
     /// took a record at the step 2 before, and takes none now and wrote no transform, holds still: it gets zero velocities, as
-    /// <see cref="FrameTree.HoldStill"/> gives a frame without a record, and as physics stops a kinematic body after its last
+    /// <see cref="FrameTree.TakeStepRecords"/> gives a frame without a record, and as physics stops a kinematic body after its last
     /// motion intent. Physics skips an intent of an entity without a body, and the sync point moves it with or without a
     /// physics backend, also after a step that failed.
     /// </summary>
