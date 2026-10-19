@@ -918,7 +918,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// acceleration is the one that the hand-off made that chord with, in the new home's axes (see
     /// <see cref="HandedOffVelocities"/>), the instant velocity is the one that the hand-off carried, and the angular
     /// acceleration is the one of the update, turned into the new home's axes (see
-    /// <see cref="FrameMotion.AngularAccelerationToParent"/>). False for any other frame.
+    /// <see cref="FrameMotion.AngularAccelerationToParent(Double3)"/>). False for any other frame.
     /// </summary>
     private bool TryHullRecord(FrameHandle frame, out MotionSample record)
     {

@@ -51,8 +51,8 @@ internal readonly record struct FrameTurn(DQuaternion Turn, Double3 AngularVeloc
     /// <param name="dt">The length of the step, in s.</param>
     public Double3 InstantAtEnd(Double3 position, Double3 chord, double dt)
     {
-        Double3 previous = Turn.Rotate(position - chord * dt);
-        return (position - previous) / dt - Double3.Cross(AngularVelocity, position);
+        Double3 previousInEndAxes = Turn.Rotate(position - chord * dt);
+        return (position - previousInEndAxes) / dt - Double3.Cross(AngularVelocity, position);
     }
 
     /// <summary>

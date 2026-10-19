@@ -152,7 +152,7 @@ internal sealed class BodyRecord
     /// before the update, and the change of Jolt's angular velocity in the update, each divided by the step. A hand-off
     /// in the step gives the linear one the acceleration that made Jolt's chord in the new home, in the new home's axes
     /// (see JoltPhysicsBackend.HandedOffVelocities), and turns the angular one into the new home's axes, as it turns the
-    /// angular velocity (see <see cref="FrameMotion.AngularAccelerationToParent"/>).
+    /// angular velocity (see <see cref="FrameMotion.AngularAccelerationToParent(Double3)"/>).
     /// </summary>
     public Double3 StepAcceleration;
     public Vector3 AngularAcceleration;

@@ -11,7 +11,7 @@ public sealed partial class JoltPhysicsBackend
     /// A hand-off decided after the step, with the body's state already converted to the target frame: its pose, the
     /// velocities that Jolt gets there, the acceleration relative to the target that turned the linear velocity into its
     /// chord (see <see cref="HandedOffVelocities"/>), and the angular acceleration of the step's update in the target's
-    /// axes (see <see cref="FrameMotion.AngularAccelerationToParent"/>).
+    /// axes (see <see cref="FrameMotion.AngularAccelerationToParent(Double3)"/>).
     /// </summary>
     private readonly record struct HandOffPlan(
         BodyRecord Record,

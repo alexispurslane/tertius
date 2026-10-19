@@ -64,9 +64,7 @@ public class FrameTurnTests
     {
         // Jolt's scheme: the update changes the chord, and the body then moves by the chord times the step. The expected
         // place comes from the inertial line and the frame's axes alone.
-        var start = new Double3(100, -3, 7);
-        var velocity = new Double3(-2, 5, 1.5);
-        Double3 PlaceAt(double t) => SpinUpInATurningParent.AxesAt(t).Conjugate().Rotate(start + velocity * t);
+        static Double3 PlaceAt(double t) => SpinUpInATurningParent.FreeBodyPlaceAt(t);
 
         Double3 place = PlaceAt(0);
         Double3 chord = (place - PlaceAt(-Step)) / Step;
@@ -128,6 +126,23 @@ public class FrameTurnTests
     }
 
     [Fact]
+    public void InASpinUpInATurningParentTheChordBehindTheInstantVelocityIsTheChangeOfTheBodysPlaceOverTheStep()
+    {
+        // The instant velocity relative to the frame comes from the body's places alone, by a central difference. The turn
+        // holds the frame's inertial angular velocity at the step's end, in the frame's axes then. That vector changes its
+        // direction in the frame's axes over the step, so the test fixes the axes in which the chord rule reads it.
+        static Double3 PlaceAt(double t) => SpinUpInATurningParent.FreeBodyPlaceAt(t);
+        const double end = 3;
+        const double h = 1e-5;
+        Double3 instant = (PlaceAt(end + h) - PlaceAt(end - h)) / (2 * h);
+        Double3 chord = (PlaceAt(end) - PlaceAt(end - Step)) / Step;
+        FrameTurn turn = SpinUpInATurningParent.TurnOver(end - Step, end);
+
+        ExpectNear(turn.ChordBehind(PlaceAt(end), instant, Step), chord, 1e-8);
+        ExpectNear(turn.InstantAtEnd(PlaceAt(end), chord, Step), instant, 1e-8);
+    }
+
+    [Fact]
     public void AVelocityChangeThatEntersAsAChangeOfTheChordBehindIsCarriedByTheTurnOfTheStepInFlightAlone()
     {
         // An impulse changes the velocity by (1, 0, 0) at the start of the step in flight. The quarter turn of that step
@@ -179,6 +194,22 @@ public class FrameTurnTests
     }
 
     [Fact]
+    public void InASpinUpInATurningParentTheAngularChordBehindTheInstantAngularVelocityIsTheTurnOfTheBodyOverTheStep()
+    {
+        // The angular form of the chord test in the same station: the instant angular velocity relative to the frame comes
+        // from the body's orientations alone, by a central difference.
+        static DQuaternion OrientationAt(double t) => SpinUpInATurningParent.TumblingBodyOrientationAt(t);
+        const double end = 3;
+        const double h = 1e-5;
+        Double3 instant = OrientationAt(end - h).AngularVelocityTo(OrientationAt(end + h), 2 * h);
+        Double3 chord = OrientationAt(end - Step).AngularVelocityTo(OrientationAt(end), Step);
+        FrameTurn turn = SpinUpInATurningParent.TurnOver(end - Step, end);
+
+        ExpectNear(turn.AngularChordBehind(instant, Step), chord, 1e-9);
+        ExpectNear(turn.InstantAngularAtEnd(chord, Step), instant, 1e-9);
+    }
+
+    [Fact]
     public void OverASteadySpinTheAngularFormKeepsTheInertialAngularVelocityOfAFreeBody()
     {
         var turns = new FrameTurns(Quarter, Quarter);
@@ -202,10 +233,7 @@ public class FrameTurnTests
     {
         // Jolt turns the body by the exact rotation of its angular chord times the step. The expected orientation comes from
         // the body's steady inertial turn and the frame's axes alone.
-        var spin = new Double3(0.4, -1.1, 2.3);
-        DQuaternion startOrientation = DQuaternion.FromAxisAngle(new Double3(1, 2, 3), 0.7);
-        DQuaternion OrientationAt(double t) =>
-            SpinUpInATurningParent.AxesAt(t).Conjugate() * DQuaternion.FromAxisAngle(spin, spin.Length * t) * startOrientation;
+        static DQuaternion OrientationAt(double t) => SpinUpInATurningParent.TumblingBodyOrientationAt(t);
 
         DQuaternion orientation = OrientationAt(0);
         Double3 chord = OrientationAt(-Step).AngularVelocityTo(orientation, Step);
@@ -293,5 +321,22 @@ public class FrameTurnTests
         /// <summary>The two turns that the step from n · <see cref="Step"/> to (n + 1) · <see cref="Step"/> reads.</summary>
         public static FrameTurns TurnsOfStep(int n) =>
             new(TurnOver(n * Step, (n + 1) * Step), TurnOver((n - 1) * Step, n * Step));
+
+        /// <summary>
+        /// The place in the station's axes at <paramref name="t"/> of a free body that is at (100, −3, 7) m in inertial
+        /// space at t = 0 and moves at (−2, 5, 1.5) m/s.
+        /// </summary>
+        public static Double3 FreeBodyPlaceAt(double t) =>
+            AxesAt(t).Conjugate().Rotate(new Double3(100, -3, 7) + new Double3(-2, 5, 1.5) * t);
+
+        /// <summary>
+        /// The orientation in the station's axes at <paramref name="t"/> of a free body that turns steadily at
+        /// (0.4, −1.1, 2.3) rad/s in inertial space, from a turn by 0.7 rad about (1, 2, 3) at t = 0.
+        /// </summary>
+        public static DQuaternion TumblingBodyOrientationAt(double t)
+        {
+            var spin = new Double3(0.4, -1.1, 2.3);
+            return AxesAt(t).Conjugate() * DQuaternion.FromAxisAngle(spin, spin.Length * t) * DQuaternion.FromAxisAngle(new Double3(1, 2, 3), 0.7);
+        }
     }
 }

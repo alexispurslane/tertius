@@ -11,6 +11,17 @@ namespace Tertius;
 /// <param name="Last">The turn of the step that ended, V2 of the design: the turn that the chords of the frame's bodies came from.</param>
 internal readonly record struct FrameTurns(FrameTurn Step, FrameTurn Last)
 {
+    // Step and Last have no init accessor, so that a with expression cannot change a turn and leave TwoSteps stale.
+    public FrameTurn Step { get; } = Step;
+
+    public FrameTurn Last { get; } = Last;
+
+    /// <summary>
+    /// The turn over both steps, R_n R_(n−1): from the frame's axes at the start of the step that ended to its axes at the
+    /// end of the step in flight. The update of every body in the frame reads it, so the frame computes it once per step.
+    /// </summary>
+    public DQuaternion TwoSteps { get; } = Step.Turn * Last.Turn;
+
     /// <summary>
     /// Whether the frame is a turning frame: either turn is not the identity. With both turns the identity, the update's
     /// result is zero to rounding, so physics skips it, and frames that do not turn keep their results bit for bit.
@@ -28,7 +39,7 @@ internal readonly record struct FrameTurns(FrameTurn Step, FrameTurn Last)
     public Double3 FreeChange(Double3 position, Double3 chord, double dt)
     {
         Double3 previous = position - chord * dt;
-        Double3 next = Step.Turn.Rotate(position) * 2 - (Step.Turn * Last.Turn).Rotate(previous);
+        Double3 next = Step.Turn.Rotate(position) * 2 - TwoSteps.Rotate(previous);
         return (next - position) / dt - chord;
     }
 
