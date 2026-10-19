@@ -319,12 +319,29 @@ public class MotionIntentGuardTests
         world.Errors.Should().BeEmpty();
     }
 
-    // ---- A refused rails component on the hot path -----------------------------------------------------------------
+}
+
+/// <summary>
+/// Runs the tests of <see cref="RefusedRailsAllocationTests"/> alone, because they count the bytes that every thread
+/// allocates.
+/// </summary>
+[CollectionDefinition(nameof(RefusedRailsAllocationTests), DisableParallelization = true)]
+public sealed class RefusedRailsAllocationCollection;
+
+/// <summary>
+/// A rails component whose entity the guard of every motion intent refuses runs in every tick, so its judgment must not
+/// allocate (see <see cref="World.TakesMotionIntent"/>). The test counts the bytes that the whole process allocates, so it
+/// runs while no other test runs. The world runs on the real backend.
+/// </summary>
+[Collection(nameof(RefusedRailsAllocationTests))]
+public class RefusedRailsAllocationTests
+{
+    private static readonly BodyDesc StaticBox = new(new BoxShapeDesc(new Vector3(2, 0.5f, 2)), BodyMotion.Static);
 
     /// <summary>
     /// A rails component whose entity the guard refuses logs the reason once and writes nothing (see
     /// <see cref="World.MotionIntentProblem"/>). It still runs in every tick, so it must judge its sample without building
-    /// the reason, which allocates: here a static ball with a <see cref="KeplerMotion"/> and one with a
+    /// the reason, which allocates: here a static box with a <see cref="KeplerMotion"/> and one with a
     /// <see cref="SpinMotion"/>, which a static body refuses, run hundreds of ticks without allocating on any thread.
     /// </summary>
     [Fact]
@@ -336,11 +353,11 @@ public class MotionIntentGuardTests
         world.Log += line => log.Add(line);
         world.Spawn(new SpawnDesc
         {
-            Frame = space, Pose = At(5_000), Body = Box(BodyMotion.Static), Components = [new KeplerMotion { Orbit = KeplerOrbit.Circular(5_000) }],
+            Frame = space, Pose = At(5_000), Body = StaticBox, Components = [new KeplerMotion { Orbit = KeplerOrbit.Circular(5_000) }],
         });
         world.Spawn(new SpawnDesc
         {
-            Frame = space, Pose = At(0, 5_000), Body = Box(BodyMotion.Static), Components = [new SpinMotion { Spin = new FrameSpin(DQuaternion.Identity, 0.5) }],
+            Frame = space, Pose = At(0, 5_000), Body = StaticBox, Components = [new SpinMotion { Spin = new FrameSpin(DQuaternion.Identity, 0.5) }],
         });
         Tick(world, 10);
         log.Should().HaveCount(2, "each component logs its refusal once");
