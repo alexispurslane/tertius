@@ -193,25 +193,27 @@ public sealed partial class JoltPhysicsBackend
             record.TeleportStep = stepIndex;
             record.TeleportPose = new DPose(position, intent.TeleportPose.Rotation.Normalized());
             record.Shadow = default;
-            // At rest in the semantic frame, which is not at rest in a falling numeric home. A kinematic hull holds still in
+            // At rest in the semantic frame, which is not at rest in a falling numeric home, and which a turning frame's chord
+            // rule turns into the chords of the inertial motion of a point at rest in its axes. A kinematic hull holds still in
             // its home, the frame's tree parent, unless the motion intent below aims it.
-            Vector3 linear = record is { IsHull: true, Motion: BodyMotion.Kinematic }
-                ? Vector3.Zero
-                : LinearChord(record, CenterOfMass(bodies, id), LocalVelocity(record, Double3.Zero));
-            bodies.SetLinearAndAngularVelocity(id, linear, Vector3.Zero);
+            if (record is { IsHull: true, Motion: BodyMotion.Kinematic })
+                bodies.SetLinearAndAngularVelocity(id, Vector3.Zero, Vector3.Zero);
+            else
+                bodies.SetLinearAndAngularVelocity(id, LinearChordAtStart(record, CenterOfMass(bodies, id), LocalVelocity(record, Double3.Zero)),
+                    AngularChord(record, Vector3.Zero, StepStart(record.Frame)));
         }
         if ((flags & IntentFlags.SetVelocity) != 0)
         {
             Double3 velocity = LocalVelocity(record, intent.Velocity);
             // A sleeping body that gets no velocity sleeps on, so the step gives it no acceleration either.
             bool sleeps = velocity == Double3.Zero && !bodies.IsActive(id);
-            bodies.SetLinearVelocity(id, sleeps ? Vector3.Zero : LinearChord(record, CenterOfMass(bodies, id), velocity));
+            bodies.SetLinearVelocity(id, sleeps ? Vector3.Zero : LinearChordAtStart(record, CenterOfMass(bodies, id), velocity));
             record.VelocitySetStep = stepIndex;
             record.Shadow = default;
         }
         if ((flags & IntentFlags.SetAngularVelocity) != 0)
         {
-            bodies.SetAngularVelocity(id, AngularChord(record, intent.AngularVelocity));
+            bodies.SetAngularVelocity(id, AngularChord(record, intent.AngularVelocity, StepStart(record.Frame)));
             record.VelocitySetStep = stepIndex;
         }
         if (move)
@@ -330,7 +332,7 @@ public sealed partial class JoltPhysicsBackend
     /// moment that it applies a request or creates a body, so it uses the home of that moment. The home is the frame whose
     /// system holds the body, and the semantic frame is its nearest ancestor that is not numeric, or the home itself.
     /// The subtraction is in doubles, so only the small local velocity narrows to a float, when Jolt gets it. For an
-    /// instant velocity Jolt gets its chord (see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>).
+    /// instant velocity Jolt gets its chord (see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3, in TurningMoment?)"/>).
     /// </summary>
     private Double3 LocalVelocity(FrameHandle home, Double3 velocity) => velocity - frames.HomeVelocity(home, frames.SemanticOf(home));
 

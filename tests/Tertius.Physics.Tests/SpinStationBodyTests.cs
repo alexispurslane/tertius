@@ -67,13 +67,15 @@ public class SpinStationBodyTests
     /// relative to the station's axes (docs/plans/spin-gravity.md, "Jolt's damping in the shadow"). In each step the chord of
     /// the body in the station's axes is the chord that keeps it on its inertial line, times Jolt's damping factor
     /// max(0, 1 − c dt), which Jolt computes in floats. Without damping it is the inertial line. A force adds its
-    /// acceleration times the step to the chord before the damping, in the station's axes, as Jolt adds it.
+    /// acceleration times the step to the chord before the damping, in the station's axes, as Jolt adds it. The path starts
+    /// at <paramref name="place"/>, which the body reached by the move <paramref name="lastMove"/> over the step before, both
+    /// in inertial space, or from rest there.
     /// </summary>
-    private sealed class ExpectedPath(Double3 place, float damping, float dt)
+    internal sealed class ExpectedPath(Double3 place, float damping, float dt, Double3 lastMove = default)
     {
         private readonly double factor = MathF.Max(0f, 1f - damping * dt);
         // The body's places in inertial space at the ends of the last two steps.
-        private Double3 previous = place;
+        private Double3 previous = place - lastMove;
 
         public Double3 Place { get; private set; } = place;
 

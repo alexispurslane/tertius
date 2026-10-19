@@ -31,6 +31,18 @@ namespace Tertius.Physics;
 // tree only when the tree changes between two steps, and a kinematic hull takes no velocity from the tree at all. Every
 // velocity of a body that physics reports is Jolt's: the chord of the last step. The step record of a frame holds both
 // velocities (see StepRecordOf).
+//
+// In a turning frame a chord spans the frame's turn over its step, so the chord of a dynamic body is the chord of the
+// inertial line through its state, as the frame's axes see it (docs/plans/spin-gravity.md, "The chord rule"): physics gives
+// Jolt FrameTurn.ChordBehind of the instant velocity, on the body's semantic place and velocity, with the turn of the step
+// that ends at the instant of the velocity, and reads an instant velocity back by its exact inverse, FrameTurn.InstantAtEnd.
+// At the start of a step that turn is the frame's turn of the step that ended (V2 of the design), and at its end, for an
+// instant velocity at the end of the step or a hand-off, the turn of the step that just ended (V1). The step's two-turn
+// update then carries the chord on along the inertial line (see ApplyTurningUpdate). The half step of the linear gravity and
+// of the damping stays as above. The angular velocity of a dynamic body that can turn has the same pair,
+// FrameTurn.AngularChordBehind and FrameTurn.InstantAngularAtEnd. A kinematic body moves in the frame's coordinates, and a
+// walking character's update keeps its own rules, so neither takes the turn. A ghost converts its real body's chord by the
+// poses of the frame at both ends of the step (see StepPoses).
 
 public sealed partial class JoltPhysicsBackend
 {
@@ -48,23 +60,91 @@ public sealed partial class JoltPhysicsBackend
     private Double3 HomeInstantVelocityOverChord(FrameHandle home) => frames.HomeInstantVelocityOverChord(home, frames.SemanticOf(home), stepDt);
 
     /// <summary>
+    /// A moment at which physics turns an instant velocity of a body in a turning frame into Jolt's chord, or Jolt's chord
+    /// back into an instant velocity (docs/plans/spin-gravity.md, "The chord rule"): the turn of the step that ends at that
+    /// moment, and the place and the frame velocity then of the origin of the body's home relative to its semantic frame. A
+    /// place and a velocity relative to the home, plus these, are the body's semantic place and velocity, on which the rule
+    /// acts.
+    /// </summary>
+    /// <param name="Turn">The semantic frame's turn of the step that ends at the moment, and its angular velocity then.</param>
+    /// <param name="HomeOffset">The place of the home's origin in the semantic frame at the moment, in m.</param>
+    /// <param name="HomeVelocity">The home's frame velocity relative to the semantic frame at the moment, a chord, in m/s.</param>
+    private readonly record struct TurningMoment(FrameTurn Turn, Double3 HomeOffset, Double3 HomeVelocity)
+    {
+        /// <summary>
+        /// How much the chord behind the instant velocity <paramref name="velocity"/>, relative to the home's frame velocity,
+        /// of a body at <paramref name="center"/> in the home exceeds that velocity: the turn's part of the chord rule.
+        /// </summary>
+        public Double3 ChordBehindChange(Double3 center, Double3 velocity, double dt)
+        {
+            Double3 semantic = velocity + HomeVelocity;
+            return Turn.ChordBehind(center + HomeOffset, semantic, dt) - semantic;
+        }
+
+        /// <summary>
+        /// How much the instant velocity at the moment of a body at <paramref name="center"/> in the home, whose chord
+        /// relative to the home's frame velocity is <paramref name="chord"/>, exceeds that chord: the turn's part of the
+        /// inverse of the chord rule.
+        /// </summary>
+        public Double3 InstantAtEndChange(Double3 center, Double3 chord, double dt)
+        {
+            Double3 semantic = chord + HomeVelocity;
+            return Turn.InstantAtEnd(center + HomeOffset, semantic, dt) - semantic;
+        }
+    }
+
+    /// <summary>
+    /// The moment where the step in flight starts, for a body in the system of <paramref name="home"/>, when the home's
+    /// semantic frame is a turning frame (see <see cref="FrameTurns.Turns"/>): the turn of the step that ended there, and the
+    /// home's place and frame velocity now. Null in a frame that does not turn, which keeps the rule of today to the bit.
+    /// </summary>
+    private TurningMoment? StepStart(FrameHandle home)
+    {
+        FrameTurns turns = frames.Turns(home);
+        if (!turns.Turns)
+            return null;
+        FrameHandle semantic = frames.SemanticOf(home);
+        return new TurningMoment(turns.Last, frames.HomeOffset(home, semantic), frames.HomeVelocity(home, semantic));
+    }
+
+    /// <summary>
+    /// The moment where the step in flight ends, for a body in the system of <paramref name="home"/> after the update of the
+    /// step, when the home's semantic frame is a turning frame: the turn of the step that just ended, and where the home's
+    /// numeric frames will be at the end of it, with their frame velocities of the next step (see
+    /// <see cref="FrameTree.HomeOffsetAfter"/>). Null in a frame that does not turn.
+    /// </summary>
+    private TurningMoment? StepEnd(FrameHandle home)
+    {
+        FrameTurns turns = frames.Turns(home);
+        if (!turns.Turns)
+            return null;
+        FrameHandle semantic = frames.SemanticOf(home);
+        return new TurningMoment(turns.Step, frames.HomeOffsetAfter(home, semantic, stepDt), frames.HomeVelocityAfter(home, semantic, stepDt));
+    }
+
+    /// <summary>
     /// Jolt's linear velocity for the rigid body of <paramref name="record"/> in the system of <paramref name="home"/>,
     /// with its center of mass at <paramref name="center"/>, when its instant velocity relative to the home's frame
-    /// velocity in the step is <paramref name="velocity"/>: the chord of the step. Call it only during a step.
+    /// velocity in the step is <paramref name="velocity"/>: the chord of the step. In a turning frame, whose moment of the
+    /// velocity is <paramref name="turning"/>, a dynamic body takes the chord behind its instant velocity on its inertial line
+    /// (see <see cref="TurningMoment.ChordBehindChange"/>). Call it only during a step.
     /// </summary>
-    private Vector3 LinearChord(BodyRecord record, FrameHandle home, Double3 center, Double3 velocity)
+    private Vector3 LinearChord(BodyRecord record, FrameHandle home, Double3 center, Double3 velocity, in TurningMoment? turning)
     {
         Contract.Requires(stepDt > 0);
         // The local instant velocity: relative to the home's instant velocity, past its frame velocity.
         Double3 local = velocity - HomeInstantVelocityOverChord(home);
-        return (local - ChordAcceleration(record, home, center, local) * (0.5 * stepDt)).ToVector3();
+        Double3 chord = local - ChordAcceleration(record, home, center, local) * (0.5 * stepDt);
+        if (record.Motion == BodyMotion.Dynamic && turning is { } moment)
+            chord += moment.ChordBehindChange(center, velocity, stepDt);
+        return chord.ToVector3();
     }
 
     /// <summary>
     /// The acceleration relative to <paramref name="home"/> that the coming step gives the rigid body of
     /// <paramref name="record"/>, with its center of mass at <paramref name="center"/> and the local instant velocity
     /// <paramref name="local"/>, which turns that velocity into Jolt's chord (see
-    /// <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>): the home's linear gravity (see
+    /// <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3, in TurningMoment?)"/>): the home's linear gravity (see
     /// <see cref="FrameTree.LinearGravity"/>) and Jolt's linear damping for a dynamic body, nothing for a kinematic one. The
     /// gravity is the float that <see cref="ApplyGravity()"/> gives Jolt as the body's force.
     /// </summary>
@@ -73,8 +153,12 @@ public sealed partial class JoltPhysicsBackend
             ? (Double3)frames.LinearGravity(home, center).ToVector3() - record.Material.LinearDamping * local
             : Double3.Zero;
 
-    /// <summary>The chord for a rigid body in the system of its home: see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3)"/>.</summary>
-    private Vector3 LinearChord(BodyRecord record, Double3 center, Double3 velocity) => LinearChord(record, record.Frame, center, velocity);
+    /// <summary>
+    /// The chord for a rigid body in the system of its home, of an instant velocity at the start of the step in flight: see
+    /// <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3, in TurningMoment?)"/>.
+    /// </summary>
+    private Vector3 LinearChordAtStart(BodyRecord record, Double3 center, Double3 velocity) =>
+        LinearChord(record, record.Frame, center, velocity, StepStart(record.Frame));
 
     private static Double3 CenterOfMass(BodyInterface bodies, BodyID id)
     {
@@ -82,12 +166,22 @@ public sealed partial class JoltPhysicsBackend
         return center.ToDouble3();
     }
 
-    /// <summary>Jolt's angular velocity for the rigid body of <paramref name="record"/> whose instant angular velocity is <paramref name="velocity"/>: the chord of the step.</summary>
-    private Vector3 AngularChord(BodyRecord record, Vector3 velocity)
+    /// <summary>
+    /// Jolt's angular velocity for the rigid body of <paramref name="record"/> whose instant angular velocity is
+    /// <paramref name="velocity"/>: the chord of the step. In a turning frame, whose moment of the velocity is
+    /// <paramref name="turning"/>, a dynamic body that can turn takes the angular chord behind it on its inertial spin (see
+    /// <see cref="FrameTurn.AngularChordBehind"/>). The rigid form of a character cannot turn.
+    /// </summary>
+    private Vector3 AngularChord(BodyRecord record, Vector3 velocity, in TurningMoment? turning)
     {
         Contract.Requires(stepDt > 0);
+        if (record.Motion != BodyMotion.Dynamic)
+            return velocity;
+        Vector3 chord = turning is { } moment && !record.IsCharacter
+            ? moment.Turn.AngularChordBehind(velocity, stepDt).ToVector3()
+            : velocity;
         // Damping slows a spin by k·ω, so the chord is half a step of that faster.
-        return record.Motion == BodyMotion.Dynamic ? velocity * (1 + record.Material.AngularDamping * 0.5f * stepDt) : velocity;
+        return chord * (1 + record.Material.AngularDamping * 0.5f * stepDt);
     }
 
     /// <summary>
@@ -109,8 +203,10 @@ public sealed partial class JoltPhysicsBackend
     /// The instant velocity at the end of the step of the primary body of <paramref name="record"/>, whose state Jolt has
     /// at <paramref name="s"/>: relative to the instant velocity of its home there. It is Jolt's chord plus half a step of
     /// the acceleration that the step gave the body: the linear gravity that physics applied to it (the field of
-    /// <see cref="BodyRecord.FrameAcceleration"/>), and its damping. A body that sleeps got none. Call it only after the
-    /// update of a step.
+    /// <see cref="BodyRecord.FrameAcceleration"/>), and its damping. A body that sleeps got none. In a turning frame an awake
+    /// dynamic body's chord spans the frame's turn of the step, so the exact inverse of the chord rule gives its instant
+    /// velocity on its inertial line, with the turn of the step that just ended (see
+    /// <see cref="TurningMoment.InstantAtEndChange"/>). Call it only after the update of a step.
     /// </summary>
     private Double3 InstantVelocity(BodyRecord record, in BodySnapshot s)
     {
@@ -121,24 +217,36 @@ public sealed partial class JoltPhysicsBackend
                    - InstantHomeVelocity(record.Frame, frames.SemanticOf(record.Frame));
         double half = 0.5 * stepDt;
         Double3 chord = s.Linear;
-        return record.Motion switch
+        switch (record.Motion)
         {
-            BodyMotion.Character => chord + (Double3)record.FrameAcceleration.Field * half,
-            BodyMotion.Dynamic when record.World!.Bodies.IsActive(record.Body) =>
-                chord + ((Double3)record.FrameAcceleration.Field - record.Material.LinearDamping * chord) * half,
-            _ => chord,
-        };
+            case BodyMotion.Character:
+                return chord + (Double3)record.FrameAcceleration.Field * half;
+            case BodyMotion.Dynamic when record.World!.Bodies.IsActive(record.Body):
+                Double3 instant = chord + ((Double3)record.FrameAcceleration.Field - record.Material.LinearDamping * chord) * half;
+                if (StepEnd(record.Frame) is { } moment)
+                    instant += moment.InstantAtEndChange(s.CenterOfMass, chord, stepDt);
+                return instant;
+            default:
+                return chord;
+        }
     }
 
-    /// <summary>The instant angular velocity at the end of the step of the primary body of <paramref name="record"/>, whose state Jolt has at <paramref name="s"/>.</summary>
+    /// <summary>
+    /// The instant angular velocity at the end of the step of the primary body of <paramref name="record"/>, whose state
+    /// Jolt has at <paramref name="s"/>. In a turning frame an awake dynamic body that can turn takes the exact inverse of the
+    /// angular chord rule (see <see cref="FrameTurn.InstantAngularAtEnd"/>).
+    /// </summary>
     private Vector3 InstantAngularVelocity(BodyRecord record, in BodySnapshot s)
     {
         Contract.Requires(stepDt > 0);
         if (TryAimedRecord(record, out MotionSample aimed))
             return aimed.AngularVelocity.ToVector3();
-        return record.Motion == BodyMotion.Dynamic && record.World!.Bodies.IsActive(record.Body)
-            ? s.Angular * (1 - record.Material.AngularDamping * 0.5f * stepDt)
+        if (record.Motion != BodyMotion.Dynamic || !record.World!.Bodies.IsActive(record.Body))
+            return s.Angular;
+        Vector3 relative = !record.IsCharacter && StepEnd(record.Frame) is { } moment
+            ? moment.Turn.InstantAngularAtEnd(s.Angular, stepDt).ToVector3()
             : s.Angular;
+        return relative * (1 - record.Material.AngularDamping * 0.5f * stepDt);
     }
 
     /// <summary>
@@ -146,7 +254,11 @@ public sealed partial class JoltPhysicsBackend
     /// <paramref name="to"/>, with its center of mass at <paramref name="center"/> there, when its instant velocities
     /// relative to the instant motion of <paramref name="to"/> at the end of the step are <paramref name="linear"/> and
     /// <paramref name="angular"/>: the chords of the next step, and the acceleration relative to <paramref name="to"/> that
-    /// turned the linear velocity into its chord. Call it only after the update of a step.
+    /// turned the linear velocity into its chord. In a turning frame a dynamic body takes the chord behind its instant
+    /// velocity with the new frame's turn of the step that just ended, which Jolt's next step carries on, and which the next
+    /// step's two-turn update reads as the turn of the step that ended. The turn's part of the chord counts in that
+    /// acceleration over half a step, so that a hull's step record keeps the instant velocity that the hand-off carried (see
+    /// <see cref="TryHullRecord"/>). Call it only after the update of a step.
     /// </summary>
     private (Vector3 Linear, Vector3 Angular, Double3 Acceleration) HandedOffVelocities(BodyRecord record, FrameHandle to, Double3 center,
         Double3 linear, Double3 angular)
@@ -164,14 +276,19 @@ public sealed partial class JoltPhysicsBackend
         // The frame velocity of a numeric home in the next step is its velocity at the end of this step, which lies behind
         // its instant velocity by the home's instant velocity past its chord.
         Double3 velocity = linear + HomeInstantVelocityOverChord(to);
-        return (LinearChord(record, to, center, velocity), AngularChord(record, angular.ToVector3()), ChordAcceleration(record, to, center, linear));
+        TurningMoment? turning = StepEnd(to);
+        Double3 chordAcceleration = ChordAcceleration(record, to, center, linear);
+        if (record.Motion == BodyMotion.Dynamic && turning is { } moment)
+            chordAcceleration -= moment.ChordBehindChange(center, velocity, stepDt) / half;
+        return (LinearChord(record, to, center, velocity, turning), AngularChord(record, angular.ToVector3(), turning), chordAcceleration);
     }
 
     /// <summary>
     /// Gives Jolt the chords of the velocities that the dynamic rigid bodies created since the last step got from their
     /// spawn. Physics creates a body between two steps, when it does not know the length of the next step, so the body
-    /// keeps its instant velocities until the start of the step, which converts them here, before anything reads them. A
-    /// character makes its chord in its first update instead.
+    /// keeps its instant velocities until the start of the step, which converts them here, before anything reads them, with
+    /// the turn of the step that ended at the spawn in a turning frame. A character makes its chord in its first update
+    /// instead.
     /// </summary>
     private void ConvertSpawnVelocities()
     {
@@ -183,7 +300,9 @@ public sealed partial class JoltPhysicsBackend
             BodyInterface bodies = record.World!.Bodies;
             BodyID id = record.Body;
             bodies.GetLinearAndAngularVelocity(id, out Vector3 linear, out Vector3 angular);
-            bodies.SetLinearAndAngularVelocity(id, LinearChord(record, CenterOfMass(bodies, id), linear), AngularChord(record, angular));
+            TurningMoment? turning = StepStart(record.Frame);
+            bodies.SetLinearAndAngularVelocity(id, LinearChord(record, record.Frame, CenterOfMass(bodies, id), linear, turning),
+                AngularChord(record, angular, turning));
         }
         spawnedRigid.Clear();
     }
