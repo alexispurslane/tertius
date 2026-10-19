@@ -39,7 +39,7 @@ The first useful editor has a viewport, a hierarchy, an inspector and play mode 
 16. The flight speed of the camera scales with the distance to the nearest surface. The GPU measures that distance in the view, and the CPU measures it to the bounding spheres around the camera. One control then works from 1 m to 1e11 m.
 17. Picking uses a pick pass that runs only for a click, cut to one pixel by a scissor. It writes the entity index and generation, so the result is a full `Entity` handle with a generation check.
 18. The gizmo is ImGuizmo. It works in the axes of the frame of the selected entity, and the editor applies its delta matrix in doubles. The pinned ImGuizmo handles reversed and infinite projections, so it gets the engine's projection without the Y flip of Vulkan clip space.
-19. Overlays, such as frame bubbles and orbits, are 3D lines that a new line pass of the renderer draws. The pass dims lines behind geometry with the distance target. Captures for agents include the overlays.
+19. Overlays, such as frame bubbles and orbits, are 3D lines that the renderer draws after tone mapping. A line behind geometry, by the distance target, draws dimmed. Captures for agents include the overlays. Frame bubbles are the frame outlines of the render snapshot, which the overlay pass of the renderer (`OutlinePass`) draws: the editor turns on `World.ShowFrameOutlines` (see ARCHITECTURE.md, "The overlay pass"). The other overlays need a line pass, which is not built.
 20. Every editor action is a method of one class, `EditorApi`. The panels and the scripts call the same methods. The headless runner uses the step format of the host and scripted runs design.
 21. The Dear ImGui Test Engine is left out for now. Its license is free for the user as a natural person, but it is C++ only and has no Hexa binding. Snapshot tests and `EditorApi` tests cover the editor.
 22. The editor saves a document by itself 1 s after the last edit, and also on Cmd+S. Agents, git and the CLI read the files, so an unsaved change is invisible to them. Undo still works after a save. (User)
@@ -202,7 +202,8 @@ The editor also uses colors that Dear ImGui has no slot for:
 | Success | `#4FB06D` |
 | Gizmo axes X, Y, Z | `#E5484D`, `#5BB25E`, `#2F7FF0` |
 | Selection in the viewport | `#F5A524` |
-| Frame bubbles, by depth in the frame tree | `#7AA7FA`, `#B58CF0`, `#4FC1B6`, `#E58FB4`, `#C9B458`, then repeat |
+| Frame outlines, by kind of frame: semantic, falling, resting, nesting, orbit | `#7AA7FA`, `#E58FB4`, `#4FC1B6`, `#B58CF0`, `#C9B458` |
+| Kepler orbits, by depth in the frame tree | `#7AA7FA`, `#B58CF0`, `#4FC1B6`, `#E58FB4`, `#C9B458`, then repeat |
 | A value that the scene overrides | `#4A86F7` marker dot |
 | A value that a patch sets | `#B58CF0` marker dot |
 
@@ -619,7 +620,7 @@ The editor builds a `LineList` for each view. Positions are floats relative to t
 
 | Overlay | Lines |
 |---|---|
-| Frame bubble | 3 ellipses in the principal planes of the frame, 64 segments each. A sphere also gets its outline as seen from the camera. |
+| Frame bubble | Not in the `LineList`: the frame outlines of the render snapshot, which `OutlinePass` draws, 2 pixels wide. 3 ellipses in the principal planes of the frame, 64 segments each. A sphere also gets its outline as seen from the camera. A semantic frame shows its bubble, and a numeric frame its contents sphere. |
 | Kepler orbit | 128 points, equal steps of the eccentric anomaly, in the parent frame |
 | Frame axes | A small triad at each frame origin |
 | Selection | The outline circle of the bounding sphere (group B). A real outline pass replaces it in group C. |
@@ -627,7 +628,7 @@ The editor builds a `LineList` for each view. Positions are floats relative to t
 | Light ranges | A circle at the range of each light of the selection |
 | Grid | The XZ plane of the camera's frame, with a spacing of 10 to the power of the floor of log10 of the camera height |
 
-The colors of bubbles and orbits follow the depth in the frame tree (see the palette).
+The color of a frame outline follows the kind of its frame. The color of an orbit follows the depth in the frame tree (see the palette).
 
 ### Group C panels
 
@@ -949,7 +950,7 @@ These are targets, not measurements, on the Apple M1 Max of this machine. Step C
 | Draw data copy into `UiDrawList` | Under 0.1 ms per 50,000 vertices | Block copies |
 | UI pass on the GPU at 2560 × 1600 pixels | Under 0.3 ms | |
 | Hierarchy with 10,000 entities, all open | Under 0.5 ms | Visible rows only |
-| Overlays for 100 reference frames with bubbles and orbits | Under 0.3 ms CPU | About 40,000 line vertices |
+| Line overlays for 100 reference frames: orbits and frame axes | Under 0.3 ms CPU | About 26,000 line vertices: 256 for each orbit of 128 points and 6 for each triad. The frame bubbles are not in the `LineList`. `OutlinePass` draws them, and ARCHITECTURE.md, "The overlay pass", gives their measured cost. |
 | `CameraView` snapshot build, 10,000 entities | Under 1 ms | |
 | In-place sync of one changed entity | Under 50 µs | |
 | One edit and diff, 10,000-entity scene | Under 0.2 ms | |

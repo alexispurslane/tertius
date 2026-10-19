@@ -6,7 +6,8 @@ namespace Tertius.Rendering;
 /// <summary>
 /// The descriptor set layouts, pipeline layouts and pools shared by all passes.
 /// <list type="table">
-/// <item><term>set 0, frame</term><description>frame constants, instances, materials, lights, occluders, material sampler. One per frame in flight.</description></item>
+/// <item><term>set 0, frame</term><description>frame constants, instances, materials, lights, occluders, material sampler,
+/// frame outlines. One per frame in flight.</description></item>
 /// <item><term>set 1, textures</term><description>the bindless texture array: variable count, partially bound, update-after-bind. One per frame in flight.</description></item>
 /// <item><term>set 2, G-buffer</term><description>the G-buffer targets for the lighting and transparent passes (rewritten on resize),
 /// the sun shadow cascades (binding 5) and their comparison sampler (binding 6, immutable). One.</description></item>
@@ -36,6 +37,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
             new(3, DescriptorType.StorageBuffer, 1, graphics),
             new(4, DescriptorType.StorageBuffer, 1, graphics),
             new(5, DescriptorType.Sampler, 1, graphics),
+            new(6, DescriptorType.StorageBuffer, 1, graphics),
         ];
         FrameSet = CreateLayout(frame, "frame set");
 
@@ -85,6 +87,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         DescriptorSetLayout* sceneSets = stackalloc[] { FrameSet, TextureSet, GBufferSet, AtlasSet };
         SceneLayout = CreatePipelineLayout(sceneSets, 3, drawPush, "scene layout");
         ImpostorLayout = CreatePipelineLayout(sceneSets, 4, drawPush, "impostor layout");
+        OverlayLayout = CreatePipelineLayout(sceneSets, 3, new PushConstantRange(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<OutlinePushConstants>()), "overlay layout");
         DescriptorSetLayout* postSets = stackalloc[] { PostSet };
         PostLayout = CreatePipelineLayout(postSets, 1, new PushConstantRange(ShaderStageFlags.FragmentBit, 0, (uint)Unsafe.SizeOf<ToneMapPushConstants>()), "post layout");
 
@@ -92,7 +95,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         Span<DescriptorPoolSize> sizes =
         [
             new(DescriptorType.UniformBuffer, frames),
-            new(DescriptorType.StorageBuffer, 4 * frames),
+            new(DescriptorType.StorageBuffer, 5 * frames),
             // One per frame set, and the immutable samplers of the G-buffer and atlas sets.
             new(DescriptorType.Sampler, frames + 2),
             new(DescriptorType.SampledImage, 16),
@@ -122,6 +125,12 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
     /// constants and sets 0 to 2, so binding set 3 with this layout keeps the scene sets bound.
     /// </summary>
     public PipelineLayout ImpostorLayout { get; }
+    /// <summary>
+    /// Sets 0 to 2, as in <see cref="SceneLayout"/>, plus <see cref="OutlinePushConstants"/> for the fragment stage, for
+    /// the outline pass. Its push constants differ, so it is not compatible with <see cref="SceneLayout"/>: the pass binds
+    /// the scene sets again with it.
+    /// </summary>
+    public PipelineLayout OverlayLayout { get; }
     /// <summary>The post set plus <see cref="ToneMapPushConstants"/>.</summary>
     public PipelineLayout PostLayout { get; }
 
@@ -304,6 +313,7 @@ internal sealed unsafe class DescriptorLayouts : IDisposable
         vk.DestroyPipelineLayout(device.Device, SceneLayout, null);
         vk.DestroyPipelineLayout(device.Device, ImpostorLayout, null);
         vk.DestroyPipelineLayout(device.Device, PostLayout, null);
+        vk.DestroyPipelineLayout(device.Device, OverlayLayout, null);
         vk.DestroyDescriptorSetLayout(device.Device, FrameSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, TextureSet, null);
         vk.DestroyDescriptorSetLayout(device.Device, GBufferSet, null);

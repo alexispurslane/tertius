@@ -25,6 +25,7 @@ namespace Tertius.Rendering;
 /// <item>Lighting: one fullscreen pass into the HDR target.</item>
 /// <item>Transparent objects: forward-shaded, blended, back to front.</item>
 /// <item>Tone mapping into the swapchain image or the offscreen output.</item>
+/// <item>The overlay (<see cref="OutlinePass"/>): the frame outlines of the snapshot, blended over the tone-mapped image.</item>
 /// <item>Capture readback, when requested. After the GPU finishes the frame, <see cref="Render"/> hands the pixels to
 /// the capture's <see cref="ICaptureSink"/>.</item>
 /// </list>
@@ -107,6 +108,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             graph.Add(FrameGraph.Stage.Lighting, new LightingPass(device, shaders, layouts));
             graph.Add(FrameGraph.Stage.Transparent, new TransparentPass(device, shaders, layouts));
             graph.Add(FrameGraph.Stage.ToneMap, new ToneMapPass(device, shaders, layouts, output.Format));
+            graph.Add(FrameGraph.Stage.Overlay, new OutlinePass(device, shaders, layouts, output.Format));
             graph.Add(FrameGraph.Stage.Readback, new CapturePass());
             Own(graph);
 
@@ -375,6 +377,7 @@ public sealed unsafe class VulkanRenderer : IRenderer
             ImpostorTilesInUse = impostors?.TilesInUse ?? 0,
             IndirectDrawCalls = context.IndirectDrawCalls,
             Lights = scene.LightCount,
+            Outlines = scene.OutlineCount,
             Rendered = true,
         };
 
