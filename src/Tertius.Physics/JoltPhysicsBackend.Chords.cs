@@ -6,7 +6,7 @@ namespace Tertius.Physics;
 
 // ---- Instant velocities and chords ----
 //
-// docs/plans/spin-gravity.md, "The velocity convention". Jolt reads a body's stored velocity as a chord: the step
+// ARCHITECTURE.md, "Instant velocities and chords". Jolt reads a body's stored velocity as a chord: the step
 // v' = v + a·dt, then x' = x + v'·dt, makes v' the displacement over the step divided by the step, which is the velocity
 // half a step earlier. A velocity that gameplay gives (a spawn, SetVelocity, a teleport, a jump) or that a hand-off
 // carries into another frame is an instant velocity: the velocity at that moment. So physics gives Jolt the chord of the

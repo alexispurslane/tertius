@@ -206,7 +206,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// intent moves the body on from the teleport pose.</item>
     /// <item>A velocity that SetVelocity, SetAngularVelocity, a teleport or a jump gives, like a velocity that a spawn
     /// gives, is an instant velocity: from the start of the step the body moves as it says, with Jolt's acceleration
-    /// (docs/plans/spin-gravity.md, "The velocity convention").</item>
+    /// (ARCHITECTURE.md, "Instant velocities and chords").</item>
     /// <item>An end pose or a full sample in <see cref="PhysicsIntent.Move"/> moves a kinematic body to its pose over one
     /// step, puts it exactly there, and stops it there unless the next step gives a new motion intent. A plain kinematic
     /// body reports the step record of that motion intent, and a hand-off carries the record's instant velocity. A steer
