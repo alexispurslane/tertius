@@ -136,8 +136,8 @@ public class CharacterTests
             Tick(world, 20);
             Double3 start = world.PoseInOwnFrame(person).Position;
 
-            // The platform slides sideways and rises, driven by kinematic targets: tick i writes the i-th of 60 targets, and
-            // the step of the next tick moves the platform there. The 61st tick applies the last target.
+            // The platform slides sideways and rises, driven by end poses: tick i writes the i-th of 60 end poses, and the
+            // step of the next tick moves the platform there. The 61st tick applies the last end pose.
             int written = 0;
             liftPilot.EveryTick = body =>
             {

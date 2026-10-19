@@ -257,20 +257,14 @@ public sealed partial class World
             return problem;
         switch (move)
         {
-            case MotionSample sample:
-                if (!ownsFrame)
-                    return "owns no frame, so it cannot take a full sample: Self.MoveOnRails moves only the owner of a frame";
-                return SampleProblem(sample);
-            case EndPose end:
-                if (desc.Body is not { } body)
-                    return "has no body, so it cannot take an end pose: BodyHandle.MoveKinematic moves only a body";
-                if (ownsFrame && !desc.Frame.IsNull && body.Motion == BodyMotion.Kinematic)
-                    return "has a kinematic hull, so it cannot take an end pose: a kinematic hull moves only by Self.MoveOnRails and Teleport";
-                return end.Pose.IsValid ? null : $"needs an end pose with a finite position and a finite rotation that is not zero, not {end.Pose}";
-            case SteerTarget steer:
-                return steer.Pose.IsValid ? null : $"needs a steer target with a finite position and a finite rotation that is not zero, not {steer.Pose}";
+            case MotionSample when !ownsFrame:
+                return "owns no frame, so it cannot take a full sample: Self.MoveOnRails moves only the owner of a frame";
+            case EndPose when desc.Body is null:
+                return "has no body, so it cannot take an end pose: BodyHandle.MoveKinematic moves only a body";
+            case EndPose when ownsFrame && !desc.Frame.IsNull && desc.Body!.Motion == BodyMotion.Kinematic:
+                return "has a kinematic hull, so it cannot take an end pose: a kinematic hull moves only by Self.MoveOnRails and Teleport";
             default:
-                return null;
+                return MotionIntentNumberProblem(move);
         }
     }
 
@@ -351,23 +345,17 @@ public sealed partial class World
     /// after the swap of step 4, for a spawn of the tick, and at the call of <see cref="Spawn(SpawnDesc)"/> outside a tick,
     /// so either way the next step is the entity's first. Each case goes where the motion intent of its writer stands after
     /// the swap: a full sample into the applied buffer of the sample table, as the sample of <see cref="Self.MoveOnRails"/>
-    /// for <paramref name="own"/>, the frame that the entity owns, and an end pose or a steer target into the entity's front
-    /// intent, as the target of <see cref="BodyHandle.MoveKinematic"/> (see <see cref="EntityTable.SetFirstMove"/>).
+    /// for <paramref name="own"/>, the frame that the entity owns, and an end pose or a steer target into the motion intent
+    /// of the entity's front intent, as <see cref="BodyHandle.MoveKinematic"/> and <see cref="BodyHandle.SteerTo"/> write
+    /// them (see <see cref="EntityTable.SetFirstMove"/>).
     /// </summary>
     private void StoreFirstMove(Entity entity, FrameHandle own, FrameHandle frame, in MotionIntent move)
     {
-        switch (move)
-        {
-            case MotionSample sample:
-                Frames.Samples.WriteApplied(own, frame, sample with { Pose = sample.Pose.WithUnitRotation() });
-                break;
-            case EndPose end:
-                entities.SetFirstMove(entity, frame, new MotionIntent(new EndPose(end.Pose.WithUnitRotation())));
-                break;
-            case SteerTarget steer:
-                entities.SetFirstMove(entity, frame, new MotionIntent(new SteerTarget(steer.Pose.WithUnitRotation())));
-                break;
-        }
+        MotionIntent unit = WithUnitRotation(move);
+        if (unit.TryGetValue(out MotionSample sample))
+            Frames.Samples.WriteApplied(own, frame, sample);
+        else if (unit.HasValue)
+            entities.SetFirstMove(entity, frame, unit);
     }
 
     /// <summary>

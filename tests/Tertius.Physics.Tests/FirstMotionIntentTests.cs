@@ -278,7 +278,7 @@ public class FirstMotionIntentTests
         world.Tick();
 
         world.Frames.LocalPose(frame).Rotation.Should().Be(doubled.Normalized(), "the frame takes its first motion intent with a unit rotation");
-        faults.Intents.Single(record => record.Entity == body).Intent.Target.Rotation.IsUnit.Should().BeTrue(
+        faults.Intents.Single(record => record.Entity == body).Intent.Move.AimPose.Rotation.IsUnit.Should().BeTrue(
             "the World stores the first motion intent with a unit rotation");
         world.Errors.Should().BeEmpty();
     }

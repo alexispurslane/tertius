@@ -585,7 +585,12 @@ public sealed partial class World
             Contract.Assert(!frame.IsNull && Frames.HullMotion(frame) is not null);
             Frames.PlanHullMotion(frame, intent.Motion);
             if (intent.Motion == BodyMotion.Kinematic)
-                intent.Flags &= ~(IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity | IntentFlags.KinematicTarget);
+            {
+                intent.Flags &= ~(IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity);
+                // Only an end pose or a steer target reaches the intent here: a sample still goes into the sample table.
+                if (!intent.Move.TryGetValue(out MotionSample _))
+                    intent.Move = default;
+            }
         }
     }
 
@@ -622,10 +627,11 @@ public sealed partial class World
     /// <summary>
     /// Converts <paramref name="intent"/> from the frame that it names into <paramref name="to"/>, with the frames' relation
     /// now, for a body at <paramref name="position"/> in <paramref name="to"/>, and makes it name <paramref name="to"/>. The
-    /// poses convert as poses, the velocities of SetVelocity and SetAngularVelocity with the motion of one frame relative
-    /// to the other, and forces, torques, impulses and a character's walk as directions. The velocities are instant
-    /// velocities at the start of the next step, the moment of the relation, so they convert exactly. A kinematic target
-    /// is a place at the end of the step, so it misses by how far the two frames move relative to each other in a step.
+    /// teleport's pose converts as a pose, the velocities of SetVelocity and SetAngularVelocity with the motion of one frame
+    /// relative to the other, the motion intent by its case (see <see cref="MotionIntent.Converted"/>), and forces, torques,
+    /// impulses and a character's walk as directions. The velocities are instant velocities at the start of the next step,
+    /// the moment of the relation, so they convert exactly. An end pose and a steer target are places at the end of the
+    /// step, so they miss by how far the two frames move relative to each other in a step.
     /// </summary>
     private void ConvertIntent(ref PhysicsIntent intent, FrameHandle to, Double3 position)
     {
@@ -641,8 +647,13 @@ public sealed partial class World
         }
         if ((flags & IntentFlags.SetAngularVelocity) != 0)
             intent.AngularVelocity = (relative.TransformDirection(intent.AngularVelocity) + Frames.AngularVelocityRelative(from, to)).ToVector3();
-        if ((flags & IntentFlags.KinematicTarget) != 0)
-            intent.Target = DPose.Compose(relative, intent.Target);
+        if (intent.Move.HasValue)
+        {
+            // The motion of the old frame in the new one now, by which a full sample converts as a body that hands off
+            // between the two frames does. An end pose and a steer target read only its pose.
+            var motion = new FrameMotion(relative, Frames.ConvertVelocity(from, to, Double3.Zero, Double3.Zero), Frames.AngularVelocityRelative(from, to));
+            intent.Move = intent.Move.Converted(motion, Frames.AccelerationRelative(from, to));
+        }
         if ((flags & IntentFlags.Teleport) != 0)
             intent.TeleportPose = DPose.Compose(relative, intent.TeleportPose);
         intent.Force = relative.TransformDirection(intent.Force).ToVector3();

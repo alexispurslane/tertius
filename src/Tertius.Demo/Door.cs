@@ -89,8 +89,8 @@ public sealed class Door(Vector3 slide, float openSeconds, bool openAtStart = fa
             return;
         float step = self.DeltaTime / openSeconds;
         openness = opening ? MathF.Min(openness + step, 1) : MathF.Max(openness - step, 0);
-        // A kinematic target moves the body there over the next step, and stops it there. It is relative to the frame that
-        // the door is in.
+        // An end pose moves the body there over the next step, and stops it there. It is relative to the frame that the
+        // door is in.
         var place = new DPose(closed.Position + closed.Rotation.Rotate((Double3)(slide * openness)), closed.Rotation);
         self.Body.MoveKinematic(closedFrame == self.Frame ? place : DPose.Compose(frames.Relative(closedFrame, self.Frame), place));
     }

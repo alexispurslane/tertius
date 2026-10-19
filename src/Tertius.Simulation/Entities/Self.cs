@@ -147,8 +147,8 @@ public readonly ref struct Self
 
 /// <summary>
 /// A proxy over the running entity's physics intent. All vectors are in frame axes. Forces, torques and impulses add
-/// up during the tick. Velocity changes, kinematic targets, teleports, character moves and jumps keep the last value
-/// written. Physics applies the intent in the next step. Every method throws <see cref="InvalidOperationException"/>
+/// up during the tick. Velocity changes, the motion intent (an end pose or a steer target), teleports, character moves
+/// and jumps keep the last value written. Physics applies the intent in the next step. Every method throws <see cref="InvalidOperationException"/>
 /// when the entity has no body. The properties work for every entity: <see cref="Pending"/> is the empty intent for an
 /// entity without a body.
 /// </summary>
@@ -223,19 +223,29 @@ public readonly ref struct BodyHandle
     }
 
     /// <summary>
-    /// Moves a kinematic body to <paramref name="target"/> over the next step. Throws <see cref="InvalidOperationException"/>
-    /// for a kinematic hull, which moves only by <see cref="Self.MoveOnRails"/> and <see cref="Teleport"/>.
+    /// Writes the end pose <paramref name="endPose"/>, relative to the entity's frame, as the motion intent of the next step
+    /// (see <see cref="EndPose"/>): physics moves a kinematic body there over the step, at a constant velocity, and stops
+    /// it there in the step after its last end pose. The last motion intent of a tick wins. Throws
+    /// <see cref="InvalidOperationException"/> for a kinematic hull, which moves only by <see cref="Self.MoveOnRails"/> and
+    /// <see cref="Teleport"/>, and <see cref="ArgumentException"/> for a pose that is not finite or has a zero rotation.
     /// </summary>
-    public void MoveKinematic(in DPose target)
-    {
-        ref PhysicsIntent intent = ref world.WritableMotionIntent(entity, nameof(MoveKinematic));
-        intent.Target = target;
-        intent.Flags |= IntentFlags.KinematicTarget;
-    }
+    public void MoveKinematic(in DPose endPose) =>
+        world.WriteMotionIntent(entity, nameof(MoveKinematic), new MotionIntent(new EndPose(endPose)));
 
     /// <summary>
-    /// Puts the body at <paramref name="pose"/> before the next step, without sweeping. It is separate from
-    /// <see cref="MoveKinematic"/>, so a body can teleport and then move kinematically in the same step.
+    /// Writes the steer target <paramref name="target"/>, relative to the entity's frame, as the motion intent of the next
+    /// step (see <see cref="SteerTarget"/>): physics gives a dynamic body the velocities that carry it to the target over
+    /// the step. Contacts and gravity still act on it, so it can end the step away from the target. In the step after its
+    /// last steer target, physics stops it, unless that step sets its velocity. The last motion intent of a tick wins.
+    /// Throws as <see cref="MoveKinematic"/> does.
+    /// </summary>
+    public void SteerTo(in DPose target) =>
+        world.WriteMotionIntent(entity, nameof(SteerTo), new MotionIntent(new SteerTarget(target)));
+
+    /// <summary>
+    /// Puts the body at <paramref name="pose"/> before the next step, without sweeping. It is separate from the motion
+    /// intent (<see cref="MoveKinematic"/> and <see cref="SteerTo"/>), so a body can teleport and then move on from the
+    /// teleport's pose in the same step.
     /// </summary>
     public void Teleport(in DPose pose)
     {
@@ -294,8 +304,8 @@ public readonly ref struct BodyHandle
     /// last finished step, as the collision groups do: it changes at step 4 of the sync point after the next step. The hull
     /// keeps its body, its system and its contacts. The last change in a tick wins, and a change to the motion that the hull
     /// has changes nothing. A hull that is not kinematic in the next step drops the sample written in this tick, and one that
-    /// is kinematic drops the velocities and the kinematic target set in this tick, because a kinematic hull moves only by
-    /// its samples and teleports. A parked frame stops at the sync point after the next step.
+    /// is kinematic drops the velocities, the end pose and the steer target set in this tick, because a kinematic hull moves
+    /// only by its samples and teleports. A parked frame stops at the sync point after the next step.
     /// </summary>
     /// <exception cref="InvalidOperationException">The body is no hull: the entity has no body, owns no frame, or owns a root frame.</exception>
     /// <exception cref="ArgumentException">

@@ -81,7 +81,7 @@ public sealed partial class JoltPhysicsBackend
             else if (record.IsCharacter)
                 ApplyRigidCharacterIntent(record, intent);
             else if (record.Motion != BodyMotion.Static)
-                ApplyBodyIntent(record, intent, intent.Flags);
+                ApplyBodyIntent(record, intent, intent.Flags, move: true);
             else if (record.IsHull && (intent.Flags & IntentFlags.Teleport) != 0)
                 TeleportStaticHull(record, intent.TeleportPose);
         }
@@ -160,14 +160,15 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Applies the intent of a rigid body, with the flags <paramref name="flags"/>, which are those of the intent or a part
-    /// of them. Impulses and forces act on a dynamic body whatever the flags say.
+    /// of them, and with <paramref name="move"/> its motion intent. Impulses and forces act on a dynamic body whatever the
+    /// flags say.
     /// </summary>
-    private void ApplyBodyIntent(BodyRecord record, in PhysicsIntent intent, IntentFlags flags)
+    private void ApplyBodyIntent(BodyRecord record, in PhysicsIntent intent, IntentFlags flags, bool move)
     {
         BodyInterface bodies = record.World!.Bodies;
         BodyID id = record.Body;
 
-        // Teleport first, so that a kinematic target in the same intent moves the body on from the new pose. Jolt does not
+        // Teleport first, so that a motion intent in the same intent moves the body on from the new pose. Jolt does not
         // simulate the jump, so the bodies around the old place wake. Jolt wakes those that the body touches at the new place.
         // Each velocity here is an instant velocity, and Jolt gets its chord. The pose in the home is the step record of a
         // hull's frame when the hull has no sample (see PredictRecord).
@@ -198,11 +199,16 @@ public sealed partial class JoltPhysicsBackend
             bodies.SetAngularVelocity(id, AngularChord(record, intent.AngularVelocity));
             record.VelocitySetStep = stepIndex;
         }
-        if ((flags & IntentFlags.KinematicTarget) != 0)
+        if (move && intent.Move.HasValue)
         {
-            DQuaternion rotation = intent.Target.Rotation.Normalized();
-            // The body reaches the target at the end of the step, where a falling numeric home will be by then.
-            Double3 target = intent.Target.Position - HomeOffsetAfterStep(record.Frame);
+            // An end pose or a steer target: a full sample still aims only a hull, from the sample table (see AimHullsOnRails).
+            // Physics aims a kinematic body at the aim pose and steers a dynamic body to it, whatever the case, until every
+            // writer of a motion intent takes the rules of the guard (docs/plans/rails-components.md, stage 6 of "Order of
+            // the work"). A conversion between frames can leave the rotation off unit length by rounding.
+            DPose aim = intent.Move.AimPose;
+            DQuaternion rotation = aim.Rotation.Normalized();
+            // The body reaches the aim pose at the end of the step, where a falling numeric home will be by then.
+            Double3 target = aim.Position - HomeOffsetAfterStep(record.Frame);
             if (record.Motion == BodyMotion.Kinematic)
             {
                 bodies.MoveKinematic(id, target.ToJolt(), rotation.ToJolt(), stepDt);
@@ -237,14 +243,14 @@ public sealed partial class JoltPhysicsBackend
     /// Applies the intent of a character in its rigid form, a dynamic body that cannot turn. A teleport, a velocity that the
     /// game sets, impulses and forces act on it as on any dynamic body. A walk and a jump do not move it, the same as in the
     /// walking form while it does not stand: physics keeps the desired velocity of the walk, which applies once the
-    /// character stands, and drops the jump. A kinematic target does nothing to a character, and the rigid form cannot turn,
+    /// character stands, and drops the jump. A motion intent does nothing to a character, and the rigid form cannot turn,
     /// so an angular velocity, an angular impulse and a torque change nothing either.
     /// </summary>
     private void ApplyRigidCharacterIntent(BodyRecord record, in PhysicsIntent intent)
     {
         if ((intent.Flags & IntentFlags.CharacterMove) != 0)
             record.DesiredVelocity = intent.CharacterVelocity;
-        ApplyBodyIntent(record, intent, intent.Flags & (IntentFlags.Teleport | IntentFlags.SetVelocity));
+        ApplyBodyIntent(record, intent, intent.Flags & (IntentFlags.Teleport | IntentFlags.SetVelocity), move: false);
     }
 
     private void ApplyCharacterIntent(BodyRecord record, in PhysicsIntent intent)

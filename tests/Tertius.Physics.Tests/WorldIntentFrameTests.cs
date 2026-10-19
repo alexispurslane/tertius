@@ -32,13 +32,17 @@ public class WorldIntentFrameTests
     /// <summary>A kinematic cube with sides of 1 m.</summary>
     private static BodyDesc KinematicCube => new(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic);
 
+    /// <summary>A dynamic cube with sides of 1 m that nothing slows down.</summary>
+    private static BodyDesc DynamicCube => new(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Dynamic, LinearDamping: 0, AngularDamping: 0);
+
     /// <summary>
-    /// Moves a kinematic body along a straight line in <paramref name="space"/>, with no turn: <paramref name="start"/> at
-    /// time 0 and <paramref name="velocity"/> on. In every tick it writes the place where the body must be at the end of
-    /// the step that applies the target, two steps after the moment that the tick reads, in the frame that the body is
-    /// in, through the frames' relation that the tick reads.
+    /// Moves a body along a straight line in <paramref name="space"/>, with no turn: <paramref name="start"/> at time 0 and
+    /// <paramref name="velocity"/> on. In every tick it writes the place where the body must be at the end of the step that
+    /// applies it, two steps after the moment that the tick reads, in the frame that the body is in, through the frames'
+    /// relation that the tick reads: an end pose for a kinematic body, or with <paramref name="steer"/> a steer target for
+    /// a dynamic body.
     /// </summary>
-    private sealed class Rail(FrameHandle space, Double3 start, Double3 velocity) : IComponent
+    private sealed class Rail(FrameHandle space, Double3 start, Double3 velocity, bool steer = false) : IComponent
     {
         public Double3 At(double time) => start + velocity * time;
 
@@ -48,8 +52,11 @@ public class WorldIntentFrameTests
 
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
-            var place = new DPose(At(self.TimeAt(self.Tick + 2)), DQuaternion.Identity);
-            self.Body.MoveKinematic(DPose.Compose(self.Snapshot.Frames.Relative(space, self.Frame), place));
+            var place = DPose.Compose(self.Snapshot.Frames.Relative(space, self.Frame), new DPose(At(self.TimeAt(self.Tick + 2)), DQuaternion.Identity));
+            if (steer)
+                self.Body.SteerTo(place);
+            else
+                self.Body.MoveKinematic(place);
         }
     }
 
@@ -87,8 +94,12 @@ public class WorldIntentFrameTests
         return worst;
     }
 
+    /// <summary>
+    /// A kinematic cube that gameplay drives with end poses through a child's bubble stays on its line at the ticks of the
+    /// hand-offs, because the end pose of each hand-off's tick converts into the cube's new frame.
+    /// </summary>
     [Fact]
-    public void AKinematicBodyThatGameplayDrivesThroughAChildsBubbleStaysOnItsLineAtTheTicksOfTheHandOffs()
+    public void AnEndPoseConvertsWhenItsBodyHandsOff()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
@@ -101,12 +112,34 @@ public class WorldIntentFrameTests
         (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 300);
 
         frames.Seen.Select(change => (change.From, change.To)).Should().Equal([(space, room), (room, space)], "the cube passes through the room's bubble");
-        off.Should().BeLessThan(1e-6, $"each target means the place that gameplay meant in the frame it named; the cube was {off} m off at tick {tick}");
+        off.Should().BeLessThan(1e-6, $"each end pose means the place that gameplay meant in the frame it named; the cube was {off} m off at tick {tick}");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A dynamic cube that gameplay steers through a child's bubble stays on its line at the ticks of the hand-offs, because
+    /// the steer target of each hand-off's tick converts into the cube's new frame. Nothing but the steer targets acts on the
+    /// cube, so physics carries it onto each one.
+    /// </summary>
+    [Fact]
+    public void ASteerTargetConvertsWhenItsBodyHandsOff()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Space(world);
+        FrameHandle room = world.GetOwnedFrame(Room(world, space, new DPose(new Double3(20, 0, 0), Turned), radius: 5));
+        var rail = new Rail(space, new Double3(5, 0, 0), new Double3(6, 0, 0), steer: true);
+        var frames = new FrameChangedLog();
+        Entity cube = world.Spawn(new SpawnDesc { Frame = space, Pose = new DPose(rail.At(0), DQuaternion.Identity), Body = DynamicCube, Components = [rail, frames] });
+
+        (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 300);
+
+        frames.Seen.Select(change => (change.From, change.To)).Should().Equal([(space, room), (room, space)], "the cube passes through the room's bubble");
+        off.Should().BeLessThan(1e-6, $"each steer target means the place that gameplay meant in the frame it named; the cube was {off} m off at tick {tick}");
         world.Errors.Should().BeEmpty();
     }
 
     [Fact]
-    public void AKinematicTargetWrittenInTheTickInWhichTheBodysFrameDiesMovesTheBodyWhereGameplayMeantIt()
+    public void AnEndPoseWrittenInTheTickInWhichTheBodysFrameDiesMovesTheBodyWhereGameplayMeantIt()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
@@ -127,12 +160,12 @@ public class WorldIntentFrameTests
 
         world.IsAlive(roomOwner).Should().BeFalse();
         frames.Seen.Should().ContainSingle("the destroy batch moves the cube out of the room that dies").Which.From.Should().Be(room);
-        off.Should().BeLessThan(1e-6, $"the target of the tick of the destroy means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
+        off.Should().BeLessThan(1e-6, $"the end pose of the tick of the destroy means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
         world.Errors.Should().BeEmpty();
     }
 
     [Fact]
-    public void AKinematicTargetWrittenInTheTickInWhichTheBodyLeavesAFrameThatDiesThenMovesTheBodyWhereGameplayMeantIt()
+    public void AnEndPoseWrittenInTheTickInWhichTheBodyLeavesAFrameThatDiesThenMovesTheBodyWhereGameplayMeantIt()
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
@@ -158,7 +191,7 @@ public class WorldIntentFrameTests
         world.GetFrame(cube).Should().Be(space, "the step of the tick in which the room died handed the cube out of its bubble");
         (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 10);
 
-        off.Should().BeLessThan(1e-6, $"the target of the tick of the hand-off means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
+        off.Should().BeLessThan(1e-6, $"the end pose of the tick of the hand-off means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
         world.Errors.Should().BeEmpty();
     }
 

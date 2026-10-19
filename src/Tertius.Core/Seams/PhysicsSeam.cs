@@ -355,7 +355,6 @@ public enum IntentFlags : ushort
     None = 0,
     SetVelocity = 1 << 0,
     SetAngularVelocity = 1 << 1,
-    KinematicTarget = 1 << 2,
     Teleport = 1 << 3,
     CharacterMove = 1 << 4,
     Jump = 1 << 5,
@@ -384,8 +383,6 @@ public struct PhysicsIntent
     /// <summary>The new linear velocity relative to the entity's frame, in doubles. Physics converts it to the body's home when it applies it.</summary>
     public Double3 Velocity;
     public Vector3 AngularVelocity;
-    /// <summary>The target pose for a kinematic body, in frame coordinates. Used with <see cref="IntentFlags.KinematicTarget"/>.</summary>
-    public DPose Target;
     /// <summary>The new pose for a teleport, in frame coordinates. Used with <see cref="IntentFlags.Teleport"/>.</summary>
     public DPose TeleportPose;
     /// <summary>The desired movement velocity of a character.</summary>

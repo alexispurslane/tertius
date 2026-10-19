@@ -330,12 +330,12 @@ public sealed partial class World
     }
 
     /// <summary>
-    /// The running entity's intent, for writing a request that sets its body's motion: <paramref name="call"/>, a kinematic
-    /// target or a velocity. Throws <see cref="InvalidOperationException"/> as <see cref="WritableIntent"/> does, and also
-    /// when the body is a kinematic hull in the step that applies the request (see <see cref="NextStepHullMotion"/>, which
-    /// counts a change of motion that the entity wrote earlier in the tick), because only a motion sample tells the frame of
-    /// a kinematic hull how to follow (see <see cref="MoveOnRails"/>): a kinematic hull takes only <c>MoveOnRails</c> and
-    /// <c>Teleport</c>.
+    /// The running entity's intent, for writing a request that sets its body's motion: <paramref name="call"/>, an end pose,
+    /// a steer target or a velocity. Throws <see cref="InvalidOperationException"/> as <see cref="WritableIntent"/> does,
+    /// and also when the body is a kinematic hull in the step that applies the request (see <see cref="NextStepHullMotion"/>,
+    /// which counts a change of motion that the entity wrote earlier in the tick), because only a motion sample tells the
+    /// frame of a kinematic hull how to follow (see <see cref="MoveOnRails"/>): a kinematic hull takes only
+    /// <c>MoveOnRails</c> and <c>Teleport</c>.
     /// </summary>
     internal ref PhysicsIntent WritableMotionIntent(Entity entity, string call)
     {
@@ -345,6 +345,56 @@ public sealed partial class World
                 $"{entity} owns {own}, whose body is a kinematic hull, so it cannot take {call}: a kinematic hull moves only by Self.MoveOnRails and Teleport.");
         return ref WritableIntent(entity);
     }
+
+    /// <summary>
+    /// Writes <paramref name="move"/>, relative to the frame that the running entity is in during the tick, as the motion
+    /// intent of its next step (see <see cref="PhysicsIntent.Move"/>), with its rotation made unit length. The last write
+    /// in a tick wins, whatever its case. <paramref name="call"/> names the writer for the messages. It throws
+    /// <see cref="ArgumentException"/> for a number that is not finite or a zero rotation (see
+    /// <see cref="MotionIntentNumberProblem"/>), and then as <see cref="WritableMotionIntent"/> does, which is the guard of
+    /// the writers of an end pose and a steer target until every writer takes the rules of the guard
+    /// (docs/plans/rails-components.md, stage 6 of "Order of the work"). The numbers come first because the guard makes the
+    /// entity a writer of an intent, and a refused write must leave the entity no intent.
+    /// </summary>
+    internal void WriteMotionIntent(Entity entity, string call, in MotionIntent move)
+    {
+        if (MotionIntentNumberProblem(move) is { } problem)
+            throw new ArgumentException($"{call} {problem}.", nameof(move));
+        WritableMotionIntent(entity, call).Move = WithUnitRotation(move);
+    }
+
+    /// <summary>
+    /// What is wrong with the numbers of <paramref name="move"/>, or null: a number that is not finite, or a rotation that
+    /// is zero or not finite. The writers of a motion intent and the check of a spawn's first motion intent refuse such an
+    /// intent.
+    /// </summary>
+    private static string? MotionIntentNumberProblem(in MotionIntent move)
+    {
+        switch (move)
+        {
+            case MotionSample sample:
+                return SampleProblem(sample);
+            case EndPose end:
+                return end.Pose.IsValid ? null : $"needs an end pose with a finite position and a finite rotation that is not zero, not {end.Pose}";
+            case SteerTarget steer:
+                return steer.Pose.IsValid ? null : $"needs a steer target with a finite position and a finite rotation that is not zero, not {steer.Pose}";
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="move"/> with the rotation of its pose made unit length. Gameplay can write any rotation that is not
+    /// zero, but the local pose of a frame must be unit length (see <see cref="FrameTree"/>), and physics puts a body on the
+    /// pose, so the World normalizes it, as it does for a write of a transform (see FollowOwners).
+    /// </summary>
+    private static MotionIntent WithUnitRotation(in MotionIntent move) => move switch
+    {
+        MotionSample sample => new MotionIntent(sample with { Pose = sample.Pose.WithUnitRotation() }),
+        EndPose end => new MotionIntent(new EndPose(end.Pose.WithUnitRotation())),
+        SteerTarget steer => new MotionIntent(new SteerTarget(steer.Pose.WithUnitRotation())),
+        _ => move,
+    };
 
     /// <summary>
     /// The motion that the hull of <paramref name="frame"/> has in the next step: the step that applies the intents written

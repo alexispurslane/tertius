@@ -200,14 +200,14 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <para>Intents, in the entity's frame axes. The intent of a frame's owner acts on the frame's hull.</para>
     /// <list type="bullet">
     /// <item>Teleport sets the pose to <see cref="PhysicsIntent.TeleportPose"/> and zeroes both velocities.
-    /// SetVelocity, SetAngularVelocity and KinematicTarget apply after it, so a target in the same intent moves the
-    /// body on from the teleport pose.</item>
+    /// SetVelocity, SetAngularVelocity and the motion intent apply after it, so an end pose or a steer target in the same
+    /// intent moves the body on from the teleport pose.</item>
     /// <item>A velocity that SetVelocity, SetAngularVelocity, a teleport or a jump gives, like a velocity that a spawn
     /// gives, is an instant velocity: from the start of the step the body moves as it says, with Jolt's acceleration
     /// (docs/plans/spin-gravity.md, "The velocity convention").</item>
-    /// <item>KinematicTarget moves a kinematic body to <see cref="PhysicsIntent.Target"/> over one step and stops it
-    /// there unless the next step gives a new target or velocity. A dynamic body gets the velocities that would carry
-    /// it there.</item>
+    /// <item>An end pose or a steer target in <see cref="PhysicsIntent.Move"/> moves a kinematic body to its pose over one
+    /// step and stops it there unless the next step gives a new motion intent or velocity. A dynamic body gets the
+    /// velocities that would carry it there.</item>
     /// <item>Force, Torque, Impulse and AngularImpulse act on dynamic bodies, for this step only.</item>
     /// <item>SetCollision gives every body of the entity new collision groups and a new mask, before anything else moves,
     /// and they stay. It works for every entity with a body, a static body and the owner of a root frame too. A frame's
@@ -219,7 +219,7 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// not stand, in the air, on steep ground or weightless, in any frame and any gravity, keeps its momentum, and
     /// gravity changes it. (User) CharacterMove and Jump do not move it, but physics keeps the desired velocity, which
     /// applies once the character stands. Impulses and forces change a character's velocity by their mass.
-    /// KinematicTarget does nothing to a character.</item>
+    /// A motion intent does nothing to a character.</item>
     /// <item>A character has two forms (see <see cref="NextCharacterMotion"/>). Below the threshold it is weightless, and
     /// physics makes it a rigid body with its rotation locked, the rigid form, whose contacts Jolt solves as it solves
     /// those of any rigid body: it pushes a dynamic body as hard as its momentum says, takes the reaction, and slides on a

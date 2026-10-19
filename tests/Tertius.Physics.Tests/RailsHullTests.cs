@@ -129,7 +129,7 @@ public class RailsHullTests
 
         world.Errors.Should().ContainSingle().Which.Should().Contain(owner.ToString()).And.Contain(nameof(InvalidOperationException)).And.Contain("kinematic hull");
         faults.Intents.Should().NotContain(record => record.Entity == owner &&
-            (record.Intent.Flags & (IntentFlags.KinematicTarget | IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity)) != 0);
+            (record.Intent.Move.HasValue || (record.Intent.Flags & (IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity)) != 0));
     }
 
     /// <summary>

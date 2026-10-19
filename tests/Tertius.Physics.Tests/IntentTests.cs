@@ -59,7 +59,7 @@ public class IntentTests
     }
 
     [Fact]
-    public void TeleportAndKinematicTargetInOneIntentMoveFromTheTeleportPoseToTheTarget()
+    public void ATeleportAndAnEndPoseOrASteerTargetInOneIntentMoveTheBodyOnFromTheTeleportPose()
     {
         var (world, space) = ZeroGravity();
         using (world)
@@ -72,22 +72,28 @@ public class IntentTests
             Entity person = Spawn(world, space, new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70), At(0, -10, 0), personPilot);
             world.Tick();
 
-            // Each body teleports 20 m away and, in the same intent, gets a target half a meter and 0.1 rad further on.
+            // Each body teleports 20 m away and, in the same intent, gets an aim pose half a meter and 0.1 rad further on:
+            // an end pose for the kinematic body and the character, and a steer target for the dynamic box.
             var offsets = new Dictionary<Entity, Double3> { [mover] = new(20, 0, 0), [box] = new(0, 20, 0), [person] = new(0, -20, 0) };
             foreach (var (entity, pilot) in new[] { (mover, moverPilot), (box, boxPilot), (person, personPilot) })
             {
                 Double3 offset = offsets[entity];
+                bool steer = entity == box;
                 pilot.Once = body =>
                 {
                     body.Teleport(new DPose(offset, DQuaternion.FromAxisAngle(Double3.UnitY, 0.4)));
-                    body.MoveKinematic(new DPose(offset + new Double3(0.5, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5)));
+                    var aim = new DPose(offset + new Double3(0.5, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5));
+                    if (steer)
+                        body.SteerTo(aim);
+                    else
+                        body.MoveKinematic(aim);
                 };
             }
             world.Tick();
             world.Tick();
 
-            // Teleport first, then the target: kinematic and dynamic bodies end the step at the target, moving at the
-            // speed that carried them there from the teleport pose.
+            // Teleport first, then the end pose or the steer target: kinematic and dynamic bodies end the step at the aim
+            // pose, moving at the speed that carried them there from the teleport pose.
             foreach (Entity entity in new[] { mover, box })
             {
                 DPose pose = world.PoseInOwnFrame(entity);
@@ -98,12 +104,12 @@ public class IntentTests
                 world.AngularVelocityInOwnFrame(entity).Y.Should().BeApproximately(0.1f / world.DeltaTime, 1e-3f);
             }
 
-            // A target does nothing to a character, so it stays where it teleported to.
+            // An end pose does nothing to a character, so it stays where it teleported to.
             DPose character = world.PoseInOwnFrame(person);
             (character.Position - offsets[person]).Length.Should().BeLessThan(1e-3);
             Math.Abs(Dot(character.Rotation, DQuaternion.FromAxisAngle(Double3.UnitY, 0.4))).Should().BeGreaterThan(1 - 1e-5);
 
-            // Without a new target, the kinematic body stops there.
+            // Without a new end pose, the kinematic body stops there.
             world.Tick();
             (world.PoseInOwnFrame(mover).Position - (offsets[mover] + new Double3(0.5, 0, 0))).Length.Should().BeLessThan(1e-4);
             world.VelocityInOwnFrame(mover).Should().Be(Vector3.Zero);
@@ -187,7 +193,29 @@ public class IntentTests
     }
 
     [Fact]
-    public void KinematicTargetReachesTheTargetAndStops()
+    public void MoveKinematicWritesAnEndPoseThatTheNextStepApplies()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        var pilot = new Pilot();
+        Entity mover = Spawn(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic), At(0, 0, 0), pilot);
+        var end = new DPose(new Double3(0.5, 0, 0.25), DQuaternion.FromAxisAngle(Double3.UnitY, 0.3));
+
+        Send(world, pilot, body => body.MoveKinematic(end));
+        world.Tick();
+
+        PhysicsIntent applied = faults.Intents.Should().ContainSingle(record => record.Entity == mover, "only the step after the write applies it").Subject.Intent;
+        applied.Move.TryGetValue(out EndPose written).Should().BeTrue("MoveKinematic writes the case EndPose of the motion intent, not {0}", applied.Move.Value);
+        written.Pose.Position.Should().Be(end.Position);
+        Math.Abs(Dot(written.Pose.Rotation, end.Rotation)).Should().BeGreaterThan(1 - 1e-12);
+        DPose pose = world.PoseInOwnFrame(mover);
+        (pose.Position - end.Position).Length.Should().BeLessThan(1e-5, "the step that applies the end pose ends with the body on it");
+        Math.Abs(Dot(pose.Rotation, end.Rotation)).Should().BeGreaterThan(1 - 1e-6);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnEndPoseMovesAKinematicBodyThereAndStopsIt()
     {
         var (world, space) = ZeroGravity();
         using (world)
@@ -210,7 +238,7 @@ public class IntentTests
     }
 
     [Fact]
-    public void KinematicTargetDrivesDynamicBody()
+    public void ASteerTargetCarriesADynamicBodyToItsPoseOverTheStep()
     {
         var (world, space) = ZeroGravity();
         using (world)
@@ -218,7 +246,7 @@ public class IntentTests
             var pilot = new Pilot();
             Entity box = Spawn(world, space, Box(0.5f), At(0, 0, 0), pilot);
             var target = new DPose(new Double3(0.2, 0.1, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, 0.2));
-            Send(world, pilot, body => body.MoveKinematic(target));
+            Send(world, pilot, body => body.SteerTo(target));
             world.Tick();
             (world.PoseInOwnFrame(box).Position - target.Position).Length.Should().BeLessThan(1e-4);
             Math.Abs(Dot(world.PoseInOwnFrame(box).Rotation, target.Rotation)).Should().BeGreaterThan(1 - 1e-5);

@@ -372,7 +372,7 @@ public class SetMotionTests
     }
 
     /// <summary>
-    /// A dynamic hull may set its velocities and a kinematic target in a tick. When the same tick makes the hull kinematic,
+    /// A dynamic hull may set its velocities and a steer target in a tick. When the same tick makes the hull kinematic,
     /// they go: a kinematic hull moves only by its samples and teleports, which tell its frame how to follow. A force of the
     /// same tick stays, because physics applies it only to a dynamic body.
     /// </summary>
@@ -390,7 +390,7 @@ public class SetMotionTests
             done = true;
             self.Body.SetVelocity(new Double3(5, 0, 0));
             self.Body.SetAngularVelocity(new Vector3(0, 1, 0));
-            self.Body.MoveKinematic(TestWorld.At(3));
+            self.Body.SteerTo(TestWorld.At(3));
             self.Body.AddForce(new Vector3(10, 0, 0));
             self.Body.SetMotion(BodyMotion.Kinematic);
         }));
@@ -398,7 +398,8 @@ public class SetMotionTests
         test.Run(1);
 
         PhysicsIntent next = test.World.Entities.NextStepIntent(ship.Entity);
-        next.Flags.Should().Be(IntentFlags.SetMotion, "the velocities and the target went, and the change of motion stays");
+        next.Flags.Should().Be(IntentFlags.SetMotion, "the velocities went, and the change of motion stays");
+        next.Move.HasValue.Should().BeFalse("the steer target went");
         next.Motion.Should().Be(BodyMotion.Kinematic);
         next.Force.Should().Be(new Vector3(10, 0, 0), "a force stays, because physics applies it only to a dynamic body");
         test.World.Errors.Should().BeEmpty();
