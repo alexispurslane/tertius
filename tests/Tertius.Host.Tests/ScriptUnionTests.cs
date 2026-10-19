@@ -1,6 +1,8 @@
+using System.Buffers;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using Tertius.Host.Scripting;
 using Tertius.Simulation;
 
@@ -192,6 +194,19 @@ public class ScriptUnionTests
     }
 
     [Fact]
+    public void AScriptBuiltWithAPostWhoseTargetHoldsNoCaseIsRefusedAtItsStepNumberBeforeAnythingRuns()
+    {
+        using World world = HostTesting.NewWorld();
+        SceneInstance scene = HostTesting.Probes(world);
+        var script = new Script("probes", [new RunStep(1), new PostStep(default, "Nudge")]);
+
+        Action run = () => ScriptRunner.Run(script, world, scene);
+
+        run.Should().Throw<ScriptException>().Which.Message.Should().Be("step 2 (post): an event target cannot be null.");
+        world.TickNumber.Should().Be(0);
+    }
+
+    [Fact]
     public void ThePostStepOfANullTargetIsRefusedWhenItIsRead()
     {
         Action parse = () => Script.Parse("""{ "scene": "probes", "steps": [ { "do": "post", "to": null, "event": "Nudge" } ] }""");
@@ -199,22 +214,84 @@ public class ScriptUnionTests
         parse.Should().Throw<ScriptException>().Which.Message.Should().StartWith("The script is not valid JSON of a script: An event target cannot be null. Path: $.to");
     }
 
+    // Each makes the options from a world that the test disposes. Only the payload options use it.
     public static IEnumerable<object[]> OptionsOfTheScriptFormat() =>
     [
-        [(Func<JsonSerializerOptions>)(() => ScriptJson.Scripts)],
-        [(Func<JsonSerializerOptions>)(() => ScriptJson.Recordings)],
-        [(Func<JsonSerializerOptions>)(() => ScriptJson.Dumps(new SceneInstance()))],
-        [(Func<JsonSerializerOptions>)(() => ScriptJson.Payloads(HostTesting.NewWorld(), new SceneInstance()))],
+        [(Func<World, JsonSerializerOptions>)(_ => ScriptJson.Scripts)],
+        [(Func<World, JsonSerializerOptions>)(_ => ScriptJson.Recordings)],
+        [(Func<World, JsonSerializerOptions>)(_ => ScriptJson.Dumps(new SceneInstance()))],
+        [(Func<World, JsonSerializerOptions>)(world => ScriptJson.Payloads(world, new SceneInstance()))],
     ];
 
     [Theory]
     [MemberData(nameof(OptionsOfTheScriptFormat))]
-    public void EveryOptionsObjectOfTheScriptFormatWritesTheDiscriminatorsFirst(Func<JsonSerializerOptions> options)
+    public void EveryOptionsObjectOfTheScriptFormatWritesTheDiscriminatorsFirst(Func<World, JsonSerializerOptions> options)
     {
-        using JsonDocument step = JsonDocument.Parse(JsonSerializer.Serialize<ScriptStep>(new PostStep(new ToTopic("input"), "Nudge"), options()));
+        using World world = HostTesting.NewWorld();
+
+        using JsonDocument step = JsonDocument.Parse(JsonSerializer.Serialize<ScriptStep>(new PostStep(new ToTopic("input"), "Nudge"), options(world)));
 
         step.RootElement.EnumerateObject().Select(member => member.Name).Should().Equal("do", "to", "event", "payload");
         step.RootElement.GetProperty("to").EnumerateObject().Select(member => member.Name).Should().Equal("kind", "name");
+    }
+
+    /// <summary>The bytes that the current thread allocates while it runs <paramref name="action"/> 100 times, after 10 runs that warm it up.</summary>
+    private static long BytesAllocatedBy(Action action)
+    {
+        for (int i = 0; i < 10; i++)
+            action();
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 100; i++)
+            action();
+        return GC.GetAllocatedBytesForCurrentThread() - before;
+    }
+
+    // A dump writes one target for each routed event, and a recording one step for each line, so a long run writes tens
+    // of thousands. The converter of a union finds the case and hands it to System.Text.Json, and that must cost no
+    // allocation beyond the write of the case record itself.
+    [Fact]
+    public void WritingAStepOrATargetAllocatesNothingBeyondTheWriteOfItsCaseRecord()
+    {
+        JsonSerializerOptions options = ScriptJson.Recordings;
+        var buffer = new ArrayBufferWriter<byte>(1024);
+        using var writer = new Utf8JsonWriter(buffer);
+        var run = new RunStep(3);
+        var topic = new ToTopic("input");
+        ScriptStep step = run;
+        MessageTarget target = topic;
+        JsonTypeInfo runInfo = options.GetTypeInfo(typeof(RunStep)), topicInfo = options.GetTypeInfo(typeof(ToTopic));
+        Action Writing(Action<Utf8JsonWriter> write) => () =>
+        {
+            buffer.ResetWrittenCount();
+            writer.Reset();
+            write(writer);
+            writer.Flush();
+        };
+
+        long runRecord = BytesAllocatedBy(Writing(w => JsonSerializer.Serialize(w, run, runInfo)));
+        long runStep = BytesAllocatedBy(Writing(w => JsonSerializer.Serialize(w, step, options)));
+        long topicRecord = BytesAllocatedBy(Writing(w => JsonSerializer.Serialize(w, topic, topicInfo)));
+        long topicTarget = BytesAllocatedBy(Writing(w => JsonSerializer.Serialize(w, target, options)));
+
+        runStep.Should().Be(runRecord);
+        topicTarget.Should().Be(topicRecord);
+    }
+
+    [Fact]
+    public void ReadingAStepOrATargetAllocatesNothingBeyondTheReadOfItsCaseRecord()
+    {
+        JsonSerializerOptions options = ScriptJson.Scripts;
+        byte[] run = """{"do":"run","ticks":3}"""u8.ToArray(), topic = """{"kind":"topic","name":"input"}"""u8.ToArray();
+        JsonTypeInfo runInfo = options.GetTypeInfo(typeof(RunStep)), topicInfo = options.GetTypeInfo(typeof(ToTopic));
+        Action Reading(byte[] json, Action<Utf8JsonReader> read) => () => read(new Utf8JsonReader(json));
+
+        long runRecord = BytesAllocatedBy(Reading(run, reader => JsonSerializer.Deserialize(ref reader, runInfo)));
+        long runStep = BytesAllocatedBy(Reading(run, reader => JsonSerializer.Deserialize<ScriptStep>(ref reader, options)));
+        long topicRecord = BytesAllocatedBy(Reading(topic, reader => JsonSerializer.Deserialize(ref reader, topicInfo)));
+        long topicTarget = BytesAllocatedBy(Reading(topic, reader => JsonSerializer.Deserialize<MessageTarget>(ref reader, options)));
+
+        runStep.Should().Be(runRecord);
+        topicTarget.Should().Be(topicRecord);
     }
 
     [Fact]

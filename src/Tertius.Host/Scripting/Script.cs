@@ -75,6 +75,9 @@ public sealed record Script(string Scene, [property: JsonPropertyOrder(1)] IRead
             {
                 case null:
                     throw new ScriptException($"step {number}: a step cannot be null.");
+                // JSON cannot read such a post, but code can build one, because the target is a struct.
+                case PostStep { To.HasValue: false }:
+                    throw new ScriptException($"step {number} (post): an event target cannot be null.");
                 case RunStep { Ticks: < 1 } run:
                     throw new ScriptException($"step {number} (run): it runs {run.Ticks} ticks, and a run step runs at least 1.");
                 case DumpStep dump when !SceneInstance.IsSceneId(dump.Name):
@@ -183,7 +186,8 @@ public sealed record ScriptWindow(int Width, int Height)
 /// <see cref="ToTopic"/>, a <see cref="ToFrame"/> or a <see cref="ToEveryone"/>. Its <c>kind</c> key names the case in
 /// JSON (<see cref="MessageTargetJsonConverter"/>).
 /// This is a custom C# 15 union, like the engine's <c>Target</c>, and like <see cref="ScriptStep"/> its cases are classes.
-/// The default value holds no case, and JSON refuses it.
+/// The default value holds no case. JSON refuses it, and <see cref="Script.CheckSteps"/> refuses a post step built in code
+/// with it.
 /// </summary>
 [Union]
 [JsonConverter(typeof(MessageTargetJsonConverter))]

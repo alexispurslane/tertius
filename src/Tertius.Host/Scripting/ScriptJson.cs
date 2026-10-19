@@ -101,7 +101,6 @@ internal static class ScriptJson
             AllowDuplicateProperties = false,
             NumberHandling = numbers,
             IncludeFields = true,
-            AllowOutOfOrderMetadataProperties = true,
             RespectNullableAnnotations = true,
             RespectRequiredConstructorParameters = true,
             WriteIndented = true,

@@ -75,11 +75,8 @@ internal sealed class JsonCases<TUnion>(string key, string what, params JsonCase
     }
 
     /// <summary>Writes the held case of a union as an object that starts with the key.</summary>
-    public void Write(Utf8JsonWriter writer, object held, JsonSerializerOptions options)
-    {
-        JsonCase<TUnion> found = cases.Single(c => c.Type == held.GetType());
-        JsonSerializer.Serialize(writer, held, InfoOf(found, options));
-    }
+    public void Write(Utf8JsonWriter writer, object held, JsonSerializerOptions options) =>
+        JsonSerializer.Serialize(writer, held, InfoOf(CaseOf(held), options));
 
     /// <summary>A modifier of a type info resolver: gives the record of each case the key as a member that is first and has the name of the case.</summary>
     public void AddKeyTo(JsonTypeInfo info)
@@ -128,11 +125,24 @@ internal sealed class JsonCases<TUnion>(string key, string what, params JsonCase
         throw new UnionJsonException($"'{reader.GetString()}' is not a kind of {what}. {KindsMessage}");
     }
 
+    // A dump or a recording writes tens of thousands of steps and targets, so finding the case and its type info allocates
+    // nothing: plain loops, with no lambda that captures the case, and an index into the members, because a foreach over
+    // an IList boxes its enumerator.
+    private JsonCase<TUnion> CaseOf(object held)
+    {
+        Type type = held.GetType();
+        foreach (JsonCase<TUnion> found in cases)
+            if (found.Type == type)
+                return found;
+        throw new InvalidOperationException($"{type.Name} is not a case of the {what}.");
+    }
+
     private JsonTypeInfo InfoOf(JsonCase<TUnion> found, JsonSerializerOptions options)
     {
         JsonTypeInfo info = options.GetTypeInfo(found.Type);
-        foreach (JsonPropertyInfo property in info.Properties)
-            if (property.Name == key)
+        IList<JsonPropertyInfo> properties = info.Properties;
+        for (int i = 0; i < properties.Count; i++)
+            if (properties[i].Name == key)
                 return info;
         throw new InvalidOperationException($"The options give {found.Type.Name} no \"{key}\" member, so a {what} would lose its kind. Use the options of ScriptJson.");
     }

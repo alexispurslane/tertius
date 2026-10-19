@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Tertius.Host.Scripting;
 
 namespace Tertius.Host.Tests;
@@ -63,6 +64,31 @@ public class ScriptJsonFormatTests
         Script parsed = Script.Parse(script.ToJson());
 
         parsed.Steps.Should().Equal(script.Steps);
+    }
+
+    public static TheoryData<string> CheckedInScripts =>
+        [.. Directory.GetFiles(Path.Combine(HostTesting.RepositoryRoot(), "scripts"), "*.json").Select(path => Path.GetFileName(path)).Order(StringComparer.Ordinal)];
+
+    // The expected steps come from the raw JSON of the file, never from the types that read it, so the test holds through
+    // a change of those types. A post with no payload key writes "payload": null, which reads as the same post.
+    [Theory]
+    [MemberData(nameof(CheckedInScripts))]
+    public void EveryCheckedInScriptWritesBackTheStepsOfItsFileAndReadsBackAsItself(string file)
+    {
+        string text = File.ReadAllText(Path.Combine(HostTesting.RepositoryRoot(), "scripts", file));
+        string written = Script.Parse(text).ToJson();
+        JsonArray steps = JsonNode.Parse(text)!["steps"]!.AsArray();
+        JsonArray writtenSteps = JsonNode.Parse(written)!["steps"]!.AsArray();
+
+        writtenSteps.Should().HaveSameCount(steps);
+        for (int i = 0; i < steps.Count; i++)
+        {
+            JsonObject step = steps[i]!.AsObject();
+            if (step["do"]!.GetValue<string>() == "post" && !step.ContainsKey("payload"))
+                step["payload"] = null;
+            JsonNode.DeepEquals(writtenSteps[i], step).Should().BeTrue($"step {i + 1} of {file} writes {writtenSteps[i]!.ToJsonString()}, and the file has {step.ToJsonString()}");
+        }
+        Script.Parse(written).ToJson().Should().Be(written);
     }
 
     [Theory]

@@ -129,6 +129,7 @@ A union is a type whose value is one of several cases, such as a shape, a gravit
 - A union is an abstract class or record with `[JsonPolymorphic(TypeDiscriminatorPropertyName = "kind")]` and one `[JsonDerivedType]` per case. No case has a member named `Kind`.
 - A package adds a case to a union of a dependency with `[UnionCase("name")]` on the case class. The modifier adds it to the contract of the union. Two cases with one `kind` are error CT3013.
 - The engine types `ShapeDesc`, `GravityField` and `KeplerOrbit` carry no attributes of System.Text.Json. The file model unions `ShapeSection`, `GravitySection` and `OrbitSection` map to them.
+- The script format of the host differs here. Its step and target unions `ScriptStep` and `MessageTarget`, like `InputEvent`, are custom C# 15 `[Union]` structs with JSON converters, not abstract classes with `[JsonPolymorphic]` (see host-and-scripted-runs.md).
 
 ### How a JSON object becomes a component
 
