@@ -92,7 +92,10 @@ public class SpinStationRoomTests
     {
         // From its second step on, the room gives the crate the room's push toward the axis reversed, ω² R outward, and the
         // crate's update in the room's turning axes keeps it on its inertial line. The two steps that end the room's first
-        // and second step fix that line in inertial space.
+        // and second step fix that line in inertial space. The bound holds when the update adds that push turned by the turn
+        // of the step, R_n g dt², which keeps a body in a field fixed in the frame's axes on its exact path: measured 1.2e-5 m
+        // over the 90 steps. The design adds the linear gravity in the axes at the end of the step and accepts the cross term
+        // ω |g| dt, which is ω³ R dt = 0.026 m/s² here, and the crate then leaves its line by 2.9 cm.
         using World world = NewWorld(out _, debugChecks: false);
         Station station = SpawnStation(world);
         Tick(world, 3);

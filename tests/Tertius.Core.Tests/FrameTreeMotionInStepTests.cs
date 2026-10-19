@@ -234,9 +234,13 @@ public class FrameTreeMotionInStepTests
     public void WithoutATeleportTheStartsPoseIsTheTreesRelativePoseToTheBit()
     {
         // The parts of an intent that convert by the start, such as a teleport and the forces, keep the tree's relation exactly.
-        FrameHandle station = Frame(space, new Double3(1e6, -3e5, 2e4));
+        // The two frames' root is far from the origin of the virtual root and turned, so a path through the virtual root
+        // would round otherwise.
+        FrameHandle root = frames.Create(new Entity(nextOwner++, 1), FrameHandle.Null,
+            new DPose(new Double3(3e7, -2e6, 5e5), DQuaternion.FromAxisAngle(new Double3(1, 2, 3).Normalized(), 0.7)), FrameBounds.Sphere(1e9f));
+        FrameHandle station = Frame(root, new Double3(1e6, -3e5, 2e4));
         FrameHandle room = Frame(station, new Double3(100, 0, 3));
-        FrameHandle cart = Frame(space, new Double3(-5e5, 7, 1));
+        FrameHandle cart = Frame(root, new Double3(-5e5, 7, 1));
         for (int k = 1; k <= 2; k++)
             RunStep(Intents((station, Spinning(k * Step)), (cart, EndingAt(new Double3(-5e5 + k, 7, 1), DQuaternion.FromAxisAngle(Double3.UnitX, 0.1 * k)))));
 

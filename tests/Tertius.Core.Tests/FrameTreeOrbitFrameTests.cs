@@ -271,6 +271,27 @@ public class FrameTreeOrbitFrameTests
         (start.Velocity - frames.LinearVelocity(station)).Length.Should().BeLessThan(1e-9, "the step starts at the station's instant velocity in earth");
     }
 
+    /// <summary>
+    /// The orbit frame itself, a numeric level, ends the step on its anchor's plan (see <see cref="FrameTree.MotionRelativeInStep"/>):
+    /// at the plan's place, with the plan's instant velocity, and with the acceleration that lands it there, as the step
+    /// will move it (see <see cref="FrameTree.BeginStep"/>).
+    /// </summary>
+    [Fact]
+    public void An_orbit_frame_ends_the_step_on_its_anchors_plan()
+    {
+        FrameHandle station = Station(10, Low);
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+        Sync(station, Low, Start + Step);
+        MotionSample next = Low.Sample(EarthMu, Start + 2 * Step, Step);
+        Double3 velocity = frames.LinearVelocity(orbit);
+
+        (_, FrameMotion end) = frames.MotionRelativeInStep(orbit, earth, Moving(station, new MotionIntent(next)), Step);
+
+        end.Pose.Position.Should().Be(next.Pose.Position);
+        end.Velocity.Should().Be(next.Velocity);
+        end.Acceleration.Should().Be((next.ChordVelocity - velocity) / Step);
+    }
+
     [Fact]
     public void An_orbit_frame_takes_the_acceleration_that_lands_it_on_its_anchors_plan_whatever_the_field_or_the_plans_acceleration_says()
     {
