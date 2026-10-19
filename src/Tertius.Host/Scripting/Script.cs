@@ -233,7 +233,15 @@ public sealed record FilmStep(string Name, int Frames, int Every)
     /// The capture name of frame <paramref name="number"/>, counted from 0: the film's name, a dash and the number in six
     /// digits, such as <c>climb-000001</c>. That fits ffmpeg's <c>%06d</c> pattern.
     /// </summary>
-    public string FrameName(int number) => $"{Name}-{number:D6}";
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="number"/> is negative, or not below <see cref="Frames"/>, so it names no frame of the film.
+    /// </exception>
+    public string FrameName(int number)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(number);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(number, Frames);
+        return $"{Name}-{number:D6}";
+    }
 
     /// <summary>True if <paramref name="captureName"/> is the <see cref="FrameName"/> of one of the film's frames.</summary>
     public bool HasFrameNamed(string captureName) =>

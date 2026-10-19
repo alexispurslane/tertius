@@ -37,7 +37,7 @@ A scene is a C# function that fills a new `World` and gives scene ids to some of
 }
 ```
 
-- The steps run in file order. Only a `run` step advances time. (User) This is the shape of the editor scripts in the editor design. A `film` step advances time too, because it is a series of runs and captures (see "Captures and the camera").
+- The steps run in file order. Only a `run` step and a `film` step advance time. (User) This is the shape of the editor scripts in the editor design. A `film` step advances time because it is a series of runs and captures (see "Captures and the camera").
 - A `run` step runs `ticks` ticks, at least 1.
 - A `post` step calls `World.Post` at once. The event joins the routing at the end of the next tick, and its recipients handle it during the tick after that.
 - A `dump` step writes the state of the world to `<out>/<name>.json`. A dump name follows the grammar of a scene id, and two dumps cannot have one name.
@@ -94,7 +94,7 @@ dotnet run --project src/Tertius.Demo -- --scene orbit --record sessions/today.j
 - Separate threads do the work, as in "Threads and the tick" of ARCHITECTURE.md. (User) The main thread runs the window and its input. The simulation thread runs the ticks and the script. The render thread draws the latest render snapshot. The gameplay workers and Jolt run as during any tick.
 - The simulation thread runs 60 ticks a second of wall-clock time, times `--speed`. A tick late by less than one tick runs at once. A tick that starts later than that, after a stall such as a capture, moves the schedule by its delay. So the ticks after a stall keep their pace, instead of rushing to catch up, and no tick is ever skipped.
 - The render thread interpolates between the last two ticks. The interpolation alpha is the wall-clock time since the newest snapshot, divided by the wall-clock length of one tick.
-- A capture step works in the window. (User) The simulation thread waits while the render thread draws that tick with alpha 1 and saves it. The image has the size of the window's framebuffer. On a Retina display, that is twice the size in the `window` key. On a screen that is smaller than the `window` key, macOS makes the window smaller, and the images are smaller too.
+- A capture step works in the window, and so do the frames of a film. (User) The simulation thread waits while the render thread draws that tick with alpha 1 and saves it. The image has the size of the window's framebuffer. On a Retina display, that is twice the size in the `window` key. On a screen that is smaller than the `window` key, macOS makes the window smaller, and the images are smaller too.
 - Keys and mouse movement become `InputEvent` messages to the `input` topic in free play. During a script, live input reaches no entity, so a script runs the same with or without a person at the keyboard. `InputRouter` holds these rules. The game never sees Esc or F1, and every key or button down that it sees gets its release: switching the fly camera on releases the keys and buttons that the game holds.
 - The main thread does not post input to the world. It queues each event, and the simulation thread posts the queued events between two ticks. See "Recording free play" for why.
 - In free play the window captures the cursor, so that the mouse can turn the game's view. (User) During a script it captures the cursor only while the fly camera is on. To reach other apps, use Cmd-Tab.

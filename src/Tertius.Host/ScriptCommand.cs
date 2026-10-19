@@ -42,7 +42,7 @@ public static class ScriptCommand
     /// <summary>
     /// Runs the command. Returns the exit code. Writes the path of each dump and each captured image to
     /// <paramref name="output"/>, and every problem and the world's log to <paramref name="error"/>. Makes a headless
-    /// renderer only for a script with a capture step, so a script with dumps only runs on a machine with no GPU.
+    /// renderer only for a script with a capture or film step, so a script with dumps only runs on a machine with no GPU.
     /// </summary>
     public static int Run(string[] args, IReadOnlyList<Scene> scenes, TextWriter output, TextWriter error) =>
         Run(args, scenes, output, error, VulkanRenderer.CreateHeadless);

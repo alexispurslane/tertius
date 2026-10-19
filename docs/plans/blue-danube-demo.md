@@ -25,7 +25,7 @@ From a survey of the code on 2026-10-18.
 | Need | State | Demo work |
 |---|---|---|
 | Scripts of 100,000 ticks and more | Exists (`scripts/orbit.json` runs about 332,700 ticks) | A generator that writes the long script |
-| One image per frame | Partial: only a `capture` step writes a PNG, synchronously, about 0.1 to 0.15 s per 720p frame (estimate) | The generator alternates `run` and `capture`. Measure 600 frames first. |
+| One image per frame | Partial: a `capture` step writes one PNG, and a `film` step writes one PNG per frame, synchronously, about 0.1 to 0.15 s per 720p frame (estimate) | The generator writes film steps. Measure 600 frames first. |
 | Video | Missing: no ffmpeg in the dev shell | Add `pkgs.ffmpeg` to the flake. Encode, cut, add title cards and music with ffmpeg. |
 | A camera that follows the character | Partial: the camera is an entity, a camera step is a hard cut, `AttachTo` follows a parent | A chase camera component on an entity attached to the character |
 | Character walking, floating, grabbing | Exists (`MoveCharacter`, `Jump`, grab within 3 m) | A path-following walker component. A capsule hides that the rigid form never turns. A pen as a small grab item. |
