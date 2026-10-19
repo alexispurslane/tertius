@@ -530,20 +530,40 @@ public sealed partial class World
     /// entity, which survives: a body that a rehome moved, or one that a hand-off of the step moved out of the frame before
     /// it died. Step 7b of the sync point converts every other intent of an entity that moved (see
     /// <see cref="ConvertMovedIntents"/>), but by then these frames are gone, so these intents convert here, after the
-    /// rehomes and before the frames die.
+    /// rehomes and before the frames die. Each converts by the motion of its old frame in its new one over the next step
+    /// (see <see cref="FrameTree.MotionRelativeInStep"/>), in which every dying frame keeps its relation at the moment of its
+    /// death. That motion reads the motion intents of the owners of the frames on the path, and some of those owners convert
+    /// here too: a surviving frame whose parent dies moves with its owner. So every motion comes first, from the intents as
+    /// gameplay wrote them, while the tree still holds each frame under the parent that they name, and the intents convert
+    /// after.
     /// </summary>
     private void ConvertIntentsOfDyingFrames()
     {
+        dyingFrameConversions.Clear();
+        ReadOnlySpan<bool> dying = dyingMarks.AsSpan();
         foreach (Entity entity in entities.IntentEntities.Span)
         {
             if (dyingMarks[entity])
                 continue;
-            ref PhysicsIntent intent = ref entities.NextStepIntent(entity);
-            ref readonly TransformRow row = ref entities.BackRow(entity);
-            if (!intent.Frame.IsNull && dyingMarks[intent.Frame.Entity])
-                ConvertIntent(ref intent, row.Frame, row.Pose.Position);
+            FrameHandle from = entities.NextStepIntent(entity).Frame;
+            if (from.IsNull || !dyingMarks[from.Entity])
+                continue;
+            (FrameMotion start, FrameMotion end) = Frames.MotionRelativeInStep(from, entities.BackRow(entity).Frame, entities.FrontIntents.Span, DeltaTime, dying);
+            dyingFrameConversions.Add(new IntentConversion(entity, start, end));
         }
+        foreach (IntentConversion conversion in dyingFrameConversions)
+        {
+            ref readonly TransformRow row = ref entities.BackRow(conversion.Entity);
+            ConvertIntent(ref entities.NextStepIntent(conversion.Entity), row.Frame, row.Pose.Position, conversion.Start, conversion.End);
+        }
+        dyingFrameConversions.Clear();
     }
+
+    /// <summary>The motion of the old frame of <see cref="Entity"/>'s intent in its new frame over the next step, by which the intent converts.</summary>
+    private readonly record struct IntentConversion(Entity Entity, FrameMotion Start, FrameMotion End);
+
+    // Scratch of ConvertIntentsOfDyingFrames: the conversions of the destroy batch, in the order of the intent entities.
+    private readonly List<IntentConversion> dyingFrameConversions = new();
 
     /// <summary>Moves an entity from a dying frame into an ancestor frame, keeping its pose and velocity relative to everything else.</summary>
     private void Rehome(Entity entity, FrameHandle from, FrameHandle to)

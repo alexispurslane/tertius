@@ -20,6 +20,35 @@ internal readonly record struct FrameMotion(DPose Pose, Double3 Velocity, Double
 {
     public DPose PoseToParent(in DPose local) => DPose.Compose(Pose, local);
 
+    /// <summary>
+    /// The motion in the parent of an inner frame whose motion in this frame is <paramref name="local"/>: its pose composed
+    /// with this pose, its origin's velocity and acceleration by the rules of a point (<see cref="VelocityToParent"/> and
+    /// <see cref="AccelerationToParent"/>), and its angular velocity and angular acceleration by the rules of a body
+    /// (<see cref="AngularToParent"/> and <see cref="AngularAccelerationToParent(Double3, Double3)"/>). A path of frames
+    /// composes level by level with it, from the inner end, as the pose tree composes poses
+    /// (see <see cref="FrameTree.MotionRelativeInStep"/>).
+    /// </summary>
+    public FrameMotion MotionToParent(in FrameMotion local) => new(
+        PoseToParent(local.Pose),
+        VelocityToParent(local.Pose.Position, local.Velocity),
+        AngularToParent(local.AngularVelocity),
+        AccelerationToParent(local.Pose.Position, local.Velocity, local.Acceleration),
+        AngularAccelerationToParent(local.AngularAcceleration, local.AngularVelocity));
+
+    /// <summary>
+    /// The motion of the parent in this frame, in the frame's axes: the inverse pose, and the motion of the parent's origin
+    /// and axes, which stand still in the parent, by the rules from the parent (<see cref="VelocityFromParent"/>,
+    /// <see cref="AccelerationFromParent"/>, <see cref="AngularFromParent"/> and
+    /// <see cref="AngularAccelerationFromParent(Double3, Double3)"/>). So <c>m.Inverse().MotionToParent(m)</c> is the frame
+    /// at rest in itself.
+    /// </summary>
+    public FrameMotion Inverse() => new(
+        Pose.Inverse(),
+        VelocityFromParent(Double3.Zero, Double3.Zero),
+        AngularFromParent(Double3.Zero),
+        AccelerationFromParent(Double3.Zero, Double3.Zero, Double3.Zero),
+        AngularAccelerationFromParent(Double3.Zero, Double3.Zero));
+
     public DPose PoseFromParent(in DPose parentPose) => DPose.Compose(Pose.Inverse(), parentPose);
 
     /// <summary>The velocity in the parent of a point that moves with <paramref name="velocity"/> in the frame.</summary>

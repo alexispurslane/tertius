@@ -149,9 +149,9 @@ public sealed partial class FrameTree
         BodyMotion? stored = parent < 0 ? null : hullMotion[id];
         FollowKind kind = FollowKindOf(HullMotionInStep(stored, slot, stepIntents), slot, stepIntents);
         DQuaternion start = treeRotation;
-        if (TeleportsAt(slot, stepIntents, stored.HasValue, kind, out DQuaternion teleport) && teleport != treeRotation)
+        if (TeleportsAt(slot, stepIntents, stored.HasValue, kind, out DPose teleport) && teleport.Rotation != treeRotation)
         {
-            start = teleport.Normalized();
+            start = teleport.Rotation.Normalized();
             listed = true;
         }
 
@@ -180,22 +180,23 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
-    /// The rotation of the teleport in the intent of the owner with slot <paramref name="slot"/> in
-    /// <paramref name="stepIntents"/>, when the owner's frame takes the teleport at the start of the step, so that its level
-    /// starts the step there: a hull of any motion (<paramref name="hull"/>), which physics teleports, and a frame without a
-    /// hull whose owner's motion intent gives a record (<paramref name="kind"/> rails or kinematic), which starts at the
-    /// teleport (see <see cref="PhysicsIntent.StepRecord"/>). A frame without a hull and without such a motion intent holds
-    /// still where it stands. False when the frame takes no teleport.
+    /// The pose of the teleport in the intent of the owner with slot <paramref name="slot"/> in
+    /// <paramref name="stepIntents"/>, relative to the owner's frame, the frame's semantic parent, when the owner's frame takes
+    /// the teleport at the start of the step, so that its level starts the step there: a hull of any motion
+    /// (<paramref name="hull"/>), which physics teleports, and a frame without a hull whose owner's motion intent gives a
+    /// record (<paramref name="kind"/> rails or kinematic), which starts at the teleport (see
+    /// <see cref="PhysicsIntent.StepRecord"/>). A frame without a hull and without such a motion intent holds still where it
+    /// stands. False when the frame takes no teleport.
     /// </summary>
-    private static bool TeleportsAt(uint slot, ReadOnlySpan<PhysicsIntent> stepIntents, bool hull, FollowKind kind, out DQuaternion rotation)
+    private static bool TeleportsAt(uint slot, ReadOnlySpan<PhysicsIntent> stepIntents, bool hull, FollowKind kind, out DPose pose)
     {
         if (slot < (uint)stepIntents.Length && (stepIntents[(int)slot].Flags & IntentFlags.Teleport) != 0 &&
             (hull || kind is FollowKind.Rails or FollowKind.Kinematic))
         {
-            rotation = stepIntents[(int)slot].TeleportPose.Rotation;
+            pose = stepIntents[(int)slot].TeleportPose;
             return true;
         }
-        rotation = default;
+        pose = default;
         return false;
     }
 

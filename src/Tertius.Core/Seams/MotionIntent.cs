@@ -110,17 +110,19 @@ public readonly struct MotionIntent : IEquatable<MotionIntent>
     };
 
     /// <summary>
-    /// This intent in another frame, which <paramref name="motion"/> calls the parent: the motion of the intent's frame
-    /// relative to it now. An end pose and a steer target convert as a pose and keep their case, so the frames' motion gives
-    /// them no velocity. A full sample converts by the rule of a hand-off, with <paramref name="relativeAcceleration"/>, the
-    /// acceleration of the intent's frame relative to the parent (see <see cref="MotionSample.Converted"/>). The empty union
-    /// stays empty.
+    /// This intent in another frame, which the two relations call the parent: <paramref name="start"/> and
+    /// <paramref name="end"/>, the motion of the intent's frame relative to it where the step of <paramref name="step"/>
+    /// seconds that applies the intent starts and where it ends (see <see cref="FrameTree.MotionRelativeInStep"/>). Each
+    /// part converts by the moment that it describes (docs/plans/spin-gravity.md, "V7, the relative motion of two frames").
+    /// An end pose and a steer target are poses at the end of the step, so they convert by the pose of
+    /// <paramref name="end"/> and keep their case, and the frames' motion gives them no velocity. A full sample converts by
+    /// <see cref="MotionSample.Converted"/>. The empty union stays empty.
     /// </summary>
-    internal MotionIntent Converted(in FrameMotion motion, Double3 relativeAcceleration) => kind switch
+    internal MotionIntent Converted(in FrameMotion start, in FrameMotion end, double step) => kind switch
     {
-        KindEndPose => new MotionIntent(new EndPose(motion.PoseToParent(sample.Pose))),
-        KindSample => new MotionIntent(sample.Converted(motion, relativeAcceleration)),
-        KindSteer => new MotionIntent(new SteerTarget(motion.PoseToParent(sample.Pose))),
+        KindEndPose => new MotionIntent(new EndPose(end.PoseToParent(sample.Pose))),
+        KindSample => new MotionIntent(sample.Converted(start, end, step)),
+        KindSteer => new MotionIntent(new SteerTarget(end.PoseToParent(sample.Pose))),
         _ => this,
     };
 

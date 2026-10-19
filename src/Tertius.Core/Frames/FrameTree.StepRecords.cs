@@ -192,18 +192,31 @@ public sealed partial class FrameTree
     /// <summary>
     /// The proper acceleration of a frame whose semantic parent is <paramref name="parent"/> after a step of
     /// <paramref name="step"/> seconds, from its step record in that parent, <paramref name="record"/>
-    /// (docs/plans/rails-components.md, "The proper acceleration of a frame"): the frame's acceleration over the step minus
-    /// the gravity that acts at its place where the step started, turned into the frame's own axes by its rotation at the
-    /// end of the step, and narrowed once to a float. The gravity at its place is the semantic parent's field there minus
-    /// the parent's own proper acceleration as the step found it, as for a body at the frame's origin (see
-    /// <see cref="FieldTheStepFound"/>). No gravity acts at the place of a root frame. The place where the step started is
-    /// the record's place less its chord over the step, the same expression from which <see cref="KeplerOrbit.Sample"/>
-    /// takes its acceleration, so a frame on a Kepler orbit in a parent that falls freely gets exactly zero.
+    /// (docs/plans/rails-components.md, "The proper acceleration of a frame", and docs/plans/spin-gravity.md, "The proper
+    /// acceleration of a frame"): the frame's acceleration over the step minus the gravity that acts at its place where the
+    /// step started, turned into the frame's own axes by its rotation at the end of the step, and narrowed once to a float.
+    /// The gravity at its place is the semantic parent's field there minus the parent's own proper acceleration as the step
+    /// found it, as for a body at the frame's origin (see <see cref="FieldTheStepFound"/>), plus the parent's rotation terms
+    /// when the parent turns (see <see cref="FrameTurns.Turns"/>): its centrifugal and Euler term there, and its Coriolis term
+    /// on the record's chord, from the parent's turns of the step that ended, which <see cref="BeginStep"/> fixed before it.
+    /// So the rotation terms reach a frame in the step 2 after its parent's turn, and only a change of the parent's proper
+    /// acceleration moves down one level of a chain in each step. A frame at rest in a spinning station is pushed toward the
+    /// axis by ω² R. No gravity acts at the place of a root frame. The place where the step started is the record's place
+    /// less its chord over the step, the same expression from which <see cref="KeplerOrbit.Sample"/> takes its acceleration,
+    /// so a frame on a Kepler orbit in a parent that falls freely and does not turn gets exactly zero. A parent that does not
+    /// turn adds no term, so its children keep the linear rule to the bit.
     /// </summary>
     private Vector3 ProperAccelerationFrom(FrameHandle parent, in MotionSample record, double step)
     {
         Double3 start = record.Pose.Position - record.ChordVelocity * step;
-        Double3 gravity = parent.IsNull ? Double3.Zero : FieldTheStepFound(parent.Index, start);
+        Double3 gravity = Double3.Zero;
+        if (!parent.IsNull)
+        {
+            gravity = FieldTheStepFound(parent.Index, start);
+            ref readonly FrameTurns parentTurns = ref turns[parent.Index];
+            if (parentTurns.Turns)
+                gravity += parentTurns.Centrifugal(start) + parentTurns.Euler(start, step) + parentTurns.Coriolis(record.ChordVelocity);
+        }
         return record.Pose.Rotation.Conjugate().Rotate(record.Acceleration - gravity).ToVector3();
     }
 
@@ -212,8 +225,8 @@ public sealed partial class FrameTree
     /// <paramref name="treeParent"/>. In a semantic tree parent it is the record itself. Under a numeric tree parent the frame
     /// moved with the numeric frames between the two over the step, which never turn: its place gains their places, its
     /// chord their velocities, which are their chords of the step (see <see cref="AdvanceNumericFrames"/>), and its
-    /// acceleration their step accelerations, the analogue of <see cref="AccelerationRelative"/> for numeric frames (see
-    /// <see cref="HomeAcceleration"/>). Call it at step 2, after <see cref="AdvanceNumericFrames"/> and
+    /// acceleration their step accelerations (see <see cref="HomeAcceleration"/>). Numeric levels turn nothing, so no rotation
+    /// term enters, and it takes no <see cref="FrameMotion"/>. Call it at step 2, after <see cref="AdvanceNumericFrames"/> and
     /// <see cref="PlaceFollowingFrame"/>, and before <see cref="JumpFollowingFrame"/>.
     /// </summary>
     private MotionSample InSemanticParent(FrameHandle treeParent, in MotionSample record)

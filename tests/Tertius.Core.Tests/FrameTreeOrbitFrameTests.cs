@@ -247,6 +247,30 @@ public class FrameTreeOrbitFrameTests
         (frames.TreeLocalPose(orbit).Position - next.Pose.Position).Length.Should().BeLessThan(1e-6);
     }
 
+    /// <summary>
+    /// The motion of the station in earth over the next step passes through its orbit frame, a numeric level between the
+    /// station and earth (<see cref="FrameTree.MotionRelativeInStep"/>): the orbit frame lands on its anchor's plan, with the
+    /// plan's instant velocity and the acceleration that lands it there, and the station at its origin takes the rest of its
+    /// sample. So the station ends the step on its next sample in earth, which is its own record there.
+    /// </summary>
+    [Fact]
+    public void A_hull_in_its_orbit_frame_ends_the_step_on_its_next_sample_in_its_semantic_frame()
+    {
+        FrameHandle station = Station(10, Low);
+        Update(Hull(station));
+        Sync(station, Low, Start + Step);
+        MotionSample next = Low.Sample(EarthMu, Start + 2 * Step, Step);
+
+        (FrameMotion start, FrameMotion end) = frames.MotionRelativeInStep(station, earth, Moving(station, new MotionIntent(next)), Step);
+
+        (end.Pose.Position - next.Pose.Position).Length.Should().BeLessThan(1e-6, "the place");
+        (2 * DQuaternion.Identity.AngularVelocityTo(end.Pose.Rotation * next.Pose.Rotation.Conjugate(), 2).Length).Should().BeLessThan(1e-12, "the rotation");
+        (end.Velocity - next.Velocity).Length.Should().BeLessThan(1e-9, "the velocity");
+        (end.Acceleration - next.Acceleration).Length.Should().BeLessThan(1e-9, "the acceleration");
+        (end.AngularVelocity - next.AngularVelocity).Length.Should().BeLessThan(1e-12, "the angular velocity");
+        (start.Velocity - frames.LinearVelocity(station)).Length.Should().BeLessThan(1e-9, "the step starts at the station's instant velocity in earth");
+    }
+
     [Fact]
     public void An_orbit_frame_takes_the_acceleration_that_lands_it_on_its_anchors_plan_whatever_the_field_or_the_plans_acceleration_says()
     {

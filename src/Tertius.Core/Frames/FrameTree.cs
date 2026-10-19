@@ -834,8 +834,7 @@ public sealed partial class FrameTree
     /// <summary>
     /// The acceleration of the origin of <paramref name="home"/> relative to <paramref name="semantic"/>, which is the home
     /// itself or an ancestor of it, during the current step: the sum of the step accelerations of the numeric frames
-    /// between them. It equals <see cref="AccelerationRelative"/> of the two frames, without its turns, because a numeric
-    /// frame never turns in its parent.
+    /// between them, with no rotation terms, because a numeric frame never turns in its parent.
     /// </summary>
     internal Double3 HomeAcceleration(FrameHandle home, FrameHandle semantic)
     {
@@ -1162,42 +1161,6 @@ public sealed partial class FrameTree
     {
         ownerViewStamp++;
         return ref angularVelocity[id];
-    }
-
-    /// <summary>
-    /// The linear acceleration of the origin of frame <paramref name="of"/> relative to frame <paramref name="to"/> in the
-    /// current step, in <paramref name="to"/> axes. An acceleration in <paramref name="of"/> converts into
-    /// <paramref name="to"/> as the acceleration turned into <paramref name="to"/> axes plus this, as a velocity converts with
-    /// the motion of one frame relative to the other (see <see cref="ConvertVelocity"/>). It adds the acceleration of each
-    /// frame on the path through the common ancestor relative to its tree parent, level by level. The tree keeps that
-    /// acceleration for a numeric frame, its step acceleration (see <see cref="BeginStep"/>), so between a physics home
-    /// and its semantic frame this equals <see cref="HomeAcceleration"/>. Two terms are not in it yet. A semantic frame adds
-    /// none, because the tree keeps no acceleration of a semantic frame in its parent: only the frame's step record holds it.
-    /// And a turning frame on the path adds no rotation terms (Euler, centrifugal and Coriolis), which spin gravity brings
-    /// (docs/plans/spin-gravity.md). A null frame is the virtual root above every root frame.
-    /// </summary>
-    internal Double3 AccelerationRelative(FrameHandle of, FrameHandle to)
-    {
-        // Sum the accelerations up to the common ancestor in its axes, then subtract the path down to 'to'.
-        FrameHandle x = of;
-        Double3 acceleration = Double3.Zero;
-        while (!x.IsNull && x != to && !IsAncestorOrNull(x, to))
-        {
-            FrameHandle parent = TreeParent(x);
-            acceleration = TreeLocalPose(x).TransformDirection(acceleration) + stepAcceleration[Node(x).Id];
-            x = parent;
-        }
-        if (x == to)
-            return acceleration;
-        var path = new Stack<FrameHandle>();
-        for (FrameHandle y = to; !y.IsNull && y != x; y = TreeParent(y))
-            path.Push(y);
-        while (path.Count > 0)
-        {
-            FrameHandle child = path.Pop();
-            acceleration = TreeLocalPose(child).InverseTransformDirection(acceleration - stepAcceleration[Node(child).Id]);
-        }
-        return acceleration;
     }
 
     private void Grow(int needed)

@@ -117,6 +117,54 @@ public class WorldIntentFrameTests
     }
 
     /// <summary>
+    /// Writes the end pose of its entity on a straight line in the entity's own frame, with no turn: <paramref name="start"/>
+    /// at time 0 and <paramref name="velocity"/> on, at the end of the step that applies the intent, two steps after the
+    /// moment that the tick reads. <see cref="Written"/> keeps the last end pose that it wrote.
+    /// </summary>
+    private sealed class Cruise(Double3 start, Double3 velocity) : IComponent
+    {
+        public DPose Written { get; private set; }
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            Written = new DPose(start + velocity * self.TimeAt(self.Tick + 2), DQuaternion.Identity);
+            self.MoveKinematic(Written);
+        }
+    }
+
+    /// <summary>
+    /// A kinematic cube that hands off out of a ship that cruises on end poses at 30 m/s gets the end pose of the hand-off's
+    /// tick where the ship ends the step that applies it (docs/plans/spin-gravity.md, "V7, the relative motion of two
+    /// frames"): an end pose is a pose at the end of the step, so it converts by the ship's end pose of that step, and not by
+    /// where the ship stands at the sync point, half a meter behind.
+    /// </summary>
+    [Fact]
+    public void AnEndPoseThatConvertsAtAHandOffOutOfAMovingFrameConvertsByWhereThatFrameEndsTheStep()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Space(world);
+        var cruise = new Cruise(Double3.Zero, new Double3(0, 0, 30));
+        Entity shipOwner = Room(world, space, DPose.Identity, radius: 5, cruise);
+        FrameHandle ship = world.GetOwnedFrame(shipOwner);
+        var outward = new Cruise(new Double3(3, 0, 0), new Double3(6, 0, 0));
+        Entity cube = world.Spawn(new SpawnDesc { Frame = ship, Pose = new DPose(new Double3(3, 0, 0), DQuaternion.Identity), Body = KinematicCube, Components = [outward] });
+
+        for (int tick = 0; tick < 120 && world.GetFrame(cube) == ship; tick++)
+            world.Tick();
+
+        world.GetFrame(cube).Should().Be(space, "the cube left the ship's bubble");
+        world.Entities.NextStepIntent(cube).Move.TryGetValue(out EndPose end).Should().BeTrue();
+        world.Entities.NextStepIntent(shipOwner).Move.TryGetValue(out EndPose shipEnd).Should().BeTrue();
+        Double3 expected = DPose.Compose(shipEnd.Pose, outward.Written).Position;
+        (end.Pose.Position - expected).Length.Should().BeLessThan(1e-9, $"the end pose {end.Pose.Position} is not {expected}");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
     /// A dynamic cube that gameplay steers through a child's bubble stays on its line at the ticks of the hand-offs, because
     /// the steer target of each hand-off's tick converts into the cube's new frame. Nothing but the steer targets acts on the
     /// cube, so physics carries it onto each one.
@@ -193,6 +241,73 @@ public class WorldIntentFrameTests
 
         off.Should().BeLessThan(1e-6, $"the end pose of the tick of the hand-off means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
         world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>Holds its entity where it stands, with an end pose at its pose in its own frame in every tick.</summary>
+    private sealed class Hold : IComponent
+    {
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox) => self.MoveKinematic(self.PoseIn(self.Frame));
+    }
+
+    /// <summary>
+    /// The cube hands off out of a room into a cabin in it in the step of the tick in which the room dies. The destroy batch
+    /// converts the cube's end pose from the room into the cabin, by the cabin's motion over the next step, which its owner's
+    /// end pose relative to the room gives. The cabin's owner lives in the room, so the same batch moves it into space and
+    /// converts its end pose there. Every motion of the batch comes from the intents as gameplay wrote them, while the tree
+    /// still holds the cabin in the room, and the intents convert after, so the cube still lands where gameplay meant.
+    /// </summary>
+    [Fact]
+    public void AnEndPoseWrittenInTheTickInWhichTheBodyEntersAChildOfAFrameThatDiesMovesTheBodyWhereGameplayMeantIt()
+    {
+        long entering = RunCabinScene(doomsday: long.MaxValue, out _, out _, out _, out _, out _);
+        entering.Should().BeGreaterThan(10, "the cube enters the cabin after a while");
+
+        RunCabinScene(entering, out World world, out Entity roomOwner, out FrameHandle cabin, out Entity cube, out Rail rail);
+        using (world)
+        {
+            world.IsAlive(roomOwner).Should().BeFalse();
+            world.GetFrame(cube).Should().Be(cabin, "the step of the tick in which the room died handed the cube into the cabin");
+            FrameHandle space = world.Frames.Parent(cabin);
+            world.Frames.Parent(space).IsNull.Should().BeTrue("the cabin moved into space when the room died");
+            (double off, long tick) = WorstOffRail(world, cube, space, rail, ticks: 10);
+
+            off.Should().BeLessThan(1e-6, $"the end pose of the tick of the hand-off means the place that gameplay meant in the room; the cube was {off} m off at tick {tick}");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// A room in space at (0, 0, 30), turned by <see cref="Turned"/>, that dies in the tick <paramref name="doomsday"/>, and a
+    /// cabin held still in it whose center is at (0, 0, 50) in space, with a bubble of 5 m, and a kinematic cube that a rail
+    /// drives along +Z at 3 m/s from (0, 0, 40), in the room, into the cabin. Ticks until the cube enters the cabin, and
+    /// returns the tick whose step handed it in. With a doomsday, the world stays open for the caller.
+    /// </summary>
+    private static long RunCabinScene(long doomsday, out World world, out Entity roomOwner, out FrameHandle cabin, out Entity cube, out Rail rail)
+    {
+        world = NewWorld(out _);
+        FrameHandle space = Space(world);
+        roomOwner = Room(world, space, new DPose(new Double3(0, 0, 30), Turned), radius: 50, new DestroyAt(doomsday));
+        FrameHandle room = world.GetOwnedFrame(roomOwner);
+        // Turned carries the room's +Y to space's +Z.
+        cabin = world.GetOwnedFrame(Room(world, room, new DPose(new Double3(0, 20, 0), DQuaternion.Identity), radius: 5, new Hold()));
+        rail = new Rail(space, new Double3(0, 0, 40), new Double3(0, 0, 3));
+        cube = world.Spawn(new SpawnDesc
+        {
+            Frame = room,
+            Pose = new DPose(world.Frames.Relative(space, room).TransformPoint(rail.At(0)), DQuaternion.Identity),
+            Body = KinematicCube,
+            Components = [rail],
+        });
+        while (world.GetFrame(cube) != cabin && world.TickNumber < 300)
+            world.Tick();
+        long entering = world.TickNumber - 1;
+        if (doomsday == long.MaxValue)
+            world.Dispose();
+        return entering;
     }
 
     /// <summary>

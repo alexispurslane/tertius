@@ -112,6 +112,91 @@ public class FrameProperAccelerationTests
         frames.ProperAcceleration(ship).Should().Be(jolt);
     }
 
+    // ---- The rotation terms of a turning parent (docs/plans/spin-gravity.md, "The proper acceleration of a frame") ------
+    // The station turns in place in a root frame without a field about its +Y. A rate ω about +Y gives a place at (r, 0, 0)
+    // the centrifugal acceleration (ω² r, 0, 0), a chord (u, 0, 0) the Coriolis acceleration (0, 0, 2 ω u), and an angular
+    // acceleration α about +Y the Euler acceleration (0, 0, α r). The gravity at a frame's place in the station is the sum
+    // of the three, so the frame feels it reversed.
+
+    private const double StationRate = 0.31321;
+
+    [Fact]
+    public void AFrameAtRestInASpinningFrameIsPushedTowardTheAxisFromTheSyncPointAfterTheFramesFirstTurningStep()
+    {
+        // The rotation terms come from the station's turns of the step, which the tree fixed before it, so they do not wait
+        // for the station's proper acceleration to move down a level.
+        FrameHandle space = Frame(FrameHandle.Null);
+        FrameHandle station = Frame(space);
+        FrameHandle room = Frame(station, TestPose(100, 0, 0));
+
+        RunStep(Moving(station, Spinning(1 * Dt)));
+
+        Vector3 proper = frames.ProperAcceleration(room);
+        proper.X.Should().BeApproximately((float)(-StationRate * StationRate * 100), 1e-5f, "ω² R toward the axis");
+        proper.Y.Should().Be(0);
+        proper.Z.Should().Be(0);
+    }
+
+    [Fact]
+    public void AFrameThatMovesInASpinningFrameFeelsTheCoriolisTermOnTheChordOfItsRecord()
+    {
+        const double outward = 3;
+        FrameHandle space = Frame(FrameHandle.Null);
+        FrameHandle station = Frame(space);
+        FrameHandle cart = Frame(station, TestPose(100, 0, 0));
+        PhysicsIntent[] intents = Moving(station, Spinning(1 * Dt));
+        intents[cart.Entity.Index] = new PhysicsIntent { Frame = station, Move = new MotionIntent(new EndPose(TestPose(100 + outward * Dt, 0, 0))) };
+
+        RunStep(intents);
+
+        Vector3 proper = frames.ProperAcceleration(cart);
+        proper.X.Should().BeApproximately((float)(-StationRate * StationRate * 100), 1e-5f, "ω² r toward the axis, at the place where the step started");
+        proper.Y.Should().Be(0);
+        proper.Z.Should().BeApproximately((float)(-2 * StationRate * outward), 1e-6f, "the Coriolis term on the cart's chord, reversed");
+    }
+
+    [Fact]
+    public void AFrameAtRestInAFrameThatSpinsUpFeelsTheEulerTerm()
+    {
+        // The station spins up from rest at 0.5 rad/s² about its +Y. In its first step it is a new frame, whose step assumes
+        // a steady turn, so the Euler term starts in the second: (0, 0, 0.5 · 100) at the room's place.
+        const double spinUp = 0.5;
+        FrameHandle space = Frame(FrameHandle.Null);
+        FrameHandle station = Frame(space);
+        FrameHandle room = Frame(station, TestPose(100, 0, 0));
+        MotionIntent SpinningUp(double stepEnd) => new(new MotionSample(
+            new DPose(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.5 * spinUp * stepEnd * stepEnd)),
+            Double3.Zero, Double3.Zero, Double3.Zero, new Double3(0, spinUp * stepEnd, 0), new Double3(0, spinUp, 0)));
+
+        RunStep(Moving(station, SpinningUp(1 * Dt)));
+        frames.ProperAcceleration(room).Z.Should().Be(0, "the first step of a new frame assumes a steady turn");
+        RunStep(Moving(station, SpinningUp(2 * Dt)));
+
+        Vector3 proper = frames.ProperAcceleration(room);
+        double rate = spinUp * 2 * Dt;
+        proper.X.Should().BeApproximately((float)(-rate * rate * 100), 1e-5f, "ω² R toward the axis, at the rate where the step ended");
+        proper.Z.Should().BeApproximately((float)(-spinUp * 100), 1e-4f, "the Euler term, reversed");
+    }
+
+    /// <summary>The spin sample of a station that turns at <see cref="StationRate"/> about its +Y, in the step that ends at <paramref name="stepEnd"/>.</summary>
+    private static MotionIntent Spinning(double stepEnd) => new(new FrameSpin(DQuaternion.Identity, StationRate).Sample(Double3.Zero, stepEnd, Dt));
+
+    /// <summary>One step: the tree updates, fixes the turns of the step that applies <paramref name="intents"/>, and takes the records of the step.</summary>
+    private void RunStep(PhysicsIntent[] intents)
+    {
+        frames.Update();
+        frames.BeginStep(intents, Dt, lastStepFailed: false);
+        frames.TakeStepRecords(intents, Dt);
+    }
+
+    /// <summary>The intents of a step in which only the owner of <paramref name="frame"/> wrote one, its motion intent <paramref name="move"/>.</summary>
+    private PhysicsIntent[] Moving(FrameHandle frame, MotionIntent move)
+    {
+        var intents = new PhysicsIntent[nextOwner];
+        intents[frame.Entity.Index] = new PhysicsIntent { Frame = frames.Parent(frame), Move = move };
+        return intents;
+    }
+
     /// <summary>The intents of a step in which only the owner of <paramref name="frame"/> wrote one: <paramref name="intent"/>.</summary>
     private static PhysicsIntent[] Moving(FrameHandle frame, in PhysicsIntent intent)
     {
