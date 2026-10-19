@@ -60,7 +60,8 @@ public sealed class DumpFileTests : IDisposable
     [Fact]
     public void ADumpFileWritesVelocitiesAsArrays()
     {
-        JsonElement dump = RunAndRead(NewWorld, ShipWithCrate, Parse("""{ "do": "dump", "name": "now" }"""), "now");
+        // The crate takes its velocities from its first motion intent, at the first sync point.
+        JsonElement dump = RunAndRead(NewWorld, ShipWithCrate, Parse("""{ "do": "run", "ticks": 1 }""", """{ "do": "dump", "name": "now" }"""), "now");
 
         Numbers(EntityNamed(dump, "crate").GetProperty("velocity")).Should().Equal(1, 2, 3);
         Numbers(EntityNamed(dump, "crate").GetProperty("angularVelocity")).Should().Equal(0.25, 0.5, 0.75);

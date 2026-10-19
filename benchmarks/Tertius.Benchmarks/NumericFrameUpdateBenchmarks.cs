@@ -89,7 +89,7 @@ public class NumericFrameUpdateBenchmarks
     public void Update()
     {
         changes.Clear();
-        frames.UpdateNumericFrames(bodies, 1.0 / 60, changes, applyMoves);
+        frames.UpdateNumericFrames(bodies, 1.0 / 60, 1.0 / 60, changes, applyMoves);
     }
 }
 
@@ -180,6 +180,6 @@ public class NumericFramePlaceBenchmarks
     public void Update()
     {
         changes.Clear();
-        frames.UpdateNumericFrames(bodies, 1.0 / 60, changes, applyMoves);
+        frames.UpdateNumericFrames(bodies, 1.0 / 60, 1.0 / 60, changes, applyMoves);
     }
 }

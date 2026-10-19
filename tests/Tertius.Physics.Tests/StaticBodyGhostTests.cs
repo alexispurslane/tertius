@@ -187,13 +187,13 @@ public class StaticBodyGhostTests
         using World world = NewWorld(out _);
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         FrameHandle frame = acrossFrames ? Bubble(world, space, At(0), 5) : FrameHandle.Null;
-        Entity pusher = world.Spawn(new SpawnDesc
+        // A kinematic body moves only by its motion intents, so the ball drifts by end poses.
+        Entity pusher = world.Spawn(KinematicDrift.Drifting(new SpawnDesc
         {
             Frame = space,
             Pose = At(-8),
-            LinearVelocity = new Vector3(1, 0, 0),
             Body = new BodyDesc(new SphereShapeDesc(0.5f), BodyMotion.Kinematic),
-        });
+        }, world, new Double3(1, 0, 0)));
         var crateLog = new CollisionLog();
         Entity crate = world.Spawn(new SpawnDesc
         {
@@ -239,13 +239,13 @@ public class StaticBodyGhostTests
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, Friction: 0, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
             Components = [crateLog],
         });
-        Entity ball = world.Spawn(new SpawnDesc
+        // A kinematic body moves only by its motion intents, so the ball drifts by end poses.
+        Entity ball = world.Spawn(KinematicDrift.Drifting(new SpawnDesc
         {
             Frame = second,
             Pose = acrossFrames ? At(6.6 - 11) : At(6.6),
-            LinearVelocity = new Vector3(-1, 0, 0),
             Body = new BodyDesc(new SphereShapeDesc(0.5f), BodyMotion.Kinematic),
-        });
+        }, world, new Double3(-1, 0, 0)));
 
         // The ball reaches the crate after 0.3 s, and pushes it from then on.
         for (int i = 0; i < 2; i++)

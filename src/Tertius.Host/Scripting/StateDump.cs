@@ -57,7 +57,8 @@ public sealed record FramePose(string? Frame, Double3 Position, DQuaternion Rota
 /// <param name="Parent">The scene id of the parent frame's owner, or null for a root frame.</param>
 /// <param name="Follows">
 /// How the frame followed its owner at the dump's sync point, which is what moved it in the step that ended there:
-/// <c>"rails"</c> for a frame that took a motion sample that its owner wrote one tick before (see <c>Self.MoveOnRails</c>),
+/// <c>"rails"</c> for a frame that took a full sample that its owner wrote one tick before (see <c>Self.MoveOnRails</c>),
+/// <c>"kinematic"</c> for a frame that took an end pose that its owner wrote one tick before (see <c>Self.MoveKinematic</c>),
 /// <c>"physics"</c> for a frame whose hull was dynamic in that step, and <c>"static"</c> for every other frame. A change of
 /// a hull's motion in the tick acts from the next step, so it shows in the dump of the tick after. The motion of the hull
 /// in a step comes from the intents that the step applied, or else from the stored motion (see

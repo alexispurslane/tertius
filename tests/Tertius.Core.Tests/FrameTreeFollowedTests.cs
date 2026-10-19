@@ -1,17 +1,19 @@
-using System.Numerics;
 using AwesomeAssertions;
 using Tertius.Frames.Rails;
 
 namespace Tertius.Core.Tests;
 
 /// <summary>
-/// The frame tree tells how each frame followed its owner at the last sync point (<see cref="FrameTree.Followed"/>), from
-/// the frame's row in the followed buffer of the sample table: a sample that the owner wrote is rails, the record of a
-/// frame with a dynamic hull is physics, and any other record, or no row, is static. These tests drive the table as the
-/// sync point does: a write during the tick, a record in step 2, and the turn of the buffers in step 4.
+/// The frame tree tells how each frame followed its owner at the last sync point (<see cref="FrameTree.Followed"/>): the
+/// follow kind that the frame's row stores beside the record of the step that ended (docs/plans/rails-components.md, "The
+/// follow kind"). Step 2 writes it with the record (<see cref="FrameTree.Follow"/>, <see cref="FrameTree.HoldStill"/>), and
+/// the tree tells which kind a record of a step has, from the intents that the step applied
+/// (<see cref="FrameTree.FollowKindInStep"/>): the record of a hull that was dynamic in the step is physics, the record of a
+/// full sample is rails, that of an end pose is kinematic, and any other record is static.
 /// </summary>
 public class FrameTreeFollowedTests
 {
+    private const double Step = 1.0 / 60;
     private readonly FrameTree frames = new();
     private readonly FrameHandle root;
 
@@ -28,145 +30,74 @@ public class FrameTreeFollowedTests
 
     /// <summary>A sample at rest 5 m along +X.</summary>
     private static MotionSample Sample =>
-        new(new DPose(new Double3(5, 0, 0), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Vector3.Zero);
+        new(new DPose(new Double3(5, 0, 0), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
 
-    /// <summary>Ends a tick: step 4 turns the buffers.</summary>
-    private void SyncPoint() => frames.Samples.MoveOn();
+    /// <summary>The intents of a step in which only the owner of <paramref name="frame"/> wrote one: <paramref name="intent"/>.</summary>
+    private static PhysicsIntent[] Only(FrameHandle frame, in PhysicsIntent intent)
+    {
+        var intents = new PhysicsIntent[frame.Entity.Index + 1];
+        intents[frame.Entity.Index] = intent;
+        return intents;
+    }
+
+    /// <summary>Step 2: <paramref name="frame"/> takes <see cref="Sample"/> as its record, of the kind <paramref name="kind"/>.</summary>
+    private void Follow(FrameHandle frame, FollowKind kind)
+    {
+        frames.Follow(frame, frames.TreeParent(frame), Sample, kind, measured: null, Step);
+        frames.StoreNewProperAccelerations();
+    }
 
     [Fact]
-    public void AFrameFollowsRailsAtTheSyncPointAfterTheStepThatAppliesTheSampleOfItsOwner()
+    public void ANewFrameFollowedNothing()
     {
         FrameHandle moon = Child(2, root, motion: null);
-        frames.Samples.Write(moon, root, Sample);
 
-        SyncPoint();
-        FollowKind whileApplied = frames.Followed(moon);
-        SyncPoint();
-
-        whileApplied.Should().Be(FollowKind.Static, "the step that applies the sample has not ended yet");
-        frames.Followed(moon).Should().Be(FollowKind.Rails);
-    }
-
-    [Fact]
-    public void AFrameWithADynamicHullFollowsPhysicsAtTheSyncPointOfTheStepThatMovedIt()
-    {
-        FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
-
-        frames.Samples.Record(ship, root, Sample, []);
-        SyncPoint();
-
-        frames.Followed(ship).Should().Be(FollowKind.Physics);
-    }
-
-    [Fact]
-    public void AFrameWhoseHullParksAfterTheStepStillFollowsPhysicsAtThatSyncPoint()
-    {
-        FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
-
-        frames.Samples.Record(ship, root, Sample, []);
-        frames.SetHullMotion(ship, BodyMotion.Static);
-        SyncPoint();
-
-        frames.Followed(ship).Should().Be(FollowKind.Physics, "step 4 changes the motion after step 2 took the record of the step");
-    }
-
-    /// <summary>
-    /// The intents of the step that ended hold a change that made the hull dynamic. The stored motion takes it only at step
-    /// 4, after the record, but the record is of a step in which the hull was dynamic: the move that physics made.
-    /// </summary>
-    [Fact]
-    public void AFrameWhoseHullBecameDynamicInTheStepFollowsPhysicsAtThatSyncPoint()
-    {
-        FrameHandle ship = Child(2, root, BodyMotion.Static);
-
-        frames.Samples.Record(ship, root, Sample, StepIntents.Changing(ship, BodyMotion.Dynamic));
-        SyncPoint();
-
-        frames.Followed(ship).Should().Be(FollowKind.Physics);
-    }
-
-    /// <summary>The intents of the step that ended hold a change that parked the hull, so the record is of a static hull.</summary>
-    [Fact]
-    public void AFrameWhoseHullParkedInTheStepFollowsItsRecordAsStatic()
-    {
-        FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
-
-        frames.Samples.Record(ship, root, Sample, StepIntents.Changing(ship, BodyMotion.Static));
-        SyncPoint();
-
-        frames.Followed(ship).Should().Be(FollowKind.Static);
+        frames.Followed(moon).Should().Be(FollowKind.Static);
     }
 
     [Theory]
-    [InlineData(BodyMotion.Static)]
-    [InlineData(BodyMotion.Kinematic)]
-    public void AFrameWithAHullThatIsNotDynamicFollowsATeleportAsAStaticFrame(BodyMotion motion)
+    [InlineData(FollowKind.Rails)]
+    [InlineData(FollowKind.Kinematic)]
+    [InlineData(FollowKind.Physics)]
+    [InlineData(FollowKind.Static)]
+    public void AFrameKeepsTheKindOfTheRecordThatItTookAtTheLastSyncPoint(FollowKind kind)
     {
-        FrameHandle ship = Child(2, root, motion);
+        FrameHandle moon = Child(2, root, motion: null);
 
-        frames.Samples.Record(ship, root, Sample, []);
-        SyncPoint();
+        Follow(moon, kind);
 
-        frames.Followed(ship).Should().Be(FollowKind.Static);
+        frames.Followed(moon).Should().Be(kind);
     }
 
     [Fact]
-    public void AFrameWithoutABodyFollowsAWriteOfItsOwnersTransformAsAStaticFrame()
+    public void AFrameThatHoldsStillFollowsAsAStaticFrame()
     {
-        FrameHandle room = Child(2, root, motion: null);
+        FrameHandle moon = Child(2, root, motion: null);
+        Follow(moon, FollowKind.Rails);
 
-        frames.Samples.Record(room, root, Sample, []);
-        SyncPoint();
+        frames.HoldStill(moon, Step);
+        frames.StoreNewProperAccelerations();
 
-        frames.Followed(room).Should().Be(FollowKind.Static);
+        frames.Followed(moon).Should().Be(FollowKind.Static, "the frame took no record of the step");
     }
 
     [Fact]
-    public void TheRecordOfAStepThatAppliedASampleLeavesTheFrameOnRails()
-    {
-        FrameHandle station = Child(2, root, BodyMotion.Kinematic);
-        frames.Samples.Write(station, root, Sample);
-        SyncPoint();
-
-        frames.Samples.Record(station, root, Sample, []).Should().BeFalse("the sample is the record of the step");
-        SyncPoint();
-
-        frames.Followed(station).Should().Be(FollowKind.Rails);
-    }
-
-    [Fact]
-    public void AFrameWithoutARowFollowsNothing()
-    {
-        FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
-        frames.Samples.Record(ship, root, Sample, []);
-        SyncPoint();
-
-        SyncPoint();
-
-        frames.Followed(ship).Should().Be(FollowKind.Static, "physics made no record of the second step");
-    }
-
-    [Fact]
-    public void ASampleThatConvertsIntoAnotherFrameKeepsWhatMadeIt()
+    public void AFrameThatMovesToAnotherParentKeepsTheKindOfItsLastRecord()
     {
         FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
         FrameHandle moon = Child(3, ship, motion: null);
-        frames.Samples.Write(moon, ship, Sample);
-        SyncPoint();
-        SyncPoint();
+        Follow(moon, FollowKind.Rails);
 
-        frames.Samples.ConvertInto(moon, root);
+        frames.Reparent(moon, root);
 
-        frames.Followed(moon).Should().Be(FollowKind.Rails);
+        frames.Followed(moon).Should().Be(FollowKind.Rails, "the kind describes the step that ended, as the frame's row does");
     }
 
     [Fact]
     public void AFrameInTheSlotOfADeadFrameFollowsNothingOfTheDeadFrame()
     {
         FrameHandle first = Child(2, root, motion: null);
-        frames.Samples.Write(first, root, Sample);
-        SyncPoint();
-        SyncPoint();
+        Follow(first, FollowKind.Rails);
         frames.Destroy(first);
 
         FrameHandle second = Child(3, root, motion: null);
@@ -182,5 +113,74 @@ public class FrameTreeFollowedTests
         frames.Destroy(ship);
 
         FluentActions.Invoking(() => frames.Followed(ship)).Should().Throw<InvalidOperationException>();
+    }
+
+    // ---- The kind of a record of a step ---------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheRecordOfAHullThatWasDynamicInTheStepIsPhysicsWithOrWithoutASteerTarget(bool steered)
+    {
+        FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
+        MotionIntent move = steered ? new MotionIntent(new SteerTarget(Sample.Pose)) : default;
+
+        frames.FollowKindInStep(ship, Only(ship, new PhysicsIntent { Frame = root, Move = move })).Should().Be(FollowKind.Physics);
+    }
+
+    [Fact]
+    public void TheRecordOfAHullThatBecameDynamicInTheStepIsPhysics()
+    {
+        FrameHandle ship = Child(2, root, BodyMotion.Kinematic);
+
+        frames.FollowKindInStep(ship, StepIntents.Changing(ship, BodyMotion.Dynamic)).Should().Be(FollowKind.Physics);
+    }
+
+    [Fact]
+    public void TheRecordOfAHullThatParkedInTheStepIsStatic()
+    {
+        FrameHandle ship = Child(2, root, BodyMotion.Dynamic);
+
+        frames.FollowKindInStep(ship, StepIntents.Changing(ship, BodyMotion.Static)).Should().Be(FollowKind.Static,
+            "the change of motion of the step counts, not the stored motion of the step before");
+    }
+
+    [Theory]
+    [InlineData(BodyMotion.Kinematic)]
+    [InlineData(null)]
+    public void TheRecordOfAFullSampleIsRailsAndTheRecordOfAnEndPoseIsKinematic(BodyMotion? motion)
+    {
+        FrameHandle station = Child(2, root, motion);
+
+        frames.FollowKindInStep(station, Only(station, new PhysicsIntent { Frame = root, Move = new MotionIntent(Sample) }))
+            .Should().Be(FollowKind.Rails);
+        frames.FollowKindInStep(station, Only(station, new PhysicsIntent { Frame = root, Move = new MotionIntent(new EndPose(Sample.Pose)) }))
+            .Should().Be(FollowKind.Kinematic);
+    }
+
+    /// <summary>
+    /// Physics moves a static hull only by a teleport. A static hull refuses every motion intent, so one in its intent comes
+    /// only from a bug, which physics ignores (docs/plans/rails-components.md, "The flow per kind of entity"), and the
+    /// record stays static.
+    /// </summary>
+    [Fact]
+    public void TheRecordOfAStaticHullIsStaticWhateverItsMotionIntent()
+    {
+        FrameHandle dock = Child(2, root, BodyMotion.Static);
+        var intent = new PhysicsIntent { Frame = root, Flags = IntentFlags.Teleport, TeleportPose = Sample.Pose, Move = new MotionIntent(new EndPose(Sample.Pose)) };
+
+        frames.FollowKindInStep(dock, Only(dock, intent)).Should().Be(FollowKind.Static);
+    }
+
+    [Theory]
+    [InlineData(BodyMotion.Kinematic)]
+    [InlineData(BodyMotion.Static)]
+    public void TheRecordOfATeleportWithoutAMotionIntentIsStatic(BodyMotion motion)
+    {
+        FrameHandle ship = Child(2, root, motion);
+        var teleport = new PhysicsIntent { Frame = root, Flags = IntentFlags.Teleport, TeleportPose = Sample.Pose };
+
+        frames.FollowKindInStep(ship, Only(ship, teleport)).Should().Be(FollowKind.Static);
+        frames.FollowKindInStep(ship, []).Should().Be(FollowKind.Static, "a slot past the end of the intents holds none");
     }
 }

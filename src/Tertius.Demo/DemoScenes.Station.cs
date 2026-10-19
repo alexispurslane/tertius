@@ -196,7 +196,8 @@ public static partial class DemoScenes
             var scene = new SceneInstance();
             FrameHandle earth = SunAndEarth(world, resources, scene);
 
-            // The station starts on its orbit at the world's time, and its KeplerMotion moves it on from the second sync point.
+            // The station starts on its orbit at the world's time. Its first motion intent moves it along the orbit in the
+            // step of the next tick, and its KeplerMotion from the second step on, so its contents float from the start.
             KeplerOrbit orbit = OrbitAt(world.Time);
             (Double3 stationPlace, Double3 stationVelocity) = orbit.StateAt(world.Time, EarthMu);
             Entity station = world.Spawn(new SpawnDesc
@@ -205,6 +206,7 @@ public static partial class DemoScenes
                 Pose = new DPose(stationPlace, orbit.RotationAt(world.Time, EarthMu)),
                 LinearVelocity = stationVelocity,
                 AngularVelocity = orbit.AngularVelocityAt(world.Time, EarthMu).ToVector3(),
+                FirstMove = new MotionIntent(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
                 Components = [new KeplerMotion { Orbit = orbit }],
                 // The hull outside the frame: the solid module and the radiator. It is kinematic, and its KeplerMotion
                 // moves it.

@@ -7,14 +7,14 @@ namespace Tertius.Physics.Tests;
 
 /// <summary>
 /// Motion samples and rails components on the owner of a frame that has a body: who may write a sample, what the rails
-/// components check, and the teleport with which a rails component puts a hull on its rails. These tests read the sample table and what each step
-/// received; RailsFollowTests checks how frames follow the samples. The world runs on the real backend.
+/// components check, and the teleport with which a rails component puts a hull on its rails. These tests read the motion intent of the next step and what each
+/// step received; RailsFollowTests checks how frames follow the samples. The world runs on the real backend.
 /// </summary>
 public class RailsHullTests
 {
     /// <summary>A sample at (1, 2, 3) with no motion.</summary>
     private static readonly MotionSample Parked =
-        new(new DPose(new Double3(1, 2, 3), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Vector3.Zero);
+        new(new DPose(new Double3(1, 2, 3), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
 
     private static readonly KeplerOrbit Orbit = KeplerOrbit.Circular(5_000, phase: 0.3, spinRate: 0.2);
     private static readonly FrameSpin Spin = new(DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4), 0.5, PhaseAtEpoch: 0.1);
@@ -43,7 +43,7 @@ public class RailsHullTests
         Tick(world, 1);
 
         world.Errors.Should().ContainSingle().Which.Should().Contain(owner.ToString()).And.Contain(nameof(InvalidOperationException));
-        world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out _).Should().BeFalse();
+        NextSample(world, owner, out _).Should().BeFalse();
     }
 
     [Fact]
@@ -55,7 +55,7 @@ public class RailsHullTests
         Tick(world, 1);
 
         world.Errors.Should().BeEmpty();
-        world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out MotionSample sample).Should().BeTrue();
+        NextSample(world, owner, out MotionSample sample).Should().BeTrue();
         sample.Should().Be(Parked);
     }
 
@@ -74,7 +74,7 @@ public class RailsHullTests
         Tick(world, 1);
 
         world.Errors.Should().BeEmpty();
-        world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out _).Should().BeTrue();
+        NextSample(world, owner, out _).Should().BeTrue();
     }
 
     /// <summary>
@@ -90,47 +90,17 @@ public class RailsHullTests
         Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, rails);
         FrameHandle frame = world.GetOwnedFrame(owner);
         Tick(world, 2);
-        world.Frames.Samples.Applied.TryGet(frame, out _).Should().BeTrue("tick 1 wrote a sample for step 2");
+        NextSample(world, owner, out _).Should().BeTrue("tick 1 wrote a sample for step 2");
 
         world.SetMotionNextTick(owner, BodyMotion.Dynamic, remove: rails);
         Tick(world, 2);
 
-        faults.Samples.Should().Contain(record => record.Frame == frame && record.Tick == 2, "step 2 moves the kinematic hull by the sample of tick 1");
-        faults.Samples.Should().NotContain(record => record.Frame == frame && record.Tick == 3, "step 3 moves a dynamic hull");
+        faults.Moves.Should().Contain(record => record.Entity == frame.Entity && record.Tick == 2, "step 2 moves the kinematic hull by the sample of tick 1");
+        faults.Moves.Should().NotContain(record => record.Entity == frame.Entity && record.Tick == 3, "step 3 moves a dynamic hull");
         world.Errors.Should().BeEmpty();
     }
 
-    // ---- A kinematic hull takes only MoveOnRails and Teleport -----------------------------------------------------
-
-    [Fact]
-    public void MoveKinematicOnAKinematicHullThrows() =>
-        AssertTheKinematicHullRefuses(body => body.MoveKinematic(At(1, 2, 3)));
-
-    [Fact]
-    public void SetVelocityOnAKinematicHullThrows() =>
-        AssertTheKinematicHullRefuses(body => body.SetVelocity(new Double3(1, 0, 0)));
-
-    [Fact]
-    public void SetAngularVelocityOnAKinematicHullThrows() =>
-        AssertTheKinematicHullRefuses(body => body.SetAngularVelocity(new Vector3(0, 1, 0)));
-
-    /// <summary>
-    /// The owner of a kinematic hull calls <paramref name="call"/> in a tick. Only a sample tells the frame of a kinematic
-    /// hull how to follow, so the call throws an <see cref="InvalidOperationException"/>, which the World records, and the
-    /// step gets no such intent.
-    /// </summary>
-    private static void AssertTheKinematicHullRefuses(BodyCommand call)
-    {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        var pilot = new Pilot { Once = call };
-        Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Kinematic, pilot);
-
-        Tick(world, 2);
-
-        world.Errors.Should().ContainSingle().Which.Should().Contain(owner.ToString()).And.Contain(nameof(InvalidOperationException)).And.Contain("kinematic hull");
-        faults.Intents.Should().NotContain(record => record.Entity == owner &&
-            (record.Intent.Flags & (IntentFlags.KinematicTarget | IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity)) != 0);
-    }
+    // ---- A teleport and a sample in one tick ---------------------------------------------------------------------
 
     /// <summary>
     /// In one tick, the owner of a kinematic hull teleports it 10 m above (1, 2, 3) and writes a sample at (1, 2, 3). The
@@ -223,22 +193,43 @@ public class RailsHullTests
 
     // ---- The checks of a rails component ------------------------------------------------------------------------
 
+    /// <summary>
+    /// A rails component reads the guard's reason before it writes (see <see cref="Self.MotionIntentProblem"/>). An entity
+    /// that refuses a full sample gets nothing from the component, neither a sample nor the teleport of a first run, and
+    /// the component logs the guard's reason once.
+    /// </summary>
     [Theory]
-    [InlineData("KeplerMotion")]
-    [InlineData("SpinMotion")]
-    public void ARailsComponentOnAHullThatIsNotKinematicWritesNoSampleAndLogsOnce(string component)
+    [InlineData("KeplerMotion", "dynamic hull")]
+    [InlineData("SpinMotion", "dynamic hull")]
+    [InlineData("KeplerMotion", "dynamic plain body")]
+    [InlineData("SpinMotion", "dynamic plain body")]
+    [InlineData("KeplerMotion", "static plain body")]
+    [InlineData("SpinMotion", "static plain body")]
+    public void ARailsComponentWritesNothingAndLogsTheGuardsReasonOnce(string component, string kind)
     {
         using World world = NewWorld(out _);
         var log = new List<string>();
         world.Log += log.Add;
-        Entity owner = Hull(world, Scenes.AsteroidSpace(world), BodyMotion.Dynamic, Rails(component));
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        Entity owner = kind == "dynamic hull"
+            ? Hull(world, space, BodyMotion.Dynamic, Rails(component))
+            : world.Spawn(new SpawnDesc
+            {
+                Frame = space,
+                Pose = new DPose(SpinPlace, DQuaternion.Identity),
+                Body = Ball() with { Motion = kind == "static plain body" ? BodyMotion.Static : BodyMotion.Dynamic },
+                Components = [Rails(component)],
+            });
 
         Tick(world, 3);
 
-        // The applied buffer holds what the tick wrote. The followed buffer holds the step record that physics measured for
-        // the dynamic hull, which is no sample of the component.
-        world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out _).Should().BeFalse();
-        log.Where(line => line.Contains(owner.ToString())).Should().ContainSingle();
+        string? reason = world.MotionIntentProblem(owner, new MotionIntent(Parked));
+        reason.Should().NotBeNull();
+        // The next step's intent holds what the tick wrote, which is nothing of the component.
+        PhysicsIntent next = world.Entities.NextStepIntent(owner);
+        next.Move.HasValue.Should().BeFalse();
+        (next.Flags & IntentFlags.Teleport).Should().Be(IntentFlags.None);
+        log.Where(line => line.Contains(owner.ToString())).Should().ContainSingle().Which.Should().Contain(reason!);
         world.Errors.Should().BeEmpty();
     }
 
@@ -258,7 +249,7 @@ public class RailsHullTests
         IntentRecord[] teleports = faults.Intents.Where(r => r.Entity == owner && (r.Intent.Flags & IntentFlags.Teleport) != 0).ToArray();
         teleports.Should().ContainSingle().Which.Tick.Should().Be(1);
         teleports[0].Intent.TeleportPose.Should().Be(RailsPose(component, world.TimeAt(1)));
-        world.Frames.Samples.Applied.TryGet(world.GetOwnedFrame(owner), out _).Should().BeTrue();
+        NextSample(world, owner, out _).Should().BeTrue();
     }
 
     [Fact]
@@ -305,4 +296,8 @@ public class RailsHullTests
         component == "KeplerMotion"
             ? new DPose(Orbit.StateAt(time, Scenes.AsteroidMu).Position, Orbit.RotationAt(time, Scenes.AsteroidMu))
             : new DPose(SpinPlace, Spin.RotationAt(time));
+
+    /// <summary>The full sample that the next step applies to <paramref name="owner"/>, between two ticks, or false.</summary>
+    private static bool NextSample(World world, Entity owner, out MotionSample sample) =>
+        world.Entities.NextStepIntent(owner).Move.TryGetValue(out sample);
 }

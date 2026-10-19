@@ -328,6 +328,8 @@ public sealed partial class World : IDisposable
     /// <item>Only a character can be standing.</item>
     /// <item>Every intent that the next physics step applies names its entity's frame (see
     /// <see cref="PhysicsIntent.Frame"/>).</item>
+    /// <item>Every live entity among the entities that took a step record at the last step 2 without body or frame has
+    /// neither (see <see cref="FollowFramelessEntities"/>).</item>
     /// </list>
     /// </summary>
     internal void AssertInvariants()
@@ -342,6 +344,9 @@ public sealed partial class World : IDisposable
         Contract.Invariant(dying.Count == 0);
         foreach (Entity entity in entities.IntentEntities.Span)
             Contract.Invariant(entities.NextStepIntent(entity).Frame == entities.BackRow(entity).Frame);
+        foreach (Entity entity in framelessMovers)
+            if (entities.IsAlive(entity))
+                Contract.Invariant(entities.Body(entity) == null && entities.OwnedFrame(entity).IsNull);
         foreach (Entity entity in entities.LiveEntities)
         {
             ref readonly TransformRow row = ref entities.BackRow(entity);

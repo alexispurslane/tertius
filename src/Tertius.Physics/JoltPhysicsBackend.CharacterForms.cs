@@ -16,7 +16,7 @@ namespace Tertius.Physics;
 // the rigid form takes the path of an ordinary dynamic body everywhere: gravity, intents, hand-offs, moves, shifts,
 // growth, ghosts, collision groups, contacts, queries and the outputs. Only a few places know characters: the record's
 // input state (up, desired velocity) turns with the axes in a hand-off, the outputs report a character state for both
-// forms, the intents of a walk, a jump, a kinematic target and a spin do not move the rigid form, and a held contact of
+// forms, the intents of a walk, a jump, a motion intent and a spin do not move the rigid form, and a held contact of
 // the rigid form ends by the walking form's contact list (see NoteRigidCharacterContacts).
 
 public sealed partial class JoltPhysicsBackend

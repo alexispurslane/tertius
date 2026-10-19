@@ -29,13 +29,12 @@ public class WorldContactEndTests
     });
 
     /// <summary>A kinematic block high above the far end of the floor, which touches nothing and keeps the system stepping.</summary>
-    private static void KeepStepping(World world, FrameHandle frame) => world.Spawn(new SpawnDesc
+    private static void KeepStepping(World world, FrameHandle frame) => world.Spawn(KinematicDrift.Drifting(new SpawnDesc
     {
         Frame = frame,
         Pose = At(-40, 20),
-        LinearVelocity = new Vector3(0, 0, 0.1f),
         Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), BodyMotion.Kinematic),
-    });
+    }, world, new Double3(0, 0, 0.1)));
 
     /// <summary>A frame with no body and a bubble of radius 5 m at <paramref name="x"/> on the X axis of <paramref name="parent"/>.</summary>
     private static FrameHandle Bubble(World world, FrameHandle parent, double x) => world.GetOwnedFrame(world.Spawn(new SpawnDesc

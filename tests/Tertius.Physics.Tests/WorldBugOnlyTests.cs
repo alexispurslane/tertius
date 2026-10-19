@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using JoltPhysicsSharp;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
@@ -95,6 +96,45 @@ public class WorldBugOnlyTests
         faults.Jolt.TryGetBodyFrame(dead, out _).Should().BeTrue("the edit kept the body in Jolt, which is the bug that this test stands in for");
 #endif
     }
+
+    /// <summary>
+    /// The guard of every writer, the drops of step 4 and the check of a spawn let a body take only a motion intent whose
+    /// case its motion in the step takes (docs/plans/rails-components.md, "The flow per kind of entity"). So physics meets
+    /// any other only through a bug. A test stands in for that bug: it gives the step a motion intent that the body's motion
+    /// refuses. A Release build ignores the motion intent, so the body stays where it rests, and records the bug.
+    /// </summary>
+    [Theory]
+    [InlineData("end pose", BodyMotion.Dynamic)]
+    [InlineData("full sample", BodyMotion.Dynamic)]
+    [InlineData("steer target", BodyMotion.Kinematic)]
+    [InlineData("end pose", BodyMotion.Static)]
+    public void AMotionIntentWhoseCaseTheBodysMotionRefusesIsABugAndAReleaseBuildIgnoresIt(string write, BodyMotion motion)
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        Entity body = world.Spawn(new SpawnDesc { Frame = space, Pose = At(0), Body = Ball() with { Motion = motion } });
+        Tick(world, 2);
+        DPose end = At(1);
+        MotionIntent move = write switch
+        {
+            "end pose" => new MotionIntent(new EndPose(end)),
+            "full sample" => new MotionIntent(new MotionSample(end, new Double3(60, 0, 0), new Double3(60, 0, 0), Double3.Zero, Double3.Zero, Double3.Zero)),
+            _ => new MotionIntent(new SteerTarget(end)),
+        };
+        faults.EditNextIntents = intents => intents.Add((body, new PhysicsIntent { Frame = space, Move = move }));
+
+#if TERTIUS_CONTRACTS
+        Action tick = () => world.Tick();
+
+        tick.Should().Throw<ContractException>().WithMessage($"*{body}*");
+#else
+        Tick(world, 2);
+
+        world.Errors.Should().ContainSingle().Which.Should().Contain(body.ToString()).And.Contain("Only a bug");
+        world.PoseIn(body, space).Position.Length.Should().BeLessThan(1e-9, "physics ignored the motion intent");
+#endif
+    }
+
     [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "Find")]
     private static extern BodyRecord? RecordOf(JoltPhysicsBackend backend, Entity entity);
 
@@ -139,6 +179,7 @@ public class WorldBugOnlyTests
         GhostInDock().Id.Should().Be(kept.Id, "the second want is skipped");
         GhostInDock().Layer.Should().Be(kept.Layer);
     }
+
     [UnsafeAccessor(UnsafeAccessorKind.Method, Name = "ExistingWorld")]
     private static extern FrameWorld? SystemOf(JoltPhysicsBackend backend, FrameHandle frame);
 

@@ -114,12 +114,12 @@ public class KeplerFrameTickBenchmarks
             double radius = 7e6 + i * 35e3;
             double phase = i * 2.399963229728653;
             var orbit = KeplerOrbit.Circular(radius, phase: phase);
-            (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
+            // A frame without a body takes no spawn velocity: its first motion intent moves it in its first step.
             world.Spawn(new SpawnDesc
             {
                 Frame = root,
-                Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
-                LinearVelocity = velocity,
+                Pose = new DPose(orbit.StateAt(world.Time, EarthMu).Position, orbit.RotationAt(world.Time, EarthMu)),
+                FirstMove = new MotionIntent(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
                 Components = [new KeplerMotion { Orbit = orbit }],
             });
@@ -143,6 +143,83 @@ public class KeplerFrameTickBenchmarks
         double meanMicroseconds = syncs == 0 ? 0 : (world.SyncTimestampTotal - syncTimestampsAtStart) * 1e6 / Stopwatch.Frequency / syncs;
         Console.WriteLine($"KeplerFrameSync MaxDegreeOfParallelism={MaxDegreeOfParallelism}: mean sync point {meanMicroseconds:F2} us per tick over {syncs} ticks");
         profile.Print(world, $"Kepler1000-dop{MaxDegreeOfParallelism}");
+        world.Dispose();
+    }
+}
+
+/// <summary>
+/// The cost of one tick of <see cref="Entities"/> entities without body or frame on Kepler orbits around one root, with no
+/// other gameplay (ter-xdt8, docs/plans/rails-components.md, "Rails motion for every entity"). The <see cref="KeplerMotion"/>
+/// of each entity solves its orbit in its tick, in the parallel chunks, and writes the sample as the entity's motion intent.
+/// The sync point swaps the intents at step 4 and puts each entity on the record of its intent at step 2
+/// (FollowFramelessEntities). Every entity writes a motion intent in every tick, so 100,000 of them measure the swap of the
+/// intents with the field <see cref="PhysicsIntent.Move"/> in every slot, which tells whether that field needs a sparse store.
+/// With <see cref="Jolt"/>, the world has the Jolt backend, whose swap keeps the whole intent, and whose step skips the
+/// intents of entities without a body. Without it, the swap keeps only the motion intents. The cleanup prints the mean time
+/// of the sync point per tick, in microseconds, and the profile of its steps on a build with SyncProfile=true.
+/// </summary>
+[MemoryDiagnoser]
+public class KeplerEntityTickBenchmarks
+{
+    private const double EarthMu = 3.986004418e14;
+
+    private World world = null!;
+    private long syncTimestampsAtStart;
+    private long syncCountAtStart;
+    private readonly SyncProfileReport profile = new();
+
+    [Params(1_000, 100_000)]
+    public int Entities;
+
+    [Params(1, -1)]
+    public int MaxDegreeOfParallelism;
+
+    [Params(false, true)]
+    public bool Jolt;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        Tertius.Physics.JoltPhysicsBackend? backend = Jolt ? new(new Tertius.Physics.JoltBackendOptions { WorkerThreads = 4 }) : null;
+        world = new World(new WorldOptions { MaxDegreeOfParallelism = MaxDegreeOfParallelism, InitialCapacity = Entities + 1024, DisposePhysics = true }, backend);
+        FrameHandle root = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(EarthMu)));
+        for (int i = 0; i < Entities; i++)
+        {
+            double radius = 7e6 + i % 1000 * 35e3;
+            double phase = i * 2.399963229728653;
+            var orbit = KeplerOrbit.Circular(radius, phase: phase);
+            world.Spawn(new SpawnDesc
+            {
+                Frame = root,
+                Pose = new DPose(orbit.StateAt(world.Time, EarthMu).Position, orbit.RotationAt(world.Time, EarthMu)),
+                FirstMove = new MotionIntent(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+                Components = [new KeplerMotion { Orbit = orbit }],
+            });
+        }
+        for (int i = 0; i < 20; i++)
+            world.Tick();
+        syncTimestampsAtStart = world.SyncTimestampTotal;
+        syncCountAtStart = world.SyncCount;
+        profile.Mark(world);
+        SyncSampler.RemarkProfile = () =>
+        {
+            syncTimestampsAtStart = world.SyncTimestampTotal;
+            syncCountAtStart = world.SyncCount;
+            profile.Mark(world);
+        };
+        SyncSampler.StateHash = () => WorldStateHash.Of(world);
+    }
+
+    [Benchmark]
+    public void Tick() => world.Tick();
+
+    [GlobalCleanup]
+    public void Cleanup()
+    {
+        long syncs = world.SyncCount - syncCountAtStart;
+        double meanMicroseconds = syncs == 0 ? 0 : (world.SyncTimestampTotal - syncTimestampsAtStart) * 1e6 / Stopwatch.Frequency / syncs;
+        Console.WriteLine($"KeplerEntitySync Entities={Entities} MaxDegreeOfParallelism={MaxDegreeOfParallelism} Jolt={Jolt}: mean sync point {meanMicroseconds:F2} us per tick over {syncs} ticks");
+        profile.Print(world, $"KeplerEntities{Entities}-dop{MaxDegreeOfParallelism}{(Jolt ? "-jolt" : "")}");
         world.Dispose();
     }
 }
@@ -177,12 +254,12 @@ public class MixedBodiesTickBenchmarks
         for (int i = 0; i < KeplerFrames; i++)
         {
             var orbit = KeplerOrbit.Circular(7e6 + i * 35e3, phase: i * 2.399963229728653);
-            (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, EarthMu);
+            // A frame without a body takes no spawn velocity: its first motion intent moves it in its first step.
             world.Spawn(new SpawnDesc
             {
                 Frame = planet,
-                Pose = new DPose(place, orbit.RotationAt(world.Time, EarthMu)),
-                LinearVelocity = velocity,
+                Pose = new DPose(orbit.StateAt(world.Time, EarthMu).Position, orbit.RotationAt(world.Time, EarthMu)),
+                FirstMove = new MotionIntent(orbit.Sample(EarthMu, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(1)),
                 Components = [new KeplerMotion { Orbit = orbit }],
             });

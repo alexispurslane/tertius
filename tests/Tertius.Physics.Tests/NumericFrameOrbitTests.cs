@@ -63,14 +63,14 @@ public partial class NumericFrameOrbitTests
     }
 
     /// <summary>Earth with its point gravity, and in it a station on <paramref name="orbit"/>, or on <see cref="LowOrbit"/>.</summary>
-    private static Station KeplerStation(World world, KeplerOrbit? orbit = null)
+    private static Station KeplerStation(World world, KeplerOrbit? orbit = null, bool firstMove = false)
     {
         KeplerOrbit path = orbit ?? LowOrbit;
         FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
         Entity owner = world.Spawn(new SpawnDesc
         {
             Frame = earth, Body = StationHull, AsFrame = new FrameSpec(FrameBounds.Sphere(BubbleRadius)),
-        }.OnKeplerOrbit(world, path));
+        }.OnKeplerOrbit(world, path, firstMove));
         return new Station(earth, owner, world.GetOwnedFrame(owner), path);
     }
 
@@ -147,7 +147,8 @@ public partial class NumericFrameOrbitTests
     private static Drift[] DriftOut(bool numericFrames, int threads, int ticks)
     {
         using World world = NewWorld(numericFrames, threads, out FaultInjectingBackend faults);
-        Station station = KeplerStation(world);
+        // The station's first motion intent puts it on its rails from its first step, so its contents float from the start.
+        Station station = KeplerStation(world, firstMove: true);
         var logs = new[] { new CollisionLog(), new CollisionLog(), new CollisionLog() };
         Entity[] drifters = [.. new[] { -3.0, 3.0, 0.0 }.Select((x, i) => world.Spawn(new SpawnDesc
         {
@@ -218,6 +219,49 @@ public partial class NumericFrameOrbitTests
         // The pod falls asleep on the plate within the 2 s after the bump. A sleeping body of an orbit frame moves with the
         // frame, so its place in earth moves with the hull's.
         (with[2].OffsetInEarth - new Double3(0, 19.5, 0)).Length.Should().BeLessThan(0.01, "a read in earth puts the pod beside the hull");
+    }
+
+    /// <summary>A person, a character: a capsule of half height 0.6 m and radius 0.3 m, and 70 kg.</summary>
+    private static readonly BodyDesc Person = new(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70);
+
+    /// <summary>
+    /// A frame on <see cref="LowOrbit"/>, whose hull is a box of 4 m with a bubble of 1 cm, and a body that spawns in the
+    /// same batch on a circular orbit of its own, 3.5 m inside the hull's, within the reach of the merge test: a character or
+    /// <see cref="Rock"/>. The body joins the hull's new orbit frame K before K's first step, and physics converts the
+    /// velocity of its spawn into K's system as into the system of any orbit frame, because K starts with the chord velocity
+    /// that the numeric frames expect (see "The first step of a new following frame" in docs/plans/rails-components.md).
+    /// With a first motion intent of the hull, K's first step is planned, and without one, K falls in its first step. Either
+    /// way the body stays on its own orbit after a second, in which it moves 7.66 km, within the bound that a body spawned
+    /// beside an older orbit frame keeps: 1.35e-6 m there, 1.13e-6 m here with a first motion intent and 4.5e-7 m without
+    /// one. Those are the orbit's jerk times the square of a step, from the scheme that Jolt uses and from the conversion of a
+    /// spawn velocity. When K started with the hull's instant velocity, a body beside a hull with a first motion intent
+    /// drifted from its orbit by 3.6 cm in that second: a quarter of a step of the pull, 3.6 cm/s.
+    /// </summary>
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public void ABodySpawnedBesideANewKeplerHullStaysOnItsOwnOrbitInTheHullsNewOrbitFrame(bool character, bool firstMove)
+    {
+        using World world = NewWorld(numericFrames: true, threads: 1, out _);
+        FrameHandle earth = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f), GravityField.Point(Scenes.EarthMu)));
+        Entity hull = world.Spawn(new SpawnDesc
+        {
+            Frame = earth, Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic, Mass: 1e4f), AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
+        }.OnKeplerOrbit(world, LowOrbit, firstMove));
+        KeplerOrbit own = KeplerOrbit.Circular(6.8e6 - 3.5, phase: 0.4);
+        (Double3 place, Double3 velocity) = own.StateAt(world.Time, Scenes.EarthMu);
+        Entity body = world.Spawn(new SpawnDesc { Frame = earth, Pose = new DPose(place, DQuaternion.Identity), LinearVelocity = velocity, Body = character ? Person : Rock });
+        world.Tick();
+        FrameHandle home = world.PhysicsHomeOf(body);
+        world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting);
+        home.Should().Be(world.PhysicsHomeOf(hull), "the body shares the hull's orbit frame");
+        Tick(world, 59);
+
+        Double3 off = world.PoseIn(body, earth).Position - own.StateAt(world.Time, Scenes.EarthMu).Position;
+        off.Length.Should().BeLessThan(2e-6, $"the body keeps its orbit as beside an older orbit frame, but is off by {off}");
+        world.Errors.Should().BeEmpty();
     }
 
     /// <summary>
@@ -322,7 +366,7 @@ public partial class NumericFrameOrbitTests
     public void TheBodiesInTheStationsOwnFrameMoveAsBeforeAndTheOnesThatStickOutHaveAGhostInItsTreeParent(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, threads: 1, out FaultInjectingBackend faults);
-        Station station = KeplerStation(world);
+        Station station = KeplerStation(world, firstMove: true);
         Entity drifter = world.Spawn(new SpawnDesc { Frame = station.Frame, Pose = At(-5, 0, 5), LinearVelocity = new Double3(0.5, 0, 0), Body = Crate });
         Entity stickOut = world.Spawn(new SpawnDesc { Frame = station.Frame, Pose = At(0, -15.9), Body = Crate });
         Tick(world, 2);

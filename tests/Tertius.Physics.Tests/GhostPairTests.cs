@@ -164,10 +164,12 @@ public class GhostPairTests
         Entity ball;
         if (place == SensorPlace.Space)
         {
-            ball = world.Spawn(new SpawnDesc
+            var flyer = new SpawnDesc
             {
                 Frame = space, Pose = At(-8, 11.3), LinearVelocity = new Vector3(4, 0, 0), Body = ballBody, Components = [ballLog],
-            });
+            };
+            // A kinematic body moves only by its motion intents, so it drifts by end poses.
+            ball = world.Spawn(ballBody.Motion == BodyMotion.Kinematic ? KinematicDrift.Drifting(flyer, world, flyer.LinearVelocity) : flyer);
         }
         else
         {

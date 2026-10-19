@@ -8,7 +8,7 @@ namespace Tertius.Simulation.Tests;
 /// <summary>
 /// The rails components <see cref="KeplerMotion"/> and <see cref="SpinMotion"/> on frames without a body: what they check,
 /// and the sample that each writes in each tick. The tests of rails components on hulls are in Physics.Tests
-/// (RailsHullTests). These tests read the sample table; KeplerFrameTests, SpinFrameTests and RailsFollowTests (Physics.Tests)
+/// (RailsHullTests). These tests read the motion intent of the next step; KeplerFrameTests, SpinFrameTests and RailsFollowTests (Physics.Tests)
 /// check how frames follow the samples.
 /// </summary>
 public class RailsComponentTests
@@ -78,21 +78,18 @@ public class RailsComponentTests
     public void ABlueprintMakesASpinMotionFromItsProperties()
     {
         var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), 0.7, PhaseAtEpoch: 0.3, Epoch: 2);
-        var properAcceleration = new Vector3(0, 9.81f, 0);
         var blueprints = new Blueprints();
-        blueprints.Register(new Blueprint("ground",
-            [new ComponentSpec(typeof(SpinMotion), Fields(("Spin", spin), ("ProperAcceleration", properAcceleration)))]));
+        blueprints.Register(new Blueprint("ground", [new ComponentSpec(typeof(SpinMotion), Fields(("Spin", spin)))]));
 
         var motion = (SpinMotion)blueprints.Instantiate("ground").Single();
 
         motion.Spin.Should().Be(spin);
-        motion.ProperAcceleration.Should().Be(properAcceleration);
     }
 
     // ---- The samples --------------------------------------------------------------------------------------------
 
     [Fact]
-    public void KeplerMotionWritesTheLibrarysSampleForTheEndOfTheStepInWhichItsIntentActsWithZeroProperAcceleration()
+    public void KeplerMotionWritesTheLibrarysSampleForTheEndOfTheStepInWhichItsIntentActs()
     {
         using var test = new TestWorld();
         test.GiveRootPointGravity(Mu);
@@ -104,21 +101,19 @@ public class RailsComponentTests
         // Tick 2 wrote the sample, for step 3, which ends at the time of tick 4.
         MotionSample expected = orbit.Sample(Mu, test.World.TimeAt(4), test.World.DeltaTime);
         Applied(test, moon).Should().Be(expected);
-        expected.ProperAcceleration.Should().Be(Vector3.Zero);
     }
 
     [Fact]
-    public void SpinMotionWritesTheSpinsSampleAtItsFramesPlaceWithItsProperAcceleration()
+    public void SpinMotionWritesTheSpinsSampleAtItsFramesPlace()
     {
         using var test = new TestWorld();
         var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, -0.4), 0.7, PhaseAtEpoch: 0.3, Epoch: 2);
         var place = new Double3(5, -6, 7);
-        var properAcceleration = new Vector3(0, 9.81f, 0);
-        FrameHandle ground = SpawnFrame(test, place, new SpinMotion { Spin = spin, ProperAcceleration = properAcceleration });
+        FrameHandle ground = SpawnFrame(test, place, new SpinMotion { Spin = spin });
 
         test.Run(3);
 
-        Applied(test, ground).Should().Be(spin.Sample(place, properAcceleration, test.World.TimeAt(4), test.World.DeltaTime));
+        Applied(test, ground).Should().Be(spin.Sample(place, test.World.TimeAt(4), test.World.DeltaTime));
     }
 
     [Fact]
@@ -127,7 +122,7 @@ public class RailsComponentTests
         using var test = new TestWorld();
         test.GiveRootPointGravity(Mu);
         var parked = new MotionSample(new DPose(new Double3(1, 2, 3), DQuaternion.Identity), Double3.Zero, Double3.Zero, Double3.Zero,
-            Double3.Zero, Double3.Zero, Vector3.Zero);
+            Double3.Zero, Double3.Zero);
         // The other component comes first in the list, so only the priority of KeplerMotion makes it run first.
         FrameHandle moon = SpawnFrame(test, components:
         [
@@ -138,6 +133,37 @@ public class RailsComponentTests
         test.Run(1);
 
         Applied(test, moon).Should().Be(parked);
+    }
+
+    /// <summary>
+    /// A swap of rails components leaves no step without a motion intent, and the new component starts where the old one's
+    /// last sample leaves the frame, which it reads through <see cref="Self.PoseAtNextStepStartIn"/>: so a SpinMotion that
+    /// replaces a flight turns the frame where the flight's last sample put it, and holds it there.
+    /// </summary>
+    [Fact]
+    public void ASpinMotionStartsWhereTheLastSampleOfTheComponentBeforeItLeftTheFrame()
+    {
+        using var test = new TestWorld();
+        var velocity = new Double3(10, -2, 0.5);
+        Lambda flight = Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+        {
+            Double3 place = velocity * self.TimeAt(self.Tick + 2);
+            self.MoveOnRails(new MotionSample(new DPose(place, DQuaternion.Identity), velocity, velocity, Double3.Zero, Double3.Zero, Double3.Zero));
+        });
+        var spin = new FrameSpin(DQuaternion.FromAxisAngle(Double3.UnitZ, 0.1), 0.7);
+        FrameHandle frame = SpawnFrame(test, components: flight);
+        test.Run(10);
+
+        test.World.RemoveComponent(frame.Entity, flight);
+        test.World.AddComponent(frame.Entity, new SpinMotion { Spin = spin });
+        test.Run(1);
+        Double3 stop = velocity * test.World.Time;
+        test.World.Frames.LocalPose(frame).Position.Should().Be(stop, "the flight's last sample moves the frame in the step of the swap");
+
+        test.Run(3);
+
+        test.World.Frames.LocalPose(frame).Position.Should().Be(stop, "the spin turns the frame where the flight left it");
+        Applied(test, frame)!.Value.Should().Be(spin.Sample(stop, test.World.TimeAt(test.World.TickNumber + 1), test.World.DeltaTime));
     }
 
     // ---- The checks of a run ------------------------------------------------------------------------------------
@@ -153,7 +179,7 @@ public class RailsComponentTests
         test.Run(3);
 
         Applied(test, moon).Should().BeNull();
-        Followed(test, moon).Should().BeNull();
+        test.World.Frames.Followed(moon).Should().Be(FollowKind.Static);
         log.Where(line => line.Contains(moon.Entity.ToString())).Should().ContainSingle();
     }
 
@@ -171,7 +197,7 @@ public class RailsComponentTests
         test.Run(3);
 
         Applied(test, moon).Should().BeNull();
-        Followed(test, moon).Should().BeNull();
+        test.World.Frames.Followed(moon).Should().Be(FollowKind.Static);
         log.Where(line => line.Contains(moon.Entity.ToString())).Should().ContainSingle();
         test.World.Errors.Should().BeEmpty();
     }
@@ -188,7 +214,7 @@ public class RailsComponentTests
 
         test.Run(3);
 
-        Applied(test, ground).Should().Be(default(FrameSpin).Sample(place, Vector3.Zero, test.World.TimeAt(4), test.World.DeltaTime));
+        Applied(test, ground).Should().Be(default(FrameSpin).Sample(place, test.World.TimeAt(4), test.World.DeltaTime));
         Applied(test, ground)!.Value.Pose.Rotation.Should().Be(DQuaternion.Identity);
         test.World.Errors.Should().BeEmpty();
     }
@@ -238,9 +264,7 @@ public class RailsComponentTests
             Components = components,
         }));
 
+    /// <summary>The full sample that the next step applies to the owner of <paramref name="frame"/>, between two ticks, or null.</summary>
     private static MotionSample? Applied(TestWorld test, FrameHandle frame) =>
-        test.World.Frames.Samples.Applied.TryGet(frame, out MotionSample sample) ? sample : null;
-
-    private static MotionSample? Followed(TestWorld test, FrameHandle frame) =>
-        test.World.Frames.Samples.Followed.TryGet(frame, out MotionSample sample) ? sample : null;
+        test.World.Entities.NextStepIntent(frame.Entity).Move.TryGetValue(out MotionSample sample) ? sample : null;
 }

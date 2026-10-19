@@ -239,12 +239,16 @@ internal sealed class ChaoticWorkload : IDisposable
         bool withBody = random.Next(4) == 0;
         // Bodies spawn on a smaller square than the other entities, so that they land close to each other and touch.
         int reach = withBody ? 4 : 15;
+        DPose pose = TestWorld.At(random.Next(-reach, reach + 1), 0, random.Next(-reach, reach + 1));
+        // The drift is drawn for every entity, so that the random sequence stays the same. Only a body takes it, because
+        // motion intents move an entity without one, and a spawn refuses its velocity.
+        var drift = new Vector3(random.Next(-1, 2), 0, 0);
         World.Spawn(new SpawnDesc
         {
             Frame = frame,
-            Pose = TestWorld.At(random.Next(-reach, reach + 1), 0, random.Next(-reach, reach + 1)),
+            Pose = pose,
             Body = withBody ? TestWorld.Ball : null,
-            LinearVelocity = new Vector3(random.Next(-1, 2), 0, 0),
+            LinearVelocity = withBody ? drift : Vector3.Zero,
             Render = random.Next(2) == 0 ? new RenderData { Mesh = new MeshId(1 + random.Next(3)), Flags = RenderFlags.Visible } : null,
             Components = [NewChurn()],
             Subscriptions = random.Next(3) == 0 ? [Chatter] : [],

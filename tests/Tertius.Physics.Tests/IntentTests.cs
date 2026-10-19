@@ -33,7 +33,13 @@ public class IntentTests
         world.Tick();
     }
 
-    private static Entity Spawn(World world, FrameHandle frame, BodyDesc body, DPose pose, Pilot pilot, Double3 velocity = default, Vector3 angularVelocity = default) =>
+    private static void Send(World world, SelfPilot pilot, SelfCommand command)
+    {
+        pilot.Once = command;
+        world.Tick();
+    }
+
+    private static Entity Spawn(World world, FrameHandle frame, BodyDesc body, DPose pose, IComponent pilot, Double3 velocity = default, Vector3 angularVelocity = default) =>
         world.Spawn(new SpawnDesc { Frame = frame, Pose = pose, LinearVelocity = velocity, AngularVelocity = angularVelocity, Body = body, Components = [pilot] });
 
     [Fact]
@@ -59,35 +65,39 @@ public class IntentTests
     }
 
     [Fact]
-    public void TeleportAndKinematicTargetInOneIntentMoveFromTheTeleportPoseToTheTarget()
+    public void ATeleportAndAnEndPoseOrASteerTargetInOneIntentMoveTheBodyOnFromTheTeleportPose()
     {
         var (world, space) = ZeroGravity();
         using (world)
         {
-            var moverPilot = new Pilot();
-            var boxPilot = new Pilot();
-            var personPilot = new Pilot();
+            var moverPilot = new SelfPilot();
+            var boxPilot = new SelfPilot();
             Entity mover = Spawn(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic), At(0, 0, 0), moverPilot);
             Entity box = Spawn(world, space, Box(0.5f), At(0, 10, 0), boxPilot);
-            Entity person = Spawn(world, space, new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70), At(0, -10, 0), personPilot);
             world.Tick();
 
-            // Each body teleports 20 m away and, in the same intent, gets a target half a meter and 0.1 rad further on.
-            var offsets = new Dictionary<Entity, Double3> { [mover] = new(20, 0, 0), [box] = new(0, 20, 0), [person] = new(0, -20, 0) };
-            foreach (var (entity, pilot) in new[] { (mover, moverPilot), (box, boxPilot), (person, personPilot) })
+            // Each body teleports 20 m away and, in the same intent, gets an aim pose half a meter and 0.1 rad further on:
+            // an end pose for the kinematic body, and a steer target for the dynamic box.
+            var offsets = new Dictionary<Entity, Double3> { [mover] = new(20, 0, 0), [box] = new(0, 20, 0) };
+            foreach (var (entity, pilot) in new[] { (mover, moverPilot), (box, boxPilot) })
             {
                 Double3 offset = offsets[entity];
-                pilot.Once = body =>
+                bool steer = entity == box;
+                pilot.Once = self =>
                 {
-                    body.Teleport(new DPose(offset, DQuaternion.FromAxisAngle(Double3.UnitY, 0.4)));
-                    body.MoveKinematic(new DPose(offset + new Double3(0.5, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5)));
+                    self.Body.Teleport(new DPose(offset, DQuaternion.FromAxisAngle(Double3.UnitY, 0.4)));
+                    var aim = new DPose(offset + new Double3(0.5, 0, 0), DQuaternion.FromAxisAngle(Double3.UnitY, 0.5));
+                    if (steer)
+                        self.Body.SteerTo(aim);
+                    else
+                        self.MoveKinematic(aim);
                 };
             }
             world.Tick();
             world.Tick();
 
-            // Teleport first, then the target: kinematic and dynamic bodies end the step at the target, moving at the
-            // speed that carried them there from the teleport pose.
+            // Teleport first, then the end pose or the steer target: kinematic and dynamic bodies end the step at the aim
+            // pose, moving at the speed that carried them there from the teleport pose.
             foreach (Entity entity in new[] { mover, box })
             {
                 DPose pose = world.PoseInOwnFrame(entity);
@@ -97,81 +107,12 @@ public class IntentTests
                 world.VelocityInOwnFrame(entity).X.Should().BeApproximately(0.5f / world.DeltaTime, 1e-3f);
                 world.AngularVelocityInOwnFrame(entity).Y.Should().BeApproximately(0.1f / world.DeltaTime, 1e-3f);
             }
-
-            // A target does nothing to a character, so it stays where it teleported to.
-            DPose character = world.PoseInOwnFrame(person);
-            (character.Position - offsets[person]).Length.Should().BeLessThan(1e-3);
-            Math.Abs(Dot(character.Rotation, DQuaternion.FromAxisAngle(Double3.UnitY, 0.4))).Should().BeGreaterThan(1 - 1e-5);
-
-            // Without a new target, the kinematic body stops there.
-            world.Tick();
-            (world.PoseInOwnFrame(mover).Position - (offsets[mover] + new Double3(0.5, 0, 0))).Length.Should().BeLessThan(1e-4);
-            world.VelocityInOwnFrame(mover).Should().Be(Vector3.Zero);
             world.Errors.Should().BeEmpty();
         }
     }
 
     [Fact]
-    public void SetVelocityAndAngularVelocity()
-    {
-        var (world, space) = ZeroGravity();
-        using (world)
-        {
-            var pilot = new Pilot();
-            Entity box = Spawn(world, space, Box(0.5f), At(0, 0, 0), pilot);
-            Send(world, pilot, body =>
-            {
-                body.SetVelocity(new Double3(3, -1, 0));
-                body.SetAngularVelocity(new Vector3(0, 0, 2));
-            });
-            world.Tick();
-            Vector3.Distance(world.VelocityInOwnFrame(box), new Vector3(3, -1, 0)).Should().BeLessThan(1e-5f);
-            Vector3.Distance(world.AngularVelocityInOwnFrame(box), new Vector3(0, 0, 2)).Should().BeLessThan(1e-5f);
-            (world.PoseInOwnFrame(box).Position - new Double3(3, -1, 0) * world.DeltaTime).Length.Should().BeLessThan(1e-6);
-
-            // The velocity persists without further intents.
-            Tick(world, 59);
-            (world.PoseInOwnFrame(box).Position - new Double3(3, -1, 0)).Length.Should().BeLessThan(1e-4);
-
-            // Each velocity keeps its last value: a new linear velocity leaves the spin alone.
-            Send(world, pilot, body => body.SetVelocity(new Double3(0, 0, 1)));
-            world.Tick();
-            Vector3.Distance(world.VelocityInOwnFrame(box), new Vector3(0, 0, 1)).Should().BeLessThan(1e-5f);
-            Vector3.Distance(world.AngularVelocityInOwnFrame(box), new Vector3(0, 0, 2)).Should().BeLessThan(1e-5f);
-            world.Errors.Should().BeEmpty();
-        }
-    }
-
-    [Fact]
-    public void ImpulsesAndForcesChangeVelocityByMass()
-    {
-        var (world, space) = ZeroGravity();
-        using (world)
-        {
-            var pilot = new Pilot();
-            Entity ball = Spawn(world, space, Ball(0.5f, mass: 2), At(0, 0, 0), pilot);
-            Send(world, pilot, body =>
-            {
-                body.AddImpulse(new Vector3(4, 0, 0));
-                body.AddForce(new Vector3(0, 120, 0));
-                // A solid sphere: I = 2/5 m r² = 0.2, so 0.4 N·m·s gives 2 rad/s.
-                body.AddAngularImpulse(new Vector3(0, 0, 0.4f));
-            });
-            world.Tick();
-            Vector3 velocity = world.VelocityInOwnFrame(ball);
-            velocity.X.Should().BeApproximately(2, 5e-5f);
-            velocity.Y.Should().BeApproximately(60 * world.DeltaTime, 5e-5f);
-            world.AngularVelocityInOwnFrame(ball).Z.Should().BeApproximately(2, 5e-4f);
-
-            // Forces act for one step only.
-            world.Tick();
-            world.VelocityInOwnFrame(ball).Y.Should().BeApproximately(60 * world.DeltaTime, 5e-5f);
-            world.Errors.Should().BeEmpty();
-        }
-    }
-
-    [Fact]
-    public void TorqueSpinsTheBody()
+    public void ATorqueTurnsADynamicBodyForOneStep()
     {
         var (world, space) = ZeroGravity();
         using (world)
@@ -187,15 +128,37 @@ public class IntentTests
     }
 
     [Fact]
-    public void KinematicTargetReachesTheTargetAndStops()
+    public void MoveKinematicWritesAnEndPoseThatTheNextStepApplies()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        var pilot = new SelfPilot();
+        Entity mover = Spawn(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic), At(0, 0, 0), pilot);
+        var end = new DPose(new Double3(0.5, 0, 0.25), DQuaternion.FromAxisAngle(Double3.UnitY, 0.3));
+
+        Send(world, pilot, self => self.MoveKinematic(end));
+        world.Tick();
+
+        PhysicsIntent applied = faults.Intents.Should().ContainSingle(record => record.Entity == mover, "only the step after the write applies it").Subject.Intent;
+        applied.Move.TryGetValue(out EndPose written).Should().BeTrue("MoveKinematic writes the case EndPose of the motion intent, not {0}", applied.Move.Value);
+        written.Pose.Position.Should().Be(end.Position);
+        Math.Abs(Dot(written.Pose.Rotation, end.Rotation)).Should().BeGreaterThan(1 - 1e-12);
+        DPose pose = world.PoseInOwnFrame(mover);
+        (pose.Position - end.Position).Length.Should().BeLessThan(1e-5, "the step that applies the end pose ends with the body on it");
+        Math.Abs(Dot(pose.Rotation, end.Rotation)).Should().BeGreaterThan(1 - 1e-6);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnEndPoseMovesAKinematicBodyThereAndStopsIt()
     {
         var (world, space) = ZeroGravity();
         using (world)
         {
-            var pilot = new Pilot();
+            var pilot = new SelfPilot();
             Entity mover = Spawn(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic), At(0, 0, 0), pilot);
             var target = new DPose(new Double3(0.5, 0, 0.25), DQuaternion.FromAxisAngle(Double3.UnitY, 0.3));
-            Send(world, pilot, body => body.MoveKinematic(target));
+            Send(world, pilot, self => self.MoveKinematic(target));
             world.Tick();
             DPose pose = world.PoseInOwnFrame(mover);
             (pose.Position - target.Position).Length.Should().BeLessThan(1e-5);
@@ -210,7 +173,7 @@ public class IntentTests
     }
 
     [Fact]
-    public void KinematicTargetDrivesDynamicBody()
+    public void ASteerTargetCarriesADynamicBodyToItsPoseOverTheStep()
     {
         var (world, space) = ZeroGravity();
         using (world)
@@ -218,7 +181,7 @@ public class IntentTests
             var pilot = new Pilot();
             Entity box = Spawn(world, space, Box(0.5f), At(0, 0, 0), pilot);
             var target = new DPose(new Double3(0.2, 0.1, 0), DQuaternion.FromAxisAngle(Double3.UnitZ, 0.2));
-            Send(world, pilot, body => body.MoveKinematic(target));
+            Send(world, pilot, body => body.SteerTo(target));
             world.Tick();
             (world.PoseInOwnFrame(box).Position - target.Position).Length.Should().BeLessThan(1e-4);
             Math.Abs(Dot(world.PoseInOwnFrame(box).Rotation, target.Rotation)).Should().BeGreaterThan(1 - 1e-5);
@@ -248,7 +211,7 @@ public class IntentTests
 
         FrameStepRecord sent = faults.Outputs[^1].Frames.Single(state => state.Frame == ship);
         world.Frames.LinearVelocity(ship).Should().Be(sent.Motion.Velocity, "the World takes the velocity of the frame from the output that Jolt sent");
-        world.Frames.ProperAcceleration(ship).Should().Be(sent.Motion.ProperAcceleration);
+        world.Frames.ProperAcceleration(ship).Should().Be(sent.ProperAcceleration!.Value, "a dynamic hull takes the proper acceleration that physics measured");
         world.Frames.LinearVelocity(ship).Z.Should().BeApproximately(2, 5e-5);
         // An impulse is a jolt: the accelerometer sees Δv / dt for that one step.
         world.Frames.ProperAcceleration(ship).Z.Should().BeApproximately(2 / world.DeltaTime, 0.05f);

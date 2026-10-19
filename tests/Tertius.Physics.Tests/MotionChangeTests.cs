@@ -136,13 +136,13 @@ public class MotionChangeTests
     /// The engine of the ship pushes it at 1 m/s², which is the proper acceleration of its frame. The ship parks: the hull
     /// holds still where the step of the writing tick left it. The sync point of that tick changes no velocity, so the frame
     /// keeps its old velocity in the tree until the next sync point, where it takes no step record and its velocity becomes
-    /// zero. It keeps its proper acceleration, so the cargo keeps its weight.
+    /// zero. Its proper acceleration follows from that rest: the planet's gravity at its place, reversed, and no thrust.
     /// </summary>
     [Fact]
     public void AShipThatParksHoldsStillWhereTheStepLeftItAndItsFrameStopsAtTheNextSyncPoint()
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
-        var (_, owner, ship) = FlyingShip(world, new Thrust(new Vector3(1000, 0, 0)));
+        var (planet, owner, ship) = FlyingShip(world, new Thrust(new Vector3(1000, 0, 0)));
         world.Frames.ProperAcceleration(ship).X.Should().BeApproximately(1, 1e-3f, "the engine pushes the ship");
 
         world.SetMotionNextTick(owner, BodyMotion.Static);
@@ -157,7 +157,9 @@ public class MotionChangeTests
         (Hull(world, faults.Jolt, owner).Position - parked.Position).Length.Should().BeLessThan(1e-9);
         world.Frames.LinearVelocity(ship).Should().Be(Double3.Zero);
         world.Frames.AngularVelocity(ship).Should().Be(Vector3.Zero);
-        world.Frames.ProperAcceleration(ship).X.Should().BeApproximately(1, 1e-3f, "the frame keeps its proper acceleration");
+        Vector3 weight = parked.Rotation.Conjugate().Rotate(-world.Frames.Gravity(planet).AtPrecise(parked.Position)).ToVector3();
+        Vector3.Distance(world.Frames.ProperAcceleration(ship), weight).Should().BeLessThan(1e-6f,
+            "the parked ship feels the planet's gravity at its place reversed, and no thrust");
         FrameStatesSince(faults, ship, reported).Should().BeEmpty("physics no longer moves the ship's frame");
         world.Errors.Should().BeEmpty();
     }
@@ -430,8 +432,8 @@ public class MotionChangeTests
     /// The sample that the step of tick <paramref name="tick"/> applied to <paramref name="frame"/>, or null when that step
     /// applied none. The component of the frame's owner wrote it during the tick before.
     /// </summary>
-    private static SampleRecord? AppliedSample(FaultInjectingBackend faults, FrameHandle frame, long tick) =>
-        faults.Samples.Where(record => record.Frame == frame && record.Tick == tick).Cast<SampleRecord?>().SingleOrDefault();
+    private static MoveRecord? AppliedSample(FaultInjectingBackend faults, FrameHandle frame, long tick) =>
+        faults.Moves.Where(record => record.Entity == frame.Entity && record.Tick == tick).Cast<MoveRecord?>().SingleOrDefault();
 
     /// <summary>
     /// The engines come on when the owner removes its <see cref="KeplerMotion"/> and makes its hull dynamic: the hull coasts
@@ -467,7 +469,7 @@ public class MotionChangeTests
 
         Hull(world, faults.Jolt, owner).Motion.Should().Be(MotionType.Dynamic);
         FrameStatesSince(faults, station, reported).Should().HaveCount(60);
-        faults.Samples.Where(record => record.Frame == station && record.Tick >= faults.Steps[^60].Tick).Should().BeEmpty("physics moves the frame now");
+        faults.Moves.Where(record => record.Entity == station.Entity && record.Tick >= faults.Steps[^60].Tick).Should().BeEmpty("physics moves the frame now");
         // In free fall the hull stays on the orbit of its last sample, up to the float rounding of its velocity.
         (world.Frames.LocalPose(station).Position - orbit.StateAt(world.Time, EarthMu).Position).Length.Should().BeLessThan(0.5);
 
@@ -480,7 +482,7 @@ public class MotionChangeTests
             world.Tick();
 
             List<FrameStepRecord> records = FrameStatesSince(faults, station, reported);
-            SampleRecord? sample = AppliedSample(faults, station, faults.Steps[^1].Tick);
+            MoveRecord? sample = AppliedSample(faults, station, faults.Steps[^1].Tick);
             (sample is null).Should().Be(i == 0, "only the first step after the change has no sample: the new component writes its first one in the tick beside it, and the next step applies it");
             if (sample is not { } applied)
             {

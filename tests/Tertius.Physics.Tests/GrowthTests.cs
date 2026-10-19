@@ -353,13 +353,12 @@ public class GrowthTests
             World.Spawn(new SpawnDesc { Frame = Ground, Pose = At(0, -0.5), Body = FloorDesc(100) });
             Sleeper = World.Spawn(new SpawnDesc { Frame = Ground, Pose = At(-20, 30), Body = BoxDesc(0.5f, mass: 5) });
             Roller = World.Spawn(new SpawnDesc { Frame = Ground, Pose = At(20, 0.5), LinearVelocity = new Vector3(2, 0, 0), Body = BallDesc(0.5f, mass: 2) });
-            World.Spawn(new SpawnDesc
+            World.Spawn(KinematicDrift.Drifting(new SpawnDesc
             {
                 Frame = Ground,
                 Pose = At(-10, 3),
-                LinearVelocity = new Vector3(0, 0, 1),
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(1, 0.1f, 1)), BodyMotion.Kinematic),
-            });
+            }, World, new Double3(0, 0, 1)));
             var lopsided = new CompoundShapeDesc([
                 new CompoundChild(new BoxShapeDesc(new Vector3(0.5f)), new Pose(new Vector3(0.6f, 0, 0), Quaternion.Identity)),
                 new CompoundChild(new BoxShapeDesc(new Vector3(0.2f)), new Pose(new Vector3(-0.3f, 0, 0), Quaternion.Identity)),

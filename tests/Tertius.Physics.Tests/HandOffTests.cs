@@ -177,7 +177,7 @@ public class HandOffTests
             Frame = planet,
             Body = hull,
             AsFrame = new FrameSpec(FrameBounds.Sphere(25)),
-        }.OnKeplerOrbit(world, orbit)));
+        }.OnKeplerOrbit(world, orbit, firstMove: true)));
         // The ball drifts out along +Z at 1 m/s and leaves the bubble about 15.7 s later, near apoapsis.
         Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 0, 10), LinearVelocity = new Vector3(0, 0, 1), Body = BallBody(0.2f) });
 
@@ -227,7 +227,7 @@ public class HandOffTests
                 Frame = planet,
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(4)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1)),
                 AsFrame = new FrameSpec(FrameBounds.Sphere(25)),
-            }.OnKeplerOrbit(world, orbit)));
+            }.OnKeplerOrbit(world, orbit, firstMove: true)));
             BodyDesc ballBody = BallBody(0.2f);
             Entity ball = world.Spawn(new SpawnDesc
             {

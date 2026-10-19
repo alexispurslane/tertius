@@ -49,11 +49,11 @@ public class PhysicsFrameStateTests
         FrameStepRecord sent = StateSent(faults, ship, tick: 1);
         sent.Motion.Pose.Position.Should().NotBe(new Double3(1, 2, 3), "the ship moved");
         sent.Motion.AngularVelocity.Should().NotBe(Double3.Zero);
-        sent.Motion.ProperAcceleration.Should().NotBe(Vector3.Zero, "the force acted in the step");
+        sent.ProperAcceleration.Should().NotBe(Vector3.Zero, "the force acted in the step");
         test.World.Frames.LocalPose(ship).Should().Be(sent.Motion.Pose);
         test.World.Frames.LinearVelocity(ship).Should().Be(sent.Motion.Velocity);
         test.World.Frames.AngularVelocity(ship).Should().Be(sent.Motion.AngularVelocity.ToVector3());
-        test.World.Frames.ProperAcceleration(ship).Should().Be(sent.Motion.ProperAcceleration);
+        test.World.Frames.ProperAcceleration(ship).Should().Be(sent.ProperAcceleration!.Value);
     }
 
     [Fact]

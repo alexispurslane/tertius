@@ -405,11 +405,13 @@ public class GhostContactTests
         var boxLog = new CollisionLog();
         Entity box = world.Spawn(new SpawnDesc { Frame = ground, Body = boxBody, Components = [boxLog] });
         var ballLog = new CollisionLog();
-        Entity ball = world.Spawn(new SpawnDesc
+        var flyer = new SpawnDesc
         {
             Frame = ground, Pose = At(-30 * KinematicBallSpeed * world.DeltaTime), LinearVelocity = new Double3(KinematicBallSpeed, 0, 0),
             Body = ballBody, Components = [ballLog],
-        });
+        };
+        // A kinematic body moves only by its motion intents, so it drifts by end poses.
+        Entity ball = world.Spawn(ballBody.Motion == BodyMotion.Kinematic ? KinematicDrift.Drifting(flyer, world, flyer.LinearVelocity) : flyer);
         bool ghostOfTheBox = false;
         for (int tick = 0; tick < 180; tick++)
         {
@@ -489,10 +491,10 @@ public class GhostContactTests
         });
         FrameHandle beside = Bubble(world, space, 20, 30);
         var sensorLog = new CollisionLog();
-        Entity sensor = world.Spawn(new SpawnDesc
+        Entity sensor = world.Spawn(KinematicDrift.Drifting(new SpawnDesc
         {
-            Frame = beside, Pose = At(-14), LinearVelocity = new Double3(-4, 0, 0), Body = KinematicSensorBall, Components = [sensorLog],
-        });
+            Frame = beside, Pose = At(-14), Body = KinematicSensorBall, Components = [sensorLog],
+        }, world, new Double3(-4, 0, 0)));
         world.Tick();
         faults.Jolt.HasGhostIn(stationOwner, beside).Should().BeTrue("the bubbles overlap, and the station does not fit in the other frame");
         if (parkedByTheGame)

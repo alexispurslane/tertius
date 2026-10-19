@@ -169,11 +169,11 @@ public class NumericFrameThresholdTests
     {
         using World world = NewWorld(out _);
         FrameHandle space = Space(world);
-        Entity crate = world.Spawn(new SpawnDesc
+        Entity crate = world.Spawn(KinematicDrift.Drifting(new SpawnDesc
         {
-            Frame = space, LinearVelocity = new Double3(60, 0, 0), Body = Crate with { Motion = BodyMotion.Kinematic },
+            Frame = space, Body = Crate with { Motion = BodyMotion.Kinematic },
             Components = [new Thruster(CrateMass)],
-        });
+        }, world, new Double3(60, 0, 0)));
 
         List<NumericMode> modes = HomeModes(world, crate, 120);
 

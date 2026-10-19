@@ -108,7 +108,7 @@ public class FrameTreeGhostPlaceTests
     {
         changes.Clear();
         var handedMoves = new List<NumericMove>();
-        frames.UpdateNumericFrames(bodies, dt, changes, handed =>
+        frames.UpdateNumericFrames(bodies, dt, 1.0 / 60, changes, handed =>
         {
             foreach (NumericMove move in handed)
                 frames.IsAlive(move.From).Should().BeTrue("physics converts each move through the frame that the body leaves");
@@ -993,10 +993,10 @@ public class FrameTreeGhostPlaceTests
         bodies.Select(body => body.Home).Should().Equal(ground, ground, station, station);
         frames.NumericCount.Should().Be(0);
         Action<List<NumericMove>> ignore = static _ => { };
-        frames.UpdateNumericFrames(bodies, 0.1, changes, ignore);
+        frames.UpdateNumericFrames(bodies, 0.1, 0.1, changes, ignore);
 
         long before = GC.GetAllocatedBytesForCurrentThread();
-        frames.UpdateNumericFrames(bodies, 0.1, changes, ignore);
+        frames.UpdateNumericFrames(bodies, 0.1, 0.1, changes, ignore);
         long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         allocated.Should().Be(0);

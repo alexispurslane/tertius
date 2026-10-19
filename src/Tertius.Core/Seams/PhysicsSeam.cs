@@ -425,7 +425,6 @@ public enum IntentFlags : ushort
     None = 0,
     SetVelocity = 1 << 0,
     SetAngularVelocity = 1 << 1,
-    KinematicTarget = 1 << 2,
     Teleport = 1 << 3,
     CharacterMove = 1 << 4,
     Jump = 1 << 5,
@@ -454,8 +453,6 @@ public struct PhysicsIntent
     /// <summary>The new linear velocity relative to the entity's frame, in doubles. Physics converts it to the body's home when it applies it.</summary>
     public Double3 Velocity;
     public Vector3 AngularVelocity;
-    /// <summary>The target pose for a kinematic body, in frame coordinates. Used with <see cref="IntentFlags.KinematicTarget"/>.</summary>
-    public DPose Target;
     /// <summary>The new pose for a teleport, in frame coordinates. Used with <see cref="IntentFlags.Teleport"/>.</summary>
     public DPose TeleportPose;
     /// <summary>The desired movement velocity of a character.</summary>
@@ -473,11 +470,27 @@ public struct PhysicsIntent
     /// <see cref="FrameTree.HullMotion"/>).
     /// </summary>
     public BodyMotion Motion;
+    /// <summary>
+    /// How the entity moves in the step that applies the intent: an end pose, a full sample or a steer target, relative to
+    /// <see cref="Frame"/>, or no case (see <see cref="MotionIntent"/>). <see cref="StepRecord"/> turns it into the entity's
+    /// step record.
+    /// </summary>
+    public MotionIntent Move;
     public IntentFlags Flags;
+
+    /// <summary>
+    /// The step record of <see cref="Move"/>, the one read that turns the motion intent into the entity's motion over the
+    /// step, which lasts <paramref name="step"/> seconds (see <see cref="MotionIntent.TryRecordFrom"/>). If the intent
+    /// teleports, the step starts at <see cref="TeleportPose"/>. Else it starts at <paramref name="standing"/>, the pose of
+    /// the entity at the start of the step, relative to <see cref="Frame"/>. False without a motion intent and for a steer
+    /// target.
+    /// </summary>
+    public readonly bool StepRecord(in DPose standing, double step, out MotionSample record) =>
+        Move.TryRecordFrom((Flags & IntentFlags.Teleport) != 0 ? TeleportPose : standing, step, out record);
 
     public readonly bool IsEmpty =>
         Flags == IntentFlags.None && Force == Vector3.Zero && Torque == Vector3.Zero &&
-        Impulse == Vector3.Zero && AngularImpulse == Vector3.Zero;
+        Impulse == Vector3.Zero && AngularImpulse == Vector3.Zero && !Move.HasValue;
 
     public void Clear() => this = default;
 }
@@ -564,8 +577,7 @@ public sealed class PhysicsChanges
 /// <summary>Read-only inputs to one physics step. Everything here is fixed for the duration of the step.</summary>
 public readonly struct PhysicsStepContext
 {
-    public PhysicsStepContext(long tick, float deltaTime, double time, FrameTree frames, ReadOnlyMemory<PhysicsIntent> intents, ReadOnlyMemory<Entity> intentEntities,
-        MotionSamples samples = default)
+    public PhysicsStepContext(long tick, float deltaTime, double time, FrameTree frames, ReadOnlyMemory<PhysicsIntent> intents, ReadOnlyMemory<Entity> intentEntities)
     {
         Tick = tick;
         DeltaTime = deltaTime;
@@ -573,7 +585,6 @@ public readonly struct PhysicsStepContext
         Frames = frames;
         Intents = intents;
         IntentEntities = intentEntities;
-        Samples = samples;
     }
 
     public long Tick { get; }
@@ -588,13 +599,11 @@ public readonly struct PhysicsStepContext
     /// of its owner (see <see cref="FrameTree.HullMotionInStep"/>).
     /// </summary>
     public ReadOnlyMemory<PhysicsIntent> Intents { get; }
-    /// <summary>The entities that wrote an intent during the previous tick.</summary>
-    public ReadOnlyMemory<Entity> IntentEntities { get; }
     /// <summary>
-    /// The motion samples that this step applies, by frame: what the owners of frames wrote with <c>Self.MoveOnRails</c>
-    /// during the previous tick, each relative to the frame's semantic parent at the write. The default has no sample.
+    /// The entities that wrote an intent during the previous tick, and the new entities whose spawn gave them a first motion
+    /// intent (see <see cref="SpawnDesc.FirstMove"/>).
     /// </summary>
-    public MotionSamples Samples { get; }
+    public ReadOnlyMemory<Entity> IntentEntities { get; }
 }
 
 /// <summary>
@@ -637,16 +646,21 @@ public readonly record struct ContactEnded(Entity A, Entity B);
 
 /// <summary>
 /// The step record of a frame whose hull physics moved in the step: the frame's motion over the step that just ended (see
-/// "One motion record per frame" in docs/plans/rails-components.md). Every field of <see cref="Motion"/> except its proper
-/// acceleration is relative to the frame's tree parent after this step, in its axes; the proper acceleration is in the
-/// frame's own axes. If the step also handed the frame off, the parent is the hand-off's <see cref="HandOff.To"/>, so the
-/// sync point applies hand-offs first. The sync point puts the frame on its record (see <c>World.FollowOwners</c>).
+/// "One motion record per frame" in docs/plans/rails-components.md). Every field of <see cref="Motion"/> is relative to the
+/// frame's tree parent after this step, in its axes. If the step also handed the frame off, the parent is the hand-off's
+/// <see cref="HandOff.To"/>, so the sync point applies hand-offs first. The sync point puts the frame on its record (see
+/// <c>World.FollowOwners</c>).
 /// </summary>
 /// <param name="Frame">The frame whose hull moved.</param>
 /// <param name="Motion">The frame's motion over the step: the pose at its end, the chord, the instant velocity at its end,
-/// the acceleration and the angular acceleration over the step, the angular velocity at its end and the proper
-/// acceleration.</param>
-public readonly record struct FrameStepRecord(FrameHandle Frame, MotionSample Motion);
+/// the acceleration and the angular acceleration over the step, and the angular velocity at its end.</param>
+/// <param name="ProperAcceleration">
+/// The proper acceleration that physics measured for a dynamic hull, in m/s², in the frame's own axes: Jolt's whole change
+/// of velocity over the step minus the gravity that physics applied, so an impulse reads as a jolt. Null for every other
+/// hull, whose frame takes the value that the frame tree derives from <see cref="Motion"/> and the gravity at its place (see
+/// <see cref="FrameTree.ProperAcceleration"/>).
+/// </param>
+public readonly record struct FrameStepRecord(FrameHandle Frame, MotionSample Motion, Vector3? ProperAcceleration);
 
 /// <summary>
 /// Results of one step. The backend fills it on the physics thread. The sync point reads and clears it. Every entity

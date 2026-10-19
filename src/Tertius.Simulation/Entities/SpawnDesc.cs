@@ -15,11 +15,30 @@ public sealed class SpawnDesc
     /// <summary>The pose in <see cref="Frame"/>. For a frame entity, this is the frame's local pose.</summary>
     public DPose Pose { get; init; } = DPose.Identity;
 
-    /// <summary>Linear velocity relative to <see cref="Frame"/>, in its axes. Physics converts it when it creates the body.</summary>
+    /// <summary>
+    /// Linear velocity relative to <see cref="Frame"/>, in its axes. Physics converts it when it creates the body. Only a body
+    /// that physics integrates, a dynamic body or a character, and a kinematic hull, whose frame keeps it, take a spawn
+    /// velocity. A spawn refuses one on every other entity, which its motion intents, teleports, transform writes or parent
+    /// move: such a spawner gives <see cref="FirstMove"/> instead.
+    /// </summary>
     public Double3 LinearVelocity { get; init; }
 
-    /// <summary>Angular velocity in frame axes.</summary>
+    /// <summary>Angular velocity in frame axes. The same entities take it as take <see cref="LinearVelocity"/>.</summary>
     public Vector3 AngularVelocity { get; init; }
+
+    /// <summary>
+    /// The new entity's first motion intent: how it moves in the step after its spawn, relative to <see cref="Frame"/>, in
+    /// its axes (docs/plans/rails-components.md, "The first motion intent of a spawn"). It is the motion intent that the
+    /// entity would have written in the spawn's tick, had it run then, so that a frame on rails stands on its rails from its
+    /// first step. A component that calls <see cref="Self.Spawn(SpawnDesc)"/> in tick k gives the motion of the step that
+    /// ends at <c>self.TimeAt(self.Tick + 2)</c>, and a game that calls <see cref="World.Spawn(SpawnDesc)"/> outside a tick
+    /// the motion of the step that ends at <c>World.TimeAt(World.TickNumber + 1)</c>. For the owner of a frame,
+    /// <see cref="Frame"/> is the frame's semantic parent, and for the owner of a root frame it is null, so the intent is in
+    /// the root's own space. The default holds no case: the entity has no motion intent in that step, and a frame on rails
+    /// holds still for it. A spawn refuses a case that its entity would refuse, and a number that is not finite or a zero
+    /// rotation, with an <see cref="ArgumentException"/>.
+    /// </summary>
+    public MotionIntent FirstMove { get; init; }
 
     /// <summary>A physics body. If set, physics owns the entity's transform.</summary>
     public BodyDesc? Body { get; init; }

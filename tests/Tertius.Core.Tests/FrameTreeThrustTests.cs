@@ -45,7 +45,7 @@ public class FrameTreeThrustTests
     {
         changes.Clear();
         var moves = new List<NumericMove>();
-        frames.UpdateNumericFrames(bodies, dt, changes, moves.AddRange);
+        frames.UpdateNumericFrames(bodies, dt, 1.0 / 60, changes, moves.AddRange);
         frames.AssertInvariants();
         var homes = moves.ToDictionary(move => move.Entity, move => move.To);
         return bodies.Select(body =>

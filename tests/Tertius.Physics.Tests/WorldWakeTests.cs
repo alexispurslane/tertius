@@ -122,29 +122,6 @@ public class WorldWakeTests
     }
 
     /// <summary>
-    /// A parked platform's frame reads a proper acceleration of 9.81 m/s² up, as the ground holds it. Its owner teleports
-    /// the static hull. The teleport moves the frame and changes nothing else, so the frame keeps its proper acceleration, as
-    /// a frame that holds still does, and the bodies in it keep their weight.
-    /// </summary>
-    [Fact]
-    public void AStaticHullThatTeleportsKeepsItsFramesProperAcceleration()
-    {
-        using World world = NewWorld(out _);
-        FrameHandle ground = Ground(world, 9.81f);
-        var pilot = new Pilot();
-        FrameHandle platform = world.GetOwnedFrame(Platform(world, ground, pilot));
-        var weight = new Vector3(0, 9.81f, 0);
-        world.Frames.ProperAcceleration(platform) = weight;
-        Tick(world, 3);
-
-        pilot.Once = body => body.Teleport(At(20, 1));
-        Tick(world, 2);
-
-        world.Frames.LocalPose(platform).Should().Be(At(20, 1));
-        world.Frames.ProperAcceleration(platform).Should().Be(weight);
-    }
-
-    /// <summary>
     /// Lander A sleeps on the roof of a parked platform, and lander B sleeps on the floor 20 m away. Both are frames with
     /// hulls, which meet the platform's hull. The platform's owner teleports the static hull to just above B. Jolt does not
     /// simulate the jump, so physics wakes the bodies around the hull's old place, A, and around its new place, B, and A

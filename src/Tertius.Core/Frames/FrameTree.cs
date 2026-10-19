@@ -19,8 +19,8 @@ namespace Tertius;
 /// caller gives it, and physics normalizes the rotation that leaves Jolt. The poses that the tree composes itself, when it
 /// moves or destroys a frame, are unit length.</item>
 /// <item>A numeric frame (see <see cref="CreateNumeric"/>) has no owner, a parent, no bubble, the identity rotation, no
-/// spin, no gravity and no hull motion. A resting or nesting one has no velocity, no step acceleration and no sample's
-/// instant velocity past its chord (see <see cref="HomeInstantVelocityOverChord"/>). The chain of
+/// spin, no gravity and no hull motion. A resting or nesting one has no velocity, no step acceleration and no step plan
+/// (see <see cref="HomeInstantVelocityOverChord"/>). The chain of
 /// tree parents of a numeric frame ends at a semantic frame: a falling or resting frame lies in a semantic frame or a
 /// nesting frame, an orbit frame lies in a semantic frame, and a nesting frame lies in a semantic frame, on a whole
 /// multiple of <see cref="NumericFrameOptions.NestGrid"/>, and holds only numeric frames. An orbit frame, and only an
@@ -28,10 +28,10 @@ namespace Tertius;
 /// <see cref="UpdateNumericFrames"/>, every falling or resting frame is the home of a body or holds a frame, and every
 /// nesting frame holds a frame and is the home of no body; between updates, the count of bodies is the one of the last
 /// update. <see cref="NumericCount"/> is the number of numeric frames. A semantic frame has an owner, no step
-/// acceleration and no sample's instant velocity past its chord, and a semantic frame whose tree parent is a numeric frame
+/// acceleration and no step plan, and a semantic frame whose tree parent is a numeric frame
 /// has a dynamic hull, or it is the orbiter of that frame, whose hull is kinematic: a frame with a static hull or without a
 /// hull moves relative to its semantic parent, and a frame with a kinematic hull hangs in its semantic parent or in its
-/// orbit frame, which follows the frame's motion samples. The motion of a hull here is its motion in the step that the
+/// orbit frame, which follows the frame's motion intents. The motion of a hull here is its motion in the step that the
 /// numeric frames are planned for, which a change of motion can make differ from the stored motion of the last finished
 /// step (see <see cref="HullMotionInStep"/> and <see cref="PlanHullMotion"/>). Such a frame also owns a
 /// hull that was a body of the last update: only the update moves a frame into a numeric frame, with its hull, and a frame
@@ -44,6 +44,8 @@ namespace Tertius;
 /// semantic frame's own system, so no clock outlives its body's place in the input. Every thrust clock (see
 /// <see cref="NumericFrameRules.ThrustClock"/>) names a body of the last update that is not static, with a thrust time above
 /// zero and a quiet time from zero to below <see cref="NumericFrameOptions.ThrustWindow"/>.</item>
+/// <item>No new proper acceleration waits to be stored: step 2 derives them in its pass over the frames and stores them
+/// after the pass (see <see cref="StoreNewProperAccelerations"/>).</item>
 /// </list>
 /// </para>
 /// </summary>
@@ -61,13 +63,24 @@ public sealed partial class FrameTree
     private Double3[] linearVelocity = new Double3[64];
     private Vector3[] angularVelocity = new Vector3[64];
     private Vector3[] properAcceleration = new Vector3[64];
+    // Each frame's proper acceleration as the last finished step found it, the value that physics used for the frame's
+    // bodies during that step: StoreNewProperAccelerations copies the rows here before it writes the new values, and a new
+    // frame has zero. It is valid from step 2 to the next step 2, after the rows took the new values (see
+    // FieldTheStepFound).
+    private Vector3[] properAccelerationTheStepFound = new Vector3[64];
+    // What made the record that each frame took at the last sync point (see Followed).
+    private FollowKind[] followKind = new FollowKind[64];
+    // The proper accelerations that step 2 derived in its pass over the frames, by frame index, in the order of the pass,
+    // which StoreNewProperAccelerations writes into the rows after the pass. Empty outside step 2.
+    private readonly List<(int Id, Vector3 Value)> newProperAccelerations = new();
     // Numeric frames: the mode, and the acceleration that a falling frame keeps for the current step, relative to its
     // parent. A semantic frame has the mode None and no step acceleration.
     private NumericMode[] numeric = new NumericMode[64];
     private Double3[] stepAcceleration = new Double3[64];
-    // For an orbit frame whose orbiter has a sample for the current step, how much the sample's instant velocity exceeds its
-    // chord, which the orbit frame takes as its own (see HomeInstantVelocityOverChord). Null for every other frame.
-    private Double3?[] sampleVelocityPastChord = new Double3?[64];
+    // For an orbit frame whose orbiter has a motion intent with a record for the current step, that record in the orbiter's
+    // semantic parent: the step plan, which lands the orbit frame and which the sync point reads (see BeginNumericStep).
+    // Null for every other frame.
+    private MotionSample?[] stepPlan = new MotionSample?[64];
     // How long the members of each numeric frame have been apart, in seconds, and the number of bodies whose physics home
     // it was at the end of the last UpdateNumericFrames.
     private double[] apartTime = new double[64];
@@ -76,41 +89,17 @@ public sealed partial class FrameTree
     // "Writes that an owner view reads" increase it.
     private long ownerViewStamp;
 
-    public FrameTree()
-    {
-        Samples = new MotionSampleTable(this, owner.Length);
-    }
-
     /// <summary>
-    /// The motion samples that the owners of frames write, by frame index (see <see cref="MotionSampleTable"/>). The tree
-    /// sizes it with its own rows, so that every frame has a row in each buffer from its creation on.
+    /// How <paramref name="frame"/> followed its owner at the last sync point, which the frame's row stores beside the record
+    /// of the step that ended (see "The follow kind" in docs/plans/rails-components.md): <see cref="FollowKind.Rails"/> when
+    /// it took a full sample that its owner wrote, <see cref="FollowKind.Kinematic"/> when it took an end pose,
+    /// <see cref="FollowKind.Physics"/> when it took the move that physics made of its dynamic hull, and
+    /// <see cref="FollowKind.Static"/> otherwise: a teleport, a write of its owner's transform, or no record. The motion of
+    /// its hull in the step that ended counts, not a change of motion that the next step applies (see
+    /// <see cref="FollowKindInStep"/>). A new frame has followed nothing. Throws <see cref="InvalidOperationException"/> for
+    /// a stale frame.
     /// </summary>
-    internal MotionSampleTable Samples { get; }
-
-    /// <summary>
-    /// The motion sample that <paramref name="frame"/> takes in the physics step that runs beside the running tick: the
-    /// sample that its owner wrote one tick before with <c>Self.MoveOnRails</c>, relative to the frame's parent (see
-    /// <see cref="Parent"/>), in its axes. Between two ticks, it is the sample of the next step. False when the frame has no
-    /// such sample, and for a stale or null frame.
-    /// </summary>
-    /// <remarks>
-    /// A rails component reads it to learn where its frame stands when the step of the component's own sample starts: at
-    /// this sample's place, or, when the frame has none, where it stands now (see <see cref="LocalPose"/>). After a swap of
-    /// components, the last sample of the old component is this one.
-    /// </remarks>
-    public bool TryGetAppliedSample(FrameHandle frame, out MotionSample sample) => Samples.Applied.TryGet(frame, out sample);
-
-    /// <summary>
-    /// How <paramref name="frame"/> followed its owner at the last sync point: <see cref="FollowKind.Rails"/> when it took a
-    /// motion sample that its owner wrote, <see cref="FollowKind.Physics"/> when it took the move that physics made of its
-    /// dynamic hull, and <see cref="FollowKind.Static"/> otherwise. Its hull's motion at that sync point counts, not a change
-    /// of motion that the next step applies. Throws <see cref="InvalidOperationException"/> for a stale frame.
-    /// </summary>
-    public FollowKind Followed(FrameHandle frame)
-    {
-        Node(frame);
-        return Samples.KindFollowed(frame);
-    }
+    public FollowKind Followed(FrameHandle frame) => followKind[Node(frame).Id];
 
     /// <summary>How many frames the tree holds, numeric frames included.</summary>
     internal int Count => poses.Count;
@@ -170,9 +159,11 @@ public sealed partial class FrameTree
         linearVelocity[node.Id] = Double3.Zero;
         angularVelocity[node.Id] = Vector3.Zero;
         properAcceleration[node.Id] = Vector3.Zero;
+        properAccelerationTheStepFound[node.Id] = Vector3.Zero;
+        followKind[node.Id] = FollowKind.Static;
         numeric[node.Id] = mode;
         stepAcceleration[node.Id] = Double3.Zero;
-        sampleVelocityPastChord[node.Id] = null;
+        stepPlan[node.Id] = null;
         apartTime[node.Id] = 0;
         numericBodies[node.Id] = 0;
         orbiter[node.Id] = FrameHandle.Null;
@@ -530,8 +521,8 @@ public sealed partial class FrameTree
     /// the intents that the caller passes. With the intents that the World calls front, it is step k during tick k, which
     /// runs beside step k, and at the sync point after tick k until step 4: the running step, whose output that sync point
     /// reads. Physics asks it so at the start of each step, with the intents of its context, and so do the check of the
-    /// step's output (see <see cref="PhysicsOutputCheck"/>) and the record that each frame takes of the step (see
-    /// <see cref="MotionSampleTable.Record"/>). Step 4 stores the changes of step k and swaps the intents, so after it the
+    /// step's output (see <see cref="PhysicsOutputCheck"/>) and the follow kind of the record that each frame takes of the
+    /// step (see <see cref="FollowKindInStep"/>). Step 4 stores the changes of step k and swaps the intents, so after it the
     /// front intents are those of step k + 1, the next step: the World asks it for that step there (see
     /// <c>World.NextStepHullMotion</c>), and so does the check of the tree's invariants at the end of the sync point (see
     /// <see cref="AssertInvariants"/>). Throws <see cref="InvalidOperationException"/> for a stale frame.
@@ -553,8 +544,8 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// Stores <paramref name="motion"/>, or none, as the motion of the hull of <paramref name="frame"/> in the last finished
-    /// step (see <see cref="HullMotion"/>). It changes nothing else: the numeric frames and the samples follow the motion of
-    /// the step that they are for, which a change gets before it runs (see <see cref="PlanHullMotion"/>). It changes no
+    /// step (see <see cref="HullMotion"/>). It changes nothing else: the numeric frames and the motion intents follow the
+    /// motion of the step that they are for, which a change gets before it runs (see <see cref="PlanHullMotion"/>). It changes no
     /// velocity of the frame, and not <see cref="Version"/>. Throws <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     /// <remarks>
@@ -568,17 +559,16 @@ public sealed partial class FrameTree
     /// <summary>
     /// Keeps <paramref name="frame"/> coherent with <paramref name="nextStepMotion"/>, the motion that its hull has in the
     /// next step, which its owner wrote in the running tick. The tree stores that motion only when the step has finished
-    /// (see <see cref="SetHullMotion"/>). Only a kinematic hull follows a sample. So a hull that is not kinematic in the next
-    /// step leaves its orbit frame falling: a frame with a dynamic hull may hang in a falling frame, and the numeric update
-    /// moves any other one, with its hull, into its semantic parent. And it drops the sample that its owner wrote in the
-    /// running tick, so that no step applies it. The sample that the running step applies stays: at the next sync point it
-    /// becomes the sample that the frame follows. It changes no velocity of the frame, and not <see cref="Version"/>. Throws
+    /// (see <see cref="SetHullMotion"/>). Only a kinematic hull hangs at the origin of an orbit frame. So a hull that is not
+    /// kinematic in the next step leaves its orbit frame falling: a frame with a dynamic hull may hang in a falling frame,
+    /// and the numeric update moves any other one, with its hull, into its semantic parent. The World drops the motion intent
+    /// that the hull's motion in that step refuses (see <c>World.ApplyMotionChanges</c>). It changes no velocity of the frame, and not <see cref="Version"/>. Throws
     /// <see cref="InvalidOperationException"/> for a stale frame.
     /// </summary>
     /// <remarks>
     /// Only the simulation calls it, at step 4 of a sync point before the intents swap, for each owner that wrote a change
-    /// of motion in the tick, whatever the motion of the running step: a sample or an orbit frame of a hull that is not
-    /// kinematic in the next step is wrong in any case.
+    /// of motion in the tick, whatever the motion of the running step: an orbit frame of a hull that is not kinematic in the
+    /// next step is wrong in any case.
     /// </remarks>
     internal void PlanHullMotion(FrameHandle frame, BodyMotion nextStepMotion)
     {
@@ -587,7 +577,6 @@ public sealed partial class FrameTree
             return;
         if (InOrbitFrame(frame))
             LeaveOrbit(TreeParent(frame));
-        Samples.DropWritten(frame);
     }
 
     /// <summary>The gravity field of the frame. <see cref="SetGravity"/> changes it.</summary>
@@ -634,7 +623,7 @@ public sealed partial class FrameTree
             NumericMode parentMode = parent.IsNull ? NumericMode.None : numeric[parent.Index];
             if (numeric[id] == NumericMode.None)
             {
-                Contract.Invariant(!owner[id].IsNull && stepAcceleration[id] == Double3.Zero && sampleVelocityPastChord[id] is null);
+                Contract.Invariant(!owner[id].IsNull && stepAcceleration[id] == Double3.Zero && stepPlan[id] is null);
                 Contract.Invariant(orbiter[id].IsNull);
                 // A nesting frame holds only numeric frames.
                 Contract.Invariant(parentMode != NumericMode.Nesting);
@@ -664,7 +653,7 @@ public sealed partial class FrameTree
             Contract.Invariant(locals[i].Rotation == DQuaternion.Identity && angularVelocity[id] == Vector3.Zero);
             Contract.Invariant(!gravity[id].HasValue && !hullMotion[id].HasValue);
             if (numeric[id] is NumericMode.Resting or NumericMode.Nesting)
-                Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero && sampleVelocityPastChord[id] is null);
+                Contract.Invariant(linearVelocity[id] == Double3.Zero && stepAcceleration[id] == Double3.Zero && stepPlan[id] is null);
             // Only an orbit frame has an orbiter, a live frame that hangs in it.
             if (numeric[id] == NumericMode.Orbiting)
                 Contract.Invariant(IsAlive(orbiter[id]) && TreeParent(orbiter[id]) == frame);
@@ -686,6 +675,8 @@ public sealed partial class FrameTree
                 Contract.Invariant(numericBodies[id] > 0 || holdsFrame[id]);
         }
         Contract.Invariant(NumericCount == numericFrames);
+        // Step 2 stores every proper acceleration that its pass derived before the sync point goes on.
+        Contract.Invariant(newProperAccelerations.Count == 0);
         foreach (NumericGhost ghost in anchorGhosts)
         {
             Contract.Invariant(TryGetFrame(ghost.Anchor, out FrameHandle hullFrame) && InOrbitFrame(hullFrame) && IsAlive(ghost.Frame));
@@ -746,8 +737,34 @@ public sealed partial class FrameTree
     /// <summary>Sets the angular velocity of the frame relative to its parent, in parent axes (see <see cref="AngularVelocity"/>).</summary>
     internal void SetAngularVelocity(FrameHandle frame, Vector3 velocity) => AngularVelocityForWrite(Node(frame).Id) = velocity;
 
-    /// <summary>What an accelerometer at the frame origin reads, in frame axes. Zero for a frame in free fall.</summary>
-    public ref Vector3 ProperAcceleration(FrameHandle frame) => ref properAcceleration[Node(frame).Id];
+    /// <summary>
+    /// What an accelerometer at the frame origin reads over the last finished step, in m/s², in frame axes: the frame's
+    /// acceleration minus the gravity that acts at its place. Zero for a frame in free fall, and the gravity at its place,
+    /// reversed, for a frame that holds still, so a parked cabin's contents have weight. Step 2 of every sync point derives
+    /// it from the frame's step record (see <see cref="Follow"/> and <see cref="HoldStill"/>), and takes a dynamic hull's
+    /// from physics, which measures it by the same rule. No gameplay writes it. The rule reads the parent's value as stored
+    /// before step 2, so a change moves one level down a chain of frames in each step (see
+    /// <see cref="StoreNewProperAccelerations"/>). A new frame reads zero during its first step, and the rule's value from
+    /// the first step 2 after its spawn on (docs/plans/rails-components.md, "The proper acceleration of a new frame").
+    /// </summary>
+    public Vector3 ProperAcceleration(FrameHandle frame) => properAcceleration[Node(frame).Id];
+
+    /// <summary>
+    /// Step 2 of the sync point, once, after the pass in which every frame took its step record: writes the proper
+    /// acceleration that <see cref="Follow"/> or <see cref="HoldStill"/> derived for each frame into its row, in the order of
+    /// the pass, so that a frame that took two records takes the value of the last. Until then each frame keeps its value of
+    /// the step that ended, so the rule of every frame in the pass read its parent's value as the step found it, the value
+    /// that physics used for the parent's bodies during the step (docs/plans/rails-components.md, "Which proper acceleration
+    /// of the parent"). A frame that the pass skipped keeps its value. Before it writes, it keeps every row's value as the
+    /// step that ended found it, which a read after step 2 of the rule backward needs (see <see cref="FieldTheStepFound"/>).
+    /// </summary>
+    internal void StoreNewProperAccelerations()
+    {
+        properAcceleration.AsSpan().CopyTo(properAccelerationTheStepFound);
+        foreach ((int id, Vector3 value) in newProperAccelerations)
+            properAcceleration[id] = value;
+        newProperAccelerations.Clear();
+    }
 
     /// <summary>The pose of <paramref name="of"/> in the space of <paramref name="to"/>, through their common ancestor.</summary>
     public DPose Relative(FrameHandle of, FrameHandle to) => poses.Relative(Node(of), Node(to));
@@ -813,6 +830,16 @@ public sealed partial class FrameTree
     private Double3 FieldOf(int id, Double3 position) => gravity[id].AtPrecise(position) - (Double3)properAcceleration[id];
 
     /// <summary>
+    /// Like <see cref="FieldOf"/>, but with the frame's proper acceleration as the last finished step found it: the gravity at
+    /// <paramref name="position"/> that the rule of <see cref="ProperAccelerationFrom"/> subtracted for a child at step 2.
+    /// After step 2 a frame's row holds the value of the step that ended, so a read of a child's acceleration from its
+    /// stored proper acceleration, the rule backward, takes this one (see <see cref="CreateOrbitFrame"/>). It is valid
+    /// from step 2 to the next step 2 (see <see cref="StoreNewProperAccelerations"/>).
+    /// </summary>
+    private Double3 FieldTheStepFound(int id, Double3 position) =>
+        gravity[id].AtPrecise(position) - (Double3)properAccelerationTheStepFound[id];
+
+    /// <summary>
     /// The acceleration of the origin of <paramref name="home"/> relative to <paramref name="semantic"/>, which is the home
     /// itself or an ancestor of it, during the current step: the sum of the step accelerations of the numeric frames
     /// between them. It equals <see cref="AccelerationRelative"/> of the two frames, without its turns, because a numeric
@@ -845,6 +872,26 @@ public sealed partial class FrameTree
     }
 
     /// <summary>
+    /// How far the origin of <paramref name="home"/> moves relative to <paramref name="semantic"/>, the home itself or an
+    /// ancestor of it, over a step of <paramref name="dt"/> seconds that starts now: the sum of the move of each numeric frame
+    /// between them, as <see cref="AdvanceNumericFrames"/> moves it. It is <see cref="HomeOffsetAfter"/> less
+    /// <see cref="HomeOffset"/>, without the rounding of their sums of places. A body that holds still in its home ends the
+    /// step this far from where it stands now, in the axes of the semantic frame, because a numeric frame never turns. Zero
+    /// when the home is the semantic frame.
+    /// </summary>
+    internal Double3 HomeMoveOver(FrameHandle home, FrameHandle semantic, double dt)
+    {
+        Contract.Requires(home == semantic || IsAncestorOf(semantic, home));
+        Double3 move = Double3.Zero;
+        for (FrameHandle f = home; f != semantic; f = TreeParent(f))
+        {
+            int id = Node(f).Id;
+            move += (linearVelocity[id] + stepAcceleration[id] * dt) * dt;
+        }
+        return move;
+    }
+
+    /// <summary>
     /// Like <see cref="HomeVelocity"/>, but at the end of a step of <paramref name="dt"/> seconds that starts now (see
     /// <see cref="AdvanceNumericFrames"/>).
     /// </summary>
@@ -857,8 +904,8 @@ public sealed partial class FrameTree
     /// an ancestor of it: the sum of that excess for each numeric frame between them. A numeric frame steps as Jolt steps a
     /// body (see <see cref="AdvanceNumericFrames"/>), so its frame velocity is the chord of the step. A falling frame keeps
     /// one acceleration over the step, so its instant velocity at the end of the step is half a step of that acceleration
-    /// past the chord. An orbit frame whose orbiter has a sample for the step moves as the sample does, so the excess is
-    /// the sample's instant velocity less its chord, which takes in the change of the orbit's pull over the step (see
+    /// past the chord. An orbit frame whose orbiter has a step plan moves as the plan does, so the excess is the plan's
+    /// instant velocity less its chord, which takes in the change of the orbit's pull over the step (see
     /// <see cref="BeginNumericStep"/>). Zero for a semantic frame.
     /// <para>
     /// The tree keeps the velocity of a frame under a numeric home relative to the home's frame velocity, so that a read in
@@ -875,7 +922,7 @@ public sealed partial class FrameTree
         for (FrameHandle f = home; f != semantic; f = TreeParent(f))
         {
             int id = Node(f).Id;
-            excess += sampleVelocityPastChord[id] ?? stepAcceleration[id] * (0.5 * dt);
+            excess += stepPlan[id] is { } plan ? plan.Velocity - plan.ChordVelocity : stepAcceleration[id] * (0.5 * dt);
         }
         return excess;
     }
@@ -1162,13 +1209,14 @@ public sealed partial class FrameTree
         Array.Resize(ref linearVelocity, size);
         Array.Resize(ref angularVelocity, size);
         Array.Resize(ref properAcceleration, size);
+        Array.Resize(ref properAccelerationTheStepFound, size);
+        Array.Resize(ref followKind, size);
         Array.Resize(ref numeric, size);
         Array.Resize(ref stepAcceleration, size);
-        Array.Resize(ref sampleVelocityPastChord, size);
+        Array.Resize(ref stepPlan, size);
         Array.Resize(ref apartTime, size);
         Array.Resize(ref numericBodies, size);
         Array.Resize(ref orbiter, size);
-        Samples.Grow(size);
     }
 }
 

@@ -1,5 +1,6 @@
 using System.Numerics;
 using JoltPhysicsSharp;
+using Tertius.Frames.Rails;
 
 namespace Tertius.Physics;
 
@@ -166,7 +167,16 @@ internal sealed class BodyRecord
     public Vector3 GravityApplied;
     /// <summary>For a dynamic frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>
     public Vector3 ProperAcceleration;
+    /// <summary>The step whose motion intent aimed or steered the body, or -1 (see JoltPhysicsBackend.ApplyBodyIntent).</summary>
     public long KinematicTargetStep = -1;
+    /// <summary>
+    /// For a plain kinematic body that a motion intent aimed in the step of <see cref="KinematicTargetStep"/>: the step record
+    /// of that motion intent, relative to the body's semantic frame, in its axes, and the home that the body had then. The
+    /// body state and a hand-off of that step take the record's pose and instant velocity (see
+    /// JoltPhysicsBackend.TryAimedRecord).
+    /// </summary>
+    public MotionSample AimedRecord;
+    public FrameHandle AimedHome;
     public long VelocitySetStep = -1;
     /// <summary>
     /// For a character: the step whose update starts from an instant velocity that the game gave it, by a spawn, a

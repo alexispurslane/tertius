@@ -28,23 +28,9 @@ internal static class Conversions
     public static DQuaternion ToDouble(this Quaternion q) => DQuaternion.FromQuaternion(q).Normalized();
 }
 
-/// <summary>Rotation helpers in double precision.</summary>
+/// <summary>Rotation helpers for the bodies. The angular velocity that turns one rotation into another is <see cref="DQuaternion.AngularVelocityTo"/>.</summary>
 internal static class Rotations
 {
-    /// <summary>The constant angular velocity (parent axes) that turns <paramref name="from"/> into <paramref name="to"/> in <paramref name="time"/> seconds.</summary>
-    public static Double3 AngularVelocity(DQuaternion from, DQuaternion to, double time)
-    {
-        DQuaternion delta = (to * from.Conjugate()).Normalized();
-        if (delta.W < 0)
-            delta = new DQuaternion(-delta.X, -delta.Y, -delta.Z, -delta.W);
-        var axis = new Double3(delta.X, delta.Y, delta.Z);
-        double sinHalf = axis.Length;
-        if (sinHalf < 1e-15)
-            return Double3.Zero;
-        double angle = 2 * Math.Atan2(sinHalf, delta.W);
-        return axis * (angle / (sinHalf * time));
-    }
-
     /// <summary>The smallest turn of <paramref name="rotation"/> that puts its local +Y axis on <paramref name="up"/>.</summary>
     public static Quaternion AlignUp(Quaternion rotation, Vector3 up)
     {

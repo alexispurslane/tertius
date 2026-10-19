@@ -13,22 +13,29 @@ public class PhysicsIntentTests
 {
     private delegate void WriteIntent(BodyHandle body);
 
+    /// <summary>What a test writes through the running entity, for a write that is no request to a body. A delegate of its own, because <see cref="Self"/> is a ref struct.</summary>
+    private delegate void WriteSelfIntent(Self self);
+
     /// <summary>
     /// A world on real Jolt behind the wrapper that records intents, and a ball whose component runs <paramref name="write"/> in
     /// tick 0 and then does nothing. The world has run three ticks, so physics has received the intent once.
     /// </summary>
-    private static List<IntentRecord> IntentsReceivedAfterWriting(WriteIntent write, out Entity ball)
+    private static List<IntentRecord> IntentsReceivedAfterWriting(WriteIntent write, out Entity ball) =>
+        IntentsReceivedAfterWriting(self => write(self.Body), TestWorld.Ball, out ball);
+
+    /// <summary>Like <see cref="IntentsReceivedAfterWriting(WriteIntent, out Entity)"/>, for a ball with the body <paramref name="body"/>.</summary>
+    private static List<IntentRecord> IntentsReceivedAfterWriting(WriteSelfIntent write, BodyDesc body, out Entity ball)
     {
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
         List<IntentRecord> intents = faults.Intents;
         ball = test.World.Spawn(new SpawnDesc
         {
             Frame = test.Root,
-            Body = TestWorld.Ball,
+            Body = body,
             Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
             {
                 if (self.Tick == 0)
-                    write(self.Body);
+                    write(self);
             })],
         });
 
@@ -36,6 +43,10 @@ public class PhysicsIntentTests
 
         return intents;
     }
+
+    /// <summary>A ball that is kinematic, which takes an end pose, or dynamic, which takes a steer target (see <see cref="WriteAimPose"/>).</summary>
+    private static BodyDesc BallFor(string writer) =>
+        writer == nameof(BodyHandle.SteerTo) ? TestWorld.Ball : TestWorld.Ball with { Motion = BodyMotion.Kinematic };
 
     private static PhysicsIntent TheOneIntentReceivedAfterWriting(WriteIntent write) =>
         IntentsReceivedAfterWriting(write, out _).Should().ContainSingle().Subject.Intent;
@@ -168,16 +179,67 @@ public class PhysicsIntentTests
     }
 
     [Fact]
-    public void ATeleportAndAKinematicTargetAreSeparateSoNeitherReplacesTheOther()
+    public void ATeleportAndAnEndPoseAreSeparateSoNeitherReplacesTheOther()
     {
-        PhysicsIntent intent = TheOneIntentReceivedAfterWriting(body =>
+        PhysicsIntent intent = IntentsReceivedAfterWriting(self =>
         {
-            body.MoveKinematic(TestWorld.At(50));
-            body.Teleport(TestWorld.At(100));
+            self.MoveKinematic(TestWorld.At(50));
+            self.Body.Teleport(TestWorld.At(100));
+        }, BallFor(nameof(Self.MoveKinematic)), out _).Should().ContainSingle().Subject.Intent;
+
+        intent.Move.AimPose.Position.X.Should().Be(50);
+        intent.TeleportPose.Position.X.Should().Be(100);
+    }
+
+    /// <summary>Writes <paramref name="pose"/> through the writer named <paramref name="writer"/>: an end pose or a steer target.</summary>
+    private static void WriteAimPose(Self self, string writer, in DPose pose)
+    {
+        if (writer == nameof(BodyHandle.SteerTo))
+            self.Body.SteerTo(pose);
+        else
+            self.MoveKinematic(pose);
+    }
+
+    [Theory]
+    [InlineData(nameof(Self.MoveKinematic), "a position that is not finite")]
+    [InlineData(nameof(Self.MoveKinematic), "a zero rotation")]
+    [InlineData(nameof(BodyHandle.SteerTo), "a position that is not finite")]
+    [InlineData(nameof(BodyHandle.SteerTo), "a zero rotation")]
+    public void AnEndPoseOrASteerTargetWithANumberThatIsNotFiniteOrAZeroRotationIsRefused(string writer, string fault)
+    {
+        DPose pose = fault == "a zero rotation"
+            ? new DPose(new Double3(1, 0, 0), default)
+            : new DPose(new Double3(double.NaN, 0, 0), DQuaternion.Identity);
+        using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        Entity ball = test.World.Spawn(new SpawnDesc
+        {
+            Frame = test.Root,
+            Body = BallFor(writer),
+            Components = [Lambda.OnTick((self, scoped ref events, scoped ref outbox) =>
+            {
+                if (self.Tick == 0)
+                    WriteAimPose(self, writer, pose);
+            })],
         });
 
-        intent.Target.Position.X.Should().Be(50);
-        intent.TeleportPose.Position.X.Should().Be(100);
+        test.Run(3);
+
+        test.World.Errors.Should().ContainSingle().Which.Should().Contain(nameof(ArgumentException)).And.Contain(writer);
+        faults.Intents.Should().NotContain(record => record.Entity == ball, "the refused write leaves the ball no intent");
+    }
+
+    [Theory]
+    [InlineData(nameof(Self.MoveKinematic))]
+    [InlineData(nameof(BodyHandle.SteerTo))]
+    public void AnEndPoseAndASteerTargetReachPhysicsWithAUnitRotation(string writer)
+    {
+        DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitZ, 0.4);
+        var doubled = new DQuaternion(2 * turn.X, 2 * turn.Y, 2 * turn.Z, 2 * turn.W);
+
+        PhysicsIntent intent = IntentsReceivedAfterWriting(self => WriteAimPose(self, writer, new DPose(new Double3(1, 0, 0), doubled)), BallFor(writer), out _)
+            .Should().ContainSingle().Subject.Intent;
+
+        intent.Move.AimPose.Rotation.Should().Be(doubled.Normalized(), "the World makes the rotation of a motion intent unit length");
     }
 
     [Fact]
@@ -202,14 +264,13 @@ public class PhysicsIntentTests
         {
             body.SetVelocity(Vector3.UnitX);
             body.SetAngularVelocity(Vector3.UnitY);
-            body.MoveKinematic(TestWorld.At(1));
             body.Teleport(TestWorld.At(2));
             body.MoveCharacter(Vector3.UnitZ);
             body.Jump(1);
             body.SetCollision(CollisionGroups.None, CollisionMask.Empty);
         });
 
-        intent.Flags.Should().Be(IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity | IntentFlags.KinematicTarget |
+        intent.Flags.Should().Be(IntentFlags.SetVelocity | IntentFlags.SetAngularVelocity |
                                  IntentFlags.Teleport | IntentFlags.CharacterMove | IntentFlags.Jump | IntentFlags.SetCollision);
     }
 
