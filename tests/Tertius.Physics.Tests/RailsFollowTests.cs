@@ -480,38 +480,48 @@ public class RailsFollowTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// At each sync point, the frame tree keeps what moved each frame in the step that ended (see
+    /// <see cref="FrameTree.Followed"/>), and the frame stands where the step record of that kind put it. The two cases
+    /// whose kind is <see cref="FollowKind.Static"/> start on rails, and their first static record lands at the sync point
+    /// right after the last rails step, so the tree must write it over the kind of the rails: a transform write wins over
+    /// the last sample of the step that ended, and a hull that its owner parks teleports in its first static step.
+    /// </summary>
     [Theory]
     [InlineData("a dynamic hull")]
     [InlineData("a kinematic hull on rails")]
     [InlineData("no body, on rails")]
     [InlineData("no body, and a transform write")]
     [InlineData("a static hull that teleported")]
-    public void TheFrameTreeTellsWhatMovedTheFrameAtTheLastSyncPoint(string owner)
+    public void TheFrameTreeTellsWhatMovedTheFrameAtTheLastSyncPointAndTheFrameStandsOnThatRecord(string owner)
     {
         using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
         FrameHandle space = Scenes.AsteroidSpace(world);
         Entity entity = owner switch
         {
             "a dynamic hull" => Scenes.ShipWithInterior(world, space, new Double3(1000, 0, 0)).Hull,
-            "a kinematic hull on rails" => Hull(world, space, Slow),
-            "no body, on rails" => Bodyless(world, space, Slow),
-            "a static hull that teleported" => world.Spawn(new SpawnDesc
-            {
-                Frame = space,
-                Body = Ball() with { Motion = BodyMotion.Static },
-                AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
-                Components = [new Hopper()],
-            }),
-            _ => world.Spawn(new SpawnDesc
-            {
-                Frame = space,
-                AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
-                Components = [new Climber()],
-            }),
+            "a kinematic hull on rails" or "a static hull that teleported" => Hull(world, space, Slow),
+            _ => Bodyless(world, space, Slow),
         };
         FrameHandle frame = world.GetOwnedFrame(entity);
-
         Tick(world, 4);
+        var climber = new Climber();
+        var park = new ParkAndHopOnce(world.GetComponent<KeplerMotion>(entity));
+        if (owner == "no body, and a transform write")
+        {
+            world.Frames.Followed(frame).Should().Be(FollowKind.Rails, "the frame starts on rails");
+            world.RemoveComponent(entity, world.GetComponent<KeplerMotion>(entity)!);
+            world.AddComponent(entity, climber);
+            world.Tick();
+        }
+        else if (owner == "a static hull that teleported")
+        {
+            world.AddComponent(entity, park);
+            world.Tick();
+            world.Frames.Followed(frame).Should().Be(FollowKind.Rails, "the step of the tick that parks the hull still moves it on rails");
+            world.Tick();
+            world.Frames.HullMotion(frame).Should().Be(BodyMotion.Static);
+        }
 
         world.Frames.Followed(frame).Should().Be(owner switch
         {
@@ -519,6 +529,14 @@ public class RailsFollowTests
             "a kinematic hull on rails" or "no body, on rails" => FollowKind.Rails,
             _ => FollowKind.Static,
         });
+        DPose standsAt = owner switch
+        {
+            "no body, on rails" => RailsPose(Slow, world.Time),
+            "no body, and a transform write" => climber.Written!.Value,
+            "a static hull that teleported" => park.Target!.Value,
+            _ => faults.Outputs[^1].Frames.Single(state => state.Frame == frame).Motion.Pose,
+        };
+        world.Frames.TreeLocalPose(frame).Should().Be(standsAt, "the frame stands where its step record puts it");
         world.Errors.Should().BeEmpty();
     }
 
@@ -801,6 +819,30 @@ public class RailsFollowTests
         }
     }
 
+    /// <summary>
+    /// Parks its owner's hull in the next tick, once: it removes <paramref name="rails"/>, changes the hull's motion to
+    /// static, and teleports the hull 1 m higher, so the hull's first static step teleports it. It keeps the teleport's pose.
+    /// </summary>
+    private sealed class ParkAndHopOnce(IComponent? rails) : IComponent
+    {
+        public DPose? Target { get; private set; }
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            self.RemoveComponent(this);
+            if (rails is not null)
+                self.RemoveComponent(rails);
+            self.Body.SetMotion(BodyMotion.Static);
+            DPose pose = self.PoseInOwnFrame();
+            Target = pose with { Position = pose.Position + new Double3(0, 1, 0) };
+            self.Body.Teleport(Target.Value);
+        }
+    }
+
     /// <summary>Gives its owner <see cref="Velocity"/> in its own frame in the next tick, once.</summary>
     private sealed class Kicker : IComponent
     {
@@ -819,9 +861,11 @@ public class RailsFollowTests
         }
     }
 
-    /// <summary>Writes its owner's transform 1 m higher in every tick.</summary>
+    /// <summary>Writes its owner's transform 1 m higher in every tick, and keeps the last pose that it wrote.</summary>
     private sealed class Climber : IComponent
     {
+        public DPose? Written { get; private set; }
+
         public int Priority => 0;
 
         public EventMask Wants => EventMask.Of<Tick>();
@@ -829,7 +873,8 @@ public class RailsFollowTests
         public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
         {
             DPose pose = self.PoseInOwnFrame();
-            self.SetTransform(pose with { Position = pose.Position + new Double3(0, 1, 0) });
+            Written = pose with { Position = pose.Position + new Double3(0, 1, 0) };
+            self.SetTransform(Written.Value);
         }
     }
 }
