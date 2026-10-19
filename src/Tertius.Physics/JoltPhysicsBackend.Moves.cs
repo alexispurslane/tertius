@@ -121,8 +121,9 @@ public sealed partial class JoltPhysicsBackend
             bodies.GetRPosition(body, out RVector3 position);
             bodies.GetLinearAndAngularVelocity(body, out Vector3 linear, out Vector3 angular);
             var pose = new DPose(position.ToDouble3() + offset, bodies.GetRotation(body).ToDouble());
+            BodyLayer role = ghosts[index].Role;
             RemoveGhostAt(ghosts, index);
-            WantGhost(record, to, pose, (Double3)linear + velocity, angular);
+            WantGhost(record, to, pose, (Double3)linear + velocity, angular, role);
         }
         stickOutScratch.Clear();
     }

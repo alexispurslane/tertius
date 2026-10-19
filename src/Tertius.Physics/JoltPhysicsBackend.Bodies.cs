@@ -63,8 +63,13 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>The object layer of the static interior of the frame that a record owns.</summary>
     private static ObjectLayer InteriorLayer(BodyRecord record) => Layers.For(BodyLayer.Static, record.CollisionGroups, record.CollisionMask);
 
-    /// <summary>The object layer of each ghost of a record's body.</summary>
-    private static ObjectLayer GhostLayer(BodyRecord record) => Layers.For(BodyLayer.Ghost, record.CollisionGroups, record.CollisionMask);
+    /// <summary>
+    /// The object layer of a ghost of a record's body in <paramref name="role"/> (see <see cref="GhostBody.Role"/>): the
+    /// layer of every hull for the frame hull role, and otherwise the layer of the role with the record's collision groups
+    /// and mask.
+    /// </summary>
+    private static ObjectLayer GhostLayer(BodyRecord record, BodyLayer role) =>
+        role == BodyLayer.FrameHull ? Layers.FrameHull : Layers.For(role, record.CollisionGroups, record.CollisionMask);
 
     // ---- Creation ----
 
@@ -234,13 +239,13 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// What a rigid body is apart from its state. The backend changes none of it after the body exists, except the motion
     /// of a body whose <see cref="MotionChanges"/> is true: the hull of a frame takes a change of motion (see
-    /// <see cref="FollowHullMotions"/>), and a ghost of a mesh is static or kinematic as it holds still or moves (see
-    /// <see cref="GhostMotion"/>). Its spec then has the new motion. So the spec of a body and its state rebuild the body
-    /// exactly.
+    /// <see cref="FollowHullMotions"/>), and a ghost of a static body is static or kinematic as it holds still or moves
+    /// (see <see cref="GhostMotion"/>). Its spec then has the new motion. So the spec of a body and its state rebuild the
+    /// body exactly.
     /// </summary>
     /// <param name="MotionChanges">
     /// True when the backend can change the body's motion type: the hull of a frame, unless it is a mesh, which never
-    /// moves, and a ghost of a mesh.
+    /// moves, and a ghost of a static body.
     /// </param>
     /// <param name="Freedom">How the body can move: freely, or only along the three axes, for the rigid form of a character.</param>
     private readonly record struct RigidSpec(ShapeDesc Shape, MotionType Motion, ObjectLayer Layer, ulong UserData, BodyDesc Material, bool MotionChanges = false,
@@ -263,30 +268,32 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// The spec of a ghost of a record's body with the Jolt motion <paramref name="motion"/>, which
-    /// <see cref="GhostMotion"/> gives it, in the object layer <paramref name="layer"/>: the ghost layer of the body, or the
-    /// body's own layer for the ghost of an anchor (see <see cref="GhostBody.Anchor"/>). A ghost of a static body meets only
-    /// what the static body meets (see <see cref="FrameWorld.StandsForStaticBody"/>). A ghost of a mesh changes its motion
-    /// as it starts and stops moving.
+    /// <see cref="GhostMotion"/> gives it, in the object layer <paramref name="layer"/>, the layer of its role (see
+    /// <see cref="GhostBody.Role"/>). A ghost of a static body meets only what the static body meets (see
+    /// <see cref="FrameWorld.StandsForStaticBody"/>), and it changes its motion as it starts and stops moving, so Jolt
+    /// creates it to allow that and gives it a mass (see <see cref="Settings"/>).
     /// </summary>
     private static RigidSpec GhostSpec(BodyRecord record, MotionType motion, ObjectLayer layer) =>
-        new(record.Desc.Shape, motion, layer, BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc, MotionChanges: record.HasMesh);
+        new(record.Desc.Shape, motion, layer, BodyUserData.Encode(BodyKind.Ghost, record.Entity), record.Desc, MotionChanges: !record.IsMovable);
 
     /// <summary>
     /// The Jolt motion of a ghost of a record's body that moves in its system with <paramref name="linear"/> m/s and
-    /// <paramref name="angular"/> rad/s. A ghost is kinematic, so that Jolt moves it with that velocity during a step, and
-    /// a body that hits it meets a body that moves as the real body does relative to the ghost's frame: Jolt stops the
-    /// body, bounces it by the real approach, and gives a character the ghost's velocity. Jolt moves a kinematic mesh
-    /// too, given a mass (see <see cref="Settings"/>). A ghost of a mesh is static while it holds still, as its real body
-    /// does, for example the ghost of a parked station's hull in a parked ship beside it. Jolt never simulates a static
-    /// body. A kinematic ghost is awake for good, because the ghost pass sets its pose in every step, and Jolt searches
-    /// the contacts of an awake body in every step, also with the bodies that sleep on it. With 100 boxes asleep on the
-    /// ghost of a parked station's floor, a tick took 37 µs with a static ghost and 116 µs with a kinematic one
-    /// (MeshGhostBenchmarks). A real body with a mesh is always static, so such a ghost holds still exactly when its
-    /// velocity in its system is zero. (Before ter-dq92, the ghost of a mesh was always static, and the ghost pass moved it
-    /// after every step, so Jolt saw it at rest: a crate in a falling frame passed into a mesh anchor.)
+    /// <paramref name="angular"/> rad/s. A ghost that moves is kinematic, so that Jolt moves it with that velocity during a
+    /// step, and a body that hits it meets a body that moves as the real body does relative to the ghost's frame: Jolt
+    /// stops the body, bounces it by the real approach, and gives a character the ghost's velocity. Jolt moves a kinematic
+    /// mesh too, given a mass (see <see cref="Settings"/>). A ghost of a static body is static while it holds still, as
+    /// its real body does, for example the ghost of a parked station's hull in a parked ship beside it, or of the slab
+    /// under a parked shuttle in the shuttle's bubble. Jolt never simulates a static body, so the bodies that rest on the
+    /// ghost sleep, and a system with no other awake body does not step. A kinematic ghost is awake for good, because the
+    /// ghost pass sets its pose in every step, and Jolt searches the contacts of an awake body in every step, also with
+    /// the bodies that sleep on it. With 100 boxes asleep on the ghost of a parked station's floor, a tick took 37 µs with
+    /// a static ghost and 116 µs with a kinematic one (MeshGhostBenchmarks). A static ghost also meets exactly what its
+    /// static body meets by Jolt's rule. A ghost of a body that can move is always kinematic. (Before ter-dq92, the ghost
+    /// of a mesh was always static, and the ghost pass moved it after every step, so Jolt saw it at rest: a crate in a
+    /// falling frame passed into a mesh anchor. Before ter-imi5, only the ghost of a mesh was static while it held still.)
     /// </summary>
     private static MotionType GhostMotion(BodyRecord record, Vector3 linear, Vector3 angular) =>
-        record.HasMesh && linear == Vector3.Zero && angular == Vector3.Zero ? MotionType.Static : MotionType.Kinematic;
+        !record.IsMovable && linear == Vector3.Zero && angular == Vector3.Zero ? MotionType.Static : MotionType.Kinematic;
 
     /// <summary>
     /// Creates a rigid body in the system of <paramref name="world"/>, which grows first if it is full. A body that moves is
@@ -325,14 +332,15 @@ public sealed partial class JoltPhysicsBackend
         });
         // Jolt gives a body that is or can become kinematic motion properties from its mass, but it cannot compute the mass
         // of a mesh, and would divide by zero. A mesh is never dynamic, and Jolt reads the mass only of a dynamic body, so
-        // the mass of 1 kg only keeps Jolt's inverse mass finite. Only a ghost of a mesh moves (see GhostMotion).
+        // the mass of 1 kg only keeps Jolt's inverse mass finite. Of a mesh, only a ghost moves (see GhostMotion).
         if ((spec.Motion != MotionType.Static || spec.MotionChanges) && spec.Shape.ContainsMesh())
         {
             settings.OverrideMassProperties = OverrideMassProperties.CalculateInertia;
             settings.MassPropertiesOverride = new MassProperties { Mass = 1 };
         }
         // A body whose motion can change keeps its mass while it is static or kinematic, for the time that it is dynamic.
-        // A body without mass never becomes dynamic.
+        // A body without mass never becomes dynamic, and Jolt gives it the mass of its shape. A ghost of a static body takes
+        // its body's mass the same way, though it is never dynamic: Jolt needs a finite mass to move it as a kinematic body.
         else if (spec.Motion == MotionType.Dynamic || (spec.MotionChanges && material.Mass > 0))
         {
             settings.OverrideMassProperties = OverrideMassProperties.CalculateInertia;

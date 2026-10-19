@@ -634,14 +634,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// frame (see <see cref="GhostAllowed"/>), so never in the frame that the body owns or inside it.</item>
     /// <item>The ghosts of each system (see <see cref="FrameWorld.AddGhost"/>) are the ghosts that the records keep in
     /// it, no more and no fewer. A system marks exactly the ghosts of static bodies as such (see
-    /// <see cref="FrameWorld.StandsForStaticBody"/>). Every ghost is kinematic, except a ghost of a mesh, which is static
-    /// while it holds still (see <see cref="GhostMotion"/>). Jolt can move every ghost of a mesh as a kinematic body, with
+    /// <see cref="FrameWorld.StandsForStaticBody"/>). Every ghost of a body that can move is kinematic. A ghost of a static
+    /// body is static while it holds still (see <see cref="GhostMotion"/>), and Jolt can move it as a kinematic body, with
     /// a finite mass (see <see cref="FrameWorld.CanMove"/>), so the ghost pass and the shifts can turn it kinematic when
     /// it starts to move.</item>
     /// <item>Every Jolt body of a record has the layer that the record's collision groups and mask give it: the primary
-    /// body or the character's inner body, the interior and every ghost (see <see cref="Layers"/>). A ghost that stands
-    /// for an anchor has the anchor's primary layer, and every other ghost the ghost layer (see
-    /// <see cref="GhostBody.Anchor"/>).</item>
+    /// body or the character's inner body, the interior and every ghost (see <see cref="Layers"/>). Each ghost has the
+    /// layer of its role (see <see cref="GhostBody.Role"/>).</item>
     /// <item>The contact ledger counts, for each pair of entities, the body pairs that hold their contact as started in
     /// every system, and its loose and waiting contacts (see <see cref="AssertContactInvariants"/>). This one holds at
     /// every sync point.</item>
@@ -689,10 +688,11 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             {
                 Contract.Invariant(GhostAllowed(record, ghost.Frame) && ghost.World == ExistingWorld(ghost.Frame));
                 Contract.Invariant(ghost.World.HasGhost(ghost.Body));
-                Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == (ghost.Anchor ? PrimaryLayer(record) : GhostLayer(record)));
+                Contract.Invariant(ghost.World.Bodies.GetObjectLayer(ghost.Body) == GhostLayer(record, ghost.Role));
                 Contract.Invariant(ghost.World.StandsForStaticBody(ghost.Body) == !record.IsMovable);
-                Contract.Invariant(record.HasMesh || ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic);
-                Contract.Invariant(!record.HasMesh || ghost.World.CanMove(ghost.Body));
+                Contract.Invariant(record.IsMovable
+                    ? ghost.World.Bodies.GetMotionType(ghost.Body) == MotionType.Kinematic
+                    : ghost.World.CanMove(ghost.Body));
                 if (!record.IsMovable)
                     staticBodyGhosts++;
             }

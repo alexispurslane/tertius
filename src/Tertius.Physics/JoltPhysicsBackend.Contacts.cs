@@ -283,14 +283,14 @@ public sealed partial class JoltPhysicsBackend
                 if (PrimariesTouch(first, second))
                     taken += Carried(home, PrimaryId(first), PrimaryId(second));
             }
-            else if (GhostIn(second, home) is { Body.IsValid: true } ghost && GhostTouches(second, ghost.Anchor, first))
+            else if (GhostIn(second, home) is { Body.IsValid: true } ghost && GhostTouches(second, ghost.Role, first))
             {
                 taken += Carried(home, PrimaryId(first), ghost.Body);
             }
         }
         if (first.Ghosts is { } ghosts && second.World is { } other)
             foreach (GhostBody ghost in ghosts)
-                if (ghost.World == other && GhostTouches(first, ghost.Anchor, second))
+                if (ghost.World == other && GhostTouches(first, ghost.Role, second))
                     taken += Carried(other, ghost.Body, PrimaryId(second));
         return taken;
     }
@@ -317,15 +317,15 @@ public sealed partial class JoltPhysicsBackend
         MotionsMeet(first.Motion, first.Desc.IsSensor, second.Motion, second.Desc.IsSensor);
 
     /// <summary>
-    /// True when a ghost of <paramref name="ghostOf"/> and the primary body of <paramref name="other"/> can touch in one
-    /// system: their layers meet, so that a ghost never meets the hull of a frame, and the ghost of an anchor, which has the
-    /// anchor's own layer when <paramref name="anchor"/> is true (see <see cref="GhostBody.Anchor"/>), meets what the anchor
-    /// meets (see <see cref="Layers"/>), and their motions meet (see <see cref="MotionsMeet"/>). A ghost is kinematic, or
-    /// static for a mesh that holds still. A ghost of a static body, such as every ghost of a mesh, meets only what that
-    /// body meets (see <see cref="FrameWorld.StandsForStaticBody"/>), so it counts as static too.
+    /// True when a ghost of <paramref name="ghostOf"/> in <paramref name="role"/> and the primary body of
+    /// <paramref name="other"/> can touch in one system: their layers meet (see <see cref="GhostBody.Role"/> and
+    /// <see cref="Layers"/>), so that a ghost in the ghost role never meets the hull of a frame, and their motions meet (see
+    /// <see cref="MotionsMeet"/>). A ghost of a body that can move is kinematic. A ghost of a static body is static while
+    /// it holds still, and it meets only what that body meets (see <see cref="FrameWorld.StandsForStaticBody"/>), so it
+    /// counts as static.
     /// </summary>
-    private static bool GhostTouches(BodyRecord ghostOf, bool anchor, BodyRecord other) =>
-        Layers.Meet(anchor ? PrimaryLayer(ghostOf) : GhostLayer(ghostOf), PrimaryLayer(other)) &&
+    private static bool GhostTouches(BodyRecord ghostOf, BodyLayer role, BodyRecord other) =>
+        Layers.Meet(GhostLayer(ghostOf, role), PrimaryLayer(other)) &&
         MotionsMeet(ghostOf.IsMovable ? BodyMotion.Kinematic : BodyMotion.Static, ghostOf.Desc.IsSensor, other.Motion, other.Desc.IsSensor);
 
     /// <summary>

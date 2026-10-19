@@ -508,15 +508,64 @@ public class FrameTreeGhostPlaceTests
     }
 
     [Fact]
-    public void A_static_body_of_the_parent_that_touches_a_childs_bubble_leaves_no_place_in_it()
+    public void A_static_body_of_the_parent_that_touches_a_childs_bubble_leaves_a_place_in_it()
     {
-        // A static body that is not a hull has no ghost in a bubble.
+        // A static body has a ghost in each child bubble that it reaches, as a hull does (ter-xxmj). The body in the station
+        // flies at 60 m/s 11 m from it, and alone it would fall in a frame of the station.
         FrameHandle station = Station(2, X(1_000));
         NumericBody inside = BodyOf(station, 12, Y(30), X(60)) with { Character = true };
 
         NumericBody[] after = Update(0.1, Body(10, new Double3(1_000, 41, 0)) with { Static = true }, inside);
 
+        after[1].Home.Should().Be(station);
+        frames.NumericCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void The_interior_of_the_parents_owner_leaves_no_place_in_a_child()
+    {
+        // The interior of ground's owner is a static body of radius 30 m at ground's origin, which reaches the station's
+        // bubble. An interior has no ghost in a child frame yet, so the body in the station, which flies at 60 m/s 1 m from
+        // where its place would be, falls in a frame of the station.
+        FrameHandle station = Station(2, X(60));
+        NumericBody interior = Body(1, Double3.Zero, radius: 30) with { Entity = ground.Entity, Static = true, Fixed = true };
+        NumericBody inside = BodyOf(station, 12, X(-29), Y(60)) with { Character = true };
+
+        NumericBody[] after = Update(0.1, interior, inside);
+
         frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
+    }
+
+    [Fact]
+    public void A_body_of_the_parent_that_reaches_the_childs_content_beyond_its_bubble_leaves_a_place_in_it()
+    {
+        // The body in the station flies at 60 m/s 1 m inside the bubble, so within 2 s it can stick out by 120 m: the
+        // station's content reaches that far beyond the bubble. The rock of ground rests 15 m outside the bubble, beyond its
+        // own reach of 1 m and the split margin, but within the content, so it has a ghost in the station's own system,
+        // 17 m from the body.
+        FrameHandle station = Station(2, X(1_000));
+        NumericBody inside = BodyOf(station, 12, Y(39), X(60)) with { Character = true };
+
+        NumericBody[] after = Update(0.1, Body(10, new Double3(1_000, 56, 0)), inside);
+
+        after[1].Home.Should().Be(station);
+    }
+
+    [Fact]
+    public void A_falling_hull_in_a_child_is_linked_to_the_place_of_a_parked_hull_of_the_parent()
+    {
+        // The depot's static hull reaches the station's bubble as far as the depot's bubble, so it has a ghost in the
+        // station's own system with the static role, which the mask of a hull names (fork F1). The shuttle's hull falls at
+        // 60 m/s in the station, 70 m from the depot's hull, and alone it would fall in a frame of the station.
+        FrameHandle station = Station(2, X(1_000), bubble: 200);
+        FrameHandle depot = Station(3, new Double3(1_000, 260, 0), bubble: 70);
+        FrameHandle shuttle = frames.Create(new Entity(30, 1), station, new DPose(Y(190), DQuaternion.Identity), FrameBounds.Sphere(10));
+        frames.SetHullMotion(shuttle, BodyMotion.Dynamic);
+        NumericBody hull = BodyOf(station, 30, Y(190), X(60)) with { Entity = shuttle.Entity, OwnedFrame = shuttle, Character = true, Radius = 2 };
+
+        NumericBody[] after = Update(0.1, ParkedHull(depot, radius: 30), hull);
+
+        after[1].Home.Should().Be(station);
     }
 
     [Fact]
@@ -640,17 +689,19 @@ public class FrameTreeGhostPlaceTests
     }
 
     [Fact]
-    public void A_body_that_sticks_out_of_a_sibling_on_its_far_side_leaves_no_place_in_the_frame()
+    public void A_body_that_sticks_out_of_a_sibling_on_its_far_side_leaves_a_place_in_the_frame_within_its_content()
     {
         // The depot's crate sticks out of it at 1,120 m in ground, 80 m outside the station's bubble. The body in the station
-        // flies at 60 m/s 90 m from it, within 2 m plus 2 s of 60 m/s.
+        // flies at 60 m/s 10 m inside the bubble, so within 2 s it can stick out by 111 m: the station's content reaches the
+        // crate, which has a ghost in the station's own system (fork F2). The body is 90 m from it, within 2 m plus 2 s of
+        // 60 m/s. Before the content, the crate's ghost needed the bubble itself, and the body fell in a frame of its own.
         FrameHandle station = Station(2, X(1_000));
         FrameHandle depot = Station(3, X(1_080));
         NumericBody inside = BodyOf(station, 12, X(30), Y(60)) with { Character = true };
 
         NumericBody[] after = Update(0.1, BodyOf(depot, 11, X(40)), inside);
 
-        frames.Numeric(after[1].Home).Should().Be(NumericMode.Falling);
+        after[1].Home.Should().Be(station);
     }
 
     [Fact]

@@ -103,34 +103,36 @@ public class PhysicsContactEndTests
     }
 
     /// <summary>
-    /// The first ball flies into the bubble of a frame in the step of tick 0 and overlaps the second ball, a kinematic one,
-    /// which is behind it and still outside the bubble. In that step Jolt finds the contact of the two balls, and then hands
-    /// the first ball off to the frame, where the second ball has no body. The first ball's ghost stays outside, but a ghost
-    /// is kinematic, and Jolt makes no contact between two kinematic bodies, so nothing carries the contact on. So the one
-    /// step sends the start of the contact and its end.
+    /// The first ball flies out of the bubble of a frame in the step of tick 0, and overlaps the second ball, a static one of
+    /// the frame, which is behind it at the bubble's edge. In that step Jolt finds the contact of the two balls, and then
+    /// hands the first ball off to the frame's parent, where the second ball has no body: a static body has no ghost in the
+    /// parent of its frame (fork F3 of docs/plans/complete-ghosts.md). The first ball's sphere then ends 3.3 m outside
+    /// the bubble, so it has no ghost in the frame, and nothing carries the contact on. So the one step sends the start of the
+    /// contact and its end. (Before ter-imi5 the scene flew a ball into the bubble with a kinematic ball behind it, which
+    /// now has a ghost in the frame that carries the contact, because the frame's content reaches it.)
     /// </summary>
     [Fact]
     public void AContactThatStartsAndEndsInOneStepArrivesAsTheStartAndThenTheEnd()
     {
         using var test = TestWorld.OnJolt(out FaultInjectingBackend faults);
+        // The bubble has a radius of 100 m, so a ball of radius 0.5 m leaves it beyond 102.5 m from its center: its radius
+        // and the exit margin of 2 m outside. At 60 m/s the first ball passes that in one step.
         FrameHandle station = test.SpawnStaticFrame(TestWorld.At(500), radius: 100);
         var firstLog = new Recorder(Scene.Wants);
         var secondLog = new Recorder(Scene.Wants);
-        Scenes.Approach flight = Scenes.ApproachToBubble(test.World, station, tick: 0);
         Entity first = test.World.Spawn(new SpawnDesc
         {
-            Frame = test.Root,
-            Pose = flight.Pose,
-            LinearVelocity = flight.Velocity,
+            Frame = station,
+            Pose = TestWorld.At(101.8),
+            LinearVelocity = new Vector3(60, 0, 0),
             Body = WorldTesting.Ball(),
             Components = [firstLog],
         });
         Entity second = test.World.Spawn(new SpawnDesc
         {
-            Frame = test.Root,
-            Pose = TestWorld.At(flight.Pose.Position.X - 0.9, flight.Pose.Position.Y, flight.Pose.Position.Z),
-            LinearVelocity = flight.Velocity,
-            Body = new BodyDesc(new SphereShapeDesc(0.5f), BodyMotion.Kinematic),
+            Frame = station,
+            Pose = TestWorld.At(100.9),
+            Body = new BodyDesc(new SphereShapeDesc(0.5f), BodyMotion.Static),
             Components = [secondLog],
         });
 

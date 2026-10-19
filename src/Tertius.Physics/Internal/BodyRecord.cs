@@ -34,7 +34,7 @@ internal static class BodyUserData
         (uint)data == entity.Index && (uint)((data >> 32) & GenerationMask) == (entity.Generation & GenerationMask);
 }
 
-/// <summary>A kinematic copy of a body in a neighboring frame's system.</summary>
+/// <summary>A copy of a body in a neighboring frame's system.</summary>
 internal struct GhostBody
 {
     public FrameHandle Frame;
@@ -43,11 +43,17 @@ internal struct GhostBody
     /// <summary>Set by the ghost pass when the ghost is still needed this step.</summary>
     public bool Wanted;
     /// <summary>
-    /// The ghost stands for an anchor in the home of a group of the anchor's own semantic frame (see
-    /// <see cref="FrameTree.AnchorGhosts"/>). It has its anchor's own layer, so it meets there only what the anchor meets:
-    /// a hull meets only static bodies and other hulls. Every other ghost has the ghost layer of its body.
+    /// The role of the ghost's object layer, which <c>JoltPhysicsBackend.GhostLayer</c> turns into the layer with the
+    /// record's collision groups and mask. It is set when the ghost is made and never changes: a ghost that needs another
+    /// role is made again. A child ghost of a static body has the body's own role, and a child ghost of a hull the static
+    /// role of the owner's interior, so both meet hulls as their real bodies do (fork F1 of docs/plans/complete-ghosts.md).
+    /// A child ghost of a body that can move and every stick-out ghost have the <see cref="BodyLayer.Ghost"/> role, which
+    /// meets no hull, because the system of a stick-out ghost holds the hull of the frame that its real body sticks out of.
+    /// The ghost of an anchor in the home of a group of the anchor's own semantic frame (see
+    /// <see cref="FrameTree.AnchorGhosts"/>) has the <see cref="BodyLayer.FrameHull"/> role of its hull, so it meets there
+    /// only what the hull meets: static bodies and other hulls.
     /// </summary>
-    public bool Anchor;
+    public BodyLayer Role;
 }
 
 /// <summary>Everything the backend knows about one entity's physics.</summary>

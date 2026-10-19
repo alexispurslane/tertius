@@ -191,11 +191,11 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>Adds the body of every ghost in this system to <paramref name="into"/>.</summary>
     public void CopyGhosts(List<BodyID> into) => into.AddRange(ghosts);
 
-    // The ghosts in this system whose real body is static, by body ID: the hull of a parked frame, or an anchor in a
-    // falling frame. Jolt makes a contact of a static body only with a dynamic body, or with a kinematic body when the
-    // static body is a sensor. The ghost of such a body is kinematic unless it is a mesh that holds still, so that a
-    // dynamic body that hits it meets a body that moves as the real body does in this frame, and Jolt also makes a contact
-    // between it and every sensor. A ghost stands for its real body, so the reports drop the contacts that the real body
+    // The ghosts in this system whose real body is static, by body ID: the hull of a parked frame, an anchor in a
+    // falling frame, or a static body of the parent frame. Jolt makes a contact of a static body only with a dynamic body,
+    // or with a kinematic body when the static body is a sensor. The ghost of such a body is kinematic while it moves in
+    // this frame, so that a dynamic body that hits it meets a body that moves as the real body does in this frame, and
+    // Jolt then also makes a contact between it and every sensor. A ghost stands for its real body, so the reports drop the contacts that the real body
     // would not make (see MeetsAsItsRealBody). Only the physics thread changes it, between updates, so Jolt's worker
     // threads read it during an update without the gate.
     private readonly HashSet<uint> ghostsOfStaticBodies = new();
@@ -258,7 +258,7 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>
     /// Moves every ghost in this system by a shift of the frame, like a member: each ghost loses <paramref name="offset"/>
     /// from its position and <paramref name="velocity"/> from its velocity, so that its place and velocity in the frame's
-    /// parent stay the same. A static ghost is the ghost of a mesh that held still in this frame (see
+    /// parent stay the same. A static ghost is the ghost of a static body that held still in this frame (see
     /// <c>JoltPhysicsBackend.GhostMotion</c>). A shift that changes the frame's velocity makes it move, so it turns
     /// kinematic, which the backend created it to allow, and Jolt moves it with its new velocity in the next update.
     /// Numeric frames do not rotate, so the angular velocity stays. Jolt does not simulate the move, and the ghosts move
@@ -742,7 +742,7 @@ internal sealed class FrameWorld : IDisposable
     /// that Jolt would give it rises too little (see <see cref="KeptRestitution(float, float, float, float)"/>). It reads
     /// what Jolt simulates, as Jolt does when it bounces a contact: Jolt holds a static body at rest, and only a dynamic
     /// body's forces count, as in the semantic frame (see <see cref="ForceAcceleration"/>). A ghost moves in Jolt as its
-    /// real body does, and a ghost of a mesh is static only while it holds still (see
+    /// real body does, and a ghost of a static body is static only while it holds still (see
     /// <c>JoltPhysicsBackend.GhostMotion</c>), so the approach that Jolt simulates is the approach of the entities, which
     /// the touch test and the impulse read too (see <see cref="PointVelocity"/>).
     /// </summary>
@@ -950,8 +950,8 @@ internal sealed class FrameWorld : IDisposable
     /// False when <paramref name="body"/> is the ghost of a static body (see <see cref="StandsForStaticBody"/>), and Jolt
     /// would make no contact between that static body and <paramref name="other"/>: Jolt makes a contact of a static body
     /// only with a dynamic body, or with a kinematic body when the static body is a sensor. The engine never sets
-    /// <c>CollideKinematicVsNonDynamic</c>, so this is Jolt's whole rule. Such a ghost is kinematic unless it is a mesh
-    /// that holds still, and Jolt also makes a contact between a kinematic body and any sensor, so a kinematic sensor
+    /// <c>CollideKinematicVsNonDynamic</c>, so this is Jolt's whole rule. Such a ghost is kinematic while it moves in
+    /// this frame, and Jolt also makes a contact between a kinematic body and any sensor, so a kinematic sensor
     /// would detect it, and it would detect a static sensor. A ghost stands for its real body, so it meets only what that
     /// body meets, and numeric frames, whose anchors have such ghosts, change nothing. Reads Jolt's motion of
     /// <paramref name="other"/>, whose body can be a ghost too, only for a ghost of a static body.
