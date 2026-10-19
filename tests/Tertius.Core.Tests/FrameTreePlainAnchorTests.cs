@@ -167,6 +167,57 @@ public class FrameTreePlainAnchorTests
     }
 
     /// <summary>
+    /// A semantic frame that dies takes the numeric frames in it with it, among them the following frames of the plain
+    /// anchors that lived there (the World has moved the anchors out). The following frames go with their anchors still named,
+    /// because no update has run since, and the anchor ghosts that one frame keeps of the other's anchor go with them: no
+    /// anchor ghost and no following frame of a dead anchor remains.
+    /// </summary>
+    [Fact]
+    public void The_following_frames_of_plain_anchors_go_with_their_semantic_frame_and_take_the_anchor_ghosts_with_them()
+    {
+        FrameHandle room = frames.Create(new Entity(3, 1), space, new DPose(new Double3(0, 5, 0), DQuaternion.Identity), FrameBounds.Sphere(1e3f));
+        NumericBody first = Update(Ball(10, Double3.Zero, new Double3(2_000, 0, 0), semantic: room))[0];
+        NumericBody[] both = Update(first, Ball(11, new Double3(3, 0, 0), new Double3(2_000, 0, 0), first.Home, room));
+        FrameHandle firstHome = both[0].Home, secondHome = both[1].Home;
+        secondHome.Should().NotBe(firstHome, "each anchor has a following frame of its own");
+        // The first frame keeps a ghost of the second anchor.
+        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(both[1].Entity, firstHome));
+
+        frames.Destroy(room);
+
+        frames.IsAlive(firstHome).Should().BeFalse();
+        frames.IsAlive(secondHome).Should().BeFalse();
+        frames.Anchors(firstHome, both[0].Entity).Should().BeFalse("the frame of the first anchor is gone");
+        frames.Anchors(secondHome, both[1].Entity).Should().BeFalse("the frame of the second anchor is gone");
+        frames.AnchorGhosts.IsEmpty.Should().BeTrue("no ghost stands for an anchor that has no following frame");
+        frames.NumericCount.Should().Be(0);
+        frames.IsAlive(space).Should().BeTrue("the dying frame's parent survives");
+        frames.AssertInvariants();
+    }
+
+    /// <summary>
+    /// A following frame that goes alone, while its semantic frame and the other frames in it stay, takes the anchor ghosts of
+    /// its anchor with it: the frame that kept a ghost of the anchor does not keep it for a frame that is gone, and the
+    /// other anchor keeps its own frame.
+    /// </summary>
+    [Fact]
+    public void A_following_frame_that_goes_alone_takes_the_anchor_ghosts_of_its_anchor_from_the_frames_that_stay()
+    {
+        NumericBody first = Update(Ball(10, Double3.Zero, new Double3(2_000, 0, 0)))[0];
+        NumericBody[] both = Update(first, Ball(11, new Double3(3, 0, 0), new Double3(2_000, 0, 0), first.Home));
+        FrameHandle firstHome = both[0].Home, secondHome = both[1].Home;
+        frames.AnchorGhosts.ToArray().Should().Equal(new NumericGhost(both[1].Entity, firstHome));
+
+        frames.Destroy(secondHome);
+
+        frames.IsAlive(secondHome).Should().BeFalse();
+        frames.AnchorGhosts.IsEmpty.Should().BeTrue("the second anchor has no following frame, so no frame keeps a ghost of it");
+        frames.Anchors(firstHome, both[0].Entity).Should().BeTrue("the first anchor keeps its frame");
+        frames.NumericCount.Should().Be(1);
+        frames.AssertInvariants();
+    }
+
+    /// <summary>
     /// A plain anchor that slows down below 400 m/s no longer needs a following frame. The update moves it into its semantic
     /// frame's own system, the frame loses its anchor first, and the empty frame goes.
     /// </summary>
