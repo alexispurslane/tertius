@@ -119,9 +119,10 @@ public static class ScriptCommand
         world.Log += error.WriteLine;
         try
         {
+            var target = new PngFolder(options.Out!);
             RunResult result = ScriptRunner.Run(script, world, scene.Build(world, renderer ?? RenderResources.None), options.Out,
-                renderer is null ? null : new HeadlessPlayback(renderer, script.Window));
-            WriteFiles(result, options.Out!, output);
+                renderer is null ? null : new HeadlessPlayback(renderer, script.Window, target));
+            WriteFiles(result, options.Out!, target, output);
             return Ok;
         }
         catch (ScriptException ex)
@@ -142,13 +143,24 @@ public static class ScriptCommand
         }
     }
 
-    /// <summary>Writes the path of each dump, then of each captured image.</summary>
-    internal static void WriteFiles(RunResult result, string outputFolder, TextWriter output)
+    /// <summary>
+    /// Writes the path of each dump, then the path of each captured image of a <see cref="PngFolder"/>, or the path of the
+    /// <see cref="VideoFile"/> that holds the captures.
+    /// </summary>
+    internal static void WriteFiles(RunResult result, string outputFolder, CaptureTarget target, TextWriter output)
     {
         foreach (StateDump dump in result.Dumps)
             output.WriteLine(Path.Combine(outputFolder, dump.Name + ".json"));
-        foreach (string capture in result.Captures)
-            output.WriteLine(capture);
+        switch (target)
+        {
+            case PngFolder folder:
+                foreach (string capture in result.Captures)
+                    output.WriteLine(folder.PathOf(capture));
+                break;
+            case VideoFile video when result.Captures.Count > 0:
+                output.WriteLine(video.Path);
+                break;
+        }
     }
 
     /// <param name="Script">The script file, or null for free play.</param>

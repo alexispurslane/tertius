@@ -10,11 +10,13 @@ namespace Tertius.Host.Windowing;
 /// </summary>
 /// <param name="pacer">The wall-clock pace of the ticks.</param>
 /// <param name="captures">The handover of captures to the render thread.</param>
+/// <param name="folder">Where the captures go, or null for free play, which captures nothing.</param>
 /// <param name="stop">Fires when the window closes.</param>
 /// <param name="secondsSinceStart">The wall clock: seconds since the run started.</param>
-public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, CancellationToken stop, Func<double> secondsSinceStart) : IPlayback
+public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, PngFolder? folder, CancellationToken stop, Func<double> secondsSinceStart) : IPlayback
 {
     private readonly TickPacer pacer = pacer;
+    private readonly PngFolder? folder = folder;
     private readonly CaptureMailbox captures = captures;
     private readonly CancellationToken stop = stop;
     private readonly Func<double> secondsSinceStart = secondsSinceStart;
@@ -48,17 +50,20 @@ public sealed class WindowPlayback(TickPacer pacer, CaptureMailbox captures, Can
     private double slip;
 
     /// <summary>
-    /// Publishes the current state, hands the render thread a <see cref="PngCaptureSink"/> for <paramref name="path"/>,
-    /// and waits until the render thread has drawn the state and the sink has written the file. Returns false if the
-    /// window closes first.
+    /// Publishes the current state, hands the render thread a <see cref="PngCaptureSink"/> for the PNG file of
+    /// <paramref name="name"/> in the folder, and waits until the render thread has drawn the state and the sink has
+    /// written the file. Returns false if the window closes first.
     /// </summary>
-    public bool Capture(World world, string path)
+    /// <exception cref="InvalidOperationException">The playback has no folder: free play captures nothing.</exception>
+    public bool Capture(World world, string name)
     {
+        if (folder is null)
+            throw new InvalidOperationException("Free play captures nothing, so its playback has no folder for captures.");
         // The simulation thread publishes, and the render thread, the triple buffer's one reader, draws it.
         world.PublishRenderSnapshot();
         try
         {
-            captures.RequestAndWait(new PngCaptureSink(path), stop);
+            captures.RequestAndWait(new PngCaptureSink(folder.PathOf(name)), stop);
             return true;
         }
         catch (OperationCanceledException)

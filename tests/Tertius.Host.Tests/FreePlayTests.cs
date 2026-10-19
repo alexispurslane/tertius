@@ -69,7 +69,7 @@ internal sealed class TestWindow : IInputTarget, IPlayback
         return true;
     }
 
-    public bool Capture(World world, string path) => throw new InvalidOperationException("Free play captures nothing.");
+    public bool Capture(World world, string name) => throw new InvalidOperationException("Free play captures nothing.");
 }
 
 /// <summary>FreePlay: what the window's input does to the world between two ticks, and the script that records it.</summary>
@@ -512,7 +512,7 @@ public sealed class FreePlayTests : IDisposable
 
         public bool WaitForTick() => !poster.IsCompleted || after++ < 3;
 
-        public bool Capture(World world, string path) => throw new InvalidOperationException("Free play captures nothing.");
+        public bool Capture(World world, string name) => throw new InvalidOperationException("Free play captures nothing.");
     }
 }
 

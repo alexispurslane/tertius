@@ -71,7 +71,7 @@ public sealed class OutlinesStepTests : IDisposable
         var renderer = new NotesTheOutlines(vulkan);
         try
         {
-            ScriptRunner.Run(script, world, LitBoxInShip(world, renderer), output, new HeadlessPlayback(renderer, script.Window));
+            ScriptRunner.Run(script, world, LitBoxInShip(world, renderer), output, new HeadlessPlayback(renderer, script.Window, new PngFolder(output)));
             return renderer.Drawn;
         }
         finally

@@ -290,7 +290,7 @@ public class StateDumpTests
     {
         public bool WaitForTick() => true;
 
-        public bool Capture(World world, string path) => true;
+        public bool Capture(World world, string name) => true;
     }
 
     [Fact]
