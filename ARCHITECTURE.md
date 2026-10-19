@@ -597,7 +597,7 @@ The skip does not change physics. At the next reconcile, a frame hull goes back 
 
 ## Rendering
 
-The renderer is a deferred Vulkan renderer. It gets a flat list of instances, each relative to the render origin, and it knows nothing about frames, except that each frame outline of the snapshot names the kind of its frame, for its color (see "Frame outlines" below). No pass draws the outlines yet. The overlay pass of ticket ter-p51r will.
+The renderer is a deferred Vulkan renderer. It gets a flat list of instances, each relative to the render origin, and it knows nothing about frames, except that each frame outline of the snapshot names the kind of its frame, for its color (see "Frame outlines" below). The overlay pass draws them (see "The overlay pass" below).
 
 ### The order of a rendered frame
 
@@ -611,7 +611,8 @@ The renderer records each rendered frame in this order. `FrameGraph.Stage` fixes
 6. The lighting pass, into the HDR target.
 7. The transparent forward pass.
 8. Tone mapping: an exposure scale, then the ACES curve in Stephen Hill's fit.
-9. The readback of a requested capture. After the GPU finishes the frame, `Render` hands the pixels to the capture's sink.
+9. The overlay: the frame outlines of the snapshot, blended over the tone-mapped image (see "The overlay pass" below).
+10. The readback of a requested capture. After the GPU finishes the frame, `Render` hands the pixels to the capture's sink. The readback comes after the overlay, so a capture includes the outlines.
 
 A pass is a `RenderPass` in one stage of the `FrameGraph`. Shadows and impostors use three hooks:
 
@@ -658,6 +659,35 @@ So the sphere of a falling frame holds the bubble of the ship that falls in it, 
 With the setting on, the builder adds the outlines after the instances and the sun, on the calling thread, after the chunks join. It first makes one pass over the live bodies in slot order. Each numeric physics home keeps the largest value of |`HomePosition`| + the bounding radius. Then it walks the frames from the last dense index to the first, so that it reaches each child before its parent, and grows each numeric parent to |the child's local position| + the child's outline sphere. A semantic frame's outline sphere is its bubble, so a body or a frame that reaches out of a bubble grows nothing. It computes in doubles and narrows each radius to a float at the end. Then it adds one outline for each frame that has a parent, in the dense order of the tree. The list keeps that order, so it is the same in every run and on any number of threads. The center and the rotation of an outline are its frame's pose relative to the camera's physics home, which also places the instances, less the render origin, in the axes of the camera's frame. A frame of another tree gets an outline too, placed through the shared root, as its instances are. An outline is not interpolated: in a capture, at alpha 1, an outline and the instances of its frame agree exactly. In the window, an outline can lag the objects of its frame by one tick of their motion relative to the camera.
 
 `RenderSnapshotBenchmarks` measures the build with the outlines off and on (ter-84iw, Release, one thread). With them off, a build takes the time that it took before the outlines, within the noise. With them on, a world of 1,000 frames and 20,000 bodies in 100 resting frames builds in about 1,165 µs instead of 950 µs, and its 1,000 outlines take 48,000 bytes. The orbit scene, with 15 frames, builds in 1.95 µs instead of 1.5 µs. No build allocates.
+
+### The overlay pass
+
+The overlay pass, `OutlinePass`, draws the frame outlines of the snapshot. It is the one pass of the stage `Overlay` of the `FrameGraph`, after tone mapping and before the readback. The renderer always builds it. With no outline in the snapshot, it writes no record and records no command.
+
+On the CPU, in its `Prepare`, the pass switches on the case of each `FrameOutline`, as `SceneBatcher` does for each `RenderLight`. It writes one `GpuOutline` of 48 bytes for the case: the center relative to the interpolated eye, the rotation, the radii, the color of the kind of frame, and a flag for a sphere. A contents sphere has no axes of its own, so its rings lie in the axes of the camera's frame. The pass leaves out an outline whose outline sphere has a radius of 0 or less, or is outside the view frustum. The frustum starts at the near plane, 5 cm ahead, so an outline round the camera stays, unless all of it ahead of the eye is nearer than that. The records keep the order of the snapshot. They go into a storage buffer of the frame set, which grows on demand, as the instance buffer does.
+
+On the GPU, the pass makes one instanced draw of 1,536 vertices for each record. The vertex shader makes four rings of 64 segments from the vertex index:
+
+- The three ellipses in the principal planes of the frame.
+- For a sphere seen from outside, its rim as seen from the eye: the circle where the lines of view from the eye touch the sphere. An ellipsoid, and a sphere round the eye, have no rim, and the 384 vertices of that ring collapse to one point.
+
+Each segment is a quad 2 pixels wide on the screen, made of two triangles. A line list would draw lines 1 pixel wide on MoltenVK, because Metal has no wide lines. The two quads that meet at a corner of a ring compute its two vertices from the same three points of the ring. So they share one edge exactly, mitered across the bend, and no pixel draws twice there. A miter is at most 2 half widths long, so a ring seen almost edge-on ends at its tip without a spike. The vertex shader cuts each segment at the near plane, 5 cm ahead of the eye, as the geometry passes cut a triangle. So a camera inside a bubble sees the parts of its rings in front of it.
+
+The fragment shader compares its distance from the eye with the distance target of the G-buffer. A fragment behind geometry draws at 30 % alpha. A fragment in front of geometry or against the sky draws at full alpha. The pass blends into the output, which it loads. The headless output has an sRGB format, so the hardware applies the sRGB curve, and the pass blends in linear light. On an output that stores linear values, the shader applies the curve itself, as the tone mapper does.
+
+Each kind of frame has one fixed color, from the frame bubble colors of the editor palette (`docs/plans/editor.md`). The engine draws no text, so a title card of the video gives the legend.
+
+| Case | Color |
+|---|---|
+| `SemanticOutline` | `#7AA7FA`, blue |
+| `FallingOutline` | `#E58FB4`, pink |
+| `RestingOutline` | `#4FC1B6`, teal |
+| `NestingOutline` | `#B58CF0`, purple |
+| `OrbitingOutline` | `#C9B458`, gold |
+
+`RenderStats.Outlines` counts the outlines that a frame drew.
+
+`OutlineRenderBenchmarks` measures the wall time of one headless `Render` at 1280 × 720 (ter-p51r, Release, validation off). The renderer keeps one frame in flight, so each call waits for the frame before it, and one call takes the CPU and the GPU time of a frame. The scene has a ground and 100 boxes. With no outline, a frame takes 1.26 to 1.41 ms without the pass and 1.28 to 1.43 ms with it, over several runs. So the outlines cost nothing while they are off. With 10, 100 and 1,000 outlines, a frame takes 1.64, 1.82 and 2.50 ms. So the first 10 outlines add about 0.3 ms, and each outline after them adds about 0.9 µs. As soon as the pass has an outline, it begins a render pass that loads and stores the whole output image, which is the probable cause of the step. No frame allocates. The GPU time of the pass alone waits for the GPU timer of ticket `ter-yiii`.
 
 ### Instances and draws
 
@@ -758,6 +788,8 @@ The texel grid of each cascade snaps to a world-fixed anchor: the origin of the 
 | `Impostors` | On | Draws small objects as impostors. |
 | `ImpostorTiles` | 64 | The number of 512 px tiles in the impostor atlas. Each tile takes about 3.3 MB, so the default takes about 213 MB. |
 
+The frame outlines are a view setting, `World.ShowFrameOutlines`, not a renderer switch, because a run turns them on and off between captures, and the snapshot builder cannot see the options of the renderer. The renderer always builds the overlay pass, and with no outline in the snapshot the pass records nothing.
+
 A switch that makes rendering deterministic for snapshot tests is planned, not built (ticket `ter-rtxu`, `docs/plans/renderer-snapshot-tests.md`).
 
 ### Snapshot tests
@@ -771,7 +803,7 @@ A snapshot test renders a scene headlessly and compares the image with its appro
 - With the environment variable `TERTIUS_APPROVE_SNAPSHOTS` set to 1, the check makes the image the reference and passes. A snapshot proves only that nothing changed. So the first approval of each reference image is a real review against the description of its scene.
 - The references come from one machine with MoltenVK. On that machine, two headless renders of one scene give the same bytes. Tolerance across GPUs is out of scope.
 
-No reference image exists yet. The first scenes come with ticket `ter-rtxu`, which also adds the switch for deterministic rendering, and with the overlay pass of ticket `ter-p51r`.
+The first reference image is `frame-outlines.png`, of the overlay pass (`OutlineRenderTests`). It shows a turned box in its semantic bubble, a falling frame's sphere partly behind a wall, and one sphere of each other kind of numeric frame, over a gray ground. More scenes come with ticket `ter-rtxu`, which also adds the switch for deterministic rendering.
 
 ## Blueprints
 

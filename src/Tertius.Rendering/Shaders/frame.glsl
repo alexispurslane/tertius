@@ -43,6 +43,15 @@ struct GpuLight
     vec4 spot;                // x cos(inner half-angle)
 };
 
+struct GpuOutline
+{
+    vec4 rotation;            // the frame's axes in world axes, as a quaternion (xyz, w)
+    vec3 center;              // world position of the frame's origin
+    uint color;               // sRGB-encoded display color, unpackUnorm4x8
+    vec3 radii;               // along the frame's axes, in meters
+    uint flags;               // bit 0: a sphere, which also draws its rim as seen from the eye
+};
+
 layout(set = 0, binding = 0, std140) uniform FrameBlock
 {
     mat4 rangeViewProj[3];    // far, middle, near: clip space from world space
@@ -73,6 +82,7 @@ layout(set = 0, binding = 3, std430) readonly buffer LightBlock { GpuLight light
 // xyz world center, w radius.
 layout(set = 0, binding = 4, std430) readonly buffer OccluderBlock { vec4 occluders[]; };
 layout(set = 0, binding = 5) uniform sampler materialSampler;
+layout(set = 0, binding = 6, std430) readonly buffer OutlineBlock { GpuOutline outlines[]; };
 
 layout(set = 1, binding = 0) uniform texture2D textures[];
 

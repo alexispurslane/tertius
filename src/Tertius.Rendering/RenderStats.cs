@@ -43,6 +43,11 @@ public readonly record struct RenderStats
     public int IndirectDrawCalls { get; init; }
     /// <summary>Point and spot lights after culling.</summary>
     public int Lights { get; init; }
+    /// <summary>
+    /// Frame outlines that the overlay pass drew: those of the snapshot whose outline sphere has a radius above 0 and is
+    /// not outside the view frustum.
+    /// </summary>
+    public int Outlines { get; init; }
     /// <summary>False when the frame was skipped, for example because the swapchain was out of date.</summary>
     public bool Rendered { get; init; }
 

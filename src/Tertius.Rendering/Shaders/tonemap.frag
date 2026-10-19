@@ -1,5 +1,7 @@
 #version 460
 #extension GL_EXT_samplerless_texture_functions : require
+#extension GL_GOOGLE_include_directive : require
+#include "srgb.glsl"
 
 layout(set = 0, binding = 0) uniform texture2D hdrImage;
 
@@ -34,11 +36,6 @@ vec3 rrtAndOdtFit(vec3 v)
 vec3 acesFitted(vec3 color)
 {
     return clamp(acesOutput * rrtAndOdtFit(acesInput * color), 0.0, 1.0);
-}
-
-vec3 linearToSrgb(vec3 c)
-{
-    return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
 }
 
 void main()

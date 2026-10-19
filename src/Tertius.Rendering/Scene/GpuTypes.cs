@@ -91,6 +91,25 @@ internal struct GpuLight
     public Vector4 Spot;
 }
 
+/// <summary>One frame outline in the outline storage buffer (std430). 48 bytes.</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct GpuOutline
+{
+    /// <summary><see cref="Flags"/> bit: the outline is a sphere, so seen from outside it also draws its rim as seen from the eye.</summary>
+    public const uint SphereFlag = 1;
+
+    /// <summary>The frame's axes in world axes, as a quaternion (x, y, z, w). The rings lie in the planes of these axes.</summary>
+    public Vector4 Rotation;
+    /// <summary>The frame's origin, camera-relative.</summary>
+    public Vector3 Center;
+    /// <summary>The display color, sRGB-encoded, as <c>unpackUnorm4x8</c> reads it: red in the lowest byte.</summary>
+    public uint Color;
+    /// <summary>The radii along the frame's axes, in meters.</summary>
+    public Vector3 Radii;
+    /// <summary><see cref="SphereFlag"/> or 0.</summary>
+    public uint Flags;
+}
+
 /// <summary>The frame uniform block (std140). 720 bytes.</summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct GpuFrameConstants
@@ -156,5 +175,13 @@ internal struct DrawPushConstants
 internal struct ToneMapPushConstants
 {
     public float Exposure;
+    public uint EncodeSrgb;
+}
+
+/// <summary>The push constants of the outline pass (Shaders/outline.frag).</summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct OutlinePushConstants
+{
+    /// <summary>1 when the output format stores linear values and the shader must apply the sRGB curve, as the tone mapper does.</summary>
     public uint EncodeSrgb;
 }
