@@ -1,6 +1,6 @@
 ---
 id: ter-fb3w
-status: open
+status: in_progress
 deps: []
 links: []
 created: 2026-10-19T11:39:20Z
