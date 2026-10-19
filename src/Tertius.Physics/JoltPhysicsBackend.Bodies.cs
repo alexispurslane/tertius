@@ -182,11 +182,13 @@ public sealed partial class JoltPhysicsBackend
     /// Creates the primary body or character of a record in the system of <paramref name="frame"/>. For a character,
     /// <paramref name="upFromGravity"/> says where its up comes from (see <see cref="CreateCharacter"/>). A rigid body
     /// ignores it. A rigid body that is not <paramref name="awake"/> starts asleep, as a sleeping body that moves to
-    /// another system does.
+    /// another system does. The new body has no velocity shadow: a spawn, a hand-off and a switch of a character's form
+    /// give it velocities that no update expected (see <see cref="BodyRecord.Shadow"/>).
     /// </summary>
     private void CreatePrimary(BodyRecord record, FrameHandle frame, in DPose pose, Vector3 linearVelocity, Vector3 angularVelocity, bool upFromGravity,
         bool awake = true)
     {
+        record.Shadow = default;
         FrameWorld world = WorldFor(frame);
         if (record.Motion == BodyMotion.Character)
             record.Character = CreateCharacter(record, world, pose, linearVelocity, upFromGravity);

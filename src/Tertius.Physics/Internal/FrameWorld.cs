@@ -152,6 +152,14 @@ internal sealed class FrameWorld : IDisposable
     public bool HasGravityState;
     public Vector3 WakeProperAcceleration;
     public GravityField LastGravity;
+    /// <summary>
+    /// The inertial angular velocity, in rad/s, and angular acceleration, in rad/s², of the system's semantic frame for the
+    /// step in which its dynamic bodies last woke, or in which the system first stepped, in the semantic frame's axes (V8 of
+    /// docs/plans/spin-gravity.md). A change of the frame's turn since then wakes the bodies once the change of the
+    /// centrifugal and the Euler acceleration that it bounds in the system passes the wake threshold (see
+    /// JoltPhysicsBackend.TurnWakes).
+    /// </summary>
+    public Double3 WakeAngularVelocity, WakeAngularAcceleration;
 
     /// <summary>
     /// How fast the origin of <see cref="Frame"/> accelerates relative to its semantic frame in the current step, in

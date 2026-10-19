@@ -452,6 +452,16 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
         float AngularDamping,
         bool EnhancedInternalEdgeRemoval);
 
+    /// <summary>
+    /// The velocity shadow of the body of <paramref name="entity"/> after the last step (see <see cref="BodyRecord.Shadow"/>),
+    /// or none for an entity without a body.
+    /// </summary>
+    internal VelocityShadow ShadowOf(Entity entity)
+    {
+        lock (JoltRuntime.NativeGate)
+            return Find(entity)?.Shadow ?? default;
+    }
+
     /// <summary>Every body in the system of <paramref name="frame"/>, in the order of its ID, as Jolt holds it.</summary>
     internal unsafe List<BodyFacts> BodiesIn(FrameHandle frame)
     {

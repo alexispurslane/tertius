@@ -842,8 +842,14 @@ public sealed partial class JoltPhysicsBackend
                 }
             }
             foreach (BodyRecord record in world.ReportedLast)
+            {
                 if (record.ReportedStep != stepIndex && record.World == world && Find(record.Entity) == record)
+                {
                     Report(world, record, output, track: false);
+                    // The body fell asleep in the step, and Jolt zeroed its velocity, which no update expected.
+                    record.Shadow = default;
+                }
+            }
             // A falling numeric frame or an orbit frame moves, so its sleeping and static members move in its semantic frame
             // too.
             if (frames.Numeric(world.Frame) is NumericMode.Falling or NumericMode.Orbiting)

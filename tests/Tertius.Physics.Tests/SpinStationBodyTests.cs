@@ -23,7 +23,6 @@ namespace Tertius.Physics.Tests;
 public class SpinStationBodyTests
 {
     private const double StationRate = 0.31321;
-    private static readonly FrameSpin StationSpin = new(DQuaternion.Identity, StationRate);
     private static readonly BodyDesc UndampedCrate = new(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
     private static readonly BodyDesc Crate = new(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10);
     // A ball of 10 kg and radius 0.5 m has the moment of inertia 2/5 m r² = 1 kg m² about every axis.
@@ -37,12 +36,15 @@ public class SpinStationBodyTests
         public DPose Pose(World world) => world.Frames.LocalPose(Frame);
     }
 
-    /// <summary>A root frame without a field, and in it a station that turns in place, with a bubble of radius <paramref name="bubble"/>.</summary>
-    private static Station SpawnStation(World world, bool firstMove, float bubble = 150)
+    /// <summary>
+    /// A root frame without a field, and in it a station that turns in place, with a bubble of radius
+    /// <paramref name="bubble"/>, at <paramref name="rate"/> rad/s, or at <see cref="StationRate"/>.
+    /// </summary>
+    private static Station SpawnStation(World world, bool firstMove, float bubble = 150, double rate = StationRate)
     {
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
         Entity owner = world.Spawn(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(bubble)) }
-            .Spinning(world, StationSpin, firstMove));
+            .Spinning(world, new FrameSpin(DQuaternion.Identity, rate), firstMove));
         return new Station(space, world.GetOwnedFrame(owner));
     }
 
@@ -64,7 +66,8 @@ public class SpinStationBodyTests
     /// The expected path of a free body in the station without a field: its inertial line, with Jolt's linear damping
     /// relative to the station's axes (docs/plans/spin-gravity.md, "Jolt's damping in the shadow"). In each step the chord of
     /// the body in the station's axes is the chord that keeps it on its inertial line, times Jolt's damping factor
-    /// max(0, 1 − c dt), which Jolt computes in floats. Without damping it is the inertial line.
+    /// max(0, 1 − c dt), which Jolt computes in floats. Without damping it is the inertial line. A force adds its
+    /// acceleration times the step to the chord before the damping, in the station's axes, as Jolt adds it.
     /// </summary>
     private sealed class ExpectedPath(Double3 place, float damping, float dt)
     {
@@ -74,13 +77,16 @@ public class SpinStationBodyTests
 
         public Double3 Place { get; private set; } = place;
 
-        /// <summary>Moves the body over one step, in which the station went from <paramref name="start"/> to <paramref name="end"/>.</summary>
-        public void Step(in DPose start, in DPose end)
+        /// <summary>
+        /// Moves the body over one step, in which the station went from <paramref name="start"/> to <paramref name="end"/>,
+        /// and a force gave the body the acceleration <paramref name="push"/>, in m/s², in the station's axes.
+        /// </summary>
+        public void Step(in DPose start, in DPose end, Double3 push = default)
         {
             Double3 from = start.InverseTransformPoint(Place);
             Double3 free = end.InverseTransformPoint(2 * Place - previous);
             previous = Place;
-            Place = end.TransformPoint(from + (free - from) * factor);
+            Place = end.TransformPoint(from + (free - from + push * ((double)dt * dt)) * factor);
         }
     }
 
@@ -116,9 +122,10 @@ public class SpinStationBodyTests
     [Fact]
     public void AnUndampedCrateAtRestInInertialSpaceKeepsItsPlaceAndItsRotationThereWhileTheStationTurnsUnderIt()
     {
-        // The crate's place drifts by the float rounding of Jolt's velocity: in a run of this test, 0.8 mm over a minute and
-        // 24 mm over 10 minutes, so 20 s stays well within 1 mm. The velocity shadow takes that rounding back over longer
-        // runs (docs/plans/spin-gravity.md, "V6, the velocity shadow").
+        // Over 10 minutes, as the design asks. Without the velocity shadow, the float rounding of Jolt's velocity moved the
+        // crate 0.8 mm in a minute and 24 mm in 10 minutes, in a run of this test before the shadow came. The shadow keeps
+        // the update's chord and place in doubles and takes Jolt's rounding back in every step (docs/plans/spin-gravity.md,
+        // "V6, the velocity shadow").
         using World world = NewWorld(out _, debugChecks: false);
         Station station = SpawnStation(world, firstMove: false);
         var place = new Double3(50, 0, 0);
@@ -126,7 +133,7 @@ public class SpinStationBodyTests
         DPose start = DPose.Compose(station.Pose(world), new DPose(place, DQuaternion.Identity));
 
         double worstPlace = 0, worstAngle = 0, farthestInStation = 0;
-        for (int tick = 0; tick < 20 * world.Options.TickRate; tick++)
+        for (int tick = 0; tick < 600 * world.Options.TickRate; tick++)
         {
             world.Tick();
             DPose pose = world.PoseIn(crate, station.Space);
@@ -135,7 +142,9 @@ public class SpinStationBodyTests
             farthestInStation = Math.Max(farthestInStation, Double3.Distance(world.PoseIn(crate, station.Frame).Position, place));
         }
 
-        worstPlace.Should().BeLessThan(1e-3, "a free body moves on a straight line in inertial space, and this one is at rest there");
+        // Within 1 mm, as the design asks, and in fact within 0.5 µm: the shadow also takes back Jolt's rounding of the
+        // crate's place in every step, without which the crate drifted 1.6 µm in a run of this test.
+        worstPlace.Should().BeLessThan(5e-7, "a free body moves on a straight line in inertial space, and this one is at rest there");
         worstAngle.Should().BeLessThan(1e-4, "a free body keeps its inertial angular velocity, which is zero here");
         farthestInStation.Should().BeGreaterThan(99, "the station turned under the crate, so in its axes the crate went round the axis");
         world.GetFrame(crate).Should().Be(station.Frame);
@@ -154,6 +163,37 @@ public class SpinStationBodyTests
         var place = new Double3(50, 0, 0);
         Entity crate = SpawnIn(world, station, UndampedCrate, place);
         Double3 start = station.Pose(world).TransformPoint(place);
+
+        double worst = 0;
+        bool fell = false;
+        for (int tick = 0; tick < 20 * world.Options.TickRate; tick++)
+        {
+            world.Tick();
+            fell |= world.Frames.IsNumeric(world.PhysicsHomeOf(crate));
+            worst = Math.Max(worst, Double3.Distance(world.PoseIn(crate, station.Space).Position, start));
+        }
+
+        fell.Should().BeTrue("the crate fell in a numeric frame below the station");
+        worst.Should().BeLessThan(1e-3);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AnUndampedCrateThatGetsAFallingFrameWhileTheStationTurnsKeepsItsPlaceInInertialSpace()
+    {
+        // Under these rules a group of free bodies gets a falling frame from 10 m/s relative to its semantic frame. The crate
+        // is at rest in inertial space 50 m from the axis, so once the station turns it moves at 15.7 m/s in the station's
+        // axes, and it moves from the station's system into a falling frame below it. Its velocity shadow moves with it, by
+        // the difference of the two homes' places and frame velocities, as its state does. A shadow that stayed behind would
+        // read the move as a contact of 15.7 m/s and turn it.
+        NumericFrameOptions rules = NumericFrameTesting.EveryGroupFalls with { CreateSpeed = 10, LeaveSpeed = 4 };
+        using World world = NewWorld(out _, debugChecks: false, configure: options => options.NumericFrames = rules);
+        Station station = SpawnStation(world, firstMove: false);
+        var place = new Double3(50, 0, 0);
+        Entity crate = SpawnIn(world, station, UndampedCrate, place);
+        Double3 start = station.Pose(world).TransformPoint(place);
+        world.Tick();
+        world.PhysicsHomeOf(crate).Should().Be(station.Frame, "the crate rested in the station's axes while the station held still");
 
         double worst = 0;
         bool fell = false;
@@ -199,6 +239,95 @@ public class SpinStationBodyTests
         world.Errors.Should().BeEmpty();
     }
 
+    [Fact]
+    public void ACrateWithTheDefaultDampingInFreeMotionKeepsItsShadowForTenMinutesAndFollowsItsExpectedPath()
+    {
+        // Jolt's damping changes the velocity by 8.3e-4 of its value in each step at 60 Hz, far beyond the rounding that the
+        // shadow allows, so the shadow expects the damped velocity (docs/plans/spin-gravity.md, fork O3). Then every update
+        // after the first starts from the shadow, which the chain of its places shows: each place is the one before plus the
+        // new chord times the step, exactly, where an update that started from Jolt's place would break the chain.
+        // The damping draws a crate without a floor into the station's turn, and the centrifugal term then carries it outward
+        // at a rate that grows with its distance from the axis: at the spike's 0.31321 rad/s the distance grows by e in 16 s,
+        // so the crate would leave any bubble in 10 minutes. At 0.02 rad/s it grows by e in about 200 s, and in a run of this
+        // test it went from 30 m to 514 m in 10 minutes.
+        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        Station station = SpawnStation(world, firstMove: false, bubble: 2000, rate: 0.02);
+        var place = new Double3(30, 0, 0);
+        Entity crate = SpawnIn(world, station, Crate, place);
+        var path = new ExpectedPath(station.Pose(world).TransformPoint(place), Crate.LinearDamping, world.DeltaTime);
+        double dt = world.DeltaTime;
+        // In its first step the station holds still, and the crate with it. Its second step is the first that turns, whose
+        // update starts from Jolt's state and writes the first shadow.
+        world.Tick();
+
+        double worst = 0;
+        int broken = 0, missing = 0;
+        ShadowTracking? last = null;
+        for (int tick = 1; tick < 600 * world.Options.TickRate; tick++)
+        {
+            DPose start = station.Pose(world);
+            world.Tick();
+            path.Step(start, station.Pose(world));
+            worst = Math.Max(worst, Double3.Distance(world.PoseIn(crate, station.Space).Position, path.Place));
+            if (!backend.ShadowOf(crate).TryGetValue(out ShadowTracking shadow))
+            {
+                missing++;
+                last = null;
+                continue;
+            }
+            if (last is { } before && (shadow.Step != before.Step + 1 || shadow.Place != before.Place + shadow.Chord * dt))
+                broken++;
+            last = shadow;
+        }
+
+        missing.Should().Be(0, "a dynamic body in a turning frame keeps a shadow after every update");
+        broken.Should().Be(0, "every update after the first starts from the shadow, and none takes the contact branch");
+        worst.Should().BeLessThan(1e-3);
+        Double3 inStation = world.PoseIn(crate, station.Frame).Position;
+        Math.Sqrt(inStation.X * inStation.X + inStation.Z * inStation.Z).Should().BeGreaterThan(300, "the damping drew the crate into the turn, and it drifted outward");
+        world.GetFrame(crate).Should().Be(station.Frame);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ASteadyForceOnACrateInTheStationKeepsItsShadowAndGivesTheCrateItsExpectedPath()
+    {
+        // Jolt adds the force of an intent to the body's velocity in the step, beside the update's force, so the shadow
+        // expects it too. A shadow that left it out would take the force for a contact in every step. The crate weighs 16 kg,
+        // whose inverse Jolt holds exactly in a float, so the force of 16 N gives it exactly 1 m/s² along the station's +Z.
+        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        Station station = SpawnStation(world, firstMove: false, bubble: 1000);
+        var place = new Double3(30, 0, 0);
+        var pilot = new Pilot();
+        Entity crate = SpawnIn(world, station, UndampedCrate with { Mass = 16 }, place, component: pilot);
+        var path = new ExpectedPath(station.Pose(world).TransformPoint(place), 0, world.DeltaTime);
+        double dt = world.DeltaTime;
+        world.Tick();
+        // The tick after this one writes the first force, which acts in the step beside the tick after it.
+        pilot.EveryTick = body => body.AddForce(new Vector3(0, 0, 16));
+        var push = new Double3(0, 0, 1);
+
+        double worst = 0;
+        int broken = 0;
+        ShadowTracking? last = null;
+        for (int tick = 1; tick < 30 * world.Options.TickRate; tick++)
+        {
+            DPose start = station.Pose(world);
+            world.Tick();
+            path.Step(start, station.Pose(world), tick == 1 ? Double3.Zero : push);
+            worst = Math.Max(worst, Double3.Distance(world.PoseIn(crate, station.Space).Position, path.Place));
+            backend.ShadowOf(crate).TryGetValue(out ShadowTracking shadow).Should().BeTrue();
+            if (last is { } before && (shadow.Step != before.Step + 1 || shadow.Place != before.Place + shadow.Chord * dt))
+                broken++;
+            last = shadow;
+        }
+
+        broken.Should().Be(0, "every update after the first starts from the shadow");
+        worst.Should().BeLessThan(1e-6);
+        world.GetFrame(crate).Should().Be(station.Frame);
+        world.Errors.Should().BeEmpty();
+    }
+
     // ---- Impulses ----
 
     [Theory]
@@ -226,6 +355,47 @@ public class SpinStationBodyTests
 
         double worst = 0;
         for (int tick = 0; tick < 5 * tickRate; tick++)
+        {
+            world.Tick();
+            Double3 expected = rest + inertialChange * (world.Time - impulseTime);
+            worst = Math.Max(worst, Double3.Distance(world.PoseIn(crate, station.Space).Position, expected));
+        }
+
+        worst.Should().BeLessThan(1e-3);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("drain")]
+    [InlineData("recenter")]
+    public void AnImpulseOnACrateInAFallingFrameInsideTheStationGivesItTheInertialLineOfItsChange(string shift)
+    {
+        // The crate falls in a numeric frame below the station, at rest relative to its origin. After the impulse it moves
+        // at 2 m/s relative to that origin. Under the default rules that is past the 1 m/s at which the frame takes the
+        // members' common velocity over, so the frame shifts its velocity. Under the other rules the frame takes no velocity
+        // over, and its origin moves to the crate once the crate is 1 m from it. Either shift moves every member, its
+        // velocity shadow too. A shadow that kept its old velocities would read the shift as a contact and turn it, and one
+        // that kept its old place would take the offset back in one step.
+        NumericFrameOptions rules = shift == "drain"
+            ? NumericFrameTesting.EveryGroupFalls
+            : NumericFrameTesting.EveryGroupFalls with { DrainSpeed = 1e6, RecenterDistance = 1 };
+        using World world = NewWorld(out _, debugChecks: false, configure: options => options.NumericFrames = rules);
+        Station station = SpawnStation(world, firstMove: false);
+        var pilot = new Pilot();
+        Entity crate = SpawnIn(world, station, UndampedCrate, new Double3(30, 0, 0), component: pilot);
+        Double3 rest = station.Pose(world).TransformPoint(new Double3(30, 0, 0));
+        Tick(world, 30);
+        world.Frames.IsNumeric(world.PhysicsHomeOf(crate)).Should().BeTrue("the crate fell in a numeric frame below the station");
+
+        var change = new Double3(0, 1.2, 1.6);
+        pilot.Once = body => body.AddImpulse((change * UndampedCrate.Mass).ToVector3());
+        world.Tick();
+        DPose atImpulse = station.Pose(world);
+        double impulseTime = world.Time;
+        Double3 inertialChange = atImpulse.Rotation.Rotate(change);
+
+        double worst = 0;
+        for (int tick = 0; tick < 300; tick++)
         {
             world.Tick();
             Double3 expected = rest + inertialChange * (world.Time - impulseTime);

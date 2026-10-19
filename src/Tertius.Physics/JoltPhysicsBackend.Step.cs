@@ -183,7 +183,8 @@ public sealed partial class JoltPhysicsBackend
         // Teleport first, so that a motion intent in the same intent moves the body on from the new pose. Jolt does not
         // simulate the jump, so the bodies around the old place wake. Jolt wakes those that the body touches at the new place.
         // Each velocity here is an instant velocity, and Jolt gets its chord. The pose in the home is the step record of a
-        // hull's frame when the hull has no motion intent (see PredictRecord).
+        // hull's frame when the hull has no motion intent (see PredictRecord). A teleport, a velocity that the game sets, a
+        // motion intent and an impulse each end the body's velocity shadow: no update expected them.
         if ((flags & IntentFlags.Teleport) != 0)
         {
             Double3 position = InHome(record, intent.TeleportPose.Position);
@@ -191,6 +192,7 @@ public sealed partial class JoltPhysicsBackend
             bodies.SetRPositionAndRotation(id, position.ToJolt(), intent.TeleportPose.Rotation.ToJolt(), Activation.Activate);
             record.TeleportStep = stepIndex;
             record.TeleportPose = new DPose(position, intent.TeleportPose.Rotation.Normalized());
+            record.Shadow = default;
             // At rest in the semantic frame, which is not at rest in a falling numeric home. A kinematic hull holds still in
             // its home, the frame's tree parent, unless the motion intent below aims it.
             Vector3 linear = record is { IsHull: true, Motion: BodyMotion.Kinematic }
@@ -205,6 +207,7 @@ public sealed partial class JoltPhysicsBackend
             bool sleeps = velocity == Double3.Zero && !bodies.IsActive(id);
             bodies.SetLinearVelocity(id, sleeps ? Vector3.Zero : LinearChord(record, CenterOfMass(bodies, id), velocity));
             record.VelocitySetStep = stepIndex;
+            record.Shadow = default;
         }
         if ((flags & IntentFlags.SetAngularVelocity) != 0)
         {
@@ -251,6 +254,7 @@ public sealed partial class JoltPhysicsBackend
                 bodies.SetLinearAndAngularVelocity(id, linear, angular);
             }
             record.KinematicTargetStep = stepIndex;
+            record.Shadow = default;
             kinematicMovers.Add(record);
         }
 
@@ -268,6 +272,7 @@ public sealed partial class JoltPhysicsBackend
                 record.ImpulseStep = stepIndex;
                 record.ImpulseVelocityChange = (Double3)linearAfter - linearBefore;
                 record.ImpulseAngularVelocityChange = (Double3)angularAfter - angularBefore;
+                record.Shadow = default;
             }
             if (intent.Force != Vector3.Zero || intent.Torque != Vector3.Zero)
                 bodies.AddForceAndTorque(id, intent.Force, intent.Torque);
@@ -404,9 +409,10 @@ public sealed partial class JoltPhysicsBackend
     /// inertial line (see <see cref="ApplyTurningUpdate"/>). Gives each system the sleep threshold of the weakest effective
     /// gravity on its awake dynamic bodies, with the centrifugal and the Euler term of a turning frame (see
     /// <see cref="FrameTree.EffectiveGravity"/> and <see cref="SleepThresholdFor"/>). Wakes a frame's bodies when its gravity
-    /// field changes, or when its proper acceleration has moved more than <see cref="JoltBackendOptions.WakeAccelerationThreshold"/>
-    /// from its value when they last woke. A sleeping body gets no force, and the force does not reset the sleep timer of
-    /// an awake body, so a body at rest falls asleep.
+    /// field changes, when its proper acceleration has moved more than <see cref="JoltBackendOptions.WakeAccelerationThreshold"/>
+    /// from its value when they last woke, or when its turn has changed enough since then (see <see cref="TurnWakes"/>). A
+    /// sleeping body gets no force, and the force does not reset the sleep timer of an awake body, so a body at rest falls
+    /// asleep.
     /// </summary>
     private void ApplyGravity()
     {
@@ -416,12 +422,23 @@ public sealed partial class JoltPhysicsBackend
             FrameHandle frame = world.Frame;
             Vector3 properAcceleration = frames.ProperAcceleration(frame);
             GravityField field = frames.Gravity(frame);
+            // A numeric frame reads its semantic frame's turns, and the update acts on the semantic chord of each body: Jolt's
+            // velocity plus the frame velocity of its home, the same for every body of the system.
+            FrameTurns turns = frames.Turns(frame);
+            Double3 angularVelocity = turns.Step.AngularVelocity;
+            Double3 angularAcceleration = turns.AngularAcceleration(stepDt);
             bool wake = world.HasGravityState &&
-                (field != world.LastGravity || Vector3.DistanceSquared(properAcceleration, world.WakeProperAcceleration) > wakeThreshold * wakeThreshold);
+                (field != world.LastGravity ||
+                 Vector3.DistanceSquared(properAcceleration, world.WakeProperAcceleration) > wakeThreshold * wakeThreshold ||
+                 TurnWakes(world, angularVelocity, angularAcceleration, wakeThreshold));
             if (wake)
                 WakeDynamicMembers(world);
             if (wake || !world.HasGravityState)
+            {
                 world.WakeProperAcceleration = properAcceleration;
+                world.WakeAngularVelocity = angularVelocity;
+                world.WakeAngularAcceleration = angularAcceleration;
+            }
             world.HasGravityState = true;
             world.LastGravity = field;
             world.HomeAcceleration = frames.IsNumeric(frame) ? frames.HomeAcceleration(frame, frames.SemanticOf(frame)).ToVector3() : Vector3.Zero;
@@ -431,9 +448,6 @@ public sealed partial class JoltPhysicsBackend
             BodyLockInterface locks = world.System.BodyLockInterface;
             int count = CopyActiveBodies(world);
             float weakest = float.PositiveInfinity;
-            // A numeric frame reads its semantic frame's turns, and the update acts on the semantic chord of each body: Jolt's
-            // velocity plus the frame velocity of its home, the same for every body of the system.
-            FrameTurns turns = frames.Turns(frame);
             Double3 homeVelocity = turns.Turns ? frames.HomeVelocity(frame, frames.SemanticOf(frame)) : Double3.Zero;
             for (int i = 0; i < count; i++)
             {
@@ -448,7 +462,8 @@ public sealed partial class JoltPhysicsBackend
         }
 
         // A sleeping hull still rests against gravity, and its frame's accelerometer reads that: the effective gravity, with
-        // the centrifugal and the Euler term of a turning frame, against which it rests.
+        // the centrifugal and the Euler term of a turning frame, against which it rests. The field is the linear part, and the
+        // two terms are the turning part (V4 of docs/plans/spin-gravity.md).
         foreach (BodyRecord owner in frameOwners)
         {
             if (owner.Motion != BodyMotion.Dynamic || !owner.HasPrimary)
@@ -457,8 +472,49 @@ public sealed partial class JoltPhysicsBackend
             if (bodies.IsActive(owner.Body))
                 continue;
             bodies.GetRCenterOfMassPosition(owner.Body, out RVector3 center);
-            owner.GravityApplied = frames.EffectiveGravity(owner.Frame, center.ToDouble3()).ToVector3();
+            Double3 place = center.ToDouble3();
+            Double3 linear = frames.LinearGravity(owner.Frame, place);
+            owner.FrameAcceleration = frames.Turns(owner.Frame).Turns
+                ? new AppliedFrameAcceleration(linear.ToVector3(), (frames.EffectiveGravity(owner.Frame, place) - linear).ToVector3())
+                : new AppliedFrameAcceleration(linear.ToVector3(), Vector3.Zero);
         }
+    }
+
+    /// <summary>
+    /// The wake test of a change of turn (docs/plans/spin-gravity.md, "The wake"): whether the change of the centrifugal and
+    /// the Euler acceleration at any place of the system's dynamic bodies, since they last woke, can pass
+    /// <paramref name="threshold"/>, in m/s². With ω and α the semantic frame's inertial angular velocity and angular
+    /// acceleration for the step in flight, <paramref name="angularVelocity"/> and <paramref name="angularAcceleration"/>,
+    /// their values at the last wake, and B the reach of the system (see <see cref="Reach"/>), the bound is
+    /// (|ω| + |ω_wake|) · |ω − ω_wake| · B + |α − α_wake| · B. A frame that does not turn, and one that turns steadily on its
+    /// rails, changes neither, so it never pays for the reach.
+    /// </summary>
+    private bool TurnWakes(FrameWorld world, Double3 angularVelocity, Double3 angularAcceleration, float threshold)
+    {
+        double change = (angularVelocity.Length + world.WakeAngularVelocity.Length) * Double3.Distance(angularVelocity, world.WakeAngularVelocity)
+                        + Double3.Distance(angularAcceleration, world.WakeAngularAcceleration);
+        return change > 0 && change * Reach(world) > threshold;
+    }
+
+    /// <summary>
+    /// The reach of the system of <paramref name="world"/>, in m: the largest distance from its semantic frame's origin to a
+    /// point of one of its dynamic bodies, each bounded by the sphere of <see cref="BodyRecord.Radius"/> about the body's
+    /// origin. In a numeric home it adds the home's offset. Only the dynamic bodies sleep, so only they count.
+    /// </summary>
+    private double Reach(FrameWorld world)
+    {
+        FrameHandle frame = world.Frame;
+        Double3 offset = frames.IsNumeric(frame) ? frames.HomeOffset(frame, frames.SemanticOf(frame)) : Double3.Zero;
+        BodyInterface bodies = world.Bodies;
+        double reach = 0;
+        foreach (BodyRecord member in world.Members)
+        {
+            if (member.Motion != BodyMotion.Dynamic || !member.Body.IsValid)
+                continue;
+            bodies.GetRPosition(member.Body, out RVector3 position);
+            reach = Math.Max(reach, (position.ToDouble3() + offset).Length + member.Radius);
+        }
+        return reach;
     }
 
     /// <summary>
@@ -467,9 +523,10 @@ public sealed partial class JoltPhysicsBackend
     /// <paramref name="turns"/>, the force holds the two-turn update too (see <see cref="ApplyTurningUpdate"/>), unless a
     /// steer target moves the body in the step: the steering velocities carry the body to its target in the frame's
     /// coordinates over the step, so they are the chord of the step in flight already, and the update would turn them a
-    /// second time (docs/plans/spin-gravity.md, "The flow per kind of entity"). Returns the strength of the effective gravity
-    /// at the body, in m/s², or positive infinity for any other body. The effective gravity adds the centrifugal and the
-    /// Euler term in a turning frame, and is the linear gravity otherwise.
+    /// second time (docs/plans/spin-gravity.md, "The flow per kind of entity"). Writes the acceleration that the frame gave
+    /// the body (see <see cref="BodyRecord.FrameAcceleration"/>). Returns the strength of the effective gravity at the body,
+    /// in m/s², or positive infinity for any other body. The effective gravity adds the centrifugal and the Euler term in a
+    /// turning frame, and is the linear gravity otherwise.
     /// </summary>
     /// <param name="homeVelocity">The frame velocity of the system's home relative to its semantic frame, in the step.</param>
     private float ApplyGravity(FrameHandle frame, in FrameTurns turns, Double3 homeVelocity, BodyID id, Body body)
@@ -481,11 +538,17 @@ public sealed partial class JoltPhysicsBackend
         Double3 place = center.ToDouble3();
         Double3 linear = frames.LinearGravity(frame, place);
         Vector3 gravity = linear.ToVector3();
-        record.GravityApplied = gravity;
         if (turns.Turns && record.KinematicTargetStep != stepIndex)
-            ApplyTurningUpdate(record, body, turns, frames.InSemantic(frame, frames.SemanticOf(frame), place), homeVelocity, linear);
-        else if (gravity != Vector3.Zero)
-            body.AddForce(gravity * record.Material.Mass);
+            ApplyTurningUpdate(record, body, turns, frame, place, homeVelocity, linear);
+        else
+        {
+            record.FrameAcceleration = new AppliedFrameAcceleration(gravity, Vector3.Zero);
+            // Only a body whose system's semantic frame turns keeps a shadow (fork F8).
+            if (record.Shadow.HasValue)
+                record.Shadow = default;
+            if (gravity != Vector3.Zero)
+                body.AddForce(gravity * record.Material.Mass);
+        }
         // The read of the effective gravity evaluates the field again, so a frame that does not turn takes the linear one.
         return (turns.Turns ? frames.EffectiveGravity(frame, place).ToVector3() : gravity).Length();
     }
@@ -498,27 +561,82 @@ public sealed partial class JoltPhysicsBackend
     /// that it keeps its inertial angular velocity ("The angular form"). The rigid form of a character cannot turn, so it gets
     /// no angular part.
     /// <para>
+    /// The update starts from the body's velocity shadow while Jolt's velocity matches what the last update expected to
+    /// rounding: from the shadow's double chord and place, so that the force also takes back Jolt's float rounding of the last
+    /// step, of its velocity and of its place ("V6, the velocity shadow"). When Jolt's velocity differs by more, a contact
+    /// changed it: Jolt applied the contact in the frame's axes at the start of the step that ended, while that step's chord
+    /// is in its axes at the end, so the update starts from Jolt's velocity with the contact's change turned by that step's
+    /// turn, the contact turn. Without a shadow of the last step it starts from Jolt's velocity and place. The force writes
+    /// the next shadow, with Jolt's damping in its expected velocity (fork O3).
+    /// </para>
+    /// <para>
     /// An impulse in the step changed Jolt's velocities at the start of the step, in the frame's axes then, but the update
     /// reads Jolt's velocity as the chord of the step that ended, which it carries by both turns. So the change leaves Jolt's
     /// velocity and comes back as the change of that chord that has the same effect, <see cref="FrameTurn.ChangeBehind"/> on
     /// the turn of the step that ended, which the update carries by the turn of the step in flight alone. The change of the
     /// angular velocity goes to the angular form as the change of the inertial angular velocity at the start of the step
-    /// ("Impulses"). A force and a torque of the intent act over the step as Jolt applies them, like the field.
+    /// ("Impulses"). An impulse ends the shadow, so the update starts from Jolt's velocity. A force and a torque of the
+    /// intent act over the step as Jolt applies them, like the field, and the shadow expects them.
     /// </para>
     /// </summary>
-    /// <param name="place">The body's center of mass relative to the semantic frame, in m.</param>
+    /// <param name="center">The body's center of mass in its home, as Jolt holds it, in m.</param>
     /// <param name="homeVelocity">The frame velocity of the body's home relative to its semantic frame, in the step.</param>
-    private void ApplyTurningUpdate(BodyRecord record, Body body, in FrameTurns turns, Double3 place, Double3 homeVelocity, Double3 linear)
+    private unsafe void ApplyTurningUpdate(BodyRecord record, Body body, in FrameTurns turns, FrameHandle frame, Double3 center,
+        Double3 homeVelocity, Double3 linear)
     {
         double dt = stepDt;
+        Vector3 velocity = body.GetLinearVelocity();
+        // Where the update starts, relative to the home: the chord of the step that ended and the place at the start of the
+        // step in flight.
+        Double3 chord = velocity;
+        Double3 place = center;
+        if (record.Shadow.TryGetValue(out ShadowTracking shadow) && shadow.Step == stepIndex - 1)
+        {
+            if (shadow.Matches(velocity))
+            {
+                chord = shadow.Chord;
+                place = shadow.Place;
+            }
+            else
+            {
+                // The contact turn: the contact's change of velocity, from the axes at the start of the step that ended into
+                // its axes at the end.
+                Double3 contact = (Double3)velocity - (Double3)shadow.JoltTarget;
+                chord += turns.Last.Turn.Rotate(contact) - contact;
+            }
+        }
         bool impulse = record.ImpulseStep == stepIndex;
         Double3 velocityChange = impulse ? record.ImpulseVelocityChange : Double3.Zero;
-        Double3 chord = (Double3)body.GetLinearVelocity() + homeVelocity;
-        Double3 behind = chord - velocityChange + turns.Last.ChangeBehind(velocityChange);
-        // The change of Jolt's velocity beyond the field, over the step: the update from the chord behind, and the move of
-        // the impulse's change behind.
-        Double3 turning = (turns.FreeChange(place, behind, dt) + behind - chord) / dt;
-        body.AddForce(((linear + turning) * record.Material.Mass).ToVector3());
+        Double3 behind = chord + homeVelocity - velocityChange + turns.Last.ChangeBehind(velocityChange);
+        Double3 semanticPlace = frames.InSemantic(frame, frames.SemanticOf(frame), place);
+        // The update's chord of the step in flight, relative to the home, before Jolt's damping.
+        Double3 ahead = behind + turns.FreeChange(semanticPlace, behind, dt) + linear * dt - homeVelocity;
+        // Jolt's damping factor for the step, in floats, as Jolt computes it.
+        float damping = MathF.Max(0f, 1f - record.Material.LinearDamping * stepDt);
+        // The force carries Jolt's velocity to the update's chord, and Jolt's place to the shadow's: Jolt moves the body by
+        // its velocity after the damping.
+        Double3 acceleration = (ahead - velocity) / dt;
+        if (damping > 0)
+            acceleration += (place - center) / (damping * dt * dt);
+        Vector3 force = (acceleration * record.Material.Mass).ToVector3();
+        Vector3 intentForce;
+        JoltNative.BodyAccumulatedForce(body.Handle, &intentForce);
+        body.AddForce(force);
+        // Everything that the force gives beyond the field is the frame's: the rotation part of the update, the move of an
+        // impulse's change behind, the take-back of Jolt's rounding and the contact turn. The contact turn belongs there too:
+        // a body at rest on a floor gets an update whose rotation part leans across the floor by ω³ r dt, and the contact
+        // turn takes that lean out of the force, so a total without it would read as a push of the floor across itself.
+        record.FrameAcceleration = new AppliedFrameAcceleration(linear.ToVector3(), (acceleration - linear).ToVector3());
+        if (damping > 0)
+        {
+            // Jolt's step: v + dt (m⁻¹ F) for the accumulated force, which holds a force of the intent, then the damping.
+            float inverseMass = body.MotionProperties.InverseMassUnchecked;
+            Vector3 target = (velocity + stepDt * (inverseMass * (intentForce + force))) * damping;
+            Double3 next = (ahead + (Double3)intentForce * inverseMass * dt) * damping;
+            record.Shadow = new VelocityShadow(new ShadowTracking(next, place + next * dt, target, stepIndex));
+        }
+        else
+            record.Shadow = default;
         if (record.IsCharacter)
             return;
         Double3 angularChange = impulse ? record.ImpulseAngularVelocityChange : Double3.Zero;
@@ -666,7 +784,7 @@ public sealed partial class JoltPhysicsBackend
                 next -= gravity * (dt * 0.5f) + HomeInstantVelocityOverChord(world.Frame).ToVector3();
             next += gravity * dt;
         }
-        record.GravityApplied = held ? Vector3.Zero : gravity;
+        record.FrameAcceleration = new AppliedFrameAcceleration(held ? Vector3.Zero : gravity, Vector3.Zero);
         next += record.PendingVelocityChange;
         record.PendingVelocityChange = Vector3.Zero;
         record.PendingJump = 0;
@@ -755,17 +873,21 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
-    /// The proper acceleration of each frame with a dynamic hull: its hull's velocity change over the step minus the gravity
-    /// that the parent applied, turned into the frame's own axes. Also the hull's acceleration and angular acceleration in
+    /// The proper acceleration of each frame with a dynamic hull: its hull's velocity change over the step minus the whole
+    /// acceleration that the parent frame gave it (see <see cref="AppliedFrameAcceleration.Total"/>), the gravity and in a
+    /// turning parent the rotation terms, turned into the frame's own axes. So a ship that rests on the floor of a spinning
+    /// station reads ω² R toward the axis, and every change of velocity that the frame did not give reads as proper
+    /// acceleration (docs/plans/spin-gravity.md, "V4, the acceleration that the frame gave a body"). Also the hull's
+    /// acceleration and angular acceleration in
     /// the update, in the axes of its home, which leave out what the intents set before it (see
     /// <see cref="CaptureHullVelocitiesAfterIntents"/>).
     /// </summary>
     /// <remarks>
     /// Jolt keeps velocities in float. At orbital speed one float step of velocity, divided by the time step, is
     /// about 0.03 m/s², so a hull in free fall would read that much noise and its loose contents would drift. Jolt also
-    /// turns the gravity into a velocity change in float, through the force, the inverse mass and the step. Each
-    /// component smaller than the float resolution of the velocity along that axis, or of the gravity along it, reads
-    /// as zero.
+    /// turns the frame's acceleration into a velocity change in float, through the force, the inverse mass and the step.
+    /// Each component smaller than the float resolution of the velocity along that axis, or of the frame's acceleration
+    /// along it, reads as zero.
     /// </remarks>
     private void ComputeProperAccelerations()
     {
@@ -776,29 +898,30 @@ public sealed partial class JoltPhysicsBackend
             BodyInterface bodies = owner.World!.Bodies;
             Vector3 before = owner.VelocityBefore;
             Vector3 after = bodies.GetLinearVelocity(owner.Body);
-            Vector3 gravity = owner.GravityApplied;
-            Vector3 acceleration = (after - before) / stepDt - gravity;
+            Vector3 applied = owner.FrameAcceleration.Total;
+            Vector3 acceleration = (after - before) / stepDt - applied;
             acceleration = new Vector3(
-                AboveResolution(acceleration.X, before.X, after.X, gravity.X, stepDt),
-                AboveResolution(acceleration.Y, before.Y, after.Y, gravity.Y, stepDt),
-                AboveResolution(acceleration.Z, before.Z, after.Z, gravity.Z, stepDt));
+                AboveResolution(acceleration.X, before.X, after.X, applied.X, stepDt),
+                AboveResolution(acceleration.Y, before.Y, after.Y, applied.Y, stepDt),
+                AboveResolution(acceleration.Z, before.Z, after.Z, applied.Z, stepDt));
             owner.ProperAcceleration = Vector3.Transform(acceleration, Quaternion.Conjugate(bodies.GetRotation(owner.Body)));
             // The same change of velocity without its float noise, less the part that the intents made before the update.
-            owner.StepAcceleration = (Double3)gravity + (Double3)acceleration - ((Double3)owner.VelocityAfterIntents - before) / stepDt;
+            owner.StepAcceleration = (Double3)applied + (Double3)acceleration - ((Double3)owner.VelocityAfterIntents - before) / stepDt;
             owner.AngularAcceleration = (bodies.GetAngularVelocity(owner.Body) - owner.AngularVelocityAfterIntents) / stepDt;
         }
     }
 
     /// <summary>
     /// Zero when <paramref name="acceleration"/> is within the rounding of a float velocity change, or within two float
-    /// steps of the <paramref name="gravity"/> along the same axis, which Jolt rounds on the way to the velocity change.
+    /// steps of <paramref name="applied"/>, the acceleration that the frame gave the hull, along the same axis, which Jolt
+    /// rounds on the way to the velocity change.
     /// </summary>
-    private static float AboveResolution(float acceleration, float before, float after, float gravity, float dt)
+    private static float AboveResolution(float acceleration, float before, float after, float applied, float dt)
     {
         float magnitude = MathF.Max(MathF.Abs(before), MathF.Abs(after));
         float resolution = (MathF.BitIncrement(magnitude) - magnitude) / dt;
-        float strength = MathF.Abs(gravity);
-        float gravityResolution = 2 * (MathF.BitIncrement(strength) - strength);
-        return MathF.Abs(acceleration) <= MathF.Max(resolution, gravityResolution) ? 0f : acceleration;
+        float strength = MathF.Abs(applied);
+        float appliedResolution = 2 * (MathF.BitIncrement(strength) - strength);
+        return MathF.Abs(acceleration) <= MathF.Max(resolution, appliedResolution) ? 0f : acceleration;
     }
 }

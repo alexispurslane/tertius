@@ -682,7 +682,8 @@ public readonly record struct ContactEnded(Entity A, Entity B);
 /// the acceleration and the angular acceleration over the step, and the angular velocity at its end.</param>
 /// <param name="ProperAcceleration">
 /// The proper acceleration that physics measured for a dynamic hull, in m/s², in the frame's own axes: Jolt's whole change
-/// of velocity over the step minus the gravity that physics applied, so an impulse reads as a jolt. Null for every other
+/// of velocity over the step minus the acceleration that the hull's parent frame gave it, the gravity and in a turning
+/// parent the rotation terms, so an impulse reads as a jolt. Null for every other
 /// hull, whose frame takes the value that the frame tree derives from <see cref="Motion"/> and the gravity at its place (see
 /// <see cref="FrameTree.ProperAcceleration"/>).
 /// </param>

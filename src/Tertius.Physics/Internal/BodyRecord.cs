@@ -170,13 +170,19 @@ internal sealed class BodyRecord
     /// <summary>The pose in its home, with a unit rotation, at which the teleport of <see cref="TeleportStep"/> put the body.</summary>
     public DPose TeleportPose;
     /// <summary>
-    /// The gravity that the last step applied to the body, in the axes of its home: the linear gravity to a dynamic rigid
-    /// body while it was awake, and to a character that the ground did not hold (zero when it did). It holds no part of the
-    /// two-turn update of a turning frame, which the same force carries (see JoltPhysicsBackend.ApplyTurningUpdate). A
+    /// The acceleration that the body's frame gave it in the last step in which physics moved it, in the axes of its home
+    /// (V4 of docs/plans/spin-gravity.md): the linear gravity, to a dynamic rigid body while it was awake and to a character
+    /// that the ground did not hold (zero when it did), and the change that a turning frame's update made beyond it. A
     /// sleeping dynamic hull gets the effective gravity, with the centrifugal and the Euler term of a turning frame, against
     /// which it rests.
     /// </summary>
-    public Vector3 GravityApplied;
+    public AppliedFrameAcceleration FrameAcceleration;
+    /// <summary>
+    /// For a dynamic body in a turning frame: what the last two-turn update expects of it at the end of its step (V6 of
+    /// docs/plans/spin-gravity.md), or none. Every new primary body starts without one, and so does a body after a
+    /// teleport, a velocity that the game sets, an impulse or a steer target, or after it falls asleep.
+    /// </summary>
+    public VelocityShadow Shadow;
     /// <summary>For a dynamic frame hull: the frame's proper acceleration in frame axes, from the last step.</summary>
     public Vector3 ProperAcceleration;
     /// <summary>The step whose motion intent aimed or steered the body, or -1 (see JoltPhysicsBackend.ApplyBodyIntent).</summary>

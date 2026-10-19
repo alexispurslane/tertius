@@ -108,8 +108,9 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// The instant velocity at the end of the step of the primary body of <paramref name="record"/>, whose state Jolt has
     /// at <paramref name="s"/>: relative to the instant velocity of its home there. It is Jolt's chord plus half a step of
-    /// the acceleration that the step gave the body: the gravity that physics applied to it, and its damping. A body that
-    /// sleeps got none. Call it only after the update of a step.
+    /// the acceleration that the step gave the body: the linear gravity that physics applied to it (the field of
+    /// <see cref="BodyRecord.FrameAcceleration"/>), and its damping. A body that sleeps got none. Call it only after the
+    /// update of a step.
     /// </summary>
     private Double3 InstantVelocity(BodyRecord record, in BodySnapshot s)
     {
@@ -122,9 +123,9 @@ public sealed partial class JoltPhysicsBackend
         Double3 chord = s.Linear;
         return record.Motion switch
         {
-            BodyMotion.Character => chord + (Double3)record.GravityApplied * half,
+            BodyMotion.Character => chord + (Double3)record.FrameAcceleration.Field * half,
             BodyMotion.Dynamic when record.World!.Bodies.IsActive(record.Body) =>
-                chord + ((Double3)record.GravityApplied - record.Material.LinearDamping * chord) * half,
+                chord + ((Double3)record.FrameAcceleration.Field - record.Material.LinearDamping * chord) * half,
             _ => chord,
         };
     }
