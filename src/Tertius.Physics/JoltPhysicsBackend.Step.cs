@@ -451,12 +451,13 @@ public sealed partial class JoltPhysicsBackend
             int count = CopyActiveBodies(world);
             float weakest = float.PositiveInfinity;
             Double3 homeVelocity = turns.Turns ? frames.HomeVelocity(frame, frames.SemanticOf(frame)) : Double3.Zero;
+            Double3 homeAcceleration = turns.Turns ? frames.HomeAcceleration(frame, frames.SemanticOf(frame)) : Double3.Zero;
             for (int i = 0; i < count; i++)
             {
                 BodyID id = activeScratch[i];
                 locks.LockWrite(id, out BodyLockWrite write);
                 if (write.Succeeded && write.Body is { } body)
-                    weakest = MathF.Min(weakest, ApplyGravity(frame, turns, homeVelocity, id, body));
+                    weakest = MathF.Min(weakest, ApplyGravity(frame, turns, homeVelocity, homeAcceleration, id, body));
                 locks.UnlockWrite(write);
             }
             if (weakest < float.PositiveInfinity)
@@ -531,7 +532,8 @@ public sealed partial class JoltPhysicsBackend
     /// turning frame, and is the linear gravity otherwise.
     /// </summary>
     /// <param name="homeVelocity">The frame velocity of the system's home relative to its semantic frame, in the step.</param>
-    private float ApplyGravity(FrameHandle frame, in FrameTurns turns, Double3 homeVelocity, BodyID id, Body body)
+    /// <param name="homeAcceleration">The acceleration of the system's home relative to its semantic frame, in the step.</param>
+    private float ApplyGravity(FrameHandle frame, in FrameTurns turns, Double3 homeVelocity, Double3 homeAcceleration, BodyID id, Body body)
     {
         ulong data = body.GetUserData();
         if (BodyUserData.Kind(data) != BodyKind.Primary || RecordFor(data) is not { Motion: BodyMotion.Dynamic } record || record.Body != id)
@@ -541,7 +543,7 @@ public sealed partial class JoltPhysicsBackend
         Double3 linear = frames.LinearGravity(frame, place);
         Vector3 gravity = linear.ToVector3();
         if (turns.Turns && record.KinematicTargetStep != stepIndex)
-            ApplyTurningUpdate(record, body, turns, frame, place, homeVelocity, linear);
+            ApplyTurningUpdate(record, body, turns, frame, place, homeVelocity, homeAcceleration, linear);
         else
         {
             record.FrameAcceleration = new AppliedFrameAcceleration(gravity, Vector3.Zero);
@@ -558,7 +560,8 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Gives the locked dynamic body <paramref name="body"/> of <paramref name="record"/> in a turning frame, whose turns are
     /// <paramref name="turns"/>, the two-turn update over the step in flight (docs/plans/spin-gravity.md, "The two-turn
-    /// update"), plus the linear gravity <paramref name="linear"/> at its place, as one force: the change of its semantic
+    /// update"), plus the linear gravity <paramref name="linear"/> at its place, with its field part turned by the turn of the
+    /// step, as one force: the change of its semantic
     /// chord that keeps it on its inertial line, in doubles, narrowed once. Its angular velocity follows the angular form, so
     /// that it keeps its inertial angular velocity ("The angular form"). The rigid form of a character cannot turn, so it gets
     /// no angular part.
@@ -583,8 +586,9 @@ public sealed partial class JoltPhysicsBackend
     /// </summary>
     /// <param name="center">The body's center of mass in its home, as Jolt holds it, in m.</param>
     /// <param name="homeVelocity">The frame velocity of the body's home relative to its semantic frame, in the step.</param>
+    /// <param name="homeAcceleration">The acceleration of the body's home relative to its semantic frame, in the step.</param>
     private unsafe void ApplyTurningUpdate(BodyRecord record, Body body, in FrameTurns turns, FrameHandle frame, Double3 center,
-        Double3 homeVelocity, Double3 linear)
+        Double3 homeVelocity, Double3 homeAcceleration, Double3 linear)
     {
         double dt = stepDt;
         Vector3 velocity = body.GetLinearVelocity();
@@ -611,8 +615,13 @@ public sealed partial class JoltPhysicsBackend
         Double3 velocityChange = impulse ? record.ImpulseVelocityChange : Double3.Zero;
         Double3 behind = chord + homeVelocity - velocityChange + turns.Last.ChangeBehind(velocityChange);
         Double3 semanticPlace = frames.InSemantic(frame, frames.SemanticOf(frame), place);
-        // The update's chord of the step in flight, relative to the home, before Jolt's damping.
-        Double3 ahead = behind + turns.FreeChange(semanticPlace, behind, dt) + linear * dt - homeVelocity;
+        // The update's chord of the step in flight, relative to the home, before Jolt's damping. The field part of the linear
+        // gravity, which is the linear gravity plus the home's acceleration, acts at the start of the step, in the axes then,
+        // so the turn of the step carries it into the axes at the end: x_(n+1) gains R_n g dt². The home's acceleration is
+        // motion in the semantic frame's coordinates, which takes no turn.
+        Double3 field = linear + homeAcceleration;
+        Double3 ahead = behind + turns.FreeChange(semanticPlace, behind, dt) + (turns.Step.Turn.Rotate(field) - homeAcceleration) * dt
+                        - homeVelocity;
         // Jolt's damping factor for the step, in floats, as Jolt computes it.
         float damping = MathF.Max(0f, 1f - record.Material.LinearDamping * stepDt);
         // The force carries Jolt's velocity to the update's chord, and Jolt's place to the shadow's: Jolt moves the body by
@@ -624,8 +633,8 @@ public sealed partial class JoltPhysicsBackend
         Vector3 intentForce;
         JoltNative.BodyAccumulatedForce(body.Handle, &intentForce);
         body.AddForce(force);
-        // Everything that the force gives beyond the field is the frame's: the rotation part of the update, the move of an
-        // impulse's change behind, the take-back of Jolt's rounding and the contact turn. The contact turn belongs there too:
+        // Everything that the force gives beyond the field is the frame's: the rotation part of the update, the turn of the
+        // field, the move of an impulse's change behind, the take-back of Jolt's rounding and the contact turn. The contact turn belongs there too:
         // a body at rest on a floor gets an update whose rotation part leans across the floor by ω³ r dt, and the contact
         // turn takes that lean out of the force, so a total without it would read as a push of the floor across itself.
         record.FrameAcceleration = new AppliedFrameAcceleration(linear.ToVector3(), (acceleration - linear).ToVector3());

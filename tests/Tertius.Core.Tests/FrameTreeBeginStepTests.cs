@@ -543,6 +543,30 @@ public class FrameTreeBeginStepTests
         ExpectNear(frames.TreeLocalPose(pod).Position, new Double3(r * Math.Cos(w), 0, r * Math.Sin(w)), 1e-6);
     }
 
+    [Fact]
+    public void TheOriginOfAFallingFrameInATurningFrameWithAFieldTakesTheFieldTurnedByTheTurnOfTheStep()
+    {
+        // The point of the test above, in a station whose field is g along its +Z. Jolt's scheme puts the end of the step
+        // at x_(n+1) = 2 R_n x_n − R_n R_(n−1) x_(n−1) + R_n g dt²: the field acts at the start of the step, in the axes then,
+        // and R_n carries it into the axes at the end. A point at rest in inertial space a step ago, at x_(n−1) = R⁻¹ x_n,
+        // ends at R_n (x_n + g dt²). The field left in the axes at the start would end it at R_n x_n + g dt², off by
+        // |g| w dt² = 1.4e-5 m.
+        FrameHandle station = Frame(space, DPose.Identity);
+        var g = new Vector3(0, 0, 10);
+        frames.SetGravity(station, GravityField.Uniform(g));
+        double w = StationRate * Step, r = 10_000;
+        var place = new Double3(r, 0, 0);
+        Double3 chord = (place - new Double3(r * Math.Cos(w), 0, -r * Math.Sin(w))) / Step;
+        FrameHandle pod = FallingFrame(station, place, chord);
+
+        frames.Update();
+        frames.BeginStep(Intents((station, Spin(End(1)))), Step, lastStepFailed: false);
+        frames.AdvanceNumericFrames(Step);
+
+        DQuaternion turn = DQuaternion.FromAxisAngle(Double3.UnitY, -w);
+        ExpectNear(frames.TreeLocalPose(pod).Position, turn.Rotate(place + (Double3)g * (Step * Step)), 1e-9);
+    }
+
     /// <summary>The falling numeric frame that a numeric update gives one body of <paramref name="semantic"/> at <paramref name="position"/>.</summary>
     private FrameHandle FallingFrame(FrameHandle semantic, Double3 position, Double3 velocity)
     {

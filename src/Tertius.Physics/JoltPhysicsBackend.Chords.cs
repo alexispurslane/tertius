@@ -38,8 +38,10 @@ namespace Tertius.Physics;
 // that ends at the instant of the velocity, and reads an instant velocity back by its exact inverse, FrameTurn.InstantAtEnd.
 // At the start of a step that turn is the frame's turn of the step that ended (V2 of the design), and at its end, for an
 // instant velocity at the end of the step or a hand-off, the turn of the step that just ended (V1). The step's two-turn
-// update then carries the chord on along the inertial line (see ApplyTurningUpdate). The half step of the linear gravity and
-// of the damping stays as above. The angular velocity of a dynamic body that can turn has the same pair,
+// update then carries the chord on along the inertial line (see ApplyTurningUpdate). The half step of the damping stays as
+// above. The half step of the linear gravity is a change of velocity at the instant, in the axes then, so the chord behind
+// takes its field part turned back into the axes of the step that ended, and an instant velocity read at the end of a step
+// takes it as it is (see TurningMoment). The angular velocity of a dynamic body that can turn has the same pair,
 // FrameTurn.AngularChordBehind and FrameTurn.InstantAngularAtEnd. A kinematic body moves in the frame's coordinates, and a
 // walking character's update keeps its own rules, so neither takes the turn. A ghost converts its real body's chord by the
 // poses of the frame at both ends of the step (see StepPoses).
@@ -65,19 +67,30 @@ public sealed partial class JoltPhysicsBackend
     /// moment, and the place and the frame velocity then of the origin of the body's home relative to its semantic frame. A
     /// place and a velocity relative to the home, plus these, are the body's semantic place and velocity, on which the rule
     /// acts.
+    /// <para>
+    /// The half step of the linear gravity in the rule is a change of velocity at the moment, in the frame's axes at the
+    /// moment. The chord behind lies in the axes of the step that ended, so the field part of that half step, the linear
+    /// gravity plus the home's acceleration, takes the turn back like the rest of the velocity (see
+    /// <see cref="ChordBehindChange"/>), as the two-turn update turns the field of the step's start on into the axes at its
+    /// end (docs/plans/spin-gravity.md, "The two-turn update"). The instant velocity at the end of a step gains the field at
+    /// that moment in the axes then, which is the frame's field there, fixed in its axes, so that half step takes no turn
+    /// (see <see cref="InstantAtEndChange"/>).
+    /// </para>
     /// </summary>
     /// <param name="Turn">The semantic frame's turn of the step that ends at the moment, and its angular velocity then.</param>
     /// <param name="HomeOffset">The place of the home's origin in the semantic frame at the moment, in m.</param>
     /// <param name="HomeVelocity">The home's frame velocity relative to the semantic frame at the moment, a chord, in m/s.</param>
-    private readonly record struct TurningMoment(FrameTurn Turn, Double3 HomeOffset, Double3 HomeVelocity)
+    /// <param name="HomeAcceleration">The acceleration of the home relative to the semantic frame in the step, in m/s².</param>
+    private readonly record struct TurningMoment(FrameTurn Turn, Double3 HomeOffset, Double3 HomeVelocity, Double3 HomeAcceleration)
     {
         /// <summary>
         /// How much the chord behind the instant velocity <paramref name="velocity"/>, relative to the home's frame velocity,
-        /// of a body at <paramref name="center"/> in the home exceeds that velocity: the turn's part of the chord rule.
+        /// of a body at <paramref name="center"/> in the home, under the linear gravity <paramref name="linear"/>, exceeds
+        /// that velocity less half a step of the gravity: the turn's part of the chord rule.
         /// </summary>
-        public Double3 ChordBehindChange(Double3 center, Double3 velocity, double dt)
+        public Double3 ChordBehindChange(Double3 center, Double3 velocity, Double3 linear, double dt)
         {
-            Double3 semantic = velocity + HomeVelocity;
+            Double3 semantic = velocity + HomeVelocity - (linear + HomeAcceleration) * (0.5 * dt);
             return Turn.ChordBehind(center + HomeOffset, semantic, dt) - semantic;
         }
 
@@ -104,7 +117,8 @@ public sealed partial class JoltPhysicsBackend
         if (!turns.Turns)
             return null;
         FrameHandle semantic = frames.SemanticOf(home);
-        return new TurningMoment(turns.Last, frames.HomeOffset(home, semantic), frames.HomeVelocity(home, semantic));
+        return new TurningMoment(turns.Last, frames.HomeOffset(home, semantic), frames.HomeVelocity(home, semantic),
+            frames.HomeAcceleration(home, semantic));
     }
 
     /// <summary>
@@ -119,7 +133,8 @@ public sealed partial class JoltPhysicsBackend
         if (!turns.Turns)
             return null;
         FrameHandle semantic = frames.SemanticOf(home);
-        return new TurningMoment(turns.Step, frames.HomeOffsetAfter(home, semantic, stepDt), frames.HomeVelocityAfter(home, semantic, stepDt));
+        return new TurningMoment(turns.Step, frames.HomeOffsetAfter(home, semantic, stepDt), frames.HomeVelocityAfter(home, semantic, stepDt),
+            frames.HomeAcceleration(home, semantic));
     }
 
     /// <summary>
@@ -136,7 +151,7 @@ public sealed partial class JoltPhysicsBackend
         Double3 local = velocity - HomeInstantVelocityOverChord(home);
         Double3 chord = local - ChordAcceleration(record, home, center, local) * (0.5 * stepDt);
         if (record.Motion == BodyMotion.Dynamic && turning is { } moment)
-            chord += moment.ChordBehindChange(center, velocity, stepDt);
+            chord += moment.ChordBehindChange(center, velocity, frames.LinearGravity(home, center), stepDt);
         return chord.ToVector3();
     }
 
@@ -279,7 +294,7 @@ public sealed partial class JoltPhysicsBackend
         TurningMoment? turning = StepEnd(to);
         Double3 chordAcceleration = ChordAcceleration(record, to, center, linear);
         if (record.Motion == BodyMotion.Dynamic && turning is { } moment)
-            chordAcceleration -= moment.ChordBehindChange(center, velocity, stepDt) / half;
+            chordAcceleration -= moment.ChordBehindChange(center, velocity, frames.LinearGravity(to, center), stepDt) / half;
         return (LinearChord(record, to, center, velocity, turning), AngularChord(record, angular.ToVector3(), turning), chordAcceleration);
     }
 

@@ -120,6 +120,102 @@ public class SpinStationRoomTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>The station's rate as a vector in its axes, which are the axes of every room in it, in rad/s.</summary>
+    private static readonly Double3 Omega = new(0, StationRate, 0);
+
+    /// <summary>
+    /// Reads the place of <paramref name="crate"/> in <paramref name="space"/> after each of <paramref name="ticks"/> ticks.
+    /// </summary>
+    private static List<Double3> PlacesInSpace(World world, Entity crate, FrameHandle space, int ticks)
+    {
+        var places = new List<Double3>();
+        for (int k = 0; k < ticks; k++)
+        {
+            world.Tick();
+            places.Add(world.PoseIn(crate, space).Position);
+        }
+        return places;
+    }
+
+    [Fact]
+    public void ACrateSpawnedInAStaticRoomOfTheStationAtRestInInertialSpaceDriftsOnlyByTheThirdOrderTermOfTheChordRule()
+    {
+        // The room has had its first two steps, so it gives its contents its push toward the axis reversed, g = ω² R along
+        // +X. The crate's instant velocity relative to the room is −ω × (R + r), the reverse of the velocity of the
+        // station's point where it is. The chord rule gives Jolt the chord behind it on its line, with half a step of g
+        // taken off in the axes of the step that ended, where the chord lies: R⁻¹ g dt / 2. The rule holds the room's
+        // velocity and acceleration but not its jerk ω³ R, which leaves the chord off by ω³ R dt² / 6 = 7.11e-5 m/s, and the
+        // crate drifts at that speed (measured 7.15e-5 m/s). The half step of g left in the axes now is off by a further
+        // ω dt |g| dt / 2 = 2.1e-4 m/s, against the jerk's term: the crate then drifts at 1.4e-4 m/s.
+        using World world = NewWorld(out _, debugChecks: false);
+        Station station = SpawnStation(world);
+        Tick(world, 3);
+        FrameHandle room = SpawnRoom(world, station.Frame, new Double3(RoomRadius, 0, 0), 30);
+        Tick(world, 2);
+        var place = new Double3(2, 0, 0);
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = room, Pose = new DPose(place, DQuaternion.Identity), Body = UndampedCrate,
+            LinearVelocity = -Double3.Cross(Omega, place + new Double3(RoomRadius, 0, 0)),
+        });
+        Double3 start = world.PoseIn(crate, station.Space).Position;
+
+        List<Double3> places = PlacesInSpace(world, crate, station.Space, 90);
+
+        double dt = 1.0 / 60;
+        double drift = Double3.Distance(places[89], places[14]) / (75 * dt);
+        double jerkTerm = Math.Pow(StationRate, 3) * RoomRadius * dt * dt / 6;
+        world.GetFrame(crate).Should().Be(room, "the crate stayed in the room's bubble");
+        drift.Should().BeApproximately(jerkTerm, 2e-6, "the crate drifts only by the chord rule's third-order term");
+        Double3.Distance(places[0], start).Should().BeLessThan(2e-6, "the first step starts the crate at rest");
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ACrateAtRestInInertialSpaceThatAStaticRoomOfTheStationSweepsOverKeepsItsRestThroughBothHandOffs()
+    {
+        // The crate rests in inertial space in the station, ahead of a room 50 m from the axis, whose bubble of 5 m sweeps
+        // over it at 15.7 m/s. Its hand-off into the room gives it the chord behind its instant velocity there, with half a
+        // step of the room's push reversed, g = ω² R, turned back into the axes of the step that ended: left in the axes now,
+        // it is off by ω dt |g| dt / 2 = 2.1e-4 m/s. While the room holds it, the chord rule's third-order term of the room's
+        // jerk, ω³ R dt² / 6 = 7.1e-5 m/s, moves it (measured 7.0e-5 m/s). Its hand-off out reads its instant velocity at the
+        // end of the step from its chord, plus half a step of the room's field at that moment in the axes then, which is g
+        // itself: g turned on by the step's turn is off by 2.1e-4 m/s again. The read takes the jerk's term back but for the
+        // room's turn of 0.24 rad in between, so the crate keeps a drift of 8.8e-6 m/s in the station.
+        using World world = NewWorld(out _, debugChecks: false);
+        Station station = SpawnStation(world);
+        Tick(world, 3);
+        FrameHandle room = SpawnRoom(world, station.Frame, new Double3(RoomRadius, 0, 0), 5);
+        Tick(world, 2);
+        var place = new Double3(RoomRadius, 0, -8);
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = station.Frame, Pose = new DPose(place, DQuaternion.Identity), Body = UndampedCrate,
+            LinearVelocity = -Double3.Cross(Omega, place),
+        });
+
+        var frames = new List<FrameHandle>();
+        var places = new List<Double3>();
+        for (int k = 0; k < 150; k++)
+        {
+            world.Tick();
+            frames.Add(world.GetFrame(crate));
+            places.Add(world.PoseIn(crate, station.Space).Position);
+        }
+
+        double dt = 1.0 / 60;
+        int entry = frames.IndexOf(room), exit = frames.LastIndexOf(room) + 1;
+        entry.Should().BeInRange(5, 12, "the room's bubble reaches the crate after about 0.15 s");
+        exit.Should().BeInRange(50, 60, "the room's bubble leaves the crate after about 0.9 s");
+        frames.Skip(exit).Should().AllSatisfy(f => f.Should().Be(station.Frame), "the crate stays in the station");
+        double inRoom = Double3.Distance(places[exit - 2], places[entry + 2]) / ((exit - entry - 4) * dt);
+        double jerkTerm = Math.Pow(StationRate, 3) * RoomRadius * dt * dt / 6;
+        inRoom.Should().BeApproximately(jerkTerm, 4e-6, "in the room the crate drifts only by the chord rule's third-order term");
+        double afterExit = Double3.Distance(places[149], places[exit + 2]) / ((147 - exit) * dt);
+        afterExit.Should().BeLessThan(2e-5, "the crate rests in inertial space after both hand-offs, to the jerk's term");
+        world.Errors.Should().BeEmpty();
+    }
+
     [Fact]
     public void ARoomAtRestInAShipOnTheStationsFloorReadsTheShipsPushOneSyncPointAfterTheShip()
     {

@@ -1144,8 +1144,8 @@ public sealed partial class FrameTree
     /// <paramref name="id"/>: the acceleration that it keeps for the step that starts now, a step of <paramref name="step"/>
     /// seconds that applies <paramref name="stepIntents"/>, relative to its parent. A falling frame takes the acceleration
     /// that keeps its origin on the inertial line of a free body at its place: the field of its semantic frame at its origin
-    /// minus the semantic frame's proper acceleration, plus the two-turn update of its semantic place and chord over the
-    /// step, divided by the step, minus the acceleration of the numeric frames above it, which the dense order, parents
+    /// minus the semantic frame's proper acceleration, in a turning frame turned by the semantic frame's turn of the step,
+    /// plus the two-turn update of its semantic place and chord over the step, divided by the step, minus the acceleration of the numeric frames above it, which the dense order, parents
     /// first, has fixed already (docs/plans/spin-gravity.md, "The origin of a falling frame"). The semantic frame's turns
     /// are fixed earlier in the same pass. Its members then feel only the difference between their own rotation terms and
     /// the origin's, so a falling group keeps small local velocities. In a semantic frame that does not turn (see
@@ -1179,8 +1179,10 @@ public sealed partial class FrameTree
         Double3 place = HomeOffset(frame, semantic);
         Double3 acceleration = FieldOf(semantic.Index, place);
         ref readonly FrameTurns semanticTurns = ref turns[semantic.Index];
+        // In a turning frame the field acts at the start of the step, in the axes then, and the turn of the step carries it
+        // into the axes at the end, as in the update of the members (docs/plans/spin-gravity.md, "The two-turn update").
         if (semanticTurns.Turns)
-            acceleration += semanticTurns.FreeChange(place, HomeVelocity(frame, semantic), step) / step;
+            acceleration = semanticTurns.Step.Turn.Rotate(acceleration) + semanticTurns.FreeChange(place, HomeVelocity(frame, semantic), step) / step;
         stepAcceleration[id] = acceleration - HomeAcceleration(parent, semantic);
     }
 
