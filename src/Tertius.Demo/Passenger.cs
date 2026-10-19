@@ -44,8 +44,9 @@ public enum PassengerPhase
 /// <para>The passenger reads its own state at the end of the last finished step, and its pushes act in the step of the
 /// next tick, so it acts two steps late. The belt's spring and damper are slow for that: the spring swings at
 /// <see cref="BeltFrequency"/>, damped critically, about 0.2 radians of phase in the lag. The push against the gravity
-/// lags by one step behind the gravity that physics uses, so a sudden change of thrust moves the passenger a few
-/// centimeters, and the spring brings it back.</para>
+/// lags by one step behind the gravity that physics uses, so a sudden change of the cabin's motion moves the passenger,
+/// and the spring brings it back: a few centimeters when the engine starts, and about 0.17 m when the hull's tail reaches
+/// the foot of the launch ramp and the hull stops turning onto the incline at once.</para>
 /// <para>The belt's gate is the lean of the gravity, not physics' report that the person stands, because that report is a
 /// step late too. A push in the step in which the person stands again would throw it up off the floor. A character stands
 /// on ground up to 50 degrees steep (<c>JoltBackendOptions.CharacterMaxSlopeDegrees</c>), so below the belt's 45 degrees

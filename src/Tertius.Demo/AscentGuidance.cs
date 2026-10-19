@@ -11,7 +11,8 @@ namespace Tertius.Demo;
 /// vertical speed, at the same moment. The time to go is the time that the whole thrust needs for the speed along the
 /// track that is left, and at least <see cref="ShortestTimeToGo"/>. In that time, the vertical acceleration that starts
 /// a straight-line change of acceleration and ends at the circle's height with no vertical speed is 6 Δr / t² - 4 v / t.
-/// The engine must give that, plus the gravity, less the lift of the speed along the track, v² / r. The rest of the
+/// The engine must give that, plus the gravity, less the lift of the speed along the track, v² / r, up to full throttle
+/// either way. The rest of the
 /// thrust goes along the track, but never more than takes the speed that is left in <see cref="TrimTime"/>. So the
 /// throttle falls in the last seconds, and the climb ends without a jolt.</para>
 /// <para>From a ramp at 30 degrees, at 3 g, this pitches the thrust up to about 60 degrees, then over to the horizontal
