@@ -1,6 +1,6 @@
 ---
 id: ter-6azq
-status: in_progress
+status: closed
 deps: [ter-xdt8]
 links: []
 created: 2026-10-19T17:19:52Z
