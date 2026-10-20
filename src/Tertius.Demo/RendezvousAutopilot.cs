@@ -152,7 +152,10 @@ public readonly struct RendezvousState : IEquatable<RendezvousState>
 /// The transfer angle at which the window opens, in radians. The angle falls while the shuttle waits, because the lower
 /// shuttle gains on the station, so the window is open while the angle lies from <paramref name="WindowCloses"/> to this.
 /// </param>
-/// <param name="WindowCloses">The transfer angle at which the window closes, in radians.</param>
+/// <param name="WindowCloses">
+/// The transfer angle at which the window closes, in radians. The window lies inside half a turn, more than
+/// <see cref="KeplerOrbit.LambertRefusedAngle"/> from 0 and from 180 degrees, where Lambert's problem has no plane.
+/// </param>
 /// <param name="WeightlessTurnRate">
 /// The fastest turn of the nose in the trim and the coast of the transfer, while the cabin is weightless, in radians per
 /// second, at most <see cref="AttitudeAutopilot.MaxTurnRate"/>. The turn from the burn's nose to the brake's direction
@@ -173,7 +176,7 @@ public readonly record struct RendezvousPlan(double TransferTime, double Arrival
     /// center, the Euler term of this rate is 0.024 m/s², less than half <see cref="FrameTree.ZeroGravityThreshold"/>, so
     /// the cabin stays weightless and the person keeps its up. At <see cref="AttitudeAutopilot.MaxTurnRate"/>, the turn of
     /// about 160 degrees from the burn's nose to the brake's direction gave about 0.1 m/s² there and turned the person onto
-    /// its side. This rate turns it in about 1,400 s, inside the trim and the coast of about 2,450 s.
+    /// its side. This rate turns it in about 1,400 s, inside the trim of about 2,450 s.
     /// </remarks>
     public static RendezvousPlan Demo { get; } = new(TransferTime: 2560, ArrivalDistance: 1500, HoldDistance: DemoScenes.DemoStation.HoldPoint.Y,
         WindowOpens: 170 * Math.PI / 180, WindowCloses: 150 * Math.PI / 180, WeightlessTurnRate: 0.002);
@@ -196,7 +199,7 @@ public readonly record struct RendezvousPlan(double TransferTime, double Arrival
 /// transfer starts, with the arrival time one transfer time from now.</item>
 /// <item><see cref="Transfer"/>: while the velocity to gain is longer than <see cref="TransferGuidance.SpeedTolerance"/>,
 /// the nose turns toward it, the main engine gives the part of the push along the nose, and the translation thrusters the
-/// rest. Below that, the thrusters alone trim it, and the nose holds the brake's direction. In the last
+/// rest. Below that, the thrusters alone trim it, and the nose turns toward the brake's direction. In the last
 /// <see cref="TransferGuidance.CoastTime"/>, the autopilot solves nothing more, and the nose turns against the velocity
 /// relative to the station. In the trim and the coast, the cabin is weightless, so the nose turns at most at the plan's
 /// <see cref="RendezvousPlan.WeightlessTurnRate"/>. The brake starts in the coast, where the braking curve of the brake reaches the shuttle, or at
@@ -248,10 +251,11 @@ public sealed class RendezvousAutopilot(Entity station, RendezvousPlan plan, dou
     private readonly RendezvousPlan plan =
         plan.TransferTime > TransferGuidance.CoastTime && double.IsFinite(plan.TransferTime)
         && plan.ArrivalDistance > 0 && double.IsFinite(plan.ArrivalDistance) && plan.HoldDistance > 0 && double.IsFinite(plan.HoldDistance)
-        && plan.WindowCloses > 0 && plan.WindowCloses < plan.WindowOpens && plan.WindowOpens < 2 * Math.PI
+        && plan.WindowCloses > KeplerOrbit.LambertRefusedAngle && plan.WindowCloses < plan.WindowOpens
+        && plan.WindowOpens < Math.PI - KeplerOrbit.LambertRefusedAngle
         && plan.WeightlessTurnRate > 0 && plan.WeightlessTurnRate <= AttitudeAutopilot.MaxTurnRate
             ? plan
-            : throw new ArgumentException($"A plan needs a transfer longer than the coast, positive distances, a window inside a turn, and a weightless turn rate above 0 and at most the attitude autopilot's, not {plan}.", nameof(plan));
+            : throw new ArgumentException($"A plan needs a transfer longer than the coast, positive distances, a window inside half a turn and more than a degree from 0 and from 180 degrees, and a weightless turn rate above 0 and at most the attitude autopilot's, not {plan}.", nameof(plan));
 
     private readonly double maxThrust = maxThrust > 0 && double.IsFinite(maxThrust)
         ? maxThrust

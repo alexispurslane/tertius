@@ -127,6 +127,24 @@ public sealed class FlightControlTests : IDisposable
         (Math.PI / 2 - world.PoseIn(shuttle, space).Rotation.AngularVelocityTo(target, 1).Length).Should().BeApproximately(0.1, 0.01);
     }
 
+    /// <summary>
+    /// A turn rate of NaN would lift every cap, and a negative one would turn the hull away from its target. Each is an
+    /// error that the world logs, as a bad throttle is for the main engine, and the hull gets no torque.
+    /// </summary>
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(-0.01)]
+    public void ATurnRateThatIsNaNOrBelowZeroIsAnErrorAndGivesNoTorque(double maxTurnRate)
+    {
+        DQuaternion target = DQuaternion.FromAxisAngle(Double3.UnitY, Math.PI / 2);
+        Launch(new TargetFor(ticks: int.MaxValue, target, maxTurnRate), new AttitudeAutopilot(Shuttle.Inertia));
+
+        Tick(world, 30);
+
+        world.AngularVelocityIn(shuttle, space).Length().Should().BeLessThan(1e-6f);
+        world.Errors.Should().Contain(error => error.Contains(nameof(AttitudeAutopilot)) && error.Contains("A turn rate lies from 0 up"));
+    }
+
     /// <summary>The target stops after 60 ticks, while the hull turns, so the autopilot gives no more torque and the hull turns on at the rate it had.</summary>
     [Fact]
     public void ATickWithoutAnAttitudeTargetGivesNoTorque()

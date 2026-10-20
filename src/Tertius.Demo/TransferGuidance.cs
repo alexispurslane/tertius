@@ -34,8 +34,9 @@ public readonly record struct TransferGuidance(double Mu)
     public const double SpeedTolerance = FrameTree.ZeroGravityThreshold / 2 * TrimTime;
 
     /// <summary>
-    /// The longest push of a burn, in m/s²: a throttle of about 0.10, so that a burn of about 60 m/s lasts about 20 s, long
-    /// enough to film and far below the climb's force on the belt.
+    /// The longest push of a burn, in m/s²: a throttle of about 0.10, so that the departure burn of about 60 m/s lasts about
+    /// 32 s, long enough to film and far below the climb's force on the belt. The push stays at this cap for about 16 s,
+    /// until about 12 m/s is left to gain, and <see cref="TrimTime"/> then takes the rest.
     /// </summary>
     public const double BurnAcceleration = 3;
 
@@ -111,7 +112,8 @@ public readonly record struct TransferGuidance(double Mu)
 /// </param>
 /// <param name="BrakeDirection">
 /// The unit direction of the brake: the opposite of the shuttle's velocity relative to the station at the arrival point, on
-/// the path. The nose holds it in the trim and the coast, so the brake starts without a turn.
+/// the path. In the trim, the nose turns toward it at the plan's <see cref="RendezvousPlan.WeightlessTurnRate"/>, and in
+/// the coast against the velocity relative to the station, so the brake starts after only a small turn.
 /// </param>
 public readonly record struct TransferSteering(Double3 ToGain, Double3 Push, Double3 BrakeDirection)
 {

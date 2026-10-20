@@ -272,7 +272,26 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
     }
 
     /// <summary>
-    /// On the short plan, the brake ends within 10 m of the arrival point and slower than 0.5 m/s relative to the station,
+    /// <see cref="KeplerOrbit.Lambert"/> refuses a transfer angle within <see cref="KeplerOrbit.LambertRefusedAngle"/> of 0
+    /// or 180 degrees. A window that reaches such an angle would make the transfer's steering throw in every tick, so the
+    /// autopilot would neither steer nor halt. So such a plan is refused at the autopilot's construction: a window that
+    /// opens within a degree of 180 degrees, one that opens above 180 degrees, and one that closes within a degree of 0.
+    /// </summary>
+    [Theory]
+    [InlineData(179.5, 150)]
+    [InlineData(190, 170)]
+    [InlineData(30, 0.5)]
+    public void APlanWhoseWindowReachesAnAngleThatLambertRefusesIsRefused(double opensDegrees, double closesDegrees)
+    {
+        RendezvousPlan plan = RendezvousPlan.Demo with { WindowOpens = opensDegrees * Math.PI / 180, WindowCloses = closesDegrees * Math.PI / 180 };
+
+        Action build = () => new RendezvousAutopilot(station, plan, Thrust);
+
+        build.Should().Throw<ArgumentException>().WithParameterName("plan");
+    }
+
+    /// <summary>
+    /// On the short plan, the brake ends within 10 m of the arrival point and slower than 0.1 m/s relative to the station,
     /// within a minute after the arrival time. At the arrival time, the shuttle is within 100 m of the arrival point.
     /// </summary>
     [Fact]
@@ -283,7 +302,7 @@ public sealed class RendezvousAutopilotTests : IDisposable, IClassFixture<Rendez
         brake.Should().NotBeEmpty("the shuttle brakes");
         ShortPlanRun.Record end = brake[^1];
         end.FromArrival.Should().BeLessThan(10);
-        end.RelativeSpeed.Should().BeLessThan(0.5);
+        end.RelativeSpeed.Should().BeLessThan(RendezvousAutopilot.BrakeEndSpeed);
         end.Time.Should().BeLessThan(run.ArrivalTime + 60);
         run.Log.First(record => record.Time >= run.ArrivalTime).FromArrival.Should().BeLessThan(100, "the miss at the arrival time");
     }

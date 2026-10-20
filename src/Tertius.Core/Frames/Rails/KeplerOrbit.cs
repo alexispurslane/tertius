@@ -194,13 +194,17 @@ public record struct KeplerOrbit(
     /// <remarks>
     /// The universal variable χ, in √m, measures the path in one form for every kind of conic (Curtis, "Orbital Mechanics
     /// for Engineering Students", section 3.7). Newton's method solves the universal Kepler equation for it. Its slope is
-    /// the distance from the center, which is never 0, so each step is defined. On a closed path, the start is √a times the
-    /// mean anomaly that the time adds, which is exact on a circle. Otherwise it is the time at the starting distance from
-    /// the center, and Newton's method takes out its error in about 11 steps on a hyperbola over 60,000 s. The Lagrange
-    /// coefficients f, g, ḟ and ġ then give the state from χ and Stumpff's functions.
+    /// the distance from the center, which is never 0, so each step is defined, and the equation grows with χ. So its value
+    /// at each step bounds the solution on one side, and a step that leaves those bounds, or that shrinks by less than
+    /// half, gives way to a halving of them. On a closed path, the start is √a times the mean anomaly that the time adds,
+    /// which is exact on a circle. Otherwise it is the time at the starting distance from the center. On a hyperbola that
+    /// start lies far beyond the solution after a long time, where Newton's method alone takes out only about one unit of
+    /// the hyperbolic anomaly per step, and the halvings bring it near: an escape over 2 days takes about 17 steps. The
+    /// Lagrange coefficients f, g, ḟ and ġ then give the state from χ and Stumpff's functions.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">The G·M is not finite or not above 0, the position is not finite or is
-    /// at the center, the velocity is not finite, or the time is not finite.</exception>
+    /// at the center, the velocity is not finite, or the time is not finite. Or Newton's method does not converge in
+    /// <see cref="PropagationIterations"/> steps, which happens only on a hyperbola over more than about 1e28 s.</exception>
     public static (Double3 Position, Double3 Velocity) Propagate(Double3 position, Double3 velocity, double mu, double time)
     {
         CheckGravity(mu);
@@ -217,17 +221,52 @@ public record struct KeplerOrbit(
         // The reciprocal of the semi-major axis, in 1/m: above 0 on a closed path, 0 on a parabola, below 0 on a hyperbola.
         double alpha = 2 / r0 - velocity.LengthSquared / mu;
         double chi = alpha > 0 ? sqrtMu * alpha * time : sqrtMu * time / r0;
+        // The universal Kepler function grows with χ, as its slope is the distance from the center. It is below 0 at
+        // χ = 0 for a time above 0, so the solution lies above 0, and the other way round. Each value of the function
+        // narrows this range, and a step that leaves the range, or that shrinks by less than half, gives way to halving.
+        double low = time > 0 ? 0 : double.NegativeInfinity, high = time > 0 ? double.PositiveInfinity : 0;
+        double lastStep = double.PositiveInfinity;
+        bool converged = false;
         for (int i = 0; i < PropagationIterations; i++)
         {
             double z = alpha * chi * chi;
             (double c, double s) = Stumpff(z);
             double kepler = radial * chi * chi * c + (1 - alpha * r0) * chi * chi * chi * s + r0 * chi - sqrtMu * time;
             double distance = radial * chi * (1 - z * s) + (1 - alpha * r0) * chi * chi * c + r0;
-            double step = kepler / distance;
-            chi -= step;
-            if (Math.Abs(step) <= UniversalAnomalyTolerance * Math.Abs(chi))
-                break;
+            double next;
+            if (!(double.IsFinite(kepler) && double.IsFinite(distance)))
+            {
+                // cosh overflows only far beyond the solution, on the side of χ's sign.
+                if (chi > 0)
+                    high = chi;
+                else
+                    low = chi;
+                next = (low + high) / 2;
+            }
+            else
+            {
+                double step = kepler / distance;
+                if (Math.Abs(step) <= UniversalAnomalyTolerance * Math.Abs(chi))
+                {
+                    chi -= step;
+                    converged = true;
+                    break;
+                }
+                if (kepler < 0)
+                    low = chi;
+                else
+                    high = chi;
+                next = chi - step;
+                bool bounded = double.IsFinite(low) && double.IsFinite(high);
+                if (bounded && (!(next > low && next < high) || Math.Abs(step) > lastStep / 2))
+                    next = (low + high) / 2;
+            }
+            lastStep = Math.Abs(next - chi);
+            chi = next;
         }
+        if (!converged)
+            throw new ArgumentOutOfRangeException(nameof(time), time,
+                "Newton's method found no universal variable for this time: a hyperbola over more than about 1e28 s.");
 
         double zEnd = alpha * chi * chi;
         (double cEnd, double sEnd) = Stumpff(zEnd);
@@ -250,8 +289,9 @@ public record struct KeplerOrbit(
     /// variable z over a single revolution, from a hyperbola at z below 0 to the slowest oval at 4π², so bisection finds z.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">The G·M is not finite or not above 0, a point is not finite or is at the
-    /// center, the time of flight is not finite or not above 0, or the normal is not finite or is zero. Or no path of one
-    /// revolution or less takes that time: a hyperbola faster than any ship flies.</exception>
+    /// center, the time of flight is not finite or not above 0, or the normal is not finite or is zero. Or the path that
+    /// takes that time is faster than the search covers: a hyperbola whose anomaly turns by more than 2π, far faster than
+    /// any ship flies.</exception>
     /// <exception cref="ArgumentException">The angle about the normal from <paramref name="from"/> to <paramref name="to"/>
     /// lies within <see cref="LambertRefusedAngle"/> of 0 or π, where the two points and the center do not define the path's
     /// plane, and a small move of a point turns it far.</exception>
@@ -294,7 +334,7 @@ public record struct KeplerOrbit(
         double time = LambertTime(z, r1, r2, a, sqrtMu, out double y);
         if (!(Math.Abs(time - timeOfFlight) <= LambertTimeTolerance * timeOfFlight))
             throw new ArgumentOutOfRangeException(nameof(timeOfFlight), timeOfFlight,
-                "No two-body path of one revolution or less takes this time between these points.");
+                "The path that takes this time between these points is faster than the search covers: a hyperbola whose anomaly turns by more than 2π.");
 
         double f = 1 - y / r1, g = a * Math.Sqrt(y / mu), gDot = 1 - y / r2;
         return ((to - from * f) / g, (to * gDot - from) / g);
@@ -315,11 +355,11 @@ public record struct KeplerOrbit(
     private const double UniversalAnomalyTolerance = 1e-13;
 
     /// <summary>
-    /// The most steps of Newton's method in <see cref="Propagate"/>, a bound well above the need. From its start, a circle
-    /// takes 1 step, an oval about 4, and a hyperbola over 60,000 s about 11. A state that does not converge in 50 keeps
-    /// the last step, as <see cref="EccentricAnomalyAt"/> does.
+    /// The most steps of Newton's method in <see cref="Propagate"/>, a bound above the need. From its start, a circle takes
+    /// 1 step, an oval about 4, an escape over 2 days about 17, and a hyperbola over 1e16 s up to about 63. A hyperbola
+    /// over more than about 1e28 s takes more, and the propagation refuses it.
     /// </summary>
-    private const int PropagationIterations = 50;
+    private const int PropagationIterations = 100;
 
     /// <summary>
     /// Below this size of z, <see cref="Stumpff"/> sums the series, which leaves out terms under 5e-14 of the values there.

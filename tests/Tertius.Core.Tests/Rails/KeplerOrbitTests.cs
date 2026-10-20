@@ -460,6 +460,41 @@ public class KeplerOrbitTests
         Double3.Distance(laterVelocity, expectedVelocity).Should().BeLessThan(1e-5);
     }
 
+    /// <summary>
+    /// An escape from the station's circle, 400 km up, on a hyperbola over days. From the short-time start, Newton's method
+    /// crawls about one unit of the hyperbolic anomaly per step down to an anomaly near 4, so 50 steps leave it far from the
+    /// solution, and at 20 km/s over 4 days, either way, the start's cosh overflows into NaN. The reference integrates the pull with
+    /// fourth-order Runge-Kutta steps of 1 s, whose error stays far below the tolerance.
+    /// </summary>
+    [Theory]
+    [InlineData(11500, 2 * 86400)]
+    [InlineData(20000, 86400)]
+    [InlineData(20000, 4 * 86400)]
+    [InlineData(11500, -2 * 86400)]
+    [InlineData(20000, -4 * 86400)]
+    public void APropagationOnAHyperbolaOverDaysFollowsThePullOfTheGravity(double speed, double time)
+    {
+        Double3 position = new(StationRadius, 0, 0), velocity = new Double3(0.2, 0, -1) * (speed / Math.Sqrt(1.04));
+        (Double3 expected, Double3 expectedVelocity) = Integrate(position, velocity, time, Math.Sign(time) * 1.0);
+
+        (Double3 later, Double3 laterVelocity) = KeplerOrbit.Propagate(position, velocity, Mu, time);
+
+        Double3.Distance(later, expected).Should().BeLessThan(1);
+        Double3.Distance(laterVelocity, expectedVelocity).Should().BeLessThan(1e-5);
+    }
+
+    /// <summary>
+    /// At 20 km/s from 400 km up, over 1e300 s, the start of Newton's method lies about 1,000 halvings from the solution,
+    /// and the method does not converge. The propagation says so, where it once returned a state far off the path.
+    /// </summary>
+    [Fact]
+    public void APropagationThatNewtonsMethodDoesNotSolveIsRefused()
+    {
+        Action propagate = () => KeplerOrbit.Propagate(new Double3(StationRadius, 0, 0), new Double3(0, 0, -20000), Mu, 1e300);
+
+        propagate.Should().Throw<ArgumentOutOfRangeException>().WithParameterName("time");
+    }
+
     private static (Double3 Position, Double3 Velocity) Integrate(Double3 position, Double3 velocity, double time, double step)
     {
         for (int i = 0, steps = (int)Math.Round(time / step); i < steps; i++)
@@ -593,7 +628,7 @@ public class KeplerOrbitTests
     /// refuses it, where a range of z that misses it would give a wrong path.
     /// </summary>
     [Fact]
-    public void ATimeOfFlightThatNoPathOfOneRevolutionTakesIsRefused()
+    public void ATimeOfFlightFasterThanTheSearchCoversIsRefused()
     {
         Double3 end = OnThePlane(StationRadius, Degrees(178));
 

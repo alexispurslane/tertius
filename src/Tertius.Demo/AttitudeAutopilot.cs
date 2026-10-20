@@ -16,7 +16,9 @@ public struct AttitudeTarget : IEventPayload
     /// <summary>
     /// The fastest turn that the autopilot may ask for to reach <see cref="Rotation"/>, in radians per second, at most
     /// <see cref="AttitudeAutopilot.MaxTurnRate"/>. A layer that flies a weightless cabin with a strapped crew turns slowly,
-    /// so that the turn gives the crew no felt gravity (see <see cref="RendezvousPlan.WeightlessTurnRate"/>).
+    /// so that the turn gives the crew no felt gravity (see <see cref="RendezvousPlan.WeightlessTurnRate"/>). A rate below
+    /// 0, or NaN, makes the autopilot throw <see cref="ArgumentOutOfRangeException"/>, which the world logs as an error, and
+    /// give no torque in that tick.
     /// </summary>
     public required double MaxTurnRate;
 }
@@ -92,6 +94,8 @@ public sealed class AttitudeAutopilot(Vector3 inertia) : IComponent
         AttitudeTarget target = default;
         foreach (ref AttitudeTarget each in events.Of<AttitudeTarget>())
             target = each;
+        if (target.MaxTurnRate is not >= 0)
+            throw new ArgumentOutOfRangeException(nameof(AttitudeTarget.MaxTurnRate), target.MaxTurnRate, "A turn rate lies from 0 up.");
         DPose pose = self.PoseIn(self.Frame);
         // The turn that is left, as a rotation vector in the frame's axes, and the turn rate that the autopilot asks for.
         Double3 rate = pose.Rotation.AngularVelocityTo(target.Rotation, 1) * Gain;
