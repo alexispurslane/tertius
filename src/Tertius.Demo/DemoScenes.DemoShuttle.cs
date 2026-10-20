@@ -21,8 +21,9 @@ public static partial class DemoScenes
     /// <item><c>standing</c>, a dynamic shuttle, stands on its tail on the pad, 1 cm above it at the start. It is turned a
     /// quarter turn about +X, so its nose points up and its roof faces +Z.</item>
     /// <item><c>lying</c>, a parked shuttle, rests on its belly on the floor beside the pad, unturned.</item>
-    /// <item>Each carries its nozzle in its frame, <c>standing-nozzle</c> and <c>lying-nozzle</c>
-    /// (see <see cref="Shuttle.SpawnNozzle"/>).</item>
+    /// <item>Each carries its nozzle and its 40 panes of glass in its frame, with its id as a prefix, such as
+    /// <c>standing-nozzle</c> and <c>lying-pane-roof-4</c> (see <see cref="Shuttle.SpawnNozzle"/> and
+    /// <see cref="Shuttle.Panes"/>).</item>
     /// <item>The views: <c>side-camera</c>, the camera at the start, sees both from the side, from the port and aft quarter.
     /// <c>tail-camera</c> looks at the tail face of <c>lying</c> from behind and a little below its middle, and
     /// <c>nose-camera</c> at its front from ahead and above.</item>
@@ -48,21 +49,21 @@ public static partial class DemoScenes
             Render = Drawn(resources, Primitives.Box(ShuttlePadHalf), new Vector4(0.55f, 0.55f, 0.52f, 1), boundingRadius: ShuttlePadHalf.Length()),
         }));
 
-        MeshData hull = Shuttle.Loft.Mesh();
-        RenderData Hull() => Drawn(resources, hull, new Vector4(0.85f, 0.85f, 0.88f, 1), boundingRadius: MathF.Ceiling(Shuttle.Hull.Length()));
         Entity standing = world.Spawn(new SpawnDesc
         {
             Frame = ground,
             Pose = new DPose(new Double3(0, 2 * ShuttlePadHalf.Y + Shuttle.Hull.Z + 0.01, 0), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)),
             Body = Shuttle.Body(BodyMotion.Dynamic),
             AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
-            Render = Hull(),
+            Render = Shuttle.DrawnHull(resources),
         });
         scene.Add("standing", standing);
         Shuttle.SpawnNozzle(world, world.GetOwnedFrame(standing), scene, resources, "standing");
-        Entity lying = Shuttle.Park(world, ground, new DPose(new Double3(LyingShuttleX, Shuttle.Hull.Y, 0), DQuaternion.Identity), Hull());
+        Shuttle.Panes(world, world.GetOwnedFrame(standing), scene, resources, "standing");
+        Entity lying = Shuttle.Park(world, ground, new DPose(new Double3(LyingShuttleX, Shuttle.Hull.Y, 0), DQuaternion.Identity), Shuttle.DrawnHull(resources));
         scene.Add("lying", lying);
         Shuttle.SpawnNozzle(world, world.GetOwnedFrame(lying), scene, resources, "lying");
+        Shuttle.Panes(world, world.GetOwnedFrame(lying), scene, resources, "lying");
 
         Entity camera = world.Spawn(new SpawnDesc { Frame = ground, Pose = LookingAt(new Double3(-28, 7, 32), new Double3(7, 5, 0)), Render = new RenderData() });
         scene.Add("side-camera", camera);

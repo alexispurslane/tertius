@@ -43,7 +43,7 @@ Step 3 of the sequence, as ticket ter-m13s built it in the Demo, in the scene `d
 - A script posts `Ignition` to the shuttle. Its `AscentAutopilot` unparks the hull with `Self.Body.SetMotion(BodyMotion.Dynamic)` and runs the `MainEngine` at full throttle, 3 g along the nose, with the nose toward the velocity, until the shuttle is 30 m above the ramp's top. Then `AscentGuidance` steers a closed loop to a circle 200 km up: it splits the thrust between the climb and the speed along the track, so that the shuttle reaches the circle's height with no vertical speed when it reaches the circle's speed. It also steers into the launch plane, `DemoSurface.LaunchPlaneNormal`, the plane of the station's orbit, as a real launch flies into the plane of its target (ter-tzf6): it pushes back toward the plane a ship that drifts across it or lies beside it, and never takes thrust from the climb to do so. So the parking orbit lies in that plane (`DemoLaunchTests`, `BlueDanubeRendezvousTests`). The thrust pitches up from the ramp's 30 degrees to about 60, then over, and a little below the horizon at the end. The engine stops when the trim's thrust would fall below the weightless threshold. The autopilot talks to the engine and to the `AttitudeAutopilot` only through its entity's events: in each tick it adds a `Throttle` and an `AttitudeTarget`, which those two components read after it, and a tick without them gives no thrust and no torque (`FlightControlTests`). Its state is the custom union `AscentState`: `Parked`, `Ramp` with the guidance and the launch radius, `Climb` with the guidance, and `Orbit`. In the run of the script, the climb takes 321 s, and the periapsis and the apoapsis lie within 5 km of 200 km (`DemoLaunchTests`), well above the top of the air at 100 km (`DemoScenes.AtmosphereTop`).
 - The cabin's weight comes from the frame's derived proper acceleration alone: the weight of the ground on the pad, the ramp's push and the engine's thrust in the climb, and nothing in orbit.
 - The person's `Passenger` belt holds it at its seat while the cabin's gravity leans more than 45 degrees from the floor's down or the cabin is weightless: it pushes the person with its mass times the opposite of that gravity, plus a spring and a damper. The foot of the ramp jolts the person by about 0.17 m. Nothing holds the person's up to the seat: it follows the felt gravity in the air at most at the air rate of 1 rad/s, as for every character (`ter-1b21`, [Spin gravity](spin-gravity.md), "Characters"). At the end of the climb the engine throttles down to about 0.2 m/s², the felt gravity leans 14 degrees from the cabin's aft axis toward its ceiling, and the person's head, toward the nose, dips onto the seat, which lifts the person by 67 mm. The belt reads the gravity that the person feels, with the rotation terms of the cabin's turn (`FrameTree.FeltGravity`), which physics applies to a character too. In orbit, after 2 s weightless by that read, the person opens the belt, in the demo launch 5.2 s after the engines stop, once the change of the cabin's turn that the attitude autopilot makes has settled, and floats with thrusters as weak as `PersonControl`'s, so that its hand, in front of its chest (`Passenger.PenHold`), comes onto the drifting pen. The hand first lines up 0.5 m behind the pen, on the line ahead of the person's view, and then closes in along that line, so that the pen comes to the hand from in front and never touches the body. Once the hand is within 2 cm of the pen, the person uses it and takes it as `Carry` takes a crate, and the drawn copy in its hand keeps the place and the turn that the loose pen had relative to the view, so the pen does not jump into the hand. The hand is nearer than `Carry` holds a crate, so that the pen's near end lies just in front of the body: a pen held as far out as a crate read as a pen that floats free. A character does not turn, so the passenger does not plan a way round the pen: in the demo it floats face-down below the pen and well to the side of it, so its straight way from the seat passes clear of the pen, and nothing touches the pen until the take (`DemoLaunchTests`). The passenger's state is the custom union `PassengerState`: `Boarding`, `Seated` with its weightless ticks, `Fetching`, `Holding` with the copy, and `Stopped`, for a pen that goes before the take.
-- A `Clip` on the pen holds it on the cabin's port wall, at head height, aft of the seat (user, 2026-10-19). While the cabin has weight, the clip steers the pen to its place in every tick (`Self.Body.SteerTo`), so that physics carries it back each step: the weight of a step moves it about 8 mm at three gravities, and the jolt at the ramp's foot drops it about 0.1 m for one step. Once the cabin has been weightless at the clip for 1 s, by the gravity felt there with the rotation terms of the cabin's turn (`FrameTree.FeltGravity`), the clip lets go with a push of 0.2 m/s away from the wall and a slow spin, end over end, at 0.5 rad/s. In the demo launch the clip lets go 2.9 s after the engines stop, once the change of the cabin's turn that the attitude autopilot makes has settled. The pen drifts into the cabin, and nothing touches it until the person takes it 10.6 s later, about 2.1 m from the wall and 2.0 m above the floor (`PenClipTests`, `DemoLaunchTests`). The clip's state is the custom union `ClipState`: `Clipped` with its weightless ticks, or `Released`.
+- A `Clip` on the pen holds it on the cabin's port wall, at head height, aft of the seat (user, 2026-10-19). Since ter-4xkz the port wall is glass above the sill, and the clip holds the pen on the wall's pillar at z = -1 m, so the pen never hangs in front of glass. The cabin's four lamps hang on the pillars of the walls, because the roof is glass. While the cabin has weight, the clip steers the pen to its place in every tick (`Self.Body.SteerTo`), so that physics carries it back each step: the weight of a step moves it about 8 mm at three gravities, and the jolt at the ramp's foot drops it about 0.1 m for one step. Once the cabin has been weightless at the clip for 1 s, by the gravity felt there with the rotation terms of the cabin's turn (`FrameTree.FeltGravity`), the clip lets go with a push of 0.2 m/s away from the wall and a slow spin, end over end, at 0.5 rad/s. In the demo launch the clip lets go 2.9 s after the engines stop, once the change of the cabin's turn that the attitude autopilot makes has settled. The pen drifts into the cabin, and nothing touches it until the person takes it 10.6 s later, about 2.1 m from the wall and 2.0 m above the floor (`PenClipTests`, `DemoLaunchTests`). The clip's state is the custom union `ClipState`: `Clipped` with its weightless ticks, or `Released`.
 - The script films the launch from cameras that the scene places for each part: `pad-camera` for the parked shuttle and the start up the ramp, `ramp-camera` for the ramp, `ramp-top-camera` for the flight past the ramp's top, `climb-camera` high behind the shuttle for the climb with the ground below, `chase-camera` for the high climb and the orbit, `pen-camera` within 2 m of the pen's way for the pen on the wall, its drift and the person's start from the seat, and `hand-camera` for the hand that closes on the pen and the pen in it. A 14 cm pen seen from the cabin's corners, 6 to 8 m away, shows only a few pixels.
 - Under the climb's thrust, the engine turns a character's up against the cabin's gravity, so the belted person tips toward the nose, face toward the floor, and it floats that way in orbit, because a weightless character keeps its last up. Engine ticket ter-yrfa will let a weightless character turn its own up, which will right the person. Until then, the demo leaves the person as the engine's rule puts it (user, 2026-10-19).
 
@@ -460,9 +460,10 @@ The step's sections replace the section `coast`. A section that waits longer tha
 | `glide-window` | `window-camera` | 4 | | Within 400 m | 60 s, 900 frames |
 | `glide-rim` | `rim-camera` | 4 | | Within 200 m | 54 s, 806 frames |
 | `arrival` | `cockpit-camera` | 4 | | 3 s after the autopilot is in `Hold` | 58 s, 864 frames |
-| `hold` | `rim-camera` | 1 | | After 5 s | From 4,865.7 s: 5 s, 300 frames |
+| `hold` | `rim-camera` | 1 | | After 3 s | From 4,869.4 s: 3 s, 180 frames |
+| `hold-chase` | `chase-camera` | 1 | | After 2 s | From 4,872.4 s: 2 s, 120 frames |
 
-The step films 11,658 frames in 4,514 s of the simulation, 194 s of video at 60 frames per second.
+The step films 11,658 frames in 4,514 s of the simulation, 194 s of video at 60 frames per second. Ticket ter-4xkz split the 5 s of `hold` into `hold` and `hold-chase`, and its new hull moved the hold's start, so the last two rows are its generator's values of 2026-10-20.
 
 Every cue reads the run or the scene's constants:
 
@@ -590,7 +591,7 @@ Components on the real World, in scenes that the tests build from the demo's spa
   - `AStrappedPassengerNeverOpensItsBelt`: 60 s weightless.
   - `AFastenBeltBeforeTheTakeChangesNothing`.
 - `ShuttleTests`:
-  - `TheWindowsAreHolesInTheDrawnHullAndTheInteriorStaysSolid`, as in `ShipWindowTests`.
+  - `TheWindowsAreHolesInTheDrawnHullAndTheInteriorStaysSolid`, as in `ShipWindowTests`. Ticket ter-4xkz replaced it with `TheInteriorStaysSolidAtTheGlass` and the tests of the glass in `LoftedHullTests`.
 - `DemoStationTests` builds the scene `demo-surface` without a script:
   - `TheStationOrbitsInTheLaunchPlane400KmUp`.
   - `TheStationTurnsAboutItsAxisAtTheRateThatGivesOneGravityOnTheFloor`: `FrameTree.FeltGravity` on the floor gives 9.81 m/s².
@@ -603,7 +604,7 @@ Components on the real World, in scenes that the tests build from the demo's spa
 The run of the checked-in script:
 
 - `BlueDanubeScriptTests` stays as it is. So `scripts/blue-danube.json` is written again with the new sections.
-- `BlueDanubeRendezvousRun` is a fixture like `BlueDanubeFilmRun`. It runs the checked-in script through the film `hold`, on the real World with no renderer, and without the world's invariant checks, which cost 6.6 ms a tick with the station. It keeps a log of every tick from the first of the parking orbit, like `LaunchLog`, and records what the camera of each frame sees.
+- `BlueDanubeRendezvousRun` is a fixture like `BlueDanubeFilmRun`. It runs the checked-in script through the film `hold-chase`, on the real World with no renderer, and without the world's invariant checks, which cost 6.6 ms a tick with the station. It keeps a log of every tick from the first of the parking orbit, like `LaunchLog`, and records what the camera of each frame sees.
 - Its tests:
   - `TheParkingOrbitLiesInTheLaunchPlane`.
   - `ThePassengerIsStrappedBeforeTheFirstBurn`.
@@ -615,17 +616,17 @@ The run of the checked-in script:
   - `TheShuttleStaysInEarthSurfaceThroughTheWholeStep`.
   - `TheGlideStaysWithin5MOfTheAxis`.
   - `TheShuttleHoldsAtTheHoldPointWithItsNoseAtTheSlot`.
-  - `TheStationLiesInsideTheWindowInEveryFrameOfTheWindowFilms`: with `Picture.Project`, the station's center lies in the picture, and the line from the camera to it crosses both faces of the wall inside the hole: the aft port window in `brake` and the nose window in `glide-window`.
+  - `TheStationLiesInsideTheWindowInEveryFrameOfTheWindowFilms`: with `Picture.Project`, the station's center lies in the picture, and the line from the camera to it crosses both skins inside the holes of a pane of `Shuttle.Glass`: `pane-port-7` in `brake` and `pane-nose` in `glide-window`. Ticket ter-4xkz changed it on purpose from the small windows.
   - `TheStationIsInThePictureOfEveryFrameOfClosing`.
   - `ThePenStaysInThePassengersHandThroughTheBurns`.
-  - `TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow`: in every frame of the films from `cockpit-camera`, the person's eye, the pen and the middle of the nose window lie in the picture, and the person covers at most half of it. In every frame of `night`, `burn`, `transfer-night` and `arrival`, the line from the camera to the pen passes outside the person's box.
+  - `TheCockpitCameraShowsTheStrappedPersonWithThePenAndTheNoseWindow`: in every frame of the films from `cockpit-camera`, the person's eye, the pen and the middle of `pane-nose` lie in the picture, and the person covers at most half of it. In every frame of `night`, `burn`, `transfer-night` and `arrival`, the line from the camera to the pen passes outside the person's box.
   - `TheWorldLogsNoErrors`.
 
 The screenshots that end the ticket come from one headless run of the long script with `--video` and the real renderer. `ffmpeg-headless` takes four frames out of the video, and the agent looks at each first:
 
 - The strapped person with the pen, at the end of `belt`.
-- The station through the port window during the brake.
-- The station in the nose window with Earth's limb below, at the end of `glide-window`.
+- The station through `pane-port-7` during the brake.
+- The station through `pane-nose` with Earth's limb below, at the end of `glide-window`.
 - The shuttle holding on the axis by the hub, from `rim-camera` in `hold`.
 
 A run that writes PNG files takes 80 ms for each of about 12,000 frames, so the video is the faster way.
@@ -1160,6 +1161,15 @@ Measured in part A, on 2026-10-20:
 - The rehearsal took 108.6 s, against 107 s before, with the build of the Demo. The new hull changed the frames of 11 films of the long script by a few frames each. `boarding` has 10 frames more, and `pen-release` 34 fewer.
 - One measured value leaves its test's range. At the end of the climb, 311 s in, the seat lifts the belted person by 72.9 mm, against 66.9 mm with the box, and `DemoLaunchTests.ThePassengerStaysAtItsSeatThroughTheClimb` allows 7 cm. The seat's convex radius does not cause it: with the seat's rounded edges of today the lift is 73.3 mm. Part A left the range as it was, as this design asks, and reported it. The orchestrator then widened the bound to 8 cm on 2026-10-20. The old bound sat 3 mm above the box hull's 66.9 mm. The tram hull's mass properties give 72.9 mm, and 8 cm still fails for a person who leaves the seat.
 
+Measured in part B, on 2026-10-20:
+
+- The drawn hull with the holes of the glass has 1,256 triangles. The 40 panes have 492 more, in 40 meshes.
+- `RenderStats.TransparentCommands` is at most 40 in a frame, where the old windows gave 7. From outside, every pane is drawn. From inside, the culling leaves 13 for `pen-camera`, 15 for `hand-camera`, 17 to 28 for `follow-camera` in the cabin and 38 for `cabin-camera`.
+- The video of the long script took 117 s, against 110 s before, at a load average from 4 to 5, for 15,782 frames. The rehearsal took 129 s with the build of the Demo.
+- The panes have no body, so the run does not change. The script changed only in the films `seated`, `seated-outside`, `hold` and `hold-chase`.
+- Part B adds tests that the list in "Tests" does not name. `TheDrawnHullIsNeverAnImpostor` checks the hull's flags in `demo-surface`. One refusal test for each guard of the glass: `APaneInTheDoorsPanelIsAnError`, `TwoPanesInOneCellAreAnError`, `APaneBeforeTheSurroundsIsAnError`, `ASecondPaneInTheFrontIsAnError`, `APaneInTheFrontNeedsAPartWithThreeCorners`, `ADoorAfterTheGlassIsAnError` and `SurroundsTwiceAreAnError`.
+- The lamps are `Shuttle.Lamps`, each with its scene id, such as `lamp-port-fore`, and `Shuttle.SpawnLamps` spawns them. `Shuttle.DrawnHull` gives the drawn hull with `NoImpostor` to both scenes.
+
 ### Order of the work
 
 Each part commits on its own, with its tests green. A part that changes the run writes `scripts/blue-danube.json` again.
@@ -1302,7 +1312,7 @@ dotnet run --project src/Tertius.Demo -- --generate scripts/blue-danube.json
 dotnet run -c Release --project src/Tertius.Demo -- --script scripts/blue-danube.json --headless --out runs/danube --video runs/danube/blue-danube.mkv --fps 60
 ```
 
-The first command rehearses the run and writes the script. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, so the two cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
+The first command rehearses the run and writes the script. It prints each film with its frames, its film interval and the second of the run at which it starts. With the rendezvous, the rehearsal took 107 s on 2026-10-20, against about 10 s before. The second makes the video: on 2026-10-20 it took 110 s, at a load average from 3.7 to 6.5, for the 15,806 frames and 292,242 ticks, 4,871 s of the simulation and 263 s of video. Before the rendezvous, in the last two runs of 2026-10-19, it took 22 s and 24 s for 4,210 frames and 23,101 ticks. With the glass canopy of ter-4xkz, it took 117 s on 2026-10-20, at a load average from 4 to 5, for 15,782 frames. The test `BlueDanubeScriptTests` runs the first command and checks that its output equals the checked-in `scripts/blue-danube.json`, so the two cannot drift. A change of the scene, of the engine's timing or of the sections fails the test until the script is written again.
 
 The sections today, as `BlueDanube.Sections` lists them. The frames of each film and the second at which it starts come from the run, so the generator prints them, and this table does not copy them:
 
@@ -1314,7 +1324,8 @@ The sections today, as `BlueDanube.Sections` lists them. The frames of each film
 | `pad` | `follow-camera` | 1 | The person is within 1.5 m of `Shuttle.OutsideHatch` |
 | `boarding` | `apron-camera` | 1 | The `follow-camera` is inside the cabin, 0.1 m from its walls |
 | `cabin` | `follow-camera` | 1 | 1 s after the person shuts its belt |
-| `seated` | `cabin-camera` | 1 | After 1.5 s |
+| `seated` | `cabin-camera` | 1 | After 0.75 s |
+| `seated-outside` | `apron-camera` | 1 | After 0.75 s. The person at its seat through the starboard glass |
 | `pen-on-the-pad` | `pen-camera` | 1 | After 1 s |
 | `on-the-pad` | `pad-camera` | 1 | After 1 s |
 | `ignition` | `pad-camera` | 1 | It posts `Ignition`. The shuttle has risen an eighth of the ramp's height |
@@ -1341,9 +1352,10 @@ The sections today, as `BlueDanube.Sections` lists them. The frames of each film
 | `glide-window` | `window-camera` | 4 | Within 400 m |
 | `glide-rim` | `rim-camera` | 4 | Within 200 m |
 | `arrival` | `cockpit-camera` | 4 | 3 s after the autopilot is in `Hold` |
-| `hold` | `rim-camera` | 1 | After 5 s |
+| `hold` | `rim-camera` | 1 | After 3 s |
+| `hold-chase` | `chase-camera` | 1 | After 2 s. The person through the starboard glass, with the station ahead |
 
-The sections from `belt` to `hold` are the rendezvous (see "The station and the rendezvous", "Sections of the long script"). They replaced the section `coast`, which filmed 30 s of the parking orbit.
+The sections from `belt` to `hold-chase` are the rendezvous (see "The station and the rendezvous", "Sections of the long script"). They replaced the section `coast`, which filmed 30 s of the parking orbit.
 
 ### How a later ticket adds a section
 

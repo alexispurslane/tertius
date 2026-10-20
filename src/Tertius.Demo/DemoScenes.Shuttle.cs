@@ -16,6 +16,10 @@ public static partial class DemoScenes
     /// <see cref="Cabin"/> where the walk, the seat, the pen and the float happen. The <see cref="Hatch"/> leads through the
     /// starboard wall, and the <see cref="Seat"/>, a static box, stands on the cabin floor. Both are part of the interior
     /// shape, <see cref="InteriorShape"/>, the static body of the frame's own physics system.</item>
+    /// <item>A glass canopy of 40 panes, <see cref="Glass"/>, runs along both sides from 0.7 m above the cabin floor,
+    /// over the roof's bevels and the roof, and across the front above the sill. The glass breaks around the hatch. The
+    /// panes have no body: the interior shape is solid at the glass. The cabin's <see cref="Lamps"/> hang on the pillars of
+    /// the walls.</item>
     /// <item>The hull has one density, so physics puts its center of mass at <see cref="CenterOfMass"/>, low and aft of
     /// its middle, and gives it the principal axes of <see cref="Inertia"/>.</item>
     /// <item>The frame has no gravity field of its own. So its contents feel only the opposite of its proper acceleration
@@ -237,70 +241,100 @@ public static partial class DemoScenes
         /// </summary>
         public static Double3 InsideHatch { get; } = new(Cabin.X - 1.2, -Cabin.Y + 0.9, Hatch.Center.Z);
 
-        /// <summary>The radii of the bubble, in meters, in the shuttle's axes.</summary>
-        public static Vector3 Bubble { get; } = (Hull + new Vector3(2)) * MathF.Sqrt(3);
+        /// <summary>
+        /// The 40 panes of the canopy, from <see cref="Loft"/>, in the shuttle's axes: each pane's scene id, its hole at
+        /// both skins, and its slab of glass round its center.
+        /// </summary>
+        public static IReadOnlyList<HullPane> Glass { get; } = Loft.Panes();
 
         /// <summary>
-        /// How high the middle of every window lies, in meters, in the shuttle's axes: at the eye of a person who stands on
-        /// the cabin floor, 1.65 m above it.
+        /// The drawn hull of <see cref="Loft"/>, in light gray. It casts shadows and is never an impostor: a flat picture of
+        /// the hull alone cannot hold the person inside at its depth, and the hull has few triangles. The scene draws the
+        /// seat, the panes, the lamps and the nozzle apart.
         /// </summary>
-        private static float WindowMiddle => -Cabin.Y + 1.65f;
-
-        /// <summary>
-        /// The places of the side windows along each side wall, in meters along the shuttle's Z: two ahead of the hatch and
-        /// one aft of it. They miss the hatch, from z = 1.4 to 2.6 m on the starboard wall, and the pen's clip, at
-        /// z = -1 m on the port wall. A pane's scene id numbers its place from the nose, from 1 to 3.
-        /// </summary>
-        private static readonly float[] SideWindowZ = [-5.5f, -3, 4.5f];
-
-        /// <summary>
-        /// A window through a side wall across X, from <paramref name="x0"/> to <paramref name="x1"/>, centered on
-        /// <paramref name="z"/> and at eye height: 1.2 m wide and 0.8 m tall.
-        /// </summary>
-        private static BoundingBox SideWindow(float x0, float x1, float z) =>
-            new(new Vector3(x0, WindowMiddle - 0.4f, z - 0.6f), new Vector3(x1, WindowMiddle + 0.4f, z + 0.6f));
-
-        /// <summary>
-        /// The windows through the hull, in the shuttle's axes, with the scene ids of their panes, as the orbit scene's
-        /// ship has them (see <see cref="DemoScenes.Windows"/>): one in the nose wall, 4 m wide and 1.4 m tall, and three in
-        /// each side wall (see <see cref="SideWindowZ"/>), all centered at eye height. Physics keeps the walls solid, so the
-        /// interior shape has no hole at a window, and the glass stops a body as a wall does.
-        /// </summary>
-        public static IReadOnlyList<(string Pane, Opening Window)> Windows { get; } =
-        [
-            (Pane: "pane-nose", Window: Opening.ThroughZ(new BoundingBox(new Vector3(-2, WindowMiddle - 0.7f, -Hull.Z), new Vector3(2, WindowMiddle + 0.7f, -Cabin.Z)))),
-            .. SideWindowZ.Select((z, i) => (Pane: $"pane-port-{i + 1}", Window: Opening.ThroughX(SideWindow(-Hull.X, -Cabin.X, z)))),
-            .. SideWindowZ.Select((z, i) => (Pane: $"pane-starboard-{i + 1}", Window: Opening.ThroughX(SideWindow(Cabin.X, Hull.X, z)))),
-        ];
-
-        /// <summary>
-        /// The drawn hull, in the shuttle's axes: the outer box and the cabin seen from inside, joined through the hatch and
-        /// the <see cref="Windows"/>. The scene draws the seat and the panes apart (see <see cref="Panes"/>).
-        /// </summary>
-        public static MeshData HullMesh()
+        public static RenderData DrawnHull(IRenderResources resources)
         {
-            Opening[] openings = [Opening.ThroughX(Hatch), .. Windows.Select(window => window.Window)];
-            BoxMesh mesh = new BoxMesh()
-                .Box(new BoundingBox(-Hull, Hull), openings: openings)
-                .Box(new BoundingBox(-Cabin, Cabin), inward: true, openings: openings);
-            foreach (Opening opening in openings)
-                mesh.Sides(opening);
-            return mesh.Build();
+            RenderData render = Drawn(resources, Loft.Mesh(), new Vector4(0.85f, 0.85f, 0.88f, 1), boundingRadius: MathF.Ceiling(Hull.Length()));
+            render.Flags |= RenderFlags.NoImpostor;
+            return render;
         }
 
         /// <summary>
-        /// Spawns a pane of glass in each of the <see cref="Windows"/>, in <paramref name="cabin"/>, the shuttle's frame, with
-        /// its scene id: the orbit scene's glass, mostly clear with a slight blue tint, in a thin box in the middle of its
-        /// wall. It has no body, because the interior shape is solid at the windows, and it casts no shadow, so sunlight
-        /// comes in through a window when the sun stands on its side.
+        /// Spawns each pane of <see cref="Glass"/> in <paramref name="cabin"/>, the shuttle's frame, at its center, with its
+        /// scene id after <paramref name="prefix"/> and a hyphen when the prefix is not empty, so that each shuttle of a
+        /// scene has its own: the orbit scene's glass, mostly clear with a slight blue tint. A pane has no body, because the
+        /// interior shape is solid at the glass, and it casts no shadow, so sunlight comes in through the holes of the drawn
+        /// hull. Each pane is its own instance round its own center, so the renderer sorts it at its real place.
         /// </summary>
-        public static void Panes(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources)
+        public static void Panes(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources, string prefix = "")
         {
             MaterialId glass = resources.CreateMaterial(new MaterialDesc(new Vector4(0.45f, 0.65f, 1, 0.2f), SpecularIntensity: 1, Gloss: 0.9f));
-            var paneMeshes = new Dictionary<Vector3, MeshId>();
-            foreach ((string pane, Opening window) in Windows)
-                scene.Add(pane, world.Spawn(PaneIn(cabin, window, glass, paneMeshes, resources)));
+            foreach (HullPane pane in Glass)
+            {
+                Entity entity = world.Spawn(new SpawnDesc
+                {
+                    Frame = cabin,
+                    Pose = new DPose(pane.Center, DQuaternion.Identity),
+                    Render = new RenderData
+                    {
+                        Mesh = resources.CreateMesh(pane.Mesh),
+                        Material = glass,
+                        BoundingRadius = pane.Mesh.Vertices.Max(vertex => vertex.Position.Length()),
+                        Flags = RenderFlags.Visible | RenderFlags.Transparent,
+                    },
+                });
+                scene.Add(prefix.Length == 0 ? pane.Id : $"{prefix}-{pane.Id}", entity);
+            }
         }
+
+        /// <summary>
+        /// The cabin's four lamps, each with its scene id and its glowing panel, in the shuttle's axes: on the inner faces
+        /// of the pillars at z = -3 m and 3 m, on both walls, 2.4 m above the cabin floor. A panel is 0.05 m thick, 0.5 m tall
+        /// and 0.15 m wide, within its pillar's 0.2 m, so the pillar hides it from outside. The roof is glass, so the lamps
+        /// hang on the walls.
+        /// </summary>
+        public static IReadOnlyList<(string Id, BoundingBox Panel)> Lamps { get; } =
+        [
+            .. new[] { ("port", -1f), ("starboard", 1f) }.SelectMany(wall => new[] { ("fore", -3f), ("aft", 3f) }.Select(place =>
+            {
+                var center = new Vector3(wall.Item2 * (Cabin.X - LampHalf.X), -Cabin.Y + 2.4f, place.Item2);
+                return (Id: $"lamp-{wall.Item1}-{place.Item1}", Panel: new BoundingBox(center - LampHalf, center + LampHalf));
+            })),
+        ];
+
+        /// <summary>The half extents of a lamp's panel, in meters: 0.05 m thick across the wall, 0.5 m tall and 0.15 m wide.</summary>
+        private static Vector3 LampHalf => new(0.025f, 0.25f, 0.075f);
+
+        /// <summary>
+        /// Spawns the <see cref="Lamps"/> in <paramref name="cabin"/>, the shuttle's frame, with their scene ids: each a
+        /// warm glowing panel with a point light 0.3 m in front of it, toward the cabin's middle, of range 10 m and intensity
+        /// 50. The four give the light of the two roof lamps of intensity 100 that the box hull had. A point light casts no
+        /// shadow yet, so the lamps also light faces that the hull hides from them.
+        /// </summary>
+        public static void SpawnLamps(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources)
+        {
+            MeshId mesh = resources.CreateMesh(Primitives.Box(LampHalf));
+            MaterialId material = resources.CreateMaterial(new MaterialDesc(new Vector4(0, 0, 0, 1), SpecularIntensity: 0, Emissive: new Vector3(6, 5.4f, 4.5f)));
+            foreach ((string id, BoundingBox panel) in Lamps)
+            {
+                scene.Add(id, world.Spawn(new SpawnDesc
+                {
+                    Frame = cabin,
+                    Pose = new DPose(panel.Center, DQuaternion.Identity),
+                    Render = new RenderData
+                    {
+                        Mesh = mesh,
+                        Material = material,
+                        BoundingRadius = LampHalf.Length(),
+                        Flags = RenderFlags.Visible,
+                        Light = new PointLightData(new Pose(new Vector3(-MathF.Sign(panel.Center.X) * 0.3f, 0, 0), Quaternion.Identity), new Vector3(1, 0.9f, 0.75f), Intensity: 50, Range: 10),
+                    },
+                }));
+            }
+        }
+
+        /// <summary>The radii of the bubble, in meters, in the shuttle's axes.</summary>
+        public static Vector3 Bubble { get; } = (Hull + new Vector3(2)) * MathF.Sqrt(3);
 
         /// <summary>
         /// Spawns the shuttle parked at <paramref name="pose"/> in <paramref name="frame"/>, drawn with

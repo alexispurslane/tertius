@@ -33,7 +33,7 @@ public sealed class LoftedHullTests
     private static readonly (double Half, double Z0, double Z1) Housing = (0.9, 7.2, 7.8);
 
     /// <summary>The outer cross-section at <paramref name="z"/>: the corners move on straight lines from the front to the full one over z = -8 to -5.</summary>
-    private static Vector2[] OuterAt(double z)
+    internal static Vector2[] OuterAt(double z)
     {
         if (z >= -5)
             return Full;
@@ -45,7 +45,7 @@ public sealed class LoftedHullTests
     /// How far <paramref name="p"/> lies inside the convex, counterclockwise <paramref name="polygon"/>, in its plane: the least
     /// distance to the line of an edge, negative outside.
     /// </summary>
-    private static double Inside(Vector2[] polygon, double x, double y)
+    internal static double Inside(Vector2[] polygon, double x, double y)
     {
         double least = double.MaxValue;
         for (int i = 0; i < polygon.Length; i++)

@@ -57,6 +57,12 @@ public readonly record struct HullPane(string Id, Vector3 Center, Vector3[] Oute
 /// its own flat normal, and the tangent runs along its first edge. The vertices have no texture coordinates. Front faces
 /// wind counterclockwise, as in <see cref="Primitives"/>.
 /// </para>
+/// <para>
+/// Glass. A pane's hole is its cell, or its part of the front, with each side moved in by its surround in the plane of the
+/// cell, at both skins. Each inner cell is parallel to its outer cell and the moved sides stay parallel, so each side of a
+/// hole, its reveal, is a flat face from the outer hole to the inner one. It slants a little at a fold, where the inner
+/// cell is narrower.
+/// </para>
 /// </remarks>
 public sealed class LoftedHull
 {
@@ -493,8 +499,11 @@ public sealed class LoftedHull
     }
 
     /// <summary>
-    /// The drawn hull: the outer skin, the inner skin facing into the cabin, the door's hole with its four sides, the
-    /// nose wall's two faces, and the tail wall's two faces with the pocket and its housing. Each call builds a new mesh.
+    /// The drawn hull: the outer skin, the inner skin facing into the cabin, the door's hole with its four sides, each
+    /// pane's hole with its four reveals, the nose wall's two faces, and the tail wall's two faces with the pocket and its
+    /// housing. A cell or a front part with a pane is drawn as one strip per side round its hole, at each skin. With a pane
+    /// in the front, the front is two panels at each skin, below and above the pane's line. The panes themselves are not in
+    /// this mesh (see <see cref="Panes"/>). Each call builds a new mesh.
     /// </summary>
     public MeshData Mesh()
     {

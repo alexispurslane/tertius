@@ -3,6 +3,7 @@ using Tertius.Host.Scripting;
 using Tertius.Simulation;
 using static Tertius.Host.Tests.HostTesting;
 using DemoSurface = Tertius.Demo.DemoScenes.DemoSurface;
+using Shuttle = Tertius.Demo.DemoScenes.Shuttle;
 
 namespace Tertius.Host.Tests;
 
@@ -36,10 +37,12 @@ public sealed class BlueDanubeFilmRun : IDisposable
     private FilmFrame Read(string name)
     {
         Entity person = Scene["person"], pen = Scene["pen"];
-        FrameHandle frame = World.GetFrame(person);
+        FrameHandle frame = World.GetFrame(person), cabin = World.GetOwnedFrame(Scene["shuttle"]);
         DPose view = World.PoseIn(World.Camera, frame), body = World.PoseIn(person, frame);
         bool penInPicture = World.IsAlive(pen) && Picture.Contains(Picture.Project(view, World.PoseIn(pen, frame).Position, World.VerticalFov));
-        return new FilmFrame(name, Picture.Cover(view, body, (Double3)DemoSurface.PersonHalf, World.VerticalFov), penInPicture);
+        DPose inCabin = World.PoseIn(person, cabin);
+        return new FilmFrame(name, Picture.Cover(view, body, (Double3)DemoSurface.PersonHalf, World.VerticalFov), penInPicture,
+            World.PoseIn(World.Camera, cabin), inCabin.TransformPoint((Double3)World.GetRender(person).ViewOffset.Position), World.VerticalFov);
     }
 
     public void Dispose() => World.Dispose();
@@ -61,7 +64,10 @@ public sealed class BlueDanubeFilmRun : IDisposable
 /// <param name="Name">The frame's name, such as <c>fetch-000012</c>.</param>
 /// <param name="PersonCover">The share of the picture that the person's box covers, from 0 to 1 (see <see cref="Picture.Cover"/>).</param>
 /// <param name="PenInPicture">True when the loose pen is alive and its center lies in the picture.</param>
-public sealed record FilmFrame(string Name, double PersonCover, bool PenInPicture);
+/// <param name="View">The camera's pose in the shuttle's frame.</param>
+/// <param name="Eye">The person's eye in the shuttle's frame, in meters.</param>
+/// <param name="VerticalFov">The world's vertical view angle, in radians.</param>
+public sealed record FilmFrame(string Name, double PersonCover, bool PenInPicture, DPose View, Double3 Eye, double VerticalFov);
 
 /// <summary>The picture of a camera of the long script: 1280 by 720 pixels, with the world's vertical view angle.</summary>
 public static class Picture
@@ -119,5 +125,23 @@ public sealed class BlueDanubeFilmTests(BlueDanubeFilmRun run) : IClassFixture<B
         FilmFrame worst = fetch.MaxBy(frame => frame.PersonCover)!;
         worst.PersonCover.Should().BeLessThanOrEqualTo(0.5, $"in {worst.Name} the person covers {worst.PersonCover:P0} of the picture");
         fetch.Should().OnlyContain(frame => frame.PenInPicture, "the pen is in the picture in every frame of the fetch");
+    }
+
+    /// <summary>
+    /// The film <c>seated-outside</c>, from <c>apron-camera</c> on the ground, shows the person at its seat through the
+    /// starboard glass: in every frame of it the person's eye lies in the picture, and the line from the camera to it
+    /// crosses both skins inside the holes of one pane.
+    /// </summary>
+    [Fact]
+    public void TheApronCameraSeesThePersonThroughTheGlassInSeatedOutside()
+    {
+        List<FilmFrame> seated = [.. run.Frames.Where(frame => frame.Name.StartsWith("seated-outside-", StringComparison.Ordinal))];
+
+        seated.Should().NotBeEmpty();
+        foreach (FilmFrame frame in seated)
+        {
+            Picture.Contains(Picture.Project(frame.View, frame.Eye, frame.VerticalFov)).Should().BeTrue($"the person's eye is in the picture of {frame.Name}");
+            Shuttle.Glass.Should().Contain(pane => PaneChecks.Through(pane, frame.View.Position, frame.Eye), $"the camera sees the person's eye through the glass in {frame.Name}");
+        }
     }
 }
