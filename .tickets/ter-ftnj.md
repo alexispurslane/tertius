@@ -1,7 +1,7 @@
 ---
 id: ter-ftnj
 status: open
-deps: [ter-s9m0, ter-tzf6, ter-4xkz]
+deps: [ter-s9m0, ter-tzf6, ter-4xkz, ter-0pvs]
 links: []
 created: 2026-10-18T14:08:42Z
 type: task
