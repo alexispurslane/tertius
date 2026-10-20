@@ -119,7 +119,7 @@ public sealed class VideoCostMeasurement
         return Seconds(end - begin);
     }
 
-    private static double Seconds(long ticks) => (double)ticks / Stopwatch.Frequency;
+    private static double Seconds(long ticks) => TimedRenderer.Seconds(ticks);
 
     private static void Write(StringBuilder report, int width, int height, Cost toVideo, Cost toPng, long videoBytes, long pngBytes, double encode, double decode)
     {
@@ -139,51 +139,5 @@ public sealed class VideoCostMeasurement
         report.AppendLine($"- ffmpeg encodes the video again at {(Frames / encode).ToString("F0", CultureInfo.InvariantCulture)} frames per second, with the decode in the same process. The decode alone runs at {(Frames / decode).ToString("F0", CultureInfo.InvariantCulture)} frames per second.");
         report.AppendLine($"- 18,000 frames (10 minutes at 30 frames per second) at these rates: video {Minutes(videoPerFrame)} minutes, PNG {Minutes(pngPerFrame)} minutes.");
         report.AppendLine();
-    }
-
-    /// <summary>The real renderer, with the time that its capture sinks take, summed.</summary>
-    private sealed class TimedRenderer(VulkanRenderer inner) : IRenderer
-    {
-        public double SinkSeconds { get; private set; }
-
-        public void CaptureNextFrame(ICaptureSink sink) => inner.CaptureNextFrame(new TimedSink(sink, this));
-
-        public void Render(RenderSnapshot snapshot, float alpha) => inner.Render(snapshot, alpha);
-
-        public void Resize(int width, int height) => inner.Resize(width, height);
-
-        public MeshId CreateMesh(MeshData mesh) => inner.CreateMesh(mesh);
-
-        public TextureId CreateTexture(TextureData texture) => inner.CreateTexture(texture);
-
-        public MaterialId CreateMaterial(MaterialDesc material) => inner.CreateMaterial(material);
-
-        public void Dispose() => inner.Dispose();
-
-        private sealed class TimedSink(ICaptureSink inner, TimedRenderer renderer) : ICaptureSink
-        {
-            public void Take(in CapturedImage image)
-            {
-                long start = Stopwatch.GetTimestamp();
-                inner.Take(in image);
-                renderer.SinkSeconds += Seconds(Stopwatch.GetTimestamp() - start);
-            }
-        }
-    }
-
-    /// <summary>The headless playback, with the time that its captures take, summed.</summary>
-    private sealed class TimedPlayback(IPlayback inner) : IPlayback
-    {
-        public double Seconds { get; private set; }
-
-        public bool WaitForTick() => inner.WaitForTick();
-
-        public bool Capture(World world, string name)
-        {
-            long start = Stopwatch.GetTimestamp();
-            bool captured = inner.Capture(world, name);
-            Seconds += VideoCostMeasurement.Seconds(Stopwatch.GetTimestamp() - start);
-            return captured;
-        }
     }
 }
