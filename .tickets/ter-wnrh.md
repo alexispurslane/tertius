@@ -1,6 +1,6 @@
 ---
 id: ter-wnrh
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-20T19:54:34Z
