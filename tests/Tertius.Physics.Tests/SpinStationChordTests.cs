@@ -310,6 +310,52 @@ public class SpinStationChordTests
     }
 
     [Fact]
+    public void ACrateThatLeavesTheBubbleOfAShipThatFallsInANumericFrameInsideTheStationMovesOnItsInertialLine()
+    {
+        // Under these rules every group falls in a numeric frame. The ship, a dynamic hull at rest in inertial space 60 m
+        // from the axis with no spin there, falls in a numeric frame below the station, whose origin moves on the inertial
+        // line of a free body at its place. The crate drifts out of the ship's bubble at 2 m/s and hands off into that
+        // falling frame, with the turn's part of its chord on its semantic place and instant velocity there, which holds the
+        // home's instant velocity past its chord: half a step of the frame's step acceleration, the rotation terms at the
+        // origin, 5.9 m/s² there (docs/plans/spin-gravity.md, "The origin of a falling frame"). Without that term the turn's
+        // part misses by ω dt times it, 2.6e-4 m/s. Without damping, the crate's path is a straight line in inertial space.
+        using World world = NewWorld(out _, debugChecks: false, configure: options => options.NumericFrames = NumericFrameTesting.EveryGroupFalls);
+        Station station = SpawnStation(world, SpikeRate);
+        Tick(world, 30);
+        var omega = new Double3(0, SpikeRate, 0);
+        var place = new Double3(60, 0, 0);
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = station.Frame,
+            Pose = new DPose(place, DQuaternion.Identity),
+            LinearVelocity = -Double3.Cross(omega, place),
+            AngularVelocity = (-omega).ToVector3(),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
+        });
+        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+        Tick(world, 2);
+        FrameHandle falling = world.PhysicsHomeOf(ship);
+        world.Frames.Numeric(falling).Should().Be(NumericMode.Falling, "the ship falls in a numeric frame below the station");
+
+        Entity crate = SpawnIn(world, shipFrame, UndampedCrate, new Double3(0, 2.4, 0), velocity: new Double3(0, 2, 0));
+        Double3 velocity = world.Frames.Relative(shipFrame, station.Space).Rotation.Rotate(new Double3(0, 2, 0));
+        // It is fully outside the bubble of 3 m, plus its bounding radius of 0.87 m and the exit margin, as much again, after
+        // about 70 ticks.
+        List<Sample> flight = Record(world, station, crate, 100);
+
+        world.GetFrame(crate).Should().Be(station.Frame, "the crate leaves the ship's bubble");
+        world.PhysicsHomeOf(crate).Should().Be(world.PhysicsHomeOf(ship), "the crate lives in the ship's falling frame after the hand-off");
+        world.Frames.Numeric(world.PhysicsHomeOf(crate)).Should().Be(NumericMode.Falling);
+        double worst = 0;
+        foreach (Sample sample in flight)
+            worst = Math.Max(worst, Double3.Distance(sample.Place, flight[0].Place + velocity * (sample.Time - flight[0].Time)));
+        worst.Should().BeLessThan(1e-6, "the crate moves on its inertial line through the hand-off");
+        world.Errors.Should().BeEmpty();
+        TestContext.Current.TestOutputHelper?.WriteLine($"worst distance from the inertial line {worst:E2} m");
+    }
+
+    [Fact]
     public void ACrateTeleportedToRestInTheStationMovesOnTheInertialLineOfItsRelease()
     {
         // The crate rests on the axis, where the station's turn does not move it, until a teleport puts it at rest 98 m out.
@@ -588,6 +634,38 @@ public class SpinStationChordTests
         Double3 inOuterAxes = velocity - Double3.Cross(pair.OuterSpin(world.Time), start + velocity * (world.Time - spawnTime) - outer.Position);
         Double3.Distance(world.Frames.LinearVelocity(shipFrame), outer.Rotation.Conjugate().Rotate(inOuterAxes)).Should().BeLessThan(1e-4);
         world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void AFreeShipAtRestInInertialSpaceInsideTheStationGivesItsFrameTheInstantVelocityOfItsInertialLine()
+    {
+        // The ship is at rest in inertial space, 100 m from the station's axis, with no spin there, so in the station it
+        // moves on a circle at ω × r, 31.3 m/s, and its instant velocity relative to the station at every moment is -ω × r
+        // at its place then. The step record of its frame holds the instant velocity at the end of each step, which a
+        // hand-off out of the ship carries. By the chord rule, that is the exact inverse of the rule on Jolt's chord, as for
+        // every other body (docs/plans/spin-gravity.md, "The chord rule"). Jolt's chord plus half a step of the change of
+        // Jolt's velocity misses it by the jerk of the circle times dt² / 3, ω³ r dt² / 3 = 2.9e-4 m/s. A float velocity at
+        // 31 m/s has steps of 1.9e-6 m/s.
+        using World world = NewWorld(out _, debugChecks: false);
+        Station station = SpawnStation(world, SpikeRate);
+        Tick(world, 30);
+        var omega = new Double3(0, SpikeRate, 0);
+        var place = new Double3(100, 0, 0);
+        Entity ship = world.Spawn(SpinningShip(station.Frame, place, -Double3.Cross(omega, place), -omega));
+        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+
+        double worst = 0;
+        for (int tick = 0; tick < 60; tick++)
+        {
+            world.Tick();
+            Double3 now = world.Frames.Relative(shipFrame, station.Frame).Position;
+            worst = Math.Max(worst, Double3.Distance(world.Frames.LinearVelocity(shipFrame), -Double3.Cross(omega, now)));
+        }
+
+        world.GetFrame(ship).Should().Be(station.Frame);
+        worst.Should().BeLessThan(1e-5, "the frame's velocity is the instant velocity of the ship's inertial line");
+        world.Errors.Should().BeEmpty();
+        TestContext.Current.TestOutputHelper?.WriteLine($"worst velocity of the ship's frame {worst:E2} m/s");
     }
 
     /// <summary>
