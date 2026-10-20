@@ -29,3 +29,7 @@ Design: docs/plans/live-world.md, written by the design ticket. The docking (ter
 **2026-10-20T18:46:20Z**
 
 The design (docs/plans/live-world.md) found that one cycle of a shuttle takes three station orbits, 277.2 minutes: the docking ends after the first deorbit window, and the landing falls 120 s after a pass, after that orbit's departure. With two shuttles, departures come in two orbits of every three, with gaps of 92.4 and 184.8 minutes. A third shuttle gives a departure in every orbit. The timetable keeps no table of shuttles, so the number of shuttles is a choice of part 7 (ter-51ee) only. The parts are tickets ter-yywb (1), ter-guqz (2), ter-4xkz (3), ter-ftnj (the docking), ter-o2j7 (4), ter-irrj (5), ter-z7ka (6), ter-51ee (7), ter-k05j (8), ter-dd9z (9) and ter-hro7 (10).
+
+**2026-10-20T19:10:36Z**
+
+The user chose three shuttles on 2026-10-20, after the finding above. One cycle takes three orbits, so three shuttles offset by one orbit give a ground departure in every orbit, every 92.4 minutes. This replaces the decision of two shuttles. The engine already spawns a dynamic hull with a spawn velocity (ARCHITECTURE.md, SpawnDesc.LinearVelocity), so a shuttle can start in the parking orbit with no engine change.
