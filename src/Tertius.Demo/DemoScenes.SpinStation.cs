@@ -33,11 +33,14 @@ public static partial class DemoScenes
     /// <item>The green <c>carried-crate</c>, a <see cref="Crate"/> 0.4 m on a side and of 5 kg, lies on facet 0, 1.5 m to
     /// the person's left along the axis, within its reach.</item>
     /// <item>The orange <c>dropped-crate</c>, 0.4 m on a side and of 5 kg, with Jolt's default damping, starts at rest in
-    /// the station's axes 2 m above the middle of facet 2, 2 m to the person's right along the axis, and drops onto the
+    /// the station's axes 2 m above the middle of facet 1, 2 m to the person's right along the axis, and drops onto the
     /// floor in about 0.6 s. It has no <see cref="Crate"/>, so no one picks it up.</item>
     /// <item>The views, both in the station's frame, so that they turn with it: <c>view</c>, the camera at the start,
     /// stands 2.2 m above the floor about 10 m antispinward of the person and looks spinward along the floor, which curves
-    /// up behind the person. <c>wide</c> stands 8 m above the floor, 25 m antispinward, and looks up the ring.</item>
+    /// up behind the person. <c>side</c> stands 1.4 m above the floor 8.5 m to the person's left, near the left wall,
+    /// 7.3 m spinward of the person's start, and looks across the floor at the right wall, so that the walk, the jump and
+    /// the throw run across its frame, spinward to the left. <c>wide</c> stands 8 m above the floor, 25 m antispinward, and
+    /// looks up the ring.</item>
     /// <item>Lamps on both walls, 3.8 m above the floor, one on each wall over every fourth joint, light the floor all
     /// round the ring. A dim sun, the frame <c>sun</c> at rest in the station 25 m along its +Y from its center, shines from
     /// near the axis down onto the floor near the views and turns with the station, so the person and the crates cast
@@ -103,6 +106,18 @@ public static partial class DemoScenes
             double radius = FloorRadius - height;
             return new DPose(new Double3(radius * Math.Cos(theta), 0, -radius * Math.Sin(theta)),
                 Upright(theta) * DQuaternion.FromAxisAngle(Double3.UnitX, pitch));
+        }
+
+        /// <summary>
+        /// A view at the angle <paramref name="theta"/>, <paramref name="height"/> above the floor and <paramref name="y"/>
+        /// along the axis, upright there and looking along the station's +Y, across the floor: a quarter turn about its up
+        /// takes the spinward look of <see cref="Upright"/> to the station's +Y, so spinward lies to its left.
+        /// </summary>
+        private static DPose SideView(double theta, double height, double y)
+        {
+            double radius = FloorRadius - height;
+            return new DPose(new Double3(radius * Math.Cos(theta), y, -radius * Math.Sin(theta)),
+                Upright(theta) * DQuaternion.FromAxisAngle(Double3.UnitY, -Math.PI / 2));
         }
 
         private static MeshShapeDesc MeshShape(MeshData mesh) =>
@@ -195,13 +210,14 @@ public static partial class DemoScenes
             scene.Add("dropped-crate", world.Spawn(new SpawnDesc
             {
                 Frame = frame,
-                Pose = new DPose(OnFacet(2, CrateHalfSize + 2, 2), DQuaternion.FromAxisAngle(Double3.UnitY, 2.5 * Facet)),
+                Pose = new DPose(OnFacet(1, CrateHalfSize + 2, 2), DQuaternion.FromAxisAngle(Double3.UnitY, 1.5 * Facet)),
                 Body = new BodyDesc(new BoxShapeDesc(new Vector3(CrateHalfSize)), Mass: CrateMass),
                 Render = Drawn(resources, Primitives.Box(new Vector3(CrateHalfSize)), new Vector4(1, 0.45f, 0.1f, 1), crate.BoundingRadius),
             }));
 
             Entity view = world.Spawn(new SpawnDesc { Frame = frame, Pose = View(-0.09, 2.2, 0.05), Render = new RenderData() });
             scene.Add("view", view);
+            scene.Add("side", world.Spawn(new SpawnDesc { Frame = frame, Pose = SideView(0.073, 1.4, -8.5), Render = new RenderData() }));
             scene.Add("wide", world.Spawn(new SpawnDesc { Frame = frame, Pose = View(-0.25, 8, 0.2), Render = new RenderData() }));
             world.Camera = view;
 
@@ -217,6 +233,7 @@ public static partial class DemoScenes
             world.Ambient = new AmbientLight { SkyColor = new Vector3(0.12f), GroundColor = new Vector3(0.12f), Intensity = 1 };
 
             scene.AddView("view");
+            scene.AddView("side");
             scene.AddView("wide");
             scene.AddView("person");
             return scene;

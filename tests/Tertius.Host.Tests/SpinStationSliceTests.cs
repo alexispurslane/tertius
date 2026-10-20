@@ -1,4 +1,5 @@
 using Tertius.Demo;
+using Tertius.Host.Scripting;
 using Tertius.Simulation;
 using SpinStation = Tertius.Demo.DemoScenes.SpinStation;
 
@@ -401,10 +402,176 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         gap.Should().BeLessThan(SpinStation.CrateHalfSize * Math.Sqrt(3) + velocity.Length * Dt, "what the crate touches is the floor");
     }
 
+    // ---- The captures ----
+
+    /// <summary>
+    /// The tick of the capture <paramref name="name"/> and the view that the script turned on for it, from the steps of
+    /// the script: a capture renders the state after the ticks of the runs before it. Null if the script has no such
+    /// capture.
+    /// </summary>
+    private (int Tick, string View)? Shot(string name)
+    {
+        int tick = 0;
+        string? view = null;
+        foreach (ScriptStep step in run.Script.Steps)
+        {
+            switch (step.Value)
+            {
+                case RunStep r:
+                    tick += r.Ticks;
+                    break;
+                case CameraStep c:
+                    view = c.Entity;
+                    break;
+                case CaptureStep c when c.Name == name:
+                    return (tick, view ?? throw new InvalidOperationException($"no view before the capture {name}"));
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Where a body shows in a capture: the middle of its box on the screen, from −1 to 1 across the frame's width
+    /// (<see cref="X"/>, from the left) and height (<see cref="Y"/>, from the bottom), the box's half width and half height
+    /// in the same units, and its distance in front of the view, in meters.
+    /// </summary>
+    private readonly record struct ScreenBox(double X, double Y, double HalfWidth, double HalfHeight, double Depth)
+    {
+        /// <summary>The whole box lies in the frame, in front of the view.</summary>
+        public bool InFrame => Depth > 0 && Math.Abs(X) + HalfWidth < 1 && Math.Abs(Y) + HalfHeight < 1;
+
+        public bool Overlaps(ScreenBox other) => Gap(other) < 0;
+
+        /// <summary>The gap between the two boxes across the frame or up it, whichever is wider; below 0 when they meet.</summary>
+        public double Gap(ScreenBox other) =>
+            Math.Max(Math.Abs(X - other.X) - HalfWidth - other.HalfWidth, Math.Abs(Y - other.Y) - HalfHeight - other.HalfHeight);
+
+        /// <summary>A nearer body covers part of this one.</summary>
+        public bool CoveredBy(ScreenBox nearer) => nearer.Depth < Depth && Overlaps(nearer);
+    }
+
+    /// <summary>
+    /// The box on the screen of the view <paramref name="view"/> of a body at <paramref name="place"/> in the station's
+    /// coordinates, <paramref name="halfWidth"/> wide and <paramref name="halfHeight"/> high to each side of its middle,
+    /// in meters. The views of the scene other than the person's eye stand still in the station, so their poses at the end
+    /// of the run are their poses at every capture. The frame is the script's window, and its field of view the world's.
+    /// </summary>
+    private ScreenBox OnScreen(string view, Double3 place, double halfWidth, double halfHeight)
+    {
+        view.Should().NotBe("person", "the person's eye moves, and the run keeps no record of its pose");
+        FrameHandle station = run.World.GetOwnedFrame(run.Scene["station"]);
+        Double3 local = run.World.PoseIn(run.Scene[view], station).InverseTransformPoint(place);
+        double depth = -local.Z, tanY = Math.Tan(run.World.VerticalFov / 2), tanX = tanY * run.Script.Window!.Width / run.Script.Window.Height;
+        return new ScreenBox(local.X / depth / tanX, local.Y / depth / tanY, halfWidth / depth / tanX, halfHeight / depth / tanY, depth);
+    }
+
+    /// <summary>The person's box on the screen: its drawn box, 0.3 m to each side and 0.9 m up and down from its center.</summary>
+    private ScreenBox PersonOnScreen(string view, int tick) => OnScreen(view, Samples[tick].Person.InStation, 0.3, 0.9);
+
+    /// <summary>A crate's box on the screen: its bounding sphere, so that every turn of the crate lies inside the box.</summary>
+    private ScreenBox CrateOnScreen(string view, Double3 place) =>
+        OnScreen(view, place, SpinStation.CrateHalfSize * Math.Sqrt(3), SpinStation.CrateHalfSize * Math.Sqrt(3));
+
+    /// <summary>The distance along the floor from the angle of the station's +X to <paramref name="place"/>, in meters, growing spinward.</summary>
+    private static double AlongFloor(Double3 place) => Math.Atan2(-place.Z, place.X) * SpinStation.FloorRadius;
+
+    [Fact]
+    public void TheWalkCapturesShowThePersonWalkingAtTwoPlacesApart()
+    {
+        // Each walk capture falls in its walk, while the person moves the walk's way, and the two show the person at places
+        // so far apart along the floor that its boxes on the screen do not meet: a reader tells the two walks apart by
+        // where the person stands in the frame.
+        (int Tick, string View)? spinward = Shot("walk-spinward"), antispinward = Shot("walk-antispinward");
+        spinward.Should().NotBeNull();
+        antispinward.Should().NotBeNull();
+        foreach ((int tick, string start, string end, int way) in new[] { (spinward!.Value.Tick, "spinward", "antispinward", 1), (antispinward!.Value.Tick, "antispinward", "stop", -1) })
+        {
+            (int first, int last) = Walk(start, end);
+            tick.Should().BeInRange(first, last, $"the capture of the walk {start} falls in that walk");
+            double v = AlongFloor(Samples[tick].Person.InStation) - AlongFloor(Samples[tick - 1].Person.InStation);
+            (way * v).Should().BeGreaterThan(0, $"the person walks {start} at its capture");
+        }
+        ScreenBox there = PersonOnScreen(spinward.Value.View, spinward.Value.Tick), back = PersonOnScreen(antispinward.Value.View, antispinward.Value.Tick);
+        there.InFrame.Should().BeTrue("the spinward walk's capture shows the whole person");
+        back.InFrame.Should().BeTrue("the antispinward walk's capture shows the whole person");
+        double apart = AlongFloor(Samples[spinward.Value.Tick].Person.InStation) - AlongFloor(Samples[antispinward.Value.Tick].Person.InStation);
+        TestContext.Current.TestOutputHelper?.WriteLine($"walk captures: {apart:F2} m apart along the floor, at x {there.X:F3} and {back.X:F3} of the frame");
+        apart.Should().BeGreaterThan(5, "the spinward capture shows the person well spinward of the antispinward one");
+        if (spinward.Value.View == antispinward.Value.View)
+            there.Overlaps(back).Should().BeFalse("the person stands at two places of the frame");
+    }
+
+    [Fact]
+    public void TheLandedCaptureShowsThePersonSpinwardOfItsTakeoffFromTheSameView()
+    {
+        // The jump lands about 0.28 m spinward of its takeoff (see the jump's test), because the person keeps the inertial
+        // speed of the floor's radius on its way toward the axis, where the floor turns slower. The two captures share one
+        // view, so the shift shows as a move of the person across the frame toward the side where spinward points.
+        (int Tick, string View)? takeoff = Shot("takeoff"), landed = Shot("landed");
+        takeoff.Should().NotBeNull("the script captures the person where it jumps");
+        landed.Should().NotBeNull();
+        landed!.Value.View.Should().Be(takeoff!.Value.View, "the shift shows only against the same view");
+        Samples[takeoff.Value.Tick].Standing.Should().BeTrue("the takeoff capture shows the person standing where it jumps");
+        Samples[landed.Value.Tick].Standing.Should().BeTrue("the landed capture shows the person standing again");
+        Double3 from = Samples[takeoff.Value.Tick].Person.InStation;
+        double shift = AlongFloor(Samples[landed.Value.Tick].Person.InStation) - AlongFloor(from);
+        // The screen's spinward side: where a point a meter spinward of the takeoff shows.
+        double theta = Theta(from) + 1 / SpinStation.FloorRadius, radius = Math.Sqrt(from.X * from.X + from.Z * from.Z);
+        double spinwardOnScreen = Math.Sign(OnScreen(takeoff.Value.View, new Double3(radius * Math.Cos(theta), from.Y, -radius * Math.Sin(theta)), 0, 0).X
+                                            - OnScreen(takeoff.Value.View, from, 0, 0).X);
+        ScreenBox before = PersonOnScreen(takeoff.Value.View, takeoff.Value.Tick), after = PersonOnScreen(landed.Value.View, landed.Value.Tick);
+        double move = (after.X - before.X) * spinwardOnScreen * run.Script.Window!.Width / 2;
+        TestContext.Current.TestOutputHelper?.WriteLine($"landed: {shift:F3} m spinward of the takeoff, {move:F1} px toward the screen's spinward side");
+        before.InFrame.Should().BeTrue();
+        after.InFrame.Should().BeTrue();
+        shift.Should().BeGreaterThan(0.1, "the jump lands spinward of its takeoff");
+        // A shift that a reader sees between two captures: at least 10 px of the 1280.
+        move.Should().BeGreaterThan(10, "the landed capture shows the person spinward of its takeoff");
+    }
+
+    [Fact]
+    public void TheThrowCaptureShowsTheCrateInFlightApartFromThePerson()
+    {
+        // The capture falls after the throw and before the crate touches anything, and the crate's box on the screen lies
+        // at least the crate's own width from the person's, so the crate shows as a crate that has left the person's hands.
+        // Carry spawns the thrown crate just clear of the person, so at its spawn the two boxes nearly meet.
+        int spawn = Enumerable.Range(0, Samples.Count).First(n => Samples[n].Thrown != null);
+        List<Double3> places = [.. Samples.Skip(spawn).Select(s => s.Thrown!.Value.Inertial)];
+        int touch = spawn + FirstConstrainedStep(places, 2);
+        (int Tick, string View)? shot = Shot("throw");
+        shot.Should().NotBeNull();
+        shot!.Value.Tick.Should().BeInRange(spawn, touch - 1, "the throw capture shows the crate in flight");
+        ScreenBox crate = CrateOnScreen(shot.Value.View, Samples[shot.Value.Tick].Thrown!.Value.InStation), person = PersonOnScreen(shot.Value.View, shot.Value.Tick);
+        TestContext.Current.TestOutputHelper?.WriteLine($"throw capture: {shot.Value.Tick - spawn} ticks after the throw, crate at x {crate.X:F3} y {crate.Y:F3}, person at x {person.X:F3} y {person.Y:F3}, gap {crate.Gap(person):F3} against the crate's width {2 * crate.HalfWidth:F3}");
+        crate.InFrame.Should().BeTrue("the throw capture shows the whole crate");
+        crate.Gap(person).Should().BeGreaterThan(2 * crate.HalfWidth, "the crate shows apart from the person");
+    }
+
+    [Fact]
+    public void TheLastCaptureOfTheThrowShowsTheThrownCrateAtRestOnTheFloor()
+    {
+        // At the capture thrown-landed the thrown crate lies still on the floor, its whole box in the frame. No nearer body
+        // covers any part of it, and its box does not meet the dropped crate's, so a reader tells the two crates apart.
+        (int Tick, string View)? shot = Shot("thrown-landed");
+        shot.Should().NotBeNull();
+        SpinStationSample sample = Samples[shot!.Value.Tick];
+        SpinStationBody thrown = sample.Thrown!.Value;
+        thrown.VelocityInStation.Length.Should().BeLessThan(1e-3, "the thrown crate has come to rest");
+        Double3.Dot(thrown.InStation, FacetNormal(thrown.InStation)).Should().BeApproximately(FacetDistance - SpinStation.CrateHalfSize, 2e-3,
+            "the thrown crate rests on the floor");
+        ScreenBox crate = CrateOnScreen(shot.Value.View, thrown.InStation);
+        ScreenBox person = PersonOnScreen(shot.Value.View, shot.Value.Tick), dropped = CrateOnScreen(shot.Value.View, sample.Dropped.InStation);
+        TestContext.Current.TestOutputHelper?.WriteLine(
+            $"thrown-landed: crate {AlongFloor(thrown.InStation):F2} m along the floor at x {crate.X:F3} y {crate.Y:F3}, {crate.Depth:F2} m away; person at x {person.X:F3}, {person.Depth:F2} m; dropped crate at x {dropped.X:F3}, {dropped.Depth:F2} m");
+        crate.InFrame.Should().BeTrue("the capture shows the whole thrown crate");
+        crate.CoveredBy(person).Should().BeFalse("the person does not hide the thrown crate");
+        crate.Overlaps(dropped).Should().BeFalse("the two crates show apart");
+    }
+
     [Fact]
     public void TheRunRaisesNoErrorsAndCapturesItsViews()
     {
         run.World.Errors.Should().BeEmpty();
-        run.Result.Captures.Should().Contain(["drop", "standing", "walk-spinward", "walk-antispinward", "jump", "landed", "throw", "thrown-landed", "ring"]);
+        run.Result.Captures.Should().Contain(["drop", "standing", "walk-spinward", "walk-antispinward", "takeoff", "jump", "landed", "throw", "thrown-landed", "ring"]);
     }
 }
