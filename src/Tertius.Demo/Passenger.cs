@@ -212,7 +212,9 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             case Seated { WeightlessTicks: int ticks }:
                 if (self.Frame != seat.Frame)
                     return;
-                // The gravity of the last finished step at the seat: the frame's field less its proper acceleration (see Clip).
+                // The gravity of the last finished step at the seat: the frame's field less its proper acceleration, without the
+                // rotation terms of the frame's turn that FrameTree.FeltGravity adds. Physics gives a walking character no
+                // rotation terms yet (ter-1b21), so a belt that pushed against them would move the person off its seat.
                 FrameTree frames = self.Snapshot.Frames;
                 Double3 gravity = frames.Gravity(seat.Frame).AtPrecise(self.PoseIn(seat.Frame).Position) - (Double3)frames.ProperAcceleration(seat.Frame);
                 bool weightless = gravity.Length < FrameTree.ZeroGravityThreshold;

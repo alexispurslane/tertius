@@ -764,6 +764,35 @@ public sealed partial class FrameTree
     /// </summary>
     public Vector3 ProperAcceleration(FrameHandle frame) => properAcceleration[Node(frame).Id];
 
+    /// <summary>
+    /// The gravity that a body at rest at <paramref name="position"/> in <paramref name="frame"/> feels over the last
+    /// finished step, in m/s², in frame axes: the frame's field there (see <see cref="Gravity"/>), less its proper
+    /// acceleration (see <see cref="ProperAcceleration"/>), plus the centrifugal term −ω × (ω × r) and the Euler term
+    /// −α × r of the frame's inertial turn at r = <paramref name="position"/> (docs/plans/spin-gravity.md, "V5, the effective
+    /// gravity"). ω and α are the frame's angular velocity and angular acceleration relative to the virtual root above the
+    /// roots (see <see cref="AngularVelocityRelative"/> and <see cref="AngularAccelerationRelative"/>), turned into the
+    /// frame's axes. It takes no velocity, so it has no Coriolis term. Game code reads it to ask whether a place has weight,
+    /// and which way is down.
+    /// <para>
+    /// It reads only stored values, which step 2 of each sync point writes for the step that ended, so it describes the last
+    /// finished step in every tick, as <see cref="ProperAcceleration"/> does. The internal effective gravity that physics
+    /// reads describes the step in flight during a tick. In a frame that does not turn, with ω and α zero, it is the field
+    /// less the proper acceleration, to the bit. It walks up the frame's chain three times and allocates nothing. Throws
+    /// <see cref="InvalidOperationException"/> for a stale frame.
+    /// </para>
+    /// </summary>
+    public Double3 FeltGravity(FrameHandle frame, Double3 position)
+    {
+        Double3 linear = gravity[Node(frame).Id].AtPrecise(position) - (Double3)ProperAcceleration(frame);
+        Double3 omega = AngularVelocityRelative(frame, FrameHandle.Null), alpha = AngularAccelerationRelative(frame, FrameHandle.Null);
+        if (omega == Double3.Zero && alpha == Double3.Zero)
+            return linear;
+        DPose inRoot = RootPose(frame);
+        omega = inRoot.InverseTransformDirection(omega);
+        alpha = inRoot.InverseTransformDirection(alpha);
+        return linear - Double3.Cross(omega, Double3.Cross(omega, position)) - Double3.Cross(alpha, position);
+    }
+
     /// <summary>The pose of <paramref name="of"/> in the space of <paramref name="to"/>, through their common ancestor.</summary>
     public DPose Relative(FrameHandle of, FrameHandle to) => poses.Relative(Node(of), Node(to));
 
@@ -828,8 +857,8 @@ public sealed partial class FrameTree
     /// frame's first <see cref="BeginStep"/>.
     /// <para>
     /// It reads the turns, which describe the step in flight from <see cref="BeginStep"/> on and the last finished step from
-    /// step 2 on, so only physics and the frame tree read it, in the step whose turn they hold. A public read for gameplay,
-    /// when one is needed, describes the last finished step under a name of its own.
+    /// step 2 on, so only physics and the frame tree read it, in the step whose turn they hold. Game code reads
+    /// <see cref="FeltGravity"/>, which describes the last finished step.
     /// </para>
     /// </summary>
     internal Double3 EffectiveGravity(FrameHandle frame, Double3 position) => AddRotationTerms(frame, position, LinearGravity(frame, position));

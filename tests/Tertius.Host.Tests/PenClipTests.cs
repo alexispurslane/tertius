@@ -130,6 +130,26 @@ public sealed class PenClipTests : IDisposable
         ClipOf().State.Value.Should().BeOfType<Released>();
     }
 
+    /// <summary>
+    /// A frame without a body and without a field, in a root frame without gravity, spins up about its +Y at 0.05 rad/s²,
+    /// with the pen in its clip at the place of the demo, 2.96 m from the axis. Its proper acceleration is zero, but the
+    /// pen feels the Euler term of the change of the turn there, α r = 0.15 m/s², and a centrifugal term that grows. So the
+    /// frame is never weightless at the clip, and the clip holds the pen. A clip that read the field less the proper
+    /// acceleration would let it go after a second.
+    /// </summary>
+    [Fact]
+    public void InAFrameWhoseTurnSpeedsUpTheClipHoldsThePen()
+    {
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        cabin = world.GetOwnedFrame(world.Spawn(SpinUp.Spawning(new SpawnDesc { Frame = space, AsFrame = new FrameSpec(FrameBounds.Sphere(10)) }, world, 0.05)));
+        pen = world.Spawn(DemoSurface.ClippedPen(Pen, cabin));
+
+        Tick(world, (int)(3 * Clip.ReleaseSeconds * 60));
+
+        ClipOf().State.Value.Should().BeOfType<Clipped>();
+        FromClip().Should().BeLessThan(0.005, "the clip holds the pen");
+    }
+
     [Fact]
     public void TheClipLetsThePenGoWithASmallPushAndASlowSpin()
     {
