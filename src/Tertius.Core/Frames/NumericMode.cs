@@ -31,13 +31,16 @@ internal enum NumericMode : byte
     /// anchor's motion intents (docs/plans/numeric-frames.md, "Following frames", and "Anchors", rule 3). The anchor is a
     /// hull, whose frame hangs at the origin, or a plain body, which is a member of the frame's system there. At each sync
     /// point the frame takes the place of its step plan, the record of the anchor's motion intent of the step that ends
-    /// then, and the plan's chord as its velocity: the change of place over that step, divided by its length, which is the
-    /// velocity that Jolt gives a body that moves as the plan says. A new one starts with the chord of its anchor's motion
+    /// then, or in a step without one the record of a kinematic body that holds still where the step starts, and the plan's
+    /// chord as its velocity: the change of place over that step, divided by its length, which is the velocity that Jolt
+    /// gives a body that moves as the plan says. A new one starts with the chord of its anchor's motion
     /// over the step that ended (see <see cref="FrameTree.UpdateNumericFrames"/>). During a step it moves as a falling frame
     /// does, with the acceleration that lands it on the plan (see <see cref="FrameTree.BeginNumericStep"/>): on a Kepler
     /// orbit, the orbit's acceleration at its origin to about 3e-10 m/s² in low orbit. So the bodies in it move as they
-    /// would in the semantic frame's own system, and they feel the field minus that acceleration. An anchor without a motion
-    /// intent gives no plan, and the frame falls. It never rotates: the anchor's rotation stays with the anchor.
+    /// would in the semantic frame's own system, and they feel the field minus that acceleration. In a step without a motion
+    /// intent the frame holds still in its semantic frame, and its anchor with it, as a kinematic body without a motion
+    /// intent holds still in the semantic frame's own system (ticket ter-zsku). It never rotates: the anchor's rotation stays
+    /// with the anchor.
     /// </summary>
     Following = 4,
 }
