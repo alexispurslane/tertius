@@ -691,43 +691,61 @@ public class RailsFollowTests
         world.Errors.Should().BeEmpty();
     }
 
-    [Fact]
-    public void AShipThatFloatsAtAStationsPlaceInItsFollowingFrameReadsInSpaceTheStationsVelocityPlusItsOwnInTheFollowingFrame()
+    /// <summary>
+    /// A world on the real backend, with the default numeric frames or none, an <see cref="Scenes.AsteroidSpace"/>, a station
+    /// on <see cref="FastStill"/> from its first step, and a ship, a frame with a dynamic hull, a ball of 0.5 m, 3 m from the
+    /// station along +Y with the station's velocity. With numeric frames the two fall together in the station's following
+    /// frame, which never holds still, so the ship stays slow in it.
+    /// </summary>
+    private static (World World, FrameHandle Space, Entity Station, Entity Ship) FloatingShip(bool numericFrames)
     {
-        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        World world = NewWorld(out _, configure: numericFrames ? null : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
         FrameHandle space = Scenes.AsteroidSpace(world);
-        // The station is on its orbit from its first step, so its following frame never holds still, and the ship stays slow
-        // in it.
         Entity station = Hull(world, space, FastStill, firstMove: true);
-        FrameHandle stationFrame = world.GetOwnedFrame(station);
-        // The ship starts at the station's place, with the station's velocity, and passes through the station's hull, so the
-        // two fall together in the station's following frame.
         (Double3 place, Double3 velocity) = FastStill.StateAt(world.Time, Mu);
         Entity ship = world.Spawn(new SpawnDesc
         {
             Frame = space,
-            Pose = new DPose(place, DQuaternion.Identity),
+            Pose = new DPose(place + new Double3(0, 3, 0), DQuaternion.Identity),
             LinearVelocity = velocity,
-            Body = Ball() with { CollisionMask = CollisionMask.Empty },
+            Body = Ball(),
             AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         });
+        return (world, space, station, ship);
+    }
 
-        Tick(world, 6);
-
-        FrameHandle followingFrame = world.PhysicsHomeOf(station);
-        world.Frames.Numeric(followingFrame).Should().Be(NumericMode.Following);
-        world.PhysicsHomeOf(ship).Should().Be(followingFrame, "the ship joined the station's following frame");
-        MotionSample sample = faults.Moves.Single(record => record.Entity == stationFrame.Entity && record.Tick == world.TickNumber - 1).Sample;
-        // Physics releases the ship's record in the following frame, with Jolt's chord there and the acceleration that the step
-        // gave the ship there, so the ship's own instant velocity in the following frame is half a step of that acceleration past
-        // the chord. The following frame's instant velocity at the end of the step is the station's, the sample's.
-        double dt = world.DeltaTime;
-        MotionSample released = faults.Outputs[^1].Frames.Single(record => record.Frame == world.GetOwnedFrame(ship)).Motion;
-        Double3 own = released.ChordVelocity + released.Acceleration * (dt / 2);
-        (world.VelocityIn(ship, space) - (sample.Velocity + own)).Length.Should().BeLessThan(1e-6);
-        (sample.Velocity - sample.ChordVelocity - sample.Acceleration * (dt / 2)).Length.Should().BeGreaterThan(0.01,
-            "half a step of the orbit's pull at the start of the step misses the change of the pull over the step by 3 cm/s");
-        world.Errors.Should().BeEmpty();
+    /// <summary>
+    /// The ship has the place and reads in space the velocity that it has without numeric frames, at every sync point, to the
+    /// float step of 2 km/s in the asteroid's own system, 2.4e-4 m/s: Jolt's chord in space plus half a step of the orbit's
+    /// pull at its place where the step starts. The following frame lands on the station's plan with a step acceleration
+    /// that takes in the change of the pull over the step, and the gravity that physics applies to the ship takes it out
+    /// again, so the ship's own velocity in the frame is relative to the frame's instant velocity in Jolt's stepping, not to
+    /// the plan's (see JoltPhysicsBackend.HomeSteppedVelocityOverPlan). Before the review of ticket ter-zsku, the record
+    /// that physics releases for the ship was taken as relative to the plan's, and the ship read 3 cm/s more of the change
+    /// of the pull than without numeric frames.
+    /// </summary>
+    [Fact]
+    public void AShipThatFloatsBesideAStationInItsFollowingFrameMovesAndReadsItsVelocityInSpaceAsWithoutNumericFrames()
+    {
+        (World world, FrameHandle space, Entity station, Entity ship) = FloatingShip(numericFrames: true);
+        (World plain, FrameHandle plainSpace, Entity _, Entity plainShip) = FloatingShip(numericFrames: false);
+        using (world)
+        using (plain)
+        {
+            for (int tick = 0; tick < 36; tick++)
+            {
+                world.Tick();
+                plain.Tick();
+                world.PhysicsHomeOf(ship).Should().Be(world.PhysicsHomeOf(station), "the ship falls in the station's following frame");
+                (world.PoseIn(ship, space).Position - plain.PoseIn(plainShip, plainSpace).Position).Length
+                    .Should().BeLessThan(1e-3, "the ship is where it is without numeric frames at sync point {0}", world.TickNumber);
+                (world.VelocityIn(ship, space) - plain.VelocityIn(plainShip, plainSpace)).Length
+                    .Should().BeLessThan(1e-3, "the ship moves as it does without numeric frames at sync point {0}", world.TickNumber);
+            }
+            world.Frames.Numeric(world.PhysicsHomeOf(station)).Should().Be(NumericMode.Following);
+            world.Errors.Should().BeEmpty();
+            plain.Errors.Should().BeEmpty();
+        }
     }
 
     /// <summary>

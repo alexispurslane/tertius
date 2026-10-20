@@ -646,6 +646,7 @@ public sealed partial class JoltPhysicsBackend
             next += gravity * dt;
         }
         record.GravityApplied = held ? Vector3.Zero : gravity;
+        record.Held = held;
         next += record.PendingVelocityChange;
         record.PendingVelocityChange = Vector3.Zero;
         record.PendingJump = 0;

@@ -98,9 +98,12 @@ public class StillFollowingFrameTests
     /// on <see cref="Fast"/>. The spawn takes the orbit's state at the world's time and the sample of its first step as its
     /// first motion intent, so the hull stands on its orbit from its first sync point.
     /// </summary>
-    private static (World World, FrameHandle Space, Entity Owner) SkippingHull(bool numericFrames)
+    private static (World World, FrameHandle Space, Entity Owner) SkippingHull(bool numericFrames) => SkippingHull(numericFrames, out _);
+
+    /// <summary>The scene of <see cref="SkippingHull(bool)"/>, whose backend is <paramref name="backend"/>.</summary>
+    private static (World World, FrameHandle Space, Entity Owner) SkippingHull(bool numericFrames, out JoltPhysicsBackend backend)
     {
-        World world = NewWorld(out _, configure: numericFrames ? null : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+        World world = NewWorld(out backend, configure: numericFrames ? null : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
         FrameHandle space = Scenes.AsteroidSpace(world);
         double time = world.Time;
         (Double3 position, Double3 velocity) = Fast.StateAt(time, Mu);
@@ -194,9 +197,10 @@ public class StillFollowingFrameTests
     /// frame with a bubble of 16 m, whose kinematic hull, a box of 4 m, <see cref="StoppingDrift"/> drives at
     /// <see cref="Drift"/> until <paramref name="stopTick"/>. A crate floats in the frame 15 m along +Y from the hull and
     /// drifts on along +Y at 2 m/s, so it leaves the bubble into the frame's tree parent within a second: the hull's following
-    /// frame with numeric frames, and space without them.
+    /// frame with numeric frames, and space without them. With <paramref name="ship"/> the crate is the dynamic hull of a
+    /// ship, a frame with a bubble of 10 cm.
     /// </summary>
-    private static (World World, FrameHandle Space, Entity Owner, Entity Crate) LeavingCrate(bool numericFrames, long stopTick)
+    private static (World World, FrameHandle Space, Entity Owner, Entity Crate) LeavingCrate(bool numericFrames, long stopTick, bool ship = false)
     {
         World world = NewWorld(out _, configure: numericFrames ? null : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
         FrameHandle space = Ground(world, 0);
@@ -213,6 +217,7 @@ public class StillFollowingFrameTests
         {
             Frame = world.GetOwnedFrame(owner), Pose = At(0, 15), LinearVelocity = new Double3(0, 2, 0),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = ship ? new FrameSpec(FrameBounds.Sphere(0.1f)) : null,
         });
         return (world, space, owner, crate);
     }
@@ -220,12 +225,17 @@ public class StillFollowingFrameTests
     /// <summary>
     /// The hull stops in the step in which the crate leaves its bubble, or in the step before or after. The crate then moves
     /// on in space at the drift's velocity plus its own, as it does without numeric frames, whichever step the hull stopped in.
+    /// A ship that leaves in the step in which the hull stops hands off into the following frame while the frame's instant
+    /// velocity in Jolt's stepping runs 1 km/s behind the plan's, so its record after the hand-off takes Jolt's chord there
+    /// back to the velocity that the hand-off carried (see JoltPhysicsBackend.TryHullRecord).
     /// </summary>
-    [Fact]
-    public void ACrateThatLeavesTheBubbleOfAHullThatStopsMovesOnInSpaceAsWithoutNumericFrames()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ACrateThatLeavesTheBubbleOfAHullThatStopsMovesOnInSpaceAsWithoutNumericFrames(bool ship)
     {
         long exitTick;
-        (World probe, FrameHandle probeSpace, Entity _, Entity probeCrate) = LeavingCrate(numericFrames: true, stopTick: long.MaxValue);
+        (World probe, FrameHandle probeSpace, Entity _, Entity probeCrate) = LeavingCrate(numericFrames: true, stopTick: long.MaxValue, ship);
         using (probe)
         {
             TickUntil(probe, () => probe.GetFrame(probeCrate) == probeSpace, 120);
@@ -235,21 +245,164 @@ public class StillFollowingFrameTests
 
         for (long stopTick = exitTick - 3; stopTick <= exitTick; stopTick++)
         {
-            (World world, FrameHandle space, Entity owner, Entity crate) = LeavingCrate(numericFrames: true, stopTick);
-            (World plain, FrameHandle plainSpace, Entity plainOwner, Entity plainCrate) = LeavingCrate(numericFrames: false, stopTick);
+            (World world, FrameHandle space, Entity owner, Entity crate) = LeavingCrate(numericFrames: true, stopTick, ship);
+            (World plain, FrameHandle plainSpace, Entity plainOwner, Entity plainCrate) = LeavingCrate(numericFrames: false, stopTick, ship);
             using (world)
             using (plain)
             {
-                Tick(world, (int)exitTick + 30);
-                Tick(plain, (int)exitTick + 30);
+                for (long tick = 0; tick < exitTick + 30; tick++)
+                {
+                    world.Tick();
+                    plain.Tick();
+                    (world.PoseIn(crate, space).Position - plain.PoseIn(plainCrate, plainSpace).Position).Length
+                        .Should().BeLessThan(1e-3, "the crate is where it is without numeric frames, stop tick {0}, sync point {1}", stopTick, world.TickNumber);
+                    (world.VelocityIn(crate, space) - plain.VelocityIn(plainCrate, plainSpace)).Length
+                        .Should().BeLessThan(1e-3, "the crate moves as it does without numeric frames, stop tick {0}, sync point {1}", stopTick, world.TickNumber);
+                }
                 (world.PoseIn(owner, space).Position - plain.PoseIn(plainOwner, plainSpace).Position).Length
                     .Should().BeLessThan(1e-6, "the hull stopped where it does without numeric frames, stop tick {0}", stopTick);
-                (world.PoseIn(crate, space).Position - plain.PoseIn(plainCrate, plainSpace).Position).Length
-                    .Should().BeLessThan(1e-3, "the crate is where it is without numeric frames, stop tick {0}", stopTick);
-                (world.VelocityIn(crate, space) - plain.VelocityIn(plainCrate, plainSpace)).Length
-                    .Should().BeLessThan(1e-3, "the crate moves as it does without numeric frames, stop tick {0}", stopTick);
                 world.Errors.Should().BeEmpty();
             }
+        }
+    }
+
+    /// <summary>The tick from which <see cref="StoppingDrift"/> writes no motion intent in the scenes below.</summary>
+    private const long StopTick = 20;
+
+    /// <summary>
+    /// A world on the real backend, with the default numeric frames or none, a space without gravity, the hull of
+    /// <see cref="LeavingCrate"/>, which <see cref="StoppingDrift"/> drives at <see cref="Drift"/> until <see cref="StopTick"/>,
+    /// and a body in space 24 m behind the hull along -X and 5 m beside it along +Y, outside its bubble of 16 m, with the
+    /// hull's velocity and 10 m/s more toward the hull: a crate, a box of 0.5 m and 2 kg, or a character. With numeric frames
+    /// the merge test links the body to the hull, so it moves in the hull's following frame. It is 20.6 m behind the hull
+    /// when the hull stops, and in that step it moves on by 33.5 m relative to the hull, and ends the step 13.9 m from it,
+    /// inside the bubble.
+    /// </summary>
+    private static (World World, FrameHandle Space, Entity Owner, Entity Crate) EnteringCrate(bool numericFrames, bool character,
+        out JoltPhysicsBackend backend)
+    {
+        World world = NewWorld(out backend, configure: numericFrames ? null : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+        FrameHandle space = Ground(world, 0);
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic, Mass: 1e5f),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(16)),
+            LinearVelocity = Drift,
+            FirstMove = new MotionIntent(new EndPose(new DPose(Drift * world.DeltaTime, DQuaternion.Identity))),
+            Components = [new StoppingDrift(StopTick)],
+        });
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(-24, 5), LinearVelocity = Drift + new Double3(10, 0, 0),
+            Body = character
+                ? new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70)
+                : new BodyDesc(new BoxShapeDesc(new Vector3(0.25f)), Mass: 2, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+        });
+        return (world, space, owner, crate);
+    }
+
+    /// <summary>
+    /// The body enters the hull's bubble in the step in which the hull stops, and keeps its velocity in space: it enters the
+    /// hull's frame at 2 km/s, leaves it again in the next step, and is where it is without numeric frames at every sync
+    /// point. Jolt's chord of the body in the following frame, plus half a step of the gravity that physics applied to it, is
+    /// relative to the frame's instant velocity in Jolt's stepping, which is half the frame's change of velocity, 1 km/s, past
+    /// the instant velocity of the frame's still plan. Before the fix, the hand-off took the body's velocity as relative to
+    /// the plan's, and the body entered the hull at 3 km/s. In that step the frame's system shows 120,000 m/s², so the
+    /// character has the walking form there, and the rigid form in the gravity-free space before and after.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ABodyThatEntersTheBubbleOfAHullInTheStepInWhichTheHullStopsMovesOnInSpaceAsWithoutNumericFrames(bool character)
+    {
+        (World world, FrameHandle space, Entity owner, Entity crate) = EnteringCrate(numericFrames: true, character, out JoltPhysicsBackend backend);
+        (World plain, FrameHandle plainSpace, Entity plainOwner, Entity plainCrate) = EnteringCrate(numericFrames: false, character, out _);
+        using (world)
+        using (plain)
+        {
+            world.Tick();
+            plain.Tick();
+            world.PhysicsHomeOf(crate).Should().Be(world.PhysicsHomeOf(owner), "the crate rests in the hull's following frame");
+            int inside = 0;
+            for (int tick = 0; tick < 60; tick++)
+            {
+                world.Tick();
+                plain.Tick();
+                bool entered = world.GetFrame(crate) == world.GetOwnedFrame(owner);
+                entered.Should().Be(plain.GetFrame(plainCrate) == plain.GetOwnedFrame(plainOwner), "the body is in the hull's frame at the same sync points");
+                if (entered)
+                    inside++;
+                if (character)
+                    backend.HasRigidForm(crate).Should().Be(!entered, "the character walks only in the step in which the hull stops, at sync point {0}", world.TickNumber);
+                (world.PoseIn(crate, space).Position - plain.PoseIn(plainCrate, plainSpace).Position).Length
+                    .Should().BeLessThan(1e-3, "the crate is where it is without numeric frames at sync point {0}", world.TickNumber);
+                (world.VelocityIn(crate, space) - plain.VelocityIn(plainCrate, plainSpace)).Length
+                    .Should().BeLessThan(1e-3, "the crate moves as it does without numeric frames at sync point {0}", world.TickNumber);
+            }
+            inside.Should().BeGreaterThan(0, "the crate enters the hull's bubble");
+            world.Errors.Should().BeEmpty();
+            plain.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// A world on the real backend, with the default numeric frames or none, a space without gravity, the hull of
+    /// <see cref="LeavingCrate"/>, which <see cref="StoppingDrift"/> drives at <see cref="Drift"/> until <see cref="StopTick"/>,
+    /// and the owner of a ship, a frame with a bubble of 3 m whose dynamic hull is a box of 2 m and 1 t, in space 40 m from
+    /// the hull along +Y, outside its bubble, with the hull's velocity. With numeric frames the ship's hull lives in the
+    /// hull's following frame, and its frame hangs there.
+    /// </summary>
+    private static (World World, FrameHandle Space, Entity Owner, Entity Ship) ShipBesideAStoppingHull(bool numericFrames)
+    {
+        World world = NewWorld(out _, configure: numericFrames ? null : options => options.NumericFrames = NumericFrameTesting.WithoutNumericFrames);
+        FrameHandle space = Ground(world, 0);
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Kinematic, Mass: 1e5f),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(16)),
+            LinearVelocity = Drift,
+            FirstMove = new MotionIntent(new EndPose(new DPose(Drift * world.DeltaTime, DQuaternion.Identity))),
+            Components = [new StoppingDrift(StopTick)],
+        });
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = At(-10, 22), LinearVelocity = Drift + new Double3(10, 0, 0), AsFrame = new FrameSpec(FrameBounds.Sphere(3)),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 1000, Restitution: 0, LinearDamping: 0, AngularDamping: 0),
+        });
+        return (world, space, owner, ship);
+    }
+
+    /// <summary>
+    /// The ship keeps the drift's velocity in space when the hull beside it stops, and its frame reads that velocity in
+    /// space at every sync point, the one after the stop step included, as without numeric frames. The record that physics
+    /// releases for the ship's frame is relative to the instant velocity of the following frame's plan. Before the fix, it
+    /// was Jolt's chord plus half a step of the ship's acceleration, which is relative to the following frame's instant
+    /// velocity in Jolt's stepping, and the ship read 3 km/s for one tick.
+    /// </summary>
+    [Fact]
+    public void ADynamicShipBesideAHullThatStopsReadsItsVelocityInSpaceAsWithoutNumericFrames()
+    {
+        (World world, FrameHandle space, Entity owner, Entity ship) = ShipBesideAStoppingHull(numericFrames: true);
+        (World plain, FrameHandle plainSpace, Entity _, Entity plainShip) = ShipBesideAStoppingHull(numericFrames: false);
+        using (world)
+        using (plain)
+        {
+            world.Tick();
+            plain.Tick();
+            world.PhysicsHomeOf(ship).Should().Be(world.PhysicsHomeOf(owner), "the ship's hull lives in the hull's following frame");
+            for (int tick = 0; tick < 60; tick++)
+            {
+                world.Tick();
+                plain.Tick();
+                (world.PoseIn(ship, space).Position - plain.PoseIn(plainShip, plainSpace).Position).Length
+                    .Should().BeLessThan(1e-3, "the ship is where it is without numeric frames at sync point {0}", world.TickNumber);
+                (world.VelocityIn(ship, space) - plain.VelocityIn(plainShip, plainSpace)).Length
+                    .Should().BeLessThan(1e-3, "the ship moves as it does without numeric frames at sync point {0}", world.TickNumber);
+            }
+            world.Errors.Should().BeEmpty();
+            plain.Errors.Should().BeEmpty();
         }
     }
 
@@ -285,6 +438,59 @@ public class StillFollowingFrameTests
                 (world.VelocityIn(body, space) - plain.VelocityIn(plainBody, plainSpace)).Length
                     .Should().BeLessThan(1e-4, "the body moves as it does without numeric frames at sync point {0}", world.TickNumber);
             }
+            world.Errors.Should().BeEmpty();
+            plain.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// The scene of <see cref="SkippingHull"/>, and in space beside it a character at rest relative to the hull, 3.5 m from it
+    /// along -Y, with the orbit's velocity, which lives in the hull's following frame with numeric frames.
+    /// </summary>
+    private static (World World, FrameHandle Space, Entity Person) PersonBesideASkippingHull(bool numericFrames, out JoltPhysicsBackend backend)
+    {
+        (World world, FrameHandle space, Entity owner) = SkippingHull(numericFrames, out backend);
+        (Double3 position, Double3 velocity) = Fast.StateAt(world.Time, Mu);
+        Entity person = world.Spawn(new SpawnDesc
+        {
+            Frame = space, Pose = new DPose(position + new Double3(0, -3.5, 0), DQuaternion.Identity), LinearVelocity = velocity,
+            Body = new BodyDesc(new CapsuleShapeDesc(0.6f, 0.3f), BodyMotion.Character, Mass: 70),
+        });
+        world.Tick();
+        if (numericFrames)
+            world.PhysicsHomeOf(person).Should().Be(world.PhysicsHomeOf(owner), "the character lives in the hull's following frame");
+        return (world, space, person);
+    }
+
+    /// <summary>
+    /// The character falls freely beside the Kepler hull whose component skips a tick, and has the place and velocity in
+    /// space that it has without numeric frames at every sync point, the one after the step in which the hull's following
+    /// frame stops included. In that step the frame's system shows the orbit's speed lost in one step, about 120,000 m/s²,
+    /// so the character has the walking form, and Jolt moves it at 2 km/s in the frame. Without numeric frames the
+    /// character's velocity of 2 km/s is a float in the asteroid's own system, whose step is 2.4e-4 m/s, and each step's pull
+    /// of 13 m/s rounds to it, so the two worlds differ by a few of those steps, and the places by a fraction of a millimeter.
+    /// </summary>
+    [Fact]
+    public void ACharacterBesideAKeplerHullWhoseComponentSkipsATickMovesAsItDoesWithoutNumericFrames()
+    {
+        (World world, FrameHandle space, Entity person) = PersonBesideASkippingHull(numericFrames: true, out JoltPhysicsBackend backend);
+        (World plain, FrameHandle plainSpace, Entity plainPerson) = PersonBesideASkippingHull(numericFrames: false, out _);
+        using (world)
+        using (plain)
+        {
+            double heldStepEnd = world.TimeAt(SkippedTick + 2);
+            double worstPlace = 0, worstVelocity = 0;
+            for (int tick = 0; tick < 120; tick++)
+            {
+                world.Tick();
+                plain.Tick();
+                if (world.Time == heldStepEnd)
+                    backend.HasRigidForm(person).Should().BeFalse("the frame's system shows the orbit's speed lost in one step");
+                worstPlace = Math.Max(worstPlace, (world.PoseIn(person, space).Position - plain.PoseIn(plainPerson, plainSpace).Position).Length);
+                worstVelocity = Math.Max(worstVelocity, (world.VelocityIn(person, space) - plain.VelocityIn(plainPerson, plainSpace)).Length);
+            }
+            worstPlace.Should().BeLessThan(1e-3, "the character is where it is without numeric frames");
+            worstVelocity.Should().BeLessThan(2e-3, "the character moves as it does without numeric frames");
             world.Errors.Should().BeEmpty();
             plain.Errors.Should().BeEmpty();
         }
