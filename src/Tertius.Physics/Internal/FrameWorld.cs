@@ -157,7 +157,7 @@ internal sealed class FrameWorld : IDisposable
     /// step in which its dynamic bodies last woke, or in which the system first stepped, in the semantic frame's axes (V8 of
     /// docs/plans/spin-gravity.md). With <see cref="WakePush"/> they are the state of the one wake test: a change of the
     /// frame's push or turn since then wakes the bodies once the change of the acceleration that they feel relative to the
-    /// frame, which the test bounds, passes the wake threshold (see JoltPhysicsBackend.FeltChangeSinceWake).
+    /// frame, which the test bounds, passes the wake threshold (see JoltPhysicsBackend.FeltChangeWakes).
     /// </summary>
     public Double3 WakeAngularVelocity, WakeAngularAcceleration;
 

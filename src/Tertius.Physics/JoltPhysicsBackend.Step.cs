@@ -413,7 +413,7 @@ public sealed partial class JoltPhysicsBackend
     /// <see cref="FrameTree.EffectiveGravity"/> and <see cref="SleepThresholdFor"/>). Wakes a frame's bodies when its gravity
     /// field changes, or when the acceleration that they feel relative to the frame may have changed by more than
     /// <see cref="JoltBackendOptions.WakeAccelerationThreshold"/> since they last woke, by its push or by its turn (see
-    /// <see cref="FeltChangeSinceWake"/>). A sleeping body gets no force, and the force does not reset the sleep timer of an
+    /// <see cref="FeltChangeWakes"/>). A sleeping body gets no force, and the force does not reset the sleep timer of an
     /// awake body, so a body at rest falls asleep.
     /// </summary>
     private void ApplyGravity()
@@ -429,8 +429,11 @@ public sealed partial class JoltPhysicsBackend
             FrameTurns turns = frames.Turns(frame);
             Double3 angularVelocity = turns.Step.AngularVelocity;
             Double3 angularAcceleration = turns.AngularAcceleration(stepDt);
-            bool wake = world.HasGravityState &&
-                (field != world.LastGravity || FeltChangeSinceWake(world, push, angularVelocity, angularAcceleration) > wakeThreshold);
+            // The reach costs a read of every dynamic member, so it is measured only when the turn changed and the push's
+            // change alone does not wake the system.
+            double turn = TurnChangeSinceWake(world, angularVelocity, angularAcceleration);
+            bool wake = world.HasGravityState && (field != world.LastGravity || FeltChangeWakes(push, world.WakePush, 0, 0, wakeThreshold)
+                || turn > 0 && FeltChangeWakes(push, world.WakePush, turn, Reach(world), wakeThreshold));
             if (wake)
                 WakeDynamicMembers(world);
             if (wake || !world.HasGravityState)
@@ -476,39 +479,46 @@ public sealed partial class JoltPhysicsBackend
             Double3 place = center.ToDouble3();
             Double3 linear = frames.LinearGravity(owner.Frame, place);
             owner.FrameAcceleration = frames.Turns(owner.Frame).Turns
-                ? new AppliedFrameAcceleration(linear.ToVector3(), (frames.EffectiveGravity(owner.Frame, place) - linear).ToVector3())
+                ? new AppliedFrameAcceleration(linear.ToVector3(), (frames.AddRotationTerms(owner.Frame, place, linear) - linear).ToVector3())
                 : new AppliedFrameAcceleration(linear.ToVector3(), Vector3.Zero);
         }
     }
 
     /// <summary>
-    /// The wake test (docs/plans/spin-gravity.md, "The wake"): a bound, in m/s², on how much the acceleration that a dynamic
-    /// body of the system of <paramref name="world"/> feels relative to the system's frame, at any place of those bodies,
-    /// has changed since they last woke. A sleeping body has no local velocity, so it moves with its frame, which is right
-    /// only while what it would feel there stays as it was when it fell asleep. One cause changes that acceleration, a
-    /// change of how the frame moves against a free body, and it has two parts, which the bound adds:
+    /// The wake test (docs/plans/spin-gravity.md, "The wake"): true when a bound, in m/s², on how much the acceleration that
+    /// a dynamic body of a system feels relative to the system's frame, at any place of those bodies, has changed since they
+    /// last woke passes <paramref name="threshold"/>. A sleeping body has no local velocity, so it moves with its frame,
+    /// which is right only while what it would feel there stays as it was when it fell asleep. One cause changes that
+    /// acceleration, a change of how the frame moves against a free body, and it has two parts, which the bound adds:
     /// <list type="bullet">
     /// <item>The push, <paramref name="push"/> (see <see cref="FrameTree.PushInStep"/>), what an accelerometer at the frame's
     /// origin reads apart from the field: the proper acceleration of a semantic frame, and for a numeric frame its
     /// acceleration less that of a free body at its origin, as when an anchor speeds up its following frame. Its part is
-    /// |p − p_wake|.</item>
+    /// |p − p_wake|, with p_wake <paramref name="wakePush"/>.</item>
     /// <item>The turn of the semantic frame, which changes the centrifugal and the Euler acceleration from place to place.
-    /// With ω and α the semantic frame's inertial angular velocity and angular acceleration for the step in flight,
-    /// <paramref name="angularVelocity"/> and <paramref name="angularAcceleration"/>, their values at the last wake, and B
-    /// the reach of the system (see <see cref="Reach"/>), its part is (|ω| + |ω_wake|) · |ω − ω_wake| · B + |α − α_wake| · B.
-    /// A frame that does not turn, and one that turns steadily on its rails, changes neither, so it never pays for the
-    /// reach.</item>
+    /// Its part is <paramref name="turn"/> (see <see cref="TurnChangeSinceWake"/>) times <paramref name="reach"/>, the reach
+    /// of the system (see <see cref="Reach"/>).</item>
     /// </list>
     /// The change at a place is the change of the rotation terms there less the change of the push, so the sum bounds it.
-    /// In a frame that does not turn the bound is the change of the push alone.
+    /// The push's part alone is tested first, in floats, as the float square of the change against the float square of
+    /// the threshold, so that a frame that does not turn wakes exactly as it did before the rotation terms. The sum is
+    /// tested only when the push's part alone does not wake the system and the turn changed, so its caller measures the
+    /// reach only then.
     /// </summary>
-    private double FeltChangeSinceWake(FrameWorld world, Vector3 push, Double3 angularVelocity, Double3 angularAcceleration)
-    {
-        double change = Vector3.Distance(push, world.WakePush);
-        double turn = (angularVelocity.Length + world.WakeAngularVelocity.Length) * Double3.Distance(angularVelocity, world.WakeAngularVelocity)
-                      + Double3.Distance(angularAcceleration, world.WakeAngularAcceleration);
-        return turn > 0 ? change + turn * Reach(world) : change;
-    }
+    internal static bool FeltChangeWakes(Vector3 push, Vector3 wakePush, double turn, double reach, float threshold) =>
+        Vector3.DistanceSquared(push, wakePush) > threshold * threshold || turn > 0 && Vector3.Distance(push, wakePush) + turn * reach > threshold;
+
+    /// <summary>
+    /// The change of the turn of the semantic frame of <paramref name="world"/>'s system since its last wake, in 1/s²: with ω
+    /// and α the semantic frame's inertial angular velocity and angular acceleration for the step in flight,
+    /// <paramref name="angularVelocity"/> and <paramref name="angularAcceleration"/>, and their values at the last wake,
+    /// (|ω| + |ω_wake|) · |ω − ω_wake| + |α − α_wake|. Times the reach of the system, it bounds the change of the centrifugal
+    /// and the Euler acceleration at any place of its bodies. A frame that does not turn, and one that turns steadily on its
+    /// rails, changes neither, so its change is zero.
+    /// </summary>
+    private static double TurnChangeSinceWake(FrameWorld world, Double3 angularVelocity, Double3 angularAcceleration) =>
+        (angularVelocity.Length + world.WakeAngularVelocity.Length) * Double3.Distance(angularVelocity, world.WakeAngularVelocity)
+        + Double3.Distance(angularAcceleration, world.WakeAngularAcceleration);
 
     /// <summary>
     /// The reach of the system of <paramref name="world"/>, in m: the largest distance from its semantic frame's origin to a
@@ -564,8 +574,8 @@ public sealed partial class JoltPhysicsBackend
             if (gravity != Vector3.Zero)
                 body.AddForce(gravity * record.Material.Mass);
         }
-        // The read of the effective gravity evaluates the field again, so a frame that does not turn takes the linear one.
-        return (turns.Turns ? frames.EffectiveGravity(frame, place).ToVector3() : gravity).Length();
+        // The effective gravity adds the rotation terms to the linear gravity, without a second evaluation of the field.
+        return (turns.Turns ? frames.AddRotationTerms(frame, place, linear).ToVector3() : gravity).Length();
     }
 
     /// <summary>
@@ -766,8 +776,9 @@ public sealed partial class JoltPhysicsBackend
         // The linear gravity is the field part of the character's velocity rule. The effective gravity adds the centrifugal
         // and the Euler term of a turning frame: it says whether the character is under gravity, and it presses a standing
         // character's weight onto its ground. In a frame that does not turn, the two are the same.
-        Vector3 gravity = frames.LinearGravity(world.Frame, position).ToVector3();
-        Vector3 effective = frames.EffectiveGravity(world.Frame, position).ToVector3();
+        Double3 linear = frames.LinearGravity(world.Frame, position);
+        Vector3 gravity = linear.ToVector3();
+        Vector3 effective = frames.AddRotationTerms(world.Frame, position, linear).ToVector3();
         float strength = effective.Length();
         bool underGravity = strength >= FrameTree.ZeroGravityThreshold;
         // The ground state comes from the last update. Any touch counts, also on steep ground and on the head or the
@@ -953,7 +964,12 @@ public sealed partial class JoltPhysicsBackend
             owner.ProperAcceleration = Vector3.Transform(acceleration, Quaternion.Conjugate(bodies.GetRotation(owner.Body)));
             // The same change of velocity without its float noise, less the part that the intents made before the update.
             owner.StepAcceleration = (Double3)applied + (Double3)acceleration - ((Double3)owner.VelocityAfterIntents - before) / stepDt;
-            owner.AngularAcceleration = (bodies.GetAngularVelocity(owner.Body) - owner.AngularVelocityAfterIntents) / stepDt;
+            // When Jolt puts the hull to sleep in the update, it sets its angular velocity to zero. That reset is no motion of
+            // the step, so it gives no angular acceleration: otherwise the frame tree would predict the next step's rate as
+            // the last rate reversed and turn the sleeping hull's frame back (docs/plans/spin-gravity.md, "V3").
+            owner.AngularAcceleration = bodies.IsActive(owner.Body)
+                ? (bodies.GetAngularVelocity(owner.Body) - owner.AngularVelocityAfterIntents) / stepDt
+                : Vector3.Zero;
         }
     }
 

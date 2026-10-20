@@ -92,4 +92,39 @@ public class SpinningShipBodyTests
         world.GetFrame(crate).Should().Be(ship);
         world.Errors.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// A ship whose dynamic hull turns slower and slower, by its angular damping, falls asleep in empty space. When Jolt puts
+    /// a body to sleep it sets its velocities to zero, which is no motion of the step: the hull's last angular velocity
+    /// does not reverse. So the frame tree predicts no turn for the step after the sleep, and from the step after that the
+    /// ship is no turning frame, so its contents keep the results of a hull that does not turn, to the bit
+    /// (docs/plans/spin-gravity.md, "V1, the turn of the step in flight"). A record that read the reset as an angular
+    /// acceleration of −ω/dt would turn the frame back by its last rate for one step.
+    /// </summary>
+    [Fact]
+    public void AShipThatFallsAsleepStopsTurningWithoutTurningBack()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            AngularVelocity = new Vector3(0, 0.05f, 0),
+            Body = new BodyDesc(new SphereShapeDesc(5), Mass: 1000, LinearDamping: 0, AngularDamping: 5, InteriorShape: new SphereShapeDesc(2)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(30)),
+        });
+        FrameHandle ship = world.GetOwnedFrame(owner);
+        Tick(world, 2);
+        IsAwake(backend, space, owner).Should().BeTrue();
+
+        int slept = TickUntil(world, () => !IsAwake(backend, space, owner), 1200);
+        slept.Should().BeLessThan(1200, "the damping slows the hull until it falls asleep");
+        world.Tick();
+        FrameTurns afterSleep = world.Frames.Turns(ship);
+        world.Tick();
+
+        afterSleep.Step.AngularVelocity.Should().Be(Double3.Zero, "the hull asleep does not turn, and its last rate does not reverse");
+        world.Frames.Turns(ship).Turns.Should().BeFalse("two steps after the sleep the ship turns in neither step");
+        world.Errors.Should().BeEmpty();
+    }
 }

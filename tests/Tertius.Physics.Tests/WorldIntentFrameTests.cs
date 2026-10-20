@@ -441,4 +441,124 @@ public class WorldIntentFrameTests
         (read - spin).Length().Should().BeLessThan(1e-4f, $"the ball spins as gameplay set it relative to space, not at {read}");
         world.Errors.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// Sets its body's velocity relative to its frame in the tick <see cref="AtTick"/>, to the velocity that it reads there,
+    /// and records it.
+    /// </summary>
+    private sealed class SetVelocityAt : IComponent
+    {
+        public long AtTick { get; set; } = -1;
+
+        public Double3 Written { get; private set; }
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (self.Tick != AtTick)
+                return;
+            Written = self.VelocityIn(self.Frame);
+            self.Body.SetVelocity(Written);
+        }
+    }
+
+    /// <summary>
+    /// A frame on a fast Kepler orbit lives in a following frame of its own, which moves and does not turn, so the path from
+    /// its parent into it has two levels. A ball that flies beside it, in the same following frame, enters its bubble, and
+    /// the velocity that gameplay set relative to the parent in the tick of the hand-off converts at step 7b of the sync
+    /// point. No level of the path turns or takes a teleport, so the velocity converts as the frame tree converts it level
+    /// by level (see <see cref="FrameTree.ConvertVelocity"/>), to the bit, as before the rotation terms. A first run finds
+    /// the tick of the hand-off, and a second run sets the velocity in that tick.
+    /// </summary>
+    [Fact]
+    public void AVelocitySetInTheTickOfAHandOffAlongAPathThatDoesNotTurnConvertsAsTheTreeConvertsItToTheBit()
+    {
+        long handOff = -1;
+        for (int run = 0; run < 2; run++)
+        {
+            using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+            FrameHandle space = Scenes.AsteroidSpace(world);
+            // An inclined orbit and a tilted frame, so that no level of the path is a plain shift.
+            var orbit = Tertius.Frames.Rails.KeplerOrbit.Circular(5_000, phase: 0.7) with
+            {
+                Inclination = 0.4, AxialTilt = DQuaternion.FromAxisAngle(new Double3(1, 2, 3).Normalized(), 0.9),
+            };
+            FrameHandle station = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+            {
+                Frame = space,
+                Body = KinematicCube,
+                AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
+            }.OnKeplerOrbit(world, orbit)));
+            (Double3 place, Double3 velocity) = orbit.StateAt(world.Time, Scenes.AsteroidMu);
+            var setter = new SetVelocityAt { AtTick = handOff };
+            Entity ball = world.Spawn(new SpawnDesc
+            {
+                Frame = space,
+                Pose = new DPose(place + new Double3(0, 8, 0), DQuaternion.Identity),
+                LinearVelocity = velocity + new Double3(0, -2, 0),
+                Body = Ball(),
+                Components = [setter],
+            });
+            int ticks = TickUntil(world, () => world.GetFrame(ball) == station, 120);
+            ticks.Should().BeLessThan(120, "the ball enters the station's bubble");
+            if (run == 0)
+            {
+                handOff = world.TickNumber - 1;
+                continue;
+            }
+            world.Frames.Numeric(world.Frames.TreeParent(station)).Should().Be(NumericMode.Following);
+            world.TickNumber.Should().Be(handOff + 1, "the velocity acts after the step of the hand-off");
+            Double3 at = world.Frames.Relative(space, station).InverseTransformPoint(world.PoseInOwnFrame(ball).Position);
+            Double3 expected = world.Frames.ConvertVelocity(space, station, at, setter.Written);
+
+            world.Tick();
+
+            Double3 converted = faults.Intents.Last(record => record.Entity == ball).Intent.Velocity;
+            converted.Should().Be(expected);
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// The owner of a cabin turns it by a teleport in the tick in which a ball enters the cabin's bubble, and gameplay sets
+    /// the ball's velocity relative to space in that tick. The teleport and the velocity both act at the start of the next
+    /// step, so the velocity converts into the cabin by the cabin's pose at the teleport, not by its pose in the tree before
+    /// it (docs/plans/spin-gravity.md, "V7, the relative motion of two frames"), and the ball moves in space as gameplay set it.
+    /// </summary>
+    [Fact]
+    public void AVelocitySetInTheTickOfAHandOffIntoAFrameThatTeleportsConvertsByTheTeleportsPose()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle space = Space(world);
+        var turner = new Pilot();
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = new DPose(new Double3(30, 0, 0), DQuaternion.Identity),
+            Body = KinematicCube,
+            AsFrame = new FrameSpec(FrameBounds.Sphere(20)),
+            Components = [turner],
+        });
+        FrameHandle cabin = world.GetOwnedFrame(owner);
+        var pilot = new Pilot();
+        Scenes.Approach approach = Scenes.ApproachToBubble(world, cabin, tick: 30);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = space, Pose = approach.Pose, LinearVelocity = approach.Velocity, Body = Ball(), Components = [pilot] });
+        Tick(world, 30);
+        world.GetFrame(ball).Should().Be(space);
+
+        var velocity = new Double3(3, 4, 0);
+        turner.Once = body => body.Teleport(new DPose(new Double3(30, 0, 0), Turned));
+        pilot.Once = body => body.SetVelocity(velocity);
+        world.Tick();
+        world.GetFrame(ball).Should().Be(cabin, "the step of tick 30 handed the ball into the cabin");
+        world.Tick();
+
+        world.Frames.LocalPose(cabin).Rotation.Should().Be(Turned, "the teleport turned the cabin");
+        Double3 read = world.VelocityIn(ball, space);
+        (read - velocity).Length.Should().BeLessThan(1e-4, $"the ball moves at the velocity that gameplay set relative to space, not at {read}");
+        world.Errors.Should().BeEmpty();
+    }
 }

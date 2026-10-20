@@ -466,6 +466,65 @@ public class FrameTreeFollowingFrameTests
     }
 
     /// <summary>
+    /// In a turning parent, the acceleration of the anchor read backward from its row takes the parent's rotation terms too,
+    /// as the rule of the anchor's own proper acceleration did (docs/plans/spin-gravity.md, "The proper acceleration of a
+    /// frame"). Here a station in empty space spins at 0.31321 rad/s about +Y, and the anchor moves on end poses at a steady
+    /// 2 km/s along +Z of the station's turning axes, 1 km from its axis. Its acceleration in those axes is zero, so its new
+    /// following frame starts with its velocity, which is the chord of its end poses, and its first plan, the next end pose,
+    /// lands it without an acceleration. A read without the rotation terms would leave out the Coriolis term, 1,253 m/s²,
+    /// and the centrifugal term, 98 m/s², and start the frame about 10 m/s off. A station that spins up from rest at
+    /// 0.5 rad/s² instead adds the Euler term, 500 m/s² at the anchor.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ANewFollowingFrameInATurningParentReadsItsAnchorsAccelerationWithTheParentsRotationTerms(bool spinningUp)
+    {
+        FrameHandle space = frames.Create(new Entity(20, 1), FrameHandle.Null, DPose.Identity, FrameBounds.Sphere(1e9f), GravityField.None);
+        FrameHandle spinning = frames.Create(new Entity(21, 1), space, DPose.Identity, FrameBounds.Sphere(1e8f));
+        var spin = new FrameSpin(DQuaternion.Identity, 0.31321);
+        Double3 start = new(1_000, 0, 0), velocity = new(0, 0, 2_000);
+        FrameHandle station = frames.Create(new Entity(22, 1), spinning, new DPose(start, DQuaternion.Identity), FrameBounds.Sphere(40));
+        frames.SetHullMotion(station, BodyMotion.Kinematic);
+        frames.SetTreeLinearVelocity(station, velocity);
+        PhysicsIntent[] IntentsOf(int k)
+        {
+            var intents = new PhysicsIntent[station.Entity.Index + 1];
+            double t = k * Step;
+            MotionSample turning = spinningUp
+                ? new MotionSample(new DPose(Double3.Zero, DQuaternion.FromAxisAngle(Double3.UnitY, 0.25 * t * t)), Double3.Zero, Double3.Zero,
+                    Double3.Zero, new Double3(0, 0.5 * t, 0), new Double3(0, 0.5, 0))
+                : spin.Sample(Double3.Zero, t, Step);
+            intents[spinning.Entity.Index] = new PhysicsIntent { Frame = space, Move = new MotionIntent(turning) };
+            intents[station.Entity.Index] = new PhysicsIntent
+            {
+                Frame = spinning, Move = new MotionIntent(new EndPose(new DPose(start + velocity * (k * Step), DQuaternion.Identity))),
+            };
+            return intents;
+        }
+        // Three steps, so that the station turns in the step in flight and in the step that ended. Physics releases the
+        // record of the anchor's hull: a steady velocity on its end poses.
+        for (int k = 1; k <= 3; k++)
+        {
+            PhysicsIntent[] intents = IntentsOf(k);
+            frames.Update();
+            frames.BeginStep(intents, Step, lastStepFailed: false);
+            var record = new MotionSample(new DPose(start + velocity * (k * Step), DQuaternion.Identity), velocity, velocity, Double3.Zero, Double3.Zero, Double3.Zero);
+            frames.TakeStepRecords(intents, Step, new StepOwners().WithHullRecord(station, record));
+        }
+        frames.Turns(spinning).Turns.Should().BeTrue();
+        (frames.Turns(spinning).AngularAcceleration(Step).Length > 0.25).Should().Be(spinningUp);
+
+        FrameHandle orbit = Update(Hull(station))[0].Home;
+        frames.Update();
+        frames.BeginStep(IntentsOf(4), Step, lastStepFailed: false);
+
+        frames.Numeric(orbit).Should().Be(NumericMode.Following);
+        (frames.LinearVelocity(orbit) - velocity).Length.Should().BeLessThan(1e-6, "the anchor's velocity is the chord of its end poses");
+        frames.HomeAcceleration(orbit, spinning).Length.Should().BeLessThan(1e-3, "an end pose at a steady velocity has no acceleration");
+    }
+
+    /// <summary>
     /// A frame created after step 2 in the slot of a destroyed frame has no proper acceleration as the step found it, as it
     /// has none in its row. So a new fast hull in it, which starts as one that fell freely, starts its following frame with
     /// its own velocity in the empty space of the new frame, and not with the thrust of the frame that died.

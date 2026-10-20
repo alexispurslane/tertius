@@ -82,6 +82,33 @@ public class SpinStationFloorTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// The sleep threshold of the station's system reads the effective gravity on its awake bodies, the centrifugal term of
+    /// about 9.8 m/s² at the floor, and not the linear gravity, which is zero in a station without a field (see
+    /// <c>JoltPhysicsBackend.SleepThresholdFor</c>). So a crate that slides along a floor without friction at 1 cm/s, under
+    /// Jolt's threshold of 0.03 m/s at standard gravity, falls asleep as it would on a floor in a field of 9.8 m/s². A
+    /// threshold of the linear gravity would be the floor's 3.1 µm/s, and the crate would slide on.
+    /// </summary>
+    [Fact]
+    public void ACrateThatSlidesSlowlyOnTheFloorOfTheStationFallsAsleepAsUnderTheSameGravityThatDoesNotTurn()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        Station station = SpawnStation(world);
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = station.Frame,
+            Pose = At(FloorRadius - 0.5),
+            LinearVelocity = new Double3(0, 0, 0.01),
+            Body = Crate with { Friction = 0 },
+        });
+        world.Tick();
+
+        int ticks = TickUntil(world, () => !IsAwake(backend, station.Frame, crate), 3 * world.Options.TickRate);
+
+        ticks.Should().BeLessThan(3 * world.Options.TickRate, "a crate under 9.8 m/s² that moves at 1 cm/s falls asleep");
+        world.Errors.Should().BeEmpty();
+    }
+
     [Fact]
     public void AShipOnTheFloorOfTheStationFeelsTheFloorPushItTowardTheAxisAwakeAndAsleep()
     {

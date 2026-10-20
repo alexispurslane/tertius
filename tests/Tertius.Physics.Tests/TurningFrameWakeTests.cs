@@ -169,4 +169,31 @@ public class TurningFrameWakeTests
 
         private double Since(double time) => Math.Max(0, time - startTime);
     }
+
+    /// <summary>
+    /// In a frame that does not turn, the wake test is the push test from before the rotation terms, to the bit: the float
+    /// square of the push's change against the float square of the threshold. A test of the float length widened to a
+    /// double rounds differently, so at the threshold's edge it would wake a frame that does not turn where it did not
+    /// before, or let it sleep. The pushes here change by the default threshold, 0.02 m/s², to within a part in a million,
+    /// where the two tests disagree.
+    /// </summary>
+    [Fact]
+    public void InAFrameThatDoesNotTurnTheWakeTestIsThePushTestFromBeforeTheRotationTerms()
+    {
+        const float threshold = 0.02f;
+        var random = new Random(1234);
+        float Next(float range) => (float)((random.NextDouble() * 2 - 1) * range);
+        int disagree = 0;
+        for (int i = 0; i < 200_000; i++)
+        {
+            var wakePush = new Vector3(Next(10), Next(10), Next(10));
+            Vector3 direction = Vector3.Normalize(new Vector3(Next(1), Next(1), Next(1)));
+            Vector3 push = wakePush + direction * (threshold * (1 + Next(1e-6f)));
+            bool before = Vector3.DistanceSquared(push, wakePush) > threshold * threshold;
+            if (JoltPhysicsBackend.FeltChangeWakes(push, wakePush, turn: 0, reach: 0, threshold) != before)
+                disagree++;
+        }
+
+        disagree.Should().Be(0);
+    }
 }

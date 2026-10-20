@@ -111,7 +111,8 @@ public sealed partial class FrameTree
     /// <paramref name="step"/> seconds. That is the anchor's instant velocity less half a step of its acceleration, as
     /// physics gives a body its chord and as a falling frame's instant velocity lies past its chord (see
     /// <see cref="HomeInstantVelocityOverChord"/>). The acceleration is the gravity at the anchor's place plus its proper
-    /// acceleration, the rule of <see cref="ProperAccelerationFrom"/> read backward. The gravity takes the semantic parent's
+    /// acceleration, the rule of <see cref="ProperAccelerationFrom"/> read backward, with the semantic parent's rotation terms
+    /// when it turns, as the rule adds them. The gravity takes the semantic parent's
     /// proper acceleration as the step that ended found it, the value that the rule of the anchor's own value read, because
     /// step 2 may have given the parent a new one (see <see cref="FieldTheStepFound"/>). So the first step plan lands the new
     /// frame on the anchor's motion with the acceleration of the step before, to the jerk of the motion, as every later plan
@@ -145,6 +146,14 @@ public sealed partial class FrameTree
             properAccelerationOut = local.Rotation.Rotate((Double3)properAcceleration[frame.Index]);
         }
         Double3 acceleration = FieldTheStepFound(semantic.Index, position) + properAccelerationOut;
+        ref readonly FrameTurns semanticTurns = ref turns[semantic.Index];
+        if (semanticTurns.Turns)
+        {
+            // The rule reads the parent's rotation terms at the place where the step started, with the Coriolis term on the
+            // chord. The row keeps the instant velocity, which is the chord to half a step of the acceleration.
+            Double3 start = position - velocity * step;
+            acceleration += semanticTurns.Centrifugal(start) + semanticTurns.Euler(start, step) + semanticTurns.Coriolis(velocity);
+        }
         Double3 chord = velocity - acceleration * (step / 2);
         FrameHandle following = CreateNumeric(semantic, position, chord, NumericMode.Following);
         anchor[following.Index] = body.Entity;

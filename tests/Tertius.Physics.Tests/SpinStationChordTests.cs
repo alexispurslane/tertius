@@ -704,4 +704,163 @@ public class SpinStationChordTests
         Double3.Distance(ghost.LinearVelocity, chord).Should().BeLessThan(1e-4);
         world.Errors.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// Writes the full sample of <see cref="Spin"/> for its entity in every tick, at its parent's origin, and in the tick
+    /// <paramref name="jumpTick"/> switches to <paramref name="ahead"/> and teleports its entity to that spin's pose where the
+    /// step that applies the tick's intents starts, so that its frame's axes jump.
+    /// </summary>
+    private sealed class JumpingSpin(FrameSpin spin, FrameSpin ahead, long jumpTick) : IComponent
+    {
+        public FrameSpin Spin { get; private set; } = spin;
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (self.Tick == jumpTick)
+            {
+                Spin = ahead;
+                self.Body.Teleport(new DPose(Double3.Zero, ahead.RotationAt(self.TimeAt(self.Tick + 1))));
+            }
+            self.MoveOnRails(Spin.Sample(Double3.Zero, self.TimeAt(self.Tick + 2), self.DeltaTime));
+        }
+    }
+
+    /// <summary>
+    /// The owner of a station that turns at 0.05 rad/s teleports it ahead by 0.5 rad, in the tick after which the step
+    /// applies it, while a ball at rest in the station sticks out of its bubble. The ghost of the ball in space follows the
+    /// ball's chord, converted by the station's poses at both ends of the step (docs/plans/spin-gravity.md, "The two
+    /// conversion rules"), and the start of the step is the teleport's pose, where the station's level starts the step
+    /// (<c>JoltPhysicsBackend.StartPoseOf</c>). So the ghost moves at the speed of the ball, about 7.5 m/s, and not by the
+    /// jump of the station's axes, 75 m in a step. The station has a kinematic hull, which physics teleports. A frame without
+    /// a body cannot teleport: its owner has no body to write a teleport for.
+    /// </summary>
+    [Fact]
+    public void TheGhostOfABodyInAStationThatTeleportsFollowsItsChordFromTheTeleportsPose()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend jolt, debugChecks: false);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        var spin = new FrameSpin(DQuaternion.Identity, 0.05);
+        var ahead = spin with { PhaseAtEpoch = 0.5 };
+        const long jumpTick = 20;
+        var jumping = new JumpingSpin(spin, ahead, jumpTick);
+        Entity owner = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(0.5f)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(150)),
+            FirstMove = new MotionIntent(spin.Sample(Double3.Zero, world.TimeAt(world.TickNumber + 1), world.DeltaTime)),
+            Components = [jumping],
+        });
+        FrameHandle station = world.GetOwnedFrame(owner);
+        Entity ball = SpawnIn(world, station, UndampedBall, new Double3(149.8, 0, 0));
+        while (world.TickNumber <= jumpTick)
+            world.Tick();
+        jolt.HasGhostIn(ball, space).Should().BeTrue("the ball sticks out of the bubble");
+
+        world.Tick();
+
+        DPose start = new(Double3.Zero, ahead.RotationAt(world.TimeAt(jumpTick + 1)));
+        DPose end = world.Frames.Relative(station, space);
+        AngleBetween(end.Rotation, ahead.RotationAt(world.Time)).Should().BeLessThan(1e-9, "the step applied the teleport and the new spin");
+        JoltPhysicsBackend.BodyFacts real = jolt.BodiesIn(station)
+            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, ball));
+        JoltPhysicsBackend.BodyFacts ghost = jolt.BodiesIn(space)
+            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, ball));
+        Double3 chord = (end.TransformPoint(real.Position) - start.TransformPoint(real.Position - (Double3)real.LinearVelocity * world.DeltaTime)) / world.DeltaTime;
+        chord.Length.Should().BeLessThan(10, "the ball moves at about 7.5 m/s in space");
+        Double3.Distance(ghost.LinearVelocity, chord).Should().BeLessThan(1e-3);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A ship that spins at 0.5 rad/s in inertial space flies out of the station at 10 m/s, with a free ball that starts at
+    /// rest in its axes and sticks out of its bubble. The ball flies on its inertial line, at the ship's velocity plus the
+    /// ship's turn at its place at the spawn, 2.4 m/s. In the step in which the ship hands off into space, the ball's ghost
+    /// moves to space, the ship's new parent, but the ship's pose where the step started is in the station, its old parent,
+    /// for which the conversion by the poses at both ends of the step has no rule. So for that one step the ghost converts by
+    /// the ship's motion at the end of the step (<c>JoltPhysicsBackend.PosesInStep</c>), and moves with the ball, to the
+    /// instant rule's error of a few cm/s.
+    /// </summary>
+    [Fact]
+    public void TheGhostOfABodyInAShipThatHandsOffOutOfTheStationMovesWithTheBodyInTheStepOfTheHandOff()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend jolt, debugChecks: false);
+        Station station = SpawnStation(world, SpikeRate);
+        Tick(world, 30);
+        DPose atSpawn = station.Pose(world);
+        var stationSpin = new Double3(0, SpikeRate, 0);
+        var place = new Double3(140, 0, 0);
+        var inertialVelocity = new Double3(10, 0, 0);
+        var shipSpin = new Double3(0, 0.5, 0);
+        Entity ship = world.Spawn(new SpawnDesc
+        {
+            Frame = station.Frame,
+            Pose = new DPose(place, DQuaternion.Identity),
+            LinearVelocity = inertialVelocity - Double3.Cross(stationSpin, place),
+            AngularVelocity = (shipSpin - stationSpin).ToVector3(),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 1000, LinearDamping: 0, AngularDamping: 0),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(5)),
+        });
+        FrameHandle shipFrame = world.GetOwnedFrame(ship);
+        Entity ball = SpawnIn(world, shipFrame, UndampedBall, new Double3(0, 0, 4.8));
+
+        int ticks = TickUntil(world, () => world.GetFrame(ship) == station.Space, 200);
+
+        ticks.Should().BeLessThan(200, "the ship leaves the bubble of 150 m within 2 s");
+        world.GetFrame(ball).Should().Be(shipFrame);
+        jolt.HasGhostIn(ball, station.Space).Should().BeTrue("the ball sticks out of the ship's bubble, whose parent is space now");
+        JoltPhysicsBackend.BodyFacts ghost = jolt.BodiesIn(station.Space)
+            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, ball));
+        Double3 expected = atSpawn.Rotation.Rotate(inertialVelocity) + Double3.Cross(atSpawn.Rotation.Rotate(shipSpin), atSpawn.Rotation.Rotate(new Double3(0, 0, 4.8)));
+        expected.Length.Should().BeGreaterThan(10.1, "the ship's turn moves the ball");
+        // The read in space keeps the instant rule on the chord in the turning ship, off by about ω dt |u| / 2 for a velocity u
+        // relative to the ship (see ARCHITECTURE.md, "Turning frames").
+        Double3.Distance(world.VelocityIn(ball, station.Space), expected).Should().BeLessThan(0.02, "the ball flies on its inertial line");
+        Double3.Distance(ghost.LinearVelocity, expected).Should().BeLessThan(0.05);
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A room that holds still in space beside the station, with bubbles that meet at 150 m from the station's axis, and a
+    /// ball in the room that sticks out of the room's bubble into the station's bubble and drifts at 1 m/s along +Y. The
+    /// ball stays in the room, and has a ghost in the station, its room's sibling. That ghost moves by the chord of the
+    /// ball's motion in the station's axes over the step that ended, which converts by the station's poses at both ends of
+    /// the step (docs/plans/spin-gravity.md, "The two conversion rules"). The instant rule at the end of the step gave a
+    /// velocity about 0.12 m/s off.
+    /// </summary>
+    [Fact]
+    public void ABodyThatSticksOutOfItsRoomIntoTheSiblingStationHasAGhostThereThatMovesByItsChordInTheStationsAxes()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend jolt, debugChecks: false);
+        Station station = SpawnStation(world, SpikeRate);
+        var roomPlace = new Double3(300, 0, 0);
+        FrameHandle room = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = station.Space,
+            Pose = new DPose(roomPlace, DQuaternion.Identity),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(150)),
+        }));
+        Entity ball = SpawnIn(world, room, UndampedBall, new Double3(-149.8, 0, 0), new Double3(0, 1, 0));
+        Tick(world, 10);
+
+        DPose start = station.Pose(world);
+        world.Tick();
+        DPose end = station.Pose(world);
+
+        world.GetFrame(ball).Should().Be(room);
+        jolt.HasGhostIn(ball, station.Frame).Should().BeTrue("the ball reaches into the station's bubble");
+        JoltPhysicsBackend.BodyFacts real = jolt.BodiesIn(room)
+            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary && BodyUserData.Names(facts.UserData, ball));
+        JoltPhysicsBackend.BodyFacts ghost = jolt.BodiesIn(station.Frame)
+            .Single(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Ghost && BodyUserData.Names(facts.UserData, ball));
+        Double3 placeEnd = roomPlace + real.Position;
+        Double3 placeStart = placeEnd - (Double3)real.LinearVelocity * world.DeltaTime;
+        Double3 chord = (end.InverseTransformPoint(placeEnd) - start.InverseTransformPoint(placeStart)) / world.DeltaTime;
+        Double3.Distance(ghost.LinearVelocity, chord).Should().BeLessThan(1e-3);
+        world.Errors.Should().BeEmpty();
+    }
 }

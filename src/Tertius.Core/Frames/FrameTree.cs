@@ -831,14 +831,23 @@ public sealed partial class FrameTree
     /// when one is needed, describes the last finished step under a name of its own.
     /// </para>
     /// </summary>
-    internal Double3 EffectiveGravity(FrameHandle frame, Double3 position)
+    internal Double3 EffectiveGravity(FrameHandle frame, Double3 position) => AddRotationTerms(frame, position, LinearGravity(frame, position));
+
+    /// <summary>
+    /// The effective gravity on a body at <paramref name="position"/> in the frame <paramref name="frame"/> (see
+    /// <see cref="EffectiveGravity"/>), from <paramref name="linear"/>, the linear gravity there that the caller read already
+    /// (see <see cref="LinearGravity"/>): <paramref name="linear"/> plus the centrifugal and the Euler term of the semantic
+    /// frame's turns at the body's semantic place, so that a reader of both evaluates the field once. It equals
+    /// <see cref="EffectiveGravity"/> to the bit. In a frame that does not turn it is <paramref name="linear"/> itself, and it
+    /// reads no place.
+    /// </summary>
+    internal Double3 AddRotationTerms(FrameHandle frame, Double3 position, Double3 linear)
     {
         int id = Node(frame).Id;
         if (numeric[id] == NumericMode.None)
-            return WithRotationTerms(FieldOf(id, position), id, position);
+            return WithRotationTerms(linear, id, position);
         FrameHandle semantic = SemanticOf(frame);
-        Double3 place = position + HomeOffset(frame, semantic);
-        return WithRotationTerms(FieldOf(semantic.Index, place) - HomeAcceleration(frame, semantic), semantic.Index, place);
+        return turns[semantic.Index].Turns ? WithRotationTerms(linear, semantic.Index, position + HomeOffset(frame, semantic)) : linear;
     }
 
     /// <summary>

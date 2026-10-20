@@ -694,7 +694,8 @@ public sealed partial class World
     /// converts by its case (see <see cref="MotionIntent.Converted"/>): an end pose and a steer target by the pose where the
     /// step ends, a full sample by the relation where the step ends, and its chord by the poses at both ends. The velocities
     /// of SetVelocity and SetAngularVelocity are instant velocities where the step starts, so they convert by the instant rule
-    /// with <paramref name="start"/>. The teleport's pose, the forces, the torques, the impulses and a character's walk act
+    /// with <paramref name="start"/>; without a teleport on the path, the velocity of SetVelocity converts through the tree
+    /// (see <see cref="FrameTree.ConvertVelocity"/>), which is the same relation and rounds as before the rotation terms. The teleport's pose, the forces, the torques, the impulses and a character's walk act
     /// where the step starts too, so they convert by its pose. Without a teleport on the path, that pose is the tree's
     /// relative pose of the two frames, to the bit.
     /// </summary>
@@ -706,7 +707,12 @@ public sealed partial class World
         {
             // A teleport in the same intent puts the body at its pose before the velocity applies.
             Double3 at = (flags & IntentFlags.Teleport) != 0 ? intent.TeleportPose.Position : relative.InverseTransformPoint(position);
-            intent.Velocity = start.VelocityToParent(at, intent.Velocity);
+            // Without a teleport on the path, the start's relation is the tree's: its pose is the tree's relative pose to the
+            // bit, and its velocities are the rows'. Then the tree converts the velocity level by level, as it did before the
+            // rotation terms, which rounds as before. A composed relation rounds otherwise on a path of two levels or more.
+            intent.Velocity = relative == Frames.Relative(intent.Frame, to)
+                ? Frames.ConvertVelocity(intent.Frame, to, at, intent.Velocity)
+                : start.VelocityToParent(at, intent.Velocity);
         }
         if ((flags & IntentFlags.SetAngularVelocity) != 0)
             intent.AngularVelocity = start.AngularToParent(intent.AngularVelocity).ToVector3();

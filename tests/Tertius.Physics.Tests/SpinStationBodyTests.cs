@@ -606,4 +606,33 @@ public class SpinStationBodyTests
             BodyUserData.Names(facts.UserData, person) && facts.Motion == JoltPhysicsSharp.MotionType.Dynamic, "the person is in its rigid form");
         world.Errors.Should().BeEmpty();
     }
+
+    /// <summary>
+    /// The rigid form of a character cannot turn: its rotation is locked, so it keeps its rotation in the station's axes and
+    /// stays upright there while the station turns under it, with no angular velocity relative to the station. Physics gives
+    /// it no angular form of the two-turn update, no angular chord of a turning frame and no instant angular velocity of one
+    /// (docs/plans/spin-gravity.md, "Characters").
+    /// </summary>
+    [Fact]
+    public void AWeightlessPersonNearTheHubKeepsItsRotationInTheStationsAxes()
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        Station station = SpawnStation(world, firstMove: true);
+        Entity person = SpawnIn(world, station, Person, new Double3(0.2, 0, 0));
+        DQuaternion rotation = world.PoseIn(person, station.Frame).Rotation;
+
+        double worstAngle = 0, worstSpin = 0;
+        for (int tick = 0; tick < 120; tick++)
+        {
+            world.Tick();
+            worstAngle = Math.Max(worstAngle, AngleBetween(world.PoseIn(person, station.Frame).Rotation, rotation));
+            worstSpin = Math.Max(worstSpin, world.AngularVelocityIn(person, station.Frame).Length());
+        }
+
+        backend.BodiesIn(station.Frame).Should().Contain(facts => BodyUserData.Kind(facts.UserData) == BodyKind.Primary &&
+            BodyUserData.Names(facts.UserData, person) && facts.Motion == JoltPhysicsSharp.MotionType.Dynamic, "the person is in its rigid form");
+        worstAngle.Should().BeLessThan(1e-6);
+        worstSpin.Should().BeLessThan(1e-6f);
+        world.Errors.Should().BeEmpty();
+    }
 }
