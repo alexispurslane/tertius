@@ -376,7 +376,7 @@ With `Total`, a ship on a station floor reads ω² R toward the axis. Its cargo 
 - Store: none. It is derived from the field, the proper accelerations, the home's acceleration and the turns.
 - Change: it reads V1 and V2, so it describes the step in flight from `PrepareTick` on, and the last finished step at step 2.
 - `EffectiveGravity` becomes internal. Only physics and the frame tree read it, in the step whose turn V1 holds, and no gameplay code reads it today. A public read for gameplay, when one is needed, describes the last finished step under a name of its own.
-- The demo launch (`ter-m13s`) came to main with two gameplay readers of the public `EffectiveGravity`: `Clip` and `Passenger` in `Tertius.Demo` test whether the cabin is weightless. In the merge with main they read the field of the frame less its proper acceleration, the public reads of the last finished step, which is what the public read gave them before. So they leave out the rotation terms of the turning cabin, up to 0.27 m/s² at the person's seat while the attitude autopilot stops its turn. The public read with the rotation terms, and the angular acceleration of the last finished step that its Euler term needs, are open for the user.
+- The demo launch (`ter-m13s`) came to main with two gameplay readers of the public `EffectiveGravity`: `Clip` and `Passenger` in `Tertius.Demo` test whether the cabin is weightless. In the merge with main they read the field of the frame less its proper acceleration, the public reads of the last finished step, which is what the public read gave them before. So they leave out the rotation terms of the turning cabin, up to 0.27 m/s² at the person's seat while the attitude autopilot stops its turn. A public read with the rotation terms for the last finished step is open for the user. It needs no new store: the stores of the last finished step compose it. `FrameTree.AngularVelocityRelative(frame, FrameHandle.Null)` sums the rows' angular velocities into ω, and `FrameTree.AngularAccelerationRelative(frame, FrameHandle.Null)` composes V3 of every level with those rows into α, both in the axes of the null root above the roots. Turned into the frame's axes, they give the read: the field at the place, less the frame's proper acceleration, plus the centrifugal term −ω × (ω × r) and the Euler term −α × r. The cost is the two walks up the frame's chain, once per read.
 
 | Reader | When | What for |
 |---|---|---|
@@ -428,7 +428,8 @@ where
 | `ApplyGravity` | Step k + 1, after the update of the body | A `ShadowTracking` for the step |
 | `ApplyBodyIntent`: a teleport, a `SetVelocity`, an impulse, a steer target | Start of step k + 1 | No case |
 | A spawn, a hand-off, a switch of a character's form | When it happens | No case |
-| `ApplyGravity`, for a body that sleeps, or for the bodies of a system whose semantic frame is no longer a turning frame (`FrameTurns.Turns` is false) | Step k + 1 | No case |
+| `WriteBodies`, for a body that sleeps at the end of the step | End of step k + 1 | No case |
+| `ApplyGravity`, for the bodies of a system whose semantic frame is no longer a turning frame (`FrameTurns.Turns` is false) | Step k + 1 | No case |
 | `ApplyShifts` and the numeric moves | When a body moves between homes | Carry the shadow into the new home, as they carry the body: `Place` by the offset, `Chord` and `JoltTarget` by the difference of the homes' frame velocities |
 
 | Reader | When | What it does |
@@ -752,7 +753,7 @@ Physics measures a dynamic hull's value by the same rule, from V4's `Total`. Wha
 
 ## The wake
 
-A sleeping body has no local velocity, so it moves with its frame. That is right only while the acceleration that it would feel relative to the frame stays as it was when it fell asleep. One cause changes that acceleration: a change of how the frame moves against a free body. It has two parts, and one wake test, `JoltPhysicsBackend.FeltChangeSinceWake`, bounds both:
+A sleeping body has no local velocity, so it moves with its frame. That is right only while the acceleration that it would feel relative to the frame stays as it was when it fell asleep. One cause changes that acceleration: a change of how the frame moves against a free body. It has two parts, and one wake test, `JoltPhysicsBackend.FeltChangeWakes`, bounds both:
 
 - The push of the frame (`FrameTree.PushInStep`, from `ter-zg77`): what an accelerometer at its origin reads, apart from the field. For a semantic frame it is the proper acceleration. For a numeric frame it is its acceleration relative to its semantic frame less the acceleration of a free body at its origin. In a turning semantic frame, that free body's acceleration holds the rotation terms at the origin (the origin rule of a falling frame, "The origin of a falling frame"), so a falling frame's push stays zero, and a following frame's push is its landing acceleration less the free body's.
 - The turn of the semantic frame, which changes the centrifugal and the Euler acceleration from place to place.
@@ -768,7 +769,7 @@ where
 - `p` = the push of the system's frame for the step in flight, in m/s².
 - `ω`, `α` = the semantic frame's inertial angular velocity and angular acceleration for the step in flight, from V1 and V2.
 - `p_wake`, `ω_wake`, `α_wake` = the same at the system's last wake (`FrameWorld.WakePush` and V8).
-- `B` = the reach of the system: the largest distance from the semantic frame's origin to a corner of the bounds of the system's bodies, in metres. In a numeric home it includes the home's offset.
+- `B` = the reach of the system: the largest distance from the semantic frame's origin to a point of one of the system's dynamic bodies, each bounded by its bounding sphere about its origin, in metres. In a numeric home it includes the home's offset. Only dynamic bodies sleep, so only they count. Physics measures it only when the turn changed and the change of the push alone does not wake the system.
 - `WakeAccelerationThreshold` = 0.02 m/s², the existing option (`JoltBackendOptions.cs`, line 47).
 - The change at a place is the change of the rotation terms there less the change of the push, so the sum bounds it. The second and third terms bound the change of the centrifugal and the Euler acceleration at any place in the system, in m/s², since the last wake.
 

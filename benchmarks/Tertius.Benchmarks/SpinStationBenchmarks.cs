@@ -69,6 +69,64 @@ public class SpinStationCrateBenchmarks
 }
 
 /// <summary>
+/// The cost of the wake test's reach in a frame whose turn changes in every step (ter-1bnq, docs/plans/spin-gravity.md, "The
+/// wake"): one tick of a ship, a frame with a dynamic hull, a ball of 5 m and 100 t, that spins at 0.3 rad/s about its +Y in
+/// a root frame without a field, and 1,000 crates in its bubble on the grid of <see cref="SpinStationCrateBenchmarks"/>.
+/// The crates spawn at rest in inertial space, so they circle in the ship's axes, all awake, and stay in its bubble. With <see cref="AngularDamping"/> 0 the hull keeps
+/// its rate, so the turn does not change and the wake test reads no reach. With a damping of 0.05 per second the hull's
+/// rate falls in every step, so in every step in which the change of the push alone does not wake the system, the test
+/// reads the place of every crate for the reach.
+/// </summary>
+[MemoryDiagnoser]
+public class DampedSpinningShipBenchmarks
+{
+    [Params(0f, 0.05f)]
+    public float AngularDamping;
+
+    private World world = null!;
+
+    [GlobalSetup]
+    public void Setup()
+    {
+        var backend = new JoltPhysicsBackend(new JoltBackendOptions { WorkerThreads = 2 });
+        world = new World(new WorldOptions { MaxDegreeOfParallelism = 1, DisposePhysics = true }, backend);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
+        FrameHandle ship = world.GetOwnedFrame(world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            AngularVelocity = new Vector3(0, 0.3f, 0),
+            Body = new BodyDesc(new SphereShapeDesc(5), Mass: 100_000, LinearDamping: 0, AngularDamping: AngularDamping,
+                InteriorShape: new SphereShapeDesc(2)),
+            AsFrame = new FrameSpec(FrameBounds.Sphere(300)),
+        }));
+        var crate = new BodyDesc(new BoxShapeDesc(new Vector3(0.5f)), Mass: 10, LinearDamping: 0, AngularDamping: 0);
+        for (int i = 0; i < 1000; i++)
+        {
+            var place = new Double3(30 + i % 10 * 3, i / 10 % 10 * 3 - 13.5, i / 100 * 3 - 13.5);
+            world.Spawn(new SpawnDesc
+            {
+                Frame = ship,
+                Pose = new DPose(place, DQuaternion.Identity),
+                // At rest in inertial space: −ω × r relative to the ship's axes.
+                LinearVelocity = -Double3.Cross(new Double3(0, 0.3, 0), place),
+                Body = crate,
+            });
+        }
+        for (int i = 0; i < 120; i++)
+            world.Tick();
+
+        int awake = backend.BodiesIn(ship).Count(body => body.Active && body.Motion == JoltPhysicsSharp.MotionType.Dynamic);
+        Console.WriteLine($"// {awake} awake crates; the ship turns at {world.Frames.AngularVelocity(ship).Length():G4} rad/s.");
+    }
+
+    [Benchmark]
+    public void Tick() => world.Tick();
+
+    [GlobalCleanup]
+    public void Cleanup() => world.Dispose();
+}
+
+/// <summary>
 /// The cost of the character update in a turning frame (ter-1bnq, docs/plans/spin-gravity.md, "Cost to measure"): one tick
 /// of 100 people who stand on a static floor, on a grid of 10 by 10, 3 m apart. The floor's face lies 100 m from the
 /// station's axis along its +X. With <see cref="Turning"/>, the station turns at 0.31321 rad/s, which gives 9.81 m/s² at

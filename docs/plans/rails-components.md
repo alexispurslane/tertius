@@ -228,7 +228,7 @@ The cost of a frame without a body is one component call per tick, in a parallel
 | 6c | The numeric update. `NumericBody.Fixed` and `Orbits` come from the driver. A new orbit frame starts from the orbit. | The numeric update. `Fixed` and `Kinematic` come from the body's motion, and `Follows` reads `Kinematic`. A new following frame starts at its anchor's place, with the chord of its anchor's motion over the step that ended, from the frame tree row (see "The first step of a new following frame"). Its first step plan lands it. |
 | 7 | The float view of each `Physics` frame entity is filled from its exact table. | The float view of each frame entity is filled from its exact table. |
 | 7b | The intents convert. | The intents convert, `Move` among them. |
-| Next `PrepareTick` | `BeginNumericStep` gives an orbit frame the orbit's acceleration at its origin, from the orbiter's G·M. | `BeginNumericStep` derives each following frame's step plan from its anchor's front intent. It gives the frame the acceleration that lands it on the plan. |
+| Next `PrepareTick` | `BeginNumericStep` gives an orbit frame the orbit's acceleration at its origin, from the orbiter's G·M. | `BeginStep` (named `BeginNumericStep` before `ter-1bnq`) derives each following frame's step plan from its anchor's front intent. It gives the frame the acceleration that lands it on the plan. |
 
 The order holds for these reasons:
 
@@ -267,7 +267,7 @@ Hulls and layers:
 
 The orbit frame becomes a following frame. It follows any kinematic hull that moves fast or far, by the speeds and distances of free bodies: from 1,000 m/s or 2^23 m, kept down to 400 m/s or 2^22 m.
 
-- At each sync point, in step 2, it takes its step plan's place, and the plan's chord as its velocity. The step plan is the step record of its anchor's motion intent, which `BeginNumericStep` derives before the step (`BeginStep` since `ter-1bnq`). Its anchor's frame lies at its origin with the plan's rotation. The anchor's frame keeps the plan's instant velocity minus the chord, so that a read in the semantic parent gives the instant velocity. This is `FrameTree.PlaceOnOrbit` today, with the plan in place of the orbit.
+- At each sync point, in step 2, it takes its step plan's place, and the plan's chord as its velocity. The step plan is the step record of its anchor's motion intent, which `BeginStep` derives before the step. Its anchor's frame lies at its origin with the plan's rotation. The anchor's frame keeps the plan's instant velocity minus the chord, so that a read in the semantic parent gives the instant velocity. This is `FrameTree.PlaceOnOrbit` today, with the plan in place of the orbit.
 - In each step, it falls with the acceleration that lands it on its step plan: the plan's chord minus the frame's velocity, divided by the step. So it ends the step on the plan to rounding. For a full sample this acceleration equals the sample's acceleration to about 3e-10 m/s² in low orbit. An end pose has no acceleration of its own, so the landing rule serves both cases (see "The step plan of a following frame").
 - The numeric update makes a following frame at its anchor's place, with the chord of its anchor's motion over the step that ended, from the frame tree row (see "The first step of a new following frame"). Its first step plan lands it.
 - When its hull has no motion intent, because the component went or the motion changed, it falls on as a falling frame, as an orbit frame does today when its orbiter leaves (`LeaveOrbit`).
@@ -612,7 +612,7 @@ Where step 6 stores it. `MakeLive` puts it into the new entity's front intent wi
 After the store, the first motion intent lives as a motion intent that the entity wrote:
 
 - Step 5 runs before step 6, so it never sees the intent. At step 7b the intent's frame is the entity's frame, because step 6 drops a spawn whose frame died, so the intent needs no conversion. The numeric update at step 6c can move a new body into a numeric frame, but that changes the body's physics home, not its frame.
-- Physics creates a new body in the reconcile at the start of step k + 1, before it applies the intents. So the `Move` branch aims or steers the body from its spawn pose, and snaps it as it snaps every kinematic body that it aims. `PredictRecord`, `BeginNumericStep`, `FollowOwners`, `FollowFramelessEntities` and `Self.PoseAtNextStepStartIn` read it as they read every front motion intent. So the following frame that the numeric update gives a fast hull at spawn lands on the hull's first motion intent at the first sync point.
+- Physics creates a new body in the reconcile at the start of step k + 1, before it applies the intents. So the `Move` branch aims or steers the body from its spawn pose, and snaps it as it snaps every kinematic body that it aims. `PredictRecord`, `BeginStep`, `FollowOwners`, `FollowFramelessEntities` and `Self.PoseAtNextStepStartIn` read it as they read every front motion intent. So the following frame that the numeric update gives a fast hull at spawn lands on the hull's first motion intent at the first sync point.
 - The entity's own components run first in tick k + 1, and a sample that they write acts in step k + 2. The first run of a `KeplerMotion` teleports its hull to the orbit's pose at the start of step k + 2, where the first motion intent left the hull, so the teleport moves nothing.
 - Without a physics backend, the front intent keeps it, and step 2 applies it to an entity without a body, as it applies every front motion intent.
 
@@ -678,7 +678,7 @@ Every reader reads the front intents, the intents of the step that applies them.
 | `JoltPhysicsBackend.PredictRecord`, for the ghosts and hand-offs of the bodies around a frame | Step k + 1 | The record of a frame whose owner has an end pose or a full sample. A frame with a dynamic hull takes Jolt's state, as today, with or without a steer target. | `FrameTree.StepRecordInStep` |
 | `JoltPhysicsBackend.WriteFrames` | End of step k + 1 | Whether a kinematic hull releases a record, and the record | `KinematicTargetStep`, which the `Move` branch sets, and the record that `StepRecordOf` caches for the hull's frame (see "The step record of a step in flight") |
 | `JoltPhysicsBackend.Report` and `HandedOffVelocities`, for a plain body | End of step k + 1 | The record's pose and instant velocities. As for every body, the linear velocity is that of the centre of mass, which adds the turn of the arm from the body's origin. | The record that the body's physics record keeps for the step (`BodyRecord.AimedRecord`), while the body is still in the home where the step started |
-| `FrameTree.BeginNumericStep` | `PrepareTick` of tick k + 1, before the step | The anchor's record, as the step plan | `FrameTree.StepRecordInStep` |
+| `FrameTree.BeginStep` | `PrepareTick` of tick k + 1, before the step | The anchor's record, as the step plan | `FrameTree.StepRecordInStep` |
 | `FrameTree.TakeStepRecords`, for a frame without a hull | Step 2 of the sync point of tick k + 1, before the swap | The record | `FrameTree.StepRecordOfIntent`, the rule of `FrameTree.StepRecordInStep`, with the frame's tree pose |
 | `FrameTree.TakeStepRecords`, for the follow kind | Step 2, before the swap | The case: a full sample gives `Rails`, and an end pose gives `Kinematic`. A dynamic hull gives `Physics`, with or without a steer target. | `MotionIntent.FollowKind`, which reads the case alone and copies no field |
 | `World.FollowFramelessEntities` | Step 2, before the swap | The record | `PhysicsIntent.StepRecord` with the transform row's pose |
@@ -742,15 +742,15 @@ Moved from the rows of the sample table into the frame tree, one byte per frame.
 
 #### The step plan of a following frame
 
-New. It replaces `FrameTree.sampleVelocityPastChord`, and the reads of the applied buffer in `BeginNumericStep`, `PlaceFollowingFrame` and `JumpFollowingFrame`.
+New. It replaces `FrameTree.sampleVelocityPastChord`, and the reads of the applied buffer in `BeginStep`, `PlaceFollowingFrame` and `JumpFollowingFrame`.
 
-- Analogue: `FrameTree.stepAcceleration`, the acceleration of a numeric frame for the step, which `BeginNumericStep` fixes before the step.
+- Analogue: `FrameTree.stepAcceleration`, the acceleration of a numeric frame for the step, which `BeginStep` fixes before the step.
 - Store: one `MotionSample?` per numeric frame in the frame tree. Few numeric frames exist.
-- Change: `BeginNumericStep` derives it in `PrepareTick` from the anchor's motion intent, with `FrameTree.StepRecordInStep`. The named reason to keep it for the step: an end pose needs the place where the step starts, and step 2 moves the following frame (`AdvanceNumericFrames`) before it reads the plan.
+- Change: `BeginStep` derives it in `PrepareTick` from the anchor's motion intent, with `FrameTree.StepRecordInStep`. The named reason to keep it for the step: an end pose needs the place where the step starts, and step 2 moves the following frame (`AdvanceNumericFrames`) before it reads the plan.
 
 | Reader | When | What |
 |---|---|---|
-| `BeginNumericStep` | `PrepareTick` | The step acceleration that lands the frame on the plan: the plan's chord minus the frame's velocity, divided by the step. It also gives the anchor's instant velocity past the chord, the plan's velocity minus its chord. |
+| `BeginStep` | `PrepareTick` | The step acceleration that lands the frame on the plan: the plan's chord minus the frame's velocity, divided by the step. It also gives the anchor's instant velocity past the chord, the plan's velocity minus its chord. |
 | `HomeInstantVelocityOverChord` | Physics and step 2 | The plan's velocity minus its chord, as `sampleVelocityPastChord` today |
 | `PlaceFollowingFrame` | Step 2 | The plan's place and chord, exactly |
 | `JumpFollowingFrame` | Step 2 | The plan's place and chord. After a teleport without a motion intent, the record that physics released, converted into the semantic parent, as `KeepRecord` converts it today. |
@@ -953,7 +953,7 @@ New: `World` keeps the entities without body or frame that took a record at the 
 | Moment | Today | After |
 |---|---|---|
 | Tick k | `MoveOnRails` writes the table's written buffer. `MoveKinematic` writes `PhysicsIntent.Target`. | `MoveOnRails`, `MoveKinematic` and `SteerTo` write `PhysicsIntent.Move`. |
-| `PrepareTick` | `BeginNumericStep` reads the applied buffer | `BeginNumericStep` derives each following frame's step plan from the front intents, and its landing acceleration |
+| `PrepareTick` | `BeginNumericStep` reads the applied buffer | `BeginStep` derives each following frame's step plan from the front intents, and its landing acceleration |
 | Step | `ApplyIntents` aims plain bodies at `Target`, and steers a dynamic body to it. Then `AimHullsOnRails` aims hulls at their samples. Only hulls snap. `PredictRecord` and `WriteFrames` read the applied buffer. | One `Move` branch in `ApplyBodyIntent` aims every kinematic body at its end pose, after its teleport, so the stop rule never zeroes it first. The same branch steers a dynamic body to its steer target, as today. Every kinematic body that it aims snaps. `PredictRecord` derives a frame's record from its owner's motion intent. A plain body reports its record. A dynamic hull's measured proper acceleration goes beside its record, in `FrameStepRecord.ProperAcceleration`, because the record has no such field. |
 | 2 | `FollowOwners` reads physics' records and the applied buffer. `KeepRecord` puts each record into the applied buffer. | `FollowOwners` reads physics' records, and derives the record of a frame without a hull from its owner's front intent. It writes the follow kind. It derives each frame's proper acceleration from its record or its rest, with its parent's value as stored before step 2, and takes a dynamic hull's from physics. Since `ter-6azq` the loop is one pass of the frame tree, `FrameTree.TakeStepRecords`, which copies the values before it writes and reads the copy. `KeepRecord` goes. `PlaceFollowingFrame` and `JumpFollowingFrame` read the step plan. Then `FollowFramelessEntities`. |
 | 4 | Drops of the plan, the swap, then `Samples.MoveOn` | The drops act on `Move` in the written intents, by the guard's rule. The swap exchanges the intent buffers, and keeps `Move` without a backend. No `MoveOn`. |
@@ -1003,7 +1003,7 @@ In `ARCHITECTURE.md`:
 Elsewhere:
 
 - `CLAUDE.md`, "Where the user changed my proposals": a new row. My proposal was a frame-keyed sample table with three buffers beside the intents. The user wanted a motion intent in the entity's intent, with the intent's life. It is a union of an end pose, a full sample and a steer target.
-- The ticket `ter-zg77`: a following frame whose anchor is a plain body needs an anchor keyed by entity. `orbiter[]` held frames, and `BeginNumericStep` reads its anchor's intent by entity after this ticket. `ter-zg77` keyed the anchor by entity (`FrameTree.Anchors`).
+- The ticket `ter-zg77`: a following frame whose anchor is a plain body needs an anchor keyed by entity. `orbiter[]` held frames, and `BeginStep` reads its anchor's intent by entity after this ticket. `ter-zg77` keyed the anchor by entity (`FrameTree.Anchors`).
 
 ### What changes for gameplay
 
