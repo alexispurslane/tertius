@@ -60,7 +60,7 @@ public readonly struct ClipState : IEquatable<ClipState>
 /// gives the body, at the start of each step, the velocities that carry it from where it is to the place over the step.
 /// The weight of the step still acts on it, so it ends each step about the gravity times the step squared off its place,
 /// 8 mm at three gravities, and the next step brings it back.</item>
-/// <item>The frame is weightless while the effective gravity at the place is below
+/// <item>The frame is weightless while the gravity felt at the place (see <see cref="FrameTree.FeltGravity"/>) is below
 /// <see cref="FrameTree.ZeroGravityThreshold"/>. On the tick that ends <see cref="ReleaseSeconds"/> of weightlessness in a
 /// row, the clip lets go: it gives the body the velocity <paramref name="push"/> and the angular velocity
 /// <paramref name="spin"/>, relative to its frame, in the frame's axes, and never holds it again.</item>
@@ -93,11 +93,9 @@ public sealed class Clip(DPose place, Double3 push, Vector3 spin) : IComponent
     {
         if (State is not Clipped clipped)
             return;
-        // The gravity of the last finished step at the clip's place: the frame's field less its proper acceleration. The frame
-        // tree's effective gravity, with the rotation terms of a turning frame, is a read of the step in flight that only
-        // physics makes (docs/plans/spin-gravity.md, "V5, the effective gravity").
-        FrameTree frames = self.Snapshot.Frames;
-        Double3 gravity = frames.Gravity(self.Frame).AtPrecise(place.Position) - (Double3)frames.ProperAcceleration(self.Frame);
+        // The gravity that the body feels at the clip's place over the last finished step, with the rotation terms of the
+        // frame's turn, so the clip waits while the frame's turn still changes, as when the attitude autopilot turns a cabin.
+        Double3 gravity = self.Snapshot.Frames.FeltGravity(self.Frame, place.Position);
         bool weightless = gravity.Length < FrameTree.ZeroGravityThreshold;
         int weightlessTicks = weightless ? clipped.WeightlessTicks + 1 : 0;
         if (weightlessTicks * (double)self.DeltaTime >= ReleaseSeconds)
