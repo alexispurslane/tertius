@@ -63,8 +63,10 @@ public static class BlueDanube
         // Orbit: the clip lets the pen go, and the person floats to it and takes it.
         new("orbit", "chase-camera", Every: 1, FilmSection.Now, Hold: Second),
         new("pen-release", "pen-camera", Every: 1, (world, scene) => PenReleased(world, scene), Hold: Second * 2),
-        new("fetch", "pen-camera", Every: 1, (world, scene) => HandToPen(world, scene) < 0.3),
-        // The hand camera films the take and the person holding the pen, which its body hides from the cabin camera.
+        // The person floats toward the pen camera on its way to the pen, so the hand camera takes over before the person
+        // fills the pen camera's lens.
+        new("fetch", "pen-camera", Every: 1, (world, scene) => PersonToPenCamera(world, scene) < 1.5 || HandToPen(world, scene) < 1),
+        // The hand camera films the end of the fetch, the take and the person holding the pen.
         new("take", "hand-camera", Every: 1, (world, scene) => PassengerOf(world, scene).Value is Holding or Stopped, Hold: Second * 3),
 
         // The coast in orbit, as a time-lapse. The rendezvous with the station follows here.
@@ -102,6 +104,13 @@ public static class BlueDanube
     /// <summary>How high the shuttle's center is above Earth's mean radius, in meters.</summary>
     private static double Altitude(World world, SceneInstance scene) =>
         world.PoseIn(scene["shuttle"], world.GetFrame(scene["shuttle"])).Position.Length - DemoScenes.EarthRadius;
+
+    /// <summary>How far the person's center is from the pen camera, in meters.</summary>
+    private static double PersonToPenCamera(World world, SceneInstance scene)
+    {
+        FrameHandle cabin = world.GetOwnedFrame(scene["shuttle"]);
+        return Double3.Distance(world.PoseIn(scene["person"], cabin).Position, world.PoseIn(scene["pen-camera"], cabin).Position);
+    }
 
     /// <summary>
     /// How far the person's hand, at <see cref="Passenger.PenHold"/> in its view, is from the loose pen's center, in meters,

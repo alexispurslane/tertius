@@ -176,8 +176,12 @@ public static partial class DemoScenes
             new(new Vector3(-3.6f, 0, 1.5f), new Vector3(-2.8f, 1.1f, 4.5f)),
         ];
 
-        /// <summary>The boxes of the terminal's static shape, in its axes: the roof, the four walls round the two doorways, and the furniture.</summary>
-        private static IEnumerable<BoundingBox> TerminalShape()
+        /// <summary>
+        /// The boxes of the terminal's static shape, in its axes, with the origin on the slab's top under
+        /// <see cref="TerminalCenter"/>: the roof, the four walls round the two doorways with their jambs and lintels, and
+        /// the furniture.
+        /// </summary>
+        public static IEnumerable<BoundingBox> TerminalShape()
         {
             Vector3 half = TerminalHalf;
             float inner = half.Z - TerminalWall;

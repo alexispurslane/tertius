@@ -119,28 +119,70 @@ public sealed class ChaseCameraTests : IDisposable
     }
 
     /// <summary>
-    /// The person walks up a stair 0.3 m high. The camera rises after it over some ticks, where a hard attach would rise
-    /// with the person at once: three ticks after the person stands on the stair, the camera has risen less than half of
-    /// the stair, and a second later it is at its framing above the eye again, within 2 cm. The camera reads the person one
-    /// step late, so in the tick of the step itself it moves with the person once; the test does not look at that tick.
+    /// The person walks up a stair 0.3 m high. No camera can foresee the step, and the attachment places the camera at the
+    /// person's pose of the step in flight, so the camera rises with the person in the tick of the step, as a hard attach
+    /// does. It must not fall back afterwards. From 30 ticks before the step to a second after it, the camera never moves
+    /// down by more than 1 mm more than the eye in a tick, and never lies more than 1 cm below the highest point that it
+    /// reached; the person's capsule settles by a few millimeters after the step. A second after the step the camera is at
+    /// its framing above the eye, within 2 cm.
     /// </summary>
     [Fact]
-    public void TheCameraRisesAfterThePersonOverSomeTicksWhenThePersonClimbsAStair()
+    public void TheCameraRisesOnceWithThePersonWhenThePersonClimbsAStairAndNeverFallsBack()
     {
         FrameHandle ground = OnTheGround();
         world.Spawn(new SpawnDesc { Frame = ground, Pose = At(8, 0.15), Body = new BodyDesc(new BoxShapeDesc(new Vector3(5, 0.15f, 5)), BodyMotion.Static) });
         Entity person = Person(ground, new Double3(0, 0.95, 0), new Walker([new Waypoint(ground, new Double3(7, 1.2, 0))]));
         Entity camera = Camera(person, -Vector3.UnitX);
         Tick(world, 30);
-        double before = world.PoseIn(camera, ground).Position.Y;
+        double last = world.PoseIn(camera, ground).Position.Y, lastEye = EyeOf(person, ground).Y, highest = last;
+        long climbedAt = -1;
 
-        TickUntil(world, () => world.PoseIn(person, ground).Position.Y > 1.15, 300).Should().BeLessThan(300, "the person climbs the stair");
-        Tick(world, 3);
-        double rise = world.PoseIn(camera, ground).Position.Y - before;
-        Tick(world, 60);
+        while (climbedAt < 0 ? world.TickNumber < 330 : world.TickNumber < climbedAt + 60)
+        {
+            world.Tick();
+            double y = world.PoseIn(camera, ground).Position.Y, eye = EyeOf(person, ground).Y;
+            (y - last - (eye - lastEye)).Should().BeGreaterThan(-1e-3, $"at tick {world.TickNumber} the camera fell back");
+            highest = Math.Max(highest, y);
+            y.Should().BeGreaterThan(highest - 0.01, $"at tick {world.TickNumber} the camera fell back");
+            (last, lastEye) = (y, eye);
+            if (climbedAt < 0 && world.PoseIn(person, ground).Position.Y > 1.15)
+                climbedAt = world.TickNumber;
+        }
 
-        rise.Should().BeLessThan(0.15);
-        world.PoseIn(camera, ground).Position.Y.Should().BeApproximately(EyeOf(person, ground).Y + Above, 0.02);
+        climbedAt.Should().BeGreaterThan(0, "the person climbs the stair");
+        last.Should().BeApproximately(EyeOf(person, ground).Y + Above, 0.02);
+    }
+
+    /// <summary>
+    /// The person walks the L of <see cref="TheCameraKeepsTheWalkingPersonInItsFramingAndSwingsBehindItAfterEachTurn"/>. A
+    /// turn at a waypoint changes the person's velocity at once, by 4.2 m/s, which no camera can foresee, so the camera's
+    /// way bends with the person's in the tick of the turn, by 7 cm. The camera must not zigzag after it: no second
+    /// difference of the camera's position longer than 1 cm is followed, in the next tick, by one that takes back more than
+    /// half of it. A smoothing of the camera's position that starts a tick late takes back nine tenths of it, and an arm
+    /// that starts its swing behind the person at full speed throws the camera 18 cm the other way.
+    /// </summary>
+    [Fact]
+    public void TheCameraDoesNotZigzagAfterATurnOfTheWalkingPerson()
+    {
+        FrameHandle ground = OnTheGround();
+        Waypoint[] path = [new(ground, new Double3(6, 0.9, 0)), new(ground, new Double3(6, 0.9, -6)), new(ground, new Double3(0, 0.9, -6))];
+        Entity person = Person(ground, new Double3(0, 0.95, 0), new Walker(path));
+        Entity camera = Camera(person, Vector3.UnitZ);
+        Tick(world, 2);
+        var positions = new List<Double3>();
+
+        for (int tick = 0; tick < 480; tick++)
+        {
+            world.Tick();
+            positions.Add(world.PoseIn(camera, ground).Position);
+        }
+
+        for (int i = 3; i < positions.Count; i++)
+        {
+            Double3 before = positions[i - 1] - 2 * positions[i - 2] + positions[i - 3], now = positions[i] - 2 * positions[i - 1] + positions[i - 2];
+            bool zigzag = before.Length > 0.01 && Double3.Dot(before, now) < -0.5 * Double3.Dot(before, before);
+            zigzag.Should().BeFalse($"after {i + 3} ticks the camera's way bent by {before.Length:F3} m and then by {now.Length:F3} m back");
+        }
     }
 
     /// <summary>

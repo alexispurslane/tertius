@@ -73,6 +73,26 @@ public sealed class BlueDanubeScriptTests
         error.ToString().Should().Contain("--generate <file>");
     }
 
+    /// <summary>
+    /// The demo's command line sends a command line that starts with <c>--generate</c> to the generator, which refuses one
+    /// with no file with its own usage, and every other command line to the script command, which refuses an empty one
+    /// with the usage of its runs.
+    /// </summary>
+    [Fact]
+    public void TheCommandLineSendsGenerateToTheGeneratorAndEverythingElseToTheScriptCommand()
+    {
+        var generateError = new StringWriter();
+        var otherError = new StringWriter();
+
+        int generate = Program.Run(["--generate"], new StringWriter(), generateError);
+        int other = Program.Run([], new StringWriter(), otherError);
+
+        generate.Should().Be(ScriptCommand.CommandLineError);
+        generateError.ToString().Should().Contain("--generate <file>").And.NotContain("--script <file>");
+        other.Should().Be(ScriptCommand.CommandLineError);
+        otherError.ToString().Should().Contain("--script <file>").And.NotContain("--generate <file>");
+    }
+
     /// <summary>A playback that stops the run before its first tick.</summary>
     private sealed class StopsAtOnce : IPlayback
     {

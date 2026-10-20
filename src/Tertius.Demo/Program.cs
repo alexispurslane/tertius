@@ -17,8 +17,15 @@ public static class Program
     /// <item><c>--generate scripts/blue-danube.json</c> writes the Blue Danube demo's long script (see <see cref="Generate"/>).</item>
     /// </list>
     /// </summary>
-    public static int Main(string[] args) =>
-        args is ["--generate", ..] ? Generate(args, Console.Out, Console.Error) : ScriptCommand.Run(args, DemoScenes.All, Console.Out, Console.Error);
+    public static int Main(string[] args) => Run(args, Console.Out, Console.Error);
+
+    /// <summary>
+    /// Runs the demo's command line <paramref name="args"/>, with its output and its errors in the writers: a command line
+    /// that starts with <c>--generate</c> goes to <see cref="Generate"/>, and every other one to <see cref="ScriptCommand"/>.
+    /// Returns the exit code.
+    /// </summary>
+    public static int Run(string[] args, TextWriter output, TextWriter error) =>
+        args is ["--generate", ..] ? Generate(args, output, error) : ScriptCommand.Run(args, DemoScenes.All, output, error);
 
     private const string GenerateUsage = "Usage: --generate <file>";
 

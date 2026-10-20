@@ -16,7 +16,7 @@ namespace Tertius.Host.Tests;
 /// 1: the headless frame time of the demo scene itself. It runs the checked-in scripts/blue-danube.json from its start
 /// through the film <see cref="LastFilm"/>, the walk on the surface and the person at its seat in the cabin, into a video at
 /// 1280x720 and 60 frames per second, as the command does. It reports, for each film, the means per frame of the ticks,
-/// of the capture's draw with its fence wait and readback, and of the video's pipe write. It is an explicit test, so a
+/// of the capture's build of the render snapshot with its draw, fence wait and readback, and of the video's pipe write. It is an explicit test, so a
 /// normal run reports it as not run. It runs in a Release build, with the variable <see cref="Variable"/> set to the file of
 /// its report:
 /// <c>TERTIUS_DEMO_COST=report.md dotnet test -c Release --project tests/Tertius.Host.Tests -- --filter-class "*DemoFrameCostMeasurement" --explicit only</c>.
@@ -35,9 +35,7 @@ public sealed class DemoFrameCostMeasurement
         string reportPath = Environment.GetEnvironmentVariable(Variable) is { Length: > 0 } path
             ? path
             : throw new InvalidOperationException($"Set {Variable} to the file of the report.");
-        Script full = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"));
-        int last = full.Steps.ToList().FindIndex(step => step.Value is FilmStep { Name: LastFilm });
-        Script script = full with { Steps = [.. full.Steps.Take(last + 1)] };
+        Script script = Stretch(Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json")), LastFilm);
         string folder = NewFolder();
         try
         {
@@ -61,6 +59,32 @@ public sealed class DemoFrameCostMeasurement
         }
     }
 
+    /// <summary>The steps of <paramref name="full"/> from its start through its film <paramref name="lastFilm"/>. Throws when the script has no such film.</summary>
+    internal static Script Stretch(Script full, string lastFilm)
+    {
+        int last = full.Steps.ToList().FindIndex(step => step.Value is FilmStep film && film.Name == lastFilm);
+        if (last < 0)
+            throw new InvalidOperationException($"The script has no film '{lastFilm}' to end the measurement at.");
+        return full with { Steps = [.. full.Steps.Take(last + 1)] };
+    }
+
+    /// <summary>
+    /// The stretch of the measurement is the start of a script through the film that it names, and a name that is not a
+    /// film of the script stops the measurement, where it would measure an empty script.
+    /// </summary>
+    [Fact]
+    public void TheStretchEndsAtItsLastFilmAndRefusesAFilmThatTheScriptLacks()
+    {
+        Script full = Script.Load(Path.Combine(RepositoryRoot(), "scripts", "blue-danube.json"));
+
+        Script stretch = Stretch(full, LastFilm);
+        Action missing = () => Stretch(full, "no-such-film");
+
+        stretch.Steps[^1].Value.Should().BeOfType<FilmStep>().Which.Name.Should().Be(LastFilm);
+        stretch.Steps.Should().HaveCountLessThan(full.Steps.Count);
+        missing.Should().Throw<InvalidOperationException>().WithMessage("*no-such-film*");
+    }
+
     private static string Report(Script script, List<CaptureTime> frames, double run, double finish)
     {
         static string Ms(double seconds) => (seconds * 1000).ToString("F2", CultureInfo.InvariantCulture);
@@ -68,7 +92,7 @@ public sealed class DemoFrameCostMeasurement
         report.AppendLine("# The frame time of the demo scene").AppendLine();
         report.AppendLine($"Machine: {Machine()}, {Environment.ProcessorCount} logical processors, {RuntimeInformation.OSDescription}. Optimized build of Host: {IsOptimized()}. Validation off.").AppendLine();
         report.AppendLine($"scripts/blue-danube.json from its start through the film {LastFilm}, {frames.Count} frames at {script.Window.Width}x{script.Window.Height} into a video at 60 frames per second. Wall-clock means per frame, in ms.").AppendLine();
-        report.AppendLine("| Film | Camera | Frames | Ticks per frame | Ticks | Draw, fence wait and readback | Video's pipe write | All |");
+        report.AppendLine("| Film | Camera | Frames | Ticks per frame | Ticks | Snapshot, draw, fence wait and readback | Video's pipe write | All |");
         report.AppendLine("|---|---|---|---|---|---|---|---|");
         string camera = "";
         foreach (ScriptStep step in script.Steps)
