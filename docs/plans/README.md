@@ -16,6 +16,7 @@ ARCHITECTURE.md stays the binding design. When a feature is done, its decisions 
 | [Design review](design-review.md) | `ter-tanj` |
 | [Editor](editor.md) | `ter-631h` |
 | [Host and scripted runs](host-and-scripted-runs.md) | `ter-dtw2` |
+| [Live world](live-world.md) | `ter-xr2b` |
 | [Numeric frames](numeric-frames.md) | `ter-s02r` |
 | [Point and spot light shadows](local-light-shadows.md) | `ter-s9cv` |
 | [Queries and sensors](queries-and-sensors.md) | `ter-1yed` |
