@@ -1,6 +1,6 @@
 ---
 id: ter-n44b
-status: open
+status: in_progress
 deps: [ter-1b21, ter-vja8, ter-r1hi]
 links: []
 created: 2026-10-16T23:00:45Z
