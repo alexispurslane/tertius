@@ -121,13 +121,20 @@ public class CharacterStandingTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>The largest angle, in radians, by which up turns in one step of 1/60 s in the air, at the default air rate.</summary>
+    private static float AirUpTurnPerStep => new JoltBackendOptions().CharacterAirUpTurnRate / 60f;
+
+    private static float AngleBetween(Vector3 a, Vector3 b) => MathF.Acos(Math.Clamp(Vector3.Dot(Vector3.Normalize(a), Vector3.Normalize(b)), -1f, 1f));
+
     /// <summary>
     /// Changed on purpose by ter-1b21 (docs/plans/spin-gravity.md, "Characters", fork F5): up follows the gravity in the
-    /// air too. Before, a character in the air kept its up until it touched something, so this test was
-    /// UnderGravityACharacterInTheAirKeepsItsUpAndTurnsItToTheGravityOnceItLands and expected the old up in the air.
+    /// air too, at a limited rate (the user's choice of 2026-10-20). Before, a character in the air kept its up until it
+    /// touched something, so this test was UnderGravityACharacterInTheAirKeepsItsUpAndTurnsItToTheGravityOnceItLands and
+    /// expected the old up in the air. Then for one commit up turned at once in the air, and this test expected the new up
+    /// after 10 steps.
     /// </summary>
     [Fact]
-    public void UnderGravityACharacterInTheAirTurnsItsUpAgainstTheGravityAndLandsUpright()
+    public void UnderASteadyGravityACharacterInTheAirTurnsItsUpAtTheAirRateUntilItIsAgainstTheGravityAndLandsUpright()
     {
         var (world, ground) = WorldWithFloor();
         using (world)
@@ -139,14 +146,62 @@ public class CharacterStandingTests
             double angle = 20 * Math.PI / 180;
             var tilted = new Vector3((float)Math.Sin(angle), -(float)Math.Cos(angle), 0);
             world.SetFrameGravity(ground, GravityField.Uniform(9.81f * tilted));
-            Tick(world, 10);
 
-            world.PoseInOwnFrame(person).Position.Y.Should().BeGreaterThan(3, "the character is still in the air");
-            Vector3.Distance(UpOf(world, person), -tilted).Should().BeLessThan(1e-3f, "under gravity, up turns against it in the air too");
+            var gaps = new List<float> { AngleBetween(UpOf(world, person), -tilted) };
+            for (int tick = 0; tick < 40; tick++)
+            {
+                world.Tick();
+                gaps.Add(AngleBetween(UpOf(world, person), -tilted));
+            }
 
-            Tick(world, 90);
+            world.PoseInOwnFrame(person).Position.Y.Should().BeGreaterThan(2, "the character is still in the air");
+            for (int n = 1; n < gaps.Count; n++)
+            {
+                float expected = Math.Max(0, gaps[n - 1] - AirUpTurnPerStep);
+                gaps[n].Should().BeApproximately(expected, 2e-4f, $"in step {n} up turns by the air rate times the step, until it is aligned");
+            }
+            gaps.Count(g => g > AirUpTurnPerStep).Should().BeGreaterThan(5, "a turn of 20 degrees takes several steps");
+            gaps[^1].Should().BeLessThan(1e-3f, "under gravity, up turns against it in the air too");
+
+            Tick(world, 60);
             world.Snapshot.IsStanding(person).Should().BeTrue("it landed on the floor");
             Vector3.Distance(UpOf(world, person), -tilted).Should().BeLessThan(1e-3f, "it keeps its up against the gravity");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// A character floats high above the floor in a field along −Y, with its up along +Y. The frame's field then turns by
+    /// <paramref name="flipDegrees"/> for one step, as the felt gravity in a cabin flips for a step when its engine starts or
+    /// its hull jolts, and turns back. Up turns toward the flipped gravity by at most the air rate times the step, and then
+    /// back.
+    /// </summary>
+    [Theory]
+    [InlineData(90)]
+    [InlineData(180)]
+    public void AFloatingCharacterWhoseGravityFlipsForOneStepTurnsItsUpByAtMostTheAirRateTimesTheStep(double flipDegrees)
+    {
+        var (world, ground) = WorldWithFloor();
+        using (world)
+        {
+            Entity person = SpawnPerson(world, ground, At(0, 200, 0));
+            Tick(world, 5);
+            Vector3.Distance(UpOf(world, person), Vector3.UnitY).Should().BeLessThan(1e-5f);
+            double flip = flipDegrees * Math.PI / 180;
+            var flipped = new Vector3((float)Math.Sin(flip), -(float)Math.Cos(flip), 0);
+            world.SetFrameGravity(ground, GravityField.Uniform(9.81f * flipped));
+            world.Tick();
+            var turns = new List<float> { AngleBetween(UpOf(world, person), Vector3.UnitY) };
+            world.SetFrameGravity(ground, GravityField.Uniform(new Vector3(0, -9.81f, 0)));
+            for (int tick = 0; tick < 5; tick++)
+            {
+                world.Tick();
+                turns.Add(AngleBetween(UpOf(world, person), Vector3.UnitY));
+            }
+
+            turns.Max().Should().BeLessThanOrEqualTo(AirUpTurnPerStep * 1.001f, "one step turns up by at most the air rate times the step");
+            turns.Max().Should().BeGreaterThan(AirUpTurnPerStep * 0.99f, "up starts to turn toward the flipped gravity");
+            turns[^1].Should().BeLessThan(1e-4f, "up turns back once the gravity is back");
             world.Errors.Should().BeEmpty();
         }
     }

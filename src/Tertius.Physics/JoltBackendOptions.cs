@@ -46,6 +46,15 @@ public sealed record JoltBackendOptions
     /// </summary>
     public float WakeAccelerationThreshold { get; init; } = 0.02f;
 
+    /// <summary>
+    /// The fastest rate, in radians per second, at which a walking character that touches nothing turns its up toward the
+    /// up against its gravity (docs/plans/spin-gravity.md, "Characters"). A character that touches anything turns its up
+    /// at once. The rate keeps a flip of the felt gravity for one step, such as the jolt of a hull or the start of an
+    /// engine, from turning a floating person over, and it is fast enough that a person who jumps across a spinning
+    /// station comes down feet first.
+    /// </summary>
+    public float CharacterAirUpTurnRate { get; init; } = 1f;
+
     /// <summary>Receives warnings. If it is null, warnings go to <see cref="System.Diagnostics.Trace"/>.</summary>
     public Action<string>? Log { get; init; }
 }

@@ -841,11 +841,15 @@ public sealed partial class JoltPhysicsBackend
         // gravity. In a semantic frame the two are the same. Both hold the centrifugal and the Euler term of a turning frame.
         // Up follows that gravity whether the character touches anything or not (docs/plans/spin-gravity.md, fork F5), so a
         // person who jumps across a spinning station comes down feet first on the far floor, and one that tumbled lands upright.
+        // A character that touched anything in its last update, also with its side or its head, turns its up at once. One
+        // that touched nothing turns it at most at the air rate (the user's choice of 2026-10-20), so a flip of its felt
+        // gravity for one step, such as a hull's jolt, does not turn a floating person over.
         Vector3 semanticGravity = frames.SemanticGravity(world.Frame, position).ToVector3();
         float semanticStrength = semanticGravity.Length();
         if (semanticStrength >= FrameTree.ZeroGravityThreshold)
         {
-            up = -semanticGravity / semanticStrength;
+            Vector3 against = -semanticGravity / semanticStrength;
+            up = groundState == GroundState.InAir ? Rotations.TurnToward(record.Up, against, options.CharacterAirUpTurnRate * dt) : against;
             if (Vector3.DistanceSquared(up, record.Up) > 1e-12f)
             {
                 character.Up = up;

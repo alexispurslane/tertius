@@ -496,7 +496,9 @@ public class CharacterFormTests
     /// <summary>
     /// Changed on purpose by ter-1b21 (docs/plans/spin-gravity.md, "Characters", fork F5): up follows the gravity in the
     /// air too. Before, this test was ACharacterThatWalksAgainKeepsTheUpThatItHadBeforeItWasWeightless: a character that
-    /// touched nothing kept the up of before its rigid form under the new gravity, as in free fall.
+    /// touched nothing kept the up of before its rigid form under the new gravity, as in free fall. Since the user's choice
+    /// of 2026-10-20 a character in the air turns its up at most at the air rate, so the quarter turn takes about 1.6 s at
+    /// the default rate of 1 rad/s, and the test waits that long.
     /// </summary>
     [Fact]
     public void ACharacterThatWalksAgainTurnsItsUpAgainstTheNewGravityThoughItTouchesNothing()
@@ -514,7 +516,8 @@ public class CharacterFormTests
         backend.HasRigidForm(person).Should().BeTrue();
         // The new gravity is along -Y. The character touches nothing, but it walks again under gravity, so its up turns.
         world.SetFrameGravity(space, GravityField.Uniform(Down));
-        Tick(world, 10);
+        float quarterTurnSeconds = MathF.PI / 2 / new JoltBackendOptions().CharacterAirUpTurnRate;
+        Tick(world, 10 + (int)MathF.Ceiling(quarterTurnSeconds * 60));
 
         backend.HasRigidForm(person).Should().BeFalse();
         Vector3.Distance(UpOf(world, person), Vector3.UnitY).Should().BeLessThan(1e-5f, "under gravity, up turns against it in the air too");
