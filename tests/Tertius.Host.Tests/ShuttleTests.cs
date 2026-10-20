@@ -68,29 +68,6 @@ public sealed class ShuttleTests : IDisposable
     private static Vector3 Place(int axis, float across, Vector2 other) =>
         axis == 0 ? new Vector3(across, other.X, other.Y) : new Vector3(other.X, other.Y, across);
 
-    /// <summary>How many triangles of <paramref name="mesh"/> the segment from <paramref name="from"/> to <paramref name="to"/> crosses.</summary>
-    private static int Crossings(MeshData mesh, Vector3 from, Vector3 to)
-    {
-        int count = 0;
-        Vector3 along = to - from;
-        for (int i = 0; i < mesh.Indices.Length; i += 3)
-        {
-            Vector3 a = mesh.Vertices[mesh.Indices[i]].Position, b = mesh.Vertices[mesh.Indices[i + 1]].Position, c = mesh.Vertices[mesh.Indices[i + 2]].Position;
-            // Möller and Trumbore: the segment's parameter t and the triangle's barycentric u and v of the crossing.
-            Vector3 ab = b - a, ac = c - a, p = Vector3.Cross(along, ac);
-            float det = Vector3.Dot(ab, p);
-            if (MathF.Abs(det) < 1e-9f)
-                continue;
-            Vector3 s = from - a;
-            float u = Vector3.Dot(s, p) / det;
-            Vector3 q = Vector3.Cross(s, ab);
-            float v = Vector3.Dot(along, q) / det, t = Vector3.Dot(ac, q) / det;
-            if (u >= 0 && v >= 0 && u + v <= 1 && t >= 0 && t <= 1)
-                count++;
-        }
-        return count;
-    }
-
     /// <summary>
     /// The drawn hull has a hole at each window: a segment across the wall, from 0.5 m inside the cabin to 0.5 m outside
     /// the hull, crosses no triangle at the window's middle or 5 cm inside each of its corners, and crosses the wall's two
@@ -109,10 +86,10 @@ public sealed class ShuttleTests : IDisposable
             Vector3 Beyond(Vector2 at) => Place(axis, outer + 0.5f * into, at);
             Vector2 inset = half - new Vector2(0.05f);
             foreach (Vector2 at in new[] { middle, middle + inset, middle - inset, middle + new Vector2(inset.X, -inset.Y), middle + new Vector2(-inset.X, inset.Y) })
-                Crossings(hull, Across(at), Beyond(at)).Should().Be(0, $"the window at {Place(axis, outer, middle)} is open at {at}");
+                MeshChecks.Crossings(hull, Across(at), Beyond(at)).Should().Be(0, $"the window at {Place(axis, outer, middle)} is open at {at}");
             Vector2 past = half + new Vector2(0.05f);
             foreach (Vector2 at in new[] { middle + new Vector2(past.X, 0), middle - new Vector2(past.X, 0), middle + new Vector2(0, past.Y), middle - new Vector2(0, past.Y) })
-                Crossings(hull, Across(at), Beyond(at)).Should().Be(2, $"the wall round the window at {Place(axis, outer, middle)} is closed at {at}");
+                MeshChecks.Crossings(hull, Across(at), Beyond(at)).Should().Be(2, $"the wall round the window at {Place(axis, outer, middle)} is closed at {at}");
         }
 
         FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
@@ -159,6 +136,199 @@ public sealed class ShuttleTests : IDisposable
             Vector3 expected = Place(axis, (inner + outer) / 2, middle);
             (place - (Double3)expected).Length.Should().BeLessThan(1e-4, $"{names[i]} stands in its window at {expected}, not at {place}");
             world.GetRender(pane).Flags.Should().Be(RenderFlags.Visible | RenderFlags.Transparent, names[i]);
+        }
+    }
+
+    /// <summary>
+    /// Spawns the free, dynamic hull at the origin of <paramref name="space"/>, unturned, turning at
+    /// <paramref name="angular"/>, with the linear velocity at its origin that keeps the point at
+    /// <see cref="Shuttle.CenterOfMass"/> still: the turn's velocity at the origin about that point.
+    /// </summary>
+    private Entity FreeHull(FrameHandle space, Vector3 angular) => world.Spawn(new SpawnDesc
+    {
+        Frame = space,
+        Pose = DPose.Identity,
+        LinearVelocity = Double3.Cross(angular, -(Double3)Shuttle.CenterOfMass),
+        AngularVelocity = angular,
+        Body = Shuttle.Body(BodyMotion.Dynamic),
+        AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
+    });
+
+    /// <summary>
+    /// The free hull spins in a root frame with no gravity, about X at 0.5 rad/s and, in another root frame, about its long
+    /// axis at 0.3 rad/s. Physics turns a free body about its center of mass, so after 2 s the point at
+    /// <see cref="Shuttle.CenterOfMass"/> is where it started, within 1 mm. A center of mass off by d moves that point by
+    /// about d in that time, from the turn and from the drift that the spawn velocity gives the true center.
+    /// </summary>
+    [Fact]
+    public void TheCenterOfMassStaysStillWhileTheFreeHullSpins()
+    {
+        Vector3 longAxis = Vector3.Transform(Vector3.UnitZ, Shuttle.Inertia.Axes);
+        (FrameHandle Space, Entity Hull, string Spin)[] cases =
+        [
+            .. new[] { (Spin: 0.5f * Vector3.UnitX, Name: "about X"), (Spin: 0.3f * longAxis, Name: "about the long axis") }.Select(spin =>
+            {
+                FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
+                return (space, FreeHull(space, spin.Spin), spin.Name);
+            }),
+        ];
+
+        Tick(world, 120);
+
+        foreach ((FrameHandle space, Entity hull, string spin) in cases)
+        {
+            DPose pose = world.PoseIn(hull, space);
+            Double3 center = pose.Position + pose.Rotation.Rotate((Double3)Shuttle.CenterOfMass);
+            (center - (Double3)Shuttle.CenterOfMass).Length.Should().BeLessThan(1e-3, $"the center of mass stays still while the hull spins {spin}");
+            pose.Rotation.AngularVelocityTo(DQuaternion.Identity, 1).Length.Should().BeGreaterThan(0.5, $"the hull has turned {spin}");
+        }
+    }
+
+    /// <summary>
+    /// A torque of 10,000 N·m along each principal axis of <see cref="Shuttle.Inertia"/> acts on the hull at rest for 30
+    /// ticks, in a root frame with no gravity and no damping. Its angular velocity along that axis is then the torque times
+    /// the time over the moment, within 0.1 %. Across the axis it is less than 0.1 % of that, so the axis is principal.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void ATorqueAlongEachPrincipalAxisTurnsTheHullAboutThatAxisAtItsMoment(int principal)
+    {
+        const float torque = 10_000;
+        const int ticks = 30;
+        Vector3 axis = Vector3.Transform(principal switch { 0 => Vector3.UnitX, 1 => Vector3.UnitY, _ => Vector3.UnitZ }, Shuttle.Inertia.Axes);
+        float moment = principal switch { 0 => Shuttle.Inertia.Moments.X, 1 => Shuttle.Inertia.Moments.Y, _ => Shuttle.Inertia.Moments.Z };
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f)));
+        Entity hull = world.Spawn(new SpawnDesc
+        {
+            Frame = space,
+            Pose = DPose.Identity,
+            Body = Shuttle.Body(BodyMotion.Dynamic),
+            AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
+            Components = [new TorqueFor(ticks, torque * axis)],
+        });
+
+        Tick(world, ticks + 5);
+
+        Vector3 turning = world.AngularVelocityIn(hull, space);
+        float expected = torque * ticks * (float)world.DeltaTime / moment;
+        float along = Vector3.Dot(turning, axis);
+        along.Should().BeApproximately(expected, expected * 1e-3f, $"the moment about principal axis {principal} is {moment} kg·m²");
+        (turning - along * axis).Length().Should().BeLessThan(expected * 1e-3f, $"the hull turns about principal axis {principal} alone");
+    }
+
+    /// <summary>
+    /// The live world lands the shuttle on its tail (docs/plans/live-world.md, part 3). A dynamic hull stands nose up, its
+    /// roof toward +Z, 1 cm above a static pad, in a root frame with 1 g. It settles on its tail face and stays upright,
+    /// its nose within 1 degree of straight up, in every tick for 60 s.
+    /// </summary>
+    [Fact]
+    public void TheHullStandsOnItsTailOnAFlatPad()
+    {
+        FrameHandle ground = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e4f), GravityField.Uniform(new Vector3(0, -9.81f, 0))));
+        world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.6), Body = new BodyDesc(new BoxShapeDesc(new Vector3(8, 0.6f, 8)), BodyMotion.Static) });
+        Entity hull = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(new Double3(0, 1.2 + Shuttle.Hull.Z + 0.01, 0), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2)),
+            Body = Shuttle.Body(BodyMotion.Dynamic),
+            AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
+        });
+
+        double worst = 0;
+        for (int tick = 0; tick < 3600; tick++)
+        {
+            world.Tick();
+            Double3 nose = world.PoseIn(hull, ground).Rotation.Rotate(-Double3.UnitZ);
+            worst = Math.Max(worst, Math.Acos(Math.Clamp(nose.Y, -1, 1)) * 180 / Math.PI);
+        }
+
+        worst.Should().BeLessThan(1, "the hull stands on its tail");
+        world.PoseIn(hull, ground).Position.Y.Should().BeApproximately(1.2 + Shuttle.Hull.Z, 0.01, "it rests on its tail face");
+    }
+
+    /// <summary>
+    /// The tail face is flat across the whole cross-section, as the live world needs to stand the hull on its tail: the
+    /// triangles of the drawn hull at its aft end lie at z = 8 and face aft, their area is the full cross-section's less the
+    /// pocket's mouth, 1.4 m square, and their outline holds every corner of the full cross-section. The outer collision
+    /// shape's points at z = 8 are its eight true corners, so the hull stands on the whole face.
+    /// </summary>
+    [Fact]
+    public void TheTailFaceIsFlatAcrossTheCrossSection()
+    {
+        Vector2[] full = [new(-2.8f, -2), new(2.8f, -2), new(3, -1.8f), new(3, -1.2f), new(3, 1.2f), new(2.2f, 2), new(-2.2f, 2), new(-3, 1.2f), new(-3, -1.2f), new(-3, -1.8f)];
+        double fullArea = 0;
+        for (int i = 0; i < full.Length; i++)
+            fullArea += (full[i].X * full[(i + 1) % full.Length].Y - full[(i + 1) % full.Length].X * full[i].Y) / 2.0;
+        MeshData mesh = Shuttle.Loft.Mesh();
+
+        double area = 0;
+        var outline = new HashSet<Vector2>();
+        for (int i = 0; i < mesh.Indices.Length; i += 3)
+        {
+            Vector3 a = mesh.Vertices[mesh.Indices[i]].Position, b = mesh.Vertices[mesh.Indices[i + 1]].Position, c = mesh.Vertices[mesh.Indices[i + 2]].Position;
+            if ((a.Z + b.Z + c.Z) / 3 < 7.99f)
+                continue;
+            foreach (Vector3 corner in new[] { a, b, c })
+            {
+                corner.Z.Should().Be(8, "the tail face is flat");
+                outline.Add(new Vector2(corner.X, corner.Y));
+            }
+            Vector3 wound = Vector3.Cross(b - a, c - a);
+            Vector3.Normalize(wound).Z.Should().BeApproximately(1, 1e-6f, "the tail face faces aft");
+            area += wound.Length() / 2;
+        }
+
+        area.Should().BeApproximately(fullArea - 1.4 * 1.4, 1e-4, "the face spans the full cross-section round the pocket");
+        outline.Should().Contain(full);
+        Shuttle.HullShape.Should().BeOfType<ConvexHullShapeDesc>().Which.Points.Where(p => p.Z == 8).Select(p => new Vector2(p.X, p.Y))
+            .Should().BeEquivalentTo(new[] { 0, 1, 2, 4, 5, 6, 7, 9 }.Select(c => full[c]));
+    }
+
+    /// <summary>
+    /// In the scene <c>demo-shuttle</c>, each shuttle carries the main engine's nozzle in its frame: its axis lies along Z
+    /// through the x and y of the center of mass, where the engine pushes, and the pocket's middle, (0, -0.090). Its aft rim
+    /// lies 5 cm inside the tail face, at z = 7.95, its front at 7.45, and its outside 0.1 m from the walls of the pocket,
+    /// which reach 0.7 m from its middle.
+    /// </summary>
+    [Fact]
+    public void TheNozzleIsRecessedOnTheLineOfThrust()
+    {
+        SceneInstance scene = DemoScenes.All.Single(s => s.Name == "demo-shuttle").Build(world, RenderResources.None);
+        MeshData mesh = Shuttle.Nozzle.Mesh();
+        foreach (string shuttle in new[] { "standing", "lying" })
+        {
+            FrameHandle cabin = world.GetOwnedFrame(scene[shuttle]);
+            Entity nozzle = scene[$"{shuttle}-nozzle"];
+            world.GetFrame(nozzle).Should().Be(cabin, $"the nozzle of {shuttle} lies in its frame");
+            DPose pose = world.PoseIn(nozzle, cabin);
+            Double3 axis = pose.Rotation.Rotate(Double3.UnitY);
+            Math.Abs(axis.Z).Should().BeApproximately(1, 1e-9, "the nozzle's axis lies along Z");
+            pose.Position.X.Should().BeApproximately(Shuttle.CenterOfMass.X, 1e-6, "the axis passes through the center of mass");
+            pose.Position.Y.Should().BeApproximately(Shuttle.CenterOfMass.Y, 1e-6, "the axis passes through the center of mass");
+            pose.Position.Y.Should().BeApproximately(-0.090, 1e-3, "the axis passes through the pocket's middle");
+
+            Double3[] points = [.. mesh.Vertices.Select(vertex => pose.Position + pose.Rotation.Rotate((Double3)vertex.Position))];
+            points.Max(p => p.Z).Should().BeApproximately(7.95, 1e-5, "the aft rim lies 5 cm inside the tail face");
+            points.Min(p => p.Z).Should().BeApproximately(7.45, 1e-5);
+            points.Min(p => 0.7 - Math.Max(Math.Abs(p.X), Math.Abs(p.Y - pose.Position.Y))).Should().BeApproximately(0.1, 1e-5, "the outside lies 0.1 m from the pocket's walls");
+        }
+    }
+
+    /// <summary>A test component that adds <paramref name="torque"/>, in the axes of its entity's frame, on each of its first <paramref name="ticks"/> ticks.</summary>
+    private sealed class TorqueFor(int ticks, Vector3 torque) : IComponent
+    {
+        private int handled;
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (handled++ < ticks)
+                self.Body.AddTorque(torque);
         }
     }
 }

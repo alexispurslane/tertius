@@ -1091,13 +1091,13 @@ The generator, with no World, in `LoftedHullTests`, with the checks of `MeshChec
   - For each corner of the hole, the segment from the outer hole's corner to the matching inner hole's corner crosses no triangle. Both ends are moved 5 cm in from the two sides that meet at the corner. The segment runs along the reveal, which slants at a fold, so it stays in the hole.
   - A point 5 cm outside the middle of each side of the hole, halfway between the skins, lies in the mesh's solid: a ray from it crosses the closed mesh an odd number of times. At a fold the mullion is 12 cm wide, so the point lies in it.
 - `TheGlassBandStartsAtTheSillAndRunsOverTheRoof`: no pane reaches below y = -1.1. The five glass edges hold panes in every bay from 1 to 8, and the solid edges hold none.
-- `TheHatchIsAHoleThroughTheStarboardWallAndTheGlassBreaksAroundIt`: the doorway is open through both skins, and bay 6 holds no starboard pane.
+- `TheHatchIsAHoleThroughTheStarboardWallAndTheGlassBreaksAroundIt`: the doorway is open through both skins, and bay 6 holds no starboard pane. Part A has no glass, so it tests only the doorway, as `TheHatchIsAHoleThroughTheStarboardWall`. Part B adds the glass and gives the test its full name.
 - `EachPaneIsASlab2CmThickInTheMiddleOfItsWall`: each pane's mesh is closed and faces out. Its two large faces are parallel to its cell, 2 cm apart and halfway between the skins. Its outline is 1 cm larger than its hole.
 - `TheTailPocketIsARecessClosedAtItsDepth`: a line along -Z through the pocket's middle first meets the pocket's floor, at z = 7.4. A line 5 cm outside the pocket meets the tail face at z = 8.
 - `TheShapeIsTheConvexHullOfTheCrossSectionsCorners`: its points are the 24 corners, and every vertex of the outer skin lies within 1 mm of the hull.
 - `TheInteriorFillsTheWallsAndLeavesTheCabinAndTheDoorwayOpen`: the test takes a grid of points 5 cm apart. A point in the wall, in a pane's hole or in the tail pocket lies in exactly one piece. A point in the cabin or the doorway lies in none. Points within 1 mm of a skin are left out.
 - `TheMassOfAPrismIsTheBoxsMass` and `TheMassOfAFrustumIsTheFrustumsMass`: `MassOf` against the closed formulas, within a relative 1e-6 of each value. `MassOf` rounds to floats once, so its error is float's rounding, about 6e-8.
-- The refusals: `CrossSectionsWithDifferentCountsOfCornersAreAnError`, `ACrossSectionThatIsNotConvexIsAnError`, `AnEdgeThatIsNotParallelAcrossTheCrossSectionsIsAnError`, `ARibPlaceOutsideTheLoftIsAnError`, `ACrossSectionBetweenRibPlacesIsAnError`, `ADoorThatReachesTheEdgeOfItsPanelIsAnError` and `APaneNarrowerThanItsSurroundsIsAnError`.
+- The refusals: `CrossSectionsWithDifferentCountsOfCornersAreAnError`, `ACrossSectionThatIsNotConvexIsAnError`, `AnEdgeThatIsNotParallelAcrossTheCrossSectionsIsAnError`, `ARibPlaceOutsideTheLoftIsAnError`, `ACrossSectionBetweenRibPlacesIsAnError`, `ADoorThatReachesTheEdgeOfItsPanelIsAnError` and `APaneNarrowerThanItsSurroundsIsAnError`. Part A adds four more, one for each refusal that the list above does not name: `ACrossSectionThatRunsClockwiseIsAnError`, `RibPlacesThatAreNotInOrderAreAnError`, `ADoorInAPanelWhoseEdgesDoNotLieInOnePlaneIsAnError` and `APocketWhoseHousingReachesTheWallIsAnError`. The test of the door's panel has two cases: two edges that meet at a right angle, and two edges that meet at a point while their ends lie on one line across X.
 
 The shuttle, on the World, in `ShuttleTests`:
 
@@ -1151,6 +1151,14 @@ The scene `demo-shuttle`, for part A, has a root frame `ground` with 1 g along -
 - The drawn hull: about 1,500 triangles, which part B counts. The 40 panes add 40 transparent commands, where the old windows had 7. Part B measures `RenderStats.TransparentCommands` and the time of the long script's video against today's 110 s.
 - Physics: the hull is a convex hull of 24 points in place of a box, and the interior has 23 pieces in place of 10. Part A measures the rehearsal's time against today's 107 s.
 - The run keeps its ticks and its frames, because the new films take their time from `seated` and `hold`.
+
+Measured in part A, on 2026-10-20:
+
+- The drawn hull of the loft, without the glass, has 448 triangles.
+- Physics agrees with `MassOf`. The center of mass is (0, -0.0902, 0.3561) m. The moments are 420,614, 451,666 and 80,645 kg·m², and the long axis lies 1.026 degrees from Z, with its nose end down. The tests of the spin and of the torques hold within 1 mm and 0.1 %.
+- With the moments in the hull's own axes, the autopilot's turn about Y starts 4.70 degrees off Y, as the design says. On the principal axes it stays within 0.5 degrees.
+- The rehearsal took 108.6 s, against 107 s before, with the build of the Demo. The new hull changed the frames of 11 films of the long script by a few frames each. `boarding` has 10 frames more, and `pen-release` 34 fewer.
+- One measured value leaves its test's range. At the end of the climb, 311 s in, the seat lifts the belted person by 72.9 mm, against 66.9 mm with the box, and `DemoLaunchTests.ThePassengerStaysAtItsSeatThroughTheClimb` allows 7 cm. The seat's convex radius does not cause it: with the seat's rounded edges of today the lift is 73.3 mm. Part A leaves the range as it is, as this design asks, and the choice goes to the user.
 
 ### Order of the work
 

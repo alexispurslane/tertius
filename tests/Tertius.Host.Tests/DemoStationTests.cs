@@ -208,8 +208,7 @@ public sealed class DemoStationTests : IDisposable
             Frame = surface,
             Pose = new DPose(hold, AttitudeAutopilot.Facing(-axis, hold)),
             LinearVelocity = world.VelocityIn(station, surface),
-            Body = new BodyDesc(new BoxShapeDesc(Shuttle.Hull), Mass: Shuttle.Mass, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new CompoundShapeDesc([.. Shuttle.Interior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
+            Body = Shuttle.Body(BodyMotion.Dynamic),
             AsFrame = new FrameSpec(new FrameBounds(Shuttle.Bubble)),
         });
 

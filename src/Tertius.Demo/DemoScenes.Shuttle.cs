@@ -7,29 +7,36 @@ namespace Tertius.Demo;
 public static partial class DemoScenes
 {
     /// <summary>
-    /// The shuttle of the Blue Danube demo (docs/plans/blue-danube-demo.md): a frame owner with a box hull 6 m wide, 4 m
-    /// tall and 16 m long. In its own axes +Y is up, -Z is the nose and +X is starboard.
+    /// The shuttle of the Blue Danube demo (docs/plans/blue-danube-demo.md): a frame owner whose hull fits a box 6 m wide,
+    /// 4 m tall and 16 m long, in the tram shape of <see cref="Loft"/>. In its own axes +Y is up, -Z is the nose and +X is
+    /// starboard.
     /// <list type="bullet">
-    /// <item>In its parent frame the hull is a solid box. In its own frame it is hollow: walls, a floor and a roof 0.2 m
-    /// thick round a cabin 5.6 by 3.6 by 15.6 m. The <see cref="Hatch"/> leads through the starboard wall, and the
-    /// <see cref="Seat"/>, a static box, stands on the cabin floor. Both are part of the interior shape, the static body
-    /// of the frame's own physics system.</item>
+    /// <item>In its parent frame the hull is the convex hull of the loft, <see cref="HullShape"/>. In its own frame it is
+    /// hollow: the drawn hull's solid in convex pieces, walls 0.2 m thick round a cabin that is the box of
+    /// <see cref="Cabin"/> where the walk, the seat, the pen and the float happen. The <see cref="Hatch"/> leads through the
+    /// starboard wall, and the <see cref="Seat"/>, a static box, stands on the cabin floor. Both are part of the interior
+    /// shape, <see cref="InteriorShape"/>, the static body of the frame's own physics system.</item>
+    /// <item>The hull has one density, so physics puts its center of mass at <see cref="CenterOfMass"/>, low and aft of
+    /// its middle, and gives it the principal axes of <see cref="Inertia"/>.</item>
     /// <item>The frame has no gravity field of its own. So its contents feel only the opposite of its proper acceleration
     /// (ARCHITECTURE.md, "Gravity"), which the engine derives from the frame's motion: the weight of the ground while the
     /// shuttle stands parked on it, and nothing once the shuttle falls freely in orbit.</item>
-    /// <item>Its bubble is the smallest ellipsoid that holds the hull grown by 2 m on every side, as the orbit scene's ship
-    /// has, so a person who walks up to the hatch is in the shuttle's frame before it reaches the hull.</item>
+    /// <item>Its bubble is the smallest ellipsoid that holds the hull's box grown by 2 m on every side, as the orbit scene's
+    /// ship has, so a person who walks up to the hatch is in the shuttle's frame before it reaches the hull.</item>
     /// </list>
     /// </summary>
     public static class Shuttle
     {
-        /// <summary>The half extents of the hull, in meters, in the shuttle's axes.</summary>
+        /// <summary>The half extents of the box that the hull fits, in meters, in the shuttle's axes.</summary>
         public static Vector3 Hull { get; } = new(3, 2, 8);
 
-        /// <summary>The thickness of the hull's walls, floor and roof, in meters.</summary>
+        /// <summary>The thickness of the hull's walls, floor and roof, in meters, in the plane of a cross-section.</summary>
         public const float Wall = 0.2f;
 
-        /// <summary>The half extents of the cabin inside the walls, in meters, in the shuttle's axes.</summary>
+        /// <summary>
+        /// The half extents of the cabin's box inside the walls, in meters, in the shuttle's axes. The bevels along the
+        /// cabin's four long edges and the nose cut it.
+        /// </summary>
         public static Vector3 Cabin { get; } = Hull - new Vector3(Wall);
 
         /// <summary>
@@ -37,12 +44,6 @@ public static partial class DemoScenes
         /// <see cref="BodyHandle.SetMotion"/> can make it dynamic.
         /// </summary>
         public const float Mass = 2e4f;
-
-        /// <summary>
-        /// The moments of inertia of the hull about its own X, Y and Z axes, in kg·m²: those of a solid box of
-        /// <see cref="Mass"/> with the hull's size, as physics gives a body whose description has a mass.
-        /// </summary>
-        public static Vector3 Inertia { get; } = BoxInertia(Mass, 2 * Hull);
 
         /// <summary>
         /// The acceleration that the main engine gives the shuttle at full throttle, in m/s²: three standard gravities,
@@ -88,9 +89,6 @@ public static partial class DemoScenes
                 new AttitudeAutopilot(Inertia), new MainEngine(thrust), new TranslationThrusters(TranslationThrust)];
         }
 
-        private static Vector3 BoxInertia(float mass, Vector3 size) => mass / 12 * new Vector3(
-            size.Y * size.Y + size.Z * size.Z, size.X * size.X + size.Z * size.Z, size.X * size.X + size.Y * size.Y);
-
         /// <summary>
         /// The hatch, the doorway through the starboard wall, in the shuttle's axes: 1.2 m wide, 2.1 m tall, centered 2 m
         /// aft of the shuttle's center, with a sill 0.1 m above the cabin floor. A person on the ground below the hull
@@ -103,6 +101,102 @@ public static partial class DemoScenes
         /// starboard and 4.5 m ahead of the shuttle's center.
         /// </summary>
         public static BoundingBox Seat { get; } = new(new Vector3(0.7f, -Cabin.Y, -4.8f), new Vector3(1.3f, -Cabin.Y + 0.5f, -4.2f));
+
+        /// <summary>
+        /// The full cross-section of the outer skin, from z = -5 m to the tail, corners 0 to 9 counterclockwise seen from +Z:
+        /// the belly, bevels of 0.2 m at 45 degrees up to the sides, the sills at y = -1.2 m, 0.6 m above the cabin floor,
+        /// bevels of 0.8 m at 45 degrees up to the roof, and the roof.
+        /// </summary>
+        private static readonly Vector2[] Full =
+            [new(-2.8f, -2), new(2.8f, -2), new(3, -1.8f), new(3, -1.2f), new(3, 1.2f), new(2.2f, 2), new(-2.2f, 2), new(-3, 1.2f), new(-3, -1.2f), new(-3, -1.8f)];
+
+        /// <summary>
+        /// The nose's front, at z = -8 m, with the same corners: over the nose's last 3 m the roof falls from y = 2 m to 0.6 m
+        /// and the sides close in from x = ±3 m to ±2.4 m, while the belly stays flat. So the front is a flat face 4.8 m wide
+        /// and 2.6 m tall, and every edge of it is parallel to the same edge of the full cross-section.
+        /// </summary>
+        private static readonly Vector2[] NoseFront =
+            [new(-2.2f, -2), new(2.2f, -2), new(2.4f, -1.8f), new(2.4f, -1.2f), new(2.4f, -0.2f), new(1.6f, 0.6f), new(-1.6f, 0.6f), new(-2.4f, -0.2f), new(-2.4f, -1.2f), new(-2.4f, -1.8f)];
+
+        /// <summary>Where the nose's loft ends and the full cross-section starts, in meters along the shuttle's Z.</summary>
+        private const float NoseStart = -5;
+
+        /// <summary>
+        /// The rib places, in meters along the shuttle's Z: every 1.5 m in the nose and every 2 m in the body. One lies at
+        /// z = -1 m, where the pen's clip is, and the hatch's bay runs from 1 m to 3 m.
+        /// </summary>
+        private static readonly float[] Ribs = [-8, -6.5f, -5, -3, -1, 1, 3, 5, 7];
+
+        /// <summary>
+        /// The shuttle's hull (docs/plans/blue-danube-demo.md, "The shuttle's tram shape and glass canopy"): the loft of
+        /// <see cref="NoseFront"/> at the nose to <see cref="Full"/> at z = -5 m and on to the tail face, with the
+        /// <see cref="Hatch"/> through the starboard side in bay 6, and a pocket 1.4 m square and 0.6 m deep for the main
+        /// engine's nozzle in the tail face, on the line of thrust through the center of mass.
+        /// </summary>
+        public static LoftedHull Loft { get; } = new LoftedHull([new HullSection(-Hull.Z, NoseFront), new HullSection(NoseStart, Full), new HullSection(Hull.Z, Full)], Wall, Ribs)
+            .Door(Hatch, bay: 6, fromCorner: 2, toCorner: 4)
+            .TailPocket(half: 0.7f, depth: 0.6f, housing: Wall);
+
+        /// <summary>The hull in its parent frame: the convex hull of the loft's corners, with the default convex radius.</summary>
+        public static ShapeDesc HullShape { get; } = Loft.Shape();
+
+        /// <summary>
+        /// The hull in its own frame: the drawn hull's solid in convex pieces of convex radius 0, solid at the glass and open at
+        /// the hatch, and the <see cref="Seat"/>. Every piece is sharp, so physics gives the body edge removal.
+        /// </summary>
+        public static ShapeDesc InteriorShape { get; } = new CompoundShapeDesc(
+            [.. Loft.Interior(), new CompoundChild(new BoxShapeDesc(Seat.Extents, ConvexRadius: 0), new Pose(Seat.Center, Quaternion.Identity))]);
+
+        private static readonly HullMass LoftMass = Loft.MassOf(Mass);
+
+        /// <summary>
+        /// The hull's center of mass, in meters, in the shuttle's axes: where physics puts it for <see cref="HullShape"/> at
+        /// one density, about 9 cm below and 36 cm aft of the hull's middle. The user chose one density on 2026-10-20, so no
+        /// ballast moves it onto the middle line (docs/plans/blue-danube-demo.md, "Engine changes").
+        /// </summary>
+        public static Vector3 CenterOfMass { get; } = LoftMass.CenterOfMass;
+
+        /// <summary>
+        /// The hull's moments of inertia about its principal axes, in kg·m², and those axes in the shuttle's axes, as physics
+        /// derives them for <see cref="HullShape"/> with <see cref="Mass"/>. The long axis tilts about 1 degree from Z.
+        /// </summary>
+        public static PrincipalInertia Inertia { get; } = LoftMass.Inertia;
+
+        /// <summary>
+        /// The main engine's nozzle: a ring from 0.5 m to 0.6 m in radius and 0.5 m long, about its own Y axis, in 32
+        /// segments. It is drawn only, so its outside stays 0.1 m from the walls of the tail pocket, which reach 0.7 m from
+        /// the pocket's middle.
+        /// </summary>
+        public static RevolvedSolid Nozzle { get; } = RevolvedSolid.Ring(0.5f, 0.6f, 0.25f, 32);
+
+        /// <summary>
+        /// Where the nozzle lies, in the shuttle's axes: its axis along Z through the center of mass, where the main engine
+        /// pushes, and the tail pocket's middle, and its aft rim 5 cm inside the tail face, so from z = 7.45 m to 7.95 m. A
+        /// nozzle off that line would show a thrust that turns the ship, and the ship does not turn.
+        /// </summary>
+        public static DPose NozzlePose { get; } =
+            new(new Double3(CenterOfMass.X, CenterOfMass.Y, Hull.Z - 0.05 - 0.25), DQuaternion.FromAxisAngle(Double3.UnitX, Math.PI / 2));
+
+        /// <summary>
+        /// Spawns the nozzle at <see cref="NozzlePose"/> in <paramref name="cabin"/>, the shuttle's frame, drawn in dark gray,
+        /// with no body. Its scene id is <c>nozzle</c>, after <paramref name="prefix"/> and a hyphen when the prefix is not
+        /// empty, so that each shuttle of a scene has its own.
+        /// </summary>
+        public static Entity SpawnNozzle(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources, string prefix = "")
+        {
+            Entity nozzle = world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = NozzlePose,
+                Render = Drawn(resources, Nozzle.Mesh(), new Vector4(0.18f, 0.18f, 0.2f, 1), boundingRadius: 0.7f),
+            });
+            scene.Add(prefix.Length == 0 ? "nozzle" : $"{prefix}-nozzle", nozzle);
+            return nozzle;
+        }
+
+        /// <summary>The hull's body with <paramref name="motion"/>: <see cref="HullShape"/>, <see cref="Mass"/>, no damping, and <see cref="InteriorShape"/>.</summary>
+        public static BodyDesc Body(BodyMotion motion) =>
+            new(HullShape, motion, Mass: Mass, LinearDamping: 0, AngularDamping: 0, InteriorShape: InteriorShape);
 
         /// <summary>
         /// Where a person 1.8 m tall stands at the seat, in the shuttle's axes: the center of its capsule, 0.9 m above the
@@ -126,24 +220,6 @@ public static partial class DemoScenes
 
         /// <summary>The radii of the bubble, in meters, in the shuttle's axes.</summary>
         public static Vector3 Bubble { get; } = (Hull + new Vector3(2)) * MathF.Sqrt(3);
-
-        /// <summary>
-        /// The boxes of the interior shape, in the shuttle's axes, in meters. The floor and the roof span the whole hull, the
-        /// side walls stand between them, and the end walls close the cabin between the side walls. The starboard wall
-        /// leaves <see cref="Hatch"/> open. The seat stands on the floor. The boxes touch without gaps or overlaps.
-        /// </summary>
-        public static IEnumerable<BoundingBox> Interior()
-        {
-            var hull = new BoundingBox(-Hull, Hull);
-            yield return hull with { Max = Hull with { Y = -Cabin.Y } };
-            yield return hull with { Min = (-Hull) with { Y = Cabin.Y } };
-            yield return new BoundingBox(new Vector3(-Hull.X, -Cabin.Y, -Hull.Z), new Vector3(-Cabin.X, Cabin.Y, Hull.Z));
-            foreach (BoundingBox part in AroundDoorway(new BoundingBox(new Vector3(Cabin.X, -Cabin.Y, -Hull.Z), new Vector3(Hull.X, Cabin.Y, Hull.Z)), Hatch))
-                yield return part;
-            yield return new BoundingBox(new Vector3(-Cabin.X, -Cabin.Y, -Hull.Z), new Vector3(Cabin.X, Cabin.Y, -Cabin.Z));
-            yield return new BoundingBox(new Vector3(-Cabin.X, -Cabin.Y, Cabin.Z), new Vector3(Cabin.X, Cabin.Y, Hull.Z));
-            yield return Seat;
-        }
 
         /// <summary>
         /// How high the middle of every window lies, in meters, in the shuttle's axes: at the eye of a person who stands on
@@ -220,8 +296,7 @@ public static partial class DemoScenes
         {
             Frame = frame,
             Pose = pose,
-            Body = new BodyDesc(new BoxShapeDesc(Hull), BodyMotion.Static, Mass: Mass, LinearDamping: 0, AngularDamping: 0,
-                InteriorShape: new CompoundShapeDesc([.. Interior().Select(box => new CompoundChild(new BoxShapeDesc(box.Extents), new Pose(box.Center, Quaternion.Identity)))])),
+            Body = Body(BodyMotion.Static),
             AsFrame = new FrameSpec(new FrameBounds(Bubble)),
             Render = render,
             Components = components ?? [],
