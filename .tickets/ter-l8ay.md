@@ -1,7 +1,7 @@
 ---
 id: ter-l8ay
 status: open
-deps: []
+deps: [ter-vja8]
 links: []
 created: 2026-10-20T07:48:29Z
 type: task

@@ -1,7 +1,7 @@
 ---
 id: ter-vja8
 status: in_progress
-deps: [ter-1bnq, ter-l8ay]
+deps: [ter-1bnq]
 links: [ter-9yvr]
 created: 2026-10-16T23:00:45Z
 type: feature
