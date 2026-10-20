@@ -93,6 +93,21 @@ public sealed class BlueDanubeScriptTests
         otherError.ToString().Should().Contain("--script <file>").And.NotContain("--generate <file>");
     }
 
+    [Fact]
+    public void TheGeneratorReportsAFileErrorWhenItCannotWriteTheScript()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "no-such-folder", "blue-danube.json");
+        var output = new StringWriter();
+        var error = new StringWriter();
+
+        int code = Program.Run(["--generate", path], output, error);
+
+        code.Should().Be(ScriptCommand.FileError);
+        error.ToString().Should().Contain($"Cannot write the script {path}");
+        output.ToString().Should().BeEmpty();
+        File.Exists(path).Should().BeFalse();
+    }
+
     /// <summary>A playback that stops the run before its first tick.</summary>
     private sealed class StopsAtOnce : IPlayback
     {
