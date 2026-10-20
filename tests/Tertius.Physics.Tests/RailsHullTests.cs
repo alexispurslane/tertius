@@ -193,6 +193,58 @@ public class RailsHullTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>A far orbit of 9,000 km at 47 m/s round the point gravity of an <see cref="Scenes.AsteroidSpace"/>, past 2^23 m.</summary>
+    private static readonly KeplerOrbit FarOrbit = KeplerOrbit.Circular(9e6, phase: 0.3);
+
+    /// <summary>
+    /// A hull on a far orbit lives at the origin of a following frame of its own by its distance from the origin of space,
+    /// and keeps it when its samples stop, because it stays far. Without a sample the frame's plan holds the hull still, so
+    /// physics aims the hull at the frame's origin, puts it there after the update, and releases the frame's record there, at
+    /// rest, in every step (ticket ter-zsku). A teleport without a sample then moves the hull 100 m, and it holds still
+    /// there: the frame jumps with it, and Jolt's hull stands at the frame's origin at every sync point after the teleport.
+    /// In the step of the teleport the released record stands at the teleport's pose in the frame's system as the step
+    /// found it, and the sync point lands the frame on its plan there.
+    /// </summary>
+    [Fact]
+    public void AKinematicHullWithoutASampleThatTeleportsInItsFarFollowingFrameStandsAtTheFramesOriginInJolt()
+    {
+        using World world = NewWorldWithFaults(out FaultInjectingBackend faults);
+        FrameHandle space = Scenes.AsteroidSpace(world);
+        var pilot = new Pilot();
+        var rails = new KeplerMotion { Orbit = FarOrbit };
+        Entity owner = Hull(world, space, BodyMotion.Kinematic, rails, pilot);
+        FrameHandle frame = world.GetOwnedFrame(owner);
+        Tick(world, 4);
+        FrameHandle following = world.Frames.TreeParent(frame);
+        world.Frames.Numeric(following).Should().Be(NumericMode.Following, "the hull is 9,000 km from the origin of space");
+
+        world.RemoveComponent(owner, rails);
+        Tick(world, 2);
+        DPose there = world.PoseIn(owner, space);
+        world.VelocityIn(owner, space).Should().Be(Double3.Zero, "the following frame holds the hull still without a sample");
+        pilot.Once = body => body.Teleport(new DPose(there.Position + new Double3(0, 100, 0), DQuaternion.Identity));
+        for (int i = 0; i < 12; i++)
+        {
+            world.Tick();
+            world.Frames.TreeParent(frame).Should().Be(following, "the far hull keeps its following frame");
+            MotionSample released = faults.Outputs[^1].Frames.Single(record => record.Frame == frame).Motion;
+            released.Velocity.Should().Be(Double3.Zero, "the still hull's record is at rest at sync point {0}", world.TickNumber);
+            if (i == 1)
+            {
+                (released.Pose.Position - new Double3(0, 100, 0)).Length
+                    .Should().BeLessThan(1e-6, "the record of the teleport's step stands at the teleport's pose in the frame's system");
+                continue;
+            }
+            released.Pose.Position.Should().Be(Double3.Zero, "physics releases the still hull's record at the frame's origin at sync point {0}", world.TickNumber);
+            if (i < 2)
+                continue;
+            (world.PoseIn(owner, space).Position - (there.Position + new Double3(0, 100, 0))).Length
+                .Should().BeLessThan(1e-6, "the hull holds still where the teleport put it at sync point {0}", world.TickNumber);
+            HullPosition(faults.Jolt, following, owner).Should().Be(Double3.Zero, "Jolt's hull stands at the frame's origin at sync point {0}", world.TickNumber);
+        }
+        world.Errors.Should().BeEmpty();
+    }
+
     // ---- The checks of a rails component ------------------------------------------------------------------------
 
     /// <summary>
