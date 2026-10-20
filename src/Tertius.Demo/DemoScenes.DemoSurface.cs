@@ -73,6 +73,9 @@ public static partial class DemoScenes
     /// port of astern, at the shuttle and past it; <c>port-window-camera</c>, 1 m inside the aft port window at eye height,
     /// looks out 20 degrees aft of abeam; <c>cockpit-camera</c>, aft of the seat, to port and above the head of a person at
     /// the seat, looks down past the seat at the nose window.</item>
+    /// <item>The <c>station</c> (see <see cref="DemoStation"/>), a wheel 202 m across that turns about its axis, flies on a
+    /// circle 400 km up in the launch plane, and passes over the pad at <see cref="DemoStation.OverPadAt"/>. It spawns
+    /// before the shuttle. Its view <c>rim-camera</c> turns with it.</item>
     /// <item>The frame <c>sun</c> lies far away, toward +X and +Z and high up, so its light falls the same way on the pad and
     /// in orbit.</item>
     /// </list>
@@ -301,6 +304,8 @@ public static partial class DemoScenes
                 Render = Drawn(resources, Primitives.Box(towerHalf), new Vector4(0.55f, 0.3f, 0.2f, 1), boundingRadius: towerHalf.Length()),
             }));
 
+            // The station spawns before the shuttle, whose rendezvous autopilot takes the station's entity.
+            DemoStation.Spawn(world, surface, scene, resources);
             Entity shuttle = Shuttle.Park(world, surface, ShuttleParked,
                 Drawn(resources, Shuttle.HullMesh(), new Vector4(0.85f, 0.85f, 0.88f, 1), boundingRadius: MathF.Ceiling(Shuttle.Hull.Length())),
                 Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance));
@@ -462,6 +467,7 @@ public static partial class DemoScenes
             scene.AddView("bow-camera");
             scene.AddView("port-window-camera");
             scene.AddView("cockpit-camera");
+            scene.AddView("rim-camera");
             world.Camera = overview;
             return scene;
         }
