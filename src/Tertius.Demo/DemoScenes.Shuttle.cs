@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Host;
 using Tertius.Simulation;
 
 namespace Tertius.Demo;
@@ -50,6 +51,12 @@ public static partial class DemoScenes
         public const float ThrustAcceleration = 3 * 9.81f;
 
         /// <summary>
+        /// The most force of the <see cref="TranslationThrusters"/> along each of the hull's axes, in newtons: 4,000 N, which
+        /// gives the shuttle's <see cref="Mass"/> 0.2 m/s².
+        /// </summary>
+        public const float TranslationThrust = 4000;
+
+        /// <summary>
         /// The radius of the circle that the ascent autopilot flies the shuttle to, in meters, in <c>earth-surface</c>:
         /// <see cref="ParkingOrbitAltitude"/> above Earth's mean radius.
         /// </summary>
@@ -67,12 +74,14 @@ public static partial class DemoScenes
         /// each tick to the shuttle's events, then the <see cref="AttitudeAutopilot"/> and the <see cref="MainEngine"/>,
         /// which read them. The engine pushes <see cref="Mass"/> with <see cref="ThrustAcceleration"/> at full throttle,
         /// and the ascent autopilot plans with that thrust. It steers only once the shuttle is
-        /// <paramref name="climbHeight"/> meters higher than where it launched, clear of its ramp.
+        /// <paramref name="climbHeight"/> meters higher than where it launched, clear of its ramp. The
+        /// <see cref="TranslationThrusters"/>, with <see cref="TranslationThrust"/> on each axis, push with the
+        /// <see cref="Translation"/> of each tick. They run after the layers of the flight program, at priority 10.
         /// </summary>
         public static IComponent[] FlightControls(double climbHeight)
         {
             const float thrust = Mass * ThrustAcceleration;
-            return [new AscentAutopilot(thrust, ParkingOrbitRadius, climbHeight), new AttitudeAutopilot(Inertia), new MainEngine(thrust)];
+            return [new AscentAutopilot(thrust, ParkingOrbitRadius, climbHeight), new AttitudeAutopilot(Inertia), new MainEngine(thrust), new TranslationThrusters(TranslationThrust)];
         }
 
         private static Vector3 BoxInertia(float mass, Vector3 size) => mass / 12 * new Vector3(
@@ -133,17 +142,65 @@ public static partial class DemoScenes
         }
 
         /// <summary>
-        /// The drawn hull, in the shuttle's axes: the outer box and the cabin seen from inside, joined through the hatch.
-        /// The scene draws the seat apart, in its own color.
+        /// How high the middle of every window lies, in meters, in the shuttle's axes: at the eye of a person who stands on
+        /// the cabin floor, 1.65 m above it.
+        /// </summary>
+        private static float WindowMiddle => -Cabin.Y + 1.65f;
+
+        /// <summary>
+        /// The places of the side windows along each side wall, in meters along the shuttle's Z: two ahead of the hatch and
+        /// one aft of it. They miss the hatch, from z = 1.4 to 2.6 m on the starboard wall, and the pen's clip, at
+        /// z = -1 m on the port wall. A pane's scene id numbers its place from the nose, from 1 to 3.
+        /// </summary>
+        private static readonly float[] SideWindowZ = [-5.5f, -3, 4.5f];
+
+        /// <summary>
+        /// A window through a side wall across X, from <paramref name="x0"/> to <paramref name="x1"/>, centered on
+        /// <paramref name="z"/> and at eye height: 1.2 m wide and 0.8 m tall.
+        /// </summary>
+        private static BoundingBox SideWindow(float x0, float x1, float z) =>
+            new(new Vector3(x0, WindowMiddle - 0.4f, z - 0.6f), new Vector3(x1, WindowMiddle + 0.4f, z + 0.6f));
+
+        /// <summary>
+        /// The windows through the hull, in the shuttle's axes, with the scene ids of their panes, as the orbit scene's
+        /// ship has them (see <see cref="DemoScenes.Windows"/>): one in the nose wall, 4 m wide and 1.4 m tall, and three in
+        /// each side wall (see <see cref="SideWindowZ"/>), all centered at eye height. Physics keeps the walls solid, so the
+        /// interior shape has no hole at a window, and the glass stops a body as a wall does.
+        /// </summary>
+        public static IReadOnlyList<(string Pane, Opening Window)> Windows { get; } =
+        [
+            (Pane: "pane-nose", Window: Opening.ThroughZ(new BoundingBox(new Vector3(-2, WindowMiddle - 0.7f, -Hull.Z), new Vector3(2, WindowMiddle + 0.7f, -Cabin.Z)))),
+            .. SideWindowZ.Select((z, i) => (Pane: $"pane-port-{i + 1}", Window: Opening.ThroughX(SideWindow(-Hull.X, -Cabin.X, z)))),
+            .. SideWindowZ.Select((z, i) => (Pane: $"pane-starboard-{i + 1}", Window: Opening.ThroughX(SideWindow(Cabin.X, Hull.X, z)))),
+        ];
+
+        /// <summary>
+        /// The drawn hull, in the shuttle's axes: the outer box and the cabin seen from inside, joined through the hatch and
+        /// the <see cref="Windows"/>. The scene draws the seat and the panes apart (see <see cref="Panes"/>).
         /// </summary>
         public static MeshData HullMesh()
         {
-            var hatch = Opening.ThroughX(Hatch);
-            return new BoxMesh()
-                .Box(new BoundingBox(-Hull, Hull), openings: hatch)
-                .Box(new BoundingBox(-Cabin, Cabin), inward: true, openings: hatch)
-                .Sides(hatch)
-                .Build();
+            Opening[] openings = [Opening.ThroughX(Hatch), .. Windows.Select(window => window.Window)];
+            BoxMesh mesh = new BoxMesh()
+                .Box(new BoundingBox(-Hull, Hull), openings: openings)
+                .Box(new BoundingBox(-Cabin, Cabin), inward: true, openings: openings);
+            foreach (Opening opening in openings)
+                mesh.Sides(opening);
+            return mesh.Build();
+        }
+
+        /// <summary>
+        /// Spawns a pane of glass in each of the <see cref="Windows"/>, in <paramref name="cabin"/>, the shuttle's frame, with
+        /// its scene id: the orbit scene's glass, mostly clear with a slight blue tint, in a thin box in the middle of its
+        /// wall. It has no body, because the interior shape is solid at the windows, and it casts no shadow, so sunlight
+        /// comes in through a window when the sun stands on its side.
+        /// </summary>
+        public static void Panes(World world, FrameHandle cabin, SceneInstance scene, IRenderResources resources)
+        {
+            MaterialId glass = resources.CreateMaterial(new MaterialDesc(new Vector4(0.45f, 0.65f, 1, 0.2f), SpecularIntensity: 1, Gloss: 0.9f));
+            var paneMeshes = new Dictionary<Vector3, MeshId>();
+            foreach ((string pane, Opening window) in Windows)
+                scene.Add(pane, world.Spawn(PaneIn(cabin, window, glass, paneMeshes, resources)));
         }
 
         /// <summary>

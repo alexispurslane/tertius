@@ -64,6 +64,15 @@ public static partial class DemoScenes
     /// person's eye along the way the person walks, 0.8 m above it, and looks toward the point 2 m ahead of it, tilted down as
     /// far as the person's whole box needs to stay in the picture. It goes with the person into the shuttle's frame, and
     /// stops short of the terminal's walls and the cabin's.</item>
+    /// <item>The shuttle has windows (see <see cref="Shuttle.Windows"/>): one in the nose wall and three in each side wall,
+    /// at eye height, each with a pane of glass, <c>pane-nose</c>, <c>pane-port-1</c> to <c>pane-port-3</c> and
+    /// <c>pane-starboard-1</c> to <c>pane-starboard-3</c>, numbered from the nose. Its flight controls also carry
+    /// <see cref="TranslationThrusters"/>.</item>
+    /// <item>Views of the rendezvous, still in the shuttle's frame: <c>window-camera</c>, 1.2 m behind the nose window at eye
+    /// height, looks out along the nose; <c>bow-camera</c>, 30 m ahead of the nose and 5 m above it, looks aft, 30 degrees to
+    /// port of astern, at the shuttle and past it; <c>port-window-camera</c>, 1 m inside the aft port window at eye height,
+    /// looks out 20 degrees aft of abeam; <c>cockpit-camera</c>, aft of the seat, to port and above the head of a person at
+    /// the seat, looks down past the seat at the nose window.</item>
     /// <item>The frame <c>sun</c> lies far away, toward +X and +Z and high up, so its light falls the same way on the pad and
     /// in orbit.</item>
     /// </list>
@@ -304,6 +313,7 @@ public static partial class DemoScenes
                 Pose = new DPose(Shuttle.Seat.Center, DQuaternion.Identity),
                 Render = Drawn(resources, Primitives.Box(seatHalf), new Vector4(0.15f, 0.25f, 0.6f, 1), boundingRadius: seatHalf.Length()),
             }));
+            Shuttle.Panes(world, cabin, scene, resources);
             world.Spawn(Lamp(cabin, new Double3(0, Shuttle.Cabin.Y - 0.05, 2), range: 10));
             world.Spawn(Lamp(cabin, new Double3(0, Shuttle.Cabin.Y - 0.05, -4.5), range: 10));
 
@@ -401,6 +411,37 @@ public static partial class DemoScenes
                 Pose = LookingAt(new Double3(0.5, -0.9, -0.7), new Double3(-0.7, 0.05, -0.95)),
                 Render = new RenderData(),
             }));
+            // The views of the rendezvous (docs/plans/blue-danube-demo.md, "The shuttle's windows and the cameras"), still in
+            // the shuttle's frame.
+            double eye = -Shuttle.Cabin.Y + 1.65;
+            scene.Add("window-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = new DPose(new Double3(0, eye, -Shuttle.Cabin.Z + 1.2), DQuaternion.Identity),
+                Render = new RenderData(),
+            }));
+            var bow = new Double3(0, 5, -Shuttle.Hull.Z - 30);
+            double portOfAstern = 30 * Math.PI / 180;
+            scene.Add("bow-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = LookingAt(bow, bow + new Double3(-Math.Sin(portOfAstern), 0, Math.Cos(portOfAstern))),
+                Render = new RenderData(),
+            }));
+            var portWindow = new Double3(-Shuttle.Cabin.X + 1, eye, 4.5);
+            double aftOfAbeam = 20 * Math.PI / 180;
+            scene.Add("port-window-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = LookingAt(portWindow, portWindow + new Double3(-Math.Cos(aftOfAbeam), 0, Math.Sin(aftOfAbeam))),
+                Render = new RenderData(),
+            }));
+            scene.Add("cockpit-camera", world.Spawn(new SpawnDesc
+            {
+                Frame = cabin,
+                Pose = LookingAt(new Double3(-0.6, 1.1, -1.2), new Double3(0.5, -0.5, -6)),
+                Render = new RenderData(),
+            }));
 
             // The sun stands at the distance of the real one, so its light falls the same way everywhere on the flight.
             SunAt(world, scene, surface, new Double3(0, EarthRadius, 0) + new Double3(60, 80, 40).Normalized() * AstronomicalUnit);
@@ -417,6 +458,10 @@ public static partial class DemoScenes
             scene.AddView("pen-camera");
             scene.AddView("hand-camera");
             scene.AddView("follow-camera");
+            scene.AddView("window-camera");
+            scene.AddView("bow-camera");
+            scene.AddView("port-window-camera");
+            scene.AddView("cockpit-camera");
             world.Camera = overview;
             return scene;
         }
