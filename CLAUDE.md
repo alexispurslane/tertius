@@ -31,7 +31,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 ## Scope decisions
 
 - No multiplayer, ever. No time warp. Mods come later.
-- Only the linear (proper) acceleration of a frame acts on its contents. No Coriolis or centrifugal forces.
+- A frame acts on its contents with its linear (proper) acceleration and, if it turns, with its rotation terms: the centrifugal, Coriolis and Euler forces. The user decided on 2026-10-16 that every turning frame gets them (spin gravity, `docs/plans/spin-gravity.md`). A semantic frame still applies no tidal gravity to its contents.
 - A frame's bubble is an ellipsoid or a sphere, nothing else. In-universe, the engine is a creation of Orbis Tertius, so oddities like a ship's "wake" are acceptable.
 - Rendering uses Blinn-Phong (the best version available), not PBR, to keep things simple. It uses deferred shading, multiple depth ranges and impostors captured at render time.
 
@@ -61,6 +61,7 @@ ARCHITECTURE.md is the binding design. This file records what the user prefers, 
 | A sample table keyed by frame, with three buffers (written, applied and followed) beside the intents, that held the motion sample of each frame on rails | A motion intent in the entity's own intent, `PhysicsIntent.Move`, with the life of the intent: a custom `[Union]` of an end pose (`Self.MoveKinematic`), a full sample (`Self.MoveOnRails`) and a steer target (`Self.Body.SteerTo`). One guard, `World.MotionIntentProblem`, says which entity takes which case. After step 2 the frame tree row keeps the record of the last finished step: pose, instant velocity, angular velocity, the derived proper acceleration and a follow kind. | The user decided this on 2026-10-18 for ter-xdt8. A second store beside the intent kept a copy of the same motion with a life of its own. See `docs/plans/rails-components.md`, "Rails motion for every entity". |
 | In the air, a character's up turns to the felt gravity at once, in every step (fork F5 of `docs/plans/spin-gravity.md`) | In the air, up turns toward the felt gravity at a limited angular rate, one named backend option with a measured default | The user decided this on 2026-10-20 for ter-1b21. At the demo's ramp jolt, the felt gravity flips for one step. Under the instant rule, that turned a belted passenger's up 135 degrees in one tick. |
 | A seat that holds the up of a belted passenger, through a new engine hold that a component sets each tick | The belted passenger follows the same air rule as any character, and the demo accepts the tipping it gives | The user decided this on 2026-10-20 for ter-1b21. The engine gets no hold for a character's up. |
+| A test on main first: does the interior anchor of the orbiting station (ter-dhkf) keep a person who crosses the spinning station at 40 m/s in the station's own system? If it does, the station scene goes before numeric frames in turning frames (fork F7 of `docs/plans/spin-gravity.md`) | The block stays, with no test first: the station scene waits for numeric frames in turning frames | The user decided this on 2026-10-18. ter-vja8 later found that the anchor rule of ter-dhkf already keeps such a person on the floor, so the test would have passed. |
 
 ## Code style
 
