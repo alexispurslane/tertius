@@ -9,7 +9,7 @@ priority: 2
 assignee: Alexis Purslane
 tags: [demo]
 ---
-# Live world: two shuttles on a timetable between the pad and the spinning station, and free play in the demo's world
+# Live world: three shuttles on a timetable between the pad and the spinning station, and free play in the demo's world
 
 The user decided on 2026-10-20 that the demo must also be a world that the user can join live as a character on a stream, because a split screen or a cinematic alone reads as animation. The cinematic run and free play run the same world: the cinematic's script drives only its person and the cameras, and free play drives a person by the user's input through PersonControl, in real time.
 
