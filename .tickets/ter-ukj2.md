@@ -1,6 +1,6 @@
 ---
 id: ter-ukj2
-status: open
+status: closed
 deps: [ter-1b21, ter-fsst]
 links: []
 created: 2026-10-20T08:17:30Z
@@ -20,3 +20,7 @@ From ter-fsst (2026-10-20). FrameTree.FeltGravity is the public read of the felt
 **2026-10-20T08:22:16Z**
 
 2026-10-20: folded into ter-1b21, whose builder 2 does this move right after its first part.
+
+**2026-10-20T13:35:48Z**
+
+2026-10-20: done in ter-1b21 (commit b12ac06), merged with it.

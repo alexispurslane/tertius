@@ -1,6 +1,6 @@
 ---
 id: ter-1b21
-status: in_progress
+status: closed
 deps: [ter-1bnq]
 links: []
 created: 2026-10-16T23:00:45Z
@@ -40,3 +40,7 @@ From the Blue Danube demo survey (2026-10-18): check whether the choice between 
 **2026-10-20T12:33:46Z**
 
 2026-10-20, part 4, decided by the user: the walk in the ground plane (fork F6) follows every walkable face that Jolt reports, moving bodies included (one rule for every face). WindowsSliceTests' lit-cabin test changes on purpose, because the walk now follows the inner airlock door's rounded lower edge at 49.2 degrees while the door opens.
+
+**2026-10-20T13:35:48Z**
+
+2026-10-20, merged. Cost (SpinStationCharacterBenchmarks, Release, ShortRun, 100 people): 178.2 us per tick in the turning station with 100 of 100 standing (feet -2.0e-5 m to 1.8e-4 m above the floor), 163.4 us in a station that does not turn (100 of 100). Before this ticket: 100 us turning with the people floating 5 cm above the floor. Coverage of the changed lines (Core, Physics, Host, Debug): 146 of 158 lines (92.4%), 52 of 60 branches. The uncovered lines need no test: CharacterStartVelocity's HasValue, Value and ToString are union helpers for debugging; the default arm of NextCharacterVelocity's switch is a contract that only a bug reaches; InGroundPlane's fallback for a walk wholly along the ground's normal (a walk across up cannot be, on a walkable face); and Geometry's second fallback axis of a 180-degree turn when the vector lies along X (the first fallback is pinned by the 180-degree flip test). Two allocation tests fail only under coverage instrumentation, as known. The review's 11 findings were fixed, among them the spike-crossing test from ter-vja8 (the person passes within 1 m of the axis and meets the far floor above 50 m/s), a teleport that sets up from its rotation so the air rate applies, and PressedWeight as a pure rule with tests.
