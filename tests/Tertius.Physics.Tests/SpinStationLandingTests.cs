@@ -227,10 +227,11 @@ public class SpinStationLandingTests
     /// all the way across the station, so it stays in the station's own system, and Jolt's sweep of the person meets the real
     /// floor. In the spike, before ter-dhkf, it landed 0.7 m deep. Without the link it falls through the floor.
     /// <para>
-    /// This is not yet the spike's crossing. Until ticket ter-1b21 gives a walking character the rotation terms, the person
-    /// moves on a straight line in the station's axes at its spawn velocity, with numeric frames and without: a chord 59.7 m
-    /// from the axis. From that ticket on it follows the inertial line through the axis at 40 m/s and meets the floor at
-    /// 50.8 m/s, the spike's case, which a test must then pin.
+    /// A walking character in the air feels the rotation terms (ticket ter-1b21), so the person follows its inertial line
+    /// through the axis at 40 m/s and meets the floor above 50 m/s, the spike's crossing, which
+    /// <see cref="APersonWhoLeavesTheFloorAt50MetersPerSecondCrossesNearTheAxisAndMeetsTheFarFloorAbove50MetersPerSecond"/>
+    /// pins. Before that ticket it moved on a straight line in the station's axes at its spawn velocity: a chord 59.7 m from
+    /// the axis.
     /// </para>
     /// </summary>
     [Theory]
@@ -251,6 +252,30 @@ public class SpinStationLandingTests
         crossing.Moments[0].Speed.Should().BeGreaterThan(50, "the person moves fast enough for a falling frame");
         crossing.Moments.Should().OnlyContain(moment => !moment.Falling,
             "the merge test links the person to the floor, so it stays in the station's own system");
+    }
+
+    /// <summary>
+    /// The spike's crossing: a person in the air feels the rotation terms, so the person that leaves the far side of the
+    /// floor at 50.4 m/s follows its inertial line, which runs through the axis at 40 m/s, and meets the floor at
+    /// sqrt(40² + 31.3²) = 50.8 m/s relative to the station, past the 50 m/s from which a person gets a falling frame. With
+    /// numeric frames and without, it passes within 1 m of the axis and is faster than 50 m/s in the tick before it lands.
+    /// A person that felt no rotation terms crossed on a straight chord 59.7 m from the axis.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void APersonWhoLeavesTheFloorAt50MetersPerSecondCrossesNearTheAxisAndMeetsTheFarFloorAbove50MetersPerSecond(bool numericFrames)
+    {
+        Crossing crossing = Cross(numericFrames ? new NumericFrameOptions() : NumericFrameTesting.WithoutNumericFrames, Person,
+            thrusts: false, seconds: 7, radius: 98);
+
+        int landing = crossing.Landing;
+        landing.Should().BeGreaterThan(1, "the person reaches the floor");
+        double nearest = crossing.Moments.Take(landing).Min(moment => Math.Sqrt(moment.Place.X * moment.Place.X + moment.Place.Z * moment.Place.Z));
+        nearest.Should().BeLessThan(1, "the person follows its inertial line through the axis");
+        crossing.Moments[landing - 1].Speed.Should().BeGreaterThan(50, "the person meets the floor at the spike's 50.8 m/s");
+        TestContext.Current.TestOutputHelper?.WriteLine($"numericFrames={numericFrames}: nearest the axis {nearest:F3} m, "
+            + $"speed before the landing {crossing.Moments[landing - 1].Speed:F3} m/s");
     }
 
     /// <summary>
@@ -289,6 +314,15 @@ public class SpinStationLandingTests
     private const double BeforeLanding = 3e-5;
 
     /// <summary>
+    /// <see cref="BeforeLanding"/> for a walking person, in m. The update of a walking character keeps its chord only as
+    /// Jolt's float velocity, which it rounds in every step, where a dynamic body's update follows a double shadow of its
+    /// chord. At 40 m/s to 50 m/s in the station's own system that rounding moved the person 2.7e-5 m from its exact
+    /// inertial line in the 238 ticks before it landed, and a crate 9.4e-6 m. In the falling frame, where the person moves at
+    /// 0.3 m/s, both strayed 1.0e-5 m. So the two runs of the person differed by 3.2e-5 m.
+    /// </summary>
+    private const double PersonBeforeLanding = 6e-5;
+
+    /// <summary>
     /// Under rules by which every group falls, with no lookahead, a body falls in a numeric frame below the station for most
     /// of its crossing, and joins the station's own system only where its bounding sphere meets a slab's, 11 m from the floor.
     /// It moves as it does in the station's own system all the way, within a float step at its speed before it lands, and
@@ -297,9 +331,10 @@ public class SpinStationLandingTests
     /// frame"), so a crate, which feels them, keeps a small velocity relative to its home while it falls: it starts at
     /// 0.21 m/s, half a step of the crate's rotation terms of 25.7 m/s², by which a chord and an instant velocity differ, and
     /// grows by less than 1 mm/s a tick as the crate and the origin drift apart, far below the drain speed of 1 m/s at which
-    /// the frame takes the members' velocity over. Without the origin's term it grows by 0.46 m/s a tick. Until ticket
-    /// ter-1b21 a walking person feels none of the rotation terms in either system, so it moves on a straight line in the
-    /// station's axes in both, and its velocity relative to the falling frame grows.
+    /// the frame takes the members' velocity over. Without the origin's term it grows by 0.46 m/s a tick. A walking person in
+    /// the air feels the rotation terms as a crate does (ticket ter-1b21), so the same bounds hold for it. Before that
+    /// ticket it felt none, moved on a straight line in the station's axes, and reached 0.89 m/s relative to its falling
+    /// frame.
     /// </summary>
     [Theory]
     [InlineData(false)]
@@ -319,17 +354,14 @@ public class SpinStationLandingTests
         plain.Deepest.Should().BeLessThan(0.1, "Jolt keeps the body out of the floor in the station's own system");
         numeric.Deepest.Should().BeApproximately(plain.Deepest, 1e-3, "the body sinks no deeper than without numeric frames");
         double before = numeric.WorstDistance(plain, 0, landing), after = numeric.WorstDistance(plain, landing, plain.Moments.Count);
-        before.Should().BeLessThan(BeforeLanding, "the body flies as it does without numeric frames");
+        before.Should().BeLessThan(person ? PersonBeforeLanding : BeforeLanding, "the body flies as it does without numeric frames");
         after.Should().BeLessThan(1e-3, "the body lands and rests as it does without numeric frames");
         double homeSpeed = numeric.Moments.Where(moment => moment.Falling).Max(moment => moment.HomeSpeed);
         double homeSpeedChange = Enumerable.Range(1, landing - 1)
             .Where(i => numeric.Moments[i].Falling && numeric.Moments[i - 1].Falling)
             .Max(i => Math.Abs(numeric.Moments[i].HomeSpeed - numeric.Moments[i - 1].HomeSpeed));
-        if (!person)
-        {
-            homeSpeed.Should().BeLessThan(0.5 * falls.DrainSpeed, "the falling frame never has to take the crate's velocity over");
-            homeSpeedChange.Should().BeLessThan(5e-3, "the crate's velocity relative to its falling frame changes slowly");
-        }
+        homeSpeed.Should().BeLessThan(0.5 * falls.DrainSpeed, "the falling frame never has to take the body's velocity over");
+        homeSpeedChange.Should().BeLessThan(5e-3, "the body's velocity relative to its falling frame changes slowly");
         TestContext.Current.TestOutputHelper?.WriteLine($"person={person}: worst distance {before:E2} m before the landing at tick {landing}, "
             + $"{after:E2} m after it, deepest {plain.Deepest:F4} m, fastest relative to a falling home {homeSpeed:E2} m/s, "
             + $"largest change of that in a tick {homeSpeedChange:E2} m/s");

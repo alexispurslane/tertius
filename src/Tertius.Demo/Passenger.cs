@@ -102,7 +102,7 @@ public readonly struct PassengerState : IEquatable<PassengerState>
 /// <item><see cref="Boarding"/>: once its center comes within <see cref="BuckleRadius"/> of <paramref name="seat"/>, in
 /// the seat's frame, it shuts its belt. Something else, such as a <see cref="Walker"/>, brings it there.</item>
 /// <item><see cref="Seated"/>: the belt holds it at the seat, as a seat holds a person who sits in it, whenever the
-/// effective gravity at it would not keep it on its feet: when it is weightless, below
+/// gravity that it feels (see <see cref="FrameTree.FeltGravity"/>) would not keep it on its feet: when it is weightless, below
 /// <see cref="FrameTree.ZeroGravityThreshold"/>, or when it leans more than <see cref="BeltAngle"/> from the seat frame's
 /// down, -Y. Then the belt pushes the passenger with its mass times the opposite of that gravity, so that it moves with the
 /// cabin, plus a spring and a damper toward the seat, which take out what the push misses. Otherwise the passenger stands
@@ -147,7 +147,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     /// <summary>The frequency at which the belt's spring would swing the passenger without its damper, in radians per second.</summary>
     public const double BeltFrequency = 6;
 
-    /// <summary>How far the effective gravity can lean from the seat's down before the belt holds, in radians: 45 degrees.</summary>
+    /// <summary>How far the felt gravity can lean from the seat's down before the belt holds, in radians: 45 degrees.</summary>
     public const double BeltAngle = Math.PI / 4;
 
     /// <summary>How long the passenger stays weightless at its seat before it opens its belt, in seconds.</summary>
@@ -212,11 +212,9 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
             case Seated { WeightlessTicks: int ticks }:
                 if (self.Frame != seat.Frame)
                     return;
-                // The gravity of the last finished step at the seat: the frame's field less its proper acceleration, without the
-                // rotation terms of the frame's turn that FrameTree.FeltGravity adds. Physics gives a walking character no
-                // rotation terms yet (ter-1b21), so a belt that pushed against them would move the person off its seat.
-                FrameTree frames = self.Snapshot.Frames;
-                Double3 gravity = frames.Gravity(seat.Frame).AtPrecise(self.PoseIn(seat.Frame).Position) - (Double3)frames.ProperAcceleration(seat.Frame);
+                // The gravity that the passenger feels over the last finished step, with the rotation terms of the frame's
+                // turn, which physics applies to a character too: the belt pushes against the gravity that physics applies.
+                Double3 gravity = self.Snapshot.Frames.FeltGravity(seat.Frame, self.PoseIn(seat.Frame).Position);
                 bool weightless = gravity.Length < FrameTree.ZeroGravityThreshold;
                 if (weightless || Double3.Dot(gravity, -Double3.UnitY) < gravity.Length * Math.Cos(BeltAngle))
                     Belt(self, gravity, mass);
@@ -241,7 +239,7 @@ public sealed class Passenger(Waypoint seat, Entity pen) : IComponent
     }
 
     /// <summary>
-    /// Pushes the passenger with the opposite of <paramref name="gravity"/>, the effective gravity at it, plus a spring and
+    /// Pushes the passenger with the opposite of <paramref name="gravity"/>, the gravity that it feels, plus a spring and
     /// a damper toward its seat, all times its <paramref name="mass"/>.
     /// </summary>
     private void Belt(Self self, Double3 gravity, float mass)

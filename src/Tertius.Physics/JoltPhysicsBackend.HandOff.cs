@@ -321,8 +321,9 @@ public sealed partial class JoltPhysicsBackend
         // The real body replaces its ghost.
         RemoveGhostIn(record, target);
         RemovePrimary(record);
-        // A character that stood in this step takes its up from the new frame's gravity. One that did not stand falls
-        // freely, so nothing turns it: it keeps its up and its rotation, turned into the new frame's axes. A character
+        // A character that stood in this step takes its up from the new frame's gravity. One that did not stand keeps its
+        // up and its rotation, turned into the new frame's axes, and its next update turns its up under the new frame's
+        // gravity: at once if it touches anything, and at most at the air rate if not. A character
         // keeps its form, which the next step changes if the new frame's gravity asks for the other one.
         CreatePrimary(record, plan.To, plan.Pose, plan.LinearVelocity, plan.AngularVelocity, upFromGravity: record.Standing);
         DPose pose = plan.Pose;

@@ -585,7 +585,7 @@ For each semantic frame whose update runs, the update scans every body of the fr
 |---|---|
 | The force on a body | Effective gravity, which is tidal in a numeric frame |
 | Whether physics stands a character | Effective gravity. In free fall it is below the zero-gravity threshold, so a character floats, as in orbit. Since ticket `ter-1w06` such a character is a rigid body that cannot turn, so it pushes the bodies of its numeric frame as any rigid body does. |
-| A character's up while it touches something | The semantic frame's field at the character's true position |
+| A walking character's up under gravity: at once while it touches something, and at most at the air rate in the air (ticket `ter-1b21`) | The semantic frame's field at the character's true position, with the centrifugal and the Euler term of a turning frame |
 | The ambient light's up | The row frame's field, which is semantic, as today |
 | The sleep threshold of a system | Effective gravity, as today. A numeric frame sits at the floor of 0.001 m/s². |
 | Whether the sleeping members of a frame wake | A change of the frame's field, or of its push: the proper acceleration of a semantic frame, and for a numeric frame its acceleration less its semantic frame's field at its origin (`FrameTree.PushInStep`, see "Following frames"). Since `ter-zg77`. |

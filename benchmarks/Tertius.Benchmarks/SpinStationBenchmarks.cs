@@ -134,10 +134,10 @@ public class DampedSpinningShipBenchmarks
 /// station does not turn and has a uniform field of the same 9.81 m/s² along +X: the same people on the same floor in a
 /// frame that does not turn.
 /// <para>
-/// Until ter-1b21 builds the character update of a turning frame, the velocity rule of a walking character reads only the
-/// linear gravity, which is zero in this station, so in the turning station the people float where they spawned, 5 cm
-/// above the floor, and touch nothing: the setup prints how many stand. The two cases then do different work, and the
-/// turning one costs less. ter-1b21 runs this benchmark again once its people stand.
+/// The people spawn 5 cm above the floor. Since ter-1b21 a walking character in a turning frame feels the rotation terms, so
+/// in both cases every person falls onto the floor and stands, and the two cases do the same work: the setup prints how
+/// many stand and how far their feet are from the floor. Before ter-1b21 the people of the turning station floated where
+/// they spawned, and its tick cost 100 µs against 167 µs, which did not compare like with like.
 /// </para>
 /// </summary>
 [MemoryDiagnoser]
@@ -185,9 +185,19 @@ public class SpinStationCharacterBenchmarks
         for (int i = 0; i < 120; i++)
             world.Tick();
         int standing = people.Count(world.IsStanding);
-        double drift = people.Max(p => Math.Abs(world.PoseIn(p, station).Position.X - 99.05));
-        Console.WriteLine($"// {standing} of 100 people stand; worst drift off the floor {drift:G3} m.");
+        double lowest = people.Min(p => FeetAboveFloor(world.PoseIn(p, station)));
+        double highest = people.Max(p => FeetAboveFloor(world.PoseIn(p, station)));
+        Console.WriteLine($"// {standing} of 100 people stand; their feet are {lowest:G3} m to {highest:G3} m above the floor.");
     }
+
+    /// <summary>
+    /// How far the lowest point of a person's capsule at <paramref name="pose"/> in the station lies above the floor's face
+    /// at x = 100, in meters. The capsule's half height is 0.6 m along its up and its radius 0.3 m. In the turning station
+    /// up is against the gravity, which points away from the station's axis, so it leans from the flat floor's normal by
+    /// up to 7.8 degrees at the grid's edge, 13.5 m from the face's middle, and the tilted capsule's center sits lower.
+    /// </summary>
+    private static double FeetAboveFloor(in DPose pose) =>
+        100 - pose.Position.X - 0.6 * Math.Abs(pose.Rotation.Rotate(Double3.UnitY).X) - 0.3;
 
     [Benchmark]
     public void Tick() => world.Tick();

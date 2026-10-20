@@ -52,4 +52,31 @@ internal static class Rotations
         }
         return Quaternion.Normalize(turn * rotation);
     }
+
+    /// <summary>
+    /// The unit vector <paramref name="from"/> turned toward the unit vector <paramref name="to"/> by at most
+    /// <paramref name="maxAngle"/> radians, on the great circle through both: <paramref name="to"/> itself when it is that
+    /// near. When the two are opposite, the turn goes about the axis that <see cref="AlignUp"/> takes for that case.
+    /// </summary>
+    public static Vector3 TurnToward(Vector3 from, Vector3 to, float maxAngle)
+    {
+        Vector3 cross = Vector3.Cross(from, to);
+        float sine = cross.Length();
+        float angle = MathF.Atan2(sine, Vector3.Dot(from, to));
+        if (angle <= maxAngle)
+            return to;
+        Vector3 axis;
+        if (sine > 1e-6f)
+        {
+            axis = cross / sine;
+        }
+        else
+        {
+            axis = Vector3.Cross(from, Vector3.UnitX);
+            if (axis.LengthSquared() < 1e-6f)
+                axis = Vector3.Cross(from, Vector3.UnitZ);
+            axis = Vector3.Normalize(axis);
+        }
+        return Vector3.Normalize(from * MathF.Cos(maxAngle) + Vector3.Cross(axis, from) * MathF.Sin(maxAngle));
+    }
 }

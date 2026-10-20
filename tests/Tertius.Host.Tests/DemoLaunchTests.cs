@@ -220,7 +220,12 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
     /// seat in the shuttle's frame. The foot of the ramp jolts it once: when the hull's tail reaches the foot, at about
     /// 27 m/s, the hull stops turning onto the incline at once, and the belt's push against the cabin's gravity lags that
     /// jolt by a step, so the person swings about 0.17 m and back. In the climb, the thrust changes smoothly, and the
-    /// person stays within millimeters of its seat.
+    /// person stays within 7 cm of its seat. Changed on purpose by ter-1b21: the bound of the climb was 1 cm. A character's
+    /// up now follows its gravity in the air too, at most at the air rate (docs/plans/spin-gravity.md, "Characters", fork
+    /// F5, the user's choice of 2026-10-20), and nothing holds the belted person's up to the seat. At the end of the climb
+    /// the engine throttles down to about 0.2 m/s², and the felt gravity leans 14 degrees from the cabin's aft axis toward
+    /// its ceiling. So the person's head, toward the nose, dips onto the seat in front of it, and the seat lifts the person
+    /// by 66.9 mm, 310 s into the climb.
     /// </summary>
     [Fact]
     public void ThePassengerStaysAtItsSeatThroughTheClimb()
@@ -232,7 +237,7 @@ public sealed class DemoLaunchTests(DemoLaunchRun run) : IClassFixture<DemoLaunc
         flight.Should().OnlyContain(tick => tick.PersonFrame == cabin);
         flight.Should().OnlyContain(tick => tick.Passenger.Value is Seated);
         flight.Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.25);
-        flight.Where(tick => tick.Ascent.Value is Climb).Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.01);
+        flight.Where(tick => tick.Ascent.Value is Climb).Max(tick => Double3.Distance(tick.PersonInCabin, Shuttle.SeatStand)).Should().BeLessThan(0.07);
     }
 
     /// <summary>
