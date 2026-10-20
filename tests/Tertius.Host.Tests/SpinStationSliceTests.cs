@@ -14,9 +14,10 @@ namespace Tertius.Host.Tests;
 /// </summary>
 public sealed class SpinStationRun : CheckedInRun
 {
-    public SpinStationRun() : this([]) { }
+    public SpinStationRun() : this([], []) { }
 
-    private SpinStationRun(List<SpinStationSample> samples) : base("spin-station", (world, scene) => samples.Add(SpinStationSample.Take(world, scene)))
+    private SpinStationRun(List<SpinStationSample> samples, List<Entity> live)
+        : base("spin-station", (world, scene) => samples.Add(SpinStationSample.Take(world, scene, live)))
     {
         Samples = samples;
     }
@@ -46,17 +47,16 @@ internal readonly record struct SpinStationBody(Double3 Inertial, Double3 InStat
 internal sealed record SpinStationSample(long Tick, double Time, DPose Station, SpinStationBody Person, bool Standing, SpinStationBody Dropped,
     SpinStationBody? Thrown)
 {
-    private static readonly List<Entity> Live = [];
-
-    public static SpinStationSample Take(World world, SceneInstance scene)
+    /// <summary>The sample of <paramref name="world"/> now. It fills <paramref name="live"/> with the live entities, to find the thrown crate.</summary>
+    public static SpinStationSample Take(World world, SceneInstance scene, List<Entity> live)
     {
         FrameHandle station = world.GetOwnedFrame(scene["station"]);
         FrameHandle space = world.Frames.Parent(station);
         Entity person = scene["person"];
         // The thrown crate is the one crate that the scene did not spawn.
-        Live.Clear();
-        world.CopyLiveEntities(Live);
-        Entity thrown = Live.FirstOrDefault(e => world.GetComponent<Crate>(e) != null && !scene.TryGetEntity(scene.IdOf(e), out _));
+        live.Clear();
+        world.CopyLiveEntities(live);
+        Entity thrown = live.FirstOrDefault(e => world.GetComponent<Crate>(e) != null && !scene.TryGetEntity(scene.IdOf(e), out _));
         return new SpinStationSample(world.TickNumber, world.Time, world.Frames.Relative(station, space),
             SpinStationBody.Take(world, person, space, station), world.IsStanding(person), SpinStationBody.Take(world, scene["dropped-crate"], space, station),
             thrown.IsNull ? null : SpinStationBody.Take(world, thrown, space, station));
@@ -113,7 +113,7 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
     private static int FirstConstrainedStep(IReadOnlyList<Double3> places, int from)
     {
         for (int n = Math.Max(from, 2); n < places.Count; n++)
-            if ((places[n] - places[n - 1] * 2 + places[n - 2]).Length > 1e-4)
+            if ((places[n] - places[n - 1] * 2 + places[n - 2]).Length > TouchThreshold)
                 return n;
         return -1;
     }
@@ -189,6 +189,30 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
     /// </summary>
     private (int First, int Last) Walk(string start, string end) => (At(start) + 3, At(end) + 2);
 
+    /// <summary>
+    /// How far a free body may leave its expected path before it touches anything, in meters. Jolt keeps a body's velocity
+    /// relative to the station's axes in floats, so each step's chord rounds by about 1e-7 of the body's speed: at 6 m/s
+    /// about 6 nm a step, at most 0.24 µm over the 40 steps of a flight. Measured: 8.2e-9 m for the dropped crate over its
+    /// 40 steps and 4.7e-8 m for the thrown crate over its 39. The bound sits a decade below <see cref="TouchThreshold"/>,
+    /// so that a step in which something touched the body cannot pass as a free one.
+    /// </summary>
+    private const double PathBound = 1e-5;
+
+    /// <summary>
+    /// How far a step may leave the body's free path before the test counts it as the step in which something touched the
+    /// body, in meters: 0.1 mm. A touch of the floor stops the body's way into it, centimeters a step, and the free path
+    /// rounds by less than <see cref="PathBound"/>.
+    /// </summary>
+    private const double TouchThreshold = 1e-4;
+
+    /// <summary>
+    /// How far a crate at rest may lie from the plane of the facet under it, at its half size, in meters. Measured: 6.8 µm
+    /// into the plane for the dropped crate and 5.7 µm off it for the thrown crate, both lying flat. A crate that lies
+    /// across a joint of two facets stands on its two edges 2.4 mm off each plane, and one that rests on another body or
+    /// on an edge stands farther, so 1 mm tells a crate that lies flat on its facet from those.
+    /// </summary>
+    private const double FacetRestBound = 1e-3;
+
     [Theory]
     [InlineData("spinward", "antispinward", 1)]
     [InlineData("antispinward", "stop", -1)]
@@ -219,13 +243,16 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
     /// </summary>
     private const double SpeedBound = 1e-4;
 
-    // ---- The weight of the walk ----
+    // ---- The weight that the walk feels ----
 
     /// <summary>
-    /// The mean acceleration toward the axis in inertial space of the person over the walk from the dump
-    /// <paramref name="start"/> to the dump <paramref name="end"/>, which only the floor's push gives: the station has no
-    /// field. Each value is the second difference of the person's inertial places over two steps of the walk, along the
-    /// direction from its middle place to the axis. Also its peak, and the person's mean radius and speed along the floor.
+    /// The mean acceleration toward the axis of the person's path in inertial space over the walk from the dump
+    /// <paramref name="start"/> to the dump <paramref name="end"/>: the person's felt (proper) acceleration, since the
+    /// station has no field. Each value is the second difference of the person's inertial places over two steps of the
+    /// walk, along the direction from its middle place to the axis. Also its peak, and the person's mean radius and speed
+    /// along the floor. It follows from the path alone, not from a force that physics reports: physics moves a standing
+    /// character on the ground and presses only a dynamic body under it, with its weight input, the effective gravity and
+    /// the Coriolis term, which has no v² / r part (the plank test of SpinStationCharacterTests).
     /// </summary>
     private (double Mean, double Peak, double Radius, double Speed) Inward(string start, string end)
     {
@@ -259,18 +286,22 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
     [Theory]
     [InlineData("spinward", "antispinward", 1)]
     [InlineData("antispinward", "stop", -1)]
-    public void OverAWalkTheFloorPushesThePersonTowardTheAxisWithTheSquareOfItsInertialSpeedOverItsRadius(string start, string end, int way)
+    public void OverAWalkThePersonsInertialPathCurvesTowardTheAxisWithTheSquareOfItsInertialSpeedOverItsRadius(string start, string end, int way)
     {
-        // The person moves round the axis in inertial space at ω r ± v, so the floor's push gives it (ω r ± v)² / r toward
-        // the axis: ω² r and the Coriolis term ± 2 ω v of a flat floor, and v² / r from the facets' turns.
+        // The person moves round the axis in inertial space at ω r ± v, so its path curves toward the axis with
+        // (ω r ± v)² / r: ω² r and the Coriolis term ± 2 ω v of a flat floor, and v² / r from the facets' turns. The walk's
+        // test implies this: a person who stands in every step and keeps its asked speed along the facets at radius r, in
+        // a frame that turns at ω, has this path. So the test measures the inertial acceleration of the walk's path, the
+        // weight that the person feels. The press of a walking person on a dynamic faceted floor stays unmeasured: on the
+        // station's static mesh no body under the person takes a press, and the press on the dynamic plank has no v² / r.
         (double mean, double peak, double radius, double speed) = Inward(start, end);
         double v = way * speed;
         double curved = Math.Pow(Omega * radius + v, 2) / radius, flat = Omega * Omega * radius + 2 * Omega * v;
         TestContext.Current.TestOutputHelper?.WriteLine(
             $"{start}: r {radius:F4} m, v {speed:F5} m/s, mean inward {mean:F5} m/s², (ωr±v)²/r {curved:F5}, ω²r±2ωv {flat:F5}, peak {peak:F4}");
 
-        mean.Should().BeApproximately(curved, WeightBound, "the floor's push holds the whole inertial speed on the circle");
-        Math.Abs(mean - flat).Should().BeGreaterThan(WeightBound, "the push holds v² / r more than the flat floor's terms");
+        mean.Should().BeApproximately(curved, WeightBound, "the path holds the whole inertial speed on the circle");
+        Math.Abs(mean - flat).Should().BeGreaterThan(WeightBound, "the path curves by v² / r more than the flat floor's terms give");
     }
 
     // ---- The jump ----
@@ -283,7 +314,7 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         // space the person then moves on the straight line through its place there with that velocity plus the velocity of
         // the floor under it, ω × x, until the plane of the facet under it, 0.9 m nearer the axis, meets its center again.
         // The landing that the flight shows is the crossing of that plane by the straight line through its last two free
-        // places. The bound is the spike's 7 µm, and the run measured 6e-8 to 8e-8 m.
+        // places.
         int jump = At("jump") + 2;
         SpinStationSample start = Samples[jump];
         start.Standing.Should().BeTrue("the person stands where it jumps");
@@ -304,13 +335,33 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         TestContext.Current.TestOutputHelper?.WriteLine(
             $"jump: lands after {time:F6} s at {place}, measured {last.Time - start.Time + measuredTime:F6} s at {measured}, off by {Double3.Distance(measured, place):E2} m; rests {Double3.Distance(Samples[landed + 30].Person.InStation, place):E2} m from it");
         FacetNormal(place).Should().Be(normal, "the person lands on the facet of its takeoff");
-        Double3.Distance(measured, place).Should().BeLessThan(7e-6, "the person flies on the inertial line of its takeoff");
-        (last.Time - start.Time + measuredTime).Should().BeApproximately(time, 1e-4);
+        Double3.Distance(measured, place).Should().BeLessThan(JumpPlaceBound, "the person flies on the inertial line of its takeoff");
+        (last.Time - start.Time + measuredTime).Should().BeApproximately(time, LandingTimeBound, "the person lands when its line meets the floor");
         Samples.Skip(landed + 2).Take(30).Should().OnlyContain(s => s.Standing, "it stands again after it lands");
-        // The ground holds a standing character, so the person stops where it lands: measured 3.6e-5 to 8.4e-5 m from the
-        // place.
-        Double3.Distance(Samples[landed + 30].Person.InStation, place).Should().BeLessThan(1e-3, "the person rests where its line met the floor");
+        Double3.Distance(Samples[landed + 30].Person.InStation, place).Should().BeLessThan(JumpRestBound, "the person rests where its line met the floor");
     }
+
+    /// <summary>
+    /// How far the place where the jump's flight meets the floor may lie from where the inertial line of its takeoff meets
+    /// it, in meters: the 7 µm of the spike's jump (docs/plans/spin-gravity.md, "Acceptance tests", ter-1b21). Measured:
+    /// 5.7e-8 m, and 6e-8 to 8e-8 m in earlier runs.
+    /// </summary>
+    private const double JumpPlaceBound = 7e-6;
+
+    /// <summary>
+    /// How far the time of the landing may lie from the time at which the inertial line of the takeoff meets the floor, in
+    /// seconds. The place bound of 7 µm, on a line that crosses the floor's plane at about the jump's 4 m/s, is 1.75 µs;
+    /// the bound is about six times that, and far below a tick of 16.7 ms, so a landing a tick early or late fails.
+    /// Measured: 1.6e-8 s.
+    /// </summary>
+    private const double LandingTimeBound = 1e-5;
+
+    /// <summary>
+    /// How far the person may rest, half a second after it lands, from where the line of its takeoff met the floor, in
+    /// meters. The ground holds a standing character, so the person stops where it lands: measured 3.6e-5 to 8.4e-5 m. A
+    /// person that slid or bounced on would move centimeters.
+    /// </summary>
+    private const double JumpRestBound = 1e-3;
 
     // ---- The crates ----
 
@@ -353,16 +404,16 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
             }
         }
         // The first step that leaves the expected path by more than 0.1 mm: the step in which something touched the crate.
-        int measuredTouch = Enumerable.Range(1, expected.Count - 1).FirstOrDefault(n => Double3.Distance(Samples[n].Dropped.Inertial, expected[n]) > 1e-4, -1);
+        int measuredTouch = Enumerable.Range(1, expected.Count - 1).FirstOrDefault(n => Double3.Distance(Samples[n].Dropped.Inertial, expected[n]) > TouchThreshold, -1);
         double worst = Enumerable.Range(0, touch).Max(n => Double3.Distance(Samples[n].Dropped.Inertial, expected[n]));
         Double3 rest = Samples[measuredTouch + 60].Dropped.InStation;
         TestContext.Current.TestOutputHelper?.WriteLine(
             $"drop: worst {worst:E2} m off its path before it lands; expected to land at {landingTime:F6} s at {landingPlace}, in step {touch}; touched in step {measuredTouch}; rests at {rest}, {Double3.Distance(rest, landingPlace):F4} m from the landing place, {(Theta(rest) - Theta(release.Dropped.InStation)) * SpinStation.FloorRadius:F4} m spinward of its release");
 
         touch.Should().BeGreaterThan(10, "the crate falls for a while");
-        worst.Should().BeLessThan(1e-5, "the crate follows its expected path until it lands");
+        worst.Should().BeLessThan(PathBound, "the crate follows its expected path until it lands");
         measuredTouch.Should().Be(touch, "the floor stops the crate in the step in which its expected path meets the floor");
-        Double3.Dot(rest, normal).Should().BeApproximately(plane, 2e-3, "the crate rests on the floor's facet");
+        Double3.Dot(rest, normal).Should().BeApproximately(plane, FacetRestBound, "the crate rests on the floor's facet");
         Double3.Distance(rest, landingPlace).Should().BeLessThan(DropRestBound, "the crate rests where its expected path met the floor");
     }
 
@@ -391,34 +442,47 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         double worst = 0;
         for (int n = 0; n < touch; n++)
             worst = Math.Max(worst, Double3.Distance(places[n], start.Inertial + velocity * (Samples[spawn + n].Time - Samples[spawn].Time)));
-        Double3 expected = Samples[spawn + touch].Station.InverseTransformPoint(start.Inertial + velocity * (Samples[spawn + touch].Time - Samples[spawn].Time));
-        double gap = FacetDistance - Double3.Dot(expected, FacetNormal(expected));
+        // The crate's line in the station's coordinates after the steps before the touch and after the step of the touch.
+        Double3 LineInStation(int n) => Samples[spawn + n].Station.InverseTransformPoint(start.Inertial + velocity * (Samples[spawn + n].Time - Samples[spawn].Time));
+        Double3 expected = LineInStation(touch);
+        Double3 normal = FacetNormal(expected);
+        double gap = FacetDistance - Double3.Dot(expected, normal);
+        // How far the line moves toward the floor's facet in the step of the touch, along its normal: the approach
+        // relative to the station, not the inertial speed, which is mostly the floor's own ω r along the floor.
+        double approach = Double3.Dot(expected - LineInStation(touch - 1), normal);
         TestContext.Current.TestOutputHelper?.WriteLine(
-            $"throw: {start.VelocityInStation} m/s in the station, flies {touch} steps, worst {worst:E2} m off its line; at the touch its line is {gap:F4} m from the floor");
+            $"throw: {start.VelocityInStation} m/s in the station, flies {touch} steps, worst {worst:E2} m off its line; at the touch its line is {gap:F4} m from the floor, after an approach of {approach:F4} m in that step");
 
-        worst.Should().BeLessThan(1e-5, "the thrown crate follows the inertial line of its instant velocity");
-        // A crate of 0.4 m reaches at most its bounding radius toward the floor, and its line moves it less than a step's
-        // way farther in the step of the touch.
-        gap.Should().BeLessThan(SpinStation.CrateHalfSize * Math.Sqrt(3) + velocity.Length * Dt, "what the crate touches is the floor");
+        worst.Should().BeLessThan(PathBound, "the thrown crate follows the inertial line of its instant velocity");
+        // A crate of 0.4 m reaches at most its bounding radius toward the floor, and in the step of the touch its line
+        // moves it at most that step's approach farther: 0.35 m plus 0.11 m. A crate that touched the person's legs or the
+        // foot of a wall would touch with its line farther from the floor.
+        approach.Should().BeGreaterThan(0, "the crate moves toward the floor when it touches");
+        gap.Should().BeLessThan(SpinStation.CrateHalfSize * Math.Sqrt(3) + approach, "what the crate touches is the floor");
     }
 
     // ---- The captures ----
 
+    /// <summary>The tick of the capture <paramref name="name"/> of the run's script and the view that it turned on for it (see <see cref="ShotIn"/>).</summary>
+    private (int Tick, string View)? Shot(string name) => ShotIn(run.Script.Steps, name);
+
     /// <summary>
-    /// The tick of the capture <paramref name="name"/> and the view that the script turned on for it, from the steps of
-    /// the script: a capture renders the state after the ticks of the runs before it. Null if the script has no such
-    /// capture.
+    /// The tick of the capture <paramref name="name"/> and the view that <paramref name="steps"/> turned on for it: a
+    /// capture renders the state after the ticks that the steps before it run. Null if the steps have no such capture.
     /// </summary>
-    private (int Tick, string View)? Shot(string name)
+    private static (int Tick, string View)? ShotIn(IEnumerable<ScriptStep> steps, string name)
     {
         int tick = 0;
         string? view = null;
-        foreach (ScriptStep step in run.Script.Steps)
+        foreach (ScriptStep step in steps)
         {
             switch (step.Value)
             {
                 case RunStep r:
                     tick += r.Ticks;
+                    break;
+                case FilmStep f:
+                    tick += f.Frames * f.Every;
                     break;
                 case CameraStep c:
                     view = c.Entity;
@@ -474,6 +538,16 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
 
     /// <summary>The distance along the floor from the angle of the station's +X to <paramref name="place"/>, in meters, growing spinward.</summary>
     private static double AlongFloor(Double3 place) => Math.Atan2(-place.Z, place.X) * SpinStation.FloorRadius;
+
+    [Fact]
+    public void ACaptureAfterAFilmRendersTheStateAfterTheFilmsTicks()
+    {
+        // A film runs its every ticks before each of its frames, so it runs frames × every ticks in all ("Host and
+        // scripted runs" in ARCHITECTURE.md), and a capture after it renders the state after them.
+        ScriptStep[] steps = [new(new RunStep(10)), new(new FilmStep("film", 3, 4)), new(new CameraStep("side")), new(new CaptureStep("after"))];
+
+        ShotIn(steps, "after").Should().Be((22, "side"));
+    }
 
     [Fact]
     public void TheWalkCapturesShowThePersonWalkingAtTwoPlacesApart()
@@ -556,8 +630,9 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
         shot.Should().NotBeNull();
         SpinStationSample sample = Samples[shot!.Value.Tick];
         SpinStationBody thrown = sample.Thrown!.Value;
+        // Measured: 2.4e-9 m/s. A crate that still slides or rocks moves millimeters a second.
         thrown.VelocityInStation.Length.Should().BeLessThan(1e-3, "the thrown crate has come to rest");
-        Double3.Dot(thrown.InStation, FacetNormal(thrown.InStation)).Should().BeApproximately(FacetDistance - SpinStation.CrateHalfSize, 2e-3,
+        Double3.Dot(thrown.InStation, FacetNormal(thrown.InStation)).Should().BeApproximately(FacetDistance - SpinStation.CrateHalfSize, FacetRestBound,
             "the thrown crate rests on the floor");
         ScreenBox crate = CrateOnScreen(shot.Value.View, thrown.InStation);
         ScreenBox person = PersonOnScreen(shot.Value.View, shot.Value.Tick), dropped = CrateOnScreen(shot.Value.View, sample.Dropped.InStation);
@@ -572,6 +647,7 @@ public sealed class SpinStationSliceTests(SpinStationRun run) : IClassFixture<Sp
     public void TheRunRaisesNoErrorsAndCapturesItsViews()
     {
         run.World.Errors.Should().BeEmpty();
+        run.ValidationMessages.Should().BeEmpty("the renderer draws the scene's lamps, lights and meshes without a Vulkan validation error");
         run.Result.Captures.Should().Contain(["drop", "standing", "walk-spinward", "walk-antispinward", "takeoff", "jump", "landed", "throw", "thrown-landed", "ring"]);
     }
 }

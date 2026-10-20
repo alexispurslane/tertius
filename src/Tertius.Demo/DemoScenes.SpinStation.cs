@@ -21,9 +21,11 @@ public static partial class DemoScenes
     /// person and the crates spawned on its floor turn with it from their first step. Its frame has no field, so only the
     /// turn holds things on the floor. The ring runs from <see cref="FloorRadius"/>, 100 m, to 101 m from the axis and is
     /// 20 m wide along it, in <see cref="Segments"/>, 256, segments. In space its shape is the compound of one hull per
-    /// segment (<see cref="RevolvedSolid.Shape"/>). In its own frame it is the ring's exact mesh, the floor people walk on:
-    /// on the hull compound a sliding box trips at every joint, and on the mesh it does not (ter-fb3w). Each facet of the
-    /// floor is 2.45 m long, and its middle lies 7.5 mm inside the circle of 100 m. The bubble is a sphere of 110 m.</item>
+    /// segment (<see cref="RevolvedSolid.Shape"/>). In its own frame it is the ring's exact mesh, the floor people walk on,
+    /// as the note of ter-fb3w asks. The note chose the mesh because a box that slid across the joints of the hull
+    /// compound tripped at each one. Physics now gives edge removal to every shape made of sharp pieces, and with it the
+    /// box trips on neither shape (see <see cref="RevolvedSolid"/>), so the mesh follows the note and no longer fixes a
+    /// fault. Each facet of the floor is 2.45 m long, and its middle lies 7.5 mm inside the circle of 100 m. The bubble is a sphere of 110 m.</item>
     /// <item>Two static walls, <c>wall-left</c> and <c>wall-right</c>, rings 4 m high and 0.3 m thick on the floor at
     /// its two edges, keep crates on it and close the view to the sides.</item>
     /// <item>The <c>person</c>, a capsule character 1.8 m tall, stands on the middle of facet 0, in the middle of the
@@ -38,7 +40,7 @@ public static partial class DemoScenes
     /// <item>The views, both in the station's frame, so that they turn with it: <c>view</c>, the camera at the start,
     /// stands 2.2 m above the floor about 10 m antispinward of the person and looks spinward along the floor, which curves
     /// up behind the person. <c>side</c> stands 1.4 m above the floor 8.5 m to the person's left, near the left wall,
-    /// 7.3 m spinward of the person's start, and looks across the floor at the right wall, so that the walk, the jump and
+    /// about 6.1 m spinward of the person's start (7.3 m from the station's +X), and looks across the floor at the right wall, so that the walk, the jump and
     /// the throw run across its frame, spinward to the left. <c>wide</c> stands 8 m above the floor, 25 m antispinward, and
     /// looks up the ring.</item>
     /// <item>Lamps on both walls, 3.8 m above the floor, one on each wall over every fourth joint, light the floor all

@@ -190,7 +190,7 @@ These tests prove it:
 Read this code in this order:
 
 1. `ApplyTurningUpdate` in [JoltPhysicsBackend.Step.cs](src/Tertius.Physics/JoltPhysicsBackend.Step.cs). It gives a body of a turning frame the centrifugal, Coriolis and Euler terms, as one update over the step.
-2. `BeginStep` in [FrameTree.cs](src/Tertius.Core/Frames/FrameTree.cs). It fixes the turn of the frame's axes over the step before each step, and the gravity readers use it.
+2. `BeginStep` in [FrameTree.Turns.cs](src/Tertius.Core/Frames/FrameTree.Turns.cs). It fixes the turn of the frame's axes over the step before each step, and the gravity readers use it.
 3. The section "Turning frames" of [ARCHITECTURE.md](ARCHITECTURE.md), under "Physics". It says which terms act on a frame's contents. Only the tidal gravity of a parent stays out of scope.
 4. [DemoScenes.SpinStation.cs](src/Tertius.Demo/DemoScenes.SpinStation.cs), the scene `spin-station`, and its script [spin-station.json](scripts/spin-station.json). A ring station turns about its axis. A person stands, walks, jumps and throws a crate on its floor, and a dropped crate falls in a curve.
 5. [spin-gravity.md](docs/plans/spin-gravity.md), the plan. It adds the terms −2ω×v − ω×(ω×r) − α×r in every frame that turns.
