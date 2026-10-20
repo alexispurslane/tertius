@@ -290,17 +290,19 @@ Every write is relative to `self.Frame`, in its axes: the rotation of the `Attit
 
 #### The transfer guidance
 
-`TransferGuidance(Mu)` is a record struct of pure two-body math, like `AscentGuidance`. It has three members:
+The two-body math lives in `KeplerOrbit`, in Core. The user's rule for the rails library makes two-body math with no orbit elements a static method of `KeplerOrbit`, and the user chose that this rule holds here too (user, 2026-10-20). It is the one engine change of this step (see "Engine changes"). The analogue is `KeplerOrbit.Chord`, which also takes a state and G·M:
 
-- `Propagate(position, velocity, time)`: the state after `time` seconds on a two-body path. It uses the universal variable and Stumpff's functions, with Newton's method. The station moves on exactly such a path, so the propagation of its measured state equals its rails to the rounding.
-- `Lambert(from, to, timeOfFlight, normal)`: the velocities at both ends of the two-body path from `from` to `to` in `timeOfFlight`. The path runs the short way about `normal`.
+- `KeplerOrbit.Propagate(position, velocity, mu, time)`: the state after `time` seconds on a two-body path, as `StateAt` gives it, a position and a velocity. It uses the universal variable and Stumpff's functions, with Newton's method. The station moves on exactly such a path, so the propagation of its measured state equals its rails to the rounding.
+- `KeplerOrbit.Lambert(from, to, timeOfFlight, mu, normal)`: the velocities at both ends of the two-body path from `from` to `to` in `timeOfFlight`. The path runs the short way about `normal`.
 - `Lambert` uses the universal-variable method of Bate, Mueller and White (Curtis, algorithm 5.2). It finds the variable z by bisection, over a single revolution. It refuses a transfer angle within 1 degree of 0 or 180 degrees, where the plane of the path is not defined.
+`TransferGuidance(Mu)` is a record struct of the demo, like `AscentGuidance`. It holds Earth's G·M for the two calls, and the guidance of the transfer below. Its one member of geometry is:
+
 - `TransferAngle(from, to, normal)`: the angle from `from` to `to` about `normal`, from 0 to 2π.
 
 In each tick of `Phasing`:
 
 ```
-arrival = Propagate(stationPosition, stationVelocity, TransferTime).Position + axis · ArrivalDistance
+arrival = KeplerOrbit.Propagate(stationPosition, stationVelocity, Mu, TransferTime).Position + axis · ArrivalDistance
 angle = TransferAngle(shuttlePosition, arrival, orbitNormal)
 ```
 
@@ -317,8 +319,8 @@ In each tick of `Transfer`:
 
 ```
 timeLeft = ArrivalTime - time
-arrival = Propagate(stationPosition, stationVelocity, timeLeft).Position + axis · ArrivalDistance
-(needed, atArrival) = Lambert(shuttlePosition, arrival, timeLeft, orbitNormal)
+arrival = KeplerOrbit.Propagate(stationPosition, stationVelocity, Mu, timeLeft).Position + axis · ArrivalDistance
+(needed, atArrival) = KeplerOrbit.Lambert(shuttlePosition, arrival, timeLeft, Mu, orbitNormal)
 toGain = needed - shuttleVelocity
 push = toGain / TrimTime, at most BurnAcceleration long
 ```
@@ -471,6 +473,7 @@ The parts in Earth's night are filmed from the cabin. The demo's Earth casts no 
 |---|---|---|
 | `RendezvousState` | `AscentState` | A custom union with one record per phase. Each case has the data that it needs. The guidance is made at the order. |
 | `RendezvousAutopilot` | `AscentAutopilot` | A layer that adds events for the actuators in every tick. It reads its own state in `self.Frame`, and takes G·M from the frame's point gravity. |
+| `KeplerOrbit.Propagate`, `KeplerOrbit.Lambert` | `KeplerOrbit.Chord` | A static method of `KeplerOrbit` that takes a state and G·M, with no orbit elements |
 | `TransferGuidance` | `AscentGuidance` | A pure record struct with `Mu`, which steers from the state alone, with the trim of `TrimTime` and `SpeedTolerance` |
 | `ApproachGuidance` | The float of `Passenger`, and the trim of `AscentGuidance` | A speed that falls with the distance left, and an acceleration that takes out the velocity error in a time constant |
 | `TranslationThrusters`, `Translation` | `MainEngine`, `Throttle` | An event per tick, of which the last counts, with no memory, and an error for a bad value |
@@ -517,9 +520,8 @@ The shuttle and the station never touch in step 4. Their numeric frames stay apa
 
 ### Built from scratch, compared
 
-A design from scratch, with every step known, has one launch plane that the ramp, the climb and the station share. It has one flight program of layers over shared actuators, with priorities in the order of the flight. The shuttle has windows and translation thrusters from the start. The passenger's union runs from the boarding to the exit. This design ends there, with the cases added at the end of each union. Four things differ:
+A design from scratch, with every step known, has one launch plane that the ramp, the climb and the station share. It has one flight program of layers over shared actuators, with priorities in the order of the flight. The shuttle has windows and translation thrusters from the start. The passenger's union runs from the boarding to the exit. This design ends there, with the cases added at the end of each union. Three things differ, and the two-body math in `KeplerOrbit` is the same as from scratch:
 
-- From scratch, the Lambert solution and the propagation are static members of `KeplerOrbit` in Core. The user's rule puts two-body math with no orbit elements there. Here they live in the demo's `TransferGuidance`, beside its G·M. A member of Core is an engine change, and the demo does not need one.
 - From scratch, Earth casts its shadow, and the night shows outside. Here the night is filmed from the cabin (see "Not in this step").
 - From scratch, the actuators run after every layer from the start. Here their priority moves from 1 to 10.
 - From scratch, the station's phase is still a constant set from the launch's timeline. The only other way is a second model of the climb inside the scene. Here that constant is `OverPadAt`, and the run test pins the window that it gives.
@@ -530,12 +532,14 @@ Every test of physics runs the real World on the real Jolt backend, in `tests/Te
 
 Pure math, with no World:
 
-- `TransferGuidanceTests`:
+- `KeplerOrbitTests`, in `tests/Tertius.Core.Tests`:
   - `ThePropagatedStateOfACircularOrbitIsTheOrbitsStateLater`, against `KeplerOrbit.StateAt`, within 1 mm after 2,560 s.
+  - `ThePropagatedStateOfAnOvalOrbitIsTheOrbitsStateLater`, the same for an eccentricity of 0.3.
   - `TheLambertVelocityLandsOnTheTargetAfterTheTimeOfFlight`: the propagated solution, within 1 mm.
   - `TheLambertVelocityAtTheTargetIsThePropagatedVelocity`.
   - `TheCheapestTransferOf170DegreesCostsAtMost4PercentMoreThanHohmanns`.
   - `ATransferAngleWithinADegreeOf180DegreesIsRefused`.
+- `TransferGuidanceTests`:
   - `TheTransferAngleRunsTheWayOfTheOrbit`.
 - `ApproachGuidanceTests`:
   - `AtTheTargetAndAtRestThePushOnlyCancelsTheDifferenceOfGravity`.
@@ -635,7 +639,7 @@ Each part commits on its own, with its tests green. A part that changes the run 
 | 2. The shuttle's windows and thrusters | The windows and their panes, `Translation` and `TranslationThrusters` in `Shuttle.FlightControls`, the cameras `window-camera`, `bow-camera`, `port-window-camera` and `cockpit-camera`, and their tests | None |
 | 3. The station | `DemoScenes.DemoStation`: its constants, parts, meshes, bodies, orbit, bay lamps and `rim-camera`, its spawn in `demo-surface` before the shuttle, `OverPadAt` from the rehearsal, and `DemoStationTests` | None |
 | 4. The belt | `FastenBelt`, `Returning` and `Strapped`, and their tests | None |
-| 5. The guidance math | `TransferGuidance` and `ApproachGuidance`, and their tests | None |
+| 5. The guidance math | `KeplerOrbit.Propagate` and `KeplerOrbit.Lambert` in Core, with their tests and their lines in ARCHITECTURE.md, then `TransferGuidance` and `ApproachGuidance`, and their tests | None |
 | 6. The rendezvous autopilot | `RendezvousState`, `RendezvousPlan`, and `RendezvousAutopilot` in `Shuttle.FlightControls` with the station's entity, and its tests | 2, 3, 5 |
 | 7. The long script | The step's sections and cues, the script written again, `BlueDanubeRendezvousRun` and its tests, the video, the screenshots, and the lines below | 1, 4, 6 |
 
@@ -656,7 +660,7 @@ Part 7 also changes lines elsewhere in this plan:
 - The paragraph on the climb in "The launch". The climb now steers into the launch plane.
 - The table of sections and the run times in "The long script".
 
-ARCHITECTURE.md does not change, because the engine does not.
+ARCHITECTURE.md gets the two new methods of `KeplerOrbit` in its text on rails, in part 5.
 
 ### Decisions
 
@@ -686,16 +690,15 @@ Only engine changes go to the user (the user's rule of 2026-10-18). So this desi
 | The cameras | Four still views in the shuttle's frame and one in the station's frame | No new camera component is needed. The rim camera previews the spin match. |
 | The closing view | `bow-camera`, ahead of the nose and looking aft | The shuttle arrives from ahead of the station, so the station lies behind it until the turn. |
 | The night | Filmed from the cabin | The demo's Earth casts no shadow, so an outside view at night shows a lit shuttle. |
-| Where the two-body math lives | The demo's `TransferGuidance` | A static member of `KeplerOrbit` is an engine change. |
+| Where the two-body math lives | `KeplerOrbit.Propagate` and `KeplerOrbit.Lambert`, static methods in Core | The user's rule for the rails library: two-body math with no orbit elements is a static method of `KeplerOrbit`. The user chose on 2026-10-20 that it holds for this engine change too. |
 
 ### Engine changes
 
-None. Every part lives in `src/Tertius.Demo`, `scripts/` and the demo's tests.
+One, which the user chose on 2026-10-20: `KeplerOrbit.Propagate` and `KeplerOrbit.Lambert` in `src/Tertius.Core/Frames/Rails/KeplerOrbit.cs`, with their tests in Core and their lines in ARCHITECTURE.md. Every other part lives in `src/Tertius.Demo`, `scripts/` and the demo's tests.
 
 ### Not in this step
 
 - Earth's shadow. The demo's drawn Earth has no `CastsShadow`. To turn it on is a demo change, not an engine change. The orbit scene turns it on. But nobody measured what a caster of Earth's size does to the shadows of the pad. So the design films the night from the cabin. A later demo ticket can try it, with screenshots of the pad.
-- Lambert and propagation in `KeplerOrbit`. The user can want the rule of the rails library to hold here too. A small engine ticket can then move them into Core, with their tests.
 - Readouts of speed, distance and the g-meter (see "Proof in the video"). The edit adds them.
 - The spin match, the entry, the landing on the deck, the exit, the chute and the openings in the ceiling: steps 5 and 6.
 
