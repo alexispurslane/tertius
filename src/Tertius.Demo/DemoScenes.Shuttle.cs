@@ -128,14 +128,33 @@ public static partial class DemoScenes
         private static readonly float[] Ribs = [-8, -6.5f, -5, -3, -1, 1, 3, 5, 7];
 
         /// <summary>
+        /// The edges of the cross-sections that hold glass, with the names of their panes: the upper sides, the roof's
+        /// bevels and the roof. The panes start 0.1 m above the sill, so the band runs from 0.7 m above the cabin floor
+        /// over the roof.
+        /// </summary>
+        private static readonly (int Edge, string Name)[] GlassEdges = [(3, "starboard"), (4, "starboard-bevel"), (5, "roof"), (6, "port-bevel"), (7, "port")];
+
+        /// <summary>The bay of the hatch, from z = 1 m to 3 m, where the starboard upper side is solid round the doorway.</summary>
+        private const int HatchBay = 6;
+
+        /// <summary>
         /// The shuttle's hull (docs/plans/blue-danube-demo.md, "The shuttle's tram shape and glass canopy"): the loft of
         /// <see cref="NoseFront"/> at the nose to <see cref="Full"/> at z = -5 m and on to the tail face, with the
         /// <see cref="Hatch"/> through the starboard side in bay 6, and a pocket 1.4 m square and 0.6 m deep for the main
-        /// engine's nozzle in the tail face, on the line of thrust through the center of mass.
+        /// engine's nozzle in the tail face, on the line of thrust through the center of mass. The glass canopy has a pane
+        /// in the front above the sill, <c>pane-nose</c>, and one in each cell of the five glass edges in bays 1 to 8, but
+        /// the hatch's: 40 panes. Ribs and pillars are 0.2 m wide, mullions 0.12 m, and the glass stays 0.1 m from solid
+        /// skin.
         /// </summary>
-        public static LoftedHull Loft { get; } = new LoftedHull([new HullSection(-Hull.Z, NoseFront), new HullSection(NoseStart, Full), new HullSection(Hull.Z, Full)], Wall, Ribs)
-            .Door(Hatch, bay: 6, fromCorner: 2, toCorner: 4)
-            .TailPocket(half: 0.7f, depth: 0.6f, housing: Wall);
+        public static LoftedHull Loft { get; } = Enumerable.Range(1, Ribs.Length - 1)
+            .SelectMany(bay => GlassEdges.Where(glass => !(glass.Edge == 3 && bay == HatchBay)).Select(glass => (glass.Edge, glass.Name, Bay: bay)))
+            .Aggregate(
+                new LoftedHull([new HullSection(-Hull.Z, NoseFront), new HullSection(NoseStart, Full), new HullSection(Hull.Z, Full)], Wall, Ribs)
+                    .Door(Hatch, bay: HatchBay, fromCorner: 2, toCorner: 4)
+                    .TailPocket(half: 0.7f, depth: 0.6f, housing: Wall)
+                    .Surrounds(rib: 0.1f, fold: 0.06f, solid: 0.1f)
+                    .NoseGlass("pane-nose", fromCorner: 3, toCorner: 8),
+                (hull, glass) => hull.Glass($"pane-{glass.Name}-{glass.Bay}", glass.Edge, glass.Bay));
 
         /// <summary>The hull in its parent frame: the convex hull of the loft's corners, with the default convex radius.</summary>
         public static ShapeDesc HullShape { get; } = Loft.Shape();

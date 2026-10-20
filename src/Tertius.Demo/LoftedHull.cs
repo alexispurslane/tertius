@@ -22,6 +22,14 @@ public readonly record struct PrincipalInertia(Vector3 Moments, Quaternion Axes)
 public readonly record struct HullMass(Vector3 CenterOfMass, PrincipalInertia Inertia);
 
 /// <summary>
+/// A pane of glass of a <see cref="LoftedHull"/>, with its scene id <see cref="Id"/>: its hole through the wall, as the
+/// corners of the hole at the outer skin, <see cref="Outer"/>, and at the inner skin, <see cref="Inner"/>, in the same
+/// order, in the hull's axes, and its <see cref="Mesh"/>, a slab 2 cm thick in the middle of the wall, with its vertices
+/// relative to <see cref="Center"/>, the middle of the slab.
+/// </summary>
+public readonly record struct HullPane(string Id, Vector3 Center, Vector3[] Outer, Vector3[] Inner, MeshData Mesh);
+
+/// <summary>
 /// A hull lofted through cross-sections along its length, with a wall of one thickness: a mesh to draw, an outer collision
 /// shape and an interior shape that match it, and its mass properties, all from one description, as
 /// <see cref="RevolvedSolid"/> and <see cref="BoxMesh"/> give theirs. All positions are in the hull's own axes, in
@@ -70,6 +78,25 @@ public sealed class LoftedHull
 
     private readonly DoorCut? door;
     private readonly PocketCut? pocket;
+    private readonly SurroundWidths? surrounds;
+
+    /// <summary>The panes, in the order of the calls that made them.</summary>
+    private readonly PaneCut[] panes = [];
+
+    /// <summary>
+    /// How far each side of a hole moves in from the side of its cell or panel, in meters: at a rib place or an end of the
+    /// loft, at a fold whose neighbor cell holds glass too, and next to a solid cell or the cut line of the front.
+    /// </summary>
+    private sealed record SurroundWidths(float Rib, float Fold, float Solid);
+
+    /// <summary>A pane, by its scene id: in one cell, or in the front.</summary>
+    private abstract record PaneCut(string Id);
+
+    /// <summary>A pane in the cell of <see cref="Edge"/> in <see cref="Bay"/>.</summary>
+    private sealed record CellPane(string Id, int Edge, int Bay) : PaneCut(Id);
+
+    /// <summary>A pane in the front, in the part from <see cref="FromCorner"/> counterclockwise to <see cref="ToCorner"/>.</summary>
+    private sealed record FrontPane(string Id, int FromCorner, int ToCorner) : PaneCut(Id);
 
     /// <summary>The doorway through a panel across <see cref="Axis"/>, 0 for X or 1 for Y.</summary>
     private sealed record DoorCut(BoundingBox Box, int Bay, int FromCorner, int ToCorner, int Axis);
@@ -165,7 +192,7 @@ public sealed class LoftedHull
         }
     }
 
-    private LoftedHull(LoftedHull from, DoorCut? door, PocketCut? pocket)
+    private LoftedHull(LoftedHull from, DoorCut? door, PocketCut? pocket, SurroundWidths? surrounds, PaneCut[] panes)
     {
         sections = from.sections;
         wall = from.wall;
@@ -174,6 +201,8 @@ public sealed class LoftedHull
         straight = from.straight;
         this.door = door;
         this.pocket = pocket;
+        this.surrounds = surrounds;
+        this.panes = panes;
     }
 
     private int Corners => sections[0].Corners.Length;
@@ -199,6 +228,8 @@ public sealed class LoftedHull
     {
         if (this.door != null)
             throw new InvalidOperationException("The hull has a door already.");
+        if (panes.Length > 0)
+            throw new InvalidOperationException("A door comes before the glass, so that no pane lies in its panel.");
         ArgumentOutOfRangeException.ThrowIfLessThan(bay, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(bay, Bays);
         ArgumentOutOfRangeException.ThrowIfNegative(fromCorner);
@@ -234,7 +265,7 @@ public sealed class LoftedHull
             if (!inside)
                 throw new ArgumentException($"The door {door} reaches the edge of its panel in bay {bay}, from z = {zStart} to {zEnd} and from {low} to {high} along {(along == 0 ? "X" : "Y")}. It must lie inside the panel at both skins.", nameof(door));
         }
-        return new LoftedHull(this, new DoorCut(door, bay, fromCorner, toCorner, axis), pocket);
+        return new LoftedHull(this, new DoorCut(door, bay, fromCorner, toCorner, axis), pocket, surrounds, panes);
     }
 
     /// <summary>
@@ -267,7 +298,198 @@ public sealed class LoftedHull
                     throw new ArgumentException($"The pocket's housing, {2 * outer} m square round ({center.X}, {center.Y}), reaches the hull's wall at z = {z}.", nameof(housing));
             }
         }
-        return new LoftedHull(this, door, new PocketCut(center.X, center.Y, half, depth, housing));
+        return new LoftedHull(this, door, new PocketCut(center.X, center.Y, half, depth, housing), surrounds, panes);
+    }
+
+    /// <summary>
+    /// The surround widths, in meters: how far a pane's hole stays from the side of its cell at a rib place or an end of the
+    /// loft, <paramref name="rib"/>, half a rib; at a fold between two cells of glass, <paramref name="fold"/>, half a
+    /// mullion; and next to a solid cell or the cut line of the front, <paramref name="solid"/>. Each move is in the plane of
+    /// the cell. The surrounds come before the glass.
+    /// </summary>
+    public LoftedHull Surrounds(float rib, float fold, float solid)
+    {
+        if (surrounds != null)
+            throw new InvalidOperationException("The hull has its surrounds already.");
+        foreach ((float value, string name) in new[] { (rib, nameof(rib)), (fold, nameof(fold)), (solid, nameof(solid)) })
+        {
+            if (!(float.IsFinite(value) && value > 0))
+                throw new ArgumentOutOfRangeException(name, value, "The value must be finite and positive.");
+        }
+        return new LoftedHull(this, door, pocket, new SurroundWidths(rib, fold, solid), panes);
+    }
+
+    /// <summary>
+    /// A pane with the scene id <paramref name="pane"/> in the cell of <paramref name="edge"/> in <paramref name="bay"/>,
+    /// counted from 1 at the nose. Its hole is the cell with each side moved in by its surround (see
+    /// <see cref="Surrounds"/>), at both skins. Throws <see cref="InvalidOperationException"/> before the surrounds, and
+    /// <see cref="ArgumentException"/> for a cell of the door's panel, a cell that holds a pane already, an id that is
+    /// taken, and a pane in a cell narrower than its surrounds. A new pane makes the surrounds of its neighbors narrower, so
+    /// each call checks every pane.
+    /// </summary>
+    public LoftedHull Glass(string pane, int edge, int bay)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pane);
+        ArgumentOutOfRangeException.ThrowIfNegative(edge);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(edge, Corners);
+        ArgumentOutOfRangeException.ThrowIfLessThan(bay, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(bay, Bays);
+        if (door != null && door.Bay == bay && PanelCorners(door.FromCorner, door.ToCorner).SkipLast(1).Contains(edge))
+            throw new ArgumentException($"The cell of edge {edge} in bay {bay} is part of the door's panel, which stays solid round the doorway.", nameof(edge));
+        if (panes.OfType<CellPane>().Any(cell => cell.Edge == edge && cell.Bay == bay))
+            throw new ArgumentException($"The cell of edge {edge} in bay {bay} holds a pane already.", nameof(edge));
+        return WithPane(new CellPane(pane, edge, bay));
+    }
+
+    /// <summary>
+    /// A pane with the scene id <paramref name="pane"/> in the front, the first cross-section: in its part above the line
+    /// from <paramref name="toCorner"/> to <paramref name="fromCorner"/>, the corners from <paramref name="fromCorner"/>
+    /// counterclockwise to <paramref name="toCorner"/>. Its hole is that part moved in by the rib's surround along the rim
+    /// and by the solid surround along the line, at both skins. Throws <see cref="InvalidOperationException"/> before the
+    /// surrounds or for a second pane in the front, and <see cref="ArgumentException"/> for a part with fewer than three
+    /// corners, an id that is taken, and a part narrower than its surrounds.
+    /// </summary>
+    public LoftedHull NoseGlass(string pane, int fromCorner, int toCorner)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(pane);
+        ArgumentOutOfRangeException.ThrowIfNegative(fromCorner);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(fromCorner, Corners);
+        ArgumentOutOfRangeException.ThrowIfNegative(toCorner);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(toCorner, Corners);
+        if (panes.OfType<FrontPane>().Any())
+            throw new InvalidOperationException("The front holds a pane already.");
+        int count = PanelCorners(fromCorner, toCorner).Count();
+        if (count < 3 || count > Corners - 1)
+            throw new ArgumentException($"The part of the front from corner {fromCorner} to corner {toCorner} has {count} corners. It needs at least three, and the part below the line needs them too.", nameof(toCorner));
+        return WithPane(new FrontPane(pane, fromCorner, toCorner));
+    }
+
+    /// <summary>A hull with <paramref name="pane"/> added, after it checks the id and the hole of every pane.</summary>
+    private LoftedHull WithPane(PaneCut pane)
+    {
+        if (surrounds == null)
+            throw new InvalidOperationException("Call Surrounds before the glass: the size of a pane's hole comes from them.");
+        if (panes.Any(other => other.Id == pane.Id))
+            throw new ArgumentException($"The scene id {pane.Id} belongs to another pane.", nameof(pane));
+        var hull = new LoftedHull(this, door, pocket, surrounds, [.. panes, pane]);
+        foreach (PaneCut each in hull.panes)
+            hull.HoleOf(each);
+        return hull;
+    }
+
+    /// <summary>
+    /// The panes, in the order of the calls that made them: each with its hole at both skins and its mesh, a slab 2 cm
+    /// thick in the middle of the wall. The slab's outline is the hole's outline halfway between the skins, grown by 1 cm on
+    /// each side, so that its edges hide in the surround. Its vertices are relative to its center, the middle of that
+    /// outline, so that the renderer sorts and culls the pane at its real place. Each call builds new meshes.
+    /// </summary>
+    public IReadOnlyList<HullPane> Panes() => [.. panes.Select(pane =>
+    {
+        (Double3[] outer, Double3[] inner, Double3 normal) = HoleOf(pane);
+        Double3[] middle = [.. outer.Zip(inner, (o, i) => (o + i) / 2)];
+        Double3 center = middle.Aggregate(Double3.Zero, (sum, corner) => sum + corner) / middle.Length;
+        Double3[] outline = MovedIn(middle, [.. middle.Select(_ => -PaneGrowth)], normal);
+        const double half = PaneThickness / 2;
+        Vector3[] front = [.. outline.Select(corner => (corner + normal * half - center).ToVector3())];
+        Vector3[] back = [.. outline.Select(corner => (corner - normal * half - center).ToVector3())];
+        var mesh = new Builder();
+        mesh.Polygon(normal.ToVector3(), front);
+        mesh.Polygon((-normal).ToVector3(), back);
+        int n = outline.Length;
+        for (int i = 0; i < n; i++)
+        {
+            int next = (i + 1) % n;
+            Vector3 outward = OutOf(outline, i, normal).ToVector3();
+            mesh.Polygon(outward, [front[i], front[next], back[next], back[i]]);
+        }
+        return new HullPane(pane.Id, center.ToVector3(), [.. outer.Select(corner => corner.ToVector3())], [.. inner.Select(corner => corner.ToVector3())], mesh.Build());
+    })];
+
+    /// <summary>The thickness of a pane's slab, in meters.</summary>
+    private const double PaneThickness = 0.02;
+
+    /// <summary>How far a pane's slab reaches past its hole on each side, in meters, into the surround.</summary>
+    private const double PaneGrowth = 0.01;
+
+    /// <summary>
+    /// The hole of <paramref name="pane"/>: its corners at the outer skin and at the inner skin, in the same order, and the
+    /// unit normal of its cell, out of the hull. Corner i lies between the hole's sides i - 1 and i, near corner i of its
+    /// cell or front part. Throws <see cref="ArgumentException"/> when a side of the hole vanishes or turns round, because
+    /// the cell is narrower than its surrounds.
+    /// </summary>
+    private (Double3[] Outer, Double3[] Inner, Double3 Normal) HoleOf(PaneCut pane)
+    {
+        SurroundWidths widths = surrounds!;
+        Double3[] outerPanel, innerPanel;
+        double[] distances;
+        Double3 normal;
+        switch (pane)
+        {
+            case CellPane cell:
+            {
+                int e = cell.Edge, next = (e + 1) % Corners, before = (e + Corners - 1) % Corners;
+                float z0 = OuterLevel(cell.Bay - 1), z1 = OuterLevel(cell.Bay), iz0 = InnerLevel(cell.Bay - 1), iz1 = InnerLevel(cell.Bay);
+                outerPanel = [OuterAt(e, z0), OuterAt(next, z0), OuterAt(next, z1), OuterAt(e, z1)];
+                innerPanel = [InnerAt(e, iz0), InnerAt(next, iz0), InnerAt(next, iz1), InnerAt(e, iz1)];
+                double FoldSide(int neighbor) => HasGlass(neighbor, cell.Bay) ? widths.Fold : widths.Solid;
+                distances = [widths.Rib, FoldSide(next), widths.Rib, FoldSide(before)];
+                normal = CellNormal(OuterPlace(e, z0), OuterPlace(next, z0), OuterPlace(e, z1), e);
+                break;
+            }
+            case FrontPane front:
+            {
+                int[] corners = [.. PanelCorners(front.FromCorner, front.ToCorner)];
+                outerPanel = [.. corners.Select(k => OuterAt(k, OuterLevel(0)))];
+                innerPanel = [.. corners.Select(k => InnerAt(k, InnerLevel(0)))];
+                distances = [.. corners.SkipLast(1).Select(_ => (double)widths.Rib), widths.Solid];
+                normal = -Double3.UnitZ;
+                break;
+            }
+            default:
+                throw new InvalidOperationException($"Unknown pane {pane}.");
+        }
+        Double3[] outer = MovedIn(outerPanel, distances, normal), inner = MovedIn(innerPanel, distances, normal);
+        foreach ((Double3[] panel, Double3[] hole) in new[] { (outerPanel, outer), (innerPanel, inner) })
+        {
+            for (int i = 0; i < panel.Length; i++)
+            {
+                int next = (i + 1) % panel.Length;
+                Double3 side = panel[next] - panel[i];
+                if (!(Double3.Dot(hole[next] - hole[i], side) > 1e-6 * side.LengthSquared))
+                    throw new ArgumentException($"The pane {pane.Id} lies in a cell or part narrower than its surrounds: side {i} of its hole vanishes.", nameof(pane));
+            }
+        }
+        return (outer, inner, normal);
+    }
+
+    /// <summary>True when the cell of <paramref name="edge"/> in <paramref name="bay"/> holds a pane.</summary>
+    private bool HasGlass(int edge, int bay) => panes.OfType<CellPane>().Any(cell => cell.Edge == edge && cell.Bay == bay);
+
+    /// <summary>
+    /// The flat, convex <paramref name="polygon"/>, whose plane has the unit <paramref name="normal"/>, with each side i,
+    /// from corner i to the next, moved in by <paramref name="distances"/>[i] in its plane, or out for a negative distance.
+    /// Corner i of the result lies where sides i - 1 and i meet.
+    /// </summary>
+    private static Double3[] MovedIn(Double3[] polygon, double[] distances, Double3 normal)
+    {
+        int n = polygon.Length;
+        var lines = new (Double3 Point, Double3 Along)[n];
+        for (int i = 0; i < n; i++)
+            lines[i] = (polygon[i] - OutOf(polygon, i, normal) * distances[i], (polygon[(i + 1) % n] - polygon[i]).Normalized());
+        return [.. Enumerable.Range(0, n).Select(i =>
+        {
+            (Double3 Point, Double3 Along) a = lines[(i + n - 1) % n], b = lines[i];
+            Double3 cross = Double3.Cross(a.Along, b.Along);
+            return a.Point + a.Along * (Double3.Dot(Double3.Cross(b.Point - a.Point, b.Along), cross) / cross.LengthSquared);
+        })];
+    }
+
+    /// <summary>The unit normal of side <paramref name="side"/> of the flat, convex <paramref name="polygon"/>, in its plane, out of it.</summary>
+    private static Double3 OutOf(Double3[] polygon, int side, Double3 normal)
+    {
+        Double3 middle = polygon.Aggregate(Double3.Zero, (sum, corner) => sum + corner) / polygon.Length;
+        Double3 outward = Double3.Cross((polygon[(side + 1) % polygon.Length] - polygon[side]).Normalized(), normal);
+        return Double3.Dot(outward, polygon[side] - middle) < 0 ? -outward : outward;
     }
 
     /// <summary>
@@ -294,15 +516,38 @@ public sealed class LoftedHull
                     continue;
                 int next = (e + 1) % n;
                 Vector3 normal = CellNormal(outer[bay - 1][e], outer[bay - 1][next], outer[bay][e], e);
-                mesh.Polygon(normal, [outer[bay - 1][e], outer[bay - 1][next], outer[bay][next], outer[bay][e]]);
-                mesh.Polygon(-normal, [inner[bay - 1][e], inner[bay - 1][next], inner[bay][next], inner[bay][e]]);
+                Vector3[] outerCell = [outer[bay - 1][e], outer[bay - 1][next], outer[bay][next], outer[bay][e]];
+                Vector3[] innerCell = [inner[bay - 1][e], inner[bay - 1][next], inner[bay][next], inner[bay][e]];
+                CellPane? glass = panes.OfType<CellPane>().FirstOrDefault(cell => cell.Edge == e && cell.Bay == bay);
+                if (glass == null)
+                {
+                    mesh.Polygon(normal, outerCell);
+                    mesh.Polygon(-normal, innerCell);
+                }
+                else
+                {
+                    HoleThrough(mesh, glass, normal, outerCell, innerCell);
+                }
             }
         }
         if (door != null)
             DoorPanels(mesh, outer, inner);
 
-        mesh.Polygon(-Vector3.UnitZ, outer[0]);
-        mesh.Polygon(Vector3.UnitZ, inner[0]);
+        FrontPane? nose = panes.OfType<FrontPane>().FirstOrDefault();
+        if (nose == null)
+        {
+            mesh.Polygon(-Vector3.UnitZ, outer[0]);
+            mesh.Polygon(Vector3.UnitZ, inner[0]);
+        }
+        else
+        {
+            // The front is two panels, below and above the line between the pane's two corners, and the upper one holds
+            // the hole.
+            int[] lower = [.. PanelCorners(nose.ToCorner, nose.FromCorner)], upper = [.. PanelCorners(nose.FromCorner, nose.ToCorner)];
+            mesh.Polygon(-Vector3.UnitZ, [.. lower.Select(k => outer[0][k])]);
+            mesh.Polygon(Vector3.UnitZ, [.. lower.Select(k => inner[0][k])]);
+            HoleThrough(mesh, nose, -Vector3.UnitZ, [.. upper.Select(k => outer[0][k])], [.. upper.Select(k => inner[0][k])]);
+        }
         if (pocket == null)
         {
             mesh.Polygon(Vector3.UnitZ, outer[Bays]);
@@ -517,6 +762,28 @@ public sealed class LoftedHull
         return Quaternion.Normalize(Quaternion.CreateFromRotationMatrix(matrix));
     }
 
+    /// <summary>
+    /// The outer and the inner panel of <paramref name="pane"/>, with corners <paramref name="outerPanel"/> and
+    /// <paramref name="innerPanel"/>, round its hole, each drawn as one four-sided strip per side between the panel's edge
+    /// and the hole's, and the reveals: one flat face for each side of the hole, from the outer hole to the inner one, facing
+    /// into the hole. The outer panel faces along <paramref name="normal"/>.
+    /// </summary>
+    private void HoleThrough(Builder mesh, PaneCut pane, Vector3 normal, Vector3[] outerPanel, Vector3[] innerPanel)
+    {
+        (Double3[] outerHole, Double3[] innerHole, _) = HoleOf(pane);
+        Vector3[] outer = [.. outerHole.Select(corner => corner.ToVector3())], inner = [.. innerHole.Select(corner => corner.ToVector3())];
+        int n = outer.Length;
+        Vector3 middle = outer.Concat(inner).Aggregate(Vector3.Zero, (sum, corner) => sum + corner) / (2 * n);
+        for (int i = 0; i < n; i++)
+        {
+            int next = (i + 1) % n;
+            mesh.Polygon(normal, [outerPanel[i], outerPanel[next], outer[next], outer[i]]);
+            mesh.Polygon(-normal, [innerPanel[i], innerPanel[next], inner[next], inner[i]]);
+            Vector3 reveal = Vector3.Normalize(Vector3.Cross(outer[next] - outer[i], inner[i] - outer[i]));
+            mesh.Polygon(Vector3.Dot(reveal, middle - outer[i]) > 0 ? reveal : -reveal, [outer[i], outer[next], inner[next], inner[i]]);
+        }
+    }
+
     /// <summary>The door's outer and inner panels with their holes, and the four sides of the hole.</summary>
     private void DoorPanels(Builder mesh, Vector3[][] outer, Vector3[][] inner)
     {
@@ -670,6 +937,20 @@ public sealed class LoftedHull
             return (b.Corners[corner].X, b.Corners[corner].Y);
         double t = ((double)z - a.Z) / ((double)b.Z - a.Z);
         return (a.Corners[corner].X + t * (b.Corners[corner].X - a.Corners[corner].X), a.Corners[corner].Y + t * (b.Corners[corner].Y - a.Corners[corner].Y));
+    }
+
+    /// <summary>Corner <paramref name="corner"/> of the outer skin at <paramref name="z"/>, in doubles.</summary>
+    private Double3 OuterAt(int corner, float z)
+    {
+        (double x, double y) = Outer(corner, z);
+        return new Double3(x, y, z);
+    }
+
+    /// <summary>Corner <paramref name="corner"/> of the inner skin at <paramref name="z"/>, in doubles.</summary>
+    private Double3 InnerAt(int corner, float z)
+    {
+        (double x, double y) = Outer(corner, z);
+        return new Double3(x + inset[corner].X, y + inset[corner].Y, z);
     }
 
     private Vector3 OuterPlace(int corner, float z)
