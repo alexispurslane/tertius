@@ -847,6 +847,8 @@ Each part commits on its own, with its tests green. A part that changes the cine
 | 9 | Free play at the terminal | `Seat`, `PlayerBelt`, `SeatBelt`, `Belted` in `PersonControl`, the player, `live-terminal`, the views, the timing measurement | 7 | New |
 | 10 | The lift and free play on the wheel | `Lift`, `wheel-camera`, `live-wheel` | 9, `ter-y0e5` | New |
 
+The tickets of the parts: part 1 is `ter-yywb`, part 2 `ter-guqz`, part 3 `ter-4xkz`, part 4 `ter-o2j7`, part 5 `ter-irrj`, part 6 `ter-z7ka`, part 7 `ter-51ee`, part 8 `ter-k05j`, part 9 `ter-dd9z` and part 10 `ter-hro7`.
+
 ```mermaid
 graph LR
     TZF6[ter-tzf6 station step] --> P1[1 pilot]

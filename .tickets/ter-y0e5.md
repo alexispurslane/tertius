@@ -14,3 +14,9 @@ tags: [demo]
 
 Step 6 of docs/plans/blue-danube-demo.md. The character leaves the shuttle and slides down a chute along a spoke to the outer wheel. Coriolis presses it against the chute wall; tune the friction.
 
+
+## Notes
+
+**2026-10-20T18:46:20Z**
+
+The live world design (docs/plans/live-world.md, part 10) runs a lift in a second spoke at theta = 0. The openings that this ticket builds in the ceiling and the hub must also serve that spoke. The chute stays in the spoke at 180 degrees.

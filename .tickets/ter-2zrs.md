@@ -1,7 +1,7 @@
 ---
 id: ter-2zrs
 status: open
-deps: [ter-y0e5, ter-2n31, ter-p51r, ter-3j2b]
+deps: [ter-y0e5, ter-2n31, ter-p51r, ter-3j2b, ter-k05j]
 links: []
 created: 2026-10-18T14:08:43Z
 type: task
@@ -24,3 +24,7 @@ Include the proofs of docs/plans/blue-danube-demo.md 'Proof in the video' (user 
 **2026-10-18T15:20:45Z**
 
 Correction (user, 2026-10-18): the proofs in the video are only the live readouts, the frames made visible, the split view with frames on and off, and the textbook checks of sim time. No predicted landing spot, no formation flight, and the script and log are not part of the video (the repository will be published). The README code guide is ticket ter-sb5w.
+
+**2026-10-20T18:46:20Z**
+
+Now waits for live world part 8 (ter-k05j), because the timetable changes the tick of the departure and the long script.

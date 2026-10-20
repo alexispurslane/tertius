@@ -30,3 +30,9 @@ Constraints from the run so far:
 
 The ticket writes its design as a section of docs/plans/blue-danube-demo.md first. It replaces the small windows that ter-tzf6 built.
 
+
+## Notes
+
+**2026-10-20T18:46:20Z**
+
+The live world design (docs/plans/live-world.md, part 3) needs the hull to stand on its tail on a flat pad. So the tail is a flat face across the whole cross-section of the hull, or it has landing feet at its corners. The engine's nozzle is recessed into that face, and the center of mass stays on the long axis.
