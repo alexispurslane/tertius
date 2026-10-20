@@ -83,7 +83,7 @@ The sum is the cycle: from P − 18 s to P + 3T − 18 s, 3T.
 
 The times of the way up come from today's run, which ignites 18.47 s before the pass: the script posts `Ignition` at tick 1,172, 19.53 s, and the pass is at 38 s. The timetable's lead of 18.0 s starts the flight 28 ticks, 0.47 s, later relative to the pass. The insertion moves by those 0.47 s. On the circle, the shuttle is then n₁ × 0.47 s = 1.18528e-3 × 0.4667 = 5.53e-4 rad behind where it was. It gains on the station at n₁ − n₂ = 5.212e-5 rad/s, so the window opens 5.53e-4 / 5.212e-5 = 10.6 s later. The transfer takes a fixed time after the window, so the brake, the hold and the docking move by the same 10.6 s, and the stay is 10.6 s shorter. The way down does not move, because its window depends only on the station's place.
 
-These times are those of the run with today's translation thrusters of 4,000 N. `ter-ftnj` raises them to 30,000 N for every law, measures the rendezvous again, and corrects the times in `LiveTimeline` (see "One thruster model").
+These times are those of the run with today's translation thrusters of 4,000 N. `ter-ftnj` raises them to 30,000 N for every law, measures the rendezvous again, and corrects the rendezvous's times that part 2 puts in `LiveTimeline` (see "One thruster model").
 
 ### Why the cycle takes three orbits
 
@@ -118,7 +118,21 @@ Three shuttles, offset by one orbit, give a ground departure in every orbit, 92.
 
 The brake starts at 4,498.2 s into today's run, P + 4,460.2 s, and 4,460.2 + 10.6 = 4,470.8 s. The hold starts at 4,862.7 s, P + 4,824.7 s, and 4,824.7 + 10.6 = 4,835.3 s. The window opens at 1,950.6 s, P + 1,912.6 s, and 1,912.6 + 10.6 = 1,923.2 s.
 
-`LiveTimeline` holds the times that code reads: `WindowAfterPass`, 1,923 s, which the start in the parking orbit reads (see "The parking orbit"), and the times that the test of the nominal pattern reads (see "Part 7"). A run test pins each one against the run that measures it.
+`LiveTimeline` holds the times of the nominal timeline that code reads. Each time counts from a pass, so the class holds no orbital period. The start in the parking orbit reads `WindowAfterPass` (see "The parking orbit"), and the test of the nominal pattern reads every time (see "Part 7"). Part 2 creates the class. The table names the part that adds each time and the test that pins it. A measured time is pinned within 1 s of the run that measures it, and a budget as an upper bound.
+
+| Time | Value | Counted from | Added by | Pinned by |
+|---|---|---|---|---|
+| `ClimbAfterPass` | −13 s | P | Part 2 | `BlueDanubeRendezvousRun.TheRendezvousKeepsLiveTimelinesTimes` |
+| `WindowAfterPass` | 1,923 s | P | Part 2 | The same test |
+| `BrakeAfterPass` | 4,471 s | P | Part 2 | The same test |
+| `HoldAfterPass` | 4,835 s | P | Part 2 | The same test |
+| `DockedAfterPass` | 5,165 s, the hold plus the budget of 330 s | P | `ter-ftnj` | `TheDockingEndsWithinItsBudget` |
+| `UndockedAfterPass` | 2,420 s, the station departure plus the budget of 320 s | P + T, the pass of the station departure's orbit | Part 5, as the start of its tests, because part 5 comes before part 4 | `TheUndockingEndsWithinItsBudget` of part 4 |
+| `BurnEndAfterPass` | 2,606 s | P + T | Part 5 | `TheWayDownFromTheHoldPointKeepsLiveTimelinesTimes` |
+| `TouchdownAfterPass` | 120 s | P + 2T | Part 5 | The same test |
+| `TowEndAfterPass` | 300 s | P + 2T | Part 6 | `TheTowEndsAtItsNominalTimeAfterTheRampsRequest` |
+
+`ter-ftnj` corrects the four times of part 2, because its thrusters change the transfer and the brake. Part 7 only reads `LiveTimeline`.
 
 ### The pilot
 
@@ -201,7 +215,7 @@ Part 1 does not change the flight. These parts of today's code move:
 
 ### One thruster model
 
-The rendezvous's burns give the push across the nose to the translation thrusters (`RendezvousAutopilot.Burn`: the main engine takes the part along the nose, and the thrusters take the rest). The docking needs 30,000 N per axis (see the next section). At 30,000 N, the transfer burn and the brake fly a little differently from today, because the thrusters can then give more of the push across the nose. The demo keeps one thruster model for every law. So `ter-ftnj` raises the thrust for the whole flight, runs the rendezvous's measurements again in `BlueDanubeRendezvousRun`, corrects the times of `LiveTimeline`, and writes the long script again. Part 5 comes after `ter-ftnj`, so the way down is measured with the same thrusters. The glide caps its own push at 0.2 m/s², so it does not change.
+The rendezvous's burns give the push across the nose to the translation thrusters (`RendezvousAutopilot.Burn`: the main engine takes the part along the nose, and the thrusters take the rest). The docking needs 30,000 N per axis (see the next section). At 30,000 N, the transfer burn and the brake fly a little differently from today, because the thrusters can then give more of the push across the nose. The demo keeps one thruster model for every law. So `ter-ftnj` raises the thrust for the whole flight, runs the rendezvous's measurements again in `BlueDanubeRendezvousRun`, corrects the rendezvous's times in `LiveTimeline`, and writes the long script again. Part 5 comes after `ter-ftnj`, so the way down is measured with the same thrusters. The glide caps its own push at 0.2 m/s², so it does not change.
 
 ### The docking, at model level
 
@@ -349,7 +363,7 @@ The shuttle stays on the landing pad, static and upright, until the timetable gr
 
 ### The tow
 
-The tug is a kinematic plain body. Its component `Tug` moves it only with end poses (`self.MoveKinematic`), as `Door` moves a door. A kinematic plain body moves between frames (`JoltPhysicsBackend.MovesBetweenFrames`), so the tug enters the towed shuttle's cabin frame when it meets the cabin's bubble, and it leaves that frame again when it drives away. Its garage, `tug-garage`, is a drawn shed at (-55, ·, 10). The cradle, `tug.cradle`, is a drawn entity attached to the tug, with no body. The tug spawns it on its first tick, so the tug knows its handle.
+The tug is a kinematic plain body. Its component `Tug` moves it only with end poses (`self.MoveKinematic`), as `Door` moves a door. A kinematic plain body moves between frames (`JoltPhysicsBackend.MovesBetweenFrames`), so the tug enters the towed shuttle's cabin frame when it meets the cabin's bubble, and it leaves that frame again when it drives away. Its garage, `tug-garage`, is a drawn shed at (-55, ·, 10). The cradle, `tug.cradle`, is a drawn entity attached to the tug, with no body. The tug spawns it on its first tick, so the tug knows its handle. Part 6 spawns the tug and `tug-garage` in `demo-surface`. The tug waits `AtGarage` there until part 7 puts B on the landing pad, so before part 7 nothing in the cinematic sends `TowRequest`.
 
 `TugState` is a custom union: `AtGarage`, `DrivingOut(DrivePlan)`, `Towing(TowPlan)` or `DrivingBack(DrivePlan)`. No other type in the namespace `Tertius.Demo` has these names. The tug keeps a queue of the shuttles that sent `TowRequest`, in order. While the places hold, the queue holds at most one shuttle.
 
@@ -370,10 +384,10 @@ How the tow starts and runs:
 - In tick k, with t_(k+2) the rise's end, the tug sends `TowStart(Shuttle, Start)` to the shuttle and to its cradle, with Start = t_(k+2), and it becomes `Towing`.
 - In tick k + 1, the shuttle reads `TowStart`. It reads the landed pose from its own pose in `earth-surface`, which has not changed since the touchdown. It calls `SetMotion(Kinematic)` and writes the end pose `TowPlan.ShuttleAt(t_(k+3))`. Both act in step k + 2, which starts at Start. The guards judge each write by the motion of the step that applies it. So the two writes in one tick are allowed (ARCHITECTURE.md, "Changes of motion").
 - In every later tick N, the shuttle and the tug each write the plan's value at t_(N+2), the end of the step that applies the write. Each writes it relative to the frame that it is in, `self.Frame`. The shuttle is always in `earth-surface` and writes `ShuttleAt(t_(N+2))`. The tug in `earth-surface` writes `TugAt(t_(N+2))`. The tug in the cabin's frame writes `ShuttleAt(t_(N+2))⁻¹ ∘ TugAt(t_(N+2))`, the plan's pose of the tug relative to the cabin at that moment, straight from the plan.
-- The cradle has no body. Step 7 of each sync point puts it at the tug's pose with its attach offset (ARCHITECTURE.md, "Creation and destruction"). The offset is relative to the tug, so it needs no frame. In tick N, the cradle writes `self.AttachOffset` as the plan's value at t_(N+1): the rise plan's offset before the tow, and `CradleAt(t_(N+1))` from the tow's start. Step 7 of the same tick's sync point applies the offset against the tug's pose at t_(N+1), which the tug's end pose of tick N − 1 gave.
+- The cradle has no body. Step 7 of each sync point puts it at the tug's pose with its attach offset (ARCHITECTURE.md, "Creation and destruction"). The offset is relative to the tug, so it needs no frame. In tick k + 1, the cradle reads `TowStart`, and it reads the landed pose from the shuttle's pose in `earth-surface` in the snapshot, as the shuttle does. `TowStart` names the shuttle, and the pose has not changed since the touchdown. So the tug, the shuttle and the cradle build the same `TowPlan`. In tick N, the cradle writes `self.AttachOffset` as the plan's value at t_(N+1): the rise plan's offset before the tow, and `CradleAt(t_(N+1))` from the tow's start. Step 7 of the same tick's sync point applies the offset against the tug's pose at t_(N+1), which the tug's end pose of tick N − 1 gave.
 - At the plan's end, the shuttle parks with `SetMotion(Static)`, and its leg becomes `OnTheRamp`, which holds no landing pad, so the pilot releases it. The tug becomes `DrivingBack` and drives to its garage. While it is still in the cabin's frame, it writes `ShuttleAt(the plan's end)⁻¹ ∘` the drive's pose, because the shuttle rests on the park pose. At the garage it serves the next request in its queue.
 
-The tick of a hand-off. The tug writes its end pose in tick N relative to the frame that it is in during tick N. The step that runs during tick N can hand it into the cabin's frame or out of it. The hand-off can come during the drive, while the shuttle is static, or during the lowering, while the shuttle moves. Step 7b of tick N's sync point then converts the end pose into the new frame (ARCHITECTURE.md, "Rails components and motion intents", steps 5 and 7b). It converts an end pose by the relation of the two frames at the end of the step that applies it, step N + 1, and a frame whose owner has an end pose in that step takes that end pose for the relation (`FrameTree.MotionRelativeInStep`). The shuttle's end pose of tick N is `ShuttleAt(t_(N+2))`. A frame whose hull is static holds still over the step, so its relation is exact too. So the converted pose is the plan's pose of the tug relative to the cabin, `ShuttleAt(t_(N+2))⁻¹ ∘ TugAt(t_(N+2))`, when the tug enters, and the plan's pose in `earth-surface` when it leaves, to the rounding of one composition of poses. The tug needs no rule of its own for that tick. From tick N + 1, it reads its new frame in `self.Frame` and writes in it.
+The tick of a hand-off. The tug writes its end pose in tick N relative to the frame that it is in during tick N. The step that runs during tick N can hand it into the cabin's frame or out of it. The hand-off can come during the drive, while the shuttle is static, or during the lowering, while the shuttle moves. Step 7b of tick N's sync point then converts the end pose into the new frame (ARCHITECTURE.md, "Rails components and motion intents", steps 5 and 7b). It converts an end pose by the relation of the two frames at the end of the step that applies it, step N + 1, and a frame whose owner has an end pose in that step takes that end pose for the relation (`FrameTree.MotionRelativeInStep`). The shuttle's end pose of tick N is `ShuttleAt(t_(N+2))`. A frame whose hull is static holds still over the step, so its relation is exact too. So the converted pose is the plan's pose of the tug relative to the cabin, `ShuttleAt(t_(N+2))⁻¹ ∘ TugAt(t_(N+2))`, when the tug enters, and the plan's pose in `earth-surface` when it leaves, to the rounding of one composition of poses. The paragraph of ARCHITECTURE.md's "Ownership of transforms" that begins "An intent is relative to `self.Frame`" still says that an intent converts with the frames' relation at the end of the tick, and that it misses by how far the two frames move in one step. That paragraph is older than steps 5 and 7b. Steps 5 and 7b and the code (`World.ConvertMovedIntents`, `FrameTree.MotionRelativeInStep`) govern. The correction of that paragraph is a change of the engine's document, for its own ticket, which goes to the user. The tug needs no rule of its own for that tick. From tick N + 1, it reads its new frame in `self.Frame` and writes in it.
 
 Every ascent starts from the park pose, so every cycle flies the same flight relative to its pass. The ground departure arrives up to one tick, 1/60 s, after its exact time. The station moves at most 7,672.6 / 60 = 128 m along its orbit in that time, which the rendezvous's guidance corrects from the state.
 
@@ -541,7 +555,7 @@ So each place is free between two holders for these times:
 | Slot | P_(m+1) + 2,606 s | P_(m+1) + 4,471 s | 1,865 s |
 | Landing pad | P_(m+2) + 300 s | P_(m+2) + 2,100 s | 1,800 s |
 
-The gaps are the same as with two shuttles, because each place passes from D_m to D_(m+1), and a shuttle departs in each orbit in both cases. No place waits in the nominal pattern.
+Each place passes from D_m to D_(m+1), one orbit later, so the gaps are the same in every orbit. No place waits in the nominal pattern.
 
 ### Which flights run at once
 
@@ -694,7 +708,7 @@ Free play runs at 60 ticks a second of wall-clock time. The host moves its sched
 - The demo surface's draw took 1.7 to 2.3 ms at 720 lines. At 1,080 lines it has 2.25 times the pixels, and at 1,440 lines 4 times. The estimate is 4 to 10 ms.
 - Free play runs in Release: `dotnet run -c Release --project src/Tertius.Demo -- --scene live-terminal`.
 
-A timing test in Release, deleted after, as for the debug checks' cost, measures both in the free-play part. It runs `live-terminal` for 10 minutes of world time, through the ascent, while C is docked and B is towed. Part 10 runs the same measurement on `live-wheel`, through B's undocking, while C flies its phasing, so two shuttles fly at once. Each run records the mean and the worst tick, and the draw time of a capture at 1,920 by 1,080. If a tick and a draw together pass 12 ms, the part reports where the time goes before it merges.
+A timing test in Release, deleted after, as for the debug checks' cost, measures both in the free-play part. It runs `live-terminal` for 10 minutes of world time, through the ascent, while C is docked and B is towed. Part 10 runs the same measurement on `live-wheel`, through B's undocking, while C flies its transfer, so two shuttles fly at once. Each run records the mean and the worst tick, and the draw time of a capture at 1,920 by 1,080. If a tick and a draw together pass 12 ms, the part reports where the time goes before it merges.
 
 ### Recording a session
 
@@ -720,18 +734,18 @@ The scripted passenger catches its departure because the world is deterministic.
 
 The passenger's belt is shut long before the first burn of the rendezvous, at the window at about 1,961 s. The existing run test `ThePassengerIsStrappedBeforeTheFirstBurn` pins it.
 
-From part 7, shuttle B sits on the landing pad at the start of the cinematic, and shuttle C is docked at the station. B is towed onto the ramp during A's climb, and it departs at P1 − 18 s, 5,564.9 s into the run. C leaves the station at 2,138 s, during A's phasing, and it releases the slot at 2,644 s, long before A asks for it at 4,509 s. The long script films only A and its passenger.
+From part 7, shuttle B sits on the landing pad at the start of the cinematic, and shuttle C is docked at the station. B is towed onto the ramp during A's climb, and it departs at P1 − 18 s, 5,564.9 s into the run. C leaves the station at 2,138 s, during A's transfer, and it releases the slot at 2,644 s, long before A asks for it at 4,509 s. The long script films only A and its passenger.
 
 ## Engine changes
 
-None. Every part lives in `src/Tertius.Demo`, `scripts/` and the demo's tests. These claims about the engine were compared with ARCHITECTURE.md and the code of `ter-tzf6`:
+None. Every part lives in `src/Tertius.Demo`, `scripts/` and the demo's tests. One paragraph of ARCHITECTURE.md's "Ownership of transforms" disagrees with the code and with steps 5 and 7b. Its correction changes the engine's document and no engine code, and it goes to the user as its own ticket (see "The tick of a hand-off"). These claims about the engine were compared with ARCHITECTURE.md and the code of `ter-tzf6`:
 
 | Claim | Where the engine supports it | The test of this design that pins it |
 |---|---|---|
 | A dynamic hull that owns a frame, with a character inside, enters the turning station's bubble and leaves it again. | "Hand-off", "Turning frames": a body enters at its first touch and leaves outside the bubble plus its margin. The shuttle's bubble, 17.32 m at most, is less than half of the station's 120 m (`FrameBounds.Fits`). `DynamicHullRecordTests` cover a ship that enters a station that is turned but does not spin. So no test yet covers a dynamic hull that enters and leaves the bubble of a frame that turns. | The docking's run test is the first cover, with `TheUndockedShuttleLeavesTheStationsFrameOnItsInertialLine`. If either fails, the failure is an engine bug for its own ticket, which goes to the user. |
 | A static hull that owns a frame spawns and rests in a turning frame, and its contents feel the turn. | "How a frame moves": a frame with a static hull holds still in its tree parent. `FeltGravity` has the rotation terms. | `TheDockedCabinFeelsTheDecksGravity` |
-| A dynamic hull that owns a frame spawns with a velocity and an angular velocity, and falls on from them. | "Creation and destruction": a spawn velocity (`SpawnDesc.LinearVelocity`, `SpawnDesc.AngularVelocity`) is the first velocity of a body that physics integrates, a dynamic hull among them. `World.SpawnVelocityProblem` refuses no dynamic body, and `World.MakeLive` gives the new frame the velocity in doubles (`FrameTree.SetTreeLinearVelocity`). The numeric update of the first tick moves a fast spawn into a falling frame with its velocity in doubles ("Numeric frames", "Moves between systems"). The engine tests `ABodyThatPhysicsIntegratesStartsWithItsSpawnVelocity` (with a dynamic hull) and `ACrateSpawnedAloneAtOrbitalSpeedFallsInAFrameThatTakesItsVelocityInDoubles` pin both. | `TheParkingStartFliesTheCircleInAFallingFrame` and `TheParkingStartOpensTheWindowAtItsNominalTime` |
-| A kinematic plain body that writes an end pose in every tick keeps its path through a hand-off into the frame of a hull that moves on end poses, and out of it again. | "Rails components and motion intents", steps 5 and 7b: an end pose converts by the two frames' relation at the end of the step that applies it, and a frame whose owner has an end pose in that step takes that end pose (`FrameTree.MotionRelativeInStep`, `MotionIntent.Converted`). The engine test `AnEndPoseThatConvertsAtAHandOffOutOfAMovingFrameConvertsByWhereThatFrameEndsTheStep` pins it for a body that leaves a moving frame. | `TheTugKeepsItsPlanThroughItsHandOffIntoTheCabinsFrame` and `TheTowedShuttleAndTheTugMoveTogether` |
+| A dynamic hull that owns a frame spawns with a velocity and an angular velocity, and falls on from them. | "Creation and destruction": a spawn velocity (`SpawnDesc.LinearVelocity`, `SpawnDesc.AngularVelocity`) is the first velocity of a body that physics integrates, a dynamic hull among them. `World.SpawnVelocityProblem` refuses no dynamic body, and `World.MakeLive` gives the new frame the velocity in doubles (`FrameTree.SetTreeLinearVelocity`). The numeric update of the first tick moves a fast spawn into a falling frame with its velocity in doubles ("Numeric frames", "Moves between systems"). The engine test `ABodyThatPhysicsIntegratesStartsWithItsSpawnVelocity` pins the spawn velocity of a dynamic hull at 1 m/s. `ACrateSpawnedAloneAtOrbitalSpeedFallsInAFrameThatTakesItsVelocityInDoubles` pins the move of a plain crate at orbital speed into a falling frame. No engine test covers a dynamic hull that owns a frame and that the first numeric update moves into a falling frame at orbital speed. | `TheParkingStartFliesTheCircleInAFallingFrame` is the first cover, with `TheParkingStartOpensTheWindowAtItsNominalTime`. If it fails, the failure is an engine bug for its own ticket, which goes to the user. |
+| A kinematic plain body that writes an end pose in every tick keeps its path through a hand-off into the frame of a hull that moves on end poses, and out of it again. | "Rails components and motion intents", steps 5 and 7b: an end pose converts by the two frames' relation at the end of the step that applies it, and a frame whose owner has an end pose in that step takes that end pose (`FrameTree.MotionRelativeInStep`, `MotionIntent.Converted`). The engine test `AnEndPoseThatConvertsAtAHandOffOutOfAMovingFrameConvertsByWhereThatFrameEndsTheStep` pins it for a body that leaves a moving frame. The older paragraph of "Ownership of transforms" says otherwise, and the code and steps 5 and 7b govern. | `TheTugKeepsItsPlanThroughItsHandOffIntoTheCabinsFrame` and `TheTowedShuttleAndTheTugMoveTogether` |
 | A hull goes from static to kinematic with an end pose in the same tick, and back to static. | "Changes of motion": the guards judge each write by the motion of the step that applies it. | `TheTowedShuttleAndTheTugMoveTogether` |
 | A landing from orbit leaves no falling numeric frame behind. | "Numeric frames": a thrusting group keeps a falling frame only down to 20 m/s. | `TheLandedShuttleRestsInEarthSurfacesOwnSystem` |
 | A character spawns at rest in a turning frame with no motion intent. | The spin station's person | `ThePlayerStartsStandingOnTheWheelFloor` |
@@ -810,7 +824,7 @@ Step N is the physics step that runs during tick N. A tick reads the state at th
 | `TugState`, the tug's queue | The tug, in its tick | The tug in the next tick. The tests, between ticks. |
 | The end poses of the shuttle, the tug and the lift | Each, in tick N, for t_(N+2), relative to `self.Frame` | Step 7b of tick N's sync point, when step N moved the entity to another frame. Physics, in step N + 1. |
 | The cradle's offset | The cradle, in tick N, for t_(N+1) | Step 7 of tick N's sync point, against the tug's pose at t_(N+1). The renderer, from the snapshot after that sync point. |
-| The shuttle's pose and velocity in its frame | Physics in step N, or its end pose, recorded at the sync point after it | The pilot, the tug and the cradle in tick N + 1 |
+| The shuttle's pose and velocity in its frame | Physics in step N, or its end pose, recorded at the sync point after it | The pilot in tick N + 1. The tug, for the landed pose, in the tick in which it takes the `TowRequest`. The shuttle and the cradle, for the landed pose, in the tick in which they take `TowStart`. |
 | The station's pose and velocity | The full sample of `KeplerMotion` for step N, written in tick N − 1 | The pilot in tick N + 1 |
 | `SetMotion` of the shuttle | The pilot, in tick N | Physics, from the start of step N + 1 |
 | `Use` | `PersonControl`, in tick N | The seat, in tick N + 1 |
@@ -829,7 +843,7 @@ Step N is the physics step that runs during tick N. A tick reads the state at th
 | Station | The full samples of `KeplerMotion` | `KeplerMotion` | `earth-surface`, in a following frame of its own | G·M |
 | Timetable | Nothing. It has no body. | `Timetable` | `earth-surface` | `self.Time`, whether its shuttles are alive, its messages |
 | Tug, a kinematic plain body | Its own end poses, relative to the frame that it is in | `Tug` | `earth-surface`, or the towed shuttle's cabin frame while it is in that frame's bubble | The towed shuttle's landed pose, `self.Time`, `self.Frame`, its messages |
-| Cradle | Its own attach offset, the plan's value at t_(N+1) | `Cradle` | Attached to the tug, so the tug's frame | `self.Time`, `CradleRise`, `TowStart` |
+| Cradle | Its own attach offset, the plan's value at t_(N+1) | `Cradle` | Attached to the tug, so the tug's frame | `self.Time`, `CradleRise`, `TowStart`, and the towed shuttle's pose in `earth-surface` in the tick in which it takes `TowStart` |
 | Seat | Nothing. It rests in the cabin. | `PlayerSeat` | The cabin's | `Use` |
 | Player, a character | Physics, by `PersonControl`'s walk and thrust, or `PlayerBelt`'s walk and belt | `PlayerBelt`, `PersonControl` | Where it is | Input, its own pose and velocity, the felt gravity of the seat's frame, `Buckle`, `Unbuckle` |
 | Scripted passenger, a character | Physics, by `Walker` and `Passenger` | `Walker`, `Passenger` | Where it is | As today |
@@ -889,7 +903,7 @@ With small hand-written test components that send requests and releases and reco
   - `TheDeparturesFollowTheStationsPeriod`.
   - `TheSlotHasAtMostOneHolder`.
 - `ShuttleLegTests`, pure:
-  - `TheHeldPlacesFollowTheLeg`: every row of "The held places".
+  - `TheHeldPlacesFollowTheLeg`: the rows of "The held places" for the cases that exist after parts 1 and 2, `OnTheRamp`, `Ascent`, `Rendezvous` and `Halted`. Each later part adds the rows of the cases that it builds to the same test.
 - `ShuttlePilotTests`:
   - `TheClimbReleasesTheRamp`.
   - `EachChangeOfLegReleasesThePlacesThatTheNewLegDoesNotHold`.
@@ -904,6 +918,7 @@ With small hand-written test components that send requests and releases and reco
   - `ThePassengerSitsAtLeast2sBeforeTheDeparture`.
   - `TheScriptPostsNoOrderToAShuttle`.
   - `TheShuttleHoldsTheSlotFromTheBrake`.
+  - `TheRendezvousKeepsLiveTimelinesTimes`: the climb, the window, the brake and the hold, each within 1 s of its time in `LiveTimeline` after the pass.
   - Its tests of the window, the transfer and the hold stay green. The window moves 10.6 s later and stays within 115 to 125 degrees.
 - No screenshot, because the departure moves by 0.47 s and nothing else on screen changes. The part says so.
 
@@ -920,10 +935,11 @@ With small hand-written test components that send requests and releases and reco
 `ter-ftnj` designs its own tests. This design asks for these more:
 
 - `TheDockingEndsParkedOnTheDeckInDocked`.
-- `TheDockingEndsWithinItsBudget`: 330 s from the hold.
+- `TheDockingEndsWithinItsBudget`: 330 s from the hold, so docked by `LiveTimeline.DockedAfterPass`.
 - `TheAttitudeTargetFitsInOnePayload`: 48 bytes.
 - `TheAutopilotFollowsAFeedForwardFasterThanItsMaxTurnRate`: a target that turns at 0.313 rad/s, followed within 1 degree.
-- `BlueDanubeRendezvousRun` stays green with thrusters of 30,000 N, and its measured times update `LiveTimeline`.
+- `BlueDanubeRendezvousRun` stays green with thrusters of 30,000 N. Its measured times correct the four times of part 2 in `LiveTimeline`, and `TheRendezvousKeepsLiveTimelinesTimes` pins the corrected values.
+- `ShuttleLegTests.TheHeldPlacesFollowTheLeg` gains the rows of `Docking` and `Docked`.
 
 ### Part 4: the stay and the undocking
 
@@ -938,7 +954,8 @@ With small hand-written test components that send requests and releases and reco
   - `TheSpinDownStopsTheTurnAtTheHoldPoint`.
   - `TheSpinDownsEulerTermAtTheSeatStaysBelowOneCentimeterPerSecondSquared`.
   - `TheUndockingEndsInAwaitingWindowWithItsClaimOfTheLandingPad`.
-  - `TheUndockingEndsWithinItsBudget`.
+  - `TheUndockingEndsWithinItsBudget`: 320 s from the station departure, so at the hold point by `LiveTimeline.UndockedAfterPass`.
+- `ShuttleLegTests.TheHeldPlacesFollowTheLeg` gains the rows of `Undocking`.
 - Screenshots: the hull lifting off the deck, from `bay-camera`. The hull in the slot, from `rim-camera`.
 
 ### Part 5: the way down and the landing pad
@@ -950,7 +967,7 @@ With small hand-written test components that send requests and releases and reco
   - `AtTheGateAtRestThePushOnlyCancelsGravity`.
   - `ThePushNeverExceedsFullThrottle`.
   - `TheVerticalWantedSpeedIsTheTouchSpeedAtThePadsTop`.
-- `DescentLegTests`, in a root frame with Earth's point gravity, with the landing pad, starting in `Descent(AwaitingWindow)`:
+- `DescentLegTests`, in `earth-surface` with Earth's point gravity, the station of `DemoStation` on its rails and the landing pad. Each test that starts in `Descent(AwaitingWindow)` spawns the shuttle at the hold point of the station at P_k + `LiveTimeline.UndockedAfterPass`, at rest relative to the station, with no turn. Its claim of the landing pad is `Granted`, unless the test says otherwise. `AwaitingWindow` takes its hold point from that station.
   - `TheBurnStartsWhenTheAngleToThePadFallsIntoTheWindow`.
   - `WithoutTheLandingPadTheShuttleWaitsForTheNextWindow`: the claim stays `Asked`.
   - `TheGrantOfTheLandingPadInTheWaitSetsTheClaim`.
@@ -959,9 +976,12 @@ With small hand-written test components that send requests and releases and reco
   - `ThePoweredBrakingBringsTheShuttleToTheHighGate`: from a start 30 km up, before the braking curve, within 5 m and 1 m/s.
   - `TheVerticalDescentTouchesDownWithTheNoseUpAndTheRoofTowardPlusZ`: the nose within 1 degree.
   - `TheTouchdownParksTheHullAndRequestsTheRamp`.
-  - `OnTheLandingPadTheShuttleWaitsForTheRamp`, and the grant makes it `AwaitingTug`.
+  - `OnTheLandingPadTheShuttleWaitsForTheRamp`.
+  - `TheGrantOfTheRampMakesTheLegAwaitingTugAndSendsTowRequest`: to the topic `tug`. With no tug in the world, the shuttle stays in `AwaitingTug`.
   - `TheLandedShuttleRestsInEarthSurfacesOwnSystem`.
   - `TheLandedShuttleStandsOnItsTail`: 60 s, within 1 mm.
+  - `TheWayDownFromTheHoldPointKeepsLiveTimelinesTimes`: the burn's end and the touchdown, each within 1 s of its time in `LiveTimeline` after its pass.
+- `ShuttleLegTests.TheHeldPlacesFollowTheLeg` gains the rows of `Descent`, `OnTheLandingPad` and `AwaitingTug`.
 - Screenshots: the braking burn from the chase camera, with Earth below. The hull over the pad in the vertical descent, from `landing-pad-camera`. The hull upright on the pad.
 
 ### Part 6: the tug and the tow
@@ -980,9 +1000,11 @@ With small hand-written test components that send requests and releases and reco
   - `TheTowedShuttleAndTheTugMoveTogether`: their relative pose stays within 1 mm through the lowering and the carry, also in the tick of each hand-off.
   - `TheTugKeepsItsPlanThroughItsHandOffIntoTheCabinsFrame`: its pose in `earth-surface` stays within 1 mm of `TugAt` in every tick, and it is in the cabin's frame for part of the tow.
   - `TheTowEndsWithTheShuttleParkedOnTheBedAndTheLandingPadReleased`.
+  - `TheTowEndsAtItsNominalTimeAfterTheRampsRequest`: `LiveTimeline.TowEndAfterPass` − `LiveTimeline.TouchdownAfterPass`, 180 s, after the shuttle asks for the ramp, within 1 s.
   - `ATowedPassengerStandsOnTheFloorAfterTheLowering`.
   - `TheTugServesRequestsInOrder`.
   - `TheTugReturnsToItsGarageOutOfTheCabinsFrame`.
+- `ShuttleLegTests.TheHeldPlacesFollowTheLeg` gains the row of `Towed`.
 - Screenshots: the hull half lowered onto the cradle. The tug with the hull passing the tower. The hull set down on the bed.
 
 ### Part 7: three shuttles and the world's starts
@@ -994,7 +1016,7 @@ With small hand-written test components that send requests and releases and reco
   - `AParkingStartOutsideAPhasingIsRefused`.
   - `TheThreeShuttlesHaveTheSameParts`.
   - `OnlyShuttleACarriesThePen`.
-  - `TheParkingStartFliesTheCircleInAFallingFrame`: 200 km up within 100 m, in the station's plane, in a falling numeric frame after the first tick.
+  - `TheParkingStartFliesTheCircleInAFallingFrame`: 200 km up within 100 m, in the station's plane, in a falling numeric frame after the first tick. It is the first test of a dynamic hull that owns a frame and spawns at orbital speed (see "Engine changes").
   - `TheParkingStartOpensTheWindowAtItsNominalTime`: within 2 s of P_k + `LiveTimeline.WindowAfterPass`.
 - `LiveTimelineTests`, pure:
   - `ThreeShuttlesOnTheNominalTimelineNeverWaitForAPlace`: the hold times of "The three shuttles' phases" for six orbits, with each place free at each request.
@@ -1058,7 +1080,7 @@ With small hand-written test components that send requests and releases and reco
 
 - The component tests fly short plans of a few thousand ticks each. The braking test runs about 21,000 ticks.
 - `LiveWorldReturnRun` runs about 4,350 × 60 = 261,000 ticks, with at most two shuttles in flight. At 0.45 ms a tick in Debug, without the debug checks, it takes about 2 minutes, as `BlueDanubeRendezvousRun` does.
-- The cinematic's run gains two shuttles, the tug and the timetable. From 2,138 s, C flies its undocking, its burn and its coast while A flies its rendezvous, so two shuttles fly at once for the last 2,735 s of the run's 4,873 s. The run's time grows by up to about 10 percent. Part 7 measures it.
+- From part 7, the cinematic's run gains shuttles B and C and the tug's work. The timetable joins it in part 2, and the tug and its garage join it at rest in part 6. From 2,138 s, C flies its undocking, its burn and its coast while A flies its rendezvous, so two shuttles fly at once for the last 2,735 s of the run's 4,873 s. The run's time grows by up to about 10 percent. Part 7 measures it.
 - `LiveWorldSixOrbitsRun` runs about 27,780 × 60 = 1,667,000 ticks. At 0.45 ms a tick, that is about 12.5 minutes in Debug. So it is explicit. Part 7 runs it once in Release before its merge and reports its time, and the soak runs of the test-hardening epic include it.
 - The six-orbit run is the only test that runs whole cycles. The return run and the cinematic's run together cover every leg and every place event in the default run of the tests.
 
@@ -1069,18 +1091,18 @@ Each part commits on its own, with its tests green. A part that changes the cine
 | Part | Title | What it builds | Depends on | Extends or replaces |
 |---|---|---|---|---|
 | 1 | Shuttle pilot: one leg value for the whole flight | `ShuttlePilot`, `ShuttleLeg`, `AscentLeg`, `RendezvousLeg`, `Halted`, `Depart` in place of `Ignition`, the rendezvous from the insertion. The script posts `Depart` where it posts `Ignition` today, `phasing` posts nothing, and the cues read the pilot's leg. The script written again. blue-danube-demo.md's text on layers. | `ter-tzf6` | Replaces the layers of the flight program in `ter-tzf6` |
-| 2 | Timetable and places | `Timetable`, `Place`, `Claim`, `Places`, `ShuttleLeg.HeldPlaces`, the releases by change of leg, the answer to a grant that the leg does not wait for, the liveness rule, the messages, the departures, the slot's request at the brake, `AwaitingSlot`. The timetable in `demo-surface` with the shuttle as the ramp's first holder. The script posts no `Depart`, and `on-the-pad` films until the departure. The script written again. | 1 | New |
+| 2 | Timetable and places | `Timetable`, `Place`, `Claim`, `Places`, `ShuttleLeg.HeldPlaces`, the releases by change of leg, the answer to a grant that the leg does not wait for, the liveness rule, the messages, the departures, the slot's request at the brake, `AwaitingSlot`. `LiveTimeline`, with the times of the climb, the window, the brake and the hold that `BlueDanubeRendezvousRun` measures under the lead of 18.0 s. The timetable in `demo-surface` with the shuttle as the ramp's first holder. The script posts no `Depart`, and `on-the-pad` films until the departure. The script written again. | 1 | New |
 | 3 | The tram shape, with a flat tail | `ter-4xkz` as written, plus a flat tail face to stand on | `ter-tzf6` | Extends `ter-4xkz` |
-| `ter-ftnj` | The docking as the pilot's leg | `ter-ftnj` as written, as `DockingLeg`, ending parked on the deck in `Docked`. Thrusters of 30,000 N for every law. `AttitudeTarget` with its feed-forward, in 48 bytes. The rendezvous measured again, `LiveTimeline`'s times corrected, the script written again. | 1, 2, 3, `ter-s9m0`, `ter-tzf6` | Extends `ter-ftnj` |
-| 5 | The way down and the landing pad | `DescentLeg`, `DescentPlan`, `DescentGuidance`, `landing-pad`, `landing-pad-camera`, the touchdown, the slot's release, the leg `OnTheLandingPad` with its request of the ramp | `ter-ftnj`, 1, 2, 3 | New |
+| `ter-ftnj` | The docking as the pilot's leg | `ter-ftnj` as written, as `DockingLeg`, ending parked on the deck in `Docked`. Thrusters of 30,000 N for every law. `AttitudeTarget` with its feed-forward, in 48 bytes. The rendezvous measured again, the four times of part 2 in `LiveTimeline` corrected, `LiveTimeline.DockedAfterPass`, the script written again. | 1, 2, 3, `ter-s9m0`, `ter-tzf6` | Extends `ter-ftnj` |
+| 5 | The way down and the landing pad | `DescentLeg`, `DescentPlan`, `DescentGuidance`, `landing-pad`, `landing-pad-camera`, the touchdown, the slot's release, the leg `OnTheLandingPad` with its request of the ramp, the leg `AwaitingTug` with its `TowRequest` to the topic `tug` on entry, the times of the way down and `UndockedAfterPass` in `LiveTimeline` | `ter-ftnj`, 1, 2, 3 | New |
 | 4 | Stay and undocking | The station departure in `Docked`, the landing pad's request, `UndockingLeg` with the exit's law and the spin-down's law, ending in `Descent(AwaitingWindow)` | `ter-ftnj`, 5 | New |
-| 6 | The tug and the tow | `Tug`, `Cradle`, `CradleRise`, `tug-garage`, `TowPlan`, `DrivePlan`, `RisePlan`, the legs `AwaitingTug` and `Towed` | 5 | New |
-| 7 | Three shuttles and the world's starts | `WorldStart`, `ShuttleStart` with `InTheParkingOrbit`, `RendezvousPlan.ParkingOrbit`, `LiveTimeline`, `Viewer`, `Shuttle.Spawn`, the prefixed ids, with the cues and posts on `shuttle-a`, B and C in the cinematic, `LiveWorldReturnRun`, `LiveWorldSixOrbitsRun`. The script written again. | 4, 5, 6 | New |
+| 6 | The tug and the tow | `Tug`, `Cradle`, `CradleRise`, `TowStart`, `tug-garage`, `TowPlan`, `DrivePlan`, `RisePlan`, the leg `Towed`, `LiveTimeline.TowEndAfterPass`. The tug and its garage in `demo-surface`, where the tug waits at its garage. | 5 | New |
+| 7 | Three shuttles and the world's starts | `WorldStart`, `ShuttleStart` with `InTheParkingOrbit`, `RendezvousPlan.ParkingOrbit`, `Viewer`, `Shuttle.Spawn`, the prefixed ids, with the cues and posts on `shuttle-a`, B and C in the cinematic, `LiveWorldReturnRun`, `LiveWorldSixOrbitsRun`, `LiveTimelineTests` on the times that the earlier parts put in `LiveTimeline`. The script written again. | 4, 5, 6 | New |
 | 8 | The cinematic in the live world | The cinematic run's tests of B and C, and the screenshots from the headless video | 7 | Extends the cinematic's run tests of `ter-tzf6` |
 | 9 | Free play at the terminal | `PlayerSeat`, `PlayerBelt`, `SeatBelt`, `Belted` in `PersonControl`, the player, `live-terminal`, the views, the timing measurement | 7 | New |
 | 10 | The lift and free play on the wheel | `Lift`, `wheel-camera`, `live-wheel`, the timing measurement on the wheel | 9, `ter-y0e5` | New |
 
-Part 5 comes before part 4, because the undocking ends in `Descent(AwaitingWindow)`, which part 5 builds. Part 5 builds `OnTheLandingPad` too, because the touchdown ends in it.
+Part 5 comes before part 4, because the undocking ends in `Descent(AwaitingWindow)`, which part 5 builds. Part 5 builds `OnTheLandingPad` too, because the touchdown ends in it, and `AwaitingTug`, because the grant of the ramp ends `OnTheLandingPad`. So no part ends in a case that a later part builds, and part 6 builds only the tug, the cradle, `TowStart` and `Towed`.
 
 The tickets of the parts: part 1 is `ter-yywb`, part 2 `ter-guqz`, part 3 `ter-4xkz`, part 4 `ter-o2j7`, part 5 `ter-irrj`, part 6 `ter-z7ka`, part 7 `ter-51ee`, part 8 `ter-k05j`, part 9 `ter-dd9z` and part 10 `ter-hro7`.
 
@@ -1114,7 +1136,7 @@ graph LR
 ## What this design asks of other tickets
 
 - `ter-4xkz`: the hull must stand on its tail on a flat pad. So the tail is a flat face across the hull's whole cross-section, or it has landing feet at its corners. The engine's nozzle is recessed into the face. The center of mass stays on the long axis.
-- `ter-ftnj`: the docking is the pilot's leg `Docking`, with its own custom union `DockingState`. It starts at the hold tolerances, and it ends parked on the deck in `Docked`. Its budget is 330 s. The translation thrusters grow to 30,000 N for every law, so the ticket runs the rendezvous's measurements again, corrects `LiveTimeline`'s times, and writes the long script again. `AttitudeTarget` takes a feed-forward angular velocity as a `Vector3`, and its `MaxTurnRate` becomes a `float`, so the payload is 48 bytes. The undocking of part 4 flies its laws in reverse.
+- `ter-ftnj`: the docking is the pilot's leg `Docking`, with its own custom union `DockingState`. It starts at the hold tolerances, and it ends parked on the deck in `Docked`. Its budget is 330 s. The translation thrusters grow to 30,000 N for every law, so the ticket runs the rendezvous's measurements again, corrects the four times that part 2 puts in `LiveTimeline`, adds `LiveTimeline.DockedAfterPass`, and writes the long script again. `AttitudeTarget` takes a feed-forward angular velocity as a `Vector3`, and its `MaxTurnRate` becomes a `float`, so the payload is 48 bytes. The undocking of part 4 flies its laws in reverse.
 - `ter-y0e5`: the openings that it builds in the ceiling and the hub also serve a second spoke, at θ = 0. The lift of part 10 runs there.
 - `ter-2zrs`: it depends on part 8. After part 8, the cinematic's run and the long script no longer change.
 
