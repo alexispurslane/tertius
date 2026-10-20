@@ -28,3 +28,7 @@ Correction (user, 2026-10-18): the proofs in the video are only the live readout
 **2026-10-20T18:46:20Z**
 
 Now waits for live world part 8 (ter-k05j), because the timetable changes the tick of the departure and the long script.
+
+**2026-10-20T20:27:09Z**
+
+From the frame check of ter-tzf6: the gray-box hull is nearly black in Earth's shadow (the film transfer's first frame, and the last frame of hold), and the station is too small to see in the last frame of transfer, within 10 km of the arrival point. The edit either cuts away from those frames or the scene gets a fill light. A fill light is a rendering change, so it needs the user.
