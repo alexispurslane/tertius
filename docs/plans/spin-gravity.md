@@ -376,6 +376,7 @@ With `Total`, a ship on a station floor reads ω² R toward the axis. Its cargo 
 - Store: none. It is derived from the field, the proper accelerations, the home's acceleration and the turns.
 - Change: it reads V1 and V2, so it describes the step in flight from `PrepareTick` on, and the last finished step at step 2.
 - `EffectiveGravity` becomes internal. Only physics and the frame tree read it, in the step whose turn V1 holds, and no gameplay code reads it today. A public read for gameplay, when one is needed, describes the last finished step under a name of its own.
+- The demo launch (`ter-m13s`) came to main with two gameplay readers of the public `EffectiveGravity`: `Clip` and `Passenger` in `Tertius.Demo` test whether the cabin is weightless. In the merge with main they read the field of the frame less its proper acceleration, the public reads of the last finished step, which is what the public read gave them before. So they leave out the rotation terms of the turning cabin, up to 0.27 m/s² at the person's seat while the attitude autopilot stops its turn. The public read with the rotation terms, and the angular acceleration of the last finished step that its Euler term needs, are open for the user.
 
 | Reader | When | What for |
 |---|---|---|
@@ -517,15 +518,15 @@ where
 
 ### V8, the turn at the last wake
 
-`FrameWorld.WakeAngularVelocity` and `FrameWorld.WakeAngularAcceleration`, two `Double3` values beside `FrameWorld.WakeProperAcceleration`: the semantic frame's inertial angular velocity and angular acceleration when the system's dynamic bodies last woke.
+`FrameWorld.WakeAngularVelocity` and `FrameWorld.WakeAngularAcceleration`, two `Double3` values beside `FrameWorld.WakePush`: the semantic frame's inertial angular velocity and angular acceleration when the system's dynamic bodies last woke. `FrameWorld.WakePush` was `WakeProperAcceleration` before `ter-zg77`, which made it the push of the frame (`FrameTree.PushInStep`).
 
-- Analogue: `FrameWorld.WakeProperAcceleration`, the proper acceleration at the last wake.
+- Analogue: `FrameWorld.WakePush`, the push at the last wake. The three values are the state of one wake test (see "The wake").
 - Store: `FrameWorld`, in physics, per system.
 - Change: at the start of each step, by the wake test (see "The wake").
 
 | Writer | When | What |
 |---|---|---|
-| `ApplyGravity`, the wake test | Start of step k + 1 | ω and α from V1 and V2 of the system's semantic frame, when the bodies wake or the system is new |
+| `ApplyGravity`, the wake test | Start of step k + 1 | ω and α from V1 and V2 of the system's semantic frame, with the push, when the bodies wake or the system is new |
 
 | Reader | When | What for |
 |---|---|---|
@@ -751,21 +752,29 @@ Physics measures a dynamic hull's value by the same rule, from V4's `Total`. Wha
 
 ## The wake
 
-A change of a frame's turn wakes its sleeping bodies, as a change of its proper acceleration does today. The wake test compares the change of the acceleration that the turn gives a place in the system with the existing threshold:
+A sleeping body has no local velocity, so it moves with its frame. That is right only while the acceleration that it would feel relative to the frame stays as it was when it fell asleep. One cause changes that acceleration: a change of how the frame moves against a free body. It has two parts, and one wake test, `JoltPhysicsBackend.FeltChangeSinceWake`, bounds both:
+
+- The push of the frame (`FrameTree.PushInStep`, from `ter-zg77`): what an accelerometer at its origin reads, apart from the field. For a semantic frame it is the proper acceleration. For a numeric frame it is its acceleration relative to its semantic frame less the acceleration of a free body at its origin. In a turning semantic frame, that free body's acceleration holds the rotation terms at the origin (the origin rule of a falling frame, "The origin of a falling frame"), so a falling frame's push stays zero, and a following frame's push is its landing acceleration less the free body's.
+- The turn of the semantic frame, which changes the centrifugal and the Euler acceleration from place to place.
+
+The wake test compares a bound on the change of the acceleration that a body at rest in the frame feels, at any place in the system, with the existing threshold:
 
 ```
-(|ω| + |ω_wake|) · |ω − ω_wake| · B + |α − α_wake| · B > WakeAccelerationThreshold
+|p − p_wake| + (|ω| + |ω_wake|) · |ω − ω_wake| · B + |α − α_wake| · B > WakeAccelerationThreshold
 ```
 
 where
 
+- `p` = the push of the system's frame for the step in flight, in m/s².
 - `ω`, `α` = the semantic frame's inertial angular velocity and angular acceleration for the step in flight, from V1 and V2.
-- `ω_wake`, `α_wake` = the same at the system's last wake (V8).
+- `p_wake`, `ω_wake`, `α_wake` = the same at the system's last wake (`FrameWorld.WakePush` and V8).
 - `B` = the reach of the system: the largest distance from the semantic frame's origin to a corner of the bounds of the system's bodies, in metres. In a numeric home it includes the home's offset.
 - `WakeAccelerationThreshold` = 0.02 m/s², the existing option (`JoltBackendOptions.cs`, line 47).
-- The left side bounds the change of the centrifugal and the Euler acceleration at any place in the system, in m/s², since the last wake.
+- The change at a place is the change of the rotation terms there less the change of the push, so the sum bounds it. The second and third terms bound the change of the centrifugal and the Euler acceleration at any place in the system, in m/s², since the last wake.
 
-Physics reads the bounds once per system per step. Numeric homes read their semantic frame's turns. Two examples:
+Before the merge of `ter-zg77` with this design, there were two tests, one on the push (`ter-zg77`) and one on the turn (V8), each against the threshold. They had one cause, so they are one test now, with one stored state and one comparison. In a frame that does not turn the turn terms are zero, so the test is the push test of `ter-zg77`.
+
+Physics reads the bounds once per system per step, and only when the turn changed. Numeric homes read their semantic frame's turns. Two examples:
 
 - The facing orbit of the demo turns at about 1.1e-3 rad/s. With a reach of 100 m, the turn term passes the threshold only after a change of rate of about 0.09 rad/s. So an eccentric orbit, whose rate changes a little in every step, lets its sleepers sleep. The spike woke them on any change of rate, so they never slept.
 - A station of reach 100 m that spins up at 0.01 rad/s² passes the Euler term at once, 1 m/s², and the turn term after each change of rate of about 3.2e-4 rad/s near 0.31 rad/s. Its sleepers wake while it spins up, as they must.
@@ -875,6 +884,9 @@ Each test changes with its reason in the commit and in a comment:
 | The tests of `MotionSample.Converted` that `ter-xdt8` writes | `ter-1bnq` | The rotation terms of a conversion, and the new parameters `(start, end, step)` |
 | `OrbitSliceTests` (line 225 on) | `ter-1bnq` | It reads `EffectiveGravity` on the turning ship right after the scene's build, before the first `BeginStep`, so its values stay. The read returns a `Double3` now, so the test compares `Double3` values. Its runs of `scripts/orbit.json` change as the other tests on the scene do. |
 | Tests on the `orbit` scene and its scripts: `FreePlayTests`, `ShipWindowTests`, `WindowingTests`, `CameraInShipCrateInEarthTests`, `AirlockSliceTests`, `SpacewalkSliceTests`, `WalkSliceTests`, `WindowsSliceTests` | `ter-1bnq` | The ship turns at about 1.1e-3 rad/s. Each one that fails changes with its reason. All of them pass unchanged. |
+| `DemoLaunchTests.ABallInTheCabinFloatsRelativeToTheCabinOnceTheEnginesStop`, from the demo launch (`ter-m13s`) | `ter-1bnq`, the merge with main | The attitude autopilot turns the shuttle at up to 0.1 rad/s for about 5 s after the engines stop. A ball put in the cabin 2 s after the engines stop keeps its inertial motion while the cabin's turn changes under it, and leaves its place by 1 m in 5 s. The ball now comes 7 s after the engines stop, when the cabin turns at the orbit's rate, so the test keeps what it checks. |
+| `BlueDanubeScriptTests`, the checked-in `scripts/blue-danube.json` | `ter-1bnq`, the merge with main | The generator rehearses the demo, and the pen drifts with the cabin's turn (see the next row), so the person reaches it 6 frames sooner. The script is generated again. |
+| `DemoLaunchTests.InOrbitThePenFloatsFreeInTheMiddleOfTheCabinUntilThePersonTakesIt` | Open | The clip lets the pen go 1.25 s after the engines stop, while the cabin's turn still changes, so the pen's velocity in the cabin moves up to 0.10 m/s from its push. It still ends 0.90 m from every face. The user decides whether the demo changes, for example a later release, or the test reads the pen's motion with the cabin's turn. |
 | `CharacterStandingTests.UnderGravityACharacterInTheAirKeepsItsUpAndTurnsItToTheGravityOnceItLands` | `ter-1b21` | Up follows gravity in the air too (fork F5) |
 | `CharacterStandingTests.ACharacterOnASlopeTooSteepToStandOnDoesNotStandAndSlidesDown` (line 104) and `CharacterFormTests.ACharacterInTheAirUnderGravityIsNotHeldBackByTheSteepSlopeCancelFromAFreeWallThatItSlidesAlong` (line 542) | `ter-1b21` | They involve slopes, but neither should change: on ground too steep to stand on, the character does not stand, and fork F6 acts only on a standing character. The second character touches a wall, so its up turns today too (fork F5). Each runs, and one that fails changes with its reason. No test walks a standing character on a walkable slope today. The new test "A person walks along a slope in the ground plane" covers fork F6. |
 

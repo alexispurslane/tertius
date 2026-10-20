@@ -31,12 +31,12 @@ public readonly record struct RestingOutline(Vector3 Center, float Radius);
 public readonly record struct NestingOutline(Vector3 Center, float Radius);
 
 /// <summary>
-/// The outline of an orbit frame: its contents sphere (see <see cref="FrameOutline"/>). An orbit frame holds the frame of
-/// its orbiter at its origin, so the sphere holds at least that frame's bubble.
+/// The outline of a following frame: its contents sphere (see <see cref="FrameOutline"/>). A following frame holds its anchor
+/// at its origin: a plain kinematic body, or the frame of a hull, whose bubble the sphere then holds.
 /// </summary>
 /// <param name="Center">As for <see cref="FallingOutline"/>.</param>
 /// <param name="Radius">As for <see cref="FallingOutline"/>.</param>
-public readonly record struct OrbitingOutline(Vector3 Center, float Radius);
+public readonly record struct FollowingOutline(Vector3 Center, float Radius);
 
 /// <summary>
 /// The outline of one frame in a <see cref="RenderSnapshot"/>: the region that the rule of its frame covers. A semantic
@@ -61,7 +61,7 @@ public readonly record struct OrbitingOutline(Vector3 Center, float Radius);
 [Union]
 public readonly struct FrameOutline : IEquatable<FrameOutline>
 {
-    private const byte KindNone = 0, KindSemantic = 1, KindFalling = 2, KindResting = 3, KindNesting = 4, KindOrbiting = 5;
+    private const byte KindNone = 0, KindSemantic = 1, KindFalling = 2, KindResting = 3, KindNesting = 4, KindFollowing = 5;
 
     private readonly byte kind;
     /// <summary>The center of every case.</summary>
@@ -87,7 +87,7 @@ public readonly struct FrameOutline : IEquatable<FrameOutline>
 
     public FrameOutline(NestingOutline outline) : this(KindNesting, outline.Center, outline.Radius) { }
 
-    public FrameOutline(OrbitingOutline outline) : this(KindOrbiting, outline.Center, outline.Radius) { }
+    public FrameOutline(FollowingOutline outline) : this(KindFollowing, outline.Center, outline.Radius) { }
 
     /// <summary>A sphere case.</summary>
     private FrameOutline(byte kind, Vector3 center, float radius)
@@ -101,7 +101,7 @@ public readonly struct FrameOutline : IEquatable<FrameOutline>
     public static implicit operator FrameOutline(FallingOutline outline) => new(outline);
     public static implicit operator FrameOutline(RestingOutline outline) => new(outline);
     public static implicit operator FrameOutline(NestingOutline outline) => new(outline);
-    public static implicit operator FrameOutline(OrbitingOutline outline) => new(outline);
+    public static implicit operator FrameOutline(FollowingOutline outline) => new(outline);
 
     /// <summary>False for the default value, which holds no outline.</summary>
     public bool HasValue => kind != KindNone;
@@ -130,10 +130,10 @@ public readonly struct FrameOutline : IEquatable<FrameOutline>
         return kind == KindNesting;
     }
 
-    public bool TryGetValue(out OrbitingOutline value)
+    public bool TryGetValue(out FollowingOutline value)
     {
-        value = kind == KindOrbiting ? new OrbitingOutline(center, radius) : default;
-        return kind == KindOrbiting;
+        value = kind == KindFollowing ? new FollowingOutline(center, radius) : default;
+        return kind == KindFollowing;
     }
 
     public object? Value => kind switch
@@ -142,7 +142,7 @@ public readonly struct FrameOutline : IEquatable<FrameOutline>
         KindFalling => new FallingOutline(center, radius),
         KindResting => new RestingOutline(center, radius),
         KindNesting => new NestingOutline(center, radius),
-        KindOrbiting => new OrbitingOutline(center, radius),
+        KindFollowing => new FollowingOutline(center, radius),
         _ => null,
     };
 
@@ -175,7 +175,7 @@ public readonly struct FrameOutline : IEquatable<FrameOutline>
         FallingOutline outline => $"FrameOutline({outline})",
         RestingOutline outline => $"FrameOutline({outline})",
         NestingOutline outline => $"FrameOutline({outline})",
-        OrbitingOutline outline => $"FrameOutline({outline})",
+        FollowingOutline outline => $"FrameOutline({outline})",
         null => "FrameOutline(none)",
     };
 }

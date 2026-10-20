@@ -14,7 +14,7 @@ namespace Tertius.Benchmarks;
 /// <list type="bullet">
 /// <item><c>flat</c>: 20,000 visible entities without bodies, in a frame with uniform gravity, so each instance also takes
 /// its hemisphere's up from the frame's field. Half of them stand in a turned child frame. No physics.</item>
-/// <item><c>orbit</c>: a planet with a station on a Kepler orbit at 7,000 km, so the station's hull lives in an orbit frame,
+/// <item><c>orbit</c>: a planet with a station on a Kepler orbit at 7,000 km, so the station's hull lives in a following frame,
 /// and a ship with 10 crates that coast beside it at orbital speed, so they fall in numeric frames: about ten frames, as in
 /// the demo's scene. On Jolt.</item>
 /// <item><c>frames1000</c>: 900 static frames without bodies near the root's origin, and 100 clusters of 200 static boxes

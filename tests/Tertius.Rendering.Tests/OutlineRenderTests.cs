@@ -256,7 +256,7 @@ public sealed class OutlineRenderTests
         {
             RenderSnapshot snapshot = Gpu.Snapshot(new Vector3(0.4f, 0.8f, 0.5f));
             snapshot.Outlines.Add(new FallingOutline(new Vector3(0, 0, -10), 2));
-            snapshot.Outlines.Add(new OrbitingOutline(new Vector3(0, 0, -10), 3));
+            snapshot.Outlines.Add(new FollowingOutline(new Vector3(0, 0, -10), 3));
             snapshot.Outlines.Add(new FallingOutline(new Vector3(0, 0, 30), 2));   // behind the eye
             snapshot.Outlines.Add(new RestingOutline(new Vector3(0, 0, -10), 0));  // holds nothing
 
@@ -284,7 +284,7 @@ public sealed class OutlineRenderTests
     /// <item>Above the center, 14 m ahead: a small teal resting frame's sphere, against the sky.</item>
     /// <item>Below the center, 16 m ahead: a purple nesting frame's sphere, half under the ground, so its lower half is
     /// dimmed.</item>
-    /// <item>At the upper right, 18 m ahead: a gold orbit frame's sphere, against the sky.</item>
+    /// <item>At the upper right, 18 m ahead: a gold following frame's sphere, against the sky.</item>
     /// </list>
     /// Each sphere shows three rings in the axes of the camera's frame, and its rim as seen from the eye.
     /// </summary>
@@ -306,7 +306,7 @@ public sealed class OutlineRenderTests
         snapshot.Outlines.Add(new FallingOutline(new Vector3(2.5f, 0, -14), 2.2f));
         snapshot.Outlines.Add(new RestingOutline(new Vector3(-0.5f, 2.6f, -14), 1f));
         snapshot.Outlines.Add(new NestingOutline(new Vector3(-1, -2.6f, -16), 1.4f));
-        snapshot.Outlines.Add(new OrbitingOutline(new Vector3(7, 3.2f, -18), 1.6f));
+        snapshot.Outlines.Add(new FollowingOutline(new Vector3(7, 3.2f, -18), 1.6f));
         return snapshot;
     }
 

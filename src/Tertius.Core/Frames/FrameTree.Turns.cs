@@ -65,8 +65,8 @@ public sealed partial class FrameTree
     /// Prepares every frame for the step that starts now, a step of <paramref name="step"/> seconds that applies
     /// <paramref name="stepIntents"/>, in one pass in dense order, parents first (docs/plans/spin-gravity.md, "V1, the turn of
     /// the step in flight"). Each semantic frame copies its V1 into its V2 and composes its new V1 from its tree parent's V1
-    /// and its own level (see <see cref="BeginTurn"/>). Each numeric frame fixes its acceleration for the step, and an orbit
-    /// frame its step plan (see <see cref="BeginNumericFrame"/>), after its semantic frame fixed its turns.
+    /// and its own level (see <see cref="BeginTurn"/>). Each numeric frame fixes its acceleration for the step, and a
+    /// following frame its step plan (see <see cref="BeginNumericFrame"/>), after its semantic frame fixed its turns.
     /// <para>
     /// A frame without a last turn takes its new V1 as its V2, so that its step assumes a steady turn, with no angular
     /// acceleration: a new frame (<see cref="Create"/>), a frame whose axes jumped against inertial space, by a teleport in

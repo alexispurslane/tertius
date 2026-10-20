@@ -390,12 +390,14 @@ public class GhostContactTests
     /// Runs a ball of <paramref name="ballBody"/> at 1,200 m/s along +X from (-600, 0, 0) through a static box of 4 m by 4 m
     /// by 4 m at the origin, with no gravity, for 3 s. The ball moves 20 m per step, so the step of tick 30 ends with its
     /// center at the box's center, and no other step ends with the two touching. A kinematic body never thrusts, so the ball
-    /// needs the 1,000 m/s of a group of free bodies for a numeric frame of its own, and at 1,200 m/s it is fast enough. But
-    /// the merge test links it to the box, an anchor, from the start, so it joins the box's home, the system of ground, and
-    /// meets the real box there (ter-dhkf). Once the ball is out of the merge test's reach, 2.4 km past the box, it falls in
-    /// a numeric frame of its own. The run checks both. Before, the ball fell in a frame of its own, which kept a kinematic
-    /// ghost of the box. Returns what the box and the ball heard of each other, and whether the ball's physics home ever held
-    /// a ghost of the box.
+    /// needs the 1,000 m/s of a group of free bodies for a numeric frame of its own, and at 1,200 m/s it is fast enough. So
+    /// it rests in a following frame of its own, which it anchors, and it is an anchor that moves differently from the box:
+    /// the merge test links the two from the start, their group lives in the box's home, the system of ground, the ball stays
+    /// in its following frame, and the box's home keeps a ghost of it, with the ball's own layer (docs/plans/numeric-frames.md,
+    /// "Following frames"). The run checks both, and that the ball keeps its following frame once it is out of the merge
+    /// test's reach, 2.4 km past the box. Before ter-dhkf, the ball fell in a frame of its own, which kept a kinematic ghost
+    /// of the box, and from ter-dhkf to ter-zg77 the ball joined the box's home. Returns what the box and the ball heard of
+    /// each other, and whether the ball's physics home ever held a ghost of the box.
     /// </summary>
     private static (List<ContactNews> BoxHeard, List<ContactNews> BallHeard, bool GhostOfTheBox) FlyThroughAStaticBox(bool numericFrames,
         BodyDesc boxBody, BodyDesc ballBody)
@@ -417,12 +419,19 @@ public class GhostContactTests
         {
             world.Tick();
             ghostOfTheBox |= faults.Jolt.HasGhostIn(box, world.PhysicsHomeOf(ball));
-            if (world.TickNumber == 30)
-                world.PhysicsHomeOf(ball).Should().Be(ground, "the ball runs in the box's home as it passes the box, with numeric frames or without");
+            if (world.TickNumber != 30)
+                continue;
+            if (numericFrames)
+            {
+                world.Frames.Anchors(world.PhysicsHomeOf(ball), ball).Should().BeTrue("the ball keeps its following frame as it passes the box");
+                faults.Jolt.HasGhostIn(ball, ground).Should().BeTrue("the box's home keeps a ghost of the ball");
+            }
+            else
+                world.PhysicsHomeOf(ball).Should().Be(ground, "without numeric frames the ball runs in the system of ground");
         }
         world.PoseIn(ball, ground).Position.X.Should().BeGreaterThan(2_500, "the ball flew through the box");
-        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(numericFrames ? NumericMode.Falling : NumericMode.None,
-            "out of the merge test's reach, the ball at 1,200 m/s falls in a numeric frame of its own, when there are numeric frames");
+        world.Frames.Numeric(world.PhysicsHomeOf(ball)).Should().Be(numericFrames ? NumericMode.Following : NumericMode.None,
+            "out of the merge test's reach, the ball at 1,200 m/s keeps its following frame, when there are numeric frames");
         world.Errors.Should().BeEmpty();
         return (boxLog.NewsOf(ball), ballLog.NewsOf(box), ghostOfTheBox);
     }
@@ -430,36 +439,38 @@ public class GhostContactTests
     /// <summary>
     /// A kinematic sensor ball flies through a static box (see <see cref="FlyThroughAStaticBox"/>). Jolt makes no contact
     /// between a kinematic body and a static one, sensor or not, so the sensor never detects the box without numeric
-    /// frames. With numeric frames the sensor joins the box's home, so it does not detect the box either. Before ter-dhkf,
-    /// the sensor fell in a frame of its own, whose ghost of the box stood for the box and was not detected.
+    /// frames. With numeric frames the sensor keeps its following frame, and its ghost in the box's home does not detect the
+    /// box either. Before ter-dhkf, the sensor fell in a frame of its own, whose ghost of the box stood for the box and was
+    /// not detected. From ter-dhkf to ter-zg77, the sensor joined the box's home.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void AKinematicSensorThatFliesThroughAStaticBoxJoinsItsHomeAndDetectsNothingWithNumericFramesOrWithout(bool numericFrames)
+    public void AKinematicSensorThatFliesThroughAStaticBoxDetectsNothingWithNumericFramesOrWithout(bool numericFrames)
     {
         var heard = FlyThroughAStaticBox(numericFrames, new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static), KinematicSensorBall);
 
-        heard.GhostOfTheBox.Should().BeFalse("the sensor joins the home of the box, an anchor, so no frame keeps a ghost of the box");
+        heard.GhostOfTheBox.Should().BeFalse("the box's home keeps a ghost of the sensor, and no frame keeps a ghost of the box");
         heard.BallHeard.Should().BeEmpty("a kinematic sensor never detects a static body");
         heard.BoxHeard.Should().BeEmpty();
     }
 
     /// <summary>
     /// A kinematic ball flies through a static sensor box (see <see cref="FlyThroughAStaticBox"/>). Jolt makes a contact
-    /// between a kinematic body and a sensor, so the sensor detects the ball, with numeric frames and without alike: the
-    /// ball joins the sensor's home. Before ter-dhkf, the sensor detected the ball through its ghost in the ball's falling
-    /// frame.
+    /// between a kinematic body and a sensor, so the sensor detects the ball, with numeric frames and without alike: with
+    /// numeric frames, the sensor's home keeps a ghost of the ball, which rests in a following frame of its own. Before
+    /// ter-dhkf, the sensor detected the ball through its ghost in the ball's falling frame. From ter-dhkf to ter-zg77, the
+    /// ball joined the sensor's home.
     /// </summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void AStaticSensorDetectsAKinematicBallThatJoinsItsHomeAndFliesThroughItWithNumericFramesOrWithout(bool numericFrames)
+    public void AStaticSensorDetectsAKinematicBallThatFliesThroughItWithNumericFramesOrWithout(bool numericFrames)
     {
         var heard = FlyThroughAStaticBox(numericFrames, new BodyDesc(new BoxShapeDesc(new Vector3(2)), BodyMotion.Static) { IsSensor = true },
             KinematicSensorBall with { IsSensor = false });
 
-        heard.GhostOfTheBox.Should().BeFalse("the ball joins the home of the sensor, an anchor");
+        heard.GhostOfTheBox.Should().BeFalse("the sensor's home keeps a ghost of the ball, and no frame keeps a ghost of the sensor");
         heard.BoxHeard.Should().Equal(Started, Ended);
         heard.BallHeard.Should().Equal(Started, Ended);
     }
@@ -517,7 +528,7 @@ public class GhostContactTests
     }
 
     /// <summary>
-    /// A Kepler hull, a box of 2 m by 2 m by 2 m, flies at 2 km/s in an orbit frame of its own past a static rock of radius
+    /// A Kepler hull, a box of 2 m by 2 m by 2 m, flies at 2 km/s in a following frame of its own past a static rock of radius
     /// 1 m, 8 m to the side of its path (see <see cref="Scenes.FastKeplerHull"/>). No home holds both anchors at rest, so
     /// the merge test links them into a group that lives in the rock's home, the system of space, and the numeric update
     /// names that system to keep a ghost of the hull. Far past the rock, the update stops naming it, and the ghost goes at
@@ -533,7 +544,7 @@ public class GhostContactTests
         Entity box = Scenes.FastKeplerHull(world, space, new BodyDesc(new BoxShapeDesc(new Vector3(1)), BodyMotion.Kinematic));
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = new BodyDesc(new SphereShapeDesc(1), BodyMotion.Static) });
         Tick(world, 2);
-        world.Frames.Numeric(world.PhysicsHomeOf(box)).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(world.PhysicsHomeOf(box)).Should().Be(NumericMode.Following);
         NamesAnchor(world, box, space).Should().BeTrue();
         faults.Jolt.HasGhostIn(box, space).Should().BeTrue();
 
@@ -544,6 +555,108 @@ public class GhostContactTests
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
         world.Tick();
         world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// How far along +X from the origin of space the scenes of <see cref="PassAFixedGhostOfACrate"/> put their bodies, in
+    /// meters, past the 2^23 m (8,389 km) from which a slow body gets a numeric frame (see <see cref="NumericFrameOptions.CreateDistance"/>).
+    /// </summary>
+    private const double FarOut = 9_000_000;
+
+    /// <summary>
+    /// Runs a plain kinematic ball of radius 0.25 m, which drifts at 4 m/s, past a ghost of a crate that is fixed in the
+    /// system of the ball's semantic frame, for 3 s. The ball lies more than 8,389 km from that frame's origin, so alone it
+    /// anchors a following frame of its own. The ball is a sensor when <paramref name="ballIsSensor"/> is true, and else the
+    /// crate is. Jolt makes a contact between a kinematic body and another body that is not dynamic only when one of them is
+    /// a sensor, so either way the ball meets the crate's ghost. The scene depends on <paramref name="crateOutside"/>:
+    /// <list type="bullet">
+    /// <item>False: a station without a hull, a frame with a bubble of radius 40 m and no gravity, hangs at
+    /// (<see cref="FarOut"/>, 0, 0) in space, and a crate of 2 m by 2 m by 2 m floats at (0, 40.5, 0) in it, so it sticks
+    /// 1.5 m out of the bubble. The station has no hull, so the ghost of the crate in space is fixed in the system of space.
+    /// The ball, a body of space, drifts along -X through the part of the crate that sticks out, from
+    /// (<see cref="FarOut"/> + 6, 41, 0) in space, and its center stays 41 m from the station's center, so it never touches
+    /// the bubble. The ball is kinematic, so it reaches the station's content, and physics also keeps a ghost of it in the
+    /// station's system, which meets the real crate.</item>
+    /// <item>True: a frame P without a body or gravity, with a bubble of radius 10,000 km, hangs at the origin of space, and
+    /// the crate is a slab of space, a static sensor box of 24 m by 2 m by 2 m, with its center 1 m outside P's bubble, along
+    /// +X, so its inner 11 m lie in the bubble. A static body never hands off, and a body of P's semantic parent that touches
+    /// P's bubble has a ghost in P's own system, so the slab's ghost there is fixed. The ball, a body of P that is not a
+    /// sensor, drifts along +Y through that part of the slab, from (10,000 km - 10.5 m, -6, 0) in P. It stays 10.25 m inside
+    /// P's bubble, so it never sticks out of it, and physics keeps no ghost of it in space. So that ghost of the slab in P's
+    /// own system is the only place where the two can meet.</item>
+    /// </list>
+    /// Returns what the ball and the crate heard of each other, the ticks at which the ball heard a Collision with the crate,
+    /// and, after the first tick, whether the ball anchored a following frame and whether the update named the system of
+    /// the ball's semantic frame to keep a ghost of it.
+    /// </summary>
+    private static (List<ContactNews> BallHeard, List<ContactNews> CrateHeard, List<long> HitTicks, bool Anchors, bool GhostInSemantic)
+        PassAFixedGhostOfACrate(bool numericFrames, bool crateOutside, bool ballIsSensor)
+    {
+        using World world = WorldWith(numericFrames, out FaultInjectingBackend faults);
+        FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e9f)));
+        const double radiusOfP = 10_000_000;
+        FrameHandle station = crateOutside ? Bubble(world, space, 0, (float)radiusOfP) : Bubble(world, space, FarOut, 40);
+        var crateLog = new CollisionLog();
+        Entity crate = world.Spawn(new SpawnDesc
+        {
+            Frame = crateOutside ? space : station,
+            Pose = crateOutside ? At(radiusOfP + 1) : At(0, 40.5),
+            Body = crateOutside
+                ? new BodyDesc(new BoxShapeDesc(new Vector3(12, 1, 1)), BodyMotion.Static) { IsSensor = true }
+                : new BodyDesc(new BoxShapeDesc(new Vector3(1)), Mass: 2, LinearDamping: 0, AngularDamping: 0) { IsSensor = !ballIsSensor },
+            Components = [crateLog],
+        });
+        var ballLog = new CollisionLog();
+        FrameHandle ballFrame = crateOutside ? station : space;
+        Entity ball = world.Spawn(KinematicDrift.Drifting(new SpawnDesc
+        {
+            Frame = ballFrame,
+            Pose = crateOutside ? At(radiusOfP - 10.5, -6) : At(FarOut + 6, 41),
+            Body = KinematicSensorBall with { IsSensor = ballIsSensor },
+            Components = [ballLog],
+        }, world, crateOutside ? new Double3(0, 4, 0) : new Double3(-4, 0, 0)));
+        world.Tick();
+        bool anchors = world.Frames.Anchors(world.PhysicsHomeOf(ball), ball);
+        bool ghostInSemantic = NamesAnchor(world, ball, ballFrame);
+
+        Tick(world, 180);
+
+        Double3 end = world.PoseIn(ball, ballFrame).Position;
+        (crateOutside ? end.Y > 4 : end.X < FarOut - 4).Should().BeTrue("the ball drifted past the crate");
+        world.GetFrame(crate).Should().Be(crateOutside ? space : station, "the crate never changed frames");
+        world.GetFrame(ball).Should().Be(ballFrame, "the ball never changed frames");
+        world.Errors.Should().BeEmpty();
+        faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
+        return (ballLog.NewsOf(crate), crateLog.NewsOf(ball), ballLog.Seen.Where(seen => seen.Other == crate).Select(seen => seen.Tick).ToList(),
+            anchors, ghostInSemantic);
+    }
+
+    /// <summary>
+    /// The ball of <see cref="PassAFixedGhostOfACrate"/> anchors a following frame of its own. The merge test links it to the
+    /// fixed place of the crate's ghost, which counts as an anchor at rest in the system of the ball's semantic frame, as a
+    /// static body there does. So the ball keeps its following frame, and that system keeps a ghost of it, which meets the
+    /// crate's ghost there, as the ball meets it without numeric frames (the user's decision of ter-4psc: a group that can
+    /// touch a ghost takes the home where the ghost lives). Before the review of ter-zg77, the ball's group took the ball's
+    /// following frame, and the system of its semantic frame kept no ghost of it. So no system held both the ball and the
+    /// ghost of the static sensor slab, and the ball passed the slab without a contact. Beside the crate that sticks out of
+    /// the station, the ball's own ghost in the station still met the crate.
+    /// </summary>
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    public void AFarPlainKinematicBodyMeetsTheFixedGhostOfACrateAsItDoesWithoutNumericFrames(bool crateOutside, bool ballIsSensor)
+    {
+        var with = PassAFixedGhostOfACrate(numericFrames: true, crateOutside, ballIsSensor);
+        var without = PassAFixedGhostOfACrate(numericFrames: false, crateOutside, ballIsSensor);
+
+        without.BallHeard.Should().Equal(Started, Ended);
+        without.CrateHeard.Should().Equal(Started, Ended);
+        with.BallHeard.Should().Equal(without.BallHeard);
+        with.CrateHeard.Should().Equal(without.CrateHeard);
+        with.HitTicks.Should().Equal(without.HitTicks, "the ball meets the crate at the tick at which it does without numeric frames");
+        with.Anchors.Should().BeTrue("the ball lies 9,000 km out or more, so it anchors a following frame of its own");
+        with.GhostInSemantic.Should().BeTrue("the ball may touch the crate's ghost, which is fixed in the system of the ball's semantic frame, so that system keeps a ghost of the ball");
     }
 
     /// <summary>

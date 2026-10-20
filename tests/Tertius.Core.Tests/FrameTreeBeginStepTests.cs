@@ -567,6 +567,27 @@ public class FrameTreeBeginStepTests
         ExpectNear(frames.TreeLocalPose(pod).Position, turn.Rotate(place + (Double3)g * (Step * Step)), 1e-9);
     }
 
+    [Fact]
+    public void AFallingFrameInATurningFrameHasNoPushSoItsSleepingMembersStayAsleep()
+    {
+        // The point of the tests above, in the station with a field. Its origin falls as a free body there falls, with the
+        // turned field and the rotation terms of its place and chord, so an accelerometer at the origin reads nothing. The push
+        // is what wakes the members of a frame (docs/plans/spin-gravity.md, "The wake"): left with the rotation terms at the
+        // origin, the centrifugal and the Coriolis term of a point at rest in inertial space, ω² r = 981 m/s² here, it would
+        // change as the frame moves, and wake its sleeping members in every step.
+        FrameHandle station = Frame(space, DPose.Identity);
+        frames.SetGravity(station, GravityField.Uniform(new Vector3(0, 0, 10)));
+        double w = StationRate * Step, r = 10_000;
+        var place = new Double3(r, 0, 0);
+        Double3 chord = (place - new Double3(r * Math.Cos(w), 0, -r * Math.Sin(w))) / Step;
+        FrameHandle pod = FallingFrame(station, place, chord);
+
+        frames.Update();
+        frames.BeginStep(Intents((station, Spin(End(1)))), Step, lastStepFailed: false);
+
+        frames.PushInStep(pod).Length().Should().BeLessThan(1e-6f);
+    }
+
     /// <summary>The falling numeric frame that a numeric update gives one body of <paramref name="semantic"/> at <paramref name="position"/>.</summary>
     private FrameHandle FallingFrame(FrameHandle semantic, Double3 position, Double3 velocity)
     {

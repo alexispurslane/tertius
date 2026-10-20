@@ -146,18 +146,18 @@ internal sealed class FrameWorld : IDisposable
     /// <summary>Set after the first update that overflowed a Jolt limit, so the warning appears once.</summary>
     public bool ReportedOverflow { get; set; }
 
-    // The frame's gravity state, to wake sleeping bodies when it changes: the field at the last step, and the proper
-    // acceleration when the frame's bodies last woke, or when the frame first stepped. A proper acceleration that drifts
-    // by a small amount each step still wakes them once it has drifted far enough.
+    // The frame's gravity state, to wake sleeping bodies when it changes: the field at the last step, and the frame's push
+    // (FrameTree.PushInStep) when the frame's bodies last woke, or when the frame first stepped. A push that drifts by a
+    // small amount each step still wakes them once it has drifted far enough.
     public bool HasGravityState;
-    public Vector3 WakeProperAcceleration;
+    public Vector3 WakePush;
     public GravityField LastGravity;
     /// <summary>
     /// The inertial angular velocity, in rad/s, and angular acceleration, in rad/s², of the system's semantic frame for the
     /// step in which its dynamic bodies last woke, or in which the system first stepped, in the semantic frame's axes (V8 of
-    /// docs/plans/spin-gravity.md). A change of the frame's turn since then wakes the bodies once the change of the
-    /// centrifugal and the Euler acceleration that it bounds in the system passes the wake threshold (see
-    /// JoltPhysicsBackend.TurnWakes).
+    /// docs/plans/spin-gravity.md). With <see cref="WakePush"/> they are the state of the one wake test: a change of the
+    /// frame's push or turn since then wakes the bodies once the change of the acceleration that they feel relative to the
+    /// frame, which the test bounds, passes the wake threshold (see JoltPhysicsBackend.FeltChangeSinceWake).
     /// </summary>
     public Double3 WakeAngularVelocity, WakeAngularAcceleration;
 

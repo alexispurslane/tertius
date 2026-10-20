@@ -58,7 +58,7 @@ public sealed partial class FrameTree
     /// Each record comes with its follow kind (see <see cref="FollowKindInStep"/>), and the frame takes the record's pose, its
     /// instant velocity and its angular velocity, narrowed to a float. Under a numeric tree parent the instant velocity is
     /// relative to the parent's frame velocity, the chord of the step, so that a read in the semantic parent gives the
-    /// instant velocity (see <see cref="HomeInstantVelocityOverChord"/>). A frame at the origin of its orbit frame that takes
+    /// instant velocity (see <see cref="HomeInstantVelocityOverChord"/>). A frame at the origin of its following frame that takes
     /// a record with another place left that origin in the step, because its hull teleported: <see cref="JumpFollowingFrame"/>
     /// brings it back after this pass. The frame keeps the record's angular acceleration (see <see cref="AngularAcceleration"/>),
     /// and not its chord or its acceleration. A write of the owner's transform that turns the frame lists it among the frames
@@ -182,7 +182,7 @@ public sealed partial class FrameTree
         if (inTreeParent && treeParent != taker.Parent)
         {
             int t = treeParent.Index;
-            if (orbiter[t] == taker.Frame && stepPlan[t] is { } plan)
+            if (anchor[t] == taker.Frame.Entity && stepPlan[t] is { } plan)
                 return ProperAccelerationFrom(taker.Parent, plan, step);
             return ProperAccelerationFrom(taker.Parent, InSemanticParent(treeParent, record), step);
         }

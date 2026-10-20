@@ -158,7 +158,7 @@ public class FirstMotionIntentTests
 
         world.Tick();
 
-        world.Frames.InOrbitFrame(frame).Should().BeTrue("a hull at 2 km/s gets a following frame at its spawn");
+        world.Frames.InFollowingFrame(frame).Should().BeTrue("a hull at 2 km/s gets a following frame at its spawn");
         FrameHandle following = world.Frames.TreeParent(frame);
         world.Frames.TreeLocalPose(following).Position.Should().Be(first.Pose.Position, "the following frame landed on the first motion intent");
         world.Frames.LinearVelocity(following).Should().Be(first.ChordVelocity);

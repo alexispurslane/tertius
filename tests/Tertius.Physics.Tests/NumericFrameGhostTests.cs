@@ -558,7 +558,7 @@ public class NumericFrameGhostTests
     }
 
     /// <summary>
-    /// Physics keeps a ghost only in the frames where the ghost pass can put one. A Kepler hull flies at 2 km/s in an orbit
+    /// Physics keeps a ghost only in the frames where the ghost pass can put one. A Kepler hull flies at 2 km/s in a following
     /// frame of its own past a static rock 8 m to the side of its path (see <see cref="Scenes.FastKeplerHull"/>), so the
     /// group that links them lives in the rock's home, the system of space, which keeps a ghost of the hull while the
     /// numeric update names it: while the merge test links the two, which reaches their bounding spheres plus 2 s of their

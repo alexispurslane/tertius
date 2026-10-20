@@ -529,7 +529,7 @@ public partial class NumericFrameStickOutGhostTests
         FrameHandle station = world.GetOwnedFrame(owner);
         // The station holds still for its first step, so the planet's gravity pulls on its contents then, and stands on its
         // rails from the second sync point on. The crate and the rock come once it falls freely on its orbit, as they did
-        // before the station could have a first motion intent: the hull's new orbit frame starts with the hull's instant
+        // before the station could have a first motion intent: the hull's new following frame starts with the hull's instant
         // velocity, and its first step plan lands it on the orbit with an acceleration that is not the orbit's (docs/plans/
         // rails-components.md, "The step plan of a following frame").
         Tick(world, 2);
@@ -568,7 +568,7 @@ public partial class NumericFrameStickOutGhostTests
     }
 
     /// <summary>
-    /// The station orbits at 7,546 m/s, so its hull lives in an orbit frame of its own, and the rock, which may touch the
+    /// The station orbits at 7,546 m/s, so its hull lives in a following frame of its own, and the rock, which may touch the
     /// ghost of the crate there, joins it.
     /// </summary>
     [Fact]
@@ -580,10 +580,10 @@ public partial class NumericFrameStickOutGhostTests
         // The rock's face closes the gap of 1.5 m to the crate's face at 1 m/s in 1.5 s, or 90 ticks.
         withoutNumericFrames.HitTick.Should().BeInRange(87, 94, "the ghost of the crate in the planet's system stops the rock");
         withoutNumericFrames.RockInStation.X.Should().BeGreaterThan(1.4, "the rock did not pass through the crate");
-        withNumericFrames.HitInHullHome.Should().BeTrue("the rock may touch the ghost of the crate, so it joined the orbit frame of the station's hull, where the ghost lives");
-        withNumericFrames.HitMode.Should().Be(NumericMode.Orbiting);
+        withNumericFrames.HitInHullHome.Should().BeTrue("the rock may touch the ghost of the crate, so it joined the following frame of the station's hull, where the ghost lives");
+        withNumericFrames.HitMode.Should().Be(NumericMode.Following);
         withNumericFrames.HitTick.Should().BeInRange(withoutNumericFrames.HitTick - 1, withoutNumericFrames.HitTick + 1,
-            "the rock meets the ghost of the crate in the hull's orbit frame as it does in the planet's system");
+            "the rock meets the ghost of the crate in the hull's following frame as it does in the planet's system");
         withNumericFrames.RockInStation.X.Should().BeApproximately(withoutNumericFrames.RockInStation.X, 0.05);
         withNumericFrames.RockNews.Should().Equal(withoutNumericFrames.RockNews);
         withNumericFrames.RockNews.Should().StartWith(ContactNews.Started);

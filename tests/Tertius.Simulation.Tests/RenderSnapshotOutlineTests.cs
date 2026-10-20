@@ -44,8 +44,8 @@ public class RenderSnapshotOutlineTests
     private static List<NestingOutline> Nesting(IEnumerable<FrameOutline> outlines) =>
         [.. outlines.Select(o => o.TryGetValue(out NestingOutline s) ? (NestingOutline?)s : null).OfType<NestingOutline>()];
 
-    private static List<OrbitingOutline> Orbiting(IEnumerable<FrameOutline> outlines) =>
-        [.. outlines.Select(o => o.TryGetValue(out OrbitingOutline s) ? (OrbitingOutline?)s : null).OfType<OrbitingOutline>()];
+    private static List<FollowingOutline> Following(IEnumerable<FrameOutline> outlines) =>
+        [.. outlines.Select(o => o.TryGetValue(out FollowingOutline s) ? (FollowingOutline?)s : null).OfType<FollowingOutline>()];
 
     /// <summary>The kind of frame that an outline shows, and its center.</summary>
     private static (string Kind, Vector3 Center) KindAndCenter(FrameOutline outline) => outline switch
@@ -54,7 +54,7 @@ public class RenderSnapshotOutlineTests
         FallingOutline(var center, _) => ("falling", center),
         RestingOutline(var center, _) => ("resting", center),
         NestingOutline(var center, _) => ("nesting", center),
-        OrbitingOutline(var center, _) => ("orbiting", center),
+        FollowingOutline(var center, _) => ("following", center),
         _ => ("none", default),
     };
 
@@ -65,7 +65,7 @@ public class RenderSnapshotOutlineTests
         FallingOutline(_, var radius) => radius,
         RestingOutline(_, var radius) => radius,
         NestingOutline(_, var radius) => radius,
-        OrbitingOutline(_, var radius) => radius,
+        FollowingOutline(_, var radius) => radius,
         _ => float.NaN,
     };
 
@@ -75,7 +75,7 @@ public class RenderSnapshotOutlineTests
         NumericMode.Falling => "falling",
         NumericMode.Resting => "resting",
         NumericMode.Nesting => "nesting",
-        NumericMode.Orbiting => "orbiting",
+        NumericMode.Following => "following",
         _ => "?",
     };
 
@@ -278,12 +278,12 @@ public class RenderSnapshotOutlineTests
     }
 
     /// <summary>
-    /// A station's kinematic hull goes round the asteroid at 2 km/s on a Kepler orbit, so it lives in an orbit frame of its
+    /// A station's kinematic hull goes round the asteroid at 2 km/s on a Kepler orbit, so it lives in a following frame of its
     /// own, and the station's frame hangs at that frame's origin. Its bubble of 30 m reaches farther than the hull's bounding
     /// sphere of 3.5 m.
     /// </summary>
     [Fact]
-    public void AStationOnItsOrbitGetsAnOrbitOutlineCentredOnItsOrbitFrameThatHoldsItsBubble()
+    public void AStationOnItsOrbitGetsAnOrbitOutlineCentredOnItsFollowingFrameThatHoldsItsBubble()
     {
         using TestWorld test = OnJolt();
         FrameHandle space = Scenes.AsteroidSpace(test.World);
@@ -301,11 +301,11 @@ public class RenderSnapshotOutlineTests
         test.Run(3);
 
         FrameHandle orbit = test.World.Frames.TreeParent(station);
-        test.World.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting, "the station's hull moves fast on its rails");
-        OrbitingOutline orbiting = Orbiting(test.World.Latest().Outlines).Should().ContainSingle().Subject;
+        test.World.Frames.Numeric(orbit).Should().Be(NumericMode.Following, "the station's hull moves fast on its rails");
+        FollowingOutline following = Following(test.World.Latest().Outlines).Should().ContainSingle().Subject;
         Vector3 origin = (test.World.Frames.Relative(orbit, space).Position - new Double3(4_000, 0, 0)).ToVector3();
-        (orbiting.Center - origin).Length().Should().BeLessThan(1e-3f, "the center is the orbit frame's origin relative to the camera");
-        orbiting.Radius.Should().BeApproximately(30, 1e-3f, "the station hangs at the orbit frame's origin, and its bubble reaches 30 m");
+        (following.Center - origin).Length().Should().BeLessThan(1e-3f, "the center is the following frame's origin relative to the camera");
+        following.Radius.Should().BeApproximately(30, 1e-3f, "the station hangs at the following frame's origin, and its bubble reaches 30 m");
         test.World.Errors.Should().BeEmpty();
     }
 

@@ -562,7 +562,7 @@ public class NumericFrameAnchorTests
     /// <summary>
     /// A move between numeric frames keeps the moved body's ghosts in other systems, but not one in its new home. Only the
     /// ghost of an anchor lies in a home of its own semantic frame: here the hull of a Kepler frame that flies at 2 km/s in
-    /// an orbit frame of its own past a static rock 8 m to the side of its path (see <see cref="Scenes.FastKeplerHull"/>),
+    /// a following frame of its own past a static rock 8 m to the side of its path (see <see cref="Scenes.FastKeplerHull"/>),
     /// so that the system of space, the rock's home, keeps a ghost of the hull. Then the game parks the hull: in one tick
     /// its owner removes its <see cref="KeplerMotion"/> and makes the hull static. At the sync point of that tick the hull
     /// is a fixed anchor in the system of space, and the numeric update moves it there, with its frame, in the same batch
@@ -580,14 +580,14 @@ public class NumericFrameAnchorTests
         world.Spawn(new SpawnDesc { Frame = space, Pose = At(5_008, 0, -100), Body = Rock });
         Tick(world, 2);
         FrameHandle orbit = world.PhysicsHomeOf(hull);
-        world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(orbit).Should().Be(NumericMode.Following);
         faults.Jolt.HasGhostIn(hull, space).Should().BeTrue("the rock's home keeps a ghost of the Kepler hull");
 
         world.SetMotionNextTick(hull, BodyMotion.Static, remove: world.GetComponent<KeplerMotion>(hull));
         world.Tick();
 
         world.PhysicsHomeOf(hull).Should().Be(space, "a static hull lives in its semantic frame's own system");
-        world.Frames.IsAlive(orbit).Should().BeFalse("the orbit frame lost its frame and its hull");
+        world.Frames.IsAlive(orbit).Should().BeFalse("the following frame lost its frame and its hull");
         world.Tick();
         faults.Jolt.HasGhostIn(hull, space).Should().BeFalse("the hull is a real body of the system");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();

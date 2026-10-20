@@ -523,14 +523,14 @@ public class GhostPlaceTests
 
     /// <summary>
     /// 2^24 m (16,777 km): far enough from the origin for a slow group to rest in a numeric frame, and for the hull of a
-    /// Kepler frame to live in an orbit frame of its own, from 2^23 m (see <see cref="NumericFrameOptions.CreateDistance"/>).
+    /// Kepler frame to live in a following frame of its own, from 2^23 m (see <see cref="NumericFrameOptions.CreateDistance"/>).
     /// </summary>
     private const double Far = 1 << 24;
 
     /// <summary>
     /// A far station: a root frame with a point gravity of <see cref="FarMu"/>, and in it the owner of a Kepler frame on a
     /// circular orbit of <see cref="Far"/>, at 2.44 m/s, with the hull of <see cref="ShipHull"/> and a bubble of radius 40 m.
-    /// Its hull lives in an orbit frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). A crate floats at
+    /// Its hull lives in a following frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). A crate floats at
     /// (0, 40, 0) in the station, on the edge of its bubble, and so sticks out of it. <see cref="CratePlace"/> is the
     /// crate's place in space at the spawn, <see cref="Up"/> the station's +Y in space, and <see cref="Forward"/> the
     /// direction of the station's velocity in space.
@@ -569,7 +569,7 @@ public class GhostPlaceTests
     /// the pod to the crate's place, 3 m away at 0.5 m/s, and to the rock, about 5.3 m away at 2.5 m/s, but not to the
     /// hull, 43 m away, and the rock is beyond the reach of the hull, about 47 m away. So the hull and the rock, two
     /// anchors that move differently, are in one group: the group lives in the rock's home, and the hull lives apart in its
-    /// orbit frame, which hangs the station, and the group's home keeps a ghost of the hull. The pod meets the crate there
+    /// following frame, which hangs the station, and the group's home keeps a ghost of the hull. The pod meets the crate there
     /// only through a ghost of the crate in that home. Without numeric frames, everything lies in the system of space, and
     /// the ghost of the crate there meets the pod. The expected home of the contact is the rock's home.
     /// </summary>
@@ -594,7 +594,7 @@ public class GhostPlaceTests
         if (numericFrames)
         {
             FrameHandle orbit = world.PhysicsHomeOf(scene.Owner);
-            world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting, "the hull lives in an orbit frame of its own");
+            world.Frames.Numeric(orbit).Should().Be(NumericMode.Following, "the hull lives in a following frame of its own");
             orbit.Should().NotBe(home);
             NamesAnchorGhost(world, scene.Owner, home).Should().BeTrue("the pod's place links the hull to the group, whose home cannot hold it");
         }
@@ -618,7 +618,7 @@ public class GhostPlaceTests
         // The pod closes the gap of 1 m to the crate's face at 0.5 m/s in 2 s.
         without.HitTick.Should().BeInRange(118, 126, "the pod hits the ghost of the crate in space after about 2 s");
         without.Position.Y.Should().BeGreaterThan(41.9, "the ghost of the crate stopped the pod");
-        with.HitInExpectedHome.Should().BeTrue("the pod meets the crate in the home of its group, not in the hull's orbit frame");
+        with.HitInExpectedHome.Should().BeTrue("the pod meets the crate in the home of its group, not in the hull's following frame");
         with.HitTick.Should().BeInRange(without.HitTick - 1, without.HitTick + 1);
         (with.Position - without.Position).Length.Should().BeLessThan(0.05, "the ghost stopped the pod at the same place in the station");
         with.News.Should().Equal(without.News);
@@ -632,7 +632,7 @@ public class GhostPlaceTests
     /// rock's home keeps a ghost of the hull, and each body that sticks out of the station, the crate, has a ghost there too.
     /// When the hull has flown on beyond the reach, the update stops naming the rock's home, and the ghosts there go at the
     /// same sync point, although nothing else changes at it. So the backend keeps its invariants between ticks, and no ghost
-    /// stands for the hull or the crate where the tree allows none. The crate keeps its ghost in the hull's orbit frame.
+    /// stands for the hull or the crate where the tree allows none. The crate keeps its ghost in the hull's following frame.
     /// </summary>
     [Fact]
     public void TheGhostsOfAKeplerHullAndOfTheCrateThatSticksOutOfItsFrameGoAtTheSyncPointWhoseUpdateStopsNamingTheirHome()
@@ -648,10 +648,10 @@ public class GhostPlaceTests
         Tick(world, 2);
         FrameHandle home = world.PhysicsHomeOf(rock);
         FrameHandle orbit = world.PhysicsHomeOf(scene.Owner);
-        world.Frames.Numeric(orbit).Should().Be(NumericMode.Orbiting);
+        world.Frames.Numeric(orbit).Should().Be(NumericMode.Following);
         NamesAnchorGhost(world, scene.Owner, home).Should().BeTrue("the hull starts 8.9 m from the rock");
         faults.Jolt.HasGhostIn(scene.Owner, home).Should().BeTrue();
-        faults.Jolt.HasGhostIn(scene.Crate, home).Should().BeTrue("the crate sticks out of the station, which hangs in the hull's orbit frame, apart from the rock's home");
+        faults.Jolt.HasGhostIn(scene.Crate, home).Should().BeTrue("the crate sticks out of the station, which hangs in the hull's following frame, apart from the rock's home");
         faults.Jolt.HasGhostIn(scene.Crate, orbit).Should().BeTrue("the crate sticks out of the station into its tree parent");
         faults.Jolt.Invoking(backend => backend.AssertInvariants()).Should().NotThrow();
 

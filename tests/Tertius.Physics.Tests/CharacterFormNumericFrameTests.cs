@@ -7,10 +7,10 @@ using static Tertius.Testing.NumericFrameTesting;
 namespace Tertius.Physics.Tests;
 
 /// <summary>
-/// Where the two forms of a character (ticket ter-1w06) meet the anchors, orbit frames and intent conversion of ticket
+/// Where the two forms of a character (ticket ter-1w06) meet the anchors, following frames and intent conversion of ticket
 /// ter-dhkf, on the World and the real Jolt backend. A character takes its form from the effective gravity in its physics
 /// home at the start of each step: the rigid form below <see cref="FrameTree.ZeroGravityThreshold"/>, the walking form
-/// from twice it on. The orbit frame K of a Kepler hull falls with the hull, so the gravity in K is the tidal pull, while
+/// from twice it on. The following frame K of a Kepler hull falls with the hull, so the gravity in K is the tidal pull, while
 /// earth's own system has the full pull. Gameplay writes an intent in the frame that the character was in during the tick,
 /// and sync step 7b converts it into the frame that a hand-off of that tick's step gave the character, before the next
 /// step gives the character the form that the new frame's gravity asks for.
@@ -117,7 +117,7 @@ public class CharacterFormNumericFrameTests
     /// <summary>
     /// A frame on <see cref="LowOrbit"/>, whose hull is <see cref="Core"/> with a bubble of 1 cm, and a character at rest
     /// relative to it, 3.5 m below its core along earth's -Y, within the reach of the merge test. With numeric frames the
-    /// character joins the hull's orbit frame K, which falls with the hull, so the gravity at the character is the tidal pull
+    /// character joins the hull's following frame K, which falls with the hull, so the gravity at the character is the tidal pull
     /// of about 1e-5 m/s², and the character has the rigid form. Without numeric frames it lives in earth's own system,
     /// where the pull is 8.6 m/s², so it keeps the walking form and falls freely, without standing. Either way it falls with
     /// the hull and stays beside it: in K to a micrometer, and in earth's own system to a few millimeters, because a float
@@ -127,7 +127,7 @@ public class CharacterFormNumericFrameTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void ACharacterAtRestBesideAKeplerHullIsRigidInTheHullsOrbitFrameAndWalksInEarthsOwnSystemAndStaysBesideTheHull(bool numericFrames)
+    public void ACharacterAtRestBesideAKeplerHullIsRigidInTheHullsFollowingFrameAndWalksInEarthsOwnSystemAndStaysBesideTheHull(bool numericFrames)
     {
         using World world = NewWorld(numericFrames, out FaultInjectingBackend faults);
         FrameHandle earth = Earth(world);
@@ -143,9 +143,9 @@ public class CharacterFormNumericFrameTests
         FrameHandle home = world.PhysicsHomeOf(person);
         if (numericFrames)
         {
-            world.Frames.Numeric(home).Should().Be(NumericMode.Orbiting);
-            home.Should().Be(world.PhysicsHomeOf(hull), "the character shares the hull's orbit frame");
-            faults.Jolt.HasRigidForm(person).Should().BeTrue("the orbit frame falls with the hull, so only the tidal pull acts in it");
+            world.Frames.Numeric(home).Should().Be(NumericMode.Following);
+            home.Should().Be(world.PhysicsHomeOf(hull), "the character shares the hull's following frame");
+            faults.Jolt.HasRigidForm(person).Should().BeTrue("the following frame falls with the hull, so only the tidal pull acts in it");
         }
         else
         {
@@ -163,8 +163,8 @@ public class CharacterFormNumericFrameTests
 
     /// <summary>
     /// The scene of
-    /// <see cref="ACharacterAtRestBesideAKeplerHullIsRigidInTheHullsOrbitFrameAndWalksInEarthsOwnSystemAndStaysBesideTheHull"/>
-    /// with numeric frames, with and without a first motion intent of the hull. The hull's new orbit frame K starts with the
+    /// <see cref="ACharacterAtRestBesideAKeplerHullIsRigidInTheHullsFollowingFrameAndWalksInEarthsOwnSystemAndStaysBesideTheHull"/>
+    /// with numeric frames, with and without a first motion intent of the hull. The hull's new following frame K starts with the
     /// chord velocity that the numeric frames expect (docs/plans/rails-components.md, "The first step of a new following
     /// frame"). So K's acceleration is the pull of 8.6 m/s² in every step: in a first step that falls, and in each planned
     /// step, the first included, where it lands on its anchor's plan. The gravity in K is the tidal pull in every step, and
@@ -174,7 +174,7 @@ public class CharacterFormNumericFrameTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ACharacterAtRestBesideANewKeplerHullIsRigidInEveryStepOfTheHullsOrbitFrame(bool firstMove)
+    public void ACharacterAtRestBesideANewKeplerHullIsRigidInEveryStepOfTheHullsFollowingFrame(bool firstMove)
     {
         using World world = NewWorld(numericFrames: true, out FaultInjectingBackend faults);
         FrameHandle earth = Earth(world);
@@ -190,13 +190,13 @@ public class CharacterFormNumericFrameTests
         {
             world.Tick();
             FrameHandle home = world.PhysicsHomeOf(person);
-            home.Should().Be(world.PhysicsHomeOf(hull), $"the character shares the hull's orbit frame in step {step}");
+            home.Should().Be(world.PhysicsHomeOf(hull), $"the character shares the hull's following frame in step {step}");
             forms.Add(faults.Jolt.HasRigidForm(person) ? "rigid" : "walking");
             world.Frames.EffectiveGravity(home, world.PoseIn(person, home).Position).Length.Should().BeLessThan(1e-3,
-                $"the orbit frame falls with the pull in step {step}, so its system shows only the tidal pull of about 1e-5 m/s² and the pull's change over a step, 1.6e-4 m/s²");
+                $"the following frame falls with the pull in step {step}, so its system shows only the tidal pull of about 1e-5 m/s² and the pull's change over a step, 1.6e-4 m/s²");
         }
 
-        forms.Should().Equal(["rigid", "rigid", "rigid", "rigid"], "the gravity in the orbit frame is the tidal pull in every step");
+        forms.Should().Equal(["rigid", "rigid", "rigid", "rigid"], "the gravity in the following frame is the tidal pull in every step");
         world.Errors.Should().BeEmpty();
     }
 
@@ -210,10 +210,10 @@ public class CharacterFormNumericFrameTests
     /// and <see cref="Core"/> otherwise, and whose bubble is a sphere of <see cref="StationRadius"/>, and a character in it,
     /// 10 m along +Y from the core, that drifts along +Y at 1 m/s relative to the station. The station's frame falls with
     /// its orbit and has no gravity of its own, so the character has the rigid form there. While it sticks out of the bubble
-    /// it has a ghost in the station's tree parent, the home of the station's hull: the orbit frame K with numeric frames,
+    /// it has a ghost in the station's tree parent, the home of the station's hull: the following frame K with numeric frames,
     /// earth's own system without. With numeric frames, no body of earth may touch that ghost, so earth's own system keeps
     /// none (ticket ter-4psc). It leaves the bubble into the tree parent. With numeric
-    /// frames that is the station's orbit frame K: the merge test links the character to a hull with the plate, so it stays
+    /// frames that is the station's following frame K: the merge test links the character to a hull with the plate, so it stays
     /// in K, and it does not link it to the core alone, so the same sync point moves it into a falling frame of its own.
     /// Both fall with the station, so the character stays rigid. Without numeric frames the tree parent is earth's own
     /// system, where the next step gives the character the walking form. Either way it drifts on at 1 m/s relative to the
@@ -252,7 +252,7 @@ public class CharacterFormNumericFrameTests
         }
 
         states.Should().Equal(!numericFrames ? ["station rigid", "earth rigid", "earth walking"]
-            : plate ? ["station rigid", "Orbiting rigid"]
+            : plate ? ["station rigid", "Following rigid"]
             : ["station rigid", "Falling rigid"], "a hand-off keeps the form, and the next step takes the form of the new home's gravity");
         ghostWhileRigid.Should().BeTrue("a rigid character that sticks out of the bubble is partly in the station's tree parent");
         world.GetFrame(person).Should().Be(earth);

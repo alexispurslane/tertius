@@ -27,18 +27,36 @@ public readonly record struct CrateSpec(Vector3 HalfExtents, float Mass, MeshId 
     };
 
     /// <summary>
-    /// A loose crate at <paramref name="pose"/> in <paramref name="frame"/>, which moves at <paramref name="velocity"/> in
-    /// the frame's axes: a dynamic box with no damping, drawn by <see cref="Drawn"/>, with a <see cref="Crate"/> component.
-    /// Throws <see cref="ArgumentOutOfRangeException"/> if the size or the mass is not positive and finite.
+    /// A drawn copy of the crate in the hands of <paramref name="holder"/>, in <paramref name="frame"/>, the holder's frame,
+    /// for a holder whose view offset is <paramref name="view"/>: it has no body, it is attached to the holder at
+    /// <paramref name="grip"/> in the view, the place and turn relative to the eye in the view's axes, and a
+    /// <see cref="HeldInView"/> keeps it there. The holder chooses the grip: <see cref="Carry.Hold"/>, unturned, for a
+    /// crate in a person's hands, and the pen's place and turn where the hand takes it for the pen in a
+    /// <see cref="Passenger"/>'s hand.
     /// </summary>
-    public SpawnDesc Spawn(FrameHandle frame, DPose pose, Double3 velocity) => new()
+    public SpawnDesc HeldCopy(FrameHandle frame, Entity holder, Pose view, Pose grip) => new()
+    {
+        Frame = frame,
+        AttachTo = holder,
+        AttachOffset = HeldInView.Place(view, grip),
+        Render = Drawn(),
+        Components = [new HeldInView(grip)],
+    };
+
+    /// <summary>
+    /// A loose crate at <paramref name="pose"/> in <paramref name="frame"/>, which moves at <paramref name="velocity"/> in
+    /// the frame's axes: a dynamic box with no damping, drawn by <see cref="Drawn"/>, with a <see cref="Crate"/> component
+    /// and then the components <paramref name="more"/>. Throws <see cref="ArgumentOutOfRangeException"/> if the size or the
+    /// mass is not positive and finite.
+    /// </summary>
+    public SpawnDesc Spawn(FrameHandle frame, DPose pose, Double3 velocity, params IComponent[] more) => new()
     {
         Frame = frame,
         Pose = pose,
         LinearVelocity = velocity,
         Body = new BodyDesc(new BoxShapeDesc(HalfExtents), Mass: Mass, LinearDamping: 0, AngularDamping: 0),
         Render = Drawn(),
-        Components = [new Crate(this)],
+        Components = [new Crate(this), .. more],
     };
 }
 

@@ -35,7 +35,7 @@ public sealed class OutlinePassTests
         // The camera is inside this bubble, though its center is behind the camera.
         snapshot.Outlines.Add(new SemanticOutline(new Vector3(0, 0, 10), Quaternion.Identity, new Vector3(30, 20, 15)));
         // The center is outside the right plane, but the sphere reaches into the view.
-        snapshot.Outlines.Add(new OrbitingOutline(new Vector3(9.5f, 0, -5), 4));
+        snapshot.Outlines.Add(new FollowingOutline(new Vector3(9.5f, 0, -5), 4));
 
         GpuOutline[] records = Records(Collect(snapshot));
 
@@ -62,11 +62,11 @@ public sealed class OutlinePassTests
         snapshot.Outlines.Add(new FallingOutline(new Vector3(0, 0, -20), 1));
         snapshot.Outlines.Add(new RestingOutline(new Vector3(0, 0, -20), 1));
         snapshot.Outlines.Add(new NestingOutline(new Vector3(0, 0, -20), 1));
-        snapshot.Outlines.Add(new OrbitingOutline(new Vector3(0, 0, -20), 1));
+        snapshot.Outlines.Add(new FollowingOutline(new Vector3(0, 0, -20), 1));
 
         uint[] colors = Records(Collect(snapshot)).Select(r => r.Color).ToArray();
 
-        colors.Should().Equal(OutlineColors.Semantic, OutlineColors.Falling, OutlineColors.Resting, OutlineColors.Nesting, OutlineColors.Orbiting);
+        colors.Should().Equal(OutlineColors.Semantic, OutlineColors.Falling, OutlineColors.Resting, OutlineColors.Nesting, OutlineColors.Following);
         colors.Should().OnlyHaveUniqueItems("a legend tells the kinds of frame apart by color alone");
         colors.Should().AllSatisfy(c => (c >> 24).Should().Be(0xFFu, "the pass sets the alpha of each fragment itself"));
     }
@@ -80,7 +80,7 @@ public sealed class OutlinePassTests
         snapshot.Outlines.Add(new FallingOutline(new Vector3(-1, 0, -20), 3));
         snapshot.Outlines.Add(new RestingOutline(new Vector3(-1, 0, -20), 3));
         snapshot.Outlines.Add(new NestingOutline(new Vector3(-1, 0, -20), 3));
-        snapshot.Outlines.Add(new OrbitingOutline(new Vector3(-1, 0, -20), 3));
+        snapshot.Outlines.Add(new FollowingOutline(new Vector3(-1, 0, -20), 3));
 
         GpuOutline[] records = Records(Collect(snapshot));
 
@@ -124,7 +124,7 @@ public sealed class OutlinePassTests
         snapshot.Outlines.Add(new FallingOutline(ahead, 0));
         snapshot.Outlines.Add(new RestingOutline(ahead, 0));
         snapshot.Outlines.Add(new NestingOutline(ahead, -1));
-        snapshot.Outlines.Add(new OrbitingOutline(ahead, float.NaN));
+        snapshot.Outlines.Add(new FollowingOutline(ahead, float.NaN));
         snapshot.Outlines.Add(new SemanticOutline(ahead, Quaternion.Identity, Vector3.Zero));
         snapshot.Outlines.Add(new SemanticOutline(ahead, Quaternion.Identity, new Vector3(float.NaN, 1, 1)));
         snapshot.Outlines.Add(new RestingOutline(new Vector3(float.PositiveInfinity, 0, -20), 2));
@@ -165,7 +165,7 @@ public sealed class OutlinePassTests
                 1 => new FallingOutline(center, i + 1),
                 2 => new RestingOutline(center, i + 1),
                 3 => new NestingOutline(center, i + 1),
-                _ => (FrameOutline)new OrbitingOutline(center, i + 1),
+                _ => (FrameOutline)new FollowingOutline(center, i + 1),
             });
         }
 
