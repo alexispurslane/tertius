@@ -1,6 +1,6 @@
 ---
 id: ter-fsst
-status: open
+status: in_progress
 deps: [ter-1bnq]
 links: []
 created: 2026-10-20T07:42:03Z
