@@ -486,7 +486,29 @@ public struct PhysicsIntent
     /// target.
     /// </summary>
     public readonly bool StepRecord(in DPose standing, double step, out MotionSample record) =>
-        Move.TryRecordFrom((Flags & IntentFlags.Teleport) != 0 ? TeleportPose : standing, step, out record);
+        Move.TryRecordFrom(StepStart(standing), step, out record);
+
+    /// <summary>
+    /// The step record of a kinematic body that takes the intent, in a step of <paramref name="step"/> seconds: the record of
+    /// its end pose or full sample (see <see cref="StepRecord"/>), or else the record of a kinematic body without a motion
+    /// intent, which holds still where the step starts, with no velocity, acceleration or turn (docs/plans/numeric-frames.md,
+    /// "Following frames"). A steer target, which a kinematic body refuses, gives the still record too. The step starts as
+    /// <see cref="StepRecord"/> says. The frame tree takes this record as the step plan of a following frame's anchor, and
+    /// physics aims a kinematic body at it, so the two agree to the last bit.
+    /// </summary>
+    public readonly MotionSample StepRecordOrStill(in DPose standing, double step)
+    {
+        DPose start = StepStart(standing);
+        return Move.TryRecordFrom(start, step, out MotionSample record)
+            ? record
+            : new MotionSample(start, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+    }
+
+    /// <summary>
+    /// Where the step that applies the intent starts: at <see cref="TeleportPose"/> if the intent teleports, else at
+    /// <paramref name="standing"/>, the pose of the entity at the start of the step, relative to <see cref="Frame"/>.
+    /// </summary>
+    private readonly DPose StepStart(in DPose standing) => (Flags & IntentFlags.Teleport) != 0 ? TeleportPose : standing;
 
     /// <summary>
     /// Keeps only what a World without a physics backend applies itself: <see cref="Frame"/>, the motion intent

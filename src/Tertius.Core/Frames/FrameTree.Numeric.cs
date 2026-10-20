@@ -1298,16 +1298,13 @@ public sealed partial class FrameTree
     /// </summary>
     private static MotionSample StepPlanOfIntent(uint slot, FrameHandle parent, in DPose standing, ReadOnlySpan<PhysicsIntent> stepIntents, double step)
     {
-        if (StepRecordOfIntent(slot, parent, standing, stepIntents, step, out MotionSample record))
-            return record;
-        DPose start = standing;
-        if (slot < (uint)stepIntents.Length && (stepIntents[(int)slot].Flags & IntentFlags.Teleport) != 0)
-        {
-            // The World converts every intent into its entity's frame at step 7b, as for a motion intent.
-            Contract.Assert(stepIntents[(int)slot].Frame == parent);
-            start = stepIntents[(int)slot].TeleportPose;
-        }
-        return new MotionSample(start, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero, Double3.Zero);
+        if (slot >= (uint)stepIntents.Length)
+            return default(PhysicsIntent).StepRecordOrStill(standing, step);
+        ref readonly PhysicsIntent intent = ref stepIntents[(int)slot];
+        // The World converts every intent into its entity's frame at step 7b, the anchor's semantic frame, for a motion intent
+        // and a teleport alike. The assertion takes no message of its own, which a Debug build would build in every step.
+        Contract.Assert(intent.Frame == parent || (!intent.Move.HasValue && (intent.Flags & IntentFlags.Teleport) == 0));
+        return intent.StepRecordOrStill(standing, step);
     }
 
     /// <summary>

@@ -235,7 +235,7 @@ public sealed partial class JoltPhysicsBackend
                     Contract.Assert(intent.Frame == semantic);
                     DPose start = ReadPrimary(record).Pose;
                     var standing = new DPose(start.Position + frames.HomeOffset(record.Frame, semantic), start.Rotation);
-                    intent.StepRecord(standing, stepDt, out record.AimedRecord);
+                    record.AimedRecord = intent.StepRecordOrStill(standing, stepDt);
                     record.AimedHome = record.Frame;
                 }
             }
@@ -270,11 +270,11 @@ public sealed partial class JoltPhysicsBackend
     /// <summary>
     /// Aims the anchor of each following frame that no motion intent aimed in the step, a hull or a plain body, where the
     /// frame's step plan holds it (docs/plans/numeric-frames.md, "Following frames", ticket ter-zsku). In a step without a
-    /// motion intent the plan is the record of a kinematic body without one: it holds still where the step starts, with the
-    /// rotation that it has, and the frame lands on that plan and holds still in its semantic frame. So physics aims the
-    /// anchor as for any plan: at the frame's origin, or in the step of a teleport at the teleport's place, where the frame
-    /// will be at the end of the step (see <see cref="KinematicTarget"/>), and puts it exactly there after the update (see
-    /// <see cref="SnapKinematicBodies"/>). The aim gives the anchor no velocity in the frame, also when a move between
+    /// motion intent the plan is the record of a kinematic body without one, which the frame tree and physics both take from
+    /// <see cref="PhysicsIntent.StepRecordOrStill"/>: it holds still where the step starts, and the frame lands on that plan
+    /// and holds still in its semantic frame. So physics aims the anchor as for any plan: at the frame's origin, or in the
+    /// step of a teleport at the teleport's place, where the frame will be at the end of the step (see
+    /// <see cref="KinematicTarget"/>), and puts it exactly there after the update (see <see cref="SnapKinematicBodies"/>). The aim gives the anchor no velocity in the frame, also when a move between
     /// systems gave it the difference of the two homes' velocities (see <see cref="ApplyMoves"/>), and the stop rule holds it
     /// still after the step. A plain anchor reports the plan, and a hull releases the record that physics predicts for its
     /// frame, at rest in its home (see <see cref="PredictRecord"/>), so that the sync point places the frame on its plan for
@@ -295,15 +295,20 @@ public sealed partial class JoltPhysicsBackend
             DPose start = ReadPrimary(record).Pose;
             FrameHandle semantic = frames.SemanticOf(home);
             var standing = new DPose(start.Position + frames.HomeOffset(home, semantic), start.Rotation.Normalized());
-            // After a teleport, the step and the plan start at the teleport's pose, which is in the semantic frame.
-            DPose planStart = record.TeleportStep == stepIndex ? intents[(int)record.Entity.Index].TeleportPose : standing;
-            DPose target = KinematicTarget(record, planStart.Position, standing.Rotation);
+            // The record of a kinematic body without a motion intent, by the rule of the step plan, in the semantic frame: it
+            // holds still where the step starts, at the teleport's pose after a teleport. A conversion between frames can leave
+            // a teleport's rotation off unit length by rounding.
+            uint slot = record.Entity.Index;
+            MotionSample still = slot < (uint)intents.Length
+                ? intents[(int)slot].StepRecordOrStill(standing, stepDt)
+                : default(PhysicsIntent).StepRecordOrStill(standing, stepDt);
+            still = still with { Pose = new DPose(still.Pose.Position, still.Pose.Rotation.Normalized()) };
+            DPose target = KinematicTarget(record, still.Pose.Position, still.Pose.Rotation);
             world.Bodies.MoveKinematic(record.Body, target.Position.ToJolt(), target.Rotation.ToJolt(), stepDt);
             kinematicTargets.Add((record, target));
             if (!record.IsHull)
             {
-                record.AimedRecord = new MotionSample(new DPose(planStart.Position, standing.Rotation), Double3.Zero, Double3.Zero, Double3.Zero,
-                    Double3.Zero, Double3.Zero);
+                record.AimedRecord = still;
                 record.AimedHome = home;
             }
             record.KinematicTargetStep = stepIndex;
