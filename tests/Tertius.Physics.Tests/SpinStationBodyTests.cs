@@ -67,7 +67,9 @@ public class SpinStationBodyTests
     /// relative to the station's axes (docs/plans/spin-gravity.md, "Jolt's damping in the shadow"). In each step the chord of
     /// the body in the station's axes is the chord that keeps it on its inertial line, times Jolt's damping factor
     /// max(0, 1 − c dt), which Jolt computes in floats. Without damping it is the inertial line. A force adds its
-    /// acceleration times the step to the chord before the damping, in the station's axes, as Jolt adds it. The path starts
+    /// acceleration times the step to the chord before the damping. The force is fixed in the station's axes, and it acts
+    /// at the start of the step, in the axes then, so in the axes at the end of the step it has turned by the station's turn
+    /// of the step, as the field does (docs/plans/spin-gravity.md, "The two-turn update"). The path starts
     /// at <paramref name="place"/>, which the body reached by the move <paramref name="lastMove"/> over the step before, both
     /// in inertial space, or from rest there.
     /// </summary>
@@ -87,8 +89,9 @@ public class SpinStationBodyTests
         {
             Double3 from = start.InverseTransformPoint(Place);
             Double3 free = end.InverseTransformPoint(2 * Place - previous);
+            Double3 turnedPush = end.Rotation.Conjugate().Rotate(start.Rotation.Rotate(push));
             previous = Place;
-            Place = end.TransformPoint(from + (free - from + push * ((double)dt * dt)) * factor);
+            Place = end.TransformPoint(from + (free - from + turnedPush * ((double)dt * dt)) * factor);
         }
     }
 
@@ -295,7 +298,9 @@ public class SpinStationBodyTests
     public void ASteadyForceOnACrateInTheStationKeepsItsShadowAndGivesTheCrateItsExpectedPath()
     {
         // Jolt adds the force of an intent to the body's velocity in the step, beside the update's force, so the shadow
-        // expects it too. A shadow that left it out would take the force for a contact in every step. The crate weighs 16 kg,
+        // expects it too. A shadow that left it out would take the force for a contact in every step. The force is fixed in
+        // the station's axes and acts at the start of its step, so the update turns it by the step's turn, as it turns the
+        // field: a force left unturned would push the crate sideways by ω |a| dt. The crate weighs 16 kg,
         // whose inverse Jolt holds exactly in a float, so the force of 16 N gives it exactly 1 m/s² along the station's +Z.
         using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
         Station station = SpawnStation(world, firstMove: false, bubble: 1000);
@@ -436,6 +441,48 @@ public class SpinStationBodyTests
             worst = Math.Max(worst, AngleBetween(world.PoseIn(ball, station.Space).Rotation, expected));
         }
 
+        worst.Should().BeLessThan(1e-4);
+        world.Errors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void ASteadyTorqueOnABallInTheStationTurnsItAsATorqueFixedInTheStationsAxesDoes()
+    {
+        // The ball sits on the axis and does not turn in inertial space. From its third step on a torque of 1 N m about the
+        // station's +X acts on it in every step. The torque acts at the start of its step, in the station's axes then, so in
+        // inertial space each step adds τ / I · dt along the station's +X at the start of that step, and the ball's inertial
+        // angular velocity follows the station round. Jolt adds the torque's change in the station's axes, unturned, so the
+        // update turns it by the step's turn, as it turns a force (docs/plans/spin-gravity.md, "The two-turn update"). Left
+        // unturned, each step's change would act along +X at the end of its step, half a step's turn late on average, and the
+        // ball's spin axis would lean off its path by ω |α| dt per second. The ball's moment of inertia is 1 kg m², which
+        // Jolt holds to float rounding.
+        using World world = NewWorld(out _, debugChecks: false);
+        Station station = SpawnStation(world, firstMove: false);
+        var pilot = new Pilot();
+        Entity ball = SpawnIn(world, station, UndampedBall, Double3.Zero, component: pilot);
+        DQuaternion rotation = station.Pose(world).Rotation;
+        double dt = world.DeltaTime;
+        world.Tick();
+        // The tick after this one writes the first torque, which acts in the step beside the tick after it.
+        pilot.EveryTick = body => body.AddTorque(new Vector3(1, 0, 0));
+        var torque = new Double3(1, 0, 0);
+
+        Double3 inertialRate = Double3.Zero;
+        double worst = 0;
+        for (int tick = 1; tick < 5 * world.Options.TickRate; tick++)
+        {
+            DQuaternion start = station.Pose(world).Rotation;
+            world.Tick();
+            if (tick > 1)
+            {
+                inertialRate += start.Rotate(torque) * dt;
+                rotation = DQuaternion.FromAxisAngle(inertialRate, inertialRate.Length * dt) * rotation;
+            }
+            worst = Math.Max(worst, AngleBetween(world.PoseIn(ball, station.Space).Rotation, rotation));
+        }
+
+        // The station turned by a quarter turn in the 5 s, so the changes add up to the chord of that arc, 4.5 rad/s.
+        inertialRate.Length.Should().BeGreaterThan(4.4, "the torque spun the ball up");
         worst.Should().BeLessThan(1e-4);
         world.Errors.Should().BeEmpty();
     }

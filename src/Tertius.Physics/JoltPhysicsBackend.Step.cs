@@ -580,8 +580,13 @@ public sealed partial class JoltPhysicsBackend
     /// velocity and comes back as the change of that chord that has the same effect, <see cref="FrameTurn.ChangeBehind"/> on
     /// the turn of the step that ended, which the update carries by the turn of the step in flight alone. The change of the
     /// angular velocity goes to the angular form as the change of the inertial angular velocity at the start of the step
-    /// ("Impulses"). An impulse ends the shadow, so the update starts from Jolt's velocity. A force and a torque of the
-    /// intent act over the step as Jolt applies them, like the field, and the shadow expects them.
+    /// ("Impulses"). An impulse ends the shadow, so the update starts from Jolt's velocity.
+    /// </para>
+    /// <para>
+    /// A force and a torque of the intent are fixed in the frame's axes, like the field, and act at the start of the step,
+    /// in the axes then. Jolt adds their changes unturned, so the update adds the rest of the turn of the step: the force's
+    /// change R_n F / m · dt in place of F / m · dt, and the torque's change I⁻¹ τ dt to the angular form as a change at the
+    /// start of the step, the way an angular impulse goes. The shadow expects the force, turned.
     /// </para>
     /// </summary>
     /// <param name="center">The body's center of mass in its home, as Jolt holds it, in m.</param>
@@ -615,13 +620,20 @@ public sealed partial class JoltPhysicsBackend
         Double3 velocityChange = impulse ? record.ImpulseVelocityChange : Double3.Zero;
         Double3 behind = chord + homeVelocity - velocityChange + turns.Last.ChangeBehind(velocityChange);
         Double3 semanticPlace = frames.InSemantic(frame, frames.SemanticOf(frame), place);
+        // A force of the intent, which Jolt adds to the velocity in the step, unturned.
+        Vector3 intentForce;
+        JoltNative.BodyAccumulatedForce(body.Handle, &intentForce);
         // The update's chord of the step in flight, relative to the home, before Jolt's damping. The field part of the linear
         // gravity, which is the linear gravity plus the home's acceleration, acts at the start of the step, in the axes then,
         // so the turn of the step carries it into the axes at the end: x_(n+1) gains R_n g dt². The home's acceleration is
-        // motion in the semantic frame's coordinates, which takes no turn.
+        // motion in the semantic frame's coordinates, which takes no turn. A force of the intent is fixed in the frame's axes
+        // too, and acts at the start of the step as the field does, so the update adds the part of its turn that Jolt leaves
+        // out: Jolt adds F / m · dt, and the turned force is R_n F / m · dt.
         Double3 field = linear + homeAcceleration;
         Double3 ahead = behind + turns.FreeChange(semanticPlace, behind, dt) + (turns.Step.Turn.Rotate(field) - homeAcceleration) * dt
                         - homeVelocity;
+        if (intentForce != Vector3.Zero)
+            ahead += (turns.Step.Turn.Rotate((Double3)intentForce) - (Double3)intentForce) * (dt / record.Material.Mass);
         // Jolt's damping factor for the step, in floats, as Jolt computes it.
         float damping = MathF.Max(0f, 1f - record.Material.LinearDamping * stepDt);
         // The force carries Jolt's velocity to the update's chord, and Jolt's place to the shadow's: Jolt moves the body by
@@ -630,11 +642,10 @@ public sealed partial class JoltPhysicsBackend
         if (damping > 0)
             acceleration += (place - center) / (damping * dt * dt);
         Vector3 force = (acceleration * record.Material.Mass).ToVector3();
-        Vector3 intentForce;
-        JoltNative.BodyAccumulatedForce(body.Handle, &intentForce);
         body.AddForce(force);
         // Everything that the force gives beyond the field is the frame's: the rotation part of the update, the turn of the
-        // field, the move of an impulse's change behind, the take-back of Jolt's rounding and the contact turn. The contact turn belongs there too:
+        // field and of the intent's force, the move of an impulse's change behind, the take-back of Jolt's rounding and the
+        // contact turn. The contact turn belongs there too:
         // a body at rest on a floor gets an update whose rotation part leans across the floor by ω³ r dt, and the contact
         // turn takes that lean out of the force, so a total without it would read as a push of the floor across itself.
         record.FrameAcceleration = new AppliedFrameAcceleration(linear.ToVector3(), (acceleration - linear).ToVector3());
@@ -651,7 +662,20 @@ public sealed partial class JoltPhysicsBackend
         if (record.IsCharacter)
             return;
         Double3 angularChange = impulse ? record.ImpulseAngularVelocityChange : Double3.Zero;
-        Vector3 angular = turns.AngularChordAhead((Double3)body.GetAngularVelocity() - angularChange, angularChange, dt).ToVector3();
+        // A torque of the intent changes the inertial angular velocity at the start of the step, in the frame's axes then, as
+        // an angular impulse does, so the angular form takes its change as the change at the start of the step. Jolt adds the
+        // change I⁻¹ τ dt itself, unturned, after the angular form sets the velocity, so the form leaves it out.
+        Vector3 torque;
+        JoltNative.BodyAccumulatedTorque(body.Handle, &torque);
+        Double3 torqueChange = Double3.Zero;
+        if (torque != Vector3.Zero)
+        {
+            Matrix4x4 inverseInertia;
+            JoltNative.BodyInverseInertia(body.Handle, &inverseInertia);
+            torqueChange = (Double3)Vector3.TransformNormal(torque, inverseInertia) * dt;
+        }
+        Vector3 angular = (turns.AngularChordAhead((Double3)body.GetAngularVelocity() - angularChange, angularChange + torqueChange, dt)
+                           - torqueChange).ToVector3();
         body.SetAngularVelocityClamped(angular);
     }
 

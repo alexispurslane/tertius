@@ -86,6 +86,16 @@ internal static unsafe class JoltNative
     [DllImport(Library, EntryPoint = "JPH_Body_GetAccumulatedForce", CallingConvention = CallingConvention.Cdecl)]
     public static extern void BodyAccumulatedForce(nint body, Vector3* force);
 
+    // What the update of a turning frame reads of a torque of the intent, to turn its change of the angular velocity as Jolt
+    // will apply it (see JoltPhysicsBackend.ApplyTurningUpdate). The inverse inertia in the frame's axes is symmetric, so
+    // joltc's column-major matrix reads the same as a row-major Matrix4x4.
+
+    [DllImport(Library, EntryPoint = "JPH_Body_GetAccumulatedTorque", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void BodyAccumulatedTorque(nint body, Vector3* torque);
+
+    [DllImport(Library, EntryPoint = "JPH_Body_GetInverseInertia", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void BodyInverseInertia(nint body, Matrix4x4* inverseInertia);
+
     [DllImport(Library, EntryPoint = "JPH_Body_GetMotionPropertiesUnchecked", CallingConvention = CallingConvention.Cdecl)]
     public static extern nint BodyMotionProperties(nint body);
 

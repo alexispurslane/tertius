@@ -353,9 +353,8 @@ public class SpinStationFloorTests
         // gravity by the step's turn, R_n g dt², to keep a body in a field fixed in the frame's axes on its exact path. The
         // thrust is fixed in the frame's axes too, so the same rule keeps the ship on the path of its thrust. Unturned,
         // the cross term ω |a| dt = 0.026 m/s² pushes the ship sideways, and it leaves its path by 0.11 m in 3 s
-        // (measured). With the intent's force turned by R_n in the update's chord, the ship kept to its path within 5e-5 m
-        // in an experiment. The design does not say which rule an intent's force takes in a turning frame, so this test
-        // fails until that is decided.
+        // (measured). With the intent's force turned by R_n in the update's chord, the ship keeps to its path within 5e-5 m
+        // (measured; docs/plans/spin-gravity.md, "The two-turn update").
         Hover().FromPath.Should().BeLessThan(1e-3, "the ship follows the path of its thrust in the turning station");
     }
 }
