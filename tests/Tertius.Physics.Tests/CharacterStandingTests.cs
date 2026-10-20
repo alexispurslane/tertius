@@ -121,6 +121,143 @@ public class CharacterStandingTests
         world.Errors.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// A character stands on a walkable slab tilted 20 degrees about +Z, under gravity along −Y, and walks at 3 m/s along
+    /// +X, uphill (<paramref name="direction"/> 1) or downhill (−1). Physics turns the part of the walk across up into the
+    /// ground plane at the same speed (docs/plans/spin-gravity.md, "Characters", fork F6), so the character walks along
+    /// the face at 3 m/s, stays at its height above the face, and stands in every step: the test of standing measures the
+    /// motion away from the ground along the ground's normal, not along up.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(-1)]
+    public void AStandingCharacterWalksAlongAWalkableSlopeInItsGroundPlaneAtTheSpeedThatItAsksFor(int direction)
+    {
+        World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        using (world)
+        {
+            // The upper face passes through the origin, faces up and toward −X, and rises toward +X.
+            var tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, 20 * Math.PI / 180);
+            world.Spawn(new SpawnDesc { Frame = ground, Pose = new DPose(tilt.Rotate(new Double3(0, -0.5, 0)), tilt), Body = StaticBox(new Vector3(40, 0.5f, 20)) });
+            Double3 normal = tilt.Rotate(Double3.UnitY);
+            Double3 along = tilt.Rotate(Double3.UnitX) * direction;
+            // The upright capsule's lower sphere, 0.6 m below its center, clears the face by 2 cm.
+            var pilot = new Pilot();
+            Entity person = SpawnPerson(world, ground, new DPose(normal * (0.32 + 0.6 * Math.Cos(20 * Math.PI / 180)), DQuaternion.Identity), pilot);
+            Tick(world, 30);
+            world.Snapshot.IsStanding(person).Should().BeTrue("the slope is gentle enough to stand on");
+            double height = Double3.Dot(world.PoseInOwnFrame(person).Position, normal);
+
+            pilot.EveryTick = body => body.MoveCharacter(new Vector3(3 * direction, 0, 0));
+            // The tick writes the walk, and the step of the next tick applies it.
+            Tick(world, 2);
+            Double3 last = world.PoseInOwnFrame(person).Position;
+            var speeds = new List<double>();
+            var offPlane = new List<double>();
+            var heights = new List<double>();
+            var standing = new List<bool>();
+            for (int tick = 0; tick < 40; tick++)
+            {
+                world.Tick();
+                Double3 now = world.PoseInOwnFrame(person).Position;
+                Double3 velocity = (now - last) * world.Options.TickRate;
+                speeds.Add(Double3.Dot(velocity, along));
+                offPlane.Add((velocity - Double3.Dot(velocity, along) * along).Length);
+                heights.Add(Double3.Dot(now, normal) - height);
+                standing.Add(world.Snapshot.IsStanding(person));
+                last = now;
+            }
+
+            standing.Should().OnlyContain(s => s, "the character stands in every step of its walk");
+            speeds.Should().OnlyContain(s => Math.Abs(s - 3) < 0.03, "the walk moves the character along the face at the speed that it asks for");
+            offPlane.Max().Should().BeLessThan(0.03, "the walk stays in the ground plane, along the line of the walk");
+            heights.Select(Math.Abs).Max().Should().BeLessThan(5e-3, "the character keeps its height above the face");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
+    /// <summary>
+    /// A character stands on a plate of 700 kg that slides without friction down a static slab tilted 40 degrees about +Z,
+    /// under gravity along −Y. Jolt presses a standing character's weight onto a dynamic ground. For a standing character
+    /// the weight's part along up presses along the ground's normal (docs/plans/spin-gravity.md, "Characters"), and the
+    /// rest is dropped, because the ground holds it. So the press has no part along the slab, and the plate slides down it
+    /// at g sin 40° = 6.31 m/s², as it would without the person. A press along the gravity instead, as Jolt makes it from
+    /// the gravity itself, would push the plate down the slab with m g cos 40° sin 40° = 338 N more, 0.48 m/s².
+    /// </summary>
+    [Fact]
+    public void AStandingCharacterPressesADynamicGroundAlongTheGroundsNormal()
+    {
+        using World world = NewWorld(out _);
+        FrameHandle ground = Ground(world, 9.81f);
+        double slope = 40 * Math.PI / 180;
+        var tilt = DQuaternion.FromAxisAngle(Double3.UnitZ, slope);
+        Double3 normal = tilt.Rotate(Double3.UnitY);
+        Double3 downhill = -tilt.Rotate(Double3.UnitX);
+        // The slab's upper face passes through the origin, and the plate, 0.2 m thick, lies on it.
+        world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(tilt.Rotate(new Double3(0, -0.5, 0)), tilt),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(40, 0.5f, 10)), BodyMotion.Static, Friction: 0),
+        });
+        Entity plate = world.Spawn(new SpawnDesc
+        {
+            Frame = ground,
+            Pose = new DPose(normal * 0.1, tilt),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3(2, 0.1f, 2)), Mass: 700, Friction: 0, LinearDamping: 0, AngularDamping: 0),
+        });
+        // The upright capsule's lower sphere, 0.6 m below its center, starts 1 cm above the plate.
+        Entity person = SpawnPerson(world, ground, new DPose(normal * (0.2 + 0.31 + 0.6 * Math.Cos(slope)), DQuaternion.Identity));
+        TickUntil(world, () => world.Snapshot.IsStanding(person), 30).Should().BeLessThan(30, "the person lands on the plate and stands on it");
+
+        var places = new List<double> { Double3.Dot(world.PoseInOwnFrame(plate).Position, downhill) };
+        for (int tick = 0; tick < 30; tick++)
+        {
+            world.Tick();
+            world.Snapshot.IsStanding(person).Should().BeTrue($"the person stands on the sliding plate in tick {tick}");
+            places.Add(Double3.Dot(world.PoseInOwnFrame(plate).Position, downhill));
+        }
+
+        double rate = world.Options.TickRate;
+        for (int n = 2; n < places.Count; n++)
+            ((places[n] - 2 * places[n - 1] + places[n - 2]) * rate * rate).Should().BeApproximately(9.81 * Math.Sin(slope), 0.05,
+                $"the person presses the plate along its normal, so the plate slides as it would alone, in step {n}");
+        world.Errors.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// A character walks at 3 m/s into a stair 0.3 m high, as the person of <c>ChaseCameraTests</c> does. At the stair's
+    /// edge the face that the character touches leans 68 degrees toward the riser, steeper than a character can stand on,
+    /// so the walk keeps to the plane across up there, and Jolt's climb of stairs lifts the character by the stair's height
+    /// (see <c>GroundFaceNormal</c> in the backend). A walk in the plane of that face threw the character up the riser at
+    /// 2.8 m/s.
+    /// </summary>
+    [Fact]
+    public void AStandingCharacterThatWalksIntoAStairClimbsByTheStairsHeightOnly()
+    {
+        var (world, ground) = WorldWithFloor();
+        using (world)
+        {
+            world.Spawn(new SpawnDesc { Frame = ground, Pose = At(8, 0.15), Body = StaticBox(new Vector3(5, 0.15f, 5)) });
+            var pilot = new Pilot { EveryTick = body => body.MoveCharacter(new Vector3(3, 0, 0)) };
+            Entity person = SpawnPerson(world, ground, At(0, StandingHeight + 0.02, 0), pilot);
+            double highest = 0, last = 0;
+            for (int tick = 0; tick < 150; tick++)
+            {
+                world.Tick();
+                double y = world.PoseInOwnFrame(person).Position.Y;
+                highest = Math.Max(highest, y);
+                last = y;
+            }
+
+            world.PoseInOwnFrame(person).Position.X.Should().BeGreaterThan(5, "the character walked onto the stair");
+            last.Should().BeApproximately(0.3 + StandingHeight, 0.03, "the character stands on the stair");
+            highest.Should().BeLessThan(0.3 + StandingHeight + 0.03, "the climb lifts the character by the stair's height only");
+            world.Errors.Should().BeEmpty();
+        }
+    }
+
     /// <summary>The largest angle, in radians, by which up turns in one step of 1/60 s in the air, at the default air rate.</summary>
     private static float AirUpTurnPerStep => new JoltBackendOptions().CharacterAirUpTurnRate / 60f;
 

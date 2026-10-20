@@ -806,8 +806,9 @@ public sealed partial class JoltPhysicsBackend
     /// character in the rigid form is a dynamic body, which Jolt moves in the update of its system (see
     /// <see cref="NextCharacterMotion"/>), so a walking character nearly always has the gravity to stand. The character
     /// stands when the effective gravity is at least <see cref="FrameTree.ZeroGravityThreshold"/>, Jolt found walkable
-    /// ground under it in its last update, and it does not move away from that ground. Then it takes the ground's velocity
-    /// plus the part of its desired velocity across its up, and can jump, and Jolt's ExtendedUpdate moves it, which sticks
+    /// ground under it in its last update, and it does not move away from that ground along the ground's normal (see
+    /// <see cref="GroundFaceNormal"/>). Then it takes the ground's velocity plus the part of its desired velocity across its
+    /// up, turned into the ground plane at the same speed (see <see cref="InGroundPlane"/>), and can jump, and Jolt's ExtendedUpdate moves it, which sticks
     /// it to the floor and climbs stairs. A character that does not stand, in the air or on steep ground, keeps its
     /// momentum, and its desired velocity and its jump do not move it. (User) The record keeps the desired velocity, which
     /// applies once the character stands. Jolt's plain Update moves it: ExtendedUpdate would first cancel its velocity
@@ -828,11 +829,11 @@ public sealed partial class JoltPhysicsBackend
         float dt = stepDt;
         Double3 position = character.RPosition.ToDouble3();
         // The linear gravity is the field part of the character's velocity rule. The effective gravity adds the centrifugal
-        // and the Euler term of a turning frame: it says whether the character is under gravity, and it presses a standing
-        // character's weight onto its ground. In a frame that does not turn, the two are the same.
+        // and the Euler term of a turning frame: it says whether the character is under gravity, and with the Coriolis term
+        // it presses the character's weight onto its ground. In a frame that does not turn, the two are the same.
         Double3 linear = frames.LinearGravity(world.Frame, position);
-        Vector3 effective = frames.AddRotationTerms(world.Frame, position, linear).ToVector3();
-        float strength = effective.Length();
+        Double3 effective = frames.AddRotationTerms(world.Frame, position, linear);
+        float strength = effective.ToVector3().Length();
         bool underGravity = strength >= FrameTree.ZeroGravityThreshold;
         // The ground state comes from the last update.
         GroundState groundState = character.GroundState;
@@ -865,13 +866,16 @@ public sealed partial class JoltPhysicsBackend
         character.UpdateGroundVelocity();
         Vector3 velocity = character.LinearVelocity;
         Vector3 ground = character.GroundVelocity;
-        bool standing = underGravity && groundState == GroundState.OnGround && Vector3.Dot(velocity - ground, up) < 0.1f;
+        // The character moves away from its ground along the ground's normal, which on a slope and on a faceted floor
+        // differs from up (docs/plans/spin-gravity.md, "Characters").
+        Vector3 normal = groundState == GroundState.OnGround ? GroundFaceNormal(character, up) : up;
+        bool standing = underGravity && groundState == GroundState.OnGround && Vector3.Dot(velocity - ground, normal) < 0.1f;
         // The ground holds a standing character against gravity, until the step in which it jumps off. Gravity in the
         // velocity of a standing character would press it into its ground in every step. Jolt then reported a false
         // velocity of gravity times the step, and pushed every dynamic body that the character leaned on a little in
         // every step, so a stack that the character stood against woke each time that it fell asleep.
         bool held = standing && record.PendingJump == 0;
-        CharacterStartVelocity start = StartVelocity(record, standing, velocity, ground, up);
+        CharacterStartVelocity start = StartVelocity(record, standing, velocity, ground, up, normal);
         Vector3 next = NextCharacterVelocity(world.Frame, record, position, linear, start);
         record.Held = held;
         record.PendingVelocityChange = Vector3.Zero;
@@ -880,7 +884,7 @@ public sealed partial class JoltPhysicsBackend
         character.LinearVelocity = next;
 
         // Jolt reads the system gravity to press the character's weight onto what it stands on.
-        world.System.Gravity = effective;
+        world.System.Gravity = WeightInput(world.Frame, effective, next, standing, up, normal);
         if (standing)
         {
             // A standing character sticks to the floor and climbs stairs.
@@ -905,22 +909,91 @@ public sealed partial class JoltPhysicsBackend
     }
 
     /// <summary>
+    /// The gravity that Jolt reads to press a walking character's weight onto a dynamic body that it touches, for a
+    /// character in the system of <paramref name="frame"/> under the effective gravity <paramref name="effective"/>, which
+    /// moves with <paramref name="velocity"/> in the step (docs/plans/spin-gravity.md, "Characters"): the effective gravity
+    /// plus the Coriolis term on the character's velocity relative to the semantic frame. For a character that stands
+    /// (<paramref name="standing"/>), its part along <paramref name="up"/> acts along the ground's normal
+    /// <paramref name="normal"/>, and the rest is dropped, because the ground holds it. So on a flat face the press is the
+    /// whole weight, m (ω² r ± 2 ω v) for a walk along the spin, and on a station's curved floor the turns of its faces add
+    /// m v² / r. Jolt presses only a dynamic body, so on a static floor the input changes nothing. In a frame that does not
+    /// turn the Coriolis term is zero, and on flat ground under a uniform field up is against the gravity and the ground's
+    /// normal is up, so the input is the effective gravity.
+    /// </summary>
+    private Vector3 WeightInput(FrameHandle frame, Double3 effective, Vector3 velocity, bool standing, Vector3 up, Vector3 normal)
+    {
+        FrameTurns turns = frames.Turns(frame);
+        Vector3 weight = turns.Turns
+            ? (effective + turns.Coriolis((Double3)velocity + frames.HomeVelocity(frame, frames.SemanticOf(frame)))).ToVector3()
+            : effective.ToVector3();
+        return standing ? Vector3.Dot(weight, up) * normal : weight;
+    }
+
+    /// <summary>
+    /// The normal of the walkable face that holds <paramref name="character"/> up, which the walk and the test of standing
+    /// go by (docs/plans/spin-gravity.md, "Characters"): of the faces that it touched in its last update, the one whose
+    /// normal lies nearest <paramref name="up"/>, as Jolt chooses the contact that supports a character. When that face is
+    /// steeper than a character can stand on (<see cref="JoltBackendOptions.CharacterMaxSlopeDegrees"/>), or the character
+    /// touched nothing, it is <paramref name="up"/>. Jolt's own ground normal is the mean of the normals of every face that
+    /// the character touched within 85 degrees of up, and on the rounded edge of a stair the character touches a face whose
+    /// normal leaned 68 degrees toward the riser. A walk in either plane threw the person up the riser at 2.8 m/s, where
+    /// Jolt's climb of stairs lifts it by the stair's height.
+    /// </summary>
+    private Vector3 GroundFaceNormal(CharacterVirtual character, Vector3 up)
+    {
+        Vector3 normal = up;
+        float nearest = MathF.Cos(options.CharacterMaxSlopeDegrees * (MathF.PI / 180f));
+        int count = character.GetNumActiveContacts();
+        for (int i = 0; i < count; i++)
+        {
+            character.GetActiveContact(i, out CharacterContact contact);
+            if (!contact.HadCollision || contact.WasDiscarded)
+                continue;
+            float along = Vector3.Dot(contact.SurfaceNormal, up);
+            if (along >= nearest)
+            {
+                nearest = along;
+                normal = contact.SurfaceNormal;
+            }
+        }
+        return normal;
+    }
+
+    /// <summary>
+    /// The part of <paramref name="walk"/>, a velocity across up, that lies in the ground plane whose normal is
+    /// <paramref name="normal"/>, at the speed of <paramref name="walk"/> (docs/plans/spin-gravity.md, "Characters", fork
+    /// F6). On ground whose normal is up the walk lies in the plane already, and it comes back unchanged. A walkable slope
+    /// is less than 90 degrees from up, so the walk always has a part in the plane.
+    /// </summary>
+    private static Vector3 InGroundPlane(Vector3 walk, Vector3 normal)
+    {
+        float into = Vector3.Dot(walk, normal);
+        if (into == 0)
+            return walk;
+        Vector3 along = walk - into * normal;
+        float length = along.Length();
+        return length > 0 ? along * (walk.Length() / length) : walk;
+    }
+
+    /// <summary>
     /// What the velocity of a walking character means at the start of its update (docs/plans/spin-gravity.md, "Characters"),
-    /// whose Jolt velocity is <paramref name="velocity"/>, whose ground moves at <paramref name="ground"/>, whose up is
-    /// <paramref name="up"/>, and which stands in this step when <paramref name="standing"/> is true. A standing character
-    /// takes the ground's velocity plus the part of its desired velocity across its up: held by its ground, or with its jump
+    /// whose Jolt velocity is <paramref name="velocity"/>, whose ground moves at <paramref name="ground"/> with the normal
+    /// <paramref name="normal"/>, whose up is <paramref name="up"/>, and which stands in this step when
+    /// <paramref name="standing"/> is true. A standing character takes the ground's velocity plus the part of its desired
+    /// velocity across its up, turned into the ground plane at the same speed (see <see cref="InGroundPlane"/>): held by its
+    /// ground, or with its jump
     /// along up an instant velocity, relative to the ground and so to the home's instant velocity. A character that does not
     /// stand keeps its momentum, including what it took from a moving platform: Jolt's chord, or an instant velocity that the
     /// game gave since its last update. That one is relative to the home's frame velocity in the step, as LocalVelocity gives
     /// it, so it loses the home's instant velocity past its frame velocity where the step starts, as LinearChord takes it from
     /// a rigid body's.
     /// </summary>
-    private CharacterStartVelocity StartVelocity(BodyRecord record, bool standing, Vector3 velocity, Vector3 ground, Vector3 up)
+    private CharacterStartVelocity StartVelocity(BodyRecord record, bool standing, Vector3 velocity, Vector3 ground, Vector3 up, Vector3 normal)
     {
         if (standing)
         {
             Vector3 desired = record.DesiredVelocity;
-            Vector3 walked = ground + desired - Vector3.Dot(desired, up) * up;
+            Vector3 walked = ground + InGroundPlane(desired - Vector3.Dot(desired, up) * up, normal);
             if (record.PendingJump == 0)
                 return new HeldStart(walked);
             return new InstantStart(walked + record.PendingJump * up);

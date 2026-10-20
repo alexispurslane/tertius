@@ -287,6 +287,109 @@ public class SpinStationCharacterTests
         world.Errors.Should().BeEmpty();
     }
 
+    // ---- Weight ----
+
+    /// <summary>The mass of the plank of <see cref="APersonWhoWalksOnAPlankInTheStationPressesItWithTheEffectiveGravityAndTheCoriolisTermAlongItsNormal"/>, in kg.</summary>
+    private const float PlankMass = 700;
+
+    /// <summary>
+    /// Jolt presses a standing character's weight only onto a dynamic body under it, so the person walks on a seesaw: a
+    /// plank of 700 kg, 10 m long along the station's Z, that lies across a round static ridge parallel to the station's
+    /// axis, 95 m from it. The person stands 2 m to one side of the ridge, on the side given by <paramref name="side"/>,
+    /// and walks at 2 m/s toward the ridge: spinward, along −Z, from the +Z side, and antispinward from the −Z side. The
+    /// press tips the plank, and the plank's angular acceleration about the ridge reads it: the press's torque about the
+    /// ridge plus the torque of the effective gravity on the plank, whose center lies 0.25 m above the ridge, over the
+    /// plank's moment of inertia about the ridge. The weight input is the effective gravity plus the Coriolis term on the
+    /// person's velocity, and for a standing character its part along up presses along the ground's normal
+    /// (docs/plans/spin-gravity.md, "Characters"). On a flat plank that is the whole weight, m (ω² r ± 2 ω v), with no term
+    /// of the floor's curvature: on the curved floor of a station the turns of its faces add m v² / r, which makes
+    /// m (ω r ± v)² / r.
+    /// <para>Jolt presses only in an update in which the character touches its ground. A held character moves with its
+    /// ground's velocity, so a ground that the press tips away from it can leave it: walking toward the ridge keeps the
+    /// person on the plank. The slow plank also falls asleep for a step about 0.15 s into the walk, which zeroes its
+    /// velocity, and the person then stops standing for a step. A step next to either says nothing about the press, so
+    /// the test skips it. Measured: every other step reads within 1.5 percent of the expected value, where the press
+    /// without the Coriolis term is 11 to 13 percent off.</para>
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(-1)]
+    public void APersonWhoWalksOnAPlankInTheStationPressesItWithTheEffectiveGravityAndTheCoriolisTermAlongItsNormal(int side)
+    {
+        using World world = NewWorld(out JoltPhysicsBackend backend, debugChecks: false);
+        Station station = SpawnStation(world);
+        const double ridgeX = 95, ridgeRadius = 0.05, halfThickness = 0.25;
+        world.Spawn(new SpawnDesc { Frame = station.Frame, Pose = At(ridgeX), Body = new BodyDesc(new CapsuleShapeDesc(2, (float)ridgeRadius), BodyMotion.Static) });
+        const double plankX = ridgeX - ridgeRadius - halfThickness;
+        Entity plank = world.Spawn(new SpawnDesc
+        {
+            Frame = station.Frame,
+            Pose = At(plankX),
+            Body = new BodyDesc(new BoxShapeDesc(new Vector3((float)halfThickness, 2, 5)), Mass: PlankMass, LinearDamping: 0, AngularDamping: 0),
+        });
+        var pilot = new Pilot();
+        // The person starts 1 cm above the plank's face toward the axis, and lands on it in about 20 ticks.
+        Entity person = SpawnPerson(world, station, new Double3(plankX - halfThickness - 0.9 - 0.01, 0, 2 * side), pilot);
+        TickUntil(world, () => world.IsStanding(person), 60).Should().BeLessThan(60, "the person lands and stands on the plank");
+
+        var omega = new Double3(0, StationRate, 0);
+        var ridge = new Double3(ridgeX - ridgeRadius, 0, 0);
+        // A box of 0.5 m by 10 m about its center, and its center 0.25 m from the ridge.
+        double inertia = PlankMass * (0.5 * 0.5 + 10 * 10) / 12 + PlankMass * halfThickness * halfThickness;
+        // One read at the end of a tick: the plank's turn about the station's Y from its spawn and its pose, the person's
+        // place and velocity, whether the plank was awake, and whether the person stood.
+        var reads = new List<(double Turn, DPose Plank, Double3 Place, Double3 Velocity, bool Awake, bool Standing)>();
+        void Read()
+        {
+            DPose pose = world.PoseIn(plank, station.Frame);
+            reads.Add((2 * Math.Atan2(pose.Rotation.Y, pose.Rotation.W), pose, world.PoseIn(person, station.Frame).Position,
+                world.VelocityIn(person, station.Frame), IsAwake(backend, station.Frame, plank), world.IsStanding(person)));
+        }
+        // The angular acceleration of the plank about the ridge, in rad/s², that the person's press and the effective
+        // gravity give it in a step, from the place and the plank's pose of read start, where the step starts, and the
+        // velocity that the person moves with in the step, from read end.
+        double Expected(int start, int end)
+        {
+            (_, DPose pose, Double3 place, _, _, _) = reads[start];
+            Double3 velocity = reads[end].Velocity;
+            Double3 away = new Double3(place.X, 0, place.Z).Normalized();
+            Double3 weight = StationRate * StationRate * new Double3(place.X, 0, place.Z) - 2 * Double3.Cross(omega, velocity);
+            // The press acts where the person's lower sphere touches the plank, along the plank's normal away from the person.
+            Double3 press = PersonMass * Double3.Dot(weight, away) * pose.Rotation.Rotate(Double3.UnitX);
+            Double3 contact = place + 0.9 * away;
+            double torque = Double3.Cross(contact - ridge, press).Y
+                            + StationRate * StationRate * PlankMass * Double3.Cross(pose.Position - ridge, pose.Position).Y;
+            return torque / inertia;
+        }
+
+        pilot.EveryTick = body => body.MoveCharacter(new Vector3(0, 0, -2f * side));
+        Read();
+        for (int tick = 0; tick < 30; tick++)
+        {
+            world.Tick();
+            Read();
+        }
+
+        // The tick writes the walk, and the step of the next tick applies it, so the steps from the second on walk. The
+        // second difference of the turn through reads n − 2, n − 1 and n is the change of the plank's angular velocity in
+        // the step that ends at read n, which the press of that step gives.
+        // A character stands in a step when it touched its ground in the update of the step before, so a step in which the
+        // person left the plank shows as a step without standing one read later.
+        int checkedSteps = 0;
+        for (int n = 3; n < reads.Count - 1; n++)
+        {
+            if (!(reads[n - 2].Awake && reads[n - 1].Awake && reads[n].Awake && reads[n].Standing && reads[n + 1].Standing))
+                continue;
+            double measured = (reads[n].Turn - 2 * reads[n - 1].Turn + reads[n - 2].Turn) * world.Options.TickRate * world.Options.TickRate;
+            double target = Expected(n - 1, n);
+            measured.Should().BeApproximately(target, 0.02 * Math.Abs(target),
+                $"the plank reads the press of the effective gravity and the Coriolis term in the step that ends at read {n}");
+            checkedSteps++;
+        }
+        checkedSteps.Should().BeGreaterThan(20, "the plank sleeps and the person leaves it in a few steps only");
+        world.Errors.Should().BeEmpty();
+    }
+
     // ---- Up and form ----
 
     /// <summary>The jump speed of <see cref="APersonWhoJumpsAcrossTheStationLandsUprightOnTheFarFloorAndStands"/>, in m/s along up.</summary>
