@@ -1,7 +1,7 @@
 ---
 id: ter-2zrs
 status: open
-deps: [ter-y0e5, ter-2n31, ter-p51r, ter-3j2b, ter-k05j]
+deps: [ter-y0e5, ter-2n31, ter-p51r, ter-3j2b]
 links: []
 created: 2026-10-18T14:08:43Z
 type: task
@@ -32,3 +32,7 @@ Now waits for live world part 8 (ter-k05j), because the timetable changes the ti
 **2026-10-20T20:27:09Z**
 
 From the frame check of ter-tzf6: the gray-box hull is nearly black in Earth's shadow (the film transfer's first frame, and the last frame of hold), and the station is too small to see in the last frame of transfer, within 10 km of the arrival point. The edit either cuts away from those frames or the scene gets a fill light. A fill light is a rendering change, so it needs the user.
+
+**2026-10-20T23:19:28Z**
+
+The user postponed the live world on 2026-10-20, so this ticket no longer waits for live world part 8.

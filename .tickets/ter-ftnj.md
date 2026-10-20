@@ -1,7 +1,7 @@
 ---
 id: ter-ftnj
 status: open
-deps: [ter-s9m0, ter-tzf6, ter-4xkz, ter-0pvs, ter-yywb, ter-guqz]
+deps: [ter-s9m0, ter-tzf6, ter-4xkz, ter-0pvs]
 links: []
 created: 2026-10-18T14:08:42Z
 type: task
@@ -28,3 +28,7 @@ After the second review of docs/plans/live-world.md: the docking raises the tran
 **2026-10-20T23:09:16Z**
 
 After ter-qipk (docs/plans/live-world.md, The pilot): the docking has no DockingState union of its own. Its phases are flat states of PilotState, its reports are cases of PilotEvent, and it adds its rows to PilotState.Next. Its delegate is DockingFlight. The pilot writes SetMotion at the end of the step that changes the state's motion, before any delegate flies.
+
+**2026-10-20T23:19:28Z**
+
+The user postponed the live world on 2026-10-20, so this ticket no longer waits for live world parts 1 and 2. Build the docking as step 5 of docs/plans/blue-danube-demo.md, as a layer beside the rendezvous autopilot, the way the station step built its layers. The notes above about PilotState, DockingFlight and the 330 s budget apply later, when the live world's pilot converts the layers. The findings that still hold for the demo: the station turns at 0.313 rad/s and the attitude autopilot's MaxTurnRate is 0.15 rad/s, so the spin match needs a feed-forward angular velocity in AttitudeTarget, which must fit the 48-byte event payload; the thrusters may need more than 4,000 N per axis; and this ticket's run test is the first test of a dynamic hull that enters a turning frame's bubble, so a failure there is an engine bug that goes to the user.

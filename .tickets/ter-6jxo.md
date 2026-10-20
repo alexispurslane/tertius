@@ -1,6 +1,6 @@
 ---
 id: ter-6jxo
-status: in_progress
+status: open
 deps: [ter-qipk]
 links: []
 created: 2026-10-20T22:46:02Z
