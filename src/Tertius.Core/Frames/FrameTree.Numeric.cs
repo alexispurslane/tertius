@@ -36,40 +36,38 @@ public sealed partial class FrameTree
     /// Step 2 of the sync point, before the rows of the bodies take the end of the step, when the anchor of the following
     /// frame <paramref name="following"/> ended the step at the frame's origin, where physics aims it: the frame takes the
     /// place and the chord of its step plan, the anchor's record of the step that just ended in its semantic parent
-    /// (docs/plans/rails-components.md, "The step plan of a following frame"). The landing acceleration of the step put it
-    /// there to its rounding (see <see cref="BeginStep"/> and <see cref="AdvanceNumericFrames"/>), so its contents
-    /// keep their places in it: the move is that rounding. A frame without a step plan stays where its fall put it. The
-    /// anchor itself takes its own record: a hull's frame the record that physics releases for the hull (see
-    /// <see cref="TakeStepRecords"/>), and a plain body the row of its body state.
+    /// (docs/plans/rails-components.md, "The step plan of a following frame"). Every following frame has a step plan from
+    /// <see cref="BeginStep"/> to the end of the step, also in a step without a motion intent, whose plan holds the
+    /// anchor still. The landing acceleration of the step put the frame there to its rounding (see
+    /// <see cref="AdvanceNumericFrames"/>), so its contents keep their places in it: the move is that rounding. The anchor
+    /// itself takes its own record: a hull's frame the record that physics releases for the hull (see
+    /// <see cref="TakeStepRecords"/>), or holds still at the origin without one, and a plain body the row of its body state.
     /// </summary>
     internal void PlaceFollowingFrame(FrameHandle following)
     {
         int id = Node(following).Id;
-        Contract.Requires(numeric[id] == NumericMode.Following && !anchor[id].IsNull);
-        if (stepPlan[id] is not { } plan)
-            return;
+        Contract.Requires(numeric[id] == NumericMode.Following && !anchor[id].IsNull && stepPlan[id].HasValue);
+        MotionSample plan = stepPlan[id]!.Value;
         LocalForWrite(Node(following)) = new DPose(plan.Pose.Position, DQuaternion.Identity);
         LinearVelocityForWrite(id) = plan.ChordVelocity;
     }
 
     /// <summary>
     /// Step 2 of the sync point, after the anchor of the following frame <paramref name="following"/> took a record that put
-    /// it away from the frame's origin: it teleported in the step, so physics aimed it at its step plan's place and not at
-    /// that origin, or, in a step without a motion intent, left it at the teleport's place (see
-    /// docs/plans/rails-components.md, "The step plan of a following frame"). <paramref name="record"/> is the anchor's
-    /// record, relative to the frame: the one that physics released for a hull, or the body state of a plain body. The frame
-    /// jumps to the anchor's place in the semantic parent: the step plan's place and chord, or without a plan the record's,
-    /// converted into the semantic parent as for the proper acceleration (see
-    /// <see cref="InSemanticParent(FrameHandle, in MotionSample)"/>). The frame of a hull goes back to the origin. Everything
-    /// else in the frame keeps its place and velocity in the semantic frame, as without numeric frames: the other frames
-    /// lose the frame's move, and the move goes into <paramref name="changes"/>, so that physics shifts the bodies in the
-    /// frame's system, the anchor with them, and the World the rows.
+    /// it away from the frame's origin: it teleported in the step, so its step plan started at the teleport's pose, and
+    /// physics put it on the plan's place and not at that origin (see docs/plans/rails-components.md, "The step plan of a
+    /// following frame"). In a step without a motion intent the plan holds the anchor still at the teleport's pose. The frame
+    /// jumps to the anchor's place in the semantic parent, the step plan's place, with the plan's chord. The frame of a hull
+    /// goes back to the origin. Everything else in the frame keeps its place and velocity in the semantic frame, as without
+    /// numeric frames: the other frames lose the frame's move, and the move goes into <paramref name="changes"/>, so that
+    /// physics shifts the bodies in the frame's system, the anchor with them, and the World the rows. Before ticket ter-zsku,
+    /// a frame without a plan jumped to the place of the anchor's own record.
     /// </summary>
-    internal void JumpFollowingFrame(FrameHandle following, in MotionSample record, PhysicsChanges changes)
+    internal void JumpFollowingFrame(FrameHandle following, PhysicsChanges changes)
     {
         int id = Node(following).Id;
-        Contract.Requires(numeric[id] == NumericMode.Following && !anchor[id].IsNull);
-        MotionSample landing = stepPlan[id] ?? InSemanticParent(following, record);
+        Contract.Requires(numeric[id] == NumericMode.Following && !anchor[id].IsNull && stepPlan[id].HasValue);
+        MotionSample landing = stepPlan[id]!.Value;
         ref DPose local = ref LocalForWrite(Node(following));
         Double3 offset = landing.Pose.Position - local.Position, change = landing.ChordVelocity - linearVelocity[id];
         local = new DPose(landing.Pose.Position, DQuaternion.Identity);
@@ -97,6 +95,17 @@ public sealed partial class FrameTree
     /// member of its system there. False for a stale or null frame and for every other frame.
     /// </summary>
     internal bool Anchors(FrameHandle home, Entity entity) => !entity.IsNull && IsAlive(home) && anchor[home.Index] == entity;
+
+    /// <summary>
+    /// The anchor of <paramref name="following"/>, a live following frame: a hull whose frame hangs at its origin, or a plain
+    /// body that is a member of its system there (docs/plans/numeric-frames.md, "Following frames").
+    /// </summary>
+    internal Entity AnchorOf(FrameHandle following)
+    {
+        int id = Node(following).Id;
+        Contract.Requires(numeric[id] == NumericMode.Following && !anchor[id].IsNull);
+        return anchor[id];
+    }
 
     /// <summary>True when <paramref name="frame"/> hangs in its following frame: the frame of a hull that anchors its tree parent.</summary>
     internal bool InFollowingFrame(FrameHandle frame) => Anchors(TreeParent(frame), frame.Entity);
@@ -1232,31 +1241,35 @@ public sealed partial class FrameTree
     /// minus the semantic frame's proper acceleration, in a turning frame turned by the semantic frame's turn of the step,
     /// plus the two-turn update of its semantic place and chord over the step, divided by the step, minus the acceleration of
     /// the numeric frames above it, which the dense order, parents first, has fixed already (docs/plans/spin-gravity.md, "The
-    /// origin of a falling frame"). The semantic frame's turns are fixed earlier in the same pass. Its members then feel only the difference between their own rotation terms and
-    /// the origin's, so a falling group keeps small local velocities. In a semantic frame that does not turn (see
+    /// origin of a falling frame"). The semantic frame's turns are fixed earlier in the same pass. Its members then feel
+    /// only the difference between their own rotation terms and the origin's, so a falling group keeps small local
+    /// velocities. In a semantic frame that does not turn (see
     /// <see cref="FrameTurns.Turns"/>), the update is left out, so the frame keeps the field's acceleration to the bit.
     /// <para>
-    /// A following frame, which lies in its semantic frame, keeps the step record of its anchor's motion intent as its step
-    /// plan (see <see cref="AnchorRecordInStep"/>, and "The step plan of a following frame" in docs/plans/rails-components.md),
+    /// A following frame, which lies in its semantic frame, keeps the step record of its anchor in the step as its step plan
+    /// (see <see cref="AnchorPlanInStep"/>, and "The step plan of a following frame" in docs/plans/rails-components.md),
     /// and the acceleration that lands it on the plan: the plan's chord minus the frame's velocity, divided by the step, so
     /// that the step of <see cref="AdvanceNumericFrames"/> turns the velocity into the chord and the place into the plan's,
     /// to its rounding. The plan is motion in the semantic frame's coordinates already, so the frame takes no turn term. It
     /// keeps the plan's instant velocity past its chord as its own at the end of the step (see
     /// <see cref="HomeInstantVelocityOverChord"/>). The plan is kept for the step because an end pose needs the place where
-    /// the step starts, and step 2 moves the frame before it reads the plan. A following frame whose anchor has no record for
-    /// the step falls as a falling frame, with its anchor at rest in it. A resting frame has none.
+    /// the step starts, and step 2 moves the frame before it reads the plan. Every following frame has a plan: in a step
+    /// without a motion intent the plan holds the anchor still where the step starts, with no velocity in the semantic
+    /// frame's coordinates, which in a turning semantic frame is rest in its turning axes, so the frame lands there by the
+    /// same rule and holds still in its semantic frame (ticket ter-zsku). A resting frame has no acceleration.
     /// </para>
     /// </summary>
     private void BeginNumericFrame(int dense, int id, ReadOnlySpan<PhysicsIntent> stepIntents, double step)
     {
         stepPlan[id] = null;
-        if (numeric[id] == NumericMode.Following && AnchorRecordInStep(AtDense(dense), stepIntents, step, out MotionSample plan))
+        if (numeric[id] == NumericMode.Following)
         {
+            MotionSample plan = AnchorPlanInStep(AtDense(dense), stepIntents, step);
             stepPlan[id] = plan;
             stepAcceleration[id] = (plan.ChordVelocity - linearVelocity[id]) / step;
             return;
         }
-        if (numeric[id] is not (NumericMode.Falling or NumericMode.Following))
+        if (numeric[id] != NumericMode.Falling)
             return;
         FrameHandle frame = AtDense(dense);
         FrameHandle semantic = SemanticOf(frame);
@@ -1288,23 +1301,45 @@ public sealed partial class FrameTree
 
     /// <summary>
     /// The step plan of the following frame <paramref name="following"/> in a step of <paramref name="step"/> seconds that
-    /// applies <paramref name="stepIntents"/>: the record of its anchor's motion intent there, in the frame's semantic
-    /// parent, from where the anchor stands where the step starts, the frame's origin, by the rule of
-    /// <see cref="StepRecordOfIntent"/>. A hull stands there with its frame's rotation, so its plan is the record that physics
-    /// and the tree derive for its frame. The tree keeps no pose of a plain body, so a plain anchor stands there with the
-    /// rotation of its motion intent's aim pose: the plan of an end pose then turns with no angular velocity, which no
-    /// reader of a plan reads (docs/plans/numeric-frames.md, "Following frames"). False when the anchor has no motion
-    /// intent, or a steer target, which gives no record.
+    /// applies <paramref name="stepIntents"/>: the step record of its anchor there, in the frame's semantic parent, from where
+    /// the anchor stands where the step starts, the frame's origin, by the rule of <see cref="StepPlanOfIntent"/>. That is the
+    /// record of its motion intent, or in a step without one the record of a kinematic body that holds still where the step
+    /// starts (docs/plans/numeric-frames.md, "Following frames"). A hull stands there with its frame's rotation, so its plan
+    /// is the record that physics and the tree derive for its frame. The tree keeps no pose of a plain body, so a plain
+    /// anchor stands there with the rotation of its motion intent's aim pose, or without one with no turn: the plan of an end
+    /// pose then turns with no angular velocity, which no reader of a plan reads.
     /// </summary>
-    private bool AnchorRecordInStep(FrameHandle following, ReadOnlySpan<PhysicsIntent> stepIntents, double step, out MotionSample plan)
+    private MotionSample AnchorPlanInStep(FrameHandle following, ReadOnlySpan<PhysicsIntent> stepIntents, double step)
     {
         Entity anchorEntity = anchor[following.Index];
         FrameHandle semantic = TreeParent(following);
-        if (byOwner.TryGetValue(anchorEntity, out FrameHandle frame))
-            return StepRecordOfIntent(anchorEntity.Index, semantic, LocalPose(frame), stepIntents, step, out plan);
         uint slot = anchorEntity.Index;
-        DQuaternion rotation = slot < (uint)stepIntents.Length ? stepIntents[(int)slot].Move.AimPose.Rotation : DQuaternion.Identity;
-        return StepRecordOfIntent(slot, semantic, new DPose(TreeLocalPose(following).Position, rotation), stepIntents, step, out plan);
+        if (byOwner.TryGetValue(anchorEntity, out FrameHandle frame))
+            return StepPlanOfIntent(slot, semantic, LocalPose(frame), stepIntents, step);
+        DQuaternion rotation = slot < (uint)stepIntents.Length && stepIntents[(int)slot].Move.HasValue
+            ? stepIntents[(int)slot].Move.AimPose.Rotation
+            : DQuaternion.Identity;
+        return StepPlanOfIntent(slot, semantic, new DPose(TreeLocalPose(following).Position, rotation), stepIntents, step);
+    }
+
+    /// <summary>
+    /// The step record of a kinematic body whose entity has the slot <paramref name="slot"/>, whose semantic frame is
+    /// <paramref name="parent"/>, and which stands at <paramref name="standing"/> there where the step starts: the record of
+    /// its motion intent (see <see cref="StepRecordOfIntent"/>), or in a step without one the record that physics gives a
+    /// kinematic body without a motion intent, which holds still where the step starts, at the pose of a teleport in the step
+    /// or else at <paramref name="standing"/>, with no velocity, acceleration or turn (docs/plans/numeric-frames.md,
+    /// "Following frames", ticket ter-zsku). A steer target, which a kinematic body refuses and physics ignores, gives the
+    /// same record.
+    /// </summary>
+    private static MotionSample StepPlanOfIntent(uint slot, FrameHandle parent, in DPose standing, ReadOnlySpan<PhysicsIntent> stepIntents, double step)
+    {
+        if (slot >= (uint)stepIntents.Length)
+            return default(PhysicsIntent).StepRecordOrStill(standing, step);
+        ref readonly PhysicsIntent intent = ref stepIntents[(int)slot];
+        // The World converts every intent into its entity's frame at step 7b, the anchor's semantic frame, for a motion intent
+        // and a teleport alike. The assertion takes no message of its own, which a Debug build would build in every step.
+        Contract.Assert(intent.Frame == parent || (!intent.Move.HasValue && (intent.Flags & IntentFlags.Teleport) == 0));
+        return intent.StepRecordOrStill(standing, step);
     }
 
     /// <summary>

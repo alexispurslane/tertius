@@ -110,7 +110,9 @@ public static class Scenes
     /// so it lives in a following frame of its own (docs/plans/numeric-frames.md, "Anchors", rule 3). Its bubble is a sphere
     /// of 1 cm, so that no body near the hull enters it. A static body that the hull passes is an anchor at rest, which no
     /// home shares with the hull: a group that links the two lives in the static body's home, and that home keeps a ghost
-    /// of the hull.
+    /// of the hull. The spawn carries the orbit's sample of the first step as its first motion intent, so the hull is on
+    /// its orbit from its first step. Without it, the hull would hold still for its first step, in its following frame too
+    /// (ticket ter-zsku), and get its following frame again only after its first sample.
     /// </summary>
     public static Entity FastKeplerHull(World world, FrameHandle space, BodyDesc body, params IComponent[] components) => world.Spawn(new SpawnDesc
     {
@@ -118,7 +120,7 @@ public static class Scenes
         Body = body,
         AsFrame = new FrameSpec(FrameBounds.Sphere(0.01f)),
         Components = components,
-    }.OnKeplerOrbit(world, KeplerOrbit.Circular(5_000)));
+    }.OnKeplerOrbit(world, KeplerOrbit.Circular(5_000), firstMove: true));
 
     /// <summary>Where a ball starts and how fast it flies, so that it enters a bubble in a chosen tick. See <see cref="BallApproachingBubble"/>.</summary>
     /// <param name="Pose">The pose of the ball in the frame of the bubble's parent, in meters.</param>

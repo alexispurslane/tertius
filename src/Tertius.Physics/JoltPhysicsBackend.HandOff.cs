@@ -969,23 +969,28 @@ public sealed partial class JoltPhysicsBackend
 
     /// <summary>
     /// Releases the step record of the frame of every hull that moved in the step (see <see cref="StepRecordOf"/>): every
-    /// dynamic hull, from Jolt's state after the update; every kinematic hull that a motion intent aimed, from the record of
-    /// that motion intent, exactly; and every static hull, or kinematic hull without a motion intent, that teleported in the
-    /// step, at the teleport's pose in its home, at rest there: a kinematic hull holds still in its home after a teleport too
-    /// (see <see cref="ApplyBodyIntent"/>). Any other static hull, and a kinematic hull without a motion intent, held still, and the
-    /// sync point holds its frame still in its home (see <see cref="FrameTree.TakeStepRecords"/>). A record is relative to the
+    /// dynamic hull, from Jolt's state after the update; every kinematic hull that physics aimed, from the record of its
+    /// motion intent, exactly, or for a hull at the origin of a following frame without a motion intent, at that origin and
+    /// at rest, where physics aimed it at its frame's still plan (see <see cref="AimStillAnchors"/>); and every static hull,
+    /// or kinematic hull without a motion intent, that teleported in the step, at the teleport's pose in its home, at rest
+    /// there: a kinematic hull holds still in its home after a teleport too (see <see cref="ApplyBodyIntent"/>). Any other
+    /// static hull, and a kinematic hull without a motion intent that anchors no following frame, held still, and the sync
+    /// point holds its frame still in its home (see <see cref="FrameTree.TakeStepRecords"/>). A record is relative to the
     /// frame's tree parent, the hull's home, so a frame that a hand-off moved this step reports relative to its new parent,
     /// and a hull at the origin of its following frame reports at that origin.
     /// <para>
     /// The tree keeps the velocity of a frame in a numeric home relative to the home's frame velocity, the chord of the
     /// step, so that a read in the semantic parent gives the frame's instant velocity, and a hull that physics places from
     /// the tree again takes the velocity that it had (see <see cref="LinearChord(BodyRecord, FrameHandle, Double3, Double3, in TurningMoment?)"/>).
-    /// Physics keeps a velocity relative to the home's instant velocity. So each record that physics releases adds the
-    /// home's instant velocity past its chord (see <see cref="FrameTree.HomeInstantVelocityOverChord"/>), zero in a semantic
-    /// home. A hull at the origin of its following frame rests there, so its record keeps just that term: for a following frame
-    /// whose hull has a step plan, the plan's instant velocity less the plan's chord, which is the following frame's frame
-    /// velocity after the step (see <see cref="FrameTree.PlaceFollowingFrame"/>). Every other frame in that following frame adds
-    /// the same term, so it reads its velocity in the semantic parent relative to the hull's.
+    /// A record from <see cref="StepRecordOf"/> is relative to the home's instant velocity of every hand-off (see
+    /// <see cref="InstantHomeVelocity"/>; an awake dynamic hull's record converts to it, see <see cref="TryHullRecord"/>). So
+    /// each record that physics releases adds the home's instant velocity past its chord (see
+    /// <see cref="FrameTree.HomeInstantVelocityOverChord"/>), zero in a semantic home. A hull at the origin of its following
+    /// frame rests there, so its record keeps just that term: the plan's instant velocity less the plan's chord, which is the
+    /// following frame's frame velocity after the step (see <see cref="FrameTree.PlaceFollowingFrame"/>). Every other frame in
+    /// that following frame adds the same term. One whose hull moves with the frame, a kinematic hull or a dynamic hull that
+    /// sleeps, reads its velocity in the semantic parent relative to the anchor's. One whose hull is awake reads its velocity
+    /// as Jolt moves it in the semantic frame's own system.
     /// </para>
     /// </summary>
     private void WriteFrames(PhysicsStepOutput output)
@@ -995,7 +1000,8 @@ public sealed partial class JoltPhysicsBackend
             if (!owner.HasPrimary || owner.Character is not null)
                 continue;
             FrameHandle frame = owner.OwnedFrame;
-            // A kinematic hull that a motion intent aimed in the step moved by it (see ApplyBodyIntent).
+            // A kinematic hull that physics aimed in the step moved by its motion intent (see ApplyBodyIntent), or held still
+            // at the origin of its following frame (see AimStillAnchors).
             bool aimed = owner.Motion == BodyMotion.Kinematic && owner.KinematicTargetStep == stepIndex;
             if (owner.Motion != BodyMotion.Dynamic && !aimed && owner.TeleportStep != stepIndex)
                 continue;

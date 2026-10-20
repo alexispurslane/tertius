@@ -1,4 +1,5 @@
 using System.Numerics;
+using Tertius.Frames.Rails;
 using Tertius.Simulation;
 using static Tertius.Testing.ContactNews;
 using static Tertius.Testing.WorldTesting;
@@ -275,32 +276,68 @@ public class WorldNumericFrameTests
         frames.Seen.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Writes in every tick, while <see cref="Falling"/> is true, the full sample of a free fall under the uniform pull
+    /// <paramref name="gravity"/> for the next step, from where its kinematic body starts that step and from the velocity at
+    /// which the fall reaches it, which starts at zero.
+    /// </summary>
+    private sealed class FreeFall(Double3 gravity) : IComponent
+    {
+        private Double3 velocity;
+
+        public bool Falling { get; set; }
+
+        public int Priority => 0;
+
+        public EventMask Wants => EventMask.Of<Tick>();
+
+        public void Handle(Self self, scoped ref EventList events, scoped ref Outbox outbox)
+        {
+            if (!Falling)
+                return;
+            double dt = self.DeltaTime;
+            DPose start = self.PoseAtNextStepStartIn(self.Frame);
+            Double3 chord = velocity + gravity * (dt / 2);
+            Double3 end = velocity + gravity * dt;
+            self.MoveOnRails(new MotionSample(new DPose(start.Position + chord * dt, start.Rotation), chord, end, gravity, Double3.Zero, Double3.Zero));
+            velocity = end;
+        }
+    }
+
+    /// <summary>
+    /// As outside a ship in orbit: a person, and what it touches, fall freely in a numeric frame. Under the rules of
+    /// <see cref="NumericFrameTesting.EveryGroupFalls"/> a kinematic floor needs a following frame at any speed, so the
+    /// person's group takes it. The floor's <see cref="FreeFall"/> drops it with the field, so the following frame lands on
+    /// that fall and falls with the field. Before ticket ter-zsku the floor had no motion intent, and its following frame
+    /// fell by the field all the same. Since ter-zsku such a frame holds still, as its floor does without numeric frames.
+    /// </summary>
     [Fact]
     public void APersonWhoseHomeIsAFallingNumericFrameDoesNotStandOnAFloorThatFallsWithIt()
     {
         using World world = NewWorld(out _);
         FrameHandle ground = Ground(world, 9.81f);
         // A kinematic floor, which can fall with a numeric frame. A static body never does: it stays in its own system.
+        var fall = new FreeFall(new Double3(0, -9.81f, 0));
         Entity floor = world.Spawn(new SpawnDesc
         {
             Frame = ground,
             Pose = At(0, -0.5),
             Body = new BodyDesc(new BoxShapeDesc(new Vector3(50, 0.5f, 50)), BodyMotion.Kinematic),
+            Components = [fall],
         });
         Entity person = world.Spawn(new SpawnDesc { Frame = ground, Pose = At(0, 0.92), Body = Person });
         Tick(world, 30);
         world.Snapshot.IsStanding(person).Should().BeTrue("the person stands on the floor in the frame ground");
 
-        // As outside a ship in orbit: the person, and what it touches, fall freely in a numeric frame. Under these rules the
-        // kinematic floor needs a following frame at any speed, so the person's group takes it, and the frame falls, because
-        // the floor has no motion intent (docs/plans/numeric-frames.md, "Following frames").
         world.Frames.NumericOptions = EveryGroupFalls;
+        fall.Falling = true;
         Tick(world, 30);
 
         world.Errors.Should().BeEmpty();
         world.Frames.Numeric(world.PhysicsHomeOf(person)).Should().Be(NumericMode.Following);
         world.Frames.Anchors(world.PhysicsHomeOf(person), floor).Should().BeTrue("the floor anchors the person's home");
-        world.Frames.HomeAcceleration(world.PhysicsHomeOf(person), ground).Should().Be(new Double3(0, -9.81f, 0), "the home falls with the field");
+        (world.Frames.HomeAcceleration(world.PhysicsHomeOf(person), ground) - new Double3(0, -9.81f, 0)).Length
+            .Should().BeLessThan(1e-6, "the home lands on the floor's fall, so it falls with the field");
         world.PhysicsHomeOf(floor).Should().Be(world.PhysicsHomeOf(person));
         world.Snapshot.IsStanding(person).Should().BeFalse("in free fall the effective gravity is below the zero-gravity threshold");
         (world.PoseIn(person, ground).Position.Y - world.PoseIn(floor, ground).Position.Y).Should().BeApproximately(1.42, 0.05,

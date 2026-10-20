@@ -255,9 +255,10 @@ public class FrameTreePlainAnchorTests
     }
 
     /// <summary>
-    /// A plain anchor that teleported in the step ends the step away from the origin of its following frame. The frame jumps
-    /// to the anchor's place, with the anchor's own record when the frame had no plan. Every frame in it keeps its place and
-    /// velocity in space, and the shift goes to physics and to the rows.
+    /// A plain anchor that teleported in a step without a motion intent holds still at the teleport's pose (ticket
+    /// ter-zsku): its plan starts there and stays there, so its following frame stops in the step, and at the sync point it
+    /// jumps to the plan's place with the plan's chord, zero. Every frame in it keeps its place and velocity in space, and the
+    /// shift goes to physics and to the rows. Before ter-zsku, a frame without a plan jumped with the anchor's own record.
     /// </summary>
     [Fact]
     public void The_following_frame_of_a_plain_anchor_jumps_to_it_and_the_frames_in_it_keep_their_places_in_space()
@@ -269,20 +270,53 @@ public class FrameTreePlainAnchorTests
         NumericBody[] after = Update(Ball(10, Double3.Zero, new Double3(2_000, 0, 0)), podHull);
         FrameHandle home = after[0].Home;
         frames.TreeParent(pod).Should().Be(home, "the pod's frame hangs in the following frame");
+        var teleport = new DPose(new Double3(1_000, 0, 0), DQuaternion.Identity);
+        frames.Update();
+        frames.BeginStep(Moving(after[0], default, teleport), Step, lastStepFailed: false);
+        frames.AdvanceNumericFrames(Step);
+        Double3 landed = frames.TreeLocalPose(home).Position;
         DPose podInSpace = frames.LocalPose(pod);
         Double3 podVelocity = frames.LinearVelocity(pod);
-        Double3 velocity = frames.LinearVelocity(home);
-        // The ball teleported 1 km ahead in a step without a motion intent, so it rests there in its home, at rest in space.
-        var record = new MotionSample(new DPose(new Double3(1_000, 0, 0), DQuaternion.Identity), -velocity, -velocity, Double3.Zero, Double3.Zero, Double3.Zero);
         changes.Clear();
 
-        frames.JumpFollowingFrame(home, record, changes);
+        frames.JumpFollowingFrame(home, changes);
 
-        frames.TreeLocalPose(home).Position.Should().Be(new Double3(1_000, 0, 0));
-        frames.LinearVelocity(home).Should().Be(Double3.Zero, "the anchor rests in space");
+        frames.TreeLocalPose(home).Position.Should().Be(teleport.Position, "the frame jumps to the plan's place, the teleport's");
+        frames.LinearVelocity(home).Should().Be(Double3.Zero, "the anchor holds still in space");
         (frames.LocalPose(pod).Position - podInSpace.Position).Length.Should().BeLessThan(1e-9, "the pod keeps its place in space");
         (frames.LinearVelocity(pod) - podVelocity).Length.Should().BeLessThan(1e-9, "the pod keeps its velocity in space");
-        changes.FramesShifted.Should().Equal(new FrameShift(home, new Double3(1_000, 0, 0), -velocity));
+        changes.FramesShifted.Should().Equal(new FrameShift(home, teleport.Position - landed, Double3.Zero));
+    }
+
+    /// <summary>
+    /// A far plain kinematic body at rest without a motion intent (ticket ter-zsku): its following frame starts with the chord
+    /// of a free fall, and before the step it plans the record of a kinematic body without a motion intent, at rest at the
+    /// frame's origin, where the anchor stands. It takes the acceleration that lands it on that plan, so it stops, and at the
+    /// sync point it takes the plan's place, where it started, with no chord. Before ter-zsku the frame fell by the field of
+    /// earth, with the anchor in it.
+    /// </summary>
+    [Fact]
+    public void The_following_frame_of_a_plain_anchor_without_a_motion_intent_holds_still_where_its_anchor_stands()
+    {
+        var place = new Double3(1e7, 0, 0);
+        NumericBody ball = Update(Ball(10, place, Double3.Zero, semantic: earth))[0];
+        FrameHandle home = ball.Home;
+        frames.Anchors(home, ball.Entity).Should().BeTrue("a kinematic body 10,000 km out anchors a following frame");
+        Double3 chord = frames.LinearVelocity(home);
+        chord.Should().NotBe(Double3.Zero, "the frame starts with the chord of a free fall");
+
+        for (int tick = 1; tick <= 3; tick++)
+        {
+            Double3 velocity = frames.LinearVelocity(home);
+            frames.Update();
+            frames.BeginStep([], Step, lastStepFailed: false);
+            frames.HomeAcceleration(home, earth).Should().Be(-velocity / Step, "the plan has no chord, so the frame stops");
+            frames.HomeMoveOver(home, earth, Step).Length.Should().BeLessThan(1e-12, "a body at rest in the frame holds still in earth over the step");
+            frames.AdvanceNumericFrames(Step);
+            frames.PlaceFollowingFrame(home);
+            frames.TreeLocalPose(home).Position.Should().Be(place, "the frame takes the plan's place, where its anchor stands");
+            frames.LinearVelocity(home).Should().Be(Double3.Zero, "and the plan's chord");
+        }
     }
 
     /// <summary>

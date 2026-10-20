@@ -154,18 +154,22 @@ public sealed partial class FrameTree
     /// stands at <paramref name="local"/> where the step starts: where the numeric update moves
     /// it over the step (see <see cref="AdvanceNumericFrames"/>), with its instant velocity at the end of the step, its frame
     /// velocity plus what the instant velocity exceeds it by (see <see cref="HomeInstantVelocityOverChord"/>), and its step
-    /// acceleration. A following frame whose anchor has a record for the step lands on that plan, with the plan's instant
-    /// velocity and the acceleration that lands it there (see <see cref="BeginNumericFrame"/>). Any other falling or
-    /// following frame keeps the step acceleration of the step that ended, which the next <see cref="BeginStep"/> fixes anew from
-    /// nearly the same field. A resting frame does not move. A numeric frame never turns.
+    /// acceleration. A following frame lands on its anchor's step plan, with the plan's instant velocity and the
+    /// acceleration that lands it there (see <see cref="BeginNumericFrame"/>), and in a step without a motion intent that
+    /// plan holds it still (ticket ter-zsku). A falling frame keeps the step acceleration of the step that ended, which the
+    /// next <see cref="BeginStep"/> fixes anew from nearly the same field. A resting frame does not move. A numeric frame
+    /// never turns.
     /// </summary>
     private FrameMotion NumericLevelEnd(FrameHandle frame, in DPose local, ReadOnlySpan<PhysicsIntent> stepIntents, double step)
     {
         int id = Node(frame).Id;
         Double3 velocity = linearVelocity[id];
-        if (numeric[id] == NumericMode.Following && AnchorRecordInStep(frame, stepIntents, step, out MotionSample plan))
+        if (numeric[id] == NumericMode.Following)
+        {
+            MotionSample plan = AnchorPlanInStep(frame, stepIntents, step);
             return new FrameMotion(new DPose(plan.Pose.Position, local.Rotation), plan.Velocity, Double3.Zero, (plan.ChordVelocity - velocity) / step, Double3.Zero);
-        if (numeric[id] is not (NumericMode.Falling or NumericMode.Following))
+        }
+        if (numeric[id] != NumericMode.Falling)
             return new FrameMotion(local, velocity, Double3.Zero, Double3.Zero, Double3.Zero);
         Double3 acceleration = stepAcceleration[id];
         Double3 chord = velocity + acceleration * step;

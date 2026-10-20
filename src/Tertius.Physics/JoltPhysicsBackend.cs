@@ -922,7 +922,8 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
     /// <summary>
     /// The step record of the frame of a dynamic hull at the end of the step, from Jolt's state after the update, relative
     /// to the hull's system: the hull's pose; the velocity of the frame's origin, the chord of the step, as Jolt keeps it;
-    /// the instant velocity at the end of the step, half a step of the hull's acceleration further on; that acceleration in
+    /// the instant velocity at the end of the step, half a step of the hull's acceleration further on, relative to the instant
+    /// velocity of the home that every hand-off adds (see <see cref="HomeSteppedVelocityOverPlan"/>); that acceleration in
     /// the update, the change of Jolt's velocity without its float noise and without what the intents set before the
     /// update (see <see cref="ComputeProperAccelerations"/>); and Jolt's angular velocity and the change of it in the
     /// update. Physics releases the proper acceleration that it measured beside the record (see <see cref="WriteFrames"/>).
@@ -940,7 +941,13 @@ public sealed partial class JoltPhysicsBackend : IPhysicsBackend
             // Jolt's velocity is at the center of mass. The frame origin is the body origin.
             Double3 chord = (Double3)s.Linear + Double3.Cross(s.Angular, s.Pose.Position - s.CenterOfMass);
             Double3 acceleration = hull.StepAcceleration;
-            record = new MotionSample(s.Pose, chord, chord + acceleration * (0.5 * stepDt), acceleration, s.Angular, hull.AngularAcceleration);
+            // An awake hull took its home's linear gravity, so its chord plus half a step of its acceleration is relative
+            // to the home's instant velocity in Jolt's stepping, and the record is relative to the one of every hand-off (see
+            // HomeSteppedVelocityOverPlan). A hull that handed off in the step is awake in its new home.
+            Double3 velocity = chord + acceleration * (0.5 * stepDt);
+            if (hull.World!.Bodies.IsActive(hull.Body))
+                velocity += HomeSteppedVelocityOverPlan(hull.Frame);
+            record = new MotionSample(s.Pose, chord, velocity, acceleration, s.Angular, hull.AngularAcceleration);
             return true;
         }
         record = default;

@@ -127,6 +127,11 @@ internal sealed class BodyRecord
     /// the character stays where it stood. A character in its rigid form never stands.
     /// </summary>
     public bool Standing;
+    /// <summary>
+    /// For a character: true when its last update held it on its ground against gravity, because it stood and did not jump,
+    /// so it took no gravity and moved with its ground (see <see cref="FrameAcceleration"/>). A new character starts false.
+    /// </summary>
+    public bool Held;
 
     /// <summary>The frame that this entity owns, or null.</summary>
     public FrameHandle OwnedFrame;
