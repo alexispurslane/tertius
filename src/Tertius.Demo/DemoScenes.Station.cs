@@ -194,7 +194,7 @@ public static partial class DemoScenes
         public static SceneInstance Build(World world, IRenderResources resources)
         {
             var scene = new SceneInstance();
-            FrameHandle earth = SunAndEarth(world, resources, scene);
+            FrameHandle earth = SunAndEarth(world, resources, scene, EarthDate.MarchEquinox);
 
             // The station starts on its orbit at the world's time. Its first motion intent moves it along the orbit in the
             // step of the next tick, and its KeplerMotion from the second step on, so its contents float from the start.
