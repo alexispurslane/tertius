@@ -1,6 +1,6 @@
 ---
 id: ter-qipk
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-10-20T22:30:28Z
