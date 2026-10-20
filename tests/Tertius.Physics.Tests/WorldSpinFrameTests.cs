@@ -15,12 +15,12 @@ public class WorldSpinFrameTests
     private const double Rate = 0.5;
     private static readonly FrameSpin Turning = new(DQuaternion.Identity, Rate);
 
-    private static Entity SpawnTurntable(World world, FrameHandle parent, float bubble, BodyDesc? hull = null) => world.Spawn(new SpawnDesc
+    private static Entity SpawnTurntable(World world, FrameHandle parent, float bubble, BodyDesc? hull = null, bool firstMove = false) => world.Spawn(new SpawnDesc
     {
         Frame = parent,
         Body = hull ?? new BodyDesc(new BoxShapeDesc(new Vector3(5, 3, 15)), BodyMotion.Kinematic, InteriorShape: new SphereShapeDesc(1)),
         AsFrame = new FrameSpec(FrameBounds.Sphere(bubble)),
-    }.Spinning(world, Turning));
+    }.Spinning(world, Turning, firstMove));
 
     [Fact]
     public void TheHullOfASpinFrameIsKinematicAndTurnsWithTheFrame()
@@ -105,6 +105,14 @@ public class WorldSpinFrameTests
         }
     }
 
+    /// <summary>
+    /// The ball starts with the velocity of the carousel's ground under it plus a drift of 5 m/s outward, and leaves the
+    /// carousel's bubble. Physics keeps a free body on its inertial line in every turning frame (docs/plans/spin-gravity.md,
+    /// "The two-turn update"), so in space the ball moves on a straight line at one velocity from its second step, through
+    /// the hand-off and after it. Before the rotation terms, the ball flew straight in the carousel's turning axes, and the
+    /// test predicted its place at the hand-off by one step of its velocity there; with the rotation terms that prediction
+    /// misses by the centrifugal and Coriolis terms times a step, 0.2 m/s. So the test now measures the ball's line in space.
+    /// </summary>
     [Fact]
     public void ABallThatLeavesASpinFrameKeepsTheVelocityOfTheGroundItLeft()
     {
@@ -112,8 +120,11 @@ public class WorldSpinFrameTests
         using (world)
         {
             FrameHandle space = world.CreateRootFrame(new FrameSpec(FrameBounds.Sphere(1e6f)));
-            FrameHandle carousel = world.GetOwnedFrame(SpawnTurntable(world, space, bubble: 25));
-            // The ball drifts out along +Z of the carousel at 5 m/s and leaves the bubble after about 3 s.
+            // The carousel's spawn carries its first motion intent, so it turns from the ball's first step, and the ball's
+            // spawn velocity relative to it holds the velocity of the ground under it.
+            FrameHandle carousel = world.GetOwnedFrame(SpawnTurntable(world, space, bubble: 25, firstMove: true));
+            // The ball drifts out along +Z of the carousel at 5 m/s. In space it moves at 5 m/s outward plus ω × r = 5 m/s
+            // along the ground, on a straight line, and leaves the bubble after about 2.4 s.
             Entity ball = world.Spawn(new SpawnDesc
             {
                 Frame = carousel,
@@ -121,24 +132,34 @@ public class WorldSpinFrameTests
                 LinearVelocity = new Vector3(0, 0, 5),
                 Body = new BodyDesc(new SphereShapeDesc(0.2f), Mass: 1, LinearDamping: 0, AngularDamping: 0),
             });
+            // The bodies join their systems at the first sync point, so the ball's line in space is fixed from its second tick.
+            Tick(world, 2);
+            Double3 previous = world.PoseIn(ball, space).Position;
+            Tick(world, 1);
+            Double3 line = world.PoseIn(ball, space).Position;
+            Double3 velocity = (line - previous) / world.DeltaTime;
 
-            DPose before = world.PoseInOwnFrame(ball);
-            Vector3 velocityBefore = world.VelocityInOwnFrame(ball);
+            var placesInSpace = new List<Double3>();
             for (int tick = 0; tick < 300 && world.GetFrame(ball) == carousel; tick++)
             {
-                before = world.PoseInOwnFrame(ball);
-                velocityBefore = world.VelocityInOwnFrame(ball);
                 world.Tick();
+                placesInSpace.Add(world.PoseIn(ball, space).Position);
             }
             world.GetFrame(ball).Should().Be(space);
+            int handOff = placesInSpace.Count;
+            Tick(world, 30);
+            placesInSpace.Add(world.PoseIn(ball, space).Position);
 
-            // The tree has the carousel at the end of the hand-off tick, so it converts the ball's last motion exactly: the
-            // velocity in the carousel, turned into the parent's axes, plus ω × r of the ground at the ball's place.
-            Double3 position = before.Position + (Double3)velocityBefore * world.DeltaTime;
-            Double3 expected = world.Frames.VelocityToParent(carousel, position, velocityBefore);
-            ((Double3)world.VelocityInOwnFrame(ball) - expected).Length.Should().BeLessThan(0.01);
-            // The spin matters: ω × r is 0.5 rad/s times about 25 m.
-            (expected - world.Frames.LocalPose(carousel).TransformDirection((Double3)velocityBefore)).Length.Should().BeGreaterThan(10);
+            // Every place lies on the line, also the place of the hand-off tick and 30 ticks after it.
+            for (int k = 0; k < handOff; k++)
+                Double3.Distance(placesInSpace[k], line + velocity * ((k + 1) * world.DeltaTime)).Should().BeLessThan(1e-4, $"after tick {k + 1}");
+            Double3.Distance(placesInSpace[^1], line + velocity * ((handOff + 30) * world.DeltaTime)).Should().BeLessThan(1e-3);
+            // After the hand-off the ball's velocity in space is its velocity on the line: the hand-off carried the
+            // velocity of the ground it left.
+            ((Double3)world.VelocityInOwnFrame(ball) - velocity).Length.Should().BeLessThan(1e-3);
+            // The spin matters: the ball's speed in space is the drift of 5 m/s and ω × r of the ground at its spawn, 5 m/s,
+            // at right angles. Without ω × r the hand-off would carry 5 m/s.
+            velocity.Length.Should().BeApproximately(Math.Sqrt(50), 1e-3, "the ball's speed in space holds the ground's velocity under it");
             world.Errors.Should().BeEmpty();
         }
     }

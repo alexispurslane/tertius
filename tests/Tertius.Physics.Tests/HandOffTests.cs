@@ -62,12 +62,23 @@ public class HandOffTests
     /// Ticks until the output of a step holds a hand-off of <paramref name="entity"/>, at most <paramref name="limit"/>
     /// times. Returns the hand-off, or null. <paramref name="before"/> is the state of the entity before the last tick.
     /// </summary>
-    private static HandOff? TickUntilHandedOff(World world, FaultInjectingBackend faults, Entity entity, int limit, out Placed before)
+    private static HandOff? TickUntilHandedOff(World world, FaultInjectingBackend faults, Entity entity, int limit, out Placed before) =>
+        TickUntilHandedOff(world, faults, entity, limit, out before, out _);
+
+    /// <summary>
+    /// Like the overload above, and <paramref name="startInParent"/> is the entity's place before the last tick in the
+    /// tree parent of its frame then, which is where a hand-off out of that frame lands, or zero in a root frame.
+    /// </summary>
+    private static HandOff? TickUntilHandedOff(World world, FaultInjectingBackend faults, Entity entity, int limit, out Placed before,
+        out Double3 startInParent)
     {
+        startInParent = default;
         before = PlacedNow(world, entity);
         for (int i = 0; i < limit; i++)
         {
             before = PlacedNow(world, entity);
+            FrameHandle parent = world.Frames.TreeParent(before.Frame);
+            startInParent = parent.IsNull ? default : world.PoseIn(entity, parent).Position;
             world.Tick();
             foreach (HandOff handOff in faults.Outputs[^1].HandOffs)
                 if (handOff.Entity == entity)
@@ -76,6 +87,14 @@ public class HandOffTests
         return null;
     }
 
+    /// <summary>
+    /// A ball leaves a ship whose dynamic hull spins at 0.2 rad/s. Physics keeps a free body on its inertial line in every
+    /// turning frame (docs/plans/spin-gravity.md, "The two-turn update"), so in space the ball moves on one straight line,
+    /// before the hand-off and after it. Before the rotation terms, no Coriolis force acted in the ship, the ball flew
+    /// straight in the ship's turning axes, and the test predicted the hand-off from one step of its velocity there; with
+    /// the rotation terms that prediction misses by the centrifugal and Coriolis terms times a step, 0.07 m/s. So the test
+    /// now measures the ball's line in space and checks that the hand-off keeps it.
+    /// </summary>
     [Fact]
     public void BallThrownOutOfSpinningPhysicsShipKeepsItsParentVelocity()
     {
@@ -94,32 +113,44 @@ public class HandOffTests
         });
         FrameHandle ship = world.GetOwnedFrame(shipOwner);
         Entity ball = world.Spawn(new SpawnDesc { Frame = ship, Pose = At(8), LinearVelocity = new Vector3(6, 0, 1), Body = BallBody(0.25f) });
+        // The bodies join their systems at the first sync point, and the ball's line in space is fixed from its second tick.
+        Tick(world, 2);
+        Double3 previous = world.PoseIn(ball, space).Position;
+        Tick(world, 1);
+        Double3 line = world.PoseIn(ball, space).Position;
+        Double3 velocity = (line - previous) / Dt;
+        Vector3 relativeVelocity = world.VelocityInOwnFrame(ball);
+        DPose shipPose = world.Frames.LocalPose(ship);
+        int ticks = 0;
 
-        HandOff? exit = TickUntilHandedOff(world, faults, ball, 400, out Placed before);
+        HandOff? exit = null;
+        for (; ticks < 400 && exit is null; ticks++)
+        {
+            world.Tick();
+            foreach (HandOff handOff in faults.Outputs[^1].HandOffs)
+                if (handOff.Entity == ball)
+                    exit = handOff;
+            if (exit is null)
+                Double3.Distance(world.PoseIn(ball, space).Position, line + velocity * ((ticks + 1) * (double)Dt)).Should().BeLessThan(1e-4,
+                    $"the ball keeps its line in space in the ship, after tick {ticks + 1}");
+        }
         exit.Should().NotBeNull("the ball leaves the ship within 400 ticks");
-        FrameStepRecord shipAtExit = faults.Outputs[^1].Frames.Single(f => f.Frame == ship);
 
         HandOff result = exit!.Value;
         result.From.Should().Be(ship);
         result.To.Should().Be(space);
-        before.Frame.Should().Be(ship);
         // The World applied the hand-off that Jolt sent.
         world.GetFrame(ball).Should().Be(space);
         world.PoseInOwnFrame(ball).Should().Be(result.Pose);
         world.VelocityInOwnFrame(ball).Should().Be(result.LinearVelocity);
 
-        // In ship coordinates the ball coasts in a straight line (no Coriolis force acts), so at the end of the
-        // hand-off step it is one step further along. Its parent velocity includes ω × r of the spinning ship.
-        Double3 position = before.Pose.Position + (Double3)before.LinearVelocity * Dt;
-        var shipMotion = new FrameMotionData(shipAtExit.Motion.Pose, shipAtExit.Motion.Velocity, shipAtExit.Motion.AngularVelocity);
-        Double3 expected = ToParentVelocity(shipMotion, position, before.LinearVelocity);
-        Double3 actual = result.LinearVelocity;
-        (actual - expected).Length.Should().BeLessThan(1e-3 * expected.Length);
-        (result.Pose.Position - shipMotion.Pose.TransformPoint(position)).Length.Should().BeLessThan(1e-3);
+        // The hand-off keeps the ball on its line in space, at its velocity there.
+        ((Double3)result.LinearVelocity - velocity).Length.Should().BeLessThan(1e-3 * velocity.Length);
+        (result.Pose.Position - (line + velocity * (ticks * (double)Dt))).Length.Should().BeLessThan(1e-3);
 
-        // The spin term matters: without ω × r the answer would be off by meters per second.
-        Double3 withoutSpin = shipMotion.Pose.TransformDirection(before.LinearVelocity) + shipMotion.Velocity;
-        (withoutSpin - expected).Length.Should().BeGreaterThan(1);
+        // The spin term matters: without ω × r the ball's velocity in space would be off by meters per second.
+        Double3 withoutSpin = shipPose.TransformDirection((Double3)relativeVelocity) + new Double3(0, 0, 20);
+        (withoutSpin - velocity).Length.Should().BeGreaterThan(1);
         world.Errors.Should().BeEmpty();
     }
 
@@ -178,25 +209,28 @@ public class HandOffTests
             Body = hull,
             AsFrame = new FrameSpec(FrameBounds.Sphere(25)),
         }.OnKeplerOrbit(world, orbit, firstMove: true)));
-        // The ball drifts out along +Z at 1 m/s and leaves the bubble about 15.7 s later, near apoapsis.
-        Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 0, 10), LinearVelocity = new Vector3(0, 0, 1), Body = BallBody(0.2f) });
+        // The ball comes 5 s before apoapsis and drifts out along +Z at 3 m/s, so it leaves the bubble near apoapsis. The
+        // station's turn flings a body away from its axis (docs/plans/spin-gravity.md, "The two-turn update"): before the
+        // rotation terms the test spawned the ball with the station at periapsis, drifting at 1 m/s, and it left 15.7 s
+        // later, but in a station turning at 0.389 rad/s that ball leaves after 5.3 s, far from apoapsis.
+        TickUntil(world, () => world.Time >= orbit.Period(mu) / 2 - 5, 1200);
+        Entity ball = world.Spawn(new SpawnDesc { Frame = station, Pose = At(0, 0, 10), LinearVelocity = new Vector3(0, 0, 3), Body = BallBody(0.2f) });
 
-        HandOff? exit = TickUntilHandedOff(world, faults, ball, 1200, out Placed before);
+        HandOff? exit = TickUntilHandedOff(world, faults, ball, 1200, out Placed before, out Double3 startInPlanet);
         exit.Should().NotBeNull();
         world.Time.Should().BeInRange(orbit.Period(mu) / 2 - 0.5, orbit.Period(mu) / 2 + 0.5);
         world.GetFrame(ball).Should().Be(planet);
         world.VelocityInOwnFrame(ball).Should().Be(exit!.Value.LinearVelocity, "the World applied the hand-off that Jolt sent");
 
-        // The World has advanced the station to the end of the hand-off step, with the turn rate of that time.
-        Double3 position = before.Pose.Position + (Double3)before.LinearVelocity * Dt;
-        Double3 instant = world.Frames.VelocityToParent(station, position, before.LinearVelocity);
-        // Jolt gets the chord of that instant velocity: half a step of the planet's gravity, 118 m/s² here, behind it.
-        Double3 expected = instant - GravityField.Point(mu).AtPrecise(world.Frames.PointToParent(station, position)) * (Dt / 2.0);
-        (exit.Value.LinearVelocity - expected).Length.Should().BeLessThan(0.05);
+        // Jolt gets the chord of the ball's motion in the planet over the hand-off step: the change of its place there,
+        // from the start of the step, where the tree held the station, to the place of the hand-off, over the step.
+        Double3 chord = (exit.Value.Pose.Position - startInPlanet) / Dt;
+        ((Double3)exit.Value.LinearVelocity - chord).Length.Should().BeLessThan(0.01);
 
         // The turn rate matters: the rate at periapsis would be off by about 7 m/s.
+        Double3 position = before.Pose.Position + (Double3)before.LinearVelocity * Dt;
         FrameMotionData atPeriapsis = new(world.Frames.LocalPose(station), world.Frames.LinearVelocity(station), orbit.AngularVelocityAt(0, mu));
-        (ToParentVelocity(atPeriapsis, position, before.LinearVelocity) - expected).Length.Should().BeGreaterThan(5);
+        (ToParentVelocity(atPeriapsis, position, before.LinearVelocity) - chord).Length.Should().BeGreaterThan(5);
         world.Errors.Should().BeEmpty();
     }
 
@@ -206,7 +240,10 @@ public class HandOffTests
     /// frame turns at the frame's origin, and the ball leaves into that orbit frame, the station's tree parent. The ball is
     /// 25 m from the hull then, farther than the merge test reaches, so the update of the same sync point moves it into a
     /// falling frame of its own. Every read of the ball in the planet is the same as without numeric frames, to the
-    /// rounding of the hand-off's floats.
+    /// rounding of the hand-off's floats. As in the test above, the ball comes 5 s before apoapsis and drifts at 3 m/s,
+    /// because the station's turn flings a ball that drifts at 1 m/s from periapsis out after 5.3 s. Its speed relative to
+    /// the hull in the planet's axes is then 3.2 m/s, so the merge test reaches 17.1 m + 2 s · 3.2 m/s = 23.5 m, short of
+    /// the 25.5 m at which it leaves. At 5 m/s it would reach 27.3 m and keep the ball in the hull's orbit frame.
     /// <para>
     /// The ball leaves at about 734 m/s relative to the planet, below the 1,000 m/s from which a free body gets a falling
     /// frame. So it carries a gentle thruster (<see cref="Thruster"/>) along its drift, in both runs, and thrusts from its
@@ -229,11 +266,12 @@ public class HandOffTests
                 AsFrame = new FrameSpec(FrameBounds.Sphere(25)),
             }.OnKeplerOrbit(world, orbit, firstMove: true)));
             BodyDesc ballBody = BallBody(0.2f);
+            TickUntil(world, () => world.Time >= orbit.Period(mu) / 2 - 5, 1200);
             Entity ball = world.Spawn(new SpawnDesc
             {
                 Frame = station,
                 Pose = At(0, 0, 10),
-                LinearVelocity = new Vector3(0, 0, 1),
+                LinearVelocity = new Vector3(0, 0, 3),
                 Body = ballBody,
                 Components = [new Thruster(ballBody.Mass) { Direction = Vector3.UnitZ }],
             });
