@@ -91,6 +91,15 @@ public static partial class DemoScenes
         /// </summary>
         public const double ClimbClearance = 30;
 
+        /// <summary>
+        /// The normal of the launch plane, a unit vector in the axes of <c>earth-surface</c>: -X. The launch plane is the
+        /// plane through Earth's center that holds the pad's up, +Y, and the ramp's incline, <see cref="LaunchRamp.Up"/>. The
+        /// normal is the plane's prograde normal, the pad's up across the incline, so that the normal across the up of a
+        /// ship in the plane points the way that the ship flies. The ramp, the climb and the station share it: the ascent
+        /// autopilot steers into the plane, and the parking orbit and the station's orbit lie in it.
+        /// </summary>
+        public static Double3 LaunchPlaneNormal { get; } = Double3.Cross(Double3.UnitY, LaunchRamp.Up).Normalized();
+
         /// <summary>The pen's half extents, in meters: 14 cm long along its own Z, and 12 mm thick.</summary>
         public static Vector3 PenHalf { get; } = new(0.006f, 0.006f, 0.07f);
 
@@ -294,7 +303,7 @@ public static partial class DemoScenes
 
             Entity shuttle = Shuttle.Park(world, surface, ShuttleParked,
                 Drawn(resources, Shuttle.HullMesh(), new Vector4(0.85f, 0.85f, 0.88f, 1), boundingRadius: MathF.Ceiling(Shuttle.Hull.Length())),
-                Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance));
+                Shuttle.FlightControls(LaunchRamp.Height + ClimbClearance, LaunchPlaneNormal));
             scene.Add("shuttle", shuttle);
             FrameHandle cabin = world.GetOwnedFrame(shuttle);
             Vector3 seatHalf = Shuttle.Seat.Extents;

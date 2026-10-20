@@ -67,12 +67,13 @@ public static partial class DemoScenes
         /// each tick to the shuttle's events, then the <see cref="AttitudeAutopilot"/> and the <see cref="MainEngine"/>,
         /// which read them. The engine pushes <see cref="Mass"/> with <see cref="ThrustAcceleration"/> at full throttle,
         /// and the ascent autopilot plans with that thrust. It steers only once the shuttle is
-        /// <paramref name="climbHeight"/> meters higher than where it launched, clear of its ramp.
+        /// <paramref name="climbHeight"/> meters higher than where it launched, clear of its ramp, and it steers into the
+        /// plane whose prograde normal is <paramref name="planeNormal"/>, in the axes of the shuttle's frame.
         /// </summary>
-        public static IComponent[] FlightControls(double climbHeight)
+        public static IComponent[] FlightControls(double climbHeight, Double3 planeNormal)
         {
             const float thrust = Mass * ThrustAcceleration;
-            return [new AscentAutopilot(thrust, ParkingOrbitRadius, climbHeight), new AttitudeAutopilot(Inertia), new MainEngine(thrust)];
+            return [new AscentAutopilot(thrust, ParkingOrbitRadius, climbHeight, planeNormal), new AttitudeAutopilot(Inertia), new MainEngine(thrust)];
         }
 
         private static Vector3 BoxInertia(float mass, Vector3 size) => mass / 12 * new Vector3(

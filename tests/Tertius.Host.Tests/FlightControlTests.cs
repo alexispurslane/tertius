@@ -60,13 +60,13 @@ public sealed class FlightControlTests : IDisposable
     }
 
     /// <summary>
-    /// A throttle that a component adds after the engine has run comes too late for it, so the engine gives no thrust,
+    /// A throttle that a component adds after the engine has run, at priority 11, comes too late for it, so the engine gives no thrust,
     /// rather than the throttle of the tick before.
     /// </summary>
     [Fact]
     public void AnEngineThatRunsBeforeTheComponentThatAddsItsThrottleGivesNoThrust()
     {
-        Launch(new ThrottleFor(ticks: int.MaxValue, value: 1, priority: 2), Engine());
+        Launch(new ThrottleFor(ticks: int.MaxValue, value: 1, priority: 11), Engine());
 
         Tick(world, 30);
 
@@ -132,7 +132,7 @@ public sealed class FlightControlTests : IDisposable
     [Fact]
     public void WithoutPointGravityTheAscentAutopilotStaysParked()
     {
-        shuttle = Shuttle.Park(world, space, DPose.Identity, components: Shuttle.FlightControls(climbHeight: 30));
+        shuttle = Shuttle.Park(world, space, DPose.Identity, components: Shuttle.FlightControls(climbHeight: 30, planeNormal: -Double3.UnitX));
         world.Post(Event.Create(shuttle, Entity.Null, new Ignition()));
 
         Tick(world, 30);

@@ -16,14 +16,15 @@ public struct Throttle : IEventPayload
 /// The main engine of a hull: in each tick that brings a <see cref="Throttle"/>, it pushes its entity's body along the
 /// body's nose, its own -Z, with the throttle's value times <see cref="MaxThrust"/>. A tick without a throttle gives no
 /// thrust, so the engine keeps nothing from an earlier tick. When a tick brings several, the last one counts, so a
-/// component that runs later overrides one that runs earlier. A throttle outside 0 to 1, or NaN, makes the engine throw
+/// component that runs later overrides one that runs earlier: the engine follows the last layer of the flight program
+/// that speaks (see <see cref="Priority"/>). A throttle outside 0 to 1, or NaN, makes the engine throw
 /// <see cref="ArgumentOutOfRangeException"/>, which the world logs as an error, and push nothing in that tick.
 /// </summary>
 /// <remarks>
 /// The engine reads the nose from the pose at the end of the last finished step, and the push of a tick acts in the
 /// physics step of the next tick, as every force does. Physics moves only a dynamic body by a force, so the engine of a
-/// parked hull pushes nothing. The component that adds the throttle runs before the engine in the tick (see
-/// <see cref="Priority"/>), so that the engine sees it.
+/// parked hull pushes nothing. The engine runs at priority 10, after every layer of the flight program, the components that
+/// add the throttle, so that it sees what each of them adds in the tick.
 /// </remarks>
 /// <param name="maxThrust">The force at full throttle, in newtons. It must be positive and finite.</param>
 public sealed class MainEngine(float maxThrust) : IComponent
@@ -33,8 +34,8 @@ public sealed class MainEngine(float maxThrust) : IComponent
         ? maxThrust
         : throw new ArgumentOutOfRangeException(nameof(maxThrust), maxThrust, "The thrust of an engine must be positive and finite.");
 
-    // After the components that fly the hull, which add the throttle in the same tick.
-    public int Priority => 1;
+    // After every layer of the flight program, priorities 0 to 2, which add the throttle in the same tick.
+    public int Priority => 10;
 
     public EventMask Wants => EventMask.Of<Throttle>();
 

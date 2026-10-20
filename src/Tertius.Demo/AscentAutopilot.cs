@@ -93,9 +93,10 @@ public readonly struct AscentState : IEquatable<AscentState>
 
 /// <summary>
 /// Flies a parked shuttle up its ramp and to a circular orbit of radius <paramref name="orbitRadius"/>, round the point
-/// gravity of the frame that the shuttle is in. In every tick it adds a <see cref="Throttle"/> for its entity's
+/// gravity of the frame that the shuttle is in, in the plane whose normal is <paramref name="planeNormal"/>. In every tick it adds a <see cref="Throttle"/> for its entity's
 /// <see cref="MainEngine"/> and an <see cref="AttitudeTarget"/> for its entity's <see cref="AttitudeAutopilot"/> to the
-/// entity's events, which those components read after it (see <see cref="Priority"/>). It plans with
+/// entity's events, which those components read after it (see <see cref="Priority"/>). It is the first layer of the
+/// shuttle's flight program, so a layer that runs after it overrides what it adds. It plans with
 /// <paramref name="maxThrust"/>, the engine's thrust at full throttle. Its entity must own a frame and have a hull with
 /// mass. The flight goes through the cases of <see cref="AscentState"/>:
 /// <list type="bullet">
@@ -122,15 +123,24 @@ public readonly struct AscentState : IEquatable<AscentState>
 /// <param name="maxThrust">The thrust of the hull's main engine at full throttle, in newtons.</param>
 /// <param name="orbitRadius">The radius of the circle, in meters from the planet's center.</param>
 /// <param name="climbHeight">How much higher than where it launched the hull must be before the climb steers, in meters.</param>
-public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double climbHeight) : IComponent
+/// <param name="planeNormal">
+/// The prograde normal of the orbit's plane, a unit vector in the axes of the shuttle's frame (see
+/// <see cref="AscentGuidance.PlaneNormal"/>). The ramp should lead the shuttle into that plane.
+/// </param>
+public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double climbHeight, Double3 planeNormal) : IComponent
 {
+    private readonly Double3 planeNormal = Math.Abs(planeNormal.Length - 1) < 1e-9
+        ? planeNormal
+        : throw new ArgumentException($"The normal of the orbit's plane must be a unit vector, not {planeNormal}.", nameof(planeNormal));
+
     /// <summary>Below this speed, in m/s, the ramp gives no attitude target, because the velocity has no direction yet.</summary>
     public const double SteerSpeed = 1;
 
     /// <summary>What the autopilot does now. It starts <see cref="Parked"/>.</summary>
     public AscentState State { get; private set; } = new Parked();
 
-    // Before the main engine and the attitude autopilot, which read what it adds.
+    // The first layer of the flight program, before the layers that come later in the flight and before the actuators,
+    // the main engine and the attitude autopilot, which read what the layers add.
     public int Priority => 0;
 
     public EventMask Wants => EventMask.Of<Ignition>().And<Tick>();
@@ -150,7 +160,7 @@ public sealed class AscentAutopilot(double maxThrust, double orbitRadius, double
                 return;
             }
             self.Body.SetMotion(BodyMotion.Dynamic);
-            State = new Ramp(new AscentGuidance(mu, orbitRadius, maxThrust / body.Mass), position.Length);
+            State = new Ramp(new AscentGuidance(mu, orbitRadius, maxThrust / body.Mass, planeNormal), position.Length);
         }
         if (State is Ramp ramp && position.Length - ramp.LaunchRadius > climbHeight)
             State = new Climb(ramp.Guidance);
