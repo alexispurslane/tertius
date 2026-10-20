@@ -36,3 +36,7 @@ From the Blue Danube demo survey (2026-10-18): check whether the choice between 
 **2026-10-20T11:23:29Z**
 
 2026-10-20, part 3, decided by the user: (1) in the air, a character's up turns toward the semantic gravity at a limited angular rate, not at once (replaces the instant turn of fork F5); the rate is one named constant in the backend options, its default chosen by measurement so that a one-step flip of the felt gravity (the demo's ramp jolt turned the belted passenger's up 135 degrees in one tick under the instant rule) turns up by only a few degrees, while the 30 m/s jump across the station still lands upright. (2) The demo's belted passenger follows that air rule, with nothing holding its up to the seat; the user accepts the tipping it gives, so the demo tests' bounds widen to the measured values with reasons and the script is regenerated.
+
+**2026-10-20T12:33:46Z**
+
+2026-10-20, part 4, decided by the user: the walk in the ground plane (fork F6) follows every walkable face that Jolt reports, moving bodies included (one rule for every face). WindowsSliceTests' lit-cabin test changes on purpose, because the walk now follows the inner airlock door's rounded lower edge at 49.2 degrees while the door opens.
